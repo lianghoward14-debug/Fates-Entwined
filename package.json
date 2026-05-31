@@ -57,7 +57,7 @@
       ]
     },
     "mac": {
-      "icon": "icon.png"
+      "icon": "build/icon.icns"
     },
     "nsis": {
       "oneClick": false,
