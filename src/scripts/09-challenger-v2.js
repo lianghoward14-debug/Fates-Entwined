@@ -2042,7 +2042,7 @@ function renderChDeckBuilderTab(content) {
   content.innerHTML = `
     <div class="cdb-command-panel">
       <div class="cdb-command-search">
-        <input type="text" id="cdb-search" class="db-search cdb-search-inline" value="${escapeHtml(_cdbSearch)}" maxlength="40" placeholder="Search card names..." oninput="setCdbSearch(this.value)">
+        <input type="text" id="cdb-search" class="db-search cdb-search-inline" value="${escapeHtml(_cdbSearch)}" maxlength="40" placeholder="Search names or card text..." oninput="setCdbSearch(this.value)">
       </div>
       <div class="cdb-command-title">
         <h3>YOUR DECKS (${presetKeys.length})</h3>
@@ -2372,7 +2372,9 @@ function renderCdbCollection() {
     if(['Supporter','Initiator','Coordinator','Dauntless','Improvisor'].includes(_cdbFilter)) return c.type===_cdbFilter;
     if(rarities.includes(_cdbFilter)) return c.rarity===_cdbFilter;
     return c.aff===_cdbFilter;
-  }).filter(c=>!_cdbSearch || c.name.toLowerCase().includes(_cdbSearch)));
+  }).filter(c=>typeof window.cardMatchesDeckBuilderSearch === 'function'
+    ? window.cardMatchesDeckBuilderSearch(c, _cdbSearch)
+    : (!_cdbSearch || c.name.toLowerCase().includes(_cdbSearch))));
   if(cards.length===0){
     col.innerHTML = '<div style="color:var(--dim);font-style:italic;padding:2rem;text-align:center;width:100%;">No owned cards match this filter. Open packs to expand your collection!</div>';
     return;

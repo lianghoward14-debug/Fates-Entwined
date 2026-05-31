@@ -34,6 +34,22 @@ function showScreen(id) {
 let dbFilter_ = 'all';
 let dbSearch_ = '';
 
+function cardMatchesDeckBuilderSearch(card, query) {
+  const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if(!terms.length) return true;
+  const haystack = [
+    card?.name,
+    card?.ability,
+    card?.effect,
+    card?.flavor,
+    card?.type,
+    card?.aff,
+    card?.rarity
+  ].filter(Boolean).join(' ').toLowerCase();
+  return terms.every(term => haystack.includes(term));
+}
+window.cardMatchesDeckBuilderSearch = cardMatchesDeckBuilderSearch;
+
 function isRetiredCardForBuilder(cardOrId) {
   if(typeof isRetiredChallengerCard === 'function') return isRetiredChallengerCard(cardOrId);
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
@@ -207,7 +223,7 @@ function renderDBCollection() {
     if(['Supporter','Initiator','Coordinator','Dauntless','Improvisor'].includes(dbFilter_)) return c.type===dbFilter_;
     if(rarities.includes(dbFilter_)) return c.rarity===dbFilter_;
     return c.aff===dbFilter_;
-  }).filter(c=>!dbSearch_ || c.name.toLowerCase().includes(dbSearch_)));
+  }).filter(c=>cardMatchesDeckBuilderSearch(c, dbSearch_)));
   if(false && typeof renderCanvasDeckCollection === 'function') {
     const entries = cards.map(c=>{
       const count = deck.filter(id=>id===c.id).length;
