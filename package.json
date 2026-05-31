@@ -57,7 +57,15 @@
       ]
     },
     "mac": {
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false
     },
     "nsis": {
       "oneClick": false,
