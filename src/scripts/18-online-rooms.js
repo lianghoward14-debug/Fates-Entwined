@@ -428,6 +428,32 @@
   function optimisticActionIdFor(action){
     return String(action?.clientActionId || action?.payload?.clientActionId || '');
   }
+  async function resyncRejectedOnlineAction(reason){
+    const g = gameState();
+    const code = g?._onlineRoomCode || activeRoom;
+    if(!code || !FO.get || !FO.ref || !FO.rtdb) return false;
+    const snap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}/actions`)).catch(()=>null);
+    const actions = Object.values(snap?.val() || {})
+      .filter(a => a && a.payload && a.payload.postState && a.payload.stateHash)
+      .sort((a,b)=>(Number(b.seq || 0) || 0) - (Number(a.seq || 0) || 0));
+    const latest = actions[0];
+    if(!latest) return false;
+    const seq = Number(latest.seq || 0) || 0;
+    if(seq) {
+      lastActionSeq = Math.max(lastActionSeq, seq);
+      lastAppliedActionSeq = Math.max(lastAppliedActionSeq, seq);
+    }
+    reconcileOnlinePostState(latest, 'rejected action rollback: ' + (reason || latest.type || 'unknown'));
+    const current = gameState();
+    if(current) {
+      current._onlineActionSeq = lastActionSeq;
+      current._onlineAppliedActionSeq = lastAppliedActionSeq;
+      current._onlineLagPauseActive = false;
+    }
+    reportActionProgress(lastAppliedActionSeq, {force:true});
+    if(typeof evaluateLagPause === 'function') evaluateLagPause();
+    return true;
+  }
   function scheduleOptimisticCorrection(reason){
     const g = gameState();
     if(g) g._onlineLagPauseActive = true;
@@ -436,11 +462,23 @@
       console.warn('Online turn-choice sync failed without forcing a reload.');
       return;
     }
-    if(window.toast) toast('Network rejected an action. Refreshing match state.');
-    console.warn('Online optimistic action correction scheduled:', reason);
-    setTimeout(()=>{
-      try{ location.reload(); }catch(e){}
-    }, 900);
+    if(window.toast) toast('Network rejected an action. Pausing match sync.');
+    console.warn('Online optimistic action rejected without forcing a disconnect reload:', reason);
+    resyncRejectedOnlineAction(reason).then(ok=>{
+      if(ok) return;
+      setTimeout(()=>{
+        const latest = gameState();
+        if(latest) latest._onlineLagPauseActive = false;
+        if(typeof evaluateLagPause === 'function') evaluateLagPause();
+      }, 2500);
+    }).catch(e=>{
+      console.warn('Rejected online action resync failed', e);
+      setTimeout(()=>{
+        const latest = gameState();
+        if(latest) latest._onlineLagPauseActive = false;
+        if(typeof evaluateLagPause === 'function') evaluateLagPause();
+      }, 2500);
+    });
   }
   function isTurnBoundaryOnlineAction(actionOrType){
     const type = typeof actionOrType === 'string'
@@ -2036,7 +2074,12 @@
         authorityInflight.delete(requestId);
         if(pending.timer) clearTimeout(pending.timer);
         if(msg.kind === 'accepted') pending.resolve(msg);
-        else pending.reject(new Error(msg.reason || 'WebSocket authority rejected action'));
+        else {
+          const err = new Error(msg.reason || 'WebSocket authority rejected action');
+          err.authorityRejected = msg.kind === 'rejected';
+          err.authorityKind = msg.kind;
+          pending.reject(err);
+        }
       }
     }
   }
@@ -2084,6 +2127,12 @@
       const u = window.FATE_ONLINE?.user || FO.auth?.currentUser || null;
       if(!u) throw new Error('Sign in before joining WebSocket authority');
       const room = lastLobbyRoom || {};
+      const g = gameState();
+      const order0 = room.playerOrder?.[0] || room.hostUid || '';
+      const order1 = room.playerOrder?.[1] || room.guestUid || '';
+      const liveTurnUid = g && Number.isInteger(g.currentPlayer)
+        ? (g.currentPlayer === 0 ? order0 : order1)
+        : '';
       ws.send(JSON.stringify({
         kind:'hello',
         roomCode:code,
@@ -2094,9 +2143,9 @@
         room:{
           hostUid:room.hostUid || '',
           guestUid:room.guestUid || '',
-          currentTurnUid:room.currentTurnUid || '',
+          currentTurnUid:liveTurnUid || room.currentTurnUid || '',
           lastActionSeq:room.lastActionSeq || lastActionSeq || 0,
-          playerOrder:{0:room.hostUid || '', 1:room.guestUid || ''}
+          playerOrder:{0:order0, 1:order1}
         }
       }));
       await new Promise((resolve, reject)=>{
@@ -2206,18 +2255,15 @@
     const u = window.FATE_ONLINE?.user;
     if(!code || !u) return;
     const actionType = String(type || '').toUpperCase();
+    const authorityEnabled = !!configuredAuthorityUrl();
     let fallbackPublished = false;
-    if(actionType !== 'STATE_SYNC'){
+    if(!authorityEnabled && actionType !== 'STATE_SYNC'){
       fallbackPublished = await publishPlayerActionFallback(code, actionType, payload, u).catch(e=>{
         console.warn('Player-node action fallback publish failed', e);
         return false;
       });
     }
     try{
-      if(actionType === 'CHOOSE_TURN'){
-        await sendActionDirectFirebase(code, actionType, payload, u);
-        return;
-      }
       try{
         const accepted = await sendActionViaAuthority(actionType, payload);
         if(accepted){
@@ -2225,8 +2271,16 @@
           return;
         }
       }catch(e){
+        if(e && e.authorityRejected){
+          console.warn('WebSocket authority rejected action.', e.message, actionType, payload);
+          throw e;
+        }
         console.warn('WebSocket authority action path failed; falling back to Firebase transaction.', e);
         if(window.toast) toast('WebSocket authority unavailable - using Firebase sync');
+      }
+      if(actionType === 'CHOOSE_TURN'){
+        await sendActionDirectFirebase(code, actionType, payload, u);
+        return;
       }
       let seq = 0;
       if(FO.runTransaction){

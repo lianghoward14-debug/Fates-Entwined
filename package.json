@@ -9,6 +9,8 @@
     "start": "electron .",
     "electron": "electron .",
     "server:ws": "node server/fate-ws-authority.js",
+    "smoke:ws-authority": "node server/local-multiplayer-smoke-test.js",
+    "smoke:multiplayer": "node server/full-multiplayer-smoke-test.js",
     "dist": "electron-builder --win nsis",
     "dist:mac": "electron-builder --mac dmg",
     "dist:portable": "electron-builder --win portable",

@@ -175,11 +175,16 @@ function playerIndexForUid(room, uid){
 
 function normalizeRoomFromHello(room, hello){
   const snap = hello.room || {};
-  room.hostUid = room.hostUid || String(snap.hostUid || hello.hostUid || '');
-  room.guestUid = room.guestUid || String(snap.guestUid || hello.guestUid || '');
-  room.playerOrder[0] = room.playerOrder[0] || String(snap.playerOrder?.[0] || room.hostUid || '');
-  room.playerOrder[1] = room.playerOrder[1] || String(snap.playerOrder?.[1] || room.guestUid || '');
-  room.currentTurnUid = room.currentTurnUid || String(snap.currentTurnUid || room.playerOrder[0] || '');
+  const hostUid = String(snap.hostUid || hello.hostUid || room.hostUid || '');
+  const guestUid = String(snap.guestUid || hello.guestUid || room.guestUid || '');
+  if(hostUid) room.hostUid = hostUid;
+  if(guestUid) room.guestUid = guestUid;
+  const order0 = String(snap.playerOrder?.[0] || hello.playerOrder?.[0] || room.playerOrder[0] || room.hostUid || '');
+  const order1 = String(snap.playerOrder?.[1] || hello.playerOrder?.[1] || room.playerOrder[1] || room.guestUid || '');
+  if(order0) room.playerOrder[0] = order0;
+  if(order1) room.playerOrder[1] = order1;
+  const currentTurnUid = String(snap.currentTurnUid || hello.currentTurnUid || room.currentTurnUid || room.playerOrder[0] || '');
+  if(currentTurnUid) room.currentTurnUid = currentTurnUid;
   room.lastSeq = Math.max(room.lastSeq, Number(snap.lastActionSeq || hello.lastSeq || 0) || 0);
   room.lastStateHash = room.lastStateHash || String(hello.stateHash || '');
 }
@@ -294,7 +299,7 @@ function validateAction(room, ws, msg){
   const playerIndex = playerIndexForUid(room, uid);
   if(playerIndex === null) return 'user is not seated in this room';
   if(type !== 'FORFEIT' && Number(payload.playerIndex) !== playerIndex) return 'player index does not match authenticated user';
-  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN'){
+  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN' && type !== 'STATE_SYNC'){
     const turnUid = room.currentTurnUid || room.playerOrder[0];
     if(turnUid && turnUid !== uid) return 'not this player turn';
   }
@@ -302,7 +307,7 @@ function validateAction(room, ws, msg){
     const winner = Number(payload.playerIndex);
     if(winner !== playerIndex) return 'coin winner mismatch';
   }
-  if(!/^(STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|FORFEIT)$/i.test(type)){
+  if(!/^(STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|FORFEIT)$/i.test(type)){
     return 'unknown action type';
   }
   if(type !== 'FORFEIT' && !payload.postState){
@@ -392,7 +397,13 @@ async function handleHello(ws, msg){
   if(shouldUseDurableWrites()){
     const durableRoom = await firebaseGetJson(`rooms/${code}`);
     if(!durableRoom) throw new Error('room not found in Firebase');
-    normalizeRoomFromHello(room, {room:durableRoom, lastSeq:durableRoom.lastActionSeq || 0, stateHash:msg.stateHash || ''});
+    const helloRoom = msg.room && typeof msg.room === 'object' ? msg.room : {};
+    const mergedRoom = Object.assign({}, durableRoom);
+    if(Number(helloRoom.lastActionSeq || 0) >= Number(durableRoom.lastActionSeq || 0)){
+      if(helloRoom.currentTurnUid) mergedRoom.currentTurnUid = helloRoom.currentTurnUid;
+      if(helloRoom.playerOrder) mergedRoom.playerOrder = helloRoom.playerOrder;
+    }
+    normalizeRoomFromHello(room, {room:mergedRoom, lastSeq:durableRoom.lastActionSeq || 0, stateHash:msg.stateHash || ''});
   }else{
     normalizeRoomFromHello(room, msg);
   }
