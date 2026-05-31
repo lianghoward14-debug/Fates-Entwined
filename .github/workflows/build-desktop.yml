@@ -65,7 +65,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build macOS dmg and zip
+      - name: Build macOS dmg
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run dist:mac -- --publish never
@@ -74,7 +74,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: |
-            dist/*.dmg
-            dist/*.zip
+          files: dist/*.dmg
           fail_on_unmatched_files: true
