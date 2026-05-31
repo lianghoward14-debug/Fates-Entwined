@@ -57,6 +57,14 @@ The unpacked desktop app should be:
 
 `dist\win-unpacked\Fates Entwined.exe`
 
+## macOS Unsigned Build Note
+
+macOS builds are currently unsigned. After downloading a macOS `.dmg` or `.zip` artifact, remove quarantine before opening the app:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Fates Entwined.app"
+```
+
 ## Backup Rule
 
 Before broad rendering, multiplayer, deck-builder, animation, or packaging changes, create a full source backup, not a selective backup.
@@ -80,4 +88,3 @@ Selective backups are not enough for large rendering work.
 ## Current Baseline Guidance
 
 Use this copy as the stable baseline, then make changes one at a time. For performance work, measure before and after each change. Avoid broad canvas/DOM conversions without a restore point and a clear test.
-
