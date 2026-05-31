@@ -79,18 +79,31 @@
     for(let i=0;i<json.length;i++){ h ^= json.charCodeAt(i); h = Math.imul(h, 16777619); }
     return (h >>> 0).toString(36);
   }
-  function cloneOnlinePlain(value){
-    if(value == null) return value;
-    try{
-      return JSON.parse(JSON.stringify(value, function(k, v){
-        if(typeof v === 'function') return undefined;
-        if(v instanceof Set) return Array.from(v);
-        if(typeof Element !== 'undefined' && v instanceof Element) return undefined;
-        return v;
-      }));
-    }catch(e){
-      return null;
+  function onlineFirebaseSafeValue(value, seen){
+    if(value === undefined || value === null) return null;
+    if(typeof value === 'function') return null;
+    if(typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if(typeof value !== 'object') return value;
+    if(value instanceof Set) return onlineFirebaseSafeValue(Array.from(value), seen);
+    if(typeof Element !== 'undefined' && value instanceof Element) return null;
+    if(typeof Date !== 'undefined' && value instanceof Date) return value.toISOString();
+    const refs = seen || new WeakSet();
+    if(refs.has(value)) return null;
+    refs.add(value);
+    if(Array.isArray(value)){
+      const out = value.map(v => onlineFirebaseSafeValue(v, refs));
+      refs.delete(value);
+      return out;
     }
+    const out = {};
+    Object.keys(value).forEach(function(k){
+      out[k] = onlineFirebaseSafeValue(value[k], refs);
+    });
+    refs.delete(value);
+    return out;
+  }
+  function cloneOnlinePlain(value){
+    return onlineFirebaseSafeValue(value);
   }
   function compactOnlineCard(card){
     if(!card) return null;
@@ -142,7 +155,7 @@
         discard:compactOnlineCardList(p?.discard)
       };
     });
-    return {
+    const state = {
       v:2,
       players,
       board:compactOnlineBoard(g.board),
@@ -217,6 +230,7 @@
       _havanoDeploying:cloneOnlinePlain(g._havanoDeploying),
       _boardTargeting:cloneOnlinePlain(g._boardTargeting)
     };
+    return onlineFirebaseSafeValue(state);
   }
   function onlineCanonicalStateHash(state){
     return onlineStableHash(JSON.stringify(state || null));
@@ -224,8 +238,9 @@
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
-    payload.postState = state;
-    payload.stateHash = onlineCanonicalStateHash(state);
+    const safeState = onlineFirebaseSafeValue(state);
+    payload.postState = safeState;
+    payload.stateHash = onlineCanonicalStateHash(safeState);
     return payload;
   }
   function applyOnlineCanonicalState(state, reason){
@@ -616,13 +631,14 @@
   async function publishPlayerActionFallback(code, type, payload, u){
     const actionType = String(type || '').toUpperCase();
     if(!code || !u || !actionType || actionType === 'STATE_SYNC' || !FO.update || !FO.ref || !FO.rtdb) return false;
+    const safePayload = onlineFirebaseSafeValue(payload || {});
     const clientAt = Date.now();
     const action = {
       roomCode:code,
       uid:u.uid,
       type:actionType,
-      payload:payload || {},
-      clientActionId:String(payload?.clientActionId || ''),
+      payload:safePayload,
+      clientActionId:String(safePayload?.clientActionId || ''),
       createdAt:FO.serverTimestamp(),
       clientAt
     };
@@ -2189,7 +2205,7 @@
     });
   }
   async function persistAuthorityAcceptedAction(code, accepted){
-    const action = Object.assign({}, accepted.action || {});
+    const action = onlineFirebaseSafeValue(Object.assign({}, accepted.action || {}));
     const seq = Number(action.seq || 0) || 0;
     if(!seq) throw new Error('WebSocket authority accepted action without seq');
     action.createdAt = FO.serverTimestamp();
@@ -2255,6 +2271,7 @@
     const u = window.FATE_ONLINE?.user;
     if(!code || !u) return;
     const actionType = String(type || '').toUpperCase();
+    payload = onlineFirebaseSafeValue(payload || {});
     const authorityEnabled = !!configuredAuthorityUrl();
     let fallbackPublished = false;
     if(!authorityEnabled && actionType !== 'STATE_SYNC'){
@@ -2314,6 +2331,7 @@
   }
 
   async function sendActionDirectFirebase(code, type, payload, u){
+    payload = onlineFirebaseSafeValue(payload || {});
     const isTurnChoice = String(type || '').toUpperCase() === 'CHOOSE_TURN';
     if(isTurnChoice){
       publishTurnChoiceFallback(code, payload, u).catch(e=>console.warn('Turn-choice fallback publish failed', e));
