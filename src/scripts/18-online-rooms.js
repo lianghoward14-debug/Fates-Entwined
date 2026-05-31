@@ -34,6 +34,7 @@
   let lastTurnBoundaryActionSeq = 0;
   let pendingActionProgressSeq = 0;
   let appliedTurnChoiceFallbackIds = new Set();
+  let appliedPlayerActionFallbackIds = new Set();
   let lastSyncedRoomChatKey = '';
   let endedRoomCodesHandled = new Set();
   let actionReplayBuffer = new Map();
@@ -574,6 +575,53 @@
     });
     return true;
   }
+  async function publishPlayerActionFallback(code, type, payload, u){
+    const actionType = String(type || '').toUpperCase();
+    if(!code || !u || !actionType || actionType === 'STATE_SYNC' || !FO.update || !FO.ref || !FO.rtdb) return false;
+    const clientAt = Date.now();
+    const action = {
+      roomCode:code,
+      uid:u.uid,
+      type:actionType,
+      payload:payload || {},
+      clientActionId:String(payload?.clientActionId || ''),
+      createdAt:FO.serverTimestamp(),
+      clientAt
+    };
+    await FO.update(FO.ref(FO.rtdb), {
+      [`rooms/${code}/players/${u.uid}/latestAction`]:action,
+      [`rooms/${code}/players/${u.uid}/actionSeqClientAt`]:clientAt
+    });
+    return true;
+  }
+  function playerFallbackActionId(action){
+    return String(action?.clientActionId || action?.payload?.clientActionId || action?.uid + ':' + action?.type + ':' + action?.clientAt || '');
+  }
+  function maybeApplyPlayerActionFallback(players){
+    const g = gameState();
+    const room = lastLobbyRoom;
+    const localUid = window.FATE_ONLINE?.user?.uid;
+    if(!isOnlineMatchState(g) || !room || !players || !localUid || isCoinScreenActive()) return;
+    const candidates = [room.hostUid, room.guestUid].filter(Boolean);
+    for(const uid of candidates){
+      if(uid === localUid) continue;
+      const action = players?.[uid]?.latestAction;
+      if(!action || action.roomCode !== room.roomCode) continue;
+      const type = String(action.type || '').toUpperCase();
+      if(!type || type === 'CHOOSE_TURN' || type === 'STATE_SYNC') continue;
+      const actionId = playerFallbackActionId(action);
+      if(actionId && appliedPlayerActionFallbackIds.has(actionId)) continue;
+      if(actionId) appliedPlayerActionFallbackIds.add(actionId);
+      const fallbackAction = Object.assign({}, action, {
+        uid,
+        type,
+        seq:Number(action.seq || 0) || Math.max(lastAppliedActionSeq, lastActionSeq) + 1,
+        _fromPlayerFallback:true
+      });
+      applyOnlineAction(fallbackAction).catch(e=>console.error('Player-node action fallback failed', e, fallbackAction));
+      return;
+    }
+  }
   function maybeApplyTurnChoiceFallback(players){
     const g = gameState();
     const room = lastLobbyRoom;
@@ -944,6 +992,7 @@
     lastTurnBoundaryActionSeq = 0;
     pendingActionProgressSeq = 0;
     appliedTurnChoiceFallbackIds.clear();
+    appliedPlayerActionFallbackIds.clear();
     lastSyncedRoomChatKey = '';
     deckPickerOpenForRoom = null;
     currentDeckChoiceKey = '';
@@ -1466,6 +1515,7 @@
       maybeHandleOpponentDisconnect(lastLobbyRoom, players);
       maybeAutoStartQueuedRoom(lastLobbyRoom, players);
       maybeApplyTurnChoiceFallback(players);
+      maybeApplyPlayerActionFallback(players);
     });
     if(opts.openDeckPicker && !activeRoomSilent) setTimeout(()=>openOnlineDeckPicker(code), 120);
   }
@@ -1705,6 +1755,12 @@
     if(action.uid === localUid && optimisticActionId && optimisticAppliedActionIds.has(optimisticActionId)){
       return;
     }
+    if(action.uid !== localUid && optimisticActionId && appliedPlayerActionFallbackIds.has(optimisticActionId) && !action._fromPlayerFallback){
+      return;
+    }
+    if(action.uid !== localUid && optimisticActionId){
+      appliedPlayerActionFallbackIds.add(optimisticActionId);
+    }
     if(type === 'STATE_SYNC'){
       reconcileOnlinePostState(action, 'authoritative state sync seq ' + (action.seq || '?'));
       return;
@@ -1935,10 +1991,12 @@
 
   function configuredAuthorityUrl(){
     try{
+      const enabled = localStorage.getItem('fateWsAuthorityEnabled') === '1' || window.FATE_WS_AUTHORITY_ENABLED === true;
+      if(!enabled) return '';
       const fromStorage = localStorage.getItem('fateWsAuthorityUrl');
       if(fromStorage) return String(fromStorage).trim();
     }catch(e){}
-    return String(window.FATE_WS_AUTHORITY_URL || '').trim();
+    return window.FATE_WS_AUTHORITY_ENABLED === true ? String(window.FATE_WS_AUTHORITY_URL || '').trim() : '';
   }
   function closeAuthoritySocket(){
     authorityJoined = false;
@@ -2147,34 +2205,50 @@
     const code = gameState()?._onlineRoomCode || activeRoom;
     const u = window.FATE_ONLINE?.user;
     if(!code || !u) return;
-    if(String(type || '').toUpperCase() === 'CHOOSE_TURN'){
-      await sendActionDirectFirebase(code, type, payload, u);
-      return;
+    const actionType = String(type || '').toUpperCase();
+    let fallbackPublished = false;
+    if(actionType !== 'STATE_SYNC'){
+      fallbackPublished = await publishPlayerActionFallback(code, actionType, payload, u).catch(e=>{
+        console.warn('Player-node action fallback publish failed', e);
+        return false;
+      });
     }
     try{
-      const accepted = await sendActionViaAuthority(type, payload);
-      if(accepted){
-        await ensureAuthorityAcceptedActionPersisted(code, accepted);
+      if(actionType === 'CHOOSE_TURN'){
+        await sendActionDirectFirebase(code, actionType, payload, u);
         return;
       }
+      try{
+        const accepted = await sendActionViaAuthority(actionType, payload);
+        if(accepted){
+          await ensureAuthorityAcceptedActionPersisted(code, accepted);
+          return;
+        }
+      }catch(e){
+        console.warn('WebSocket authority action path failed; falling back to Firebase transaction.', e);
+        if(window.toast) toast('WebSocket authority unavailable - using Firebase sync');
+      }
+      let seq = 0;
+      if(FO.runTransaction){
+        const result = await FO.runTransaction(FO.ref(FO.rtdb, `rooms/${code}/lastActionSeq`), current => (Number(current || 0) + 1)).catch(e=>{ console.error('Action sequence transaction failed', e); return null; });
+        if(!result || !result.committed){ if(window.toast) toast('Action failed'); return; }
+        seq = Number(result.snapshot.val() || 0);
+      }else{
+        const roomSnap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}`));
+        const room = roomSnap.val() || {};
+        seq = Number(room.lastActionSeq || 0) + 1;
+        await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/lastActionSeq`]:seq });
+      }
+      const action = { seq, uid:u.uid, type:actionType, payload, createdAt:FO.serverTimestamp() };
+      if(payload?.clientActionId) action.clientActionId = String(payload.clientActionId);
+      await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/actions/${String(seq).padStart(6,'0')}`]: action, [`rooms/${code}/updatedAt`]:FO.serverTimestamp() });
     }catch(e){
-      console.warn('WebSocket authority action path failed; falling back to Firebase transaction.', e);
-      if(window.toast) toast('WebSocket authority unavailable - using Firebase sync');
+      if(fallbackPublished){
+        console.warn('Primary action sync failed; player-node fallback already published', e);
+        return;
+      }
+      throw e;
     }
-    let seq = 0;
-    if(FO.runTransaction){
-      const result = await FO.runTransaction(FO.ref(FO.rtdb, `rooms/${code}/lastActionSeq`), current => (Number(current || 0) + 1)).catch(e=>{ console.error('Action sequence transaction failed', e); return null; });
-      if(!result || !result.committed){ if(window.toast) toast('Action failed'); return; }
-      seq = Number(result.snapshot.val() || 0);
-    }else{
-      const roomSnap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}`));
-      const room = roomSnap.val() || {};
-      seq = Number(room.lastActionSeq || 0) + 1;
-      await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/lastActionSeq`]:seq });
-    }
-    const action = { seq, uid:u.uid, type, payload, createdAt:FO.serverTimestamp() };
-    if(payload?.clientActionId) action.clientActionId = String(payload.clientActionId);
-    await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/actions/${String(seq).padStart(6,'0')}`]: action, [`rooms/${code}/updatedAt`]:FO.serverTimestamp() });
   }
 
   async function findExistingActionByClientId(code, clientActionId){
