@@ -1,0 +1,435 @@
+
+// FATES ENTWINED ONLINE REBUILD V1
+// Google auth + Firebase RTDB identity foundation.
+// Cloud save: all player data is stored in Firebase under players/{uid}/ and
+// loaded on sign-in. localStorage serves as a fast cache only.
+
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {
+  getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence,
+  signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {
+  getDatabase, ref, child, get, set, update, push, remove, onValue, onChildAdded,
+  off, onDisconnect, serverTimestamp, query, orderByChild, orderByKey, startAt, equalTo, limitToFirst,
+  limitToLast, runTransaction
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+import {
+  getStorage
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc',
+  authDomain: 'fates-entwined-41491.firebaseapp.com',
+  databaseURL: 'https://fates-entwined-41491-default-rtdb.firebaseio.com',
+  projectId: 'fates-entwined-41491',
+  storageBucket: 'fates-entwined-41491.firebasestorage.app',
+  messagingSenderId: '920253472655',
+  appId: '1:920253472655:web:c9964989ee5cf3b76975fa',
+  measurementId: 'G-WS86STH46J'
+};
+
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const rtdb = getDatabase(app);
+
+// Disable Firebase internal stats reporting to prevent promise feedback loop
+// that causes 12fps lock during gameplay
+try {
+  const _origSet = rtdb._repo?.server_?.reportStats;
+  if(rtdb._repo && rtdb._repo.server_) {
+    rtdb._repo.server_.reportStats = function(){};
+  }
+  // Also try to disable via the connection
+  setTimeout(function(){
+    try {
+      if(rtdb._repo && rtdb._repo.server_) rtdb._repo.server_.reportStats = function(){};
+      if(rtdb._repo && rtdb._repo.server_ && rtdb._repo.server_.connection_) {
+        var conn = rtdb._repo.server_.connection_;
+        if(conn.reportStats) conn.reportStats = function(){};
+      }
+    } catch(e){}
+  }, 2000);
+} catch(e) { console.warn('Could not disable Firebase stats:', e); }
+
+// Promise diagnostics are opt-in. Even a lightweight Promise.prototype.then
+// wrapper runs once for every Firebase/internal continuation, so it must not be
+// part of normal multiplayer gameplay.
+// Promise flood monitor — lightweight sampling version.
+// Only updates counters; does NOT wrap every .then() call (the old approach added
+// measurable overhead at high Promise rates). Uses a periodic sampler instead.
+function installFatePromiseMonitor(){
+  if(window.__fatePromiseMonitorInstalled) return;
+  window.__fatePromiseMonitorInstalled = true;
+  const perf = window.__fatePerf = window.__fatePerf || {};
+  perf.promiseMonitorEnabled = true;
+  var _origThen = Promise.prototype.then;
+  var _thenCount = 0;
+  var _warnedAt = 0;
+  // Lightweight counter — only increments an integer, no Date.now() or object access
+  var monitoredThen = function(){
+    _thenCount++;
+    return _origThen.apply(this, arguments);
+  };
+  monitoredThen.__fatePromiseMonitor = true;
+  monitoredThen.__fateOriginalThen = _origThen;
+  Promise.prototype.then = monitoredThen;
+  // Periodic sampler reads the counter once per second instead of on every .then()
+  setInterval(function(){
+    var perf = window.__fatePerf = window.__fatePerf || {};
+    perf.promiseThenRate = _thenCount;
+    perf.promiseThenPeak = Math.max(perf.promiseThenPeak || 0, _thenCount);
+    if(_thenCount > 15000){
+      var now = Date.now();
+      if(now - _warnedAt > 5000){
+        _warnedAt = now;
+        perf.promiseFloods = (perf.promiseFloods || 0) + 1;
+        perf.lastPromiseFloodAt = now;
+        console.warn('FATE: Promise flood observed (' + _thenCount + ' .then() in 1s). Run fatePerfReport() for the FPS trace.');
+      }
+    }
+    _thenCount = 0;
+  }, 1000);
+}
+window.fateEnablePromiseMonitor = function(){
+  try{ localStorage.setItem('fatePromiseMonitorEnabled', '1'); }catch(e){}
+  installFatePromiseMonitor();
+  console.warn('FATE: Promise monitor enabled for this session.');
+};
+(function(){
+  const perf = window.__fatePerf = window.__fatePerf || {};
+  perf.promiseMonitorEnabled = false;
+  try{
+    if(localStorage.getItem('fatePromiseMonitorEnabled') === '1') installFatePromiseMonitor();
+  }catch(e){}
+})();
+
+// rAF flood protection REMOVED — the throttle had an irrecoverable starvation loop:
+// once triggered (>500 rAF/s), batching 60 callbacks per frame meant each batch
+// re-queued itself, keeping the counter above 200 permanently. The single-rAF-per-frame
+// batching starved the browser compositor and locked the game to ~12 FPS.
+// The Firebase stats disabling (above) addresses the root flood cause; the
+// Promise monitor records whether that flood ever comes back.
+const storage = getStorage(app);
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
+setPersistence(auth, browserLocalPersistence).catch(()=>{});
+
+function isElectronShell(){
+  try{ return new URLSearchParams(location.search).get('electron') === '1'; }
+  catch(e){ return false; }
+}
+function isMissingRedirectStateError(e){
+  const code = String(e?.code || '');
+  const msg = String(e?.message || '');
+  return code === 'auth/missing-or-invalid-nonce'
+    || /missing initial state|sessionStorage is inaccessible|storage-partitioned/i.test(msg);
+}
+if(!isElectronShell()){
+  getRedirectResult(auth).catch(e=>{
+    if(isMissingRedirectStateError(e)) return;
+    console.warn('Google redirect sign-in result failed', e);
+  });
+}
+
+function safe(s){ return String(s == null ? '' : s); }
+function escapeHtml(s){ return safe(s).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+function hashCode(str){
+  let h = 2166136261;
+  for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36).toUpperCase().padStart(7,'0').slice(0,7);
+}
+function makeBaseCode(uid){ return 'FATE-' + hashCode(uid || 'guest'); }
+function normalizeUsername(name){ return safe(name).trim().toLowerCase().replace(/\s+/g,' '); }
+function getLocalProfile(){
+  try{ if(typeof window.getFateLocalProfile === 'function') return window.getFateLocalProfile() || {}; }catch(e){}
+  return window.USER_PROFILE || {};
+}
+function getLocalUsername(user){
+  const p = getLocalProfile();
+  return safe(p.username || p.displayName || user?.displayName || 'Player').trim().slice(0,24) || 'Player';
+}
+function getLocalBio(){
+  const p = getLocalProfile();
+  return safe(p.bio || p.status || '').trim().slice(0,240);
+}
+function getLocalLevel(){ return Number(getLocalProfile().level || 1) || 1; }
+function getLocalElo(){ return Number(getLocalProfile().challengerElo || 600) || 600; }
+function getLocalRankLabel(){
+  try{ if(typeof window.rankName === 'function') return window.rankName(getLocalElo()); }catch(e){}
+  return 'Footman';
+}
+function getLocalPhoto(user){
+  try{ if(typeof window.getProfileImgSrc === 'function') return window.getProfileImgSrc() || user?.photoURL || 'blank.png'; }catch(e){}
+  const p = getLocalProfile();
+  return p.profileImg || p.photoURL || p.pfp || user?.photoURL || 'blank.png';
+}
+
+const state = {
+  app, auth, rtdb, storage,
+  user: null,
+  profile: null,
+  baseCode: null,
+  ready: false,
+  listeners: new Set(),
+  unsubs: []
+};
+
+let titleVisibilityObserverInstalled = false;
+let lastAuthPanelVisibilitySignature = '';
+function titleScreenActive(){
+  return !!document.getElementById('s-title')?.classList.contains('active');
+}
+function updateAuthPanelVisibility(){
+  const el = document.getElementById('fate-online-account');
+  if(!el) return;
+  const signature = [
+    titleScreenActive() ? 'title' : 'other',
+    document.getElementById('s-game')?.classList.contains('active') ? 'game' : 'nogame',
+    el.parentElement?.id || el.parentElement?.className || 'none',
+    el.classList.contains('is-hidden') ? 'hidden' : 'shown'
+  ].join('|');
+  el.classList.add('is-hidden');
+  if(signature !== lastAuthPanelVisibilitySignature && window.scheduleFateCornerDock) {
+    lastAuthPanelVisibilitySignature = signature;
+    setTimeout(()=>window.scheduleFateCornerDock(), 0);
+  }
+}
+function installAuthPanelScreenWatcher(){
+  if(titleVisibilityObserverInstalled) return;
+  titleVisibilityObserverInstalled = true;
+  const apply = ()=>updateAuthPanelVisibility();
+  const obs = new MutationObserver(apply);
+  const watch = ()=>{
+    document.querySelectorAll('.screen').forEach(screen=>obs.observe(screen,{attributes:true,attributeFilter:['class']}));
+    apply();
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch, {once:true});
+  else watch();
+  window.addEventListener('fate-screen-changed', apply);
+  setInterval(()=>{ if(!document.hidden) apply(); }, 5000);
+}
+
+function emit(){
+  state.listeners.forEach(fn=>{ try{ fn(state); }catch(e){ console.warn('FATE online listener failed', e); } });
+  window.dispatchEvent(new CustomEvent('fate-online-auth', { detail: state }));
+}
+function onAuth(fn){ state.listeners.add(fn); try{ fn(state); }catch(e){} return ()=>state.listeners.delete(fn); }
+
+async function syncPublicProfile(opts={}){
+  const user = auth.currentUser;
+  if(!user) return null;
+  const uid = user.uid;
+  const baseCode = makeBaseCode(uid);
+  const chosenUsername = getLocalUsername(user);
+  const photoURL = getLocalPhoto(user);
+  const localProfile = getLocalProfile();
+  const humanWins = Number(localProfile.humanWins ?? localProfile.wins ?? 0) || 0;
+  const humanLosses = Number(localProfile.humanLosses ?? localProfile.losses ?? 0) || 0;
+  const matchesPlayed = Number(localProfile.matchesPlayed ?? ((Number(localProfile.challengerWins||0)||0) + (Number(localProfile.challengerLosses||0)||0) + (Number(localProfile.wins||0)||0) + (Number(localProfile.losses||0)||0))) || 0;
+  const payload = {
+    uid,
+    baseCode,
+    baseUsername: baseCode,
+    chosenUsername,
+    displayName: chosenUsername,
+    username: chosenUsername,
+    usernameLower: normalizeUsername(chosenUsername),
+    photoURL,
+    profileImg: photoURL,
+    level: getLocalLevel(),
+    challengerElo: getLocalElo(),
+    challengerWins: Number(localProfile.challengerWins || 0) || 0,
+    challengerLosses: Number(localProfile.challengerLosses || 0) || 0,
+    humanWins,
+    humanLosses,
+    matchesPlayed,
+    rank: getLocalRankLabel(),
+    bio: getLocalBio(),
+    updatedAt: serverTimestamp(),
+    schemaVersion: 1
+  };
+  const multiPathUpdate = {};
+  Object.keys(payload).forEach(k => { multiPathUpdate[`publicProfiles/${uid}/${k}`] = payload[k]; });
+  multiPathUpdate[`friendInviteCodes/${baseCode}`] = uid;
+  if(payload.usernameLower) multiPathUpdate[`usernames/${payload.usernameLower}/${uid}`] = true;
+  await update(ref(rtdb), multiPathUpdate);
+  state.profile = payload;
+  state.baseCode = baseCode;
+  renderAuthPanel();
+  emit();
+  return payload;
+}
+
+function renderAuthPanel(){
+  installAuthPanelScreenWatcher();
+  let el = document.getElementById('fate-online-account');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'fate-online-account';
+    el.className = 'fate-online-account';
+    document.body.appendChild(el);
+  }
+  const user = state.user;
+  if(!user){
+    el.innerHTML = `<button class="fate-online-signin" onclick="window.fateSignInWithGoogle()"><span class="foa-orb">G</span><span>Sign In</span></button>`;
+    updateAuthPanelVisibility();
+    return;
+  }
+  const p = state.profile || {};
+  const code = p.baseCode || state.baseCode || makeBaseCode(user.uid);
+  el.innerHTML = `
+    <div class="foa-main" title="${escapeHtml(code)}">
+      <div class="foa-orb" aria-hidden="true">G</div>
+      <div class="foa-copy"><div class="foa-kicker">Google Account</div><div class="foa-code">${escapeHtml(code)}</div></div>
+      <button class="foa-out" onclick="window.fateSignOut()">Sign Out</button>
+    </div>`;
+  updateAuthPanelVisibility();
+  // Coalesce post-render layout work so renderAuthPanel firing multiple times
+  // (which it does on every auth state emit) doesn't queue 4 setTimeouts each time.
+  if(_authPanelLayoutScheduled) return;
+  _authPanelLayoutScheduled = true;
+  setTimeout(function(){
+    _authPanelLayoutScheduled = false;
+    if(window.positionOnlineAccountBadgeNearTitleProfile) window.positionOnlineAccountBadgeNearTitleProfile();
+    if(window.scheduleFateCornerDock) window.scheduleFateCornerDock();
+  }, 60);
+}
+let _authPanelLayoutScheduled = false;
+
+function shouldFallbackToRedirect(e){
+  if(isElectronShell()) return false;
+  const code = String(e?.code || '');
+  const msg = String(e?.message || '');
+  return code === 'auth/network-request-failed'
+    || code === 'auth/popup-blocked'
+    || code === 'auth/popup-closed-by-user'
+    || code === 'auth/operation-not-supported-in-this-environment'
+    || /Pending promise was never set|network-request-failed|operation-not-supported/i.test(msg);
+}
+async function signIn(){
+  if(state.signingIn) return;
+  state.signingIn = true;
+  try{
+    if(isElectronShell()){
+      if(window.toast) toast('Opening Google sign-in...');
+    }
+    await signInWithPopup(auth, provider);
+  }
+  catch(e){
+    console.error('Google sign-in failed', e);
+    if(isElectronShell()){
+      if(window.toast) toast('Google sign-in failed. Please try again.');
+      return;
+    }
+    if(shouldFallbackToRedirect(e)){
+      try{
+        if(window.toast) toast('Retrying Google sign-in...');
+        await signInWithRedirect(auth, provider);
+        return;
+      }catch(redirectErr){
+        console.error('Google redirect sign-in failed', redirectErr);
+        if(window.toast) toast('Google sign-in failed. Check Firebase OAuth settings.');
+      }
+    }
+    if(window.toast) toast('Google sign-in failed');
+  }
+  finally{
+    state.signingIn = false;
+  }
+}
+async function signOutNow(){
+  const oldUser = auth.currentUser;
+  try{
+    if(oldUser){
+      await update(ref(rtdb, `presence/${oldUser.uid}`), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
+    }
+    state.unsubs.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
+    await signOut(auth);
+    state.user = null;
+    state.profile = null;
+    state.baseCode = null;
+    renderAuthPanel();
+    emit();
+    if(window.toast) toast('Signed out');
+  }
+  catch(e){ console.error('Sign-out failed', e); if(window.toast) toast('Sign-out failed'); }
+}
+
+window.FATE_ONLINE = state;
+window.FateOnline = Object.assign(window.FateOnline || {}, {
+  app, auth, rtdb, storage, ref, child, get, set, update, push, remove, onValue, off, onDisconnect,
+  serverTimestamp, query, orderByChild, orderByKey, startAt, equalTo, limitToFirst, limitToLast, runTransaction,
+  onChildAdded,
+  onAuth, syncPublicProfile, makeBaseCode, normalizeUsername,
+  getPublicProfile: async uid => (await get(ref(rtdb, `publicProfiles/${uid}`))).val(),
+  requireUser(){ const u=auth.currentUser; if(!u){ if(window.toast) toast('Sign in with Google first'); throw new Error('not signed in'); } return u; },
+  escapeHtml
+});
+window.fateSignInWithGoogle = signIn;
+window.fateSignOut = signOutNow;
+
+onAuthStateChanged(auth, async user => {
+  state.user = user || null;
+  state.ready = true;
+  state.profile = null;
+  state.baseCode = user ? makeBaseCode(user.uid) : null;
+  renderAuthPanel();
+  if(user){
+    // Stop offline-mode simulation timers — they leak forever otherwise.
+    if(typeof window._fateStopOfflineSimulations === 'function') window._fateStopOfflineSimulations();
+    // Set per-account storage key and migrate legacy data if needed
+    if(typeof window._fateMigrateIfNeeded === 'function') window._fateMigrateIfNeeded(user.uid);
+    if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(user.uid);
+    else if(typeof window._fateSetActiveUid === 'function') window._fateSetActiveUid(user.uid);
+
+    // Load all player data from Firebase (source of truth)
+    try{
+      if(window.FateCloudSave){
+        await window.FateCloudSave.onSignIn(user.uid);
+      }
+    }catch(e){ console.warn('Cloud data load failed, using local data', e); }
+
+    try{
+      const pRef = ref(rtdb, `presence/${user.uid}`);
+      await Promise.all([
+        syncPublicProfile(),
+        update(pRef, { uid:user.uid, online:true, lastSeen:serverTimestamp() })
+      ]);
+      onDisconnect(pRef).update({ online:false, lastSeen:serverTimestamp() }).catch(()=>{});
+      const poll = setInterval(()=>{ if(auth.currentUser && !document.hidden && !document.getElementById('s-game')?.classList.contains('active')) update(pRef, { online:true, lastSeen:serverTimestamp() }).catch(()=>{}); }, 60000);
+      state.unsubs.push(()=>clearInterval(poll));
+    }catch(e){ console.error('Public profile sync failed', e); }
+  } else {
+    state.unsubs.splice(0).forEach(fn=>{ try{fn();}catch(e){} });
+    if(window.FateCloudSave) window.FateCloudSave.onSignOut();
+  }
+  emit();
+});
+
+// Keep cloud public profile fresh — only on title screen, not during gameplay.
+let _publicProfileSyncTimer = 0;
+function schedulePublicProfileSync(delay=150){
+  if(!auth.currentUser || document.getElementById('s-game')?.classList.contains('active')) return;
+  clearTimeout(_publicProfileSyncTimer);
+  _publicProfileSyncTimer = setTimeout(()=>{
+    _publicProfileSyncTimer = 0;
+    if(auth.currentUser && !document.getElementById('s-game')?.classList.contains('active')) syncPublicProfile().catch(()=>{});
+  }, delay);
+}
+window.addEventListener('focus', ()=>schedulePublicProfileSync(0));
+setInterval(()=>{ if(!document.hidden) schedulePublicProfileSync(0); }, 120000);
+
+// Wrap saveProfile so local name/photo changes update public profile quickly.
+setTimeout(()=>{
+  if(typeof window.saveProfile === 'function' && !window.saveProfile._fateOnlineWrapped){
+    const orig = window.saveProfile;
+    const wrapped = function(...args){
+      const result = orig.apply(this,args);
+      schedulePublicProfileSync(250);
+      return result;
+    };
+    wrapped._fateOnlineWrapped = true;
+    window.saveProfile = wrapped;
+  }
+}, 0);

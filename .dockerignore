@@ -1,0 +1,10 @@
+node_modules
+dist/*
+!dist/Fates-Entwined-Setup-*.exe
+out
+project-backups
+soundeffects-preview
+src
+*.md
+*.log
+.git

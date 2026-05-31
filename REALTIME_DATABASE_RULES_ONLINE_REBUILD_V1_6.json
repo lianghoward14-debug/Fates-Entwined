@@ -1,0 +1,247 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "publicProfiles": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "friendInviteCodes": {
+      ".read": "auth != null",
+      "$code": {
+        ".write": "auth != null && (!data.exists() || data.val() == auth.uid || newData.val() == auth.uid)"
+      }
+    },
+    "usernames": {
+      ".read": "auth != null",
+      "$username": {
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "presence": {
+      ".read": "auth != null",
+      ".indexOn": ["online"],
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$friendUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $friendUid)"
+        }
+      }
+    },
+    "friendRequests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$fromUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $fromUid)"
+        }
+      }
+    },
+    "sentFriendRequests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$toUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $toUid)"
+        }
+      }
+    },
+    "partyInvites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$fromUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $fromUid)"
+        }
+      }
+    },
+    "sentPartyInvites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$toUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $toUid)"
+        }
+      }
+    },
+    "userParties": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && (auth.uid == $uid || (!newData.exists() && data.exists() && root.child('parties').child(data.val()).child('leaderUid').val() == auth.uid))"
+      }
+    },
+    "parties": {
+      ".read": "auth != null",
+      "$partyId": {
+        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('leaderUid').val() == auth.uid && newData.child('members').child(auth.uid).exists()) || (data.exists() && data.child('leaderUid').val() == auth.uid) || (data.exists() && newData.exists() && (data.child('members').child(auth.uid).exists() || newData.child('members').child(auth.uid).exists())))"
+      }
+    },
+    "liveMatches": {
+      ".read": true,
+      "$roomCode": {
+        ".write": "auth != null && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || (!newData.exists() && data.exists() && data.child('hostUid').val() == auth.uid))"
+      }
+    },
+    "rooms": {
+      ".read": "auth != null",
+      "$roomCode": {
+        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('hostUid').val() == auth.uid && newData.child('status').val() == 'lobby') || (data.exists() && !newData.exists() && data.child('hostUid').val() == auth.uid))",
+        "roomCode": {
+          ".write": "auth != null && (!data.parent().exists() || data.parent().child('hostUid').val() == auth.uid)"
+        },
+        "mode": {
+          ".write": "auth != null && (!data.parent().exists() || data.parent().child('hostUid').val() == auth.uid)"
+        },
+        "status": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "phase": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "hostUid": {
+          ".write": "auth != null && !data.exists() && newData.val() == auth.uid"
+        },
+        "guestUid": {
+          ".write": "auth != null && data.parent().child('status').val() == 'lobby' && ((newData.exists() && newData.val() == auth.uid && (!data.exists() || data.val() == auth.uid || data.parent().child('players').child(data.val()).child('connected').val() == false)) || (!newData.exists() && (data.val() == auth.uid || data.parent().child('hostUid').val() == auth.uid)))"
+        },
+        "createdAt": {
+          ".write": "auth != null && (!data.parent().exists() || data.parent().child('hostUid').val() == auth.uid)"
+        },
+        "updatedAt": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "startedAt": {
+          ".write": "auth != null && data.parent().child('hostUid').val() == auth.uid"
+        },
+        "endedAt": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "seed": {
+          ".write": "auth != null && data.parent().child('hostUid').val() == auth.uid"
+        },
+        "song": {
+          ".write": "auth != null && data.parent().child('hostUid').val() == auth.uid"
+        },
+        "playerOrder": {
+          ".write": "auth != null && data.parent().child('hostUid').val() == auth.uid"
+        },
+        "currentTurnUid": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "endedBy": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "endReason": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "lastActionSeq": {
+          ".write": "auth != null && (data.parent().child('hostUid').val() == auth.uid || data.parent().child('guestUid').val() == auth.uid)"
+        },
+        "schemaVersion": {
+          ".write": "auth != null && (!data.parent().exists() || data.parent().child('hostUid').val() == auth.uid)"
+        },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        },
+        "actions": {
+          "$actionId": {
+            ".write": "auth != null && !data.exists() && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || root.child('rooms').child($roomCode).child('guestUid').val() == auth.uid) && (newData.child('uid').val() == auth.uid || newData.child('serverAuthoritative').val() == true)"
+          }
+        },
+        "chat": {
+          "$msgId": {
+            ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && newData.child('text').isString() && newData.child('text').val().length <= 240 && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || root.child('rooms').child($roomCode).child('guestUid').val() == auth.uid || newData.child('isSpectator').val() == true)"
+          }
+        },
+        "spectators": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        }
+      }
+    },
+    "matchmaking": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "leaderboards": {
+      "challenger": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && ((auth.uid == $uid && newData.child('uid').val() == auth.uid) || (newData.child('isAI').val() == true && newData.child('aiId').val() == $uid))"
+        }
+      }
+    },
+    "challengerAI": {
+      ".read": true,
+      "seasons": {
+        "$season": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "matchResults": {
+      ".read": "auth != null",
+      "$matchId": {
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid"
+      }
+    },
+    "publicDecks": {
+      ".read": true,
+      "$deckId": {
+        ".write": "auth != null && ((!newData.exists() && data.child('ownerUid').val() == auth.uid) || (newData.exists() && newData.child('ownerUid').val() == auth.uid && (!data.exists() || data.child('ownerUid').val() == auth.uid)) || (data.exists() && newData.exists() && newData.child('ownerUid').val() == data.child('ownerUid').val() && (newData.child('ratings').val() != data.child('ratings').val() || newData.child('comments').val() != data.child('comments').val())))"
+      }
+    },
+    "marketplace": {
+      ".read": true,
+      "listings": {
+        "$listingId": {
+          ".write": "auth != null && ((!newData.exists() && data.child('sellerUid').val() == auth.uid) || (newData.exists() && newData.child('sellerUid').val() == auth.uid && (!data.exists() || data.child('sellerUid').val() == auth.uid)) || (data.exists() && newData.exists() && data.child('status').val() == 'active' && newData.child('status').val() == 'sold' && newData.child('buyerUid').val() == auth.uid && newData.child('sellerUid').val() == data.child('sellerUid').val() && newData.child('cardId').val() == data.child('cardId').val() && newData.child('price').val() == data.child('price').val()))"
+        }
+      }
+    },
+    "worldChat": {
+      ".read": "auth != null",
+      ".indexOn": ["createdAt"],
+      "$msgId": {
+        ".write": "auth != null && newData.child('uid').val() == auth.uid"
+      }
+    },
+    "privateMessages": {
+      "$ownerUid": {
+        ".read": "auth != null && auth.uid == $ownerUid",
+        "$peerUid": {
+          "messages": {
+            "$msgId": {
+              ".write": "auth != null && (auth.uid == $ownerUid || auth.uid == $peerUid)"
+            }
+          }
+        }
+      }
+    },
+    "players": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "privateThreads": {
+      "$ownerUid": {
+        ".read": "auth != null && auth.uid == $ownerUid",
+        "$peerUid": {
+          ".write": "auth != null && (auth.uid == $ownerUid || auth.uid == $peerUid)"
+        }
+      }
+    }
+  }
+}

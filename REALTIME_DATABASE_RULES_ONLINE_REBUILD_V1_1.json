@@ -1,0 +1,77 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "publicProfiles": {
+      ".read": true,
+      "$uid": { ".write": "auth != null && auth.uid == $uid" }
+    },
+    "friendInviteCodes": {
+      ".read": "auth != null",
+      "$code": { ".write": "auth != null && (!data.exists() || data.val() == auth.uid || newData.val() == auth.uid)" }
+    },
+    "usernames": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "presence": {
+      ".read": "auth != null",
+      "$uid": { ".write": "auth != null && auth.uid == $uid" }
+    },
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$friendUid": { ".write": "auth != null && (auth.uid == $uid || auth.uid == $friendUid)" }
+      }
+    },
+    "friendRequests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$fromUid": { ".write": "auth != null && (auth.uid == $uid || auth.uid == $fromUid)" }
+      }
+    },
+    "sentFriendRequests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$toUid": { ".write": "auth != null && (auth.uid == $uid || auth.uid == $toUid)" }
+      }
+    },
+    "rooms": {
+      ".read": "auth != null",
+      "$roomCode": {
+        ".write": "auth != null",
+        "players": {
+          "$uid": { ".write": "auth != null && auth.uid == $uid" }
+        },
+        "actions": { "$actionId": { ".write": "auth != null" } }
+      }
+    },
+    "matchmaking": { ".read": "auth != null", ".write": "auth != null" },
+    "leaderboards": {
+      "challenger": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "matchResults": {
+      ".read": "auth != null",
+      "$matchId": { ".write": "auth != null && !data.exists()" }
+    },
+    "publicDecks": {
+      ".read": true,
+      "$deckId": { ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() == auth.uid || newData.child('ownerUid').val() == auth.uid)" }
+    },
+    "marketplace": {
+      ".read": true,
+      "listings": { "$listingId": { ".write": "auth != null" } }
+    },
+    "worldChat": {
+      ".read": "auth != null",
+      "$msgId": { ".write": "auth != null && newData.child('uid').val() == auth.uid" }
+    },
+    "privateMessages": {
+      "$threadId": { ".read": "auth != null && $threadId.contains(auth.uid)", ".write": "auth != null && $threadId.contains(auth.uid)" }
+    },
+    "players": { "$uid": { ".read": "auth != null && auth.uid == $uid", ".write": "auth != null && auth.uid == $uid" } }
+  }
+}

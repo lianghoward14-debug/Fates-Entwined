@@ -1,0 +1,8 @@
+The website no longer needs a local installer file in this folder.
+
+The Download Installer buttons in index.html point to the Fly.io public URL:
+
+https://fates-entwined-main.fly.dev/installer/Fates-Entwined-Installer.exe
+
+Build the installer into dist/ before deploying. The Fly server maps the latest
+Fates-Entwined-Setup-*.exe file to /installer/Fates-Entwined-Installer.exe.

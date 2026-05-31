@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Fates Entwined</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#06080e">
+  <link rel="stylesheet" href="src/styles/game.css?v=1778977600">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1778976300">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1779331000">
+<!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=42. -->
+</head>
+<body>
+
+<!-- TITLE -->
+<div class="screen active" id="s-title">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg1.png" alt="" onerror="this.style.display='none'"></div>
+  <div class="title-overlay"></div>
+  <div id="title-profile" class="title-profile title-profile-fallback" onclick="showProfile()" title="View your profile">
+    <div class="tp-pic" style="border:2px solid #cd7f32!important;box-shadow:0 0 10px rgba(205,127,50,.18),0 6px 18px rgba(0,0,0,.38),inset 0 0 0 2px rgba(205,127,50,.28)!important;">
+      <img src="blank.png" style="object-fit:cover;object-position:center center;" alt="" onerror="this.onerror=null;this.src='blank.png';">
+    </div>
+    <div class="tp-info">
+      <div class="tp-head">
+        <div class="tp-name">Player</div>
+      </div>
+      <div class="tp-rank-block">
+        <div class="tp-rank-row">
+          <span class="rank-badge rank-lg rank-badge-short fate-badge-frame" style="background:rgba(205,127,50,.15);border-color:#cd7f3240;color:#cd7f32;">
+            <span class="rank-badge-icon"><img class="rank-icon-img rank-icon-6" src="rankicons/6.png" alt=""></span>
+            <span class="rank-badge-label">Footman</span>
+          </span>
+        </div>
+      </div>
+      <div class="tp-bottom">
+        <div class="tp-stat-row">
+          <span class="level-badge title-level-badge" style="--badge-color:#7fffa0;--badge-glow:rgba(127,255,160,.5);--badge-bg:linear-gradient(180deg,#7fffa0,#1a1d27);">
+            <span class="lb-crest"><span class="lb-icon">1</span></span>
+            <span class="lb-copy"><span class="lb-core"><span class="lb-label">NOVICE</span><span class="lb-lv">1</span></span></span>
+          </span>
+        </div>
+        <div class="tp-xp-wrap">
+          <div class="tp-xp"><div class="tp-xp-fill" style="width:0%;"></div></div>
+          <div class="tp-xp-copy">0 XP</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="title-content">
+    <div class="logo">FATES ENTWINED</div>
+    <div class="logo-sub" style="margin:.22rem 0 .17rem;">A strategic card game designed by Howard Liang</div>
+    <div class="logo-sub" style="margin:0 0 .82rem;font-size:.72rem;opacity:.82;">Recommended to play this game on 100% zoom</div>
+    <div class="title-menu-stack">
+      <button class="btn pri title-btn" id="title-free-play-btn" onclick="playMenuSfx();openFreePlayMenu()">Free Play</button>
+      <button class="btn pri title-btn" id="title-challenger-btn" style="background:linear-gradient(135deg,rgba(201,168,76,.3),rgba(255,215,0,.2));border-color:#ffd700;color:#ffd700;" onclick="playMenuSfx();openChallengerMenu()">Challenger</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showDeckBuilder()">Deck Builder</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showProfile()">Profile</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showPublicDecks()">Public Decks</button>
+      <button class="btn title-btn" onclick="playMenuSfx();startTutorial()">Tutorial</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showSocial()">Social</button>
+      <div id="title-audio-panel" class="vol-panel title-audio-panel" style="margin:.15rem auto 0;max-width:220px;overflow:hidden;transition:max-height .3s ease,opacity .25s ease;max-height:400px;opacity:1;">
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Master</label>
+          <input type="range" min="0" max="100" value="100" id="vol-master" style="width:120px;" oninput="setMasterVolume(this.value)">
+          <span class="vol-val" id="vol-master-val">100</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Music</label>
+          <input type="range" min="0" max="100" value="25" id="vol-music" style="width:120px;" oninput="setMusicVolume(this.value)">
+          <span class="vol-val" id="vol-music-val">25</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Effects</label>
+          <input type="range" min="0" max="100" value="80" id="vol-sfx" style="width:120px;" oninput="setSfxVolume(this.value)">
+          <span class="vol-val" id="vol-sfx-val">80</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Voices</label>
+          <input type="range" min="0" max="100" value="80" id="vol-voice" style="width:120px;" oninput="setVoiceVolume(this.value)">
+          <span class="vol-val" id="vol-voice-val">80</span>
+        </div>
+        <button class="btn sm" id="music-toggle-btn" onclick="toggleMusic()" style="margin-top:.2rem;">Music On</button>
+      </div>
+      <button class="btn title-btn title-btn-exit" onclick="exitGame()">Exit Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI DIFFICULTY OVERLAY (over title) -->
+<div id="s-difficulty-overlay">
+  <div class="overlay-panel" id="difficulty-panel">
+    <!-- populated by showAIDifficultyPicker -->
+  </div>
+</div>
+
+<!-- STARTER DECK PICK SCREEN (shown when starting Challenger for first time) -->
+<div class="screen" id="s-starter-pick">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg3.png" alt="" onerror="this.style.display='none'"></div>
+  <div class="starter-intro">
+    <h1>Welcome to Challenger</h1>
+    <p>Choose a starter deck to begin your journey. You'll also receive <strong style="color:#ffd700;">3 free profile boosters</strong> with no duplicate profile pictures. Build decks from cards you own and climb the Challenger ladder.</p>
+  </div>
+  <div class="starter-deck-grid" id="starter-deck-grid">
+    <!-- populated by showStarterPick -->
+  </div>
+  <div style="margin-top:2rem;text-align:center;position:relative;z-index:2;">
+    <button class="btn" onclick="showScreen('s-title')">Back to Title</button>
+  </div>
+</div>
+
+<!-- CHALLENGER HUB (main screen for challenger mode) -->
+<div class="screen" id="s-challenger">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg2.png" alt="" onerror="this.style.display='none'"></div>
+  <div class="ch-topbar">
+    <div class="ch-title">
+      <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+      <div class="ch-title-text">CHALLENGER</div>
+    </div>
+    <div class="ch-currency">
+      <div class="ch-packs-pill" onclick="switchChTab('store')" title="Unopened packs - click to open">
+        <span>Packs:</span>
+        <span class="pk-val" id="ch-packs-val">0</span>
+      </div>
+      <div class="starlight-pill" title="Starlight - earned from games, used to buy packs">
+        <span class="starlight-icon" id="ch-starlight-icon">*</span>
+        <span>Starlight:</span>
+        <span class="sl-val" id="ch-starlight-val">0</span>
+      </div>
+      <div class="starlight-pill" style="border-color:rgba(58,143,217,.5);background:linear-gradient(135deg,rgba(58,143,217,.15),rgba(58,143,217,.08));color:#5fb5ff;" title="Your Challenger ELO">
+        <span>ELO:</span>
+        <span class="sl-val" id="ch-elo-val">1000</span>
+      </div>
+    </div>
+  </div>
+  <div class="ch-tabs">
+    <button class="ch-tab active" data-tab="play" onclick="switchChTab('play')">Play</button>
+    <button class="ch-tab" data-tab="store" onclick="switchChTab('store')">Store</button>
+    <button class="ch-tab" data-tab="collection" onclick="switchChTab('collection')">Collection</button>
+    <button class="ch-tab" data-tab="deckbuilder" onclick="switchChTab('deckbuilder')">Deck Builder</button>
+  </div>
+  <div class="ch-content" id="ch-content">
+    <!-- populated by switchChTab -->
+  </div>
+</div>
+
+<!-- PACK OPENING OVERLAY -->
+<div id="pack-opening-overlay">
+  <div class="pack-sparkle-layer" id="pack-sparkle-layer"></div>
+  <div id="pack-stage-content" style="position:relative;z-index:2;">
+    <!-- populated during opening -->
+  </div>
+</div>
+
+<!-- PRESET PICKER OVERLAY (over title, after difficulty chosen) -->
+<div id="s-preset-overlay">
+  <div class="overlay-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;padding-bottom:.7rem;border-bottom:1px solid var(--border);">
+      <div>
+        <div class="logo" style="font-size:1.8rem;margin-bottom:.1rem;">Choose Your Deck</div>
+        <div class="logo-sub" style="margin:0;font-size:.75rem;" id="preset-mode-label-ov">Select a preset or use custom</div>
+      </div>
+      <button class="btn sm" onclick="closePresetOverlay()">Back</button>
+    </div>
+    <div id="preset-cards-ov" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;"></div>
+    <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+      <div id="preset-page-controls-ov" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;"></div>
+      <button class="btn" id="preset-custom-btn-ov">Use My Custom Deck</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRESET PICKER (original, kept for non-AI / back-compat) -->
+<div class="screen" id="s-preset">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg3.png" alt="" onerror="this.style.display='none'"></div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:2rem;overflow-y:auto;align-items:center;justify-content:center;width:100%;position:relative;z-index:1;">
+    <div class="logo" style="font-size:2rem;margin-bottom:.2rem;">Choose Your Deck</div>
+    <div class="logo-sub" style="margin-bottom:2rem;" id="preset-mode-label">Select a preset or use custom</div>
+    <div id="preset-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;max-width:1200px;width:100%;"></div>
+    <div style="margin-top:2rem;display:flex;gap:.5rem;">
+      <button class="btn" id="preset-custom-btn">Use My Custom Deck</button>
+      <button class="btn" onclick="showScreen('s-title')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- DECK BUILDER -->
+<div class="screen" id="s-deck">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg1.png" alt="" onerror="this.style.display='none'"></div>
+  <div class="db-top" style="position:relative;z-index:1;">
+    <div class="db-title">Deck Builder</div>
+    <div class="db-who">
+      Building for:
+      <button class="btn sm" id="db-who-btn" onclick="toggleDBPlayer()">Player 1</button>
+    </div>
+    <div style="display:flex;gap:.4rem;">
+      <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+    </div>
+  </div>
+  <div class="db-filters" id="db-filters">
+    <button class="db-filter active" data-f="all" onclick="dbFilter(this,'all')">All</button>
+    <button class="db-filter" data-f="Supporter" onclick="dbFilter(this,'Supporter')">Supporters</button>
+    <button class="db-filter" data-f="Initiator" onclick="dbFilter(this,'Initiator')">Initiators</button>
+    <button class="db-filter" data-f="Coordinator" onclick="dbFilter(this,'Coordinator')">Coordinators</button>
+    <button class="db-filter" data-f="Dauntless" onclick="dbFilter(this,'Dauntless')">Dauntless</button>
+    <button class="db-filter" data-f="Improvisor" onclick="dbFilter(this,'Improvisor')">Improvisors</button>
+    <button class="db-filter" data-f="third_great_war" onclick="dbFilter(this,'third_great_war')">Third Great War</button>
+    <button class="db-filter" data-f="eventide" onclick="dbFilter(this,'eventide')">Eventide</button>
+    <button class="db-filter" data-f="expanded_worlds" onclick="dbFilter(this,'expanded_worlds')">Expanded Worlds</button>
+    <button class="db-filter" data-f="reality" onclick="dbFilter(this,'reality')">Reality</button>
+    <span style="width:1px;height:20px;background:var(--border);margin:0 .1rem;"></span>
+    <button class="db-filter" style="border-color:rgba(255,215,0,.4);color:#d4c44a;" data-f="star" onclick="dbFilter(this,'star')">Star</button>
+    <button class="db-filter" style="border-color:rgba(160,100,220,.4);color:#b36ce0;" data-f="square" onclick="dbFilter(this,'square')">Square</button>
+    <button class="db-filter" style="border-color:rgba(212,138,74,.4);color:#d48a4a;" data-f="triangle" onclick="dbFilter(this,'triangle')">Triangle</button>
+    <button class="db-filter" style="border-color:rgba(74,138,212,.4);color:#4a8ad4;" data-f="circle" onclick="dbFilter(this,'circle')">Circle</button>
+    <input type="text" id="db-search" class="db-search" placeholder="Search card names..." maxlength="40" oninput="setDbSearch(this.value)">
+  </div>
+  <div class="db-body">
+    <div class="db-left">
+      <div class="db-collection" id="db-collection"></div>
+    </div>
+    <div class="db-right">
+      <div class="db-deck-header">
+        <div class="db-deck-titleline">
+          <span id="db-deck-label">P1 Deck</span>
+          <span class="db-count" id="db-count">0 / 40 cards</span>
+        </div>
+        <button class="btn sm danger" style="float:right" onclick="clearDeck()">Clear</button>
+      </div>
+      <div class="db-actions">
+        <button class="btn sm" onclick="autoFillDeck()">Auto-Fill</button>
+        <button class="btn sm" onclick="browsePresets()">My Presets</button>
+        <button class="btn sm btn-overwrite-preset" onclick="overwriteLoadedPreset()" style="display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:.35rem .6rem;"><span style="display:block;">Overwrite</span><span style="display:block;">Preset</span></button>
+        <button class="btn sm" onclick="saveCurrentDeckAsPreset()">Save as Preset</button>
+      </div>
+      <div class="db-deck-list" id="db-deck-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COIN FLIP -->
+<!-- MATCHMAKING -->
+<div class="screen" id="s-matchmaking">
+<div class="screen-bg"><img src="ingamebackgrouds/igb1.png" alt="" onerror="this.style.display='none'" style="transition:opacity 1s ease;"></div>
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:2rem;">
+    <div class="mm-spinner"></div>
+    <div style="font-family:'Cinzel',serif;font-size:1.8rem;color:var(--gold);letter-spacing:.12em;margin-bottom:.5rem;text-shadow:0 0 24px rgba(255,215,0,.4);">SEARCHING FOR OPPONENT</div>
+    <div id="mm-status" class="mm-status" style="font-size:.9rem;color:var(--dim);margin-bottom:1rem;">Ranked Matchmaking</div>
+    <div style="font-family:'Cinzel',serif;font-size:1.2rem;color:var(--text);" id="mm-timer">0:00</div>
+    <button class="btn sm danger" onclick="cancelMatchmaking()" style="margin-top:1.5rem;">Cancel</button>
+  </div>
+</div>
+
+<!-- SOCIAL -->
+<div class="screen" id="s-social">
+<div class="screen-bg"><img src="titlscreenbackgrounds/bg1.png" alt="" onerror="this.style.display='none'"></div>
+  <div class="social-topbar">
+    <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+    <div class="social-title-text">SOCIAL</div>
+    <div style="margin-left:auto;position:relative;">
+      <button class="btn sm" onclick="showPendingFriends()" style="position:relative;">Pending
+        <span id="pending-friends-badge" class="pending-badge" style="display:none;">0</span>
+      </button>
+    </div>
+  </div>
+  <div class="social-content" id="social-content">
+    <!-- populated by renderSocialPage -->
+  </div>
+  <div id="game-version" class="title-version-label social-version-label">Version 1.38</div>
+</div>
+
+<!-- COIN FLIP -->
+<div class="screen" id="s-coin">
+  <div class="coin-panel">
+    <div class="ph" id="coin-title">Flipping for first turn...</div>
+    <div class="coin" id="coin">?</div>
+    <div class="ps" id="coin-result"></div>
+    <div id="coin-btns" style="display:none;text-align:center;margin-top:.22rem;">
+      <div class="ps" style="margin-bottom:.2rem;" id="coin-winner-text"></div>
+      <button class="btn" onclick="chooseTurn(true)">Go First</button>
+      <button class="btn" onclick="chooseTurn(false)">Go Second</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="s-game">
+  <div class="topbar">
+    <div class="tp-player" id="tp-status-left" style="min-width:120px;">
+      <!-- Status effects YOU applied (green) -->
+    </div>
+    <div class="tp-mid">
+      <div id="topbar-effects" style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:center;"></div>
+    <div id="tp-cur">Turn 1</div>
+      <div class="tp-turn" id="tp-phase">Draw Phase</div>
+      <div id="tp-timer" style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--dim);letter-spacing:.06em;margin-top:.15rem;"></div>
+    </div>
+    <div class="tp-player" id="tp-status-right" style="min-width:120px;">
+      <!-- Status effects OPPONENT applied on you (red) -->
+    </div>
+  </div>
+  <div class="zscore" id="zscore"></div>
+  <div class="game-layout">
+    <!-- LEFT COLUMN: opponent hand, piles -->
+    <div class="game-left">
+      <div class="left-section opp-section">
+        <div class="player-banner opp-banner">
+          <div class="pb-pic" id="opp-pic"><span class="pi-placeholder">ðŸ‘¤</span></div>
+          <div class="pb-info">
+            <div class="pb-name" id="opp-name">Opponent</div>
+            <div class="pb-stat" id="opp-stat"></div>
+          </div>
+        </div>
+        <div class="left-section-lbl" id="opp-hand-lbl">Opponent's Hand</div>
+        <div class="opp-hand" id="opp-hand"></div>
+      </div>
+      <div class="left-section" style="flex:0 0 auto;">
+        <div class="player-banner my-banner">
+          <div class="pb-pic" id="my-pic"><span class="pi-placeholder">ðŸ‘¤</span></div>
+          <div class="pb-info">
+            <div class="pb-name" id="my-name">You</div>
+            <div class="pb-stat" id="my-stat"></div>
+          </div>
+        </div>
+        <div class="left-piles">
+          <div class="pile-slot" id="my-deck" onclick="showDeckInfo(getPerspectivePlayerIndex())" title="Your Deck">
+            <div class="pile-cards"></div>
+            <div class="pile-label">Deck <span id="my-deck-count">0</span></div>
+          </div>
+          <div class="pile-slot" id="my-discard" onclick="showDiscard(getPerspectivePlayerIndex())" title="Your Discard">
+            <div class="pile-cards"></div>
+            <div class="pile-label">Discard <span id="my-discard-count">0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- CENTER: board + hand below -->
+    <div class="game-center">
+      <div class="game-status-dock" id="game-status-dock" aria-live="polite">
+        <div class="game-status-side" id="game-status-left"></div>
+        <div class="game-status-side" id="game-status-right"></div>
+      </div>
+      <div class="board" id="board"></div>
+      <div id="placement-anim-layer" style="position:absolute;inset:0;pointer-events:none;z-index:50;overflow:visible;"></div>
+      <div class="hand-strip">
+        <div class="left-section-lbl" id="hand-lbl" style="text-align:center;">Your Hand <span id="hand-count" style="color:var(--dim);font-family:'Crimson Pro',serif;font-weight:400;font-size:.65rem;">(0)</span></div>
+        <div class="hand-cards" id="hand-cards"></div>
+      </div>
+      <div class="actbar" id="actbar">
+        <span class="act-hint" id="act-hint">Select a card to play</span>
+        <button class="btn sm" id="btn-end-turn" onclick="endTurn()">End Turn</button>
+        <button class="btn sm danger cancel-consolidate-btn" id="cancel-consolidate-btn" style="display:none;" onclick="cancelConsolidation()">&times; Stop Consolidation</button>
+        <button class="btn sm" onclick="openCardDetail(null)">View Selected</button>
+        <button class="btn sm" onclick="showAudioSettings()">⚙ Audio</button>
+        <button class="btn sm danger" onclick="confirmEndGame()">&times; End Game</button>
+      </div>
+    </div>
+  </div>
+  <div class="turn-hud" id="turn-hud" aria-live="polite">
+    <div class="turn-hud-icon" aria-hidden="true">
+      <svg viewBox="0 0 72 72" fill="none">
+        <path d="M29 8H43M36 8V15M54 17L59 22" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="36" cy="40" r="24" fill="rgba(8,10,16,.78)" stroke="currentColor" stroke-width="3"/>
+        <circle cx="36" cy="40" r="18" stroke="rgba(255,246,191,.18)" stroke-width="1.5"/>
+        <path d="M36 25V41L47 48" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 40H13M59 40H54M36 17V22M36 58V63" stroke="rgba(255,246,191,.45)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="turn-hud-copy">
+      <div class="turn-hud-turn" id="turn-hud-turn">Turn 1/20</div>
+      <div class="turn-hud-player" id="turn-hud-player">Player's Turn</div>
+      <div class="turn-hud-timer" id="turn-hud-timer">0:00</div>
+    </div>
+  </div>
+</div>
+
+<!-- WIN -->
+<div class="screen" id="s-win">
+  <div class="win-wrap">
+    <div class="win-title" id="win-title">Player 1 Wins!</div>
+    <div class="win-sub" id="win-sub">Controls 2 of 3 Zones</div>
+    <div class="win-zones" id="win-zones"></div>
+    <div id="win-rewards" class="win-rewards" style="display:none;"></div>
+    <div style="text-align:center;margin-top:1.2rem;">
+      <button class="btn pri" onclick="cleanupGame();showScreen('s-title')">Return to Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASS TURN OVERLAY -->
+<div id="pt-overlay">
+  <div class="pt-title" id="pt-title">Pass to Player 2</div>
+  <div class="pt-sub">Hand the device to your opponent</div>
+  <button class="btn pri" onclick="hidePT()">I'm Ready</button>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">-</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-acts" id="modal-acts"></div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div id="log-wrap" style="display:none!important;">
+  <button class="btn sm" id="log-btn" onclick="toggleLog()">▼ Log</button>
+  <div id="log-panel"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="src/scripts/00-structural-helpers.js?v=1779307000"></script>
+<script src="src/scripts/01-data-and-state.js?v=17"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=1779052300"></script>
+<script src="src/scripts/13-svg-ui-enhancements.js?v=16"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1779321000"></script>
+<script src="src/scripts/04-game-setup.js?v=1778975700"></script>
+  <script src="src/scripts/05-gameplay-core.js?v=1779290000"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1779290000"></script>
+  <script src="src/scripts/23-board-canvas-renderer.js?v=1779052100"></script>
+  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1779315000"></script>
+<!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
+  <script src="src/scripts/07-ai.js?v=1778977400"></script>
+<script src="src/scripts/08-audio-and-meta-ui.js?v=1778977600"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1779321000"></script>
+<script src="src/scripts/11-tutorial.js?v=1779329000"></script>
+<script src="src/scripts/12-ai-dialogue.js?v=1779290000"></script>
+<script src="src/scripts/14-enhancements.js?v=1778888200"></script>
+<script src="src/scripts/10-init.js?v=1778892300"></script>
+  <script src="src/scripts/21-smoothness-core.js?v=1778891400"></script>
+<script>
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+</script>
+</body>
+</html>

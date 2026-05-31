@@ -1,0 +1,44 @@
+# Character Set SFX Batch
+
+Preview only. No game files changed.
+
+- character_set_01_heroic_crest_bright.wav - Character set: heroic crest, bright
+- character_set_02_heroic_crest_deep.wav - Character set: heroic crest, deep
+- character_set_03_royal_oath.wav - Character set: royal oath
+- character_set_04_general_arrival.wav - Character set: general arrival
+- character_set_05_banner_thunder.wav - Character set: banner thunder
+- character_set_06_silent_duelist.wav - Character set: silent duelist
+- character_set_07_tactical_entry.wav - Character set: tactical entry
+- character_set_08_cardinal_stamp.wav - Character set: cardinal stamp
+- character_set_09_shadow_initiator.wav - Character set: shadow initiator
+- character_set_10_low_shadow_pulse.wav - Character set: low shadow pulse
+- character_set_11_celestial_summon.wav - Character set: celestial summon
+- character_set_12_starlit_descent.wav - Character set: starlit descent
+- character_set_13_square_command.wav - Character set: square command
+- character_set_14_square_bastion.wav - Character set: square bastion
+- character_set_15_triangle_flash.wav - Character set: triangle flash
+- character_set_16_triangle_charge.wav - Character set: triangle charge
+- character_set_17_circle_clean_set.wav - Character set: circle clean set
+- character_set_18_circle_warm_entry.wav - Character set: circle warm entry
+- character_set_19_dauntless_impact.wav - Character set: dauntless impact
+- character_set_20_dauntless_clean_heavy.wav - Character set: dauntless clean heavy
+- character_set_21_coordinator_halo.wav - Character set: coordinator halo
+- character_set_22_coordinator_calm.wav - Character set: coordinator calm
+- character_set_23_initiator_spark.wav - Character set: initiator spark
+- character_set_24_initiator_snap.wav - Character set: initiator snap
+- character_set_25_improvisor_jolt.wav - Character set: improvisor jolt
+- character_set_26_improvisor_glitch.wav - Character set: improvisor glitch
+- character_set_27_ancient_weight.wav - Character set: ancient weight
+- character_set_28_old_world_bell.wav - Character set: old world bell
+- character_set_29_firebrand_entry.wav - Character set: firebrand entry
+- character_set_30_firebrand_snap.wav - Character set: firebrand snap
+- character_set_31_oceanic_arrival.wav - Character set: oceanic arrival
+- character_set_32_oceanic_bloom.wav - Character set: oceanic bloom
+- character_set_33_future_drop.wav - Character set: future drop
+- character_set_34_future_gate.wav - Character set: future gate
+- character_set_35_reality_snap.wav - Character set: reality snap
+- character_set_36_reality_grounded.wav - Character set: reality grounded
+- character_set_37_lightweight_set.wav - Character set: lightweight set
+- character_set_38_middleweight_set.wav - Character set: middleweight set
+- character_set_39_heavyweight_set.wav - Character set: heavyweight set
+- character_set_40_final_boss_set.wav - Character set: final boss set

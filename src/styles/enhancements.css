@@ -1,0 +1,248 @@
+/* ═══════════════════════════════════════════════════════════════
+   ENHANCEMENTS CSS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. SMOOTHER HAND CARD ANIMATIONS ── */
+.hc{
+  transition:transform .35s cubic-bezier(.22,.9,.36,1.18),box-shadow .3s ease,filter .25s ease,opacity .25s ease!important;
+}
+.hc.hc-entering{
+  animation:hcEnterSmooth .5s cubic-bezier(.16,.9,.3,1.12) both!important;
+}
+@keyframes hcEnterSmooth{
+  0%{opacity:0;transform:translateY(40px) scale(.7) rotate(5deg);filter:blur(2px);}
+  40%{opacity:.85;filter:blur(0);}
+  70%{transform:translateY(-4px) scale(1.03) rotate(-0.5deg);}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(0);}
+}
+.hc.hc-entering:nth-child(1){animation-delay:0ms!important;}
+.hc.hc-entering:nth-child(2){animation-delay:50ms!important;}
+.hc.hc-entering:nth-child(3){animation-delay:100ms!important;}
+.hc.hc-entering:nth-child(4){animation-delay:150ms!important;}
+.hc.hc-entering:nth-child(5){animation-delay:200ms!important;}
+.hc.hc-entering:nth-child(6){animation-delay:250ms!important;}
+.hc.hc-entering:nth-child(7){animation-delay:300ms!important;}
+.hc.hc-entering:nth-child(8){animation-delay:350ms!important;}
+
+
+/* ── 2. CINEMATIC PLACEMENT OVERLAYS ── */
+.cinematic-overlay{pointer-events:none;width:0;height:0;}
+
+.cinematic-star .cine-flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,226,120,.7) 0%,rgba(255,200,50,.3) 30%,transparent 65%);animation:cineFlashStar .8s ease-out forwards;}
+.cinematic-star .cine-ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;border:2px solid rgba(255,226,120,.7);}
+.cinematic-star .cine-ring-1{width:40px;height:40px;animation:cineRingExpand .9s ease-out forwards;}
+.cinematic-star .cine-ring-2{width:20px;height:20px;animation:cineRingExpand 1.1s ease-out .1s forwards;border-color:rgba(255,200,50,.5);}
+@keyframes cineFlashStar{0%{opacity:0;transform:translate(-50%,-50%) scale(.2);}20%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-50%) scale(2.5);}}
+@keyframes cineRingExpand{0%{opacity:1;transform:translate(-50%,-50%) scale(.5);}60%{opacity:.6;}100%{opacity:0;transform:translate(-50%,-50%) scale(4);}}
+
+.cinematic-square .cine-flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(214,127,255,.6) 0%,rgba(180,80,255,.2) 35%,transparent 60%);animation:cineFlashSquare .7s ease-out forwards;}
+.cinematic-square .cine-ring-1{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;border:2px solid rgba(214,127,255,.6);animation:cineRingExpand .8s ease-out forwards;}
+@keyframes cineFlashSquare{0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}25%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-50%) scale(2);}}
+
+.cinematic-triangle .cine-flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(103,190,255,.5) 0%,rgba(60,140,255,.15) 40%,transparent 60%);animation:cineFlashTriangle .55s ease-out forwards;}
+.cinematic-triangle .cine-ring-1{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(103,190,255,.5);animation:cineRingExpand .6s ease-out forwards;}
+@keyframes cineFlashTriangle{0%{opacity:0;transform:translate(-50%,-50%) scale(.4);}30%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.6);}}
+
+
+/* ── 3. FIX RANK BADGE BORDER CLIPPING + BANNER TEXT CENTERING ──
+   Problem 1: overflow:hidden on .pb-pic clips the rank border & glow.
+   Fix: box-sizing:border-box so border doesn't expand beyond 64px,
+        AND allow overflow:visible so box-shadow glow isn't clipped.
+   Problem 2: Single-line banner names sit at top of .pb-info, not centered.
+   Fix: Set vertical alignment on .pb-info container. */
+
+#s-game .pb-pic{
+  overflow:visible!important;
+}
+#s-game .pb-pic img{
+  border-radius:50%!important;
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+  object-fit:cover!important;
+  object-position:center 25%!important;
+}
+/* Center .pb-info contents vertically */
+#s-game .player-banner{
+  align-items:center!important;
+  justify-content:flex-start!important;
+}
+#s-game .pb-info{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  align-items:flex-start!important;
+}
+
+
+/* ── 4. LAST TURN RED ── */
+#s-game.final-turn #tp-cur{color:#ff4444!important;text-shadow:0 0 8px rgba(255,60,60,.5)!important;}
+#s-game.final-turn .turn-hud{border-color:rgba(255,60,60,.5)!important;box-shadow:0 0 18px rgba(255,0,0,.15)!important;}
+
+
+/* ── 5. DRAG STYLING ── */
+body.dragging-card{cursor:grabbing!important;user-select:none!important;}
+body.dragging-card *{cursor:grabbing!important;}
+#drag-ghost{border-radius:5px;overflow:hidden;}
+.cell.drag-hover{
+  background:rgba(201,168,76,.25)!important;
+  box-shadow:inset 0 0 12px rgba(201,168,76,.4),0 0 16px rgba(201,168,76,.25)!important;
+  border-color:rgba(201,168,76,.8)!important;
+  transition:background .1s,box-shadow .1s!important;
+}
+.cell.drag-hover::after{
+  content:'';position:absolute;inset:0;border:2px solid rgba(201,168,76,.7);border-radius:inherit;
+  animation:dragHoverPulse .8s ease-in-out infinite;pointer-events:none;
+}
+@keyframes dragHoverPulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+#s-game .hc:not(.dim){cursor:grab!important;}
+/* Highlight supporter cells as drop targets for character cards during drag */
+.cell.drag-tribute-target .bc{
+  box-shadow:0 0 10px rgba(201,168,76,.4)!important;
+}
+
+
+/* ── 6. OVERWRITE PRESET BUTTON ── */
+.btn.btn-overwrite-preset{
+  line-height:1.2!important;padding:.35rem .6rem!important;
+  display:inline-flex!important;flex-direction:column!important;
+  align-items:center!important;justify-content:center!important;text-align:center!important;
+}
+.btn.btn-overwrite-preset .btn-line{display:block;white-space:nowrap;}
+
+
+/* ── 7. IMPROVED PLACEMENT GHOST ANIMATIONS ── */
+.placement-anim-ghost.place-anim-star{
+  animation:cardSetStarV2 .86s cubic-bezier(.12,.92,.18,1.04) both!important;
+  box-shadow:0 0 50px rgba(255,226,120,.7),0 0 100px rgba(255,226,120,.25)!important;
+  border:2.5px solid rgba(255,226,120,.8)!important;
+}
+@keyframes cardSetStarV2{
+  0%{opacity:0;transform:scale(.15) rotate(-10deg);filter:brightness(3) blur(4px);}
+  15%{opacity:1;transform:scale(1.3) rotate(2deg);filter:brightness(1.5) blur(0);}
+  30%{transform:scale(.95) rotate(-1deg);}50%{transform:scale(1.08) rotate(0);}
+  100%{opacity:0;transform:scale(1.2);filter:brightness(1);}
+}
+.placement-anim-ghost.place-anim-square{
+  animation:cardSetSquareV2 .72s cubic-bezier(.14,.9,.2,1.06) both!important;
+  box-shadow:0 0 35px rgba(214,127,255,.6),0 0 70px rgba(214,127,255,.2)!important;
+}
+@keyframes cardSetSquareV2{
+  0%{opacity:0;transform:scale(.25) rotate(-15deg);filter:brightness(2) blur(3px);}
+  20%{opacity:1;transform:scale(1.2) rotate(3deg);filter:brightness(1.3) blur(0);}
+  45%{transform:scale(.97) rotate(0);}100%{opacity:0;transform:scale(1.15);}
+}
+.placement-anim-ghost.place-anim-triangle{
+  animation:cardSetTriV2 .62s cubic-bezier(.16,.88,.22,1.1) both!important;
+}
+@keyframes cardSetTriV2{
+  0%{opacity:0;transform:scale(.35) rotate(-8deg);filter:blur(2px);}
+  25%{opacity:1;transform:scale(1.12) rotate(1deg);filter:blur(0);}
+  50%{transform:scale(.98);}100%{opacity:0;transform:scale(1.1);}
+}
+.placement-anim-ghost.place-anim-circle{
+  animation:cardSetCircV2 .52s cubic-bezier(.18,.9,.26,1.1) both!important;
+}
+@keyframes cardSetCircV2{
+  0%{opacity:0;transform:scale(.45) translateY(10px);}
+  35%{opacity:1;}60%{transform:scale(1.04) translateY(-2px);}
+  100%{opacity:0;transform:scale(1.08) translateY(0);}
+}
+
+/* Durable UI override patch moved to 99-ui-final.css. */
+
+/* ── 8. PORTRAIT BOOSTER ART REDESIGN ──────────────────────────────────────
+   Illustration3.png is 1000×1400 (5:7 portrait). The old layout put art
+   in a wide/short banner on top — this crops the image heavily.
+   New design: horizontal card — portrait art strip on the LEFT, info on
+   the RIGHT. The art panel is sized to show the full illustration at its
+   natural ratio. Falls back to vertical stacking on narrow screens.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* ── Store tile grid: 1 column so each tile is full width ── */
+#s-challenger .store-grid{
+  grid-template-columns:1fr!important;
+  max-width:680px!important;
+}
+
+/* ── Tile: horizontal row layout ── */
+#s-challenger .ch-store-product{
+  display:flex!important;
+  flex-direction:row!important;
+  min-height:0!important;
+  height:auto!important;
+  overflow:visible!important;
+  align-items:stretch!important;
+}
+
+/* ── Art panel: fixed width, natural portrait aspect ratio ──
+   Width 160px × ratio 5:7 = 224px tall. Scales up at wider tiles. */
+#s-challenger .ch-store-product-art{
+  flex:0 0 160px!important;
+  width:160px!important;
+  height:auto!important;
+  min-height:224px!important;
+  border-bottom:none!important;
+  border-right:1px solid rgba(232,196,82,.24)!important;
+  border-radius:12px 0 0 12px!important;
+  overflow:hidden!important;
+  position:relative!important;
+}
+
+/* ── Image: contain so the full illustration is always visible ── */
+#s-challenger .ch-store-product-art img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  transform:none!important;
+  filter:none!important;
+}
+#s-challenger .ch-store-product:hover .ch-store-product-art img{
+  transform:none!important;
+  filter:none!important;
+}
+
+/* ── Info panel fills the rest ── */
+#s-challenger .ch-store-product-info{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  padding:.9rem 1rem!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
+}
+
+/* ── Pack opening overlay: contain so full art shows in the card ── */
+.pack-art{
+  background:#07080f!important;
+}
+.pack-art img{
+  object-fit:contain!important;
+  object-position:center center!important;
+}
+
+/* ── Legacy booster-tile (non-store contexts): also contain ── */
+.booster-art{
+  background:#07080f!important;
+}
+.booster-art img{
+  object-fit:contain!important;
+  object-position:center center!important;
+}
+
+/* ── Narrow screens: revert to vertical ── */
+@media(max-width:600px){
+  #s-challenger .ch-store-product{
+    flex-direction:column!important;
+  }
+  #s-challenger .ch-store-product-art{
+    flex:0 0 auto!important;
+    width:100%!important;
+    height:220px!important;
+    min-height:0!important;
+    border-right:none!important;
+    border-bottom:1px solid rgba(232,196,82,.24)!important;
+    border-radius:12px 12px 0 0!important;
+  }
+}

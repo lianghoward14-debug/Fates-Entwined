@@ -1,0 +1,80 @@
+{
+  "name": "fates-entwined",
+  "version": "1.39.0",
+  "description": "Fates Entwined desktop app shell",
+  "author": "Howard Liang",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "electron": "electron .",
+    "server:ws": "node server/fate-ws-authority.js",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable",
+    "dist:all": "electron-builder --win nsis portable",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.fatesentwined.desktop",
+    "productName": "Fates Entwined",
+    "files": [
+      "index.html",
+      "manifest.json",
+      "pwa-icon.svg",
+      "blank.png",
+      "back.png",
+      "deck.png",
+      "sw.js",
+      "voicelines.txt",
+      "src/**/*",
+      "optimized/**/*",
+      "titlscreenbackgrounds/**/*",
+      "ingamebackgrouds/**/*",
+      "setvoicelines/**/*",
+      "new voices/**/*",
+      "soundeffects/**/*",
+      "server/**/*",
+      "afficon/**/*",
+      "aiicons/**/*",
+      "rankicons/**/*",
+      "pfp/**/*",
+      "UIpictures/**/*",
+      "*.png",
+      "electron/**/*"
+    ],
+    "afterPack": "build/afterPack.js",
+    "directories": {
+      "output": "dist"
+    },
+    "icon": "build/icon.ico",
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Fates Entwined",
+      "uninstallDisplayName": "Fates Entwined",
+      "menuCategory": "Games",
+      "artifactName": "Fates-Entwined-Setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "rcedit": "^5.0.2"
+  }
+}

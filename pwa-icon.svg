@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="72" fill="#06080e"/>
+  <rect x="46" y="46" width="420" height="420" rx="54" fill="none" stroke="#c9a84c" stroke-width="12"/>
+  <path d="M256 98l38 104 110 5-86 68 30 106-92-60-92 60 30-106-86-68 110-5z" fill="#c9a84c"/>
+  <text x="256" y="444" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="58" font-weight="700" fill="#f7e9ba">FE</text>
+</svg>
