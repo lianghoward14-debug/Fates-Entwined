@@ -2,6 +2,9 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 exports.default = async function afterPack(context) {
+  if (context.electronPlatformName !== 'win32') {
+    return;
+  }
   const exe = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.exe`);
   const ico = path.join(__dirname, 'icon.ico');
   const rcedit = path.join(context.packager.projectDir, 'node_modules', 'rcedit', 'bin', 'rcedit-x64.exe');

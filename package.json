@@ -10,6 +10,7 @@
     "electron": "electron .",
     "server:ws": "node server/fate-ws-authority.js",
     "dist": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
     "dist:portable": "electron-builder --win portable",
     "dist:all": "electron-builder --win nsis portable",
     "pack": "electron-builder --dir"
@@ -54,6 +55,9 @@
         "nsis",
         "portable"
       ]
+    },
+    "mac": {
+      "icon": "build/icon.icns"
     },
     "nsis": {
       "oneClick": false,
