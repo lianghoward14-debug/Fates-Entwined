@@ -33,6 +33,7 @@
   let lastReportedActionAt = 0;
   let lastTurnBoundaryActionSeq = 0;
   let pendingActionProgressSeq = 0;
+  let appliedTurnChoiceFallbackIds = new Set();
   let lastSyncedRoomChatKey = '';
   let endedRoomCodesHandled = new Set();
   let actionReplayBuffer = new Map();
@@ -550,6 +551,52 @@
       [`rooms/${code}/updatedAt`]: FO.serverTimestamp()
     }).catch(()=>{});
   }
+  function isGameScreenActive(){
+    try{ return !!document.getElementById('s-game')?.classList.contains('active'); }catch(e){ return false; }
+  }
+  function isCoinScreenActive(){
+    try{ return !!document.getElementById('s-coin')?.classList.contains('active'); }catch(e){ return false; }
+  }
+  async function publishTurnChoiceFallback(code, payload, u){
+    if(!code || !u || !FO.update || !FO.ref || !FO.rtdb) return false;
+    const choice = {
+      roomCode:code,
+      uid:u.uid,
+      playerIndex:Number(payload?.playerIndex),
+      goFirst:!!payload?.goFirst,
+      clientActionId:String(payload?.clientActionId || ''),
+      createdAt:FO.serverTimestamp(),
+      clientAt:Date.now()
+    };
+    await FO.update(FO.ref(FO.rtdb), {
+      [`rooms/${code}/players/${u.uid}/turnChoice`]:choice,
+      [`rooms/${code}/players/${u.uid}/actionSeqClientAt`]:Date.now()
+    });
+    return true;
+  }
+  function maybeApplyTurnChoiceFallback(players){
+    const g = gameState();
+    const room = lastLobbyRoom;
+    if(!isOnlineMatchState(g) || !room || !players || isGameScreenActive()) return;
+    if(!isCoinScreenActive() && !document.querySelector('.online-match-overview-modal')) return;
+    const candidates = [room.hostUid, room.guestUid].filter(Boolean);
+    for(const uid of candidates){
+      const choice = players?.[uid]?.turnChoice;
+      if(!choice || choice.roomCode !== room.roomCode) continue;
+      const playerIndex = Number(choice.playerIndex);
+      const expectedUid = playerIndex === 0 ? room.hostUid : room.guestUid;
+      if(uid !== expectedUid || playerIndex !== g._coinWinner) continue;
+      const choiceId = String(choice.clientActionId || uid + ':' + choice.clientAt || '');
+      if(choiceId && appliedTurnChoiceFallbackIds.has(choiceId)) continue;
+      if(choiceId) appliedTurnChoiceFallbackIds.add(choiceId);
+      withRemoteAction(async ()=>{
+        if(isGameScreenActive()) return;
+        if(typeof window.chooseTurn === 'function') window.chooseTurn(!!choice.goFirst);
+        updateRoomTurn(gameState()?.currentPlayer);
+      }, playerIndex).catch(e=>console.error('Turn-choice fallback failed', e));
+      return;
+    }
+  }
   function activeRoomCode(){
     return gameState()?._onlineRoomCode || activeRoom;
   }
@@ -896,6 +943,7 @@
     lastReportedActionAt = 0;
     lastTurnBoundaryActionSeq = 0;
     pendingActionProgressSeq = 0;
+    appliedTurnChoiceFallbackIds.clear();
     lastSyncedRoomChatKey = '';
     deckPickerOpenForRoom = null;
     currentDeckChoiceKey = '';
@@ -1417,6 +1465,7 @@
       evaluateLagPause();
       maybeHandleOpponentDisconnect(lastLobbyRoom, players);
       maybeAutoStartQueuedRoom(lastLobbyRoom, players);
+      maybeApplyTurnChoiceFallback(players);
     });
     if(opts.openDeckPicker && !activeRoomSilent) setTimeout(()=>openOnlineDeckPicker(code), 120);
   }
@@ -1630,8 +1679,8 @@
 
       if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started: matchup/coin bootstrap active.');
       subscribeActions(room.roomCode);
-      // Publish live match listing for spectators
-      if(localIndex === 0 && typeof window.fatePublishLiveMatch === 'function') window.fatePublishLiveMatch(room.roomCode, room, players);
+      // Spectator listings stay disabled until the deployed RTDB rules explicitly
+      // allow /liveMatches writes; player match startup must not depend on them.
       // Install spectator count badge for players
       if(typeof window.fateInstallPlayerSpectatorBadge === 'function') window.fateInstallPlayerSpectatorBadge(room.roomCode);
     }catch(e){
@@ -2137,6 +2186,10 @@
   }
 
   async function sendActionDirectFirebase(code, type, payload, u){
+    const isTurnChoice = String(type || '').toUpperCase() === 'CHOOSE_TURN';
+    if(isTurnChoice){
+      publishTurnChoiceFallback(code, payload, u).catch(e=>console.warn('Turn-choice fallback publish failed', e));
+    }
     const existing = await findExistingActionByClientId(code, payload?.clientActionId);
     if(existing){
       bufferOnlineAction(existing);
@@ -2152,8 +2205,16 @@
       [`rooms/${code}/lastActionSeq`]: seq,
       [`rooms/${code}/updatedAt`]:FO.serverTimestamp()
     };
-    await FO.update(FO.ref(FO.rtdb), patch);
-    bufferOnlineAction(action);
+    try{
+      await FO.update(FO.ref(FO.rtdb), patch);
+      bufferOnlineAction(action);
+    }catch(e){
+      if(isTurnChoice){
+        console.warn('Turn-choice action-log write failed; relying on player-node fallback', e);
+        return;
+      }
+      throw e;
+    }
   }
 
   function installOnlineGameplayHooks(){
