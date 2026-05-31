@@ -311,6 +311,17 @@
   function isOnlineMatchState(g){
     return !!(g && g._onlineRoomCode && g._onlineActionLogMode);
   }
+  function isOnlineBootstrapScreenActive(){
+    try{
+      return !!(
+        document.getElementById('s-coin')?.classList.contains('active') ||
+        document.getElementById('s-game')?.classList.contains('active') ||
+        document.querySelector('.online-match-overview-modal')
+      );
+    }catch(e){
+      return false;
+    }
+  }
   function roomPlayerIndexForUid(room, uid){
     if(!room || !uid) return null;
     if(room.hostUid === uid) return 0;
@@ -1546,8 +1557,10 @@
       if(window.toast) toast('Game state is not ready yet');
       return;
     }
-    if(startingLock || g._onlineRoomCode === room.roomCode) return;
+    if(startingLock) return;
+    if(g._onlineStartedRoomCode === room.roomCode && isOnlineBootstrapScreenActive()) return;
     startingLock = true;
+    g._onlineBootstrappingRoomCode = room.roomCode;
     try{
       closeModal();
       if(randomQueueState.active && randomQueueState.roomCode === room.roomCode){
@@ -1600,6 +1613,8 @@
       if(typeof window.applyGameBackground === 'function') window.applyGameBackground(song);
       if(typeof window._lastGameSong !== 'undefined') window._lastGameSong = song;
       g._onlineActionLogMode = true;
+      g._onlineStartedRoomCode = room.roomCode;
+      g._onlineBootstrappingRoomCode = null;
       applyOnlineRoomIdentity(room, players);
       if(typeof window.updatePlayerBanners === 'function') setTimeout(()=>window.updatePlayerBanners(), 80);
       if(localIndex === 0) setTimeout(()=>updateRoomTurn(gameState()?.currentPlayer), 1200);
@@ -1617,6 +1632,8 @@
     }catch(e){
       console.error('Online room game bootstrap failed', e);
       if(window.toast) toast('Online game start failed');
+      const latest = gameState();
+      if(latest && latest._onlineBootstrappingRoomCode === room.roomCode) latest._onlineBootstrappingRoomCode = null;
     }finally{
       setTimeout(()=>{ startingLock=false; }, 1000);
     }

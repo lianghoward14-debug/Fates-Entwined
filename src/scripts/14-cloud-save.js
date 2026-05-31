@@ -312,7 +312,24 @@
 
   // ─── LOADING OVERLAY ───
 
+  function isOnlineMatchLoadingUnsafe(){
+    try{
+      var g = typeof window.getFateGameState === 'function'
+        ? window.getFateGameState()
+        : (window.FATE_GAME_STATE || null);
+      if(g && (g._onlineRoomCode || g._onlineBootstrappingRoomCode)) return true;
+      if(document.getElementById('s-coin')?.classList.contains('active')) return true;
+      if(document.getElementById('s-game')?.classList.contains('active')) return true;
+      if(document.querySelector('.online-match-overview-modal')) return true;
+    }catch(e){}
+    return false;
+  }
+
   function showCloudLoadingOverlay(){
+    if(isOnlineMatchLoadingUnsafe()){
+      window.__fateCloudLoadingActive = false;
+      return;
+    }
     if(_loadingOverlay) return;
     window.__fateCloudLoadingActive = true;
     _loadingOverlay = document.getElementById('fate-loading-screen') || document.createElement('div');
@@ -362,9 +379,28 @@
     _cloudReady = false;
     window._fateCloudUid = uid;
     window._fateCloudReady = false;
+    if(isOnlineMatchLoadingUnsafe()){
+      _cloudReady = true;
+      window._fateCloudReady = true;
+      window.dispatchEvent(new CustomEvent('fate-cloud-ready', { detail: { uid: uid, deferred: true } }));
+      console.log('[CloudSave] Deferred cloud data load during active online match for ' + uid);
+      return Promise.resolve(false);
+    }
     showCloudLoadingOverlay();
 
-    return cloudLoadAll(uid).then(function(hadCloudData){
+    var timedOut = false;
+    var loadTimeout = 0;
+    var loadPromise = cloudLoadAll(uid);
+    var timeoutPromise = new Promise(function(resolve){
+      loadTimeout = setTimeout(function(){
+        timedOut = true;
+        hideCloudLoadingOverlay();
+        resolve(true);
+      }, 7000);
+    });
+
+    return Promise.race([loadPromise, timeoutPromise]).then(function(hadCloudData){
+      clearTimeout(loadTimeout);
       if(!hadCloudData){
         // First sign-in or no cloud data — push current local data up
         cloudSaveAll();
@@ -384,8 +420,9 @@
       hideCloudLoadingOverlay();
 
       window.dispatchEvent(new CustomEvent('fate-cloud-ready', { detail: { uid: uid } }));
-      console.log('[CloudSave] Cloud data ready for ' + uid);
+      console.log('[CloudSave] Cloud data ready for ' + uid + (timedOut ? ' after loading screen timeout' : ''));
     }).catch(function(e){
+      clearTimeout(loadTimeout);
       console.warn('[CloudSave] sign-in load failed, using local data', e);
       _cloudReady = true;
       window._fateCloudReady = true;
