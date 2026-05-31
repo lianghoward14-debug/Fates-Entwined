@@ -429,6 +429,11 @@
   function scheduleOptimisticCorrection(reason){
     const g = gameState();
     if(g) g._onlineLagPauseActive = true;
+    if(String(reason || '').toUpperCase() === 'CHOOSE_TURN'){
+      if(window.toast) toast('Turn choice is still syncing. Stay in the match.');
+      console.warn('Online turn-choice sync failed without forcing a reload.');
+      return;
+    }
     if(window.toast) toast('Network rejected an action. Refreshing match state.');
     console.warn('Online optimistic action correction scheduled:', reason);
     setTimeout(()=>{
@@ -2093,6 +2098,10 @@
     const code = gameState()?._onlineRoomCode || activeRoom;
     const u = window.FATE_ONLINE?.user;
     if(!code || !u) return;
+    if(String(type || '').toUpperCase() === 'CHOOSE_TURN'){
+      await sendActionDirectFirebase(code, type, payload, u);
+      return;
+    }
     try{
       const accepted = await sendActionViaAuthority(type, payload);
       if(accepted){
@@ -2117,6 +2126,34 @@
     const action = { seq, uid:u.uid, type, payload, createdAt:FO.serverTimestamp() };
     if(payload?.clientActionId) action.clientActionId = String(payload.clientActionId);
     await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/actions/${String(seq).padStart(6,'0')}`]: action, [`rooms/${code}/updatedAt`]:FO.serverTimestamp() });
+  }
+
+  async function findExistingActionByClientId(code, clientActionId){
+    if(!code || !clientActionId || !FO.get) return null;
+    const snap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}/actions`)).catch(()=>null);
+    const actions = snap?.val() || {};
+    const found = Object.values(actions).find(a => a && String(a.clientActionId || a.payload?.clientActionId || '') === String(clientActionId));
+    return found || null;
+  }
+
+  async function sendActionDirectFirebase(code, type, payload, u){
+    const existing = await findExistingActionByClientId(code, payload?.clientActionId);
+    if(existing){
+      bufferOnlineAction(existing);
+      return;
+    }
+    const roomSnap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}`));
+    const room = roomSnap.val() || {};
+    const seq = Number(room.lastActionSeq || 0) + 1;
+    const action = { seq, uid:u.uid, type:String(type || '').toUpperCase(), payload, createdAt:FO.serverTimestamp() };
+    if(payload?.clientActionId) action.clientActionId = String(payload.clientActionId);
+    const patch = {
+      [`rooms/${code}/actions/${String(seq).padStart(6,'0')}`]: action,
+      [`rooms/${code}/lastActionSeq`]: seq,
+      [`rooms/${code}/updatedAt`]:FO.serverTimestamp()
+    };
+    await FO.update(FO.ref(FO.rtdb), patch);
+    bufferOnlineAction(action);
   }
 
   function installOnlineGameplayHooks(){

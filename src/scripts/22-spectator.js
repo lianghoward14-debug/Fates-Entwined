@@ -17,11 +17,19 @@
   let spectatorLiveProfiles = new Map();
   let spectatorProfileUnsubs = new Map();
   let spectatorPanelOpen = false;
+  let liveMatchPublishDisabled = false;
 
   function esc(s){ return String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function getUser(){ try{ return (FO().requireUser ? FO().requireUser() : null); }catch(e){ return null; } }
   function pName(p){ return FO().profileName ? FO().profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
   function pPhoto(p){ return FO().profilePhoto ? FO().profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
+  function liveMatchListingsEnabled(){
+    try{
+      return window.FATE_ENABLE_LIVE_MATCH_LISTINGS === true || localStorage.getItem('fateEnableLiveMatchListings') === '1';
+    }catch(e){
+      return window.FATE_ENABLE_LIVE_MATCH_LISTINGS === true;
+    }
+  }
 
   // ─── Publish / unpublish live match listing ───
   // Called by rooms when a match starts/ends so spectators can discover it.
@@ -31,6 +39,7 @@
   // permission to liveMatches/{code}, so manual cleanup can never happen post-crash.
   let _liveMatchOnDisconnects = {};
   function publishLiveMatch(roomCode, room, players){
+    if(liveMatchPublishDisabled || !liveMatchListingsEnabled()) return;
     const u = window.FATE_ONLINE?.user;
     if(!u || !FO().rtdb || !FO().set) return;
     const hostProf = players?.[room.hostUid]?.profileSnapshot || {};
@@ -58,7 +67,11 @@
           _liveMatchOnDisconnects[roomCode] = od;
         }catch(e){}
       }
-    }).catch(function(){});
+    }).catch(function(e){
+      if(String(e?.code || e?.message || '').indexOf('permission_denied') !== -1){
+        liveMatchPublishDisabled = true;
+      }
+    });
   }
   function unpublishLiveMatch(roomCode){
     if(!FO().rtdb || !FO().remove) return;
