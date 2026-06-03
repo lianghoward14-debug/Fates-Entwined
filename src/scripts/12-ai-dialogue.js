@@ -10,7 +10,7 @@ const AI_DIALOGUE_MAX_PER_GAME = 8;
 const AI_DIALOGUE_COOLDOWN = 12000; // 12 seconds between messages
 let _aiLastDialogueTime = 0;
 
-// 150 lines of generic dialogue keyed by game state
+// Generic dialogue keyed by game state
 const AI_DIALOGUE_BANK = {
   gameStart: [
     "Let's see what you've got.",
@@ -169,6 +169,71 @@ const AI_DIALOGUE_BANK = {
     "The path to victory is clear.",
   ],
 };
+
+const AI_RANDOM_DIALOGUE_EXPANSION_STATES = [
+  'gameStart',
+  'opponentPlacedSupporter',
+  'opponentPlacedCharacter',
+  'aiPlacedCard',
+  'playerWinningZone',
+  'aiWinningZone',
+  'tiedZone',
+  'midGame',
+  'lateGame',
+  'consolidation',
+  'effectActivated',
+  'playerWinning',
+  'aiWinning'
+];
+const AI_RANDOM_DIALOGUE_OPENERS = [
+  'I am reading the board now.',
+  'That gives me something to work with.',
+  'The shape of this match is changing.',
+  'I have a line here.',
+  'That move tells me plenty.',
+  'There is still room to pivot.',
+  'I can make this awkward.',
+  'The zone math is getting sharp.',
+  'I like the pressure here.',
+  'This is where small edges matter.'
+];
+const AI_RANDOM_DIALOGUE_MIDDLES = [
+  'I might contest the center.',
+  'I might hold one more card.',
+  'I might force you to answer.',
+  'I might trade short-term tempo for a better setup.',
+  'I might push the weak zone.',
+  'I might keep the effect chain alive.',
+  'I might make you spend more than you want.',
+  'I might turn that lead into bait.',
+  'I might stack value before committing.',
+  'I might make the next turn uncomfortable.'
+];
+const AI_RANDOM_DIALOGUE_ENDINGS = [
+  'Let us see if it survives contact.',
+  'The next placement matters.',
+  'That is the plan for now.',
+  'You still have counterplay.',
+  'I am not locked into one path.',
+  'This could get messy fast.',
+  'I only need one clean opening.',
+  'The board will decide.',
+  'I will take the small edge.',
+  'That is enough pressure for me.'
+];
+
+(function addRandomAIGenericDialogueLines(){
+  let added = 0;
+  for(let i = 0; added < 250; i++) {
+    const state = AI_RANDOM_DIALOGUE_EXPANSION_STATES[i % AI_RANDOM_DIALOGUE_EXPANSION_STATES.length];
+    const opener = AI_RANDOM_DIALOGUE_OPENERS[i % AI_RANDOM_DIALOGUE_OPENERS.length];
+    const middle = AI_RANDOM_DIALOGUE_MIDDLES[Math.floor(i / AI_RANDOM_DIALOGUE_OPENERS.length) % AI_RANDOM_DIALOGUE_MIDDLES.length];
+    const ending = AI_RANDOM_DIALOGUE_ENDINGS[Math.floor(i / (AI_RANDOM_DIALOGUE_OPENERS.length * AI_RANDOM_DIALOGUE_MIDDLES.length)) % AI_RANDOM_DIALOGUE_ENDINGS.length];
+    if(!AI_DIALOGUE_BANK[state]) AI_DIALOGUE_BANK[state] = [];
+    AI_DIALOGUE_BANK[state].push(`${opener} ${middle} ${ending}`);
+    added++;
+  }
+})();
 
 const AI_PRESET_DIALOGUE_BANK = {
   maja: [

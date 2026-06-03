@@ -46,6 +46,23 @@ function getSafeRowForPlayer(player) {
   return player === 0 ? 2 : 0;
 }
 
+function getBoardRowOwner(z, r) {
+  if (r === 0) return 1;
+  if (r === 1) return -1;
+  if (r === 2) return 0;
+  if (r >= 3) return getExtraSafeRowOwner(z, r);
+  return null;
+}
+
+function isZoeBlockTargetAllowed(z, r, c, owner) {
+  const opponent = owner === 0 ? 1 : 0;
+  if (r === 1) return true;
+  if (r >= 3 && !isFullExtraSafeRow(z, r)) {
+    return isMarkSafeSquare(z, r, c, opponent);
+  }
+  return getBoardRowOwner(z, r) === opponent;
+}
+
 function ensureMarkSafeSquareState() {
   if (typeof G === 'undefined' || !G) return [];
   if (!Array.isArray(G.markSafeSquares)) G.markSafeSquares = [];
@@ -61,7 +78,10 @@ function ensureExtraRowOwnerState(z = null) {
     const legacyOwner = G.extraRowFullOwners && typeof G.extraRowFullOwners[zi] === 'number'
       ? G.extraRowFullOwners[zi]
       : null;
-    if (legacyOwner !== null && typeof G.extraRowOwners[zi][0] !== 'number') {
+    const hasCanonicalFullOwner = G.extraRowOwners[zi].some(owner => typeof owner === 'number');
+    const firstExtraRowHasMarkSquare = Array.isArray(G.markSafeSquares)
+      && G.markSafeSquares.some(s => s && s.z === zi && s.r === 3);
+    if (legacyOwner !== null && !hasCanonicalFullOwner && !firstExtraRowHasMarkSquare && typeof G.extraRowOwners[zi][0] !== 'number') {
       G.extraRowOwners[zi][0] = legacyOwner;
     }
     const count = Number(G.extraRows[zi]) || 0;
@@ -536,13 +556,17 @@ const FATE_ENHANCED_VISUAL_FX_KEY = 'fateEnhancedVisualFx';
 let _lastDiscardSfxAt = 0;
 
 function isEnhancedVisualFxEnabled() {
-  try { return localStorage.getItem(FATE_ENHANCED_VISUAL_FX_KEY) === '1'; } catch(e) { return false; }
+  try { return localStorage.getItem(FATE_ENHANCED_VISUAL_FX_KEY) !== '0'; } catch(e) { return true; }
 }
 
 function applyEnhancedVisualFxState() {
   const enabled = isEnhancedVisualFxEnabled();
   document.documentElement.classList.toggle('fate-enhanced-fx', enabled);
+  document.documentElement.classList.toggle('fate-animations-on', enabled);
+  document.documentElement.classList.toggle('fate-animations-off', !enabled);
   document.body?.classList?.toggle('fate-enhanced-fx', enabled);
+  document.body?.classList?.toggle('fate-animations-on', enabled);
+  document.body?.classList?.toggle('fate-animations-off', !enabled);
   syncEnhancedVisualFxControls();
   return enabled;
 }

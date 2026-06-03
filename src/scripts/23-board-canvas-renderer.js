@@ -23,6 +23,7 @@
 
   const imageCache = new Map();
   const fateAnimByIid = new Map();
+  const CANVAS_FATE_PULSE_MS = 420;
   const LAYOUT_RETRY_MS = 900;
   const backBuffer = document.createElement('canvas');
   const retainedFrame = document.createElement('canvas');
@@ -65,15 +66,31 @@
       return rec;
     }
     const img = new Image();
-    rec = { img, loaded:false, failed:false };
+    rec = { img, loaded:false, failed:false, fallbackTried:false };
     imageCache.set(key, rec);
+    const fallbackSrc = (typeof window.getFullCardImageFallbackSrc === 'function')
+      ? window.getFullCardImageFallbackSrc(key)
+      : key.replace(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/, '$1.png');
+    const tryFallback = function(){
+      if(rec.loaded || rec.fallbackTried || !fallbackSrc || fallbackSrc === key) return;
+      rec.fallbackTried = true;
+      rec.failed = false;
+      img.src = fallbackSrc;
+    };
     img.decoding = 'async';
     img.loading = 'eager';
     try { img.fetchPriority = 'high'; } catch(e) {}
     img.onload = function(){ rec.loaded = true; scheduleDraw(); };
-    img.onerror = function(){ rec.failed = true; scheduleDraw(); };
+    img.onerror = function(){
+      if(!rec.fallbackTried && fallbackSrc && fallbackSrc !== key){ tryFallback(); return; }
+      rec.failed = true;
+      scheduleDraw();
+    };
     img.src = key;
     if(img.complete && (img.naturalWidth || img.width)) rec.loaded = true;
+    setTimeout(function(){
+      if(!rec.loaded && !rec.failed) tryFallback();
+    }, 850);
     return rec;
   }
 
@@ -163,8 +180,8 @@
     let deltaText = '';
     if(fateAnim && fateAnim.changedAt){
       const elapsed = performance.now() - fateAnim.changedAt;
-      if(elapsed >= 0 && elapsed < 1100) {
-        pulse = 1 - (elapsed / 1100);
+      if(elapsed >= 0 && elapsed < CANVAS_FATE_PULSE_MS) {
+        pulse = 1 - (elapsed / CANVAS_FATE_PULSE_MS);
         if(fateAnim.delta) deltaText = (fateAnim.delta > 0 ? '+' : '') + fateAnim.delta;
       }
     }
@@ -325,6 +342,14 @@
     return total;
   }
 
+  function shouldAnimateCanvasFateBadges(){
+    try {
+      if(document.documentElement.classList.contains('fate-animations-off')) return false;
+      if(typeof isEnhancedVisualFxEnabled === 'function') return isEnhancedVisualFxEnabled();
+    } catch(e) {}
+    return false;
+  }
+
   function getFateAnim(card, fateValue){
     if(!card || !card.iid) return null;
     const key = String(card.iid);
@@ -340,7 +365,7 @@
       const nextNum = Number(nextFate);
       rec.delta = Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0;
       rec.fate = nextFate;
-      rec.changedAt = performance.now();
+      rec.changedAt = shouldAnimateCanvasFateBadges() ? performance.now() : 0;
     }
     return rec;
   }
@@ -413,6 +438,7 @@
     let cards = 0;
     let zeroRectCards = 0;
     let animatingFate = false;
+    const animateFateBadges = shouldAnimateCanvasFateBadges();
 
     cells.forEach(function(cell){
       const z = Number(cell.dataset.z);
@@ -442,7 +468,7 @@
         : (cell.classList.contains('tribute-cell-available') || bc.classList.contains('tribute-available') ? 'available' : '');
       const visual = getVisual(card, z, r, c, viewerP);
       const fateAnim = getFateAnim(card, visual && visual.displayFate);
-      if(fateAnim && fateAnim.changedAt && performance.now() - fateAnim.changedAt < 1100) animatingFate = true;
+      if(animateFateBadges && fateAnim && fateAnim.changedAt && performance.now() - fateAnim.changedAt < CANVAS_FATE_PULSE_MS) animatingFate = true;
       if(drawCard(backCtx, visual, card, rect, selected, { tributeState, fateAnim, viewerP })) cards++;
     });
 
@@ -465,6 +491,8 @@
       window.FATE_RUNTIME_FORCE_DOM_BOARD = true;
       window.FATE_FORCE_DOM_BOARD_UNTIL = performance.now() + 3000;
       document.documentElement.classList.remove('fate-canvas-board-mode');
+      document.documentElement.classList.remove('fate-canvas-board-ready');
+      if(document.body) document.body.classList.remove('fate-canvas-board-ready');
       window.FATE_USE_CANVAS_BOARD = false;
       const canvas = document.getElementById('fate-board-canvas');
       if(canvas) canvas.style.display = 'none';
@@ -490,6 +518,13 @@
 
     let pending = 0;
     imageCache.forEach(function(rec){ if(!rec.loaded && !rec.failed) pending++; });
+    if(pending === 0) {
+      document.documentElement.classList.add('fate-canvas-board-ready');
+      if(document.body) document.body.classList.add('fate-canvas-board-ready');
+    } else {
+      document.documentElement.classList.remove('fate-canvas-board-ready');
+      if(document.body) document.body.classList.remove('fate-canvas-board-ready');
+    }
     lastReport = {
       draws: (lastReport.draws || 0) + 1,
       cards,
@@ -502,7 +537,7 @@
       skippedEmptyFrames:lastReport.skippedEmptyFrames || 0,
       lastMs: Math.round((performance.now() - start) * 10) / 10
     };
-    if(animatingFate) scheduleDraw();
+    if(animateFateBadges && animatingFate) scheduleDraw();
   }
 
   function installObservers(){
@@ -531,6 +566,8 @@
   window.fateCanvasBoardPauseDrawing = function(){
     boardRebuildInProgress = true;
     if(drawRaf){ cancelAnimationFrame(drawRaf); drawRaf = 0; }
+    document.documentElement.classList.remove('fate-canvas-board-ready');
+    if(document.body) document.body.classList.remove('fate-canvas-board-ready');
   };
   window.fateCanvasBoardResumeDrawing = function(){
     boardRebuildInProgress = false;

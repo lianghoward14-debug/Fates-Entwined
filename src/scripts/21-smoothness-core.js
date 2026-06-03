@@ -734,16 +734,9 @@
     ['root_play1.jpg','root_play2.jpg','root_booster1.jpg','root_pfpbooster.jpg'].forEach(name=>assets.add(`optimized/backgrounds/${name}`));
     for(let i = 1; i <= 18; i++) assets.add(`aiicons/ai${i}.png`);
     for(let i = 1; i <= 24; i++) assets.add(`pfp/pfp${i}.png`);
-    try{
-      const cardList = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS : (Array.isArray(window.CARDS) ? window.CARDS : []);
-      if(cardList.length){
-        cardList.forEach(function(card){
-          if(!card || !card.img) return;
-          const src = typeof window.getRuntimeCardImageSrc === 'function' ? window.getRuntimeCardImageSrc(card.img, 'thumb') : card.img;
-          assets.add(src);
-        });
-      }
-    }catch(e){}
+    // Do not block the title/game transition on the entire card library. Active
+    // match cards are warmed by warmGameAssets(), and in-game cards now fall back
+    // to original PNGs if a thumbnail stalls.
     return Array.from(assets).filter(Boolean);
   }
 
@@ -815,13 +808,23 @@
     showInitialLoadingScreen(total);
     updateInitialLoadingScreen(done, total);
     const startedAt = performance.now();
+    let lastLoadingPaintAt = startedAt;
+    let lastLoadingPaintDone = 0;
+    function maybePaintLoadingProgress(force){
+      const now = performance.now();
+      if(force || done === total || done - lastLoadingPaintDone >= 5 || now - lastLoadingPaintAt >= 90){
+        lastLoadingPaintAt = now;
+        lastLoadingPaintDone = done;
+        updateInitialLoadingScreen(done, total);
+      }
+    }
     const workers = Array.from({length:Math.min(10, total)}, async function(){
       while(assets.length){
         const src = assets.shift();
         await preloadImage(src);
         warmCache.add(src);
         done += 1;
-        updateInitialLoadingScreen(done, total);
+        maybePaintLoadingProgress(false);
       }
     });
     const minTime = new Promise(resolve=>setTimeout(resolve, 650));
@@ -829,7 +832,10 @@
     return Promise.race([Promise.all(workers), hardStop])
       .then(()=>minTime)
       .then(()=>{
-        if(performance.now() - startedAt > 150) updateInitialLoadingScreen(total, total);
+        if(performance.now() - startedAt > 150) {
+          done = total;
+          maybePaintLoadingProgress(true);
+        }
         hideInitialLoadingScreen();
       });
   }

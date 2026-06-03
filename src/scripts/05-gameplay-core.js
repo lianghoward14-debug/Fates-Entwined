@@ -16,6 +16,77 @@ function coercePlayerIndex(value, fallback) {
   return fallback;
 }
 
+const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['20','49','53','59','65','92','93']);
+
+function getFrenchFusiliersCopiedPassiveId(card) {
+  if(!card || String(card.id) !== '37') return '';
+  const copiedId = card._copiedPassiveId || card.copiedPassiveId;
+  return copiedId == null ? '' : String(copiedId);
+}
+
+function frenchFusiliersCopies(card, sourceId) {
+  if(!card) return false;
+  const wanted = String(sourceId);
+  return String(card.id) === '37' && getFrenchFusiliersCopiedPassiveId(card) === wanted;
+}
+
+function cardActsAsPassive(card, sourceId) {
+  if(!card) return false;
+  const wanted = String(sourceId);
+  return String(card.id) === wanted || frenchFusiliersCopies(card, wanted);
+}
+
+function canFrenchFusiliersCopyPassive(card) {
+  if(!card || card.type !== 'Supporter' || isFaceDownCard(card)) return false;
+  const id = String(card.id || '');
+  if(id === '37' || !FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS.has(id)) return false;
+  const text = String(card.effect || '');
+  return /while\s+(this\s+card\s+is\s+)?on\s+the\s+field/i.test(text);
+}
+
+function chooseFrenchFusiliersPassive(inst, z) {
+  const candidates = [];
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(card, bz, r, c) {
+      if(!card || card.iid === inst.iid) return;
+      if(!canFrenchFusiliersCopyPassive(card)) return;
+      if(isSupporterEffectSuppressed(card)) return;
+      candidates.push({card:card, z:bz, r:r, c:c});
+    });
+  }
+  if(!candidates.length) {
+    toast('No Supporter on the field has a copyable while-on-field effect.');
+    return;
+  }
+  const applyCopy = function(entry) {
+    if(!entry || !entry.card) return;
+    inst._copiedPassiveId = String(entry.card.id);
+    inst._copiedPassiveName = entry.card.name || 'Supporter';
+    inst._copiedPassiveEffect = entry.card.effect || '';
+    inst.copiedPassiveId = inst._copiedPassiveId;
+    inst.copiedPassiveName = inst._copiedPassiveName;
+    toast('6th French Fusiliers copied ' + inst._copiedPassiveName + '.');
+    applyContinuousEffects();
+    renderGame({board:true, scores:true, topbar:true});
+  };
+  const cards = candidates.map(function(entry) { return entry.card; });
+  if(typeof pickCardsVisual === 'function') {
+    pickCardsVisual(cards, {
+      title:'The Anchor of Verdun',
+      subtitle:'Choose a Supporter with a while-on-field effect to copy.',
+      maxCount:1,
+      confirmLabel:'Copy Effect'
+    }, function(chosen) {
+      const selected = chosen && chosen[0];
+      if(!selected) return;
+      const idx = cards.indexOf(selected);
+      if(idx >= 0) applyCopy(candidates[idx]);
+    });
+  } else {
+    applyCopy(candidates[0]);
+  }
+}
+
 function sameRiveraOwner(a, b) {
   const ai = coercePlayerIndex(a, null);
   const bi = coercePlayerIndex(b, null);
@@ -524,7 +595,7 @@ function applyContinuousEffects() {
   // Rebuild Shield Wall zones from board state (so removal cleans up)
   G.shieldWallZones = [];
   forEachBoardCard((card, z)=>{
-    if(card.id==='20' && !isSupporterEffectSuppressed(card) && !G.shieldWallZones.includes(z)) G.shieldWallZones.push(z);
+    if(cardActsAsPassive(card, '20') && !isSupporterEffectSuppressed(card) && !G.shieldWallZones.includes(z)) G.shieldWallZones.push(z);
   });
   // Update cantBeMoved flags based on current shield wall zones
   forEachBoardCard((card, z)=>{
@@ -1001,6 +1072,16 @@ async function clickCell(z,r,c) {
     const owner = G.currentPlayer;
     const blockedPlayer = blockType === 'zoe' ? 1 - owner : null;
     const occupiedCell = !!(G.board && G.board[blockZ] && G.board[blockZ][r] && G.board[blockZ][r][c]);
+    if(blockType === 'zoe' && z !== blockZ) {
+      toast('Zoe can only block a square in her zone');
+      playSfx('blocked');
+      return;
+    }
+    if(blockType === 'zoe' && typeof isZoeBlockTargetAllowed === 'function' && !isZoeBlockTargetAllowed(blockZ, r, c, owner)) {
+      toast('Zoe can only block the contested row or your opponent\'s safe row');
+      playSfx('blocked');
+      return;
+    }
     if(blockType === 'carolyn' && occupiedCell) {
       toast('Carolyn can only lock an empty square');
       playSfx('blocked');
@@ -1032,6 +1113,10 @@ async function clickCell(z,r,c) {
     } else {
       playSfx('zoeBlock');
       toast('No consolidation on this cell - Zoe is watching!');
+    }
+    if(G._blockingEffectSourceIid) {
+      markInitialEffectResolvedByIid(G._blockingEffectSourceIid);
+      G._blockingEffectSourceIid = null;
     }
     renderGame({board:true, blocks:true, topbar:true});return;
   }
@@ -1080,6 +1165,7 @@ async function clickCell(z,r,c) {
     clearPlaceHighlights();
     _cleanupMarkPreCreatedZones(z);
     if(!added){ toast('Could not add that safe square'); renderGame({board:true, scores:true, topbar:true}); return; }
+    if(sel.sourceIid) markInitialEffectResolvedByIid(sel.sourceIid);
     toast(`Added one safe square to Zone ${z+1}`);
     log(G.currentPlayer===0?'p1':'p2', `Mark Kemper added one safe square to Zone ${z+1}`);
     renderGame({board:true, scores:true, topbar:true});
@@ -1552,7 +1638,7 @@ function doConsolidate(card, cost) {
   // can only use supporters from THAT zone (per-Thug zone restriction)
   const colomboRestrictionZones = new Set();
   forEachBoardCard((c,z,r,col)=>{
-    if(c.id==='53' && c.owner===opp && !isSupporterAuraSuppressed(c)) colomboRestrictionZones.add(z);
+    if(cardActsAsPassive(c, '53') && c.owner===opp && !isSupporterAuraSuppressed(c)) colomboRestrictionZones.add(z);
   });
 
   // Find available reinforcement on board owned by current player
@@ -1578,7 +1664,7 @@ function doConsolidate(card, cost) {
   G.board.forEach((zone,z)=>zone.forEach(row=>{
     if(!row) return;
     row.forEach(cell=>{
-      if(cell&&cell.id==='49'&&cell.owner===cp&&!isSupporterAuraSuppressed(cell)) irvineZones.push(z);
+      if(cell&&cardActsAsPassive(cell, '49')&&cell.owner===cp&&!isSupporterAuraSuppressed(cell)) irvineZones.push(z);
     });
   }));
 
@@ -1825,7 +1911,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
 
     let bonusFate = 0;
     tributes.forEach(t=>{
-      if(t.card.id==='47') bonusFate += 2;
+      if(t.card.id==='47') bonusFate += 3;
       if(t.card.id==='86') bonusFate += 4;
     });
     const inst = newInstance(card);
@@ -1861,7 +1947,11 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     if(card._wciBonus) toast('West Caribbea Infantry bonus: -1 cost, +2 Fate!');
     try {
       tributes.forEach(t=>{
-        if(t.card.id==='09' && t.card.usesLeft>0) t.card.usesLeft--;
+        if(t.card.id==='09' && t.card.usesLeft>0) {
+          t.card.usesLeft--;
+          if(!Array.isArray(G.un5thUses)) G.un5thUses = [0,0];
+          G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
+        }
       });
       tributes.forEach(t=>{
         discardBoardCard(t.card, t.z, t.r, t.c);
@@ -2204,10 +2294,11 @@ async function triggerWhenSet(inst, z, r, c) {
   
   // Initiators fire their character effect
   if(isInitiatorWithEffect) {
+    beginInitialSetEffectGuard(inst);
     G.selectedBoardCard = {card:inst,z,r,c};
     await triggerCharacterEffect(inst,z,r,c,{fromSet:true});
     G.selectedBoardCard = null;
-    if(inst._effectNegatedByReaction) return;
+    if(inst._effectNegatedByReaction) { markInitialEffectResolved(inst); return; }
   }
   // When-set effects fire automatically
   if(_hasWhenSet) {
@@ -2215,6 +2306,38 @@ async function triggerWhenSet(inst, z, r, c) {
   }
   G.selectedBoardCard = null;
 }
+
+const RETRYABLE_INITIAL_SET_EFFECT_IDS = new Set(['03','04','17','22','30','39','43','66','82']);
+
+function beginInitialSetEffectGuard(card) {
+  if(!card || !RETRYABLE_INITIAL_SET_EFFECT_IDS.has(String(card.id || ''))) return;
+  card._initialSetEffectGuard = {
+    turn: G.turn,
+    player: G.currentPlayer,
+    applied: false
+  };
+}
+
+function markInitialEffectResolved(card) {
+  if(!card) return;
+  if(card._initialSetEffectGuard) card._initialSetEffectGuard.applied = true;
+  card._effectTurnLocked = true;
+}
+
+function markInitialEffectResolvedByIid(iid) {
+  if(!iid || typeof forEachBoardCard !== 'function') return;
+  forEachBoardCard(function(card){
+    if(card && card.iid === iid) markInitialEffectResolved(card);
+  });
+}
+
+function canRetryInitialSetEffect(card) {
+  if(!card || !card._initialSetEffectGuard) return false;
+  const guard = card._initialSetEffectGuard;
+  return !guard.applied && guard.turn === G.turn && guard.player === G.currentPlayer && card.owner === G.currentPlayer;
+}
+
+window.markInitialEffectResolved = markInitialEffectResolved;
 
 // Actual effect execution (separated so prompt can wrap it)
 async function runWhenSetEffect(inst, z, r, c) {
@@ -2229,7 +2352,7 @@ async function runWhenSetEffect(inst, z, r, c) {
   if(inst.type==='Supporter' && inst.id!=='92') {
     let lumberjack = null;
     if(G.board && G.board[z]) G.board[z].forEach((row, rr)=>row && row.forEach((cell, cc)=>{
-      if(!lumberjack && cell && cell.id==='92' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
+      if(!lumberjack && cell && cardActsAsPassive(cell, '92') && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
     }));
     if(lumberjack) {
       inst._lumberjackSuppressed = true;
@@ -2573,6 +2696,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         if(changed>0){
           modifyFate(inst, changed, 'permanent');
           toast(changed+' cards changed to '+(AFF_LABEL[aff]||aff)+'. +'+changed+' Fate!');
+          markInitialEffectResolved(inst);
         } else {
           toast('No cards changed');
         }
@@ -2805,9 +2929,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       // which would be a UI entry elsewhere. For now, mark uses.
       if(!inst._plUsesLeft) inst._plUsesLeft = 2;
       break;
-    case '37': // 6th French Fusiliers: immune to opponent effects.
-      inst.opponentEffectImmune = true;
-      inst.immuneFlag = true;
+    case '37': // 6th French Fusiliers: copy a while-on-field Supporter passive.
+      chooseFrenchFusiliersPassive(inst, z);
       break;
     case '35': { // Alexander the Magnificient: snapshot Fate = sum of own Supporters' effective current Fate in zone at time of set
         let alexSum = 0;
@@ -2823,7 +2946,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       } break;
     case '45': // Chingachlook: placement restriction is enforced before setting.
       break;
-    case '47': // Great Oak Infantry: when used for consolidation, new card gains 2 Fate
+    case '47': // Great Oak Infantry: when used for consolidation, new card gains 3 Fate
       inst._greatOakBonus = true;
       break;
     case '52': { // Vigilantes: same-zone card-picker window
@@ -2977,10 +3100,11 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
         tgt.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
         log(cp===0?'p1':'p2',`Moffitt Inspiration: ${tgt.name} Fate became ${tgt.currentFate}`);
+        markInitialEffectResolved(card);
         renderGame();
       },c=>!c.immuneFlag); break;
     case '04': // Zoe: block consolidation on a square
-      highlightForBlock(z); break;
+      highlightForBlock(z, card); break;
     case '06': // Jorge Alvarez: search deck for non-star card
       searchDeckForCard(cp, c=>c.rarity!=='star','Search deck (no Stars):', inst=>{
         if(typeof addCardToHand==='function') addCardToHand(cp, inst);
@@ -3032,6 +3156,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           if(target && target.owner===cp) modifyFate(target,2,'permanent');
         });
         toast('Isaac increased '+targets.length+' card'+(targets.length===1?'':'s')+' by +2 Fate permanently');
+        markInitialEffectResolved(card);
         renderGame();
       },c=>c.owner===cp); break;
     case '82': { // Felicyta Janowicz (Youth): change landscape
@@ -3046,6 +3171,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       }
       showLandscapeChoiceModal(0, function(song){
         transitionGameLandscape(song, {player:cp, sourceCard:card});
+        markInitialEffectResolved(card);
         card.effectUsedInitial = true;
         renderGame({board:true, scores:true, landscape:true, topbar:true});
       });
@@ -3096,6 +3222,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         if(tr!==1){toast('Santiago can only target the contested row');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`El Matador del Mares: discarded ${tgt.name}`);
+        markInitialEffectResolved(card);
         renderGame();
       },(c,tz,tr)=>c.owner===opp && tr===1 && !c.immuneFlag); break;
     case '39': // Juan Carlos: move opponent's card from ANY zone to open spot
@@ -3105,7 +3232,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           title:'Juan Carlos',
           prompt:`Move ${tgt.name} into Juan Carlos' current zone`,
           horizontalZones:true,
-          disallowRows:[cp===0 ? 2 : 0]
+          disallowRows:[cp===0 ? 2 : 0],
+          sourceCard:card
         });
       },c=>c.owner===opp); break;
     case '43': { // Mark Kemper: choose one extra safe cell in this zone
@@ -3263,6 +3391,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast('Click any empty cell on the board to lock it permanently');
         G.placing = true;
         G.blockingCell = true;
+        G._blockingEffectSourceIid = card.iid;
         clearPlaceHighlights();
         for(let zz=0;zz<3;zz++){
           const totalRows = G.board[zz]?G.board[zz].length:3;
@@ -3318,7 +3447,7 @@ function shouldShowManualCharacterEffectButton(card) {
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
   if(card.type === 'Coordinator') return false;
   if(card.type === 'Improvisor') return false;
-  if(card.type === 'Initiator' && card.effectUsedInitial) return false;
+  if(card.type === 'Initiator' && card.effectUsedInitial) return canRetryInitialSetEffect(card);
   return true;
 }
 
@@ -3463,8 +3592,8 @@ function getEffectiveFate(card, z) {
     bonus += 3;
   }
 
-  // 1st West Caribbea Marines (65): always gains 2 Fate (built-in bonus)
-  if(card.id==='65' && !isSupporterEffectSuppressed(card)) bonus += 2;
+  // 1st West Caribbea Marines (65): always gains 3 Fate (built-in bonus)
+  if(cardActsAsPassive(card, '65') && !isSupporterEffectSuppressed(card)) bonus += 3;
   // Greek Hoplite (63): +1 Fate per copy of self in same zone, including itself
   if(card.id==='63' && !isSupporterEffectSuppressed(card)){
     let copies = 0;
@@ -3515,7 +3644,7 @@ function getEffectiveFate(card, z) {
     if(cell.id==='23' && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
-    if(cell.id==='59' && card.type==='Supporter' && !isSupporterEffectSuppressed(cell)) bonus += 1;
+    if(cardActsAsPassive(cell, '59') && card.type==='Supporter' && !isSupporterEffectSuppressed(cell)) bonus += 1;
     // Duncan Heyward (77): +3 to declared-affiliation friendly cards in zone
     if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 3 + jeremiahBoost;
   }));

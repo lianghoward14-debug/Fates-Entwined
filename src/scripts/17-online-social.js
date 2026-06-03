@@ -992,11 +992,21 @@
   }
 
   async function sendWorldChatOnline(){
+    const sideInput = document.getElementById('sp-wc-input');
     const inp = document.getElementById('wc-input');
-    const u = getUser();
-    if(!inp || !u) return;
+    if(sideInput && sideInput.value.trim() && inp){
+      inp.value = sideInput.value;
+      sideInput.value = '';
+    }
+    if(!inp) return;
     const text = String(inp.value || '').trim();
     if(!text) return;
+    if(typeof window.handleFateChatCommand === 'function' && window.handleFateChatCommand(text)){
+      inp.value = '';
+      return;
+    }
+    const u = getUser();
+    if(!u) return;
     if(text.toLowerCase() === '/run' && typeof window.runAISimulations === 'function'){
       inp.value = '';
       window.runAISimulations();

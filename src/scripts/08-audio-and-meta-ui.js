@@ -2938,6 +2938,7 @@ window.shareDeck = function(pid){
 //  PRESET EDITING (face card + display cards)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 window.editPreset = function(pid){
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   const p = PRESET_DECKS[pid];
   if(!p) return;
   const uniqueIds = [...new Set(p.ids)];
@@ -2949,33 +2950,50 @@ window.editPreset = function(pid){
 
   const renderEditor = ()=>{
     const body = document.createElement('div');
+    body.className = 'deck-art-editor title-deck-art-editor challenger-deck-art-editor deck-art-editor-v2';
     body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:.8rem;">
-        <label style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--dim);letter-spacing:.1em;">
-          DECK NAME
-          <input type="text" class="profile-input" id="edit-pname" maxlength="36" value="${escapeHtml(p.name)}">
-        </label>
-        <label style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--dim);letter-spacing:.1em;">
-          DESCRIPTION
-          <input type="text" class="profile-input" id="edit-pdesc" maxlength="80" value="${escapeHtml(p.description||'')}">
-        </label>
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">FACE CARD (main preview)</div>
+      <div class="deck-art-editor-main">
+        <aside class="deck-art-preview-panel">
+          <div class="deck-art-preview-label">Selected Preview</div>
+          <div class="deck-art-face-preview" id="edit-face-preview"></div>
+          <div class="deck-art-display-preview" id="edit-display-preview"></div>
+        </aside>
+        <div class="deck-art-picker-stack">
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Face Card (main preview)</div>
           <div class="face-picker-grid" id="face-picker"></div>
-        </div>
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">DISPLAY CARDS (up to 7 mini thumbnails) - <span id="display-count">${currentDisplay.length}/7</span></div>
+        </section>
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Display Cards (up to 7 mini thumbnails) - <span id="display-count">${currentDisplay.length}/7</span></div>
           <div class="face-picker-grid" id="display-picker"></div>
+        </section>
         </div>
       </div>`;
 
     document.getElementById('modal-body').innerHTML='';
     document.getElementById('modal-body').appendChild(body);
 
+    const renderPreview = ()=>{
+      const faceCard = deckCards.find(c=>c.id===currentFace) || deckCards[0];
+      const facePreview = body.querySelector('#edit-face-preview');
+      if(facePreview) {
+        facePreview.innerHTML = faceCard?.img
+          ? `<img src="${faceCard.img}" alt="${escapeHtml(faceCard.name)}"><span>${escapeHtml(faceCard.name)}</span>`
+          : '';
+      }
+      const strip = body.querySelector('#edit-display-preview');
+      if(strip) {
+        strip.innerHTML = currentDisplay.map(id=>{
+          const c = deckCards.find(card=>card.id===id);
+          return c?.img ? `<div><img src="${c.img}" alt="${escapeHtml(c.name)}"></div>` : '';
+        }).join('');
+      }
+    };
+
     const renderPickers = ()=>{
       const faceGrid = body.querySelector('#face-picker');
       const displayGrid = body.querySelector('#display-picker');
-      if(typeof window.renderCanvasSelectableCardGrid === 'function') {
+      if(false && typeof window.renderCanvasSelectableCardGrid === 'function') {
         window.renderCanvasSelectableCardGrid(faceGrid, deckCards, {
           isSelected: c=>c.id===currentFace,
           selectedLabel:'FACE',
@@ -2998,53 +3016,85 @@ window.editPreset = function(pid){
         });
         return;
       }
+      const setBadge = function(el, text, gold){
+        let badge = el.querySelector('.fp-badge');
+        if(!text){
+          if(badge) badge.remove();
+          return;
+        }
+        if(!badge){
+          badge = document.createElement('div');
+          badge.className = 'fp-badge';
+          el.appendChild(badge);
+        }
+        badge.textContent = text;
+        badge.style.color = gold ? 'var(--gold)' : '';
+      };
+      const syncPickerState = function(){
+        faceGrid.querySelectorAll('.face-picker-card').forEach(function(el){
+          const selected = el.dataset.cardId === currentFace;
+          el.classList.toggle('face-sel', selected);
+          setBadge(el, selected ? 'FACE' : '', false);
+        });
+        displayGrid.querySelectorAll('.face-picker-card').forEach(function(el){
+          const idx = currentDisplay.indexOf(el.dataset.cardId);
+          const selected = idx >= 0;
+          el.classList.toggle('display-sel', selected);
+          setBadge(el, selected ? '#' + (idx + 1) : '', true);
+        });
+        const countEl = document.getElementById('display-count');
+        if(countEl) countEl.textContent = currentDisplay.length + '/7';
+        renderPreview();
+      };
+      if(faceGrid.childElementCount || displayGrid.childElementCount){
+        syncPickerState();
+        return;
+      }
       faceGrid.innerHTML=''; displayGrid.innerHTML='';
       deckCards.forEach(c=>{
         const el=document.createElement('div');
-        el.className='face-picker-card'+(c.id===currentFace?' face-sel':'');
-        el.innerHTML = `${c.img?`<img src="${c.img}" alt="${c.name}">`:''}${c.id===currentFace?'<div class="fp-badge">FACE</div>':''}`;
+        el.className='face-picker-card';
+        el.dataset.cardId = c.id;
+        el.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}`;
         el.title=c.name;
-        el.onclick=()=>{currentFace=c.id; renderPickers();};
+        el.onclick=()=>{ currentFace=c.id; syncPickerState(); };
         faceGrid.appendChild(el);
 
         const el2=document.createElement('div');
-        const isSel = currentDisplay.includes(c.id);
-        el2.className='face-picker-card'+(isSel?' display-sel':'');
-        el2.innerHTML = `${c.img?`<img src="${c.img}" alt="${c.name}">`:''}${isSel?`<div class="fp-badge" style="color:var(--gold);">#${currentDisplay.indexOf(c.id)+1}</div>`:''}`;
+        el2.className='face-picker-card';
+        el2.dataset.cardId = c.id;
+        el2.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}`;
         el2.title=c.name;
         el2.onclick=()=>{
           const idx=currentDisplay.indexOf(c.id);
           if(idx>=0) currentDisplay.splice(idx,1);
           else {
             if(currentDisplay.length>=7){toast('Max 7 display cards');return;}
-            currentDisplay.push(c.id);
-          }
-          document.getElementById('display-count').textContent=currentDisplay.length+'/7';
-          renderPickers();
+              currentDisplay.push(c.id);
+            }
+          syncPickerState();
         };
         displayGrid.appendChild(el2);
       });
+      syncPickerState();
     };
     renderPickers();
 
-    document.getElementById('modal-title').textContent='Edit Preset';
+    document.getElementById('modal-title').textContent='Edit Deck Art';
     document.getElementById('modal-acts').innerHTML='';
-    const cancel=document.createElement('button');cancel.className='btn sm';cancel.textContent='Cancel';cancel.onclick=()=>browsePresets(_presetBrowsePage || 0);
-    const save=document.createElement('button');save.className='btn sm pri';save.textContent='Save Changes';
+    const cancel=document.createElement('button');cancel.className='btn sm';cancel.textContent='Back';cancel.onclick=()=>browsePresets(_presetBrowsePage || 0);
+    const save=document.createElement('button');save.className='btn sm pri';save.textContent='Save';
     save.onclick=()=>{
-      const nm = document.getElementById('edit-pname').value.trim();
-      const ds = document.getElementById('edit-pdesc').value.trim();
-      if(!nm){toast('Name required');return;}
-      p.name = nm;
-      p.description = ds;
       p.faceCardId = currentFace;
       p.displayCardIds = currentDisplay;
       savePresetsToStorage();
-      toast('Preset updated');
+      toast('Deck art updated');
       browsePresets(_presetBrowsePage || 0);
     };
     document.getElementById('modal-acts').appendChild(cancel);
     document.getElementById('modal-acts').appendChild(save);
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('deck-art-editor-modal','challenger-deck-art-editor-modal','title-deck-art-editor-modal');
     document.getElementById('modal').classList.add('on');
   };
   renderEditor();

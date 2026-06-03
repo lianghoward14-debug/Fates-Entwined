@@ -15,7 +15,7 @@
   function currentMonthKey(){
     try{ if(typeof window.getMonthKey === 'function') return window.getMonthKey(); }catch(e){}
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`;
   }
   function currentDayKey(){ return new Date().toISOString().slice(0,10); }
   function hashInt(s){

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fates Entwined Solo Multiplayer Client</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #12141a;
+      color: #f4efe4;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    p {
+      max-width: 520px;
+      margin: 0;
+      color: #c7c1b8;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div>
+      <h1>Opening Fates Entwined</h1>
+      <p>This test client is enabling the WebSocket authority and then loading the game.</p>
+    </div>
+  </main>
+  <script>
+    (async function(){
+      var params = new URLSearchParams(location.search);
+      var player = String(params.get('player') || 'client').trim().toLowerCase();
+      var authority = String(params.get('authority') || 'wss://fates-entwined-main.fly.dev').trim();
+      async function clearRuntimeCache(){
+        var tasks = [];
+        try {
+          if('serviceWorker' in navigator) {
+            tasks.push(navigator.serviceWorker.getRegistrations().then(function(regs){
+              return Promise.all(regs.map(function(reg){ return reg.unregister(); }));
+            }));
+          }
+        } catch (e) {}
+        try {
+          if(window.caches && caches.keys) {
+            tasks.push(caches.keys().then(function(keys){
+              return Promise.all(keys.map(function(key){ return caches.delete(key); }));
+            }));
+          }
+        } catch (e) {}
+        if(!tasks.length) return;
+        await Promise.race([
+          Promise.all(tasks).catch(function(){}),
+          new Promise(function(resolve){ setTimeout(resolve, 1200); })
+        ]);
+      }
+      await clearRuntimeCache();
+      try {
+        localStorage.setItem('fate_reset_v9_playerdata_done', '1');
+        localStorage.setItem('fateWsAuthorityEnabled', '1');
+        localStorage.setItem('fateWsAuthorityUrl', authority);
+        localStorage.setItem('fateSoloClientLabel', player);
+        localStorage.setItem('fate_menu_v2', 'on');
+        localStorage.setItem('fate_side_panel', 'on');
+        localStorage.setItem('fateEnableCanvasBoard', '1');
+        localStorage.removeItem('fateDisableCanvasBoard');
+        localStorage.setItem('fateEnhancedVisualFx', '1');
+        localStorage.setItem('fate_super_perf_mode', '1');
+        localStorage.setItem('fate_perf_plus_mode', '1');
+      } catch (e) {}
+      var target = new URL('../index.html', location.href);
+      target.searchParams.set('soloClient', player);
+      target.searchParams.set('soloAuthority', 'fly');
+      if(params.get('electron') === '1') target.searchParams.set('electron', '1');
+      target.searchParams.set('soloNoSw', '1');
+      target.searchParams.set('canvasBoard', '1');
+      target.searchParams.set('soloModern', '1');
+      target.searchParams.set('fresh', String(Date.now()));
+      location.replace(target.href);
+    })();
+  </script>
+</body>
+</html>

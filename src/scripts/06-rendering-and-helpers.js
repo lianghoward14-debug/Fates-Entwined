@@ -16,6 +16,7 @@ let _lastPlayerBannersSignature = '';
 let _lastTopBarEffectsSourceSignature = '';
 let _lastActionBarLayoutSignature = '';
 let _renderCalcCache = null;
+let _renderDiagnosticsEnabled = null;
 const RENDER_ALL_PARTS = Object.freeze({
   board:true,
   hand:true,
@@ -37,6 +38,28 @@ function isFateSuperPerformanceMode() {
     (body && body.classList && body.classList.contains('fate-super-performance-mode'))
   );
 }
+function getRenderDiagnosticsEnabled() {
+  if(_renderDiagnosticsEnabled !== null) return _renderDiagnosticsEnabled;
+  try { _renderDiagnosticsEnabled = localStorage.getItem('fateRenderDiagnosticsEnabled') === '1'; }
+  catch(e) { _renderDiagnosticsEnabled = false; }
+  return _renderDiagnosticsEnabled;
+}
+function shouldCollectRenderDiagnostics() {
+  const perf = typeof window !== 'undefined' ? window.__fatePerf : null;
+  return getRenderDiagnosticsEnabled() || !!(perf && perf.fpsWatchdogEnabled);
+}
+function setRenderDiagnosticsEnabled(enabled) {
+  _renderDiagnosticsEnabled = !!enabled;
+  try {
+    if(enabled) localStorage.setItem('fateRenderDiagnosticsEnabled', '1');
+    else localStorage.removeItem('fateRenderDiagnosticsEnabled');
+  } catch(e) {}
+  return _renderDiagnosticsEnabled;
+}
+if(typeof window !== 'undefined') {
+  window.fateEnableRenderDiagnostics = function(){ return setRenderDiagnosticsEnabled(true); };
+  window.fateDisableRenderDiagnostics = function(){ return setRenderDiagnosticsEnabled(false); };
+}
 function noteRenderBreakdown(totalMs, detail) {
   if(typeof window === 'undefined' || totalMs < 12) return;
   const perf = window.__fatePerf = window.__fatePerf || {};
@@ -54,6 +77,9 @@ function noteRenderRequest(parts, normalized) {
   const isBroad = !parts || parts === true || parts === 'all';
   if(!isBroad) return;
   const perf = window.__fatePerf = window.__fatePerf || {};
+  perf.broadRenderRequests = (perf.broadRenderRequests || 0) + 1;
+  perf.lastBroadRenderParts = Object.keys(normalized || {}).filter(k => normalized[k]).join(',');
+  if(!shouldCollectRenderDiagnostics()) return;
   let caller = 'unknown';
   try{
     const stack = String(new Error().stack || '').split('\n').map(s=>s.trim()).filter(Boolean);
@@ -121,19 +147,29 @@ function replaceElementChildren(el, childOrFrag) {
 }
 function getRuntimeCardImageSrc(src, role) {
   if(!src || role === 'detail') return src;
+  // In-game hand cards are few and user-facing; prefer the original PNG so the
+  // player never sees a black shell while a generated thumbnail stalls.
+  if(role === 'hand') return src;
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png$/);
   if(!m) return raw;
   return 'optimized/card-thumbs/' + m[1] + '.jpg';
 }
+function getFullCardImageFallbackSrc(src) {
+  if(!src) return '';
+  const raw = String(src);
+  const m = raw.match(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/);
+  return m ? (m[1] + '.png') : raw;
+}
+window.getFullCardImageFallbackSrc = getFullCardImageFallbackSrc;
 function shouldUseCanvasBoardVisuals() {
   try {
     if(window.FATE_RUNTIME_FORCE_DOM_BOARD) return false;
     if(window.FATE_FORCE_DOM_BOARD_UNTIL && typeof performance !== 'undefined' && performance.now && performance.now() < window.FATE_FORCE_DOM_BOARD_UNTIL) return false;
-    if(/\bcanvasBoard=1\b/i.test(location.search || '')) return true;
-    if(localStorage && localStorage.getItem('fateEnableCanvasBoard') === '1') return true;
     if(/\bdomBoard=1\b/i.test(location.search || '')) return false;
     if(localStorage && localStorage.getItem('fateDisableCanvasBoard') === '1') return false;
+    if(/\bcanvasBoard=1\b/i.test(location.search || '')) return true;
+    if(localStorage && localStorage.getItem('fateEnableCanvasBoard') === '1') return true;
     if(typeof G !== 'undefined' && G && (G._markSelecting || (Array.isArray(G.extraRows) && G.extraRows.some(function(n){ return Number(n) > 0; })))) return false;
   } catch(e) {}
   return !!(window.HTMLCanvasElement && window.requestAnimationFrame);
@@ -346,17 +382,20 @@ function performGameRender(parts) {
     noteSuppressedOffscreenGameRender('performGameRender');
     return;
   }
-  const renderStart = performance.now();
+  const collectDiagnostics = shouldCollectRenderDiagnostics();
+  const renderStart = collectDiagnostics ? performance.now() : 0;
   const dirty = normalizeRenderParts(parts);
-  const breakdown = { parts: Object.keys(dirty).filter(function(k){ return dirty[k]; }).join(',') };
-  const timed = function(name, fn){
-    const t0 = performance.now();
-    try{ return fn(); }
-    finally{
-      const ms = performance.now() - t0;
-      breakdown[name] = roundRenderMs((breakdown[name] || 0) + ms);
-    }
-  };
+  const breakdown = collectDiagnostics ? { parts: Object.keys(dirty).filter(function(k){ return dirty[k]; }).join(',') } : null;
+  const timed = collectDiagnostics
+    ? function(name, fn){
+        const t0 = performance.now();
+        try{ return fn(); }
+        finally{
+          const ms = performance.now() - t0;
+          breakdown[name] = roundRenderMs((breakdown[name] || 0) + ms);
+        }
+      }
+    : function(name, fn){ return fn(); };
   try{
     beginRenderCalculationFrame();
     const gameScreen = document.getElementById('s-game');
@@ -368,11 +407,12 @@ function performGameRender(parts) {
       const nextStructureSig = boardState.structureSignature;
       const nextCellSigs = boardState.cellSignatures;
       const boardEl = document.getElementById('board');
-      if(nextBoardSig !== _lastBoardRenderSignature || !boardEl || !boardEl.children.length){
+      const boardHasZones = !!(boardEl && boardEl.querySelector('.zone'));
+      if(nextBoardSig !== _lastBoardRenderSignature || !boardEl || !boardHasZones){
         const patched = boardEl && boardEl.children.length && nextStructureSig === _lastBoardStructureSignature && _lastBoardCellSignatures
           ? timed('patchBoard', function(){ return patchChangedBoardCells(nextCellSigs, _lastBoardCellSignatures); })
           : false;
-        breakdown.boardPatched = !!patched;
+        if(breakdown) breakdown.boardPatched = !!patched;
         if(!patched) timed('renderBoard', renderBoard);
         _lastBoardRenderSignature = nextBoardSig;
         _lastBoardStructureSignature = nextStructureSig;
@@ -397,7 +437,7 @@ function performGameRender(parts) {
     timed('restoreViewportLock', restoreBoardViewportLockSoon);
   } finally {
     _renderCalcCache = null;
-    noteRenderBreakdown(performance.now() - renderStart, breakdown);
+    if(collectDiagnostics) noteRenderBreakdown(performance.now() - renderStart, breakdown);
   }
 }
 
@@ -485,6 +525,25 @@ function applyBoardCellStateClasses(cellEl, z, r, c, card) {
   }
 }
 
+function collectReusableBoardCards(boardEl) {
+  const reuse = new Map();
+  if(!boardEl || !boardEl.querySelectorAll) return reuse;
+  boardEl.querySelectorAll('.bc[data-iid][data-board-card-sig]').forEach(function(el){
+    const iid = el.dataset && el.dataset.iid;
+    if(iid && !reuse.has(iid)) reuse.set(iid, el);
+  });
+  return reuse;
+}
+
+function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected) {
+  return [
+    z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
+    visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
+    visual && visual.displayFate || '',
+    cardRenderSignature(card, z)
+  ].join('|');
+}
+
 function getBoardRenderState() {
   if(typeof G === 'undefined' || !G) return {renderSignature:'', structureSignature:'', cellSignatures:new Map()};
   const parts = [];
@@ -492,7 +551,7 @@ function getBoardRenderState() {
   const cellSignatures = new Map();
   appendBoardInteractionSignature(parts);
   const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
-  structureParts.push('viewer', viewer, 'extraRows', JSON.stringify(G.extraRows || []), 'extraRowOwners', JSON.stringify(G.extraRowOwners || []), 'extraCells', JSON.stringify(G.extraCells || []));
+  structureParts.push('viewer', viewer, 'extraCells', JSON.stringify(G.extraCells || []));
   for(let z=0; z<3; z++){
     parts.push('z', z);
     const zone = G.board?.[z] || [];
@@ -503,7 +562,16 @@ function getBoardRenderState() {
     for(let r=0; r<totalRows; r++){
       const extraCols = r<3?(r===2?G.extraCells?.[z]?.[r]?.p1:(r===0?G.extraCells?.[z]?.[r]?.p2:0)):0;
       const totalCols = 3 + (Number(extraCols) || 0);
-      structureParts.push('r', r, 'len', totalCols);
+      let rowOwner = r===0 ? 1 : (r===1 ? -1 : (r===2 ? 0 : 0));
+      let fullExtraRow = false;
+      if(r >= 3) {
+        const isMarkChoiceRow = !!(showMarkChoiceRow && r === 3 + extraRowCount);
+        rowOwner = isMarkChoiceRow
+          ? G._markSelecting.player
+          : (typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z, r) : 0);
+        fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
+      }
+      structureParts.push('r', r, 'owner', rowOwner, 'full', fullExtraRow ? 1 : 0, 'len', totalCols);
     }
     for(let r=0; r<totalRows; r++){
       const row = zone[r] || [];
@@ -959,6 +1027,28 @@ function maybeResolveLandscapeEndTurn() {
   const st = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
   if(!landscape || !st || !st.resolvedTurns) return false;
 
+  function shouldAutoChooseLandscapeZone(player) {
+    return !!(G && G.aiEnabled && Number.isInteger(G.aiPlayer) && player === G.aiPlayer);
+  }
+
+  function chooseBestLandscapeZoneForAI(player, opts) {
+    const zones = [0, 1, 2].filter(function(zoneIndex){
+      if(!opts || !opts.requireOpenExtraRow) return true;
+      return !!(G.board && G.board[zoneIndex]);
+    });
+    if(!zones.length) return 0;
+    return zones.map(function(zoneIndex){
+      const myScore = typeof getZoneScore === 'function' ? getZoneScore(zoneIndex, player) : 0;
+      const oppScore = typeof getZoneScore === 'function' ? getZoneScore(zoneIndex, 1 - player) : 0;
+      const friendlyCards = G.board && G.board[zoneIndex]
+        ? G.board[zoneIndex].reduce(function(total, row){
+            return total + (Array.isArray(row) ? row.filter(function(card){ return card && card.owner === player; }).length : 0);
+          }, 0)
+        : 0;
+      return {zone:zoneIndex, value:(friendlyCards * 8) + Math.max(0, myScore - oppScore) + myScore};
+    }).sort(function(a,b){ return b.value - a.value; })[0].zone;
+  }
+
   if(landscape.id === 'igb2' && G.turn >= 14 && !st.resolvedTurns.igb2) {
     st.resolvedTurns.igb2 = true;
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Landscape resolving', 'major');
@@ -970,13 +1060,15 @@ function maybeResolveLandscapeEndTurn() {
       return false;
     }
     const winner = c0 > c1 ? 0 : 1;
-    window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 10 Fate.', function(z){
+    const resolveFrontier = function(z){
       if(typeof z === 'number') {
         addLandscapeZoneFateBonus(winner, z, 10, 'major');
         toast(G.players[winner].name + ' gains 10 Fate in Zone ' + (z + 1) + '.');
       }
       setTimeout(function(){ endTurn(); }, 120);
-    }, {kind:'fate'});
+    };
+    if(shouldAutoChooseLandscapeZone(winner)) resolveFrontier(chooseBestLandscapeZoneForAI(winner, {kind:'fate'}));
+    else window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 10 Fate.', resolveFrontier, {kind:'fate'});
     return true;
   }
 
@@ -992,14 +1084,16 @@ function maybeResolveLandscapeEndTurn() {
       return false;
     }
     const winner = s0 > s1 ? 0 : 1;
-    window.chooseLandscapeZone(winner, 'Qingdao Breakthrough', G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.', function(targetZ){
+    const resolveQingdao = function(targetZ){
       if(typeof targetZ === 'number') {
         addFullExtraSafeRowForPlayer(targetZ, winner, 'Qingdao extra row', {sfxKind:'major'});
         toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (targetZ + 1) + '.');
         renderGame({board:true, scores:true, blocks:true, landscape:true});
       }
       setTimeout(function(){ endTurn(); }, 120);
-    }, {kind:'row', requireOpenExtraRow:true});
+    };
+    if(shouldAutoChooseLandscapeZone(winner)) resolveQingdao(chooseBestLandscapeZoneForAI(winner, {kind:'row', requireOpenExtraRow:true}));
+    else window.chooseLandscapeZone(winner, 'Qingdao Breakthrough', G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.', resolveQingdao, {kind:'row', requireOpenExtraRow:true});
     return true;
   }
   return false;
@@ -1286,7 +1380,10 @@ function showCanvasCardGalleryModal(title, cards, opts) {
   };
   draw();
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.style.maxWidth = '780px';
+  if(modalBox) {
+    modalBox.classList.add('visual-card-picker-modal');
+    modalBox.style.maxWidth = '880px';
+  }
 }
 
 function renderOppHand() {
@@ -1602,9 +1699,13 @@ function patchChangedBoardCells(nextCellSigs, prevCellSigs) {
     const cellEl = boardEl.querySelector('.cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
     if(!cellEl) return;
     const card = G.board?.[z]?.[r]?.[c] || null;
-    Array.from(cellEl.querySelectorAll('.bc')).forEach(el=>el.remove());
+    const reuseMap = collectReusableBoardCards(cellEl);
+    const nextCardEl = card ? createBoardCardEl(card, z, r, c, reuseMap) : null;
+    Array.from(cellEl.querySelectorAll('.bc')).forEach(function(el){
+      if(el !== nextCardEl) el.remove();
+    });
     applyBoardCellStateClasses(cellEl, z, r, c, card);
-    if(card) cellEl.appendChild(createBoardCardEl(card, z, r, c));
+    if(nextCardEl && nextCardEl.parentNode !== cellEl) cellEl.appendChild(nextCardEl);
   });
   if(window.fateCanvasBoardResumeDrawing) window.fateCanvasBoardResumeDrawing();
   return true;
@@ -1613,9 +1714,19 @@ function patchChangedBoardCells(nextCellSigs, prevCellSigs) {
 function renderBoard() {
   const board = document.getElementById('board');
   if(!board || typeof G === 'undefined' || !G || !G.board) return;
+  document.documentElement.classList.remove('fate-canvas-board-ready');
+  if(document.body) document.body.classList.remove('fate-canvas-board-ready');
   if(window.fateCanvasBoardPauseDrawing) window.fateCanvasBoardPauseDrawing();
+  const useCanvasBoardNow = typeof shouldUseCanvasBoardVisuals === 'function' && shouldUseCanvasBoardVisuals();
+  document.documentElement.classList.toggle('fate-canvas-board-mode', !!useCanvasBoardNow);
+  window.FATE_USE_CANVAS_BOARD = !!useCanvasBoardNow;
+  if(!useCanvasBoardNow) {
+    const canvas = document.getElementById('fate-board-canvas');
+    if(canvas) canvas.style.display = 'none';
+  }
   installBoardClickDelegation(board);
   const zoneRowScrollSnap = captureZoneRowScrollSnapshots(board);
+  const reusableBoardCards = collectReusableBoardCards(board);
   const frag = document.createDocumentFragment();
   const viewerP = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   const carolynBlockedCells = new Set();
@@ -1642,12 +1753,12 @@ function renderBoard() {
         ${renderZoneScoreMarkup(z,s0,s1,ctrl)}
       </span>
     </div>`;
-    const rowsEl=document.createElement('div');
-    rowsEl.className='zone-rows' + (((G.extraRows && G.extraRows[z]) || 0) > 0 ? ' has-extra-rows' : '');
-    installZoneRowScrollGuard(rowsEl, z);
-    const baseRowClasses=['p2safe','contested','p1safe'];
     const extraRowCount = (G.extraRows && G.extraRows[z]) || 0;
     const showMarkChoiceRow = !!(G._markSelecting && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z));
+    const rowsEl=document.createElement('div');
+    rowsEl.className='zone-rows' + ((extraRowCount > 0 || showMarkChoiceRow) ? ' has-extra-rows' : '');
+    installZoneRowScrollGuard(rowsEl, z);
+    const baseRowClasses=['p2safe','contested','p1safe'];
     const totalRows = 3 + extraRowCount + (showMarkChoiceRow ? 1 : 0);
     const displayRows = viewerP === 1 ? [2,1,0] : [0,1,2];
     for(let r=3;r<totalRows;r++){
@@ -1697,7 +1808,7 @@ function renderBoard() {
           else cellEl.classList.add('mark-safe-inactive');
         }
         cellEl.dataset.z=z;cellEl.dataset.r=r;cellEl.dataset.c=c;
-        if(card){ cellEl.appendChild(createBoardCardEl(card,z,r,c)); }
+        if(card){ cellEl.appendChild(createBoardCardEl(card,z,r,c,reusableBoardCards)); }
         else { /* cell labels removed */ }
         cells.appendChild(cellEl);
       }
@@ -1723,7 +1834,7 @@ function renderBoard() {
   }
   restoreZoneRowScrollSnapshots(board, zoneRowScrollSnap);
   syncFloatingZoneBanners();
-  if(window.fateRenderBoardCanvas) window.fateRenderBoardCanvas();
+  if(useCanvasBoardNow && window.fateRenderBoardCanvas) window.fateRenderBoardCanvas();
 }
 
 function syncFloatingZoneBanners(){
@@ -1961,13 +2072,36 @@ function playPlacementAnimation(card, z, r, c) {
   return ms;
 }
 
-function createBoardCardEl(card, z, r, c) {
-  const el=document.createElement('div');
+function createBoardCardEl(card, z, r, c, reuseMap) {
   const rarity = card.rarity || 'circle';
   const perspectivePlayer = getPerspectivePlayerIndex();
   const visual = getCardVisualData(card, perspectivePlayer, {forceBoardHidden:true, boardPos:{z,r,c}});
   const isHidden = !!visual?.isHidden;
+  const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
+  const iidKey = String(card.iid || '');
+  const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
+  if(iidKey && reuseMap && reuseMap.has(iidKey)) {
+    const existing = reuseMap.get(iidKey);
+    if(existing && existing.dataset && existing.dataset.boardCardSig === domSig) {
+      reuseMap.delete(iidKey);
+      existing.dataset.owner = String(card.owner);
+      existing.dataset.iid = iidKey;
+      existing.dataset.z = String(z);
+      existing.dataset.r = String(r);
+      existing.dataset.c = String(c);
+      existing.setAttribute('aria-label', visual.name || card.name || 'Card');
+      existing.classList.toggle('sel', selected);
+      return existing;
+    }
+  }
+  const el=document.createElement('div');
   el.dataset.owner=String(card.owner);
+  el.dataset.iid=iidKey;
+  el.dataset.z=String(z);
+  el.dataset.r=String(r);
+  el.dataset.c=String(c);
+  el.dataset.boardCardSig=domSig;
+  el.setAttribute('aria-label', visual.name || card.name || 'Card');
   // Lydia can temporarily suppress Supporter auras.
   const isSuppressedByLydia = card.type==='Supporter' && (card._lydiaSuppressed || card._reactionSuppressed);
   const isSuppressed = isSuppressedByLydia;
@@ -1979,7 +2113,7 @@ function createBoardCardEl(card, z, r, c) {
     +(rarity==='square'?' square-card':'')
     +(card.owner!==perspectivePlayer?' opponent-card':'')
     +(isSuppressed?' fate-suppressed':'');
-  if(G.selectedBoardCard&&G.selectedBoardCard.card.iid===card.iid) el.classList.add('sel');
+  if(selected) el.classList.add('sel');
   const eff=isHidden ? 0 : getCachedEffectiveFate(card,z);
   // Determine buff/debuff state — compare effective fate vs base (printed) fate
   const baseFate = card.fate;
@@ -2000,15 +2134,12 @@ function createBoardCardEl(card, z, r, c) {
   if(shouldUseCanvasBoardVisuals()){
     el.dataset.canvasVisual = '1';
     el.dataset.iid = String(card.iid || '');
-    el.setAttribute('aria-label', visual.name || card.name || 'Card');
     if(window.fatePreloadBoardCanvasImage) window.fatePreloadBoardCanvasImage(visual.runtimeImg || visual.img);
-    el.innerHTML='<span class="bc-canvas-hit" aria-hidden="true"></span>';
-  } else {
-    el.innerHTML=`
-      <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="${visual.name}" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
-      ${affBadge}
-      <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   }
+  el.innerHTML=`
+    <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
+    ${affBadge}
+    <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
   if(changed && !shouldUseCanvasBoardVisuals()){
     // Trigger damage/buff visual + sfx
@@ -2101,9 +2232,17 @@ function renderHand() {
     if(el.__fateHandVisualSig !== visualSig){
       el.__fateHandVisualSig = visualSig;
       el.innerHTML=`
-        <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${card.img}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
+        <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" fetchpriority="high" data-full-src="${card.img}" onerror="this.onerror=null;this.src=this.dataset.fullSrc||'${card.img}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
         <div class="bc-fate">${fate}</div>
         <div class="bc-name">${escapePlacementAnimHtml(card.name)}</div>`;
+      const img = el.querySelector('.bc-art img');
+      if(img && card.img) {
+        const fallbackSrc = card.img;
+        setTimeout(function(){
+          if(!img.isConnected || img.src.endsWith('/' + fallbackSrc) || img.getAttribute('src') === fallbackSrc) return;
+          if(!img.complete || !img.naturalWidth) img.src = fallbackSrc;
+        }, 650);
+      }
     }
     if(canInspectHand) {
       el.onpointerenter = function(){ preloadCardDetailImage(card); };
@@ -3307,10 +3446,43 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {
       const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + pos.z] || 0)) / 2));
-      label = 'Deterrance Reductions';
+      label = 'Deterrance Reductions:';
       value = String(reductions);
       sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 2) + ' total Fate';
     }
+  } else if(card.id === '09') {
+    const counts = Array.isArray(G.un5thUses) ? G.un5thUses : [0,0];
+    const used = Math.max(0, Number(counts[owner]) || 0);
+    label = 'Battle of Bremen Uses';
+    value = used + ' / 3';
+    sub = used < 3 ? '2 Reinforcement uses available' : '2 Reinforcement exhausted';
+  } else if(card.id === '28') {
+    const counts = Array.isArray(G.polishArmyUses) ? G.polishArmyUses : [0,0];
+    const used = Math.max(0, Number(counts[owner]) || 0);
+    label = 'Army of Exiles Uses';
+    value = used + ' / 2';
+    sub = used < 2 ? 'Number of free set from deck uses available' : 'free deck set exhausted';
+  } else if(card.id === '40') {
+    const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
+    label = 'Hard Times Uses';
+    value = (2 - uses) + ' / 2';
+    sub = uses + ' empowerment' + (uses === 1 ? '' : 's') + ' remaining';
+  } else if(card.id === '56') {
+    const uses = Math.max(0, Number(card.usesLeft == null ? 5 : card.usesLeft) || 0);
+    label = 'Berknomaly Uses';
+    value = (5 - uses) + ' / 5';
+    sub = uses + ' negation' + (uses === 1 ? '' : 's') + ' remaining';
+  } else if(card.id === '67') {
+    const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
+    label = 'Negation Uses';
+    value = (1 - uses) + ' / 1';
+    sub = uses ? 'ready to negate' : 'spent';
+  } else if(card.id === '91') {
+    const counts = Array.isArray(G._snowyVillageUses) ? G._snowyVillageUses : [0,0];
+    const used = Math.max(0, Number(counts[owner]) || 0);
+    label = 'Snowy Village Uses';
+    value = used + ' / 2';
+    sub = used < 2 ? 'landscape lock available' : 'landscape lock exhausted';
   }
 
   if(!label) return '';
@@ -3404,9 +3576,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     acts.appendChild(santa);
   }
   if((fromHand||G.selectedHandCard!==null) && !fromBoard && canUseHandCard){
-    if(card.id==='70'){
-      if(card.guerilla_transferred) toast(card.name + ' cannot be set - it is debuffing this hand.');
-      else toast(card.name + ' triggers when discarded from its own zone.');
+    if(card.id==='70' && card.guerilla_transferred){
+      toast(card.name + ' cannot be set - it is debuffing this hand.');
       document.getElementById('modal').classList.add('on');
       return;
     }
@@ -3522,7 +3693,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           busBtn.onclick=()=>{closeModal();activateBusserMove(bc,z,r,c);};
           acts.appendChild(busBtn);
         }
-        if(!supporterActionsSuppressed && bc.id==='93' && !bc.effectUsedThisTurn){
+        if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
           const snowBtn=document.createElement('button');
           snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
           snowBtn.onclick=()=>{closeModal();activateWodnyPotokYouth(bc,z,r,c);};
@@ -3557,6 +3728,25 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   document.getElementById('modal').classList.add('on');
 }
 
+function openCardDetailFromDeckPreview(card, returnToPreview) {
+  openCardDetail(card, false, false);
+  const backToPreview = function(ev){
+    if(ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+    if(ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+    if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
+    if(typeof returnToPreview === 'function') returnToPreview();
+    const modalEl = document.getElementById('modal');
+    if(modalEl) modalEl.classList.add('on');
+  };
+  const acts = document.getElementById('modal-acts');
+  const closeBtn = acts && Array.from(acts.querySelectorAll('button')).find(btn => /^close$/i.test((btn.textContent || '').trim()));
+  if(closeBtn) {
+    closeBtn.textContent = 'Back';
+    closeBtn.onclick = backToPreview;
+  }
+}
+window.openCardDetailFromDeckPreview = openCardDetailFromDeckPreview;
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  HELPER MODALS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -3574,12 +3764,16 @@ function resetModalChrome() {
       'recent-matches-modal',
       'social-profile-modal',
       'sell-card-modal',
+      'sell-card-picker-modal',
       'online-room-deck-picker-modal',
       'choose-deck-canonical-modal',
       'choose-deck-runtime-modal',
       'challenger-my-decks-modal',
       'cdb-save-modal',
       'deck-inspect-compact-modal',
+      'deck-art-editor-modal',
+      'challenger-deck-art-editor-modal',
+      'title-deck-art-editor-modal',
       'division-pro-modal',
       'market-history-modal',
       'market-list-modal',
@@ -3597,6 +3791,7 @@ function resetModalChrome() {
       'inspected-profile-modal-stable',
       'friend-requests-modal',
       'title-my-decks-modal',
+      'daily-login-modal',
       'card-effect-modal',
       'card-detail-modal',
       'landscape-choice-modal',
@@ -3608,6 +3803,7 @@ function resetModalChrome() {
     delete modalBox.dataset.chooseDeckModal;
     modalBox.removeAttribute('style');
   }
+  if(modalEl) delete modalEl.dataset.escapeLocked;
   const titleEl = document.getElementById('modal-title');
   if(titleEl) titleEl.removeAttribute('style');
   const actsEl = document.getElementById('modal-acts');
@@ -4033,7 +4229,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const maxCount = opts.maxCount || 1;
   const minCount = opts.minCount || 0;
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
-  const CARDS_PER_PAGE = 6;
+  const CARDS_PER_PAGE = 8;
   let selected=[];
   let page = 0;
   const totalPages = Math.ceil(cards.length / CARDS_PER_PAGE);
@@ -4068,7 +4264,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     <p style="font-size:.78rem;margin-bottom:.3rem;color:var(--dim);font-style:italic;text-align:center;">${sub}</p>
     ${zoneContextHtml}
     <div id="visual-count" style="font-family:'Cinzel',serif;color:var(--gold);font-size:.75rem;margin-bottom:.3rem;text-align:center;">0/${maxCount} selected</div>
-    <canvas id="visual-page-canvas" class="visual-page-canvas" width="540" height="380" style="width:100%;max-width:540px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
+    <canvas id="visual-page-canvas" class="visual-page-canvas" width="760" height="532" style="width:100%;max-width:760px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
     ${totalPages>1?`<div id="visual-pagination" style="display:flex;align-items:center;justify-content:center;gap:.8rem;margin-top:.5rem;padding:.3rem 0;">
       <button class="btn sm" id="vp-prev" style="font-size:.72rem;padding:.3rem .7rem;min-width:60px;">◀ Prev</button>
       <span id="vp-page" style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--dim);letter-spacing:.06em;">1 / ${totalPages}</span>
@@ -4123,10 +4319,9 @@ function pickCardsVisual(cards, opts, onConfirm) {
 
   function getCanvasPointer(ev) {
     const rect = pickerCanvas.getBoundingClientRect();
-    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     return {
-      x: (ev.clientX - rect.left) * (pickerCanvas.width / Math.max(1, rect.width)) / dpr,
-      y: (ev.clientY - rect.top) * (pickerCanvas.height / Math.max(1, rect.height)) / dpr
+      x: (ev.clientX - rect.left) * (pickerCanvas.width / Math.max(1, rect.width)) / Math.max(1, Math.min(3, window.devicePixelRatio || 1)),
+      y: (ev.clientY - rect.top) * (pickerCanvas.height / Math.max(1, rect.height)) / Math.max(1, Math.min(3, window.devicePixelRatio || 1))
     };
   }
 
@@ -4144,7 +4339,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     pickerDrawToken++;
     const token = pickerDrawToken;
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const cssW = 540, cols = 3, rows = 2, gap = 12, pad = 12;
+    const cssW = 760, cols = 4, rows = 2, gap = 14, pad = 14;
     const cardW = Math.floor((cssW - pad*2 - gap*(cols-1)) / cols);
     const cardH = Math.floor(cardW * 1.4);
     const cssH = pad*2 + rows*cardH + gap*(rows-1);
@@ -4156,6 +4351,8 @@ function pickCardsVisual(cards, opts, onConfirm) {
     }
     pickerCanvas.style.height = cssH + 'px';
     pickerCtx.setTransform(dpr,0,0,dpr,0,0);
+    pickerCtx.imageSmoothingEnabled = true;
+    pickerCtx.imageSmoothingQuality = 'high';
     pickerCtx.clearRect(0, 0, cssW, cssH);
     pickerCtx.fillStyle = 'rgba(3,5,10,.38)';
     pickerCtx.fillRect(0, 0, cssW, cssH);
@@ -4341,7 +4538,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
   document.getElementById('modal-acts').appendChild(ok);
   document.getElementById('modal').classList.add('on');
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.style.maxWidth = '600px';
+  if(modalBox) {
+    modalBox.classList.add('visual-card-picker-modal');
+    modalBox.style.maxWidth = '880px';
+  }
 }
 
 function searchDeckForType(player, type, prompt, maxCount=1) {
@@ -4761,7 +4961,7 @@ function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
         </div>
       </div>
     </div>`;
-  window._moveGridCards=moveGridCards;window._moveCard=card;window._moveFrom={z:fromZ,r:fromR,c:fromC};window._moveDests=open;window._moveTargetZ=targetZ;
+  window._moveGridCards=moveGridCards;window._moveCard=card;window._moveFrom={z:fromZ,r:fromR,c:fromC};window._moveDests=open;window._moveTargetZ=targetZ;window._moveSourceCard=options.sourceCard||null;
   showModal(options.title || 'Move Card',body,[{label:'Cancel',action:closeModal}]);
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('move-target-picker-modal');
@@ -4778,21 +4978,25 @@ window.doMove=function(i){
   if(window._moveCard.cantBeMoved){toast('This card cannot be moved (Shield Wall)');closeModal();return;}
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;
+  if(window._moveSourceCard && typeof markInitialEffectResolved === 'function') markInitialEffectResolved(window._moveSourceCard);
   closeModal();toast('Card moved');renderGame();
 };
 
-function highlightForBlock(z) {
-  toast('Click any square in this zone (empty or occupied) to block consolidation on it');
+function highlightForBlock(z, sourceCard) {
+  toast('Click a contested or opponent-side square in this zone to block consolidation on it');
   G.placing=true;
   G.blockingCell=true;
+  G._blockingEffectSourceIid = sourceCard && sourceCard.iid;
   if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
+  const owner = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
   const totalRows = G.board[z]?G.board[z].length:3;
   for(let r=0;r<totalRows;r++) {
     const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3;
     for(let c=0;c<rowCap;c++){
     // Skip cells already blocked by either Carolyn or Zoe
     const anyBlock = G.blockedCells.some(b=>b.z===z&&b.r===r&&b.c===c);
-    if(!anyBlock){
+    const allowed = typeof isZoeBlockTargetAllowed === 'function' ? isZoeBlockTargetAllowed(z, r, c, owner) : true;
+    if(!anyBlock && allowed){
       const el=document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"]`);
       if(el) el.classList.add('placeable','block-target-choice','zoe-block-choice');
     }
@@ -5159,7 +5363,7 @@ function showCardInfoOverlay(card) {
   overlay.innerHTML =
     '<div class="card-info-overlay-backdrop"></div>'+
     '<div class="cio-modal">'+
-      '<div class="cio-title">'+escapeHtml(visual.name)+'</div>'+
+      '<div class="cio-title"><span>'+escapeHtml(visual.name)+'</span></div>'+
       '<div class="cd-wrap">'+
         '<div class="cd-img">'+cardArt+'</div>'+
         '<div class="cd-info">'+
@@ -5177,7 +5381,7 @@ function showCardInfoOverlay(card) {
       '<div class="cio-acts"><button type="button" class="btn sm cio-close">Close</button></div>'+
     '</div>';
   overlay.querySelector('.card-info-overlay-backdrop').onclick = dismissCardInfoOverlay;
-  overlay.querySelector('.cio-close').onclick = dismissCardInfoOverlay;
+  overlay.querySelectorAll('.cio-close').forEach(function(btn){ btn.onclick = dismissCardInfoOverlay; });
   overlay.querySelector('.cio-modal').onclick = function(ev){ ev.stopPropagation(); };
   document.body.appendChild(overlay);
   if(useCanvasArt) {
@@ -5377,7 +5581,7 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   el.setAttribute('aria-live', 'polite');
   el.textContent = '“' + line + '”';
   // Inline visibility is intentional: older patches hide cinematic text elements.
-  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:11vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;';
+  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;';
   document.body.appendChild(el);
   const ttl = Math.max(800, Number(durationMs) || 2100);
   setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(300, ttl - 470));

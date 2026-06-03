@@ -10,9 +10,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-  <link rel="stylesheet" href="src/styles/game.css?v=1778977600">
-<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1778976300">
-  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1779525600">
+  <link rel="stylesheet" href="src/styles/game.css?v=1780269000">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1780306400">
+  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780311280">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -86,7 +86,7 @@
           <span class="vol-val" id="vol-voice-val">80</span>
         </div>
         <button class="btn sm" id="music-toggle-btn" onclick="toggleMusic()" style="margin-top:.2rem;">Music On</button>
-        <button class="btn sm off" id="enhanced-fx-toggle-btn" data-enhanced-fx-toggle onclick="toggleEnhancedVisualFx()" style="margin-top:.2rem;">Animations Off</button>
+        <button class="btn sm" id="enhanced-fx-toggle-btn" data-enhanced-fx-toggle onclick="toggleEnhancedVisualFx()" style="margin-top:.2rem;">Animations On</button>
       </div>
     </div>
   </div>
@@ -322,7 +322,7 @@
   <div class="social-content" id="social-content">
     <!-- populated by renderSocialPage -->
   </div>
-  <div id="game-version" class="title-version-label social-version-label">Version 1.99</div>
+  <div id="game-version" class="title-version-label social-version-label">Build 1780302900</div>
 </div>
 
 <!-- MISSION CONTROL -->
@@ -498,37 +498,74 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1779614000"></script>
-<script src="src/scripts/01-data-and-state.js?v=1779614000"></script>
-<script src="src/scripts/02-screen-and-deckbuilder.js?v=1780254000"></script>
-<script src="src/scripts/13-svg-ui-enhancements.js?v=1778573780"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1779614000"></script>
-<script src="src/scripts/04-game-setup.js?v=1779527600"></script>
-  <script src="src/scripts/05-gameplay-core.js?v=1779614000"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1779614000"></script>
-  <script src="src/scripts/23-board-canvas-renderer.js?v=1779465200"></script>
-  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1779526500"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1780301600"></script>
+<script src="src/scripts/01-data-and-state.js?v=1780302000"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=1780309600"></script>
+<script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1780311070"></script>
+<script src="src/scripts/04-game-setup.js?v=1780304500"></script>
+  <script src="src/scripts/05-gameplay-core.js?v=1780302800"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1780310980"></script>
+  <script src="src/scripts/23-board-canvas-renderer.js?v=1780305600"></script>
+  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780300800"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
-  <script src="src/scripts/07-ai.js?v=1779614000"></script>
-<script src="src/scripts/08-audio-and-meta-ui.js?v=1779614000"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1780254000"></script>
-<script src="src/scripts/11-tutorial.js?v=1779481800"></script>
-<script src="src/scripts/12-ai-dialogue.js?v=1779475600"></script>
-<script src="src/scripts/10-init.js?v=1778892300"></script>
+  <script src="src/scripts/07-ai.js?v=1780302900"></script>
+<script src="src/scripts/08-audio-and-meta-ui.js?v=1780310600"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1780310840"></script>
+<script src="src/scripts/11-tutorial.js?v=1780269000"></script>
+<script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
+<script src="src/scripts/10-init.js?v=1780303200"></script>
 
 <!-- Cloud save: all player data synced to Firebase under players/{uid}/ -->
-<script src="src/scripts/14-cloud-save.js?v=1780245000"></script>
+<script src="src/scripts/14-cloud-save.js?v=1780269000"></script>
 <!-- Online rebuild v1: Google auth + RTDB profile/social/rooms foundation -->
-<script type="module" src="src/scripts/15-online-auth.js?v=1779614000"></script>
-<script type="module" src="src/scripts/16-online-core.js?v=1778573780"></script>
-<script type="module" src="src/scripts/17-online-social.js?v=1779614000"></script>
-<script type="module" src="src/scripts/18-online-rooms.js?v=1780262600"></script>
-<script type="module" src="src/scripts/19-online-elo.js?v=1779614000"></script>
-<script type="module" src="src/scripts/20-online-economy.js?v=1779446900"></script>
-<script src="src/scripts/21-smoothness-core.js?v=1779473900"></script>
-<script src="src/scripts/22-spectator.js?v=1780250000"></script>
+<script type="module" src="src/scripts/15-online-auth.js?v=1780269000"></script>
+<script type="module" src="src/scripts/16-online-core.js?v=1780269000"></script>
+<script type="module" src="src/scripts/17-online-social.js?v=1780269000"></script>
+<script type="module" src="src/scripts/18-online-rooms.js?v=1780269000"></script>
+<script type="module" src="src/scripts/19-online-elo.js?v=1780298400"></script>
+<script type="module" src="src/scripts/20-online-economy.js?v=1780310860"></script>
+<script src="src/scripts/21-smoothness-core.js?v=1780304500"></script>
+<script src="src/scripts/22-spectator.js?v=1780269000"></script>
 <script>
-  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=bg20260510d').catch(()=>{});}
+  if('serviceWorker' in navigator && !new URLSearchParams(location.search).has('soloNoSw')){navigator.serviceWorker.register('./sw.js?v=bg20260510d').catch(()=>{});}
+  (function(){
+    const params = new URLSearchParams(location.search);
+    if(!params.has('soloClient')) return;
+    const script = document.querySelector('script[src*="18-online-rooms.js"]');
+    const src = script ? script.getAttribute('src') || '' : '';
+    const version = (src.match(/[?&]v=([^&]+)/) || [,'missing'])[1];
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;z-index:2147483647;left:10px;bottom:10px;background:#111827;color:#f9fafb;border:1px solid #22c55e;border-radius:6px;padding:7px 10px;font:12px/1.2 system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.28);pointer-events:none;';
+    badge.textContent = 'Solo ' + params.get('soloClient') + ' | build 1780302900 | online rooms v=' + version + ' | fresh ' + (params.get('fresh') || 'none');
+    document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(badge); });
+    window.fateSoloBuildReport = function(){
+      return {
+        href:location.href,
+        onlineRoomsSrc:script ? script.src : '',
+        scripts:Array.from(document.scripts).map(s => s.src).filter(Boolean),
+        styles:Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(s => s.href).filter(Boolean),
+        soloClient:params.get('soloClient') || '',
+        soloNoSw:params.has('soloNoSw'),
+        serviceWorkerController:!!navigator.serviceWorker?.controller,
+        classes:{
+          html:document.documentElement.className,
+          body:document.body ? document.body.className : '',
+          title:document.getElementById('s-title')?.className || ''
+        },
+        flags:{
+          fateResetDone:localStorage.getItem('fate_reset_v9_playerdata_done'),
+          wsEnabled:localStorage.getItem('fateWsAuthorityEnabled'),
+          wsUrl:localStorage.getItem('fateWsAuthorityUrl'),
+          menuV2:localStorage.getItem('fate_menu_v2'),
+          sidePanel:localStorage.getItem('fate_side_panel'),
+          canvasBoard:localStorage.getItem('fateEnableCanvasBoard'),
+          disableCanvasBoard:localStorage.getItem('fateDisableCanvasBoard'),
+          enhancedFx:localStorage.getItem('fateEnhancedVisualFx')
+        }
+      };
+    };
+  })();
 </script>
 </body>
 </html>

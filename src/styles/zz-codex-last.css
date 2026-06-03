@@ -1,4 +1,4 @@
-/* Last-loaded Codex overrides: keep this tiny and specific. */
+﻿/* Last-loaded Codex overrides: keep this tiny and specific. */
 
 html body #s-social .social-party-command > .party-panel-clean,
 html body #s-social .social-party-command .party-panel-clean,
@@ -162,7 +162,7 @@ html body #s-title .title-performance-toggle .perf-toggle-copy b{
 }
 
 /* Tab-hidden: pause animations and kill transitions.
-   IMPORTANT: avoid universal * selector — it forces full style recalc on every
+   IMPORTANT: avoid universal * selector â€” it forces full style recalc on every
    element when the class toggles, which can permanently degrade the compositor
    to ~12 FPS after alt-tab on boards with many elements. Target game-specific
    elements instead. */
@@ -186,6 +186,33 @@ html.fate-tab-hidden .placement-anim-ghost,
 html.fate-tab-hidden .effect-activation-aura{
   animation-play-state:paused!important;
   transition-duration:0s!important;
+}
+
+/* Animations-off mode should be genuinely quiet. Keep functional targeting
+   states visible, but stop the shared animated layers that still cost frames. */
+html.fate-animations-off .screen.screen-fade-in,
+html.fate-animations-off .screen.screen-fade-out,
+html.fate-animations-off #s-game :is(.placement-anim-ghost,.placement-anim-card,.card-set-flash,.zone-take-flash,.effect-activation-aura,.last-turn-banner,.turn-timer-warning,.online-lag-spinner,.idle-glow-p1,.idle-glow-p2,.hand-sel-pulse,.tribute-card,.busser-zone-ready,.improvisor-ready),
+html.fate-animations-off body :is(.draw-fly-card,.cinematic-subtitle-live,.booster-drop-banner),
+html.fate-animations-off :is(.canvas-card-grid-sheen,.canvas-card-grid-sheen-sweep){
+  animation:none!important;
+  transition-duration:0s!important;
+  filter:none!important;
+  text-shadow:none!important;
+  box-shadow:none!important;
+  will-change:auto!important;
+}
+
+html.fate-animations-off #s-game #placement-anim-layer,
+html.fate-animations-off #s-game .placement-anim-ghost,
+html.fate-animations-off body .draw-fly-card,
+html.fate-animations-off :is(.canvas-card-grid-sheen-layer,.canvas-card-grid-sheen){
+  display:none!important;
+}
+
+html.fate-animations-off #s-game .cell.mark-safe-choice{
+  animation:none!important;
+  box-shadow:inset 0 0 0 2px rgba(245,214,116,.58)!important;
 }
 
 html.fate-performance-mode,
@@ -250,7 +277,7 @@ html.fate-performance-mode :is(#s-challenger:not(.active),#s-social:not(.active)
   contain-intrinsic-size:1000px 720px!important;
 }
 
-/* Modal containers must never use contain:layout — it prevents height recalc when
+/* Modal containers must never use contain:layout â€” it prevents height recalc when
    content loads async, causing random large empty spaces in profile inspect / card windows.
    contain:style is safe (isolates counters/quotes). */
 html body #modal .modal,
@@ -1128,7 +1155,7 @@ html body #s-game .cell.no-consolidate::before{
   max-height:none!important;
 }
 
-/* ─── Daily missions: top-right (original position) ─── */
+/* â”€â”€â”€ Daily missions: top-right (original position) â”€â”€â”€ */
 html body .daily-challenges-panel,
 html body #daily-challenges-panel{
   position:absolute!important;
@@ -1151,7 +1178,7 @@ body:has(#modal.on) #s-title #daily-challenges-panel{
   transition:filter .25s ease!important;
 }
 
-/* ─── Daily challenge completion notification (overlay at top) ─── */
+/* â”€â”€â”€ Daily challenge completion notification (overlay at top) â”€â”€â”€ */
 .dc-completion-notify{
   position:fixed;
   top:24px;left:50%;
@@ -1223,7 +1250,7 @@ body:has(#modal.on) #s-title #daily-challenges-panel{
   text-shadow:0 0 10px rgba(255,215,0,.25);
 }
 
-/* ─── End zone flash: longer animation ─── */
+/* â”€â”€â”€ End zone flash: longer animation â”€â”€â”€ */
 html body #s-game .zone.final-zone-board-flash{
   animation:finalZoneBoardFlashLong .86s ease-out var(--final-zone-delay,0ms) both!important;
   z-index:35!important;
@@ -1248,7 +1275,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   display:none!important;
 }
 
-/* ── Suppressed card visual (Secules / Lydia) ── */
+/* â”€â”€ Suppressed card visual (Secules / Lydia) â”€â”€ */
 .bc.fate-suppressed{
   filter:grayscale(.85) brightness(.7)!important;
   opacity:.7!important;
@@ -1269,13 +1296,13 @@ html body #s-game .zone.final-zone-board-flash::after{
   pointer-events:none;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MAIN MENU V2  —  scoped under .fate-menu-v2 on #s-title.
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   MAIN MENU V2  â€”  scoped under .fate-menu-v2 on #s-title.
    Uses original layout (profile left, centered content) but with
    upgraded button design. Remove the class to revert instantly.
-   ═══════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* ── Buttons: clean glass panels with gold borders, no corner decorations ── */
+/* â”€â”€ Buttons: clean glass panels with gold borders, no corner decorations â”€â”€ */
 #s-title.fate-menu-v2 .title-btn{
   border-radius:6px!important;
   border:1px solid rgba(201,168,76,.2)!important;
@@ -1301,7 +1328,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   transform:translateY(-1px)!important;
 }
 
-/* Primary buttons: Free Play & Challenger — gold emphasis */
+/* Primary buttons: Free Play & Challenger â€” gold emphasis */
 #s-title.fate-menu-v2 #title-free-play-btn{
   border-color:rgba(201,168,76,.4)!important;
   background:linear-gradient(180deg,rgba(201,168,76,.13) 0%,rgba(201,168,76,.04) 100%)!important;
@@ -1327,7 +1354,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   box-shadow:0 0 22px rgba(255,215,0,.15)!important;
 }
 
-/* Exit button — subdued */
+/* Exit button â€” subdued */
 #s-title.fate-menu-v2 .title-btn-exit{
   opacity:.74!important;
   border-color:rgba(220,70,55,.45)!important;
@@ -1342,7 +1369,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   background:rgba(120,24,18,.18)!important;
 }
 
-/* ── Audio panel: subtle glass treatment ── */
+/* â”€â”€ Audio panel: subtle glass treatment â”€â”€ */
 #s-title.fate-menu-v2 .title-audio-panel{
   border:1px solid rgba(201,168,76,.1)!important;
   border-radius:6px!important;
@@ -1371,19 +1398,19 @@ html body #s-game .zone.final-zone-board-flash::after{
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
-   SIDE PANEL — SUSPENDED, LEFT, STYLISH
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   SIDE PANEL â€” SUSPENDED, LEFT, STYLISH
    Scoped under .fate-side-panel on #s-title. A floating panel on the
    LEFT with margin around it, decorative trim, section dividers,
    ornamental flourishes. Profile + daily challenges + compact chat.
    Remove the class to revert instantly.
    Toggle: localStorage.setItem('fate_side_panel','off') + refresh,
            or call window.toggleSidePanel().
-   ═══════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* --- Title screen: keep original centered layout — panel is overlaid --- */
+/* --- Title screen: keep original centered layout â€” panel is overlaid --- */
 #s-title.fate-side-panel{
-  /* Don't change flex-direction — panel is absolutely positioned */
+  /* Don't change flex-direction â€” panel is absolutely positioned */
 }
 
 /* --- Suspended panel: floats on left with margin (NOT flush to edge) --- */
@@ -1453,7 +1480,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   border-bottom-right-radius:8px;
 }
 
-/* --- Inner container (no scrolling — content fits) --- */
+/* --- Inner container (no scrolling â€” content fits) --- */
 #s-title.fate-side-panel .sp-inner{
   flex:1 1 auto!important;
   display:flex!important;
@@ -1641,7 +1668,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   gap:.3rem!important;
 }
 #s-title.fate-side-panel .sp-wc-title::before{
-  content:'◆'!important;
+  content:'â—†'!important;
   font-size:.5rem!important;
   color:rgba(127,180,255,.6)!important;
 }
@@ -1832,9 +1859,9 @@ body:has(#modal.on) #fate-side-panel{
   margin-top:.6rem!important;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MISSION CONTROL SCREEN
-   ═══════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 #s-mission{
   flex-direction:column;
   position:relative;
@@ -3745,9 +3772,9 @@ html body #s-game .zone-banner-over{
   opacity:0!important;
 }
 
-/* Zone fate bar equal-spacing: gap above (banner→bar) = gap below (bar→squares) = 8px.
+/* Zone fate bar equal-spacing: gap above (bannerâ†’bar) = gap below (barâ†’squares) = 8px.
    Floating banner bottom sits at zoneTop+4.  Score card at top:12px (height 26px,
-   bottom 38px).  zone-hdr 46px ⇒ 46-38 = 8px below, 12-4 = 8px above.
+   bottom 38px).  zone-hdr 46px â‡’ 46-38 = 8px below, 12-4 = 8px above.
    margin:0 prevents stacking with the absolute top offset.                       */
 html body #s-game .zone-hdr{
   height:46px!important;
@@ -3862,7 +3889,7 @@ html body .cinematic-subtitle-live{display:block!important;visibility:visible!im
 html body .cinematic-subtitle-live.fade-out{opacity:0!important;transition:opacity .42s ease!important;}
 html body #s-deck #db-collection .db-mc img,html body #s-challenger #cdb-collection .db-mc img{opacity:1!important;visibility:visible!important;filter:none!important;transition:none!important;}
 html body #modal .challenger-my-decks-modal{padding-bottom:.65rem!important;}
-html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{min-height:480px!important;height:480px!important;max-height:480px!important;}
+html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{min-height:360px!important;height:360px!important;max-height:360px!important;}
 
 /* Codex 2026-05-17b: final repairs after consolidation UI feedback. */
 html body #s-game.is-consolidating .actbar{display:grid!important;grid-template-columns:minmax(360px,1fr) auto!important;gap:.42rem!important;padding:.32rem .5rem!important;min-height:56px!important;}
@@ -3879,7 +3906,7 @@ html body #s-deck .db-deck-thumb-hi img{image-rendering:auto!important;filter:no
 html body #modal .challenger-my-decks-modal{padding-bottom:1rem!important;}
 html body #modal .challenger-my-decks-modal #modal-body{overflow:visible!important;max-height:none!important;}
 html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck{margin-bottom:.75rem!important;gap:.9rem!important;}
-html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{min-height:480px!important;height:480px!important;max-height:480px!important;}
+html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{min-height:360px!important;height:360px!important;max-height:360px!important;}
 
 /* Codex 2026-05-17c: final hand strip stability while consolidating. */
 html body #s-game.is-consolidating .hand-strip{min-height:revert!important;max-height:none!important;height:auto!important;}
@@ -6858,4 +6885,4505 @@ html body #s-game .game-left::before{
 
 html body #s-game .game-left > .left-section:not(:last-child){
   background-image:linear-gradient(90deg,rgba(236,199,78,.5),rgba(236,199,78,.5))!important;
+}
+
+/* Codex 2026-05-31: profile stat alignment, AI rank picker trim, chat emoji containment. */
+html body #modal .inspected-profile-stable .profile-stats{
+  align-items:start!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat,
+html body #modal .title-profile-modal-v2 .profile-stat{
+  justify-content:flex-start!important;
+  gap:.14rem!important;
+  padding-top:.5rem!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-label,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-label{
+  transform:translateY(-2px)!important;
+  min-height:1.05em!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-value,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-value{
+  transform:translateY(-3px)!important;
+  min-height:1.15em!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  width:100%!important;
+  line-height:1!important;
+}
+
+html body .ai-division-rank-card{
+  padding:.52rem .68rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-lg{
+  min-height:38px!important;
+  padding:.14rem .5rem!important;
+  gap:.3rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-svg{
+  display:none!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-icon{
+  width:24px!important;
+  height:24px!important;
+}
+
+html body #world-chat-panel{
+  overflow:hidden!important;
+}
+
+html body #world-chat-panel #wc-emoji-container{
+  position:absolute!important;
+  left:.55rem!important;
+  right:.55rem!important;
+  bottom:3.45rem!important;
+  z-index:3!important;
+  max-width:calc(100% - 1.1rem)!important;
+}
+
+html body #world-chat-panel #wc-emoji-container .social-emoji-picker{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:.2rem!important;
+  margin:0!important;
+  max-height:142px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+
+html body #world-chat-panel #wc-emoji-container .social-emoji-btn{
+  min-width:0!important;
+  font-size:1rem!important;
+}
+
+/* Codex 2026-05-31 follow-up: profile stat spacing, tighter AI rank badge, larger emote tray, no board-art text flash. */
+html body #modal .inspected-profile-stable .profile-stats,
+html body #modal .title-profile-modal-v2 .profile-stats{
+  align-items:stretch!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat,
+html body #modal .title-profile-modal-v2 .profile-stat{
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:.23rem!important;
+  padding-top:.62rem!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-label,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-label{
+  transform:none!important;
+  line-height:1!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-value,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-value{
+  transform:translateY(2px)!important;
+  line-height:1!important;
+}
+
+html body .ai-division-rank-card{
+  flex:0 0 auto!important;
+  width:max-content!important;
+  max-width:min(100%,360px)!important;
+  padding:.42rem .52rem!important;
+}
+
+html body .ai-division-rank-badge{
+  gap:.2rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-lg{
+  width:max-content!important;
+  min-width:0!important;
+  min-height:32px!important;
+  padding:.1rem .34rem!important;
+  gap:.18rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-label{
+  max-width:none!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-icon{
+  width:20px!important;
+  height:20px!important;
+}
+
+html body #world-chat-panel #wc-emoji-container .social-emoji-picker,
+html body #sp-wc-emoji-container .social-emoji-picker{
+  grid-template-columns:repeat(8,minmax(0,1fr))!important;
+  max-height:164px!important;
+  gap:.16rem!important;
+  padding:.36rem!important;
+}
+
+html body #world-chat-panel #wc-emoji-container .social-emoji-btn,
+html body #sp-wc-emoji-container .social-emoji-btn{
+  font-size:.95rem!important;
+  min-height:24px!important;
+  line-height:1!important;
+}
+
+html body #s-game .bc .bc-art{
+  background:#080a10!important;
+  overflow:hidden!important;
+}
+
+html body #s-game .bc .bc-art img{
+  color:transparent!important;
+  font-size:0!important;
+  line-height:0!important;
+  text-indent:-9999px!important;
+}
+
+/* Codex 2026-05-31: final visual tune for profile stats, AI rank header, card trays, and cinematic subtitles. */
+html body #modal .inspected-profile-stable .profile-stat,
+html body #modal .title-profile-modal-v2 .profile-stat{
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.18rem!important;
+  min-height:56px!important;
+  padding-top:.58rem!important;
+  padding-bottom:.5rem!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-label,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-label{
+  transform:translateY(0)!important;
+  line-height:1!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-value,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-value{
+  color:var(--fate,#ffd700)!important;
+  font-size:1.2rem!important;
+  font-weight:800!important;
+  line-height:1.06!important;
+  min-height:1.12em!important;
+  transform:translateY(5px)!important;
+  text-shadow:0 0 10px rgba(255,215,0,.32),0 1px 1px rgba(0,0,0,.9)!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-value *,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-value *{
+  color:inherit!important;
+}
+
+html body .ai-division-rank-card{
+  flex:0 0 auto!important;
+  width:max-content!important;
+  min-width:190px!important;
+  max-width:min(100%,390px)!important;
+  min-height:66px!important;
+  padding:.68rem .92rem!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+html body .ai-division-rank-badge{
+  width:100%!important;
+  margin:0!important;
+  gap:.45rem!important;
+  justify-content:center!important;
+}
+
+html body .ai-division-rank-badge > span{
+  display:flex!important;
+  line-height:1!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-lg{
+  min-height:48px!important;
+  padding:.32rem .86rem!important;
+  gap:.48rem!important;
+  font-size:1.04rem!important;
+  justify-content:center!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-icon{
+  width:34px!important;
+  height:34px!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-label{
+  max-width:none!important;
+  color:#f1c85a!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-badge-long .rank-badge-label{
+  font-size:.86rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-badge-xlong .rank-badge-label{
+  font-size:.76rem!important;
+}
+
+html body #s-game .bc .bc-art{
+  background:transparent!important;
+}
+
+html body .cinematic-subtitle-live,
+html body .cinematic-subtitle-live.rarity-star,
+html body .cinematic-subtitle-live.rarity-square,
+html body .cinematic-subtitle-live.rarity-triangle,
+html body .cinematic-subtitle-live.rarity-circle{
+  bottom:27vh!important;
+}
+
+/* Codex 2026-05-31: stable marketplace/public-deck sizing and no card repaint flicker helpers. */
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  width:min(900px,94vw)!important;
+  max-width:min(900px,94vw)!important;
+  height:min(470px,78vh)!important;
+  max-height:min(470px,78vh)!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-body{
+  height:100%!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  min-height:340px!important;
+  height:100%!important;
+  grid-template-columns:230px minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  align-items:stretch!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  min-height:calc((178px * 2) + 0.65rem)!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  grid-template-rows:repeat(2,178px)!important;
+  grid-auto-rows:178px!important;
+  overflow:hidden!important;
+  align-content:start!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pager{
+  position:static!important;
+  grid-column:2!important;
+  margin-top:.6rem!important;
+  align-self:end!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-placeholder{
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+
+/* Codex 2026-05-31: requested UI corrections after rank/store/deck-sharing pass. */
+html body .ai-division-rank-card{
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:0!important;
+  min-width:0!important;
+  width:auto!important;
+  min-height:0!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-lg{
+  min-height:54px!important;
+  padding:.42rem 1.08rem!important;
+  gap:.58rem!important;
+  font-size:1.08rem!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-icon{
+  width:38px!important;
+  height:38px!important;
+}
+
+html body .ai-division-rank-badge .rank-badge-label{
+  color:#fff6dc!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat,
+html body #modal .title-profile-modal-v2 .profile-stat{
+  padding-top:.42rem!important;
+  padding-bottom:.56rem!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stats,
+html body #modal .title-profile-modal-v2 .profile-stats{
+  transform:translateY(-4px)!important;
+}
+
+html body #modal .inspected-profile-stable .profile-stat .ps-value,
+html body #modal .title-profile-modal-v2 .profile-stat .ps-value{
+  transform:translateY(2px)!important;
+}
+
+html body #s-game .zone-score-card .zone-score{
+  transform:translateY(2px)!important;
+}
+
+html body #s-game .hand-strip{
+  background:rgba(9,11,17,.59)!important;
+  backdrop-filter:blur(1px)!important;
+  -webkit-backdrop-filter:blur(1px)!important;
+}
+
+html body #s-game .hand-strip::before,
+html body #s-game .hand-strip::after,
+html body #s-game.opponent-turn .hand-strip::before,
+html body #s-game.opponent-turn .hand-strip::after{
+  content:''!important;
+  display:block!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-flow{
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) auto!important;
+  max-height:min(620px,calc(100vh - 190px))!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-auto-rows:1fr!important;
+  gap:.78rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-pager{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.75rem!important;
+  margin-top:.85rem!important;
+  padding:.65rem .8rem!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+  border-radius:8px!important;
+  background:rgba(0,0,0,.26)!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-pager span{
+  color:#d7e7f2!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  letter-spacing:.08em!important;
+}
+
+/* Codex 2026-05-31: deck management, marketplace, and public deck modal corrections. */
+html body .ai-division-rank-badge .rank-badge-label{
+  color:inherit!important;
+}
+
+html body #modal .deck-inspect-compact-modal{
+  width:min(1040px,94vw)!important;
+  max-width:min(1040px,94vw)!important;
+}
+
+html body #modal .deck-inspect-brief{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
+  gap:.7rem!important;
+  min-height:118px!important;
+  padding:.72rem .82rem!important;
+  border-left:2px solid rgba(201,168,76,.62)!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.018))!important;
+}
+
+html body #modal .deck-inspect-brief p{
+  margin:0!important;
+  color:#eee6d5!important;
+  font-size:.83rem!important;
+  line-height:1.38!important;
+  font-style:italic!important;
+}
+
+html body #modal .deck-inspect-metrics{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:.45rem!important;
+}
+
+html body #modal .deck-inspect-metrics span{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:46px!important;
+  border:1px solid rgba(126,213,255,.2)!important;
+  border-radius:7px!important;
+  background:rgba(0,0,0,.24)!important;
+  text-align:center!important;
+  min-width:0!important;
+}
+
+html body #modal .deck-inspect-metrics b{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.95rem!important;
+  line-height:1!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+
+html body #modal .deck-inspect-metrics em{
+  color:#96a8b5!important;
+  font-size:.56rem!important;
+  font-style:normal!important;
+  letter-spacing:.1em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .deck-inspect-section-title{
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+  gap:.8rem!important;
+  color:var(--gold)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.88rem!important;
+  letter-spacing:.08em!important;
+  border-bottom:1px solid rgba(201,168,76,.2)!important;
+  padding-bottom:.42rem!important;
+}
+
+html body #modal .deck-inspect-section-title span{
+  color:var(--dim)!important;
+  font-size:.62rem!important;
+  letter-spacing:.1em!important;
+}
+
+html body #modal .title-deck-preview-modal .preset-view-grid,
+html body #modal .deck-inspect-compact-modal .deck-inspect-grid{
+  grid-template-columns:repeat(auto-fill,minmax(90px,1fr))!important;
+  max-height:44vh!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding-right:3.5rem!important;
+  box-sizing:border-box!important;
+  scrollbar-gutter:stable both-edges!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  width:min(1100px,96vw)!important;
+  max-width:min(1100px,96vw)!important;
+  height:min(540px,82vh)!important;
+  max-height:min(540px,82vh)!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  grid-template-columns:235px minmax(0,1fr)!important;
+  min-height:405px!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  grid-template-rows:repeat(2,178px)!important;
+  min-height:calc((178px * 2) + .65rem)!important;
+  max-height:calc((178px * 2) + .65rem)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal{
+  width:min(760px,92vw)!important;
+  max-width:min(760px,92vw)!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(520px,82vh)!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal #modal-body,
+html body #modal .modal.sell-card-modal.market-list-modal .modal-body{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-list-card-modal{
+  min-height:0!important;
+  gap:1rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-list-card-preview{
+  min-height:128px!important;
+}
+
+html body #modal .pd-hub-hero-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:.55rem!important;
+  flex-wrap:wrap!important;
+}
+
+html body #modal .modal.share-deck-modal{
+  width:min(1120px,96vw)!important;
+  max-width:min(1120px,96vw)!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-flow{
+  height:min(650px,calc(100vh - 150px))!important;
+  max-height:min(650px,calc(100vh - 150px))!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-topbar,
+html body #modal .rd-topbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.8rem!important;
+  padding:.72rem .82rem!important;
+  border:1px solid rgba(232,196,82,.26)!important;
+  border-radius:8px!important;
+  background:rgba(0,0,0,.24)!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-topbar h2{
+  margin:.1rem 0 0!important;
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.24rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-template-rows:repeat(2,minmax(0,1fr))!important;
+  grid-auto-rows:minmax(0,1fr)!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-placeholder{
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+
+html body #modal .rd-topbar{
+  margin-bottom:.75rem!important;
+}
+
+/* Codex 2026-06-01: public deck, Challenger deck-art, sell-card, and AI rank polish. */
+html body #modal .pd-hub-hero-actions{
+  justify-content:flex-end!important;
+}
+
+html body .ai-division-rank-badge .rank-badge.rank-lg{
+  border:1px solid rgba(232,196,82,.42)!important;
+  box-shadow:0 0 0 1px rgba(232,196,82,.08) inset,0 8px 18px rgba(0,0,0,.24)!important;
+}
+
+html body #modal .deck-inspect-metrics b{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  overflow-wrap:anywhere!important;
+  line-height:1.04!important;
+  font-size:.82rem!important;
+}
+
+/* Codex 2026-06-03: remove redundant public/share deck modal headers. */
+html body #modal .modal.public-decks-modal:not(.share-deck-modal):not(.public-deck-preview-modal):not(.public-deck-comments-modal),
+html body #modal .modal.share-deck-modal{
+  padding-top:.85rem!important;
+}
+
+html body #modal .modal.public-decks-modal:not(.share-deck-modal):not(.public-deck-preview-modal):not(.public-deck-comments-modal) #modal-title,
+html body #modal .modal.public-decks-modal:not(.share-deck-modal):not(.public-deck-preview-modal):not(.public-deck-comments-modal) .modal-title,
+html body #modal .modal.share-deck-modal #modal-title,
+html body #modal .modal.share-deck-modal .modal-title{
+  display:none!important;
+  height:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-decks-modal:not(.share-deck-modal):not(.public-deck-preview-modal):not(.public-deck-comments-modal) #modal-body,
+html body #modal .modal.share-deck-modal #modal-body{
+  margin-top:0!important;
+  padding-top:0!important;
+}
+
+html body #modal .modal.public-decks-modal:not(.share-deck-modal):not(.public-deck-preview-modal):not(.public-deck-comments-modal) .pd-hub-hero,
+html body #modal .modal.share-deck-modal .sd-topbar{
+  margin-top:0!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-flow{
+  row-gap:.95rem!important;
+}
+
+html body #modal .modal.share-deck-modal .sd-grid{
+  margin-top:.1rem!important;
+}
+
+/* Codex 2026-06-03: rate/review modal polish. */
+html body #modal .modal.public-deck-comments-modal{
+  width:min(1040px,94vw)!important;
+  max-width:min(1040px,94vw)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal #modal-body{
+  padding:.74rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  gap:.72rem!important;
+  height:min(630px,calc(100vh - 170px))!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-topbar{
+  margin-bottom:0!important;
+  padding:.64rem .72rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-section{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 250px!important;
+  align-items:center!important;
+  gap:1rem!important;
+  min-height:0!important;
+  padding:.86rem 1rem!important;
+  border:1px solid rgba(232,196,82,.3)!important;
+  border-radius:10px!important;
+  background:
+    linear-gradient(135deg,rgba(14,19,30,.92),rgba(5,7,13,.96)),
+    radial-gradient(circle at 88% 18%,rgba(126,213,255,.13),transparent 40%)!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,246,191,.045)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy{
+  min-width:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-kicker{
+  color:#7ed5ff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  letter-spacing:.18em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy h2{
+  margin:.16rem 0 .34rem!important;
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.5rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy p{
+  margin:0!important;
+  max-width:58ch!important;
+  color:#d9e8ee!important;
+  line-height:1.38!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-deck-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:.42rem!important;
+  margin-top:.62rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-deck-meta span{
+  padding:.26rem .52rem!important;
+  border:1px solid rgba(126,213,255,.2)!important;
+  border-radius:999px!important;
+  color:#9fb7c8!important;
+  background:rgba(126,213,255,.06)!important;
+  font-size:.7rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-controls{
+  display:grid!important;
+  justify-items:center!important;
+  align-content:center!important;
+  gap:.34rem!important;
+  min-height:118px!important;
+  padding:.7rem!important;
+  border:1px solid rgba(126,213,255,.22)!important;
+  border-radius:9px!important;
+  background:rgba(126,213,255,.07)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score{
+  display:grid!important;
+  grid-template-columns:auto auto!important;
+  align-items:end!important;
+  column-gap:.4rem!important;
+  row-gap:.05rem!important;
+  color:#c8d5dd!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score b{
+  grid-row:1 / span 2!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:2rem!important;
+  line-height:.9!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score span,
+html body #modal .modal.public-deck-comments-modal .rd-rating-score em{
+  font-size:.64rem!important;
+  font-style:normal!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-label{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.7rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-stars{
+  display:flex!important;
+  gap:.1rem!important;
+  color:rgba(210,218,226,.34)!important;
+  font-size:1.65rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-star{
+  cursor:pointer!important;
+  transition:color .15s ease,transform .15s ease!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-star:hover,
+html body #modal .modal.public-deck-comments-modal .rd-star-filled{
+  color:#ffe275!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-star:hover{
+  transform:translateY(-1px)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comments-section{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  gap:.52rem!important;
+  min-height:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-head{
+  display:flex!important;
+  align-items:end!important;
+  justify-content:space-between!important;
+  gap:1rem!important;
+  padding:0 .12rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-label{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1rem!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-head > span{
+  color:#9586d9!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-list{
+  min-height:0!important;
+  overflow:auto!important;
+  padding:.72rem!important;
+  border:1px solid rgba(232,196,82,.2)!important;
+  border-radius:9px!important;
+  background:rgba(0,0,0,.22)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-empty{
+  display:grid!important;
+  place-items:center!important;
+  min-height:120px!important;
+  color:#9586d9!important;
+  font-style:italic!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment{
+  display:grid!important;
+  gap:.24rem!important;
+  padding:.58rem .62rem!important;
+  border:1px solid rgba(126,213,255,.14)!important;
+  border-radius:8px!important;
+  background:rgba(126,213,255,.045)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment + .rd-comment{
+  margin-top:.46rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-author{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-text{
+  color:#d9e8ee!important;
+  line-height:1.35!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compose{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:.58rem!important;
+  align-items:center!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-input{
+  height:40px!important;
+  min-width:0!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  display:flex!important;
+  flex-direction:column!important;
+  width:min(1160px,97vw)!important;
+  max-width:min(1160px,97vw)!important;
+  height:min(640px,calc(100vh - 46px))!important;
+  max-height:calc(100vh - 46px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-title,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .modal-title,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-acts,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .modal-acts{
+  flex:0 0 auto!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-body,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .modal-body{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  height:100%!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:220px minmax(0,1fr)!important;
+  grid-template-rows:minmax(0,1fr) auto!important;
+  gap:.72rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-intro{
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(84px,1fr))!important;
+  grid-template-rows:repeat(2,minmax(0,1fr))!important;
+  grid-auto-rows:minmax(0,1fr)!important;
+  gap:.5rem!important;
+  overflow:hidden!important;
+  align-content:stretch!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick{
+  min-height:0!important;
+  height:100%!important;
+  padding:.42rem .34rem!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb{
+  flex:1 1 auto!important;
+  min-height:84px!important;
+  max-height:132px!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-name{
+  flex:0 0 auto!important;
+  line-height:1.06!important;
+  max-height:2.16em!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-meta{
+  flex:0 0 auto!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pager{
+  grid-column:2!important;
+  margin-top:.35rem!important;
+}
+
+html body #modal .modal.deck-art-editor-modal{
+  display:flex!important;
+  flex-direction:column!important;
+  width:min(1120px,96vw)!important;
+  max-width:min(1120px,96vw)!important;
+  height:min(760px,calc(100vh - 46px))!important;
+  max-height:calc(100vh - 46px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.deck-art-editor-modal #modal-title,
+html body #modal .modal.deck-art-editor-modal .modal-title,
+html body #modal .modal.deck-art-editor-modal #modal-acts,
+html body #modal .modal.deck-art-editor-modal .modal-acts{
+  flex:0 0 auto!important;
+}
+
+html body #modal .modal.deck-art-editor-modal #modal-body,
+html body #modal .modal.deck-art-editor-modal .modal-body{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+html body #modal .deck-art-editor{
+  height:100%!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:.78rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .deck-art-editor.has-fields{
+  grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)!important;
+}
+
+html body #modal .deck-art-editor-fields{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:.72rem!important;
+}
+
+html body #modal .deck-art-editor-fields label{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.32rem!important;
+}
+
+html body #modal .deck-art-editor-section{
+  min-height:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  border:1px solid rgba(232,196,82,.22)!important;
+  background:rgba(0,0,0,.2)!important;
+  padding:.62rem!important;
+}
+
+html body #modal .deck-art-editor-title{
+  flex:0 0 auto!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  color:var(--gold)!important;
+  letter-spacing:.1em!important;
+  text-transform:uppercase!important;
+  margin-bottom:.48rem!important;
+}
+
+html body #modal .deck-art-editor .face-picker-grid{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  display:grid!important;
+  grid-template-columns:repeat(auto-fill,minmax(76px,1fr))!important;
+  grid-auto-rows:minmax(104px,1fr)!important;
+  gap:.45rem!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  align-content:start!important;
+  padding:.2rem!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card{
+  width:auto!important;
+  height:auto!important;
+  min-height:104px!important;
+  aspect-ratio:2/3!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+}
+
+html body #modal .my-decks-modal-topbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.8rem!important;
+  margin-bottom:.8rem!important;
+}
+
+/* Codex 2026-06-01: final modal escape/sizing pass for collection and marketplace. */
+html body #modal .modal.card-detail-modal #modal-acts,
+html body #modal .modal.card-detail-modal .modal-acts{
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  justify-content:flex-end!important;
+  margin-top:.85rem!important;
+  min-height:34px!important;
+  position:relative!important;
+  z-index:5!important;
+}
+
+html body .card-info-overlay .cio-title{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:.8rem!important;
+}
+
+html body .card-info-overlay .cio-title span{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  display:flex!important;
+  flex-direction:column!important;
+  width:min(1160px,97vw)!important;
+  max-width:min(1160px,97vw)!important;
+  height:min(565px,calc(100vh - 46px))!important;
+  max-height:calc(100vh - 46px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-body,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .modal-body{
+  flex:0 0 auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  height:auto!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:220px minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  align-items:start!important;
+  gap:.72rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-intro{
+  height:392px!important;
+  min-height:392px!important;
+  max-height:392px!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-close{
+  margin-top:auto!important;
+  align-self:flex-start!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  height:392px!important;
+  min-height:392px!important;
+  max-height:392px!important;
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(84px,1fr))!important;
+  grid-template-rows:repeat(2,190px)!important;
+  grid-auto-rows:190px!important;
+  gap:.55rem!important;
+  align-content:start!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick{
+  height:190px!important;
+  min-height:190px!important;
+  max-height:190px!important;
+  padding:.42rem .34rem!important;
+  display:grid!important;
+  grid-template-rows:112px 2.25em 1.12em!important;
+  align-items:start!important;
+  justify-items:center!important;
+  gap:.24rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb{
+  width:82px!important;
+  height:112px!important;
+  min-height:112px!important;
+  max-height:112px!important;
+  flex:none!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-name{
+  min-height:0!important;
+  height:2.25em!important;
+  max-height:2.25em!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-meta{
+  height:1.12em!important;
+  min-height:0!important;
+  line-height:1.12!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pager{
+  grid-column:2!important;
+  height:46px!important;
+  min-height:46px!important;
+  margin-top:.52rem!important;
+  align-self:start!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal{
+  display:block!important;
+  width:min(780px,92vw)!important;
+  max-width:min(780px,92vw)!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding:1rem 1.1rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal #modal-title,
+html body #modal .modal.sell-card-modal.market-list-modal .modal-title{
+  margin-bottom:.75rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal #modal-body,
+html body #modal .modal.sell-card-modal.market-list-modal .modal-body{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding:0!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-list-card-modal{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.72rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-list-card-preview{
+  height:132px!important;
+  min-height:132px!important;
+  max-height:132px!important;
+  padding:.66rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-list-card-art{
+  width:78px!important;
+  height:109px!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal .market-price-row{
+  height:54px!important;
+  min-height:54px!important;
+  max-height:54px!important;
+  padding:.52rem .72rem!important;
+}
+
+html body #modal .modal.sell-card-modal.market-list-modal #modal-acts,
+html body #modal .modal.sell-card-modal.market-list-modal .modal-acts{
+  margin-top:.8rem!important;
+  min-height:0!important;
+}
+
+/* Codex 2026-06-01: share/deck-art/sell-picker follow-up. */
+html body #modal .modal.share-deck-modal #modal-acts,
+html body #modal .modal.share-deck-modal .modal-acts{
+  display:none!important;
+  margin:0!important;
+  min-height:0!important;
+  padding:0!important;
+}
+
+html body #modal .deck-inspect-theme-metric{
+  padding-top:.5rem!important;
+  padding-bottom:.38rem!important;
+  gap:.12rem!important;
+}
+
+html body #modal .deck-inspect-theme-metric b{
+  font-size:.68rem!important;
+  line-height:.96!important;
+  transform:translateY(2px)!important;
+  max-width:100%!important;
+  text-align:center!important;
+}
+
+html body #modal .deck-inspect-theme-metric em{
+  margin-top:.1rem!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-intro{
+  position:relative!important;
+  padding-bottom:4.1rem!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-close{
+  position:absolute!important;
+  left:1rem!important;
+  bottom:1rem!important;
+  margin:0!important;
+  align-self:auto!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  grid-template-columns:repeat(6,128px)!important;
+  grid-template-rows:repeat(2,190px)!important;
+  grid-auto-rows:190px!important;
+  justify-content:start!important;
+  align-content:start!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-placeholder{
+  width:128px!important;
+  min-width:128px!important;
+  max-width:128px!important;
+  height:190px!important;
+  min-height:190px!important;
+  max-height:190px!important;
+  box-sizing:border-box!important;
+  justify-self:start!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick{
+  grid-template-rows:112px 2.25em 1.12em!important;
+  place-items:start center!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb{
+  width:82px!important;
+  height:112px!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-name,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-meta{
+  width:100%!important;
+}
+
+html body #modal .deck-art-editor.has-back{
+  grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)!important;
+}
+
+html body #modal .deck-art-editor.has-fields.has-back{
+  grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr)!important;
+}
+
+html body #modal .deck-art-editor-topbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  min-height:34px!important;
+  margin-bottom:.08rem!important;
+}
+
+html body #modal .deck-art-editor-back{
+  min-width:76px!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card img{
+  background:transparent!important;
+  transform:translateZ(0)!important;
+  backface-visibility:hidden!important;
+}
+
+/* Codex 2026-06-01: scoped sell-card and edit-art cleanup. */
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  position:static!important;
+  padding-bottom:0!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-intro{
+  position:static!important;
+  padding-bottom:1rem!important;
+  min-height:392px!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-close{
+  position:absolute!important;
+  left:1.55rem!important;
+  bottom:1.05rem!important;
+  margin:0!important;
+  z-index:4!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick{
+  display:grid!important;
+  grid-template-rows:112px 2.55em 1.16em!important;
+  place-items:center!important;
+  align-items:center!important;
+  justify-items:center!important;
+  text-align:center!important;
+  gap:.18rem!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb{
+  justify-self:center!important;
+  align-self:center!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-name,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-meta{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0 auto!important;
+  line-height:1.08!important;
+  overflow-wrap:break-word!important;
+  word-break:normal!important;
+}
+
+html body #modal .deck-art-editor-section{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  padding:.25rem 0!important;
+}
+
+html body #modal .deck-art-editor .face-picker-grid{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-content:flex-start!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  padding:.18rem 0!important;
+  gap:.48rem!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card{
+  width:82px!important;
+  min-width:82px!important;
+  max-width:82px!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  aspect-ratio:auto!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+  transform:none!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card:hover{
+  transform:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card img{
+  width:82px!important;
+  height:auto!important;
+  max-width:82px!important;
+  display:block!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  background:transparent!important;
+  border-radius:3px!important;
+  box-shadow:none!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card.face-sel,
+html body #modal .deck-art-editor .face-picker-card.display-sel{
+  border:0!important;
+  box-shadow:none!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card.face-sel img{
+  outline:2px solid #ffd700!important;
+  outline-offset:1px!important;
+  box-shadow:0 0 12px rgba(255,215,0,.55)!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card.display-sel img{
+  outline:2px solid #7dff98!important;
+  outline-offset:1px!important;
+  box-shadow:0 0 0 2px rgba(125,255,152,.35),0 0 14px rgba(76,175,80,.35)!important;
+}
+
+html body #modal .deck-art-editor .face-picker-card.display-sel::after{
+  display:none!important;
+  content:none!important;
+}
+
+/* Codex 2026-06-01: user-requested modal polish only. */
+html body #modal .deck-art-editor.has-back{
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr)!important;
+}
+
+html body #modal .deck-art-editor.has-fields.has-back{
+  grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)!important;
+}
+
+html body #modal .deck-art-editor-topbar{
+  display:none!important;
+  min-height:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  position:relative!important;
+  padding-top:1.18rem!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-close{
+  position:absolute!important;
+  top:.92rem!important;
+  right:1.08rem!important;
+  left:auto!important;
+  bottom:auto!important;
+  margin:0!important;
+  z-index:8!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-shell{
+  overflow:visible!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-grid{
+  grid-template-columns:repeat(6,128px)!important;
+  grid-template-rows:repeat(2,190px)!important;
+  grid-auto-rows:190px!important;
+  justify-content:center!important;
+  align-content:start!important;
+  justify-items:center!important;
+  padding:.38rem .4rem .05rem!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-placeholder{
+  width:128px!important;
+  min-width:128px!important;
+  max-width:128px!important;
+  height:190px!important;
+  min-height:190px!important;
+  max-height:190px!important;
+  justify-self:center!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick{
+  display:grid!important;
+  grid-template-rows:112px 2.64em 1.18em!important;
+  align-content:start!important;
+  align-items:center!important;
+  justify-content:center!important;
+  justify-items:center!important;
+  place-items:center!important;
+  gap:.16rem!important;
+  text-align:center!important;
+  transform:none!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick:hover,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick:focus-visible{
+  transform:none!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-thumb{
+  width:82px!important;
+  height:112px!important;
+  min-height:112px!important;
+  max-height:112px!important;
+  margin:0 auto!important;
+  place-self:center!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-name{
+  height:2.64em!important;
+  max-height:2.64em!important;
+  min-height:2.64em!important;
+  padding:0 .14rem!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  line-height:1.08!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-pick-meta{
+  height:1.18em!important;
+  max-height:1.18em!important;
+  min-height:1.18em!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  line-height:1.08!important;
+}
+
+/* Codex 2026-06-01: repair leaked sell-card modal chrome on info screens. */
+html body #modal .modal.leaderboard-modal #modal-acts,
+html body #modal .modal.leaderboard-modal .modal-acts,
+html body #modal .modal.recent-matches-modal #modal-acts,
+html body #modal .modal.recent-matches-modal .modal-acts,
+html body #modal .modal.division-pro-modal #modal-acts,
+html body #modal .modal.division-pro-modal .modal-acts{
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  min-height:34px!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+}
+
+html body #modal .modal.division-pro-modal .division-pro-rank{
+  border-color:var(--division-rank-color,var(--gold))!important;
+  background:var(--division-rank-bg,rgba(201,168,76,.12))!important;
+}
+
+html body #modal .modal.division-pro-modal .division-pro-rank .division-pro-rank-name{
+  color:var(--division-rank-color,var(--gold))!important;
+}
+
+/* Codex 2026-06-01: requested My Decks and Sell a Card header cleanup. */
+html body #modal .modal.challenger-my-decks-modal .my-decks-modal-topbar{
+  justify-content:flex-start!important;
+}
+
+html body #modal .modal.challenger-my-decks-modal #modal-acts,
+html body #modal .modal.challenger-my-decks-modal .modal-acts{
+  display:flex!important;
+  justify-content:flex-end!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal{
+  padding-top:1.28rem!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal #modal-title,
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .modal-title{
+  min-height:42px!important;
+  display:flex!important;
+  align-items:center!important;
+  padding-right:108px!important;
+  margin:0 0 .48rem!important;
+  line-height:1.05!important;
+}
+
+html body #modal .modal.sell-card-modal.sell-card-picker-modal .sell-card-close{
+  top:1.34rem!important;
+  right:1.08rem!important;
+  min-height:30px!important;
+  height:30px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:.2rem .8rem!important;
+}
+
+/* Codex 2026-06-02: daily login reward panel. */
+html body #modal .modal.daily-login-modal{
+  width:min(760px,calc(100vw - 24px))!important;
+  max-width:760px!important;
+  border-radius:8px!important;
+  border:1px solid rgba(201,168,76,.34)!important;
+  background:
+    linear-gradient(180deg,rgba(12,15,24,.98),rgba(7,9,15,.98)),
+    radial-gradient(circle at 18% 0%,rgba(95,181,255,.14),transparent 36%),
+    radial-gradient(circle at 88% 12%,rgba(255,215,0,.12),transparent 34%)!important;
+  box-shadow:0 22px 70px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.04) inset!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-title{
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-body{
+  max-height:none!important;
+  overflow:visible!important;
+}
+
+.daily-login-shell{
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+}
+
+.daily-login-hero{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:1rem 1.05rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;
+  background:linear-gradient(135deg,rgba(95,181,255,.11),rgba(201,168,76,.09));
+}
+
+.daily-login-kicker{
+  font-family:'Cinzel',serif;
+  font-size:.68rem;
+  color:#7fd0ff;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:.28rem;
+}
+
+.daily-login-title{
+  font-family:'Cinzel',serif;
+  font-size:1.24rem;
+  color:var(--gold);
+  line-height:1.18;
+}
+
+.daily-login-sub{
+  margin-top:.38rem;
+  color:#c8d4e8;
+  font-size:.86rem;
+  line-height:1.42;
+}
+
+.daily-login-meter{
+  width:94px;
+  height:94px;
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  border:1px solid rgba(127,208,255,.42);
+  background:rgba(0,0,0,.34);
+  box-shadow:0 0 24px rgba(95,181,255,.12) inset;
+  font-family:'Cinzel',serif;
+  color:#fff;
+}
+
+.daily-login-meter span{
+  font-size:2.1rem;
+  font-weight:800;
+}
+
+.daily-login-meter small{
+  color:var(--dim);
+  font-size:.78rem;
+  margin-left:.12rem;
+}
+
+.daily-login-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:.58rem;
+}
+
+.dlr-day{
+  min-height:132px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:.5rem;
+  padding:.7rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;
+  background:rgba(0,0,0,.28);
+  position:relative;
+  overflow:hidden;
+}
+
+.dlr-day::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.18;
+  background:linear-gradient(135deg,transparent,rgba(255,255,255,.1));
+}
+
+.dlr-day.is-current{
+  border-color:rgba(255,215,0,.64);
+  background:linear-gradient(180deg,rgba(201,168,76,.18),rgba(0,0,0,.3));
+  box-shadow:0 0 22px rgba(255,215,0,.13);
+}
+
+.dlr-day.is-claimed{
+  border-color:rgba(127,255,160,.38);
+  background:linear-gradient(180deg,rgba(47,173,105,.15),rgba(0,0,0,.26));
+}
+
+.dlr-day.is-locked{
+  opacity:.64;
+}
+
+.dlr-day-top{
+  display:flex;
+  flex-direction:column;
+  gap:.2rem;
+  font-family:'Cinzel',serif;
+}
+
+.dlr-day-top span{
+  color:#f0e1ad;
+  font-size:.78rem;
+  font-weight:800;
+}
+
+.dlr-day-top b{
+  color:var(--dim);
+  font-size:.56rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.dlr-reward{
+  font-family:'Cinzel',serif;
+  color:#fff;
+  font-size:1.35rem;
+  font-weight:800;
+  line-height:1.05;
+}
+
+.dlr-reward span{
+  display:block;
+  margin-top:.18rem;
+  color:#ffd76a;
+  font-size:.58rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+
+.dlr-bonus{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:22px;
+  padding:.18rem .35rem;
+  border-radius:999px;
+  border:1px solid rgba(127,208,255,.36);
+  color:#9fdcff;
+  background:rgba(95,181,255,.1);
+  font-family:'Cinzel',serif;
+  font-size:.54rem;
+  letter-spacing:.06em;
+  text-align:center;
+  line-height:1.12;
+}
+
+.daily-login-note{
+  color:#aeb7c9;
+  font-size:.78rem;
+  line-height:1.45;
+  padding:.72rem .85rem;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:8px;
+  background:rgba(255,255,255,.035);
+}
+
+html body #modal .modal.daily-login-modal #modal-acts{
+  display:flex!important;
+  justify-content:flex-end!important;
+  gap:.55rem!important;
+  margin-top:1rem!important;
+}
+
+@media (max-width:760px){
+  .daily-login-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .daily-login-hero{
+    align-items:flex-start;
+  }
+  .daily-login-meter{
+    width:72px;
+    height:72px;
+  }
+  .daily-login-meter span{
+    font-size:1.55rem;
+  }
+  .dlr-day{
+    min-height:112px;
+  }
+}
+
+/* Codex 2026-06-02: login reward polish and compact edit-art picker. */
+html body #modal .modal.daily-login-modal{
+  width:min(820px,calc(100vw - 28px))!important;
+  max-width:820px!important;
+  padding:1.25rem 1.35rem 1.15rem!important;
+  border-color:rgba(245,211,112,.52)!important;
+  background:
+    radial-gradient(circle at 16% -6%,rgba(255,220,108,.2),transparent 31%),
+    radial-gradient(circle at 88% 0%,rgba(101,196,255,.18),transparent 34%),
+    linear-gradient(180deg,rgba(13,17,27,.99),rgba(6,8,14,.99))!important;
+  box-shadow:
+    0 24px 90px rgba(0,0,0,.78),
+    0 0 0 1px rgba(255,255,255,.055) inset,
+    0 0 42px rgba(232,196,82,.12)!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-title{
+  color:#f5d370!important;
+  text-shadow:0 0 22px rgba(245,211,112,.22)!important;
+}
+
+.daily-login-shell{
+  gap:.95rem!important;
+}
+
+.daily-login-hero{
+  position:relative!important;
+  overflow:hidden!important;
+  min-height:122px!important;
+  padding:1.05rem 1.1rem!important;
+  border-color:rgba(255,255,255,.12)!important;
+  background:
+    linear-gradient(110deg,rgba(95,181,255,.13),rgba(255,215,0,.1) 48%,rgba(255,255,255,.035)),
+    rgba(255,255,255,.025)!important;
+  box-shadow:0 16px 34px rgba(0,0,0,.32),0 0 0 1px rgba(255,255,255,.035) inset!important;
+}
+
+.daily-login-hero::before{
+  content:''!important;
+  position:absolute!important;
+  inset:-38% 38% auto -10%!important;
+  height:92px!important;
+  transform:rotate(-12deg)!important;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent)!important;
+  pointer-events:none!important;
+}
+
+.daily-login-kicker{
+  color:#8fdcff!important;
+  text-shadow:0 0 18px rgba(95,181,255,.28)!important;
+}
+
+.daily-login-title{
+  font-size:1.32rem!important;
+  color:#f7d86f!important;
+}
+
+.daily-login-meter{
+  width:92px!important;
+  height:92px!important;
+  display:grid!important;
+  place-items:center!important;
+  position:relative!important;
+  border-color:rgba(143,220,255,.58)!important;
+  background:
+    radial-gradient(circle,rgba(255,255,255,.08) 0 42%,transparent 43%),
+    conic-gradient(from 210deg,rgba(143,220,255,.34),rgba(245,211,112,.42),rgba(143,220,255,.25))!important;
+  box-shadow:0 0 26px rgba(95,181,255,.2),0 0 20px rgba(255,215,0,.1) inset!important;
+}
+
+.daily-login-meter::after{
+  content:''!important;
+  position:absolute!important;
+  inset:9px!important;
+  border-radius:50%!important;
+  background:rgba(7,10,17,.92)!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.06) inset!important;
+}
+
+.daily-login-meter-core{
+  position:relative!important;
+  z-index:1!important;
+  display:flex!important;
+  align-items:baseline!important;
+  justify-content:center!important;
+  gap:.15rem!important;
+  width:100%!important;
+  transform:translateY(1px)!important;
+}
+
+.daily-login-meter span{
+  display:block!important;
+  min-width:.68em!important;
+  text-align:center!important;
+  font-size:2.05rem!important;
+  line-height:1!important;
+}
+
+.daily-login-meter small{
+  line-height:1!important;
+  margin:0!important;
+  transform:translateY(-.08rem)!important;
+}
+
+.daily-login-grid{
+  gap:.64rem!important;
+}
+
+.dlr-day{
+  min-height:136px!important;
+  padding:.72rem .68rem!important;
+  border-color:rgba(255,255,255,.11)!important;
+  background:
+    radial-gradient(circle at 50% -12%,rgba(245,211,112,.13),transparent 44%),
+    linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.32))!important;
+  box-shadow:0 10px 22px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.025) inset!important;
+}
+
+.dlr-day.is-current{
+  border-color:rgba(245,211,112,.82)!important;
+  background:
+    radial-gradient(circle at 50% -10%,rgba(255,231,132,.28),transparent 48%),
+    linear-gradient(180deg,rgba(201,168,76,.24),rgba(0,0,0,.31))!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.04) inset,0 0 28px rgba(245,211,112,.18)!important;
+}
+
+.dlr-day-top span{
+  color:#ffe7a5!important;
+}
+
+.dlr-reward{
+  align-self:center!important;
+  width:100%!important;
+  text-align:center!important;
+  text-shadow:0 0 18px rgba(255,215,0,.14)!important;
+}
+
+.dlr-reward.is-booster{
+  color:#bfe9ff!important;
+  font-size:1.05rem!important;
+  line-height:1.05!important;
+}
+
+.dlr-reward.is-booster span{
+  color:#8fdcff!important;
+  font-size:.68rem!important;
+  letter-spacing:.12em!important;
+}
+
+.daily-login-note{
+  border-color:rgba(255,255,255,.1)!important;
+  background:linear-gradient(90deg,rgba(95,181,255,.07),rgba(255,215,0,.055))!important;
+}
+
+/* Codex 2026-06-02: daily backdrop refresh. */
+html body #modal .modal.daily-login-modal{
+  width:min(900px,calc(100vw - 28px))!important;
+  max-width:900px!important;
+}
+
+.daily-login-shell{
+  position:relative!important;
+  isolation:isolate!important;
+  overflow:hidden!important;
+  padding:.9rem!important;
+  border:1px solid rgba(245,211,112,.24)!important;
+  border-radius:8px!important;
+  background:#080b12!important;
+}
+
+.daily-login-shell::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  background:
+    linear-gradient(90deg,rgba(4,6,12,.9),rgba(4,6,12,.58) 42%,rgba(4,6,12,.84)),
+    linear-gradient(180deg,rgba(4,6,12,.38),rgba(4,6,12,.92)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+  opacity:.82!important;
+  filter:saturate(1.08) contrast(1.04)!important;
+}
+
+.daily-login-shell::after{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:1!important;
+  background:radial-gradient(circle at 18% 16%,rgba(245,211,112,.2),transparent 34%),radial-gradient(circle at 86% 20%,rgba(143,220,255,.18),transparent 32%)!important;
+  pointer-events:none!important;
+}
+
+.daily-login-shell > *{
+  position:relative!important;
+  z-index:2!important;
+}
+
+.daily-login-hero{
+  min-height:112px!important;
+  backdrop-filter:blur(2px)!important;
+  background:linear-gradient(110deg,rgba(6,9,16,.78),rgba(14,18,28,.6),rgba(255,255,255,.035))!important;
+}
+
+.daily-login-grid{
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+}
+
+.dlr-day{
+  min-height:128px!important;
+  background:linear-gradient(180deg,rgba(10,13,22,.76),rgba(3,5,10,.7))!important;
+  backdrop-filter:blur(2px)!important;
+}
+
+.dlr-day.is-current{
+  background:linear-gradient(180deg,rgba(245,211,112,.25),rgba(8,10,16,.76))!important;
+}
+
+.daily-login-note{
+  color:#d9e3ef!important;
+  background:rgba(3,6,12,.62)!important;
+  backdrop-filter:blur(2px)!important;
+}
+
+/* Codex 2026-06-02: force daily login IGB art to render as a real backdrop. */
+.daily-login-bg-img{
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  opacity:.72!important;
+  filter:saturate(1.1) contrast(1.05)!important;
+  pointer-events:none!important;
+}
+
+.daily-login-shell::before{
+  z-index:1!important;
+  background:
+    linear-gradient(90deg,rgba(4,6,12,.9),rgba(4,6,12,.46) 42%,rgba(4,6,12,.8)),
+    linear-gradient(180deg,rgba(4,6,12,.22),rgba(4,6,12,.86))!important;
+}
+
+.daily-login-shell > *:not(.daily-login-bg-img){
+  position:relative!important;
+  z-index:2!important;
+}
+
+/* Codex 2026-06-03: daily reward icon/text centering and topbar badge alignment. */
+html body #modal .modal.daily-login-modal .dlr-day{
+  justify-content:space-between!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward{
+  display:grid!important;
+  place-items:center!important;
+  align-content:center!important;
+  justify-content:center!important;
+  gap:.12rem!important;
+  min-height:54px!important;
+  width:100%!important;
+  margin:auto 0!important;
+  text-align:center!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight{
+  grid-template-columns:auto auto!important;
+  grid-template-rows:auto auto!important;
+  column-gap:.22rem!important;
+  row-gap:.04rem!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon{
+  grid-column:1!important;
+  grid-row:1!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:22px!important;
+  height:22px!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon svg{
+  width:20px!important;
+  height:20px!important;
+  display:block!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-fallback{
+  color:#ffd700!important;
+  font-size:1.2rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight b{
+  grid-column:2!important;
+  grid-row:1!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.35rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight > span:not(.dlr-starlight-icon):not(.dlr-starlight-fallback){
+  grid-column:1 / -1!important;
+  grid-row:2!important;
+  margin:0!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-booster{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1!important;
+  padding-top:0!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-booster span{
+  margin:.1rem 0 0!important;
+  line-height:1!important;
+}
+
+html body #s-challenger .ch-currency :is(.ch-packs-pill,.starlight-pill){
+  align-items:center!important;
+  line-height:1!important;
+}
+
+html body #s-challenger .ch-packs-pill .pk-val,
+html body #s-challenger .starlight-pill .sl-val{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:1.55em!important;
+  height:1.55em!important;
+  line-height:1!important;
+  padding:0!important;
+  text-align:center!important;
+}
+
+html body #s-challenger .ch-packs-pill .pk-val{
+  border-radius:999px!important;
+}
+
+/* Codex 2026-06-03: board geometry recovery from the latest backup archive.
+   Source: Fates-Entwined-main-backup-20260601-195447.zip -> project-backups/20260524-124036-full-backup/src/styles/game.css. */
+html body #s-game #board,
+html body #s-game #board .zone,
+html body #s-game #board .zone-hdr{
+  overflow:visible!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board,
+html.fate-canvas-board-mode body #s-game #board .zone,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  overflow:visible!important;
+}
+
+html body #s-game #board,
+html body #s-game #board .zone{
+  contain:none!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board,
+html.fate-canvas-board-mode body #s-game #board .zone{
+  contain:none!important;
+}
+
+html body #s-game #board{
+  display:flex!important;
+  --cw:clamp(108px,7.45vw,145px)!important;
+  --ch:clamp(151px,10.43vw,203px)!important;
+  --zone-row-h:calc(var(--ch) + .3rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + .52rem + 44px)!important;
+  max-height:calc(100vh - 154px)!important;
+  gap:.5rem!important;
+  padding:.74rem .4rem .08rem!important;
+  justify-content:center!important;
+  align-items:center!important;
+  width:100%!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board{
+  display:flex!important;
+  --cw:clamp(108px,7.45vw,145px)!important;
+  --ch:clamp(151px,10.43vw,203px)!important;
+  --zone-row-h:calc(var(--ch) + .3rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + .52rem + 44px)!important;
+  max-height:calc(100vh - 154px)!important;
+  gap:.5rem!important;
+  padding:.74rem .4rem .08rem!important;
+  justify-content:center!important;
+  align-items:center!important;
+  width:100%!important;
+}
+
+html body #s-game #board .zone-floating-banner,
+html body #s-game #board .zone-floating-banners,
+html body #s-game #board #zone-floating-banners,
+html body #s-game #board .zone-banner-over{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+
+html body #s-game #board .zone{
+  display:grid!important;
+  flex:0 0 var(--zone-fit-w)!important;
+  width:var(--zone-fit-w)!important;
+  max-width:var(--zone-fit-w)!important;
+  padding:.7rem .28rem .3rem!important;
+  grid-template-rows:20px auto!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .zone{
+  display:grid!important;
+  flex:0 0 var(--zone-fit-w)!important;
+  width:var(--zone-fit-w)!important;
+  max-width:var(--zone-fit-w)!important;
+  padding:.7rem .28rem .3rem!important;
+  grid-template-rows:20px auto!important;
+}
+
+html body #s-game #board .zone-hdr{
+  position:relative!important;
+  display:block!important;
+  grid-column:1/-1!important;
+  width:100%!important;
+  justify-self:stretch!important;
+  height:20px!important;
+  min-height:20px!important;
+  margin:-.62rem 0 .28rem!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  z-index:30!important;
+  pointer-events:none!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  position:relative!important;
+  display:block!important;
+  grid-column:1/-1!important;
+  width:100%!important;
+  justify-self:stretch!important;
+  height:20px!important;
+  min-height:20px!important;
+  margin:-.62rem 0 .28rem!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  z-index:30!important;
+  pointer-events:none!important;
+}
+
+html body #s-game #board .zone-hdr-main{
+  position:absolute!important;
+  left:50%!important;
+  top:-4px!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translateX(-50%)!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:112px!important;
+  max-width:calc(100% - 3.2rem)!important;
+  height:20px!important;
+  padding:0 .74rem!important;
+  border-radius:5px!important;
+  background:linear-gradient(180deg,rgba(7,8,12,.96),rgba(0,0,0,.92))!important;
+  box-shadow:0 6px 12px rgba(0,0,0,.36),inset 0 0 0 1px rgba(218,185,82,.2)!important;
+  z-index:35!important;
+  pointer-events:none!important;
+}
+
+html body #s-game #board .zone-hdr-main .zone-hdr-ornament{
+  display:none!important;
+}
+
+html body #s-game #board .zone-title{
+  display:inline-block!important;
+  color:#f0d46d!important;
+  font-size:.52rem!important;
+  font-weight:700!important;
+  line-height:1!important;
+  letter-spacing:.16em!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+
+html body #s-game #board .zone-score-card{
+  position:absolute!important;
+  left:50%!important;
+  top:4px!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translateX(-50%)!important;
+  margin:0!important;
+  display:grid!important;
+  grid-template-columns:36px minmax(56px,1fr) 36px!important;
+  align-items:center!important;
+  justify-items:center!important;
+  column-gap:0!important;
+  width:clamp(190px,13vw,230px)!important;
+  min-width:clamp(190px,13vw,230px)!important;
+  max-width:230px!important;
+  height:23px!important;
+  min-height:23px!important;
+  padding:.12rem .46rem .34rem!important;
+  box-sizing:border-box!important;
+  border-radius:999px!important;
+  z-index:90!important;
+  pointer-events:auto!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  position:absolute!important;
+  left:50%!important;
+  top:4px!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translateX(-50%)!important;
+  margin:0!important;
+  display:grid!important;
+  grid-template-columns:36px minmax(56px,1fr) 36px!important;
+  align-items:center!important;
+  justify-items:center!important;
+  column-gap:0!important;
+  width:clamp(190px,13vw,230px)!important;
+  min-width:clamp(190px,13vw,230px)!important;
+  max-width:230px!important;
+  height:23px!important;
+  min-height:23px!important;
+  padding:.12rem .46rem .34rem!important;
+  box-sizing:border-box!important;
+  border-radius:999px!important;
+  z-index:90!important;
+  pointer-events:auto!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score,
+html body #s-game #board .zone-score-card .zone-score-vs{
+  transform:none!important;
+  align-self:center!important;
+  justify-self:center!important;
+  line-height:1!important;
+  margin:0!important;
+  padding:0!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score{
+  font-size:.82rem!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score-vs{
+  font-size:.42rem!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score.p1{
+  grid-column:1!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score-vs{
+  grid-column:2!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score.p2{
+  grid-column:3!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score-bar,
+html body #s-game #board .zone-score-bar{
+  position:absolute!important;
+  left:42px!important;
+  right:42px!important;
+  bottom:4px!important;
+  grid-column:1/-1!important;
+  height:3px!important;
+  width:auto!important;
+  transform:none!important;
+  margin:0!important;
+}
+
+html body #s-game #board .zone-rows{
+  display:grid!important;
+  grid-column:1/-1!important;
+  justify-self:stretch!important;
+  width:100%!important;
+  grid-template-rows:repeat(3,var(--zone-row-h))!important;
+  grid-auto-rows:var(--zone-row-h)!important;
+  max-height:calc(var(--zone-row-h) + var(--zone-row-h) + var(--zone-row-h) + .18rem)!important;
+  align-content:start!important;
+  gap:.06rem!important;
+  overflow-x:visible!important;
+  overflow-y:auto!important;
+  padding-right:.12rem!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(218,185,82,.44) rgba(0,0,0,.2);
+}
+
+html.fate-canvas-board-mode body #s-game #board .zone-rows{
+  display:grid!important;
+  flex-direction:initial!important;
+  grid-column:1/-1!important;
+  justify-self:stretch!important;
+  width:100%!important;
+  grid-template-rows:repeat(3,var(--zone-row-h))!important;
+  grid-auto-rows:var(--zone-row-h)!important;
+  max-height:calc(var(--zone-row-h) + var(--zone-row-h) + var(--zone-row-h) + .18rem)!important;
+  align-content:start!important;
+  gap:.06rem!important;
+  overflow-x:visible!important;
+  overflow-y:auto!important;
+  padding-right:.12rem!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(218,185,82,.44) rgba(0,0,0,.2);
+}
+
+html body #s-game #board .zone-rows::-webkit-scrollbar{
+  width:6px;
+}
+
+html body #s-game #board .zone-rows::-webkit-scrollbar-thumb{
+  background:rgba(218,185,82,.42);
+  border-radius:999px;
+}
+
+html body #s-game #board .brow{
+  display:grid!important;
+  grid-template-columns:12px max-content!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:.08rem!important;
+  width:100%!important;
+  height:var(--zone-row-h)!important;
+  min-height:var(--zone-row-h)!important;
+  max-height:var(--zone-row-h)!important;
+  padding:.05rem 0!important;
+  overflow:visible!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .brow{
+  display:grid!important;
+  grid-template-columns:12px max-content!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:.08rem!important;
+  width:100%!important;
+  height:var(--zone-row-h)!important;
+  min-height:var(--zone-row-h)!important;
+  max-height:var(--zone-row-h)!important;
+  padding:.05rem 0!important;
+  overflow:visible!important;
+}
+
+html body #s-game #board .rl,
+html body #s-game #board .rlabel{
+  width:12px!important;
+  min-width:12px!important;
+  max-width:12px!important;
+}
+
+html body #s-game #board .rcells{
+  display:flex!important;
+  flex:0 0 auto!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  min-width:0!important;
+  gap:.12rem!important;
+  overflow:visible!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .rcells{
+  display:flex!important;
+  flex:0 0 auto!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  min-width:0!important;
+  gap:.12rem!important;
+  overflow:visible!important;
+}
+
+html body #s-game #board .cell{
+  width:var(--cw)!important;
+  height:var(--ch)!important;
+  min-width:var(--cw)!important;
+  min-height:var(--ch)!important;
+  max-width:var(--cw)!important;
+  max-height:var(--ch)!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .cell{
+  display:block!important;
+  width:var(--cw)!important;
+  height:var(--ch)!important;
+  min-width:var(--cw)!important;
+  min-height:var(--ch)!important;
+  max-width:var(--cw)!important;
+  max-height:var(--ch)!important;
+}
+
+html body #s-game #board .cell,
+html body #s-game #board .bc{
+  contain:none!important;
+  overflow:visible!important;
+}
+
+html.fate-canvas-board-mode body #s-game #board .cell,
+html.fate-canvas-board-mode body #s-game #board .bc{
+  contain:none!important;
+  overflow:visible!important;
+}
+
+/* Codex 2026-06-03: tiny board-header spacing tune. */
+html body #s-game #board .zone-hdr,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  height:34px!important;
+  min-height:34px!important;
+  margin:-.62rem 0 .28rem!important;
+}
+
+html body #s-game #board .zone-hdr-main,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr-main{
+  top:-10px!important;
+}
+
+html body #s-game #board .zone-score-card,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  top:10px!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score,
+html body #s-game #board .zone-score-card .zone-score-vs,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card .zone-score,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card .zone-score-vs{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  height:100%!important;
+  line-height:1!important;
+  transform:translateY(1px)!important;
+}
+
+/* Codex 2026-06-03: dense in-match card search picker and deck modal polish. */
+html body #modal .modal.visual-card-picker-modal{
+  width:min(880px,calc(100vw - 32px))!important;
+  max-width:min(880px,calc(100vw - 32px))!important;
+  max-height:min(690px,calc(100vh - 74px))!important;
+  padding:.82rem 1.05rem .72rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #modal-title,
+html body #modal .modal.visual-card-picker-modal .modal-title{
+  min-height:26px!important;
+  margin:0 0 .18rem!important;
+  padding-right:0!important;
+  line-height:1.05!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #modal-body,
+html body #modal .modal.visual-card-picker-modal .modal-body{
+  max-height:none!important;
+  overflow:hidden!important;
+  margin:0!important;
+  padding-bottom:0!important;
+}
+
+html body #modal .modal.visual-card-picker-modal .visual-picker-v2{
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,auto) auto!important;
+  gap:.2rem!important;
+  padding:.04rem 0 0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.visual-card-picker-modal .visual-picker-v2 p{
+  margin:.03rem 0 .08rem!important;
+  line-height:1.15!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #visual-count{
+  margin:0 0 .14rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.visual-card-picker-modal .visual-page-canvas,
+html body #modal .modal.visual-card-picker-modal .canvas-card-gallery-surface{
+  width:100%!important;
+  max-width:760px!important;
+  border:1px solid rgba(201,168,76,.3)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(8,11,18,.62),rgba(2,4,8,.5))!important;
+  box-shadow:0 14px 32px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,255,255,.025)!important;
+  image-rendering:auto!important;
+  transform:translateZ(0)!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #visual-pagination,
+html body #modal .modal.visual-card-picker-modal .canvas-card-gallery-footer{
+  margin-top:.24rem!important;
+  padding:.08rem 0 0!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #modal-acts,
+html body #modal .modal.visual-card-picker-modal .modal-acts{
+  margin-top:.34rem!important;
+  padding-top:.12rem!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:.55rem!important;
+  min-height:32px!important;
+  flex:0 0 auto!important;
+  border-top:1px solid rgba(232,196,82,.13)!important;
+}
+
+html body #modal .modal.visual-card-picker-modal #modal-acts .btn,
+html body #modal .modal.visual-card-picker-modal .modal-acts .btn{
+  min-width:96px!important;
+  height:30px!important;
+  padding:.28rem .76rem!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal),
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal){
+  width:min(960px,94vw)!important;
+  max-width:min(960px,94vw)!important;
+  max-height:min(760px,90vh)!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body{
+  overflow:visible!important;
+  max-height:none!important;
+  padding-bottom:.25rem!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck{
+  grid-auto-rows:480px!important;
+  gap:.9rem!important;
+  margin-bottom:.25rem!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck > .preset-browse-tile,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{
+  height:480px!important;
+  min-height:480px!important;
+  max-height:480px!important;
+}
+
+/* Codex 2026-06-03: raise the seven-card display strip in My Presets/My Decks. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-tile-info,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-tile-info{
+  grid-template-rows:minmax(2.25em,auto) minmax(2.35em,2.55em) minmax(112px,1fr) 36px!important;
+  gap:.26rem!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-desc,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-desc{
+  max-height:2.55em!important;
+  margin:-.04rem 0 0!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-minis,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-minis{
+  align-self:start!important;
+  transform:translateY(-10px)!important;
+  margin-bottom:-10px!important;
+}
+
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal{
+  width:min(1040px,94vw)!important;
+  max-width:min(1040px,94vw)!important;
+  max-height:calc(100vh - 96px)!important;
+  padding-bottom:.9rem!important;
+}
+
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal .deck-inspect-back-inline{
+  display:none!important;
+}
+
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-body,
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal .modal-body{
+  max-height:calc(100vh - 190px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-acts,
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal .modal-acts{
+  margin-top:.38rem!important;
+  padding-top:.18rem!important;
+  min-height:34px!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex:0 0 auto!important;
+}
+
+/* Codex 2026-06-03: Challenger deck art editor v2 layout repair. */
+html body #modal .modal.challenger-deck-art-editor-modal{
+  width:min(1040px,94vw)!important;
+  max-width:min(1040px,94vw)!important;
+  height:min(720px,calc(100vh - 58px))!important;
+  max-height:calc(100vh - 58px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal #modal-body,
+html body #modal .modal.challenger-deck-art-editor-modal .modal-body{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding-bottom:.25rem!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-editor-v2{
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr)!important;
+  height:100%!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-editor-main{
+  display:grid!important;
+  grid-template-columns:260px minmax(0,1fr)!important;
+  gap:.9rem!important;
+  height:100%!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-preview-panel{
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:auto 250px minmax(0,1fr)!important;
+  gap:.58rem!important;
+  padding:.66rem!important;
+  border:1px solid rgba(232,196,82,.24)!important;
+  border-radius:8px!important;
+  background:rgba(0,0,0,.24)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-preview-label{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  letter-spacing:.08em!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-face-preview{
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) auto!important;
+  gap:.35rem!important;
+  align-items:center!important;
+  justify-items:center!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-face-preview img{
+  width:100%!important;
+  height:100%!important;
+  max-height:230px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block!important;
+  border-radius:4px!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-face-preview span{
+  max-width:100%!important;
+  color:#d9e8ee!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-display-preview{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-auto-rows:minmax(82px,1fr)!important;
+  gap:.38rem!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  align-content:start!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-display-preview div{
+  min-width:0!important;
+  min-height:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-display-preview img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+  border-radius:3px!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-picker-stack{
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:.78rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-editor-section{
+  min-height:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  padding:.58rem!important;
+  border:1px solid rgba(232,196,82,.2)!important;
+  border-radius:8px!important;
+  background:rgba(0,0,0,.18)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-grid{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(auto-fill,minmax(74px,1fr))!important;
+  grid-auto-rows:112px!important;
+  gap:.44rem!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  align-content:start!important;
+  padding:.18rem!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-card{
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:112px!important;
+  min-height:112px!important;
+  max-height:112px!important;
+  aspect-ratio:auto!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:0!important;
+  border:1px solid rgba(232,196,82,.18)!important;
+  border-radius:5px!important;
+  background:rgba(3,5,10,.46)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-card img{
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-card.face-sel,
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-card.display-sel{
+  border-color:#ffd700!important;
+  box-shadow:0 0 0 1px rgba(255,215,0,.35),0 0 14px rgba(255,215,0,.22)!important;
+}
+
+/* Codex 2026-06-03: precision follow-up for deck strips, zone header, rewards, and review modal. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-minis,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-minis{
+  transform:translateY(2px)!important;
+  margin-bottom:0!important;
+}
+
+html body #s-game #board .zone,
+html.fate-canvas-board-mode body #s-game #board .zone{
+  grid-template-rows:34px auto!important;
+  padding-top:.74rem!important;
+}
+
+html body #s-game #board .zone-hdr,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  height:34px!important;
+  min-height:34px!important;
+  margin:-.68rem 0 .08rem!important;
+}
+
+html body #s-game #board .zone-hdr-main,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr-main{
+  top:-10px!important;
+}
+
+html body #s-game #board .zone-score-card,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  top:8px!important;
+}
+
+html body #modal .modal.daily-login-modal{
+  position:relative!important;
+  overflow:hidden!important;
+  background:
+    linear-gradient(180deg,rgba(2,4,9,.34),rgba(2,4,9,.68)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+}
+
+html body #modal .modal.daily-login-modal::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  background:
+    linear-gradient(90deg,rgba(4,6,12,.9),rgba(4,6,12,.48) 42%,rgba(4,6,12,.82)),
+    linear-gradient(180deg,rgba(4,6,12,.22),rgba(4,6,12,.88)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+  filter:saturate(1.1) contrast(1.04)!important;
+}
+
+html body #modal .modal.daily-login-modal > *{
+  position:relative!important;
+  z-index:1!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  background:transparent!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight{
+  column-gap:.08rem!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon{
+  width:20px!important;
+  height:20px!important;
+  justify-self:end!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight b{
+  justify-self:start!important;
+}
+
+html body #s-challenger .ch-packs-pill .pk-val{
+  box-sizing:border-box!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  width:22px!important;
+  min-width:22px!important;
+  max-width:22px!important;
+  height:22px!important;
+  min-height:22px!important;
+  max-height:22px!important;
+  padding:0!important;
+  margin:0!important;
+  line-height:22px!important;
+  text-align:center!important;
+  font-variant-numeric:tabular-nums!important;
+  transform:none!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  height:min(620px,calc(100vh - 138px))!important;
+}
+
+/* Codex 2026-06-03: final micro-fit pass for zone, rewards, deck strips, and art editor. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-minis,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-minis{
+  transform:translateY(10px)!important;
+  margin-bottom:0!important;
+}
+
+html body #s-game #board .zone,
+html.fate-canvas-board-mode body #s-game #board .zone{
+  grid-template-rows:31px auto!important;
+  padding-top:.7rem!important;
+}
+
+html body #s-game #board .zone-hdr,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  height:31px!important;
+  min-height:31px!important;
+  margin:-.64rem 0 .05rem!important;
+}
+
+html body #s-game #board .zone-hdr-main,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr-main{
+  top:-9px!important;
+}
+
+html body #s-game #board .zone-score-card,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  top:6px!important;
+}
+
+html body #modal .modal.daily-login-modal{
+  position:relative!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.daily-login-modal::before{
+  opacity:.72!important;
+  background:
+    linear-gradient(180deg,rgba(2,4,9,.5),rgba(2,4,9,.74)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  background:transparent!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell::before,
+html body #modal .modal.daily-login-modal .daily-login-shell::after{
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:block!important;
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  opacity:.7!important;
+  filter:saturate(1.05) contrast(1.02) brightness(.72)!important;
+  z-index:0!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell > *:not(.daily-login-bg-img){
+  position:relative!important;
+  z-index:2!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter-core{
+  align-items:center!important;
+  gap:.06rem!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter span,
+html body #modal .modal.daily-login-modal .daily-login-meter small{
+  color:#fff1a8!important;
+  opacity:1!important;
+  font-family:'Cinzel',serif!important;
+  font-weight:800!important;
+  text-shadow:0 0 13px rgba(255,215,0,.34),0 1px 0 rgba(0,0,0,.8)!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter span{
+  font-size:1.92rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter small{
+  font-size:1.08rem!important;
+  line-height:1!important;
+  margin-top:.04rem!important;
+  letter-spacing:.02em!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight{
+  column-gap:0!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon{
+  width:19px!important;
+  height:19px!important;
+  margin-right:-.08rem!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon svg{
+  width:19px!important;
+  height:19px!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight b{
+  margin-left:0!important;
+  justify-self:start!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head{
+  min-height:48px!important;
+  padding:.64rem .78rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head span{
+  font-size:1rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head em{
+  font-size:.72rem!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-picker-stack{
+  gap:.58rem!important;
+  grid-template-rows:minmax(0,1fr) minmax(0,1.05fr)!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-editor-section{
+  padding:.46rem!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-editor-title{
+  margin-bottom:.34rem!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-grid{
+  gap:.34rem!important;
+  grid-auto-rows:96px!important;
+}
+
+html body #modal .modal.challenger-deck-art-editor-modal .face-picker-card{
+  height:96px!important;
+  min-height:96px!important;
+  max-height:96px!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.8rem!important;
+  min-height:38px!important;
+  padding:.48rem .66rem!important;
+  border:1px solid rgba(232,196,82,.2)!important;
+  border-radius:8px!important;
+  background:linear-gradient(90deg,rgba(6,9,16,.72),rgba(14,18,28,.48))!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head span{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.92rem!important;
+  letter-spacing:.1em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head em{
+  min-width:0!important;
+  color:#8fdcff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  font-style:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+
+/* Codex 2026-06-03: follow-up precision spacing pass. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-minis,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-minis{
+  transform:translateY(-4px)!important;
+  margin-bottom:-4px!important;
+}
+
+html body #s-game #board .zone-hdr-main,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr-main{
+  top:-12px!important;
+}
+
+html body #s-game #board .zone-score-card,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  top:0!important;
+}
+
+html body #modal .modal.public-deck-preview-modal #modal-title,
+html body #modal .modal.public-deck-preview-modal .modal-title{
+  transform:translateY(4px)!important;
+  margin-bottom:.44rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal{
+  padding-top:.85rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal #modal-title,
+html body #modal .modal.public-deck-comments-modal .modal-title{
+  display:none!important;
+  height:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal #modal-body,
+html body #modal .modal.public-deck-comments-modal .modal-body{
+  margin-top:0!important;
+  padding-top:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  height:min(590px,calc(100vh - 145px))!important;
+}
+
+/* Codex 2026-06-03: active end-of-file spacing controls for deck browsers and board headers. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-minis,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-minis{
+  transform:translateY(16px)!important;
+  margin-bottom:0!important;
+}
+
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-title-single-line .preset-name{
+  transform:translateY(-4px)!important;
+}
+
+/* Codex 2026-06-03: reversible title-screen My Decks one-line title lift. Revert by changing -8px back to -4px. */
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-title-single-line .preset-name{
+  transform:translateY(-8px)!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-title-two-line .preset-desc,
+html body #modal .modal.challenger-my-decks-modal:not(.choose-deck-canonical-modal) #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck .preset-title-two-line .preset-desc{
+  transform:translateY(5px)!important;
+}
+
+html body #modal .modal.title-my-decks-modal:not(.choose-deck-runtime-modal) #modal-body .my-presets-as-choose-deck .preset-title-two-line .preset-desc{
+  transform:translateY(7px)!important;
+}
+
+html body #s-game #board .zone,
+html.fate-canvas-board-mode body #s-game #board .zone{
+  grid-template-rows:30px auto!important;
+  padding-top:.68rem!important;
+}
+
+html body #s-game #board .zone-hdr,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr{
+  height:30px!important;
+  min-height:30px!important;
+  margin:-.62rem 0 .05rem!important;
+}
+
+html body #s-game #board .zone-hdr-main,
+html.fate-canvas-board-mode body #s-game #board .zone-hdr-main{
+  top:-8px!important;
+}
+
+html body #s-game #board .zone-score-card,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card{
+  top:10px!important;
+  grid-template-columns:42px minmax(76px,1fr) 42px!important;
+  width:clamp(230px,16vw,286px)!important;
+  min-width:clamp(230px,16vw,286px)!important;
+  max-width:286px!important;
+  padding:.2rem .46rem .22rem!important;
+}
+
+html body #s-game #board .zone-score-card .zone-score-vs,
+html.fate-canvas-board-mode body #s-game #board .zone-score-card .zone-score-vs{
+  transform:translateY(-2px)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  height:min(620px,calc(100vh - 138px))!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  position:static!important;
+  background:transparent!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:block!important;
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  z-index:0!important;
+}
+
+html body #modal .modal.daily-login-modal{
+  position:relative!important;
+  overflow:hidden!important;
+  background:
+    linear-gradient(90deg,rgba(4,6,12,.92),rgba(4,6,12,.52) 42%,rgba(4,6,12,.86)),
+    linear-gradient(180deg,rgba(4,6,12,.26),rgba(4,6,12,.9)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+}
+
+html body #modal .modal.daily-login-modal::before{
+  z-index:0!important;
+}
+
+html body #modal .modal.daily-login-modal > *{
+  position:relative!important;
+  z-index:2!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell > *:not(.daily-login-bg-img){
+  position:relative!important;
+  z-index:3!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight{
+  grid-template-columns:auto auto!important;
+  grid-template-rows:auto auto!important;
+  justify-content:center!important;
+  justify-items:center!important;
+  align-items:center!important;
+  column-gap:.16rem!important;
+  row-gap:.05rem!important;
+  min-width:72px!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon{
+  margin:0!important;
+  transform:translateY(-1px)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight b{
+  display:block!important;
+  min-width:2.4ch!important;
+  text-align:left!important;
+  white-space:nowrap!important;
+  transform:translateY(-1px)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight > span:not(.dlr-starlight-icon):not(.dlr-starlight-fallback){
+  grid-column:1 / -1!important;
+  grid-row:2!important;
+  width:100%!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+  letter-spacing:.06em!important;
+  font-size:.56rem!important;
+  transform:translateY(-1px)!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal{
+  width:min(1040px,calc(100vw - 48px))!important;
+  max-width:1040px!important;
+  height:min(720px,calc(100vh - 96px))!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal #modal-body{
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-editor-v2{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  gap:.72rem!important;
+  height:100%!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-editor-fields{
+  flex:0 0 auto!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-editor-main{
+  display:grid!important;
+  grid-template-columns:260px minmax(0,1fr)!important;
+  gap:.9rem!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-preview-panel{
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:auto 230px minmax(0,1fr)!important;
+  gap:.5rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-picker-stack{
+  min-height:0!important;
+  grid-template-rows:minmax(0,1fr) minmax(0,1.05fr)!important;
+  gap:.58rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .deck-art-editor-section{
+  padding:.46rem!important;
+  min-height:0!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .face-picker-grid{
+  grid-auto-rows:96px!important;
+  gap:.34rem!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal .face-picker-card{
+  height:96px!important;
+  min-height:96px!important;
+  max-height:96px!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal{
+  height:min(720px,calc(100vh - 58px))!important;
+  max-height:calc(100vh - 58px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal #modal-body{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding-bottom:.25rem!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal .deck-art-editor-v2{
+  grid-template-rows:minmax(0,1fr)!important;
+  gap:0!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal .deck-art-editor-main{
+  height:100%!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal .deck-art-preview-panel{
+  grid-template-rows:auto 230px minmax(0,1fr)!important;
+  gap:.58rem!important;
+  padding:.66rem!important;
+}
+
+html body #modal .modal.title-deck-art-editor-modal.challenger-deck-art-editor-modal .deck-art-display-preview,
+html body #modal .modal.challenger-deck-art-editor-modal .deck-art-display-preview{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-auto-rows:minmax(72px,1fr)!important;
+  align-content:stretch!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.choose-deck-canonical-modal #modal-body .choose-deck-canonical-body .preset-title-single-line .preset-name,
+html body #modal .modal.freeplay-title-preset-modal #modal-body .freeplay-title-preset-card.preset-title-single-line .preset-name{
+  transform:translateY(12px)!important;
+}
+
+html body #modal .modal.freeplay-title-preset-modal #modal-body .freeplay-title-preset-card.preset-title-single-line .preset-name{
+  position:relative!important;
+  top:12px!important;
+  transform:none!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-v3{
+  grid-template-rows:34px 250px minmax(356px,1fr)!important;
+  height:min(790px,calc(100vh - 86px))!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-contents{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid{
+  grid-template-columns:repeat(8,minmax(86px,1fr))!important;
+  grid-auto-rows:135px!important;
+  gap:.42rem!important;
+  min-height:262px!important;
+  height:100%!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:0 .18rem .48rem 0!important;
+  align-content:start!important;
+  scrollbar-gutter:stable!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.canvas-card-grid-mode{
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  height:100%!important;
+  min-height:262px!important;
+  max-height:none!important;
+  padding:0 .18rem .48rem 0!important;
+  scrollbar-gutter:stable!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.canvas-card-grid-mode .canvas-card-grid-wrap{
+  min-height:100%!important;
+  padding-bottom:.12rem!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.canvas-card-grid-mode .canvas-card-grid-surface{
+  display:block!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card{
+  height:135px!important;
+  grid-template-rows:minmax(0,1fr) 18px!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-poster{
+  grid-template-rows:168px 58px!important;
+  gap:.42rem!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-rating{
+  transform:translateY(6px)!important;
+  align-self:start!important;
+}
+
+html body #modal .modal.public-deck-preview-modal .pd-detail-card-art img{
+  image-rendering:auto!important;
+  filter:contrast(1.04) saturate(1.04)!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal){
+  width:min(1120px,94vw)!important;
+  max-width:min(1120px,94vw)!important;
+  max-height:calc(100vh - 64px)!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-title,
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) .modal-title{
+  white-space:nowrap!important;
+  font-size:clamp(1.35rem,1.85vw,1.72rem)!important;
+  letter-spacing:.08em!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body{
+  overflow:visible!important;
+  max-height:none!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .choose-deck-canonical-body{
+  overflow:visible!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck{
+  grid-auto-rows:480px!important;
+  gap:.9rem!important;
+  max-width:1040px!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck > .preset-browse-tile{
+  height:480px!important;
+  min-height:480px!important;
+  max-height:480px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  grid-template-rows:none!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-tile-art{
+  height:140px!important;
+  min-height:140px!important;
+  max-height:140px!important;
+  flex:0 0 140px!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-tile-info{
+  flex:1 1 auto!important;
+  grid-template-rows:44px 56px 136px 34px!important;
+  row-gap:.46rem!important;
+  padding:.82rem .78rem .72rem!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-name{
+  height:44px!important;
+  min-height:44px!important;
+  max-height:44px!important;
+  margin:0!important;
+  line-height:1.16!important;
+  -webkit-line-clamp:2!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-desc{
+  height:56px!important;
+  min-height:56px!important;
+  max-height:56px!important;
+  line-height:1.34!important;
+  margin:0!important;
+  -webkit-line-clamp:3!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-minis{
+  height:136px!important;
+  min-height:136px!important;
+  max-height:136px!important;
+  gap:.24rem!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-content:flex-start!important;
+  align-items:flex-start!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-mini-art{
+  width:42px!important;
+  height:59px!important;
+  flex:0 0 42px!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-action-row{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:.45rem!important;
+  height:34px!important;
+  min-height:34px!important;
+  margin:0!important;
+  padding:0!important;
+  transform:none!important;
+  align-self:end!important;
+}
+
+html body #modal .modal.choose-deck-runtime-modal.choose-deck-canonical-modal:not(.freeplay-title-preset-modal) #modal-body .deck-pick-grid.my-presets-as-choose-deck .preset-action-row .btn{
+  height:30px!important;
+  min-height:30px!important;
+  padding:.26rem .42rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  grid-template-rows:34px auto minmax(0,1fr) auto!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window-top{
+  min-height:34px!important;
+  border:1px solid rgba(232,196,82,.18)!important;
+  border-radius:8px!important;
+  background:linear-gradient(90deg,rgba(126,213,255,.08),rgba(232,196,82,.08))!important;
+}
+
+html body #modal .modal.daily-login-modal{
+  position:relative!important;
+  overflow:hidden!important;
+  background:#06080d!important;
+}
+
+html body #modal .modal.daily-login-modal::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  opacity:1!important;
+  background:
+    linear-gradient(180deg,rgba(2,4,9,.44),rgba(2,4,9,.72)),
+    var(--daily-login-bg)!important;
+  background-size:cover!important;
+  background-position:center!important;
+}
+
+/* Codex 2026-06-03: canonical public deck Rate & Discuss redesign. */
+html body #modal .modal.public-deck-comments-modal{
+  width:min(980px,94vw)!important;
+  max-width:min(980px,94vw)!important;
+  max-height:calc(100vh - 64px)!important;
+  padding:.92rem 1rem .82rem!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(8,11,18,.98),rgba(3,5,10,.99))!important;
+  border:1px solid rgba(232,196,82,.46)!important;
+  border-radius:8px!important;
+}
+
+html body #modal .modal.public-deck-comments-modal #modal-title,
+html body #modal .modal.public-deck-comments-modal .modal-title{
+  display:none!important;
+}
+
+html body #modal .modal.public-deck-comments-modal #modal-body,
+html body #modal .modal.public-deck-comments-modal .modal-body{
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window{
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  gap:.72rem!important;
+  height:min(650px,calc(100vh - 150px))!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-window-top{
+  display:none!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:.9rem!important;
+  min-height:54px!important;
+  padding:.72rem .9rem!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+  border-radius:8px!important;
+  background:linear-gradient(90deg,rgba(13,18,28,.92),rgba(8,11,18,.72))!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head span{
+  color:#ffe681!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.05rem!important;
+  letter-spacing:.12em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compact-head em{
+  max-width:260px!important;
+  min-width:0!important;
+  padding:.22rem .52rem!important;
+  border:1px solid rgba(126,213,255,.24)!important;
+  border-radius:999px!important;
+  color:#9fdcff!important;
+  background:rgba(126,213,255,.06)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  font-style:normal!important;
+  letter-spacing:.08em!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-section{
+  display:grid!important;
+  grid-template-columns:92px minmax(0,1fr) 218px!important;
+  align-items:stretch!important;
+  gap:.8rem!important;
+  min-height:142px!important;
+  padding:.82rem!important;
+  border:1px solid rgba(232,196,82,.3)!important;
+  border-radius:8px!important;
+  background:linear-gradient(135deg,rgba(10,14,22,.94),rgba(4,7,12,.98))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,246,191,.045)!important;
+}
+
+/* Codex 2026-06-03: reversible rate banner card-art slot. Remove this block with the rd-rating-art markup to revert. */
+html body #modal .modal.public-deck-comments-modal .rd-rating-art{
+  display:grid!important;
+  place-items:center!important;
+  width:92px!important;
+  min-width:92px!important;
+  height:116px!important;
+  align-self:center!important;
+  border:1px solid rgba(232,196,82,.34)!important;
+  border-radius:7px!important;
+  background:linear-gradient(180deg,rgba(232,196,82,.12),rgba(0,0,0,.32))!important;
+  box-shadow:0 10px 20px rgba(0,0,0,.26)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-art img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center 14%!important;
+  filter:contrast(1.04) saturate(1.04)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-art span{
+  color:#9fdcff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy{
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  gap:.34rem!important;
+  min-width:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-kicker{
+  color:#82d8ff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  letter-spacing:.18em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy h2{
+  margin:0!important;
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.86rem!important;
+  line-height:1.06!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-copy p{
+  margin:0!important;
+  max-height:2.8em!important;
+  color:#dce8ef!important;
+  font-size:1rem!important;
+  line-height:1.4!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-deck-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:.38rem!important;
+  margin:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-deck-meta span{
+  padding:.24rem .5rem!important;
+  border:1px solid rgba(126,213,255,.22)!important;
+  border-radius:999px!important;
+  color:#a9bfd0!important;
+  background:rgba(126,213,255,.055)!important;
+  font-size:.68rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-controls{
+  display:grid!important;
+  grid-template-rows:auto auto auto!important;
+  justify-items:center!important;
+  align-content:center!important;
+  gap:.34rem!important;
+  min-height:0!important;
+  padding:.68rem!important;
+  border:1px solid rgba(126,213,255,.28)!important;
+  border-radius:8px!important;
+  background:rgba(126,213,255,.07)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score{
+  display:grid!important;
+  grid-template-columns:auto auto!important;
+  align-items:center!important;
+  column-gap:.42rem!important;
+  row-gap:.06rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score b{
+  grid-row:1 / span 2!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:2rem!important;
+  line-height:.9!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-score span,
+html body #modal .modal.public-deck-comments-modal .rd-rating-score em{
+  color:#bccbd6!important;
+  font-size:.62rem!important;
+  font-style:normal!important;
+  letter-spacing:.1em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-rating-label{
+  color:#ffe681!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  letter-spacing:.14em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-stars{
+  display:flex!important;
+  gap:.06rem!important;
+  color:rgba(210,218,226,.38)!important;
+  font-size:1.55rem!important;
+  line-height:1!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-star{
+  cursor:pointer!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-star:hover,
+html body #modal .modal.public-deck-comments-modal .rd-star-filled{
+  color:#ffe275!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comments-section{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  gap:.42rem!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-head{
+  display:flex!important;
+  align-items:end!important;
+  justify-content:space-between!important;
+  gap:.75rem!important;
+  padding:0 .08rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-label{
+  color:#ffe681!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.96rem!important;
+  letter-spacing:.09em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-section-head > span{
+  color:#a693ff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-list{
+  min-height:0!important;
+  overflow:auto!important;
+  padding:.66rem!important;
+  border:1px solid rgba(232,196,82,.24)!important;
+  border-radius:8px!important;
+  background:rgba(0,0,0,.26)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-empty{
+  display:grid!important;
+  min-height:160px!important;
+  place-items:center!important;
+  color:#b6a4ff!important;
+  font-style:italic!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment{
+  display:grid!important;
+  gap:.25rem!important;
+  padding:.58rem .66rem!important;
+  border:1px solid rgba(126,213,255,.15)!important;
+  border-radius:7px!important;
+  background:rgba(126,213,255,.045)!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment + .rd-comment{
+  margin-top:.44rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-author{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-comment-text{
+  color:#dce8ef!important;
+  line-height:1.35!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-compose{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 72px!important;
+  gap:.54rem!important;
+  align-items:center!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-input{
+  width:100%!important;
+  height:38px!important;
+  min-width:0!important;
+}
+
+html body #modal .modal.public-deck-comments-modal .rd-post-btn{
+  min-width:58px!important;
+  height:34px!important;
+  padding:.22rem .34rem!important;
+  font-size:.58rem!important;
+  letter-spacing:.08em!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-title,
+html body #modal .modal.daily-login-modal #modal-body,
+html body #modal .modal.daily-login-modal #modal-acts{
+  position:relative!important;
+  z-index:3!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-body{
+  overflow:visible!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  position:static!important;
+  isolation:auto!important;
+  background:transparent!important;
+  border-color:rgba(245,211,112,.34)!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell::before,
+html body #modal .modal.daily-login-modal .daily-login-shell::after{
+  content:none!important;
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:block!important;
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  opacity:.9!important;
+  filter:saturate(1.08) contrast(1.04) brightness(.72)!important;
+  z-index:1!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-hero{
+  background:linear-gradient(110deg,rgba(6,9,16,.62),rgba(14,18,28,.46),rgba(255,255,255,.045))!important;
+  backdrop-filter:none!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day{
+  background:linear-gradient(180deg,rgba(10,13,22,.62),rgba(3,5,10,.5))!important;
+  backdrop-filter:none!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day.is-current{
+  background:linear-gradient(180deg,rgba(245,211,112,.28),rgba(8,10,16,.54))!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-note{
+  background:rgba(3,6,12,.5)!important;
+  backdrop-filter:none!important;
+}
+
+/* Codex 2026-06-03c: reversible daily rewards banner redesign.
+   Remove this block to return to the prior daily-login panel. */
+html body #modal .modal:not(.daily-login-modal) .daily-login-shell,
+html body #modal .modal:not(.daily-login-modal) .daily-login-bg-img{
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal{
+  width:min(850px,calc(100vw - 32px))!important;
+  max-width:850px!important;
+  padding:.95rem!important;
+  border:1px solid rgba(232,196,82,.44)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(8,11,18,.99),rgba(3,5,10,.99))!important;
+  box-shadow:0 24px 72px rgba(0,0,0,.76),0 0 0 1px rgba(126,213,255,.08) inset!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-title,
+html body #modal .modal.daily-login-modal .modal-title{
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-body,
+html body #modal .modal.daily-login-modal .modal-body{
+  margin:0!important;
+  padding:0!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  position:relative!important;
+  display:grid!important;
+  grid-template-rows:144px auto auto auto!important;
+  gap:.72rem!important;
+  padding:.78rem!important;
+  border:1px solid rgba(126,213,255,.2)!important;
+  border-radius:8px!important;
+  background:rgba(3,6,12,.76)!important;
+  isolation:auto!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell::before,
+html body #modal .modal.daily-login-modal .daily-login-shell::after{
+  content:none!important;
+  display:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:block!important;
+  position:relative!important;
+  inset:auto!important;
+  z-index:0!important;
+  width:100%!important;
+  height:144px!important;
+  min-height:144px!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+  border-radius:8px!important;
+  object-fit:cover!important;
+  object-position:center 42%!important;
+  opacity:1!important;
+  filter:saturate(1.04) contrast(1.04) brightness(.72)!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-hero{
+  position:relative!important;
+  z-index:1!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 104px!important;
+  align-items:center!important;
+  gap:.9rem!important;
+  margin-top:-54px!important;
+  padding:.86rem .95rem!important;
+  border:1px solid rgba(232,196,82,.36)!important;
+  border-radius:8px!important;
+  background:linear-gradient(90deg,rgba(5,8,14,.94),rgba(12,15,24,.82))!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.4)!important;
+  backdrop-filter:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-kicker{
+  margin:0 0 .34rem!important;
+  color:#9fdcff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.7rem!important;
+  letter-spacing:.18em!important;
+  line-height:1!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-title{
+  color:#fff2aa!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.42rem!important;
+  line-height:1.12!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-sub{
+  margin-top:.48rem!important;
+  color:#dce8ef!important;
+  font-size:.88rem!important;
+  line-height:1.38!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter{
+  width:104px!important;
+  height:86px!important;
+  min-width:104px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid rgba(126,213,255,.34)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(126,213,255,.12),rgba(232,196,82,.1))!important;
+  box-shadow:none!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter-core{
+  display:flex!important;
+  align-items:baseline!important;
+  justify-content:center!important;
+  gap:.16rem!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter span{
+  color:#fff!important;
+  font-size:2.55rem!important;
+  font-weight:800!important;
+  line-height:.9!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-meter small{
+  color:#ffe681!important;
+  font-size:.88rem!important;
+  font-weight:800!important;
+  margin:0!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-grid{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:.48rem!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day{
+  min-height:126px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.52rem!important;
+  padding:.6rem .5rem!important;
+  border:1px solid rgba(126,213,255,.2)!important;
+  border-radius:7px!important;
+  background:linear-gradient(180deg,rgba(8,13,22,.88),rgba(3,6,12,.72))!important;
+  opacity:1!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  opacity:.32!important;
+  background:linear-gradient(180deg,rgba(126,213,255,.1),transparent 45%,rgba(232,196,82,.08))!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day.is-current{
+  border-color:rgba(255,230,129,.78)!important;
+  background:linear-gradient(180deg,rgba(74,55,13,.74),rgba(5,8,14,.78))!important;
+  box-shadow:0 0 22px rgba(232,196,82,.16)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day.is-claimed{
+  border-color:rgba(126,213,255,.46)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day.is-locked{
+  opacity:.62!important;
+  filter:saturate(.72)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day-top,
+html body #modal .modal.daily-login-modal .dlr-reward,
+html body #modal .modal.daily-login-modal .dlr-bonus{
+  position:relative!important;
+  z-index:1!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day-top{
+  flex:0 0 auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.18rem!important;
+  width:100%!important;
+  font-family:'Cinzel',serif!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day-top span{
+  color:#fff2aa!important;
+  font-size:.72rem!important;
+  font-weight:800!important;
+  line-height:1!important;
+  width:100%!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-day-top b{
+  color:#9fdcff!important;
+  font-size:.5rem!important;
+  letter-spacing:.08em!important;
+  line-height:1!important;
+  width:100%!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward{
+  flex:0 0 auto!important;
+  align-self:center!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.1rem!important;
+  width:100%!important;
+  height:auto!important;
+  min-width:0!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.12rem!important;
+  font-weight:800!important;
+  line-height:1.04!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward b{
+  display:block!important;
+  width:100%!important;
+  color:#fff!important;
+  font-size:1.14rem!important;
+  line-height:1!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward span{
+  display:block!important;
+  margin:0!important;
+  color:#ffe681!important;
+  font-size:.5rem!important;
+  letter-spacing:.07em!important;
+  line-height:1.08!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight{
+  position:relative!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.14rem!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon{
+  position:static!important;
+  width:30px!important;
+  height:30px!important;
+  margin:0!important;
+  display:grid!important;
+  place-items:center!important;
+  transform:translateY(-7px)!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-starlight-icon svg{
+  display:block!important;
+  width:30px!important;
+  height:30px!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight b{
+  width:100%!important;
+  min-width:0!important;
+  text-align:center!important;
+  transform:none!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-reward.is-starlight > span:not(.dlr-starlight-icon):not(.dlr-starlight-fallback){
+  width:100%!important;
+  margin-top:.03rem!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .dlr-bonus{
+  display:none!important;
+  border:1px solid rgba(232,196,82,.32)!important;
+  border-radius:999px!important;
+  color:#fff2aa!important;
+  background:rgba(232,196,82,.1)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.48rem!important;
+  letter-spacing:.05em!important;
+  line-height:1.08!important;
+  text-align:center!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-note{
+  margin:0!important;
+  padding:.62rem .78rem!important;
+  border:1px solid rgba(126,213,255,.18)!important;
+  border-radius:8px!important;
+  color:#cfd9e8!important;
+  background:rgba(3,6,12,.66)!important;
+  font-size:.76rem!important;
+  line-height:1.36!important;
+}
+
+@media (max-width:820px){
+  html body #modal .modal.daily-login-modal .daily-login-hero{
+    grid-template-columns:1fr!important;
+    margin-top:-34px!important;
+  }
+
+  html body #modal .modal.daily-login-modal .daily-login-meter{
+    width:100%!important;
+    min-width:0!important;
+  }
+
+  html body #modal .modal.daily-login-modal .daily-login-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
 }

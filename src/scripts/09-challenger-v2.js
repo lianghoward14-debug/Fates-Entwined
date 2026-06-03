@@ -532,7 +532,7 @@ function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
   const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [];
   if(!advancedPool.length) return starterPool;
-  const protectedRanks = new Set(['Footman','Captain']);
+  const protectedRanks = new Set(['Footman','Captain-Officer']);
   if(opp && protectedRanks.has(opp.rank)) return starterPool;
   return advancedPool;
 }
@@ -2201,59 +2201,90 @@ function viewChallengerDeckContents(pid) {
     !!(typeof G !== 'undefined' && G && (G._pickDeckAfterMatchmaking || G._pickDeckAfterAi)) ||
     CURRENT_MODE === 'free';
   const counts = {};
-  preset.ids.forEach(id=>{ counts[id] = (counts[id]||0)+1; });
+  (preset.ids || []).forEach(id=>{ counts[id] = (counts[id]||0)+1; });
   const deckCards = Object.keys(counts)
     .map(id=>CARDS.find(c=>c.id===id))
     .filter(Boolean)
     .sort((a,b)=>getCardOrderNumber(a)-getCardOrderNumber(b) || a.name.localeCompare(b.name));
   const body = document.createElement('div');
-  body.className = 'deck-inspect-view';
+  body.className = 'deck-inspect-view deck-inspect-fit-view';
   const hero = preset.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : deckCards[0];
+  const totalCards = (preset.ids || []).length;
+  const theme = preset.theme || 'Challenger';
   body.innerHTML = `
     <div class="deck-inspect-topbar">
       <div>
-        <div class="deck-inspect-kicker">${preset.theme||'Challenger'}</div>
+        <div class="deck-inspect-kicker">${escapeHtml(theme)}</div>
         <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
       </div>
-      <button class="btn sm deck-inspect-back-inline" type="button">Back</button>
     </div>
     <div class="deck-inspect-summary">
-      <div class="deck-inspect-desc">${escapeHtml(preset.description||'')}</div>
-      ${hero?.img ? `<div class="deck-inspect-hero"><img src="${hero.img}" alt="${escapeHtml(hero.name)}"></div>` : ''}
+      <div class="deck-inspect-brief">
+        <p>${escapeHtml(preset.description||'')}</p>
+        <div class="deck-inspect-metrics">
+          <span><b>${totalCards}</b><em>Total Cards</em></span>
+          <span><b>${deckCards.length}</b><em>Unique Cards</em></span>
+          <span class="deck-inspect-theme-metric"><b>${escapeHtml(theme)}</b><em>Theme</em></span>
+        </div>
+      </div>
+      <div class="deck-inspect-hero">${hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}">` : ''}</div>
     </div>
-    <div class="preset-view-grid deck-inspect-grid"></div>`;
+    <section class="deck-inspect-contents">
+      <div class="deck-inspect-section-title">Deck Contents <span>${deckCards.length} unique cards</span></div>
+      <div class="preset-view-grid deck-inspect-grid"></div>
+    </section>`;
   const goBack = ()=> cameFromDeckPick
     ? renderChallengerDeckPickModal(_challengerDeckPickPage || 0)
     : browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
   const inlineBack = body.querySelector('.deck-inspect-back-inline');
   if(inlineBack) inlineBack.onclick = goBack;
   const grid = body.querySelector('.preset-view-grid');
-  deckCards.forEach(c=>{
-    const count = counts[c.id] || 0;
-    const el = document.createElement('div');
-    el.className='mc visual-mc preset-view-card';
-    el.title = c.name;
-    el.innerHTML = `
-      <div class="mc-art">${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
-      <div class="visual-name">${escapeHtml(c.name)}</div>
-      ${count>1?`<div class="preset-card-count">×${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">×1</div>`}`;
-    el.onclick = ()=>openCardDetail(c);
-    grid.appendChild(el);
-  });
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
-  document.getElementById('modal-title').textContent = `${preset.name} — 40 Cards`;
+  const heroBox = body.querySelector('.deck-inspect-hero');
+  if(heroBox && hero?.img && typeof window.renderCanvasImage === 'function') {
+    heroBox.textContent = '';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'deck-inspect-hero-canvas';
+    canvas.setAttribute('aria-hidden','true');
+    heroBox.appendChild(canvas);
+    window.renderCanvasImage(canvas, hero.img, {mode:'cover', parent:heroBox, background:'transparent', maxDpr:4, cropY:.08});
+  }
+  if(grid && typeof window.renderCanvasDeckCollection === 'function') {
+    grid.style.setProperty('--dbcw', '82px');
+    grid.style.setProperty('--dbch', '115px');
+    window.renderCanvasDeckCollection(grid, deckCards.map(c=>({
+      card:c,
+      count:0,
+      ownedText:'x' + (counts[c.id] || 1),
+      title:c.name,
+      ariaLabel:c.name
+    })), {
+      onClick: card=>openCardDetail(card),
+      onContextMenu: card=>showCardInfoOverlay(card)
+    });
+  } else if(grid) {
+    deckCards.forEach(c=>{
+      const count = counts[c.id] || 0;
+      const el = document.createElement('div');
+      el.className='mc visual-mc preset-view-card';
+      el.title = c.name;
+      el.innerHTML = `
+        <div class="mc-art">${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
+        <div class="visual-name">${escapeHtml(c.name)}</div>
+        ${count>1?`<div class="preset-card-count">x${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">x1</div>`}`;
+      el.onclick = ()=>openCardDetail(c);
+      grid.appendChild(el);
+    });
+  }
+  document.getElementById('modal-title').textContent = `${preset.name} - ${totalCards} Cards`;
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox){
     modalBox.classList.remove('choose-deck-canonical-modal','challenger-my-decks-modal');
-    modalBox.classList.add('deck-inspect-compact-modal');
+    modalBox.classList.add('deck-inspect-compact-modal','deck-inspect-fit-modal','title-deck-preview-modal');
   }
   const acts = document.getElementById('modal-acts');
   acts.innerHTML='';
-  const back = document.createElement('button');
-  back.className='btn sm';
-  back.textContent='Back';
-  back.onclick = goBack;
   const loadBtn = document.createElement('button');
   loadBtn.className='btn sm pri';
   loadBtn.textContent='Load to Builder';
@@ -2270,13 +2301,13 @@ function viewChallengerDeckContents(pid) {
   artBtn.className='btn sm';
   artBtn.textContent='Edit Art';
   artBtn.onclick = ()=>cdbEditAppearance(pid);
-  acts.appendChild(back);
   acts.appendChild(artBtn);
   acts.appendChild(loadBtn);
   document.getElementById('modal').classList.add('on');
 }
 
 function cdbEditAppearance(pid=null){
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   const targetId = pid || _cdbCurrentDeckId;
   const presets = USER_PROFILE.challengerPresets || {};
   const p = presets[targetId];
@@ -2288,19 +2319,43 @@ function cdbEditAppearance(pid=null){
 
   const renderEditor = ()=>{
     const body = document.createElement('div');
+    body.className = 'deck-art-editor challenger-deck-art-editor deck-art-editor-v2';
     body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:.8rem;">
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">FACE CARD</div>
+      <div class="deck-art-editor-main">
+        <aside class="deck-art-preview-panel">
+          <div class="deck-art-preview-label">Selected Preview</div>
+          <div class="deck-art-face-preview" id="ch-face-preview"></div>
+          <div class="deck-art-display-preview" id="ch-display-preview"></div>
+        </aside>
+        <div class="deck-art-picker-stack">
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Face Card</div>
           <div class="face-picker-grid" id="ch-face-picker"></div>
-        </div>
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">DISPLAY CARDS (up to 7) — <span id="ch-display-count">${currentDisplay.length}/7</span></div>
+        </section>
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Display Cards (up to 7) - <span id="ch-display-count">${currentDisplay.length}/7</span></div>
           <div class="face-picker-grid" id="ch-display-picker"></div>
+        </section>
         </div>
       </div>`;
     document.getElementById('modal-body').innerHTML='';
     document.getElementById('modal-body').appendChild(body);
+    const renderPreview = ()=>{
+      const faceCard = deckCards.find(c=>c.id===currentFace) || deckCards[0];
+      const facePreview = body.querySelector('#ch-face-preview');
+      if(facePreview) {
+        facePreview.innerHTML = faceCard?.img
+          ? `<img src="${faceCard.img}" alt="${escapeHtml(faceCard.name)}"><span>${escapeHtml(faceCard.name)}</span>`
+          : '';
+      }
+      const strip = body.querySelector('#ch-display-preview');
+      if(strip) {
+        strip.innerHTML = currentDisplay.map(id=>{
+          const c = deckCards.find(card=>card.id===id);
+          return c?.img ? `<div><img src="${c.img}" alt="${escapeHtml(c.name)}"></div>` : '';
+        }).join('');
+      }
+    };
     const renderPickers = ()=>{
       const faceGrid = body.querySelector('#ch-face-picker');
       const displayGrid = body.querySelector('#ch-display-picker');
@@ -2330,6 +2385,7 @@ function cdbEditAppearance(pid=null){
         };
         displayGrid.appendChild(displayEl);
       });
+      renderPreview();
     };
     renderPickers();
     document.getElementById('modal-title').textContent = 'Edit Challenger Deck Art';
@@ -2352,6 +2408,8 @@ function cdbEditAppearance(pid=null){
     };
     acts.appendChild(cancel);
     acts.appendChild(save);
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('deck-art-editor-modal','challenger-deck-art-editor-modal');
     document.getElementById('modal').classList.add('on');
   };
   renderEditor();
@@ -2683,6 +2741,8 @@ function syncAIOpponentLeaderboardEntries() {
       losses: aiLosses,
       profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || ai.profileImg || 'blank.png')),
       isAI: true,
+      isMonthly: !!ai.isMonthly,
+      monthKey: ai.monthKey || (ai.isMonthly && typeof getMonthKey === 'function' ? getMonthKey() : ''),
     });
   });
   saveLeaderboard();
@@ -2701,6 +2761,8 @@ function getMergedChallengerLeaderboardEntries() {
     window.FATE_ONLINE?.profile?.displayName,
     window.FATE_ONLINE?.profile?.username
   ].filter(Boolean).map(v=>String(v).trim().toLowerCase()));
+  const currentAICycleKey = typeof getMonthKey === 'function' ? getMonthKey() : '';
+  const isRetiredMonthlyEntry = entry => !!(entry && entry.isMonthly && currentAICycleKey && entry.monthKey !== currentAICycleKey);
   const aiMergeKey = entry => {
     const rawName = entry?.username || entry?.name || '';
     if(rawName) return 'ai:name:' + String(rawName).trim().toLowerCase();
@@ -2708,6 +2770,7 @@ function getMergedChallengerLeaderboardEntries() {
     return 'ai:id:' + String(rawId || '').trim().toLowerCase();
   };
   LEADERBOARD.forEach(entry=>{
+    if(isRetiredMonthlyEntry(entry)) return;
     const rawName = entry.username || entry.name || '';
     const isCurrentUserEntry = !!currentUid && (
       entry.uid === currentUid ||
@@ -2722,6 +2785,7 @@ function getMergedChallengerLeaderboardEntries() {
     ? window.FateOnline.getOnlineLeaderboard()
     : (window.FATE_ONLINE_LEADERBOARD || {});
   Object.values(online || {}).forEach(entry=>{
+    if(isRetiredMonthlyEntry(entry)) return;
     const key = entry.isAI ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
     if(!key) return;
     const local = merged.get(key) || {};
@@ -2737,6 +2801,7 @@ function getMergedChallengerLeaderboardEntries() {
       baseCode:entry.baseCode || local.baseCode || '',
       isAI:!!(entry.isAI || local.isAI),
       isMonthly:!!(entry.isMonthly || local.isMonthly),
+      monthKey:entry.monthKey || local.monthKey || '',
       isOnline:true
     });
   });
@@ -2766,7 +2831,7 @@ showLeaderboard = function(page=0) {
       'Commander-General':'#e74c3c',
       'Sergeant of the Guard':'#2ec4a6',
       'Lieutenant at Arms':'#4a8ad4',
-      'Captain':'#c0c0c0',
+      'Captain-Officer':'#c0c0c0',
       'Footman':'#b98954'
     })[rankName] || getRank(entry.elo).color;
   };
@@ -3844,7 +3909,7 @@ function simulateWorldChatMessage() {
   if(senders.length === 0) return;
   const sender = senders[Math.floor(Math.random() * senders.length)];
   const messages = [
-    'Anyone up for a game?', 'GG!', 'Just hit Captain rank! 🎉', 'Shield Wall is so strong',
+    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! 🎉', 'Shield Wall is so strong',
     'Need tips for Eventide decks', 'Looking for a challenge ⚔️', 'Hello everyone 👋',
     'That was a close match!', 'Love the new cards', 'Trading cards anyone?',
     'Just opened a Star card! 🌟', 'Best Coordinator?', 'Third Great War decks are fire 🔥',
@@ -4390,7 +4455,7 @@ window.showMatchHistory = showMatchHistory;
 // ─── DIVISION PAGE ───
 const DIVISION_DESCRIPTIONS = {
   'Footman': 'New recruits learning the basics of fate and strategy. Every journey begins here.',
-  'Captain': 'Competent strategists who understand zone control and supporter placement.',
+  'Captain-Officer': 'Competent strategists who understand zone control and supporter placement.',
   'Lieutenant at Arms': 'Skilled tacticians who can read the board and plan consolidations effectively.',
   'Sergeant of the Guard': 'Elite players who combine deck synergy with precise timing and positioning.',
   'Commander-General': 'Masters of the game who dominate through disruption, denial, and superior strategy.',

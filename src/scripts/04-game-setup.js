@@ -318,14 +318,14 @@ const AI_OPPONENTS = [
    desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
    deckPool:'starter', deckRef:'starter_assault', deck:[]},
 
-  // === CAPTAIN (800-999) — plays the 4 starter decks ===
-  {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain',style:'methodical',img:'aiicons/ai15.png',
+  // === CAPTAIN-OFFICER (800-999) — plays the 4 starter decks ===
+  {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain-Officer',style:'methodical',img:'aiicons/ai15.png',
    desc:'Calculates every move carefully. Slow but rarely makes mistakes.',
    deckPool:'starter', deckRef:'starter_incel', deck:[]},
-  {name:'High Envoy Chloe Kirk',elo:900,rank:'Captain',style:'adaptive',img:'aiicons/ai14.png',
+  {name:'High Envoy Chloe Kirk',elo:900,rank:'Captain-Officer',style:'adaptive',img:'aiicons/ai14.png',
    desc:'Always experimenting with new lines. Unpredictable but sometimes brilliant.',
    deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
-  {name:'El Matador Santiago Alvarez',elo:950,rank:'Captain',style:'disciplined',img:'aiicons/ai13.png',
+  {name:'El Matador Santiago Alvarez',elo:950,rank:'Captain-Officer',style:'disciplined',img:'aiicons/ai13.png',
    desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
    deckPool:'starter', deckRef:'starter_freeworld', deck:[]},
 
@@ -392,7 +392,9 @@ function saveAIEloState(state) {
 }
 
 function getAIRecordKey(aiOrName) {
-  return typeof aiOrName === 'string' ? aiOrName : (aiOrName && aiOrName.name) || '';
+  if(typeof aiOrName === 'string') return aiOrName;
+  if(aiOrName && aiOrName.isMonthly && aiOrName.monthKey) return aiOrName.monthKey + ':' + aiOrName.name;
+  return (aiOrName && aiOrName.name) || '';
 }
 
 function applyStoredAIEloState(ai) {
@@ -458,10 +460,12 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
   } else if(typeof LEADERBOARD !== 'undefined'){
     let entry = LEADERBOARD.find(e=>e.username === aiName);
     if(!entry){
-      entry = {username:aiName, wins:0, losses:0, profileImg:(typeof getAIProfileImg === 'function' ? getAIProfileImg(source, 'circle') : (source.img || 'blank.png')), isAI:true, isMonthly:!!source.isMonthly};
+      entry = {username:aiName, wins:0, losses:0, profileImg:(typeof getAIProfileImg === 'function' ? getAIProfileImg(source, 'circle') : (source.img || 'blank.png')), isAI:true, isMonthly:!!source.isMonthly, monthKey:source.monthKey || (source.isMonthly ? getMonthKey() : '')};
       LEADERBOARD.push(entry);
     }
     entry.elo = resolvedElo;
+    entry.isMonthly = !!source.isMonthly;
+    entry.monthKey = source.monthKey || (source.isMonthly ? getMonthKey() : entry.monthKey || '');
     if(entry.isAI && (!entry.profileImg || entry.profileImg === 'blank.png')){
       entry.profileImg = typeof getAIProfileImg === 'function' ? getAIProfileImg(source, 'circle') : (source.img || 'blank.png');
     }
@@ -586,10 +590,12 @@ function updateAILeaderboardEntry(ai, didWin) {
   if(typeof LEADERBOARD === 'undefined') return;
   let entry = LEADERBOARD.find(e => e.username === ai.name);
   if(!entry) {
-    entry = {username: ai.name, elo: ai.elo, wins: 0, losses: 0, profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || 'blank.png')), isAI: true, isMonthly: !!ai.isMonthly};
+    entry = {username: ai.name, elo: ai.elo, wins: 0, losses: 0, profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || 'blank.png')), isAI: true, isMonthly: !!ai.isMonthly, monthKey:ai.monthKey || (ai.isMonthly ? getMonthKey() : '')};
     LEADERBOARD.push(entry);
   }
   entry.elo = ai.elo;
+  entry.isMonthly = !!ai.isMonthly;
+  entry.monthKey = ai.monthKey || (ai.isMonthly ? getMonthKey() : entry.monthKey || '');
   if(entry.isAI && (!entry.profileImg || entry.profileImg === 'blank.png')){
     entry.profileImg = typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || 'blank.png');
   }
@@ -611,7 +617,8 @@ function getAICompetenceFromTrueElo(trueElo) {
   return {mistakeChance:0.3, skipEffectChance:0.15, consolidateThreshold:9};
 }
 
-// ─── MONTHLY AI PLAYERS ───
+// ─── THREE-MONTH AI PLAYERS ───
+const MONTHLY_AI_CYCLE_MONTHS = 3;
 const MONTHLY_AI_NAMES_POOL = [
   'Shadow','Ember','Frost','Storm','Blaze','Void','Rune','Drift','Thorn','Pulse',
   'Nexus','Vex','Prism','Gale','Cipher','Wraith','Flint','Onyx','Sable','Zenith',
@@ -621,32 +628,75 @@ const MONTHLY_AI_SURNAMES = [
   'Walker','Knight','Hawk','Fox','Wolf','Raven','Crane','Drake','Viper','Lynx',
   'Phoenix','Falcon','Panther','Tiger','Eagle','Serpent','Bear','Lion','Crow','Stag'
 ];
-const MONTHLY_AI_STYLES = ['aggro','control','defensive','balanced','tempo','disruption','blitz','lockdown','adaptive','zone_specialist'];
+const RANDOM_AI_PERSONALITIES = [
+  { style:'aggro', label:'Aggro', desc:'presses every early lead and values fast contested-row pressure' },
+  { style:'control', label:'Control', desc:'slows the board down and looks for denial lines' },
+  { style:'defensive', label:'Defensive', desc:'protects safe rows and avoids risky exchanges' },
+  { style:'balanced', label:'Balanced', desc:'keeps zones even and rarely overcommits' },
+  { style:'tempo', label:'Tempo', desc:'prefers immediate board swings and clean turn-by-turn pressure' },
+  { style:'disruption', label:'Disruption', desc:'hunts opposing resources and awkward board states' },
+  { style:'blitz', label:'Blitz', desc:'front-loads power before opponents stabilize' },
+  { style:'lockdown', label:'Lockdown', desc:'turns one zone into a problem and keeps it that way' },
+  { style:'zone_specialist', label:'Zone Specialist', desc:'reads zone math obsessively and commits where the margin matters' },
+  { style:'hoarder', label:'Hoarder', desc:'keeps extra cards in hand until the payoff is clear' },
+  { style:'gambler', label:'Gambler', desc:'takes swingy lines and trusts big reversals' },
+  { style:'bully', label:'Bully', desc:'attacks weak zones and piles pressure where opponents are thin' },
+  { style:'turtle', label:'Turtle', desc:'plays slowly, safely, and asks the opponent to overextend' },
+  { style:'combo', label:'Combo', desc:'prioritizes engines, searches, and repeatable effects' },
+  { style:'swarm', label:'Swarm', desc:'fills space quickly before refining the board' },
+  { style:'sniper', label:'Sniper', desc:'targets one key lane or card instead of spreading attention' },
+  { style:'collector', label:'Collector', desc:'values complete setups and repeated copies of important cards' },
+  { style:'sacrificial', label:'Sacrificial', desc:'spends small cards freely to build a decisive threat' },
+  { style:'opportunist', label:'Opportunist', desc:'changes plans fast when an exposed zone appears' },
+  { style:'chaotic', label:'Chaotic', desc:'adds volatility and unexpected priorities to otherwise normal lines' }
+];
+const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
 
 function getMonthKey() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const cycle = Math.floor(d.getMonth() / MONTHLY_AI_CYCLE_MONTHS) + 1;
+  return `${d.getFullYear()}-Q${cycle}`;
+}
+
+function cleanupRetiredMonthlyAI(monthKey=getMonthKey()) {
+  const currentStorageKey = 'fate_monthly_ai_' + monthKey;
+  try {
+    for(let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if(k && k.startsWith('fate_monthly_ai_') && k !== currentStorageKey) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch(e){}
+  if(typeof LEADERBOARD !== 'undefined' && Array.isArray(LEADERBOARD)) {
+    const before = LEADERBOARD.length;
+    LEADERBOARD = LEADERBOARD.filter(entry => !(entry && entry.isMonthly && entry.monthKey !== monthKey));
+    if(LEADERBOARD.length !== before && typeof saveLeaderboard === 'function') saveLeaderboard();
+  }
 }
 
 function generateMonthlyAI() {
   const monthKey = getMonthKey();
   const storageKey = 'fate_monthly_ai_' + monthKey;
-  
-  // Clear ALL monthly AI keys first (including current month if corrupted)
-  for(let i = localStorage.length - 1; i >= 0; i--) {
-    const k = localStorage.key(i);
-    if(k && k.startsWith('fate_monthly_ai_') && k !== storageKey) {
-      localStorage.removeItem(k);
-    }
-  }
+  cleanupRetiredMonthlyAI(monthKey);
   
   let stored;
   try { stored = JSON.parse(localStorage.getItem(storageKey)); } catch(e){}
-  // Only use cache if exactly 10 entries with correct monthKey
-  if(stored && Array.isArray(stored) && stored.length === 10 && stored.every(a => a.monthKey === monthKey)) return stored;
+  // Only use cache if exactly 10 entries with correct monthKey and playable decks.
+  const storedUsable = stored && Array.isArray(stored) && stored.length === 10 && stored.every(a =>
+    a && a.monthKey === monthKey && Array.isArray(a.deck) && a.deck.length >= 40
+  );
+  if(storedUsable) {
+    const refreshed = stored.map((ai, i) => {
+      const p = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
+      return {...ai, style:p.style, personalityLabel:p.label, personalityDesc:p.desc};
+    });
+    try { localStorage.setItem(storageKey, JSON.stringify(refreshed)); } catch(e){}
+    return refreshed;
+  }
 
-  // Generate 10 unique AI players for this month
+  // Generate 10 unique AI players for this three-month cycle.
   const seed = hashStr(monthKey + 'monthly');
   const players = [];
   const usedNames = new Set();
@@ -664,12 +714,20 @@ function generateMonthlyAI() {
     usedNames.add(name);
 
     const trueElo = 400 + Math.floor((hashStr(monthKey + 'true' + i) % 1501)); // 400-1900
-    const style = MONTHLY_AI_STYLES[i % MONTHLY_AI_STYLES.length];
+    const personality = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
+    const style = personality.style;
 
     // Pick a deck from starter decks or existing AI opponent decks
     const starterDecks = typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : [];
-    const aiDecks = AI_OPPONENTS.filter(a => !a.isMonthly && Array.isArray(a.deck) && a.deck.length >= 40).map(a => a.deck);
-    const allDecks = [...starterDecks.map(d => d.ids || d.deck || []).filter(d => d.length >= 40), ...aiDecks];
+    const advancedDecks = typeof AI_ONLY_RANDOM_DECKS !== 'undefined' ? AI_ONLY_RANDOM_DECKS : [];
+    const builtInDecks = [...starterDecks, ...advancedDecks]
+      .map(d => d && (d.ids || d.deck || []))
+      .filter(d => Array.isArray(d) && d.length >= 40);
+    const aiDecks = AI_OPPONENTS
+      .filter(a => a && !a.isMonthly)
+      .map(a => typeof getPlayableAIDeck === 'function' ? getPlayableAIDeck(a) : (Array.isArray(a.deck) ? a.deck : []))
+      .filter(d => Array.isArray(d) && d.length >= 40);
+    const allDecks = [...builtInDecks, ...aiDecks];
     const deckIdx = hashStr(monthKey + 'deck' + i) % Math.max(1, allDecks.length);
     const deck = allDecks.length > 0 ? allDecks[deckIdx] : [];
 
@@ -678,6 +736,8 @@ function generateMonthlyAI() {
       elo: 600,
       trueElo,
       style,
+      personalityLabel: personality.label,
+      personalityDesc: personality.desc,
       rank: 'Footman',
       deck: deck.length >= 40 ? deck.slice(0, 40) : [],
       isMonthly: true,
@@ -695,13 +755,7 @@ function integrateMonthlyAI() {
   const monthKey = getMonthKey();
   MONTHLY_AI_OPPONENTS = monthly.map(ai => ({...ai}));
   if(typeof applyStoredAIEloStateToList === 'function') applyStoredAIEloStateToList(MONTHLY_AI_OPPONENTS);
-
-  // Clean old month keys from localStorage
-  for(const k of Object.keys(localStorage)) {
-    if(k.startsWith('fate_monthly_ai_') && k !== 'fate_monthly_ai_' + monthKey) {
-      localStorage.removeItem(k);
-    }
-  }
+  cleanupRetiredMonthlyAI(monthKey);
 }
 
 function getMonthlyAIOpponents() {
@@ -1153,7 +1207,8 @@ function chooseTurn(goFirst) {
   if(typeof applyPendingSelvaSupportBoost === 'function') applyPendingSelvaSupportBoost(G.currentPlayer);
   // First player doesn't draw
   log('sys','Game begins! '+G.players[G.currentPlayer].name+' goes first.');
-  renderGame();
+  if(typeof renderGameImmediate === 'function') renderGameImmediate();
+  else renderGame();
   updateTopBar();
   // If AI goes first, trigger its turn
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer){

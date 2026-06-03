@@ -22,3 +22,6 @@ Thumbs.db
 # Local editor/config cache
 .vscode/
 .idea/
+
+# Local solo multiplayer browser profiles
+.solo-multiplayer-profiles/

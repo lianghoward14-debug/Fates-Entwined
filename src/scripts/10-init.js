@@ -121,6 +121,8 @@ function ensureTitleMissionControlButton(){
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
+  try{ localStorage.removeItem('fate_layout_scale_mode'); }catch(e){}
+
   // ONE-TIME RESET: Bump version key to force reset on update
   if(!localStorage.getItem('fate_reset_v9_playerdata_done')){
     const keysToRemove = [];
@@ -187,6 +189,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Initialize social system
   if(typeof loadSocial==='function') loadSocial();
   if(typeof initWorldChat==='function') initWorldChat();
+  if(typeof checkDailyLoginOnStartup === 'function') checkDailyLoginOnStartup();
 
   // Side Panel layout — moves profile, daily challenges, and world chat
   // into a permanent right-side panel on the title screen.

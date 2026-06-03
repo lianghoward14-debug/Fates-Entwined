@@ -18,6 +18,7 @@
   let spectatorProfileUnsubs = new Map();
   let spectatorPanelOpen = false;
   let liveMatchPublishDisabled = false;
+  const LIVE_MATCH_STALE_MS = 2 * 60 * 60 * 1000;
 
   function esc(s){ return String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function getUser(){ try{ return (FO().requireUser ? FO().requireUser() : null); }catch(e){ return null; } }
@@ -29,6 +30,33 @@
     }catch(e){
       return window.FATE_ENABLE_LIVE_MATCH_LISTINGS === true;
     }
+  }
+
+  function liveMatchTimeValue(value){
+    if(typeof value === 'number') return value;
+    if(value && typeof value === 'object'){
+      if(typeof value.seconds === 'number') return value.seconds * 1000;
+      if(typeof value._seconds === 'number') return value._seconds * 1000;
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function isLiveMatchStale(match, now=Date.now()){
+    if(!match || typeof match !== 'object') return true;
+    const updated = liveMatchTimeValue(match.updatedAt) || liveMatchTimeValue(match.startedAt);
+    if(!updated) return false;
+    return now - updated > LIVE_MATCH_STALE_MS;
+  }
+
+  function canCurrentUserRemoveLiveMatch(match){
+    const uid = window.FATE_ONLINE?.user?.uid || '';
+    return !!(uid && match && match.hostUid === uid);
+  }
+
+  function tryRemoveLiveMatchListing(roomCode){
+    if(!roomCode || !FO().rtdb || !FO().remove) return;
+    FO().remove(FO().ref(FO().rtdb, `liveMatches/${roomCode}`)).catch(function(){});
   }
 
   // ─── Publish / unpublish live match listing ───
@@ -101,7 +129,7 @@
         if(entry.hostUid && entry.hostUid !== u.uid) continue;
         const roomSnap = await FO().get(FO().ref(FO().rtdb, `rooms/${code}/status`)).catch(function(){ return null; });
         const status = roomSnap ? roomSnap.val() : null;
-        if(!status || status === 'ended' || status === 'lobby'){
+        if(!status || status === 'ended' || status === 'lobby' || isLiveMatchStale(entry)){
           FO().remove(FO().ref(FO().rtdb, `liveMatches/${code}`)).catch(function(){});
         }
       }
@@ -163,6 +191,12 @@
   function renderLiveMatchesList(matches){
     const el = document.getElementById('lm-list');
     if(!el) return;
+    const now = Date.now();
+    matches = (Array.isArray(matches) ? matches : []).filter(m => {
+      const stale = isLiveMatchStale(m, now);
+      if(stale && canCurrentUserRemoveLiveMatch(m)) tryRemoveLiveMatchListing(m.roomCode);
+      return !stale;
+    });
     if(!matches.length){
       el.innerHTML = '<div class="lm-empty">No live matches right now. Check back later!</div>';
       return;
@@ -209,6 +243,7 @@
     const snap = await FO().get(FO().ref(FO().rtdb, `rooms/${roomCode}`)).catch(()=>null);
     const room = snap?.val();
     if(!room || (room.status !== 'matchup' && room.status !== 'starting' && room.status !== 'playing')){
+      tryRemoveLiveMatchListing(roomCode);
       if(typeof toast === 'function') toast('This match is no longer live');
       return;
     }
@@ -238,6 +273,7 @@
     const recheck = await FO().get(FO().ref(FO().rtdb, `rooms/${roomCode}/status`)).catch(()=>null);
     const currentStatus = recheck?.val();
     if(currentStatus === 'ended' || currentStatus === 'lobby'){
+      tryRemoveLiveMatchListing(roomCode);
       if(typeof toast === 'function') toast('This match is no longer live');
       return;
     }

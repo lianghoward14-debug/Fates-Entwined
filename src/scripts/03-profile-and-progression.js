@@ -34,6 +34,8 @@ let USER_PROFILE = {
   matchesPlayed: 0,
   challengerPresets: {},  // {pid: {name, description, ids}} â€” decks built in challenger mode
   lastFreePackClaim: 0,   // timestamp
+  dailyLoginLastClaimDate: '',
+  dailyLoginStreak: 0,
 };
 const FATE_DEFAULT_USER_PROFILE = JSON.parse(JSON.stringify(USER_PROFILE));
 function createDefaultUserProfile() {
@@ -266,7 +268,7 @@ const BADGES = [
 const RANKS = [
   {minElo:0,    name:'Footman',    color:'#cd7f32', bg:'rgba(205,127,50,.15)',
     icon:'<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="10" fill="none" stroke="#cd7f32" stroke-width="2"/><path d="M12 7V17M8 12H16" stroke="#cd7f32" stroke-width="2" stroke-linecap="round"/></svg>'},
-  {minElo:800,  name:'Captain',    color:'#c0c0c0', bg:'rgba(192,192,192,.15)',
+  {minElo:800,  name:'Captain-Officer', color:'#c0c0c0', bg:'rgba(192,192,192,.15)',
     icon:'<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="10" fill="none" stroke="#c0c0c0" stroke-width="2"/><path d="M12 4L14 10H20L15 14L17 20L12 16L7 20L9 14L4 10H10Z" fill="#c0c0c0" opacity=".6" transform="scale(.55) translate(9.8,9.8)"/><path d="M8 8L12 4L16 8" fill="none" stroke="#c0c0c0" stroke-width="1.5" stroke-linecap="round"/></svg>'},
   {minElo:1000, name:'Lieutenant at Arms', color:'#4a8ad4', bg:'rgba(74,138,212,.14)',
     icon:'<svg viewBox="0 0 24 24" width="20" height="20"><defs><linearGradient id="rk-lt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff8c4"/><stop offset="100%" stop-color="#ffd700"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="none" stroke="url(#rk-lt)" stroke-width="2"/><path d="M12 3L14 9H20L15 13L17 19L12 15L7 19L9 13L4 9H10Z" fill="url(#rk-lt)" opacity=".7" transform="scale(.5) translate(12,12)"/><path d="M7 6L12 2L17 6" fill="none" stroke="#ffd700" stroke-width="1.5"/></svg>'},
@@ -305,7 +307,7 @@ function getRankIconIdByName(rankName){
     'Commander-General': 2,
     'Sergeant of the Guard': 3,
     'Lieutenant at Arms': 4,
-    'Captain': 5,
+    'Captain-Officer': 5,
     'Footman': 6,
   })[rankName] || null;
 }
@@ -314,10 +316,30 @@ function renderRankIconMark(eloOrRank, size='md') {
   const rank = typeof eloOrRank === 'object' ? eloOrRank : getRank(eloOrRank);
   const rankIconId = getRankIconIdByName(rank.name);
   if(rankIconId){
-    return `<img class="rank-icon-img rank-icon-${rankIconId}" src="rankicons/${rankIconId}.png" alt="${escapeHtml(rank.name)}" onerror="this.style.display='none';">`;
+    return `<img class="rank-icon-img rank-icon-${rankIconId}" src="rankicons/${rankIconId}.png" alt="${escapeHtml(rank.name)}" loading="eager" decoding="sync" fetchpriority="high" onerror="this.style.display='none';">`;
   }
   return rank.icon;
 }
+
+(function preloadRankIconImages(){
+  if(typeof document === 'undefined') return;
+  if(window.__fateRankIconsPreloaded) return;
+  window.__fateRankIconsPreloaded = true;
+  [1,2,3,4,5,6].forEach(function(id){
+    const href = 'rankicons/' + id + '.png';
+    if(document.head && !document.querySelector('link[data-fate-rank-preload="' + id + '"]')){
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = href;
+      link.dataset.fateRankPreload = String(id);
+      document.head.appendChild(link);
+    }
+    const img = new Image();
+    img.decoding = 'sync';
+    img.src = href;
+  });
+})();
 
 function getRankFrameStyle(elo, scope='icon'){
   const rank = getRank(elo);
@@ -490,6 +512,8 @@ function loadPresetsFromStorage() {
     USER_PROFILE.challengerLosses = 0;
     USER_PROFILE.challengerPresets = {};
     USER_PROFILE.lastFreePackClaim = 0;
+    USER_PROFILE.dailyLoginLastClaimDate = '';
+    USER_PROFILE.dailyLoginStreak = 0;
     USER_PROFILE.newPlayerReset_20260425 = true;
     LEADERBOARD = [];
     didForceRankReset = true;
@@ -541,6 +565,227 @@ function saveProfile() {
   updateLeaderboardEntry();
   if(didWrite && window.FateCloudSave) window.FateCloudSave.saveProfile();
 }
+
+const DAILY_LOGIN_REWARDS = [
+  {day:1, starlight:25, profileBoosters:0},
+  {day:2, starlight:0, profileBoosters:1},
+  {day:3, starlight:25, profileBoosters:0},
+  {day:4, starlight:25, profileBoosters:0},
+  {day:5, starlight:0, profileBoosters:1},
+  {day:6, starlight:25, profileBoosters:0},
+  {day:7, starlight:250, profileBoosters:0},
+];
+
+function fateLocalDateKey(ts=Date.now()) {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function fateDateKeyToLocalNoon(key) {
+  const parts = String(key || '').split('-').map(n=>parseInt(n, 10));
+  if(parts.length !== 3 || parts.some(n=>!Number.isFinite(n))) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+}
+
+function fateDateKeyDiffDays(a, b) {
+  const da = fateDateKeyToLocalNoon(a);
+  const db = fateDateKeyToLocalNoon(b);
+  if(!da || !db) return Infinity;
+  return Math.round((db.getTime() - da.getTime()) / 86400000);
+}
+
+function getDailyLoginState() {
+  if(!USER_PROFILE || typeof USER_PROFILE !== 'object') USER_PROFILE = createDefaultUserProfile();
+  const today = fateLocalDateKey();
+  const last = USER_PROFILE.dailyLoginLastClaimDate || '';
+  const diff = last ? fateDateKeyDiffDays(last, today) : Infinity;
+  let streak = Math.max(0, Number(USER_PROFILE.dailyLoginStreak) || 0);
+  let missed = false;
+  if(last && diff > 1){
+    streak = 0;
+    missed = true;
+  }
+  if(streak >= 7 && diff >= 1) streak = 0;
+  const claimedToday = diff === 0;
+  const nextDay = claimedToday ? Math.max(1, Math.min(7, streak)) : Math.max(1, Math.min(7, streak + 1));
+  return {
+    today,
+    lastClaimDate: last,
+    diff,
+    streak,
+    claimedToday,
+    missed,
+    nextDay,
+    reward: DAILY_LOGIN_REWARDS[nextDay - 1]
+  };
+}
+
+function normalizeDailyLoginProfileState() {
+  const state = getDailyLoginState();
+  if(state.missed || USER_PROFILE.dailyLoginStreak !== state.streak){
+    USER_PROFILE.dailyLoginStreak = state.streak;
+    if(state.missed) saveProfile();
+  }
+  return state;
+}
+
+function claimDailyLoginReward() {
+  const state = normalizeDailyLoginProfileState();
+  if(state.claimedToday){
+    if(typeof toast === 'function') toast('Daily reward already claimed');
+    return {claimed:false, state};
+  }
+  const reward = state.reward || DAILY_LOGIN_REWARDS[0];
+  const starlight = Math.max(0, Number(reward.starlight) || 0);
+  const boosters = Math.max(0, Number(reward.profileBoosters) || 0);
+  if(starlight) USER_PROFILE.starlight = (Number(USER_PROFILE.starlight) || 0) + starlight;
+  if(boosters){
+    USER_PROFILE.unopenedProfilePacks = (Number(USER_PROFILE.unopenedProfilePacks) || 0) + boosters;
+  }
+  USER_PROFILE.dailyLoginLastClaimDate = state.today;
+  USER_PROFILE.dailyLoginStreak = reward.day;
+  if(starlight && typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('starlightEarned', starlight, 'add');
+  saveProfile();
+  if(typeof updateChallengerTopbar === 'function') updateChallengerTopbar();
+  if(typeof playSfx === 'function') playSfx('purchase');
+  const parts = [];
+  if(starlight) parts.push(`+${starlight} Starlight`);
+  if(boosters) parts.push(`+${boosters} Profile Booster${boosters === 1 ? '' : 's'}`);
+  if(typeof toast === 'function') toast(`Day ${reward.day} claimed: ${parts.join(' + ') || 'Reward claimed'}`);
+  return {claimed:true, reward, state:getDailyLoginState()};
+}
+
+function dailyLoginRewardText(reward) {
+  const starlight = Math.max(0, Number(reward?.starlight) || 0);
+  const boosters = Math.max(0, Number(reward?.profileBoosters) || 0);
+  const parts = [];
+  if(starlight) parts.push(`${starlight} Starlight`);
+  if(boosters) parts.push(`${boosters} Profile Booster${boosters === 1 ? '' : 's'}`);
+  return parts.join(' + ') || 'Reward';
+}
+
+function dailyLoginBackgroundForDate(dateKey) {
+  const key = String(dateKey || fateLocalDateKey());
+  let seed = 0;
+  for(let i = 0; i < key.length; i++) seed = ((seed * 31) + key.charCodeAt(i)) >>> 0;
+  const bgIndex = (seed % 16) + 1;
+  const optimized = `optimized/backgrounds/ingamebackgrouds_igb${bgIndex}.jpg`;
+  return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(optimized) : optimized;
+}
+
+function renderDailyLoginPanelHtml() {
+  const state = normalizeDailyLoginProfileState();
+  const activeDay = state.claimedToday ? state.nextDay : state.nextDay;
+  const rewardBg = dailyLoginBackgroundForDate(state.today);
+  const rewardBgIndex = (parseInt((String(rewardBg).match(/igb(\d+)/) || [])[1], 10) || 1);
+  const rewardBgFallback = `ingamebackgrouds/igb${rewardBgIndex}.png?v=bg20260510d`;
+  const tiles = DAILY_LOGIN_REWARDS.map(reward => {
+    const claimed = state.claimedToday
+      ? reward.day <= state.streak
+      : reward.day < state.nextDay;
+    const current = reward.day === activeDay;
+    const locked = !claimed && !current;
+    const starlight = Math.max(0, Number(reward.starlight) || 0);
+    const boosters = Math.max(0, Number(reward.profileBoosters) || 0);
+    const starlightIconHtml = typeof STARLIGHT_ICON !== 'undefined'
+      ? STARLIGHT_ICON
+      : '<span class="dlr-starlight-fallback">*</span>';
+    const rewardHtml = starlight
+      ? `<div class="dlr-reward is-starlight"><span class="dlr-starlight-icon">${starlightIconHtml}</span><b>${starlight}</b><span>Starlight</span></div>`
+      : `<div class="dlr-reward is-booster"><b>Profile</b><span>Booster</span></div>`;
+    const bonus = boosters && starlight ? '<span class="dlr-bonus">Profile Booster</span>' : '';
+    return `
+      <div class="dlr-day ${claimed?'is-claimed':''} ${current?'is-current':''} ${locked?'is-locked':''}">
+        <div class="dlr-day-top">
+          <span>Day ${reward.day}</span>
+          <b>${claimed ? 'Claimed' : current ? 'Today' : 'Locked'}</b>
+        </div>
+        ${rewardHtml}
+        ${bonus}
+      </div>`;
+  }).join('');
+  const title = state.claimedToday ? 'Come back tomorrow for the next reward.' : 'Your daily reward is ready.';
+  const sub = state.missed ? 'Your previous streak reset because a day was missed.' : 'Claim on consecutive days to keep the seven-day streak alive.';
+  return `
+    <div class="daily-login-shell" style="--daily-login-bg:url('${rewardBg}')">
+      <img class="daily-login-bg-img" src="${rewardBg}" alt="" decoding="async" loading="eager" draggable="false" onerror="this.onerror=null;this.src='${rewardBgFallback}';">
+      <div class="daily-login-hero">
+        <div>
+          <div class="daily-login-kicker">Login Rewards</div>
+          <div class="daily-login-title">${title}</div>
+          <div class="daily-login-sub">${sub}</div>
+        </div>
+        <div class="daily-login-meter">
+          <div class="daily-login-meter-core">
+            <span>${state.claimedToday ? state.streak : Math.max(0, state.nextDay - 1)}</span>
+            <small>/ 7</small>
+          </div>
+        </div>
+      </div>
+      <div class="daily-login-grid">${tiles}</div>
+      <div class="daily-login-note">Missing a day resets the streak. Day 2 and Day 5 are Profile Booster days; Day 7 pays out 250 Starlight.</div>
+    </div>`;
+}
+
+function showDailyLoginPanel() {
+  if(typeof resetModalChrome === 'function') resetModalChrome();
+  showModal('Daily Login Rewards', renderDailyLoginPanelHtml(), []);
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) {
+    modalBox.classList.add('daily-login-modal');
+    modalBox.style.setProperty('--daily-login-bg', `url('${dailyLoginBackgroundForDate(getDailyLoginState().today)}')`);
+  }
+  const acts = document.getElementById('modal-acts');
+  if(!acts) return;
+  acts.innerHTML = '';
+  const state = getDailyLoginState();
+  const close = document.createElement('button');
+  close.className = 'btn sm';
+  close.textContent = 'Close';
+  close.onclick = closeModal;
+  if(!state.claimedToday){
+    const claim = document.createElement('button');
+    claim.className = 'btn sm pri daily-login-claim-btn';
+    const reward = state.reward || DAILY_LOGIN_REWARDS[0];
+    claim.textContent = `Claim ${dailyLoginRewardText(reward)}`;
+    claim.onclick = function(){
+      claimDailyLoginReward();
+      showDailyLoginPanel();
+    };
+    acts.appendChild(claim);
+  }
+  acts.appendChild(close);
+  document.getElementById('modal')?.classList.add('on');
+}
+
+function handleFateChatCommand(text) {
+  const cmd = String(text || '').trim().toLowerCase();
+  if(cmd === '/logincheck'){
+    showDailyLoginPanel();
+    return true;
+  }
+  return false;
+}
+
+function checkDailyLoginOnStartup() {
+  const state = normalizeDailyLoginProfileState();
+  if(state.claimedToday) return;
+  if(window.__fateDailyLoginPromptedThisSession) return;
+  window.__fateDailyLoginPromptedThisSession = true;
+  setTimeout(function(){
+    if(typeof showDailyLoginPanel === 'function') showDailyLoginPanel();
+  }, 850);
+}
+
+window.DAILY_LOGIN_REWARDS = DAILY_LOGIN_REWARDS;
+window.getDailyLoginState = getDailyLoginState;
+window.claimDailyLoginReward = claimDailyLoginReward;
+window.showDailyLoginPanel = showDailyLoginPanel;
+window.handleFateChatCommand = handleFateChatCommand;
+window.checkDailyLoginOnStartup = checkDailyLoginOnStartup;
 
 // Online rebuild bridge: expose the local browser profile through accessors only.
 // This keeps local/offline profile data separate from Google/cloud data while
@@ -1071,7 +1316,7 @@ function browsePresets(page=0) {
   }
 
   const pageKeys = keys.slice(_presetBrowsePage * pageSize, _presetBrowsePage * pageSize + pageSize);
-  body.innerHTML = `<p style="font-size:.9rem;color:var(--dim);margin-bottom:.8rem;">Choose a deck to preview or load:</p>`;
+  body.innerHTML = `<p style="font-size:.9rem;color:var(--dim);margin-bottom:.8rem;">Choose a deck to preview, load, or edit art:</p>`;
   const grid = document.createElement('div');
   grid.className = 'preset-browse-grid deck-pick-grid fixed-deck-tile-grid my-presets-as-choose-deck';
   grid.style.gridAutoRows = '480px';
@@ -1106,18 +1351,28 @@ function browsePresets(page=0) {
           ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : displayCards.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
         </div>
         <div class="preset-action-row">
-          <button class="btn sm" type="button">Edit Art</button>
           <button class="btn sm pri" type="button" ${ok?'':`disabled`}>Load</button>
+          <button class="btn sm" type="button">Edit Art</button>
         </div>
       </div>`;
-    const [editArtBtn, loadBtn] = tile.querySelectorAll('.preset-action-row .btn');
-    if(editArtBtn) editArtBtn.onclick = (e)=>{ e.stopPropagation(); editPreset(pid); };
+    const [loadBtn, editArtBtn] = tile.querySelectorAll('.preset-action-row .btn');
     if(loadBtn) loadBtn.onclick = (e)=>{ e.stopPropagation(); if(ok){ loadPreset(pid); closeModal(); } };
+    if(editArtBtn) editArtBtn.onclick = (e)=>{ e.stopPropagation(); if(typeof editPreset === 'function') editPreset(pid); };
     tile.onclick = ()=>viewPresetContents(pid);
     grid.appendChild(tile);
     if(useCanvasPreview) window.scheduleCanvasDeckPreviewTile(tile, {hero, minis: displayCards});
   });
   body.appendChild(grid);
+  requestAnimationFrame(function(){
+    grid.querySelectorAll('.preset-browse-tile').forEach(function(tile){
+      const nameEl = tile.querySelector('.preset-name');
+      if(!nameEl || !window.getComputedStyle) return;
+      const lineHeight = parseFloat(getComputedStyle(nameEl).lineHeight) || nameEl.getBoundingClientRect().height || 1;
+      const lines = Math.max(1, Math.round(nameEl.getBoundingClientRect().height / lineHeight));
+      tile.classList.toggle('preset-title-single-line', lines <= 1);
+      tile.classList.toggle('preset-title-two-line', lines > 1);
+    });
+  });
 
   const footer = document.createElement('div');
   footer.style.display = 'flex';
@@ -1155,20 +1410,38 @@ function viewPresetContents(pid, returnMode='browser') {
   if(!preset) return;
   if(typeof resetModalChrome === 'function') resetModalChrome();
   // Group by unique card + count
+  const activeIds = preset.ids.filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id)));
   const counts = {};
-  preset.ids.filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id))).forEach(id=>{counts[id]=(counts[id]||0)+1;});
+  activeIds.forEach(id=>{counts[id]=(counts[id]||0)+1;});
   const entries = Object.entries(counts).map(([id,n])=>({card:CARDS.find(c=>c.id===id),count:n})).filter(e=>e.card);
+  const hero = preset.faceCardId
+    ? CARDS.find(c=>c.id===preset.faceCardId)
+    : ([...entries].map(e=>e.card).sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || entries[0]?.card || null);
 
   const body = document.createElement('div');
+  body.className = 'deck-inspect-view title-deck-inspect-view';
   body.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem;">
+    <div class="deck-inspect-topbar">
       <div>
-        <div style="font-family:'Cinzel',serif;color:var(--dim);font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;">${preset.theme}</div>
-        <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1.2rem;">${preset.name}</div>
+        <div class="deck-inspect-kicker">${escapeHtml(preset.theme || 'Custom')}</div>
+        <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
       </div>
-      <div style="color:var(--dim);font-size:.85rem;font-style:italic;max-width:60%;">${preset.description}</div>
     </div>
+    <div class="deck-inspect-summary">
+      <div class="deck-inspect-brief">
+        <p>${escapeHtml(preset.description || 'No description.')}</p>
+        <div class="deck-inspect-metrics">
+          <span><b>${activeIds.length}</b><em>Total Cards</em></span>
+          <span><b>${entries.length}</b><em>Unique Cards</em></span>
+          <span class="deck-inspect-theme-metric"><b>${escapeHtml(preset.theme || 'Custom')}</b><em>Theme</em></span>
+        </div>
+      </div>
+      ${hero?.img ? `<div class="deck-inspect-hero"><img src="${hero.img}" alt="${escapeHtml(hero.name)}"></div>` : ''}
+    </div>
+    <div class="deck-inspect-section-title">Deck Contents <span>${entries.length} unique cards</span></div>
     <div class="preset-view-grid"></div>`;
+  const inlineBack = body.querySelector('.deck-inspect-back-inline');
+  if(inlineBack) inlineBack.onclick = returnMode === 'overlay' ? closeModal : ()=>browsePresets(_presetBrowsePage);
   const grid = body.querySelector('.preset-view-grid');
   entries.sort((a,b)=>{
     // supporters first, then by cost
@@ -1199,7 +1472,7 @@ function viewPresetContents(pid, returnMode='browser') {
         <div class="mc-art">${c.img?`<img src="${c.img}" alt="${c.name}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
         <div class="visual-name">${c.name}</div>
         <div class="preset-card-count">x${count}</div>`;
-      el.onclick=()=>openCardDetail(c);
+      el.onclick=()=>openCardDetailFromDeckPreview(c, ()=>viewPresetContents(pid, returnMode));
       el.title='Click for details';
       grid.appendChild(el);
     });
@@ -1208,24 +1481,14 @@ function viewPresetContents(pid, returnMode='browser') {
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent = `${preset.name} - 40 Cards`;
   document.getElementById('modal-acts').innerHTML = '';
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('deck-inspect-compact-modal','title-deck-preview-modal');
 
   const back = document.createElement('button');
   back.className='btn sm';
-  back.textContent = returnMode === 'overlay' ? 'Back to Deck Preview' : 'Back to Presets';
+  back.textContent = 'Back';
   back.onclick = returnMode === 'overlay' ? closeModal : ()=>browsePresets(_presetBrowsePage);
-  const loadBtn = document.createElement('button');
-  loadBtn.className='btn sm pri';loadBtn.textContent='Load This Preset';
-  // Block loading during active game
-  const inGame = document.getElementById('s-game')?.classList.contains('active');
-  if(inGame){
-    loadBtn.disabled = true;
-    loadBtn.style.opacity = '.3';
-    loadBtn.title = 'Cannot load presets during a game';
-  } else {
-    loadBtn.onclick=()=>{loadPreset(pid);closeModal();};
-  }
   document.getElementById('modal-acts').appendChild(back);
-  document.getElementById('modal-acts').appendChild(loadBtn);
   document.getElementById('modal').classList.add('on');
 }
 

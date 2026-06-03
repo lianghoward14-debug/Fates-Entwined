@@ -1512,7 +1512,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
 
     let bonusFate = 0;
     tributes.forEach(t=>{
-      if(t.card.id==='47') bonusFate += 2;
+      if(t.card.id==='47') bonusFate += 3;
       discardBoardCard(t.card, t.z, t.r, t.c);
     });
 
@@ -2076,7 +2076,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       } break;
     case '45': // Chingachlook: placement restriction is enforced before setting.
       break;
-    case '47': // Great Oak Infantry: when used for consolidation, new card gains 2 Fate
+    case '47': // Great Oak Infantry: when used for consolidation, new card gains 3 Fate
       inst._greatOakBonus = true;
       break;
     case '52': { // Vigilantes: same-zone card-picker window
@@ -2546,8 +2546,8 @@ function getEffectiveFate(card, z) {
   // No dynamic recalculation — uses currentFate set at placement time
   let bonus = 0;
 
-  // 1st West Caribbea Marines (65): always gains 2 Fate (built-in bonus)
-  if(card.id==='65') bonus += 2;
+  // 1st West Caribbea Marines (65): always gains 3 Fate (built-in bonus)
+  if(card.id==='65') bonus += 3;
   // Greek Hoplite (63): +1 Fate per copy of self in same zone, including itself
   if(card.id==='63'){
     let copies = 0;

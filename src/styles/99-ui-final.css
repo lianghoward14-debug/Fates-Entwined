@@ -1699,9 +1699,9 @@
 /* v27: Revert v26 absolute pinning. Align My Decks / Challenger tile buttons with fixed content rows instead. */
 #modal-body .challenger-deck-browse-grid > .preset-browse-tile,
 #modal-body .my-presets-as-choose-deck > .preset-browse-tile{
-  height:500px!important;
-  min-height:500px!important;
-  max-height:500px!important;
+  height:360px!important;
+  min-height:360px!important;
+  max-height:360px!important;
   display:flex!important;
   flex-direction:column!important;
   overflow:hidden!important;
@@ -1803,9 +1803,9 @@
    This replaces the previous margin-nudging with explicit rows. */
 #modal-body .challenger-deck-browse-grid > .preset-browse-tile,
 #modal-body .my-presets-as-choose-deck > .preset-browse-tile{
-  height:500px!important;
-  min-height:500px!important;
-  max-height:500px!important;
+  height:360px!important;
+  min-height:360px!important;
+  max-height:360px!important;
 }
 #modal-body .challenger-deck-browse-grid .preset-tile-info,
 #modal-body .my-presets-as-choose-deck .preset-tile-info{
@@ -5414,18 +5414,19 @@ body.cinematic-lock #modal{
 
 #modal-body :is(.deck-pick-grid.my-presets-as-choose-deck,.challenger-deck-browse-grid,.online-room-deck-picker-body .deck-pick-grid){
   max-width:960px!important;
-  min-height:500px!important;
+  min-height:0!important;
+  grid-auto-rows:auto!important;
 }
 #modal-body :is(.deck-pick-grid.my-presets-as-choose-deck,.challenger-deck-browse-grid,.online-room-deck-picker-body .deck-pick-grid) > .preset-browse-tile{
-  height:500px!important;
-  min-height:500px!important;
-  max-height:500px!important;
-  grid-template-rows:176px minmax(0,1fr)!important;
+  height:360px!important;
+  min-height:360px!important;
+  max-height:360px!important;
+  grid-template-rows:132px minmax(0,1fr)!important;
 }
 #modal-body :is(.deck-pick-grid.my-presets-as-choose-deck,.challenger-deck-browse-grid,.online-room-deck-picker-body .deck-pick-grid) .preset-tile-art{
-  height:176px!important;
-  min-height:176px!important;
-  max-height:176px!important;
+  height:132px!important;
+  min-height:132px!important;
+  max-height:132px!important;
 }
 #modal-body :is(.deck-pick-grid.my-presets-as-choose-deck,.challenger-deck-browse-grid,.online-room-deck-picker-body .deck-pick-grid) .preset-tile-info{
   grid-template-rows:minmax(2.45em,auto) minmax(3.05em,3.25em) minmax(100px,1fr) 36px!important;
@@ -17630,6 +17631,35 @@ html.fate-canvas-board-mode #s-game #fate-board-canvas{
   contain:strict!important;
 }
 
+html.fate-canvas-board-mode #s-game #board,
+html.fate-canvas-board-mode #s-game #board .zone,
+html.fate-canvas-board-mode #s-game #board .zone-rows,
+html.fate-canvas-board-mode #s-game #board .brow,
+html.fate-canvas-board-mode #s-game #board .rcells,
+html.fate-canvas-board-mode #s-game #board .cell{
+  display:flex!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+html.fate-canvas-board-mode #s-game #board{
+  position:relative!important;
+  z-index:1!important;
+}
+
+html.fate-canvas-board-mode #s-game #board .zone{
+  position:relative!important;
+  z-index:1!important;
+}
+
+html.fate-canvas-board-mode #s-game #board .zone-rows{
+  flex-direction:column!important;
+}
+
+html.fate-canvas-board-mode #s-game #board .brow{
+  display:grid!important;
+}
+
 html.fate-canvas-board-mode #s-game #board .bc{
   background:transparent!important;
   border:0!important;
@@ -17652,14 +17682,14 @@ html.fate-canvas-board-mode #s-game #board .bc.sel{
 html.fate-canvas-board-mode #s-game #board .bc::before,
 html.fate-canvas-board-mode #s-game #board .bc::after,
 html.fate-canvas-board-mode #s-game #board .bc > *{
-  opacity:0!important;
-  visibility:hidden!important;
+  opacity:1!important;
+  visibility:visible!important;
   animation:none!important;
   transition:none!important;
 }
 
 html.fate-canvas-board-mode #s-game #board .bc img{
-  display:none!important;
+  display:block!important;
 }
 
 html.fate-canvas-board-mode #s-game #board .cell{
@@ -18073,9 +18103,9 @@ html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck{
   gap:.75rem!important;
 }
 html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{
-  min-height:480px!important;
-  height:480px!important;
-  max-height:480px!important;
+  min-height:360px!important;
+  height:360px!important;
+  max-height:360px!important;
 }
 
 /* Codex 2026-05-17d: final copy of consolidation bar/inlay fixes after older fallbacks. */
@@ -18345,9 +18375,9 @@ html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck{
   gap:.9rem!important;
 }
 html body #modal-body .challenger-deck-browse-grid.my-presets-as-choose-deck > .preset-browse-tile{
-  min-height:480px!important;
-  height:480px!important;
-  max-height:480px!important;
+  min-height:360px!important;
+  height:360px!important;
+  max-height:360px!important;
 }
 /* Codex 2026-05-17e: final final consolidation bar/inlay fixes after older fallbacks. */
 html body #s-game.is-consolidating .actbar{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:.48rem!important;padding:.34rem 1.85rem .34rem 1rem!important;overflow:hidden!important;}

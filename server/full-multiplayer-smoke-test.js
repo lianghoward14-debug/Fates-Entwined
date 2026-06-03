@@ -4,6 +4,8 @@
 const DB_URL = String(process.env.FATE_WS_SMOKE_DATABASE_URL || 'https://fates-entwined-41491-default-rtdb.firebaseio.com').replace(/\/+$/, '');
 const AUTHORITY_URL = process.env.FATE_WS_SMOKE_AUTHORITY_URL || 'wss://fates-entwined-main.fly.dev';
 const HEALTH_URL = process.env.FATE_WS_SMOKE_HEALTH_URL || 'https://fates-entwined-main.fly.dev/health';
+const FIREBASE_API_KEY = process.env.FATE_WS_SMOKE_API_KEY || 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
+const USE_ANON_AUTH = process.env.FATE_WS_SMOKE_USE_ANON === '1' || process.argv.includes('--anon');
 const HOST_TOKEN = process.env.FATE_WS_SMOKE_HOST_ID_TOKEN || '';
 const GUEST_TOKEN = process.env.FATE_WS_SMOKE_GUEST_ID_TOKEN || '';
 
@@ -48,6 +50,38 @@ async function firebaseRequest(method, path, token, body) {
   }
   if (json && json.error) throw new Error(`${method} ${path} rejected: ${json.error}`);
   return json;
+}
+
+async function identityToolkitRequest(endpoint, body) {
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/${endpoint}?key=${encodeURIComponent(FIREBASE_API_KEY)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch (_) {}
+  if (!res.ok || (json && json.error)) {
+    const message = json?.error?.message || text.slice(0, 240) || `HTTP ${res.status}`;
+    throw new Error(`Firebase Auth ${endpoint} failed: ${message}`);
+  }
+  return json || {};
+}
+
+async function createAnonymousAuthUser(label) {
+  const json = await identityToolkitRequest('accounts:signUp', { returnSecureToken: true });
+  if (!json.idToken || !json.localId) throw new Error(`anonymous ${label} auth response missing idToken/localId`);
+  return {
+    label,
+    uid: String(json.localId),
+    idToken: String(json.idToken)
+  };
+}
+
+async function deleteAuthUser(account) {
+  if (!account?.idToken) return false;
+  await identityToolkitRequest('accounts:delete', { idToken: account.idToken });
+  return true;
 }
 
 async function waitForMessage(client, predicate, label, timeoutMs = 6000) {
@@ -164,8 +198,18 @@ function playerNode(uid, role) {
 }
 
 async function run() {
-  const hostPayload = decodeToken(HOST_TOKEN, 'host');
-  const guestPayload = decodeToken(GUEST_TOKEN, 'guest');
+  const tempAuthUsers = [];
+  let hostToken = HOST_TOKEN;
+  let guestToken = GUEST_TOKEN;
+  if (USE_ANON_AUTH) {
+    const hostAccount = await createAnonymousAuthUser('host');
+    const guestAccount = await createAnonymousAuthUser('guest');
+    tempAuthUsers.push(hostAccount, guestAccount);
+    hostToken = hostAccount.idToken;
+    guestToken = guestAccount.idToken;
+  }
+  const hostPayload = decodeToken(hostToken, 'host');
+  const guestPayload = decodeToken(guestToken, 'guest');
   const hostUid = String(hostPayload.sub);
   const guestUid = String(guestPayload.sub);
   if (hostUid === guestUid) throw new Error('host and guest tokens must be from different Firebase users');
@@ -176,7 +220,7 @@ async function run() {
   let cleanupOk = false;
 
   try {
-    await firebaseRequest('PUT', `rooms/${roomCode}`, HOST_TOKEN, {
+    await firebaseRequest('PUT', `rooms/${roomCode}`, hostToken, {
       roomCode,
       mode: 'freeplay',
       status: 'lobby',
@@ -187,9 +231,9 @@ async function run() {
       lastActionSeq: 0,
       schemaVersion: 1
     });
-    await firebaseRequest('PUT', `rooms/${roomCode}/players/${hostUid}`, HOST_TOKEN, playerNode(hostUid, 'host'));
-    await firebaseRequest('PUT', `rooms/${roomCode}/guestUid`, GUEST_TOKEN, guestUid);
-    await firebaseRequest('PUT', `rooms/${roomCode}/players/${guestUid}`, GUEST_TOKEN, playerNode(guestUid, 'guest'));
+    await firebaseRequest('PUT', `rooms/${roomCode}/players/${hostUid}`, hostToken, playerNode(hostUid, 'host'));
+    await firebaseRequest('PUT', `rooms/${roomCode}/guestUid`, guestToken, guestUid);
+    await firebaseRequest('PUT', `rooms/${roomCode}/players/${guestUid}`, guestToken, playerNode(guestUid, 'guest'));
 
     const seed = `${roomCode}_${Date.now()}`;
     const startAction = {
@@ -208,7 +252,7 @@ async function run() {
       },
       createdAt: { '.sv': 'timestamp' }
     };
-    await firebaseRequest('PATCH', '/', HOST_TOKEN, {
+    await firebaseRequest('PATCH', '/', hostToken, {
       [`rooms/${roomCode}/status`]: 'matchup',
       [`rooms/${roomCode}/phase`]: 'matchup',
       [`rooms/${roomCode}/startedAt`]: { '.sv': 'timestamp' },
@@ -222,9 +266,9 @@ async function run() {
       [`rooms/${roomCode}/actions/000001`]: startAction
     });
 
-    const room = await firebaseRequest('GET', `rooms/${roomCode}`, HOST_TOKEN);
-    const hostClient = await createWsClient(hostUid, HOST_TOKEN, roomCode, room);
-    const guestClient = await createWsClient(guestUid, GUEST_TOKEN, roomCode, room);
+    const room = await firebaseRequest('GET', `rooms/${roomCode}`, hostToken);
+    const hostClient = await createWsClient(hostUid, hostToken, roomCode, room);
+    const guestClient = await createWsClient(guestUid, guestToken, roomCode, room);
     clients.push(hostClient, guestClient);
 
     const hostPlaceId = sendIntent(hostClient, roomCode, 'CLICK_CELL', actionPayload(0, 'host-place-card', {
@@ -235,13 +279,13 @@ async function run() {
       selectedHand: { id: '05', iid: 'host-card-1' }
     }));
     const hostPlace = await expectAccepted(hostClient, hostPlaceId, 'CLICK_CELL', 2);
-    await persistAccepted(roomCode, HOST_TOKEN, hostPlace);
+    await persistAccepted(roomCode, hostToken, hostPlace);
 
     const hostEndId = sendIntent(hostClient, roomCode, 'END_TURN', actionPayload(0, 'host-end-turn', {
       nextCurrentPlayer: 1
     }));
     const hostEnd = await expectAccepted(hostClient, hostEndId, 'END_TURN', 3);
-    await persistAccepted(roomCode, HOST_TOKEN, hostEnd);
+    await persistAccepted(roomCode, hostToken, hostEnd);
 
     const guestPlaceId = sendIntent(guestClient, roomCode, 'CLICK_CELL', actionPayload(1, 'guest-place-card', {
       z: 0,
@@ -251,14 +295,23 @@ async function run() {
       selectedHand: { id: '31', iid: 'guest-card-1' }
     }));
     const guestPlace = await expectAccepted(guestClient, guestPlaceId, 'CLICK_CELL', 4);
-    await persistAccepted(roomCode, GUEST_TOKEN, guestPlace);
+    await persistAccepted(roomCode, guestToken, guestPlace);
 
-    const finalRoom = await firebaseRequest('GET', `rooms/${roomCode}`, HOST_TOKEN);
-    if (Number(finalRoom.lastActionSeq) !== 4) throw new Error(`expected Firebase lastActionSeq 4, got ${finalRoom.lastActionSeq}`);
-    if (!finalRoom.actions || !finalRoom.actions['000004']) throw new Error('Firebase action 000004 missing');
+    const guestForfeitId = sendIntent(guestClient, roomCode, 'FORFEIT', {
+      clientActionId: `full-smoke:guest-forfeit:${Date.now()}`
+    });
+    const guestForfeit = await expectAccepted(guestClient, guestForfeitId, 'FORFEIT', 5);
+    await persistAccepted(roomCode, guestToken, guestForfeit);
+
+    const finalRoom = await firebaseRequest('GET', `rooms/${roomCode}`, hostToken);
+    if (Number(finalRoom.lastActionSeq) !== 5) throw new Error(`expected Firebase lastActionSeq 5, got ${finalRoom.lastActionSeq}`);
+    if (!finalRoom.actions || !finalRoom.actions['000005']) throw new Error('Firebase action 000005 missing');
+    if (finalRoom.status !== 'ended') throw new Error(`expected room status ended, got ${finalRoom.status}`);
+    if (finalRoom.phase !== 'ended') throw new Error(`expected room phase ended, got ${finalRoom.phase}`);
 
     console.log(JSON.stringify({
       ok: true,
+      authMode: USE_ANON_AUTH ? 'temporary-anonymous-firebase-users' : 'provided-id-tokens',
       authorityUrl: AUTHORITY_URL,
       health,
       roomCode,
@@ -269,11 +322,16 @@ async function run() {
         'MATCH_START action persisted',
         'host CLICK_CELL accepted and persisted',
         'host END_TURN accepted and persisted',
-        'guest CLICK_CELL accepted and persisted'
+        'guest CLICK_CELL accepted and persisted',
+        'guest FORFEIT accepted and persisted'
       ],
       final: {
         lastActionSeq: finalRoom.lastActionSeq,
         currentTurnUid: finalRoom.currentTurnUid,
+        status: finalRoom.status,
+        phase: finalRoom.phase,
+        endedBy: finalRoom.endedBy || null,
+        endReason: finalRoom.endReason || null,
         actionKeys: Object.keys(finalRoom.actions || {}).sort()
       }
     }, null, 2));
@@ -282,10 +340,16 @@ async function run() {
       try { client.ws.close(); } catch (_) {}
     });
     try {
-      await firebaseRequest('DELETE', `rooms/${roomCode}`, HOST_TOKEN);
+      await firebaseRequest('DELETE', `rooms/${roomCode}`, hostToken);
       cleanupOk = true;
     } catch (err) {
       console.error(`cleanup failed for room ${roomCode}: ${err.message}`);
+    }
+    for (const account of tempAuthUsers) {
+      await deleteAuthUser(account).catch(err => {
+        console.error(`auth cleanup failed for ${account.label}/${account.uid}: ${err.message}`);
+        cleanupOk = false;
+      });
     }
     if (!cleanupOk) process.exitCode = process.exitCode || 1;
   }

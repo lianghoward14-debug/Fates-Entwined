@@ -3,6 +3,15 @@
 (function(){
   const imageCache = new Map();
 
+  function isEnhancedVisualFxOn() {
+    try {
+      if(typeof window.isEnhancedVisualFxEnabled === 'function') return window.isEnhancedVisualFxEnabled();
+      return document.documentElement.classList.contains('fate-enhanced-fx');
+    } catch(e) {
+      return false;
+    }
+  }
+
   function getImage(src, redraw) {
     if(!src) return null;
     let img = imageCache.get(src);
@@ -177,8 +186,9 @@
     const state = { hoveredIndex:-1, redraw:null };
     let rects = [];
     let resizeTimer = 0;
-    let sheenRaf = 0;
-    const hasStarSheen = false;
+    const useStarSheen = isEnhancedVisualFxOn() && entries.some(function(entry){
+      return entry && entry.card && entry.card.rarity === 'star';
+    });
 
     function computeLayout() {
       const cs = getComputedStyle(container);
@@ -200,7 +210,7 @@
       sheenLayer.innerHTML = '';
       rects.forEach(function(rect, i){
         const entry = entries[i];
-        if(entry && entry.card && entry.card.rarity === 'star') {
+        if(useStarSheen && entry && entry.card && entry.card.rarity === 'star') {
           const sheen = document.createElement('span');
           sheen.className = 'canvas-card-grid-sheen';
           const sweep = document.createElement('span');
@@ -259,26 +269,16 @@
       sheenLayer.style.height = layout.height + 'px';
     }
 
+    let sheenFirstPaintDone = false;
     function forceSheenFirstPaint() {
-      if(!sheenLayer || !sheenLayer.childElementCount || !wrap.isConnected) return;
+      if(!useStarSheen || sheenFirstPaintDone || !sheenLayer || !sheenLayer.childElementCount || !wrap.isConnected) return;
+      sheenFirstPaintDone = true;
       sheenLayer.style.transform = 'translateZ(0)';
-      sheenLayer.style.willChange = 'transform, opacity';
-      sheenLayer.style.opacity = '0.999';
-      sheenLayer.querySelectorAll('.canvas-card-grid-sheen-sweep').forEach(function(sweep){
-        sweep.style.animation = 'none';
-        void sweep.offsetWidth;
-        sweep.style.animation = '';
-      });
-      void sheenLayer.offsetHeight;
+      sheenLayer.style.willChange = 'opacity';
       if(typeof requestAnimationFrame === 'function') {
         requestAnimationFrame(function(){
           if(!sheenLayer.isConnected) return;
           sheenLayer.style.opacity = '1';
-          sheenLayer.querySelectorAll('.canvas-card-grid-sheen-sweep').forEach(function(sweep){
-            sweep.style.animation = 'none';
-            void sweep.offsetWidth;
-            sweep.style.animation = '';
-          });
         });
       } else {
         sheenLayer.style.opacity = '1';
@@ -323,19 +323,9 @@
     draw();
     const repaintAfterImageWarmup = function(){ draw(true); forceSheenFirstPaint(); };
     if(typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(function(){ repaintAfterImageWarmup(); requestAnimationFrame(repaintAfterImageWarmup); });
+      requestAnimationFrame(repaintAfterImageWarmup);
     }
-    [60, 180, 420, 900].forEach(function(ms){ setTimeout(repaintAfterImageWarmup, ms); });
-    function animateSheen() {
-      if(!hasStarSheen) return;
-      if(!wrap.isConnected || !container.__fateCanvasGridState || container.__fateCanvasGridState.draw !== draw) {
-        sheenRaf = 0;
-        return;
-      }
-      draw(false);
-      sheenRaf = requestAnimationFrame(animateSheen);
-    }
-    if(hasStarSheen) sheenRaf = requestAnimationFrame(animateSheen);
+    [180, 640].forEach(function(ms){ setTimeout(repaintAfterImageWarmup, ms); });
 
     if(typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(function(){

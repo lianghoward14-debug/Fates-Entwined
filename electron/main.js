@@ -83,6 +83,7 @@ function startStaticServer() {
 }
 
 function applyPerformanceSwitches() {
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
   app.commandLine.appendSwitch('disable-background-timer-throttling');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -133,8 +134,8 @@ async function createWindow() {
   const sharedPartition = webPrefs.partition || null;
   const win = new BrowserWindow({
     title: APP_NAME,
-    width: 1440,
-    height: 900,
+    width: 1920,
+    height: 1080,
     minWidth: 1024,
     minHeight: 640,
     fullscreen: true,

@@ -1847,7 +1847,8 @@ function resetModalChrome() {
       'online-profile-modal-v19',
       'title-profile-modal',
       'inspected-profile-modal-stable',
-      'title-my-decks-modal'
+      'title-my-decks-modal',
+      'daily-login-modal'
     );
     modalBox.removeAttribute('style');
   }
@@ -2067,7 +2068,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const maxCount = opts.maxCount || 1;
   const minCount = opts.minCount || 0;
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
-  const CARDS_PER_PAGE = 15;
+  const CARDS_PER_PAGE = 8;
   let selected=[];
   let page = 0;
   const totalPages = Math.ceil(cards.length / CARDS_PER_PAGE);
@@ -2162,7 +2163,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
   document.getElementById('modal').classList.add('on');
   // Wider modal for card picker
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.style.maxWidth = '680px';
+  if(modalBox) {
+    modalBox.classList.add('visual-card-picker-modal');
+    modalBox.style.maxWidth = '780px';
+  }
 }
 
 function searchDeckForType(player, type, prompt, maxCount=1) {

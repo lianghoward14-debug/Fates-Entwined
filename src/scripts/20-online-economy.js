@@ -11,12 +11,17 @@
   let publicDecksPage = 0;
   let marketplaceTxPage = 0;
   let sellCardPage = 0;
+  let shareDeckPage = 0;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function user(){ return window.FATE_ONLINE?.user || null; }
   function profile(){ return window.FATE_ONLINE?.profile || {}; }
   function starlightIcon(){ return typeof STARLIGHT_ICON !== 'undefined' ? STARLIGHT_ICON : '<span style="color:#ffd700;">*</span>'; }
   function cardById(id){ return (typeof CARDS !== 'undefined' ? CARDS : []).find(c=>c.id===id); }
+  function rarityLabel(rarity){
+    const raw = String(rarity || 'card').trim();
+    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Card';
+  }
   function profileName(){
     const p = profile();
     return p.chosenUsername || p.displayName || p.username || USER_PROFILE?.username || 'Player';
@@ -178,9 +183,19 @@
       status:'active',
       createdAt:FO.serverTimestamp()
     };
-    await FO.set(listing, payload);
+    try{
+      await FO.set(listing, payload);
+    }catch(err){
+      addOwned(cardId, 1);
+      if(typeof saveProfile === 'function') saveProfile();
+      throw err;
+    }
+    const localListing = { ...payload, listingId:listing.key, createdAt:Date.now() };
+    marketplaceListings = [localListing, ...marketplaceListings.filter(l=>l.listingId !== listing.key)];
+    window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
     if(typeof saveProfile === 'function') saveProfile();
     if(window.toast) toast(`${c.name} listed for ${payload.price} Starlight`);
+    try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){}
     updateMarketplaceRedeemButton();
     return listing.key;
   }
@@ -205,7 +220,7 @@
         <div class="market-listing-thumb" style="border-color:${rarityColor};">${c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : ''}</div>
         <div class="market-listing-copy">
           <div class="market-listing-name">${esc(c.name)}</div>
-          <div class="market-listing-meta">${esc(c.rarity || '')} - ${esc(l.seller || 'Player')}</div>
+          <div class="market-listing-meta">${esc(rarityLabel(c.rarity))} - ${esc(l.seller || 'Player')}</div>
         </div>
         <div class="market-listing-actions">
           <div class="market-listing-price">${starlightIcon()} ${Number(l.price || 0)}</div>
@@ -224,7 +239,7 @@
       .map(([id,count])=>({ id, count:Number(count)||0, card:cardById(id) }))
       .filter(x=>x.card)
       .sort((a,b)=>String(a.card.name || '').localeCompare(String(b.card.name || '')));
-    const pageSize = 15;
+    const pageSize = 12;
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     sellCardPage = Math.max(0, Math.min(Number(page) || 0, totalPages - 1));
     const pageItems = sorted.slice(sellCardPage * pageSize, sellCardPage * pageSize + pageSize);
@@ -233,17 +248,20 @@
         <div class="sell-card-kicker">Marketplace Listing</div>
         <div class="sell-card-heading">Choose a Card to Sell</div>
         <div class="sell-card-note">Pick one owned card. It leaves your collection while listed and returns if you cancel before it sells.</div>
-        <button class="btn sm sell-card-close" type="button" onclick="closeModal()">Close</button>
       </div>
+      <button class="btn sm sell-card-close" type="button" onclick="closeModal()">Close</button>
       <div class="sell-card-grid">`;
     pageItems.forEach(({id,count,card:c})=>{
       const rarityColor = (typeof RARITY_COLOR !== 'undefined' && RARITY_COLOR[c.rarity]) || 'var(--border)';
       html += `<button class="sell-card-pick" type="button" onclick="listCardForSale('${esc(id)}')" style="--rarity-color:${rarityColor};">
         <div class="sell-card-thumb" style="border-color:${rarityColor};">${c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : ''}</div>
         <div class="sell-card-pick-name">${esc(c.name)}</div>
-        <div class="sell-card-pick-meta">${esc(c.rarity || 'card')} &times;${Number(count)}</div>
+        <div class="sell-card-pick-meta">${esc(rarityLabel(c.rarity))} &times;${Number(count)}</div>
       </button>`;
     });
+    for(let i=pageItems.length; i<pageSize; i++){
+      html += '<span class="sell-card-pick sell-card-pick-placeholder" aria-hidden="true"></span>';
+    }
     html += `</div>
       <div class="sell-card-pager">
         <button class="btn sm" onclick="openSellCardModal(${sellCardPage-1})" ${sellCardPage<=0?'disabled':''}>Prev</button>
@@ -267,7 +285,7 @@
           <div class="market-list-card-copy">
             <div class="market-list-kicker">Marketplace Listing</div>
             <div class="market-list-name">${esc(c.name)}</div>
-            <div class="market-list-meta">${esc(c.type || '')} - ${esc(c.rarity || '')}</div>
+            <div class="market-list-meta">${esc(c.type || '')} - ${esc(rarityLabel(c.rarity))}</div>
             <div class="market-list-note">Set a Starlight price. The card leaves your collection while listed and returns if you cancel.</div>
           </div>
         </div>
@@ -276,11 +294,30 @@
           <div class="market-price-input-wrap"><input type="number" id="sell-price" min="10" max="10000" step="5" value="100"><span>Starlight</span></div>
         </label>
       </div>`,
-      [{label:'List Card', pri:true, action:async()=>{
+      [{label:'List Card', pri:true, action:async(e)=>{
         const price = parseInt(document.getElementById('sell-price')?.value, 10) || 100;
-        await listMarketplaceCard(cardId, price).catch(e=>{ console.error('List card failed', e); if(window.toast) toast('Could not list card'); });
-        closeModal();
-        if(typeof switchChTab === 'function') switchChTab('store');
+        const btn = e && e.currentTarget;
+        if(btn){
+          btn.disabled = true;
+          btn.textContent = 'Listing...';
+        }
+        const listingId = await listMarketplaceCard(cardId, price).catch(err=>{
+          console.error('List card failed', err);
+          if(window.toast) toast('Could not list card');
+          return null;
+        });
+        if(!listingId){
+          if(btn){
+            btn.disabled = false;
+            btn.textContent = 'List Card';
+          }
+          return;
+        }
+        if(btn) btn.textContent = 'Listed!';
+        setTimeout(function(){
+          closeModal();
+          if(typeof switchChTab === 'function') switchChTab('store');
+        }, 900);
       }},{label:'Cancel', action:closeModal}]
     );
     const modalBox = document.querySelector('#modal .modal');
@@ -321,7 +358,7 @@
         <div class="market-purchase-copy">
           <div class="market-purchase-kicker">Marketplace Acquisition</div>
           <div class="market-purchase-name">${esc(card.name)}</div>
-          <div class="market-purchase-meta">${esc(card.rarity || 'card')} &middot; ${starlightIcon()} ${Number(price || 0)} Starlight</div>
+          <div class="market-purchase-meta">${esc(rarityLabel(card.rarity))} &middot; ${starlightIcon()} ${Number(price || 0)} Starlight</div>
           <div class="market-purchase-note">The card has been added to your collection and is ready for deck building.</div>
         </div>
       </div>`,
@@ -494,7 +531,9 @@
           <span><b>${sorted.length}</b><em>Decks</em></span>
           <span><b>${totalRatings}</b><em>Ratings</em></span>
         </div>
-        <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
+        <div class="pd-hub-hero-actions">
+          <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
+        </div>
       </section>`;
     if(!sorted.length){
       html += `<div class="pd-empty-state">
@@ -533,7 +572,7 @@
     }
     html += '</div>';
     document.getElementById('modal-body').innerHTML = html;
-    document.getElementById('modal-title').textContent = 'Public Decks';
+    document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
     const close = document.createElement('button');
     close.className = 'btn sm';
@@ -548,20 +587,20 @@
   window.viewPublicDeck = function viewPublicDeck(id){
     const d = publicDeckById(id);
     if(!d) return;
+    if(typeof resetModalChrome === 'function') resetModalChrome();
     const counts = {};
     (d.ids || []).forEach(cardId=>{ counts[cardId] = (counts[cardId] || 0) + 1; });
     const uniqueCards = Object.entries(counts).map(([cardId,count])=>({card:cardById(cardId), count})).filter(x=>x.card);
     uniqueCards.sort((a,b)=>(a.card.type === 'Supporter' ? 0 : 1) - (b.card.type === 'Supporter' ? 0 : 1) || (a.card.cost||0)-(b.card.cost||0));
     const rating = avgRating(d);
     const faceCard = d.faceCardId ? cardById(d.faceCardId) : (uniqueCards[0]?.card || null);
-    const own = ownsPublicDeck(d);
-    let html = `<div class="pd-detail-v3">
+    const ownDeck = ownsPublicDeck(d);
+    let html = `<div class="pd-detail-v3 no-preview-back">
       <div class="pd-detail-top">
-        <button class="btn sm" onclick="showPublicDecks()">Back</button>
         <div class="pd-detail-actions">
-          <button class="btn sm pri" onclick="loadPublicDeck('${esc(d.id)}')" ${(function(){try{return Object.values(PRESET_DECKS||{}).some(function(p){return p._importedFromPublicId===d.id;})?'disabled style="opacity:.5"':'';}catch(e){return '';}})()}>${(function(){try{return Object.values(PRESET_DECKS||{}).some(function(p){return p._importedFromPublicId===d.id;})?'Already Imported':'Import';}catch(e){return 'Import';}})()}</button>
-          <button class="btn sm" onclick="viewPublicDeckComments('${esc(d.id)}')">Rate &amp; Discuss</button>
-          ${own ? `<button class="btn sm danger" onclick="deletePublicDeck('${esc(d.id)}')">Remove</button>` : ''}
+          <button class="btn sm" type="button" onclick="loadPublicDeck('${esc(id)}')">Import</button>
+          <button class="btn sm" type="button" onclick="rateDeck('${esc(id)}')">Rate Deck</button>
+          ${ownDeck ? `<button class="btn sm danger" type="button" onclick="deletePublicDeck('${esc(id)}')">Remove</button>` : ''}
         </div>
       </div>
       <section class="pd-detail-hero">
@@ -599,9 +638,10 @@
       window.renderCanvasImage(canvas, faceCard.img, {mode:'cover', parent:poster, background:'transparent', maxDpr:4, cropY:.08});
     }
     const contentsGrid = document.querySelector('#modal-body .pd-detail-card-grid');
+    if(contentsGrid) contentsGrid.classList.toggle('deck-preview-scroll-extra-row', uniqueCards.length >= 15);
     if(contentsGrid && typeof window.renderCanvasDeckCollection === 'function') {
-      contentsGrid.style.setProperty('--dbcw', '78px');
-      contentsGrid.style.setProperty('--dbch', '109px');
+      contentsGrid.style.setProperty('--dbcw', '96px');
+      contentsGrid.style.setProperty('--dbch', '135px');
       window.renderCanvasDeckCollection(contentsGrid, uniqueCards.map(({card,count})=>({
         card,
         count: 0,
@@ -627,6 +667,12 @@
     }
     document.getElementById('modal-title').textContent = 'Deck Preview';
     document.getElementById('modal-acts').innerHTML = '';
+    const acts = document.getElementById('modal-acts');
+    const back = document.createElement('button');
+    back.className = 'btn sm';
+    back.textContent = 'Back';
+    back.onclick = function(){ showPublicDecks(publicDecksPage); };
+    acts.appendChild(back);
     const modalBox = document.querySelector('#modal .modal');
     if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-preview-modal');
     document.querySelectorAll('#modal-body .pd-card-click[data-card-id]').forEach(el=>{
@@ -670,6 +716,13 @@
     const myRating = u ? ratings[u.uid] : null;
     const ratingAvg = avgRating(d);
     const ratingCount = Object.keys(ratings).length;
+    const deckDesc = d.description || 'Custom deck';
+    const uniqueCount = new Set(d.ids || []).size;
+    const faceCard = d.faceCardId ? cardById(d.faceCardId) : cardById((d.ids || [])[0]);
+    /* Codex 2026-06-03: reversible rate banner card-art slot. Remove rd-rating-art markup to revert. */
+    const rateArtHtml = faceCard && faceCard.img
+      ? '<img src="' + esc(faceCard.img) + '" alt="' + esc(faceCard.name || d.name || 'Deck art') + '" onerror="this.parentElement.style.display=\'none\'">'
+      : '<span>Deck</span>';
     const starHtml = [1,2,3,4,5].map(function(n){
       const filled = myRating && myRating.stars >= n;
       return '<span class="rd-star' + (filled ? ' rd-star-filled' : '') + '" onclick="submitRating(\'' + esc(id) + '\',' + n + ')">&starf;</span>';
@@ -680,22 +733,33 @@
         }).join('')
       : '<div class="rd-empty">No comments yet. Be the first!</div>';
     const html = '<div class="rd-window">'
+      + '<div class="rd-window-top"></div>'
+      + '<div class="rd-compact-head"><span>Rate &amp; Discuss</span><em>' + esc(d.name || 'Shared Deck') + '</em></div>'
       + '<section class="rd-rating-section">'
-      +   '<div class="rd-rating-label">Your Rating</div>'
-      +   '<div class="rd-stars">' + starHtml + '</div>'
-      +   '<div class="rd-rating-summary">' + ratingAvg.toFixed(1) + ' avg &middot; ' + ratingCount + ' vote' + (ratingCount !== 1 ? 's' : '') + '</div>'
+      +   '<div class="rd-rating-art">' + rateArtHtml + '</div>'
+      +   '<div class="rd-rating-copy">'
+      +     '<div class="rd-kicker">Rate &amp; Review</div>'
+      +     '<h2>' + esc(d.name || 'Shared Deck') + '</h2>'
+      +     '<p>' + esc(deckDesc) + '</p>'
+      +     '<div class="rd-deck-meta"><span>' + uniqueCount + ' unique cards</span><span>' + (d.ids || []).length + ' total cards</span></div>'
+      +   '</div>'
+      +   '<div class="rd-rating-controls">'
+      +     '<div class="rd-rating-score"><b>' + ratingAvg.toFixed(1) + '</b><span>average</span><em>' + ratingCount + ' vote' + (ratingCount !== 1 ? 's' : '') + '</em></div>'
+      +     '<div class="rd-rating-label">Your Rating</div>'
+      +     '<div class="rd-stars">' + starHtml + '</div>'
+      +   '</div>'
       + '</section>'
       + '<section class="rd-comments-section">'
-      +   '<div class="rd-section-label">Discussion</div>'
+      +   '<div class="rd-section-head"><div><span class="rd-kicker">Community Notes</span><div class="rd-section-label">Discussion</div></div><span>' + comments.length + ' comment' + (comments.length !== 1 ? 's' : '') + '</span></div>'
       +   '<div class="rd-comment-list">' + commentsHtml + '</div>'
       + '</section>'
       + '<div class="rd-compose">'
       +   '<input id="pd-comment-inp" type="text" class="rd-input" placeholder="Add a comment..." maxlength="240">'
-      +   '<button class="btn sm pri" onclick="postComment(\'' + esc(id) + '\')">Post</button>'
+      +   '<button class="btn sm pri rd-post-btn" onclick="postComment(\'' + esc(id) + '\')">Post</button>'
       + '</div>'
       + '</div>';
     document.getElementById('modal-body').innerHTML = html;
-    document.getElementById('modal-title').textContent = esc(d.name || 'Shared Deck');
+    document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
     const back = document.createElement('button');
     back.className = 'btn sm'; back.textContent = 'Back to Deck';
@@ -748,7 +812,7 @@
     const inCommentWindow = !!document.querySelector('#modal .public-deck-comments-modal');
     setTimeout(()=>inCommentWindow ? viewPublicDeckComments(id) : viewPublicDeck(id), 150);
   };
-  window.openShareDeckFlow = function openShareDeckFlow(){
+  window.openShareDeckFlow = function openShareDeckFlow(page=shareDeckPage){
     var allKeys = Object.keys(PRESET_DECKS || {});
     var starterSigs = new Set((Array.isArray(window.STARTER_DECKS) ? window.STARTER_DECKS : (typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : []))
       .map(function(deck){ return JSON.stringify(deck?.ids || []); }));
@@ -757,12 +821,22 @@
     };
     var keys = allKeys.filter(function(pid){ return !isStarter(pid, PRESET_DECKS?.[pid]); });
     if(!keys.length){ if(window.toast) toast(allKeys.length ? 'Create a custom preset first' : 'Create a preset first'); return; }
+    var pageSize = 6;
+    var totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
+    shareDeckPage = Math.max(0, Math.min(Number(page) || 0, totalPages - 1));
+    var pageKeys = keys.slice(shareDeckPage * pageSize, shareDeckPage * pageSize + pageSize);
     if(typeof resetModalChrome === 'function') resetModalChrome();
     var container = document.createElement('div');
     container.className = 'sd-flow';
+    var topbar = document.createElement('div');
+    topbar.className = 'sd-topbar';
+    topbar.innerHTML = '<div><div class="share-deck-kicker">Community Library</div><h2>Share a Deck</h2></div><button class="btn sm" type="button">Back</button>';
+    var topbarBack = topbar.querySelector('button');
+    if(topbarBack) topbarBack.onclick = function(){ showPublicDecks(publicDecksPage); };
+    container.appendChild(topbar);
     var grid = document.createElement('div');
     grid.className = 'sd-grid';
-    keys.forEach(function(pid){
+    pageKeys.forEach(function(pid){
       var p = PRESET_DECKS[pid];
       var ok = p.ids && p.ids.length === 40;
       var sampleIds = Array.from(new Set(p.ids || []));
@@ -788,36 +862,64 @@
         + '</div>';
       if(ok){
         var btn = tile.querySelector('.sd-publish-btn');
-        if(btn) btn.onclick = (function(p2){ return function(e){ e.stopPropagation(); shareDeck(p2); }; })(pid);
-        tile.onclick = (function(p2){ return function(){ shareDeck(p2); }; })(pid);
+        if(btn) btn.onclick = (function(p2){ return function(e){ e.preventDefault(); e.stopPropagation(); window.shareDeck(p2, e.currentTarget); }; })(pid);
+        tile.onclick = (function(p2, tileEl){ return function(e){ if(e && e.target && e.target.closest && e.target.closest('button')) return; window.shareDeck(p2, tileEl.querySelector('.sd-publish-btn')); }; })(pid, tile);
         tile.style.cursor = 'pointer';
       }
       grid.appendChild(tile);
     });
+    for(var i=pageKeys.length; i<pageSize; i++){
+      var ph = document.createElement('div');
+      ph.className = 'sd-tile sd-placeholder';
+      ph.setAttribute('aria-hidden','true');
+      grid.appendChild(ph);
+    }
     container.appendChild(grid);
+    var pager = document.createElement('div');
+    pager.className = 'sd-pager';
+    pager.innerHTML = '<button class="btn sm" type="button" ' + (shareDeckPage<=0?'disabled':'') + '>Prev</button>'
+      + '<span>Page ' + (shareDeckPage + 1) + ' / ' + totalPages + ' &middot; ' + keys.length + ' decks</span>'
+      + '<button class="btn sm" type="button" ' + (shareDeckPage>=totalPages-1?'disabled':'') + '>Next</button>';
+    var pagerBtns = pager.querySelectorAll('button');
+    if(pagerBtns[0]) pagerBtns[0].onclick = function(){ openShareDeckFlow(shareDeckPage - 1); };
+    if(pagerBtns[1]) pagerBtns[1].onclick = function(){ openShareDeckFlow(shareDeckPage + 1); };
+    container.appendChild(pager);
     document.getElementById('modal-body').innerHTML = '';
     document.getElementById('modal-body').appendChild(container);
-    document.getElementById('modal-title').textContent = 'Share a Deck';
+    document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
-    var back = document.createElement('button'); back.className = 'btn sm'; back.textContent = 'Back';
-    back.onclick = function(){ showPublicDecks(publicDecksPage); };
-    document.getElementById('modal-acts').appendChild(back);
     var modalBox = document.querySelector('#modal .modal');
     if(modalBox) modalBox.classList.add('public-decks-modal','share-deck-modal');
     document.getElementById('modal').classList.add('on');
   };
-  window.shareDeck = async function shareDeck(pid){
+  window.shareDeck = async function shareDeck(pid, trigger){
     const p = PRESET_DECKS?.[pid];
     if(!p) return;
-    await publishDeck({
-      sourcePid:pid,
-      name:p.name,
-      description:p.description || '',
-      ids:[...(p.ids || [])],
-      faceCardId:p.faceCardId || '',
-      displayCardIds:p.displayCardIds || [],
-      timestamp:Date.now()
-    }).catch(e=>{ console.error('Publish deck failed', e); if(window.toast) toast('Could not share deck'); });
+    if(trigger){
+      trigger.disabled = true;
+      trigger.textContent = 'Publishing...';
+    }
+    let deckId = null;
+    try{
+      deckId = await publishDeck({
+        sourcePid:pid,
+        name:p.name,
+        description:p.description || '',
+        ids:[...(p.ids || [])],
+        faceCardId:p.faceCardId || '',
+        displayCardIds:p.displayCardIds || [],
+        timestamp:Date.now()
+      });
+    }catch(e){
+      console.error('Publish deck failed', e);
+      if(window.toast) toast('Could not share deck');
+    }
+    if(!deckId && trigger){
+      trigger.disabled = false;
+      trigger.textContent = 'Publish';
+    }
+    if(!deckId) return;
+    if(trigger) trigger.textContent = 'Published!';
     showPublicDecks(publicDecksPage);
   };
 

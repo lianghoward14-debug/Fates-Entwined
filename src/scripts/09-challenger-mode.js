@@ -564,6 +564,51 @@ const AI_ONLY_RANDOM_DECKS = [
       '68','60','60','60','32','32','32','05','05','05',
       '58','58','58','75','75','75','69','69','59','59'
     ]
+  },
+  {
+    id: 'ai_fat_jake',
+    baseStrategy: 'ai_fat_jake',
+    name: 'Fat Jake',
+    description: 'AI-only Jake deck copied from the posted preview. It feeds Jake with supporter density, draw, recursion and broad set pressure.',
+    theme: 'Custom',
+    faceCardId: '38',
+    displayCardIds: ['38','25','28','32','58','75','76'],
+    ids: [
+      '25','25','28','28','32','32','32','44','44','44',
+      '47','47','47','58','58','58','60','60','60','75',
+      '75','75','76','76','76','05','05','05','13','13',
+      '13','27','27','27','06','06','03','38','38','38'
+    ]
+  },
+  {
+    id: 'ai_hand_leech',
+    baseStrategy: 'ai_hand_leech',
+    name: 'Hand Leech',
+    description: 'AI-only hand disruption deck copied from the posted preview. It stacks reveal, discard and steal effects behind sturdy supporter setup.',
+    theme: 'Custom',
+    faceCardId: '14',
+    displayCardIds: ['14','16','20','72','75','61','06'],
+    ids: [
+      '16','16','16','20','28','28','32','32','32','58',
+      '58','58','60','60','60','71','71','71','72','72',
+      '72','75','75','75','05','05','05','09','09','09',
+      '06','06','06','56','61','61','61','14','14','14'
+    ]
+  },
+  {
+    id: 'ai_movement',
+    baseStrategy: 'ai_movement',
+    name: 'Movement',
+    description: 'AI-only movement deck copied from the posted preview. It leans on Busser, Expeditionary and Juan Carlos to keep cards shifting into better squares.',
+    theme: 'Custom',
+    faceCardId: '39',
+    displayCardIds: ['39','25','28','69','73','27','15'],
+    ids: [
+      '25','25','28','28','31','31','32','32','32','60',
+      '60','60','69','69','69','70','70','70','73','73',
+      '73','05','05','05','27','27','27','13','13','13',
+      '06','06','06','15','15','15','39','39','39','03'
+    ]
   }
 ];
 
@@ -571,7 +616,7 @@ function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
   const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [];
   if(!advancedPool.length) return starterPool;
-  const protectedRanks = new Set(['Footman','Captain']);
+  const protectedRanks = new Set(['Footman']);
   if(opp && protectedRanks.has(opp.rank)) return starterPool;
   return advancedPool;
 }
@@ -943,6 +988,34 @@ function getOrderedDeckPickKeysForCurrentMode() {
   return Object.keys(presets).sort((a,b)=>String(presets[a]?.name || a).localeCompare(String(presets[b]?.name || b)));
 }
 
+function markPresetTitleLineClasses(container) {
+  if(!container) return;
+  requestAnimationFrame(function(){
+    container.querySelectorAll('.preset-browse-tile, .preset-card').forEach(function(tile){
+      const nameEl = tile.querySelector('.preset-name');
+      if(!nameEl || !window.getComputedStyle) return;
+      let lines = 1;
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(nameEl);
+        const tops = [];
+        Array.from(range.getClientRects()).forEach(function(rect){
+          if(rect.width < 1 || rect.height < 1) return;
+          const top = Math.round(rect.top);
+          if(!tops.some(function(existing){ return Math.abs(existing - top) <= 2; })) tops.push(top);
+        });
+        range.detach();
+        lines = Math.max(1, tops.length);
+      } catch(e) {
+        const lineHeight = parseFloat(getComputedStyle(nameEl).lineHeight) || nameEl.getBoundingClientRect().height || 1;
+        lines = Math.max(1, Math.round(nameEl.getBoundingClientRect().height / lineHeight));
+      }
+      tile.classList.toggle('preset-title-single-line', lines <= 1);
+      tile.classList.toggle('preset-title-two-line', lines > 1);
+    });
+  });
+}
+
 function resequenceChallengerDeckOrder(orderKeys) {
   const presets = USER_PROFILE.challengerPresets || {};
   orderKeys.forEach((pid, idx)=>{
@@ -1075,7 +1148,7 @@ function openDeckPickModalChrome(title, actions, extraClasses) {
     });
   }
   if(modalBox){
-    modalBox.classList.add('title-my-decks-modal', 'choose-deck-runtime-modal', ...(extraClasses || []));
+    modalBox.classList.add('title-my-decks-modal', 'choose-deck-canonical-modal', 'choose-deck-runtime-modal', ...(extraClasses || []));
     modalBox.dataset.chooseDeckModal = '1';
   }
   if(modalEl){
@@ -1095,13 +1168,10 @@ function renderChallengerDeckPickModal(page=0) {
   _challengerDeckPickPage = Math.max(0, Math.min(page, totalPages - 1));
   const pageKeys = keys.slice(_challengerDeckPickPage * pageSize, _challengerDeckPickPage * pageSize + pageSize);
   const body = document.createElement('div');
-  body.className = 'choose-deck-canonical-body' +
-    (CURRENT_MODE === 'free' ? ' freeplay-human-deck-pick-body' : '') +
-    (CURRENT_MODE === 'challenger' && G._pickDeckAfterMatchmaking ? ' challenger-human-deck-pick-body' : '');
-  body.innerHTML = `<p class="choose-deck-canonical-subtitle">Playing ${CURRENT_MODE === 'free' ? 'Free Play Human' : 'Challenger'} - pick a preset deck</p>`;
+  body.className = 'freeplay-title-preset-body challenger-runtime-title-preset-body';
+  body.innerHTML = `<p class="choose-deck-canonical-subtitle">Playing Challenger - pick a preset deck</p>`;
   const grid = document.createElement('div');
-  grid.className = 'preset-browse-grid deck-pick-grid fixed-deck-tile-grid my-presets-as-choose-deck';
-  grid.style.gridAutoRows = '480px';
+  grid.className = 'freeplay-title-preset-grid challenger-runtime-title-preset-grid';
   pageKeys.forEach(pid=>{
     const p = presets[pid];
     const ok = p.ids.length===40;
@@ -1113,18 +1183,17 @@ function renderChallengerDeckPickModal(page=0) {
       : sampleCards.filter(c=>c.img)
     ).slice(0,7);
     const tile = document.createElement('div');
-    tile.className = 'preset-browse-tile fixed-deck-tile';
-    tile.style.height = '480px';
-    tile.style.minHeight = '480px';
-    tile.style.maxHeight = '480px';
+    tile.className = 'preset-card freeplay-title-preset-card challenger-runtime-title-preset-card';
+    tile.style.animationDelay = '0s';
     tile.style.opacity = ok ? '1' : '.5';
     const useCanvasPreview = false;
+    const heroArt = hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
     tile.innerHTML = `
-      <div class="preset-tile-art">
-        ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : (hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.style.display='none'">` : '')}
-        <div class="preset-tile-overlay"></div>
+      <div class="preset-card-art">
+        ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
+        <div class="preset-card-overlay"></div>
       </div>
-      <div class="preset-tile-info">
+      <div class="preset-card-body">
         <div class="preset-name">${escapeHtml(p.name)}</div>
         <div class="preset-desc">${escapeHtml(p.description||'')}</div>
         <div class="preset-minis">
@@ -1143,26 +1212,27 @@ function renderChallengerDeckPickModal(page=0) {
     grid.appendChild(tile);
   });
   body.appendChild(grid);
+  markPresetTitleLineClasses(grid);
   const footer = document.createElement('div');
-  footer.style.display = 'flex';
-  footer.style.justifyContent = 'space-between';
-  footer.style.alignItems = 'center';
-  footer.style.gap = '.75rem';
-  footer.style.marginTop = '1rem';
-  footer.style.flexWrap = 'wrap';
+  footer.className = 'freeplay-title-preset-footer challenger-runtime-title-preset-footer';
   footer.innerHTML = `
-    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <div class="freeplay-title-preset-nav">
       <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage-1})" ${_challengerDeckPickPage<=0?'disabled':''}>Prev</button>
       <button class="btn sm" onclick="renderChallengerDeckOrderEditor()" ${(keys.length<=1 || CURRENT_MODE === 'free')?'disabled':''}>Edit Order</button>
       <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage+1})" ${_challengerDeckPickPage>=totalPages-1?'disabled':''}>Next</button>
       ${CURRENT_MODE === 'free' ? `<button class="btn sm" onclick="closeModal()">Close</button>` : ''}
     </div>
-    <div style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.08em;">Page ${_challengerDeckPickPage+1} / ${totalPages}</div>`;
+    <span>Page ${_challengerDeckPickPage+1} / ${totalPages}</span>`;
   body.appendChild(footer);
   const isRandomCommitted = G._aiRewardMultiplier === 1.5 && G._pickDeckAfterAi;
   const modalTitle = isRandomCommitted ? 'Choose Your Deck - Random Opponent Locked In' : 'Choose Your Deck';
   const modalActions = (isRandomCommitted || CURRENT_MODE === 'free') ? [] : [{label:'Cancel', action:closeModal}];
-  openDeckPickModalChrome(modalTitle, modalActions);
+  openDeckPickModalChrome(modalTitle, modalActions, ['freeplay-title-preset-modal', 'challenger-runtime-title-preset-modal']);
+  const modalEl = document.getElementById('modal');
+  if(modalEl) {
+    if(isRandomCommitted) modalEl.dataset.escapeLocked = '1';
+    else delete modalEl.dataset.escapeLocked;
+  }
   document.getElementById('modal-body').appendChild(body);
 }
 
@@ -1219,6 +1289,7 @@ function renderFreePlayTitlePresetDeckPickModal(page=0) {
     grid.appendChild(el);
   });
   body.appendChild(grid);
+  markPresetTitleLineClasses(grid);
   const footer = document.createElement('div');
   footer.className = 'freeplay-title-preset-footer';
   footer.innerHTML = `
@@ -1230,6 +1301,8 @@ function renderFreePlayTitlePresetDeckPickModal(page=0) {
     <button class="btn sm" onclick="closeModal()">Close</button>`;
   body.appendChild(footer);
   openDeckPickModalChrome('Choose Your Deck', CURRENT_MODE === 'free' ? [] : [{label:'Cancel', action:closeModal}], ['freeplay-title-preset-modal']);
+  const modalEl = document.getElementById('modal');
+  if(modalEl) delete modalEl.dataset.escapeLocked;
   document.getElementById('modal-body').appendChild(body);
 }
 
@@ -2209,6 +2282,7 @@ function setCdbSearch(value) {
 }
 
 function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage) {
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = Object.keys(presets);
   const pageSize = 3;
@@ -2236,7 +2310,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
   }
   const pageKeys = keys.slice(_challengerDeckBrowsePage * pageSize, _challengerDeckBrowsePage * pageSize + pageSize);
 
-  body.innerHTML = `<p style="font-size:.85rem;color:var(--dim);font-style:italic;margin-bottom:.8rem;">Choose a deck to preview, load, or customize for Challenger.</p>`;
+  body.innerHTML = `<div class="my-decks-modal-topbar"><p style="font-size:.85rem;color:var(--dim);font-style:italic;margin:0;">Choose a deck to preview, load, or customize for Challenger.</p></div>`;
   const grid = document.createElement('div');
   grid.className = 'preset-browse-grid deck-pick-grid challenger-deck-browse-grid fixed-deck-tile-grid my-presets-as-choose-deck';
   grid.style.gridAutoRows = '480px';
@@ -2268,7 +2342,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
           ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : displayCards.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
         </div>
         <div class="preset-action-row">
-          <button class="btn sm pri" onclick="event.stopPropagation();cdbEditDeck('${pid}');closeModal();">Load</button>
+          <button class="btn sm pri" onclick="event.stopPropagation();cdbEditDeck('${pid}');closeModal();">Edit Deck</button>
           <button class="btn sm" onclick="event.stopPropagation();cdbEditAppearance('${pid}')">Edit Art</button>
         </div>
       </div>`;
@@ -2277,6 +2351,16 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
     grid.appendChild(tile);
   });
   body.appendChild(grid);
+  requestAnimationFrame(function(){
+    grid.querySelectorAll('.preset-browse-tile').forEach(function(tile){
+      const nameEl = tile.querySelector('.preset-name');
+      if(!nameEl || !window.getComputedStyle) return;
+      const lineHeight = parseFloat(getComputedStyle(nameEl).lineHeight) || nameEl.getBoundingClientRect().height || 1;
+      const lines = Math.max(1, Math.round(nameEl.getBoundingClientRect().height / lineHeight));
+      tile.classList.toggle('preset-title-single-line', lines <= 1);
+      tile.classList.toggle('preset-title-two-line', lines > 1);
+    });
+  });
   const footer = document.createElement('div');
   footer.style.display = 'flex';
   footer.style.justifyContent = 'space-between';
@@ -2312,45 +2396,66 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
 function viewChallengerDeckContents(pid) {
   const preset = getDeckPickPresetsForCurrentMode()?.[pid] || USER_PROFILE.challengerPresets?.[pid];
   if(!preset) return;
-  const cameFromDeckPick = !!document.querySelector('#modal .modal[data-choose-deck-modal="1"]') ||
+  const cameFromDeckPick = !!document.querySelector('#modal .modal[data-choose-deck-modal="1"], #modal .choose-deck-canonical-modal') ||
     !!(typeof G !== 'undefined' && G && (G._pickDeckAfterMatchmaking || G._pickDeckAfterAi)) ||
     CURRENT_MODE === 'free';
   const counts = {};
-  preset.ids.forEach(id=>{ counts[id] = (counts[id]||0)+1; });
+  (preset.ids || []).forEach(id=>{ counts[id] = (counts[id]||0)+1; });
   const deckCards = Object.keys(counts)
     .map(id=>CARDS.find(c=>c.id===id))
     .filter(Boolean)
     .sort((a,b)=>getCardOrderNumber(a)-getCardOrderNumber(b) || a.name.localeCompare(b.name));
   const body = document.createElement('div');
-  body.className = 'deck-inspect-view';
+  body.className = 'deck-inspect-view title-deck-inspect-view';
   const hero = preset.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : deckCards[0];
+  const totalCards = (preset.ids || []).length;
+  const theme = preset.theme || 'Challenger';
   body.innerHTML = `
     <div class="deck-inspect-topbar">
       <div>
-        <div class="deck-inspect-kicker">${preset.theme||'Challenger'}</div>
+        <div class="deck-inspect-kicker">${escapeHtml(theme)}</div>
         <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
       </div>
-      <button class="btn sm deck-inspect-back-inline" type="button">Back</button>
     </div>
     <div class="deck-inspect-summary">
-      <div class="deck-inspect-desc">${escapeHtml(preset.description||'')}</div>
-      ${hero?.img ? `<div class="deck-inspect-hero">${typeof window.renderCanvasImage === 'function' ? '<canvas class="deck-inspect-hero-canvas" aria-hidden="true"></canvas>' : `<img src="${hero.img}" alt="${escapeHtml(hero.name)}">`}</div>` : ''}
+      <div class="deck-inspect-brief">
+        <p>${escapeHtml(preset.description||'')}</p>
+        <div class="deck-inspect-metrics">
+          <span><b>${totalCards}</b><em>Total Cards</em></span>
+          <span><b>${deckCards.length}</b><em>Unique Cards</em></span>
+          <span class="deck-inspect-theme-metric"><b>${escapeHtml(theme)}</b><em>Theme</em></span>
+        </div>
+      </div>
+      <div class="deck-inspect-hero">${hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}">` : ''}</div>
     </div>
-    <div class="preset-view-grid deck-inspect-grid"></div>`;
-  if(hero?.img && typeof window.renderCanvasImage === 'function') {
-    const heroCanvas = body.querySelector('.deck-inspect-hero-canvas');
-    if(heroCanvas) requestAnimationFrame(()=>window.renderCanvasImage(heroCanvas, hero.img, {mode:'cover', parent:heroCanvas.parentElement, background:'#080910'}));
-  }
-  const goBack = ()=> cameFromDeckPick
-    ? renderChallengerDeckPickModal(_challengerDeckPickPage || 0)
-    : browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
+    <section class="deck-inspect-contents">
+      <div class="deck-inspect-section-title">Deck Contents <span>${deckCards.length} unique cards</span></div>
+      <div class="preset-view-grid"></div>
+    </section>`;
+  const goBack = ()=>{
+    if(CURRENT_MODE === 'free') return renderFreePlayTitlePresetDeckPickModal(_challengerDeckPickPage || 0);
+    return cameFromDeckPick
+      ? renderChallengerDeckPickModal(_challengerDeckPickPage || 0)
+      : browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
+  };
   const inlineBack = body.querySelector('.deck-inspect-back-inline');
   if(inlineBack) inlineBack.onclick = goBack;
   const grid = body.querySelector('.preset-view-grid');
-  const useCanvasInspectGrid = false;
-  if(useCanvasInspectGrid && typeof window.renderCanvasDeckCollection === 'function') {
-    grid.style.setProperty('--dbcw', '118px');
-    grid.style.setProperty('--dbch', '166px');
+  if(grid) grid.classList.toggle('deck-preview-scroll-extra-row', deckCards.length >= 15);
+  document.getElementById('modal-body').innerHTML='';
+  document.getElementById('modal-body').appendChild(body);
+  const heroBox = body.querySelector('.deck-inspect-hero');
+  if(heroBox && hero?.img && typeof window.renderCanvasImage === 'function') {
+    heroBox.textContent = '';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'deck-inspect-hero-canvas';
+    canvas.setAttribute('aria-hidden','true');
+    heroBox.appendChild(canvas);
+    window.renderCanvasImage(canvas, hero.img, {mode:'cover', parent:heroBox, background:'transparent', maxDpr:4, cropY:.08});
+  }
+  if(false && grid && typeof window.renderCanvasDeckCollection === 'function') {
+    grid.style.setProperty('--dbcw', '82px');
+    grid.style.setProperty('--dbch', '115px');
     window.renderCanvasDeckCollection(grid, deckCards.map(c=>({
       card: c,
       count: 0,
@@ -2358,10 +2463,10 @@ function viewChallengerDeckContents(pid) {
       title: c.name,
       ariaLabel: c.name
     })), {
-      onClick: (card)=>openCardDetail(card),
+      onClick: (card)=>openCardDetailFromDeckPreview(card, ()=>viewChallengerDeckContents(pid)),
       onContextMenu: (card)=>showCardInfoOverlay(card)
     });
-  } else {
+  } else if(grid) {
     deckCards.forEach(c=>{
       const count = counts[c.id] || 0;
       const el = document.createElement('div');
@@ -2371,48 +2476,34 @@ function viewChallengerDeckContents(pid) {
         <div class="mc-art">${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
         <div class="visual-name">${escapeHtml(c.name)}</div>
         ${count>1?`<div class="preset-card-count">×${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">×1</div>`}`;
-      el.onclick = ()=>openCardDetail(c);
+      el.onclick = ()=>openCardDetailFromDeckPreview(c, ()=>viewChallengerDeckContents(pid));
       grid.appendChild(el);
     });
   }
-  document.getElementById('modal-body').innerHTML='';
-  document.getElementById('modal-body').appendChild(body);
-  document.getElementById('modal-title').textContent = `${preset.name} — 40 Cards`;
+  document.getElementById('modal-title').textContent = `${preset.name} - ${totalCards} Cards`;
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox){
     modalBox.classList.remove('choose-deck-canonical-modal','choose-deck-runtime-modal','challenger-my-decks-modal');
     delete modalBox.dataset.chooseDeckModal;
-    modalBox.classList.add('deck-inspect-compact-modal');
+    modalBox.classList.add('deck-inspect-compact-modal','title-deck-preview-modal');
   }
   const acts = document.getElementById('modal-acts');
   acts.innerHTML='';
-  const back = document.createElement('button');
-  back.className='btn sm';
-  back.textContent='Back';
-  back.onclick = goBack;
-  const loadBtn = document.createElement('button');
-  loadBtn.className='btn sm pri';
-  loadBtn.textContent='Load to Builder';
-  const inGame = document.getElementById('s-game')?.classList.contains('active');
-  const builderLocked = inGame || CURRENT_MODE === 'free' || (CURRENT_MODE==='challenger' && _currentChTab==='play');
-  if(builderLocked){
-    loadBtn.disabled = true;
-    loadBtn.style.opacity = '.3';
-    loadBtn.title = inGame ? 'Cannot load to builder during a game' : 'Unavailable while browsing Challenger play decks';
-  } else {
-    loadBtn.onclick = ()=>{ cdbEditDeck(pid); closeModal(); };
+  const backBtn = document.createElement('button');
+  backBtn.className='btn sm';
+  backBtn.textContent='Back';
+  backBtn.onclick = goBack;
+  if(CURRENT_MODE === 'free'){
+    acts.appendChild(backBtn);
+    document.getElementById('modal').classList.add('on');
+    return;
   }
-  const artBtn = document.createElement('button');
-  artBtn.className='btn sm';
-  artBtn.textContent='Edit Art';
-  artBtn.onclick = ()=>cdbEditAppearance(pid);
-  acts.appendChild(back);
-  acts.appendChild(artBtn);
-  acts.appendChild(loadBtn);
+  acts.appendChild(backBtn);
   document.getElementById('modal').classList.add('on');
 }
 
 function cdbEditAppearance(pid=null){
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   const targetId = pid || _cdbCurrentDeckId;
   const presets = USER_PROFILE.challengerPresets || {};
   const p = presets[targetId];
@@ -2424,23 +2515,47 @@ function cdbEditAppearance(pid=null){
 
   const renderEditor = ()=>{
     const body = document.createElement('div');
+    body.className = 'deck-art-editor challenger-deck-art-editor deck-art-editor-v2';
     body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:.8rem;">
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">FACE CARD</div>
+      <div class="deck-art-editor-main">
+        <aside class="deck-art-preview-panel">
+          <div class="deck-art-preview-label">Selected Preview</div>
+          <div class="deck-art-face-preview" id="ch-face-preview"></div>
+          <div class="deck-art-display-preview" id="ch-display-preview"></div>
+        </aside>
+        <div class="deck-art-picker-stack">
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Face Card</div>
           <div class="face-picker-grid" id="ch-face-picker"></div>
-        </div>
-        <div>
-          <div style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;">DISPLAY CARDS (up to 7) — <span id="ch-display-count">${currentDisplay.length}/7</span></div>
+        </section>
+        <section class="deck-art-editor-section">
+          <div class="deck-art-editor-title">Display Cards (up to 7) - <span id="ch-display-count">${currentDisplay.length}/7</span></div>
           <div class="face-picker-grid" id="ch-display-picker"></div>
+        </section>
         </div>
       </div>`;
     document.getElementById('modal-body').innerHTML='';
     document.getElementById('modal-body').appendChild(body);
+    const renderPreview = ()=>{
+      const faceCard = deckCards.find(c=>c.id===currentFace) || deckCards[0];
+      const facePreview = body.querySelector('#ch-face-preview');
+      if(facePreview) {
+        facePreview.innerHTML = faceCard?.img
+          ? `<img src="${faceCard.img}" alt="${escapeHtml(faceCard.name)}"><span>${escapeHtml(faceCard.name)}</span>`
+          : '';
+      }
+      const strip = body.querySelector('#ch-display-preview');
+      if(strip) {
+        strip.innerHTML = currentDisplay.map(id=>{
+          const c = deckCards.find(card=>card.id===id);
+          return c?.img ? `<div><img src="${c.img}" alt="${escapeHtml(c.name)}"></div>` : '';
+        }).join('');
+      }
+    };
     const renderPickers = ()=>{
       const faceGrid = body.querySelector('#ch-face-picker');
       const displayGrid = body.querySelector('#ch-display-picker');
-      if(typeof window.renderCanvasSelectableCardGrid === 'function') {
+      if(false && typeof window.renderCanvasSelectableCardGrid === 'function') {
         window.renderCanvasSelectableCardGrid(faceGrid, deckCards, {
           isSelected: c=>c.id===currentFace,
           selectedLabel:'FACE',
@@ -2463,19 +2578,54 @@ function cdbEditAppearance(pid=null){
         });
         return;
       }
+      const setBadge = function(el, text, gold){
+        let badge = el.querySelector('.fp-badge');
+        if(!text){
+          if(badge) badge.remove();
+          return;
+        }
+        if(!badge){
+          badge = document.createElement('div');
+          badge.className = 'fp-badge';
+          el.appendChild(badge);
+        }
+        badge.textContent = text;
+        badge.style.color = gold ? 'var(--gold)' : '';
+      };
+      const syncPickerState = function(){
+        faceGrid.querySelectorAll('.face-picker-card').forEach(function(el){
+          const selected = el.dataset.cardId === currentFace;
+          el.classList.toggle('face-sel', selected);
+          setBadge(el, selected ? 'FACE' : '', false);
+        });
+        displayGrid.querySelectorAll('.face-picker-card').forEach(function(el){
+          const idx = currentDisplay.indexOf(el.dataset.cardId);
+          const selected = idx >= 0;
+          el.classList.toggle('display-sel', selected);
+          setBadge(el, selected ? '#' + (idx + 1) : '', true);
+        });
+        const countEl = document.getElementById('ch-display-count');
+        if(countEl) countEl.textContent = currentDisplay.length + '/7';
+        renderPreview();
+      };
+      if(faceGrid.childElementCount || displayGrid.childElementCount){
+        syncPickerState();
+        return;
+      }
       faceGrid.innerHTML=''; displayGrid.innerHTML='';
       deckCards.forEach(c=>{
         const faceEl = document.createElement('div');
-        faceEl.className = 'face-picker-card'+(c.id===currentFace?' face-sel':'');
-        faceEl.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}${c.id===currentFace?'<div class="fp-badge">FACE</div>':''}`;
+        faceEl.className = 'face-picker-card';
+        faceEl.dataset.cardId = c.id;
+        faceEl.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}`;
         faceEl.title = c.name;
-        faceEl.onclick = ()=>{ currentFace = c.id; renderPickers(); };
+        faceEl.onclick = ()=>{ currentFace = c.id; syncPickerState(); };
         faceGrid.appendChild(faceEl);
 
         const displayEl = document.createElement('div');
-        const sel = currentDisplay.includes(c.id);
-        displayEl.className = 'face-picker-card'+(sel?' display-sel':'');
-        displayEl.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}${sel?`<div class="fp-badge" style="color:var(--gold);">#${currentDisplay.indexOf(c.id)+1}</div>`:''}`;
+        displayEl.className = 'face-picker-card';
+        displayEl.dataset.cardId = c.id;
+        displayEl.innerHTML = `${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:''}`;
         displayEl.title = c.name;
         displayEl.onclick = ()=>{
           const idx = currentDisplay.indexOf(c.id);
@@ -2484,11 +2634,11 @@ function cdbEditAppearance(pid=null){
             if(currentDisplay.length>=7){ toast('Max 7 display cards'); return; }
             currentDisplay.push(c.id);
           }
-          document.getElementById('ch-display-count').textContent = currentDisplay.length+'/7';
-          renderPickers();
+          syncPickerState();
         };
         displayGrid.appendChild(displayEl);
       });
+      syncPickerState();
     };
     renderPickers();
     document.getElementById('modal-title').textContent = 'Edit Challenger Deck Art';
@@ -2496,7 +2646,7 @@ function cdbEditAppearance(pid=null){
     acts.innerHTML='';
     const cancel = document.createElement('button');
     cancel.className='btn sm';
-    cancel.textContent='Cancel';
+    cancel.textContent='Back';
     cancel.onclick = ()=>browseChallengerDecks(targetId, _challengerDeckBrowsePage || 0);
     const save = document.createElement('button');
     save.className='btn sm pri';
@@ -2511,6 +2661,8 @@ function cdbEditAppearance(pid=null){
     };
     acts.appendChild(cancel);
     acts.appendChild(save);
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('deck-art-editor-modal','challenger-deck-art-editor-modal');
     document.getElementById('modal').classList.add('on');
   };
   renderEditor();
@@ -2976,6 +3128,8 @@ function syncAIOpponentLeaderboardEntries() {
       losses: aiLosses,
       profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || ai.profileImg || 'blank.png')),
       isAI: true,
+      isMonthly: !!ai.isMonthly,
+      monthKey: ai.monthKey || (ai.isMonthly && typeof getMonthKey === 'function' ? getMonthKey() : ''),
     });
   });
   saveLeaderboard();
@@ -2994,6 +3148,8 @@ function getMergedChallengerLeaderboardEntries() {
     window.FATE_ONLINE?.profile?.displayName,
     window.FATE_ONLINE?.profile?.username
   ].filter(Boolean).map(v=>String(v).trim().toLowerCase()));
+  const currentAICycleKey = typeof getMonthKey === 'function' ? getMonthKey() : '';
+  const isRetiredMonthlyEntry = entry => !!(entry && entry.isMonthly && currentAICycleKey && entry.monthKey !== currentAICycleKey);
   const aiMergeKey = entry => {
     const rawName = entry?.username || entry?.name || '';
     if(rawName) return 'ai:name:' + String(rawName).trim().toLowerCase();
@@ -3001,6 +3157,7 @@ function getMergedChallengerLeaderboardEntries() {
     return 'ai:id:' + String(rawId || '').trim().toLowerCase();
   };
   LEADERBOARD.forEach(entry=>{
+    if(isRetiredMonthlyEntry(entry)) return;
     const rawName = entry.username || entry.name || '';
     const isCurrentUserEntry = !!currentUid && (
       entry.uid === currentUid ||
@@ -3015,6 +3172,7 @@ function getMergedChallengerLeaderboardEntries() {
     ? window.FateOnline.getOnlineLeaderboard()
     : (window.FATE_ONLINE_LEADERBOARD || {});
   Object.values(online || {}).forEach(entry=>{
+    if(isRetiredMonthlyEntry(entry)) return;
     const key = entry.isAI ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
     if(!key) return;
     const local = merged.get(key) || {};
@@ -3030,6 +3188,7 @@ function getMergedChallengerLeaderboardEntries() {
       baseCode:entry.baseCode || local.baseCode || '',
       isAI:!!(entry.isAI || local.isAI),
       isMonthly:!!(entry.isMonthly || local.isMonthly),
+      monthKey:entry.monthKey || local.monthKey || '',
       isOnline:true
     });
   });
@@ -3059,7 +3218,7 @@ showLeaderboard = function(page=0) {
       'Commander-General':'#e74c3c',
       'Sergeant of the Guard':'#2ec4a6',
       'Lieutenant at Arms':'#4a8ad4',
-      'Captain':'#c0c0c0',
+      'Captain-Officer':'#c0c0c0',
       'Footman':'#b98954'
     })[rankName] || getRank(entry.elo).color;
   };
@@ -3366,7 +3525,17 @@ function findLiveAIPlayer(username) {
 const EMOJI_LIST = [
   '😀','😂','😎','🤔','😤','🔥','💀','👑','⚔️','🛡️',
   '🃏','🎴','✨','💫','🌟','❤️','💔','👊','🤝','👋',
-  '🎉','🏆','💪','😈','🙏','👀','💯','⭐','🎯','🗡️'
+  '🎉','🏆','💪','😈','🙏','👀','💯','⭐','🎯','🗡️',
+  '🙂','😁','😅','🤣','😊','😇','😉','😍','😘','😜',
+  '🤪','😐','😑','🙄','😬','😮','😱','😭','😡','🤯',
+  '🫡','🫠','🥲','🥹','😴','🤓','🥳','🤩','😏','😵',
+  '🥶','🥵','🤫','🤭','🤗','😶','😶‍🌫️','🫥','😔','😞',
+  '😢','😿','😾','😼','😺','😸','😹','😻','😽','🙀',
+  '👏','🙌','🫶','🤲','🤌','🤙','🤟','✌️','🤞','🫰',
+  '👍','👎','✊','🤜','🤛','💅','🧠','🫀','🦾','🦿',
+  '🩷','🧡','💛','💚','💙','💜','🤎','🖤','🤍','❤️‍🔥',
+  '💥','💢','💨','💦','💤','🕳️','💣','🧨','🪦','🧿',
+  '🔮','🪄','🧪','🧬','🧲','⚙️','🧭','🗺️','🏰','🏯'
 ];
 
 function renderEmojiPicker(onSelect) {
@@ -3512,6 +3681,26 @@ function inspectProfile(username) {
     </div>`;
 
   const actions = [];
+  if(liveAI){
+    actions.push({
+      label:'Challenge AI',
+      pri:true,
+      action:()=>{
+        closeModal();
+        CURRENT_MODE = 'challenger';
+        const presets = USER_PROFILE.challengerPresets || {};
+        if(Object.keys(presets).length === 0){
+          toast('Build a deck first in the Deck Builder tab');
+          showScreen('s-challenger');
+          switchChTab('deckbuilder');
+          return;
+        }
+        G._pickDeckAfterAi = true;
+        G._aiRewardMultiplier = liveAI.isMonthly ? 1.5 : 1;
+        selectAIOpponent(liveAI);
+      }
+    });
+  }
   if(!isFriend) {
     actions.push({label:'Add Friend', pri:true, action:()=>{ addFriend(username); closeModal(); }});
   } else {
@@ -4106,6 +4295,11 @@ function sendWorldChat() {
     spInput.value = '';
   }
   if(window.FATE_ONLINE_SEND_WORLD_CHAT){
+    const commandText = mainInput ? mainInput.value.trim() : '';
+    if(commandText && typeof handleFateChatCommand === 'function' && handleFateChatCommand(commandText)){
+      if(mainInput) mainInput.value = '';
+      return;
+    }
     var result = window.FATE_ONLINE_SEND_WORLD_CHAT();
     // Sync side panel chat after sending
     if(typeof renderSidePanelChat === 'function') setTimeout(renderSidePanelChat, 150);
@@ -4115,6 +4309,10 @@ function sendWorldChat() {
   if(!inp) return;
   const text = inp.value.trim();
   if(!text) return;
+  if(typeof handleFateChatCommand === 'function' && handleFateChatCommand(text)){
+    inp.value = '';
+    return;
+  }
   // /run command: simulate AI vs AI matches
   if(text.toLowerCase() === '/run') {
     inp.value = '';
@@ -4181,7 +4379,7 @@ function simulateWorldChatMessage() {
   if(senders.length === 0) return;
   const sender = senders[Math.floor(Math.random() * senders.length)];
   const messages = [
-    'Anyone up for a game?', 'GG!', 'Just hit Captain rank! 🎉', 'Shield Wall is so strong',
+    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! 🎉', 'Shield Wall is so strong',
     'Need tips for Eventide decks', 'Looking for a challenge ⚔️', 'Hello everyone 👋',
     'That was a close match!', 'Love the new cards', 'Trading cards anyone?',
     'Just opened a Star card! 🌟', 'Best Coordinator?', 'Third Great War decks are fire 🔥',
@@ -4849,7 +5047,7 @@ window.showMatchHistory = showMatchHistory;
 // ─── DIVISION PAGE ───
 const DIVISION_DESCRIPTIONS = {
   'Footman': 'New recruits learning the basics of fate and strategy. Every journey begins here.',
-  'Captain': 'Competent strategists who understand zone control and supporter placement.',
+  'Captain-Officer': 'Competent strategists who understand zone control and supporter placement.',
   'Lieutenant at Arms': 'Skilled tacticians who can read the board and plan consolidations effectively.',
   'Sergeant of the Guard': 'Elite players who combine deck synergy with precise timing and positioning.',
   'Commander-General': 'Masters of the game who dominate through disruption, denial, and superior strategy.',
@@ -4884,10 +5082,10 @@ function showDivisionPage(page, memberPage) {
   // Division header with nav
   html += `<div class="division-pro-head" style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.6rem;">
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx-1})" ${_divisionPageIdx<=0?'disabled':''}>Prev</button>
-    <div class="division-pro-rank" style="flex:0 1 344px;text-align:center;padding:.35rem .6rem;border:1px solid ${rank.color}35;border-radius:12px;background:${rank.bg};margin:0 auto;">
+    <div class="division-pro-rank" style="--division-rank-color:${rank.color};--division-rank-bg:${rank.bg};flex:0 1 344px;text-align:center;padding:.35rem .6rem;border:1px solid ${rank.color}55;border-radius:12px;background:${rank.bg};margin:0 auto;">
       <div style="display:flex;align-items:center;justify-content:center;gap:.4rem;">
         ${rankIconId ? `<img src="rankicons/${rankIconId}.png" style="width:24px;height:24px;object-fit:contain;" onerror="this.style.display='none'">` : `<div style="width:22px;height:22px;">${rank.icon}</div>`}
-        <span style="font-family:Cinzel,serif;font-size:1rem;color:${rank.color};font-weight:700;">${rank.name}</span>
+        <span class="division-pro-rank-name" style="font-family:Cinzel,serif;font-size:1rem;color:${rank.color};font-weight:700;">${rank.name}</span>
         ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">★ YOU</span>':''}
       </div>
       <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO · ${members.length} player${members.length!==1?'s':''}</div>

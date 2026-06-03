@@ -34,6 +34,140 @@ function showScreen(id) {
 let dbFilter_ = 'all';
 let dbSearch_ = '';
 
+function fateActiveScreenId() {
+  return document.querySelector('.screen.active')?.id || '';
+}
+
+function fateEscapeIsVisible(el) {
+  if(!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+  const style = window.getComputedStyle ? getComputedStyle(el) : null;
+  if(style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) return false;
+  const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+  return !rect || rect.width > 0 || rect.height > 0;
+}
+
+function fateClickPreferredBackControl(root) {
+  if(!root) return false;
+  const controls = Array.from(root.querySelectorAll('button,[role="button"],.btn'))
+    .filter(fateEscapeIsVisible)
+    .filter(el => !el.classList?.contains('danger'));
+  const preferred = [
+    /^back\b/i,
+    /^close$/i,
+    /^cancel$/i,
+    /^done$/i,
+    /^keep watching$/i,
+    /^back to\b/i,
+    /^return\b/i,
+    /^no$/i
+  ];
+  const match = controls.find(el => {
+    const label = String(el.textContent || el.getAttribute('aria-label') || el.title || '').trim();
+    return preferred.some(pattern => pattern.test(label));
+  });
+  if(!match) return false;
+  match.click();
+  return true;
+}
+
+function fateHandleEscapeBack(event) {
+  if(event && (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey)) return false;
+  const activeScreen = fateActiveScreenId();
+  const inGame = activeScreen === 's-game';
+
+  const cardInfo = document.querySelector('.card-info-overlay.on, .card-info-overlay');
+  if(cardInfo && fateEscapeIsVisible(cardInfo)){
+    if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
+    else cardInfo.remove();
+    return true;
+  }
+
+  const modal = document.getElementById('modal');
+  if(modal?.classList.contains('on')){
+    if(modal.dataset.escapeLocked === '1'){
+      if(typeof toast === 'function') toast('Choose a deck to continue');
+      return true;
+    }
+    if(fateClickPreferredBackControl(modal)) return true;
+    if(!inGame && typeof closeModal === 'function'){
+      closeModal();
+      return true;
+    }
+    if(inGame && typeof toast === 'function') toast('Escape will not leave an active match');
+    return true;
+  }
+
+  const mission = document.getElementById('mission-control-window');
+  if(mission && !mission.hidden && mission.classList.contains('on')){
+    if(typeof closeMissionControl === 'function') closeMissionControl();
+    else {
+      mission.classList.remove('on');
+      mission.hidden = true;
+      document.body.classList.remove('mission-control-open');
+    }
+    return true;
+  }
+
+  const difficulty = document.getElementById('s-difficulty-overlay');
+  if(difficulty?.classList.contains('on')){
+    if(typeof closeAllOverlays === 'function') closeAllOverlays();
+    else difficulty.classList.remove('on');
+    return true;
+  }
+
+  const presetOverlay = document.getElementById('s-preset-overlay');
+  if(presetOverlay?.classList.contains('on')){
+    if(typeof closePresetOverlay === 'function') closePresetOverlay();
+    else {
+      presetOverlay.classList.remove('on');
+      document.body.classList.remove('ai-preset-overlay-open');
+    }
+    return true;
+  }
+
+  const passTurn = document.getElementById('pt-overlay');
+  if(passTurn?.classList.contains('on')){
+    if(typeof hidePT === 'function') hidePT();
+    return true;
+  }
+
+  if(inGame){
+    if(typeof toast === 'function') toast('Escape will not leave an active match');
+    return true;
+  }
+
+  const backMap = {
+    's-title': '',
+    's-deck': 's-title',
+    's-preset': 's-title',
+    's-coin': 's-preset',
+    's-challenger': 's-title',
+    's-starter-pick': 's-title',
+    's-social': 's-title',
+    's-matchmaking': 's-title',
+    's-win': 's-title'
+  };
+  const target = backMap[activeScreen] || (activeScreen && activeScreen !== 's-title' ? 's-title' : '');
+  if(target && typeof showScreen === 'function'){
+    if(activeScreen === 's-win' && typeof cleanupGame === 'function') cleanupGame();
+    showScreen(target);
+    return true;
+  }
+  return false;
+}
+
+if(!window.__fateEscapeBackInstalled){
+  window.__fateEscapeBackInstalled = true;
+  window.fateHandleEscapeBack = fateHandleEscapeBack;
+  document.addEventListener('keydown', function(event){
+    if(event.key !== 'Escape') return;
+    if(fateHandleEscapeBack(event)){
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+}
+
 function cardMatchesDeckBuilderSearch(card, query) {
   const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   if(!terms.length) return true;
