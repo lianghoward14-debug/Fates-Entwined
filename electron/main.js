@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -25,6 +25,22 @@ const MIME_TYPES = {
 };
 
 let staticServer;
+
+function clampZoomFactor(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0.75, Math.min(1.35, Math.round(n * 100) / 100));
+}
+
+ipcMain.handle('fate:get-zoom-factor', (event) => {
+  return clampZoomFactor(event.sender.getZoomFactor());
+});
+
+ipcMain.handle('fate:set-zoom-factor', (event, factor) => {
+  const next = clampZoomFactor(factor);
+  event.sender.setZoomFactor(next);
+  return clampZoomFactor(event.sender.getZoomFactor());
+});
 
 function safePathFromUrl(urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split('?')[0]).replace(/^\/+/, '') || 'index.html';
@@ -124,6 +140,7 @@ async function createWindow() {
     contextIsolation: true,
     nodeIntegration: false,
     nativeWindowOpen: true,
+    preload: path.join(__dirname, 'preload.js'),
     sandbox: true,
     webSecurity: true,
     devTools: true

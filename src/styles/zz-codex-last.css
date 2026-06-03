@@ -11387,3 +11387,35 @@ html body #modal .modal.daily-login-modal .daily-login-note{
     grid-template-columns:repeat(2,minmax(0,1fr))!important;
   }
 }
+
+/* Codex 2026-06-03: Ctrl-wheel zoom percentage indicator. */
+html body #fate-zoom-indicator{
+  position:fixed!important;
+  top:18px!important;
+  left:50%!important;
+  z-index:2147483647!important;
+  pointer-events:none!important;
+  min-width:116px!important;
+  padding:.46rem .82rem!important;
+  border:1px solid rgba(232,196,82,.58)!important;
+  border-radius:8px!important;
+  color:#fff4ba!important;
+  background:rgba(4,8,14,.9)!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(126,213,255,.1)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.82rem!important;
+  font-weight:700!important;
+  letter-spacing:.08em!important;
+  line-height:1!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+  text-shadow:0 1px 0 rgba(0,0,0,.7)!important;
+  opacity:0!important;
+  transform:translate(-50%,-10px)!important;
+  transition:opacity .16s ease, transform .16s ease!important;
+}
+
+html body #fate-zoom-indicator.is-visible{
+  opacity:1!important;
+  transform:translate(-50%,0)!important;
+}

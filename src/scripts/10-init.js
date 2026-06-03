@@ -89,6 +89,98 @@ if(typeof window !== 'undefined'){
 
 applySuperPerformanceMode(true);
 
+function initCtrlWheelZoom(){
+  if(window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED) return;
+  window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED = true;
+
+  var minZoom = 0.75;
+  var maxZoom = 1.35;
+  var zoom = 1;
+  var zoomIndicatorTimer = 0;
+
+  function clampZoom(value){
+    var n = Number(value);
+    if(!Number.isFinite(n)) return 1;
+    return Math.max(minZoom, Math.min(maxZoom, Math.round(n * 100) / 100));
+  }
+
+  function applyCssFallbackZoom(next){
+    if(!document.body) return next;
+    document.body.style.zoom = Math.abs(next - 1) < 0.001 ? '' : String(next);
+    document.documentElement.classList.toggle('fate-user-zoom-active', Math.abs(next - 1) >= 0.001);
+    return next;
+  }
+
+  function ensureZoomIndicator(){
+    var el = document.getElementById('fate-zoom-indicator');
+    if(el || !document.body) return el;
+    el = document.createElement('div');
+    el.id = 'fate-zoom-indicator';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function showZoomIndicator(next){
+    var el = ensureZoomIndicator();
+    if(!el) return;
+    var percent = Math.round(clampZoom(next) * 100);
+    el.textContent = 'Zoom ' + percent + '%';
+    el.classList.add('is-visible');
+    window.clearTimeout(zoomIndicatorTimer);
+    zoomIndicatorTimer = window.setTimeout(function(){
+      el.classList.remove('is-visible');
+    }, 1100);
+  }
+
+  function setGameZoom(next){
+    zoom = clampZoom(next);
+    showZoomIndicator(zoom);
+    if(window.FateElectronZoom && typeof window.FateElectronZoom.set === 'function'){
+      window.FateElectronZoom.set(zoom).then(function(actual){
+        zoom = clampZoom(actual);
+        showZoomIndicator(zoom);
+      }).catch(function(){
+        applyCssFallbackZoom(zoom);
+      });
+    } else {
+      applyCssFallbackZoom(zoom);
+    }
+    return zoom;
+  }
+
+  function resetGameZoom(){
+    return setGameZoom(1);
+  }
+
+  if(window.FateElectronZoom && typeof window.FateElectronZoom.get === 'function'){
+    window.FateElectronZoom.get().then(function(actual){
+      zoom = clampZoom(actual || 1);
+    }).catch(function(){ zoom = 1; });
+  }
+
+  document.addEventListener('wheel', function(e){
+    if(!e.ctrlKey || e.metaKey) return;
+    if(e.target && e.target.closest && e.target.closest('input,textarea,select')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var direction = e.deltaY > 0 ? -1 : 1;
+    setGameZoom(zoom + direction * 0.05);
+  }, {capture:true, passive:false});
+
+  document.addEventListener('keydown', function(e){
+    if(!e.ctrlKey || e.metaKey) return;
+    if(e.key !== '0') return;
+    e.preventDefault();
+    resetGameZoom();
+  }, true);
+
+  window.fateSetGameZoom = setGameZoom;
+  window.fateResetGameZoom = resetGameZoom;
+  window.fateGetGameZoom = function(){ return zoom; };
+}
+
 function ensureTitleMissionControlButton(){
   var stack = document.querySelector('#s-title .title-menu-stack');
   if(!stack) return;
@@ -164,6 +256,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
   initPerformanceModeToggle();
   initSuperPerformanceModeToggle();
+  initCtrlWheelZoom();
   ensureTitleMissionControlButton();
 
   // Menu V2 skin — add fate-menu-v2 class to title screen.
