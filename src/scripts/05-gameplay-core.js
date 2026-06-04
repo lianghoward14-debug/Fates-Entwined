@@ -1150,7 +1150,8 @@ async function clickCell(z,r,c) {
       return;
     }
     const expectedMarkRow = typeof getNextExtraRowIndex === 'function' ? getNextExtraRowIndex(z) : 3;
-    if(r !== expectedMarkRow || c < 0 || c > 2){
+    const markRowCapacity = G.board && G.board[z] && G.board[z][expectedMarkRow] ? G.board[z][expectedMarkRow].length : 3;
+    if(r !== expectedMarkRow || c < 0 || c >= markRowCapacity){
       toast('Choose one of the highlighted safe-square slots');
       return;
     }
@@ -1509,6 +1510,9 @@ async function resolveSetCardAfterPlacement(inst, z, r, c) {
 function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
+    window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
+  }
   if(typeof playSfx === 'function') playSfx('cardFlip');
   const placementDelay = triggerPlacementAnimation(card, z, r, c);
   if(card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function') {
@@ -1953,6 +1957,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
           G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
         }
       });
+      if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
+        window.FateV2CardMotionFx.crashTributes(tributes, target);
+      }
       tributes.forEach(t=>{
         discardBoardCard(t.card, t.z, t.r, t.c);
       });

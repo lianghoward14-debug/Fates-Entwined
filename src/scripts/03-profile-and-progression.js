@@ -90,6 +90,15 @@ function _fateSetJsonStorageIfChanged(key, value) {
   }
 }
 
+function _fateReadJsonStorage(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
 // Save current profile under a specific UID key (used during account switches)
 function _fateSaveProfileForUid(uid) {
   _fateStampProfileForUid(uid);
@@ -105,6 +114,7 @@ function _fatePrepareAccountSwitch(uid) {
   loadPresetsFromStorage();
   _fateStampProfileForUid(uid);
   if(uid) _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_profile'), USER_PROFILE);
+  if(typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
 }
 
 // On first sign-in, migrate unkeyed localStorage data into the UID-keyed slot
@@ -471,12 +481,16 @@ function loadPresetsFromStorage() {
     PRESET_DECKS = stored ? JSON.parse(stored) : {};
   } catch(e){ PRESET_DECKS = {}; }
   try {
-    const prof = localStorage.getItem(_fateStorageKey('fate_user_profile'));
-    const parsed = prof ? JSON.parse(prof) : null;
-    USER_PROFILE = parsed && parsed._fateAccountUid && _fateActiveUid && parsed._fateAccountUid !== _fateActiveUid
-      ? createDefaultUserProfile()
-      : (parsed ? {...createDefaultUserProfile(), ...parsed} : createDefaultUserProfile());
-  } catch(e){ USER_PROFILE = createDefaultUserProfile(); }
+    const parsed = _fateReadJsonStorage(_fateStorageKey('fate_user_profile'));
+    const belongsToAnotherUid = parsed && parsed._fateAccountUid && _fateActiveUid && parsed._fateAccountUid !== _fateActiveUid;
+    USER_PROFILE = parsed && !belongsToAnotherUid
+      ? {...createDefaultUserProfile(), ...parsed}
+      : createDefaultUserProfile();
+    if(_fateActiveUid) USER_PROFILE._fateAccountUid = _fateActiveUid;
+  } catch(e){
+    USER_PROFILE = createDefaultUserProfile();
+    if(_fateActiveUid) USER_PROFILE._fateAccountUid = _fateActiveUid;
+  }
   if((USER_PROFILE.elo==null || (USER_PROFILE.elo===1000 && !(USER_PROFILE.wins||0) && !(USER_PROFILE.losses||0)))) USER_PROFILE.elo = 600;
   if((USER_PROFILE.challengerElo==null || (USER_PROFILE.challengerElo===1000 && !(USER_PROFILE.challengerWins||0) && !(USER_PROFILE.challengerLosses||0)))) USER_PROFILE.challengerElo = 600;
   USER_PROFILE.humanWins = Number(USER_PROFILE.humanWins ?? USER_PROFILE.wins ?? 0) || 0;
@@ -597,11 +611,43 @@ function fateDateKeyDiffDays(a, b) {
   return Math.round((db.getTime() - da.getTime()) / 86400000);
 }
 
+function dailyLoginClaimStorageKey(dateKey) {
+  return _fateStorageKey('fate_daily_login_claim_' + String(dateKey || fateLocalDateKey()));
+}
+
+function readDailyLoginClaim(dateKey) {
+  const key = String(dateKey || fateLocalDateKey());
+  try {
+    const raw = localStorage.getItem(dailyLoginClaimStorageKey(key));
+    if(!raw) return null;
+    if(raw === '1') return {date:key, day:Math.max(1, Math.min(7, Number(USER_PROFILE?.dailyLoginStreak) || 1))};
+    const data = JSON.parse(raw);
+    if(!data || data.date !== key) return null;
+    const day = Math.max(1, Math.min(7, Number(data.day) || Number(USER_PROFILE?.dailyLoginStreak) || 1));
+    return {date:key, day};
+  } catch(e){
+    return null;
+  }
+}
+
+function writeDailyLoginClaim(dateKey, day) {
+  const key = String(dateKey || fateLocalDateKey());
+  const safeDay = Math.max(1, Math.min(7, Number(day) || 1));
+  try {
+    localStorage.setItem(dailyLoginClaimStorageKey(key), JSON.stringify({
+      date:key,
+      day:safeDay,
+      claimedAt:Date.now()
+    }));
+  } catch(e){}
+}
+
 function getDailyLoginState() {
   if(!USER_PROFILE || typeof USER_PROFILE !== 'object') USER_PROFILE = createDefaultUserProfile();
   const today = fateLocalDateKey();
   const last = USER_PROFILE.dailyLoginLastClaimDate || '';
   const diff = last ? fateDateKeyDiffDays(last, today) : Infinity;
+  const storedClaim = readDailyLoginClaim(today);
   let streak = Math.max(0, Number(USER_PROFILE.dailyLoginStreak) || 0);
   let missed = false;
   if(last && diff > 1){
@@ -609,7 +655,9 @@ function getDailyLoginState() {
     missed = true;
   }
   if(streak >= 7 && diff >= 1) streak = 0;
-  const claimedToday = diff === 0;
+  if(storedClaim) streak = Math.max(streak, storedClaim.day);
+  const claimedToday = diff === 0 || !!storedClaim;
+  if(claimedToday && streak < 1) streak = Math.max(1, Number(storedClaim?.day) || 1);
   const nextDay = claimedToday ? Math.max(1, Math.min(7, streak)) : Math.max(1, Math.min(7, streak + 1));
   return {
     today,
@@ -617,6 +665,7 @@ function getDailyLoginState() {
     diff,
     streak,
     claimedToday,
+    storedClaim,
     missed,
     nextDay,
     reward: DAILY_LOGIN_REWARDS[nextDay - 1]
@@ -625,6 +674,21 @@ function getDailyLoginState() {
 
 function normalizeDailyLoginProfileState() {
   const state = getDailyLoginState();
+  if(state.claimedToday && !state.storedClaim){
+    writeDailyLoginClaim(state.today, state.streak || state.nextDay || 1);
+    if(USER_PROFILE.dailyLoginStreak !== state.streak){
+      USER_PROFILE.dailyLoginStreak = state.streak;
+      USER_PROFILE.dailyLoginLastClaimDate = state.today;
+      saveProfile();
+    }
+    return getDailyLoginState();
+  }
+  if(state.claimedToday && state.storedClaim && state.lastClaimDate !== state.today){
+    USER_PROFILE.dailyLoginLastClaimDate = state.today;
+    USER_PROFILE.dailyLoginStreak = state.streak;
+    saveProfile();
+    return getDailyLoginState();
+  }
   if(state.missed || USER_PROFILE.dailyLoginStreak !== state.streak){
     USER_PROFILE.dailyLoginStreak = state.streak;
     if(state.missed) saveProfile();
@@ -647,6 +711,7 @@ function claimDailyLoginReward() {
   }
   USER_PROFILE.dailyLoginLastClaimDate = state.today;
   USER_PROFILE.dailyLoginStreak = reward.day;
+  writeDailyLoginClaim(state.today, reward.day);
   if(starlight && typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('starlightEarned', starlight, 'add');
   saveProfile();
   if(typeof updateChallengerTopbar === 'function') updateChallengerTopbar();
@@ -707,8 +772,10 @@ function renderDailyLoginPanelHtml() {
         ${bonus}
       </div>`;
   }).join('');
-  const title = state.claimedToday ? 'Come back tomorrow for the next reward.' : 'Your daily reward is ready.';
-  const sub = state.missed ? 'Your previous streak reset because a day was missed.' : 'Claim on consecutive days to keep the seven-day streak alive.';
+  const title = state.claimedToday ? 'Today\'s reward has already been collected.' : 'Your daily reward is ready.';
+  const sub = state.claimedToday
+    ? 'Come back tomorrow for the next reward in your seven-day streak.'
+    : state.missed ? 'Your previous streak reset because a day was missed.' : 'Claim on consecutive days to keep the seven-day streak alive.';
   return `
     <div class="daily-login-shell" style="--daily-login-bg:url('${rewardBg}')">
       <img class="daily-login-bg-img" src="${rewardBg}" alt="" decoding="async" loading="eager" draggable="false" onerror="this.onerror=null;this.src='${rewardBgFallback}';">
@@ -756,6 +823,12 @@ function showDailyLoginPanel() {
       showDailyLoginPanel();
     };
     acts.appendChild(claim);
+  } else {
+    const claimed = document.createElement('button');
+    claimed.className = 'btn sm daily-login-claimed-btn';
+    claimed.textContent = 'Already Collected Today';
+    claimed.disabled = true;
+    acts.appendChild(claimed);
   }
   acts.appendChild(close);
   document.getElementById('modal')?.classList.add('on');
@@ -772,7 +845,6 @@ function handleFateChatCommand(text) {
 
 function checkDailyLoginOnStartup() {
   const state = normalizeDailyLoginProfileState();
-  if(state.claimedToday) return;
   if(window.__fateDailyLoginPromptedThisSession) return;
   window.__fateDailyLoginPromptedThisSession = true;
   setTimeout(function(){

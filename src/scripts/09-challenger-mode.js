@@ -2704,6 +2704,7 @@ function renderCdbCollection() {
       };
     });
     if(renderCanvasDeckCollection(col, entries, {
+      align:'left',
       onClick:(card)=>openCardDetail(card),
       onContextMenu:(card)=>cdbAdd(card.id)
     })) return;

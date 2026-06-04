@@ -11,8 +11,9 @@
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=1780269000">
-<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1780306400">
-  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780311320">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1780586201">
+  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780593601">
+<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1780593601">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -53,8 +54,8 @@
   </div>
   <div class="title-content">
     <div class="logo">FATES ENTWINED</div>
-    <div class="logo-sub" style="margin:.22rem 0 .17rem;">A strategic card game designed by Howard Liang</div>
-    <div class="logo-sub" style="margin:0 0 .82rem;font-size:.72rem;opacity:.82;">Recommended to play this game on 100% zoom</div>
+    <div class="logo-sub" style="margin:.22rem 0 .17rem;">A strategic card game created by Howard Liang.</div>
+    <div class="logo-sub" style="margin:0 0 .82rem;opacity:.82;">Use Ctrl-Scroll to optimize your game zoom.</div>
     <div class="title-menu-stack">
       <button class="btn pri title-btn" id="title-free-play-btn" onclick="playMenuSfx();openFreePlayMenu()">Free Play</button>
       <button class="btn pri title-btn" id="title-challenger-btn" style="background:linear-gradient(135deg,rgba(201,168,76,.3),rgba(255,215,0,.2));border-color:#ffd700;color:#ffd700;" onclick="playMenuSfx();openChallengerMenu()">Challenger</button>
@@ -498,34 +499,44 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1780301600"></script>
-<script src="src/scripts/01-data-and-state.js?v=1780302000"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1780592201"></script>
+<script src="src/scripts/01-data-and-state.js?v=1780592201"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1780309600"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1780311070"></script>
-<script src="src/scripts/04-game-setup.js?v=1780304500"></script>
-  <script src="src/scripts/05-gameplay-core.js?v=1780302800"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1780310980"></script>
-  <script src="src/scripts/23-board-canvas-renderer.js?v=1780305600"></script>
-  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780300800"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1780311571"></script>
+<script src="src/scripts/04-game-setup.js?v=1780590901"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1780592201"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1780593601"></script>
+<script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
+<script src="src/scripts/render-v2/01-render-snapshot.js?v=1780592201"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1780593601"></script>
+<script src="src/scripts/render-v2/03-card-texture-cache.js?v=1780586101"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1780593601"></script>
+<script src="src/scripts/render-v2/06-match-scene-input.js?v=1780593601"></script>
+<script src="src/scripts/render-v2/07-animation-timeline.js?v=1780587901"></script>
+<script src="src/scripts/render-v2/08-hand-pile-phase8-report.js?v=1780586201"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1780593001"></script>
+<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1780590901"></script>
+  <script src="src/scripts/23-board-canvas-renderer.js?v=1780584201"></script>
+  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780311567"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai.js?v=1780302900"></script>
 <script src="src/scripts/08-audio-and-meta-ui.js?v=1780310600"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1780310840"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1780311567"></script>
 <script src="src/scripts/11-tutorial.js?v=1780269000"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
-<script src="src/scripts/10-init.js?v=1780311320"></script>
+<script src="src/scripts/10-init.js?v=1780311565"></script>
 
 <!-- Cloud save: all player data synced to Firebase under players/{uid}/ -->
-<script src="src/scripts/14-cloud-save.js?v=1780269000"></script>
+<script src="src/scripts/14-cloud-save.js?v=1780311560"></script>
 <!-- Online rebuild v1: Google auth + RTDB profile/social/rooms foundation -->
-<script type="module" src="src/scripts/15-online-auth.js?v=1780269000"></script>
+<script type="module" src="src/scripts/15-online-auth.js?v=1780311560"></script>
 <script type="module" src="src/scripts/16-online-core.js?v=1780269000"></script>
 <script type="module" src="src/scripts/17-online-social.js?v=1780269000"></script>
-<script type="module" src="src/scripts/18-online-rooms.js?v=1780269000"></script>
+<script type="module" src="src/scripts/18-online-rooms.js?v=1780311550"></script>
 <script type="module" src="src/scripts/19-online-elo.js?v=1780298400"></script>
 <script type="module" src="src/scripts/20-online-economy.js?v=1780310860"></script>
-<script src="src/scripts/21-smoothness-core.js?v=1780304500"></script>
+<script src="src/scripts/21-smoothness-core.js?v=1780580001"></script>
 <script src="src/scripts/22-spectator.js?v=1780269000"></script>
 <script>
   if('serviceWorker' in navigator && !new URLSearchParams(location.search).has('soloNoSw')){navigator.serviceWorker.register('./sw.js?v=bg20260510d').catch(()=>{});}

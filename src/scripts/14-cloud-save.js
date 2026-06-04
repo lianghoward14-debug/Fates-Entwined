@@ -155,7 +155,13 @@
     var base = 'players/' + uid + '/';
     try {
       var profile = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : null;
-      if(profile) batch[base + 'profile'] = Object.assign({}, profile, {_fateAccountUid:uid});
+      if(profile){
+        if(profile._fateAccountUid && profile._fateAccountUid !== uid){
+          console.warn('[CloudSave] blocked cross-account full profile write');
+        } else {
+          batch[base + 'profile'] = Object.assign({}, profile, {_fateAccountUid:uid});
+        }
+      }
       var presets = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
       if(presets != null) batch[base + 'presets'] = presets;
       var lb = typeof LEADERBOARD !== 'undefined' ? LEADERBOARD : null;
@@ -218,7 +224,7 @@
     if(typeof PUBLIC_DECKS !== 'undefined') PUBLIC_DECKS = [];
 
     // Profile
-    if(data.profile && typeof data.profile === 'object'){
+    if(data.profile && typeof data.profile === 'object' && (!data.profile._fateAccountUid || data.profile._fateAccountUid === uid)){
       var defaults = {
         username:'Player', bio:'', profileImg:'blank.png', elo:600,
         wins:0, losses:0, level:1, xp:0, totalXp:0, featuredPresets:[],
@@ -235,6 +241,8 @@
         var storageKey = uid ? 'fate_user_profile_' + uid : 'fate_user_profile';
         localStorage.setItem(storageKey, JSON.stringify(USER_PROFILE));
       } catch(e){}
+    } else if(data.profile && typeof data.profile === 'object') {
+      console.warn('[CloudSave] ignored profile stamped for another account');
     }
 
     // Presets
@@ -403,6 +411,7 @@
       clearTimeout(loadTimeout);
       if(!hadCloudData){
         // First sign-in or no cloud data — push current local data up
+        if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(uid);
         cloudSaveAll();
       }
       _cloudReady = true;

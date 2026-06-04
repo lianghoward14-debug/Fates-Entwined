@@ -220,10 +220,20 @@ async function syncPublicProfile(opts={}){
   const user = auth.currentUser;
   if(!user) return null;
   const uid = user.uid;
+  if(typeof window._fatePrepareAccountSwitch === 'function'){
+    const beforeProfile = getLocalProfile();
+    if(beforeProfile && beforeProfile._fateAccountUid && beforeProfile._fateAccountUid !== uid){
+      window._fatePrepareAccountSwitch(uid);
+    }
+  }
   const baseCode = makeBaseCode(uid);
   const chosenUsername = getLocalUsername(user);
   const photoURL = getLocalPhoto(user);
   const localProfile = getLocalProfile();
+  if(localProfile && localProfile._fateAccountUid && localProfile._fateAccountUid !== uid){
+    console.warn('Blocked public profile sync for mismatched local account profile');
+    return null;
+  }
   const humanWins = Number(localProfile.humanWins ?? localProfile.wins ?? 0) || 0;
   const humanLosses = Number(localProfile.humanLosses ?? localProfile.losses ?? 0) || 0;
   const matchesPlayed = Number(localProfile.matchesPlayed ?? ((Number(localProfile.challengerWins||0)||0) + (Number(localProfile.challengerLosses||0)||0) + (Number(localProfile.wins||0)||0) + (Number(localProfile.losses||0)||0))) || 0;

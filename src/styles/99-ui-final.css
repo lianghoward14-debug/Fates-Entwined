@@ -18409,3 +18409,154 @@ html body #modal .title-profile-modal-v2 .profile-stat .ps-value{
   line-height:1.08!important;
   transform:translateY(2px)!important;
 }
+
+/* Codex 2026-06-04: render-v2 scene owns board-card visuals; DOM cards stay as hit targets only. */
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell.has-card .bc{
+  background:transparent!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell.has-card .bc::before,
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell.has-card .bc::after,
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell.has-card .bc > *{
+  opacity:0!important;
+  visibility:hidden!important;
+  animation:none!important;
+  transition:none!important;
+}
+
+/* Codex 2026-06-04: render-v2 polish pass - centered match clock and cleaner owned-board shell. */
+html body #s-game .topbar{
+  min-height:68px!important;
+  overflow:visible!important;
+}
+
+html body #s-game .tp-mid{
+  min-width:0!important;
+  width:0!important;
+  min-height:0!important;
+  height:0!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  filter:none!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  overflow:hidden!important;
+}
+
+html body #s-game .tp-mid #tp-cur,
+html body #s-game .tp-mid #tp-phase,
+html body #s-game .tp-mid #tp-timer{
+  visibility:hidden!important;
+}
+
+html body #s-game .tp-mid::before,
+html body #s-game .tp-mid::after{
+  content:none!important;
+  display:none!important;
+}
+
+html body #s-game .turn-hud{
+  position:absolute!important;
+  top:4px!important;
+  left:50%!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translateX(-50%)!important;
+  z-index:180!important;
+  width:min(410px,34vw)!important;
+  min-width:340px!important;
+  min-height:56px!important;
+  box-sizing:border-box!important;
+  padding:.34rem .78rem!important;
+  border-radius:10px!important;
+  border:1.5px solid rgba(218,185,82,.62)!important;
+  background:linear-gradient(180deg,rgba(7,9,15,.94),rgba(2,3,7,.98))!important;
+  box-shadow:0 16px 34px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,246,191,.055)!important;
+  display:grid!important;
+  grid-template-columns:44px minmax(0,1fr)!important;
+  gap:.62rem!important;
+  align-items:center!important;
+  pointer-events:none!important;
+}
+
+html body #s-game .turn-hud-icon{
+  width:44px!important;
+  height:44px!important;
+  flex:0 0 44px!important;
+  color:#e9c85d!important;
+  filter:drop-shadow(0 0 8px rgba(218,185,82,.28))!important;
+}
+
+html body #s-game .turn-hud-copy{
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-rows:auto auto!important;
+  column-gap:.55rem!important;
+  align-items:center!important;
+}
+
+html body #s-game .turn-hud-turn{
+  grid-column:1!important;
+  grid-row:1!important;
+  color:#e6c45c!important;
+  font-size:.66rem!important;
+  letter-spacing:.12em!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #s-game .turn-hud-player{
+  grid-column:1!important;
+  grid-row:2!important;
+  color:#f2e8cf!important;
+  font-size:.58rem!important;
+  line-height:1.05!important;
+  letter-spacing:.08em!important;
+  margin:0!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #s-game .turn-hud-timer{
+  grid-column:2!important;
+  grid-row:1 / span 2!important;
+  min-width:84px!important;
+  margin:0!important;
+  padding:.13rem .48rem!important;
+  border-color:rgba(218,185,82,.54)!important;
+  background:rgba(0,0,0,.62)!important;
+  color:#fff2b0!important;
+  font-size:.78rem!important;
+  letter-spacing:.08em!important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game #board.fate-match-v2-owned-board{
+  background:transparent!important;
+}
+
+@media (max-width:900px){
+  html body #s-game .turn-hud{
+    width:min(360px,62vw)!important;
+    min-width:270px!important;
+    grid-template-columns:38px minmax(0,1fr)!important;
+    padding:.3rem .55rem!important;
+  }
+  html body #s-game .turn-hud-icon{
+    width:38px!important;
+    height:38px!important;
+  }
+  html body #s-game .turn-hud-timer{
+    min-width:68px!important;
+    font-size:.7rem!important;
+  }
+}

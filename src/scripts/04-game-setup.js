@@ -1081,8 +1081,10 @@ function activateWineCountryGuerillaFromHand(card) {
 }
 
 function animateDrawCard(delayIdx) {
-  return;
   if(G._aiAbort) return;
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function' && window.FateV2CardMotionFx.drawFromPile(delayIdx)){
+    return;
+  }
   const deckEl = document.getElementById('my-deck');
   const handEl = document.getElementById('hand-cards');
   if(!deckEl || !handEl) return;

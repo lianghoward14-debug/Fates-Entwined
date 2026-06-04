@@ -95,13 +95,28 @@ function initCtrlWheelZoom(){
 
   var minZoom = 0.75;
   var maxZoom = 1.35;
-  var zoom = 1;
+  var zoomStorageKey = 'fate_game_zoom';
+  var zoom = readStoredZoom();
   var zoomIndicatorTimer = 0;
 
   function clampZoom(value){
     var n = Number(value);
     if(!Number.isFinite(n)) return 1;
     return Math.max(minZoom, Math.min(maxZoom, Math.round(n * 100) / 100));
+  }
+
+  function readStoredZoom(){
+    try {
+      return clampZoom(localStorage.getItem(zoomStorageKey) || 1);
+    } catch(e) {
+      return 1;
+    }
+  }
+
+  function saveStoredZoom(next){
+    try {
+      localStorage.setItem(zoomStorageKey, String(clampZoom(next)));
+    } catch(e) {}
   }
 
   function applyCssFallbackZoom(next){
@@ -134,13 +149,16 @@ function initCtrlWheelZoom(){
     }, 1100);
   }
 
-  function setGameZoom(next){
+  function setGameZoom(next, options){
+    options = options || {};
     zoom = clampZoom(next);
-    showZoomIndicator(zoom);
+    saveStoredZoom(zoom);
+    if(!options.silent) showZoomIndicator(zoom);
     if(window.FateElectronZoom && typeof window.FateElectronZoom.set === 'function'){
       window.FateElectronZoom.set(zoom).then(function(actual){
         zoom = clampZoom(actual);
-        showZoomIndicator(zoom);
+        saveStoredZoom(zoom);
+        if(!options.silent) showZoomIndicator(zoom);
       }).catch(function(){
         applyCssFallbackZoom(zoom);
       });
@@ -154,10 +172,21 @@ function initCtrlWheelZoom(){
     return setGameZoom(1);
   }
 
+  function reapplyStoredZoom(){
+    zoom = readStoredZoom();
+    return setGameZoom(zoom, {silent:true});
+  }
+
   if(window.FateElectronZoom && typeof window.FateElectronZoom.get === 'function'){
     window.FateElectronZoom.get().then(function(actual){
-      zoom = clampZoom(actual || 1);
-    }).catch(function(){ zoom = 1; });
+      var hasStored = false;
+      try { hasStored = localStorage.getItem(zoomStorageKey) !== null; } catch(e) {}
+      var stored = readStoredZoom();
+      zoom = hasStored ? stored : clampZoom(actual || 1);
+      setGameZoom(zoom, {silent:true});
+    }).catch(function(){ reapplyStoredZoom(); });
+  } else {
+    reapplyStoredZoom();
   }
 
   document.addEventListener('wheel', function(e){
@@ -175,6 +204,13 @@ function initCtrlWheelZoom(){
     e.preventDefault();
     resetGameZoom();
   }, true);
+
+  window.addEventListener('fate-screen-changed', function(){
+    reapplyStoredZoom();
+  });
+  window.addEventListener('focus', function(){
+    reapplyStoredZoom();
+  });
 
   window.fateSetGameZoom = setGameZoom;
   window.fateResetGameZoom = resetGameZoom;

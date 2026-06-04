@@ -893,7 +893,8 @@ async function clickCell(z,r,c) {
   if(G._markSelecting) {
     const sel = G._markSelecting;
     if(sel.player !== G.currentPlayer){ G._markSelecting = null; return; }
-    if(r !== 3 || c < 0 || c > 2){
+    const markRowCapacity = G.board && G.board[z] && G.board[z][r] ? G.board[z][r].length : 3;
+    if(r !== 3 || c < 0 || c >= markRowCapacity){
       toast('Choose one of the highlighted safe-square slots');
       return;
     }
@@ -1216,6 +1217,9 @@ async function resolveSetCardAfterPlacement(inst, z, r, c) {
 function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
+    window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
+  }
   const placementDelay = triggerPlacementAnimation(card, z, r, c);
   renderGame();
   requestAnimationFrame(() => resolveSetCardAfterPlacement(card, z, r, c));
@@ -1511,6 +1515,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     });
 
     let bonusFate = 0;
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
+      window.FateV2CardMotionFx.crashTributes(tributes, target);
+    }
     tributes.forEach(t=>{
       if(t.card.id==='47') bonusFate += 3;
       discardBoardCard(t.card, t.z, t.r, t.c);
@@ -2272,7 +2279,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         const maxRow = G.board[z] ? G.board[z].length : 3;
         [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{
           const nr = r + dr, nc = c + dc;
-          const neighbor = (nr >= 0 && nr < maxRow && nc >= 0 && nc < 3 && G.board[z][nr]) ? G.board[z][nr][nc] : null;
+          const rowCapacity = G.board[z] && G.board[z][nr] ? G.board[z][nr].length : 3;
+          const neighbor = (nr >= 0 && nr < maxRow && nc >= 0 && nc < rowCapacity && G.board[z][nr]) ? G.board[z][nr][nc] : null;
           if(neighbor && neighbor.iid !== card.iid) adj++;
         });
         G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + adj;
@@ -2451,7 +2459,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         clearPlaceHighlights();
         for(let zz=0;zz<3;zz++){
           const totalRows = G.board[zz]?G.board[zz].length:3;
-          for(let rr=0;rr<totalRows;rr++) for(let cc=0;cc<3;cc++){
+          for(let rr=0;rr<totalRows;rr++) for(let cc=0;cc<(G.board[zz][rr] ? G.board[zz][rr].length : 3);cc++){
             if(G.board[zz][rr]&&G.board[zz][rr][cc]===null && !isBlocked(zz,rr,cc)){
               const el = document.querySelector(`[data-z="${zz}"][data-r="${rr}"][data-c="${cc}"]`);
               if(el) el.classList.add('placeable');
@@ -3226,7 +3234,8 @@ function getHavanoDeploymentOptions(owner) {
     const totalRows = G.board[z] ? G.board[z].length : 3;
     for(let r=0; r<totalRows; r++) {
       if(!rows.has(r)) continue;
-      for(let c=0; c<3; c++) {
+      const rowCapacity = G.board[z] && G.board[z][r] ? G.board[z][r].length : 3;
+      for(let c=0; c<rowCapacity; c++) {
         if(G.board[z][r] && G.board[z][r][c]===null && !isBlocked(z,r,c)) options.push({z,r,c});
       }
     }

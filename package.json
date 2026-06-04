@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "electron": "electron .",
+    "dev:web": "node tools/solo-static-server.js --port 8126",
     "server:ws": "node server/fate-ws-authority.js",
     "smoke:ws-authority": "node server/local-multiplayer-smoke-test.js",
     "smoke:multiplayer": "node server/full-multiplayer-smoke-test.js",

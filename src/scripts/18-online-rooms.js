@@ -505,6 +505,22 @@
     if(!isTurnBoundaryOnlineAction(action)) return;
     lastTurnBoundaryActionSeq = Math.max(lastTurnBoundaryActionSeq, Number(action?.seq || 0) || 0);
   }
+  function waitOnlineActionSettle(type){
+    const frames = /^(CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE)$/i.test(String(type || '')) ? 4 : 2;
+    return new Promise(resolve=>{
+      if(typeof requestAnimationFrame !== 'function'){
+        setTimeout(resolve, frames * 18);
+        return;
+      }
+      let left = frames;
+      const step = ()=>{
+        left -= 1;
+        if(left <= 0) resolve();
+        else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
   function shouldRunForcedSyncForRoomSeq(roomSeq){
     const seq = Number(roomSeq || 0) || 0;
     if(seq <= 1) return true;
@@ -515,8 +531,17 @@
     const outbound = Object.assign({}, payload || {}, { clientActionId });
     let localResult;
     let localApplied = false;
-    function sendAfterLocalApply(){
-      try{ attachOnlinePostState(outbound); }catch(e){ console.warn('Could not attach online post-state', e); }
+    async function sendAfterLocalApply(){
+      try{
+        if(localResult && typeof localResult.then === 'function') await localResult;
+        await waitOnlineActionSettle(type);
+        if(String(type || '').toUpperCase() !== 'CLICK_CELL') attachOnlinePostState(outbound);
+      }catch(e){
+        console.error('Optimistic local action failed before sync', e, type, outbound);
+        if(localApplied) scheduleOptimisticCorrection(type);
+        else if(window.toast) toast('Action failed');
+        return;
+      }
       return sendAction(type, outbound).catch(e=>{
         console.error('Online optimistic action send failed', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
@@ -548,9 +573,6 @@
         rememberOptimisticAction(clientActionId);
         localApplied = true;
         localResult = applyLocal();
-        if(localResult && typeof localResult.catch === 'function'){
-          localResult.catch(e=>console.error('Optimistic local action failed', e, type, outbound));
-        }
       }catch(e){
         optimisticAppliedActionIds.delete(clientActionId);
         console.error('Optimistic local action threw', e, type, outbound);
@@ -558,7 +580,7 @@
       }
     }
     sendAfterLocalApply();
-    scheduleFollowupStateSync(950);
+    scheduleFollowupStateSync(1250);
     return localResult;
   }
   function canSendLocalAction(g){
@@ -656,6 +678,10 @@
     const room = lastLobbyRoom;
     const localUid = window.FATE_ONLINE?.user?.uid;
     if(!isOnlineMatchState(g) || !room || !players || !localUid || isCoinScreenActive()) return;
+    // Gameplay actions must be applied only through the ordered room action log.
+    // The player-node fallback can arrive before earlier sequenced actions and
+    // causes duplicated/offset board placements during live multiplayer.
+    return;
     const candidates = [room.hostUid, room.guestUid].filter(Boolean);
     for(const uid of candidates){
       if(uid === localUid) continue;
@@ -2274,7 +2300,7 @@
     payload = onlineFirebaseSafeValue(payload || {});
     const authorityEnabled = !!configuredAuthorityUrl();
     let fallbackPublished = false;
-    if(!authorityEnabled && actionType !== 'STATE_SYNC'){
+    if(!authorityEnabled && actionType === 'CHOOSE_TURN'){
       fallbackPublished = await publishPlayerActionFallback(code, actionType, payload, u).catch(e=>{
         console.warn('Player-node action fallback publish failed', e);
         return false;
@@ -2411,6 +2437,15 @@
           updateRoomTurn(gameState()?.currentPlayer);
           return result;
         });
+      };
+    }
+
+    if(typeof window.playPlacementAnimation === 'function' && !originals.playPlacementAnimation){
+      originals.playPlacementAnimation = window.playPlacementAnimation;
+      window.playPlacementAnimation = function(){
+        const g = gameState();
+        if(isOnlineMatchState(g) && g._onlineApplyingRemoteAction) return 0;
+        return originals.playPlacementAnimation.apply(this, arguments);
       };
     }
 

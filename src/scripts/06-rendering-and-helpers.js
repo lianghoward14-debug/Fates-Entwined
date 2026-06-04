@@ -75,10 +75,17 @@ function noteRenderBreakdown(totalMs, detail) {
 function noteRenderRequest(parts, normalized) {
   if(typeof window === 'undefined') return;
   const isBroad = !parts || parts === true || parts === 'all';
-  if(!isBroad) return;
   const perf = window.__fatePerf = window.__fatePerf || {};
-  perf.broadRenderRequests = (perf.broadRenderRequests || 0) + 1;
-  perf.lastBroadRenderParts = Object.keys(normalized || {}).filter(k => normalized[k]).join(',');
+  const partList = Object.keys(normalized || {}).filter(k => normalized[k]).join(',');
+  perf.renderRequests = (perf.renderRequests || 0) + 1;
+  perf.lastRenderRequestParts = partList;
+  if(isBroad) {
+    perf.broadRenderRequests = (perf.broadRenderRequests || 0) + 1;
+    perf.lastBroadRenderParts = partList;
+  } else {
+    perf.scopedRenderRequests = (perf.scopedRenderRequests || 0) + 1;
+    perf.lastScopedRenderParts = partList;
+  }
   if(!shouldCollectRenderDiagnostics()) return;
   let caller = 'unknown';
   try{
@@ -87,17 +94,22 @@ function noteRenderRequest(parts, normalized) {
     caller = caller.replace(/^at\s+/, '').slice(0, 180);
   }catch(e){}
   const stats = perf.renderCallerStats = perf.renderCallerStats || {};
-  const item = stats[caller] || { count:0, broad:0, lastAt:0, parts:'' };
+  const item = stats[caller] || { count:0, broad:0, scoped:0, lastAt:0, parts:'' };
   item.count += 1;
-  item.broad += 1;
+  if(isBroad) item.broad += 1;
+  else item.scoped += 1;
   item.lastAt = Date.now();
-  item.parts = Object.keys(normalized || {}).filter(k => normalized[k]).join(',');
+  item.parts = partList;
   stats[caller] = item;
 }
 function normalizeRenderParts(parts) {
   if(!parts || parts === true || parts === 'all') return {...RENDER_ALL_PARTS};
-  if(typeof parts === 'string') return {...RENDER_ALL_PARTS, [parts]:true};
-  return {...parts};
+  if(typeof parts === 'string') return RENDER_ALL_PARTS[parts] ? {[parts]:true} : {};
+  const out = {};
+  Object.keys(parts || {}).forEach(k=>{
+    if(parts[k] && RENDER_ALL_PARTS[k]) out[k] = true;
+  });
+  return out;
 }
 function mergeRenderParts(a, b) {
   const out = {...(a || {})};
@@ -655,7 +667,18 @@ function getOppHandRenderSignature() {
 
 var _pointerDown = false;
 var _renderDeferredByPointer = false;
-function _flushDeferredRender(){ if(_renderDeferredByPointer){ _renderDeferredByPointer = false; renderGame(); } }
+function _flushDeferredRender(){
+  if(!_renderDeferredByPointer) return;
+  _renderDeferredByPointer = false;
+  if(_renderGameScheduled) return;
+  const dirty = _renderGameDirty || {...RENDER_ALL_PARTS};
+  _renderGameDirty = null;
+  if(!isGameRenderScreenActive()){
+    noteSuppressedOffscreenGameRender('renderGame:pointerFlush');
+    return;
+  }
+  performGameRender(dirty);
+}
 document.addEventListener('pointerdown', function(){ _pointerDown = true; }, true);
 document.addEventListener('pointerup', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
 document.addEventListener('pointercancel', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
@@ -736,6 +759,12 @@ function renderPiles() {
     const slot = document.querySelector(selector);
     if(!slot) return;
     const src = card && card.img ? getRuntimeCardImageSrc(card.img, 'full') : '';
+    const paintKey = [
+      src,
+      Math.round(slot.clientWidth || 0),
+      Math.round(slot.clientHeight || 0),
+      Math.round((window.devicePixelRatio || 1) * 100) / 100
+    ].join('|');
     if(typeof window.renderCanvasImage === 'function' && window.HTMLCanvasElement) {
       let canvas = slot.querySelector(':scope > canvas.pile-card-canvas');
       if(!canvas) {
@@ -746,10 +775,13 @@ function renderPiles() {
         canvas.setAttribute('aria-hidden','true');
         slot.appendChild(canvas);
       }
-      if(canvas.__fatePileSrc !== src) canvas.__fatePileSrc = src;
+      if(canvas.__fatePilePaintKey === paintKey && canvas.width > 0 && canvas.height > 0) return;
+      canvas.__fatePilePaintKey = paintKey;
       window.renderCanvasImage(canvas, src, { mode:'cover', parent:slot, background:'#0a0a0f' });
       return;
     }
+    if(slot.__fatePilePaintKey === paintKey) return;
+    slot.__fatePilePaintKey = paintKey;
     if(src) slot.style.background = `#0a0a0f url('${src}') center/cover no-repeat`;
     else slot.style.background = 'linear-gradient(135deg,#1a1a2a,#0a0a12)';
   };
@@ -1714,6 +1746,10 @@ function patchChangedBoardCells(nextCellSigs, prevCellSigs) {
 function renderBoard() {
   const board = document.getElementById('board');
   if(!board || typeof G === 'undefined' || !G || !G.board) return;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsBoard === 'function' && window.FateMatchRendererAdapter.ownsBoard()){
+    window.FateMatchRendererAdapter.renderFromGameState({board:true, source:'renderBoard'});
+    return;
+  }
   document.documentElement.classList.remove('fate-canvas-board-ready');
   if(document.body) document.body.classList.remove('fate-canvas-board-ready');
   if(window.fateCanvasBoardPauseDrawing) window.fateCanvasBoardPauseDrawing();
@@ -4140,7 +4176,8 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     cells.className = 'zp-cells';
     // Actual row in data: we iterate displayRow
     const dataRow = displayRow;
-    for(let c=0;c<3;c++){
+    const rowCapacity = G.board[z] && G.board[z][dataRow] ? G.board[z][dataRow].length : 3;
+    for(let c=0;c<rowCapacity;c++){
       const cell = G.board[z]?.[dataRow]?.[c] || null;
       const cellEl = document.createElement('div');
       cellEl.className = 'zp-cell';
@@ -4258,7 +4295,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   }
 
   const body=document.createElement('div');
-  body.className = 'visual-picker-body visual-picker-v2';
+  body.className = 'visual-picker-body visual-picker-v2 visual-picker-search-flow';
   const sub = opts.subtitle || (maxCount>1?`Select up to ${maxCount}`:'Select one');
   body.innerHTML=`
     <p style="font-size:.78rem;margin-bottom:.3rem;color:var(--dim);font-style:italic;text-align:center;">${sub}</p>
@@ -4276,6 +4313,16 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const pickerImageCache = new Map();
   let pickerHitboxes = [];
   let pickerDrawToken = 0;
+  let pickerMotionTimer = 0;
+
+  function triggerPickerMotion(className, duration) {
+    if(!body || !className) return;
+    body.classList.remove(className);
+    void body.offsetWidth;
+    body.classList.add(className);
+    if(pickerMotionTimer) clearTimeout(pickerMotionTimer);
+    pickerMotionTimer = setTimeout(function(){ body.classList.remove(className); }, duration || 520);
+  }
 
   function loadPickerImage(src) {
     if(!src || pickerImageCache.has(src)) return;
@@ -4464,6 +4511,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
             const okBtn = document.getElementById('modal-acts').querySelector('.btn.pri');
             if(okBtn){ okBtn.disabled = selected.length < minCount; okBtn.style.opacity = selected.length < minCount ? '.4' : '1'; }
           }
+          triggerPickerMotion('is-selection-pulse', 360);
         };
       })(i, el);
       grid.appendChild(el);
@@ -4492,6 +4540,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
         const okBtn = document.getElementById('modal-acts').querySelector('.btn.pri');
         if(okBtn){ okBtn.disabled = selected.length < minCount; okBtn.style.opacity = selected.length < minCount ? '.4' : '1'; }
       }
+      triggerPickerMotion('is-selection-pulse', 360);
       drawCanvasPage();
     };
     pickerCanvas.onmousemove = function(ev) {
@@ -4515,12 +4564,13 @@ function pickCardsVisual(cards, opts, onConfirm) {
     };
   }
   renderPage();
+  triggerPickerMotion('is-search-entering', 780);
 
   // Wire pagination
   const prevBtn = body.querySelector('#vp-prev');
   const nextBtn = body.querySelector('#vp-next');
-  if(prevBtn) prevBtn.onclick = ()=>{ if(page>0){page--;renderPage();} };
-  if(nextBtn) nextBtn.onclick = ()=>{ if(page<totalPages-1){page++;renderPage();} };
+  if(prevBtn) prevBtn.onclick = ()=>{ if(page>0){page--;renderPage();triggerPickerMotion('is-page-turning', 460);} };
+  if(nextBtn) nextBtn.onclick = ()=>{ if(page<totalPages-1){page++;renderPage();triggerPickerMotion('is-page-turning', 460);} };
 
   document.getElementById('modal-title').textContent=opts.title||'Select a Card';
   document.getElementById('modal-acts').innerHTML='';
@@ -5009,7 +5059,7 @@ function highlightAllOpenCells() {
   clearPlaceHighlights();
   for(let z=0;z<3;z++){
     const totalRows = G.board[z]?G.board[z].length:3;
-    for(let r=0;r<totalRows;r++) for(let c=0;c<3;c++){
+    for(let r=0;r<totalRows;r++) for(let c=0;c<(G.board[z][r] ? G.board[z][r].length : 3);c++){
       if(G.board[z][r]&&G.board[z][r][c]===null && !isBlocked(z,r,c)){
         const el=document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"]`);
         if(el) el.classList.add('placeable');
@@ -5231,6 +5281,9 @@ function discardBoardCard(card, z, r, c) {
     return;
   }
   // Try to play discard animation on the DOM element before removing
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
+    window.FateV2CardMotionFx.flyBoardCard(card, z, r, c, 'discard');
+  }
   const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"] .bc`);
   if(cellEl){
     // Fly toward the opponent's discard pile (roughly offscreen for now)

@@ -199,7 +199,7 @@
       const width = Math.max(cardW, measuredW);
       const cols = Math.max(1, Math.floor((width + gap) / (cardW + gap)));
       const usedW = cols * cardW + (cols - 1) * gap;
-      const startX = Math.max(0, Math.floor((width - usedW) / 2));
+      const startX = opts.align === 'left' ? 0 : Math.max(0, Math.floor((width - usedW) / 2));
       const rows = Math.ceil(entries.length / cols);
       const height = rows * cardH + Math.max(0, rows - 1) * gap;
       return { width, height, cardW, cardH, gap, cols, startX };
