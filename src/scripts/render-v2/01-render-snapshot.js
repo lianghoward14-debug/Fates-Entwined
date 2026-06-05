@@ -287,7 +287,7 @@
 
   function buildSnapshot(options){
     const started = nowMs();
-    const g = getGameState();
+    const g = options && options.gameState ? options.gameState : getGameState();
     if(!g || !Array.isArray(g.players) || !Array.isArray(g.board)) {
       lastSnapshot = null;
       lastReport = {

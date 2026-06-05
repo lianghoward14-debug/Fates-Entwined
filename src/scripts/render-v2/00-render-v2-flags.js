@@ -29,10 +29,12 @@
 
   function getMode(){
     const params = getParams();
+    if(params.has('domBoard') || params.get('matchRendererV2') === '0') return FLAGS.disabled;
+    if(readStorage('fateDisableMatchRendererV2') === '1') return FLAGS.disabled;
     const queryMode = String(params.get('renderV2') || '').trim().toLowerCase();
     if(queryMode) return queryMode;
     const storedMode = String(readStorage('fateRenderV2Mode') || '').trim().toLowerCase();
-    return storedMode || FLAGS.snapshot;
+    return storedMode || FLAGS.scene;
   }
 
   function getTrialDesign(){
@@ -79,6 +81,7 @@
   function getReport(){
     return {
       mode:getMode(),
+      defaultMode:FLAGS.scene,
       trial:getTrialDesign(),
       enabled:isEnabled(),
       snapshots:shouldBuildSnapshots()

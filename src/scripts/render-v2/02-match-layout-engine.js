@@ -100,6 +100,103 @@
     };
   }
 
+  function elementViewportRect(selector, fallback){
+    try {
+      const el = document.querySelector(selector);
+      if(el && el.getBoundingClientRect) {
+        const r = el.getBoundingClientRect();
+        if(r.width > 1 && r.height > 1) return rect(r.left, r.top, r.width, r.height);
+      }
+    } catch(e) {}
+    return fallback;
+  }
+
+  function buildPeripheralLayout(snap, vp, metrics){
+    const winW = Math.max(1, Number(vp.windowW) || window.innerWidth || vp.w || 1280);
+    const winH = Math.max(1, Number(vp.windowH) || window.innerHeight || vp.h || 720);
+    const viewer = Number(snap.viewer) || 0;
+    const opponent = viewer === 0 ? 1 : 0;
+    const players = Array.isArray(snap.players) ? snap.players : [];
+    const own = players[viewer] || {hand:[], handCount:0};
+    const opp = players[opponent] || {hand:[], handCount:0};
+    const handCards = Array.isArray(own.hand) ? own.hand : [];
+    const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
+    const cardW = clamp(winW * 0.0745, 96, 142);
+    const cardH = Math.round(cardW * 1.4);
+    const gap = clamp(winW * 0.008, 8, 18);
+    const handFallbackW = Math.min(1080, Math.max(320, winW - 390));
+    const handRect = elementViewportRect('#hand-cards', rect((winW - handFallbackW) / 2, winH - cardH - 68, handFallbackW, cardH + 28));
+    const totalHandW = handCards.length ? (cardW * handCards.length + gap * Math.max(0, handCards.length - 1)) : 0;
+    const handStartX = handRect.x + Math.max(0, (handRect.w - totalHandW) / 2);
+    const handY = handRect.y + Math.max(0, handRect.h - cardH - 4);
+    const hand = {
+      rect:handRect,
+      cards:handCards.map(function(card, index){
+        return {
+          index,
+          iid:card && card.iid != null ? String(card.iid) : '',
+          card,
+          rect:rect(handStartX + index * (cardW + gap), handY, cardW, cardH),
+          hitRect:rect(handStartX + index * (cardW + gap), handY, cardW, cardH)
+        };
+      })
+    };
+
+    const oppCount = oppCards.length;
+    const oppGap = 5;
+    const baseOppCardW = clamp(winW * 0.036, 36, 58);
+    const baseOppCardH = Math.round(baseOppCardW * 1.4);
+    const oppFallback = rect(22, 146, Math.max(180, baseOppCardW * Math.max(1, oppCount) + oppGap * Math.max(0, oppCount - 1)), baseOppCardH + 14);
+    const oppRect = elementViewportRect('#opp-hand', oppFallback);
+    const fitOppCardW = oppCount
+      ? Math.max(30, Math.floor((oppRect.w - oppGap * Math.max(0, oppCount - 1)) / oppCount))
+      : baseOppCardW;
+    const oppCardW = Math.min(baseOppCardW, fitOppCardW);
+    const oppCardH = Math.round(oppCardW * 1.4);
+    const totalOppW = oppCount ? (oppCardW * oppCount + oppGap * Math.max(0, oppCount - 1)) : 0;
+    const oppStartX = oppRect.x + Math.max(0, (oppRect.w - totalOppW) / 2);
+    const opponentHand = {
+      rect:oppRect,
+      cards:oppCards.map(function(card, index){
+        return {
+          index,
+          iid:card && card.iid != null ? String(card.iid) : '',
+          card,
+          faceDown:!(card && card.revealed),
+          rect:rect(oppStartX + index * (oppCardW + oppGap), oppRect.y + Math.max(0, (oppRect.h - oppCardH) / 2), oppCardW, oppCardH)
+        };
+      })
+    };
+
+    function pile(playerIndex, pileName, selector){
+      const player = players[playerIndex] || {};
+      const isDeck = pileName === 'deck';
+      const elRect = elementViewportRect(selector, null);
+      if(!elRect) return null;
+      return {
+        playerIndex,
+        pile:pileName,
+        rect:elRect,
+        hitRect:elRect,
+        count:Number(isDeck ? player.deckCount : player.discardCount) || 0,
+        topCard:isDeck ? null : (player.topDiscard || null)
+      };
+    }
+
+    return {
+      hand,
+      opponentHand,
+      piles:{
+        items:[
+          pile(viewer, 'deck', '#my-deck'),
+          pile(viewer, 'discard', '#my-discard'),
+          pile(opponent, 'deck', '#opp-deck'),
+          pile(opponent, 'discard', '#opp-discard')
+        ].filter(Boolean)
+      }
+    };
+  }
+
   function rowDisplayOrder(rows, viewer){
     const base = rows.filter(function(row){ return row && row.r < 3; });
     const extras = rows.filter(function(row){ return row && row.r >= 3; });
@@ -226,6 +323,7 @@
       };
     });
 
+    const peripheral = buildPeripheralLayout(snap, Object.assign({}, vp, {windowW:vp.windowW, windowH:vp.windowH}), cssMetrics || {});
     const layout = {
       version:LAYOUT_VERSION,
       snapshotSignature:snap.signature || '',
@@ -255,7 +353,10 @@
       },
       boardRect,
       zones,
-      cardRects
+      cardRects,
+      hand:peripheral.hand,
+      opponentHand:peripheral.opponentHand,
+      piles:peripheral.piles
     };
 
     buildCount++;
@@ -272,6 +373,9 @@
         return total + zone.rows.reduce(function(rowTotal, row){ return rowTotal + row.cells.length; }, 0);
       }, 0),
       cards:cardRects.length,
+      handCards:layout.hand && layout.hand.cards ? layout.hand.cards.length : 0,
+      opponentHandCards:layout.opponentHand && layout.opponentHand.cards ? layout.opponentHand.cards.length : 0,
+      piles:layout.piles && layout.piles.items ? layout.piles.items.length : 0,
       lastMs:round(nowMs() - started)
     };
     return layout;

@@ -70,6 +70,32 @@
   let layoutRetryUntil = 0;
   let boardRebuildInProgress = false;
   let textureCacheCallback = null;
+  let actualDrawRequests = 0;
+  let fallbackForcedDomBoard = false;
+
+  function isV2SceneOwner(){
+    try {
+      return !!(window.FateMatchRendererAdapter
+        && typeof window.FateMatchRendererAdapter.ownsBoard === 'function'
+        && window.FateMatchRendererAdapter.ownsBoard());
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function noteOldCanvasBlocked(source){
+    const key = source || 'unknown';
+    const rec = window.__fateOldCanvasBlocked = window.__fateOldCanvasBlocked || {
+      count:0,
+      bySource:{},
+      lastSource:'',
+      lastAt:0
+    };
+    rec.count++;
+    rec.bySource[key] = (rec.bySource[key] || 0) + 1;
+    rec.lastSource = key;
+    rec.lastAt = Date.now();
+  }
 
   function roundMs(ms){
     return Math.round((Number(ms) || 0) * 10) / 10;
@@ -77,6 +103,10 @@
 
   function scheduleDraw(source){
     const drawSource = source || 'unknown';
+    if(isV2SceneOwner()){
+      noteOldCanvasBlocked(drawSource);
+      return;
+    }
     scheduleRequests++;
     drawSourceCounts[drawSource] = (drawSourceCounts[drawSource] || 0) + 1;
     lastScheduleSource = drawSource;
@@ -738,6 +768,11 @@
   }
 
   function drawNow(source){
+    if(isV2SceneOwner()){
+      noteOldCanvasBlocked(source || 'drawNow');
+      return;
+    }
+    actualDrawRequests++;
     const start = performance.now();
     const board = document.getElementById('board');
     if(!board || typeof G === 'undefined' || !G || !G.board) return;
@@ -938,6 +973,11 @@
     }
     if(layoutRetryUntil && afterDrawNow >= layoutRetryUntil) layoutRetryUntil = 0;
     if(expectedCards > cards){
+      if(isV2SceneOwner()){
+        noteOldCanvasBlocked('fallback-forced-dom-board-blocked');
+        return;
+      }
+      fallbackForcedDomBoard = true;
       window.FATE_RUNTIME_FORCE_DOM_BOARD = true;
       window.FATE_FORCE_DOM_BOARD_UNTIL = performance.now() + 3000;
       document.documentElement.classList.remove('fate-canvas-board-mode');
@@ -1007,6 +1047,10 @@
   }
 
   function installObservers(){
+    if(isV2SceneOwner()){
+      noteOldCanvasBlocked('install-observers-blocked');
+      return;
+    }
     const board = document.getElementById('board');
     if(board && !board.__fateCanvasBoardListeners){
       board.__fateCanvasBoardListeners = true;
@@ -1037,9 +1081,17 @@
   };
   window.fateCanvasBoardResumeDrawing = function(){
     boardRebuildInProgress = false;
+    if(isV2SceneOwner()){
+      noteOldCanvasBlocked('resume-drawing');
+      return;
+    }
     scheduleDraw('resume-drawing');
   };
   window.fateRenderBoardCanvas = function(){
+    if(isV2SceneOwner()){
+      noteOldCanvasBlocked('renderBoard');
+      return;
+    }
     boardRebuildInProgress = false;
     installObservers();
     scheduleDraw('renderBoard');
@@ -1048,8 +1100,22 @@
     getImage(src);
   };
   window.fateCanvasBoardReport = function(){
+    const blocked = window.__fateOldCanvasBlocked || {count:0, bySource:{}, lastSource:'', lastAt:0};
+    const disabledByV2 = isV2SceneOwner();
+    if(disabledByV2 && fallbackForcedDomBoard){
+      fallbackForcedDomBoard = false;
+      window.FATE_RUNTIME_FORCE_DOM_BOARD = false;
+      window.FATE_FORCE_DOM_BOARD_UNTIL = 0;
+    }
     return Object.assign({}, lastReport, {
       enabled: canUseCanvas(),
+      loaded:true,
+      disabledByV2,
+      drawRequests:actualDrawRequests,
+      blockedDrawRequests:blocked.count || 0,
+      blockedSources:Object.assign({}, blocked.bySource || {}),
+      fallbackForcedDomBoard:disabledByV2 ? false : !!fallbackForcedDomBoard,
+      mutationObserverActive:!!(document.getElementById('board') && document.getElementById('board').__fateCanvasBoardMutationObserver),
       sourceCounts:Object.assign({}, drawSourceCounts),
       scheduleRequests,
       skippedScheduleRequests,
@@ -1075,11 +1141,15 @@
     location.reload();
   };
 
-  window.addEventListener('resize', function(){ scheduleDraw('window-resize'); }, {passive:true});
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) scheduleDraw('visibility-return'); }, {passive:true});
+  window.addEventListener('resize', function(){ if(isV2SceneOwner()) noteOldCanvasBlocked('window-resize'); else scheduleDraw('window-resize'); }, {passive:true});
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden){ if(isV2SceneOwner()) noteOldCanvasBlocked('visibility-return'); else scheduleDraw('visibility-return'); } }, {passive:true});
   document.addEventListener('DOMContentLoaded', function(){
     installObservers();
-    scheduleDraw('startup');
-    if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ scheduleDraw('fonts-ready'); }).catch(function(){});
+    if(isV2SceneOwner()) noteOldCanvasBlocked('startup');
+    else scheduleDraw('startup');
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
+      if(isV2SceneOwner()) noteOldCanvasBlocked('fonts-ready');
+      else scheduleDraw('fonts-ready');
+    }).catch(function(){});
   });
 })();

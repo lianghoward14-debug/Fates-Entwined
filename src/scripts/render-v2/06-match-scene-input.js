@@ -10,12 +10,16 @@
       this.container = null;
       this.pointerDownHit = null;
       this.pointerDownPoint = null;
+      this.viewportPointerDownHit = null;
+      this.viewportPointerDownPoint = null;
       this.lastHandledAt = 0;
       this.moveRaf = 0;
       this.pendingMove = null;
       this.handlePointerDown = this.handlePointerDown.bind(this);
       this.handlePointerUp = this.handlePointerUp.bind(this);
       this.handlePointerMove = this.handlePointerMove.bind(this);
+      this.handleViewportPointerDown = this.handleViewportPointerDown.bind(this);
+      this.handleViewportPointerUp = this.handleViewportPointerUp.bind(this);
     }
 
     attach(container){
@@ -26,6 +30,8 @@
       this.container.addEventListener('pointerdown', this.handlePointerDown, {passive:true});
       this.container.addEventListener('pointerup', this.handlePointerUp, {passive:true});
       this.container.addEventListener('pointermove', this.handlePointerMove, {passive:true});
+      document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:true});
+      document.addEventListener('pointerup', this.handleViewportPointerUp, {capture:true, passive:false});
     }
 
     detach(){
@@ -33,6 +39,8 @@
       this.container.removeEventListener('pointerdown', this.handlePointerDown);
       this.container.removeEventListener('pointerup', this.handlePointerUp);
       this.container.removeEventListener('pointermove', this.handlePointerMove);
+      document.removeEventListener('pointerdown', this.handleViewportPointerDown, true);
+      document.removeEventListener('pointerup', this.handleViewportPointerUp, true);
       if(this.moveRaf) {
         cancelAnimationFrame(this.moveRaf);
         this.moveRaf = 0;
@@ -40,6 +48,8 @@
       this.container = null;
       this.pointerDownHit = null;
       this.pointerDownPoint = null;
+      this.viewportPointerDownHit = null;
+      this.viewportPointerDownPoint = null;
       this.pendingMove = null;
     }
 
@@ -81,6 +91,60 @@
         if(r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return Object.assign({kind:'cell'}, hit);
       }
       return null;
+    }
+
+    viewportHitTest(clientX, clientY){
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
+      if(!hitMap) return null;
+      const groups = [
+        {items:Array.isArray(hitMap.handCards) ? hitMap.handCards : [], kind:'hand-card'},
+        {items:Array.isArray(hitMap.opponentHandCards) ? hitMap.opponentHandCards : [], kind:'opponent-hand-card'},
+        {items:Array.isArray(hitMap.piles) ? hitMap.piles : [], kind:'pile'}
+      ];
+      for(let g = 0; g < groups.length; g++){
+        const group = groups[g];
+        for(let i = group.items.length - 1; i >= 0; i--){
+          const hit = group.items[i];
+          const r = hit && hit.rect;
+          if(r && clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) {
+            return Object.assign({kind:group.kind}, hit);
+          }
+        }
+      }
+      return null;
+    }
+
+    handleViewportPointerDown(ev){
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
+      if(ev.button !== 0) return;
+      const hit = this.viewportHitTest(ev.clientX, ev.clientY);
+      if(!hit) return;
+      this.viewportPointerDownHit = hit;
+      this.viewportPointerDownPoint = {clientX:ev.clientX, clientY:ev.clientY};
+    }
+
+    handleViewportPointerUp(ev){
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
+      if(ev.button !== 0) return;
+      const started = this.viewportPointerDownHit;
+      const startedPoint = this.viewportPointerDownPoint;
+      this.viewportPointerDownHit = null;
+      this.viewportPointerDownPoint = null;
+      if(!started || !startedPoint) return;
+      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) return;
+      const ended = this.viewportHitTest(ev.clientX, ev.clientY);
+      if(!ended || ended.kind !== started.kind) return;
+      if(ended.kind === 'hand-card' && ended.index !== started.index) return;
+      if(ended.kind === 'opponent-hand-card' && ended.index !== started.index) return;
+      if(ended.kind === 'pile' && (ended.playerIndex !== started.playerIndex || ended.pile !== started.pile)) return;
+      if(performance.now && performance.now() - this.lastHandledAt < 80) return;
+      this.lastHandledAt = performance.now ? performance.now() : Date.now();
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.dispatchViewportHit(ended);
     }
 
     handlePointerMove(ev){
@@ -146,6 +210,37 @@
         try { if(typeof restoreBoardViewportLockSoon === 'function') restoreBoardViewportLockSoon(); } catch(e) {}
         if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
           window.FateMatchRendererAdapter.scheduleRender('input');
+        }
+      }
+    }
+
+    dispatchViewportHit(hit){
+      if(!hit || typeof G === 'undefined' || !G || !Array.isArray(G.players)) return;
+      try {
+        if(hit.kind === 'hand-card'){
+          const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+          const card = G.players[cp] && G.players[cp].hand ? G.players[cp].hand[Number(hit.index)] : null;
+          if(!card || G._isSpectator) return;
+          const canActFromHand = cp === G.currentPlayer;
+          let selectable = false;
+          try {
+            selectable = canActFromHand && ((typeof canPlayCard === 'function' && canPlayCard(card)) || (typeof isSupporterLimitReachedForCard === 'function' && isSupporterLimitReachedForCard(card)));
+          } catch(e) {}
+          if(selectable) {
+            G.selectedHandCard = Number(hit.index);
+            G.placing = false;
+          }
+          if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
+        } else if(hit.kind === 'opponent-hand-card') {
+          if(hit.card && !hit.card.hidden && typeof openCardDetail === 'function') openCardDetail(hit.card, false, true);
+          else if(typeof showRevealedHandWindow === 'function') showRevealedHandWindow(Number(hit.playerIndex));
+        } else if(hit.kind === 'pile') {
+          if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
+          if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
+        }
+      } finally {
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+          window.FateMatchRendererAdapter.scheduleRender('viewport-input');
         }
       }
     }

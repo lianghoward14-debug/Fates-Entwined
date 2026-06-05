@@ -5,6 +5,7 @@
   if(window.FateV2CardMotionFx) return;
 
   const VERSION = 1;
+  window.FateV2CardMotionFxUsesDomGhosts = false;
 
   function q(sel){ return document.querySelector(sel); }
 
@@ -79,19 +80,37 @@
     return el;
   }
 
+  function timeline(){
+    return window.FateMatchAnimationTimeline || null;
+  }
+
+  function scheduleRender(reason){
+    const scene = window.FateMatchRendererAdapter;
+    if(scene && typeof scene.scheduleRender === 'function') scene.scheduleRender(reason || 'motion-fx');
+  }
+
+  function queueMotion(kind, card, from, to, opts){
+    const tl = timeline();
+    if(!tl || typeof tl.add !== 'function') return false;
+    const options = opts || {};
+    tl.add({
+      kind:'motion-fx',
+      subtype:kind || 'card-motion',
+      iid:card && card.iid != null ? String(card.iid) : '',
+      cardName:cardName(card),
+      fromRect:from || null,
+      toRect:to || null,
+      start:(window.performance && performance.now) ? performance.now() + (Number(options.delay) || 0) : Date.now() + (Number(options.delay) || 0),
+      duration:Number(options.duration) || 760,
+      easing:options.easing || 'out-cubic'
+    });
+    scheduleRender('motion-fx-' + (kind || 'card-motion'));
+    return true;
+  }
+
   function fly(card, from, to, opts){
     const options = opts || {};
-    const el = makeCardGhost(card, from, options.className || '');
-    if(!el || !to) return false;
-    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
-    el.style.setProperty('--fx-dx', dx + 'px');
-    el.style.setProperty('--fx-dy', dy + 'px');
-    el.style.setProperty('--fx-scale', String(options.scale || Math.max(.42, Math.min(1.05, to.width / Math.max(1, from.width)))));
-    el.style.animationDelay = (Number(options.delay) || 0) + 'ms';
-    el.classList.add(options.kind === 'crash' ? 'is-crashing' : 'is-flying');
-    setTimeout(function(){ if(el.parentNode) el.remove(); }, Number(options.duration) || 900);
-    return true;
+    return queueMotion(options.kind || 'fly', card, from, to, options);
   }
 
   function flyBoardCard(card, z, r, c, kind){

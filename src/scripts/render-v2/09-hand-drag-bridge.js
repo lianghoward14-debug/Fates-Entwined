@@ -11,6 +11,8 @@
   let pendingHover = null;
   let hoverRaf = 0;
   let moveRaf = 0;
+  const DROP_PREVIEW_INTERVAL_MS = 42;
+  const DROP_PREVIEW_MIN_DELTA = 12;
 
   function adapter(){
     return window.FateMatchRendererAdapter || null;
@@ -82,7 +84,7 @@
   function canStartDrag(ev, cardEl, idx, card){
     if(!ownsBoard() || !activeGame()) return false;
     if(!ev || ev.button !== 0) return false;
-    if(!cardEl || cardEl.classList.contains('dim')) return false;
+    if(cardEl && cardEl.classList && cardEl.classList.contains('dim')) return false;
     if(typeof G === 'undefined' || !G || G.phase !== 'main') return false;
     if(G._isSpectator) return false;
     const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
@@ -90,6 +92,18 @@
     if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return false;
     if(G._boardTargeting || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._busserMoving || G._busserMovingCard || G._markSelecting) return false;
     return idx >= 0 && !!card;
+  }
+
+  function viewportHandHitFromPoint(clientX, clientY){
+    const scene = adapter();
+    const map = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
+    const handCards = map && Array.isArray(map.handCards) ? map.handCards : [];
+    for(let i = handCards.length - 1; i >= 0; i--){
+      const hit = handCards[i];
+      const r = hit && hit.rect;
+      if(r && clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) return hit;
+    }
+    return null;
   }
 
   function boardPointFromClient(clientX, clientY){
@@ -120,6 +134,20 @@
       y:(er.top - cr.top) * sy,
       w:er.width * sx,
       h:er.height * sy
+    };
+  }
+
+  function viewportRectInBoardSpace(vr){
+    const canvas = document.getElementById('fate-match-v2-canvas');
+    if(!canvas || !vr || !canvas.getBoundingClientRect) return null;
+    const cr = canvas.getBoundingClientRect();
+    const sx = (canvas.clientWidth || cr.width || 1) / Math.max(1, cr.width || 1);
+    const sy = (canvas.clientHeight || cr.height || 1) / Math.max(1, cr.height || 1);
+    return {
+      x:(vr.x - cr.left) * sx,
+      y:(vr.y - cr.top) * sy,
+      w:vr.w * sx,
+      h:vr.h * sy
     };
   }
 
@@ -189,8 +217,31 @@
     ctx.fill();
     ctx.stroke();
     ctx.clip();
+    const visual = card && (card.visual || card);
+    const texture = window.FateCardTextureCache && typeof window.FateCardTextureCache.getBaseCardTexture === 'function'
+      ? window.FateCardTextureCache.getBaseCardTexture(card, {w, h}, {
+        visual,
+        dpr:2,
+        preferFullArt:true,
+        onChange:function(){ if(canvas.isConnected) drawCanvasGhost(canvas, el, card); }
+      })
+      : null;
+    if(texture && texture.loaded && texture.canvas){
+      try {
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(texture.canvas, 0, 0, w, h);
+        ctx.restore();
+        return;
+      } catch(e) {}
+    }
     const imgEl = el && el.querySelector ? el.querySelector('.bc-art img') : null;
-    const src = imgEl && (imgEl.currentSrc || imgEl.src);
+    let src = imgEl && (imgEl.currentSrc || imgEl.src);
+    if(!src && card) {
+      src = (visual && (visual.runtimeImg || visual.img)) || card.runtimeImg || card.img || '';
+      try {
+        if(src && typeof getRuntimeCardImageSrc === 'function') src = getRuntimeCardImageSrc(src, 'hand');
+      } catch(e) {}
+    }
     function drawImage(img){
       try {
         ctx.clearRect(0, 0, w, h);
@@ -199,7 +250,7 @@
       drawFate();
     }
     function drawFate(){
-      const fateText = String((el && el.querySelector && el.querySelector('.bc-fate') && el.querySelector('.bc-fate').textContent) || (card && (card.currentFate || card.fate)) || '');
+      const fateText = String((el && el.querySelector && el.querySelector('.bc-fate') && el.querySelector('.bc-fate').textContent) || (visual && visual.displayFate) || (card && (card.currentFate || card.fate)) || '');
       if(fateText){
         const bw = Math.max(28, Math.min(42, w * .26));
         const bh = Math.max(22, Math.min(30, w * .2));
@@ -233,7 +284,7 @@
       ctx.font = '900 ' + Math.round(w * .18) + 'px Cinzel, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('F', w / 2, h / 2);
+      ctx.fillText((visual && visual.name ? String(visual.name).slice(0, 1) : 'F'), w / 2, h / 2);
       drawFate();
     }
     ctx.restore();
@@ -241,7 +292,9 @@
 
   function makeGhost(el, ev){
     clearGhost();
-    const r = el.getBoundingClientRect();
+    const r = state && state.sourceViewportRect
+      ? {left:state.sourceViewportRect.x, top:state.sourceViewportRect.y, width:state.sourceViewportRect.w, height:state.sourceViewportRect.h}
+      : el.getBoundingClientRect();
     const ghost = document.createElement('canvas');
     ghost.id = 'fate-v2-drag-ghost';
     ghost.className = 'fate-v2-canvas-drag-ghost';
@@ -281,7 +334,7 @@
     const lift = Math.min(1, Math.max(0, Number(progress) || 0));
     const gx = state && Number.isFinite(state.gripX) ? state.gripX : w / 2;
     const gy = state && Number.isFinite(state.gripY) ? state.gripY : h / 2;
-    ghost.style.transform = 'translate(' + (x - gx) + 'px,' + (y - gy - lift * 8) + 'px) rotate(' + (-2 + lift * 1.5) + 'deg) scale(' + (1.01 + lift * .035) + ')';
+    ghost.style.transform = 'translate3d(' + (x - gx) + 'px,' + (y - gy - lift * 8) + 'px,0) rotate(' + (-2 + lift * 1.5) + 'deg) scale(' + (1.01 + lift * .035) + ')';
   }
 
   function clearGhost(){
@@ -313,6 +366,34 @@
     state = null;
   }
 
+  function updateDropPreview(x, y, force){
+    if(!state || !state.dragging) return null;
+    const now = (window.performance && performance.now) ? performance.now() : Date.now();
+    const lx = Number(state.lastPreviewX);
+    const ly = Number(state.lastPreviewY);
+    const movedEnough = !Number.isFinite(lx) || !Number.isFinite(ly)
+      || Math.abs(x - lx) >= DROP_PREVIEW_MIN_DELTA
+      || Math.abs(y - ly) >= DROP_PREVIEW_MIN_DELTA;
+    if(!force && now - (Number(state.lastPreviewAt) || 0) < DROP_PREVIEW_INTERVAL_MS) {
+      return state.lastDropPreview || null;
+    }
+    if(!force && !movedEnough) {
+      return state.lastDropPreview || null;
+    }
+    state.lastPreviewAt = now;
+    state.lastPreviewX = x;
+    state.lastPreviewY = y;
+    const hit = hitFromPoint(x, y);
+    const dragState = hitDropState(state.card, hit);
+    state.lastDropPreview = {hit, dragState};
+    setSceneHover(hit, dragState);
+    if(state.ghost && state.lastInvalidDrop !== (dragState === 'invalid')){
+      state.lastInvalidDrop = dragState === 'invalid';
+      state.ghost.classList.toggle('invalid-drop', state.lastInvalidDrop);
+    }
+    return state.lastDropPreview;
+  }
+
   function scheduleDragFrame(clientX, clientY, dist){
     if(!state || !state.dragging) return;
     state.pendingX = clientX;
@@ -326,12 +407,7 @@
       const y = state.pendingY;
       const d = state.pendingDist || 0;
       moveGhost(state.ghost, x, y, Math.min(1, d / 120));
-      const hit = hitFromPoint(x, y);
-      const dragState = hitDropState(state.card, hit);
-      if(state.ghost && state.lastInvalidDrop !== (dragState === 'invalid')){
-        state.lastInvalidDrop = dragState === 'invalid';
-        state.ghost.classList.toggle('invalid-drop', state.lastInvalidDrop);
-      }
+      updateDropPreview(x, y, false);
     });
   }
 
@@ -343,7 +419,7 @@
     state.hitMap = cache.hitMap;
     state.canPayReinforcement = state.card && state.card.type !== 'Supporter' ? hasEnoughReinforcement(state.card) : true;
     state.ghost = makeGhost(state.el, ev);
-    state.el.classList.add('fate-v2-drag-source');
+    if(state.el) state.el.classList.add('fate-v2-drag-source');
     document.body.classList.add('fate-v2-dragging-card');
     if(typeof playSfx === 'function') playSfx('dragStart');
     G.selectedHandCard = state.idx;
@@ -353,12 +429,23 @@
 
   function onPointerDown(ev){
     if(Date.now() < blockClickUntil) return;
-    const el = ev.target && ev.target.closest ? ev.target.closest('#hand-cards .hc') : null;
-    if(!el) return;
-    const idx = handIndex(el);
+    const handHit = viewportHandHitFromPoint(ev.clientX, ev.clientY);
+    const el = handHit ? null : (ev.target && ev.target.closest ? ev.target.closest('#hand-cards .hc') : null);
+    if(!handHit && !el) return;
+    const idx = handHit ? Number(handHit.index) : handIndex(el);
     const card = currentHandCard(idx);
     if(!canStartDrag(ev, el, idx, card)) return;
-    state = {el, idx, card, sx:ev.clientX, sy:ev.clientY, dragging:false, ghost:null};
+    state = {
+      el,
+      idx,
+      card,
+      sx:ev.clientX,
+      sy:ev.clientY,
+      dragging:false,
+      ghost:null,
+      sourceViewportRect:handHit && handHit.rect ? Object.assign({}, handHit.rect) : null,
+      sourceBoardRect:handHit && handHit.rect ? viewportRectInBoardSpace(handHit.rect) : null
+    };
   }
 
   function onPointerMove(ev){
@@ -378,7 +465,7 @@
 
   function finishSupporterDrop(hit){
     const iid = state.card && state.card.iid;
-    const from = handRectInBoardSpace(state.el);
+    const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
     const scene = adapter();
     cleanup({clearPlacement:false});
@@ -410,8 +497,9 @@
     ev.stopPropagation();
     if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
     blockClickUntil = Date.now() + 260;
-    const hit = hitFromPoint(ev.clientX, ev.clientY);
-    const dragState = hitDropState(state.card, hit);
+    const preview = updateDropPreview(ev.clientX, ev.clientY, true);
+    const hit = preview ? preview.hit : hitFromPoint(ev.clientX, ev.clientY);
+    const dragState = preview ? preview.dragState : hitDropState(state.card, hit);
     if(!hit || dragState === 'invalid'){
       if(typeof toast === 'function') {
         if(state.card && state.card.type !== 'Supporter' && !hasEnoughReinforcement(state.card)){
@@ -443,13 +531,17 @@
 
   window.FateMatchHandDragBridge = {
     version:BRIDGE_VERSION,
+    usesDomHand:false,
+    usesHitMap:true,
     report:function(){
       return {
         available:true,
         version:BRIDGE_VERSION,
         active:!!state,
         dragging:!!(state && state.dragging),
-        ownsBoard:ownsBoard()
+        ownsBoard:ownsBoard(),
+        usesDomHand:false,
+        usesHitMap:true
       };
     }
   };

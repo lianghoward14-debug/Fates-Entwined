@@ -723,6 +723,35 @@ function renderGameParts(parts) {
 
 function renderPiles() {
   if(typeof G === 'undefined' || !G || !G.players) return;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsPiles === 'function' && window.FateMatchRendererAdapter.ownsPiles()){
+    const myP = getPerspectivePlayerIndex();
+    const oppP = getPerspectiveOpponentIndex();
+    const myDeck = G.players[myP].deck.length;
+    const myDisc = G.players[myP].discard.length;
+    const oppDisc = G.players[oppP].discard.length;
+    const set = (id,n,slotId)=>{
+      const el=document.getElementById(id);
+      if(el) el.textContent=n;
+      const slot=document.getElementById(slotId);
+      if(slot) slot.classList.toggle('empty', n===0);
+    };
+    set('my-deck-count',myDeck,'my-deck');
+    set('my-discard-count',myDisc,'my-discard');
+    set('opp-discard-count',oppDisc,'opp-discard');
+    document.querySelectorAll('.pile-card-canvas').forEach(function(canvas){ canvas.remove(); });
+    document.querySelectorAll('.pile-slot .pile-cards').forEach(function(slot){ slot.textContent = ''; slot.style.background = ''; });
+    const myDeckEl = document.getElementById('my-deck');
+    const myDiscardEl = document.getElementById('my-discard');
+    const oppDeckEl = document.getElementById('opp-deck');
+    const oppDiscardEl = document.getElementById('opp-discard');
+    if(myDeckEl) myDeckEl.onclick = () => showDeckInfo(myP);
+    if(myDiscardEl) myDiscardEl.onclick = () => showDiscard(myP);
+    if(oppDeckEl) oppDeckEl.onclick = () => showDeckInfo(oppP);
+    if(oppDiscardEl) oppDiscardEl.onclick = () => showDiscard(oppP);
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderPiles');
+    else window.FateMatchRendererAdapter.renderFromGameState({piles:true, source:'renderPiles'});
+    return;
+  }
   // Determine "my" and "opp" perspective (in AI mode, you're always P1)
   const myP = getPerspectivePlayerIndex();
   const oppP = getPerspectiveOpponentIndex();
@@ -1422,6 +1451,18 @@ function renderOppHand() {
   // Show opponent's hand — revealed cards face-up, others face-down
   const container = document.getElementById('opp-hand');
   if(!container) return;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsOpponentHand === 'function' && window.FateMatchRendererAdapter.ownsOpponentHand()){
+    const oppP = getPerspectiveOpponentIndex();
+    const oppHand = G.players[oppP].hand;
+    container.textContent = '';
+    container.style.cursor = '';
+    container.onclick = null;
+    const lbl=document.getElementById('opp-hand-lbl');
+    if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderOppHand');
+    else window.FateMatchRendererAdapter.renderFromGameState({opponentHand:true, source:'renderOppHand'});
+    return;
+  }
   const nextSig = getOppHandRenderSignature();
   if(nextSig === _lastOppHandRenderSignature && container.children.length) return;
   _lastOppHandRenderSignature = nextSig;
@@ -1747,7 +1788,8 @@ function renderBoard() {
   const board = document.getElementById('board');
   if(!board || typeof G === 'undefined' || !G || !G.board) return;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsBoard === 'function' && window.FateMatchRendererAdapter.ownsBoard()){
-    window.FateMatchRendererAdapter.renderFromGameState({board:true, source:'renderBoard'});
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderBoard');
+    else window.FateMatchRendererAdapter.renderFromGameState({board:true, source:'renderBoard'});
     return;
   }
   document.documentElement.classList.remove('fate-canvas-board-ready');
@@ -2226,6 +2268,27 @@ function renderHand() {
   const hand = G.players[cp].hand;
   const hc = document.getElementById('hand-cards');
   if(!hc) return;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsHand === 'function' && window.FateMatchRendererAdapter.ownsHand()){
+    hc.textContent = '';
+    const countEl = document.getElementById('hand-count');
+    const countText = `(${hand.length})`;
+    if(countEl && countEl.textContent !== countText) countEl.textContent = countText;
+    const lblEl = document.getElementById('hand-lbl');
+    if(lblEl) {
+      const showAiThinking = !canActFromHand && G.aiEnabled && cp === G.aiPlayer;
+      const nameStr = canActFromHand ? G.players[cp].name+'\'s Hand' : G.players[cp].name+'\'s Hand' + (showAiThinking ? ' (AI thinking)' : '');
+      const labelSig = [nameStr, countText].join('|');
+      if(labelSig !== _lastHandLabelSignature) {
+        _lastHandLabelSignature = labelSig;
+        const countSpan = countEl ? countEl.outerHTML : '';
+        lblEl.innerHTML = nameStr + ' ' + countSpan;
+      }
+    }
+    if(typeof enforceHandLimit === 'function') enforceHandLimit(cp);
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderHand');
+    else window.FateMatchRendererAdapter.renderFromGameState({hand:true, source:'renderHand'});
+    return;
+  }
   const nextSig = getHandRenderSignature();
   if(nextSig === _lastHandRenderSignature && hc.children.length) return;
   _lastHandRenderSignature = nextSig;
