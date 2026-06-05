@@ -1033,6 +1033,63 @@ function applyPendingSelvaSupportBoost(player) {
   return true;
 }
 
+function rendererV2OwnsMatchScene() {
+  return !!(window.FateMatchRendererAdapter
+    && typeof window.FateMatchRendererAdapter.ownsBoard === 'function'
+    && window.FateMatchRendererAdapter.ownsBoard());
+}
+
+function viewportRectToVfxBoardRect(rect) {
+  if(!rect) return null;
+  const canvas = document.getElementById('fate-match-v2-canvas');
+  if(!canvas || typeof canvas.getBoundingClientRect !== 'function') return null;
+  const canvasRect = canvas.getBoundingClientRect();
+  const rectWidth = Number(rect.w != null ? rect.w : rect.width);
+  const rectHeight = Number(rect.h != null ? rect.h : rect.height);
+  if(!(rectWidth > 0) || !(rectHeight > 0)) return null;
+  const scaleX = (canvas.clientWidth || canvasRect.width || 1) / Math.max(1, canvasRect.width || 1);
+  const scaleY = (canvas.clientHeight || canvasRect.height || 1) / Math.max(1, canvasRect.height || 1);
+  return {
+    x:(Number(rect.x != null ? rect.x : rect.left) - canvasRect.left) * scaleX,
+    y:(Number(rect.y != null ? rect.y : rect.top) - canvasRect.top) * scaleY,
+    w:rectWidth * scaleX,
+    h:rectHeight * scaleY
+  };
+}
+
+function queueGuerillaTransferVfx(card) {
+  const adapter = window.FateMatchRendererAdapter;
+  const bridge = window.FateVfxEventBridge;
+  if(!card || !adapter || !bridge) return false;
+  if(typeof adapter.getHitMap !== 'function' || typeof bridge.onAcceptedGameEvent !== 'function') return false;
+  const hitMap = adapter.getHitMap() || {};
+  const source = (hitMap.handCards || []).find(h => String(h && h.iid) === String(card.iid));
+  const firstOpponentCard = (hitMap.opponentHandCards || [])[0] || null;
+  const fromRect = viewportRectToVfxBoardRect(source && source.rect);
+  let toRect = viewportRectToVfxBoardRect(firstOpponentCard && firstOpponentCard.rect);
+  if(!toRect && fromRect){
+    toRect = {
+      x:fromRect.x,
+      y:Math.max(24, fromRect.y - Math.max(220, fromRect.h * 2.4)),
+      w:fromRect.w,
+      h:fromRect.h
+    };
+  }
+  if(!fromRect || !toRect) return false;
+  bridge.onAcceptedGameEvent({
+    type:'DRAW_CARD',
+    payload:{
+      iid:card.iid,
+      card,
+      fromRect,
+      toRect,
+      faceDown:false,
+      layer:'effects'
+    }
+  });
+  return true;
+}
+
 function transferGuerillaToOpponent(player, card) {
   if(!card || !G || !G.players) return;
   const opp = 1 - player;
@@ -1045,18 +1102,23 @@ function transferGuerillaToOpponent(player, card) {
   card.guerilla_transferred = true;
   card.guerilla_turnsLeft = 5;
   card.guerilla_owner = player;
-  const handEl = document.querySelector(`#hand-cards .hc[data-iid="${card.iid}"]`);
+  const v2Scene = rendererV2OwnsMatchScene();
   const moving = fromHand.splice(idx, 1)[0];
-  if(handEl) {
-    const rect = handEl.getBoundingClientRect();
-    const fly = handEl.cloneNode(true);
-    fly.classList.add('guerilla-transfer-fly');
-    fly.style.left = rect.left + 'px';
-    fly.style.top = rect.top + 'px';
-    fly.style.width = rect.width + 'px';
-    fly.style.height = rect.height + 'px';
-    document.body.appendChild(fly);
-    setTimeout(()=>fly.remove(), 920);
+  if(v2Scene) {
+    queueGuerillaTransferVfx(moving);
+  } else {
+    const handEl = document.querySelector(`#hand-cards .hc[data-iid="${card.iid}"]`);
+    if(handEl) {
+      const rect = handEl.getBoundingClientRect();
+      const fly = handEl.cloneNode(true);
+      fly.classList.add('guerilla-transfer-fly');
+      fly.style.left = rect.left + 'px';
+      fly.style.top = rect.top + 'px';
+      fly.style.width = rect.width + 'px';
+      fly.style.height = rect.height + 'px';
+      document.body.appendChild(fly);
+      setTimeout(()=>fly.remove(), 920);
+    }
   }
   G.players[opp].hand.push(moving);
   toast('Wine Country Guerilla infiltrated opponent\'s hand for 5 turns!');
@@ -1083,6 +1145,9 @@ function activateWineCountryGuerillaFromHand(card) {
 function animateDrawCard(delayIdx) {
   if(G._aiAbort) return;
   if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function' && window.FateV2CardMotionFx.drawFromPile(delayIdx)){
+    return;
+  }
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsBoard === 'function' && window.FateMatchRendererAdapter.ownsBoard()){
     return;
   }
   const deckEl = document.getElementById('my-deck');

@@ -667,6 +667,28 @@ function getOppHandRenderSignature() {
 
 var _pointerDown = false;
 var _renderDeferredByPointer = false;
+const RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR = '.placement-anim-ghost, .draw-fly-card, .guerilla-transfer-fly, .maria-discard-badge, .aff-change-overlay, .effect-activation-aura, .block-overlay, .effect-blocked-flash';
+
+function rendererV2OwnsBoardScene() {
+  return !!(window.FateMatchRendererAdapter
+    && typeof window.FateMatchRendererAdapter.ownsBoard === 'function'
+    && window.FateMatchRendererAdapter.ownsBoard());
+}
+
+function removeRenderV2LegacyLiveVisuals() {
+  if(!rendererV2OwnsBoardScene()) return 0;
+  let removed = 0;
+  try {
+    document.querySelectorAll(RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR).forEach(function(el){
+      if(el && el.parentNode) {
+        el.remove();
+        removed++;
+      }
+    });
+  } catch(e) {}
+  return removed;
+}
+
 function _flushDeferredRender(){
   if(!_renderDeferredByPointer) return;
   _renderDeferredByPointer = false;
@@ -1787,7 +1809,8 @@ function patchChangedBoardCells(nextCellSigs, prevCellSigs) {
 function renderBoard() {
   const board = document.getElementById('board');
   if(!board || typeof G === 'undefined' || !G || !G.board) return;
-  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsBoard === 'function' && window.FateMatchRendererAdapter.ownsBoard()){
+  if(rendererV2OwnsBoardScene()){
+    removeRenderV2LegacyLiveVisuals();
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderBoard');
     else window.FateMatchRendererAdapter.renderFromGameState({board:true, source:'renderBoard'});
     return;
@@ -2088,6 +2111,9 @@ function ensurePlacementAnimationLayer() {
 
 function playPlacementAnimation(card, z, r, c) {
   if(!card || z == null || r == null || c == null) return 0;
+  if(rendererV2OwnsBoardScene()){
+    return 0;
+  }
   const enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
   if(document.documentElement.classList.contains('fate-performance-mode') && !enhancedFx) return 0;
   const layer = ensurePlacementAnimationLayer();
@@ -2383,7 +2409,7 @@ function renderHand() {
 
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
-  const handLimit = 8;
+  const handLimit = 10;
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
@@ -2405,14 +2431,14 @@ function enforceHandLimit(player) {
 function openHandLimitDiscardModal(player) {
   const p = G.players[player];
   if(!p || !Array.isArray(p.hand)) return;
-  const handLimit = 8;
+  const handLimit = 10;
   const needed = Math.max(0, p.hand.length - handLimit);
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
   const cards = p.hand.slice();
   const bodyHtml = `
     <div class="hand-limit-discard">
-      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 8.</div>
+      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 10.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
@@ -2425,7 +2451,7 @@ function openHandLimitDiscardModal(player) {
         }).join('')}
       </div>
     </div>`;
-  showModal('Discard Down to 8', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
+  showModal('Discard Down to 10', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
     if(selectedIids.length < excess){ toast('Select ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
@@ -4910,6 +4936,18 @@ function showAffChangeOverlay(cardInstance, newAff) {
     cardInstance._affChanged = newAff;
     cardInstance._affChangedBy = cardInstance._affChangedBy || 'affiliation_effect';
   }
+  if(rendererV2OwnsBoardScene()){
+    let pos = null;
+    if(typeof forEachBoardCard === 'function') forEachBoardCard((c, z, r, col)=>{
+      if(!pos && c && cardInstance && c.iid === cardInstance.iid) pos = {z, r, c:col};
+    });
+    if(pos && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.boardNotice === 'function'){
+      const label = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[newAff]) ? AFF_LABEL[newAff] : String(newAff || 'AFF');
+      const color = (typeof AFF_COLOR !== 'undefined' && AFF_COLOR[newAff]) ? AFF_COLOR[newAff] : '#ffe89a';
+      window.FateV2CardMotionFx.boardNotice(cardInstance, pos.z, pos.r, pos.c, label, {color});
+    }
+    return;
+  }
   // Find the card's cell element on the board
   let cellEl = null;
   forEachBoardCard((c, z, r, col)=>{
@@ -5347,13 +5385,16 @@ function discardBoardCard(card, z, r, c) {
   if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
     window.FateV2CardMotionFx.flyBoardCard(card, z, r, c, 'discard');
   }
-  const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"] .bc`);
-  if(cellEl){
-    // Fly toward the opponent's discard pile (roughly offscreen for now)
-    const isMine = isPerspectivePlayer(card.owner);
-    cellEl.style.setProperty('--dx', (isMine?'-200px':'200px'));
-    cellEl.style.setProperty('--dy', '250px');
-    cellEl.classList.add('discarding');
+  const rendererV2OwnsBoard = rendererV2OwnsBoardScene();
+  if(!rendererV2OwnsBoard){
+    const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"] .bc`);
+    if(cellEl){
+      // Fly toward the opponent's discard pile (roughly offscreen for now)
+      const isMine = isPerspectivePlayer(card.owner);
+      cellEl.style.setProperty('--dx', (isMine?'-200px':'200px'));
+      cellEl.style.setProperty('--dy', '250px');
+      cellEl.classList.add('discarding');
+    }
   }
   G.board[z][r][c] = null;
   playDiscardSfx();
@@ -5564,6 +5605,21 @@ function showFinalZoneReveal(zResults, opts) {
 function showBlockedAnimation(msg) {
   if(G._aiAbort) return;
   playSfx('zoneBlock');
+  if(rendererV2OwnsBoardScene()){
+    const text = String(msg || 'BLOCKED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '');
+    const report = window.FateMatchRendererAdapter.report && window.FateMatchRendererAdapter.report();
+    const canvas = report && report.canvas || {};
+    const w = Math.max(320, Number(canvas.cssW) || window.innerWidth || 1280);
+    const h = Math.max(240, Number(canvas.cssH) || window.innerHeight || 720);
+    if(window.FateVfxDirector && typeof window.FateVfxDirector.play === 'function'){
+      window.FateVfxDirector.play('LANDSCAPE_TRIGGER', {
+        rect:{x:w * .5 - 160, y:h * .42 - 40, w:320, h:80},
+        text:text + '!',
+        color:'#ff9ea5'
+      });
+    }
+    return;
+  }
   const flash = document.createElement('div');
   flash.className = 'effect-blocked-flash';
   const text = String(msg || 'BLOCKED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '');
@@ -5579,6 +5635,9 @@ function showEffectFlash(card) {
 // Consolidation visual — golden energy swirl on the target cell
 function showConsolidateVisual(z,r,c) {
   if(G._aiAbort) return;
+  if(rendererV2OwnsBoardScene()){
+    return;
+  }
   const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"]`);
   if(!cellEl) return;
   const fx = document.createElement('div');
@@ -5594,6 +5653,13 @@ function showMariaDiscardBadge(targetCard, count, z, r, c) {
   if(typeof document === 'undefined') return;
   const safeCount = Math.max(0, Number(count) || 0);
   const cardName = targetCard && targetCard.name ? targetCard.name : 'card';
+  if(rendererV2OwnsBoardScene()){
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.boardNotice === 'function'){
+      window.FateV2CardMotionFx.boardNotice(targetCard, z, r, c, 'x' + safeCount + ' discarded', {color:'#ffe89a'});
+    }
+    if(typeof playDiscardSfx === 'function') playDiscardSfx();
+    return;
+  }
   let host = null;
   const cellEl = (z != null && r != null && c != null)
     ? document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]')
@@ -5877,6 +5943,12 @@ function showConsolidationCinematic(card, opts) {
 // Effect activation glow — subtle on-field pulse for manually/reactively activated characters.
 function showEffectActivationGlow(z, r, c, card) {
   if(typeof document === 'undefined') return;
+  if(rendererV2OwnsBoardScene()){
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.boardNotice === 'function'){
+      window.FateV2CardMotionFx.boardNotice(card, z, r, c, 'ACTIVATE', {type:'SUPPORTER_ACTIVATE', color:'#9ee6ff'});
+    }
+    return;
+  }
   const cellEl = document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
   if(!cellEl) return;
   const cardEl = cellEl.querySelector('.bc');
@@ -5961,6 +6033,10 @@ function normalizeBlockedCells() {
 }
 
 function showBlockVisual(z, r, c, blockType) {
+  if(rendererV2OwnsBoardScene()){
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('block-visual');
+    return;
+  }
   const cellEl = document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
   if(!cellEl) return;
 
@@ -5987,6 +6063,14 @@ function showBlockVisual(z, r, c, blockType) {
 // Re-render block overlays after each renderGame
 function refreshBlockOverlays() {
   const blocks = normalizeBlockedCells();
+  if(rendererV2OwnsBoardScene()){
+    removeRenderV2LegacyLiveVisuals();
+    _lastBlockOverlaySignature = blocks.map(function(b){
+      return [b.z, b.r, b.c, b.type || 'movement'].join(':');
+    }).sort().join('|');
+    if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('block-overlays');
+    return;
+  }
   const signature = blocks.map(function(b){
     return [b.z, b.r, b.c, b.type || 'movement'].join(':');
   }).sort().join('|');

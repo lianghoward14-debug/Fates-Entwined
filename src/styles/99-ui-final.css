@@ -18464,7 +18464,7 @@ html body #s-game .tp-mid::after{
 
 html body #s-game .turn-hud{
   position:absolute!important;
-  top:4px!important;
+  top:16px!important;
   left:50%!important;
   right:auto!important;
   bottom:auto!important;
@@ -18531,13 +18531,15 @@ html body #s-game .turn-hud-timer{
   grid-column:2!important;
   grid-row:1 / span 2!important;
   min-width:84px!important;
-  margin:0!important;
-  padding:.13rem .48rem!important;
-  border-color:rgba(218,185,82,.54)!important;
-  background:rgba(0,0,0,.62)!important;
+  margin:.42rem 0 -.42rem!important;
+  padding:.18rem .55rem!important;
+  border:1px solid rgba(255,224,104,.72)!important;
+  border-radius:999px!important;
+  background:linear-gradient(180deg,rgba(30,23,9,.92),rgba(0,0,0,.78))!important;
   color:#fff2b0!important;
   font-size:.78rem!important;
   letter-spacing:.08em!important;
+  box-shadow:0 8px 16px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,246,191,.08)!important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game #board.fate-match-v2-owned-board{

@@ -40,13 +40,23 @@
   function buildProductionBoardMetrics(vp, opts){
     const rem = Number.isFinite(opts.rem) ? opts.rem : (Number.isFinite(vp.rem) ? vp.rem : getRemPx());
     const windowW = Number.isFinite(opts.windowW) ? opts.windowW : (Number.isFinite(vp.windowW) ? vp.windowW : (window.innerWidth || vp.w || 1280));
-    const cw = Number.isFinite(opts.cardW) ? opts.cardW : clamp(windowW * 0.0745, 108, 145);
-    const ch = Number.isFinite(opts.cardH) ? opts.cardH : clamp(windowW * 0.1043, 151, 203);
-    const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.3);
+    const boardPadX = Number.isFinite(opts.boardPadX) ? opts.boardPadX : rem * 0.28;
+    const boardGap = Number.isFinite(opts.boardGap) ? opts.boardGap : rem * 0.34;
+    const zonePadX = Number.isFinite(opts.zonePadX) ? opts.zonePadX : rem * 0.38;
     const cellGap = Number.isFinite(opts.cellGap) ? opts.cellGap : rem * 0.18;
     const rowGap = Number.isFinite(opts.rowGap) ? opts.rowGap : 0;
     const rowLabelW = Number.isFinite(opts.rowLabelW) ? opts.rowLabelW : 11;
     const rowLabelGap = Number.isFinite(opts.rowLabelGap) ? opts.rowLabelGap : rem * 0.08;
+    const zoneCount = Math.max(1, Number(opts.zoneCount) || 3);
+    const targetCw = clamp(windowW * 0.079, 114, 156);
+    const availableZoneW = Math.max(260, ((Number(vp.w) || windowW) - boardPadX * 2 - boardGap * Math.max(0, zoneCount - 1)) / zoneCount);
+    const maxCwByZone = Math.max(92, (availableZoneW - zonePadX * 2 - rowLabelW - rowLabelGap - cellGap * 2 - 12) / 3);
+    const cw = Number.isFinite(opts.cardW) ? opts.cardW : clamp(Math.min(targetCw, maxCwByZone), 100, 156);
+    const ch = Number.isFinite(opts.cardH) ? opts.cardH : Math.round(cw * 1.4);
+    const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.34);
+    const zoneFitW = Number.isFinite(opts.zoneFitW)
+      ? opts.zoneFitW
+      : Math.min(availableZoneW, cw * 3 + cellGap * 2 + rowLabelW + rowLabelGap + zonePadX * 2 + 12);
     return {
       productionCss:true,
       rem,
@@ -58,17 +68,17 @@
       rowGap,
       rowLabelW,
       rowLabelGap,
-      boardPadX:Number.isFinite(opts.boardPadX) ? opts.boardPadX : rem * 0.4,
-      boardPadTop:Number.isFinite(opts.boardPadTop) ? opts.boardPadTop : rem * 0.74,
+      boardPadX,
+      boardPadTop:Number.isFinite(opts.boardPadTop) ? opts.boardPadTop : rem * 0.34,
       boardPadBottom:Number.isFinite(opts.boardPadBottom) ? opts.boardPadBottom : rem * 0.08,
-      boardGap:Number.isFinite(opts.boardGap) ? opts.boardGap : rem * 0.5,
-      zonePadX:Number.isFinite(opts.zonePadX) ? opts.zonePadX : rem * 0.5,
-      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : rem * 1.45,
-      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : rem * 0.4,
+      boardGap,
+      zonePadX,
+      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : rem * 1.18,
+      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : rem * 0.52,
       cardOffsetY:Number.isFinite(opts.cardOffsetY) ? opts.cardOffsetY : 0,
       headerTrackH:Number.isFinite(opts.headerTrackH) ? opts.headerTrackH : 34,
-      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : 0.22,
-      zoneFitW:Number.isFinite(opts.zoneFitW) ? opts.zoneFitW : (cw * 3 + rem * 0.52 + 44)
+      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : 0.08,
+      zoneFitW
     };
   }
 
@@ -121,14 +131,22 @@
     const opp = players[opponent] || {hand:[], handCount:0};
     const handCards = Array.isArray(own.hand) ? own.hand : [];
     const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
-    const cardW = clamp(winW * 0.0745, 96, 142);
+    const cardW = clamp(winW * 0.092, 142, 188);
     const cardH = Math.round(cardW * 1.4);
-    const gap = clamp(winW * 0.008, 8, 18);
-    const handFallbackW = Math.min(1080, Math.max(320, winW - 390));
-    const handRect = elementViewportRect('#hand-cards', rect((winW - handFallbackW) / 2, winH - cardH - 68, handFallbackW, cardH + 28));
-    const totalHandW = handCards.length ? (cardW * handCards.length + gap * Math.max(0, handCards.length - 1)) : 0;
-    const handStartX = handRect.x + Math.max(0, (handRect.w - totalHandW) / 2);
-    const handY = handRect.y + Math.max(0, handRect.h - cardH - 4);
+    const handCount = handCards.length;
+    const handFallbackW = Math.min(1440, Math.max(520, winW - 260));
+    const handRect = elementViewportRect('#hand-cards', rect((winW - handFallbackW) / 2, winH - cardH - 30, handFallbackW, cardH + 18));
+    const maxHandW = Math.max(1, Math.min(handRect.w, winW - 260));
+    const naturalGap = clamp(winW * 0.004, 4, 9);
+    let gap = naturalGap;
+    let handStartX = handRect.x;
+    if(handCount > 1) {
+      const free = maxHandW - cardW * handCount;
+      gap = Math.min(naturalGap, Math.max(-cardW * .62, free / (handCount - 1)));
+    }
+    const totalHandW = handCount ? (cardW * handCount + gap * Math.max(0, handCount - 1)) : 0;
+    handStartX = handRect.x + handRect.w / 2 - totalHandW / 2;
+    const handY = handRect.y + Math.max(0, handRect.h - cardH - 1);
     const hand = {
       rect:handRect,
       cards:handCards.map(function(card, index){
@@ -143,27 +161,41 @@
     };
 
     const oppCount = oppCards.length;
-    const oppGap = 5;
-    const baseOppCardW = clamp(winW * 0.036, 36, 58);
+    const oppGap = 6;
+    const oppCols = Math.min(4, Math.max(1, oppCount || 1));
+    const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
+    const baseOppCardW = clamp(winW * 0.034, 34, 54);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
-    const oppFallback = rect(22, 146, Math.max(180, baseOppCardW * Math.max(1, oppCount) + oppGap * Math.max(0, oppCount - 1)), baseOppCardH + 14);
-    const oppRect = elementViewportRect('#opp-hand', oppFallback);
+    const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
+    const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
+    const oppFallback = rect(22, 146, oppFallbackW, oppFallbackH);
+    let oppRect = elementViewportRect('#opp-hand', oppFallback);
+    const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
+    const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
+    if(oppRows > 1 && (oppRect.w < minOppW || oppRect.h < minOppH)) {
+      oppRect = rect(oppRect.x, oppRect.y, Math.max(oppRect.w, minOppW), Math.max(oppRect.h, minOppH));
+    }
     const fitOppCardW = oppCount
-      ? Math.max(30, Math.floor((oppRect.w - oppGap * Math.max(0, oppCount - 1)) / oppCount))
+      ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
       : baseOppCardW;
     const oppCardW = Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
-    const totalOppW = oppCount ? (oppCardW * oppCount + oppGap * Math.max(0, oppCount - 1)) : 0;
-    const oppStartX = oppRect.x + Math.max(0, (oppRect.w - totalOppW) / 2);
+    const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
+    const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);
     const opponentHand = {
       rect:oppRect,
       cards:oppCards.map(function(card, index){
+        const row = Math.floor(index / 4);
+        const col = index % 4;
+        const rowCount = row === oppRows - 1 ? (oppCount - row * 4) : 4;
+        const totalRowW = oppCardW * rowCount + oppGap * Math.max(0, rowCount - 1);
+        const rowStartX = oppRect.x + Math.max(0, (oppRect.w - totalRowW) / 2);
         return {
           index,
           iid:card && card.iid != null ? String(card.iid) : '',
           card,
           faceDown:!(card && card.revealed),
-          rect:rect(oppStartX + index * (oppCardW + oppGap), oppRect.y + Math.max(0, (oppRect.h - oppCardH) / 2), oppCardW, oppCardH)
+          rect:rect(rowStartX + col * (oppCardW + oppGap), oppStartY + row * (oppCardH + oppGap), oppCardW, oppCardH)
         };
       })
     };
@@ -228,7 +260,7 @@
     const opts = options || {};
     const zoneCount = Math.max(1, snap.board.length);
     const useProductionCss = opts.productionCss !== false;
-    const cssMetrics = useProductionCss ? buildProductionBoardMetrics(vp, opts) : null;
+    const cssMetrics = useProductionCss ? buildProductionBoardMetrics(vp, Object.assign({}, opts, {zoneCount})) : null;
     const pad = cssMetrics ? cssMetrics.boardPadX : (Number.isFinite(opts.padding) ? opts.padding : clamp(vp.w * 0.008, 8, 18));
     const zoneGap = cssMetrics ? cssMetrics.boardGap : (Number.isFinite(opts.zoneGap) ? opts.zoneGap : clamp(vp.w * 0.007, 8, 16));
     const rowGap = cssMetrics ? cssMetrics.rowGap : (Number.isFinite(opts.rowGap) ? opts.rowGap : clamp(vp.h * 0.006, 4, 8));
@@ -241,7 +273,7 @@
     const innerW = Math.max(1, vp.w - pad * 2);
     const innerH = Math.max(1, vp.h - (cssMetrics ? cssMetrics.boardPadTop + cssMetrics.boardPadBottom : pad * 2));
     const fluidZoneW = Math.max(1, (innerW - zoneGap * (zoneCount - 1)) / zoneCount);
-    const zoneW = cssMetrics ? cssMetrics.zoneFitW : fluidZoneW;
+    const zoneW = cssMetrics ? Math.min(cssMetrics.zoneFitW, fluidZoneW) : fluidZoneW;
     const cardRects = [];
     const totalZoneW = zoneW * zoneCount + zoneGap * Math.max(0, zoneCount - 1);
     const firstZoneX = cssMetrics ? (innerX + Math.max(0, (innerW - totalZoneW) / 2)) : innerX;

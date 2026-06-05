@@ -1,0 +1,836 @@
+(function(){
+  'use strict';
+
+  if(typeof window === 'undefined') return;
+  if(window.FateVfxDirector) return;
+
+  const VERSION = 1;
+  const VFX_BUDGET = {
+    maxActiveParticles:180,
+    maxActiveParticlesLow:36,
+    maxShockwaves:8,
+    maxBeams:6,
+    maxCardMotions:12,
+    maxNumberPops:12,
+    maxVfxMs:4,
+    maxVfxMsLow:2
+  };
+
+  let activeRecipes = [];
+  let activePrimitives = [];
+  let recentRecipes = [];
+  let nextId = 1;
+  let lowEffectsMode = false;
+  let lastTickAt = 0;
+  let lastVfxMs = 0;
+  let maxVfxMs = 0;
+  let droppedEffects = 0;
+  let skippedLowPriorityEffects = 0;
+  let draws = 0;
+  const vfxMsSamples = [];
+  const spawnedParticlePrimitiveIds = new Set();
+  let dragPreview = null;
+  const eventBridgeStats = {
+    acceptedGameEvents:0,
+    localIntents:0,
+    promptsCreated:0,
+    promptsResolved:0,
+    stateDiffs:0,
+    byType:{},
+    recent:[]
+  };
+
+  function nowMs(){
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
+  function clamp(value, min, max){
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function ease(name, t){
+    const x = clamp(Number(t) || 0, 0, 1);
+    if(name === 'linear') return x;
+    if(name === 'in-out-cubic') return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    if(name === 'out-back-soft'){
+      const c1 = 1.28;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+    }
+    return 1 - Math.pow(1 - x, 3);
+  }
+
+  function reducedMotionEnabled(){
+    try {
+      if(localStorage.getItem('fateReducedMotion') === '1') return true;
+    } catch(e) {}
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function lowEffectsEnabled(){
+    if(lowEffectsMode) return true;
+    try {
+      if(localStorage.getItem('fateLowEffects') === '1') return true;
+    } catch(e) {}
+    return document.documentElement.classList.contains('fate-low-effects');
+  }
+
+  function rect(input){
+    if(!input) return null;
+    const x = Number(input.x != null ? input.x : input.left);
+    const y = Number(input.y != null ? input.y : input.top);
+    const w = Number(input.w != null ? input.w : input.width);
+    const h = Number(input.h != null ? input.h : input.height);
+    if(!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+    return {x, y, w, h};
+  }
+
+  function center(r){
+    const rr = rect(r) || {x:0, y:0, w:0, h:0};
+    return {x:rr.x + rr.w / 2, y:rr.y + rr.h / 2};
+  }
+
+  function lerp(a, b, t){
+    return (Number(a) || 0) + ((Number(b) || 0) - (Number(a) || 0)) * t;
+  }
+
+  function lerpRect(a, b, t){
+    const from = rect(a) || rect(b);
+    const to = rect(b) || from;
+    if(!from || !to) return null;
+    return {
+      x:lerp(from.x, to.x, t),
+      y:lerp(from.y, to.y, t),
+      w:lerp(from.w, to.w, t),
+      h:lerp(from.h, to.h, t)
+    };
+  }
+
+  function scheduleRender(reason){
+    const adapter = window.FateMatchRendererAdapter;
+    if(adapter && typeof adapter.scheduleRender === 'function') adapter.scheduleRender(reason || 'vfx-animation');
+  }
+
+  function normalizePrimitive(effectId, recipeType, primitive, now){
+    const p = Object.assign({}, primitive || {});
+    p.id = p.id || ('vfxp:' + effectId + ':' + (nextId++));
+    p.effectId = effectId;
+    p.recipeType = recipeType;
+    p.start = now + (Number(p.startOffset) || 0);
+    p.duration = Math.max(1, Number(p.duration) || 360);
+    p.easing = p.easing || 'out-cubic';
+    p.layer = p.layer || 'effects';
+    p.progress = 0;
+    p.eased = 0;
+    p.done = false;
+    return p;
+  }
+
+  function keepWithinBudgets(primitives){
+    const counts = {cardMove:0, shockwaveRing:0, beam:0, numberPop:0};
+    const kept = [];
+    primitives.forEach(function(p){
+      const kind = p && p.kind;
+      if(counts[kind] != null){
+        counts[kind]++;
+        const limit = kind === 'cardMove' ? VFX_BUDGET.maxCardMotions
+          : kind === 'shockwaveRing' ? VFX_BUDGET.maxShockwaves
+          : kind === 'beam' ? VFX_BUDGET.maxBeams
+          : VFX_BUDGET.maxNumberPops;
+        if(counts[kind] > limit){
+          droppedEffects++;
+          return;
+        }
+      }
+      if(lowEffectsEnabled() && p.priority === 'low'){
+        skippedLowPriorityEffects++;
+        return;
+      }
+      kept.push(p);
+    });
+    return kept;
+  }
+
+  function play(type, payload, options){
+    const recipeType = String(type || '').toUpperCase();
+    const recipes = window.FateVfxRecipes;
+    if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
+    const now = nowMs();
+    const id = 'vfx:' + recipeType + ':' + (nextId++);
+    let primitives = recipes.expand(recipeType, payload || {}) || [];
+    if(reducedMotionEnabled()){
+      primitives = primitives.filter(function(p){
+        return ['screenShake', 'screenFlash'].indexOf(p.kind) < 0;
+      }).map(function(p){
+        const next = Object.assign({}, p);
+        if(next.kind === 'cardMove') {
+          next.arc = 0;
+          next.lift = Math.min(.16, Number(next.lift) || .16);
+          next.duration = Math.min(Number(next.duration) || 320, 320);
+        }
+        if(next.kind === 'particleBurst') next.count = Math.max(1, Math.floor((Number(next.count) || 8) * .18));
+        return next;
+      });
+    }
+    const normalized = keepWithinBudgets(primitives.map(function(p){ return normalizePrimitive(id, recipeType, p, now); }));
+    normalized.forEach(function(p){
+      if(p.kind === 'soundCue' && window.FateVfxAudioSync && typeof window.FateVfxAudioSync.playCue === 'function'){
+        window.FateVfxAudioSync.playCue({
+          cue:p.cue,
+          at:p.start,
+          volume:p.volume,
+          pitch:p.pitch,
+          priority:p.priority
+        });
+      }
+    });
+    activeRecipes.push({id, type:recipeType, startedAt:now, payload:payload || {}, primitiveCount:normalized.length});
+    activePrimitives = activePrimitives.concat(normalized);
+    recentRecipes.unshift({
+      id,
+      type:recipeType,
+      at:Math.round(now),
+      primitiveCount:normalized.length,
+      payloadSummary:summarizePayload(payload)
+    });
+    recentRecipes = recentRecipes.slice(0, 18);
+    scheduleRender('vfx-' + recipeType.toLowerCase());
+    return id;
+  }
+
+  function queue(type, payload, options){
+    const opts = options || {};
+    const delay = Math.max(0, Number(opts.delay) || 0);
+    if(!delay) return play(type, payload, options);
+    const id = 'vfxq:' + String(type || '').toUpperCase() + ':' + (nextId++);
+    setTimeout(function(){ play(type, payload, options); }, delay);
+    return id;
+  }
+
+  function cancel(id){
+    const key = String(id || '');
+    const before = activePrimitives.length;
+    activePrimitives = activePrimitives.filter(function(p){ return p.effectId !== key && p.id !== key; });
+    activeRecipes = activeRecipes.filter(function(r){ return r.id !== key; });
+    return before - activePrimitives.length;
+  }
+
+  function cancelForCard(iid){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return 0;
+    const before = activePrimitives.length;
+    activePrimitives = activePrimitives.filter(function(p){ return String(p.iid == null ? '' : p.iid) !== key; });
+    return before - activePrimitives.length;
+  }
+
+  function clear(){
+    activeRecipes = [];
+    activePrimitives = [];
+    spawnedParticlePrimitiveIds.clear();
+    dragPreview = null;
+    if(window.FateVfxParticlePool && typeof window.FateVfxParticlePool.clear === 'function') window.FateVfxParticlePool.clear();
+  }
+
+  function summarizePayload(payload){
+    const p = payload || {};
+    return {
+      iid:p.iid || p.targetIid || p.resultCardIid || '',
+      card:p.card && p.card.name || p.targetCard && p.targetCard.name || p.resultCard && p.resultCard.name || '',
+      tributes:Array.isArray(p.tributes) ? p.tributes.length : 0,
+      amount:p.amount || 0
+    };
+  }
+
+  function tick(now){
+    const t = Number(now) || nowMs();
+    const dt = lastTickAt ? t - lastTickAt : 16;
+    lastTickAt = t;
+    const active = [];
+    activePrimitives.forEach(function(p){
+      const raw = clamp((t - p.start) / p.duration, 0, 1);
+      p.progress = raw;
+      p.eased = ease(p.easing, raw);
+      p.done = raw >= 1;
+      if(t >= p.start && p.kind === 'particleBurst' && !spawnedParticlePrimitiveIds.has(p.id)){
+        spawnedParticlePrimitiveIds.add(p.id);
+        spawnParticleBurst(p);
+      }
+      if(!p.done || t < p.start) active.push(p);
+    });
+    activePrimitives = active;
+    activeRecipes = activeRecipes.filter(function(recipe){
+      return activePrimitives.some(function(p){ return p.effectId === recipe.id; });
+    });
+    if(window.FateVfxParticlePool && typeof window.FateVfxParticlePool.tick === 'function') window.FateVfxParticlePool.tick(dt);
+    return {
+      activeRecipes:activeRecipes.length,
+      activePrimitives:activePrimitives.length,
+      activeParticles:window.FateVfxParticlePool && window.FateVfxParticlePool.active ? window.FateVfxParticlePool.active.length : 0
+    };
+  }
+
+  function spawnParticleBurst(p){
+    const pool = window.FateVfxParticlePool;
+    if(!pool || typeof pool.burst !== 'function') return 0;
+    return pool.burst({
+      x:Number(p.x) || center(p.rect || p.targetRect).x,
+      y:Number(p.y) || center(p.rect || p.targetRect).y,
+      count:p.count,
+      color:p.color,
+      speed:p.speed,
+      spread:p.spread,
+      gravity:p.gravity,
+      life:p.life,
+      size:p.size,
+      kind:p.particleKind || 'spark'
+    });
+  }
+
+  function activeAtDraw(p){
+    return p && p.progress >= 0 && p.progress <= 1 && nowMs() >= p.start;
+  }
+
+  function activeScreenShakeOffset(){
+    let x = 0;
+    let y = 0;
+    activePrimitives.forEach(function(p){
+      if(!p || p.kind !== 'screenShake' || !activeAtDraw(p) || reducedMotionEnabled()) return;
+      const amp = (Number(p.amplitude) || 4) * (1 - p.progress);
+      const pulse = Math.sin(p.progress * Math.PI * 18);
+      x += pulse * amp;
+      y += Math.cos(p.progress * Math.PI * 14) * amp * .55;
+    });
+    return {x, y};
+  }
+
+  function drawCardBack(ctx, r){
+    if(!ctx || !r) return;
+    ctx.save();
+    const grd = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+    grd.addColorStop(0, '#1b1f2d');
+    grd.addColorStop(.5, '#10131d');
+    grd.addColorStop(1, '#312416');
+    ctx.fillStyle = grd;
+    rounded(ctx, r.x, r.y, r.w, r.h, Math.max(7, r.w * .055));
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(247,210,116,.82)';
+    ctx.lineWidth = Math.max(1.2, r.w * .018);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,232,154,.88)';
+    ctx.font = '900 ' + Math.max(18, Math.round(r.w * .24)) + 'px Cinzel, Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FE', r.x + r.w / 2, r.y + r.h / 2);
+    ctx.restore();
+  }
+
+  function rounded(ctx, x, y, w, h, radius){
+    const r = Math.min(radius || 8, w / 2, h / 2);
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else {
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+    }
+  }
+
+  function drawCard(ctx, card, r, options){
+    const opts = options || {};
+    if(!ctx || !r) return;
+    if(opts.faceDown || !card){
+      drawCardBack(ctx, r);
+      return;
+    }
+    const visual = (card && card.visual) || card;
+    const texture = window.FateCardTextureCache && typeof window.FateCardTextureCache.getBaseCardTexture === 'function'
+      ? window.FateCardTextureCache.getBaseCardTexture(card, {w:r.w, h:r.h}, {
+        visual,
+        dpr:2,
+        preferFullArt:true,
+        source:'vfx-card',
+        onChange:function(){ scheduleRender('vfx-texture-ready'); }
+      })
+      : null;
+    if(texture && texture.loaded && texture.canvas){
+      try {
+        ctx.drawImage(texture.canvas, r.x, r.y, r.w, r.h);
+        return;
+      } catch(e) {}
+    }
+    ctx.save();
+    const grd = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+    grd.addColorStop(0, '#20293d');
+    grd.addColorStop(1, '#10131d');
+    ctx.fillStyle = grd;
+    rounded(ctx, r.x, r.y, r.w, r.h, Math.max(7, r.w * .055));
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(247,210,116,.7)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,244,204,.86)';
+    ctx.font = '800 ' + Math.max(11, Math.round(r.w * .11)) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(visual && visual.name || 'Card').slice(0, 18), r.x + r.w / 2, r.y + r.h / 2);
+    ctx.restore();
+  }
+
+  function drawGlowRect(ctx, r, color, alpha){
+    if(!ctx || !r) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = color || 'rgba(255,220,120,1)';
+    ctx.shadowBlur = lowEffectsEnabled() ? 0 : Math.max(14, r.w * .18);
+    ctx.strokeStyle = color || 'rgba(255,220,120,.8)';
+    ctx.lineWidth = Math.max(2, r.w * .025);
+    rounded(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, Math.max(8, r.w * .06));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPrimitive(ctx, p, metrics){
+    if(!ctx || !p || !activeAtDraw(p)) return;
+    const t = p.eased;
+    if(p.kind === 'boardDim'){
+      const alpha = (Number(p.alpha) || .24) * Math.sin(Math.PI * p.progress);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,' + clamp(alpha, 0, .65) + ')';
+      ctx.fillRect(0, 0, metrics.cssW, metrics.cssH);
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'screenFlash'){
+      if(lowEffectsEnabled() && p.priority !== 'high') return;
+      const alpha = (Number(p.alpha) || .14) * (1 - p.progress);
+      ctx.save();
+      ctx.fillStyle = p.color || 'rgba(255,255,255,1)';
+      ctx.globalAlpha = clamp(alpha, 0, .4);
+      ctx.fillRect(0, 0, metrics.cssW, metrics.cssH);
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'spotlight'){
+      const r = rect(p.rect);
+      if(!r) return;
+      const c = center(r);
+      const radius = Math.max(r.w, r.h) + (Number(p.feather) || 50);
+      const alpha = .26 * Math.sin(Math.PI * p.progress);
+      ctx.save();
+      const grd = ctx.createRadialGradient(c.x, c.y, Math.max(10, Math.min(r.w, r.h) * .35), c.x, c.y, radius);
+      grd.addColorStop(0, 'rgba(255,232,160,' + alpha + ')');
+      grd.addColorStop(.52, 'rgba(255,232,160,' + alpha * .22 + ')');
+      grd.addColorStop(1, 'rgba(255,232,160,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(c.x - radius, c.y - radius, radius * 2, radius * 2);
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'cardGlow' || p.kind === 'pilePulse' || p.kind === 'handFanPulse'){
+      const r = rect(p.rect);
+      drawGlowRect(ctx, r, p.color, Math.sin(Math.PI * p.progress));
+      return;
+    }
+    if(p.kind === 'cardTrail'){
+      const from = rect(p.fromRect);
+      const to = rect(p.toRect);
+      if(!from || !to) return;
+      const steps = Math.max(2, Math.min(8, Number(p.steps) || 5));
+      ctx.save();
+      for(let i = 0; i < steps; i++){
+        const f = (i + 1) / (steps + 1);
+        const rr = lerpRect(from, to, Math.max(0, t - f * .08));
+        if(!rr) continue;
+        ctx.globalAlpha = (1 - f) * .22 * Math.sin(Math.PI * p.progress);
+        drawGlowRect(ctx, rr, p.color || 'rgba(255,225,120,.78)', 1);
+      }
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'shockwaveRing'){
+      const rs = Number(p.radiusStart) || 8;
+      const re = Number(p.radiusEnd) || 80;
+      const radius = lerp(rs, re, t);
+      const alpha = 1 - p.progress;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = p.color || 'rgba(255,225,120,.9)';
+      ctx.lineWidth = (Number(p.lineWidth) || 3) * (1 - p.progress * .45);
+      if(p.glow && !lowEffectsEnabled()){
+        ctx.shadowColor = p.color || 'rgba(255,225,120,1)';
+        ctx.shadowBlur = 18;
+      }
+      ctx.beginPath();
+      ctx.arc(Number(p.x) || 0, Number(p.y) || 0, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'beam'){
+      const from = p.from || center(p.fromRect);
+      const to = p.to || center(p.toRect);
+      const pulse = .55 + Math.sin(p.progress * Math.PI) * .45;
+      ctx.save();
+      ctx.globalAlpha = (1 - Math.abs(p.progress - .5) * 1.2);
+      ctx.strokeStyle = p.color || 'rgba(120,210,255,.9)';
+      ctx.lineWidth = (Number(p.width) || 5) * pulse;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(lerp(from.x, to.x, t), lerp(from.y, to.y, t));
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'numberPop' || p.kind === 'statusIconPop'){
+      const r = rect(p.rect);
+      if(!r) return;
+      const rise = Number(p.rise) || 38;
+      const scale = 1 + Math.sin(Math.PI * p.progress) * .18;
+      ctx.save();
+      ctx.globalAlpha = Math.sin(Math.PI * p.progress);
+      ctx.translate(r.x + r.w / 2, r.y + r.h * .24 - rise * t);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = p.color || '#ffe37a';
+      ctx.strokeStyle = 'rgba(0,0,0,.72)';
+      ctx.lineWidth = 4;
+      ctx.font = '900 ' + Math.max(18, Math.round(r.w * .17)) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const text = String(p.text || '');
+      ctx.strokeText(text, 0, 0);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift'){
+      let rr = lerpRect(p.fromRect, p.toRect, t);
+      if(!rr) rr = rect(p.rect);
+      if(!rr) return;
+      const raw = clamp(Number(p.progress) || 0, 0, 1);
+      const liftFactor = p.kind === 'cardLift' ? (Number(p.lift) || .18) : (Number(p.lift) || .35);
+      const lift = Math.sin(Math.PI * raw) * liftFactor * Math.max(20, rr.h * .34);
+      const arc = Math.sin(Math.PI * raw) * (Number(p.arc) || 0) * Math.max(20, rr.h * .22);
+      rr.y -= lift + arc;
+      const rotation = (Number(p.rotate) || 0) * Math.PI / 180 * Math.sin(Math.PI * raw);
+      const scale = lerp(1, Number(p.scale) || 1, Math.sin(Math.PI * raw));
+      ctx.save();
+      if(p.kind === 'cardDissolve' || p.fadeOut) ctx.globalAlpha = Math.max(0, 1 - raw * .92);
+      ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
+      ctx.rotate(rotation);
+      ctx.scale(scale, scale);
+      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown});
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'cardFlip' || p.kind === 'cardSummon'){
+      const r = rect(p.rect || p.toRect || p.fromRect);
+      if(!r) return;
+      const sx = p.kind === 'cardFlip' ? Math.max(.05, Math.abs(Math.cos(Math.PI * p.progress))) : (.82 + Math.sin(Math.PI * p.progress) * .24);
+      ctx.save();
+      ctx.globalAlpha = p.kind === 'cardSummon' ? Math.sin(Math.PI * Math.min(1, p.progress + .18)) : 1;
+      ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+      ctx.scale(sx, .98 + Math.sin(Math.PI * p.progress) * .04);
+      drawCard(ctx, p.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.kind === 'cardFlip' && p.progress < .5});
+      ctx.restore();
+      drawGlowRect(ctx, r, p.color || 'rgba(255,232,150,.82)', Math.sin(Math.PI * p.progress) * .8);
+      return;
+    }
+    if(p.kind === 'cardShake'){
+      const r = rect(p.rect);
+      if(!r) return;
+      const amp = (Number(p.amplitude) || 5) * (1 - p.progress);
+      drawGlowRect(ctx, {x:r.x + Math.sin(p.progress * Math.PI * 12) * amp, y:r.y, w:r.w, h:r.h}, 'rgba(255,95,95,.8)', Math.sin(Math.PI * p.progress));
+    }
+  }
+
+  function drawDragPreview(ctx){
+    if(!ctx || !dragPreview) return false;
+    const r = rect(dragPreview.rect);
+    if(!r) return false;
+    ctx.save();
+    ctx.globalAlpha = dragPreview.invalid ? .62 : .88;
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+    ctx.rotate((dragPreview.invalid ? -3 : 1.6) * Math.PI / 180);
+    drawCard(ctx, dragPreview.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h});
+    ctx.restore();
+    drawGlowRect(ctx, r, dragPreview.invalid ? 'rgba(255,80,90,.8)' : 'rgba(130,210,255,.78)', .7);
+    return true;
+  }
+
+  function draw(options){
+    const opts = options || {};
+    const started = nowMs();
+    const metrics = {
+      cssW:Number(opts.cssW) || 1,
+      cssH:Number(opts.cssH) || 1,
+      dpr:Number(opts.dpr) || 1
+    };
+    tick(started);
+    const effectsCtx = opts.effectsCtx || null;
+    const particleCtx = opts.particleCtx || null;
+    if(effectsCtx){
+      const shake = activeScreenShakeOffset();
+      effectsCtx.save();
+      effectsCtx.translate(shake.x, shake.y);
+      activePrimitives.forEach(function(p){
+        if(p.layer === 'audio' || p.layer === 'control' || p.kind === 'particleBurst' || p.kind === 'screenShake') return;
+        drawPrimitive(effectsCtx, p, metrics);
+      });
+      drawDragPreview(effectsCtx);
+      effectsCtx.restore();
+    }
+    if(particleCtx && window.FateVfxParticlePool && typeof window.FateVfxParticlePool.draw === 'function'){
+      window.FateVfxParticlePool.draw(particleCtx);
+    }
+    draws++;
+    lastVfxMs = nowMs() - started;
+    maxVfxMs = Math.max(maxVfxMs, lastVfxMs);
+    vfxMsSamples.push(lastVfxMs);
+    while(vfxMsSamples.length > 36) vfxMsSamples.shift();
+    if(hasActiveEffects()) scheduleRender('vfx-animation');
+    return report();
+  }
+
+  function hasActiveEffects(){
+    const particles = window.FateVfxParticlePool && window.FateVfxParticlePool.active ? window.FateVfxParticlePool.active.length : 0;
+    return activePrimitives.length > 0 || particles > 0 || !!dragPreview;
+  }
+
+  function setLowEffectsMode(enabled){
+    lowEffectsMode = !!enabled;
+    try {
+      if(enabled) localStorage.setItem('fateLowEffects', '1');
+      else localStorage.removeItem('fateLowEffects');
+    } catch(e) {}
+    if(document && document.documentElement) document.documentElement.classList.toggle('fate-low-effects', !!enabled);
+    scheduleRender('vfx-low-effects-mode');
+    return report();
+  }
+
+  function setReducedMotionMode(enabled){
+    try {
+      if(enabled) localStorage.setItem('fateReducedMotion', '1');
+      else localStorage.removeItem('fateReducedMotion');
+    } catch(e) {}
+    if(document && document.documentElement) document.documentElement.classList.toggle('fate-reduced-motion', !!enabled);
+    scheduleRender('vfx-reduced-motion-mode');
+    return report();
+  }
+
+  function avgVfxMs(){
+    if(!vfxMsSamples.length) return 0;
+    return vfxMsSamples.reduce(function(total, ms){ return total + ms; }, 0) / vfxMsSamples.length;
+  }
+
+  function countKind(kind){
+    return activePrimitives.filter(function(p){ return p.kind === kind; }).length;
+  }
+
+  function domGhostCount(){
+    try {
+      return document.querySelectorAll('.fate-v2-motion-card, #fate-v2-drag-ghost, .fate-v2-canvas-drag-ghost').length;
+    } catch(e) {
+      return 0;
+    }
+  }
+
+  function report(){
+    const pool = window.FateVfxParticlePool && typeof window.FateVfxParticlePool.report === 'function'
+      ? window.FateVfxParticlePool.report()
+      : {active:0, lastParticleMs:0, particlesAllocated:0, particlesReused:0, droppedEffects:0};
+    const recipeNames = window.FateVfxRecipes && typeof window.FateVfxRecipes.names === 'function' ? window.FateVfxRecipes.names() : [];
+    const recipeKinds = window.FateVfxRecipes && typeof window.FateVfxRecipes.describe === 'function' ? window.FateVfxRecipes.describe() : {};
+    const texture = window.FateCardTextureCache && typeof window.FateCardTextureCache.report === 'function' ? window.FateCardTextureCache.report() : null;
+    const primitives = window.FateVfxPrimitives && typeof window.FateVfxPrimitives.report === 'function'
+      ? window.FateVfxPrimitives.report()
+      : null;
+    return {
+      available:true,
+      version:VERSION,
+      mode:{
+        rendererV2:!!(window.FateMatchRendererAdapter && window.FateMatchRendererAdapter.ownsBoard && window.FateMatchRendererAdapter.ownsBoard()),
+        lowEffects:lowEffectsEnabled(),
+        reducedMotion:reducedMotionEnabled()
+      },
+      capabilities:{
+        lowEffectsToggle:true,
+        reducedMotionToggle:true,
+        dirtyLayerVfx:true,
+        particleBudget:true,
+        audioSync:!!window.FateVfxAudioSync,
+        primitiveReport:!!primitives
+      },
+      ownership:{
+        domGhostsAllowed:false,
+        domGhostsActive:domGhostCount(),
+        usesCanvasEffects:true,
+        usesDomMotionFallback:false,
+        mirrorsToAnimationTimeline:false
+      },
+      active:{
+        recipes:activeRecipes.length,
+        primitives:activePrimitives.length,
+        particles:pool.active || 0,
+        cardMoves:countKind('cardMove') + (dragPreview ? 1 : 0),
+        beams:countKind('beam'),
+        shockwaves:countKind('shockwaveRing'),
+        numberPops:countKind('numberPop')
+      },
+      performance:{
+        lastVfxMs:Math.round(lastVfxMs * 10) / 10,
+        avgVfxMs:Math.round(avgVfxMs() * 10) / 10,
+        maxVfxMs:Math.round(maxVfxMs * 10) / 10,
+        lastParticleMs:pool.lastParticleMs || 0,
+        particlesAllocated:pool.particlesAllocated || 0,
+        particlesReused:pool.particlesReused || 0,
+        droppedEffects:droppedEffects + (pool.droppedEffects || 0),
+        skippedLowPriorityEffects,
+        draws,
+        budgetMs:lowEffectsEnabled() ? VFX_BUDGET.maxVfxMsLow : VFX_BUDGET.maxVfxMs
+      },
+      recipes:{
+        registered:recipeNames,
+        registeredCount:recipeNames.length,
+        primitiveKinds:recipeKinds
+      },
+      primitives,
+      recent:{
+        lastRecipe:recentRecipes[0] ? recentRecipes[0].type : '',
+        lastRecipePayloadSummary:recentRecipes[0] ? recentRecipes[0].payloadSummary : null,
+        recentRecipes:recentRecipes.slice(0, 10)
+      },
+      eventBridge:{
+        acceptedGameEvents:eventBridgeStats.acceptedGameEvents,
+        localIntents:eventBridgeStats.localIntents,
+        promptsCreated:eventBridgeStats.promptsCreated,
+        promptsResolved:eventBridgeStats.promptsResolved,
+        stateDiffs:eventBridgeStats.stateDiffs,
+        byType:Object.assign({}, eventBridgeStats.byType),
+        recent:eventBridgeStats.recent.slice(0, 10)
+      },
+      textureCache:texture ? {
+        baseHits:texture.baseHits,
+        baseMisses:texture.baseMisses,
+        baseRequests:texture.baseRequests,
+        hitRate:texture.baseRequests ? Math.round((texture.baseHits / texture.baseRequests) * 1000) / 10 : null
+      } : null,
+      pass:domGhostCount() === 0,
+      blockers:domGhostCount() === 0 ? [] : ['dom-ghosts-active']
+    };
+  }
+
+  function setDragPreview(payload){
+    dragPreview = Object.assign({}, payload || {});
+    scheduleRender('vfx-drag-preview');
+    return true;
+  }
+
+  function updateDragPreview(payload){
+    if(!dragPreview) dragPreview = {};
+    Object.assign(dragPreview, payload || {});
+    scheduleRender('vfx-drag-preview');
+    return true;
+  }
+
+  function clearDragPreview(){
+    dragPreview = null;
+    scheduleRender('vfx-drag-preview-clear');
+  }
+
+  function recordBridge(kind, type, payload){
+    const eventType = String(type || '').toUpperCase();
+    eventBridgeStats[kind] = (Number(eventBridgeStats[kind]) || 0) + 1;
+    if(eventType) eventBridgeStats.byType[eventType] = (eventBridgeStats.byType[eventType] || 0) + 1;
+    eventBridgeStats.recent.unshift({
+      kind,
+      type:eventType,
+      at:Math.round(nowMs()),
+      payloadSummary:summarizePayload(payload)
+    });
+    eventBridgeStats.recent = eventBridgeStats.recent.slice(0, 18);
+  }
+
+  window.FateVfxDirector = {
+    version:VERSION,
+    budgets:VFX_BUDGET,
+    play,
+    queue,
+    cancel,
+    cancelForCard,
+    clear,
+    tick,
+    draw,
+    hasActiveEffects,
+    setLowEffectsMode,
+    setReducedMotionMode,
+    report,
+    getRecentRecipes:function(){ return recentRecipes.slice(); },
+    setDragPreview,
+    updateDragPreview,
+    clearDragPreview
+  };
+
+  window.FateVfxEventBridge = {
+    onAcceptedGameEvent:function(event){
+      if(!event) return null;
+      recordBridge('acceptedGameEvents', event.type, event.payload || event);
+      return play(event.type, event.payload || event, event.options || {});
+    },
+    onLocalIntent:function(intent){
+      if(!intent) return null;
+      recordBridge('localIntents', intent.type, intent.payload || intent);
+      return play(intent.type, intent.payload || intent, intent.options || {});
+    },
+    onPromptCreated:function(prompt){
+      if(!prompt) return null;
+      recordBridge('promptsCreated', 'SUPPORTER_ACTIVATE', prompt);
+      return play('SUPPORTER_ACTIVATE', prompt);
+    },
+    onPromptResolved:function(prompt, choice){
+      if(!prompt) return null;
+      recordBridge('promptsResolved', 'SUPPORTER_ACTIVATE', Object.assign({}, prompt, {choice}));
+      return play('SUPPORTER_ACTIVATE', Object.assign({}, prompt, {choice}));
+    },
+    onStateDiff:function(diff){
+      if(!diff) return null;
+      if(diff.fateDelta > 0) {
+        recordBridge('stateDiffs', 'FATE_GAIN', diff);
+        return play('FATE_GAIN', diff);
+      }
+      if(diff.fateDelta < 0) {
+        const payload = Object.assign({}, diff, {amount:Math.abs(diff.fateDelta)});
+        recordBridge('stateDiffs', 'FATE_LOSS', payload);
+        return play('FATE_LOSS', payload);
+      }
+      return null;
+    },
+    report:function(){
+      return {
+        available:true,
+        acceptedGameEvents:eventBridgeStats.acceptedGameEvents,
+        localIntents:eventBridgeStats.localIntents,
+        promptsCreated:eventBridgeStats.promptsCreated,
+        promptsResolved:eventBridgeStats.promptsResolved,
+        stateDiffs:eventBridgeStats.stateDiffs,
+        byType:Object.assign({}, eventBridgeStats.byType),
+        recent:eventBridgeStats.recent.slice(0, 10)
+      };
+    }
+  };
+
+  window.fateVfxReport = report;
+  window.fateVfxSetLowEffectsMode = setLowEffectsMode;
+  window.fateVfxSetReducedMotionMode = setReducedMotionMode;
+  window.fateVfxEventBridgeReport = window.FateVfxEventBridge.report;
+})();

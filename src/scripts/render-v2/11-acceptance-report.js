@@ -196,6 +196,7 @@
       backgroundLayerRedraws:Number(renderer.backgroundLayerRedraws || 0),
       cardLayerRedraws:Number(renderer.cardLayerRedraws || renderer.draws || 0),
       effectLayerRedraws:Number(renderer.effectLayerRedraws || 0),
+      particleLayerRedraws:Number(renderer.particleLayerRedraws || 0),
       uiLayerRedraws:Number(renderer.uiLayerRedraws || 0),
       hoverLayerRedraws:Number(renderer.hoverLayerRedraws || 0),
       hoverOnlyDraws:Number(renderer.hoverOnlyDraws || 0),
@@ -343,6 +344,7 @@
       'backgroundLayerRedraws',
       'cardLayerRedraws',
       'effectLayerRedraws',
+      'particleLayerRedraws',
       'uiLayerRedraws',
       'hoverLayerRedraws',
       'hoverOnlyDraws'
@@ -376,6 +378,7 @@
       'backgroundLayerRedraws',
       'cardLayerRedraws',
       'effectLayerRedraws',
+      'particleLayerRedraws',
       'uiLayerRedraws',
       'hoverLayerRedraws',
       'hoverOnlyDraws'

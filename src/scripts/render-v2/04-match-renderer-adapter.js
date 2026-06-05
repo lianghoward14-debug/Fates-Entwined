@@ -9,15 +9,17 @@
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
   const effectCanvasId = 'fate-match-v2-effect-canvas';
+  const particleCanvasId = 'fate-match-v2-particle-canvas';
   const uiCanvasId = 'fate-match-v2-ui-canvas';
   const hoverCanvasId = 'fate-match-v2-hover-canvas';
-  const layerIds = [backgroundCanvasId, cardCanvasId, effectCanvasId, uiCanvasId, hoverCanvasId];
+  const layerIds = [backgroundCanvasId, cardCanvasId, effectCanvasId, particleCanvasId, uiCanvasId, hoverCanvasId];
   let drawCount = 0;
   let lastReport = {available:false, reason:'not-rendered', version:ADAPTER_VERSION};
-  let lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[]};
+  let lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
   let lastCardFateByIid = new Map();
   let lastCardRectByIid = new Map();
   let pendingPlacementRectByIid = new Map();
+  let vfxHiddenBoardCardUntilByIid = new Map();
   let assetImageCache = new Map();
   let lastMoveSnapshotSignature = '';
   let input = null;
@@ -44,9 +46,13 @@
     backgroundLayerRedraws:0,
     cardLayerRedraws:0,
     effectLayerRedraws:0,
+    particleLayerRedraws:0,
     uiLayerRedraws:0,
     hoverLayerRedraws:0,
     hoverOnlyDraws:0,
+    vfxOnlyDraws:0,
+    vfxFullSceneFallbacks:0,
+    lastVfxLayerOnly:false,
     lastDirtyMask:0,
     lastDirtySource:''
   };
@@ -59,6 +65,7 @@
   const DIRTY_EFFECTS = 1 << 6;
   const DIRTY_HOVER = 1 << 7;
   const DIRTY_MOTION = 1 << 8;
+  const DIRTY_PARTICLES = 1 << 9;
   const DIRTY_ALL = 0xffff;
 
   function nowMs(){
@@ -218,16 +225,18 @@
   function dirtyMaskForSource(source){
     const s = String(source || '').toLowerCase();
     if(!s) return DIRTY_ALL;
-    if(s.indexOf('hover') >= 0 || s.indexOf('drag-preview') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
+    if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
     if(s === 'input' || s === 'viewport-input') return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('resize') >= 0 || s.indexOf('screen-enter') >= 0 || s.indexOf('adaptive-render-scale') >= 0) return DIRTY_ALL | DIRTY_LAYOUT;
     if(s.indexOf('opponent') >= 0 || s.indexOf('opphand') >= 0 || s.indexOf('opp-hand') >= 0) return DIRTY_OPP_HAND;
     if(s.indexOf('hand') >= 0) return DIRTY_HAND | DIRTY_EFFECTS;
     if(s.indexOf('pile') >= 0 || s.indexOf('deck') >= 0 || s.indexOf('discard') >= 0) return DIRTY_PILES;
-    if(s.indexOf('motion') >= 0 || s.indexOf('animation') >= 0) return DIRTY_MOTION | DIRTY_EFFECTS;
+    if(s.indexOf('particle') >= 0) return DIRTY_PARTICLES | DIRTY_EFFECTS;
+    if(s.indexOf('motion') >= 0 || s.indexOf('animation') >= 0) return DIRTY_MOTION | DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('asset') >= 0) return DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES;
     if(s.indexOf('texture') >= 0) return DIRTY_BOARD_CARDS;
-    if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS;
+    if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_EFFECTS;
     return DIRTY_ALL;
   }
 
@@ -274,7 +283,7 @@
     });
     if(input && typeof input.detach === 'function') input.detach();
     hoverHit = null;
-    lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[]};
+    lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
     layerIds.forEach(function(id){
       const canvas = document.getElementById(id);
       if(canvas) {
@@ -297,7 +306,7 @@
       hand:{v2Cards:0},
       opponentHand:{v2Cards:0},
       piles:{v2Piles:false, v2PileCount:0},
-      hitMap:{cards:0, cells:0, handCards:0, opponentHandCards:0, piles:0}
+      hitMap:{cards:0, cells:0, handCards:0, opponentHandCards:0, piles:0, uiCommands:0}
     });
     return lastReport;
   }
@@ -351,9 +360,10 @@
     const backgroundCanvas = makeLayerCanvas(backgroundCanvasId);
     const canvas = makeLayerCanvas(cardCanvasId, 'Fates Entwined match board');
     const effectCanvas = makeLayerCanvas(effectCanvasId);
+    const particleCanvas = makeLayerCanvas(particleCanvasId);
     const uiCanvas = makeLayerCanvas(uiCanvasId);
     const hoverCanvas = makeLayerCanvas(hoverCanvasId);
-    const boardLayers = [backgroundCanvas, canvas, effectCanvas, hoverCanvas];
+    const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas, hoverCanvas];
     Array.from(board.children).forEach(function(child){
       if(boardLayers.indexOf(child) < 0) child.remove();
     });
@@ -389,6 +399,14 @@
     effectCanvas.style.display = 'block';
     effectCanvas.style.pointerEvents = 'none';
     effectCanvas.style.zIndex = '2';
+    particleCanvas.style.position = 'absolute';
+    particleCanvas.style.left = '0';
+    particleCanvas.style.top = '0';
+    particleCanvas.style.width = '100%';
+    particleCanvas.style.height = '100%';
+    particleCanvas.style.display = 'block';
+    particleCanvas.style.pointerEvents = 'none';
+    particleCanvas.style.zIndex = '3';
     uiCanvas.style.position = 'absolute';
     uiCanvas.style.left = '0';
     uiCanvas.style.top = '0';
@@ -400,7 +418,7 @@
     uiCanvas.style.position = 'fixed';
     uiCanvas.style.right = 'auto';
     uiCanvas.style.bottom = 'auto';
-    uiCanvas.style.zIndex = '180';
+    uiCanvas.style.zIndex = '90';
     hoverCanvas.style.position = 'absolute';
     hoverCanvas.style.left = '0';
     hoverCanvas.style.top = '0';
@@ -413,6 +431,7 @@
       background:backgroundCanvas,
       cards:canvas,
       effects:effectCanvas,
+      particles:particleCanvas,
       ui:uiCanvas,
       hover:hoverCanvas
     };
@@ -555,7 +574,7 @@
     return '';
   }
 
-  function observeCardForAnimations(card, visual){
+  function observeCardForAnimations(card, visual, cardRect){
     const timeline = getTimeline();
     const iid = getCardIid(card);
     if(!timeline || !iid) return;
@@ -564,18 +583,29 @@
     if(prev != null && prev !== fateValue){
       const prevNum = Number(prev);
       const nextNum = Number(fateValue);
-      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
-      else timeline.clearForCard(iid, 'fate-pulse');
-      timeline.add({
-        kind:'fate-pulse',
-        iid,
-        start:nowMs(),
-        duration:420,
-        easing:'out-cubic',
-        fromValue:prev,
-        toValue:fateValue,
-        delta:Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0
-      });
+      const delta = Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0;
+      if(delta && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onStateDiff === 'function'){
+        window.FateVfxEventBridge.onStateDiff({
+          iid,
+          card,
+          rect:cloneRect(cardRect),
+          fateDelta:delta,
+          amount:Math.abs(delta)
+        });
+      } else {
+        if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
+        else timeline.clearForCard(iid, 'fate-pulse');
+        timeline.add({
+          kind:'fate-pulse',
+          iid,
+          start:nowMs(),
+          duration:420,
+          easing:'out-cubic',
+          fromValue:prev,
+          toValue:fateValue,
+          delta
+        });
+      }
     }
     lastCardFateByIid.set(iid, fateValue);
   }
@@ -637,21 +667,24 @@
     const selected = state === 'selected';
     const placement = state === 'placement';
     const ready = state === 'ready';
-    const color = ready ? 'rgba(105,190,255,.96)' : selected ? 'rgba(255,225,96,.96)' : placement ? 'rgba(255,215,86,.9)' : 'rgba(255,215,0,.68)';
-    const fill = ready ? 'rgba(80,170,255,.07)' : selected ? 'rgba(255,215,0,.06)' : placement ? 'rgba(255,215,0,.04)' : 'rgba(255,215,0,.02)';
+    const color = ready ? 'rgba(114,205,255,1)' : selected ? 'rgba(255,232,104,1)' : placement ? 'rgba(255,224,94,.98)' : 'rgba(255,218,62,.90)';
+    const fill = ready ? 'rgba(82,182,255,.18)' : selected ? 'rgba(255,218,62,.16)' : placement ? 'rgba(255,215,0,.12)' : 'rgba(255,215,0,.075)';
     const radius = Math.max(5, Math.min(10, r.w * .06));
-    const outerPad = (selected || ready || placement) ? 2.6 : 1.6;
+    const outerPad = (selected || ready || placement) ? 4.2 : 2.7;
     ctx.save();
+    ctx.shadowColor = ready ? 'rgba(104,199,255,.55)' : 'rgba(255,220,70,.52)';
+    ctx.shadowBlur = ready ? 18 : 14;
     roundedPath(ctx, r.x - outerPad, r.y - outerPad, r.w + outerPad * 2, r.h + outerPad * 2, radius + 2);
     ctx.fillStyle = fill;
     ctx.fill();
-    ctx.lineWidth = ready ? 2.45 : (selected ? 2.35 : (placement ? 1.85 : 1.3));
+    ctx.lineWidth = ready ? 3.25 : (selected ? 3.05 : (placement ? 2.45 : 2.05));
     ctx.strokeStyle = color;
     ctx.stroke();
+    ctx.shadowBlur = 0;
     if(selected || placement || ready){
       roundedPath(ctx, r.x + 2.5, r.y + 2.5, r.w - 5, r.h - 5, Math.max(4, radius - 1));
-      ctx.strokeStyle = ready ? 'rgba(210,238,255,.5)' : 'rgba(255,246,190,.42)';
-      ctx.lineWidth = ready ? 1.05 : .95;
+      ctx.strokeStyle = ready ? 'rgba(222,245,255,.78)' : 'rgba(255,248,196,.68)';
+      ctx.lineWidth = ready ? 1.35 : 1.15;
       ctx.stroke();
     }
     ctx.restore();
@@ -690,19 +723,11 @@
       ctx.textBaseline = 'middle';
       ctx.fillText('LOCKED', cx, cy + lockH * .75);
     } else {
-      ctx.strokeStyle = 'rgba(218,190,255,.88)';
-      ctx.lineWidth = Math.max(2, r.w * .028);
-      ctx.beginPath();
-      ctx.moveTo(cx - r.w * .16, cy - r.h * .11);
-      ctx.lineTo(cx + r.w * .16, cy + r.h * .11);
-      ctx.moveTo(cx + r.w * .16, cy - r.h * .11);
-      ctx.lineTo(cx - r.w * .16, cy + r.h * .11);
-      ctx.stroke();
       ctx.fillStyle = '#ddc7ff';
       ctx.font = '800 ' + Math.max(6, Math.round(r.w * .045)) + 'px Cinzel, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('NO CONSOLIDATE', cx, cy + r.h * .22);
+      ctx.fillText('NO CONSOLIDATE', cx, cy);
     }
     ctx.restore();
   }
@@ -747,6 +772,29 @@
     return true;
   }
 
+  function hideBoardCardForVfx(iid, duration){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return;
+    const ms = Math.max(120, Number(duration) || 460);
+    vfxHiddenBoardCardUntilByIid.set(key, nowMs() + ms);
+    setTimeout(function(){
+      vfxHiddenBoardCardUntilByIid.delete(key);
+      scheduleRender('board-commit');
+    }, ms + 24);
+  }
+
+  function isBoardCardHiddenForVfx(iid){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return false;
+    const until = Number(vfxHiddenBoardCardUntilByIid.get(key)) || 0;
+    if(!until) return false;
+    if(nowMs() > until){
+      vfxHiddenBoardCardUntilByIid.delete(key);
+      return false;
+    }
+    return true;
+  }
+
   function observeCardForMove(card, r, snapshotChanged){
     const timeline = getTimeline();
     const iid = getCardIid(card);
@@ -757,6 +805,21 @@
     const pendingPlacementRect = pendingPlacementRectByIid.get(iid);
     if(!prevRect && pendingPlacementRect){
       pendingPlacementRectByIid.delete(iid);
+      if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
+        window.FateVfxEventBridge.onAcceptedGameEvent({
+          type:'PLAY_CARD',
+          payload:{
+            iid,
+            card,
+            fromRect:pendingPlacementRect,
+            toRect:nextRect,
+            targetRect:nextRect
+          }
+        });
+        if((card && card.type) !== 'Supporter') hideBoardCardForVfx(iid, 320);
+        else scheduleRender('supporter-board-commit');
+        return null;
+      }
       if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
       else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'card-move');
       return timeline.add({
@@ -954,50 +1017,46 @@
   }
 
   function drawZonePanel(ctx, zone, zoneRect, headerRect, snapshot){
-    const ownerTint = zone.z === 0 ? 'rgba(20,42,66,.18)' : zone.z === 1 ? 'rgba(55,37,25,.16)' : 'rgba(24,52,43,.18)';
+    const ownerTint = zone.z === 0 ? 'rgba(28,68,96,.14)' : zone.z === 1 ? 'rgba(92,70,36,.12)' : 'rgba(35,82,68,.14)';
     const panelGrad = ctx.createLinearGradient(zoneRect.x, zoneRect.y, zoneRect.x, zoneRect.y + zoneRect.h);
-    panelGrad.addColorStop(0, 'rgba(10,14,22,.62)');
-    panelGrad.addColorStop(.42, ownerTint);
-    panelGrad.addColorStop(1, 'rgba(6,8,14,.68)');
+    panelGrad.addColorStop(0, 'rgba(9,13,20,.50)');
+    panelGrad.addColorStop(.38, ownerTint);
+    panelGrad.addColorStop(1, 'rgba(4,7,12,.58)');
 
     roundedPath(ctx, zoneRect.x, zoneRect.y, zoneRect.w, zoneRect.h, 8);
     ctx.fillStyle = panelGrad;
     ctx.fill();
     const innerGlow = ctx.createLinearGradient(zoneRect.x, zoneRect.y, zoneRect.x + zoneRect.w, zoneRect.y + zoneRect.h);
-    innerGlow.addColorStop(0, 'rgba(255,240,176,.045)');
+    innerGlow.addColorStop(0, 'rgba(255,240,176,.07)');
     innerGlow.addColorStop(.55, 'rgba(255,255,255,0)');
-    innerGlow.addColorStop(1, 'rgba(0,0,0,.16)');
+    innerGlow.addColorStop(1, 'rgba(0,0,0,.10)');
     roundedPath(ctx, zoneRect.x + 2, zoneRect.y + 2, zoneRect.w - 4, zoneRect.h - 4, 6);
     ctx.fillStyle = innerGlow;
     ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(220,188,82,.74)';
+    ctx.lineWidth = 1.75;
+    ctx.strokeStyle = 'rgba(255,220,82,.94)';
     ctx.stroke();
 
     ctx.save();
-    ctx.globalAlpha = .18;
-    ctx.strokeStyle = 'rgba(201,168,76,.44)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(zoneRect.x + 14, zoneRect.y + 38);
-    ctx.lineTo(zoneRect.x + zoneRect.w - 14, zoneRect.y + 38);
-    ctx.moveTo(zoneRect.x + 14, zoneRect.y + zoneRect.h - 14);
-    ctx.lineTo(zoneRect.x + zoneRect.w - 14, zoneRect.y + zoneRect.h - 14);
+    ctx.globalAlpha = .72;
+    ctx.strokeStyle = 'rgba(255,238,158,.30)';
+    ctx.lineWidth = 1.1;
+    roundedPath(ctx, zoneRect.x + 7, zoneRect.y + 7, zoneRect.w - 14, zoneRect.h - 14, 6);
     ctx.stroke();
     ctx.restore();
-    drawCornerRails(ctx, zoneRect, 'rgba(221,190,84,.72)', .92);
+    drawCornerRails(ctx, zoneRect, 'rgba(255,219,77,.96)', 1);
 
-    const badgeW = Math.min(136, Math.max(112, zoneRect.w * .30));
+    const badgeW = Math.min(150, Math.max(118, zoneRect.w * .32));
     const badgeX = headerRect.x + headerRect.w / 2 - badgeW / 2;
     const badgeH = 28;
     const badgeY = Math.max(2, headerRect.y - 15);
     roundedPath(ctx, badgeX, badgeY, badgeW, badgeH, 7);
     const badgeGrad = ctx.createLinearGradient(badgeX, badgeY, badgeX, badgeY + badgeH);
-    badgeGrad.addColorStop(0, 'rgba(12,13,10,.95)');
-    badgeGrad.addColorStop(1, 'rgba(0,0,0,.86)');
+    badgeGrad.addColorStop(0, 'rgba(18,18,15,.96)');
+    badgeGrad.addColorStop(1, 'rgba(2,3,6,.88)');
     ctx.fillStyle = badgeGrad;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,219,102,.68)';
+    ctx.strokeStyle = 'rgba(255,224,116,.76)';
     ctx.stroke();
     ctx.fillStyle = '#f2d778';
     ctx.font = '800 10px Cinzel, serif';
@@ -1007,28 +1066,34 @@
 
     const s0 = zoneScore(zone.z, 0);
     const s1 = zoneScore(zone.z, 1);
-    const scoreW = Math.min(208, Math.max(168, zoneRect.w * .42));
+    const scoreW = Math.min(236, Math.max(188, zoneRect.w * .50));
     const scoreX = headerRect.x + headerRect.w / 2 - scoreW / 2;
     const scoreY = headerRect.y + 19;
-    roundedPath(ctx, scoreX, scoreY, scoreW, 22, 11);
-    ctx.fillStyle = 'rgba(2,4,10,.88)';
+    roundedPath(ctx, scoreX, scoreY, scoreW, 25, 12.5);
+    const scoreGrad = ctx.createLinearGradient(scoreX, scoreY, scoreX + scoreW, scoreY + 25);
+    scoreGrad.addColorStop(0, 'rgba(5,14,25,.92)');
+    scoreGrad.addColorStop(.48, 'rgba(10,8,10,.94)');
+    scoreGrad.addColorStop(1, 'rgba(24,7,12,.92)');
+    ctx.fillStyle = scoreGrad;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,218,108,.32)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,224,103,.74)';
+    ctx.lineWidth = 1.25;
     ctx.stroke();
+    ctx.fillStyle = 'rgba(255,228,126,.12)';
+    ctx.fillRect(scoreX + scoreW * .5 - .5, scoreY + 4, 1, 17);
 
     const leftScore = snapshot.viewer === 1 ? s1 : s0;
     const rightScore = snapshot.viewer === 1 ? s0 : s1;
-    ctx.font = '900 14px system-ui, sans-serif';
-    ctx.fillStyle = '#70bdff';
-    ctx.fillText(String(leftScore), scoreX + 30, scoreY + 11);
-    ctx.fillStyle = '#ff7182';
-    ctx.fillText(String(rightScore), scoreX + scoreW - 30, scoreY + 11);
-    ctx.fillStyle = 'rgba(231,206,118,.58)';
-    ctx.font = '700 7px Cinzel, serif';
-    ctx.fillText('vs', scoreX + scoreW / 2, scoreY + 8);
-    ctx.fillStyle = 'rgba(231,206,118,.42)';
-    ctx.fillRect(scoreX + 54, scoreY + 15, scoreW - 108, 1);
+    ctx.font = '900 15px system-ui, sans-serif';
+    ctx.fillStyle = '#86c9ff';
+    ctx.fillText(String(leftScore), scoreX + 34, scoreY + 13);
+    ctx.fillStyle = '#ff8795';
+    ctx.fillText(String(rightScore), scoreX + scoreW - 34, scoreY + 13);
+    ctx.fillStyle = 'rgba(255,229,136,.76)';
+    ctx.font = '800 7px Cinzel, serif';
+    ctx.fillText('FATE', scoreX + scoreW / 2, scoreY + 9);
+    ctx.fillStyle = 'rgba(255,229,136,.34)';
+    ctx.fillRect(scoreX + 60, scoreY + 18, scoreW - 120, 1);
   }
 
   function drawTableAtmosphere(ctx, cssW, cssH, boardRect){
@@ -1144,15 +1209,146 @@
     ctx.restore();
   }
 
+  function freeSetIids(snapshot){
+    return snapshot && snapshot.interaction && Array.isArray(snapshot.interaction.freeSetIids)
+      ? snapshot.interaction.freeSetIids
+      : [];
+  }
+
+  function isSupporterLimitDisabled(item, snapshot){
+    const card = item && item.card;
+    if(!card || card.type !== 'Supporter') return false;
+    const interaction = snapshot && snapshot.interaction ? snapshot.interaction : {};
+    if(!interaction.supporterLimitReached) return false;
+    if(interaction.currentPlayer !== snapshot.viewer) return false;
+    if((interaction.phase || '') !== 'main') return false;
+    const iid = card.iid != null ? String(card.iid) : '';
+    return freeSetIids(snapshot).indexOf(iid) < 0;
+  }
+
+  function drawDisabledCardOverlay(ctx, r, label){
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, Math.max(4, r.w * .052));
+    ctx.clip();
+    ctx.fillStyle = 'rgba(18,20,24,.58)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.fillStyle = 'rgba(120,120,120,.9)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.globalCompositeOperation = 'source-over';
+    const stripH = Math.max(22, r.h * .14);
+    roundedPath(ctx, r.x + 8, r.y + r.h - stripH - 8, r.w - 16, stripH, 5);
+    ctx.fillStyle = 'rgba(4,5,8,.82)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(190,190,190,.42)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(226,226,218,.82)';
+    ctx.font = '800 ' + Math.max(9, Math.round(stripH * .42)) + 'px Cinzel, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label || 'LIMIT', r.x + r.w / 2, r.y + r.h - stripH / 2 - 8);
+    ctx.restore();
+  }
+
+  function drawCommandButton(ctx, hitMap, command, label, rect, opts){
+    const options = opts || {};
+    const disabled = !!options.disabled;
+    const primary = !!options.primary;
+    const active = !!options.active;
+    ctx.save();
+    const grad = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
+    if(primary){
+      grad.addColorStop(0, disabled ? 'rgba(54,54,58,.92)' : 'rgba(177,127,43,.95)');
+      grad.addColorStop(.48, disabled ? 'rgba(36,38,42,.94)' : 'rgba(84,55,24,.96)');
+      grad.addColorStop(1, disabled ? 'rgba(20,22,26,.98)' : 'rgba(19,18,19,.98)');
+    } else {
+      grad.addColorStop(0, disabled ? 'rgba(31,34,39,.88)' : 'rgba(39,45,56,.94)');
+      grad.addColorStop(1, disabled ? 'rgba(14,16,20,.94)' : 'rgba(8,10,17,.96)');
+    }
+    roundedPath(ctx, rect.x, rect.y, rect.w, rect.h, primary ? rect.h / 2 : 10);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.lineWidth = primary ? 2 : 1.25;
+    ctx.strokeStyle = disabled ? 'rgba(156,156,150,.34)' : (active ? 'rgba(123,220,165,.82)' : 'rgba(236,203,101,.68)');
+    ctx.stroke();
+    if(primary && !disabled){
+      ctx.beginPath();
+      ctx.arc(rect.x + rect.w / 2, rect.y + rect.h / 2, Math.max(10, rect.h * .32), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,244,180,.28)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rect.x + rect.w * .46, rect.y + rect.h * .36);
+      ctx.lineTo(rect.x + rect.w * .46, rect.y + rect.h * .64);
+      ctx.lineTo(rect.x + rect.w * .66, rect.y + rect.h * .50);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,245,190,.88)';
+      ctx.fill();
+    }
+    ctx.fillStyle = disabled ? 'rgba(200,200,192,.48)' : '#f2d778';
+    ctx.font = '800 ' + Math.max(9, Math.round(rect.h * (primary ? .16 : .28))) + 'px Cinzel, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + (primary ? rect.h * .27 : 1));
+    ctx.restore();
+    hitMap.uiCommands.push({kind:'ui-command', command, disabled, rect});
+  }
+
+  function drawCommandDock(ctx, hitMap, snapshot, cssW, cssH){
+    const w = Math.min(330, Math.max(286, cssW * .23));
+    const h = 96;
+    const chatReserve = 86;
+    const x = Math.max(14, cssW - w - chatReserve - 22);
+    const y = Math.max(12, cssH - h - 18);
+    const r = {x, y, w, h};
+    const interaction = snapshot && snapshot.interaction ? snapshot.interaction : {};
+    ctx.save();
+    roundedPath(ctx, x, y, w, h, 18);
+    const bg = ctx.createLinearGradient(x, y, x + w, y + h);
+    bg.addColorStop(0, 'rgba(8,10,15,.86)');
+    bg.addColorStop(.55, 'rgba(21,19,18,.92)');
+    bg.addColorStop(1, 'rgba(3,5,9,.94)');
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(236,203,101,.72)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,247,194,.18)';
+    ctx.lineWidth = 1;
+    roundedPath(ctx, x + 6, y + 6, w - 12, h - 12, 14);
+    ctx.stroke();
+    ctx.globalAlpha = .52;
+    ctx.strokeStyle = 'rgba(236,203,101,.34)';
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y + 16);
+    ctx.lineTo(x + w - 20, y + 16);
+    ctx.moveTo(x + 20, y + h - 16);
+    ctx.lineTo(x + w - 20, y + h - 16);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    const endRect = {x:x + w - 86, y:y + 11, w:74, h:74};
+    const smallW = w - 112;
+    const consolidateDisabled = interaction.currentPlayer !== snapshot.viewer || (interaction.phase || '') !== 'main';
+    hitMap.uiCommands.push({kind:'ui-command', command:'dock', disabled:true, rect:r});
+    drawCommandButton(ctx, hitMap, 'end-turn', 'END', endRect, {primary:true, disabled:interaction.currentPlayer !== snapshot.viewer});
+    drawCommandButton(ctx, hitMap, 'consolidate', interaction.consolidating ? 'CANCEL' : 'CONSOLIDATE', {x:x + 16, y:y + 18, w:smallW, h:28}, {disabled:consolidateDisabled, active:interaction.consolidating});
+    drawCommandButton(ctx, hitMap, 'audio', 'AUDIO', {x:x + 16, y:y + 53, w:smallW, h:25}, {disabled:false});
+    ctx.restore();
+  }
+
   function drawSceneUi(ctx, layout, snapshot, cssW, cssH){
-    const hitMap = {handCards:[], opponentHandCards:[], piles:[]};
+    const hitMap = {handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
     if(!ctx || !layout || !snapshot) return hitMap;
     const handCards = layout.hand && Array.isArray(layout.hand.cards) ? layout.hand.cards : [];
     handCards.forEach(function(item){
       if(!item || !item.card || !item.rect) return;
       const visual = item.card.visual || item.card;
-      drawCardVisual(ctx, {card:item.card, c:item.index, r:0, z:0}, visual, item.rect, function(){ scheduleTextureRender('hand-texture-ready'); }, {pulse:false, tilt:(item.index - (handCards.length - 1) / 2) * .025});
-      hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card});
+      const disabled = isSupporterLimitDisabled(item, snapshot);
+      drawCardVisual(ctx, {card:item.card, c:item.index, r:0, z:0}, visual, item.rect, function(){ scheduleTextureRender('hand-texture-ready'); }, {pulse:false, tilt:0});
+      if(disabled) drawDisabledCardOverlay(ctx, item.rect, 'SET LIMIT');
+      hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
     });
 
     const oppCards = layout.opponentHand && Array.isArray(layout.opponentHand.cards) ? layout.opponentHand.cards : [];
@@ -1219,26 +1415,27 @@
             blocked:cell.blocked || null,
             markSafe:!!cell.markSafe
           });
-          roundedPath(ctx, cr.x, cr.y, cr.w, cr.h, 4);
-          ctx.fillStyle = row.owner === snapshot.viewer ? 'rgba(42,119,168,.070)' : row.owner < 0 ? 'rgba(136,126,70,.060)' : 'rgba(142,52,67,.070)';
+          roundedPath(ctx, cr.x, cr.y, cr.w, cr.h, 5);
+          ctx.fillStyle = row.owner === snapshot.viewer ? 'rgba(45,136,184,.052)' : row.owner < 0 ? 'rgba(155,134,65,.047)' : 'rgba(166,62,76,.052)';
           ctx.fill();
           drawCellHatch(ctx, cr, row.owner === snapshot.viewer ? 'rgba(122,189,243,.24)' : row.owner < 0 ? 'rgba(232,205,112,.20)' : 'rgba(238,132,142,.22)');
           ctx.lineWidth = 1;
-          ctx.strokeStyle = cell.card ? 'rgba(255,232,141,.44)' : 'rgba(235,217,153,.24)';
+          ctx.strokeStyle = cell.card ? 'rgba(255,232,141,.38)' : 'rgba(235,217,153,.18)';
           ctx.stroke();
-          if(!cell.card){
-            ctx.save();
-            ctx.globalAlpha = .06;
-            ctx.strokeStyle = 'rgba(255,255,255,.35)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(cr.x + 12, cr.y + 12);
-            ctx.lineTo(cr.x + cr.w - 12, cr.y + cr.h - 12);
-            ctx.moveTo(cr.x + cr.w - 12, cr.y + 12);
-            ctx.lineTo(cr.x + 12, cr.y + cr.h - 12);
-            ctx.stroke();
-            ctx.restore();
-          }
+          ctx.save();
+          ctx.globalAlpha = cell.card ? .10 : .16;
+          ctx.strokeStyle = row.owner === snapshot.viewer ? 'rgba(122,202,255,.48)' : row.owner < 0 ? 'rgba(242,214,126,.42)' : 'rgba(255,128,144,.44)';
+          ctx.beginPath();
+          ctx.moveTo(cr.x + 8, cr.y + 8);
+          ctx.lineTo(cr.x + 26, cr.y + 8);
+          ctx.moveTo(cr.x + 8, cr.y + 8);
+          ctx.lineTo(cr.x + 8, cr.y + 26);
+          ctx.moveTo(cr.x + cr.w - 8, cr.y + cr.h - 8);
+          ctx.lineTo(cr.x + cr.w - 26, cr.y + cr.h - 8);
+          ctx.moveTo(cr.x + cr.w - 8, cr.y + cr.h - 8);
+          ctx.lineTo(cr.x + cr.w - 8, cr.y + cr.h - 26);
+          ctx.stroke();
+          ctx.restore();
           if(cell.blocked){
             drawBlockOverlay(ctx, cr, cell.blocked);
           } else if(cell.markSafe) {
@@ -1275,7 +1472,12 @@
         card:entry.card || null
       });
       const visual = entry.card.visual || null;
-      observeCardForAnimations(entry.card, visual);
+      const iid = getCardIid(entry.card);
+      if(isBoardCardHiddenForVfx(iid)){
+        cards++;
+        return;
+      }
+      observeCardForAnimations(entry.card, visual, r);
       const tributeState = getTributeState(entry);
       const move = observeCardForMove(entry.card, r, snapshotChangedForMove);
       if(move && move.kind === 'card-move' && !move.done){
@@ -1297,7 +1499,7 @@
 
   function syncHoverCanvas(canvas, cssW, cssH, dpr, scaleMetrics){
     const layers = canvas && canvas.__fateLayers ? canvas.__fateLayers : {};
-    const boardLayers = [layers.background, layers.effects, layers.hover].filter(Boolean);
+    const boardLayers = [layers.background, layers.effects, layers.particles, layers.hover].filter(Boolean);
     boardLayers.forEach(function(layer){
       const pxW = Math.max(1, Math.round(cssW * dpr));
       const pxH = Math.max(1, Math.round(cssH * dpr));
@@ -1356,6 +1558,37 @@
     return true;
   }
 
+  function drawVfxLayers(layers, cssW, cssH, dpr, options){
+    const opts = options || {};
+    const director = window.FateVfxDirector;
+    if(!director || typeof director.draw !== 'function') return null;
+    const effects = layers && layers.effects;
+    const particles = layers && layers.particles;
+    const effectsCtx = effects && effects.getContext ? effects.getContext('2d', {alpha:true}) : null;
+    const particleCtx = particles && particles.getContext ? particles.getContext('2d', {alpha:true}) : null;
+    if(effectsCtx){
+      effectsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if(opts.clearEffects !== false) {
+        effectsCtx.clearRect(0, 0, effects.width / dpr, effects.height / dpr);
+        renderCounters.effectLayerRedraws++;
+      }
+    }
+    if(particleCtx){
+      particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if(opts.clearParticles !== false) {
+        particleCtx.clearRect(0, 0, particles.width / dpr, particles.height / dpr);
+        renderCounters.particleLayerRedraws++;
+      }
+    }
+    return director.draw({
+      effectsCtx,
+      particleCtx,
+      cssW,
+      cssH,
+      dpr
+    });
+  }
+
   function scheduleHoverDraw(){
     if(hoverRaf) return;
     hoverRaf = requestAnimationFrame(function(){
@@ -1385,6 +1618,54 @@
     const layers = canvas && canvas.__fateLayers ? canvas.__fateLayers : {};
     const ctx = canvas && canvas.getContext ? canvas.getContext('2d', {alpha:true}) : null;
     if(!ctx) return null;
+
+    const vfxOnly = !!(lastReport && lastReport.available && lastCanvasMetrics)
+      && !!(dirtyMask & (DIRTY_EFFECTS | DIRTY_PARTICLES))
+      && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
+    if(vfxOnly){
+      const metrics = lastCanvasMetrics;
+      drawVfxLayers(layers, metrics.cssW, metrics.cssH, metrics.dpr, {clearEffects:true, clearParticles:true});
+      drawHoverOverlay({dirty:false});
+      renderCounters.dirtyDraws++;
+      renderCounters.vfxOnlyDraws++;
+      renderCounters.lastVfxLayerOnly = true;
+      renderCounters.lastDirtyMask = dirtyMask;
+      renderCounters.lastDirtySource = source || '';
+      const frameMs = nowMs() - started;
+      recordFrameMs(frameMs);
+      const layerCount = layerIds.reduce(function(total, id){ return total + (document.getElementById(id) ? 1 : 0); }, 0);
+      lastReport = Object.assign({}, lastReport || {}, {
+        dirtyDraws:renderCounters.dirtyDraws,
+        fullSceneRedraws:renderCounters.fullSceneRedraws,
+        backgroundLayerRedraws:renderCounters.backgroundLayerRedraws,
+        cardLayerRedraws:renderCounters.cardLayerRedraws,
+        effectLayerRedraws:renderCounters.effectLayerRedraws,
+        particleLayerRedraws:renderCounters.particleLayerRedraws,
+        uiLayerRedraws:renderCounters.uiLayerRedraws,
+        hoverLayerRedraws:renderCounters.hoverLayerRedraws,
+        hoverOnlyDraws:renderCounters.hoverOnlyDraws,
+        vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+        vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+        lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
+        lastDirtyMask:renderCounters.lastDirtyMask,
+        lastDirtySource:renderCounters.lastDirtySource,
+        canvas:Object.assign({}, lastReport.canvas || {}, {
+          totalLayerPixelArea:totalLayerPixelArea(),
+          layers:layerCount
+        }),
+        vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
+        lastMs:roundMs(frameMs),
+        avgMs:roundMs(averageFrameMs()),
+        maxMs:roundMs(maxFrameMs()),
+        rafAvgGapMs:roundMs(averageRafGapMs()),
+        rafMaxGapMs:roundMs(maxRafGapMs()),
+        rafSamples:rafGapSamples.length,
+        rafLongIdleGaps,
+        fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+        source
+      });
+      return lastReport;
+    }
 
     const snapshot = options && options.snapshot
       ? options.snapshot
@@ -1449,14 +1730,18 @@
         uiCtx.clearRect(0, 0, uiLayer.width / dpr, uiLayer.height / dpr);
         renderCounters.uiLayerRedraws++;
       }
-      const uiHitMap = uiCtx ? drawSceneUi(uiCtx, layout, snapshot, uiLayer.width / dpr, uiLayer.height / dpr) : {handCards:[], opponentHandCards:[], piles:[]};
+      const uiHitMap = uiCtx ? drawSceneUi(uiCtx, layout, snapshot, uiLayer.width / dpr, uiLayer.height / dpr) : {handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
       lastHitMap = {
         cards:lastHitMap.cards || [],
         cells:lastHitMap.cells || [],
         handCards:uiHitMap.handCards || [],
         opponentHandCards:uiHitMap.opponentHandCards || [],
-        piles:uiHitMap.piles || []
+        piles:uiHitMap.piles || [],
+        uiCommands:uiHitMap.uiCommands || []
       };
+      if(dirtyMask & (DIRTY_EFFECTS | DIRTY_PARTICLES | DIRTY_MOTION)) {
+        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:true});
+      }
       drawHoverOverlay({dirty:false});
       renderCounters.dirtyDraws++;
       renderCounters.lastDirtyMask = dirtyMask;
@@ -1471,15 +1756,19 @@
         backgroundLayerRedraws:renderCounters.backgroundLayerRedraws,
         cardLayerRedraws:renderCounters.cardLayerRedraws,
         effectLayerRedraws:renderCounters.effectLayerRedraws,
+        particleLayerRedraws:renderCounters.particleLayerRedraws,
         uiLayerRedraws:renderCounters.uiLayerRedraws,
         hoverLayerRedraws:renderCounters.hoverLayerRedraws,
         hoverOnlyDraws:renderCounters.hoverOnlyDraws,
+        vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+        vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+        lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
         lastDirtyMask:renderCounters.lastDirtyMask,
         lastDirtySource:renderCounters.lastDirtySource,
         hand:{v2Cards:lastHitMap.handCards.length},
         opponentHand:{v2Cards:lastHitMap.opponentHandCards.length},
         piles:{v2Piles:lastHitMap.piles.length > 0, v2PileCount:lastHitMap.piles.length},
-        hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length},
+        hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length, uiCommands:lastHitMap.uiCommands.length},
         canvas:Object.assign({}, lastReport.canvas || {}, {
           dpr:scaleMetrics.rawDpr,
           maxDpr:scaleMetrics.maxDpr,
@@ -1496,17 +1785,19 @@
         rafSamples:rafGapSamples.length,
         rafLongIdleGaps,
         fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+        vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
         source
       });
       if(maybeAdaptRenderScale()) scheduleRender('adaptive-render-scale');
       return lastReport;
     }
-    ['background', 'effects', 'ui'].forEach(function(name){
+    ['background', 'effects', 'particles', 'ui'].forEach(function(name){
       const layer = layers[name];
       const layerCtx = layer && layer.getContext ? layer.getContext('2d', {alpha:true}) : null;
       const shouldClear = canvasResized
         || (name === 'background' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND)))
         || (name === 'effects' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_EFFECTS | DIRTY_MOTION)))
+        || (name === 'particles' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_PARTICLES | DIRTY_EFFECTS | DIRTY_MOTION)))
         || (name === 'ui' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES)));
       if(!shouldClear) return;
       if(layerCtx){
@@ -1514,6 +1805,7 @@
         layerCtx.clearRect(0, 0, layer.width / dpr, layer.height / dpr);
         if(name === 'background') renderCounters.backgroundLayerRedraws++;
         else if(name === 'effects') renderCounters.effectLayerRedraws++;
+        else if(name === 'particles') renderCounters.particleLayerRedraws++;
         else if(name === 'ui') renderCounters.uiLayerRedraws++;
       }
     });
@@ -1527,19 +1819,26 @@
     const uiHitMap = shouldDrawUi && uiCtx ? drawSceneUi(uiCtx, layout, snapshot, layers.ui.width / dpr, layers.ui.height / dpr) : {
       handCards:lastHitMap.handCards || [],
       opponentHandCards:lastHitMap.opponentHandCards || [],
-      piles:lastHitMap.piles || []
+      piles:lastHitMap.piles || [],
+      uiCommands:lastHitMap.uiCommands || []
     };
     lastHitMap = {
       cards:draw.hitMap.cards || [],
       cells:draw.hitMap.cells || [],
       handCards:uiHitMap.handCards || [],
       opponentHandCards:uiHitMap.opponentHandCards || [],
-      piles:uiHitMap.piles || []
+      piles:uiHitMap.piles || [],
+      uiCommands:uiHitMap.uiCommands || []
     };
+    drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
     refreshHoverHitFromHitMap(draw.hitMap);
     drawHoverOverlay({dirty:false});
     drawCount++;
     renderCounters.fullSceneRedraws++;
+    if(String(source || '').toLowerCase().indexOf('vfx') >= 0) {
+      renderCounters.vfxFullSceneFallbacks++;
+      renderCounters.lastVfxLayerOnly = false;
+    }
     renderCounters.lastDirtyMask = dirtyMask;
     renderCounters.lastDirtySource = source || '';
     const domCells = board.querySelectorAll('.cell').length;
@@ -1558,9 +1857,13 @@
       backgroundLayerRedraws:renderCounters.backgroundLayerRedraws,
       cardLayerRedraws:renderCounters.cardLayerRedraws,
       effectLayerRedraws:renderCounters.effectLayerRedraws,
+      particleLayerRedraws:renderCounters.particleLayerRedraws,
       uiLayerRedraws:renderCounters.uiLayerRedraws,
       hoverLayerRedraws:renderCounters.hoverLayerRedraws,
       hoverOnlyDraws:renderCounters.hoverOnlyDraws,
+      vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+      vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+      lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
       lastDirtyMask:renderCounters.lastDirtyMask,
       lastDirtySource:renderCounters.lastDirtySource,
       cards:draw.cards,
@@ -1576,9 +1879,10 @@
       hand:{v2Cards:lastHitMap.handCards.length},
       opponentHand:{v2Cards:lastHitMap.opponentHandCards.length},
       piles:{v2Piles:lastHitMap.piles.length > 0, v2PileCount:lastHitMap.piles.length},
-      hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length},
+      hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length, uiCommands:lastHitMap.uiCommands.length},
       hover:hoverHit ? {kind:hoverHit.kind, z:hoverHit.z, r:hoverHit.r, c:hoverHit.c} : null,
       animations:getTimeline() && typeof getTimeline().report === 'function' ? getTimeline().report() : null,
+      vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
       canvas:{
         width:canvas.width,
         height:canvas.height,

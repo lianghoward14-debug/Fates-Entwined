@@ -98,6 +98,7 @@
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
       if(!hitMap) return null;
       const groups = [
+        {items:Array.isArray(hitMap.uiCommands) ? hitMap.uiCommands : [], kind:'ui-command'},
         {items:Array.isArray(hitMap.handCards) ? hitMap.handCards : [], kind:'hand-card'},
         {items:Array.isArray(hitMap.opponentHandCards) ? hitMap.opponentHandCards : [], kind:'opponent-hand-card'},
         {items:Array.isArray(hitMap.piles) ? hitMap.piles : [], kind:'pile'}
@@ -140,6 +141,7 @@
       if(ended.kind === 'hand-card' && ended.index !== started.index) return;
       if(ended.kind === 'opponent-hand-card' && ended.index !== started.index) return;
       if(ended.kind === 'pile' && (ended.playerIndex !== started.playerIndex || ended.pile !== started.pile)) return;
+      if(ended.kind === 'ui-command' && ended.command !== started.command) return;
       if(performance.now && performance.now() - this.lastHandledAt < 80) return;
       this.lastHandledAt = performance.now ? performance.now() : Date.now();
       ev.preventDefault();
@@ -237,6 +239,16 @@
         } else if(hit.kind === 'pile') {
           if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
           if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
+        } else if(hit.kind === 'ui-command') {
+          if(hit.disabled) return;
+          if(hit.command === 'end-turn' && typeof endTurn === 'function') {
+            endTurn();
+          } else if(hit.command === 'consolidate') {
+            if(typeof G !== 'undefined' && G && G._consolidating && typeof cancelConsolidation === 'function') cancelConsolidation();
+            else if(typeof initiateConsolidate === 'function') initiateConsolidate();
+          } else if(hit.command === 'audio' && typeof showAudioSettings === 'function') {
+            showAudioSettings();
+          }
         }
       } finally {
         if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {

@@ -421,6 +421,15 @@ function endTurn() {
 
   // Transition to next player
   const next = 1 - G.currentPlayer;
+  if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
+    window.FateVfxEventBridge.onAcceptedGameEvent({
+      type:'TURN_END',
+      payload:{
+        player:cp,
+        nextPlayer:next
+      }
+    });
+  }
   // Online rooms are not a same-device handoff, so pass directly to the
   // replayed next turn instead of showing the local pass-turn overlay.
   if(G._onlineRoomCode){
@@ -458,6 +467,15 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
+    window.FateVfxEventBridge.onAcceptedGameEvent({
+      type:'TURN_START',
+      payload:{
+        player:G.currentPlayer,
+        turn:G.turn
+      }
+    });
+  }
   G._turnInputLockUntil = Date.now() + 200;
   G.phase = 'main';
   G.supportsPlacedThisTurn = 0;
@@ -1356,6 +1374,9 @@ async function clickCell(z,r,c) {
   inst.currentFate = getPlacedCardFate(card);
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, z, r, c);
   consumePendingPlacementFlags(card, inst);
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
+    window.FateV2CardMotionFx.queuePlacementFromHand(card, inst);
+  }
   G.board[z][r][c] = inst;
   applyRiveraBuffToPlacedCard(inst, inst.owner);
   if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, z, r, c);
@@ -1930,6 +1951,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
       inst._suppressCinematicSubtitle = true;
     }
     consumePendingPlacementFlags(card, inst);
+    if(!useFaceDown && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
+      window.FateV2CardMotionFx.queuePlacementFromHand(card, inst);
+    }
     if(window.fateCanvasPreseedFate && !useFaceDown) window.fateCanvasPreseedFate(inst.iid, basePrintedFate);
 
     const affectedZones = [...new Set(tributes.map(t=>t.z))];
@@ -4429,6 +4453,9 @@ function beginHavanoDeployment(reaction, owner) {
     inst.owner = owner;
     inst.currentFate = getPlacedCardFate(reaction.card);
     consumePendingPlacementFlags(reaction.card, inst);
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
+      window.FateV2CardMotionFx.queuePlacementFromHand(reaction.card, inst);
+    }
     if(G.aiEnabled && owner === G.aiPlayer) {
       const o = options[0];
       G.board[o.z][o.r][o.c] = inst;

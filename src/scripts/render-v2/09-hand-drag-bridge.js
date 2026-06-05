@@ -292,23 +292,17 @@
 
   function makeGhost(el, ev){
     clearGhost();
-    const r = state && state.sourceViewportRect
-      ? {left:state.sourceViewportRect.x, top:state.sourceViewportRect.y, width:state.sourceViewportRect.w, height:state.sourceViewportRect.h}
-      : el.getBoundingClientRect();
-    const ghost = document.createElement('canvas');
-    ghost.id = 'fate-v2-drag-ghost';
-    ghost.className = 'fate-v2-canvas-drag-ghost';
-    ghost.__cssW = r.width;
-    ghost.__cssH = r.height;
-    ghost.style.width = r.width + 'px';
-    ghost.style.height = r.height + 'px';
-    document.body.appendChild(ghost);
-    drawCanvasGhost(ghost, el, state && state.card);
+    const r = state && state.sourceBoardRect ? Object.assign({}, state.sourceBoardRect) : null;
+    const p = boardPointFromClient(ev.clientX, ev.clientY);
+    const ghost = {canvasOwned:true};
     if(state){
-      state.gripX = ev.clientX - r.left;
-      state.gripY = ev.clientY - r.top;
-      state.ghostW = r.width;
-      state.ghostH = r.height;
+      state.gripX = p && r ? p.x - r.x : (r ? r.w / 2 : 60);
+      state.gripY = p && r ? p.y - r.y : (r ? r.h / 2 : 84);
+      state.ghostW = r ? r.w : 120;
+      state.ghostH = r ? r.h : 170;
+    }
+    if(window.FateVfxDirector && typeof window.FateVfxDirector.setDragPreview === 'function'){
+      window.FateVfxDirector.setDragPreview({card:state && state.card, rect:r, invalid:false});
     }
     moveGhost(ghost, ev.clientX, ev.clientY, 0);
     return ghost;
@@ -334,12 +328,18 @@
     const lift = Math.min(1, Math.max(0, Number(progress) || 0));
     const gx = state && Number.isFinite(state.gripX) ? state.gripX : w / 2;
     const gy = state && Number.isFinite(state.gripY) ? state.gripY : h / 2;
-    ghost.style.transform = 'translate3d(' + (x - gx) + 'px,' + (y - gy - lift * 8) + 'px,0) rotate(' + (-2 + lift * 1.5) + 'deg) scale(' + (1.01 + lift * .035) + ')';
+    const p = boardPointFromClient(x, y);
+    if(!p) return;
+    if(window.FateVfxDirector && typeof window.FateVfxDirector.updateDragPreview === 'function'){
+      window.FateVfxDirector.updateDragPreview({
+        card:state && state.card,
+        rect:{x:p.x - gx, y:p.y - gy - lift * 8, w, h}
+      });
+    }
   }
 
   function clearGhost(){
-    const ghost = document.getElementById('fate-v2-drag-ghost');
-    if(ghost) ghost.remove();
+    if(window.FateVfxDirector && typeof window.FateVfxDirector.clearDragPreview === 'function') window.FateVfxDirector.clearDragPreview();
   }
 
   function cleanup(options){
@@ -389,7 +389,9 @@
     setSceneHover(hit, dragState);
     if(state.ghost && state.lastInvalidDrop !== (dragState === 'invalid')){
       state.lastInvalidDrop = dragState === 'invalid';
-      state.ghost.classList.toggle('invalid-drop', state.lastInvalidDrop);
+      if(window.FateVfxDirector && typeof window.FateVfxDirector.updateDragPreview === 'function'){
+        window.FateVfxDirector.updateDragPreview({invalid:state.lastInvalidDrop});
+      }
     }
     return state.lastDropPreview;
   }
@@ -430,9 +432,10 @@
   function onPointerDown(ev){
     if(Date.now() < blockClickUntil) return;
     const handHit = viewportHandHitFromPoint(ev.clientX, ev.clientY);
-    const el = handHit ? null : (ev.target && ev.target.closest ? ev.target.closest('#hand-cards .hc') : null);
-    if(!handHit && !el) return;
-    const idx = handHit ? Number(handHit.index) : handIndex(el);
+    if(!handHit) return;
+    if(handHit && handHit.disabled) return;
+    const el = null;
+    const idx = Number(handHit.index);
     const card = currentHandCard(idx);
     if(!canStartDrag(ev, el, idx, card)) return;
     state = {

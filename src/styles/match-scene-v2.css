@@ -7,9 +7,10 @@
 html.fate-match-renderer-v2-mode body #s-game #board.fate-match-v2-owned-board {
   position: relative !important;
   display: block !important;
-  overflow: auto !important;
+  overflow: hidden !important;
   contain: layout paint style !important;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: auto !important;
+  overscroll-behavior: none !important;
 }
 
 #s-game.fate-renderer-v2 #board.fate-match-v2-owned-board > .zone,
@@ -48,9 +49,11 @@ html.fate-match-renderer-v2-mode body #fate-match-v2-canvas {
 
 #s-game.fate-renderer-v2 #fate-match-v2-background-canvas,
 #s-game.fate-renderer-v2 #fate-match-v2-effect-canvas,
+#s-game.fate-renderer-v2 #fate-match-v2-particle-canvas,
 #s-game.fate-renderer-v2 #fate-match-v2-ui-canvas,
 html.fate-match-renderer-v2-mode body #fate-match-v2-background-canvas,
 html.fate-match-renderer-v2-mode body #fate-match-v2-effect-canvas,
+html.fate-match-renderer-v2-mode body #fate-match-v2-particle-canvas,
 html.fate-match-renderer-v2-mode body #fate-match-v2-ui-canvas {
   display: block !important;
   position: absolute !important;
@@ -69,11 +72,16 @@ html.fate-match-renderer-v2-mode body #fate-match-v2-effect-canvas {
   z-index: 2 !important;
 }
 
+#s-game.fate-renderer-v2 #fate-match-v2-particle-canvas,
+html.fate-match-renderer-v2-mode body #fate-match-v2-particle-canvas {
+  z-index: 3 !important;
+}
+
 #s-game.fate-renderer-v2 #fate-match-v2-ui-canvas,
 html.fate-match-renderer-v2-mode body #fate-match-v2-ui-canvas {
   position: fixed !important;
   inset: 0 auto auto 0 !important;
-  z-index: 180 !important;
+  z-index: 90 !important;
   pointer-events: none !important;
 }
 
@@ -112,46 +120,66 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *.f
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 {
-  --hcw: 142px !important;
-  --hch: 199px !important;
+  --hcw: 188px !important;
+  --hch: 263px !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip {
   position: fixed !important;
   left: 50% !important;
-  bottom: 64px !important;
+  bottom: 82px !important;
   transform: translateX(-50%) !important;
-  width: min(1080px, calc(100vw - 390px)) !important;
+  width: min(1440px, calc(100vw - 260px)) !important;
   min-width: 0 !important;
-  height: 226px !important;
+  height: 294px !important;
   min-height: 0 !important;
   margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+  padding: 12px 22px 16px !important;
+  border: 1.5px solid rgba(255,220,92,.82) !important;
+  border-radius: 10px !important;
+  background:
+    linear-gradient(180deg, rgba(18,15,10,.82), rgba(5,7,12,.88)),
+    radial-gradient(circle at 50% 0%, rgba(255,220,92,.13), transparent 60%) !important;
+  box-shadow:
+    0 22px 42px rgba(0,0,0,.46),
+    inset 0 0 0 1px rgba(255,246,191,.08),
+    inset 0 18px 32px rgba(255,220,92,.035) !important;
+  backdrop-filter: blur(10px) saturate(1.08) !important;
   overflow: visible !important;
   pointer-events: none !important;
-  z-index: 126 !important;
+  z-index: 72 !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip::before,
-html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip::after,
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip .left-section-lbl {
   display: none !important;
   content: none !important;
 }
 
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip::after {
+  content: '' !important;
+  display: block !important;
+  position: absolute !important;
+  left: 18px !important;
+  right: 18px !important;
+  bottom: 12px !important;
+  height: 54px !important;
+  border: 1px solid rgba(255,224,112,.30) !important;
+  border-radius: 7px !important;
+  background: linear-gradient(90deg, rgba(255,220,92,.025), rgba(255,255,255,.035), rgba(255,220,92,.025)) !important;
+  box-shadow: inset 0 0 18px rgba(255,220,92,.045) !important;
+  pointer-events: none !important;
+}
+
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip .hand-cards,
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards {
   width: 100% !important;
-  height: 226px !important;
+  height: 266px !important;
   display: flex !important;
   align-items: flex-end !important;
   justify-content: center !important;
-  gap: clamp(10px, 1vw, 18px) !important;
-  padding: 0 10px 4px !important;
+  gap: 0 !important;
+  padding: 0 12px 2px !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -171,14 +199,14 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > * {
   --fan-rot: 0deg;
   --fan-y: 0px;
   --fan-z: 0;
-  transform: translateY(var(--fan-y)) rotate(var(--fan-rot)) !important;
+  transform: translateY(0) rotate(0deg) !important;
   filter: drop-shadow(0 8px 8px rgba(0,0,0,.28)) !important;
   transition: transform .14s ease, filter .14s ease !important;
   z-index: var(--fan-z) !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:hover {
-  transform: translateY(calc(var(--fan-y) - 18px)) rotate(var(--fan-rot)) scale(1.055) !important;
+  transform: translateY(-12px) rotate(0deg) scale(1.035) !important;
   filter: drop-shadow(0 12px 12px rgba(0,0,0,.34)) !important;
   z-index: 50 !important;
 }
@@ -193,6 +221,25 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:n
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(8){--fan-rot:8deg;--fan-y:12px;--fan-z:8;}
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(9){--fan-rot:10deg;--fan-y:18px;--fan-z:9;}
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(10){--fan-rot:12deg;--fan-y:24px;--fan-z:10;}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
+  display: flex !important;
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: 14px !important;
+  transform: translateX(-50%) !important;
+  width: min(1120px, calc(100vw - 360px)) !important;
+  min-height: 58px !important;
+  padding: 8px 14px !important;
+  border: 1.5px solid rgba(255,220,92,.72) !important;
+  border-radius: 9px !important;
+  background: linear-gradient(180deg, rgba(14,13,12,.92), rgba(4,6,10,.96)) !important;
+  box-shadow: 0 18px 36px rgba(0,0,0,.44), inset 0 0 0 1px rgba(255,246,191,.07) !important;
+  backdrop-filter: blur(10px) !important;
+  z-index: 86 !important;
+  box-sizing: border-box !important;
+}
 
 #fate-v2-drag-ghost {
   position: fixed !important;

@@ -268,6 +268,9 @@
   }
 
   function buildInteractionSnapshot(g, viewer){
+    const maxSupports = (Number(g.maxSupportsPerTurn) || 0) + (Number(g.extraSupportsThisTurn) || 0);
+    const supportsPlaced = Number(g.supportsPlacedThisTurn) || 0;
+    const majaActive = !!g.majaEffectThisTurn;
     return {
       viewer,
       currentPlayer:g.currentPlayer,
@@ -279,6 +282,13 @@
       selectedHandCard:g.selectedHandCard,
       selectedBoardIid:g.selectedBoardCard && g.selectedBoardCard.card ? String(g.selectedBoardCard.card.iid || '') : '',
       consolidating:!!(g._consolidating || g.consolidating),
+      supportsPlacedThisTurn:supportsPlaced,
+      maxSupportsThisTurn:maxSupports,
+      majaEffectThisTurn:majaActive,
+      supporterLimitReached:!majaActive && (g.phase || '') === 'main' && supportsPlaced >= maxSupports,
+      freeSetIids:g._linaFreeIids && typeof g._linaFreeIids.forEach === 'function'
+        ? Array.from(g._linaFreeIids).map(function(iid){ return String(iid); })
+        : [],
       markSelecting:g._markSelecting ? clonePlain(g._markSelecting) : null,
       boardTargeting:g._boardTargeting ? clonePlain(g._boardTargeting) : null,
       moving:['_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving'].some(function(k){ return !!g[k]; })
