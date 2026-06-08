@@ -12,6 +12,10 @@
   let marketplaceTxPage = 0;
   let sellCardPage = 0;
   let shareDeckPage = 0;
+  let marketplaceLoaded = false;
+  let publicDecksLoaded = false;
+  const MARKETPLACE_FEED_LIMIT = 160;
+  const PUBLIC_DECK_FEED_LIMIT = 60;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function user(){ return window.FATE_ONLINE?.user || null; }
@@ -103,9 +107,16 @@
   function canUseFirebase(){
     return !!(FO.rtdb && FO.ref && FO.onValue && FO.set && FO.update && FO.remove && FO.push);
   }
+  function cappedFeed(path, child, limit){
+    const base = FO.ref(FO.rtdb, path);
+    return (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(base, FO.orderByChild(child), FO.limitToLast(limit))
+      : base;
+  }
   function watchMarketplace(){
     if(!canUseFirebase() || marketplaceUnsub) return;
-    marketplaceUnsub = FO.onValue(FO.ref(FO.rtdb, 'marketplace/listings'), snap=>{
+    marketplaceUnsub = FO.onValue(cappedFeed('marketplace/listings', 'createdAt', MARKETPLACE_FEED_LIMIT), snap=>{
+      marketplaceLoaded = true;
       const raw = snap.val() || {};
       const allListings = Object.entries(raw).map(([id, value])=>({ listingId:id, ...(value || {}) }));
       marketplaceListings = allListings
@@ -123,7 +134,8 @@
   }
   function watchPublicDecks(){
     if(!canUseFirebase() || publicDecksUnsub) return;
-    publicDecksUnsub = FO.onValue(FO.ref(FO.rtdb, 'publicDecks'), snap=>{
+    publicDecksUnsub = FO.onValue(cappedFeed('publicDecks', 'updatedAt', PUBLIC_DECK_FEED_LIMIT), snap=>{
+      publicDecksLoaded = true;
       const raw = snap.val() || {};
       publicDecks = Object.entries(raw)
         .map(([id, value])=>normalizePublicDeck({ deckId:id, id, ...(value || {}) }))
@@ -131,14 +143,27 @@
         .sort((a,b)=>avgRating(b) - avgRating(a) || Number(b.updatedAt || b.timestamp || 0) - Number(a.updatedAt || a.timestamp || 0));
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
       try{
-        const title = document.getElementById('modal-title');
-        if(title && title.textContent === 'Public Decks') showPublicDecks(publicDecksPage);
+        if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
       }catch(e){ console.warn('Public decks refresh failed', e); }
     }, err=>console.warn('Public decks subscription failed', err));
   }
-  function ensureWatchers(){
-    watchMarketplace();
-    watchPublicDecks();
+  function stopWatchers(){
+    try{ if(marketplaceUnsub) marketplaceUnsub(); }catch(e){}
+    try{ if(publicDecksUnsub) publicDecksUnsub(); }catch(e){}
+    marketplaceUnsub = null;
+    publicDecksUnsub = null;
+    marketplaceLoaded = false;
+    publicDecksLoaded = false;
+    marketplaceListings = [];
+    marketplaceTransactions = [];
+    publicDecks = [];
+    window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+    window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
+    window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
+  }
+  function ensureWatchers(scope='all'){
+    if(scope === 'marketplace' || scope === 'all') watchMarketplace();
+    if(scope === 'publicDecks' || scope === 'all') watchPublicDecks();
   }
 
   async function publishDeck(deck){
@@ -201,11 +226,15 @@
   }
 
   window.renderMarketplaceListings = function renderMarketplaceListings(){
-    ensureWatchers();
+    ensureWatchers('marketplace');
     const el = document.getElementById('marketplace-listings');
     if(!el) return;
     updateMarketplaceRedeemButton();
     const listings = canUseFirebase() ? marketplaceListings : (USER_PROFILE?.marketplace?.listings || []);
+    if(canUseFirebase() && !marketplaceLoaded){
+      el.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--dim);font-style:italic;">Loading marketplace...</div>`;
+      return;
+    }
     if(!listings.length){
       el.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--dim);font-style:italic;">No listings yet. List a card to get started.</div>`;
       return;
@@ -373,7 +402,7 @@
   }
 
   window.redeemMarketplaceStarlight = async function redeemMarketplaceStarlight(){
-    ensureWatchers();
+    ensureWatchers('marketplace');
     const u = user();
     const pending = pendingSoldListings();
     const total = pending.reduce((sum,l)=>sum + Number(l.price || 0), 0);
@@ -397,7 +426,7 @@
   };
 
   window.showMarketplaceTransactions = function showMarketplaceTransactions(page=marketplaceTxPage){
-    ensureWatchers();
+    ensureWatchers('marketplace');
     const tx = canUseFirebase()
       ? marketplaceTransactions
       : (USER_PROFILE?.marketplace?.listings || []).filter(l=>String(l.status || '') === 'sold');
@@ -512,7 +541,7 @@
   };
 
   window.showPublicDecks = function showPublicDecks(page=publicDecksPage){
-    ensureWatchers();
+    ensureWatchers('publicDecks');
     if(typeof resetModalChrome === 'function') resetModalChrome();
     const sorted = [...publicDecks].sort((a,b)=>(avgRating(b) - avgRating(a)) || ((b.timestamp || 0) - (a.timestamp || 0)));
     const pageSize = 4;
@@ -535,7 +564,12 @@
           <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
         </div>
       </section>`;
-    if(!sorted.length){
+    if(canUseFirebase() && !publicDecksLoaded){
+      html += `<div class="pd-empty-state">
+        <div class="pd-empty-title">Loading public decks...</div>
+        <p>Fetching the latest shared builds.</p>
+      </div>`;
+    }else if(!sorted.length){
       html += `<div class="pd-empty-state">
         <div class="pd-empty-title">No decks have been posted yet.</div>
         <p>Publish one of your custom presets to start the public library.</p>
@@ -923,13 +957,14 @@
     showPublicDecks(publicDecksPage);
   };
 
-  if(FO.onAuth) FO.onAuth(()=>ensureWatchers());
-  window.addEventListener('fate-online-auth', ensureWatchers);
-  setTimeout(ensureWatchers, 600);
+  if(FO.onAuth) FO.onAuth(s=>{ if(!s.user) stopWatchers(); });
+  window.addEventListener('fate-online-auth', e=>{ if(!e.detail?.user) stopWatchers(); });
 
   window.FateOnline = Object.assign(window.FateOnline || {}, {
     publishDeck,
     listMarketplaceCard,
+    ensureMarketplaceFeed:()=>ensureWatchers('marketplace'),
+    ensurePublicDeckFeed:()=>ensureWatchers('publicDecks'),
     getMarketplaceListings:()=>marketplaceListings,
     getPublicDecks:()=>publicDecks
   });

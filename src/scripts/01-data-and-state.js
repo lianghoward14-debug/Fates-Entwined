@@ -270,7 +270,7 @@ const CARDS = [
     effect:'Declare an affiliation; change as many cards you control in this zone to that affiliation. This card gains 1 Fate for each card changed this way.',
     flavor:'"Steph Curry... MY GOAT!"',img:'66.png'},
   {id:'67',name:'Mr. Secules',ability:'"You Just Said Nothing"',type:'Improvisor',aff:'reality',
-    fate:3,cost:1,rarity:'triangle',
+    fate:4,cost:1,rarity:'triangle',
     effect:'Once, when your opponent would activate a character\'s Initiator effect or a Supporter\'s when-set effect, negate it.',
     flavor:'"Breathe. Relax your shoulders. Unclench your jaw"',img:'67.png'},
   {id:'68',name:'Great Oak High Schooler',ability:'Home of the Wolfpack',type:'Supporter',aff:'reality',

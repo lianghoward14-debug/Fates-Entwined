@@ -28,6 +28,10 @@
     return !!(gs && gs.classList.contains('active'));
   }
 
+  function clamp(value, min, max){
+    return Math.max(min, Math.min(max, Number(value) || 0));
+  }
+
   function handIndex(el){
     const hand = document.getElementById('hand-cards');
     return hand ? Array.prototype.indexOf.call(hand.children, el) : -1;
@@ -40,8 +44,20 @@
     return p && p.hand ? p.hand[idx] : null;
   }
 
+  function isFreeSetCard(card){
+    if(!card || typeof G === 'undefined' || !G) return false;
+    if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
+    try {
+      if(card.type !== 'Supporter' && Number(card.cost) > 0 && typeof getDisplayedCardCost === 'function') {
+        return Number(getDisplayedCardCost(card)) <= 0;
+      }
+    } catch(e) {}
+    return false;
+  }
+
   function displayedCost(card){
     if(!card) return 0;
+    if(isFreeSetCard(card)) return 0;
     try {
       if(typeof getDisplayedCardCost === 'function') return Number(getDisplayedCardCost(card)) || 0;
     } catch(e) {}
@@ -84,7 +100,7 @@
   function canStartDrag(ev, cardEl, idx, card){
     if(!ownsBoard() || !activeGame()) return false;
     if(!ev || ev.button !== 0) return false;
-    if(cardEl && cardEl.classList && cardEl.classList.contains('dim')) return false;
+    if(cardEl && cardEl.classList && cardEl.classList.contains('dim') && !isFreeSetCard(card)) return false;
     if(typeof G === 'undefined' || !G || G.phase !== 'main') return false;
     if(G._isSpectator) return false;
     const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
@@ -111,8 +127,8 @@
     const canvas = cached && cached.canvas ? cached.canvas : document.getElementById('fate-match-v2-canvas');
     const r = cached && cached.rect ? cached.rect : (canvas && canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null);
     if(!canvas || !r || !r.width || !r.height) return null;
-    const cssW = cached && cached.cssW ? cached.cssW : (canvas.clientWidth || r.width || 1);
-    const cssH = cached && cached.cssH ? cached.cssH : (canvas.clientHeight || r.height || 1);
+    const cssW = cached && cached.cssW ? cached.cssW : (canvas.__fateCssW || canvas.clientWidth || r.width || 1);
+    const cssH = cached && cached.cssH ? cached.cssH : (canvas.__fateCssH || canvas.clientHeight || r.height || 1);
     return {
       x:(clientX - r.left) * (cssW / Math.max(1, r.width)),
       y:(clientY - r.top) * (cssH / Math.max(1, r.height)),
@@ -127,8 +143,8 @@
     if(!canvas || !el || !el.getBoundingClientRect || !canvas.getBoundingClientRect) return null;
     const er = el.getBoundingClientRect();
     const cr = canvas.getBoundingClientRect();
-    const sx = (canvas.clientWidth || cr.width || 1) / Math.max(1, cr.width || 1);
-    const sy = (canvas.clientHeight || cr.height || 1) / Math.max(1, cr.height || 1);
+    const sx = (canvas.__fateCssW || canvas.clientWidth || cr.width || 1) / Math.max(1, cr.width || 1);
+    const sy = (canvas.__fateCssH || canvas.clientHeight || cr.height || 1) / Math.max(1, cr.height || 1);
     return {
       x:(er.left - cr.left) * sx,
       y:(er.top - cr.top) * sy,
@@ -141,8 +157,8 @@
     const canvas = document.getElementById('fate-match-v2-canvas');
     if(!canvas || !vr || !canvas.getBoundingClientRect) return null;
     const cr = canvas.getBoundingClientRect();
-    const sx = (canvas.clientWidth || cr.width || 1) / Math.max(1, cr.width || 1);
-    const sy = (canvas.clientHeight || cr.height || 1) / Math.max(1, cr.height || 1);
+    const sx = (canvas.__fateCssW || canvas.clientWidth || cr.width || 1) / Math.max(1, cr.width || 1);
+    const sy = (canvas.__fateCssH || canvas.clientHeight || cr.height || 1) / Math.max(1, cr.height || 1);
     return {
       x:(vr.x - cr.left) * sx,
       y:(vr.y - cr.top) * sy,
@@ -179,6 +195,7 @@
   function hitDropState(card, hit){
     if(!card || !hit) return 'invalid';
     const boardCard = boardCardAt(hit);
+    if(isFreeSetCard(card)) return boardCard ? 'invalid' : 'valid';
     if(card.type === 'Supporter') return boardCard ? 'invalid' : 'valid';
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
@@ -252,17 +269,21 @@
     function drawFate(){
       const fateText = String((el && el.querySelector && el.querySelector('.bc-fate') && el.querySelector('.bc-fate').textContent) || (visual && visual.displayFate) || (card && (card.currentFate || card.fate)) || '');
       if(fateText){
+        const current = Number((visual && visual.currentFate != null) ? visual.currentFate : (card && card.currentFate != null ? card.currentFate : fateText));
+        const base = Number((visual && visual.fate != null) ? visual.fate : (card && card.fate != null ? card.fate : fateText));
+        const up = Number.isFinite(current) && Number.isFinite(base) && current > base;
+        const down = Number.isFinite(current) && Number.isFinite(base) && current < base;
         const bw = Math.max(28, Math.min(42, w * .26));
         const bh = Math.max(22, Math.min(30, w * .2));
         ctx.save();
         ctx.beginPath();
         ctx.roundRect ? ctx.roundRect(w - bw - 2, 2, bw, bh, bh / 2) : ctx.rect(w - bw - 2, 2, bw, bh);
-        ctx.fillStyle = 'rgba(2,3,7,.96)';
-        ctx.strokeStyle = 'rgba(255,222,84,.9)';
+        ctx.fillStyle = up ? 'rgba(5,34,18,.96)' : down ? 'rgba(45,8,13,.96)' : 'rgba(2,3,7,.96)';
+        ctx.strokeStyle = up ? 'rgba(101,240,138,.95)' : down ? 'rgba(255,100,112,.95)' : 'rgba(255,222,84,.9)';
         ctx.lineWidth = 1.3;
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#ffe16a';
+        ctx.fillStyle = up ? '#a8ffc0' : down ? '#ffabb2' : '#ffe16a';
         ctx.font = '900 ' + Math.max(13, Math.round(bh * .58)) + 'px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -294,15 +315,22 @@
     clearGhost();
     const r = state && state.sourceBoardRect ? Object.assign({}, state.sourceBoardRect) : null;
     const p = boardPointFromClient(ev.clientX, ev.clientY);
+    const cellRect = state && state.hitMap && Array.isArray(state.hitMap.cells)
+      ? state.hitMap.cells.map(h => h && (h.cardRect || h.visualRect || h.rect)).find(cr => cr && cr.w > 0 && cr.h > 0)
+      : null;
+    const ghostW = cellRect ? cellRect.w : (r ? r.w * 1.55 : 146);
+    const ghostH = cellRect ? cellRect.h : (r ? r.h * 1.55 : 204);
     const ghost = {canvasOwned:true};
     if(state){
-      state.gripX = p && r ? p.x - r.x : (r ? r.w / 2 : 60);
-      state.gripY = p && r ? p.y - r.y : (r ? r.h / 2 : 84);
-      state.ghostW = r ? r.w : 120;
-      state.ghostH = r ? r.h : 170;
+      const gripXPct = p && r ? clamp((p.x - r.x) / Math.max(1, r.w), .16, .84) : .5;
+      const gripYPct = p && r ? clamp((p.y - r.y) / Math.max(1, r.h), .16, .84) : .5;
+      state.gripX = ghostW * gripXPct;
+      state.gripY = ghostH * gripYPct;
+      state.ghostW = ghostW;
+      state.ghostH = ghostH;
     }
     if(window.FateVfxDirector && typeof window.FateVfxDirector.setDragPreview === 'function'){
-      window.FateVfxDirector.setDragPreview({card:state && state.card, rect:r, invalid:false});
+      window.FateVfxDirector.setDragPreview({card:state && state.card, rect:r ? {x:r.x, y:r.y, w:ghostW, h:ghostH} : r, invalid:false, scale:1});
     }
     moveGhost(ghost, ev.clientX, ev.clientY, 0);
     return ghost;
@@ -315,8 +343,8 @@
     return {
       canvas,
       rect,
-      cssW:canvas ? (canvas.clientWidth || (rect && rect.width) || 1) : 1,
-      cssH:canvas ? (canvas.clientHeight || (rect && rect.height) || 1) : 1,
+      cssW:canvas ? (canvas.__fateCssW || canvas.clientWidth || (rect && rect.width) || 1) : 1,
+      cssH:canvas ? (canvas.__fateCssH || canvas.clientHeight || (rect && rect.height) || 1) : 1,
       hitMap:scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null
     };
   }
@@ -433,10 +461,10 @@
     if(Date.now() < blockClickUntil) return;
     const handHit = viewportHandHitFromPoint(ev.clientX, ev.clientY);
     if(!handHit) return;
-    if(handHit && handHit.disabled) return;
     const el = null;
     const idx = Number(handHit.index);
     const card = currentHandCard(idx);
+    if(handHit && handHit.disabled && !isFreeSetCard(card)) return;
     if(!canStartDrag(ev, el, idx, card)) return;
     state = {
       el,
@@ -514,7 +542,7 @@
       cleanup({clearPlacement:true});
       return;
     }
-    if(state.card.type === 'Supporter') finishSupporterDrop(hit);
+    if(state.card.type === 'Supporter' || isFreeSetCard(state.card)) finishSupporterDrop(hit);
     else finishConsolidationDrop(hit);
   }
 

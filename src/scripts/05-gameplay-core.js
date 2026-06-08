@@ -940,6 +940,29 @@ function getValidPlacementOptionsForCard(card, player) {
   return options;
 }
 
+function getSquareRowOwner(z, r) {
+  if(r === 0) return 1;
+  if(r === 1) return -1;
+  if(r === 2) return 0;
+  if(typeof getExtraSafeRowOwner === 'function') return getExtraSafeRowOwner(z, r);
+  return 0;
+}
+
+function isOwnSafeRowSquare(z, r, c, player) {
+  const owner = getSquareRowOwner(z, r);
+  if(owner !== player) return false;
+  if(r >= 3 && typeof isPlayableSafeSquare === 'function') return isPlayableSafeSquare(z, r, c, player);
+  return owner !== -1;
+}
+
+function isContestedOrOwnSafeSquare(z, r, c, player) {
+  const owner = getSquareRowOwner(z, r);
+  if(owner === -1) return true;
+  if(owner !== player) return false;
+  if(r >= 3 && typeof isPlayableSafeSquare === 'function') return isPlayableSafeSquare(z, r, c, player);
+  return true;
+}
+
 function highlightValidCells(card, extraClass) {
   clearPlaceHighlights();
   const classes = ['placeable'];
@@ -1105,6 +1128,11 @@ async function clickCell(z,r,c) {
       playSfx('blocked');
       return;
     }
+    if(blockType === 'carolyn' && isOwnSafeRowSquare(blockZ, r, c, owner)) {
+      toast('Carolyn cannot lock your own safe row');
+      playSfx('blocked');
+      return;
+    }
     // Zoe cannot target a cell already locked by Carolyn (Carolyn is stronger)
     const existingBlock = G.blockedCells.find(b=>b.z===blockZ&&b.r===r&&b.c===c);
     if(blockType==='zoe' && existingBlock && existingBlock.type==='carolyn') {
@@ -1143,10 +1171,14 @@ async function clickCell(z,r,c) {
     G._markPreCreatedZones.forEach(function(mz){
       if(mz === chosenZone) return;
       if(G.extraRows[mz] !== 1) return;
+      if(G.extraRowOwners && G.extraRowOwners[mz] && G.extraRowOwners[mz].some(function(owner){ return typeof owner === 'number'; })) return;
+      if(typeof isMarkSafeSquare === 'function' && [0,1,2].some(function(cc){ return isMarkSafeSquare(mz, 3, cc); })) return;
       var row3 = G.board[mz][3];
       var empty = !row3 || row3.every(function(c){ return c === null; });
       if(empty){
         G.extraRows[mz] = 0;
+        if(G.extraRowOwners && G.extraRowOwners[mz]) G.extraRowOwners[mz].splice(0, 1);
+        if(G.extraRowFullOwners) G.extraRowFullOwners[mz] = null;
         if(G.board[mz][3]) G.board[mz].splice(3, 1);
       }
     });
@@ -1316,6 +1348,13 @@ async function clickCell(z,r,c) {
   if(G._expMoving) {
     if(G.board[z][r][c]!==null){toast('Cell is occupied');return;}
     const mv = G._expMoving;
+    const cp = typeof mv.card.owner === 'number' ? mv.card.owner : G.currentPlayer;
+    if(!isContestedOrOwnSafeSquare(z, r, c, cp)){
+      toast('ALPINE Expeditionary can only move to contested row or your safe row');
+      playSfx('blocked');
+      return;
+    }
+    if(isBlocked(z,r,c)){toast('Cell is blocked');return;}
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     mv.card._expMoved = true;
@@ -1731,6 +1770,7 @@ function doConsolidate(card, cost) {
 
   // Add CSS class to tributeable cards (no renderGame — board is already current)
   highlightTributeCards();
+  refreshConsolidationCanvasState();
   setHint(`Select ${tributeLabel} to consolidate ${card.name} (0/${readyCost} reinforcement).`);
 }
 
@@ -1775,6 +1815,14 @@ function highlightTributeCards() {
   });
 }
 
+function refreshConsolidationCanvasState() {
+  try {
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('consolidation-state');
+    }
+  } catch(e) {}
+}
+
 function handleConsolidateClick(z,r,c) {
   const con = G._consolidating;
   if(!con) return false;
@@ -1805,6 +1853,7 @@ function handleConsolidateClick(z,r,c) {
         toast('Reinforcement is already met. Click a selected tribute again to place, or deselect first.');
         setHint(`Ready: click a selected tribute to place ${con.card.name}.`);
         highlightTributeCards();
+        refreshConsolidationCanvasState();
         return true;
       }
       con.chosenIdxs.push(idx);
@@ -1818,11 +1867,13 @@ function handleConsolidateClick(z,r,c) {
         toast(`Over-reinforcement warning: selected ${newRunning}/${con.cost}. You may place now, or deselect extras.`);
       }
       highlightTributeCards();
+      refreshConsolidationCanvasState();
       setHint(`Ready: click a selected tribute to place ${con.card.name}.`);
       return true;
     }
 
     highlightTributeCards();
+    refreshConsolidationCanvasState();
     setHint(`Select ${getConsolidationTributeLabel(con.card)} to consolidate ${con.card.name} (${newRunning}/${con.cost} reinforcement).`);
     return true;
   }
@@ -1848,6 +1899,7 @@ function handleConsolidateClick(z,r,c) {
       toast(`Need ${zoneCost} reinforcement to consolidate in this zone.`);
       con.phase = 'select_tributes';
       highlightTributeCards();
+      refreshConsolidationCanvasState();
       setHint(`Select ${getConsolidationTributeLabel(con.card)} to consolidate ${con.card.name} (${selectedReinforcement}/${zoneCost} reinforcement).`);
       return true;
     }
@@ -1900,6 +1952,7 @@ function cancelConsolidation() {
   clearPlaceHighlights();
   setHint('Select a card to play');
   renderGame({board:true, hand:true, blocks:true, topbar:true});
+  refreshConsolidationCanvasState();
   toast('Consolidation cancelled');
 }
 
@@ -2480,10 +2533,14 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           addFullExtraSafeRowForPlayer(z, cp, 'Starlit Path', {landscape:false});
         } else {
           if(!G.extraRows) G.extraRows=[0,0,0];
+          if(!G.extraRowOwners) G.extraRowOwners=[[],[],[]];
           if(!G.extraRowFullOwners) G.extraRowFullOwners=[null,null,null];
+          const nextRow = 3 + (Number(G.extraRows[z]) || 0);
           G.extraRows[z]++;
+          if(!G.extraRowOwners[z]) G.extraRowOwners[z] = [];
+          G.extraRowOwners[z][nextRow - 3] = cp;
           G.extraRowFullOwners[z] = cp;
-          if(!G.board[z][2 + G.extraRows[z]]) G.board[z][2 + G.extraRows[z]] = Array(3).fill(null);
+          if(!G.board[z][nextRow]) G.board[z][nextRow] = Array(3).fill(null);
         }
         restoreAnickaIfNeeded();
         toast('Extra safe row created in Zone '+(z+1)+'!');
@@ -3429,7 +3486,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           for(let rr=0;rr<totalRows;rr++) {
             const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(zz, rr) : 3;
             for(let cc=0;cc<rowCap;cc++){
-              if(G.board[zz][rr]&&G.board[zz][rr][cc]===null && !isBlocked(zz,rr,cc)){
+              if(G.board[zz][rr]&&G.board[zz][rr][cc]===null && !isBlocked(zz,rr,cc) && !isOwnSafeRowSquare(zz, rr, cc, cp)){
                 const el = document.querySelector(`#board .cell[data-z="${zz}"][data-r="${rr}"][data-c="${cc}"]`);
                 if(el) el.classList.add('placeable','block-target-choice','carolyn-block-choice');
               }
@@ -3437,6 +3494,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           }
         }
         window._blockZone = -1;
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+          window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+        }
       } break;
     case '14': // Alondra Hopkins: on-set only, not re-activatable
       toast('Alondra\'s effect only fires when she is first set.');
@@ -4135,6 +4195,9 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   G._wolfCreekMoving = { card:cardToMove, fromZ:fromZ, fromR:fromR, fromC:fromC, wolfCreekCard:wolfCreekCard, options:options };
   G.placing = false;
   G.selectedHandCard = null;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+  }
   toast('Click a highlighted open square to move '+cardToMove.name);
   if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square to move '+cardToMove.name+' — press Escape to cancel');
   return true;
@@ -4176,13 +4239,15 @@ async function activateExpeditionaryMove(card, z, r, c) {
   for(var zz=0;zz<3;zz++){
     G.board[zz].forEach(function(row,rr){row.forEach(function(cell,cc){
       if(!cell && !isBlocked(zz,rr,cc)){
-        var rowOwner = rr===0?1:rr===1?-1:rr===2?0:cp;
-        if(rowOwner===cp || rowOwner===-1){
+        if(isContestedOrOwnSafeSquare(zz, rr, cc, cp)){
           var el=document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
           if(el) el.classList.add('placeable','move-target');
         }
       }
     });});
+  }
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
   }
 }
 
@@ -4217,6 +4282,9 @@ function activateLandscapeEventideMove(card, z, r, c) {
     const el = document.querySelector('#board .cell[data-z="'+o.z+'"][data-r="'+o.r+'"][data-c="'+o.c+'"]');
     if(el) el.classList.add('placeable','move-target','landscape-move-target');
   });
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+  }
   toast('Choose a highlighted square for Panacea movement.');
   setHint('Landscape: move ' + card.name + ' to a highlighted square.');
 }
@@ -4356,7 +4424,7 @@ function checkReactions(actionType, actionData) {
     var reactorName = reaction.card.name;
     var reactorImg = reaction.card.img ? '<img src="'+reaction.card.img+'" alt="'+escapeHtml(reactorName)+'">' : '';
     var lydiaInfo = reaction.type==='lydia' ? '<div class="reaction-uses">'+reaction.card.usesLeft+' uses remaining</div>' : '';
-    var secInfo = reaction.type==='secules' ? '<div class="reaction-uses">One use - this negation will be spent</div>' : '';
+    var secInfo = reaction.type==='secules' ? '<div class="reaction-uses">One use - Effect Expended after negation</div>' : '';
 
     // 15-second timer for reaction decision
     var _reactionTimer = null;
@@ -4513,8 +4581,8 @@ function executeReaction(reaction, actionData) {
     reaction.card.usesLeft = 0;
     reaction.card._seculesUsed = true;
     if(actionData.card && actionData.card.type === 'Supporter') actionData.card._reactionSuppressed = true;
-    toast('Mr. Secules negated '+(actionData.card ? actionData.card.name : 'the effect')+'! (spent)');
-    log(opp===0?'p1':'p2', 'Mr. Secules spent his one use to negate '+(actionData.card ? actionData.card.name : 'an effect'));
+    toast('Mr. Secules negated '+(actionData.card ? actionData.card.name : 'the effect')+'! (Effect Expended)');
+    log(opp===0?'p1':'p2', 'Mr. Secules: Effect Expended after negating '+(actionData.card ? actionData.card.name : 'an effect'));
     playSfx('zoneBlock');
     showBlockedAnimation('NEGATED by Mr. Secules!');
     renderGame();

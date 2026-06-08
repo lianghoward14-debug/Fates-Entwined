@@ -20,6 +20,8 @@
       this.handlePointerMove = this.handlePointerMove.bind(this);
       this.handleViewportPointerDown = this.handleViewportPointerDown.bind(this);
       this.handleViewportPointerUp = this.handleViewportPointerUp.bind(this);
+      this.handleViewportPointerMove = this.handleViewportPointerMove.bind(this);
+      this.handleWheel = this.handleWheel.bind(this);
     }
 
     attach(container){
@@ -30,8 +32,10 @@
       this.container.addEventListener('pointerdown', this.handlePointerDown, {passive:true});
       this.container.addEventListener('pointerup', this.handlePointerUp, {passive:true});
       this.container.addEventListener('pointermove', this.handlePointerMove, {passive:true});
+      this.container.addEventListener('wheel', this.handleWheel, {passive:false});
       document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:true});
       document.addEventListener('pointerup', this.handleViewportPointerUp, {capture:true, passive:false});
+      document.addEventListener('pointermove', this.handleViewportPointerMove, {capture:true, passive:true});
     }
 
     detach(){
@@ -39,8 +43,10 @@
       this.container.removeEventListener('pointerdown', this.handlePointerDown);
       this.container.removeEventListener('pointerup', this.handlePointerUp);
       this.container.removeEventListener('pointermove', this.handlePointerMove);
+      this.container.removeEventListener('wheel', this.handleWheel);
       document.removeEventListener('pointerdown', this.handleViewportPointerDown, true);
       document.removeEventListener('pointerup', this.handleViewportPointerUp, true);
+      document.removeEventListener('pointermove', this.handleViewportPointerMove, true);
       if(this.moveRaf) {
         cancelAnimationFrame(this.moveRaf);
         this.moveRaf = 0;
@@ -64,14 +70,30 @@
     pointFromClient(clientX, clientY){
       const target = this.container;
       const r = target && target.getBoundingClientRect ? target.getBoundingClientRect() : {left:0, top:0, width:1, height:1};
-      const cssW = target && target.clientWidth ? target.clientWidth : r.width || 1;
-      const cssH = target && target.clientHeight ? target.clientHeight : r.height || 1;
+      const cssW = target && target.__fateCssW ? target.__fateCssW : (target && target.clientWidth ? target.clientWidth : r.width || 1);
+      const cssH = target && target.__fateCssH ? target.__fateCssH : (target && target.clientHeight ? target.clientHeight : r.height || 1);
       return {
         x:(clientX - r.left) * (cssW / Math.max(1, r.width || cssW)),
         y:(clientY - r.top) * (cssH / Math.max(1, r.height || cssH)),
         clientX,
         clientY
       };
+    }
+
+    isModalBlockingSceneInput(){
+      try {
+        const modal = document.getElementById('modal');
+        if(modal && modal.classList && modal.classList.contains('on')) return true;
+        const blockers = document.querySelectorAll('.overlay.on, .card-info-overlay, [role="dialog"][aria-modal="true"], .modal[aria-modal="true"], .card-detail-modal, .card-info-modal');
+        for(let i = 0; i < blockers.length; i++){
+          const el = blockers[i];
+          if(!el) continue;
+          const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+          if(style && (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0)) continue;
+          if(el.getClientRects && el.getClientRects().length) return true;
+        }
+      } catch(e) {}
+      return false;
     }
 
     hitTest(x, y){
@@ -117,6 +139,11 @@
     }
 
     handleViewportPointerDown(ev){
+      if(this.isModalBlockingSceneInput()) {
+        this.viewportPointerDownHit = null;
+        this.viewportPointerDownPoint = null;
+        return;
+      }
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
@@ -127,6 +154,11 @@
     }
 
     handleViewportPointerUp(ev){
+      if(this.isModalBlockingSceneInput()) {
+        this.viewportPointerDownHit = null;
+        this.viewportPointerDownPoint = null;
+        return;
+      }
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
@@ -149,7 +181,29 @@
       this.dispatchViewportHit(ended);
     }
 
+    handleViewportPointerMove(ev){
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      if(!scene || !scene.ownsBoard || !scene.ownsBoard() || typeof scene.setViewportHoverHit !== 'function') return;
+      const modal = document.getElementById('modal');
+      if(modal && modal.classList && modal.classList.contains('on')) {
+        scene.setViewportHoverHit(null);
+        return;
+      }
+      if(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card')) {
+        scene.setViewportHoverHit(null);
+        return;
+      }
+      const hit = this.viewportHitTest(ev.clientX, ev.clientY);
+      scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'pile') ? hit : null);
+    }
+
     handlePointerMove(ev){
+      if(this.isModalBlockingSceneInput()) {
+        this.pendingMove = null;
+        const scene = this.scene || window.FateMatchRendererAdapter;
+        if(scene && typeof scene.setHoverHit === 'function') scene.setHoverHit(null);
+        return;
+      }
       this.pendingMove = {clientX:ev.clientX, clientY:ev.clientY};
       if(this.moveRaf) return;
       this.moveRaf = requestAnimationFrame(() => {
@@ -163,7 +217,22 @@
       });
     }
 
+    handleWheel(ev){
+      if(this.isModalBlockingSceneInput()) return;
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
+      if(typeof scene.scrollZoneAtClient === 'function' && scene.scrollZoneAtClient(ev.clientX, ev.clientY, ev.deltaY)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    }
+
     handlePointerDown(ev){
+      if(this.isModalBlockingSceneInput()) {
+        this.pointerDownHit = null;
+        this.pointerDownPoint = null;
+        return;
+      }
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
@@ -173,6 +242,11 @@
     }
 
     handlePointerUp(ev){
+      if(this.isModalBlockingSceneInput()) {
+        this.pointerDownHit = null;
+        this.pointerDownPoint = null;
+        return;
+      }
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
@@ -197,7 +271,6 @@
       const c = Number(hit.c);
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
       const isCellActionMode = !!(G._consolidating || G.blockingCell || G._boardTargeting || G.placing);
-      try { if(typeof captureBoardViewportLock === 'function') captureBoardViewportLock(); } catch(e) {}
       try {
         if(G._isSpectator) {
           if(boardCard && typeof openCardDetail === 'function') openCardDetail(boardCard, false, true);
@@ -209,7 +282,6 @@
           if(typeof clickCell === 'function') clickCell(z, r, c);
         }
       } finally {
-        try { if(typeof restoreBoardViewportLockSoon === 'function') restoreBoardViewportLockSoon(); } catch(e) {}
         if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
           window.FateMatchRendererAdapter.scheduleRender('input');
         }
@@ -234,8 +306,19 @@
           }
           if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
         } else if(hit.kind === 'opponent-hand-card') {
-          if(hit.card && !hit.card.hidden && typeof openCardDetail === 'function') openCardDetail(hit.card, false, true);
-          else if(typeof showRevealedHandWindow === 'function') showRevealedHandWindow(Number(hit.playerIndex));
+          const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (Number(G.currentPlayer) || 0);
+          const fallbackOpponent = viewer === 0 ? 1 : 0;
+          const playerIndex = Number.isInteger(Number(hit.playerIndex)) ? Number(hit.playerIndex) : fallbackOpponent;
+          const isJanswick = (typeof isLandscapeActive === 'function' && isLandscapeActive('igb12')) || G.landscapeId === 'igb12';
+          const revealedHit = !!(hit.card && (hit.card.revealed || (!hit.card.hidden && hit.card.visual && !hit.card.visual.isHidden)));
+          if(!isJanswick && !revealedHit) return;
+          const hand = G.players[playerIndex] && Array.isArray(G.players[playerIndex].hand) ? G.players[playerIndex].hand : [];
+          const byIndex = hand[Number(hit.index)] || null;
+          const byIid = hit.iid ? hand.find(function(c){ return c && String(c.iid) === String(hit.iid); }) : null;
+          const fullCard = byIid || byIndex || null;
+          if(fullCard && typeof openCardDetail === 'function') openCardDetail(fullCard, false, false);
+          else if(hit.card && !hit.card.hidden && typeof openCardDetail === 'function') openCardDetail(hit.card, false, false);
+          else if(typeof showRevealedHandWindow === 'function') showRevealedHandWindow(playerIndex);
         } else if(hit.kind === 'pile') {
           if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
           if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
@@ -246,8 +329,26 @@
           } else if(hit.command === 'consolidate') {
             if(typeof G !== 'undefined' && G && G._consolidating && typeof cancelConsolidation === 'function') cancelConsolidation();
             else if(typeof initiateConsolidate === 'function') initiateConsolidate();
+            if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+              window.FateMatchRendererAdapter.scheduleRender('consolidation-state');
+            }
+          } else if(hit.command === 'end-game' && typeof confirmEndGame === 'function') {
+            confirmEndGame();
           } else if(hit.command === 'audio' && typeof showAudioSettings === 'function') {
             showAudioSettings();
+          } else if(hit.command === 'world-chat') {
+            const inGameWidget = document.getElementById('ingame-chat-widget');
+            if(inGameWidget && typeof toggleInGameChat === 'function') {
+              if(!inGameWidget.classList || !inGameWidget.classList.contains('is-open')) toggleInGameChat();
+              if(typeof switchInGameChatTab === 'function') switchInGameChatTab('world');
+              const input = document.getElementById('igwc-input') || document.getElementById('igc-input');
+              if(input && typeof input.focus === 'function') input.focus();
+            } else if(typeof toggleWorldChat === 'function') {
+              toggleWorldChat();
+            } else {
+              const toggle = document.querySelector('#world-chat-toggle,.world-chat-toggle');
+              if(toggle && typeof toggle.click === 'function') toggle.click();
+            }
           }
         }
       } finally {

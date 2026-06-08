@@ -9,6 +9,7 @@
   const pendingImageRoots = new Set();
   let imageFlushScheduled = false;
   let lastVisibilityRecoveryAt = 0;
+  let titleWarmupScheduled = false;
   const lifecycleEvents = [];
   let browserThrottleProbeTimer = 0;
   let browserThrottleProbeRunning = false;
@@ -102,29 +103,9 @@
       saveRenderThrottleReloadState();
       location.reload();
     }
-    let notice = document.getElementById('fate-browser-throttle-notice');
-    if(!notice){
-      notice = document.createElement('div');
-      notice.id = 'fate-browser-throttle-notice';
-      notice.style.cssText = 'position:fixed;left:18px;right:18px;bottom:18px;z-index:2147483647;max-width:680px;margin:0 auto;padding:12px 14px;background:rgba(8,9,15,.96);border:2px solid rgba(215,181,90,.86);box-shadow:0 14px 34px rgba(0,0,0,.62);color:#f7e9ba;font:14px system-ui;border-radius:8px;display:flex;align-items:center;gap:12px;';
-      document.body && document.body.appendChild(notice);
-    }
-    const fps = result && result.fps ? result.fps : '?';
+    const notice = document.getElementById('fate-browser-throttle-notice');
+    if(notice) notice.remove();
     const autoReload = (function(){ try{ return localStorage.getItem('fateAutoReloadRenderThrottle') === '1'; }catch(e){ return false; } })();
-    notice.innerHTML = '<div style="flex:1;line-height:1.35;"><b>Browser render throttle detected</b><br><span style="opacity:.88;">The browser renderer is capped around ' + fps + ' FPS. The proven recovery is a clean refresh; compositor resets do not fix this state.</span></div><button id="fate-browser-throttle-reload" style="cursor:pointer;border:0;border-radius:6px;background:#d7b55a;color:#08090f;font-weight:800;padding:9px 12px;">Reload now</button><button id="fate-browser-throttle-auto" style="cursor:pointer;border:1px solid rgba(215,181,90,.65);border-radius:6px;background:rgba(215,181,90,.12);color:#f7e9ba;padding:8px 10px;">' + (autoReload ? 'Auto reload: on' : 'Auto reload: off') + '</button><button id="fate-browser-throttle-dismiss" style="cursor:pointer;border:1px solid rgba(215,181,90,.5);border-radius:6px;background:transparent;color:#f7e9ba;padding:8px 10px;">Dismiss</button>';
-    const reload = notice.querySelector('#fate-browser-throttle-reload');
-    const auto = notice.querySelector('#fate-browser-throttle-auto');
-    const dismiss = notice.querySelector('#fate-browser-throttle-dismiss');
-    if(reload) reload.onclick = reloadForBrowserThrottle;
-    if(auto) auto.onclick = function(){
-      try{
-        const next = localStorage.getItem('fateAutoReloadRenderThrottle') !== '1';
-        localStorage.setItem('fateAutoReloadRenderThrottle', next ? '1' : '0');
-        auto.textContent = next ? 'Auto reload: on' : 'Auto reload: off';
-        if(typeof toast === 'function') toast(next ? 'Auto reload enabled for browser render throttle.' : 'Auto reload disabled.');
-      }catch(e){}
-    };
-    if(dismiss) dismiss.onclick = function(){ notice.remove(); };
     window.fateReloadForRenderThrottle = reloadForBrowserThrottle;
     if(autoReload){
       saveRenderThrottleReloadState();
@@ -781,7 +762,8 @@
     setTimeout(()=>overlay.remove(), 280);
   }
 
-  function preloadImage(src){
+  function preloadImage(src, options){
+    const opts = options || {};
     return new Promise(resolve=>{
       const img = new Image();
       let done = false;
@@ -790,7 +772,7 @@
         done = true;
         resolve(src);
       };
-      const timer = setTimeout(finish, 3500);
+      const timer = setTimeout(finish, Number(opts.timeoutMs) || 3500);
       img.onload = ()=>{ clearTimeout(timer); finish(); };
       img.onerror = ()=>{ clearTimeout(timer); finish(); };
       try{ img.decoding = 'async'; }catch(e){}
@@ -799,18 +781,23 @@
     });
   }
 
-  function preloadInitialAssets(){
+  function preloadInitialAssets(options){
+    const opts = options || {};
+    const background = !!opts.background;
     if(window.__fateInitialAssetsPreloaded) return Promise.resolve();
     window.__fateInitialAssetsPreloaded = true;
     const assets = collectInitialAssets();
     const total = assets.length;
     let done = 0;
-    showInitialLoadingScreen(total);
-    updateInitialLoadingScreen(done, total);
+    if(!background) {
+      showInitialLoadingScreen(total);
+      updateInitialLoadingScreen(done, total);
+    }
     const startedAt = performance.now();
     let lastLoadingPaintAt = startedAt;
     let lastLoadingPaintDone = 0;
     function maybePaintLoadingProgress(force){
+      if(background) return;
       const now = performance.now();
       if(force || done === total || done - lastLoadingPaintDone >= 5 || now - lastLoadingPaintAt >= 90){
         lastLoadingPaintAt = now;
@@ -818,17 +805,19 @@
         updateInitialLoadingScreen(done, total);
       }
     }
-    const workers = Array.from({length:Math.min(10, total)}, async function(){
+    const workerCount = background ? Math.min(3, total) : Math.min(10, total);
+    const workers = Array.from({length:workerCount}, async function(){
       while(assets.length){
         const src = assets.shift();
-        await preloadImage(src);
+        await preloadImage(src, {timeoutMs:background ? 1800 : 3500});
         warmCache.add(src);
         done += 1;
         maybePaintLoadingProgress(false);
+        if(background && done % 4 === 0) await new Promise(resolve=>setTimeout(resolve, 0));
       }
     });
-    const minTime = new Promise(resolve=>setTimeout(resolve, 650));
-    const hardStop = new Promise(resolve=>setTimeout(resolve, 9000));
+    const minTime = background ? Promise.resolve() : new Promise(resolve=>setTimeout(resolve, 650));
+    const hardStop = new Promise(resolve=>setTimeout(resolve, background ? 6500 : 9000));
     return Promise.race([Promise.all(workers), hardStop])
       .then(()=>minTime)
       .then(()=>{
@@ -836,8 +825,36 @@
           done = total;
           maybePaintLoadingProgress(true);
         }
-        hideInitialLoadingScreen();
+        if(!background) hideInitialLoadingScreen();
       });
+  }
+
+  function warmTitleOpenAssets(){
+    if(titleWarmupScheduled) return;
+    titleWarmupScheduled = true;
+    idle(function(){
+      try{
+        ['blank.png','back.png','deck.png','booster1.png','pfpbooster.png'].forEach(warmImage);
+        const profileSrc = (typeof window.getProfileImgSrc === 'function' ? window.getProfileImgSrc() : '')
+          || (typeof window.resolveProfileImgSrc === 'function' && window.USER_PROFILE ? window.resolveProfileImgSrc(window.USER_PROFILE.profileImg) : '');
+        if(profileSrc) warmImage(profileSrc);
+        if(typeof window.dailyLoginBackgroundForDate === 'function') warmImage(window.dailyLoginBackgroundForDate());
+        if(typeof window.fateWarmMenuAudioSamples === 'function') window.fateWarmMenuAudioSamples();
+      }catch(e){}
+    });
+  }
+
+  function scheduleBackgroundInitialPreload(){
+    const timer = window.__fateNativeSetTimeout || window.setTimeout;
+    timer(function(){
+      idle(function(){
+        if(document.getElementById('modal')?.classList.contains('on')) {
+          timer(function(){ preloadInitialAssets({background:true}); }, 1400);
+          return;
+        }
+        preloadInitialAssets({background:true});
+      });
+    }, 2600);
   }
 
   function installMatchWarmup(){
@@ -1647,13 +1664,14 @@
       perf.rafMonitorEnabled = false;
       if(localStorage.getItem('fateRafMonitorEnabled') === '1') installRafMonitor();
     }catch(e){}
-    optimizeImages(document);
+    requestAnimationFrame(function(){ idle(function(){ optimizeImages(document); }); });
     installObserver();
     installFrameDiagnostics();
     installVisibilityRecovery();
     installMatchWarmup();
-    preloadInitialAssets();
-    warmGameAssets();
+    warmTitleOpenAssets();
+    scheduleBackgroundInitialPreload();
+    idle(warmGameAssets);
   }
 
   window.fatePreloadInitialAssets = preloadInitialAssets;

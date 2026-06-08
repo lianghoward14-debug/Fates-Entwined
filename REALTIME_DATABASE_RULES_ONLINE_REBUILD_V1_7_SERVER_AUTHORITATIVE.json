@@ -83,6 +83,7 @@
     },
     "liveMatches": {
       ".read": true,
+      ".indexOn": ["updatedAt"],
       "$roomCode": {
         ".write": "auth != null && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || (!newData.exists() && data.exists() && data.child('hostUid').val() == auth.uid))"
       }
@@ -234,6 +235,7 @@
     "leaderboards": {
       "challenger": {
         ".read": true,
+        ".indexOn": ["elo"],
         "$uid": {
           ".write": "auth != null && ((auth.uid == $uid && newData.child('uid').val() == auth.uid) || (newData.child('isAI').val() == true && newData.child('aiId').val() == $uid))"
         }
@@ -255,6 +257,7 @@
     },
     "publicDecks": {
       ".read": true,
+      ".indexOn": ["updatedAt"],
       "$deckId": {
         ".write": "auth != null && ((!newData.exists() && data.child('ownerUid').val() == auth.uid) || (newData.exists() && newData.child('ownerUid').val() == auth.uid && (!data.exists() || data.child('ownerUid').val() == auth.uid)) || (data.exists() && newData.exists() && newData.child('ownerUid').val() == data.child('ownerUid').val() && (newData.child('ratings').val() != data.child('ratings').val() || newData.child('comments').val() != data.child('comments').val())))"
       }
@@ -262,6 +265,7 @@
     "marketplace": {
       ".read": true,
       "listings": {
+        ".indexOn": ["createdAt"],
         "$listingId": {
           ".write": "auth != null && ((!newData.exists() && data.child('sellerUid').val() == auth.uid) || (newData.exists() && newData.child('sellerUid').val() == auth.uid && (!data.exists() || data.child('sellerUid').val() == auth.uid)) || (data.exists() && newData.exists() && data.child('status').val() == 'active' && newData.child('status').val() == 'sold' && newData.child('buyerUid').val() == auth.uid && newData.child('sellerUid').val() == data.child('sellerUid').val() && newData.child('cardId').val() == data.child('cardId').val() && newData.child('price').val() == data.child('price').val()))"
         }

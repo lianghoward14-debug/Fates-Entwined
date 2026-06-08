@@ -5067,6 +5067,7 @@ html body #modal .board-target-card img{
 }
 
 html body #modal .board-target-card{
+  position:relative!important;
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -5257,6 +5258,25 @@ html body #modal .board-target-cell.is-targetable:hover{
 
 html body #modal .board-target-cell.is-selected{
   box-shadow:inset 0 0 0 2px rgba(238,205,105,.85),0 0 14px rgba(238,205,105,.2)!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-card::after{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  border-radius:3px!important;
+  background:
+    linear-gradient(180deg,rgba(255,60,74,.20),rgba(136,10,24,.30)),
+    radial-gradient(circle at 50% 18%,rgba(255,126,126,.14),transparent 46%)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,82,92,.34),inset 0 0 18px rgba(180,20,32,.28)!important;
+  mix-blend-mode:screen!important;
+  opacity:.78!important;
+  z-index:2!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-fate{
+  z-index:3!important;
 }
 
 html body #modal .modal.move-target-picker-modal{
@@ -12059,4 +12079,373 @@ html body #s-game .tp-mid #tp-timer{
   color:#f8ecd0!important;
   background:rgba(5,7,11,.94)!important;
   box-shadow:inset 0 0 0 1px rgba(255,246,191,.055),0 7px 16px rgba(0,0,0,.36)!important;
+}
+
+/* Render-v2 target picker: expanded zones scroll inside their own zone panel. */
+html body #modal .modal.board-target-picker-modal #modal-body{
+  max-height:calc(92vh - 150px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-zones{
+  align-items:start!important;
+  max-height:calc(92vh - 230px)!important;
+  overflow:visible!important;
+}
+
+html body #modal .board-target-zone{
+  align-self:start!important;
+  max-height:calc(92vh - 245px)!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:rgba(218,185,82,.28) transparent!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar{
+  width:4px!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar-track{
+  background:transparent!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar-thumb{
+  background:rgba(218,185,82,.28)!important;
+  border-radius:999px!important;
+}
+
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  max-height:calc(92vh - 250px)!important;
+}
+
+html body #modal .board-target-row{
+  min-height:var(--board-target-cell-w,108px)!important;
+}
+
+/* Codex 2026-06-07 focused follow-up: timer, status, target picker, and lock polish. */
+html body #s-game .tp-mid{
+  top:42%!important;
+  border-width:1.25px!important;
+  transform:translate(-50%,-50%)!important;
+}
+
+html body #s-game .tp-mid::before{
+  inset:7px!important;
+}
+
+html body #s-game .tp-mid #tp-timer{
+  border-width:1px!important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .turn-hud{
+  top:18px!important;
+  border-width:1.25px!important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .turn-hud-timer{
+  border-width:1px!important;
+}
+
+html body #s-game #tp-status-left,
+html body #s-game #tp-status-right,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-left,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-right{
+  position:relative!important;
+  z-index:1200!important;
+}
+
+html body #s-game .topbar:has(.effect-pill:hover),
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .topbar:has(.effect-pill:hover){
+  z-index:1300!important;
+}
+
+html body #s-game #tp-status-left,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-left{
+  justify-content:flex-end!important;
+  padding-right:.24rem!important;
+}
+
+html body #s-game #tp-status-right,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-right{
+  justify-content:flex-start!important;
+  padding-left:.24rem!important;
+}
+
+html body #s-game .effect-pill-tooltip,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill-tooltip{
+  z-index:30000!important;
+  box-shadow:0 12px 34px rgba(0,0,0,.78),0 0 0 1px rgba(201,168,76,.36)!important;
+}
+
+html body #modal .modal.board-target-picker-modal{
+  max-height:94vh!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body{
+  overflow:hidden!important;
+  max-height:calc(94vh - 126px)!important;
+}
+
+html body #modal .board-target-zones{
+  align-items:start!important;
+  overflow:visible!important;
+}
+
+html body #modal .board-target-zone,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  max-height:calc((var(--board-target-cell-w,108px) * 4.2) + 2px)!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:rgba(218,185,82,.28) transparent!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar{
+  width:4px!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar-track{
+  background:transparent!important;
+}
+
+html body #modal .board-target-zone::-webkit-scrollbar-thumb{
+  background:rgba(218,185,82,.28)!important;
+  border-radius:999px!important;
+}
+
+html body #modal .board-target-row{
+  min-height:calc(var(--board-target-cell-w,108px) * 1.4)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-icon.carolyn-lock-icon::before{
+  width:13px!important;
+  height:12px!important;
+  border-width:1.5px!important;
+  border-color:rgba(255,244,244,.96)!important;
+  border-bottom:0!important;
+  box-shadow:0 0 5px rgba(255,82,82,.16)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-icon.carolyn-lock-icon::after{
+  width:18px!important;
+  height:13px!important;
+  border-width:1.4px!important;
+  border-color:rgba(255,244,244,.96)!important;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(5,7,12,.98) 0 2px,transparent 2.4px),
+    linear-gradient(180deg,rgba(255,255,255,.98),rgba(236,238,244,.96))!important;
+  box-shadow:0 0 6px rgba(255,70,70,.16)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-label{
+  margin-top:4px!important;
+  color:rgba(255,234,234,.86)!important;
+  text-shadow:0 0 6px rgba(255,70,70,.24)!important;
+}
+
+/* Codex 2026-06-07: title buttons, in-game audio, timer, and Carolyn follow-up. */
+html body #s-title button.btn,
+html body #s-title .btn,
+html body #s-title .title-btn,
+html body #s-title .title-menu-stack > button,
+html body #s-title .title-menu-stack > .btn,
+html body #s-title #title-free-play-btn,
+html body #s-title #title-challenger-btn,
+html body #s-title #title-mission-control-btn,
+html body #s-title #title-exit-game-btn,
+html body #s-title #music-toggle-btn,
+html body #s-title #enhanced-fx-toggle-btn{
+  border-color:rgba(255,255,255,.14)!important;
+  box-shadow:none!important;
+}
+
+html body #s-title button.btn:hover,
+html body #s-title .btn:hover,
+html body #s-title .title-btn:hover,
+html body #s-title .title-menu-stack > button:hover,
+html body #s-title .title-menu-stack > .btn:hover,
+html body #s-title #title-free-play-btn:hover,
+html body #s-title #title-challenger-btn:hover,
+html body #s-title #title-mission-control-btn:hover,
+html body #s-title #title-exit-game-btn:hover,
+html body #s-title #music-toggle-btn:hover,
+html body #s-title #enhanced-fx-toggle-btn:hover{
+  border-color:rgba(255,255,255,.24)!important;
+}
+
+html body #s-title .title-audio-panel,
+html body #s-title #title-audio-panel{
+  border-color:rgba(255,218,92,.28)!important;
+  box-shadow:0 15px 34px rgba(0,0,0,.50),inset 0 0 0 1px rgba(255,246,191,.035)!important;
+}
+
+html body #modal .modal.audio-settings-modal{
+  min-height:485px!important;
+  padding-bottom:7.8rem!important;
+}
+
+html body #modal .modal.audio-settings-modal #modal-body{
+  padding-bottom:1.4rem!important;
+}
+
+html body #modal .modal.audio-settings-modal #modal-acts{
+  margin-top:6.4rem!important;
+  padding-top:2.15rem!important;
+  padding-bottom:1.3rem!important;
+  transform:translateY(24px)!important;
+}
+
+html body #s-game .bc .bc-fate.buffed{
+  color:#7fff90!important;
+  border-color:var(--fate)!important;
+  box-shadow:0 0 14px rgba(241,196,15,.7),0 0 28px rgba(241,196,15,.4),0 3px 10px rgba(0,0,0,.8),inset 0 0 8px rgba(241,196,15,.2)!important;
+}
+
+html body #s-game .bc .bc-fate.debuffed{
+  color:#ff6060!important;
+  border-color:var(--fate)!important;
+  box-shadow:0 0 14px rgba(241,196,15,.7),0 0 28px rgba(241,196,15,.4),0 3px 10px rgba(0,0,0,.8),inset 0 0 8px rgba(241,196,15,.2)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:visible!important;
+  padding:0!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-icon.carolyn-lock-icon{
+  position:relative!important;
+  display:block!important;
+  width:25px!important;
+  height:29px!important;
+  margin:0!important;
+  transform:translateY(-2px)!important;
+  border:0!important;
+  border-radius:0!important;
+  background:none!important;
+  box-shadow:none!important;
+  font-size:0!important;
+  line-height:0!important;
+  overflow:visible!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-icon.carolyn-lock-icon::before{
+  content:''!important;
+  position:absolute!important;
+  left:50%!important;
+  top:2px!important;
+  width:14px!important;
+  height:13px!important;
+  transform:translateX(-50%)!important;
+  border:2px solid rgba(247,250,255,.96)!important;
+  border-bottom:0!important;
+  border-radius:9px 9px 0 0!important;
+  background:transparent!important;
+  box-shadow:0 -1px 7px rgba(235,242,255,.16)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-icon.carolyn-lock-icon::after{
+  content:''!important;
+  position:absolute!important;
+  left:50%!important;
+  top:14px!important;
+  width:22px!important;
+  height:15px!important;
+  transform:translateX(-50%)!important;
+  border:1.6px solid rgba(247,250,255,.96)!important;
+  border-radius:4px!important;
+  background:
+    radial-gradient(circle at 50% 48%,rgba(36,26,24,.96) 0 2.2px,transparent 2.6px),
+    linear-gradient(180deg,rgba(248,250,254,.98),rgba(220,226,235,.96))!important;
+  box-shadow:0 0 9px rgba(235,242,255,.14),inset 0 1px 4px rgba(255,255,255,.34)!important;
+}
+
+html body #s-game .block-overlay.block-carolyn .block-label{
+  display:none!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body,
+html body #modal .board-target-zone,
+html body #modal .board-target-cells{
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body::-webkit-scrollbar,
+html body #modal .board-target-zone::-webkit-scrollbar,
+html body #modal .board-target-cells::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+html body #modal .modal.board-target-picker-modal{
+  max-height:96vh!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body{
+  max-height:calc(96vh - 108px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-picker{
+  row-gap:.34rem!important;
+}
+
+html body #modal .board-target-picker.is-multi-zone{
+  --board-target-cell-w:98px!important;
+}
+
+html body #modal .board-target-zones{
+  gap:.58rem!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-zone,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-row{
+  min-height:calc(var(--board-target-cell-w,98px) * 1.34)!important;
+}
+
+html body #modal .board-target-prompt{
+  margin-bottom:.18rem!important;
+}
+
+html body #modal .board-target-count{
+  margin-bottom:.28rem!important;
+}
+
+/* Codex 2026-06-08: keep in-game chat clear of the render-v2 command dock. */
+html body.in-game #fate-corner-dock.game-chat-dock{
+  right:1rem!important;
+  bottom:1rem!important;
+  z-index:22000!important;
+}
+
+html body.in-game #fate-corner-dock.game-chat-dock .ingame-chat-widget{
+  z-index:22001!important;
+}
+
+html body.in-game #fate-corner-dock.game-chat-dock .ingame-chat-panel{
+  right:calc(100% + .85rem)!important;
+  bottom:calc(100% + .75rem)!important;
+  z-index:22010!important;
+  max-height:calc(100vh - 150px)!important;
+}
+
+@media(max-width:980px){
+  html body.in-game #fate-corner-dock.game-chat-dock{
+    right:.75rem!important;
+    bottom:5.4rem!important;
+  }
 }

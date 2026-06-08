@@ -6,6 +6,8 @@
   let leaderboard = {};
   let lbUnsub = null;
   let sharedAISimulationTimer = null;
+  let sharedAISyncTimer = null;
+  const ONLINE_LEADERBOARD_LIMIT = 100;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function user(){ return window.FATE_ONLINE?.user; }
@@ -153,7 +155,6 @@
   function seasonPath(){ return `challengerAI/seasons/${currentMonthKey()}`; }
   let sharedAIUnsub = null;
   let sharedAISeason = '';
-  let sharedAISyncTimer = null;
 
   async function syncMyLeaderboard(){
     const u=user(); if(!u || !FO.rtdb) return;
@@ -241,9 +242,9 @@
   }
   async function hasActiveOnlineMatches(){
     if(!FO.rtdb || !FO.get) return false;
-    const snap = await FO.get(FO.ref(FO.rtdb, 'rooms')).catch(()=>null);
-    const rooms = snap?.val?.() || {};
-    return Object.values(rooms).some(isLiveOnlineRoom);
+    const snap = await FO.get(FO.ref(FO.rtdb, 'liveMatches')).catch(()=>null);
+    const matches = snap?.val?.() || {};
+    return Object.values(matches).some(isLiveOnlineRoom);
   }
   function buildAISimulationPairs(ids, rng){
     const shuffled = [...ids];
@@ -427,7 +428,11 @@
   }
   function watchLeaderboard(){
     if(!FO.rtdb || lbUnsub) return;
-    lbUnsub = FO.onValue(FO.ref(FO.rtdb, 'leaderboards/challenger'), snap=>{
+    const base = FO.ref(FO.rtdb, 'leaderboards/challenger');
+    const target = (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(base, FO.orderByChild('elo'), FO.limitToLast(ONLINE_LEADERBOARD_LIMIT))
+      : base;
+    lbUnsub = FO.onValue(target, snap=>{
       leaderboard=snap.val()||{};
       window.FATE_ONLINE_LEADERBOARD = leaderboard;
       // If the challenger leaderboard tab is open, refresh carefully without changing pages.
@@ -436,13 +441,14 @@
   }
   if(FO.onAuth) FO.onAuth(s=>{
     if(s.user){
-      watchLeaderboard();
       syncMyLeaderboard().catch(()=>{});
-      scheduleSharedAISync();
-      startSharedAISimulationLoop();
     }else{
+      if(lbUnsub){ try{ lbUnsub(); }catch(e){} lbUnsub = null; }
       if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
+      if(sharedAISyncTimer){ clearTimeout(sharedAISyncTimer); sharedAISyncTimer = null; }
       if(sharedAISimulationTimer){ clearInterval(sharedAISimulationTimer); sharedAISimulationTimer = null; }
+      leaderboard = {};
+      window.FATE_ONLINE_LEADERBOARD = leaderboard;
     }
   });
   window.FateOnline = Object.assign(window.FateOnline || {}, {
@@ -450,8 +456,17 @@
     submitChallengerResult,
     syncSharedAIRoster:ensureSharedAIRoster,
     runSharedAISimulations,
+    startSharedAISimulationLoop,
+    ensureSharedAILeaderboard(){
+      scheduleSharedAISync();
+      return window.FATE_SHARED_AI_ROSTER || [];
+    },
     getSharedAIRoster:()=>window.FATE_SHARED_AI_ROSTER || [],
-    getOnlineLeaderboard:()=>leaderboard
+    ensureOnlineLeaderboard:watchLeaderboard,
+    getOnlineLeaderboard:()=>{
+      watchLeaderboard();
+      return leaderboard;
+    }
   });
 
   // Mirror local Challenger result calculations to cloud without changing the existing result UI.

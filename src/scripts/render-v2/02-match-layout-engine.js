@@ -29,6 +29,9 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  const MATCH_ZONE_SIZE_SCALE = 0.965;
+  const MATCH_ZONE_VERTICAL_ALIGN = 0.21;
+
   function getRemPx(){
     try {
       const size = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -40,20 +43,21 @@
   function buildProductionBoardMetrics(vp, opts){
     const rem = Number.isFinite(opts.rem) ? opts.rem : (Number.isFinite(vp.rem) ? vp.rem : getRemPx());
     const windowW = Number.isFinite(opts.windowW) ? opts.windowW : (Number.isFinite(vp.windowW) ? vp.windowW : (window.innerWidth || vp.w || 1280));
+    const zoneScale = Number.isFinite(opts.zoneScale) ? opts.zoneScale : MATCH_ZONE_SIZE_SCALE;
     const boardPadX = Number.isFinite(opts.boardPadX) ? opts.boardPadX : rem * 0.28;
     const boardGap = Number.isFinite(opts.boardGap) ? opts.boardGap : rem * 0.34;
-    const zonePadX = Number.isFinite(opts.zonePadX) ? opts.zonePadX : rem * 0.38;
-    const cellGap = Number.isFinite(opts.cellGap) ? opts.cellGap : rem * 0.18;
+    const zonePadX = Number.isFinite(opts.zonePadX) ? opts.zonePadX : rem * 0.52 * zoneScale;
+    const cellGap = Number.isFinite(opts.cellGap) ? opts.cellGap : rem * 0.18 * zoneScale;
     const rowGap = Number.isFinite(opts.rowGap) ? opts.rowGap : 0;
-    const rowLabelW = Number.isFinite(opts.rowLabelW) ? opts.rowLabelW : 11;
-    const rowLabelGap = Number.isFinite(opts.rowLabelGap) ? opts.rowLabelGap : rem * 0.08;
+    const rowLabelW = Number.isFinite(opts.rowLabelW) ? opts.rowLabelW : 0;
+    const rowLabelGap = Number.isFinite(opts.rowLabelGap) ? opts.rowLabelGap : 0;
     const zoneCount = Math.max(1, Number(opts.zoneCount) || 3);
-    const targetCw = clamp(windowW * 0.079, 114, 156);
+    const targetCw = clamp(windowW * 0.079 * zoneScale, 110, 151);
     const availableZoneW = Math.max(260, ((Number(vp.w) || windowW) - boardPadX * 2 - boardGap * Math.max(0, zoneCount - 1)) / zoneCount);
     const maxCwByZone = Math.max(92, (availableZoneW - zonePadX * 2 - rowLabelW - rowLabelGap - cellGap * 2 - 12) / 3);
-    const cw = Number.isFinite(opts.cardW) ? opts.cardW : clamp(Math.min(targetCw, maxCwByZone), 100, 156);
+    const cw = Number.isFinite(opts.cardW) ? opts.cardW : clamp(Math.min(targetCw, maxCwByZone), 96, 151);
     const ch = Number.isFinite(opts.cardH) ? opts.cardH : Math.round(cw * 1.4);
-    const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.34);
+    const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.34 * zoneScale);
     const zoneFitW = Number.isFinite(opts.zoneFitW)
       ? opts.zoneFitW
       : Math.min(availableZoneW, cw * 3 + cellGap * 2 + rowLabelW + rowLabelGap + zonePadX * 2 + 12);
@@ -70,14 +74,14 @@
       rowLabelGap,
       boardPadX,
       boardPadTop:Number.isFinite(opts.boardPadTop) ? opts.boardPadTop : rem * 0.34,
-      boardPadBottom:Number.isFinite(opts.boardPadBottom) ? opts.boardPadBottom : rem * 0.08,
+      boardPadBottom:Number.isFinite(opts.boardPadBottom) ? opts.boardPadBottom : rem * 0.18,
       boardGap,
       zonePadX,
-      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : rem * 1.18,
-      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : rem * 0.52,
+      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : rem * 1.66 * zoneScale,
+      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : rem * 1.02 * zoneScale,
       cardOffsetY:Number.isFinite(opts.cardOffsetY) ? opts.cardOffsetY : 0,
-      headerTrackH:Number.isFinite(opts.headerTrackH) ? opts.headerTrackH : 34,
-      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : 0.08,
+      headerTrackH:Number.isFinite(opts.headerTrackH) ? opts.headerTrackH : 36 * zoneScale,
+      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : MATCH_ZONE_VERTICAL_ALIGN,
       zoneFitW
     };
   }
@@ -129,24 +133,25 @@
     const players = Array.isArray(snap.players) ? snap.players : [];
     const own = players[viewer] || {hand:[], handCount:0};
     const opp = players[opponent] || {hand:[], handCount:0};
-    const handCards = Array.isArray(own.hand) ? own.hand : [];
+    const handCards = Array.isArray(own.hand) ? own.hand.slice(0, 9) : [];
     const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
-    const cardW = clamp(winW * 0.092, 142, 188);
+    const cardW = clamp(winW * 0.047, 76, 100);
     const cardH = Math.round(cardW * 1.4);
     const handCount = handCards.length;
-    const handFallbackW = Math.min(1440, Math.max(520, winW - 260));
-    const handRect = elementViewportRect('#hand-cards', rect((winW - handFallbackW) / 2, winH - cardH - 30, handFallbackW, cardH + 18));
-    const maxHandW = Math.max(1, Math.min(handRect.w, winW - 260));
-    const naturalGap = clamp(winW * 0.004, 4, 9);
+    const handFallbackW = Math.min(1040, Math.max(600, winW - 800));
+    const desiredHandRect = rect((winW - handFallbackW) / 2, winH - cardH - 74, handFallbackW, cardH + 48);
+    const handRect = desiredHandRect;
+    const maxHandW = Math.max(1, Math.min(handRect.w - 34, winW - 620));
+    const naturalGap = clamp(winW * 0.0035, 4, 9);
     let gap = naturalGap;
     let handStartX = handRect.x;
     if(handCount > 1) {
       const free = maxHandW - cardW * handCount;
-      gap = Math.min(naturalGap, Math.max(-cardW * .62, free / (handCount - 1)));
+      gap = Math.min(naturalGap, Math.max(-cardW * .52, free / (handCount - 1)));
     }
     const totalHandW = handCount ? (cardW * handCount + gap * Math.max(0, handCount - 1)) : 0;
     handStartX = handRect.x + handRect.w / 2 - totalHandW / 2;
-    const handY = handRect.y + Math.max(0, handRect.h - cardH - 1);
+    const handY = handRect.y + Math.max(0, handRect.h - cardH - 18);
     const hand = {
       rect:handRect,
       cards:handCards.map(function(card, index){
@@ -161,10 +166,14 @@
     };
 
     const oppCount = oppCards.length;
-    const oppGap = 6;
+    const denseOppHand = oppCount >= 9;
+    const oppGap = denseOppHand ? 5 : 6;
     const oppCols = Math.min(4, Math.max(1, oppCount || 1));
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
-    const baseOppCardW = clamp(winW * 0.034, 34, 54);
+    const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
+    const baseOppCardW = hasRevealedOppCards
+      ? clamp(winW * (denseOppHand ? 0.035 : 0.038), denseOppHand ? 52 : 56, denseOppHand ? 61 : 66)
+      : clamp(winW * (denseOppHand ? 0.031 : 0.034), denseOppHand ? 32 : 34, denseOppHand ? 50 : 54);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
@@ -172,8 +181,8 @@
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
     const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
     const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
-    if(oppRows > 1 && (oppRect.w < minOppW || oppRect.h < minOppH)) {
-      oppRect = rect(oppRect.x, oppRect.y, Math.max(oppRect.w, minOppW), Math.max(oppRect.h, minOppH));
+    if(oppRows > 1 && oppRect.h < minOppH) {
+      oppRect = rect(oppRect.x, oppRect.y, oppRect.w, minOppH);
     }
     const fitOppCardW = oppCount
       ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
@@ -181,7 +190,7 @@
     const oppCardW = Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
     const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
-    const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);
+    const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2 - (denseOppHand ? 4 : 0));
     const opponentHand = {
       rect:oppRect,
       cards:oppCards.map(function(card, index){
@@ -194,6 +203,7 @@
           index,
           iid:card && card.iid != null ? String(card.iid) : '',
           card,
+          playerIndex:opponent,
           faceDown:!(card && card.revealed),
           rect:rect(rowStartX + col * (oppCardW + oppGap), oppStartY + row * (oppCardH + oppGap), oppCardW, oppCardH)
         };
@@ -283,11 +293,12 @@
       const rowsSource = Array.isArray(zone.rows) ? zone.rows : [];
       const rowsOrdered = rowDisplayOrder(rowsSource, snap.viewer);
       const rowCount = Math.max(1, rowsOrdered.length || 3);
+      const visibleRowCount = Math.min(3, Math.max(1, rowCount));
       const rowH = cssMetrics
         ? cssMetrics.rowH
         : (rowsOrdered.length ? Math.max(1, (innerH - headerH - rowGap * rowsOrdered.length) / rowsOrdered.length) : innerH);
       const rowsAreaH = cssMetrics
-        ? (rowH * rowCount + rowGap * Math.max(0, rowCount - 1))
+        ? (rowH * visibleRowCount + rowGap * Math.max(0, visibleRowCount - 1))
         : Math.max(1, innerH - headerH - rowGap);
       const zoneH = cssMetrics
         ? (cssMetrics.zonePadTop + headerH + rowsAreaH + cssMetrics.zonePadBottom)
@@ -317,8 +328,16 @@
         const cards = cells.map(function(cell, cellIndex){
           const cellX = startX + cellIndex * (cellW + cellGap);
           const cardY = rowY + Math.max(0, (rowH - cardH) / 2) + (cssMetrics ? cssMetrics.cardOffsetY : 0);
+          const addedCell = !!(cell && (cell.extra || cell.markSafe || row.r >= 3));
+          const cardInset = addedCell ? Math.max(2, Math.min(5, cellW * .035)) : 0;
+          const cardDrift = addedCell ? (((cellIndex % 2) ? 1 : -1) * Math.max(1.5, Math.min(4, cellW * .025))) : 0;
           const cellRect = rect(cellX, cardY, cellW, cardH);
-          const cardRect = rect(cellX, cardY, cellW, cardH);
+          const cardRect = rect(
+            cellX + cardInset + cardDrift,
+            cardY + cardInset,
+            Math.max(1, cellW - cardInset * 2),
+            Math.max(1, cardH - cardInset * 2)
+          );
           const entry = {
             z,
             r:row.r,
@@ -351,6 +370,8 @@
         rect:rect(zoneX, zoneY, zoneW, zoneH),
         headerRect:rect(zoneX, zoneY, zoneW, headerH),
         rowsRect:rect(zoneX, rowsAreaY, zoneW, rowsAreaH),
+        rowsContentRect:rect(zoneX, rowsAreaY, zoneW, rowH * rowCount + rowGap * Math.max(0, rowCount - 1)),
+        hasExtraRows:rowCount > visibleRowCount,
         rows
       };
     });

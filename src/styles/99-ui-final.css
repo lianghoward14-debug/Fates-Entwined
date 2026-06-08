@@ -5203,9 +5203,24 @@ body.cinematic-lock #modal{
   text-transform:uppercase!important;
 }
 
-.ingame-chat-matchup{padding:.72rem .95rem!important;gap:1rem!important;}
-.ingame-chat-player-card{padding:0 .22rem!important;box-sizing:border-box!important;}
-.ingame-chat-name{max-width:124px!important;padding:0 .18rem!important;box-sizing:border-box!important;}
+.ingame-chat-matchup{padding:.78rem 1rem .7rem!important;gap:1.05rem!important;align-items:center!important;}
+.ingame-chat-player-card{padding:0 .22rem!important;box-sizing:border-box!important;gap:.34rem!important;}
+.ingame-chat-name{max-width:136px!important;padding:0 .18rem!important;box-sizing:border-box!important;}
+.ingame-chat-elo{display:none!important;}
+.ingame-chat-pic{
+  width:70px!important;
+  height:70px!important;
+  box-shadow:0 8px 18px rgba(0,0,0,.38), inset 0 0 0 1px rgba(255,255,255,.10)!important;
+}
+.ingame-chat-pic img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center 22%!important;
+  image-rendering:auto!important;
+  backface-visibility:hidden!important;
+}
 .ingame-chat-badge.has-new{animation:ingameChatBadgePulse .8s ease-in-out infinite!important;}
 .ingame-chat-notice{
   position:absolute!important;
@@ -5226,6 +5241,55 @@ body.cinematic-lock #modal{
 .ingame-chat-notice .igcn-text{font-size:.78rem!important;line-height:1.3!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;}
 @keyframes ingameChatBadgePulse{0%,100%{transform:scale(1);}50%{transform:scale(1.16);}}
 @keyframes ingameChatNoticeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+#modal .modal.audio-settings-modal{
+  width:468px!important;
+  max-width:min(468px, calc(100vw - 32px))!important;
+  min-width:0!important;
+  min-height:0!important;
+  padding:1.45rem 1.65rem 1.55rem!important;
+  overflow:visible!important;
+}
+#modal .modal.audio-settings-modal #modal-title{
+  display:none!important;
+}
+#modal .modal.audio-settings-modal #modal-body{
+  min-height:0!important;
+  width:100%!important;
+  max-width:372px!important;
+  margin:0 auto!important;
+  padding:0!important;
+  overflow:visible!important;
+}
+#modal .modal.audio-settings-modal #modal-acts{
+  margin-top:1.05rem!important;
+  padding-top:.72rem!important;
+  justify-content:center!important;
+}
+#modal .modal.audio-settings-modal #modal-acts .btn{
+  width:124px!important;
+  min-width:0!important;
+  min-height:36px!important;
+  padding:.52rem .82rem!important;
+  font-size:.72rem!important;
+  line-height:1.05!important;
+}
+
+html body #modal .modal.card-detail-modal #modal-title,
+html body #modal .modal.card-detail-modal .modal-title{
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  text-align:left!important;
+  margin:0 0 1.02rem!important;
+  padding:0 0 .62rem!important;
+  border-bottom:1px solid rgba(201,168,76,.22)!important;
+  color:#d8b85a!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.26rem!important;
+  letter-spacing:.065em!important;
+  min-height:2rem!important;
+}
 
 #s-win .win-wrap{
   background:rgba(5,7,14,.22)!important;
@@ -18494,6 +18558,10 @@ html body #s-game .turn-hud-icon{
   filter:drop-shadow(0 0 8px rgba(218,185,82,.28))!important;
 }
 
+html.fate-match-renderer-v2-mode body #s-game .turn-hud-icon{
+  transform:translateX(38px)!important;
+}
+
 html body #s-game .turn-hud-copy{
   min-width:0!important;
   display:grid!important;
@@ -18540,6 +18608,10 @@ html body #s-game .turn-hud-timer{
   font-size:.78rem!important;
   letter-spacing:.08em!important;
   box-shadow:0 8px 16px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,246,191,.08)!important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game .turn-hud-timer{
+  transform:translateX(-24px)!important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game #board.fate-match-v2-owned-board{

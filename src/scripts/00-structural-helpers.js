@@ -306,11 +306,12 @@ function addFullExtraSafeRowForPlayer(z, player, source, opts = {}) {
   if (typeof G === 'undefined' || !G || !G.board || !G.board[z]) return false;
   ensureExtraRowOwnerState(z);
   const row = getNextExtraRowIndex(z);
+  const hadExtraRowStructure = row > 3 || (Array.isArray(G.markSafeSquares) && G.markSafeSquares.some(s => s && s.z === z));
   G.extraRows[z] = (Number(G.extraRows[z]) || 0) + 1;
   if (!G.board[z][row]) G.board[z][row] = Array(3).fill(null);
   G.extraRowOwners[z][row - 3] = player;
   if (!Array.isArray(G.extraRowFullOwners)) G.extraRowFullOwners = [null, null, null];
-  G.extraRowFullOwners[z] = player;
+  G.extraRowFullOwners[z] = hadExtraRowStructure ? null : player;
   if (opts.landscape !== false && typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash(source || 'Landscape row created', opts.sfxKind || 'major');
   if (typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   return true;
@@ -539,7 +540,12 @@ function markCardPlacementAnimation(card) {
   if (!card) return 0;
   const ms = getPlacementAnimationDurationMs(card);
   // Only set the UI lock — animation is handled by the overlay layer
-  if (typeof G !== 'undefined' && G) G._placementUiLockUntil = Date.now() + ms;
+  if (typeof G !== 'undefined' && G) {
+    const lockUntil = Date.now() + ms;
+    G._placementUiLockUntil = lockUntil;
+    G._cardDetailModalLockUntil = Math.max(Number(G._cardDetailModalLockUntil) || 0, lockUntil + 1120);
+    G._setEffectModalLockUntil = Math.max(Number(G._setEffectModalLockUntil) || 0, lockUntil + 1500);
+  }
   return ms;
 }
 
@@ -629,8 +635,13 @@ function getCinematicUiDelayMs() {
   return Math.max(0, (G._cinematicUiLockUntil || 0) - Date.now());
 }
 
+function getSetEffectModalDelayMs() {
+  if (typeof G === 'undefined' || !G) return 0;
+  return Math.max(0, (G._setEffectModalLockUntil || 0) - Date.now());
+}
+
 function getInteractionAnimationDelayMs() {
-  return Math.max(getPlacementUiDelayMs(), getCinematicUiDelayMs());
+  return Math.max(getPlacementUiDelayMs(), getCinematicUiDelayMs(), getSetEffectModalDelayMs());
 }
 
 function runAfterPlacementAnimation(callback, extraDelay = 0) {

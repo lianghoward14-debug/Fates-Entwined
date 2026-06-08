@@ -916,8 +916,12 @@ async function clickCell(z,r,c) {
         if(mz !== z){
           var row3 = G.board[mz] ? G.board[mz][3] : null;
           var rowEmpty = !row3 || row3.every(function(c){ return c === null; });
-          if(rowEmpty){
+          var hasFullOwner = G.extraRowOwners && G.extraRowOwners[mz] && G.extraRowOwners[mz].some(function(owner){ return typeof owner === 'number'; });
+          var hasMarkSquare = typeof isMarkSafeSquare === 'function' && [0,1,2].some(function(cc){ return isMarkSafeSquare(mz, 3, cc); });
+          if(rowEmpty && !hasFullOwner && !hasMarkSquare){
             G.extraRows[mz] = 0;
+            if(G.extraRowOwners && G.extraRowOwners[mz]) G.extraRowOwners[mz].splice(0, 1);
+            if(G.extraRowFullOwners) G.extraRowFullOwners[mz] = null;
             if(G.board[mz] && G.board[mz][3]) G.board[mz].splice(3, 1);
           }
         }
@@ -1649,20 +1653,24 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           if(!G.board[z][r]) G.board[z][r] = Array(3).fill(null);
           if(!G.board[z][r][c]) G.board[z][r][c] = inst;
         }
-        if(!G.extraRows) G.extraRows=[0,0,0];
-        if(!G.extraRowFullOwners) G.extraRowFullOwners=[null,null,null];
-        if(G.extraRows[z]===0){
-          G.extraRows[z]++;
-          G.extraRowFullOwners[z] = cp;
-          // Add a 4th row (index 3) to this zone's board as a new safe row for the placing player.
-          // Never overwrite an existing row/cell; Anicka must remain visible on the board.
-          if(!G.board[z][3]) G.board[z][3] = Array(3).fill(null);
+        if(typeof addFullExtraSafeRowForPlayer === 'function') {
+          addFullExtraSafeRowForPlayer(z, cp, 'Starlit Path', {landscape:false});
           restoreAnickaIfNeeded();
           toast('Extra safe row created in Zone '+(z+1)+'!');
           log(cp===0?'p1':'p2','Starlit Path: extra safe row in Zone '+(z+1));
         } else {
+          if(!G.extraRows) G.extraRows=[0,0,0];
+          if(!G.extraRowOwners) G.extraRowOwners=[[],[],[]];
+          if(!G.extraRowFullOwners) G.extraRowFullOwners=[null,null,null];
+          const nextRow = 3 + (Number(G.extraRows[z]) || 0);
+          G.extraRows[z]++;
+          if(!G.extraRowOwners[z]) G.extraRowOwners[z] = [];
+          G.extraRowOwners[z][nextRow - 3] = cp;
+          G.extraRowFullOwners[z] = cp;
+          if(!G.board[z][nextRow]) G.board[z][nextRow] = Array(3).fill(null);
           restoreAnickaIfNeeded();
-          toast('Zone '+(z+1)+' already has an extra row');
+          toast('Extra safe row created in Zone '+(z+1)+'!');
+          log(cp===0?'p1':'p2','Starlit Path: extra safe row in Zone '+(z+1));
         }
         renderGame();
         // Guard against late row rebuilds/extra-row layout changes visually dropping Anicka.
@@ -3043,6 +3051,9 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   G._wolfCreekMoving = { card:cardToMove, fromZ:fromZ, fromR:fromR, fromC:fromC, wolfCreekCard:wolfCreekCard, options:options };
   G.placing = false;
   G.selectedHandCard = null;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+  }
   toast('Click a highlighted open square to move '+cardToMove.name);
   if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square to move '+cardToMove.name+' — press Escape to cancel');
   return true;
@@ -3079,6 +3090,9 @@ function activateExpeditionaryMove(card, z, r, c) {
         }
       }
     });});
+  }
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
   }
 }
 

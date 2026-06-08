@@ -89,6 +89,21 @@
     return {x, y, w, h};
   }
 
+  function roundedPath(ctx, x, y, w, h, radius){
+    const r = Math.max(0, Math.min(Number(radius) || 0, Math.min(w, h) / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   function center(r){
     const rr = rect(r) || {x:0, y:0, w:0, h:0};
     return {x:rr.x + rr.w / 2, y:rr.y + rr.h / 2};
@@ -492,22 +507,76 @@
       ctx.restore();
       return;
     }
-    if(p.kind === 'numberPop' || p.kind === 'statusIconPop'){
+    if(p.kind === 'statusIconPop'){
       const r = rect(p.rect);
       if(!r) return;
-      const rise = Number(p.rise) || 38;
-      const scale = 1 + Math.sin(Math.PI * p.progress) * .18;
+      const text = String(p.text || '');
+      const fade = Math.sin(Math.PI * p.progress);
+      const hold = p.progress > .16 && p.progress < .78 ? 1 : fade;
+      const fontSize = Math.max(12, Math.min(18, Math.round(r.w * .05)));
+      const boxW = Math.max(250, Math.min(470, text.length * fontSize * .62 + 62));
+      const boxH = Math.max(48, fontSize + 30);
+      const x = r.x + r.w / 2 - boxW / 2;
+      const y = r.y + r.h * .20 - boxH / 2 - (Number(p.rise) || 18) * p.progress;
       ctx.save();
-      ctx.globalAlpha = Math.sin(Math.PI * p.progress);
-      ctx.translate(r.x + r.w / 2, r.y + r.h * .24 - rise * t);
-      ctx.scale(scale, scale);
-      ctx.fillStyle = p.color || '#ffe37a';
-      ctx.strokeStyle = 'rgba(0,0,0,.72)';
-      ctx.lineWidth = 4;
-      ctx.font = '900 ' + Math.max(18, Math.round(r.w * .17)) + 'px system-ui, sans-serif';
+      ctx.globalAlpha = clamp(hold, 0, 1);
+      roundedPath(ctx, x, y, boxW, boxH, 7);
+      const bg = ctx.createLinearGradient(x, y, x, y + boxH);
+      bg.addColorStop(0, 'rgba(20,18,28,.98)');
+      bg.addColorStop(.46, 'rgba(8,9,16,.98)');
+      bg.addColorStop(1, 'rgba(2,3,8,.96)');
+      ctx.shadowColor = p.color || 'rgba(255,158,165,.62)';
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1.55;
+      ctx.strokeStyle = p.color || 'rgba(255,158,165,.86)';
+      ctx.stroke();
+      ctx.save();
+      ctx.globalAlpha = .72;
+      ctx.strokeStyle = 'rgba(255,238,176,.42)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 16, y + 9);
+      ctx.lineTo(x + 58, y + 9);
+      ctx.moveTo(x + boxW - 58, y + boxH - 9);
+      ctx.lineTo(x + boxW - 16, y + boxH - 9);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = p.color || '#ff9ea5';
+      ctx.font = '800 ' + fontSize + 'px Cinzel, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,.88)';
+      ctx.shadowBlur = 5;
+      ctx.fillText(text, x + boxW / 2, y + boxH / 2 + 1, boxW - 28);
+      ctx.restore();
+      return;
+    }
+    if(p.kind === 'numberPop'){
+      const r = rect(p.rect);
+      if(!r) return;
       const text = String(p.text || '');
+      const isFateDelta = p.theme === 'fate-delta' || p.theme === 'fate-loss' || p.theme === 'fate-gain' || /^[-+]/.test(text);
+      const isLoss = p.theme === 'fate-loss' || /^-/.test(text);
+      const rise = Number(p.rise) || (isFateDelta ? 34 : 38);
+      const hold = isFateDelta
+        ? (p.progress < .1 ? (p.progress / .1) : (p.progress > .84 ? (1 - p.progress) / .16 : 1))
+        : Math.sin(Math.PI * p.progress);
+      const scale = isFateDelta ? (1 + Math.sin(Math.PI * Math.min(1, p.progress * 1.2)) * .1) : (1 + Math.sin(Math.PI * p.progress) * .18);
+      ctx.save();
+      ctx.globalAlpha = clamp(hold, 0, 1);
+      ctx.translate(r.x + r.w / 2, r.y + r.h * .22 - rise * t);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = p.color || (isFateDelta ? (isLoss ? '#ff6470' : '#65f08a') : '#ffe37a');
+      ctx.strokeStyle = 'rgba(0,0,0,.82)';
+      ctx.lineWidth = isFateDelta ? 5 : 4;
+      ctx.shadowColor = isFateDelta ? (isLoss ? 'rgba(255,74,88,.58)' : 'rgba(101,240,138,.58)') : 'rgba(255,226,105,.28)';
+      ctx.shadowBlur = isFateDelta ? 13 : 0;
+      ctx.font = '900 ' + Math.max(18, Math.round(r.w * (isFateDelta ? .19 : .17))) + 'px Cinzel, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.strokeText(text, 0, 0);
       ctx.fillText(text, 0, 0);
       ctx.restore();
@@ -558,13 +627,15 @@
     if(!ctx || !dragPreview) return false;
     const r = rect(dragPreview.rect);
     if(!r) return false;
+    const scale = Number(dragPreview.scale) || 1;
+    const w = r.w * scale;
+    const h = r.h * scale;
     ctx.save();
-    ctx.globalAlpha = dragPreview.invalid ? .62 : .88;
+    ctx.globalAlpha = dragPreview.invalid ? .90 : 1;
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
-    ctx.rotate((dragPreview.invalid ? -3 : 1.6) * Math.PI / 180);
-    drawCard(ctx, dragPreview.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h});
+    ctx.rotate((dragPreview.invalid ? -2 : 1.2) * Math.PI / 180);
+    drawCard(ctx, dragPreview.card, {x:-w / 2, y:-h / 2, w, h});
     ctx.restore();
-    drawGlowRect(ctx, r, dragPreview.invalid ? 'rgba(255,80,90,.8)' : 'rgba(130,210,255,.78)', .7);
     return true;
   }
 

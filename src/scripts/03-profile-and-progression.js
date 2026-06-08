@@ -741,8 +741,8 @@ function dailyLoginBackgroundForDate(dateKey) {
   return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(optimized) : optimized;
 }
 
-function renderDailyLoginPanelHtml() {
-  const state = normalizeDailyLoginProfileState();
+function renderDailyLoginPanelHtml(stateOverride) {
+  const state = stateOverride || normalizeDailyLoginProfileState();
   const activeDay = state.claimedToday ? state.nextDay : state.nextDay;
   const rewardBg = dailyLoginBackgroundForDate(state.today);
   const rewardBgIndex = (parseInt((String(rewardBg).match(/igb(\d+)/) || [])[1], 10) || 1);
@@ -798,17 +798,17 @@ function renderDailyLoginPanelHtml() {
 }
 
 function showDailyLoginPanel() {
+  const state = normalizeDailyLoginProfileState();
   if(typeof resetModalChrome === 'function') resetModalChrome();
-  showModal('Daily Login Rewards', renderDailyLoginPanelHtml(), []);
+  showModal('Daily Login Rewards', renderDailyLoginPanelHtml(state), []);
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
     modalBox.classList.add('daily-login-modal');
-    modalBox.style.setProperty('--daily-login-bg', `url('${dailyLoginBackgroundForDate(getDailyLoginState().today)}')`);
+    modalBox.style.setProperty('--daily-login-bg', `url('${dailyLoginBackgroundForDate(state.today)}')`);
   }
   const acts = document.getElementById('modal-acts');
   if(!acts) return;
   acts.innerHTML = '';
-  const state = getDailyLoginState();
   const close = document.createElement('button');
   close.className = 'btn sm';
   close.textContent = 'Close';
@@ -834,8 +834,28 @@ function showDailyLoginPanel() {
   document.getElementById('modal')?.classList.add('on');
 }
 
+function refreshDailyLoginPanelIfOpen() {
+  const modal = document.getElementById('modal');
+  const modalBox = document.querySelector('#modal .modal.daily-login-modal');
+  if(!modal || !modalBox || !modal.classList || !modal.classList.contains('on')) return;
+  showDailyLoginPanel();
+}
+
 function handleFateChatCommand(text) {
   const cmd = String(text || '').trim().toLowerCase();
+  const fateIconMatch = cmd.match(/^\/fateicon\s*(20|1[0-9]|[1-9])$/);
+  if(fateIconMatch){
+    const variant = Number(fateIconMatch[1]);
+    window.__fateFateIconVariant = variant;
+    try { localStorage.setItem('fate_icon_variant', String(variant)); } catch(e) {}
+    if(typeof toast === 'function') toast('Fate icon design ' + variant + ' selected.');
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('fate-icon-style');
+    } else if(typeof renderGame === 'function') {
+      renderGame({board:true, hand:true});
+    }
+    return true;
+  }
   if(cmd === '/logincheck'){
     showDailyLoginPanel();
     return true;
@@ -844,13 +864,58 @@ function handleFateChatCommand(text) {
 }
 
 function checkDailyLoginOnStartup() {
-  const state = normalizeDailyLoginProfileState();
   if(window.__fateDailyLoginPromptedThisSession) return;
-  window.__fateDailyLoginPromptedThisSession = true;
-  setTimeout(function(){
-    if(typeof showDailyLoginPanel === 'function') showDailyLoginPanel();
-  }, 850);
+  const openPrompt = function(delay){
+    if(window.__fateDailyLoginPromptedThisSession) return;
+    window.__fateDailyLoginPromptedThisSession = true;
+    setTimeout(function(){
+      requestAnimationFrame(function(){
+        const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
+        if(modalOpen) {
+          window.__fateDailyLoginPromptedThisSession = false;
+          openPrompt(1200);
+          return;
+        }
+        normalizeDailyLoginProfileState();
+        if(typeof showDailyLoginPanel === 'function') showDailyLoginPanel();
+      });
+    }, Number.isFinite(delay) ? delay : 450);
+  };
+  const cloudPending = !!(window.__fateCloudLoadingActive || (window._fateCloudUid && !window._fateCloudReady));
+  if(!cloudPending) {
+    openPrompt(1700);
+    return;
+  }
+  let settled = false;
+  const settle = function(delay){
+    if(settled) return;
+    settled = true;
+    window.removeEventListener('fate-cloud-ready', onCloudReady);
+    window.removeEventListener('fate-online-auth', onAuthReady);
+    openPrompt(delay);
+  };
+  const onCloudReady = function(){
+    settle(1100);
+  };
+  const onAuthReady = function(e){
+    if(e && e.detail && e.detail.ready && !e.detail.user) settle(850);
+  };
+  window.addEventListener('fate-cloud-ready', onCloudReady);
+  window.addEventListener('fate-online-auth', onAuthReady);
+  setTimeout(function(){ settle(850); }, 4300);
 }
+
+window.addEventListener('fate-cloud-ready', function(){
+  try {
+    normalizeDailyLoginProfileState();
+    refreshDailyLoginPanelIfOpen();
+  } catch(e) {}
+});
+
+window.addEventListener('storage', function(e){
+  if(!e || !e.key || e.key.indexOf('fate_daily_login_claim_') < 0) return;
+  refreshDailyLoginPanelIfOpen();
+});
 
 window.DAILY_LOGIN_REWARDS = DAILY_LOGIN_REWARDS;
 window.getDailyLoginState = getDailyLoginState;

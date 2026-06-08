@@ -1190,9 +1190,14 @@ function renderMissionLive(){
   el.innerHTML = '<div class="mission-live-loading">Searching for live matches...</div>';
   if(_missionLiveUnsub){ try{_missionLiveUnsub();}catch(e){} _missionLiveUnsub=null; }
   try{
-    _missionLiveUnsub = FO.onValue(FO.ref(FO.rtdb, 'liveMatches'), function(snap){
+    var baseRef = FO.ref(FO.rtdb, 'liveMatches');
+    var liveTarget = (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(baseRef, FO.orderByChild('updatedAt'), FO.limitToLast(16))
+      : baseRef;
+    _missionLiveUnsub = FO.onValue(liveTarget, function(snap){
       var val = snap.val();
       var matches = val ? Object.values(val) : [];
+      matches.sort(function(a,b){ return Number(b.updatedAt || b.startedAt || 0) - Number(a.updatedAt || a.startedAt || 0); });
       renderMissionLiveList(el, matches);
     });
   }catch(e){

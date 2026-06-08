@@ -401,7 +401,11 @@ function applyStoredAIEloState(ai) {
   if(!ai || !ai.name) return ai;
   const state = loadAIEloState();
   const rec = state[getAIRecordKey(ai)];
-  if(rec && Number.isFinite(Number(rec.elo))) ai.elo = Math.max(100, Math.round(Number(rec.elo)));
+  if(rec && Number.isFinite(Number(rec.elo))) {
+    const storedElo = Math.max(100, Math.round(Number(rec.elo)));
+    const seededElo = Math.max(100, Math.round(Number(ai.elo) || 600));
+    ai.elo = ai.isMonthly && storedElo === 600 && seededElo > 600 ? seededElo : storedElo;
+  }
   if(rec && Number.isFinite(Number(rec.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(rec.trueElo)));
   return ai;
 }
@@ -440,6 +444,7 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
     const ai = list.find(a=>a && a.name === aiName);
     if(ai){
       ai.elo = resolvedElo;
+      try { if(typeof getRank === 'function') ai.rank = getRank(resolvedElo).name; } catch(e) {}
       if(!ai.trueElo) ai.trueElo = resolvedElo + 200;
       source = source || ai;
     }
@@ -680,6 +685,14 @@ function generateMonthlyAI() {
   const monthKey = getMonthKey();
   const storageKey = 'fate_monthly_ai_' + monthKey;
   cleanupRetiredMonthlyAI(monthKey);
+  const rankNameForElo = elo => {
+    try { return typeof getRank === 'function' ? getRank(elo).name : 'Footman'; }
+    catch(e){ return 'Footman'; }
+  };
+  const monthlyVisibleElo = (trueElo, index) => {
+    const spread = (hashStr(monthKey + 'visible-elo' + index) % 141) - 70;
+    return Math.max(600, Math.min(1850, Math.round((Number(trueElo) || 600) + spread)));
+  };
   
   let stored;
   try { stored = JSON.parse(localStorage.getItem(storageKey)); } catch(e){}
@@ -690,7 +703,11 @@ function generateMonthlyAI() {
   if(storedUsable) {
     const refreshed = stored.map((ai, i) => {
       const p = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
-      return {...ai, style:p.style, personalityLabel:p.label, personalityDesc:p.desc};
+      const seededElo = monthlyVisibleElo(ai.trueElo, i);
+      const currentElo = Math.round(Number(ai.elo) || 600);
+      const hasMatchRecord = Number(ai.wins || 0) > 0 || Number(ai.losses || 0) > 0;
+      const elo = !hasMatchRecord && currentElo === 600 ? seededElo : currentElo;
+      return {...ai, elo, rank:rankNameForElo(elo), style:p.style, personalityLabel:p.label, personalityDesc:p.desc};
     });
     try { localStorage.setItem(storageKey, JSON.stringify(refreshed)); } catch(e){}
     return refreshed;
@@ -714,6 +731,7 @@ function generateMonthlyAI() {
     usedNames.add(name);
 
     const trueElo = 400 + Math.floor((hashStr(monthKey + 'true' + i) % 1501)); // 400-1900
+    const visibleElo = monthlyVisibleElo(trueElo, i);
     const personality = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
     const style = personality.style;
 
@@ -733,12 +751,12 @@ function generateMonthlyAI() {
 
     players.push({
       name,
-      elo: 600,
+      elo: visibleElo,
       trueElo,
       style,
       personalityLabel: personality.label,
       personalityDesc: personality.desc,
-      rank: 'Footman',
+      rank: rankNameForElo(visibleElo),
       deck: deck.length >= 40 ? deck.slice(0, 40) : [],
       isMonthly: true,
       monthKey,
@@ -894,6 +912,7 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
 
 async function drawCard(player, count=1, options = {}) {
   const myP = getPerspectivePlayerIndex();
+  let outsideDrawLandscapeCard = null;
   for(let i=0;i<count;i++){
     if(G.players[player].deck.length===0){
       log('sys','P'+(player+1)+' deck is empty!');
@@ -953,9 +972,12 @@ async function drawCard(player, count=1, options = {}) {
     if(player===myP && document.getElementById('s-game')?.classList.contains('active')){
       animateDrawCard(i);
     }
-    if(!options.drawPhase && !options.openingHand && typeof queueLandscapeOutsideDrawBonus === 'function'){
-      queueLandscapeOutsideDrawBonus(player, card);
+    if(!options.drawPhase && !options.openingHand && !outsideDrawLandscapeCard){
+      outsideDrawLandscapeCard = card;
     }
+  }
+  if(outsideDrawLandscapeCard && typeof queueLandscapeOutsideDrawBonus === 'function'){
+    queueLandscapeOutsideDrawBonus(player, outsideDrawLandscapeCard);
   }
 }
 

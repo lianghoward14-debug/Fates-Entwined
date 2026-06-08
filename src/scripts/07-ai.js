@@ -1759,10 +1759,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof addFullExtraSafeRowForPlayer === 'function') addFullExtraSafeRowForPlayer(z, cp, 'Starlit Path', {landscape:false});
       else {
         if(!G.extraRows) G.extraRows=[0,0,0];
+        if(!G.extraRowOwners) G.extraRowOwners=[[],[],[]];
         if(!G.extraRowFullOwners) G.extraRowFullOwners=[null,null,null];
+        const nextRow = 3 + (Number(G.extraRows[z]) || 0);
         G.extraRows[z]++;
+        if(!G.extraRowOwners[z]) G.extraRowOwners[z] = [];
+        G.extraRowOwners[z][nextRow - 3] = cp;
         G.extraRowFullOwners[z] = cp;
-        if(!G.board[z][2 + G.extraRows[z]]) G.board[z][2 + G.extraRows[z]] = Array(3).fill(null);
+        if(!G.board[z][nextRow]) G.board[z][nextRow] = Array(3).fill(null);
       }
       log('p2','AI: Anicka created an extra safe row in Zone '+(z+1));
       break;
@@ -2456,9 +2460,9 @@ async function aiRunEffect(card, z, r, c) {
       for(let zz=0; zz<3; zz++){
         const totalRows = G.board[zz] ? G.board[zz].length : 3;
         for(let rr=0; rr<totalRows; rr++){
-          if(rr === ownSafeRow) continue;
           const rowCap = getBoardRowCapacity(zz, rr);
           for(let cc=0; cc<rowCap; cc++){
+            if(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(zz, rr, cc, cp)) continue;
             if(G.board[zz][rr] && !G.board[zz][rr][cc] && !G.blockedCells.some(b=>b.z===zz&&b.r===rr&&b.c===cc&&b.type==='carolyn')){
               let score = 0;
               getAdjacentAndDiagonalCards(zz, rr, cc).forEach(adj=>{

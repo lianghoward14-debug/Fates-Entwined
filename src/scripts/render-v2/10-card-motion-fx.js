@@ -126,17 +126,7 @@
   }
 
   function boardNotice(card, z, r, c, text, opts){
-    const options = opts || {};
-    const rect = boardCardRect(z, r, c) || boardCardRectByIid(card && card.iid);
-    if(!rect) return false;
-    return play(options.type || 'LANDSCAPE_TRIGGER', {
-      card,
-      iid:card && card.iid,
-      rect,
-      targetRect:rect,
-      text:String(text || 'TRIGGER'),
-      color:options.color || '#ffe89a'
-    });
+    return false;
   }
 
   function drawFromPile(delayIdx){

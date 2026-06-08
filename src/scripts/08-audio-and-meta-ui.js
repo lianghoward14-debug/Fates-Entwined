@@ -133,6 +133,23 @@ function playFateSampleSfx(type, isMenuSound, effectiveVol) {
   return true;
 }
 
+function warmFateSampleSfx(types) {
+  const list = Array.isArray(types) && types.length
+    ? types
+    : ['menuOpen','menuClose','modalConfirm','modalCancel','uiClick','navClick','tabSwitch','hover'];
+  list.forEach(function(type){
+    const spec = FATE_SAMPLE_SFX[type];
+    if(!spec || !spec.src || _fateSampleAudioCache.has(spec.src)) return;
+    try {
+      const base = new Audio(spec.src);
+      base.preload = 'auto';
+      try { base.load(); } catch(e) {}
+      _fateSampleAudioCache.set(spec.src, base);
+    } catch(e) {}
+  });
+}
+window.fateWarmMenuAudioSamples = warmFateSampleSfx;
+
 function playFateLossTone(effectiveVol) {
   try {
     const ctx = getAudioCtx();
@@ -2099,36 +2116,55 @@ function showAudioSettings() {
   const vv = Math.round(_voiceVol*100);
   const sv = Math.round(_sfxVol*100);
   showModal('Audio',`
-    <div style="text-align:center;margin-bottom:.3rem;">
-      <div style="font-size:1rem;margin-bottom:.08rem;">🔊</div>
-      <div style="font-family:'Cinzel',serif;font-size:.55rem;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;">Audio</div>
+    <div class="audio-settings-content">
+      <div class="audio-settings-head">
+        <div class="audio-settings-title">Audio Mix</div>
+      </div>
+      <div class="audio-slider-row">
+        <div class="audio-slider-meta"><span>Master</span><output id="vol-master-readout">${av}%</output></div>
+        <input type="range" min="0" max="100" value="${av}" oninput="setMasterVolume(this.value);var o=document.getElementById('vol-master-readout');if(o)o.textContent=this.value+'%';">
+      </div>
+      <div class="audio-slider-row">
+        <div class="audio-slider-meta"><span>Music</span><output id="vol-music-readout">${mv}%</output></div>
+        <input type="range" min="0" max="100" value="${mv}" oninput="setMusicVolume(this.value);var o=document.getElementById('vol-music-readout');if(o)o.textContent=this.value+'%';">
+      </div>
+      <div class="audio-slider-row">
+        <div class="audio-slider-meta"><span>Effects</span><output id="vol-sfx-readout">${sv}%</output></div>
+        <input type="range" min="0" max="100" value="${sv}" oninput="setSfxVolume(this.value);var o=document.getElementById('vol-sfx-readout');if(o)o.textContent=this.value+'%';">
+      </div>
+      <div class="audio-slider-row">
+        <div class="audio-slider-meta"><span>Voices</span><output id="vol-voice-readout">${vv}%</output></div>
+        <input type="range" min="0" max="100" value="${vv}" oninput="setVoiceVolume(this.value);var o=document.getElementById('vol-voice-readout');if(o)o.textContent=this.value+'%';">
+      </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:.35rem;align-items:center;max-width:150px;margin:0 auto;">
-      <div style="text-align:center;width:100%;">
-        <div style="font-family:'Cinzel',serif;font-size:.45rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.08rem;">Master</div>
-        <input type="range" min="0" max="100" value="${av}" style="width:120px;" oninput="setMasterVolume(this.value)">
-      </div>
-      <div style="text-align:center;width:100%;">
-        <div style="font-family:'Cinzel',serif;font-size:.45rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.08rem;">Music</div>
-        <input type="range" min="0" max="100" value="${mv}" style="width:120px;" oninput="setMusicVolume(this.value)">
-      </div>
-      <div style="text-align:center;width:100%;">
-        <div style="font-family:'Cinzel',serif;font-size:.45rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.08rem;">Effects</div>
-        <input type="range" min="0" max="100" value="${sv}" style="width:120px;" oninput="setSfxVolume(this.value)">
-      </div>
-      <div style="text-align:center;width:100%;">
-        <div style="font-family:'Cinzel',serif;font-size:.45rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.08rem;">Voices</div>
-        <input type="range" min="0" max="100" value="${vv}" style="width:120px;" oninput="setVoiceVolume(this.value)">
-      </div>
-      <button class="btn sm" id="music-toggle-btn" data-music-toggle="1" onclick="toggleMusic()" style="margin-top:.45rem;">${_musicEnabled?'Music On':'Music Off'}</button>
-    </div>`,[{label:'Close',action:closeModal}], {immediate:true});
+    `,[{label:'Close',action:closeModal}], {immediate:true});
   syncMusicToggleButtons();
   const modalEl = document.querySelector('#modal .modal');
-  if(modalEl) Object.assign(modalEl.style, {maxWidth:'220px', padding:'.8rem .7rem'});
+  if(modalEl) {
+    modalEl.classList.add('audio-settings-modal');
+    modalEl.style.setProperty('width', '468px', 'important');
+    modalEl.style.setProperty('max-width', 'min(468px, calc(100vw - 32px))', 'important');
+    modalEl.style.setProperty('min-width', '0', 'important');
+    modalEl.style.setProperty('min-height', '0', 'important');
+    modalEl.style.setProperty('padding', '1.45rem 1.65rem 1.55rem', 'important');
+    modalEl.style.setProperty('overflow', 'visible', 'important');
+  }
   const titleEl = document.getElementById('modal-title');
   if(titleEl) titleEl.style.display = 'none';
+  const bodyEl = document.getElementById('modal-body');
+  if(bodyEl) {
+    bodyEl.style.setProperty('width', '100%', 'important');
+    bodyEl.style.setProperty('min-height', '0', 'important');
+    bodyEl.style.setProperty('padding', '0', 'important');
+    bodyEl.style.setProperty('margin', '0 auto', 'important');
+    bodyEl.style.setProperty('overflow', 'visible', 'important');
+  }
   const actsEl = document.getElementById('modal-acts');
-  if(actsEl) actsEl.style.justifyContent = 'center';
+  if(actsEl) {
+    actsEl.style.setProperty('justify-content', 'center', 'important');
+    actsEl.style.setProperty('padding-top', '.18rem', 'important');
+    actsEl.style.setProperty('margin-top', '.18rem', 'important');
+  }
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

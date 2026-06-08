@@ -4489,18 +4489,16 @@ function initInGameChat() {
         <div class="ingame-chat-matchup">
           <div class="ingame-chat-player-card">
             <div class="ingame-chat-pic p1">
-              ${p1Img ? '<img src="'+p1Img+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
+              ${p1Img ? '<img src="'+p1Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
             </div>
             <div class="ingame-chat-name p1">${escapeHtml(p1Name)}</div>
-            <div class="ingame-chat-elo">${p1Elo} ELO</div>
           </div>
           <div class="ingame-chat-versus">VS</div>
           <div class="ingame-chat-player-card">
             <div class="ingame-chat-pic p2">
-              ${p2Img ? '<img src="'+p2Img+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
+              ${p2Img ? '<img src="'+p2Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
             </div>
             <div class="ingame-chat-name p2">${escapeHtml(p2Name)}</div>
-            <div class="ingame-chat-elo">${p2Elo} ELO</div>
           </div>
         </div>
         <div class="ingame-chat-messages" id="ingame-chat-messages"></div>

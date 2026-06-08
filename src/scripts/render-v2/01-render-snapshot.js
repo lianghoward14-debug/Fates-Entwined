@@ -170,7 +170,9 @@
     if(r === 2) return 0;
     const owners = g && Array.isArray(g.extraRowOwners) && Array.isArray(g.extraRowOwners[z]) ? g.extraRowOwners[z] : null;
     if(owners && typeof owners[r - 3] === 'number') return owners[r - 3];
-    if(g && g.extraRowFullOwners && typeof g.extraRowFullOwners[z] === 'number') return g.extraRowFullOwners[z];
+    const markOwner = getMarkSafeRowOwner(g, z, r);
+    if(typeof markOwner === 'number') return markOwner;
+    if((!owners || typeof owners[r - 3] === 'undefined') && g && g.extraRowFullOwners && typeof g.extraRowFullOwners[z] === 'number') return g.extraRowFullOwners[z];
     return 0;
   }
 
@@ -178,8 +180,18 @@
     if(r < 3) return true;
     const owners = g && Array.isArray(g.extraRowOwners) && Array.isArray(g.extraRowOwners[z]) ? g.extraRowOwners[z] : null;
     if(owners && typeof owners[r - 3] === 'number') return true;
-    if(g && g.extraRowFullOwners && typeof g.extraRowFullOwners[z] === 'number') return true;
+    if(owners && owners[r - 3] === null) return false;
+    if(getMarkSafeRowOwner(g, z, r) !== null) return false;
+    if((!owners || typeof owners[r - 3] === 'undefined') && g && g.extraRowFullOwners && typeof g.extraRowFullOwners[z] === 'number') return true;
     return false;
+  }
+
+  function getMarkSafeRowOwner(g, z, r){
+    if(!g || !Array.isArray(g.markSafeSquares)) return null;
+    const mark = g.markSafeSquares.find(function(s){
+      return s && s.z === z && s.r === r && typeof s.owner === 'number';
+    });
+    return mark ? mark.owner : null;
   }
 
   function isMarkSafeSquare(g, z, r, c){

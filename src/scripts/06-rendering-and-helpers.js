@@ -753,7 +753,7 @@ function renderPiles() {
     const oppDisc = G.players[oppP].discard.length;
     const set = (id,n,slotId)=>{
       const el=document.getElementById(id);
-      if(el) el.textContent=n;
+      if(el) el.textContent='('+n+')';
       const slot=document.getElementById(slotId);
       if(slot) slot.classList.toggle('empty', n===0);
     };
@@ -788,7 +788,7 @@ function renderPiles() {
   _lastPileRenderSignature = nextSig;
   const set = (id,n,slotId)=>{
     const el=document.getElementById(id);
-    if(el) el.textContent=n;
+    if(el) el.textContent='('+n+')';
     const slot=document.getElementById(slotId);
     if(slot) slot.classList.toggle('empty', n===0);
   };
@@ -1111,7 +1111,17 @@ function maybeResolveLandscapeEndTurn() {
   if(!landscape || !st || !st.resolvedTurns) return false;
 
   function shouldAutoChooseLandscapeZone(player) {
-    return !!(G && G.aiEnabled && Number.isInteger(G.aiPlayer) && player === G.aiPlayer);
+    if(!G) return false;
+    if(G.aiEnabled && Number.isInteger(G.aiPlayer) && player === G.aiPlayer) return true;
+    const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+    return !!(G.aiEnabled && player !== viewer);
+  }
+
+  function continueTurnAfterLandscapeResolution(){
+    setTimeout(function(){
+      if(G) G._turnInputLockUntil = 0;
+      endTurn();
+    }, 160);
   }
 
   function chooseBestLandscapeZoneForAI(player, opts) {
@@ -1148,7 +1158,7 @@ function maybeResolveLandscapeEndTurn() {
         addLandscapeZoneFateBonus(winner, z, 10, 'major');
         toast(G.players[winner].name + ' gains 10 Fate in Zone ' + (z + 1) + '.');
       }
-      setTimeout(function(){ endTurn(); }, 120);
+      continueTurnAfterLandscapeResolution();
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveFrontier(chooseBestLandscapeZoneForAI(winner, {kind:'fate'}));
     else window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 10 Fate.', resolveFrontier, {kind:'fate'});
@@ -1173,7 +1183,7 @@ function maybeResolveLandscapeEndTurn() {
         toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (targetZ + 1) + '.');
         renderGame({board:true, scores:true, blocks:true, landscape:true});
       }
-      setTimeout(function(){ endTurn(); }, 120);
+      continueTurnAfterLandscapeResolution();
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveQingdao(chooseBestLandscapeZoneForAI(winner, {kind:'row', requireOpenExtraRow:true}));
     else window.chooseLandscapeZone(winner, 'Qingdao Breakthrough', G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.', resolveQingdao, {kind:'row', requireOpenExtraRow:true});
@@ -1222,7 +1232,8 @@ function processLandscapeDrawQueue() {
     confirmLabel:'+3 Fate',
     viewerPlayerIndex:getPerspectivePlayerIndex(),
     zones:[0,1,2],
-    entries:entries
+    entries:entries,
+    showOpponentOverlay:true
   }, function(chosen){
     const target = chosen && chosen[0] && chosen[0].card;
     if(target) {
@@ -1574,14 +1585,14 @@ function showDeckInfo(player) {
   showModal(title,
     '<div class="di-window">'
     + '<div class="di-count-row">'
-    +   '<div class="di-count-main"><span class="di-count-num">' + deck.length + '</span><span class="di-count-label">in deck</span></div>'
+    +   '<div class="di-count-main"><span class="di-count-num">' + deck.length + '</span><span class="di-count-label">In Deck</span></div>'
     +   '<div class="di-count-stats">'
-    +     '<div class="di-stat"><span>' + (isOwn ? hand.length : '?') + '</span>in hand</div>'
-    +     '<div class="di-stat"><span>' + boardCount + '</span>on board</div>'
-    +     '<div class="di-stat"><span>' + discard.length + '</span>discarded</div>'
+    +     '<div class="di-stat"><span>' + (isOwn ? hand.length : '?') + '</span>In Hand</div>'
+    +     '<div class="di-stat"><span>' + boardCount + '</span>On Board</div>'
+    +     '<div class="di-stat"><span>' + discard.length + '</span>Discarded</div>'
     +   '</div>'
     + '</div>'
-    + '<div class="di-progress-wrap"><div class="di-progress-bar" style="width:' + Math.round((deck.length / Math.max(1,totalCards)) * 100) + '%"></div><div class="di-progress-label">' + deck.length + ' / ' + totalCards + ' cards remaining</div></div>'
+    + '<div class="di-progress-wrap"><div class="di-progress-bar" style="width:' + Math.round((deck.length / Math.max(1,totalCards)) * 100) + '%"></div><div class="di-progress-label">' + deck.length + ' / ' + totalCards + ' Cards Remaining</div></div>'
     + (isOwn ? '<p class="di-note">Deck contents are hidden — use search effects to look through specific cards.</p>' : '<p class="di-note">Opponent deck contents are hidden.</p>')
     + polishHtml
     + majaHtml
@@ -2409,7 +2420,7 @@ function renderHand() {
 
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
-  const handLimit = 10;
+  const handLimit = 9;
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
@@ -2431,14 +2442,14 @@ function enforceHandLimit(player) {
 function openHandLimitDiscardModal(player) {
   const p = G.players[player];
   if(!p || !Array.isArray(p.hand)) return;
-  const handLimit = 10;
+  const handLimit = 9;
   const needed = Math.max(0, p.hand.length - handLimit);
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
   const cards = p.hand.slice();
   const bodyHtml = `
     <div class="hand-limit-discard">
-      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 10.</div>
+      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 9.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
@@ -2451,7 +2462,7 @@ function openHandLimitDiscardModal(player) {
         }).join('')}
       </div>
     </div>`;
-  showModal('Discard Down to 10', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
+  showModal('Discard Down to 9', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
     if(selectedIids.length < excess){ toast('Select ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
@@ -2569,7 +2580,7 @@ function renderZoneScores() {
 function spawnFloater(parentEl, delta, color){
   if(delta===0) return;
   const f = document.createElement('div');
-  f.className='fate-floater '+(color||'');
+  f.className='fate-floater '+(delta>0?'up':'down')+' '+(color||'');
   f.textContent = (delta>0?'+':'')+delta;
   const rect = parentEl.getBoundingClientRect();
   f.style.position = 'fixed';
@@ -2577,7 +2588,7 @@ function spawnFloater(parentEl, delta, color){
   f.style.top = (rect.top + rect.height / 2) + 'px';
   f.style.zIndex = '9999';
   document.body.appendChild(f);
-  setTimeout(()=>f.remove(), 1600);
+  setTimeout(()=>f.remove(), 1500);
 }
 
 function updateTopBar() {
@@ -2588,7 +2599,7 @@ function updateTopBar() {
   const displayName = isOwnTurn ? (G.players[cp].name || 'Player') : 'Opponent';
   const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+"'s Turn";
   const hudTurnText = 'Turn '+G.turn+'/'+G.maxTurns;
-  const hudPlayerText = G.players[cp].name+"'s Turn";
+  const hudPlayerText = isOwnTurn ? (G.players[cp].name+"'s Turn") : "Opponent's Turn";
   const shellSig = [
     cp, G.turn, G.maxTurns, G.phase || '',
     isAITurn ? 1 : 0, isOwnTurn ? 1 : 0,
@@ -3601,7 +3612,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
     label = 'Negation Uses';
     value = (1 - uses) + ' / 1';
-    sub = uses ? 'ready to negate' : 'spent';
+    sub = uses ? 'ready to negate' : 'Effect Expended';
   } else if(card.id === '91') {
     const counts = Array.isArray(G._snowyVillageUses) ? G._snowyVillageUses : [0,0];
     const used = Math.max(0, Number(counts[owner]) || 0);
@@ -3624,6 +3635,18 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   if(!card){
     if(G.selectedHandCard!==null) card=G.players[G.currentPlayer].hand[G.selectedHandCard];
     if(!card) return;
+  }
+  if(typeof G !== 'undefined' && G && G._cardDetailModalLockUntil && !window.__fateBypassCardDetailDelay) {
+    const waitMs = Math.max(0, Number(G._cardDetailModalLockUntil) - Date.now());
+    if(waitMs > 16) {
+      clearTimeout(G._cardDetailModalDelayTimer);
+      G._cardDetailModalDelayTimer = setTimeout(function(){
+        window.__fateBypassCardDetailDelay = true;
+        try { openCardDetail(card, fromHand, fromBoard); }
+        finally { window.__fateBypassCardDetailDelay = false; }
+      }, Math.min(waitMs, 1900));
+      return;
+    }
   }
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const viewerP = getPerspectivePlayerIndex();
@@ -3919,6 +3942,7 @@ function resetModalChrome() {
       'daily-login-modal',
       'card-effect-modal',
       'card-detail-modal',
+      'audio-settings-modal',
       'landscape-choice-modal',
       'affiliation-picker-modal',
       'board-target-picker-modal',
@@ -3935,8 +3959,7 @@ function resetModalChrome() {
   if(actsEl) actsEl.removeAttribute('style');
   const bodyEl = document.getElementById('modal-body');
   if(bodyEl){
-    bodyEl.style.overflow = '';
-    bodyEl.style.maxHeight = '';
+    bodyEl.removeAttribute('style');
   }
 }
 
@@ -3967,8 +3990,13 @@ function renderCardEffectModalBody(title, bodyHtml) {
 }
 
 function showModal(title, bodyHtml, actions, opts) {
+  const titleStr = typeof title === 'string' ? title : String(title||'');
+  const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
   if(!(opts && opts.immediate)){
-    const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
+    const setEffectWait = effectModal && typeof G !== 'undefined' && G
+      ? Math.max(0, (Number(G._setEffectModalLockUntil) || 0) - Date.now())
+      : 0;
+    const wait = Math.max((typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs()), setEffectWait);
     if(wait > 0){
       setTimeout(()=>showModal(title, bodyHtml, actions, opts), wait);
       return;
@@ -3976,11 +4004,9 @@ function showModal(title, bodyHtml, actions, opts) {
   }
   resetModalChrome();
   const titleEl = document.getElementById('modal-title');
-  const titleStr = typeof title === 'string' ? title : String(title||'');
   if(titleStr.includes('<')) titleEl.innerHTML = titleStr;
   else titleEl.textContent = titleStr;
   const modalBox = document.querySelector('#modal .modal');
-  const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
   if(modalBox && effectModal) modalBox.classList.add('card-effect-modal');
   document.getElementById('modal-body').innerHTML=effectModal ? renderCardEffectModalBody(titleStr, bodyHtml) : bodyHtml;
   const acts=document.getElementById('modal-acts');
@@ -4016,7 +4042,9 @@ function showModal(title, bodyHtml, actions, opts) {
   const inGameModal = !!document.getElementById('s-game')?.classList.contains('active');
   if(!inGameModal && typeof FateSVG !== 'undefined' && FateSVG && typeof FateSVG.decorate === 'function'){
     const modalNode = document.getElementById('modal');
-    setTimeout(function(){ requestAnimationFrame(function(){ FateSVG.decorate(modalNode); }); }, 60);
+    const decorateModal = function(){ requestAnimationFrame(function(){ FateSVG.decorate(modalNode); }); };
+    if(typeof requestIdleCallback === 'function') requestIdleCallback(decorateModal, {timeout:260});
+    else setTimeout(decorateModal, 140);
   }
   playSfx('menuOpen');
 }
@@ -4110,6 +4138,7 @@ function showBoardTargetPicker(opts, onConfirm) {
 
   const body = document.createElement('div');
   body.className = 'board-target-picker' + (zones.length > 1 ? ' is-multi-zone' : '');
+  if(opts.showOpponentOverlay) body.classList.add('show-opponent-overlay');
 
   const promptEl = document.createElement('div');
   promptEl.className = 'board-target-prompt';
@@ -4158,6 +4187,9 @@ function showBoardTargetPicker(opts, onConfirm) {
           const visual = getCardVisualData(cell, viewerP, {forceBoardHidden:true, boardPos:{z:z, r:r, c:c}});
           const img = visual && (visual.runtimeImg || visual.img);
           cellEl.classList.add(entry ? 'is-targetable' : 'is-muted');
+          if(cell.owner === viewerP) cellEl.classList.add('is-own-card');
+          else cellEl.classList.add('is-opponent-card');
+          cellEl.dataset.owner = String(cell.owner);
           cellEl.setAttribute('type', 'button');
           cellEl.innerHTML =
             '<div class="board-target-card">' +
@@ -5278,9 +5310,17 @@ function toast(msg, durationMs) {
   if(G._aiAbort) return;
   const el=document.getElementById('toast');
   if(!el) return;
-  el.textContent=msg;el.classList.add('on');
+  const text = String(msg || '');
+  const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
+  el.textContent=text;
+  el.classList.toggle('toast-effect-alert', isEffectAlert);
+  el.classList.add('on');
   clearTimeout(window._toast);
-  window._toast=setTimeout(()=>el.classList.remove('on'), Math.max(900, Number(durationMs) || 4500));
+  const holdMs = Math.max(900, Number(durationMs) || 4500) + (isEffectAlert ? 1000 : 0);
+  window._toast=setTimeout(()=>{
+    el.classList.remove('on');
+    el.classList.remove('toast-effect-alert');
+  }, holdMs);
 }
 
 function toggleLog() {
@@ -5562,7 +5602,10 @@ function showFinalZoneReveal(zResults, opts) {
   if(G && Array.isArray(G._finalZoneRevealTimers)){
     G._finalZoneRevealTimers.forEach(function(timer){ clearTimeout(timer); });
   }
-  if(G) G._finalZoneRevealTimers = [];
+  if(G) {
+    G._finalZoneRevealTimers = [];
+    G._finalZoneCanvasFlash = null;
+  }
   document.querySelectorAll('#board .zone.final-zone-board-flash').forEach(function(el){
     el.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
     el.style.removeProperty('--final-zone-delay');
@@ -5582,10 +5625,27 @@ function showFinalZoneReveal(zResults, opts) {
       zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
       void zoneEl.offsetWidth;
       zoneEl.classList.add('final-zone-board-flash', ctrl === 0 ? 'final-zone-board-p1' : ctrl === 1 ? 'final-zone-board-p2' : 'final-zone-board-tie');
+      if(G) {
+        G._finalZoneCanvasFlash = {
+          z:z,
+          ctrl:ctrl,
+          s0:zr.s0 || 0,
+          s1:zr.s1 || 0,
+          start:(typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()),
+          duration:860
+        };
+      }
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+        window.FateMatchRendererAdapter.scheduleRender('final-zone-flash');
+      }
       if(typeof playSfx === 'function') playSfx('hover');
     }, i * revealStepMs);
     const removeTimer = setTimeout(function(){
       zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
+      if(G && G._finalZoneCanvasFlash && Number(G._finalZoneCanvasFlash.z) === z) G._finalZoneCanvasFlash = null;
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+        window.FateMatchRendererAdapter.scheduleRender('final-zone-flash');
+      }
     }, i * revealStepMs + 860);
     if(G && Array.isArray(G._finalZoneRevealTimers)) G._finalZoneRevealTimers.push(addTimer, removeTimer);
   });
@@ -5596,7 +5656,10 @@ function showFinalZoneReveal(zResults, opts) {
       el.removeAttribute('data-final-zone-label');
       el.removeAttribute('data-final-zone-score');
     });
-    if(G) G._finalZoneRevealTimers = [];
+    if(G) {
+      G._finalZoneRevealTimers = [];
+      G._finalZoneCanvasFlash = null;
+    }
     if(typeof opts.onComplete === 'function') opts.onComplete();
   }, Math.max(2200, zones.length * revealStepMs + 900));
   if(G && Array.isArray(G._finalZoneRevealTimers)) G._finalZoneRevealTimers.push(doneTimer);
@@ -6049,7 +6112,7 @@ function showBlockVisual(z, r, c, blockType) {
   overlay.dataset.blockKey = z + ':' + r + ':' + c;
 
   if(blockType === 'carolyn') {
-    overlay.innerHTML = '<div class="block-icon carolyn-lock-icon">🔒</div><div class="block-label">LOCKED</div>';
+    overlay.innerHTML = '<div class="block-icon carolyn-lock-icon" aria-label="Carolyn lock"></div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:80;border-radius:4px;';
   } else {
     overlay.innerHTML = '<div class="block-icon">−</div><div class="block-label">NO CONSOLIDATE</div>';
@@ -6137,6 +6200,7 @@ function pickCardFromAnyZone(prompt, callback, filter) {
     viewerPlayerIndex: viewerP,
     zones: [0, 1, 2],
     entries: entries,
+    showOpponentOverlay: !filter,
     emptyMessage: 'No valid targets'
   }, function(chosenEntries){
     if(!chosenEntries.length) return;

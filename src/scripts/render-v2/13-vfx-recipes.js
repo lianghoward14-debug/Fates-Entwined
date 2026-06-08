@@ -87,12 +87,18 @@
     ];
   }
 
+  function fateDeltaText(payload, sign){
+    const p = payload || {};
+    if(p.text != null) return String(p.text).replace(/\s*Fate\b/ig, '').trim();
+    return sign + (p.amount || 1);
+  }
+
   function fateGain(payload){
     const p = payload || {};
     const rect = payloadRect(p, ['rect', 'targetRect', 'cardRect']);
     return [
-      P().cardGlow({rect, startOffset:0, duration:320, color:'rgba(255,227,122,.62)', priority:'low'}),
-      P().numberPop({text:p.text || ('+' + (p.amount || 1) + ' Fate'), rect, startOffset:0, duration:420, color:'#ffe37a'}),
+      P().cardGlow({rect, startOffset:0, duration:520, color:'rgba(255,227,122,.62)', priority:'low'}),
+      P().numberPop({text:fateDeltaText(p, '+'), rect, startOffset:0, duration:1500, color:'#65f08a', theme:'fate-delta'}),
       P().soundCue({cue:'fate_gain', startOffset:110})
     ];
   }
@@ -102,7 +108,7 @@
     const rect = payloadRect(p, ['rect', 'targetRect', 'cardRect']);
     return [
       P().cardShake({iid:p.iid, rect, startOffset:0, duration:160, amplitude:3}),
-      P().numberPop({text:p.text || ('-' + (p.amount || 1) + ' Fate'), rect, startOffset:40, duration:420, color:'#d8a2ff'}),
+      P().numberPop({text:fateDeltaText(p, '-'), rect, startOffset:40, duration:1500, color:'#ff6470', theme:'fate-loss'}),
       P().soundCue({cue:'fate_loss', startOffset:85})
     ];
   }
@@ -157,7 +163,7 @@
     const p = payload || {};
     const rect = payloadRect(p, ['rect', 'zoneRect', 'targetRect']);
     return [
-      P().statusIconPop({text:p.text || 'TRIGGER', rect, startOffset:0, duration:360, color:p.color || '#9ee6ff'}),
+      P().statusIconPop({text:p.text || 'TRIGGER', rect, startOffset:0, duration:Number(p.duration) || 1360, color:p.color || '#9ee6ff'}),
       P().soundCue({cue:'landscape_trigger', startOffset:130})
     ];
   }

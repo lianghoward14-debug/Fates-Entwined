@@ -3292,7 +3292,7 @@ function showBlockVisual(z, r, c, blockType) {
   overlay.dataset.blockKey = z + ':' + r + ':' + c;
 
   if(blockType === 'carolyn') {
-    overlay.innerHTML = '<div class="block-icon carolyn-lock-icon">🔒</div><div class="block-label">LOCKED</div>';
+    overlay.innerHTML = '<div class="block-icon carolyn-lock-icon" aria-label="Carolyn lock"></div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:80;border-radius:4px;';
   } else {
     overlay.innerHTML = '<div class="block-icon">−</div><div class="block-label">NO CONSOLIDATE</div>';
