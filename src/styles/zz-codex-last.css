@@ -12657,3 +12657,33 @@ html body #s-game #btn-end-turn:hover::before{
     bottom:5.4rem!important;
   }
 }
+
+/* Codex 2026-06-08e: fully remove the old circular end-turn ornament. */
+html body #s-game .actbar #btn-end-turn::before,
+html body #s-game #btn-end-turn::before{
+  content:''!important;
+  position:absolute!important;
+  left:.74rem!important;
+  top:50%!important;
+  width:28px!important;
+  height:22px!important;
+  transform:translateY(-50%)!important;
+  border-radius:2px!important;
+  border:1px solid rgba(245,214,116,.82)!important;
+  clip-path:polygon(0 0,72% 0,100% 50%,72% 100%,0 100%,18% 50%)!important;
+  background:
+    linear-gradient(90deg,rgba(245,214,116,.98) 0 2px,transparent 2px 8px,rgba(245,214,116,.72) 8px 10px,transparent 10px),
+    linear-gradient(135deg,transparent 0 45%,rgba(245,214,116,.82) 46% 54%,transparent 55%),
+    linear-gradient(180deg,rgba(20,20,22,.96),rgba(5,7,12,.98))!important;
+  box-shadow:0 0 8px rgba(245,214,116,.18),inset 0 0 0 1px rgba(255,246,191,.06)!important;
+}
+
+html body #s-game .actbar #btn-end-turn:hover::before,
+html body #s-game #btn-end-turn:hover::before{
+  border-color:rgba(255,230,128,.95)!important;
+  background:
+    linear-gradient(90deg,rgba(255,230,128,1) 0 2px,transparent 2px 8px,rgba(255,230,128,.82) 8px 10px,transparent 10px),
+    linear-gradient(135deg,transparent 0 45%,rgba(255,230,128,.92) 46% 54%,transparent 55%),
+    linear-gradient(180deg,rgba(24,23,20,.98),rgba(5,7,12,.98))!important;
+  box-shadow:0 0 10px rgba(245,214,116,.26),inset 0 0 0 1px rgba(255,246,191,.08)!important;
+}
