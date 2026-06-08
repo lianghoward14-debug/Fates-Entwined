@@ -668,7 +668,11 @@ function preloadChallengerAssets() {
 }
 
 // â”€â”€â”€ TITLE SCREEN ENTRY POINTS â”€â”€â”€
+let _freePlayMenuOpeningAt = 0;
 function openFreePlayMenu() {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if(now - _freePlayMenuOpeningAt < 220) return;
+  _freePlayMenuOpeningAt = now;
   CURRENT_MODE = 'free';
   closeAllOverlays();
   seedBuiltInPresets();

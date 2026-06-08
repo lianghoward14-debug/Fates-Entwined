@@ -421,16 +421,63 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+function fateScheduleIdle(fn, timeout) {
+  if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(fn, {timeout:timeout || 1200});
+  } else {
+    setTimeout(fn, timeout || 120);
+  }
+}
+
+function warmFirstInteractionUi() {
+  if(window.__fateFirstInteractionUiWarmed) return;
+  window.__fateFirstInteractionUiWarmed = true;
+  fateScheduleIdle(function(){
+    try {
+      if(document.fonts && typeof document.fonts.load === 'function') {
+        document.fonts.load('900 14px Cinzel');
+        document.fonts.load('700 12px system-ui');
+      }
+      ['blank.png',
+        'optimized/backgrounds/ingamebackgrouds_igb9.jpg',
+        'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
+        'optimized/backgrounds/ingamebackgrouds_igb1.jpg'
+      ].forEach(function(src){
+        const img = new Image();
+        img.decoding = 'async';
+        img.loading = 'eager';
+        img.src = typeof FATE_BACKGROUND_URL === 'function' && src.indexOf('optimized/') === 0 ? FATE_BACKGROUND_URL(src) : src;
+        if(typeof img.decode === 'function') img.decode().catch(function(){});
+      });
+      if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
+      if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
+      const modal = document.getElementById('modal');
+      if(modal) void modal.offsetWidth;
+    } catch(e) {}
+  }, 260);
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   const freePlayBtn = document.getElementById('title-free-play-btn');
   const challengerBtn = document.getElementById('title-challenger-btn');
-  if(freePlayBtn) freePlayBtn.addEventListener('click', openFreePlayMenu);
-  if(challengerBtn) challengerBtn.addEventListener('click', openChallengerMenu);
+  const openFreePlayFromTitle = function(e){
+    if(e) e.preventDefault();
+    if(typeof playMenuSfx === 'function') playMenuSfx();
+    openFreePlayMenu();
+  };
+  const openChallengerFromTitle = function(e){
+    if(e) e.preventDefault();
+    if(typeof playMenuSfx === 'function') playMenuSfx();
+    openChallengerMenu();
+  };
+  if(freePlayBtn) freePlayBtn.onclick = openFreePlayFromTitle;
+  if(challengerBtn) challengerBtn.onclick = openChallengerFromTitle;
   document.querySelectorAll('#s-title .btn.pri').forEach(btn=>{
     const label = (btn.textContent || '').toLowerCase();
-    if(label.includes('free play')) btn.onclick = openFreePlayMenu;
-    if(label.includes('challenger')) btn.onclick = openChallengerMenu;
+    if(label.includes('free play')) btn.onclick = openFreePlayFromTitle;
+    if(label.includes('challenger')) btn.onclick = openChallengerFromTitle;
   });
+  warmFirstInteractionUi();
 });
 
 // Expose functions needed by inline onclick handlers

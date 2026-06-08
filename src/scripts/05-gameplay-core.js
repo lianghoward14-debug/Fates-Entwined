@@ -796,6 +796,14 @@ function updateTimerDisplay() {
   }
 }
 
+function syncTurnTimerToCurrentLimit() {
+  if(!_turnTimerInterval) return;
+  _turnTimerRemaining = getTurnTimeLimit();
+  _lastTurnWarnSecond = null;
+  updateTimerDisplay();
+}
+window.syncTurnTimerToCurrentLimit = syncTurnTimerToCurrentLimit;
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CARD PLACEMENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1306,6 +1314,12 @@ async function clickCell(z,r,c) {
     const valid = !mv.options || mv.options.some(o=>o.z===z && o.r===r && o.c===c);
     if(!valid){toast('Choose one of the highlighted Wolf Creek squares');return;}
     if(G.board[z][r][c]!==null || isBlocked(z,r,c)){toast('Cell is occupied');return;}
+    const wcOwner = mv.wolfCreekCard && typeof mv.wolfCreekCard.owner === 'number' ? mv.wolfCreekCard.owner : (mv.card && typeof mv.card.owner === 'number' ? mv.card.owner : G.currentPlayer);
+    if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, wcOwner)){
+      toast('Wolf Creek can only move into contested rows or your own safe squares');
+      playSfx('blocked');
+      return;
+    }
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     if(mv.wolfCreekCard) mv.wolfCreekCard.wolfCreekUsed = true;
@@ -1849,13 +1863,6 @@ function handleConsolidateClick(z,r,c) {
       con.phase='select_tributes';
       con._lastTributeToggle = { idx, action:'deselect', t:now };
     } else {
-      if(running >= con.cost){
-        toast('Reinforcement is already met. Click a selected tribute again to place, or deselect first.');
-        setHint(`Ready: click a selected tribute to place ${con.card.name}.`);
-        highlightTributeCards();
-        refreshConsolidationCanvasState();
-        return true;
-      }
       con.chosenIdxs.push(idx);
       con._lastTributeToggle = { idx, action:'select', t:now };
     }
@@ -1864,7 +1871,7 @@ function handleConsolidateClick(z,r,c) {
 
     if(newRunning >= con.cost){
       if(newRunning > con.cost){
-        toast(`Over-reinforcement warning: selected ${newRunning}/${con.cost}. You may place now, or deselect extras.`);
+        toast(`Over-reinforcement warning: selected ${newRunning}/${con.cost}. You may place now.`);
       }
       highlightTributeCards();
       refreshConsolidationCanvasState();
@@ -2004,9 +2011,6 @@ function finalizeConsolidate(card, tributes, targetIdx) {
       inst._suppressCinematicSubtitle = true;
     }
     consumePendingPlacementFlags(card, inst);
-    if(!useFaceDown && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
-      window.FateV2CardMotionFx.queuePlacementFromHand(card, inst);
-    }
     if(window.fateCanvasPreseedFate && !useFaceDown) window.fateCanvasPreseedFate(inst.iid, basePrintedFate);
 
     const affectedZones = [...new Set(tributes.map(t=>t.z))];
@@ -2035,9 +2039,17 @@ function finalizeConsolidate(card, tributes, targetIdx) {
         }
       });
       if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
-        window.FateV2CardMotionFx.crashTributes(tributes, target);
+        window.FateV2CardMotionFx.crashTributes(tributes, {
+          card:inst,
+          resultCard:inst,
+          z:targetZ,
+          r:targetR,
+          c:targetC,
+          faceDown:useFaceDown
+        });
       }
       tributes.forEach(t=>{
+        if(t && t.card) t.card._suppressDiscardVfx = true;
         discardBoardCard(t.card, t.z, t.r, t.c);
       });
     } catch(err) {
@@ -2050,7 +2062,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, targetZ, targetR, targetC);
-    const placementDelay = triggerPlacementAnimation(inst, targetZ, targetR, targetC);
+    const placementDelay = Math.min(1250, 560 + tributes.length * 96);
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
     if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
@@ -2357,7 +2369,82 @@ function tickCarpathianSpecters() {
   });
 }
 
-async function triggerWhenSet(inst, z, r, c) {
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','21','22','27','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
+const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
+  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','64','66','68','69','75','77','80','82','84','90','94','bh25'
+]);
+
+function whenSetEffectsAreDeferred() {
+  if(typeof window !== 'undefined' && window.FATE_DEFER_WHEN_SET_EFFECTS === false) return false;
+  try {
+    return localStorage.getItem('fateWhenSetImmediate') !== '1';
+  } catch(e) {
+    return true;
+  }
+}
+
+window.setFateWhenSetImmediateMode = function(enabled) {
+  try {
+    if(enabled) localStorage.setItem('fateWhenSetImmediate', '1');
+    else localStorage.removeItem('fateWhenSetImmediate');
+  } catch(e) {}
+  if(typeof window !== 'undefined') window.FATE_DEFER_WHEN_SET_EFFECTS = !enabled;
+  toast(enabled ? 'When-set effects will activate immediately.' : 'When-set effects will wait for manual activation.');
+};
+
+function cardHasDeferredSetEffect(card) {
+  if(!card || isFaceDownCard(card)) return false;
+  const id = String(card.id || '');
+  return WINDOWED_WHEN_SET_EFFECT_IDS.has(id) && (WHEN_SET_IDS.has(id) || (card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial));
+}
+
+function queueDeferredWhenSetEffect(card, z, r, c) {
+  if(!card || !cardHasDeferredSetEffect(card)) return false;
+  card._pendingWhenSetEffect = {
+    z,
+    r,
+    c,
+    owner: typeof card.owner === 'number' ? card.owner : G.currentPlayer,
+    turnQueued: G.turn
+  };
+  card._effectNegatedByReaction = false;
+  if(card.type === 'Supporter') card.whenSetActivated = false;
+  return true;
+}
+
+function canActivatePendingWhenSetEffect(card, z, r, c, player = G.currentPlayer) {
+  if(!card || !card._pendingWhenSetEffect || isFaceDownCard(card)) return false;
+  if(card.owner !== player || G.currentPlayer !== player) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return false;
+  const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null;
+  if(!pos) return false;
+  if(typeof z === 'number' && (pos.z !== z || pos.r !== r || pos.c !== c)) return false;
+  return cardHasDeferredSetEffect(card);
+}
+
+async function activatePendingWhenSetEffect(card, z, r, c) {
+  if(!canActivatePendingWhenSetEffect(card, z, r, c, G.currentPlayer)) {
+    toast('This effect can only be activated during its owner\'s turn.');
+    return;
+  }
+  const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : {z,r,c};
+  const az = pos && typeof pos.z === 'number' ? pos.z : z;
+  const ar = pos && typeof pos.r === 'number' ? pos.r : r;
+  const ac = pos && typeof pos.c === 'number' ? pos.c : c;
+  if(card.type === 'Supporter' && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(G.currentPlayer)) {
+    toast('Snow on the Carpathians: only one Supporter effect can activate each turn.');
+    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Snow on the Carpathians', 'major');
+    return;
+  }
+  delete card._pendingWhenSetEffect;
+  if(typeof closeModal === 'function') closeModal();
+  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(az, ar, ac, card);
+  if(typeof playSfx === 'function') playSfx('effect');
+  await triggerWhenSet(card, az, ar, ac, { forceImmediate:true, manualActivation:true });
+  renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+}
+
+async function triggerWhenSet(inst, z, r, c, opts = {}) {
   if(!inst || isFaceDownCard(inst)) return;
   const cp = G.currentPlayer;
   const opp = 1-cp;
@@ -2371,10 +2458,15 @@ async function triggerWhenSet(inst, z, r, c) {
     return;
   }
 
-  // Fire effects immediately on card set (no modal prompt)
+  // By default, set effects are queued so the player deliberately activates them
+  // from the card window instead of receiving a modal the moment the card lands.
   const _hasWhenSet = WHEN_SET_IDS.has(id);
-  const initiatorIds = ['03','04','06','07','08','13','17','21','22','27','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25'];
-  const isInitiatorWithEffect = inst.type==='Initiator' && initiatorIds.includes(id) && !inst.effectUsedInitial;
+  const isInitiatorWithEffect = inst.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !inst.effectUsedInitial;
+  if(!opts.forceImmediate && whenSetEffectsAreDeferred() && cardHasDeferredSetEffect(inst) && (_hasWhenSet || isInitiatorWithEffect)) {
+    queueDeferredWhenSetEffect(inst, z, r, c);
+    G.selectedBoardCard = null;
+    return;
+  }
   
   // Initiators fire their character effect
   if(isInitiatorWithEffect) {
@@ -2422,6 +2514,8 @@ function canRetryInitialSetEffect(card) {
 }
 
 window.markInitialEffectResolved = markInitialEffectResolved;
+window.canActivatePendingWhenSetEffect = canActivatePendingWhenSetEffect;
+window.activatePendingWhenSetEffect = activatePendingWhenSetEffect;
 
 // Actual effect execution (separated so prompt can wrap it)
 async function runWhenSetEffect(inst, z, r, c) {
@@ -2656,6 +2750,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         toast('No supporters in discard');break;
       }
       pickFromDiscard(cp,'Supporter','Add a Supporter from discard to hand:',(c)=>{
+        if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'discard', G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, c);
         else G.players[cp].hand.push(c);
         G.players[cp].discard=G.players[cp].discard.filter(d=>d.iid!==c.iid);
@@ -2805,6 +2900,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand'},(picked)=>{
         if(picked.length===0) return;
         const chosen = picked[0];
+        if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, chosen, 'deck', G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, chosen);
         else G.players[cp].hand.push(chosen);
         G.players[cp].deck = G.players[cp].deck.filter(d=>d.iid!==chosen.iid);
@@ -3195,6 +3291,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       highlightForBlock(z, card); break;
     case '06': // Jorge Alvarez: search deck for non-star card
       searchDeckForCard(cp, c=>c.rarity!=='star','Search deck (no Stars):', inst=>{
+        if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, inst, 'deck', G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, inst);
         else G.players[cp].hand.push(inst);
         toast('Added '+inst.name+' to hand');
@@ -3217,6 +3314,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       }, (chosen)=>{
         chosen.forEach(c=>{
           c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
+          if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'deck', G.players[cp].hand.length);
           if(typeof addCardToHand==='function') addCardToHand(cp, c);
           else G.players[cp].hand.push(c);
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
@@ -3229,6 +3327,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     } break;
     case '08': // Lina: search Reality card from deck/discard, set for free
       searchAnySource(cp,c=>c.aff==='reality','Search for a Reality card:',(found)=>{
+        const source = G.players[cp].deck.some(x=>x && x.iid===found.iid) ? 'deck' : 'discard';
+        if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, found, source, G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, found);
         else G.players[cp].hand.push(found);
         beginImmediateFreePlacement(cp, found, 'Place ' + found.name + ' for free from Lina\'s effect.');
@@ -3236,14 +3336,14 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       }); break;
     case '13': // Johnathan Kirby: search deck for 2 supporters
       searchDeckForType(cp,'Supporter','Search for up to 2 Supporters:',2); break;
-    case '22': // Isaac Perez: choose up to 2 controlled cards in this zone; +2 Fate permanently
-      pickMultipleInZone(z,2,'Isaac Perez: Select up to 2 cards you control in this zone to gain +2 Fate permanently:',(targets)=>{
+    case '22': // Isaac Perez: choose up to 2 controlled cards in this zone; +3 Fate permanently
+      pickMultipleInZone(z,2,'Isaac Perez: Select up to 2 cards you control in this zone to gain +3 Fate permanently:',(targets)=>{
         if(!targets || !targets.length){toast('No cards selected');return;}
         targets.forEach(t=>{
           const target = t.card || t;
-          if(target && target.owner===cp) modifyFate(target,2,'permanent');
+          if(target && target.owner===cp) modifyFate(target,3,'permanent');
         });
-        toast('Isaac increased '+targets.length+' card'+(targets.length===1?'':'s')+' by +2 Fate permanently');
+        toast('Isaac increased '+targets.length+' card'+(targets.length===1?'':'s')+' by +3 Fate permanently');
         markInitialEffectResolved(card);
         renderGame();
       },c=>c.owner===cp); break;
@@ -3293,6 +3393,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           confirmLabel:'Add to Hand'
         }, (chosen)=>{
           chosen.forEach(c=>{
+            const source = G.players[cp].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+            if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, source, G.players[cp].hand.length);
             if(typeof addCardToHand==='function') addCardToHand(cp, c);
             else G.players[cp].hand.push(c);
             G.players[cp].deck=G.players[cp].deck.filter(x=>x.iid!==c.iid);
@@ -4183,8 +4285,7 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   for(let zz=0; zz<(G.board ? G.board.length : 3); zz++){
     G.board[zz].forEach((row,rr)=>row.forEach((cell,cc)=>{
       if(cell || isBlocked(zz,rr,cc)) return;
-      const rowOwner = rr===0 ? 1 : rr===1 ? -1 : rr===2 ? 0 : cp;
-      if(rowOwner===cp || rowOwner===-1){
+      if(isContestedOrOwnSafeSquare(zz, rr, cc, cp)){
         options.push({z:zz,r:rr,c:cc});
         const el=document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
         if(el) el.classList.add('placeable','move-target');

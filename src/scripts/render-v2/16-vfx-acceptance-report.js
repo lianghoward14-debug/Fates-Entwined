@@ -10,16 +10,29 @@
     'DRAW_CARD',
     'DISCARD_CARD',
     'DESTROY_CARD',
+    'MOVE_CARD',
+    'SWAP_CARDS',
+    'RETURN_TO_HAND',
+    'HAND_DISCARD',
+    'DECK_TO_BOARD',
+    'DECK_TO_HAND',
+    'DISCARD_TO_HAND',
+    'SEARCH_TO_HAND',
+    'CARD_REVEAL',
     'FATE_GAIN',
     'FATE_LOSS',
     'CONSOLIDATE',
     'SUPPORTER_ACTIVATE',
     'LANDSCAPE_TRIGGER',
+    'ZONE_SHIFT',
+    'ZONE_SCORE',
+    'ZONE_WIN_FLIP',
+    'INVALID_ACTION',
     'TURN_START',
     'TURN_END'
   ];
-  const NORMAL_MOTION_RECIPES = ['PLAY_CARD', 'DRAW_CARD', 'DISCARD_CARD', 'CONSOLIDATE'];
-  const NOISY_PRIMITIVES = ['particleBurst', 'screenFlash', 'shockwaveRing', 'boardDim', 'spotlight'];
+  const NORMAL_MOTION_RECIPES = ['PLAY_CARD', 'DRAW_CARD', 'DISCARD_CARD', 'DESTROY_CARD', 'MOVE_CARD', 'SWAP_CARDS', 'RETURN_TO_HAND', 'HAND_DISCARD', 'DECK_TO_BOARD', 'DECK_TO_HAND', 'DISCARD_TO_HAND', 'SEARCH_TO_HAND', 'CONSOLIDATE'];
+  const NOISY_PRIMITIVES = ['particleBurst', 'screenFlash', 'shockwaveRing', 'boardDim', 'spotlight', 'beam', 'cardTrail', 'cardGlow'];
   const REQUIRED_PRIMITIVES = [
     'cardMove',
     'cardLift',
@@ -28,6 +41,7 @@
     'cardShake',
     'cardDissolve',
     'cardSummon',
+    'cardImpact',
     'cardTrail',
     'shockwaveRing',
     'particleBurst',
@@ -161,6 +175,17 @@
     if(!motionFx.ownsDiscard) blockers.push('motion-fx-discard-missing');
     if(!motionFx.ownsFlip) blockers.push('motion-fx-flip-missing');
     if(!motionFx.ownsConsolidation) blockers.push('motion-fx-consolidation-missing');
+    if(!motionFx.ownsBoardMove) blockers.push('motion-fx-board-move-missing');
+    if(!motionFx.ownsSwap) blockers.push('motion-fx-swap-missing');
+    if(!motionFx.ownsReturnToHand) blockers.push('motion-fx-return-to-hand-missing');
+    if(!motionFx.ownsHandDiscard) blockers.push('motion-fx-hand-discard-missing');
+    if(!motionFx.ownsDeckToBoard) blockers.push('motion-fx-deck-to-board-missing');
+    if(!motionFx.ownsDeckToHand) blockers.push('motion-fx-deck-to-hand-missing');
+    if(!motionFx.ownsDiscardToHand) blockers.push('motion-fx-discard-to-hand-missing');
+    if(!motionFx.ownsSearchToHand) blockers.push('motion-fx-search-to-hand-missing');
+    if(!motionFx.ownsReveal) blockers.push('motion-fx-reveal-missing');
+    if(!motionFx.ownsSupporterEffect) blockers.push('motion-fx-supporter-effect-missing');
+    if(!motionFx.ownsZoneMotion) blockers.push('motion-fx-zone-motion-missing');
     if(!motionFx.usesHitMapRects) blockers.push('motion-fx-hit-map-rects-missing');
     if(!drag || !drag.usesHitMap) blockers.push('hand-drag-not-hit-map-owned');
     if(drag && drag.usesDomHand) blockers.push('hand-drag-uses-dom-hand');

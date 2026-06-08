@@ -8,6 +8,8 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const portFlag = process.argv.indexOf('--port');
 const port = Number(portFlag >= 0 ? process.argv[portFlag + 1] : process.env.PORT) || 8126;
+const hostFlag = process.argv.indexOf('--host');
+const host = String(hostFlag >= 0 ? process.argv[hostFlag + 1] : process.env.HOST || '127.0.0.1');
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -68,6 +70,6 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Solo multiplayer server listening at http://127.0.0.1:${port}/`);
+server.listen(port, host, () => {
+  console.log(`Solo multiplayer server listening at http://${host}:${port}/`);
 });

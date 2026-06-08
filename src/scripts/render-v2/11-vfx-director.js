@@ -125,6 +125,59 @@
     };
   }
 
+  function rectFromCenter(cx, cy, w, h){
+    return {x:cx - w / 2, y:cy - h / 2, w, h};
+  }
+
+  function pointBetween(a, b, t){
+    return {
+      x:lerp(Number(a && a.x) || 0, Number(b && b.x) || 0, t),
+      y:lerp(Number(a && a.y) || 0, Number(b && b.y) || 0, t)
+    };
+  }
+
+  function cardMoveRect(p, raw, eased){
+    const from = rect(p.fromRect) || rect(p.rect) || rect(p.toRect);
+    const to = rect(p.toRect) || rect(p.rect) || from;
+    if(!from || !to) return null;
+    const fromC = center(from);
+    const toC = center(to);
+    const path = String(p.path || 'arc').toLowerCase();
+    const overshoot = clamp(Number(p.overshoot) || 0, 0, .32);
+    let travel = eased;
+    let cx;
+    let cy;
+    if(overshoot > 0 && raw > .76){
+      const overX = toC.x + (toC.x - fromC.x) * overshoot;
+      const overY = toC.y + (toC.y - fromC.y) * overshoot;
+      const settleT = clamp((raw - .76) / .24, 0, 1);
+      const a = pointBetween(fromC, {x:overX, y:overY}, clamp(eased / .96, 0, 1));
+      cx = lerp(a.x, toC.x, ease('out-back-soft', settleT));
+      cy = lerp(a.y, toC.y, ease('out-back-soft', settleT));
+    } else {
+      const c = pointBetween(fromC, toC, travel);
+      cx = c.x;
+      cy = c.y;
+    }
+    const w = lerp(from.w, to.w, travel);
+    const h = lerp(from.h, to.h, travel);
+    const dist = Math.hypot(toC.x - fromC.x, toC.y - fromC.y);
+    const arcBase = Math.max(18, Math.min(180, dist * .18));
+    const pathArc = path === 'direct' ? 0
+      : path === 'snap' ? .08
+      : path === 'drop' ? -.18
+      : path === 'withdraw' ? .12
+      : path === 'overshoot' ? .22
+      : .18;
+    const arc = Number.isFinite(Number(p.arc)) ? Number(p.arc) : pathArc;
+    const lift = Number.isFinite(Number(p.lift)) ? Number(p.lift) : (path === 'direct' ? .04 : .18);
+    const liftY = Math.sin(Math.PI * raw) * lift * Math.max(16, h * .30);
+    const arcY = Math.sin(Math.PI * raw) * arc * arcBase;
+    if(path === 'drop') cy += Math.abs(arcY) * .72;
+    else cy -= liftY + arcY;
+    return rectFromCenter(cx, cy, w, h);
+  }
+
   function scheduleRender(reason){
     const adapter = window.FateMatchRendererAdapter;
     if(adapter && typeof adapter.scheduleRender === 'function') adapter.scheduleRender(reason || 'vfx-animation');
@@ -414,6 +467,23 @@
     ctx.restore();
   }
 
+  function drawCardMotionShadow(ctx, r, raw, liftAmount){
+    if(!ctx || !r) return;
+    const lift = clamp(Number(liftAmount) || 0, 0, 1);
+    const alpha = Math.max(.10, .28 - lift * .12) * (1 - Math.max(0, Math.abs(raw - .5) - .42) * 2);
+    const shadowW = r.w * (1.04 + lift * .22);
+    const shadowH = Math.max(6, r.h * (.075 + lift * .025));
+    const x = r.x + r.w / 2;
+    const y = r.y + r.h - shadowH * .22 + lift * r.h * .10;
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha, 0, .34);
+    ctx.fillStyle = 'rgba(0,0,0,.34)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, shadowW / 2, shadowH / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawPrimitive(ctx, p, metrics){
     if(!ctx || !p || !activeAtDraw(p)) return;
     const t = p.eased;
@@ -560,41 +630,74 @@
       const text = String(p.text || '');
       const isFateDelta = p.theme === 'fate-delta' || p.theme === 'fate-loss' || p.theme === 'fate-gain' || /^[-+]/.test(text);
       const isLoss = p.theme === 'fate-loss' || /^-/.test(text);
-      const rise = Number(p.rise) || (isFateDelta ? 34 : 38);
+      const rise = Number(p.rise) || (isFateDelta ? Math.max(42, r.h * .34) : 38);
       const hold = isFateDelta
-        ? (p.progress < .1 ? (p.progress / .1) : (p.progress > .84 ? (1 - p.progress) / .16 : 1))
+        ? (p.progress < .06 ? (p.progress / .06) : (p.progress > .88 ? (1 - p.progress) / .12 : 1))
         : Math.sin(Math.PI * p.progress);
-      const scale = isFateDelta ? (1 + Math.sin(Math.PI * Math.min(1, p.progress * 1.2)) * .1) : (1 + Math.sin(Math.PI * p.progress) * .18);
+      const pop = isFateDelta ? Math.min(1, p.progress / .18) : p.progress;
+      const scale = isFateDelta
+        ? (.72 + ease('out-back-soft', pop) * .38 - Math.max(0, p.progress - .36) * .06)
+        : (1 + Math.sin(Math.PI * p.progress) * .18);
+      const x = isFateDelta ? (r.x + r.w * .82) : (r.x + r.w / 2);
+      const y = isFateDelta ? (r.y - 8 - rise * t) : (r.y + r.h * .22 - rise * t);
+      const color = p.color || (isFateDelta ? (isLoss ? '#ff6060' : '#7fff90') : '#ffe37a');
+      const glow = isFateDelta ? (isLoss ? 'rgba(255,96,96,.62)' : 'rgba(127,255,144,.62)') : 'rgba(255,226,105,.28)';
       ctx.save();
       ctx.globalAlpha = clamp(hold, 0, 1);
-      ctx.translate(r.x + r.w / 2, r.y + r.h * .22 - rise * t);
+      ctx.translate(x, y);
       ctx.scale(scale, scale);
-      ctx.fillStyle = p.color || (isFateDelta ? (isLoss ? '#ff6470' : '#65f08a') : '#ffe37a');
-      ctx.strokeStyle = 'rgba(0,0,0,.82)';
-      ctx.lineWidth = isFateDelta ? 5 : 4;
-      ctx.shadowColor = isFateDelta ? (isLoss ? 'rgba(255,74,88,.58)' : 'rgba(101,240,138,.58)') : 'rgba(255,226,105,.28)';
-      ctx.shadowBlur = isFateDelta ? 13 : 0;
-      ctx.font = '900 ' + Math.max(18, Math.round(r.w * (isFateDelta ? .19 : .17))) + 'px Cinzel, serif';
+      ctx.fillStyle = color;
+      ctx.strokeStyle = isFateDelta ? 'rgba(0,0,0,.92)' : 'rgba(0,0,0,.82)';
+      ctx.lineWidth = isFateDelta ? Math.max(5, Math.round(r.w * .04)) : 4;
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = isFateDelta ? Math.max(12, r.w * .10) : 0;
+      ctx.font = '950 ' + Math.max(24, Math.round(r.w * (isFateDelta ? .255 : .17))) + 'px Cinzel, Georgia, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeText(text, 0, 0);
       ctx.fillText(text, 0, 0);
+      if(isFateDelta){
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha *= .55;
+        ctx.strokeStyle = isLoss ? 'rgba(255,190,196,.80)' : 'rgba(210,255,220,.80)';
+        ctx.lineWidth = 1.2;
+        ctx.strokeText(text, 0, 0);
+      }
       ctx.restore();
       return;
     }
     if(p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift'){
-      let rr = lerpRect(p.fromRect, p.toRect, t);
+      const raw = clamp(Number(p.progress) || 0, 0, 1);
+      const holdPortion = p.kind === 'cardMove' ? clamp((Number(p.holdMs) || 0) / Math.max(1, Number(p.duration) || 1), 0, .38) : 0;
+      const moveRaw = holdPortion ? clamp(raw / Math.max(.001, 1 - holdPortion), 0, 1) : raw;
+      const moveEase = holdPortion ? ease(p.easing || 'out-cubic', moveRaw) : t;
+      let rr = p.kind === 'cardMove' ? cardMoveRect(p, moveRaw, moveEase) : lerpRect(p.fromRect, p.toRect, t);
       if(!rr) rr = rect(p.rect);
       if(!rr) return;
-      const raw = clamp(Number(p.progress) || 0, 0, 1);
       const liftFactor = p.kind === 'cardLift' ? (Number(p.lift) || .18) : (Number(p.lift) || .35);
-      const lift = Math.sin(Math.PI * raw) * liftFactor * Math.max(20, rr.h * .34);
-      const arc = Math.sin(Math.PI * raw) * (Number(p.arc) || 0) * Math.max(20, rr.h * .22);
-      rr.y -= lift + arc;
-      const rotation = (Number(p.rotate) || 0) * Math.PI / 180 * Math.sin(Math.PI * raw);
-      const scale = lerp(1, Number(p.scale) || 1, Math.sin(Math.PI * raw));
+      if(p.kind !== 'cardMove'){
+        const lift = Math.sin(Math.PI * raw) * liftFactor * Math.max(20, rr.h * .34);
+        const arc = Math.sin(Math.PI * raw) * (Number(p.arc) || 0) * Math.max(20, rr.h * .22);
+        rr.y -= lift + arc;
+      }
+      const settleStart = clamp(1 - ((Number(p.settleMs) || 0) / Math.max(1, Number(p.duration) || 1)), .52, 1);
+      const settleT = raw > settleStart ? clamp((raw - settleStart) / Math.max(.001, 1 - settleStart), 0, 1) : 0;
+      const rotation = lerp(
+        (Number(p.startRotate) || 0),
+        (Number(p.endRotate) || 0),
+        t
+      ) * Math.PI / 180 + (Number(p.rotate) || 0) * Math.PI / 180 * Math.sin(Math.PI * raw) * (1 - settleT * .7);
+      const peakScale = Number(p.scale) || 1;
+      const endScale = Number(p.endScale) || 1;
+      let scale = lerp(1, peakScale, Math.sin(Math.PI * raw));
+      if(raw > .72) scale = lerp(scale, endScale, clamp((raw - .72) / .28, 0, 1));
+      if(p.settleMs) scale += Math.sin(Math.PI * settleT) * .018;
       ctx.save();
-      if(p.kind === 'cardDissolve' || p.fadeOut) ctx.globalAlpha = Math.max(0, 1 - raw * .92);
+      let alpha = 1;
+      if(p.fadeIn) alpha *= clamp(raw / .18, 0, 1);
+      if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw * .92);
+      ctx.globalAlpha = alpha;
+      if(p.kind === 'cardMove') drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
       ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
       ctx.rotate(rotation);
       ctx.scale(scale, scale);
@@ -612,7 +715,31 @@
       ctx.scale(sx, .98 + Math.sin(Math.PI * p.progress) * .04);
       drawCard(ctx, p.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.kind === 'cardFlip' && p.progress < .5});
       ctx.restore();
-      drawGlowRect(ctx, r, p.color || 'rgba(255,232,150,.82)', Math.sin(Math.PI * p.progress) * .8);
+      if(!p.noGlow) drawGlowRect(ctx, r, p.color || 'rgba(255,232,150,.82)', Math.sin(Math.PI * p.progress) * .8);
+      return;
+    }
+    if(p.kind === 'cardImpact'){
+      const r = rect(p.rect || p.targetRect || p.toRect);
+      if(!r) return;
+      const amp = Number(p.amplitude) || .055;
+      const hit = Math.sin(Math.PI * p.progress);
+      const settle = Math.sin(Math.PI * Math.min(1, p.progress * 1.45));
+      const sx = 1 + amp * hit;
+      const sy = 1 - amp * .55 * settle;
+      ctx.save();
+      ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+      ctx.scale(sx, sy);
+      if(p.card || p.faceDown) {
+        drawCard(ctx, p.card || null, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.faceDown});
+      } else {
+        const rr = {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h};
+        roundedPath(ctx, rr.x + 2, rr.y + 2, Math.max(1, rr.w - 4), Math.max(1, rr.h - 4), Math.max(6, rr.w * .045));
+        ctx.globalAlpha = Math.max(.18, .44 * (1 - p.progress));
+        ctx.strokeStyle = p.color || 'rgba(255,232,150,.62)';
+        ctx.lineWidth = Math.max(1.5, Math.min(3.5, rr.w * .018));
+        ctx.stroke();
+      }
+      ctx.restore();
       return;
     }
     if(p.kind === 'cardShake'){

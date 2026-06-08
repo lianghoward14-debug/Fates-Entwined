@@ -95,7 +95,7 @@ const CARDS = [
     flavor:'"Our workers\' revolution, this final revolution to usurp Capitalism\'s golden throne - will bring the end of history"',img:'21.png'},
   {id:'22',name:'Isaac Perez',ability:'A Scientist\'s Inquiry',type:'Initiator',aff:'expanded_worlds',
     fate:1,cost:1,rarity:'triangle',
-    effect:'Select up to two cards you control in this zone; permanently increase their Fate by 2.',
+    effect:'Select up to two cards you control in this zone; permanently increase their Fate by 3.',
     flavor:'"The Head Scientist of Alpine\'s experimental method is simple - Always look for another possibility"',img:'22.png'},
   {id:'23',name:'Cathy',ability:'Cardigan Onslaught',type:'Coordinator',aff:'reality',
     fate:3,cost:2,rarity:'triangle',

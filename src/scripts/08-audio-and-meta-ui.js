@@ -1665,6 +1665,7 @@ function transitionGameLandscape(song, opts = {}) {
     }
     G._onlineGameSong = pickedSong;
     if(!opts.remote && typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
+    if(typeof syncTurnTimerToCurrentLimit === 'function') syncTurnTimerToCurrentLimit();
   }
 
   const gameScreen = document.getElementById('s-game');

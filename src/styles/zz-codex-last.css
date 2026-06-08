@@ -12443,6 +12443,214 @@ html body.in-game #fate-corner-dock.game-chat-dock .ingame-chat-panel{
   max-height:calc(100vh - 150px)!important;
 }
 
+html body #s-challenger #ch-elo-val{
+  color:#f7f8ff!important;
+  text-shadow:0 0 8px rgba(255,255,255,.22)!important;
+}
+
+html body #s-challenger .ch-play-v5 .ch-v5-elo,
+html body #s-challenger .ch-play-panel .ch-v5-elo{
+  color:var(--rank-color,#ffd84d)!important;
+  text-shadow:0 0 10px color-mix(in srgb,var(--rank-color,#ffd84d) 55%,transparent)!important;
+  position:relative!important;
+  left:-2px!important;
+}
+
+html body.modal-open .cinematic-subtitle-live{
+  z-index:900!important;
+}
+
+html body #s-game .landscape-panel .landscape-desc,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-desc{
+  font-size:.72rem!important;
+  line-height:1.28!important;
+}
+
+/* Codex 2026-06-08c: status pills lightly nudged toward center; hover tooltip must not hide the pill. */
+html body #s-game #tp-status-left,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-left{
+  transform:translateX(14px)!important;
+  padding-right:.18rem!important;
+  max-width:none!important;
+}
+
+html body #s-game #tp-status-right,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-right{
+  transform:translateX(-14px)!important;
+  padding-left:.18rem!important;
+  max-width:none!important;
+}
+
+html body #s-game .effect-pill,
+html body #s-game .effect-pill:hover,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill:hover{
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+html body #s-game .effect-pill:hover,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill:hover{
+  z-index:30001!important;
+}
+
+html body #s-game .effect-pill-tooltip,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill-tooltip{
+  position:fixed!important;
+  pointer-events:none!important;
+  display:none!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  z-index:50000!important;
+}
+
+html body #s-game .effect-pill:hover .effect-pill-tooltip,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill:hover .effect-pill-tooltip{
+  display:block!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+html body #s-game .effect-pill:hover > .effect-pill-tooltip{
+  display:none!important;
+  opacity:0!important;
+  visibility:hidden!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal{
+  position:fixed!important;
+  display:block!important;
+  width:260px!important;
+  max-width:calc(100vw - 16px)!important;
+  opacity:1!important;
+  visibility:visible!important;
+  pointer-events:none!important;
+  z-index:100000!important;
+  background:linear-gradient(180deg,rgba(9,10,15,.98),rgba(3,4,8,.98))!important;
+  border:1px solid rgba(201,168,76,.42)!important;
+  border-radius:6px!important;
+  box-shadow:0 14px 30px rgba(0,0,0,.58),0 0 0 1px rgba(255,232,140,.06) inset!important;
+  padding:.62rem .68rem!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal .ept-header{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.12rem!important;
+  padding-bottom:.38rem!important;
+  margin-bottom:.42rem!important;
+  border-bottom:1px solid rgba(201,168,76,.14)!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal .ept-name{
+  color:#f4e3a0!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.78rem!important;
+  font-weight:800!important;
+  letter-spacing:.02em!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal .ept-ability{
+  color:#d8b665!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.61rem!important;
+  font-style:italic!important;
+  font-weight:700!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal .ept-effect{
+  color:#d8d3c6!important;
+  font-size:.7rem!important;
+  line-height:1.35!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal .ept-owner{
+  margin-top:.46rem!important;
+  color:rgba(120,170,225,.68)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.56rem!important;
+  font-weight:800!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal.effect-pill-opp .ept-owner{
+  color:rgba(225,120,115,.68)!important;
+}
+
+html body #s-game .topbar:has(.effect-pill:hover),
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .topbar:has(.effect-pill:hover){
+  z-index:260!important;
+}
+
+html body #s-game .turn-hud,
+html body #s-game .turn-hud-timer,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .turn-hud,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .turn-hud-timer{
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+/* Codex 2026-06-08d: smaller command dock button with a cleaner low-cost turn ring. */
+html body #s-game .actbar,
+html body #s-game.opponent-turn .actbar,
+html body #s-game.own-turn .actbar{
+  transform:translateY(3px)!important;
+}
+
+html body #s-game .actbar #btn-end-turn,
+html body #s-game #btn-end-turn{
+  min-width:216px!important;
+  min-height:38px!important;
+  padding:.38rem 2.55rem .34rem 3.08rem!important;
+  font-size:.78rem!important;
+  line-height:1.02!important;
+  letter-spacing:.05em!important;
+  border-width:1px!important;
+  border-radius:5px!important;
+  overflow:hidden!important;
+  background:
+    linear-gradient(90deg,rgba(245,214,116,.14),transparent 22%,transparent 76%,rgba(245,214,116,.10)),
+    linear-gradient(180deg,rgba(17,18,21,.98),rgba(5,7,12,.98))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,246,191,.055),0 5px 10px rgba(0,0,0,.24)!important;
+}
+
+html body #s-game .actbar #btn-end-turn::before,
+html body #s-game #btn-end-turn::before{
+  content:''!important;
+  position:absolute!important;
+  left:.72rem!important;
+  top:50%!important;
+  width:24px!important;
+  height:24px!important;
+  transform:translateY(-50%)!important;
+  border-radius:50%!important;
+  background:
+    conic-gradient(from -40deg,rgba(245,214,116,.96) 0deg 306deg,transparent 307deg 360deg),
+    radial-gradient(circle at 50% 50%,rgba(5,7,12,.98) 0 50%,transparent 51%),
+    radial-gradient(circle,rgba(245,214,116,.18),rgba(245,214,116,0) 66%)!important;
+  box-shadow:0 0 8px rgba(245,214,116,.22),inset 0 0 0 1px rgba(255,246,191,.08)!important;
+}
+
+html body #s-game .actbar #btn-end-turn::after,
+html body #s-game #btn-end-turn::after{
+  content:''!important;
+  position:absolute!important;
+  right:1.08rem!important;
+  top:50%!important;
+  width:14px!important;
+  height:14px!important;
+  transform:translateY(-50%) rotate(45deg)!important;
+  border-top:2px solid rgba(245,214,116,.88)!important;
+  border-right:2px solid rgba(245,214,116,.88)!important;
+  box-shadow:none!important;
+}
+
+html body #s-game .actbar #btn-end-turn:hover::before,
+html body #s-game #btn-end-turn:hover::before{
+  box-shadow:0 0 10px rgba(245,214,116,.30),inset 0 0 0 1px rgba(255,246,191,.12)!important;
+}
+
 @media(max-width:980px){
   html body.in-game #fate-corner-dock.game-chat-dock{
     right:.75rem!important;

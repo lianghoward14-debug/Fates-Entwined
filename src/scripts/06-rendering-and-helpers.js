@@ -2665,10 +2665,46 @@ function coerceStatusOwner(value, fallback) {
 }
 
 let _topbarEffectsLastHtml = null;
+let _effectTooltipPortal = null;
 
 function clearNodeChildren(node) {
   if(!node) return;
   while(node.firstChild) node.removeChild(node.firstChild);
+}
+
+function getEffectTooltipPortal() {
+  if(_effectTooltipPortal && _effectTooltipPortal.isConnected) return _effectTooltipPortal;
+  _effectTooltipPortal = document.createElement('div');
+  _effectTooltipPortal.className = 'effect-pill-tooltip effect-tooltip-portal';
+  _effectTooltipPortal.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_effectTooltipPortal);
+  return _effectTooltipPortal;
+}
+
+function hideEffectTooltipPortal() {
+  if(!_effectTooltipPortal) return;
+  _effectTooltipPortal.className = 'effect-pill-tooltip effect-tooltip-portal';
+  _effectTooltipPortal.style.display = 'none';
+  _effectTooltipPortal.style.opacity = '0';
+  _effectTooltipPortal.style.visibility = 'hidden';
+  _effectTooltipPortal.innerHTML = '';
+  _effectTooltipPortal.removeAttribute('data-side');
+}
+
+function positionEffectTooltipPortal(portal, pill, container) {
+  if(!portal || !pill) return;
+  var rect = pill.getBoundingClientRect();
+  var tipW = 260;
+  var tipH = Math.max(150, portal.offsetHeight || 170);
+  var t = rect.bottom + 6;
+  var l = rect.left;
+  if(container && container.id === 'tp-status-right') l = rect.right - tipW;
+  if(l + tipW > window.innerWidth - 8) l = window.innerWidth - tipW - 8;
+  if(l < 8) l = 8;
+  if(t + tipH > window.innerHeight - 8) t = rect.top - tipH - 6;
+  if(t < 8) t = 8;
+  portal.style.top = t + 'px';
+  portal.style.left = l + 'px';
 }
 
 function ensureEffectTooltipPositioning(container) {
@@ -2679,16 +2715,26 @@ function ensureEffectTooltipPositioning(container) {
     if(!pill || !container.contains(pill)) return;
     var tip = pill.querySelector('.effect-pill-tooltip');
     if(!tip) return;
-    var rect = pill.getBoundingClientRect();
-    var tipW = 260;
-    var t = rect.bottom + 6;
-    var l = rect.left;
-    if(container.id === 'tp-status-right') l = rect.right - tipW;
-    if(l + tipW > window.innerWidth - 8) l = window.innerWidth - tipW - 8;
-    if(l < 8) l = 8;
-    if(t + 200 > window.innerHeight) t = rect.top - 200;
-    tip.style.top = t + 'px';
-    tip.style.left = l + 'px';
+    var portal = getEffectTooltipPortal();
+    var sideClass = pill.classList.contains('effect-pill-opp') ? ' effect-pill-opp' : ' effect-pill-mine';
+    portal.className = 'effect-pill-tooltip effect-tooltip-portal' + sideClass;
+    portal.innerHTML = tip.innerHTML;
+    portal.dataset.side = container.id === 'tp-status-right' ? 'right' : 'left';
+    portal.style.display = 'block';
+    portal.style.opacity = '1';
+    portal.style.visibility = 'visible';
+    positionEffectTooltipPortal(portal, pill, container);
+  });
+  container.addEventListener('mousemove', function(ev) {
+    var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
+    if(!pill || !container.contains(pill) || !_effectTooltipPortal || _effectTooltipPortal.style.display === 'none') return;
+    positionEffectTooltipPortal(_effectTooltipPortal, pill, container);
+  });
+  container.addEventListener('mouseout', function(ev) {
+    var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
+    if(!pill || !container.contains(pill)) return;
+    if(ev.relatedTarget && pill.contains(ev.relatedTarget)) return;
+    hideEffectTooltipPortal();
   });
 }
 
@@ -3780,6 +3826,10 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       && G.phase==='main'
       && !G._isSpectator
       && G._onlineRole !== 'spectator';
+    const canActivateDeferredSetEffect = Number.isInteger(boardActionPlayer)
+      && !isFaceDownCard(bc)
+      && typeof canActivatePendingWhenSetEffect === 'function'
+      && canActivatePendingWhenSetEffect(bc, z, r, c, boardActionPlayer);
     if(isFaceDownCard(bc) && canUseBoardCard){
       const flip=document.createElement('button');
       flip.className='btn sm pri';
@@ -3791,7 +3841,14 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       };
       acts.appendChild(flip);
     }
-    if(canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
+    if(canActivateDeferredSetEffect){
+      const setAct=document.createElement('button');
+      setAct.className='btn sm pri';
+      setAct.textContent='Activate Effect';
+      setAct.onclick=()=>activatePendingWhenSetEffect(bc,z,r,c);
+      acts.appendChild(setAct);
+    }
+    if(!canActivateDeferredSetEffect && canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
       // Coordinators: passive, no manual activation needed
       if(false){
         // No button needed — coordinators are automatic
@@ -3811,7 +3868,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     // no longer freely removable from their card info window.
     if(canUseBoardCard && bc.id!=='76'){
       // Supporter active abilities — specific cards with board-activated effects
-      if(bc.type==='Supporter' && !isFaceDownCard(bc)){
+      if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
         const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
         // Vigilantes (52): discard 4 supporters to remove a card (once per turn)
         if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
@@ -4422,7 +4479,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     <p style="font-size:.78rem;margin-bottom:.3rem;color:var(--dim);font-style:italic;text-align:center;">${sub}</p>
     ${zoneContextHtml}
     <div id="visual-count" style="font-family:'Cinzel',serif;color:var(--gold);font-size:.75rem;margin-bottom:.3rem;text-align:center;">0/${maxCount} selected</div>
-    <canvas id="visual-page-canvas" class="visual-page-canvas" width="760" height="532" style="width:100%;max-width:760px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
+    <canvas id="visual-page-canvas" class="visual-page-canvas" width="840" height="592" style="width:100%;max-width:840px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
     ${totalPages>1?`<div id="visual-pagination" style="display:flex;align-items:center;justify-content:center;gap:.8rem;margin-top:.5rem;padding:.3rem 0;">
       <button class="btn sm" id="vp-prev" style="font-size:.72rem;padding:.3rem .7rem;min-width:60px;">◀ Prev</button>
       <span id="vp-page" style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--dim);letter-spacing:.06em;">1 / ${totalPages}</span>
@@ -4485,6 +4542,18 @@ function pickCardsVisual(cards, opts, onConfirm) {
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
+  function drawImageContain(ctx, img, x, y, w, h) {
+    const srcRatio = img.width / Math.max(1, img.height);
+    const dstRatio = w / Math.max(1, h);
+    let dw = w;
+    let dh = h;
+    if(srcRatio > dstRatio) dh = w / srcRatio;
+    else dw = h * srcRatio;
+    const dx = x + (w - dw) / 2;
+    const dy = y + (h - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
   function getCanvasPointer(ev) {
     const rect = pickerCanvas.getBoundingClientRect();
     return {
@@ -4507,7 +4576,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     pickerDrawToken++;
     const token = pickerDrawToken;
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const cssW = 760, cols = 4, rows = 2, gap = 14, pad = 14;
+    const cssW = 840, cols = 4, rows = 2, gap = 16, pad = 16;
     const cardW = Math.floor((cssW - pad*2 - gap*(cols-1)) / cols);
     const cardH = Math.floor(cardW * 1.4);
     const cssH = pad*2 + rows*cardH + gap*(rows-1);
@@ -4541,7 +4610,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       pickerCtx.fillRect(x, y, cardW, cardH);
       if(visual.img) {
         const cached = pickerImageCache.get(visual.img);
-        if(cached && cached.complete && cached.naturalWidth !== 0) drawImageCover(pickerCtx, cached, x, y, cardW, cardH);
+        if(cached && cached.complete && cached.naturalWidth !== 0) drawImageContain(pickerCtx, cached, x, y, cardW, cardH);
         else {
           loadPickerImage(visual.img);
           pickerCtx.fillStyle = 'rgba(214,180,89,.08)';
@@ -4715,11 +4784,20 @@ function pickCardsVisual(cards, opts, onConfirm) {
   }
 }
 
+function queueSearchToHandMotion(player, card, source, handIndex) {
+  if(!card || !document.getElementById('s-game')?.classList.contains('active')) return false;
+  const motion = window.FateV2CardMotionFx;
+  if(!motion || typeof motion.searchCardToHand !== 'function') return false;
+  const idx = handIndex == null && G && G.players && G.players[player] ? G.players[player].hand.length : handIndex;
+  return !!motion.searchCardToHand(card, player, source || 'deck', {handIndex:idx});
+}
+
 function searchDeckForType(player, type, prompt, maxCount=1) {
   const matches=G.players[player].deck.filter(c=>c.type===type);
   pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand'},
     (chosen)=>{
       chosen.forEach(c=>{
+        queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(player, c);
         else G.players[player].hand.push(c);
         G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -4779,7 +4857,10 @@ function drawAffiliated(player, aff, count) {
   let added=0;
   for(const c of from){
     if(added>=count) break;
-    G.players[player].hand.push(c);
+    const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+    queueSearchToHandMotion(player, c, source, G.players[player].hand.length);
+    if(typeof addCardToHand==='function') addCardToHand(player, c);
+    else G.players[player].hand.push(c);
     G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==c.iid);
     G.players[player].discard=G.players[player].discard.filter(x=>x.iid!==c.iid);
     added++;
@@ -4794,6 +4875,8 @@ function drawSupportersFromDeckOrDiscard(player, count, cb) {
   let added=0;
   for(const c of matches){
     if(added>=count) break;
+    const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+    queueSearchToHandMotion(player, c, source, G.players[player].hand.length);
     if(typeof addCardToHand==='function') addCardToHand(player, c);
     else G.players[player].hand.push(c);
     G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -4810,6 +4893,7 @@ function addAffFromDeckDiscard(player, aff) {
   let added = 0;
   const addChosen = (card, source) => {
     if(!card) return;
+    queueSearchToHandMotion(player, card, source || 'deck', G.players[player].hand.length);
     if(typeof addCardToHand==='function') addCardToHand(player, card);
     else G.players[player].hand.push(card);
     if(source === 'deck') G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==card.iid);
@@ -5422,11 +5506,12 @@ function discardBoardCard(card, z, r, c) {
     return;
   }
   // Try to play discard animation on the DOM element before removing
-  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
+  const suppressDiscardVfx = !!card._suppressDiscardVfx;
+  if(!suppressDiscardVfx && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
     window.FateV2CardMotionFx.flyBoardCard(card, z, r, c, 'discard');
   }
   const rendererV2OwnsBoard = rendererV2OwnsBoardScene();
-  if(!rendererV2OwnsBoard){
+  if(!suppressDiscardVfx && !rendererV2OwnsBoard){
     const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"] .bc`);
     if(cellEl){
       // Fly toward the opponent's discard pile (roughly offscreen for now)
@@ -5437,6 +5522,7 @@ function discardBoardCard(card, z, r, c) {
     }
   }
   G.board[z][r][c] = null;
+  if(suppressDiscardVfx) delete card._suppressDiscardVfx;
   playDiscardSfx();
   // Berkeley CS Major (50): zone lock (set/consolidate block) persists for its duration,
   // but effect activation suppression stops when Berkeley leaves the field.
@@ -5616,15 +5702,18 @@ function showFinalZoneReveal(zResults, opts) {
     const z = Number(zr.z);
     const ctrl = Number.isInteger(zr.ctrl) ? zr.ctrl : -1;
     const zoneEl = document.querySelector('#board .zone[data-zone="'+z+'"]');
-    if(!zoneEl) return;
-    zoneEl.style.setProperty('--final-zone-delay', '0ms');
     const label = ctrl === 0 ? (G.players?.[0]?.name || 'Player 1') : ctrl === 1 ? (G.players?.[1]?.name || 'Player 2') : 'Tied';
-    zoneEl.dataset.finalZoneLabel = ctrl >= 0 ? (label + ' controls') : 'Zone tied';
-    zoneEl.dataset.finalZoneScore = String(zr.s0 || 0) + ' - ' + String(zr.s1 || 0);
+    if(zoneEl) {
+      zoneEl.style.setProperty('--final-zone-delay', '0ms');
+      zoneEl.dataset.finalZoneLabel = ctrl >= 0 ? (label + ' controls') : 'Zone tied';
+      zoneEl.dataset.finalZoneScore = String(zr.s0 || 0) + ' - ' + String(zr.s1 || 0);
+    }
     const addTimer = setTimeout(function(){
-      zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
-      void zoneEl.offsetWidth;
-      zoneEl.classList.add('final-zone-board-flash', ctrl === 0 ? 'final-zone-board-p1' : ctrl === 1 ? 'final-zone-board-p2' : 'final-zone-board-tie');
+      if(zoneEl) {
+        zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
+        void zoneEl.offsetWidth;
+        zoneEl.classList.add('final-zone-board-flash', ctrl === 0 ? 'final-zone-board-p1' : ctrl === 1 ? 'final-zone-board-p2' : 'final-zone-board-tie');
+      }
       if(G) {
         G._finalZoneCanvasFlash = {
           z:z,
@@ -5641,7 +5730,7 @@ function showFinalZoneReveal(zResults, opts) {
       if(typeof playSfx === 'function') playSfx('hover');
     }, i * revealStepMs);
     const removeTimer = setTimeout(function(){
-      zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
+      if(zoneEl) zoneEl.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
       if(G && G._finalZoneCanvasFlash && Number(G._finalZoneCanvasFlash.z) === z) G._finalZoneCanvasFlash = null;
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
         window.FateMatchRendererAdapter.scheduleRender('final-zone-flash');
@@ -5820,6 +5909,7 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
   const line = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
   if(!line) return null;
+  if(document.body && document.body.classList.contains('modal-open')) return null;
   document.querySelectorAll('.cinematic-subtitle-live').forEach(function(el){ el.remove(); });
   const el = document.createElement('div');
   el.className = 'cinematic-subtitle-live rarity-' + String(rarity || (cardOrLine && cardOrLine.rarity) || 'circle').toLowerCase();
@@ -5879,13 +5969,6 @@ function showConsolidationCinematic(card, opts) {
     'transition:opacity '+(perfLite ? '.08s' : '.12s')+' ease-out;contain:layout style paint;' +
     'background:'+(perfLite ? 'rgba(0,0,0,.62)' : 'radial-gradient(circle at 50% 50%,rgba('+rgbStr+',.09),rgba(0,0,0,.7) 54%,rgba(0,0,0,.88))')+';'
   );
-
-  if(enhancedFx){
-    var glyphs = document.createElement('div');
-    glyphs.className = 'fx-cine-glyphs';
-    glyphs.innerHTML = '<span>FATE</span><span>ENTWINED</span><span>ASCEND</span><span>THREAD</span>';
-    overlay.appendChild(glyphs);
-  }
 
   var sigil = document.createElement('div');
   sigil.className = 'cc-sigil-v2 rarity-' + rarity;

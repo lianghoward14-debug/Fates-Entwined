@@ -3086,6 +3086,7 @@ function getCinematicVoiceline(card) {
 function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   const line = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
   if(!line) return null;
+  if(document.body && document.body.classList.contains('modal-open')) return null;
   document.querySelectorAll('.cinematic-subtitle-live').forEach(function(el){ el.remove(); });
   const el = document.createElement('div');
   el.className = 'cinematic-subtitle-live rarity-' + String(rarity || (cardOrLine && cardOrLine.rarity) || 'circle').toLowerCase();

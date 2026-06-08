@@ -337,17 +337,31 @@
           } else if(hit.command === 'audio' && typeof showAudioSettings === 'function') {
             showAudioSettings();
           } else if(hit.command === 'world-chat') {
-            const inGameWidget = document.getElementById('ingame-chat-widget');
-            if(inGameWidget && typeof toggleInGameChat === 'function') {
-              if(!inGameWidget.classList || !inGameWidget.classList.contains('is-open')) toggleInGameChat();
-              if(typeof switchInGameChatTab === 'function') switchInGameChatTab('world');
-              const input = document.getElementById('igwc-input') || document.getElementById('igc-input');
-              if(input && typeof input.focus === 'function') input.focus();
-            } else if(typeof toggleWorldChat === 'function') {
-              toggleWorldChat();
-            } else {
-              const toggle = document.querySelector('#world-chat-toggle,.world-chat-toggle');
-              if(toggle && typeof toggle.click === 'function') toggle.click();
+            let inGameWidget = document.getElementById('ingame-chat-widget');
+            if(!inGameWidget && typeof initInGameChat === 'function') {
+              try { initInGameChat(); } catch(e) {}
+              inGameWidget = document.getElementById('ingame-chat-widget');
+            }
+            const openInGameChat = function(){
+              if(inGameWidget && typeof toggleInGameChat === 'function') {
+                if(!inGameWidget.classList || !inGameWidget.classList.contains('is-open')) toggleInGameChat();
+                if(typeof switchInGameChatTab === 'function') switchInGameChatTab('world');
+                const input = document.getElementById('igwc-input') || document.getElementById('igc-input');
+                if(input && typeof input.focus === 'function') input.focus({preventScroll:true});
+                return true;
+              }
+              return false;
+            };
+            if(!openInGameChat()) {
+              if(typeof initWorldChat === 'function') {
+                try { initWorldChat(); } catch(e) {}
+              }
+              if(typeof toggleWorldChat === 'function') {
+                toggleWorldChat();
+              } else {
+                const toggle = document.querySelector('#world-chat-toggle,.world-chat-toggle');
+                if(toggle && typeof toggle.click === 'function') toggle.click();
+              }
             }
           }
         }

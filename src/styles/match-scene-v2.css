@@ -517,7 +517,8 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel {
   position: relative !important;
   min-height: 186px !important;
-  padding: 1.05rem .92rem !important;
+  padding: .9rem .92rem .98rem !important;
+  gap: .16rem !important;
   border: 1.2px solid rgba(255,220,92,.66) !important;
   border-radius: 7px !important;
   background: linear-gradient(180deg, rgba(8,11,18,.90), rgba(2,3,8,.96)) !important;
@@ -555,27 +556,34 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel:
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-kicker {
   color: rgba(169,189,255,.74) !important;
-  font-size: .58rem !important;
+  font-size: .56rem !important;
   letter-spacing: .22em !important;
   text-transform: uppercase !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-name {
-  margin-top: .28rem !important;
+  margin-top: .14rem !important;
   color: #e6c65e !important;
-  font-size: .76rem !important;
-  line-height: 1.22 !important;
+  font-size: .74rem !important;
+  line-height: 1.2 !important;
   letter-spacing: .08em !important;
   text-shadow: 0 0 10px rgba(255,218,88,.18) !important;
   text-shadow: none !important;
 }
 
-html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-desc,
-html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-note {
-  margin-top: .64rem !important;
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-desc {
+  margin-top: .24rem !important;
   color: rgba(246,240,218,.86) !important;
-  font-size: .64rem !important;
-  line-height: 1.25 !important;
+  font-size: .74rem !important;
+  line-height: 1.28 !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-note {
+  margin-top: .28rem !important;
+  padding-top: .12rem !important;
+  color: rgba(246,240,218,.86) !important;
+  font-size: .52rem !important;
+  line-height: 1.14 !important;
 }
 
 html.fate-match-renderer-v2-mode body #modal.on {

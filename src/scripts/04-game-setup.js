@@ -968,9 +968,16 @@ async function drawCard(player, count=1, options = {}) {
       log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +4 Fate`);
     }
     playSfx('draw');
-    // Animate card flying from deck to hand (only for the human player & if game screen is active)
-    if(player===myP && document.getElementById('s-game')?.classList.contains('active')){
-      animateDrawCard(i);
+    // Animate visible draws for both players. Render-v2 uses canvas-only motion; legacy DOM draw stays own-hand only.
+    if(document.getElementById('s-game')?.classList.contains('active')){
+      let v2DrawQueued = false;
+      if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
+        v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(i, player, {
+          card,
+          faceDown:player !== myP
+        });
+      }
+      if(!v2DrawQueued && player===myP) animateDrawCard(i);
     }
     if(!options.drawPhase && !options.openingHand && !outsideDrawLandscapeCard){
       outsideDrawLandscapeCard = card;

@@ -1681,7 +1681,18 @@ async function aiDoConsolidate(choice) {
         G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
       }
     });
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
+      window.FateV2CardMotionFx.crashTributes(choice.tributes, {
+        card:inst,
+        resultCard:inst,
+        z:target.z,
+        r:target.r,
+        c:target.c,
+        faceDown:useFaceDown
+      });
+    }
     choice.tributes.forEach(t=>{
+      if(t && t.card) t.card._suppressDiscardVfx = true;
       discardBoardCard(t.card, t.z, t.r, t.c);
     });
   } catch(err) {
@@ -1690,7 +1701,7 @@ async function aiDoConsolidate(choice) {
     G.board[target.z][target.r][target.c] = inst;
   }
   if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-  const placementDelay = triggerPlacementAnimation(inst, target.z, target.r, target.c);
+  const placementDelay = Math.min(1250, 560 + choice.tributes.length * 96);
   if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
   let cinematicRequested = false;
   const requestConsolidationCinematic = function(){
@@ -1706,10 +1717,7 @@ async function aiDoConsolidate(choice) {
   hand.splice(idx,1);
   log('p2', `AI consolidated ${choice.card.name} into Zone ${target.z+1}${useFaceDown ? ' face down' : ''}`);
   renderGame();
-  // Defer consolidation visual to after renderGame's rAF so it isn't wiped by the DOM rebuild
-  requestAnimationFrame(() => { requestAnimationFrame(() => { if(typeof showConsolidateVisual === 'function') showConsolidateVisual(target.z, target.r, target.c); }); });
   await resolveSetCardAfterPlacement(inst, target.z, target.r, target.c);
-  if(!useFaceDown) setTimeout(requestConsolidationCinematic, 120);
   renderGame();
   await aiSleep(AI_VISUAL_PAUSE_CONSOLIDATE);
 }
@@ -2714,8 +2722,8 @@ async function aiRunEffect(card, z, r, c) {
       }));
       targets.sort((a,b)=>(b.currentFate||b.fate||0)-(a.currentFate||a.fate||0));
       const chosen = targets.slice(0,2);
-      chosen.forEach(target=>modifyFate(target,2,'permanent'));
-      log('p2', `AI: Isaac Perez increased ${chosen.length} card${chosen.length===1?'':'s'} by +2 Fate`);
+      chosen.forEach(target=>modifyFate(target,3,'permanent'));
+      log('p2', `AI: Isaac Perez increased ${chosen.length} card${chosen.length===1?'':'s'} by +3 Fate`);
       break;
     }
     case '77': { // Duncan Heyward: declare affiliation — ALWAYS pick third_great_war for Free World deck
