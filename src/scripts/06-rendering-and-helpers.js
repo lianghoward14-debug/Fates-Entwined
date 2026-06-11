@@ -2666,6 +2666,7 @@ function coerceStatusOwner(value, fallback) {
 
 let _topbarEffectsLastHtml = null;
 let _effectTooltipPortal = null;
+let _effectTooltipGlobalCleanupBound = false;
 
 function clearNodeChildren(node) {
   if(!node) return;
@@ -2691,6 +2692,20 @@ function hideEffectTooltipPortal() {
   _effectTooltipPortal.removeAttribute('data-side');
 }
 
+function bindEffectTooltipGlobalCleanup() {
+  if(_effectTooltipGlobalCleanupBound) return;
+  _effectTooltipGlobalCleanupBound = true;
+  document.addEventListener('pointermove', function(ev) {
+    if(!_effectTooltipPortal || _effectTooltipPortal.style.display === 'none') return;
+    var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
+    if(!pill) hideEffectTooltipPortal();
+  }, {passive:true});
+  window.addEventListener('blur', hideEffectTooltipPortal);
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden) hideEffectTooltipPortal();
+  });
+}
+
 function positionEffectTooltipPortal(portal, pill, container) {
   if(!portal || !pill) return;
   var rect = pill.getBoundingClientRect();
@@ -2710,11 +2725,15 @@ function positionEffectTooltipPortal(portal, pill, container) {
 function ensureEffectTooltipPositioning(container) {
   if(!container || container.dataset.tooltipPositioningBound === '1') return;
   container.dataset.tooltipPositioningBound = '1';
+  bindEffectTooltipGlobalCleanup();
   container.addEventListener('mouseover', function(ev) {
     var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
     if(!pill || !container.contains(pill)) return;
     var tip = pill.querySelector('.effect-pill-tooltip');
-    if(!tip) return;
+    if(!tip || !tip.textContent.trim()) {
+      hideEffectTooltipPortal();
+      return;
+    }
     var portal = getEffectTooltipPortal();
     var sideClass = pill.classList.contains('effect-pill-opp') ? ' effect-pill-opp' : ' effect-pill-mine';
     portal.className = 'effect-pill-tooltip effect-tooltip-portal' + sideClass;
@@ -2769,6 +2788,7 @@ function createEffectPillNode() {
 
 function syncEffectPills(container, effects, side) {
   if(!container) return '';
+  if(!effects.length) hideEffectTooltipPortal();
   var sideClass = side === 'left' ? 'effect-pill-mine' : 'effect-pill-opp';
   var signatureParts = [];
   for(var i = 0; i < effects.length; i++) {
@@ -5721,7 +5741,7 @@ function showFinalZoneReveal(zResults, opts) {
           s0:zr.s0 || 0,
           s1:zr.s1 || 0,
           start:(typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()),
-          duration:860
+          duration:1260
         };
       }
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
@@ -5735,7 +5755,7 @@ function showFinalZoneReveal(zResults, opts) {
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
         window.FateMatchRendererAdapter.scheduleRender('final-zone-flash');
       }
-    }, i * revealStepMs + 860);
+    }, i * revealStepMs + 1260);
     if(G && Array.isArray(G._finalZoneRevealTimers)) G._finalZoneRevealTimers.push(addTimer, removeTimer);
   });
   const doneTimer = setTimeout(function(){

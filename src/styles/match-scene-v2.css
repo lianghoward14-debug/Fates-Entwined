@@ -137,8 +137,8 @@ html.fate-match-renderer-v2-mode body.fate-v2-dragging-card #s-game {
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *.fate-v2-drag-source {
-  opacity: .28 !important;
-  filter: grayscale(.2) brightness(.78) !important;
+  opacity: 1 !important;
+  filter: none !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 {
@@ -773,7 +773,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
   z-index: 20000 !important;
   pointer-events: none !important;
   display: block !important;
-  opacity: .98 !important;
+  opacity: 1 !important;
   background: transparent !important;
   border: 0 !important;
   box-shadow: 0 14px 22px rgba(0,0,0,.34) !important;
@@ -792,7 +792,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
 }
 
 #fate-v2-drag-ghost.invalid-drop {
-  opacity: .9 !important;
+  opacity: 1 !important;
   box-shadow: 0 14px 22px rgba(0,0,0,.34) !important;
 }
 

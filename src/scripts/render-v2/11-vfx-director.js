@@ -51,6 +51,9 @@
   function ease(name, t){
     const x = clamp(Number(t) || 0, 0, 1);
     if(name === 'linear') return x;
+    if(name === 'in-cubic') return x * x * x;
+    if(name === 'in-quart') return x * x * x * x;
+    if(name === 'out-quint') return 1 - Math.pow(1 - x, 5);
     if(name === 'in-out-cubic') return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
     if(name === 'out-back-soft'){
       const c1 = 1.28;
@@ -62,6 +65,10 @@
 
   function reducedMotionEnabled(){
     try {
+      if(document.documentElement.classList.contains('fate-animations-off') ||
+        document.documentElement.classList.contains('fate-reduced-motion')) return true;
+    } catch(e) {}
+    try {
       if(localStorage.getItem('fateReducedMotion') === '1') return true;
     } catch(e) {}
     try {
@@ -71,8 +78,20 @@
     }
   }
 
+  function animationsOff(){
+    try {
+      return document.documentElement.classList.contains('fate-animations-off') ||
+        (document.body && document.body.classList && document.body.classList.contains('fate-animations-off'));
+    } catch(e) {
+      return false;
+    }
+  }
+
   function lowEffectsEnabled(){
     if(lowEffectsMode) return true;
+    try {
+      if(animationsOff()) return true;
+    } catch(e) {}
     try {
       if(localStorage.getItem('fateLowEffects') === '1') return true;
     } catch(e) {}
@@ -195,6 +214,7 @@
     p.progress = 0;
     p.eased = 0;
     p.done = false;
+    if(p.kind === 'cardMove' || p.kind === 'cardImpact' || p.kind === 'cardLift') primeMotionTexture(p);
     return p;
   }
 
@@ -225,6 +245,7 @@
 
   function play(type, payload, options){
     const recipeType = String(type || '').toUpperCase();
+    if(animationsOff() && recipeType !== 'CONSOLIDATE') return null;
     const recipes = window.FateVfxRecipes;
     if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
     const now = nowMs();
@@ -421,10 +442,11 @@
       return;
     }
     const visual = (card && card.visual) || card;
+    const textureSize = rect(opts.textureSize) || r;
     const texture = window.FateCardTextureCache && typeof window.FateCardTextureCache.getBaseCardTexture === 'function'
-      ? window.FateCardTextureCache.getBaseCardTexture(card, {w:r.w, h:r.h}, {
+      ? window.FateCardTextureCache.getBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, {
         visual,
-        dpr:2,
+        dpr:Number(opts.textureDpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
         preferFullArt:true,
         source:'vfx-card',
         onChange:function(){ scheduleRender('vfx-texture-ready'); }
@@ -452,6 +474,39 @@
     ctx.textBaseline = 'middle';
     ctx.fillText(String(visual && visual.name || 'Card').slice(0, 18), r.x + r.w / 2, r.y + r.h / 2);
     ctx.restore();
+  }
+
+  function stableMotionTextureSize(p, fallback){
+    const from = rect(p && p.fromRect);
+    const to = rect(p && p.toRect);
+    const base = rect(p && (p.textureRect || p.rect)) || to || from || fallback;
+    if(!base) return fallback;
+    const w = Math.max(
+      1,
+      Math.round(Math.max(Number(base.w) || 0, from ? from.w : 0, to ? to.w : 0))
+    );
+    const h = Math.max(
+      1,
+      Math.round(Math.max(Number(base.h) || 0, from ? from.h : 0, to ? to.h : 0))
+    );
+    return {x:0, y:0, w, h};
+  }
+
+  function primeMotionTexture(p){
+    if(!p || !p.card || p.faceDown) return;
+    if(!window.FateCardTextureCache || typeof window.FateCardTextureCache.getBaseCardTexture !== 'function') return;
+    const size = stableMotionTextureSize(p, rect(p.toRect || p.rect || p.fromRect));
+    if(!size) return;
+    p.textureSize = size;
+    try {
+      window.FateCardTextureCache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
+        visual:(p.card && p.card.visual) || p.card,
+        dpr:Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+        preferFullArt:true,
+        source:'vfx-card-prime',
+        onChange:function(){ scheduleRender('vfx-texture-ready'); }
+      });
+    } catch(e) {}
   }
 
   function drawGlowRect(ctx, r, color, alpha){
@@ -695,13 +750,14 @@
       ctx.save();
       let alpha = 1;
       if(p.fadeIn) alpha *= clamp(raw / .18, 0, 1);
-      if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw * .92);
+      if(p.fadeOutLate) alpha *= raw < .58 ? 1 : Math.max(0, 1 - ((raw - .58) / .42) * .95);
+      else if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw * .92);
       ctx.globalAlpha = alpha;
       if(p.kind === 'cardMove') drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
       ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
       ctx.rotate(rotation);
       ctx.scale(scale, scale);
-      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown});
+      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr)});
       ctx.restore();
       return;
     }
@@ -730,7 +786,7 @@
       ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
       ctx.scale(sx, sy);
       if(p.card || p.faceDown) {
-        drawCard(ctx, p.card || null, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.faceDown});
+        drawCard(ctx, p.card || null, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, r)});
       } else {
         const rr = {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h};
         roundedPath(ctx, rr.x + 2, rr.y + 2, Math.max(1, rr.w - 4), Math.max(1, rr.h - 4), Math.max(6, rr.w * .045));
@@ -758,10 +814,11 @@
     const w = r.w * scale;
     const h = r.h * scale;
     ctx.save();
-    ctx.globalAlpha = dragPreview.invalid ? .90 : 1;
+    ctx.globalAlpha = 1;
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
     ctx.rotate((dragPreview.invalid ? -2 : 1.2) * Math.PI / 180);
-    drawCard(ctx, dragPreview.card, {x:-w / 2, y:-h / 2, w, h});
+    drawCardMotionShadow(ctx, {x:-w / 2, y:-h / 2, w, h}, .32, .18);
+    drawCard(ctx, dragPreview.card, {x:-w / 2, y:-h / 2, w, h}, {textureDpr:2});
     ctx.restore();
     return true;
   }
@@ -769,6 +826,11 @@
   function draw(options){
     const opts = options || {};
     const started = nowMs();
+    if(animationsOff()){
+      activePrimitives = activePrimitives.filter(function(p){ return p && p.recipeType === 'CONSOLIDATE'; });
+      activeRecipes = activeRecipes.filter(function(r){ return r && r.type === 'CONSOLIDATE'; });
+      dragPreview = null;
+    }
     const metrics = {
       cssW:Number(opts.cssW) || 1,
       cssH:Number(opts.cssH) || 1,

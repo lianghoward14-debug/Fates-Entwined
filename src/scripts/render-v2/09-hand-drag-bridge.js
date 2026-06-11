@@ -28,6 +28,13 @@
     return !!(gs && gs.classList.contains('active'));
   }
 
+  function animationsOff(){
+    const root = document.documentElement;
+    const body = document.body;
+    return !!((root && root.classList && root.classList.contains('fate-animations-off')) ||
+      (body && body.classList && body.classList.contains('fate-animations-off')));
+  }
+
   function clamp(value, min, max){
     return Math.max(min, Math.min(max, Number(value) || 0));
   }
@@ -328,6 +335,7 @@
 
   function makeGhost(el, ev){
     clearGhost();
+    if(animationsOff()) return {bare:true};
     const r = state && state.sourceBoardRect ? Object.assign({}, state.sourceBoardRect) : null;
     const p = boardPointFromClient(ev.clientX, ev.clientY);
     const cellRect = state && state.hitMap && Array.isArray(state.hitMap.cells)
@@ -366,6 +374,7 @@
 
   function moveGhost(ghost, x, y, progress){
     if(!ghost) return;
+    if(animationsOff() || ghost.bare) return;
     const w = state && state.ghostW ? state.ghostW : 120;
     const h = state && state.ghostH ? state.ghostH : 170;
     const lift = Math.min(1, Math.max(0, Number(progress) || 0));
@@ -430,7 +439,7 @@
     const dragState = hitDropState(state.card, hit);
     state.lastDropPreview = {hit, dragState};
     setSceneHover(hit, dragState);
-    if(state.ghost && state.lastInvalidDrop !== (dragState === 'invalid')){
+    if(state.ghost && !animationsOff() && state.lastInvalidDrop !== (dragState === 'invalid')){
       state.lastInvalidDrop = dragState === 'invalid';
       if(window.FateVfxDirector && typeof window.FateVfxDirector.updateDragPreview === 'function'){
         window.FateVfxDirector.updateDragPreview({invalid:state.lastInvalidDrop});
@@ -517,7 +526,7 @@
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;
     G.placing = true;
-    if(scene && typeof scene.queuePlacementMotion === 'function') scene.queuePlacementMotion(iid, from);
+    if(!animationsOff() && scene && typeof scene.queuePlacementMotion === 'function') scene.queuePlacementMotion(iid, from);
     if(typeof playSfx === 'function') playSfx('dragDrop');
     if(typeof clickCell === 'function') clickCell(Number(hit.z), Number(hit.r), Number(hit.c));
   }

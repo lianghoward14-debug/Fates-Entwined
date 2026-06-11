@@ -15,9 +15,11 @@
   function lowEffectsEnabled(){
     try {
       return localStorage.getItem('fateLowEffects') === '1'
-        || document.documentElement.classList.contains('fate-low-effects');
+        || document.documentElement.classList.contains('fate-low-effects')
+        || document.documentElement.classList.contains('fate-animations-off');
     } catch(e) {
-      return document.documentElement.classList.contains('fate-low-effects');
+      return document.documentElement.classList.contains('fate-low-effects')
+        || document.documentElement.classList.contains('fate-animations-off');
     }
   }
 
@@ -59,6 +61,10 @@
 
     spawn(options){
       const opts = options || {};
+      if(document.documentElement.classList.contains('fate-animations-off')) {
+        this.dropped++;
+        return null;
+      }
       const limit = this.budget();
       if(this.active.length >= limit){
         this.dropped++;

@@ -12687,3 +12687,137 @@ html body #s-game #btn-end-turn:hover::before{
     linear-gradient(180deg,rgba(24,23,20,.98),rgba(5,7,12,.98))!important;
   box-shadow:0 0 10px rgba(245,214,116,.26),inset 0 0 0 1px rgba(255,246,191,.08)!important;
 }
+
+/* Codex 2026-06-09: remove topbar ornament layers that can cover status/fate HUD pills. */
+html body #s-game .topbar::before,
+html body #s-game .topbar::after,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .topbar::before,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .topbar::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+}
+
+/* Codex 2026-06-11: animations-off is the barebones path.
+   Keep consolidation cinematics and final-zone winner glow, but strip routine
+   menu/game motion, filters, particles, and card movement paint. */
+html.fate-animations-off,
+html.fate-animations-off body{
+  scroll-behavior:auto!important;
+}
+
+html.fate-animations-off body :is(.screen,.overlay,#modal,.modal,.modal-box,.social-panel,.world-chat-widget,.ingame-chat-widget,#fate-corner-dock,.screen-panel,.overlay-panel,.profile-wrap,.ch-v5-main,.ch-v5-rank-card,.ch-v5-progress-card,.ch-store-v3,.ch-store-product,.preset-browse-tile,.preset-card,.deck-inspect-compact-modal,.choose-deck-canonical-modal,.public-decks-shell,.public-deck-viewer,#s-game .topbar,#s-game .tp-mid,#s-game .game-left,#s-game .zone,#s-game .zone-rows,#s-game .brow,#s-game .cell,#s-game .hand-strip,#s-game .actbar,#s-game .player-banner,#s-game .pile-slot,#s-game .turn-hud,#s-game .game-status-dock){
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  filter:none!important;
+  text-shadow:none!important;
+  box-shadow:inset 0 0 0 1px rgba(255,246,191,.035)!important;
+}
+
+html.fate-animations-off body :is(.screen,.screen *,#modal,#modal *,#s-game,#s-game *){
+  animation-duration:0s!important;
+  animation-delay:0s!important;
+  animation-iteration-count:1!important;
+  transition-duration:0s!important;
+  transition-delay:0s!important;
+  will-change:auto!important;
+}
+
+html.fate-animations-off body :is(.screen img,.overlay img,#modal img,.modal img,#s-game img,#s-title .screen-bg img,#s-title .title-overlay){
+  filter:none!important;
+}
+
+html.fate-animations-off body :is(.pack-sparkle,.pack-sparkle-gold,.canvas-card-grid-sheen,.canvas-card-grid-sheen-layer,.canvas-card-grid-sheen-sweep,#s-game .placement-anim-ghost,#s-game .placement-anim-card,#s-game #placement-anim-layer,.draw-fly-card,.fate-v2-motion-card,#fate-v2-drag-ghost,.fate-v2-canvas-drag-ghost),
+html.fate-animations-off body .booster-tile::before,
+html.fate-animations-off body .booster-tile::after,
+html.fate-animations-off body .ch-store-product::before,
+html.fate-animations-off body .ch-store-product-art::after,
+html.fate-animations-off body .favored-gold-art::before,
+html.fate-animations-off body .favored-booster-gold::after{
+  display:none!important;
+  animation:none!important;
+  transition:none!important;
+}
+
+html.fate-animations-off body #s-title .title-profile::before,
+html.fate-animations-off body #s-title .title-profile::after,
+html.fate-animations-off body #s-title .title-btn::before,
+html.fate-animations-off body #s-title .title-btn::after,
+html.fate-animations-off body #s-title .tp-pic::before,
+html.fate-animations-off body #s-title .tp-pic::after,
+html.fate-animations-off body #s-title .sp-crest::before,
+html.fate-animations-off body #s-title .sp-crest::after,
+html.fate-animations-off body #s-game .zone::before,
+html.fate-animations-off body #s-game .zone::after,
+html.fate-animations-off body #s-game .brow::before,
+html.fate-animations-off body #s-game .brow::after,
+html.fate-animations-off body #s-game .hand-strip::before,
+html.fate-animations-off body #s-game .hand-strip::after,
+html.fate-animations-off body #s-game .actbar::before,
+html.fate-animations-off body #s-game .actbar::after,
+html.fate-animations-off body #s-game .game-left::before,
+html.fate-animations-off body #s-game .game-left::after,
+html.fate-animations-off body #s-game .player-banner::before,
+html.fate-animations-off body #s-game .player-banner::after,
+html.fate-animations-off body #s-game .pile-slot::before,
+html.fate-animations-off body #s-game .pile-slot::after{
+  content:none!important;
+  display:none!important;
+}
+
+html.fate-animations-off body #s-game :is(.cell.no-consolidate,.cell.placeable,.cell.mark-safe-choice,.tribute-card,.tribute-selected,.tribute-available,.zone.final-zone-board-flash,.zone-take-flash){
+  visibility:visible!important;
+  opacity:1!important;
+}
+
+html.fate-animations-off body #s-game .cell.mark-safe-choice{
+  box-shadow:inset 0 0 0 2px rgba(245,214,116,.58)!important;
+}
+
+html.fate-animations-off body #s-game .zone.final-zone-board-flash{
+  animation:finalZoneBoardFlashLong .86s ease-out var(--final-zone-delay,0ms) both!important;
+  box-shadow:0 0 30px rgba(255,70,70,.34),inset 0 0 0 2px rgba(255,90,90,.72)!important;
+}
+
+html.fate-animations-off body .cc-overlay-v2,
+html.fate-animations-off body .cc-overlay-v2 *,
+html.fate-animations-off body .consolidation-cinematic-overlay,
+html.fate-animations-off body .consolidation-cinematic-overlay *{
+  animation-duration:revert!important;
+  animation-delay:revert!important;
+  transition-duration:revert!important;
+  transition-delay:revert!important;
+  filter:revert!important;
+  text-shadow:revert!important;
+  box-shadow:revert!important;
+}
+
+/* Codex 2026-06-11b: status tooltip source nodes should never paint in-place;
+   only the body portal is allowed to render the detailed tooltip. */
+html body #s-game .effect-pill > .effect-pill-tooltip,
+html body #s-game .effect-pill:hover > .effect-pill-tooltip,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill > .effect-pill-tooltip,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .effect-pill:hover > .effect-pill-tooltip{
+  display:none!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  width:0!important;
+  height:0!important;
+  padding:0!important;
+  border:0!important;
+  box-shadow:none!important;
+  overflow:hidden!important;
+}
+
+html.fate-animations-off body :is(button,.btn,.title-btn,.title-profile,.preset-card,.preset-browse-tile,.booster-tile,.ch-store-product,.ch-play-v4-card,.ch-v5-match,.social-online-card,.mission-live-card,#s-game .hc,#s-game .bc,#s-game .cell,#s-game .pile-slot,#s-game .effect-pill):hover{
+  transform:none!important;
+  filter:none!important;
+  box-shadow:inset 0 0 0 1px rgba(255,246,191,.04)!important;
+}
+
+html.fate-animations-off body .fate-loading-panel::before,
+html.fate-animations-off body .fate-loading-panel::after,
+html.fate-animations-off body .fate-loading-bar-indeterminate #fate-loading-fill,
+html.fate-animations-off body :is(.online-lag-spinner,.timer-pulse,.badge-pulse,.gold-border-pulse,.levelup-glow,.pack-prompt-pulse){
+  animation:none!important;
+}

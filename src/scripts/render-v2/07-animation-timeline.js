@@ -10,6 +10,15 @@
     return (window.performance && performance.now) ? performance.now() : Date.now();
   }
 
+  function animationsOff(){
+    try {
+      return document.documentElement.classList.contains('fate-animations-off') ||
+        (document.body && document.body.classList && document.body.classList.contains('fate-animations-off'));
+    } catch(e) {
+      return false;
+    }
+  }
+
   function clamp(value, min, max){
     return Math.max(min, Math.min(max, value));
   }
@@ -38,6 +47,7 @@
 
     add(animation){
       if(!animation || !animation.kind) return null;
+      if(animationsOff() && animation.kind !== 'consolidation') return null;
       const now = nowMs();
       const item = Object.assign({
         id:String(animation.id || (animation.kind + ':' + (animation.iid || '') + ':' + now + ':' + this.added)),

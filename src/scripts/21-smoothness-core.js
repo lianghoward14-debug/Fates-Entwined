@@ -15,6 +15,15 @@
   let browserThrottleProbeRunning = false;
   let lastBrowserThrottleNoticeAt = 0;
 
+  function isElectronShell(){
+    try{
+      if(/[?&]electron=1(?:&|$)/.test(location.search || '')) return true;
+      return /Electron/i.test(navigator.userAgent || '');
+    }catch(e){
+      return false;
+    }
+  }
+
   function recordLifecycleEvent(type, extra){
     try{
       const perf = window.__fatePerf = window.__fatePerf || {};
@@ -135,8 +144,9 @@
           reason:reason || '',
           result
         };
+        const onlineModulesLoading = !!(window.__fateOnlineModuleState && window.__fateOnlineModuleState.loading);
         const noHeavyGameRender = !(perf.renderSamples && perf.renderSamples.length);
-        if(result.fps > 0 && result.fps <= 24 && result.maxGapMs >= 45 && noHeavyGameRender && !document.hidden && (!document.hasFocus || document.hasFocus())){
+        if(result.fps > 0 && result.fps <= 24 && result.maxGapMs >= 45 && noHeavyGameRender && !onlineModulesLoading && !document.hidden && (!document.hasFocus || document.hasFocus())){
           showBrowserThrottleNotice(result, reason);
         }
       }catch(e){}
@@ -805,7 +815,10 @@
         updateInitialLoadingScreen(done, total);
       }
     }
-    const workerCount = background ? Math.min(3, total) : Math.min(10, total);
+    const electronShell = isElectronShell();
+    const workerCount = background
+      ? Math.min(electronShell ? 1 : 3, total)
+      : Math.min(electronShell ? 6 : 10, total);
     const workers = Array.from({length:workerCount}, async function(){
       while(assets.length){
         const src = assets.shift();
@@ -846,15 +859,18 @@
 
   function scheduleBackgroundInitialPreload(){
     const timer = window.__fateNativeSetTimeout || window.setTimeout;
+    const electronShell = isElectronShell();
+    const initialDelay = electronShell ? 12000 : 2600;
     timer(function(){
       idle(function(){
+        if(electronShell && getActiveScreenId() !== 's-title') return;
         if(document.getElementById('modal')?.classList.contains('on')) {
-          timer(function(){ preloadInitialAssets({background:true}); }, 1400);
+          timer(function(){ preloadInitialAssets({background:true}); }, electronShell ? 5000 : 1400);
           return;
         }
         preloadInitialAssets({background:true});
       });
-    }, 2600);
+    }, initialDelay);
   }
 
   function installMatchWarmup(){
@@ -1221,6 +1237,205 @@
       console.log('[Fate FPS] report', snapshot);
       return snapshot;
     };
+
+    function safeDiagCall(name){
+      try{
+        const fn = window[name];
+        return typeof fn === 'function' ? fn() : null;
+      }catch(e){
+        return {error:String(e && e.message || e)};
+      }
+    }
+
+    function readDiagLocalStorage(){
+      const keys = [
+        'fateDisableMatchRendererV2',
+        'fateEnableMatchRendererV2',
+        'fateLowEffects',
+        'fateDisableWarmups',
+        'fateDisableTitleWarmup',
+        'fateDisableTextureWarmup'
+      ];
+      const out = {};
+      keys.forEach(function(key){
+        try{ out[key] = localStorage.getItem(key); }
+        catch(e){ out[key] = 'unavailable'; }
+      });
+      return out;
+    }
+
+    function summarizeNavigationTiming(){
+      try{
+        const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        if(!nav) return null;
+        const base = nav.startTime || 0;
+        function ms(value){ return Math.round(Math.max(0, (Number(value) || 0) - base)); }
+        return {
+          type:nav.type || '',
+          redirectMs:ms(nav.redirectEnd) - ms(nav.redirectStart),
+          dnsMs:ms(nav.domainLookupEnd) - ms(nav.domainLookupStart),
+          connectMs:ms(nav.connectEnd) - ms(nav.connectStart),
+          requestToResponseMs:ms(nav.responseEnd) - ms(nav.requestStart),
+          domInteractiveMs:ms(nav.domInteractive),
+          domContentLoadedMs:ms(nav.domContentLoadedEventEnd),
+          loadEventMs:ms(nav.loadEventEnd),
+          transferSize:nav.transferSize || 0,
+          encodedBodySize:nav.encodedBodySize || 0
+        };
+      }catch(e){
+        return {error:String(e && e.message || e)};
+      }
+    }
+
+    function summarizeResources(){
+      try{
+        const entries = performance.getEntriesByType ? performance.getEntriesByType('resource') : [];
+        const byType = {};
+        const slow = [];
+        const firebase = [];
+        entries.forEach(function(entry){
+          const type = entry.initiatorType || 'other';
+          const bucket = byType[type] || (byType[type] = {count:0, totalMs:0, transferKB:0, encodedKB:0});
+          bucket.count += 1;
+          bucket.totalMs += Number(entry.duration) || 0;
+          bucket.transferKB += (Number(entry.transferSize) || 0) / 1024;
+          bucket.encodedKB += (Number(entry.encodedBodySize) || 0) / 1024;
+          const name = String(entry.name || '');
+          const row = {
+            type,
+            ms:Math.round(Number(entry.duration) || 0),
+            transferKB:Math.round(((Number(entry.transferSize) || 0) / 1024) * 10) / 10,
+            encodedKB:Math.round(((Number(entry.encodedBodySize) || 0) / 1024) * 10) / 10,
+            name:name.replace(/^https?:\/\/([^/]+)\/?/, '$1/')
+          };
+          slow.push(row);
+          if(/firebase|gstatic|googleapis|identitytoolkit/i.test(name)) firebase.push(row);
+        });
+        Object.keys(byType).forEach(function(type){
+          const bucket = byType[type];
+          bucket.totalMs = Math.round(bucket.totalMs);
+          bucket.transferKB = Math.round(bucket.transferKB * 10) / 10;
+          bucket.encodedKB = Math.round(bucket.encodedKB * 10) / 10;
+        });
+        slow.sort(function(a, b){ return b.ms - a.ms; });
+        firebase.sort(function(a, b){ return b.ms - a.ms; });
+        return {
+          count:entries.length,
+          byType,
+          slowest:slow.slice(0, 14),
+          firebase:firebase.slice(0, 10)
+        };
+      }catch(e){
+        return {error:String(e && e.message || e)};
+      }
+    }
+
+    function summarizeDiagMemory(){
+      try{
+        if(!performance.memory) return null;
+        return {
+          usedMB:Math.round(performance.memory.usedJSHeapSize / 104857.6) / 10,
+          totalMB:Math.round(performance.memory.totalJSHeapSize / 104857.6) / 10,
+          limitMB:Math.round(performance.memory.jsHeapSizeLimit / 104857.6) / 10
+        };
+      }catch(e){
+        return null;
+      }
+    }
+
+    function buildStartupDiagNotes(snapshot){
+      const notes = [];
+      const renderer = snapshot.reports && snapshot.reports.matchRendererV2;
+      const flags = snapshot.reports && snapshot.reports.renderV2Flags;
+      const canvas = renderer && renderer.canvas;
+      const resources = snapshot.resources || {};
+      const storage = snapshot.localStorage || {};
+      if(storage.fateDisableMatchRendererV2 === '1' || /[?&](domBoard|matchRendererV2=0)(?:&|$)/.test(snapshot.locationSearch || '')) {
+        notes.push('V2 canvas renderer is disabled, so browser matches may be using the slower DOM board path.');
+      } else if(flags && flags.enabled === false) {
+        notes.push('Render V2 flags report disabled; verify URL/localStorage render flags before comparing browser and Electron.');
+      }
+      if(canvas && Number(canvas.dpr || 1) > Number(canvas.effectiveDpr || canvas.dpr || 1) + .05) {
+        notes.push('Browser/device DPR is being capped for match canvas work; this avoids high-DPI overdraw during matches.');
+      } else if(snapshot.viewport && snapshot.viewport.dpr > 1.25 && (!canvas || Number(canvas.effectiveDpr || 1) > 1.5)) {
+        notes.push('High devicePixelRatio can make the browser draw far more canvas pixels than Electron for the same board.');
+      }
+      if(canvas && Number(canvas.totalLayerPixelArea || 0) > 18000000) {
+        notes.push('Canvas layer pixel area is high; match frame cost is likely fill-rate bound, especially during set/consolidation redraws.');
+      }
+      if(renderer && Number(renderer.avgMs || 0) > 12) {
+        notes.push('Renderer average frame cost is near the 60fps budget; check recentRenderBreakdowns after a slow set/consolidation.');
+      }
+      if(snapshot.perf && Number(snapshot.perf.longTasks || 0) > 0) {
+        notes.push('Long tasks were observed on the main thread; startup lag may include JS execution rather than only rendering.');
+      }
+      if(snapshot.hasFocus === false) {
+        notes.push('The app window was not focused when this was captured; run again with the game focused before trusting wake/throttle comparisons.');
+      }
+      if(snapshot.onlineModules && snapshot.onlineModules.deferred && !snapshot.onlineModules.loaded && !snapshot.onlineModules.loading) {
+        notes.push('Online/Firebase modules are currently deferred, so title startup should not be blocked by remote auth/social loading.');
+      }
+      if(snapshot.onlineModules && snapshot.onlineModules.loading) {
+        notes.push('Online/Firebase modules are loading during this capture; startup clicks may hitch until that import chain finishes.');
+      }
+      if(resources.firebase && resources.firebase.length) {
+        const slowFirebase = resources.firebase.filter(function(row){ return row.ms > 250; }).length;
+        if(slowFirebase) notes.push('Firebase/Gstatic resources were slow during startup; Electron first-open lag may be remote auth/social module loading.');
+      }
+      if(snapshot.fpsProbe && snapshot.fpsProbe.fps && snapshot.fpsProbe.fps < 55) {
+        notes.push('Short RAF probe measured below 55fps; run this command immediately after the laggy action for a cleaner capture.');
+      }
+      if(!notes.length) notes.push('No obvious single culprit in this snapshot; run during the first laggy click or right after setting/consolidating.');
+      return notes;
+    }
+
+    window.fateStartupDiag = async function(options){
+      const opts = options || {};
+      const snapshot = {
+        at:new Date().toISOString(),
+        command:'await fateStartupDiag({ fpsProbe: true })',
+        activeScreen:getActiveScreenId(),
+        isElectron:isElectronShell(),
+        userAgent:navigator.userAgent || '',
+        locationSearch:window.location.search || '',
+        readyState:document.readyState,
+        hidden:!!document.hidden,
+        hasFocus:document.hasFocus ? !!document.hasFocus() : null,
+        viewport:{w:window.innerWidth || 0, h:window.innerHeight || 0, dpr:window.devicePixelRatio || 1},
+        localStorage:readDiagLocalStorage(),
+        navigation:summarizeNavigationTiming(),
+        resources:summarizeResources(),
+        memory:summarizeDiagMemory(),
+        onlineModules:window.__fateOnlineModuleState ? Object.assign({}, window.__fateOnlineModuleState) : null,
+        perf:window.fatePerfReport ? window.fatePerfReport() : null,
+        reports:{
+          renderV2Flags:window.FateRenderV2Flags && typeof window.FateRenderV2Flags.report === 'function' ? window.FateRenderV2Flags.report() : null,
+          matchRendererV2:safeDiagCall('fateMatchRendererV2Report'),
+          canvasBoard:safeDiagCall('fateCanvasBoardReport'),
+          textureCache:safeDiagCall('fateCardTextureCacheReport'),
+          vfx:safeDiagCall('fateVfxReport'),
+          vfxRecipes:safeDiagCall('fateVfxRecipesReport'),
+          motionFx:safeDiagCall('fateV2MotionFxReport'),
+          onlineState:safeDiagCall('fateOnlineStateReport'),
+          timerBridge:safeDiagCall('fateTimerBridgeReport'),
+          audio:safeDiagCall('fateAudioReport'),
+          handDrag:safeDiagCall('fateMatchHandDragReport')
+        },
+        fpsProbe:null
+      };
+      if(opts.fpsProbe) snapshot.fpsProbe = await measureRafFps(opts.durationMs || 1600);
+      snapshot.notes = buildStartupDiagNotes(snapshot);
+      console.log('[Fate Startup Diag]', snapshot);
+      try{
+        if(opts.copy !== false && navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+          console.log('[Fate Startup Diag] copied JSON to clipboard');
+        }
+      }catch(e){}
+      return snapshot;
+    };
+    window.fateDiagnoseStartup = window.fateStartupDiag;
+
     function getLagTraceSnapshot(){
       const active = getActiveScreenId();
       const game = document.getElementById('s-game');
@@ -1329,12 +1544,36 @@
         recentRenderSamples: renderSamples.slice(-12),
         recentRenderBreakdowns: renderBreakdowns.slice(-8),
         renderCallers,
+        menuSummary:summarizeMenuSamples(),
+        recentMenuSamples:(perf.menuSamples || []).slice(-30),
         recentLongTasks: (perf.longTaskSamples || []).slice(-12),
         lifecycleEvents: (perf.lifecycleEvents || lifecycleEvents || []).slice(-20),
         browserRenderThrottleLastProbe: perf.browserRenderThrottleLastProbe || null,
         browserRenderThrottleLast: perf.browserRenderThrottleLast || null,
         fpsHistory: (perf.fpsHistory || []).slice(-20)
       };
+    }
+    function summarizeMenuSamples(){
+      const samples = (perf.menuSamples || []).slice(-80);
+      const out = {};
+      samples.forEach(function(sample){
+        const key = sample.name || sample.kind || 'unknown';
+        const item = out[key] || (out[key] = {count:0, totalMs:0, maxMs:0, lastMs:0, lastScreen:'', lastLabel:''});
+        const ms = Number(sample.ms) || 0;
+        item.count += 1;
+        item.totalMs += ms;
+        item.maxMs = Math.max(item.maxMs, ms);
+        item.lastMs = Math.round(ms * 10) / 10;
+        item.lastScreen = sample.screen || '';
+        item.lastLabel = sample.label || sample.args || '';
+      });
+      Object.keys(out).forEach(function(key){
+        const item = out[key];
+        item.avgMs = Math.round((item.totalMs / Math.max(1, item.count)) * 10) / 10;
+        item.maxMs = Math.round(item.maxMs * 10) / 10;
+        delete item.totalMs;
+      });
+      return out;
     }
     window.fateTraceLag = function(seconds){
       const durationMs = Math.max(2000, Math.min(20000, Math.round((Number(seconds) || 8) * 1000)));
@@ -1379,7 +1618,18 @@
             maxFrameGapMs: Math.round(maxFrameGap * 10) / 10,
             slowFrameGaps: trace.frameGaps.slice(-40)
           };
+          trace.menuSummary = summarizeMenuSamples();
+          trace.menuSamples = (perf.menuSamples || []).slice(-40);
+          trace.compact = summarizeLagTrace(trace);
+          trace.textSummary = formatLagTraceSummary(trace.compact);
           const text = JSON.stringify(trace, null, 2);
+          console.log('[Fate FPS] lag trace summary:', trace.compact);
+          if(console && console.table) {
+            console.table(trace.compact.topMenuSummary || []);
+            console.table(trace.compact.slowestMenuSamples || []);
+            console.table(trace.compact.recentLongTasks || []);
+          }
+          console.log('[Fate FPS] lag trace text summary:\n' + trace.textSummary);
           console.log('[Fate FPS] lag trace - paste this back to Codex:', trace);
           console.log(text);
           try {
@@ -1396,6 +1646,104 @@
           resolve(trace);
         }, durationMs);
       });
+    };
+    function summarizeLagTrace(trace){
+      const menuSummary = trace && trace.menuSummary || {};
+      const menuRows = Object.keys(menuSummary).map(function(key){
+        const item = menuSummary[key] || {};
+        return {
+          name:key,
+          count:item.count || 0,
+          avgMs:item.avgMs || 0,
+          maxMs:item.maxMs || 0,
+          lastMs:item.lastMs || 0,
+          lastScreen:item.lastScreen || '',
+          lastLabel:item.lastLabel || ''
+        };
+      }).sort(function(a, b){ return (b.maxMs || 0) - (a.maxMs || 0); }).slice(0, 10);
+      const samples = (trace && trace.menuSamples || []).slice().sort(function(a, b){
+        return (Number(b.ms) || 0) - (Number(a.ms) || 0);
+      }).slice(0, 12).map(function(sample){
+        return {
+          kind:sample.kind || '',
+          name:sample.name || '',
+          ms:sample.ms || 0,
+          screen:sample.screen || '',
+          nextScreen:sample.nextScreen || '',
+          label:sample.label || sample.args || ''
+        };
+      });
+      const after = trace && trace.after || {};
+      return {
+        measured:trace && trace.measured || null,
+        activeScreen:after.activeScreen || (trace && trace.before && trace.before.activeScreen) || '',
+        maxFrameGapMs:trace && trace.measured && trace.measured.maxFrameGapMs || 0,
+        slowFrameGaps:trace && trace.measured && trace.measured.slowFrameGaps || [],
+        topMenuSummary:menuRows,
+        slowestMenuSamples:samples,
+        recentLongTasks:after.recentLongTasks || [],
+        renderSummary:after.renderSummary || {},
+        recentRenderBreakdowns:after.recentRenderBreakdowns || [],
+        selectorCounts:after.selectorCounts || null,
+        onlineModules:window.__fateOnlineModuleState ? Object.assign({}, window.__fateOnlineModuleState) : null
+      };
+    }
+    function formatLagTraceSummary(summary){
+      const s = summary || {};
+      const lines = [];
+      lines.push('activeScreen=' + (s.activeScreen || ''));
+      if(s.measured) {
+        lines.push('measured fps=' + (s.measured.fps || 0) + ' maxFrameGapMs=' + (s.measured.maxFrameGapMs || 0) + ' frames=' + (s.measured.frames || 0));
+      } else {
+        lines.push('measured=no active timed trace');
+      }
+      const online = s.onlineModules || {};
+      lines.push('onlineModules loaded=' + !!online.loaded + ' loading=' + !!online.loading + ' deferred=' + !!online.deferred + ' reason=' + (online.reason || ''));
+      lines.push('topMenuSummary:');
+      (s.topMenuSummary || []).slice(0, 8).forEach(function(row, index){
+        lines.push((index + 1) + '. ' + row.name + ' count=' + row.count + ' avgMs=' + row.avgMs + ' maxMs=' + row.maxMs + ' lastMs=' + row.lastMs + ' screen=' + row.lastScreen + ' label=' + row.lastLabel);
+      });
+      lines.push('slowestMenuSamples:');
+      (s.slowestMenuSamples || []).slice(0, 10).forEach(function(row, index){
+        lines.push((index + 1) + '. ' + row.kind + '/' + row.name + ' ms=' + row.ms + ' screen=' + row.screen + ' next=' + row.nextScreen + ' label=' + row.label);
+      });
+      lines.push('recentLongTasks:');
+      (s.recentLongTasks || []).slice(-8).forEach(function(row, index){
+        lines.push((index + 1) + '. duration=' + row.duration + ' start=' + row.start + ' name=' + row.name);
+      });
+      const selectors = s.selectorCounts || {};
+      lines.push('selectors modal=' + (selectors['.modal'] || 0) + ' overlay=' + (selectors['.overlay'] || 0) + ' mc=' + (selectors['.mc'] || 0) + ' img=' + (selectors.img || 0) + ' button=' + (selectors.button || 0));
+      return lines.join('\n');
+    }
+    window.fateTraceMenus = function(seconds){
+      const duration = Math.max(3, Math.min(20, Number(seconds) || 10));
+      if(typeof toast === 'function') toast('Menu trace started. Click the laggy menus now.');
+      return window.fateTraceLag(duration);
+    };
+    window.fateTraceSummary = function(){
+      const fakeTrace = {
+        measured:null,
+        after:getLagTraceSnapshot(),
+        menuSummary:summarizeMenuSamples(),
+        menuSamples:(perf.menuSamples || []).slice(-40)
+      };
+      const summary = summarizeLagTrace(fakeTrace);
+      console.log('[Fate FPS] current trace summary:', summary);
+      if(console && console.table) {
+        console.table(summary.topMenuSummary || []);
+        console.table(summary.slowestMenuSamples || []);
+        console.table(summary.recentLongTasks || []);
+      }
+      const text = formatLagTraceSummary(summary);
+      console.log('[Fate FPS] current trace text summary:\n' + text);
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+      }catch(e){}
+      return summary;
+    };
+    window.fateTraceSummaryText = function(){
+      const summary = window.fateTraceSummary();
+      return formatLagTraceSummary(summary);
     };
     function tick(now){
       const focusThrottled = !document.hasFocus();
@@ -1499,7 +1847,69 @@
         observer.observe({entryTypes:['longtask']});
       }catch(e){}
     }
-    ['performGameRender','renderBoard','renderHand','renderOppHand','showModal'].forEach(function(name){
+    function describeMenuTarget(el){
+      try{
+        if(!el) return '';
+        const node = el.closest ? el.closest('button,[role="button"],a,.btn,.ch-tab,.db-filter,[onclick]') : el;
+        const text = String((node && (node.innerText || node.textContent)) || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        const id = node && node.id ? '#' + node.id : '';
+        const cls = node && node.className && typeof node.className === 'string'
+          ? '.' + node.className.split(/\s+/).filter(Boolean).slice(0, 3).join('.')
+          : '';
+        return (text || node?.tagName || 'target') + id + cls;
+      }catch(e){
+        return '';
+      }
+    }
+    function recordMenuSample(sample){
+      try{
+        perf.menuSamples = perf.menuSamples || [];
+        perf.menuSamples.push(Object.assign({
+          at:Date.now(),
+          screen:getActiveScreenId(),
+          hidden:!!document.hidden,
+          focus:document.hasFocus ? !!document.hasFocus() : null
+        }, sample || {}));
+        if(perf.menuSamples.length > 100) perf.menuSamples.splice(0, perf.menuSamples.length - 100);
+      }catch(e){}
+    }
+    function installMenuInputTrace(){
+      if(window.__fateMenuInputTraceInstalled) return;
+      window.__fateMenuInputTraceInstalled = true;
+      document.addEventListener('click', function(event){
+        const target = event.target;
+        const label = describeMenuTarget(target);
+        if(!label) return;
+        const t0 = performance.now();
+        const startScreen = getActiveScreenId();
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            const ms = performance.now() - t0;
+            if(ms < 12) return;
+            recordMenuSample({
+              kind:'click-to-paint',
+              name:'click-to-paint',
+              ms:Math.round(ms * 10) / 10,
+              label,
+              screen:startScreen,
+              nextScreen:getActiveScreenId()
+            });
+          });
+        });
+      }, true);
+    }
+    function summarizeArgs(args){
+      try{
+        return Array.prototype.slice.call(args, 0, 3).map(function(value){
+          if(value && value.nodeType === 1) return describeMenuTarget(value);
+          if(value && typeof value === 'object') return value.id || value.name || value.title || Object.prototype.toString.call(value);
+          return String(value).slice(0, 48);
+        }).join(', ');
+      }catch(e){
+        return '';
+      }
+    }
+    function wrapPerfFunction(name, opts){
       const fn = window[name];
       if(typeof fn !== 'function' || fn.__fatePerfWrapped) return;
       window[name] = function(){
@@ -1507,11 +1917,22 @@
         try{ return fn.apply(this, arguments); }
         finally{
           const ms = performance.now() - t0;
-          if(ms > 12){
+          const rounded = Math.round(ms * 10) / 10;
+          if(ms > (opts && opts.menu ? 8 : 12)){
+            if(opts && opts.menu){
+              recordMenuSample({
+                kind:'function',
+                name,
+                ms:rounded,
+                args:summarizeArgs(arguments)
+              });
+            }
+          }
+          if(ms > 12 && (!opts || opts.render !== false)){
             if(!Array.isArray(perf.renderSamples)) perf.renderSamples = [];
             perf.renderSamples.push({
               name,
-              ms:Math.round(ms * 10) / 10,
+              ms:rounded,
               screen:getActiveScreenId(),
               inGame: !!document.getElementById('s-game')?.classList.contains('active'),
               at:Date.now()
@@ -1526,7 +1947,17 @@
         }
       };
       window[name].__fatePerfWrapped = true;
-    });
+    }
+    [
+      'performGameRender','renderBoard','renderHand','renderOppHand','showModal'
+    ].forEach(function(name){ wrapPerfFunction(name, {render:true, menu:name === 'showModal'}); });
+    [
+      'showScreen','openFreePlayMenu','openChallengerMenu','showDeckBuilder','showMissionControl',
+      'showSocial','showPublicDecks','switchChTab','dbFilter','setCdbFilter',
+      'renderDBCollection','renderDBDeck','renderChallengerPlay','renderChallengerStore',
+      'renderChallengerCollection','renderChallengerDeckBuilder','renderMissionLivePanel'
+    ].forEach(function(name){ wrapPerfFunction(name, {render:false, menu:true}); });
+    installMenuInputTrace();
   }
 
   function cleanupTransientVisuals(){
@@ -1656,6 +2087,7 @@
   }
 
   function init(){
+    const electronShell = isElectronShell();
     document.documentElement.classList.add('fate-smooth-runtime');
     document.body && document.body.classList.add('fate-smooth-runtime');
     installVisibleTimerBridge();
@@ -1669,9 +2101,11 @@
     installFrameDiagnostics();
     installVisibilityRecovery();
     installMatchWarmup();
-    warmTitleOpenAssets();
+    const timer = window.__fateNativeSetTimeout || window.setTimeout;
+    if(electronShell) timer(warmTitleOpenAssets, 1200);
+    else warmTitleOpenAssets();
     scheduleBackgroundInitialPreload();
-    idle(warmGameAssets);
+    if(!electronShell) idle(warmGameAssets);
   }
 
   window.fatePreloadInitialAssets = preloadInitialAssets;

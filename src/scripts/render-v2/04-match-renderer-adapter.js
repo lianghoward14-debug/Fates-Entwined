@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 1;
+  const ADAPTER_VERSION = 2;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -20,6 +20,7 @@
   let lastCardRectByIid = new Map();
   let pendingPlacementRectByIid = new Map();
   let vfxHiddenBoardCardUntilByIid = new Map();
+  let suppressedInitialPlacementUntilByIid = new Map();
   let assetImageCache = new Map();
   let lastMoveSnapshotSignature = '';
   let input = null;
@@ -101,6 +102,22 @@
     } catch(e) {}
   }
 
+  function animationsOff(){
+    const root = document.documentElement;
+    const body = document.body;
+    return !!((root && root.classList && root.classList.contains('fate-animations-off')) ||
+      (body && body.classList && body.classList.contains('fate-animations-off')));
+  }
+
+  function isElectronShell(){
+    try{
+      if(/[?&]electron=1(?:&|$)/.test(window.location.search || '')) return true;
+      return /Electron/i.test(navigator.userAgent || '');
+    }catch(e){
+      return false;
+    }
+  }
+
   function ownsBoard(){
     const p = params();
     if(p.has('domBoard')) return false;
@@ -123,8 +140,10 @@
   }
 
   function getMaxDpr(){
-    const lowEffects = document.documentElement.classList.contains('fate-low-effects');
-    const raw = lowEffects ? 1.35 : 2;
+    const lowEffects = animationsOff() || document.documentElement.classList.contains('fate-low-effects');
+    const electron = isElectronShell();
+    if(animationsOff()) return 1;
+    const raw = electron ? (lowEffects ? 1.35 : 2) : (lowEffects ? 1.25 : 1.5);
     return Math.max(1, raw);
   }
 
@@ -136,7 +155,9 @@
       rawDpr,
       maxDpr,
       renderScale,
-      effectiveDpr:Math.max(.7, baseDpr * renderScale)
+      effectiveDpr:Math.max(.7, baseDpr * renderScale),
+      environment:isElectronShell() ? 'electron' : 'browser',
+      dprCapped:rawDpr > maxDpr + .01
     };
   }
 
@@ -203,7 +224,7 @@
     const avg = averageFrameMs();
     const peak = maxFrameMs();
     const rawDpr = Math.max(1, Number(window.devicePixelRatio || 1));
-    const lowEffects = document.documentElement.classList.contains('fate-low-effects');
+    const lowEffects = animationsOff() || document.documentElement.classList.contains('fate-low-effects');
     let nextScale = renderScale;
     const severeAtNativeDpr = rawDpr <= 1 && lowEffects && (avg > 26 || peak > 70);
     const slowEnoughToScaleDown = rawDpr > 1 ? (avg > 14 || peak > 34) : severeAtNativeDpr;
@@ -590,8 +611,8 @@
   function fateBadgeState(card, visual){
     if(visual && visual.isHidden) return '';
     const current = numericFateValue(
-      (visual && visual.currentFate != null) ? visual.currentFate :
       (visual && visual.displayFate != null) ? visual.displayFate :
+      (visual && visual.currentFate != null) ? visual.currentFate :
       (card && card.currentFate != null) ? card.currentFate : null
     );
     const base = numericFateValue(
@@ -612,7 +633,7 @@
     const isDown = deltaState === 'down';
     const label = visual && visual.isHidden ? '-' : fate;
     const accent = isUp ? '#7fff90' : isDown ? '#ff6060' : '#f1c40f';
-    const accentGlow = isUp ? 'rgba(127,255,144,.72)' : isDown ? 'rgba(255,96,96,.68)' : 'rgba(241,196,15,.66)';
+    const accentGlow = isUp ? 'rgba(127,255,144,.82)' : isDown ? 'rgba(255,96,96,.78)' : 'rgba(241,196,15,.76)';
     const badgeH = Math.max(24, Math.min(34, r.w * .255));
     const badgeW = Math.max(badgeH, Math.min(43, badgeH + Math.max(0, label.length - 1) * 5.4));
     const bx = r.x + r.w - badgeW - Math.max(1, badgeH * .04);
@@ -624,15 +645,20 @@
     ctx.save();
     roundedPath(ctx, bx, by, badgeW, badgeH, radius);
     ctx.shadowColor = accentGlow;
-    ctx.shadowBlur = Math.max(4, badgeH * .18);
+    ctx.shadowBlur = Math.max(7, badgeH * .34);
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
     ctx.fillStyle = 'rgba(5,6,10,.96)';
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    ctx.lineWidth = Math.max(2.1, badgeH * .085);
+    ctx.lineWidth = Math.max(2.25, badgeH * .092);
     ctx.strokeStyle = accent;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    roundedPath(ctx, bx + 1.2, by + 1.2, badgeW - 2.4, badgeH - 2.4, Math.max(4, radius - 1.2));
+    ctx.strokeStyle = 'rgba(255,246,190,.20)';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     ctx.fillStyle = accent;
@@ -640,11 +666,11 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = accentGlow;
-    ctx.shadowBlur = Math.max(7, badgeH * .28);
-    ctx.fillText(label, cx, cy + badgeH * .11);
+    ctx.shadowBlur = Math.max(12, badgeH * .46);
+    ctx.fillText(label, cx, cy + badgeH * .04);
     ctx.shadowColor = 'rgba(0,0,0,.85)';
     ctx.shadowBlur = 1.5;
-    ctx.fillText(label, cx, cy + badgeH * .11);
+    ctx.fillText(label, cx, cy + badgeH * .04);
     ctx.restore();
   }
 
@@ -669,6 +695,15 @@
     if(!timeline || !iid) return;
     const fateValue = getCardFateValue(card, visual);
     const prev = lastCardFateByIid.get(iid);
+    if(animationsOff()){
+      if(prev != null && prev !== fateValue && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.cancelForCard === 'function') {
+        window.FateVfxEventBridge.cancelForCard(iid);
+      }
+      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
+      else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'fate-pulse');
+      lastCardFateByIid.set(iid, fateValue);
+      return;
+    }
     if(prev != null && prev !== fateValue){
       const prevNum = Number(prev);
       const nextNum = Number(fateValue);
@@ -714,6 +749,7 @@
   }
 
   function drawFatePulse(ctx, card, r){
+    if(animationsOff()) return;
     const timeline = getTimeline();
     const iid = getCardIid(card);
     if(!timeline || !iid || typeof timeline.getForCard !== 'function') return;
@@ -1052,6 +1088,28 @@
     }, ms + 24);
   }
 
+  function suppressInitialPlacementMotion(iid, duration){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return;
+    const ms = Math.max(120, Number(duration) || 560);
+    suppressedInitialPlacementUntilByIid.set(key, nowMs() + ms);
+    setTimeout(function(){
+      suppressedInitialPlacementUntilByIid.delete(key);
+    }, ms + 48);
+  }
+
+  function isInitialPlacementMotionSuppressed(iid){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return false;
+    const until = Number(suppressedInitialPlacementUntilByIid.get(key)) || 0;
+    if(!until) return false;
+    if(nowMs() > until){
+      suppressedInitialPlacementUntilByIid.delete(key);
+      return false;
+    }
+    return true;
+  }
+
   function isBoardCardHiddenForVfx(iid){
     const key = String(iid == null ? '' : iid);
     if(!key) return false;
@@ -1071,6 +1129,12 @@
     const nextRect = cloneRect(r);
     const prevRect = lastCardRectByIid.get(iid);
     lastCardRectByIid.set(iid, nextRect);
+    if(animationsOff()){
+      pendingPlacementRectByIid.delete(iid);
+      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
+      else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'card-move');
+      return null;
+    }
     const pendingPlacementRect = pendingPlacementRectByIid.get(iid);
     if(!prevRect && pendingPlacementRect){
       pendingPlacementRectByIid.delete(iid);
@@ -1101,6 +1165,7 @@
         flight:true
       });
     }
+    if(!prevRect && isInitialPlacementMotionSuppressed(iid)) return null;
     if(!prevRect && lastReport && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
       const fromRect = fallbackBoardEntrySourceRect(card, nextRect);
       if(fromRect){
@@ -1752,14 +1817,21 @@
     ctx.lineJoin = 'round';
     if(command === 'end-turn'){
       ctx.beginPath();
-      ctx.moveTo(cx - s * .25, cy - s * .20);
-      ctx.lineTo(cx + s * .18, cy);
-      ctx.lineTo(cx - s * .25, cy + s * .20);
+      ctx.moveTo(cx - s * .32, cy - s * .24);
+      ctx.lineTo(cx - s * .02, cy);
+      ctx.lineTo(cx - s * .32, cy + s * .24);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(cx - s * .06, cy - s * .28);
+      ctx.moveTo(cx - s * .02, cy - s * .30);
       ctx.lineTo(cx + s * .34, cy);
-      ctx.lineTo(cx - s * .06, cy + s * .28);
+      ctx.lineTo(cx - s * .02, cy + s * .30);
+      ctx.stroke();
+      ctx.globalAlpha *= .55;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * .38, cy);
+      ctx.lineTo(cx - s * .25, cy);
+      ctx.moveTo(cx + s * .26, cy);
+      ctx.lineTo(cx + s * .40, cy);
       ctx.stroke();
     } else if(command === 'consolidate'){
       ctx.beginPath();
@@ -1924,10 +1996,10 @@
     ctx.stroke();
     hitMap.uiCommands.push({kind:'ui-command', command:'dock', disabled:true, rect:r});
 
-    const turnKey = {x:x + 33, y:y + 12, w:w - 64, h:45};
+    const turnKey = {x:x + 46, y:y + 17, w:w - 92, h:37};
     function turnKeyPath(rg){
       const cut = 8;
-      const point = 20;
+      const point = 17;
       ctx.beginPath();
       ctx.moveTo(rg.x + cut, rg.y);
       ctx.lineTo(rg.x + rg.w - point, rg.y);
@@ -1954,57 +2026,49 @@
     ctx.strokeStyle = canEndTurn ? 'rgba(255,220,94,.74)' : 'rgba(210,210,200,.26)';
     ctx.stroke();
 
-    const markX = turnKey.x + 18;
+    const markX = turnKey.x + 21;
     const markY = turnKey.y + turnKey.h / 2;
     const markTone = canEndTurn ? '255,226,105' : '210,210,202';
-    const markGlow = canEndTurn ? .26 : .05;
+    const markGlow = canEndTurn ? .22 : .05;
     ctx.save();
     ctx.translate(markX, markY);
     ctx.shadowColor = 'rgba(' + markTone + ',' + markGlow + ')';
-    ctx.shadowBlur = canEndTurn ? 8 : 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 12.6, 0, Math.PI * 2);
-    ctx.fillStyle = canEndTurn ? 'rgba(32,27,13,.90)' : 'rgba(10,13,18,.84)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 1.15;
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,235,130,.50)' : 'rgba(210,210,202,.12)';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, 8.2, Math.PI * .18, Math.PI * 1.74);
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,238,142,.88)' : 'rgba(210,210,202,.20)';
-    ctx.lineWidth = 2.05;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(7.9, -4.2);
-    ctx.lineTo(11.8, -7.3);
-    ctx.lineTo(12.0, -2.2);
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,226,105,.76)' : 'rgba(210,210,202,.17)';
+    ctx.shadowBlur = canEndTurn ? 7 : 2;
+    ctx.strokeStyle = canEndTurn ? 'rgba(255,238,150,.80)' : 'rgba(210,210,202,.18)';
     ctx.lineWidth = 1.55;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-3.4, -4.7);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(-3.4, 4.7);
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,239,156,.82)' : 'rgba(210,210,202,.18)';
-    ctx.lineWidth = 1.65;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-12, 0);
+    ctx.lineTo(-3, -10);
+    ctx.lineTo(13, -10);
+    ctx.lineTo(5, 0);
+    ctx.lineTo(13, 10);
+    ctx.lineTo(-3, 10);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.strokeStyle = canEndTurn ? 'rgba(255,226,105,.82)' : 'rgba(210,210,202,.20)';
+    ctx.lineWidth = 1.9;
+    ctx.beginPath();
+    ctx.moveTo(-6, -5);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(-6, 5);
+    ctx.moveTo(1, -6);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(1, 6);
     ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = canEndTurn ? '#f3d46c' : 'rgba(210,210,202,.43)';
-    ctx.font = '900 14px Cinzel, serif';
+    ctx.font = '900 12.5px Cinzel, serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('END TURN', turnKey.x + 46, turnKey.y + 17.5);
+    ctx.fillText('END TURN', turnKey.x + 40, turnKey.y + 14.5);
     ctx.fillStyle = canEndTurn ? 'rgba(255,230,139,.60)' : 'rgba(210,210,202,.22)';
-    ctx.font = '750 6.6px Cinzel, serif';
-    ctx.fillText(interaction.consolidating ? 'TRIBUTE SELECTION' : (canEndTurn ? 'COMMIT PHASE' : 'WAITING'), turnKey.x + 46, turnKey.y + 31);
+    ctx.font = '750 5.8px Cinzel, serif';
+    ctx.fillText(interaction.consolidating ? 'TRIBUTE SELECTION' : (canEndTurn ? 'COMMIT PHASE' : 'WAITING'), turnKey.x + 40, turnKey.y + 25.5);
 
-    const arrowX = turnKey.x + turnKey.w - 25;
+    const arrowX = turnKey.x + turnKey.w - 22;
     const arrowY = turnKey.y + turnKey.h / 2;
     ctx.beginPath();
     ctx.moveTo(arrowX - 3, arrowY - 9);
@@ -2120,31 +2184,36 @@
     if(!flash || Number(flash.z) !== Number(zone && zone.z)) return;
     const now = nowMs();
     const start = Number(flash.start) || now;
-    const duration = Math.max(120, Number(flash.duration) || 860);
+    const duration = Math.max(120, Number(flash.duration) || 1260);
     const t = Math.max(0, Math.min(1, (now - start) / duration));
     const pulse = Math.sin(Math.PI * t);
     const ctrl = Number(flash.ctrl);
     const color = ctrl === 0 ? '86,165,255' : ctrl === 1 ? '255,104,104' : '232,196,82';
     ctx.save();
     roundedPath(ctx, zoneRect.x, zoneRect.y, zoneRect.w, zoneRect.h, 8);
-    ctx.fillStyle = 'rgba(' + color + ',' + (.08 + pulse * .13).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(' + color + ',' + (.12 + pulse * .24).toFixed(3) + ')';
     ctx.fill();
-    const sweepW = zoneRect.w * (.18 + .30 * pulse);
+    const sweepW = zoneRect.w * (.22 + .40 * pulse);
     const sweepX = zoneRect.x - sweepW + (zoneRect.w + sweepW * 2) * t;
     ctx.save();
     roundedPath(ctx, zoneRect.x, zoneRect.y, zoneRect.w, zoneRect.h, 8);
     ctx.clip();
     const sweep = ctx.createLinearGradient(sweepX, zoneRect.y, sweepX + sweepW, zoneRect.y + zoneRect.h);
     sweep.addColorStop(0, 'rgba(' + color + ',0)');
-    sweep.addColorStop(.42, 'rgba(' + color + ',' + (.02 + pulse * .20).toFixed(3) + ')');
+    sweep.addColorStop(.42, 'rgba(' + color + ',' + (.06 + pulse * .34).toFixed(3) + ')');
     sweep.addColorStop(1, 'rgba(' + color + ',0)');
     ctx.fillStyle = sweep;
     ctx.fillRect(sweepX, zoneRect.y, sweepW, zoneRect.h);
     ctx.restore();
-    ctx.lineWidth = 2 + pulse * 1.5;
-    ctx.strokeStyle = 'rgba(' + color + ',' + (.34 + pulse * .54).toFixed(3) + ')';
-    ctx.shadowColor = 'rgba(' + color + ',' + (.24 + pulse * .44).toFixed(3) + ')';
-    ctx.shadowBlur = 18 + pulse * 28;
+    ctx.lineWidth = 2.8 + pulse * 2.2;
+    ctx.strokeStyle = 'rgba(' + color + ',' + (.46 + pulse * .54).toFixed(3) + ')';
+    ctx.shadowColor = 'rgba(' + color + ',' + (.34 + pulse * .56).toFixed(3) + ')';
+    ctx.shadowBlur = 24 + pulse * 42;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,246,191,' + (.22 + pulse * .34).toFixed(3) + ')';
+    roundedPath(ctx, zoneRect.x + 7, zoneRect.y + 7, zoneRect.w - 14, zoneRect.h - 14, 6);
     ctx.stroke();
     ctx.restore();
     if(t < 1) scheduleRender('final-zone-flash');
@@ -2712,6 +2781,8 @@
         maxDpr:scaleMetrics.maxDpr,
         renderScale:scaleMetrics.renderScale,
         effectiveDpr,
+        environment:scaleMetrics.environment,
+        dprCapped:!!scaleMetrics.dprCapped,
         pixelArea:canvas.width * canvas.height,
         totalLayerPixelArea:layerPixelArea,
         layers:layerCount
@@ -2842,6 +2913,7 @@
     setViewportHoverHit,
     scrollZoneAtClient,
     queuePlacementMotion,
+    suppressInitialPlacementMotion,
     hideBoardCardForVfx,
     teardownScene,
     resetPerformanceSamples,

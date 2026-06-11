@@ -12,8 +12,8 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=1780823501">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1780823501">
-  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780920015">
-<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1780902401">
+  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780920017">
+<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1780920020">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -505,8 +505,8 @@
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
 <script src="src/scripts/03-profile-and-progression.js?v=1780825201"></script>
 <script src="src/scripts/04-game-setup.js?v=1780910001"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1780920013"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=1780920012"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1780920026"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1780920021"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
 <script src="src/scripts/render-v2/01-render-snapshot.js?v=1780823101"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1780920001"></script>
@@ -515,14 +515,14 @@
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
 <script src="src/scripts/render-v2/12-vfx-primitives.js?v=1780900001"></script>
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1780603201"></script>
-<script src="src/scripts/render-v2/13-vfx-recipes.js?v=1780920013"></script>
-<script src="src/scripts/render-v2/11-vfx-director.js?v=1780920011"></script>
+<script src="src/scripts/render-v2/13-vfx-recipes.js?v=1780920026"></script>
+<script src="src/scripts/render-v2/11-vfx-director.js?v=1780920022"></script>
 <script src="src/scripts/render-v2/16-vfx-acceptance-report.js?v=1780910001"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1780920014"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1780920023"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1780920003"></script>
 <script src="src/scripts/render-v2/08-hand-pile-phase8-report.js?v=1780586201"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1780920014"></script>
-<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1780920013"></script>
+<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1780920026"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1780597001"></script>
   <script src="src/scripts/render-v2/11-acceptance-report.js?v=1780597201"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780311567"></script>
@@ -532,18 +532,78 @@
 <script src="src/scripts/09-challenger-mode.js?v=1780920003"></script>
 <script src="src/scripts/11-tutorial.js?v=1780269000"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
-<script src="src/scripts/10-init.js?v=1780920003"></script>
+<script src="src/scripts/10-init.js?v=1780920021"></script>
 
 <!-- Cloud save: all player data synced to Firebase under players/{uid}/ -->
 <script src="src/scripts/14-cloud-save.js?v=1780311560"></script>
 <!-- Online rebuild v1: Google auth + RTDB profile/social/rooms foundation -->
-<script type="module" src="src/scripts/15-online-auth.js?v=1780311560"></script>
-<script type="module" src="src/scripts/16-online-core.js?v=1780269000"></script>
-<script type="module" src="src/scripts/17-online-social.js?v=1780269000"></script>
-<script type="module" src="src/scripts/18-online-rooms.js?v=1780311550"></script>
-<script type="module" src="src/scripts/19-online-elo.js?v=1780298400"></script>
-<script type="module" src="src/scripts/20-online-economy.js?v=1780310860"></script>
-<script src="src/scripts/21-smoothness-core.js?v=1780821401"></script>
+<script>
+(function(){
+  if(window.__fateOnlineModuleLoaderInstalled) return;
+  window.__fateOnlineModuleLoaderInstalled = true;
+  var modules = [
+    './src/scripts/15-online-auth.js?v=1780920021',
+    './src/scripts/16-online-core.js?v=1780269000',
+    './src/scripts/17-online-social.js?v=1780269000',
+    './src/scripts/18-online-rooms.js?v=1780311550',
+    './src/scripts/19-online-elo.js?v=1780298400',
+    './src/scripts/20-online-economy.js?v=1780310860'
+  ];
+  var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');
+  var promise = null;
+  window.__fateOnlineModuleState = {loaded:false, loading:false, deferred:!!isElectron, startedAt:0, loadedAt:0, error:''};
+  function loadOnlineModules(reason){
+    if(promise) return promise;
+    window.__fateOnlineModuleState.loading = true;
+    window.__fateOnlineModuleState.reason = reason || 'auto';
+    window.__fateOnlineModuleState.startedAt = performance && performance.now ? Math.round(performance.now()) : Date.now();
+    promise = modules.reduce(function(chain, src){ return chain.then(function(){ return import(src); }); }, Promise.resolve())
+      .then(function(){
+        window.__fateOnlineModuleState.loaded = true;
+        window.__fateOnlineModuleState.loading = false;
+        window.__fateOnlineModuleState.loadedAt = performance && performance.now ? Math.round(performance.now()) : Date.now();
+        window.dispatchEvent(new CustomEvent('fate-online-modules-ready', {detail:window.__fateOnlineModuleState}));
+        return window.FateOnline || {};
+      })
+      .catch(function(err){
+        window.__fateOnlineModuleState.loading = false;
+        window.__fateOnlineModuleState.error = String(err && err.message || err);
+        console.warn('[Fate Online] module load failed', err);
+        throw err;
+      });
+    return promise;
+  }
+  window.fateLoadOnlineModules = loadOnlineModules;
+  window.FateOnlineReady = function(){ return loadOnlineModules('manual'); };
+  if(typeof window.showSocial !== 'function') {
+    var showSocialStub = function(){
+      loadOnlineModules('show-social').then(function(){
+        if(window.showSocial && window.showSocial !== showSocialStub) window.showSocial();
+      }).catch(function(){ if(window.toast) window.toast('Online services are still loading'); });
+    };
+    window.showSocial = showSocialStub;
+  }
+  if(typeof window.fateSignInWithGoogle !== 'function') {
+    var signInStub = function(){
+      loadOnlineModules('sign-in').then(function(){
+        if(window.fateSignInWithGoogle && window.fateSignInWithGoogle !== signInStub) window.fateSignInWithGoogle();
+      }).catch(function(){ if(window.toast) window.toast('Online services are still loading'); });
+    };
+    window.fateSignInWithGoogle = signInStub;
+  }
+  function scheduleLoad(){
+    var idle = window.requestIdleCallback || function(fn){ return setTimeout(function(){ fn({timeRemaining:function(){return 0;}}); }, 1); };
+    if(isElectron) {
+      setTimeout(function(){ idle(function(){ loadOnlineModules('electron-idle-delay'); }); }, 6500);
+    } else {
+      idle(function(){ loadOnlineModules('browser-idle'); });
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleLoad, {once:true});
+  else scheduleLoad();
+})();
+</script>
+<script src="src/scripts/21-smoothness-core.js?v=1780920028"></script>
 <script src="src/scripts/22-spectator.js?v=1780269000"></script>
 <script>
   if('serviceWorker' in navigator && !new URLSearchParams(location.search).has('soloNoSw')){navigator.serviceWorker.register('./sw.js?v=bg20260510d').catch(()=>{});}

@@ -23,8 +23,14 @@ const MIME_TYPES = {
   '.ogg': 'audio/ogg',
   '.txt': 'text/plain; charset=utf-8'
 };
+const LONG_CACHE_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico',
+  '.mp3', '.wav', '.ogg'
+]);
+const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 
 let staticServer;
+let mainWindow = null;
 
 function clampZoomFactor(value) {
   const n = Number(value);
@@ -40,6 +46,72 @@ ipcMain.handle('fate:set-zoom-factor', (event, factor) => {
   const next = clampZoomFactor(factor);
   event.sender.setZoomFactor(next);
   return clampZoomFactor(event.sender.getZoomFactor());
+});
+
+ipcMain.handle('fate:get-performance-info', (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  let gpuStatus = null;
+  try {
+    gpuStatus = app.getGPUFeatureStatus();
+  } catch (err) {
+    gpuStatus = { error: String(err && err.message || err) };
+  }
+  let appMetrics = null;
+  try {
+    appMetrics = app.getAppMetrics().map((metric) => ({
+      type: metric.type,
+      cpu: metric.cpu,
+      memory: metric.memory,
+      sandboxed: metric.sandboxed,
+      serviceName: metric.serviceName
+    }));
+  } catch (err) {
+    appMetrics = { error: String(err && err.message || err) };
+  }
+  let webContentsInfo = null;
+  try {
+    webContentsInfo = senderWindow ? {
+      isFocused: senderWindow.webContents.isFocused(),
+      isDevToolsOpened: senderWindow.webContents.isDevToolsOpened(),
+      isLoading: senderWindow.webContents.isLoading(),
+      zoomFactor: clampZoomFactor(senderWindow.webContents.getZoomFactor())
+    } : null;
+  } catch (err) {
+    webContentsInfo = { error: String(err && err.message || err) };
+  }
+  let windowInfo = null;
+  try {
+    windowInfo = senderWindow ? {
+      isFocused: senderWindow.isFocused(),
+      isVisible: senderWindow.isVisible(),
+      isFullScreen: senderWindow.isFullScreen(),
+      isMaximized: senderWindow.isMaximized(),
+      bounds: senderWindow.getBounds(),
+      contentBounds: senderWindow.getContentBounds()
+    } : null;
+  } catch (err) {
+    windowInfo = { error: String(err && err.message || err) };
+  }
+  return {
+    isElectron: true,
+    versions: process.versions,
+    commandSwitches: {
+      forceDeviceScaleFactor: '1',
+      disableBackgroundTimerThrottling: true,
+      disableRendererBackgrounding: true,
+      disableBackgroundingOccludedWindows: true,
+      disabledFeatures: [
+        'CalculateNativeWinOcclusion',
+        'ThirdPartyStoragePartitioning',
+        'TrackingProtection3pcd',
+        'BlockThirdPartyCookies'
+      ]
+    },
+    gpuStatus,
+    appMetrics,
+    windowInfo,
+    webContentsInfo
+  };
 });
 
 function safePathFromUrl(urlPath) {
@@ -67,9 +139,14 @@ function startStaticServer() {
               res.end('Not found');
               return;
             }
+            const ext = path.extname(target).toLowerCase();
+            const url = req.url || '';
+            const cacheControl = LONG_CACHE_EXTENSIONS.has(ext) || (VERSIONED_CACHE_EXTENSIONS.has(ext) && /\?v=/.test(url))
+              ? 'public, max-age=31536000, immutable'
+              : 'no-cache';
             res.writeHead(200, {
-              'Content-Type': MIME_TYPES[path.extname(target).toLowerCase()] || 'application/octet-stream',
-              'Cache-Control': 'no-store'
+              'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+              'Cache-Control': cacheControl
             });
             res.end(data);
           });
@@ -162,6 +239,7 @@ async function createWindow() {
     autoHideMenuBar: true,
     webPreferences: webPrefs
   });
+  mainWindow = win;
 
   Menu.setApplicationMenu(null);
 

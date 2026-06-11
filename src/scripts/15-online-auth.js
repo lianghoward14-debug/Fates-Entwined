@@ -132,6 +132,18 @@ if(!isElectronShell()){
   });
 }
 
+function electronStartupDelay(fn, delay){
+  if(!isElectronShell()) return fn();
+  const run = function(){
+    try{
+      const result = fn();
+      if(result && typeof result.catch === 'function') result.catch(e=>console.warn('Electron online startup task failed', e));
+    }catch(e){ console.warn('Electron online startup task failed', e); }
+  };
+  const timer = window.__fateNativeSetTimeout || window.setTimeout;
+  return timer(run, Math.max(0, Number(delay) || 0));
+}
+
 function safe(s){ return String(s == null ? '' : s); }
 function escapeHtml(s){ return safe(s).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
 function hashCode(str){
@@ -379,6 +391,31 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
 window.fateSignInWithGoogle = signIn;
 window.fateSignOut = signOutNow;
 
+async function finishSignedInOnlineStartup(user){
+  if(!user || auth.currentUser !== user) return;
+  if(typeof window._fateStopOfflineSimulations === 'function') window._fateStopOfflineSimulations();
+  if(typeof window._fateMigrateIfNeeded === 'function') window._fateMigrateIfNeeded(user.uid);
+  if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(user.uid);
+  else if(typeof window._fateSetActiveUid === 'function') window._fateSetActiveUid(user.uid);
+
+  try{
+    if(window.FateCloudSave){
+      await window.FateCloudSave.onSignIn(user.uid);
+    }
+  }catch(e){ console.warn('Cloud data load failed, using local data', e); }
+
+  try{
+    const pRef = ref(rtdb, `presence/${user.uid}`);
+    await Promise.all([
+      syncPublicProfile(),
+      update(pRef, { uid:user.uid, online:true, lastSeen:serverTimestamp() })
+    ]);
+    onDisconnect(pRef).update({ online:false, lastSeen:serverTimestamp() }).catch(()=>{});
+    const poll = setInterval(()=>{ if(auth.currentUser && !document.hidden && !document.getElementById('s-game')?.classList.contains('active')) update(pRef, { online:true, lastSeen:serverTimestamp() }).catch(()=>{}); }, 60000);
+    state.unsubs.push(()=>clearInterval(poll));
+  }catch(e){ console.error('Public profile sync failed', e); }
+}
+
 onAuthStateChanged(auth, async user => {
   state.user = user || null;
   state.ready = true;
@@ -386,6 +423,13 @@ onAuthStateChanged(auth, async user => {
   state.baseCode = user ? makeBaseCode(user.uid) : null;
   renderAuthPanel();
   if(user){
+    if(isElectronShell()){
+      electronStartupDelay(async function(){
+        await finishSignedInOnlineStartup(user);
+        emit();
+      }, 1800);
+      return;
+    }
     // Stop offline-mode simulation timers — they leak forever otherwise.
     if(typeof window._fateStopOfflineSimulations === 'function') window._fateStopOfflineSimulations();
     // Set per-account storage key and migrate legacy data if needed

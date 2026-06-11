@@ -15,6 +15,13 @@
     return window.FateMatchRendererAdapter || null;
   }
 
+  function animationsOff(){
+    const root = document.documentElement;
+    const body = document.body;
+    return !!((root && root.classList && root.classList.contains('fate-animations-off')) ||
+      (body && body.classList && body.classList.contains('fate-animations-off')));
+  }
+
   function hitMap(){
     const s = scene();
     return s && typeof s.getHitMap === 'function' ? s.getHitMap() : null;
@@ -148,6 +155,7 @@
   }
 
   function fly(card, from, to, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const kind = String(options.kind || 'play').toLowerCase();
     const fromRect = from && from.x != null ? from : boardPointFromViewportRect(from);
@@ -159,6 +167,7 @@
   }
 
   function flyBoardCard(card, z, r, c, kind){
+    if(animationsOff()) return false;
     const motionKind = String(kind || 'discard').toLowerCase();
     const fromRect = boardCardRect(z, r, c);
     const owner = card && card.owner != null ? card.owner : currentViewer();
@@ -168,11 +177,13 @@
   }
 
   function flipBoardCard(card, z, r, c){
+    if(animationsOff()) return false;
     const rect = boardCardRect(z, r, c);
     return play('CARD_FLIP', {card, iid:card && card.iid, rect});
   }
 
   function boardNotice(card, z, r, c, text, opts){
+    if(animationsOff()) return false;
     const rect = rectForBoardTarget(z, r, c);
     if(!rect) return false;
     const options = opts || {};
@@ -193,6 +204,7 @@
   }
 
   function drawFromPile(delayIdx, owner, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const viewer = currentViewer();
     const playerIndex = owner == null ? viewer : owner;
@@ -212,6 +224,7 @@
   }
 
   function moveBoardCard(card, from, to, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const fromRect = from && from.x != null ? from : rectForBoardTarget(from && from.z, from && from.r, from && from.c);
     const toRect = to && to.x != null ? to : rectForBoardTarget(to && to.z, to && to.r, to && to.c);
@@ -225,6 +238,7 @@
   }
 
   function swapBoardCards(a, b, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const aRect = a && a.rect ? a.rect : rectForBoardTarget(a && a.z, a && a.r, a && a.c);
     const bRect = b && b.rect ? b.rect : rectForBoardTarget(b && b.z, b && b.r, b && b.c);
@@ -236,6 +250,7 @@
   }
 
   function returnBoardCardToHand(card, z, r, c, owner, opts){
+    if(animationsOff()) return false;
     const fromRect = rectForBoardTarget(z, r, c);
     const viewer = currentViewer();
     const toRect = (Number(owner) === Number(viewer) ? (handSlotRect(999) || handSlotRect(0)) : opponentHandSlotRect(999, owner)) || fallbackHandRect(owner, fromRect);
@@ -244,6 +259,7 @@
   }
 
   function sendHandCardToDiscard(card, owner, handIndex, opts){
+    if(animationsOff()) return false;
     const fromRect = anyHandRectByIid(card && card.iid) || (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner));
     const toRect = pileRect(owner, 'discard') || pileRect(null, 'discard');
     if(!fromRect || !toRect) return false;
@@ -251,6 +267,7 @@
   }
 
   function sendBoardCardToDeck(card, z, r, c, owner, opts){
+    if(animationsOff()) return false;
     const fromRect = rectForBoardTarget(z, r, c);
     const toRect = pileRect(owner, 'deck') || pileRect(null, 'deck');
     if(!fromRect || !toRect) return false;
@@ -258,6 +275,7 @@
   }
 
   function sendDeckCardToBoard(card, owner, z, r, c, opts){
+    if(animationsOff()) return false;
     const fromRect = pileRect(owner, 'deck') || pileRect(null, 'deck');
     const toRect = rectForBoardTarget(z, r, c);
     if(!fromRect || !toRect) return false;
@@ -265,6 +283,7 @@
   }
 
   function sendDeckCardToHand(card, owner, handIndex, opts){
+    if(animationsOff()) return false;
     const fromRect = pileRect(owner, 'deck') || pileRect(null, 'deck');
     const toRect = (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner, fromRect);
     if(!fromRect || !toRect) return false;
@@ -272,6 +291,7 @@
   }
 
   function sendDiscardCardToHand(card, owner, handIndex, opts){
+    if(animationsOff()) return false;
     const fromRect = pileRect(owner, 'discard') || pileRect(null, 'discard');
     const toRect = (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner, fromRect);
     if(!fromRect || !toRect) return false;
@@ -279,6 +299,7 @@
   }
 
   function searchCardToHand(card, owner, source, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const pileName = String(source || options.source || 'deck').toLowerCase() === 'discard' ? 'discard' : 'deck';
     const fromRect = pileRect(owner, pileName) || pileRect(null, pileName);
@@ -296,6 +317,7 @@
   }
 
   function transferHandCard(card, fromOwner, toOwner, opts){
+    if(animationsOff()) return false;
     const fromRect = anyHandRectByIid(card && card.iid) || (Number(fromOwner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, fromOwner));
     const toRect = Number(toOwner) === Number(currentViewer()) ? handSlotRect(999) : opponentHandSlotRect(999, toOwner);
     if(!fromRect || !toRect) return false;
@@ -303,6 +325,7 @@
   }
 
   function revealCard(card, rectSource, rectTarget, opts){
+    if(animationsOff()) return false;
     const fromRect = rectSource && rectSource.x != null ? rectSource : rectSource || pileRect(currentViewer(), 'deck') || pileRect(null, 'deck');
     const toRect = rectTarget && rectTarget.x != null ? rectTarget : rectTarget || fromRect;
     if(!toRect) return false;
@@ -310,6 +333,7 @@
   }
 
   function fateChange(card, z, r, c, before, after, opts){
+    if(animationsOff()) return false;
     const rect = rectForBoardTarget(z, r, c);
     if(!rect) return false;
     const delta = Number(after) - Number(before);
@@ -318,6 +342,7 @@
   }
 
   function supporterEffect(sourceCard, sourcePos, targets, opts){
+    if(animationsOff()) return false;
     const sourceRect = sourcePos && sourcePos.x != null ? sourcePos : rectForBoardTarget(sourcePos && sourcePos.z, sourcePos && sourcePos.r, sourcePos && sourcePos.c);
     const list = Array.isArray(targets) ? targets : (targets ? [targets] : []);
     const first = list[0] || sourcePos;
@@ -333,6 +358,7 @@
   }
 
   function zoneMotion(zoneIndex, kind, opts){
+    if(animationsOff()) return false;
     const options = opts || {};
     const map = hitMap();
     const cells = map && Array.isArray(map.cells) ? map.cells.filter(function(cell){ return Number(cell && cell.z) === Number(zoneIndex); }) : [];
@@ -345,16 +371,19 @@
   }
 
   function turnHandoff(fromPlayer, toPlayer, opts){
+    if(animationsOff()) return false;
     const viewer = currentViewer();
     const handRect = Number(toPlayer) === Number(viewer) ? handSlotRect(0) : opponentHandSlotRect(0, toPlayer);
     return play('TURN_START', Object.assign({fromPlayer, toPlayer, handRect}, opts || {}));
   }
 
   function scoreResolve(zoneIndex, winner, opts){
+    if(animationsOff()) return false;
     return zoneMotion(zoneIndex, 'ZONE_SCORE', Object.assign({winner}, opts || {}));
   }
 
   function queuePlacementFromHand(sourceCard, placedCard){
+    if(animationsOff()) return false;
     const adapter = scene();
     if(!adapter || typeof adapter.queuePlacementMotion !== 'function') return false;
     if(!adapter.ownsBoard || !adapter.ownsBoard()) return false;
@@ -367,6 +396,36 @@
       || fallbackHandRect(owner, placedRect);
     if(!fromRect || placedIid == null) return false;
     return !!adapter.queuePlacementMotion(placedIid, fromRect);
+  }
+
+  function setCardFromHand(sourceCard, placedCard, target){
+    if(animationsOff()) return 0;
+    const adapter = scene();
+    if(!adapter || !adapter.ownsBoard || !adapter.ownsBoard()) return 0;
+    const sourceIid = sourceCard && sourceCard.iid;
+    const placedIid = placedCard && placedCard.iid;
+    const owner = placedCard && placedCard.owner != null ? placedCard.owner : sourceCard && sourceCard.owner;
+    const targetRect = target && target.x != null ? target : rectForBoardTarget(target && target.z, target && target.r, target && target.c);
+    const fromRect = anyHandRectByIid(sourceIid)
+      || (Number(owner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, owner))
+      || fallbackHandRect(owner, targetRect);
+    if(!fromRect || !targetRect || placedIid == null) return 0;
+    const duration = 300;
+    if(typeof adapter.suppressInitialPlacementMotion === 'function') adapter.suppressInitialPlacementMotion(placedIid, duration + 260);
+    if(typeof adapter.hideBoardCardForVfx === 'function') adapter.hideBoardCardForVfx(placedIid, duration + 80);
+    play('PLAY_CARD', {
+      iid:placedIid,
+      card:placedCard || sourceCard,
+      fromRect,
+      toRect:targetRect,
+      targetRect,
+      duration,
+      arc:.10,
+      lift:.10,
+      rotate:2,
+      settleMs:48
+    });
+    return duration;
   }
 
   function crashTributes(tributes, target){
@@ -391,16 +450,23 @@
         };
       }).filter(function(item){ return !!item.rect; })
     };
-    if(payload.resultCardIid && !payload.faceDown && scene() && typeof scene().hideBoardCardForVfx === 'function') {
-      scene().hideBoardCardForVfx(payload.resultCardIid, 560 + payload.tributes.length * 96);
+    const revealDelay = 760 + Math.min(6, payload.tributes.length) * 42;
+    const adapter = scene();
+    if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
+      adapter.suppressInitialPlacementMotion(payload.resultCardIid, revealDelay + 260);
     }
-    return play('CONSOLIDATE', payload);
+    if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
+      adapter.hideBoardCardForVfx(payload.resultCardIid, revealDelay);
+    }
+    play('CONSOLIDATE', payload);
+    return revealDelay;
   }
 
   function report(){
     return {
       available:true,
       version:VERSION,
+      animationsOff:animationsOff(),
       usesDomGhosts:false,
       usesVfxDirector:!!window.FateVfxDirector,
       createsDomGhosts:false,
@@ -423,6 +489,7 @@
       ownsFateChange:true,
       ownsSupporterEffect:true,
       ownsZoneMotion:true,
+      ownsExplicitSet:true,
       usesHitMapRects:true
     };
   }
@@ -450,12 +517,14 @@
     zoneMotion,
     turnHandoff,
     scoreResolve,
+    setCardFromHand,
     queuePlacementFromHand,
     crashTributes,
     report
   };
   window.fateV2MotionFlyBoardCard = flyBoardCard;
   window.fateV2MotionFlipBoardCard = flipBoardCard;
+  window.fateV2MotionSetCardFromHand = setCardFromHand;
   window.fateV2MotionCrashTributes = crashTributes;
   window.fateV2MotionFxReport = report;
 })();

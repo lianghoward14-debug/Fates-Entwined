@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Show loading overlay early if a Firebase session may be resuming.
   // The cloud save module will hide it once data loads (or after timeout).
-  if(window.FateCloudSave){
+  if(window.FateCloudSave && !fateIsElectronShell()){
     window.FateCloudSave.showLoading();
     // Safety timeout: hide overlay if auth never fires (e.g. not signed in)
     window._fateCloudLoadingTimeout = setTimeout(function(){
@@ -429,32 +429,51 @@ function fateScheduleIdle(fn, timeout) {
   }
 }
 
+function fateIsElectronShell() {
+  try {
+    if(/[?&]electron=1(?:&|$)/.test(location.search || '')) return true;
+    return /Electron/i.test(navigator.userAgent || '');
+  } catch(e) {
+    return false;
+  }
+}
+
 function warmFirstInteractionUi() {
   if(window.__fateFirstInteractionUiWarmed) return;
   window.__fateFirstInteractionUiWarmed = true;
+  const electronShell = fateIsElectronShell();
   fateScheduleIdle(function(){
     try {
       if(document.fonts && typeof document.fonts.load === 'function') {
         document.fonts.load('900 14px Cinzel');
         document.fonts.load('700 12px system-ui');
       }
-      ['blank.png',
-        'optimized/backgrounds/ingamebackgrouds_igb9.jpg',
-        'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
-        'optimized/backgrounds/ingamebackgrouds_igb1.jpg'
-      ].forEach(function(src){
+      ['blank.png'].forEach(function(src){
         const img = new Image();
         img.decoding = 'async';
         img.loading = 'eager';
-        img.src = typeof FATE_BACKGROUND_URL === 'function' && src.indexOf('optimized/') === 0 ? FATE_BACKGROUND_URL(src) : src;
+        img.src = src;
         if(typeof img.decode === 'function') img.decode().catch(function(){});
       });
-      if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
-      if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
-      const modal = document.getElementById('modal');
-      if(modal) void modal.offsetWidth;
     } catch(e) {}
-  }, 260);
+  }, electronShell ? 1400 : 260);
+
+  setTimeout(function(){
+    fateScheduleIdle(function(){
+      try {
+        [
+          'optimized/backgrounds/ingamebackgrouds_igb9.jpg',
+          'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
+          'optimized/backgrounds/ingamebackgrouds_igb1.jpg'
+        ].forEach(function(src){
+          const img = new Image();
+          img.decoding = 'async';
+          img.loading = 'lazy';
+          img.src = typeof FATE_BACKGROUND_URL === 'function' && src.indexOf('optimized/') === 0 ? FATE_BACKGROUND_URL(src) : src;
+        });
+      } catch(e) {}
+    }, electronShell ? 3000 : 900);
+  }, electronShell ? 5200 : 520);
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{

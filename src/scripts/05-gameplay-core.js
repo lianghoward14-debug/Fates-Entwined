@@ -1427,13 +1427,16 @@ async function clickCell(z,r,c) {
   inst.currentFate = getPlacedCardFate(card);
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, z, r, c);
   consumePendingPlacementFlags(card, inst);
-  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
+  var _placementMs = 0;
+  if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.setCardFromHand === 'function'){
+    _placementMs = window.FateV2CardMotionFx.setCardFromHand(card, inst, {z:z, r:r, c:c}) || 0;
+  } else if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.queuePlacementFromHand === 'function'){
     window.FateV2CardMotionFx.queuePlacementFromHand(card, inst);
   }
   G.board[z][r][c] = inst;
   applyRiveraBuffToPlacedCard(inst, inst.owner);
   if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, z, r, c);
-  var _placementMs = triggerPlacementAnimation(inst, z, r, c);
+  if(!_placementMs) _placementMs = triggerPlacementAnimation(inst, z, r, c);
   player.hand.splice(G.selectedHandCard, 1);
 
   // Show consolidation cinematic for Lina free-set character cards (they bypass the consolidation flow)
@@ -1492,7 +1495,14 @@ async function clickCell(z,r,c) {
   clearPlaceHighlights();
 
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
-  renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+  if(_placementMs && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.setCardFromHand === 'function'){
+    renderGame({hand:true, scores:true, piles:true, oppHand:true, topbar:true});
+    setTimeout(function(){
+      renderGame({board:true, scores:true, blocks:true, topbar:true});
+    }, Math.max(80, Math.round(_placementMs * .86)));
+  } else {
+    renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+  }
 
   requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, z, r, c));
 }
@@ -2038,15 +2048,16 @@ function finalizeConsolidate(card, tributes, targetIdx) {
           G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
         }
       });
+      var _consolidationMotionMs = 0;
       if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
-        window.FateV2CardMotionFx.crashTributes(tributes, {
+        _consolidationMotionMs = window.FateV2CardMotionFx.crashTributes(tributes, {
           card:inst,
           resultCard:inst,
           z:targetZ,
           r:targetR,
           c:targetC,
           faceDown:useFaceDown
-        });
+        }) || 0;
       }
       tributes.forEach(t=>{
         if(t && t.card) t.card._suppressDiscardVfx = true;
@@ -2062,7 +2073,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, targetZ, targetR, targetC);
-    const placementDelay = Math.min(1250, 560 + tributes.length * 96);
+    const placementDelay = _consolidationMotionMs || Math.min(1250, 560 + tributes.length * 96);
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
     if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
@@ -2078,9 +2089,16 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     G.selectedHandCard = null;
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
-    renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
-    // Defer consolidation visual to after renderGame's rAF completes so it isn't wiped by the DOM rebuild
-    requestAnimationFrame(() => { requestAnimationFrame(() => showConsolidateVisual(targetZ,targetR,targetC)); });
+    if(_consolidationMotionMs){
+      renderGame({hand:true, piles:true, topbar:true});
+      setTimeout(function(){
+        renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
+      }, Math.max(80, Math.round(_consolidationMotionMs * .86)));
+    } else {
+      renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
+      // Defer consolidation visual to after renderGame's rAF completes so it isn't wiped by the DOM rebuild
+      requestAnimationFrame(() => { requestAnimationFrame(() => showConsolidateVisual(targetZ,targetR,targetC)); });
+    }
     requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, targetZ, targetR, targetC));
   }
 
