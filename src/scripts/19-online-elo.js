@@ -78,6 +78,8 @@
   function aiEntry(ai, extra={}){
     const id = extra.aiId || aiIdFor(ai);
     const rec = localAIRecord(ai);
+    const wins = Number(extra.wins ?? ai?.wins ?? rec.wins) || 0;
+    const losses = Number(extra.losses ?? ai?.losses ?? rec.losses) || 0;
     return {
       uid:id,
       aiId:id,
@@ -87,8 +89,10 @@
       profileImg:extra.profileImg || extra.photoURL || aiPhoto(ai),
       elo:Math.max(100, Math.round(Number(extra.elo ?? ai?.elo ?? 600) || 600)),
       trueElo:Math.max(100, Math.round(Number(extra.trueElo ?? ai?.trueElo ?? ((Number(ai?.elo)||600)+200)) || 800)),
-      wins:Number(extra.wins ?? rec.wins) || 0,
-      losses:Number(extra.losses ?? rec.losses) || 0,
+      wins,
+      losses,
+      seededWinRate:Number(extra.seededWinRate ?? ai?.seededWinRate) || 0,
+      generationVersion:Number(extra.generationVersion ?? ai?.generationVersion) || 0,
       isAI:true,
       isMonthly:!!(extra.isMonthly ?? ai?.isMonthly),
       monthKey:extra.monthKey || ai?.monthKey || (ai?.isMonthly ? currentMonthKey() : ''),
@@ -118,6 +122,8 @@
     entry.trueElo = Math.max(100, Math.round(Number(rec.trueElo || entry.trueElo || entry.elo + 200)));
     entry.wins = Number(rec.wins || 0) || 0;
     entry.losses = Number(rec.losses || 0) || 0;
+    entry.seededWinRate = Number(rec.seededWinRate || 0) || 0;
+    entry.generationVersion = Number(rec.generationVersion || 0) || 0;
     entry.profileImg = rec.photoURL || rec.profileImg || entry.profileImg || 'blank.png';
     entry.photoURL = entry.profileImg;
     entry.isAI = true;
@@ -183,6 +189,8 @@
       trueElo:Number(rec.trueElo || rec.elo || 600),
       wins:Number(rec.wins || 0),
       losses:Number(rec.losses || 0),
+      seededWinRate:Number(rec.seededWinRate || 0) || 0,
+      generationVersion:Number(rec.generationVersion || 0) || 0,
       isAI:true,
       isMonthly:!!rec.isMonthly,
       monthKey:rec.monthKey || '',
@@ -202,11 +210,30 @@
       const id = aiIdFor(ai);
       ai.aiId = id;
       const current = existing[id];
+      const seeded = aiEntry(ai, {aiId:id});
       if(current){
-        applied.push(applySharedAIRecord({...current, aiId:id, uid:id}));
+        const currentTotal = Number(current.wins || 0) + Number(current.losses || 0);
+        const needsMonthlySpread = !!(seeded.isMonthly && seeded.generationVersion >= 2 && (Number(current.generationVersion || 0) < seeded.generationVersion || currentTotal < 8));
+        const merged = needsMonthlySpread ? {
+          ...current,
+          elo:seeded.elo,
+          trueElo:seeded.trueElo,
+          wins:seeded.wins,
+          losses:seeded.losses,
+          seededWinRate:seeded.seededWinRate,
+          generationVersion:seeded.generationVersion,
+          isMonthly:true,
+          monthKey:seeded.monthKey,
+          updatedAt:FO.serverTimestamp()
+        } : current;
+        if(needsMonthlySpread){
+          updates[`${basePath}/ai/${id}`] = merged;
+          updates[`leaderboards/challenger/${id}`] = {...merged, updatedAt:FO.serverTimestamp()};
+        }
+        applied.push(applySharedAIRecord({...merged, aiId:id, uid:id}));
         return;
       }
-      const rec = aiEntry(ai, {aiId:id});
+      const rec = seeded;
       updates[`${basePath}/ai/${id}`] = {...rec, updatedAt:FO.serverTimestamp()};
       updates[`leaderboards/challenger/${id}`] = {...rec, updatedAt:FO.serverTimestamp()};
       applied.push(rec);

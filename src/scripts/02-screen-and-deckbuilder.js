@@ -316,6 +316,14 @@ function dbFilter(el, f) {
 
 let _dbCollectionRenderSeq = 0;
 
+function getDeckCardCounts(deck) {
+  const counts = Object.create(null);
+  (deck || []).forEach(id=>{
+    counts[id] = (counts[id] || 0) + 1;
+  });
+  return counts;
+}
+
 function settleTitleDeckBuilderImages(root) {
   const imgs = Array.from(root.querySelectorAll('.db-mc .mc-art img')).slice(0, 36);
   if(!imgs.length) return Promise.resolve();
@@ -351,6 +359,7 @@ function renderDBCollection() {
   const searchEl = document.getElementById('db-search');
   if(searchEl && searchEl.value !== dbSearch_) searchEl.value = dbSearch_;
   const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
+  const deckCounts = getDeckCardCounts(deck);
   const rarities = ['star','square','triangle','circle'];
   const cards = sortCardsByArtNumber(CARDS.filter(c=>!isRetiredCardForBuilder(c)).filter(c=>{
     if(dbFilter_==='all') return true;
@@ -358,9 +367,9 @@ function renderDBCollection() {
     if(rarities.includes(dbFilter_)) return c.rarity===dbFilter_;
     return c.aff===dbFilter_;
   }).filter(c=>cardMatchesDeckBuilderSearch(c, dbSearch_)));
-  if(false && typeof renderCanvasDeckCollection === 'function') {
+  if(typeof renderCanvasDeckCollection === 'function') {
     const entries = cards.map(c=>{
-      const count = deck.filter(id=>id===c.id).length;
+      const count = deckCounts[c.id] || 0;
       return {
         card:c,
         count,
@@ -377,7 +386,7 @@ function renderDBCollection() {
   const scrollTop = col.scrollTop;
   const fragment = document.createDocumentFragment();
   cards.forEach(c=>{
-    const count = deck.filter(id=>id===c.id).length;
+    const count = deckCounts[c.id] || 0;
     const el = document.createElement('div');
     el.className='mc db-mc'+(count>0?' in-deck':'')+(c.rarity==='star'?' star-card-db':'')+(c.rarity==='square'?' square-card-db':'');
     el.dataset.cardId = c.id;
@@ -402,12 +411,13 @@ function renderDBCollection() {
 
 function refreshDBCollectionCounts() {
   const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
+  const deckCounts = getDeckCardCounts(deck);
   if(typeof refreshCanvasDeckCollectionCounts === 'function' && refreshCanvasDeckCollectionCounts(document.getElementById('db-collection'), function(entry){
-    entry.count = deck.filter(x=>x===entry.card.id).length;
+    entry.count = deckCounts[entry.card.id] || 0;
   })) return;
   document.querySelectorAll('#db-collection .db-mc[data-card-id]').forEach(el=>{
     const id = el.dataset.cardId;
-    const count = deck.filter(x=>x===id).length;
+    const count = deckCounts[id] || 0;
     el.classList.toggle('in-deck', count > 0);
     let limit = el.querySelector('.mc-limit');
     if(count > 0){

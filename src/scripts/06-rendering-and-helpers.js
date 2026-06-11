@@ -2685,6 +2685,7 @@ function getEffectTooltipPortal() {
 function hideEffectTooltipPortal() {
   if(!_effectTooltipPortal) return;
   _effectTooltipPortal.className = 'effect-pill-tooltip effect-tooltip-portal';
+  _effectTooltipPortal.classList.remove('is-visible');
   _effectTooltipPortal.style.display = 'none';
   _effectTooltipPortal.style.opacity = '0';
   _effectTooltipPortal.style.visibility = 'hidden';
@@ -2736,7 +2737,7 @@ function ensureEffectTooltipPositioning(container) {
     }
     var portal = getEffectTooltipPortal();
     var sideClass = pill.classList.contains('effect-pill-opp') ? ' effect-pill-opp' : ' effect-pill-mine';
-    portal.className = 'effect-pill-tooltip effect-tooltip-portal' + sideClass;
+    portal.className = 'effect-pill-tooltip effect-tooltip-portal is-visible' + sideClass;
     portal.innerHTML = tip.innerHTML;
     portal.dataset.side = container.id === 'tp-status-right' ? 'right' : 'left';
     portal.style.display = 'block';
@@ -6110,8 +6111,11 @@ function showConsolidationCinematic(card, opts) {
 function showEffectActivationGlow(z, r, c, card) {
   if(typeof document === 'undefined') return;
   if(rendererV2OwnsBoardScene()){
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.flashBoardCardActivation === 'function') {
+      window.FateMatchRendererAdapter.flashBoardCardActivation(card, z, r, c, {duration:520});
+    }
     if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.boardNotice === 'function'){
-      window.FateV2CardMotionFx.boardNotice(card, z, r, c, 'ACTIVATE', {type:'SUPPORTER_ACTIVATE', color:'#9ee6ff'});
+      window.FateV2CardMotionFx.boardNotice(card, z, r, c, 'ACTIVATE', {type:'SUPPORTER_ACTIVATE', color:'#ffd75a'});
     }
     return;
   }

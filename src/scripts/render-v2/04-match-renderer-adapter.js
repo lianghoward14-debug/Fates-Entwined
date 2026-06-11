@@ -33,6 +33,7 @@
   const pendingTextureTimers = {};
   let lastCanvasMetrics = null;
   let lastLayout = null;
+  let activeActivationFlashes = [];
   let stableBoardViewport = null;
   const zoneScroll = {};
   let renderScale = 1;
@@ -1135,6 +1136,10 @@
       else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'card-move');
       return null;
     }
+    if(!prevRect && isInitialPlacementMotionSuppressed(iid)){
+      pendingPlacementRectByIid.delete(iid);
+      return null;
+    }
     const pendingPlacementRect = pendingPlacementRectByIid.get(iid);
     if(!prevRect && pendingPlacementRect){
       pendingPlacementRectByIid.delete(iid);
@@ -1165,7 +1170,6 @@
         flight:true
       });
     }
-    if(!prevRect && isInitialPlacementMotionSuppressed(iid)) return null;
     if(!prevRect && lastReport && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
       const fromRect = fallbackBoardEntrySourceRect(card, nextRect);
       if(fromRect){
@@ -2026,47 +2030,11 @@
     ctx.strokeStyle = canEndTurn ? 'rgba(255,220,94,.74)' : 'rgba(210,210,200,.26)';
     ctx.stroke();
 
-    const markX = turnKey.x + 21;
-    const markY = turnKey.y + turnKey.h / 2;
-    const markTone = canEndTurn ? '255,226,105' : '210,210,202';
-    const markGlow = canEndTurn ? .22 : .05;
-    ctx.save();
-    ctx.translate(markX, markY);
-    ctx.shadowColor = 'rgba(' + markTone + ',' + markGlow + ')';
-    ctx.shadowBlur = canEndTurn ? 7 : 2;
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,238,150,.80)' : 'rgba(210,210,202,.18)';
-    ctx.lineWidth = 1.55;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-12, 0);
-    ctx.lineTo(-3, -10);
-    ctx.lineTo(13, -10);
-    ctx.lineTo(5, 0);
-    ctx.lineTo(13, 10);
-    ctx.lineTo(-3, 10);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.strokeStyle = canEndTurn ? 'rgba(255,226,105,.82)' : 'rgba(210,210,202,.20)';
-    ctx.lineWidth = 1.9;
-    ctx.beginPath();
-    ctx.moveTo(-6, -5);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(-6, 5);
-    ctx.moveTo(1, -6);
-    ctx.lineTo(8, 0);
-    ctx.lineTo(1, 6);
-    ctx.stroke();
-    ctx.restore();
-
     ctx.fillStyle = canEndTurn ? '#f3d46c' : 'rgba(210,210,202,.43)';
-    ctx.font = '900 12.5px Cinzel, serif';
-    ctx.textAlign = 'left';
+    ctx.font = '900 13px Cinzel, serif';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('END TURN', turnKey.x + 40, turnKey.y + 14.5);
-    ctx.fillStyle = canEndTurn ? 'rgba(255,230,139,.60)' : 'rgba(210,210,202,.22)';
-    ctx.font = '750 5.8px Cinzel, serif';
-    ctx.fillText(interaction.consolidating ? 'TRIBUTE SELECTION' : (canEndTurn ? 'COMMIT PHASE' : 'WAITING'), turnKey.x + 40, turnKey.y + 25.5);
+    ctx.fillText('END TURN', turnKey.x + turnKey.w / 2 - 4, turnKey.y + turnKey.h / 2 + .5);
 
     const arrowX = turnKey.x + turnKey.w - 22;
     const arrowY = turnKey.y + turnKey.h / 2;
@@ -2446,10 +2414,81 @@
     return true;
   }
 
+  function activationFlashRect(flash){
+    if(!flash) return null;
+    const iid = String(flash.iid || '');
+    const cards = lastHitMap && Array.isArray(lastHitMap.cards) ? lastHitMap.cards : [];
+    let hit = null;
+    if(iid) {
+      hit = cards.find(function(item){ return String(item && item.card && item.card.iid) === iid; });
+    }
+    if(!hit && Number.isFinite(flash.z) && Number.isFinite(flash.r) && Number.isFinite(flash.c)) {
+      hit = cards.find(function(item){
+        return item && item.z === flash.z && item.r === flash.r && item.c === flash.c;
+      });
+    }
+    return hit && hit.rect ? hit.rect : flash.rect || null;
+  }
+
+  function drawActivationFlashes(ctx){
+    if(!ctx || !activeActivationFlashes.length) return;
+    const now = nowMs();
+    const remaining = [];
+    activeActivationFlashes.forEach(function(flash){
+      const duration = Math.max(80, Number(flash.duration) || 520);
+      const age = now - (Number(flash.startedAt) || now);
+      if(age > duration) return;
+      remaining.push(flash);
+      const r = activationFlashRect(flash);
+      if(!r) return;
+      const t = Math.max(0, Math.min(1, age / duration));
+      const pulse = Math.sin(Math.PI * t);
+      const inset = -Math.max(4, r.w * (.035 + pulse * .015));
+      const rr = {
+        x:r.x + inset,
+        y:r.y + inset,
+        w:r.w - inset * 2,
+        h:r.h - inset * 2
+      };
+      ctx.save();
+      roundedPath(ctx, rr.x, rr.y, rr.w, rr.h, Math.max(6, r.w * .065));
+      ctx.shadowColor = 'rgba(255,215,90,.95)';
+      ctx.shadowBlur = 10 + pulse * 20;
+      ctx.strokeStyle = 'rgba(255,218,86,' + (.92 - t * .15).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(2.5, r.w * .034);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      roundedPath(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, Math.max(4, r.w * .052));
+      ctx.strokeStyle = 'rgba(255,246,184,' + (.55 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, r.w * .012);
+      ctx.stroke();
+      ctx.restore();
+    });
+    activeActivationFlashes = remaining;
+    if(activeActivationFlashes.length) scheduleRender('activation-flash');
+  }
+
+  function flashBoardCardActivation(card, z, r, c, opts){
+    const options = opts || {};
+    const iid = getCardIid(card);
+    const rect = activationFlashRect({iid, z, r, c});
+    activeActivationFlashes.push({
+      iid,
+      z:Number(z),
+      r:Number(r),
+      c:Number(c),
+      rect:rect ? cloneRect(rect) : null,
+      startedAt:nowMs(),
+      duration:Number(options.duration) || 520
+    });
+    if(activeActivationFlashes.length > 8) activeActivationFlashes.splice(0, activeActivationFlashes.length - 8);
+    scheduleRender('activation-flash');
+    return true;
+  }
+
   function drawVfxLayers(layers, cssW, cssH, dpr, options){
     const opts = options || {};
     const director = window.FateVfxDirector;
-    if(!director || typeof director.draw !== 'function') return null;
     const effects = layers && layers.effects;
     const particles = layers && layers.particles;
     const effectsCtx = effects && effects.getContext ? effects.getContext('2d', {alpha:true}) : null;
@@ -2468,13 +2507,15 @@
         renderCounters.particleLayerRedraws++;
       }
     }
-    return director.draw({
+    const result = director && typeof director.draw === 'function' ? director.draw({
       effectsCtx,
       particleCtx,
       cssW,
       cssH,
       dpr
-    });
+    }) : null;
+    if(effectsCtx) drawActivationFlashes(effectsCtx);
+    return result;
   }
 
   function scheduleHoverDraw(){
@@ -2912,6 +2953,7 @@
     setHoverHit,
     setViewportHoverHit,
     scrollZoneAtClient,
+    flashBoardCardActivation,
     queuePlacementMotion,
     suppressInitialPlacementMotion,
     hideBoardCardForVfx,

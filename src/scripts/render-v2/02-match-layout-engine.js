@@ -177,10 +177,10 @@
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
-    const oppFallback = rect(22, denseOppHand ? 110 : 146, oppFallbackW, oppFallbackH);
+    const oppFallback = rect(22, denseOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
     if(denseOppHand) {
-      oppRect = rect(oppRect.x, Math.max(86, oppRect.y - 30), oppRect.w, oppRect.h);
+      oppRect = rect(oppRect.x, oppRect.y + 18, oppRect.w, oppRect.h);
     }
     const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
     const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
@@ -193,7 +193,7 @@
     const oppCardW = Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
     const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
-    const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2 - (denseOppHand ? 4 : 0));
+    const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);
     const opponentHand = {
       rect:oppRect,
       cards:oppCards.map(function(card, index){

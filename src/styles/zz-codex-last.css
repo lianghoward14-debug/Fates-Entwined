@@ -12519,11 +12519,11 @@ html body #s-game .effect-pill:hover > .effect-pill-tooltip{
 
 html body > .effect-pill-tooltip.effect-tooltip-portal{
   position:fixed!important;
-  display:block!important;
+  display:none!important;
   width:260px!important;
   max-width:calc(100vw - 16px)!important;
-  opacity:1!important;
-  visibility:visible!important;
+  opacity:0!important;
+  visibility:hidden!important;
   pointer-events:none!important;
   z-index:100000!important;
   background:linear-gradient(180deg,rgba(9,10,15,.98),rgba(3,4,8,.98))!important;
@@ -12531,6 +12531,12 @@ html body > .effect-pill-tooltip.effect-tooltip-portal{
   border-radius:6px!important;
   box-shadow:0 14px 30px rgba(0,0,0,.58),0 0 0 1px rgba(255,232,140,.06) inset!important;
   padding:.62rem .68rem!important;
+}
+
+html body > .effect-pill-tooltip.effect-tooltip-portal.is-visible{
+  display:block!important;
+  opacity:1!important;
+  visibility:visible!important;
 }
 
 html body > .effect-pill-tooltip.effect-tooltip-portal .ept-header{

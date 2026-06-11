@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateV2CardMotionFx) return;
 
-  const VERSION = 2;
+  const VERSION = 3;
   window.FateV2CardMotionFxUsesDomGhosts = false;
 
   function canvas(){
@@ -402,29 +402,11 @@
     if(animationsOff()) return 0;
     const adapter = scene();
     if(!adapter || !adapter.ownsBoard || !adapter.ownsBoard()) return 0;
-    const sourceIid = sourceCard && sourceCard.iid;
     const placedIid = placedCard && placedCard.iid;
-    const owner = placedCard && placedCard.owner != null ? placedCard.owner : sourceCard && sourceCard.owner;
     const targetRect = target && target.x != null ? target : rectForBoardTarget(target && target.z, target && target.r, target && target.c);
-    const fromRect = anyHandRectByIid(sourceIid)
-      || (Number(owner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, owner))
-      || fallbackHandRect(owner, targetRect);
-    if(!fromRect || !targetRect || placedIid == null) return 0;
-    const duration = 300;
-    if(typeof adapter.suppressInitialPlacementMotion === 'function') adapter.suppressInitialPlacementMotion(placedIid, duration + 260);
-    if(typeof adapter.hideBoardCardForVfx === 'function') adapter.hideBoardCardForVfx(placedIid, duration + 80);
-    play('PLAY_CARD', {
-      iid:placedIid,
-      card:placedCard || sourceCard,
-      fromRect,
-      toRect:targetRect,
-      targetRect,
-      duration,
-      arc:.10,
-      lift:.10,
-      rotate:2,
-      settleMs:48
-    });
+    if(!targetRect || placedIid == null) return 0;
+    const duration = 84;
+    if(typeof adapter.suppressInitialPlacementMotion === 'function') adapter.suppressInitialPlacementMotion(placedIid, duration + 140);
     return duration;
   }
 
@@ -450,10 +432,13 @@
         };
       }).filter(function(item){ return !!item.rect; })
     };
-    const revealDelay = 760 + Math.min(6, payload.tributes.length) * 42;
+    const animatedTributes = Math.min(10, payload.tributes.length);
+    const revealDelay = animatedTributes > 1
+      ? 54 + Math.max(0, animatedTributes - 1) * (186 + 76) + 186 + 120
+      : 360;
     const adapter = scene();
     if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
-      adapter.suppressInitialPlacementMotion(payload.resultCardIid, revealDelay + 260);
+      adapter.suppressInitialPlacementMotion(payload.resultCardIid, revealDelay + 170);
     }
     if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
       adapter.hideBoardCardForVfx(payload.resultCardIid, revealDelay);

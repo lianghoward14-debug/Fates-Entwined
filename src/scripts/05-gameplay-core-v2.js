@@ -1501,13 +1501,14 @@ function finalizeConsolidate(card, tributes, targetIdx) {
   function finishConsolidate(useFaceDown) {
     const affectedZones = [...new Set(tributes.map(t=>t.z))];
     affectedZones.forEach(tz=>{
-      G.board[tz].forEach(row=>{
+      G.board[tz].forEach((row, mr)=>{
         if(!row) return;
-        row.forEach(cell=>{
+        row.forEach((cell, mc)=>{
           if(cell&&cell.id==='36'&&cell.owner!==cp){
             log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 2.');
             G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 2;
             toast('Deterrance activated: Zone '+(tz+1)+' loses 2 Fate.');
+            if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(tz, mr, mc, cell);
             if(typeof playSfx === 'function') playSfx('debuff');
           }
         });
@@ -2998,6 +2999,7 @@ function activateVigilantes(card, z, r, c) {
     toast('Need 3 supporters on the field to activate (have '+availSups.length+')');
     return;
   }
+  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardsVisual(availSups.map(s=>s.card), {
     title:'Marked for Death — Select 3 Supporters to Expend',
     subtitle:'These supporters will be discarded to remove one card in this same zone.',
@@ -3070,6 +3072,7 @@ function activateWolfCreek(card, z, r, c) {
     }
   }));
   if(myCards.length===0){toast('No characters to move in this zone');return;}
+  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardInZone(z,'Wolf Creek: Select a friendly character in this zone to move:',(target, srcZ, srcR, srcC)=>{
     startWolfCreekMove(target, srcZ, srcR, srcC, card);
   }, function(cell){ return cell && cell.owner===cp && cell.iid!==card.iid && cell.type!=='Supporter' && !cell.cantBeMoved; });
@@ -3078,6 +3081,7 @@ function activateWolfCreek(card, z, r, c) {
 // ALPINE Expeditionary (73): move once per turn to open square on your side
 function activateExpeditionaryMove(card, z, r, c) {
   var cp = G.currentPlayer;
+  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   toast('Click any open square on your side to move ALPINE Expeditionary');
   G._expMoving = {card:card, fromZ:z, fromR:r, fromC:c};
   for(var zz=0;zz<3;zz++){
@@ -3119,6 +3123,8 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
   if(!found){
     toast('No open squares in adjacent zones!');
     G._busserMovingCard = null;
+  } else if(typeof showEffectActivationGlow === 'function') {
+    showEffectActivationGlow(fromZ, fromR, fromC, card);
   }
 }
 
@@ -3323,6 +3329,7 @@ function handleHavanoDeployClick(z,r,c) {
 function executeReaction(reaction, actionData) {
   var opp = 1 - G.currentPlayer;
   if(reaction.type === 'lydia'){
+    if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(reaction.z, reaction.r, reaction.c, reaction.card);
     reaction.card.usesLeft--;
     reaction.card.currentFate = Math.max(0, reaction.card.currentFate - 1);
     if(actionData.card && actionData.card.type === 'Supporter') actionData.card._lydiaSuppressed = true;

@@ -4,17 +4,30 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 1;
+  const VERSION = 2;
   const VFX_BUDGET = {
-    maxActiveParticles:180,
-    maxActiveParticlesLow:36,
-    maxShockwaves:8,
-    maxBeams:6,
-    maxCardMotions:12,
+    maxActiveParticles:0,
+    maxActiveParticlesLow:0,
+    maxShockwaves:0,
+    maxBeams:0,
+    maxCardMotions:10,
     maxNumberPops:12,
-    maxVfxMs:4,
-    maxVfxMsLow:2
+    maxVfxMs:3,
+    maxVfxMsLow:1.5
   };
+  const MOTION_ONLY_BLOCKED_KINDS = new Set([
+    'particleBurst',
+    'cardTrail',
+    'shockwaveRing',
+    'beam',
+    'screenShake',
+    'screenFlash',
+    'boardDim',
+    'spotlight',
+    'cardGlow',
+    'pilePulse',
+    'handFanPulse'
+  ]);
 
   let activeRecipes = [];
   let activePrimitives = [];
@@ -223,6 +236,10 @@
     const kept = [];
     primitives.forEach(function(p){
       const kind = p && p.kind;
+      if(MOTION_ONLY_BLOCKED_KINDS.has(kind)){
+        droppedEffects++;
+        return;
+      }
       if(counts[kind] != null){
         counts[kind]++;
         const limit = kind === 'cardMove' ? VFX_BUDGET.maxCardMotions
@@ -261,7 +278,6 @@
           next.lift = Math.min(.16, Number(next.lift) || .16);
           next.duration = Math.min(Number(next.duration) || 320, 320);
         }
-        if(next.kind === 'particleBurst') next.count = Math.max(1, Math.floor((Number(next.count) || 8) * .18));
         return next;
       });
     }
@@ -363,20 +379,7 @@
   }
 
   function spawnParticleBurst(p){
-    const pool = window.FateVfxParticlePool;
-    if(!pool || typeof pool.burst !== 'function') return 0;
-    return pool.burst({
-      x:Number(p.x) || center(p.rect || p.targetRect).x,
-      y:Number(p.y) || center(p.rect || p.targetRect).y,
-      count:p.count,
-      color:p.color,
-      speed:p.speed,
-      spread:p.spread,
-      gravity:p.gravity,
-      life:p.life,
-      size:p.size,
-      kind:p.particleKind || 'spark'
-    });
+    return 0;
   }
 
   function activeAtDraw(p){
@@ -921,13 +924,15 @@
       mode:{
         rendererV2:!!(window.FateMatchRendererAdapter && window.FateMatchRendererAdapter.ownsBoard && window.FateMatchRendererAdapter.ownsBoard()),
         lowEffects:lowEffectsEnabled(),
-        reducedMotion:reducedMotionEnabled()
+        reducedMotion:reducedMotionEnabled(),
+        motionOnly:true,
+        particles:false
       },
       capabilities:{
         lowEffectsToggle:true,
         reducedMotionToggle:true,
         dirtyLayerVfx:true,
-        particleBudget:true,
+        particleBudget:false,
         audioSync:!!window.FateVfxAudioSync,
         primitiveReport:!!primitives
       },
@@ -941,7 +946,7 @@
       active:{
         recipes:activeRecipes.length,
         primitives:activePrimitives.length,
-        particles:pool.active || 0,
+        particles:0,
         cardMoves:countKind('cardMove') + (dragPreview ? 1 : 0),
         beams:countKind('beam'),
         shockwaves:countKind('shockwaveRing'),
@@ -951,7 +956,7 @@
         lastVfxMs:Math.round(lastVfxMs * 10) / 10,
         avgVfxMs:Math.round(avgVfxMs() * 10) / 10,
         maxVfxMs:Math.round(maxVfxMs * 10) / 10,
-        lastParticleMs:pool.lastParticleMs || 0,
+        lastParticleMs:0,
         particlesAllocated:pool.particlesAllocated || 0,
         particlesReused:pool.particlesReused || 0,
         droppedEffects:droppedEffects + (pool.droppedEffects || 0),

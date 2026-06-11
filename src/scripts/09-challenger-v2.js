@@ -2728,7 +2728,8 @@ function syncAIOpponentLeaderboardEntries() {
   const history = getMatchHistory();
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
   aiList.forEach(ai=>{
-    let aiWins = 0, aiLosses = 0;
+    let aiWins = Number(ai.wins || 0) || 0;
+    let aiLosses = Number(ai.losses || 0) || 0;
     history.forEach(m => {
       if(m.p1 === ai.name){ if(m.winner === ai.name) aiWins++; else aiLosses++; }
       if(m.p2 === ai.name){ if(m.winner === ai.name) aiWins++; else aiLosses++; }
@@ -2743,6 +2744,8 @@ function syncAIOpponentLeaderboardEntries() {
       isAI: true,
       isMonthly: !!ai.isMonthly,
       monthKey: ai.monthKey || (ai.isMonthly && typeof getMonthKey === 'function' ? getMonthKey() : ''),
+      trueElo: ai.trueElo || ai.elo,
+      seededWinRate: ai.seededWinRate,
     });
   });
   saveLeaderboard();

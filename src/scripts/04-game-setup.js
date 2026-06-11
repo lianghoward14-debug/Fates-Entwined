@@ -657,6 +657,19 @@ const RANDOM_AI_PERSONALITIES = [
 ];
 const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
+const MONTHLY_AI_GENERATION_VERSION = 2;
+const MONTHLY_AI_SKILL_BANDS = [
+  {visible:640, trueBase:560, record:.27, matches:[14,24]},
+  {visible:735, trueBase:700, record:.34, matches:[16,28]},
+  {visible:860, trueBase:860, record:.42, matches:[18,32]},
+  {visible:990, trueBase:1010, record:.48, matches:[20,36]},
+  {visible:1125, trueBase:1170, record:.54, matches:[22,40]},
+  {visible:1260, trueBase:1330, record:.60, matches:[24,44]},
+  {visible:1405, trueBase:1500, record:.66, matches:[28,48]},
+  {visible:1535, trueBase:1645, record:.70, matches:[30,52]},
+  {visible:1685, trueBase:1810, record:.75, matches:[34,58]},
+  {visible:1830, trueBase:1990, record:.81, matches:[38,64]}
+];
 
 function getMonthKey() {
   const d = new Date();
@@ -681,6 +694,29 @@ function cleanupRetiredMonthlyAI(monthKey=getMonthKey()) {
   }
 }
 
+function monthlyBandForSlot(monthKey, index) {
+  const bands = MONTHLY_AI_SKILL_BANDS.slice();
+  const rngSeed = hashStr(monthKey + ':monthly-band-order');
+  for(let i = bands.length - 1; i > 0; i--) {
+    const j = hashStr(monthKey + ':monthly-band-swap:' + rngSeed + ':' + i) % (i + 1);
+    [bands[i], bands[j]] = [bands[j], bands[i]];
+  }
+  return bands[Math.max(0, Math.min(bands.length - 1, index))] || MONTHLY_AI_SKILL_BANDS[index % MONTHLY_AI_SKILL_BANDS.length];
+}
+
+function monthlySeededRecord(monthKey, index, trueElo, band) {
+  const matchRange = band && band.matches || [18, 42];
+  const minMatches = Number(matchRange[0]) || 18;
+  const maxMatches = Math.max(minMatches, Number(matchRange[1]) || 42);
+  const total = minMatches + (hashStr(monthKey + ':record-total:' + index) % (maxMatches - minMatches + 1));
+  const skill = Math.max(0, Math.min(1, ((Number(trueElo) || 600) - 540) / 1500));
+  const baseline = Number(band && band.record) || (.25 + skill * .56);
+  const wobble = ((hashStr(monthKey + ':record-wobble:' + index) % 101) - 50) / 1000;
+  const winRate = Math.max(.16, Math.min(.88, baseline + wobble));
+  const wins = Math.max(0, Math.min(total, Math.round(total * winRate)));
+  return {wins, losses:Math.max(0, total - wins), seededWinRate:Math.round(winRate * 1000) / 1000};
+}
+
 function generateMonthlyAI() {
   const monthKey = getMonthKey();
   const storageKey = 'fate_monthly_ai_' + monthKey;
@@ -690,24 +726,27 @@ function generateMonthlyAI() {
     catch(e){ return 'Footman'; }
   };
   const monthlyVisibleElo = (trueElo, index) => {
-    const spread = (hashStr(monthKey + 'visible-elo' + index) % 141) - 70;
-    return Math.max(600, Math.min(1850, Math.round((Number(trueElo) || 600) + spread)));
+    const band = monthlyBandForSlot(monthKey, index);
+    const spread = (hashStr(monthKey + 'visible-elo' + index) % 61) - 30;
+    return Math.max(600, Math.min(1880, Math.round((Number(band && band.visible) || Number(trueElo) || 600) + spread)));
   };
   
   let stored;
   try { stored = JSON.parse(localStorage.getItem(storageKey)); } catch(e){}
   // Only use cache if exactly 10 entries with correct monthKey and playable decks.
   const storedUsable = stored && Array.isArray(stored) && stored.length === 10 && stored.every(a =>
-    a && a.monthKey === monthKey && Array.isArray(a.deck) && a.deck.length >= 40
+    a && a.monthKey === monthKey && a.generationVersion === MONTHLY_AI_GENERATION_VERSION && Array.isArray(a.deck) && a.deck.length >= 40
   );
   if(storedUsable) {
     const refreshed = stored.map((ai, i) => {
       const p = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
+      const band = monthlyBandForSlot(monthKey, i);
       const seededElo = monthlyVisibleElo(ai.trueElo, i);
       const currentElo = Math.round(Number(ai.elo) || 600);
       const hasMatchRecord = Number(ai.wins || 0) > 0 || Number(ai.losses || 0) > 0;
       const elo = !hasMatchRecord && currentElo === 600 ? seededElo : currentElo;
-      return {...ai, elo, rank:rankNameForElo(elo), style:p.style, personalityLabel:p.label, personalityDesc:p.desc};
+      const record = hasMatchRecord ? {wins:Number(ai.wins || 0) || 0, losses:Number(ai.losses || 0) || 0, seededWinRate:ai.seededWinRate} : monthlySeededRecord(monthKey, i, ai.trueElo, band);
+      return {...ai, ...record, elo, rank:rankNameForElo(elo), style:p.style, personalityLabel:p.label, personalityDesc:p.desc, generationVersion:MONTHLY_AI_GENERATION_VERSION};
     });
     try { localStorage.setItem(storageKey, JSON.stringify(refreshed)); } catch(e){}
     return refreshed;
@@ -730,8 +769,11 @@ function generateMonthlyAI() {
     } while(usedNames.has(name) && attempts < 100);
     usedNames.add(name);
 
-    const trueElo = 400 + Math.floor((hashStr(monthKey + 'true' + i) % 1501)); // 400-1900
+    const band = monthlyBandForSlot(monthKey, i);
+    const trueSpread = (hashStr(monthKey + 'true' + i) % 121) - 60;
+    const trueElo = Math.max(450, Math.min(2050, Math.round((Number(band.trueBase) || 900) + trueSpread)));
     const visibleElo = monthlyVisibleElo(trueElo, i);
+    const seededRecord = monthlySeededRecord(monthKey, i, trueElo, band);
     const personality = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
     const style = personality.style;
 
@@ -757,9 +799,13 @@ function generateMonthlyAI() {
       personalityLabel: personality.label,
       personalityDesc: personality.desc,
       rank: rankNameForElo(visibleElo),
+      wins: seededRecord.wins,
+      losses: seededRecord.losses,
+      seededWinRate: seededRecord.seededWinRate,
       deck: deck.length >= 40 ? deck.slice(0, 40) : [],
       isMonthly: true,
       monthKey,
+      generationVersion: MONTHLY_AI_GENERATION_VERSION,
       img: 'aiicons/ai' + ((i % 18) + 1) + '.png'
     });
   }

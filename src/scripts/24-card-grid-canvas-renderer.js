@@ -760,8 +760,13 @@
   };
 
   window.addEventListener('fate-screen-changed', function(ev){
-    if(!ev || !ev.detail || ev.detail.to !== 's-deck' || typeof window.renderDBCollection !== 'function') return;
-    const redraw = function(){ try { window.renderDBCollection(); } catch(e) {} };
+    if(!ev || !ev.detail || ev.detail.to !== 's-deck') return;
+    const redraw = function(){
+      try {
+        const state = document.getElementById('db-collection')?.__fateCanvasGridState;
+        if(state && typeof state.draw === 'function') state.draw(true);
+      } catch(e) {}
+    };
     if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ requestAnimationFrame(redraw); });
     [80, 260, 620].forEach(function(ms){ setTimeout(redraw, ms); });
   });

@@ -1247,6 +1247,31 @@
       }
     }
 
+    let lastElectronPerformanceInfo = null;
+    async function readElectronPerformanceInfo(){
+      try{
+        const api = window.FateElectronPerformance;
+        if(!api || typeof api.getInfo !== 'function') return null;
+        const info = await api.getInfo();
+        lastElectronPerformanceInfo = info || null;
+        return lastElectronPerformanceInfo;
+      }catch(e){
+        lastElectronPerformanceInfo = {error:String(e && e.message || e)};
+        return lastElectronPerformanceInfo;
+      }
+    }
+    function refreshElectronPerformanceInfo(){
+      try{
+        const api = window.FateElectronPerformance;
+        if(!api || typeof api.getInfo !== 'function') return;
+        api.getInfo().then(function(info){
+          lastElectronPerformanceInfo = info || null;
+        }, function(err){
+          lastElectronPerformanceInfo = {error:String(err && err.message || err)};
+        });
+      }catch(e){}
+    }
+
     function readDiagLocalStorage(){
       const keys = [
         'fateDisableMatchRendererV2',
@@ -1372,6 +1397,19 @@
       if(snapshot.hasFocus === false) {
         notes.push('The app window was not focused when this was captured; run again with the game focused before trusting wake/throttle comparisons.');
       }
+      const electron = snapshot.electronPerformance || null;
+      if(snapshot.isElectron && !electron) {
+        notes.push('Electron performance IPC was not available in this capture; preload may be stale until the app is relaunched.');
+      }
+      if(electron && electron.webContentsInfo && electron.webContentsInfo.isDevToolsOpened) {
+        notes.push('Electron DevTools was open during this capture; compare again with DevTools closed before judging menu cost.');
+      }
+      if(electron && electron.webContentsInfo && electron.webContentsInfo.isFocused === false) {
+        notes.push('Electron webContents was not focused during this capture; first-click wake/focus cost may be mixed into the lag sample.');
+      }
+      if(electron && electron.windowInfo && electron.windowInfo.isFocused === false) {
+        notes.push('Electron window focus was false during this capture; repeat focused if the slow sample was a first interaction.');
+      }
       if(snapshot.onlineModules && snapshot.onlineModules.deferred && !snapshot.onlineModules.loaded && !snapshot.onlineModules.loading) {
         notes.push('Online/Firebase modules are currently deferred, so title startup should not be blocked by remote auth/social loading.');
       }
@@ -1406,6 +1444,7 @@
         navigation:summarizeNavigationTiming(),
         resources:summarizeResources(),
         memory:summarizeDiagMemory(),
+        electronPerformance:await readElectronPerformanceInfo(),
         onlineModules:window.__fateOnlineModuleState ? Object.assign({}, window.__fateOnlineModuleState) : null,
         perf:window.fatePerfReport ? window.fatePerfReport() : null,
         reports:{
@@ -1540,6 +1579,7 @@
         selectorCounts,
         animationCount,
         heap,
+        electronPerformance:lastElectronPerformanceInfo,
         renderSummary,
         recentRenderSamples: renderSamples.slice(-12),
         recentRenderBreakdowns: renderBreakdowns.slice(-8),
@@ -1577,6 +1617,7 @@
     }
     window.fateTraceLag = function(seconds){
       const durationMs = Math.max(2000, Math.min(20000, Math.round((Number(seconds) || 8) * 1000)));
+      refreshElectronPerformanceInfo();
       const started = performance.now();
       const trace = {
         command: 'fateTraceLag',
@@ -1601,6 +1642,7 @@
       }
       requestAnimationFrame(traceFrame);
       const sampleTimer = setInterval(function(){
+        refreshElectronPerformanceInfo();
         trace.samples.push(getLagTraceSnapshot());
         if(trace.samples.length > 50) trace.samples.shift();
       }, 500);
@@ -1745,6 +1787,201 @@
       const summary = window.fateTraceSummary();
       return formatLagTraceSummary(summary);
     };
+    let activeMenuMinuteLog = null;
+    function getElectronDiagnosticsApi(){
+      try{
+        const api = window.FateElectronDiagnostics;
+        return api && typeof api.startUiMinuteLog === 'function' && typeof api.appendUiMinuteLog === 'function' ? api : null;
+      }catch(e){
+        return null;
+      }
+    }
+    function gameScreenActive(){
+      try{
+        const el = document.getElementById('s-game');
+        return !!(el && el.classList.contains('active'));
+      }catch(e){
+        return false;
+      }
+    }
+    function makeMenuMinuteSessionId(){
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      let mode = getActiveScreenId() || 'menu';
+      try{
+        if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE) mode = String(CURRENT_MODE).slice(0, 18);
+      }catch(e){}
+      return stamp + '-' + mode;
+    }
+    function compactMenuMinuteSnapshot(snapshot){
+      if(!snapshot) return null;
+      return {
+        at:snapshot.at,
+        activeScreen:snapshot.activeScreen,
+        hidden:snapshot.hidden,
+        htmlClasses:snapshot.htmlClasses,
+        bodyClasses:snapshot.bodyClasses,
+        viewport:snapshot.viewport,
+        perf:snapshot.perf,
+        selectorCounts:snapshot.selectorCounts,
+        animationCount:snapshot.animationCount,
+        heap:snapshot.heap,
+        electronPerformance:snapshot.electronPerformance,
+        renderSummary:snapshot.renderSummary,
+        recentRenderBreakdowns:snapshot.recentRenderBreakdowns,
+        renderCallers:snapshot.renderCallers,
+        menuSummary:snapshot.menuSummary,
+        recentLongTasks:snapshot.recentLongTasks,
+        lifecycleEvents:snapshot.lifecycleEvents,
+        fpsHistory:snapshot.fpsHistory,
+        renderV2Flags:snapshot.renderV2Flags,
+        renderSnapshot:snapshot.renderSnapshot,
+        matchLayout:snapshot.matchLayout
+      };
+    }
+    function stopMenuMinuteLog(reason){
+      const state = activeMenuMinuteLog;
+      if(!state || state.stopped) return state || null;
+      state.stopped = true;
+      activeMenuMinuteLog = null;
+      try{ clearInterval(state.timer); }catch(e){}
+      try{ if(state.frameRaf) cancelAnimationFrame(state.frameRaf); }catch(e){}
+      const api = getElectronDiagnosticsApi();
+      const payload = {
+        type:'session-finish',
+        at:new Date().toISOString(),
+        sessionId:state.sessionId,
+        reason:reason || 'complete',
+        elapsedMs:Math.round(performance.now() - state.startedAt),
+        samples:state.sampleCount || 0,
+        finalScreen:getActiveScreenId()
+      };
+      if(api && typeof api.finishUiMinuteLog === 'function') api.finishUiMinuteLog(payload).catch(function(){});
+      return Object.assign({ok:true}, payload, {paths:state.paths || null});
+    }
+    function startMenuMinuteLog(reason, options){
+      const api = getElectronDiagnosticsApi();
+      if(!api) return {ok:false, reason:'electron-diagnostics-unavailable'};
+      if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) return {ok:true, alreadyRunning:true, sessionId:activeMenuMinuteLog.sessionId, paths:activeMenuMinuteLog.paths || null};
+      if(gameScreenActive()) return {ok:false, reason:'game-screen-active'};
+      const opts = options || {};
+      const durationMs = Math.max(5000, Math.min(120000, Number(opts.durationMs) || 60000));
+      const intervalMs = Math.max(500, Math.min(5000, Number(opts.intervalMs) || 1000));
+      const state = {
+        sessionId:makeMenuMinuteSessionId(),
+        startedAt:performance.now(),
+        startedIso:new Date().toISOString(),
+        sampleCount:0,
+        stopped:false,
+        paths:null,
+        lastFrameAt:performance.now(),
+        intervalFrames:0,
+        intervalMaxGap:0,
+        intervalSlowGaps:[],
+        sampleBusy:false,
+        timer:0,
+        frameRaf:0
+      };
+      activeMenuMinuteLog = state;
+      function frame(now){
+        if(state.stopped) return;
+        const gap = now - state.lastFrameAt;
+        state.lastFrameAt = now;
+        state.intervalFrames += 1;
+        if(gap > state.intervalMaxGap) state.intervalMaxGap = gap;
+        if(gap > 34) {
+          state.intervalSlowGaps.push(Math.round(gap * 10) / 10);
+          if(state.intervalSlowGaps.length > 20) state.intervalSlowGaps.shift();
+        }
+        state.frameRaf = requestAnimationFrame(frame);
+      }
+      state.frameRaf = requestAnimationFrame(frame);
+      function readFrameInterval(){
+        const elapsed = Math.max(1, performance.now() - (state.lastSampleAt || state.startedAt));
+        const item = {
+          frames:state.intervalFrames,
+          fps:Math.round(state.intervalFrames * 1000 / elapsed),
+          maxFrameGapMs:Math.round(state.intervalMaxGap * 10) / 10,
+          slowFrameGaps:state.intervalSlowGaps.slice(-20)
+        };
+        state.intervalFrames = 0;
+        state.intervalMaxGap = 0;
+        state.intervalSlowGaps = [];
+        state.lastSampleAt = performance.now();
+        return item;
+      }
+      async function writeSample(kind){
+        if(state.stopped || state.sampleBusy) return;
+        state.sampleBusy = true;
+        try{
+          await readElectronPerformanceInfo();
+          const elapsedMs = Math.round(performance.now() - state.startedAt);
+          const payload = {
+            type:kind || 'sample',
+            at:new Date().toISOString(),
+            sessionId:state.sessionId,
+            sampleIndex:state.sampleCount,
+            elapsedMs,
+            frameInterval:readFrameInterval(),
+            snapshot:compactMenuMinuteSnapshot(getLagTraceSnapshot())
+          };
+          state.sampleCount += 1;
+          await api.appendUiMinuteLog(payload);
+          if(gameScreenActive()) stopMenuMinuteLog('entered-game-screen');
+          else if(elapsedMs >= durationMs) stopMenuMinuteLog('duration-complete');
+        }catch(e){
+          state.lastError = String(e && e.message || e);
+        }finally{
+          state.sampleBusy = false;
+        }
+      }
+      const meta = {
+        sessionId:state.sessionId,
+        reason:reason || 'main-menu-diagnostics',
+        startedAt:state.startedIso,
+        durationMs,
+        intervalMs,
+        location:String(location.href || ''),
+        userAgent:navigator.userAgent || '',
+        screen:getActiveScreenId(),
+        isElectron:isElectronShell()
+      };
+      api.startUiMinuteLog(meta).then(function(res){
+        state.paths = res && res.paths || null;
+        window.__fateLatestMenuMinuteLogPath = state.paths && state.paths.latest || null;
+        writeSample('initial-sample');
+      }, function(err){
+        state.lastError = String(err && err.message || err);
+      });
+      state.timer = setInterval(function(){ writeSample('sample'); }, intervalMs);
+      return {ok:true, sessionId:state.sessionId, paths:state.paths || null};
+    }
+    function installMenuMinuteLogger(){
+      if(window.__fateMenuMinuteLoggerInstalled) return;
+      window.__fateMenuMinuteLoggerInstalled = true;
+      window.fateStartMenuMinuteLog = function(options){ return startMenuMinuteLog('manual', options); };
+      window.fateStopMenuMinuteLog = function(reason){ return stopMenuMinuteLog(reason || 'manual'); };
+      window.fateMenuMinuteLogStatus = function(){
+        const state = activeMenuMinuteLog;
+        return state ? {
+          running:!state.stopped,
+          sessionId:state.sessionId,
+          elapsedMs:Math.round(performance.now() - state.startedAt),
+          samples:state.sampleCount || 0,
+          paths:state.paths || null,
+          latestPath:window.__fateLatestMenuMinuteLogPath || null,
+          lastError:state.lastError || ''
+        } : {running:false, latestPath:window.__fateLatestMenuMinuteLogPath || null};
+      };
+      window.addEventListener('fate-screen-changed', function(ev){
+        const to = ev && ev.detail && ev.detail.to || getActiveScreenId();
+        if(to === 's-game') {
+          if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) stopMenuMinuteLog('entered-game-screen');
+        } else {
+          startMenuMinuteLog('screen-changed-to-' + to);
+        }
+      });
+      if(!gameScreenActive()) startMenuMinuteLog('startup-menu');
+    }
     function tick(now){
       const focusThrottled = !document.hasFocus();
       if(document.hidden || window.__fatePageHidden || focusThrottled){
@@ -2100,6 +2337,7 @@
     installObserver();
     installFrameDiagnostics();
     installVisibilityRecovery();
+    installMenuMinuteLogger();
     installMatchWarmup();
     const timer = window.__fateNativeSetTimeout || window.setTimeout;
     if(electronShell) timer(warmTitleOpenAssets, 1200);

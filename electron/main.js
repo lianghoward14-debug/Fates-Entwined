@@ -31,6 +31,40 @@ const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 
 let staticServer;
 let mainWindow = null;
+const diagnosticsDir = path.join(ROOT, 'diagnostics');
+
+function sanitizeDiagnosticSessionId(value) {
+  const clean = String(value || '').replace(/[^a-zA-Z0-9_.-]/g, '-').slice(0, 80);
+  return clean || `session-${Date.now()}`;
+}
+
+async function ensureDiagnosticsDir() {
+  await fs.promises.mkdir(diagnosticsDir, { recursive: true });
+}
+
+function diagnosticPaths(sessionId) {
+  const cleanId = sanitizeDiagnosticSessionId(sessionId);
+  return {
+    latest: path.join(diagnosticsDir, 'fate-main-menu-first-minute-latest.jsonl'),
+    session: path.join(diagnosticsDir, `fate-main-menu-first-minute-${cleanId}.jsonl`)
+  };
+}
+
+async function writeDiagnosticLine(paths, payload, reset) {
+  const line = JSON.stringify(payload) + '\n';
+  await ensureDiagnosticsDir();
+  if (reset) {
+    await Promise.all([
+      fs.promises.writeFile(paths.latest, line, 'utf8'),
+      fs.promises.writeFile(paths.session, line, 'utf8')
+    ]);
+    return;
+  }
+  await Promise.all([
+    fs.promises.appendFile(paths.latest, line, 'utf8'),
+    fs.promises.appendFile(paths.session, line, 'utf8')
+  ]);
+}
 
 function clampZoomFactor(value) {
   const n = Number(value);
@@ -112,6 +146,36 @@ ipcMain.handle('fate:get-performance-info', (event) => {
     windowInfo,
     webContentsInfo
   };
+});
+
+ipcMain.handle('fate:start-ui-minute-log', async (event, meta) => {
+  const sessionId = sanitizeDiagnosticSessionId(meta && meta.sessionId);
+  const paths = diagnosticPaths(sessionId);
+  await writeDiagnosticLine(paths, {
+    type: 'session-start',
+    at: new Date().toISOString(),
+    sessionId,
+    meta: meta || {}
+  }, true);
+  return { ok: true, sessionId, paths };
+});
+
+ipcMain.handle('fate:append-ui-minute-log', async (event, payload) => {
+  const sessionId = sanitizeDiagnosticSessionId(payload && payload.sessionId);
+  const paths = diagnosticPaths(sessionId);
+  await writeDiagnosticLine(paths, payload || { type: 'empty', sessionId }, false);
+  return { ok: true, sessionId, paths };
+});
+
+ipcMain.handle('fate:finish-ui-minute-log', async (event, payload) => {
+  const sessionId = sanitizeDiagnosticSessionId(payload && payload.sessionId);
+  const paths = diagnosticPaths(sessionId);
+  await writeDiagnosticLine(paths, Object.assign({
+    type: 'session-finish',
+    at: new Date().toISOString(),
+    sessionId
+  }, payload || {}), false);
+  return { ok: true, sessionId, paths };
 });
 
 function safePathFromUrl(urlPath) {
