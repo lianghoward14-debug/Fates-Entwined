@@ -149,6 +149,11 @@
     if(bridge && typeof bridge.onAcceptedGameEvent === 'function'){
       return !!bridge.onAcceptedGameEvent({type, payload:payload || {}});
     }
+    const presenter = window.FateActionPresentation;
+    if(presenter && typeof presenter.beginMotionOnly === 'function' &&
+      !(typeof presenter.isActive === 'function' && presenter.isActive())) {
+      return !!presenter.beginMotionOnly(type, payload || {});
+    }
     const director = window.FateVfxDirector;
     if(!director || typeof director.play !== 'function') return false;
     return !!director.play(type, payload || {});
@@ -334,11 +339,26 @@
 
   function fateChange(card, z, r, c, before, after, opts){
     if(animationsOff()) return false;
+    const from = Math.max(0, Number(before) || 0);
+    const to = Math.max(0, Number(after) || 0);
+    if(to === from) return false;
     const rect = rectForBoardTarget(z, r, c);
     if(!rect) return false;
-    const delta = Number(after) - Number(before);
-    const payload = Object.assign({iid:card && card.iid, card, rect, amount:Math.abs(delta) || 1, fateDelta:delta}, opts || {});
-    return play(delta < 0 ? 'FATE_LOSS' : 'FATE_GAIN', payload);
+    const amount = Math.abs(to - from);
+    const type = to > from ? 'FATE_GAIN' : 'FATE_LOSS';
+    return play(type, Object.assign({
+      iid:card && card.iid,
+      card,
+      rect,
+      targetRect:rect,
+      z,
+      r,
+      c,
+      before:from,
+      after:to,
+      amount,
+      fateDelta:to - from
+    }, opts || {}));
   }
 
   function supporterEffect(sourceCard, sourcePos, targets, opts){
@@ -410,6 +430,19 @@
     return duration;
   }
 
+  function handRectForCard(card){
+    return anyHandRectByIid(card && card.iid);
+  }
+
+  function targetRectForBoardTarget(target){
+    if(!target) return null;
+    return target.x != null ? target : rectForBoardTarget(target.z, target.r, target.c);
+  }
+
+  function playRecipe(type, payload){
+    return play(type, payload || {});
+  }
+
   function crashTributes(tributes, target){
     const list = Array.isArray(tributes) ? tributes : [];
     if(!target) return false;
@@ -454,6 +487,7 @@
       animationsOff:animationsOff(),
       usesDomGhosts:false,
       usesVfxDirector:!!window.FateVfxDirector,
+      usesActionPresentation:!!window.FateActionPresentation,
       createsDomGhosts:false,
       ownsPlacementFromHand:true,
       ownsBoardNotice:true,
@@ -504,6 +538,10 @@
     scoreResolve,
     setCardFromHand,
     queuePlacementFromHand,
+    pileRect,
+    handRectForCard,
+    targetRectForBoardTarget,
+    playRecipe,
     crashTributes,
     report
   };

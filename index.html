@@ -10,13 +10,32 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-  <link rel="stylesheet" href="src/styles/game.css?v=1780823501">
+  <link rel="stylesheet" href="src/styles/game.css?v=1780920920">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1780823501">
-  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780920201">
+  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1780920826">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1780920020">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
+<div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
+  <div class="fate-loading-panel">
+    <div class="fate-loading-kicker">Fates Entwined</div>
+    <div class="fate-loading-title">Loading Menus</div>
+    <div class="fate-loading-copy">Preparing first launch menu screens.</div>
+    <div class="fate-loading-bar"><div id="fate-loading-fill"></div></div>
+    <div class="fate-loading-count" id="fate-loading-count">Starting</div>
+  </div>
+</div>
+<script>
+  window.__fateStartupLoadingStartedAt = Date.now();
+  window.__fateStartupLoadingFallback = setTimeout(function(){
+    var el = document.getElementById('fate-loading-screen');
+    if(el && !window.__fateStartupLoadingManaged){
+      el.classList.add('is-hiding');
+      setTimeout(function(){ if(el.parentNode) el.remove(); }, 320);
+    }
+  }, 14000);
+</script>
 
 <!-- TITLE -->
 <div class="screen active" id="s-title">
@@ -500,42 +519,43 @@
 <div id="toast"></div>
 
 <script src="src/scripts/00-structural-helpers.js?v=1780824301"></script>
-<script src="src/scripts/01-data-and-state.js?v=1780900101"></script>
-<script src="src/scripts/02-screen-and-deckbuilder.js?v=1780920201"></script>
+<script src="src/scripts/01-data-and-state.js?v=1780920920"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=1780920818"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1780825201"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1780920810"></script>
 <script src="src/scripts/04-game-setup.js?v=1780920032"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1780920301"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=1780920501"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1780920921"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1780921664"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-<script src="src/scripts/render-v2/01-render-snapshot.js?v=1780823101"></script>
-<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1780920301"></script>
-<script src="src/scripts/render-v2/03-card-texture-cache.js?v=1780586101"></script>
+<script src="src/scripts/render-v2/01-render-snapshot.js?v=1780920832"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1780920302"></script>
+<script src="src/scripts/render-v2/03-card-texture-cache.js?v=1780921577"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1780603201"></script>
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
 <script src="src/scripts/render-v2/12-vfx-primitives.js?v=1780900001"></script>
-<script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1780603201"></script>
-<script src="src/scripts/render-v2/13-vfx-recipes.js?v=1780920034"></script>
-<script src="src/scripts/render-v2/11-vfx-director.js?v=1780920030"></script>
+<script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1780922300"></script>
+<script src="src/scripts/render-v2/13-vfx-recipes.js?v=1780922300"></script>
+<script src="src/scripts/render-v2/11-vfx-director.js?v=1780922301"></script>
 <script src="src/scripts/render-v2/16-vfx-acceptance-report.js?v=1780910001"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1780920501"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1780922500"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1780920003"></script>
 <script src="src/scripts/render-v2/08-hand-pile-phase8-report.js?v=1780586201"></script>
-<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1780920014"></script>
-<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1780920035"></script>
-  <script src="src/scripts/23-board-canvas-renderer.js?v=1780597001"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1780920901"></script>
+<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1780921581"></script>
+<script src="src/scripts/render-v2/17-action-presentation.js?v=1780922600"></script>
+  <script src="src/scripts/23-board-canvas-renderer.js?v=1780920921"></script>
   <script src="src/scripts/render-v2/11-acceptance-report.js?v=1780597201"></script>
-  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780920201"></script>
+  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780920816"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
-  <script src="src/scripts/07-ai.js?v=1780920013"></script>
-<script src="src/scripts/08-audio-and-meta-ui.js?v=1780900101"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1780920032"></script>
+  <script src="src/scripts/07-ai.js?v=1780920901"></script>
+<script src="src/scripts/08-audio-and-meta-ui.js?v=1780920913"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1780920821"></script>
 <script src="src/scripts/11-tutorial.js?v=1780269000"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
-<script src="src/scripts/10-init.js?v=1780920021"></script>
+<script src="src/scripts/10-init.js?v=1780920811"></script>
 
 <!-- Cloud save: all player data synced to Firebase under players/{uid}/ -->
-<script src="src/scripts/14-cloud-save.js?v=1780311560"></script>
+<script src="src/scripts/14-cloud-save.js?v=1780920822"></script>
 <!-- Online rebuild v1: Google auth + RTDB profile/social/rooms foundation -->
 <script>
 (function(){
@@ -544,8 +564,8 @@
   var modules = [
     './src/scripts/15-online-auth.js?v=1780920021',
     './src/scripts/16-online-core.js?v=1780269000',
-    './src/scripts/17-online-social.js?v=1780269000',
-    './src/scripts/18-online-rooms.js?v=1780311550',
+    './src/scripts/17-online-social.js?v=1780920811',
+    './src/scripts/18-online-rooms.js?v=1780920910',
     './src/scripts/19-online-elo.js?v=1780920032',
     './src/scripts/20-online-economy.js?v=1780310860'
   ];
@@ -603,8 +623,8 @@
   else scheduleLoad();
 })();
 </script>
-<script src="src/scripts/21-smoothness-core.js?v=1780920602"></script>
-<script src="src/scripts/22-spectator.js?v=1780269000"></script>
+<script src="src/scripts/21-smoothness-core.js?v=1780921660"></script>
+<script src="src/scripts/22-spectator.js?v=1780920838"></script>
 <script>
   if('serviceWorker' in navigator && !new URLSearchParams(location.search).has('soloNoSw')){navigator.serviceWorker.register('./sw.js?v=bg20260510d').catch(()=>{});}
   (function(){

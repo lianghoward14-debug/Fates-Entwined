@@ -1274,6 +1274,8 @@ function aiDeepEval(move) {
 
 let _aiPickerPage = 0;
 const AI_DIVISIONS = ['Footman','Captain-Officer','Lieutenant at Arms','Sergeant of the Guard','Commander-General','High Marshall'];
+const _aiPickerHtmlCache = new Map();
+let _aiPickerWarmupPromise = null;
 
 function getAIDivisionRankData(rankName) {
   const ranks = (typeof RANKS !== 'undefined' && Array.isArray(RANKS)) ? RANKS : [];
@@ -1289,12 +1291,11 @@ function getAIDivisionEloRange(rankName) {
   return next ? (min + '-' + (next.minElo - 1)) : (min + '+');
 }
 
-function showAIDifficultyPicker(page=_aiPickerPage) {
-  if(!G.aiDifficulty) G.aiDifficulty = 'medium';
-  _aiPickerPage = Math.max(0, Math.min(page, AI_DIVISIONS.length-1));
-  const rank = AI_DIVISIONS[_aiPickerPage];
+function buildAIDifficultyPickerHtml(page) {
+  const targetPage = Math.max(0, Math.min(Number(page) || 0, AI_DIVISIONS.length-1));
+  if(_aiPickerHtmlCache.has(targetPage)) return _aiPickerHtmlCache.get(targetPage);
+  const rank = AI_DIVISIONS[targetPage];
   const opponents = AI_OPPONENTS.filter(a=>a.rank===rank);
-  const panel = document.getElementById('difficulty-panel');
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
       <div style="font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);">Choose Opponent</div>
@@ -1305,19 +1306,19 @@ function showAIDifficultyPicker(page=_aiPickerPage) {
     const rankData = getAIDivisionRankData(rank);
     html += `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:1rem;">
-        <button class="btn sm" onclick="showAIDifficultyPicker(${_aiPickerPage-1})" ${_aiPickerPage<=0?'disabled':''}>Prev</button>
+        <button class="btn sm" onclick="showAIDifficultyPicker(${targetPage-1})" ${targetPage<=0?'disabled':''}>Prev</button>
         <div class="ai-division-rank-card" style="flex:0 0 auto;text-align:center;margin:0 auto;display:flex;align-items:center;justify-content:center;background:transparent;border:0;padding:0;">
           <div class="ai-division-rank-badge" style="display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:0;">
             <span style="line-height:0;">${renderRankBadge(rankData.minElo || opponents[0].elo,'lg')}</span>
           </div>
         </div>
-        <button class="btn sm" onclick="showAIDifficultyPicker(${_aiPickerPage+1})" ${_aiPickerPage>=AI_DIVISIONS.length-1?'disabled':''}>Next</button>
+        <button class="btn sm" onclick="showAIDifficultyPicker(${targetPage+1})" ${targetPage>=AI_DIVISIONS.length-1?'disabled':''}>Next</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:.55rem;max-height:68vh;overflow-y:auto;padding-right:.3rem;">`;
     opponents.forEach(opp=>{
       const aiIndex = AI_OPPONENTS.indexOf(opp);
       const avatar = opp.img
-        ? '<div class="ai-avatar ai-avatar-lg"><img src="'+opp.img+'" alt="" onerror="this.style.display=&quot;none&quot;"></div>'
+        ? '<div class="ai-avatar ai-avatar-lg"><img src="'+opp.img+'" alt="" loading="eager" decoding="async" draggable="false" onerror="this.style.display=&quot;none&quot;"></div>'
         : '<div class="ai-avatar ai-avatar-lg"><span style="font-size:1.25rem;opacity:.72;font-family:Cinzel,serif;">AI</span></div>';
       html += '<div class="ai-diff-option" data-ai-index="'+aiIndex+'" style="cursor:pointer;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:12px;background:rgba(0,0,0,.35);transition:all .18s;display:flex;align-items:center;gap:1rem;">'
         + avatar
@@ -1328,21 +1329,70 @@ function showAIDifficultyPicker(page=_aiPickerPage) {
   } else {
     html += '<div style="text-align:center;color:var(--dim);padding:2rem 0;">No AI opponents found for this division.</div>';
   }
-  panel.innerHTML = html;
+  _aiPickerHtmlCache.set(targetPage, html);
+  return html;
+}
+
+function bindAIDifficultyPickerEvents() {
+  document.querySelectorAll('.ai-diff-option').forEach(el=>{
+    el.onmouseenter = ()=>{
+      if(window.__fateMenusWarmed || window.__fateStartupWarmupActive) return;
+      el.style.borderColor='var(--gold)';
+      el.style.background='rgba(201,168,76,.1)';
+      el.style.transform='translateX(3px)';
+    };
+    el.onmouseleave = ()=>{
+      el.style.borderColor='var(--border)';
+      el.style.background='rgba(0,0,0,.3)';
+      el.style.transform='none';
+    };
+    el.onclick = (e)=>{
+      const btn = e.target.closest('.ai-pick-btn');
+      const host = e.currentTarget;
+      const idx = parseInt((btn?.dataset.aiIndex || host.dataset.aiIndex || '-1'), 10);
+      if(Number.isInteger(idx) && idx >= 0) pickAIOpponentByIndex(idx);
+    };
+  });
+}
+
+function warmAIDifficultyPickerAssets() {
+  if(_aiPickerWarmupPromise) return _aiPickerWarmupPromise;
+  for(let page = 0; page < AI_DIVISIONS.length; page++) buildAIDifficultyPickerHtml(page);
+  const sources = Array.from(new Set((AI_OPPONENTS || []).map(ai => ai && ai.img).filter(Boolean)));
+  _aiPickerWarmupPromise = Promise.all(sources.map(src => new Promise(resolve => {
+    const img = new Image();
+    let done = false;
+    const finish = () => {
+      if(done) return;
+      done = true;
+      resolve(src);
+    };
+    const timer = setTimeout(finish, 1500);
+    img.onload = () => { clearTimeout(timer); finish(); };
+    img.onerror = () => { clearTimeout(timer); finish(); };
+    try { img.decoding = 'async'; } catch(e) {}
+    try { img.loading = 'eager'; } catch(e) {}
+    img.src = src;
+    if(typeof img.decode === 'function') img.decode().then(() => {
+      clearTimeout(timer);
+      finish();
+    }).catch(() => {});
+  })));
+  return _aiPickerWarmupPromise;
+}
+
+try {
+  window.fateWarmAIPickerAssets = warmAIDifficultyPickerAssets;
+} catch(e) {}
+
+function showAIDifficultyPicker(page=_aiPickerPage) {
+  if(!G.aiDifficulty) G.aiDifficulty = 'medium';
+  _aiPickerPage = Math.max(0, Math.min(page, AI_DIVISIONS.length-1));
+  const panel = document.getElementById('difficulty-panel');
+  panel.innerHTML = buildAIDifficultyPickerHtml(_aiPickerPage);
   const overlay = document.getElementById('s-difficulty-overlay');
   overlay.classList.add('on','no-edge-corners-modal');
-  setTimeout(()=>{
-    document.querySelectorAll('.ai-diff-option').forEach(el=>{
-      el.onmouseenter = ()=>{ el.style.borderColor='var(--gold)'; el.style.background='rgba(201,168,76,.1)'; el.style.transform='translateX(3px)'; };
-      el.onmouseleave = ()=>{ el.style.borderColor='var(--border)'; el.style.background='rgba(0,0,0,.3)'; el.style.transform='none'; };
-      el.onclick = (e)=>{
-        const btn = e.target.closest('.ai-pick-btn');
-        const host = e.currentTarget;
-        const idx = parseInt((btn?.dataset.aiIndex || host.dataset.aiIndex || '-1'), 10);
-        if(Number.isInteger(idx) && idx >= 0) pickAIOpponentByIndex(idx);
-      };
-    });
-  },50);
+  bindAIDifficultyPickerEvents();
 }
 
 function pickAIOpponentByIndex(aiIndex) {
@@ -1579,46 +1629,67 @@ async function aiDoPlace(choice) {
   inst.currentFate = getPlacedCardFate(card);
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, choice.z, choice.r, choice.c);
   consumePendingPlacementFlags(card, inst);
-  G.board[choice.z][choice.r][choice.c] = inst;
-  if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-  const placementDelay = triggerPlacementAnimation(inst, choice.z, choice.r, choice.c);
-  const majaDeckCinematic = !!choice.freeMajaFromDeck && card.id === '07' && typeof showConsolidationCinematic === 'function';
-  if(majaDeckCinematic) {
-    const cinematicDelay = Math.max(0, placementDelay || 0) + 90;
-    G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + cinematicDelay + 2350);
-    setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, cinematicDelay);
-  }
-  sourceList.splice(idx,1);
-  if(card.type==='Supporter') {
-    if(!isEffectFree) G.supportsPlacedThisTurn++;
-    if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
-    G.supportersSetP[cp] = (Number(G.supportersSetP[cp]) || 0) + 1;
-    inst._supporterSetCounted = true;
-    inst._wasSetAsSupporter = true;
-    inst._hasBeenOnBoard = true;
-    inst._supporterSetOwner = cp;
-    if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp);
-  }
-  if(isEffectFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
-  if(choice.fromDeck && card.id==='28'){
-    G._polishUsedThisTurn = true;
-    if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
-    G.polishArmyUses[cp] = (G.polishArmyUses[cp] || 0) + 1;
-  }
-  // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
-  G.board[choice.z].forEach(row=>row.forEach(cell=>{
-    if(cell && cell.id==='02' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-      modifyFate(inst,3,'permanent');
+  const commitAiPlace = function(){
+    G.board[choice.z][choice.r][choice.c] = inst;
+    if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
+    const majaDeckCinematic = !!choice.freeMajaFromDeck && card.id === '07' && typeof showConsolidationCinematic === 'function';
+    if(majaDeckCinematic) {
+      G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
+      setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, 90);
     }
-  }));
-  if(!majaDeckCinematic) {
-    playCardSound(card.id);
-    playSfx(card.rarity==='star'?'starPlace':'place');
+    sourceList.splice(idx,1);
+    if(card.type==='Supporter') {
+      if(!isEffectFree) G.supportsPlacedThisTurn++;
+      if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
+      G.supportersSetP[cp] = (Number(G.supportersSetP[cp]) || 0) + 1;
+      inst._supporterSetCounted = true;
+      inst._wasSetAsSupporter = true;
+      inst._hasBeenOnBoard = true;
+      inst._supporterSetOwner = cp;
+      if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp);
+    }
+    if(isEffectFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
+    if(choice.fromDeck && card.id==='28'){
+      G._polishUsedThisTurn = true;
+      if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
+      G.polishArmyUses[cp] = (G.polishArmyUses[cp] || 0) + 1;
+    }
+    // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
+    G.board[choice.z].forEach(row=>row.forEach(cell=>{
+      if(cell && cell.id==='02' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
+        modifyFate(inst,3,'permanent');
+      }
+    }));
+    if(!majaDeckCinematic) {
+      playCardSound(card.id);
+      playSfx(card.rarity==='star'?'starPlace':'place');
+    }
+    log('p2', `AI placed ${card.name} in Zone ${choice.z+1}`);
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true});
+    else renderGame({board:true, scores:true, oppHand:true, blocks:true, topbar:true});
+  };
+  const presenter = window.FateActionPresentation;
+  let presented = false;
+  if(presenter && typeof presenter.beginSetCard === 'function'){
+    presented = await new Promise(resolve=>{
+      const started = presenter.beginSetCard({
+        sourceCard:card,
+        inst,
+        target:{z:choice.z, r:choice.r, c:choice.c},
+        commit:function(){ commitAiPlace(); resolve(true); },
+        rollback:function(){
+          delete card._presentationDeparting;
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true});
+          else renderGame({board:true, scores:true, oppHand:true, blocks:true, topbar:true});
+          resolve(false);
+        }
+      });
+      if(!started) resolve(false);
+    });
   }
-  log('p2', `AI placed ${card.name} in Zone ${choice.z+1}`);
-  renderGame();
+  if(!presented) commitAiPlace();
   await resolveSetCardAfterPlacement(inst, choice.z, choice.r, choice.c);
-  renderGame();
+  renderGame({board:true, scores:true, blocks:true, topbar:true});
   await aiSleep(AI_VISUAL_PAUSE_PLACE);
 }
 
@@ -1673,53 +1744,102 @@ async function aiDoConsolidate(choice) {
     inst._suppressCinematicSubtitle = true;
   }
   consumePendingPlacementFlags(choice.card, inst);
-  try {
-    choice.tributes.forEach(t=>{
-      if(t.card && t.card.id === '09' && t.card.usesLeft > 0) {
-        t.card.usesLeft--;
-        if(!Array.isArray(G.un5thUses)) G.un5thUses = [0,0];
-        G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
-      }
-    });
-    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
-      window.FateV2CardMotionFx.crashTributes(choice.tributes, {
-        card:inst,
-        resultCard:inst,
-        z:target.z,
-        r:target.r,
-        c:target.c,
-        faceDown:useFaceDown
+  const commitAiConsolidation = function(presentationDelay){
+    const motionMs = Math.max(0, Number(presentationDelay) || 0);
+    try {
+      choice.tributes.forEach(t=>{
+        if(t.card && t.card.id === '09' && t.card.usesLeft > 0) {
+          t.card.usesLeft--;
+          if(!Array.isArray(G.un5thUses)) G.un5thUses = [0,0];
+          G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
+        }
       });
+      choice.tributes.forEach(t=>{
+        if(t && t.card) t.card._suppressDiscardVfx = true;
+        discardBoardCard(t.card, t.z, t.r, t.c);
+      });
+    } catch(err) {
+      console.error('AI consolidation tribute spend failed after validation', err);
+    } finally {
+      G.board[target.z][target.r][target.c] = inst;
     }
-    choice.tributes.forEach(t=>{
-      if(t && t.card) t.card._suppressDiscardVfx = true;
-      discardBoardCard(t.card, t.z, t.r, t.c);
-    });
-  } catch(err) {
-    console.error('AI consolidation tribute spend failed after validation', err);
-  } finally {
-    G.board[target.z][target.r][target.c] = inst;
-  }
-  if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-  const placementDelay = Math.min(1250, 560 + choice.tributes.length * 96);
-  if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
-  let cinematicRequested = false;
-  const requestConsolidationCinematic = function(){
-    if(cinematicRequested || typeof showConsolidationCinematic !== 'function') return;
-    const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true});
-    if(shown !== false) cinematicRequested = true;
-  };
-  if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
-    G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2350);
-    setTimeout(requestConsolidationCinematic, Math.max(0, placementDelay || 0) + 90);
-  }
+    if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
+    const placementDelay = motionMs ? 0 : Math.min(360, 180 + choice.tributes.length * 40);
+    if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
+    let cinematicRequested = false;
+    const requestConsolidationCinematic = function(){
+      if(cinematicRequested || typeof showConsolidationCinematic !== 'function') return;
+      const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true});
+      if(shown !== false) cinematicRequested = true;
+    };
+    if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
+      G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2350);
+      setTimeout(requestConsolidationCinematic, Math.max(0, placementDelay || 0) + 90);
+    }
 
-  hand.splice(idx,1);
-  log('p2', `AI consolidated ${choice.card.name} into Zone ${target.z+1}${useFaceDown ? ' face down' : ''}`);
-  renderGame();
+    hand.splice(idx,1);
+    log('p2', `AI consolidated ${choice.card.name} into Zone ${target.z+1}${useFaceDown ? ' face down' : ''}`);
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+    else renderGame({board:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+  };
+  const presenter = window.FateActionPresentation;
+  let presented = false;
+  if(presenter && typeof presenter.beginConsolidation === 'function'){
+    presented = await new Promise(resolve=>{
+      const started = presenter.beginConsolidation({
+        tributes:choice.tributes,
+        card:choice.card,
+        inst,
+        faceDown:useFaceDown,
+        target:{z:target.z, r:target.r, c:target.c},
+        present:function(){
+          if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
+            return window.FateV2CardMotionFx.crashTributes(choice.tributes, {
+              card:inst,
+              resultCard:inst,
+              z:target.z,
+              r:target.r,
+              c:target.c,
+              faceDown:useFaceDown
+            }) || 0;
+          }
+          return 0;
+        },
+        commit:function(tx, delay){ commitAiConsolidation(delay); resolve(true); },
+        rollback:function(){
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+          else renderGame({board:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+          resolve(false);
+        }
+      });
+      if(!started) resolve(false);
+    });
+  }
+  if(!presented) commitAiConsolidation(0);
   await resolveSetCardAfterPlacement(inst, target.z, target.r, target.c);
-  renderGame();
+  renderGame({board:true, scores:true, blocks:true, topbar:true});
   await aiSleep(AI_VISUAL_PAUSE_CONSOLIDATE);
+}
+
+async function aiRunBoardPlacementPresentation(opts) {
+  const options = opts || {};
+  if(typeof options.commit !== 'function') return false;
+  const presenter = window.FateActionPresentation;
+  if(presenter && typeof presenter.beginBoardPlacement === 'function'){
+    const presented = await new Promise(resolve=>{
+      const started = presenter.beginBoardPlacement(Object.assign({}, options, {
+        commit:function(tx){ options.commit(tx); resolve(true); },
+        rollback:function(tx, err){
+          try{ if(typeof options.rollback === 'function') options.rollback(tx, err); }catch(e){}
+          resolve(false);
+        }
+      }));
+      if(!started) resolve(false);
+    });
+    if(presented) return true;
+  }
+  options.commit(null);
+  return false;
 }
 
 // â”€â”€ AI-friendly trigger for 'when set' (auto-picks targets) â”€â”€
@@ -1847,10 +1967,21 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       extra.owner = cp;
       extra.currentFate = getPlacedCardFate(extra);
       const slot = slots[0];
-      G.board[slot.z][slot.r][slot.c] = extra;
-      triggerPlacementAnimation(extra, slot.z, slot.r, slot.c);
-      log('p2','AI: Zimbabwean Honor Guard set another copy for free');
-      aiTriggerWhenSet(extra, slot.z, slot.r, slot.c);
+      await aiRunBoardPlacementPresentation({
+        sourceCard:copy,
+        inst:extra,
+        owner:cp,
+        source:handCopy ? 'hand' : 'deck',
+        recipe:handCopy ? 'PLAY_CARD' : 'DECK_TO_BOARD',
+        target:{z:slot.z, r:slot.r, c:slot.c},
+        commit:function(){
+          G.board[slot.z][slot.r][slot.c] = extra;
+          log('p2','AI: Zimbabwean Honor Guard set another copy for free');
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:!!handCopy});
+          else renderGame({board:true, scores:true, oppHand:!!handCopy, blocks:true, topbar:true});
+        }
+      });
+      await aiTriggerWhenSet(extra, slot.z, slot.r, slot.c);
       break;
     }
     case '32': await drawCard(cp,1); break;
@@ -1942,7 +2073,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.players[cp][zoneName] = list.filter(c=>c.iid!==pick.iid);
       });
       shuffle(G.players[cp].deck);
-      renderGame();
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+      else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       break;
     }
     case '50': { // Berkeley CS Major: lock the opponent out of their best-looking zone
@@ -2087,7 +2219,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
         shuffle(G.players[cp].deck);
-        renderGame();
+        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+        else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       } break;
     }
     case '69': { // Breakfast Republic Busser: find any friendly supporter, move & re-activate
@@ -2249,6 +2382,11 @@ async function aiActivateEffects() {
       log('p2',`AI skipped ${card.name}'s effect`);
       continue;
     }
+    if(typeof shouldShowManualCharacterEffectButton === 'function'
+      && shouldShowManualCharacterEffectButton(card)
+      && typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, z, r, c, {source:'ai-manual-character'});
+    }
     await aiRunEffect(card, z, r, c);
     await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
   }
@@ -2289,7 +2427,8 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     fatePushDiscard(opp, target.card);
     card.vigilanteUsed = true;
     log('p2','AI: Vigilantes destroyed '+target.card.name);
-    renderGame();
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true});
+    else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
     return;
   }
   if(card.id==='54' && !card.wolfCreekUsed){
@@ -2317,7 +2456,8 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     G.board[dest.z][dest.r][dest.c] = src.card;
     card.wolfCreekUsed = true;
     log('p2','AI: Wolf Creek moved '+src.card.name);
-    renderGame();
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+    else renderGame({board:true, scores:true, blocks:true, topbar:true});
     return;
   }
   if(card.id==='73' && card._canMoveOncePerTurn && !card._expMoved && !card.cantBeMoved){
@@ -2351,7 +2491,8 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     G.board[dest.z][dest.r][dest.c] = card;
     card._expMoved = true;
     log('p2','AI: ALPINE Expeditionary redeployed');
-    renderGame();
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+    else renderGame({board:true, scores:true, blocks:true, topbar:true});
   }
 }
 
@@ -2605,6 +2746,7 @@ async function aiRunEffect(card, z, r, c) {
           sources.sort((a,b) => (b.fate||0) - (a.fate||0));
           pick = sources[0];
         }
+        const fromDiscard = recoverableReality.some(x=>x && x.iid===pick.iid);
         G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==pick.iid);
         G.players[cp].discard = G.players[cp].discard.filter(x=>x.iid!==pick.iid);
         let placed = false;
@@ -2617,13 +2759,26 @@ async function aiRunEffect(card, z, r, c) {
                 placedCard.currentFate = getPlacedCardFate(pick);
                 if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(placedCard, zi, ri, ci);
                 consumePendingPlacementFlags(pick, placedCard);
-                G.board[zi][ri][ci] = placedCard;
-                const placementDelay = triggerPlacementAnimation(placedCard, zi, ri, ci);
+                let placementDelay = 0;
+                await aiRunBoardPlacementPresentation({
+                  sourceCard:pick,
+                  inst:placedCard,
+                  owner:cp,
+                  source:fromDiscard ? 'discard' : 'deck',
+                  recipe:fromDiscard ? 'PLAY_CARD' : 'DECK_TO_BOARD',
+                  target:{z:zi, r:ri, c:ci},
+                  commit:function(tx){
+                    G.board[zi][ri][ci] = placedCard;
+                    placementDelay = tx && tx.presentMs ? Math.max(0, Number(tx.presentMs) || 0) : 0;
+                    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+                    else renderGame({board:true, scores:true, blocks:true, topbar:true});
+                  }
+                });
                 if(placedCard.type !== 'Supporter' && typeof showConsolidationCinematic === 'function') {
                   G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2300);
                   setTimeout(function(){ showConsolidationCinematic(placedCard, {playVoice:true, playSfx:true}); }, Math.max(0, placementDelay || 0) + 90);
                 }
-                if(typeof aiTriggerWhenSet === 'function' && WHEN_SET_IDS.has(placedCard.id)) aiTriggerWhenSet(placedCard, zi, ri, ci);
+                if(typeof aiTriggerWhenSet === 'function' && WHEN_SET_IDS.has(placedCard.id)) await aiTriggerWhenSet(placedCard, zi, ri, ci);
                 placed = true;
               }
             }
@@ -2746,12 +2901,14 @@ async function aiRunEffect(card, z, r, c) {
       card._declaredAff = declaredAff;
       if(typeof showAffChangeOverlay === 'function') showAffChangeOverlay(card, declaredAff);
       log('p2', `AI: Duncan Heyward declared ${AFF_LABEL[declaredAff]||declaredAff}`);
-      renderGame();
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+      else renderGame({board:true, scores:true, blocks:true, topbar:true});
       break;
     }
   }
   card.effectUsedInitial = true;
-  renderGame();
+  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true});
+  else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

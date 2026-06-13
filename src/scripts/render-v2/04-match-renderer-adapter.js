@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 2;
+  const ADAPTER_VERSION = 5;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -30,10 +30,22 @@
   let hoverRaf = 0;
   let pendingDirtyMask = 0;
   let pendingDirtySources = [];
+  let pendingPostFrameVfx = false;
+  let actionVfxRaf = 0;
+  let deferredActionDirtyMask = 0;
+  let deferredActionSources = [];
+  let deferredActionFlushTimer = 0;
+  let postActionDirtyMask = 0;
+  let postActionSources = [];
+  let postActionRenderTimer = 0;
   const pendingTextureTimers = {};
   let lastCanvasMetrics = null;
   let lastLayout = null;
+  let lastSnapshot = null;
+  let lastLayoutStructureKey = '';
   let activeActivationFlashes = [];
+  let activeActivationCinematics = [];
+  let pendingWhenSetPulseRaf = 0;
   let stableBoardViewport = null;
   const zoneScroll = {};
   let renderScale = 1;
@@ -57,7 +69,16 @@
     hoverLayerRedraws:0,
     hoverOnlyDraws:0,
     vfxOnlyDraws:0,
+    actionVfxOnlyDraws:0,
+    actionVfxFrameRequests:0,
     vfxFullSceneFallbacks:0,
+    zoneScrollOnlyDraws:0,
+    cardLayerOnlyDraws:0,
+    deferredVfxFrames:0,
+    deferredActionDirtyFrames:0,
+    postActionDeferredFrames:0,
+    hoverDuringActionSkips:0,
+    pendingWhenSetPulseSkips:0,
     lastVfxLayerOnly:false,
     lastDirtyMask:0,
     lastDirtySource:''
@@ -73,6 +94,7 @@
   const DIRTY_MOTION = 1 << 8;
   const DIRTY_PARTICLES = 1 << 9;
   const DIRTY_ALL = 0xffff;
+  const DIRTY_VFX_ONLY = DIRTY_EFFECTS | DIRTY_PARTICLES;
 
   function nowMs(){
     return (window.performance && performance.now) ? performance.now() : Date.now();
@@ -252,21 +274,114 @@
     const s = String(source || '').toLowerCase();
     if(!s) return DIRTY_ALL;
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
+    if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
-    if(s.indexOf('pile-hover') >= 0) return DIRTY_PILES;
-    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES;
+    if(s.indexOf('pile-hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('zone-scroll') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
+    if(s.indexOf('activation-cinematic') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
+    if(s.indexOf('pending-when-set') >= 0) return DIRTY_EFFECTS;
     if(s === 'input' || s === 'viewport-input') return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('resize') >= 0 || s.indexOf('screen-enter') >= 0 || s.indexOf('adaptive-render-scale') >= 0) return DIRTY_ALL | DIRTY_LAYOUT;
     if(s.indexOf('opponent') >= 0 || s.indexOf('opphand') >= 0 || s.indexOf('opp-hand') >= 0) return DIRTY_OPP_HAND;
     if(s.indexOf('hand') >= 0) return DIRTY_HAND | DIRTY_EFFECTS;
     if(s.indexOf('pile') >= 0 || s.indexOf('deck') >= 0 || s.indexOf('discard') >= 0) return DIRTY_PILES;
     if(s.indexOf('particle') >= 0) return DIRTY_PARTICLES | DIRTY_EFFECTS;
+    if(s === 'animation') return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('motion') >= 0 || s.indexOf('animation') >= 0) return DIRTY_MOTION | DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('asset') >= 0) return DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES;
     if(s.indexOf('texture') >= 0) return DIRTY_BOARD_CARDS;
-    if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_EFFECTS;
+    if(s.indexOf('renderboard') >= 0 || s.indexOf('board-commit') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
+    if(s.indexOf('block') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
+    if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
     return DIRTY_ALL;
+  }
+
+  function isVfxOnlyDirty(mask){
+    const value = Number(mask) || 0;
+    return !!(value & DIRTY_VFX_ONLY) && !(value & ~DIRTY_VFX_ONLY);
+  }
+
+  function heavyActionDirtyMask(mask){
+    return (Number(mask) || 0) & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION);
+  }
+
+  function addUniqueSource(list, source){
+    const src = String(source || '').trim();
+    if(src && list.indexOf(src) < 0) list.push(src);
+  }
+
+  function scheduleDeferredActionFlush(){
+    if(deferredActionFlushTimer) return;
+    deferredActionFlushTimer = setTimeout(function(){
+      deferredActionFlushTimer = 0;
+      if(!deferredActionDirtyMask) return;
+      if(isActionAnimationActive()){
+        scheduleDeferredActionFlush();
+        return;
+      }
+      const mask = deferredActionDirtyMask;
+      const sources = deferredActionSources.join('+') || 'action-deferred';
+      deferredActionDirtyMask = 0;
+      deferredActionSources = [];
+      enqueueRender('action-deferred:' + sources, mask);
+    }, 34);
+  }
+
+  function msSinceLastActionAnimation(){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.msSinceLastActionAnimation === 'function') {
+        return Number(presenter.msSinceLastActionAnimation());
+      }
+    } catch(e) {}
+    return Infinity;
+  }
+
+  function wasActionAnimatingRecently(ms){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.wasActionAnimatingRecently === 'function') {
+        return !!presenter.wasActionAnimatingRecently(ms);
+      }
+    } catch(e) {}
+    return msSinceLastActionAnimation() <= Math.max(0, Number(ms) || 0);
+  }
+
+  function schedulePostActionRender(source, dirtyMask, delayMs){
+    const mask = Number(dirtyMask) || 0;
+    if(!mask) return false;
+    postActionDirtyMask |= mask;
+    addUniqueSource(postActionSources, source || 'scheduled');
+    renderCounters.postActionDeferredFrames++;
+    if(postActionRenderTimer) return true;
+    postActionRenderTimer = setTimeout(function(){
+      postActionRenderTimer = 0;
+      if(!postActionDirtyMask) return;
+      const maskToFlush = postActionDirtyMask;
+      const sources = postActionSources.join('+') || 'post-action';
+      postActionDirtyMask = 0;
+      postActionSources = [];
+      enqueueRender('post-action-deferred:' + sources, maskToFlush);
+    }, Math.max(18, Math.min(140, Number(delayMs) || 72)));
+    return true;
+  }
+
+  function deferActionDirtyRender(source, dirtyMask){
+    const mask = Number(dirtyMask) || 0;
+    if(!mask) return false;
+    deferredActionDirtyMask |= mask;
+    addUniqueSource(deferredActionSources, source || 'scheduled');
+    renderCounters.deferredActionDirtyFrames++;
+    noteActionRendererEvent('renderer-dirty-deferred', {
+      dirtySource:source || '',
+      dirtyMask:mask,
+      forbiddenMask:forbiddenActionDirtyMask(mask)
+    });
+    scheduleDeferredActionFlush();
+    return true;
   }
 
   function noteGameplayBurst(dirtyMask){
@@ -277,6 +392,12 @@
 
   function scheduleTextureRender(source){
     const key = String(source || 'texture-ready');
+    if(!(lastReport && lastReport.available)) return;
+    if(isActionAnimationActive() || wasActionAnimatingRecently(140)) {
+      const dirtyMask = dirtyMaskForSource(key);
+      schedulePostActionRender(key, dirtyMask, isActionAnimationActive() ? 120 : 72);
+      return;
+    }
     if(pendingTextureTimers[key]) return;
     pendingTextureTimers[key] = setTimeout(function(){
       pendingTextureTimers[key] = 0;
@@ -302,6 +423,10 @@
       cancelAnimationFrame(redrawRaf);
       redrawRaf = 0;
     }
+    if(actionVfxRaf) {
+      cancelAnimationFrame(actionVfxRaf);
+      actionVfxRaf = 0;
+    }
     if(hoverRaf) {
       cancelAnimationFrame(hoverRaf);
       hoverRaf = 0;
@@ -313,6 +438,9 @@
     if(input && typeof input.detach === 'function') input.detach();
     hoverHit = null;
     lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
+    lastLayout = null;
+    lastSnapshot = null;
+    lastLayoutStructureKey = '';
     layerIds.forEach(function(id){
       const canvas = document.getElementById(id);
       if(canvas) {
@@ -679,6 +807,49 @@
     return window.FateMatchAnimationTimeline || null;
   }
 
+  function actionPresenter(){
+    return window.FateActionPresentation || null;
+  }
+
+  function isActionAnimationActive(){
+    const presenter = actionPresenter();
+    try {
+      return !!(presenter && typeof presenter.isActionAnimating === 'function' && presenter.isActionAnimating());
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function noteActionRendererEvent(kind, details){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.noteRendererEvent === 'function') {
+        presenter.noteRendererEvent(kind, Object.assign({source:'FateMatchRendererAdapter'}, details || {}));
+      }
+    } catch(e) {}
+  }
+
+  function forbiddenActionDirtyMask(mask){
+    return (Number(mask) || 0) & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION);
+  }
+
+  function layoutStructureKey(layout){
+    if(!layout) return '';
+    const parts = [];
+    const vp = layout.viewport || {};
+    parts.push('vp', Math.round(Number(vp.w) || 0), Math.round(Number(vp.h) || 0), Math.round((Number(vp.renderScale) || 1) * 100));
+    const zones = Array.isArray(layout.zones) ? layout.zones : [];
+    zones.forEach(function(zone){
+      const rows = Array.isArray(zone.rows) ? zone.rows : [];
+      parts.push('z', zone.z, 'rows', rows.length);
+      rows.forEach(function(row){
+        const cells = Array.isArray(row.cells) ? row.cells : [];
+        parts.push('r', row.r, 'owner', row.owner, 'full', row.fullExtraRow ? 1 : 0, 'cells', cells.length);
+      });
+    });
+    return parts.join('|');
+  }
+
   function getCardIid(card){
     return card && card.iid != null ? String(card.iid) : '';
   }
@@ -716,29 +887,7 @@
           kind:'fate-pulse',
           iid,
           start:nowMs(),
-          duration:620,
-          easing:'out-cubic',
-          fromValue:prev,
-          toValue:fateValue,
-          delta
-        });
-      }
-      if(delta && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onStateDiff === 'function'){
-        window.FateVfxEventBridge.onStateDiff({
-          iid,
-          card,
-          rect:cloneRect(cardRect),
-          fateDelta:delta,
-          amount:Math.abs(delta)
-        });
-      } else if(!delta) {
-        if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
-        else timeline.clearForCard(iid, 'fate-pulse');
-        timeline.add({
-          kind:'fate-pulse',
-          iid,
-          start:nowMs(),
-          duration:420,
+          duration:1860,
           easing:'out-cubic',
           fromValue:prev,
           toValue:fateValue,
@@ -756,28 +905,31 @@
     if(!timeline || !iid || typeof timeline.getForCard !== 'function') return;
     const anim = timeline.getForCard(iid, 'fate-pulse');
     if(!anim) return;
-    const t = 1 - (Number(anim.eased) || 0);
-    const alpha = Math.max(0, Math.min(.72, t * .72));
-    const pad = 3 + (1 - t) * 9;
+    const progress = Math.max(0, Math.min(1, Number(anim.progress) || 0));
+    const fadeStart = .82;
+    const t = progress < fadeStart ? 1 : Math.max(0, 1 - ((progress - fadeStart) / (1 - fadeStart)));
+    const enter = Math.min(1, progress / .06);
+    const alpha = Math.max(0, Math.min(1, t * enter));
     ctx.save();
-    roundedPath(ctx, r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2, Math.max(5, r.w * .055) + pad);
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = 1.6;
-    ctx.strokeStyle = Number(anim.delta) < 0 ? 'rgba(255,96,96,.95)' : 'rgba(127,255,144,.95)';
-    ctx.stroke();
     if(anim.delta){
       const isLoss = Number(anim.delta) < 0;
+      ctx.globalAlpha = alpha;
       ctx.fillStyle = isLoss ? 'rgba(255,96,96,.98)' : 'rgba(127,255,144,.98)';
       ctx.font = '950 ' + Math.max(16, Math.round(r.w * .18)) + 'px Cinzel, Georgia, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.lineWidth = Math.max(4, Math.round(r.w * .032));
+      ctx.lineWidth = Math.max(2, Math.round(r.w * .018));
       ctx.strokeStyle = 'rgba(0,0,0,.88)';
-      ctx.shadowColor = isLoss ? 'rgba(255,96,96,.48)' : 'rgba(127,255,144,.48)';
-      ctx.shadowBlur = Math.max(8, r.w * .07);
+      ctx.shadowBlur = 0;
       const deltaText = Number(anim.delta) > 0 ? '+' + anim.delta : String(anim.delta);
-      const tx = r.x + r.w * .80;
-      const ty = r.y - 10 - (1 - t) * 18;
+      const fateText = getCardFateValue(card) || '';
+      const badgeH = Math.max(24, Math.min(34, r.w * .255));
+      const badgeW = Math.max(badgeH, Math.min(43, badgeH + Math.max(0, fateText.length - 1) * 5.4));
+      const bx = r.x + r.w - badgeW - Math.max(1, badgeH * .04);
+      const by = r.y + Math.max(1, badgeH * .035);
+      const tx = bx + badgeW / 2;
+      const drift = Math.max(9, r.h * .045);
+      const ty = by - Math.max(13, badgeH * .52) - (progress * drift);
       ctx.strokeText(deltaText, tx, ty);
       ctx.fillText(deltaText, tx, ty);
     }
@@ -1323,28 +1475,39 @@
   }
 
   function drawPendingWhenSetGlow(ctx, r, card){
-    if(!card || !card._pendingWhenSetEffect) return;
+    if(!card || !(card._pendingWhenSetEffect || (card.flags && card.flags.pendingWhenSet))) return;
+    const now = nowMs();
+    const pulse = .5 + .5 * Math.sin(now / 520);
     ctx.save();
     const rr = Math.max(4, r.w * .052);
-    roundedPath(ctx, r.x + 2.5, r.y + 2.5, r.w - 5, r.h - 5, Math.max(3, rr - 1.5));
-    ctx.fillStyle = 'rgba(255,211,82,.10)';
-    ctx.fill();
-    roundedPath(ctx, r.x - 2.8, r.y - 2.8, r.w + 5.6, r.h + 5.6, rr + 2.8);
-    ctx.shadowColor = 'rgba(255,213,74,.62)';
-    ctx.shadowBlur = 10;
-    ctx.strokeStyle = 'rgba(255,220,92,.92)';
-    ctx.lineWidth = 1.9;
+    const outerInset = 2.5 + pulse * 3.5;
+    roundedPath(ctx, r.x - outerInset, r.y - outerInset, r.w + outerInset * 2, r.h + outerInset * 2, rr + outerInset);
+    ctx.shadowColor = 'rgba(174,93,255,' + (.5 + pulse * .38).toFixed(3) + ')';
+    ctx.shadowBlur = 8 + pulse * 18;
+    ctx.strokeStyle = 'rgba(188,112,255,' + (.62 + pulse * .34).toFixed(3) + ')';
+    ctx.lineWidth = 1.2 + pulse * 1.6;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    roundedPath(ctx, r.x + 1.4, r.y + 1.4, r.w - 2.8, r.h - 2.8, Math.max(3, rr - 1.2));
-    ctx.strokeStyle = 'rgba(255,246,188,.58)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    roundedPath(ctx, r.x + 5, r.y + 5, r.w - 10, r.h - 10, Math.max(2, rr - 3));
-    ctx.strokeStyle = 'rgba(124,88,18,.34)';
-    ctx.lineWidth = .75;
+    roundedPath(ctx, r.x + .8, r.y + .8, r.w - 1.6, r.h - 1.6, Math.max(3, rr - .8));
+    ctx.strokeStyle = 'rgba(235,210,255,' + (.28 + pulse * .55).toFixed(3) + ')';
+    ctx.lineWidth = .75 + pulse * .75;
     ctx.stroke();
     ctx.restore();
+    if(!pendingWhenSetPulseRaf) {
+      pendingWhenSetPulseRaf = setTimeout(function(){
+        pendingWhenSetPulseRaf = 0;
+        scheduleRender('pending-when-set-pulse');
+      }, 90);
+    }
+  }
+
+  function drawPendingWhenSetGlows(ctx){
+    if(!ctx || !lastHitMap || !Array.isArray(lastHitMap.cards)) return;
+    lastHitMap.cards.forEach(function(hit){
+      if(!hit || !hit.card || !hit.rect) return;
+      if(!(hit.card._pendingWhenSetEffect || (hit.card.flags && hit.card.flags.pendingWhenSet))) return;
+      drawPendingWhenSetGlow(ctx, hit.rect, hit.card);
+    });
   }
 
   function drawCardVisual(ctx, entry, visual, r, onChange, options){
@@ -1363,7 +1526,6 @@
     drawCardContent(ctx, entry, visual, r, onChange, contentOpts);
     if(opts.opponent) drawOpponentTint(ctx, r);
     drawCardPlaneGleam(ctx, r, tilt);
-    drawPendingWhenSetGlow(ctx, r, entry && entry.card);
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     ctx.restore();
   }
@@ -1655,7 +1817,7 @@
     const count = String(Number(pile && pile.count) || 0);
     const stripH = Math.max(21, Math.min(29, r.h * .23));
     const stripY = r.y + r.h - stripH - 3;
-    roundedPath(ctx, r.x + 5, stripY, Math.max(1, r.w - 10), stripH, 4);
+    roundedPath(ctx, r.x + 2, stripY, Math.max(1, r.w - 4), stripH, 4);
     ctx.fillStyle = 'rgba(2,3,7,.88)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(239,205,91,.54)';
@@ -1680,7 +1842,7 @@
     ctx.strokeStyle = 'rgba(224,188,84,.42)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    const cardR = {x:r.x + 5, y:r.y + 5, w:Math.max(1, r.w - 10), h:Math.max(1, r.h - 10)};
+    const cardR = {x:r.x + 2, y:r.y + 5, w:Math.max(1, r.w - 4), h:Math.max(1, r.h - 10)};
     if(isDeck) {
       drawCardBack(ctx, cardR, 'Deck', 'deck.png');
     } else if(!top) {
@@ -2039,9 +2201,11 @@
     const arrowX = turnKey.x + turnKey.w - 22;
     const arrowY = turnKey.y + turnKey.h / 2;
     ctx.beginPath();
-    ctx.moveTo(arrowX - 3, arrowY - 9);
-    ctx.lineTo(arrowX + 9, arrowY);
-    ctx.lineTo(arrowX - 3, arrowY + 9);
+    [-12, 0].forEach(function(offset){
+      ctx.moveTo(arrowX + offset - 3, arrowY - 9);
+      ctx.lineTo(arrowX + offset + 9, arrowY);
+      ctx.lineTo(arrowX + offset - 3, arrowY + 9);
+    });
     ctx.strokeStyle = canEndTurn ? 'rgba(255,231,128,.74)' : 'rgba(210,210,202,.18)';
     ctx.lineWidth = 1.9;
     ctx.lineCap = 'round';
@@ -2106,13 +2270,13 @@
     let hoveredHandItem = null;
     function drawHandItem(item){
       if(!item || !item.card || !item.rect) return;
-      const visual = item.card.visual || item.card;
-      const disabled = isSupporterLimitDisabled(item, snapshot);
-      const isHovered = !!(viewportHoverHit && viewportHoverHit.kind === 'hand-card' && Number(viewportHoverHit.index) === Number(item.index));
-      if(isHovered && hoveredHandItem !== item) {
-        hoveredHandItem = item;
+      if(item.card.flags && item.card.flags.presentationDeparting) {
+        hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled:true, departing:true});
         return;
       }
+      const visual = item.card.visual || item.card;
+      const disabled = isSupporterLimitDisabled(item, snapshot);
+      const isHovered = !disabled && !!(viewportHoverHit && viewportHoverHit.kind === 'hand-card' && Number(viewportHoverHit.index) === Number(item.index));
       const entry = {card:item.card, c:item.index, r:0, z:0};
       const onChange = function(){ scheduleTextureRender('hand-texture-ready'); };
       if(isHovered) {
@@ -2187,6 +2351,18 @@
     if(t < 1) scheduleRender('final-zone-flash');
   }
 
+  function drawFinalZoneFlashOverlay(ctx){
+    const flash = (typeof G !== 'undefined' && G) ? G._finalZoneCanvasFlash : null;
+    if(!ctx || !flash || !lastLayout) return;
+    const layout = lastLayout;
+    const originX = Number(layout.boardRect && layout.boardRect.x) || 0;
+    const originY = Number(layout.boardRect && layout.boardRect.y) || 0;
+    const zones = Array.isArray(layout.zones) ? layout.zones : [];
+    const zone = zones.find(function(item){ return Number(item && item.z) === Number(flash.z); });
+    if(!zone || !zone.rect) return;
+    drawFinalZoneFlash(ctx, zone, rect(zone.rect, originX, originY));
+  }
+
   function drawScene(ctx, layout, snapshot, cssW, cssH, dpr){
     const originX = Number(layout.boardRect && layout.boardRect.x) || 0;
     const originY = Number(layout.boardRect && layout.boardRect.y) || 0;
@@ -2212,7 +2388,6 @@
       const rowClip = rect(zone.rowsRect, originX, originY);
       const scrollY = getZoneScroll(zone);
       drawZonePanel(ctx, zone, zr, hr, snapshot);
-      drawFinalZoneFlash(ctx, zone, zr);
 
       ctx.save();
       roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5);
@@ -2486,6 +2661,21 @@
     return true;
   }
 
+  function drawActivationCinematics(ctx){
+    if(!ctx || !activeActivationCinematics.length) return;
+    const pending = activeActivationCinematics.splice(0);
+    pending.forEach(function(item){
+      if(item && typeof item.resolve === 'function' && !item.resolved) {
+        item.resolved = true;
+        item.resolve(false);
+      }
+    });
+  }
+
+  function playEffectActivationCinematic(card, z, r, c, opts){
+    return Promise.resolve(false);
+  }
+
   function drawVfxLayers(layers, cssW, cssH, dpr, options){
     const opts = options || {};
     const director = window.FateVfxDirector;
@@ -2514,12 +2704,72 @@
       cssH,
       dpr
     }) : null;
-    if(effectsCtx) drawActivationFlashes(effectsCtx);
+    if(effectsCtx) {
+      drawActivationFlashes(effectsCtx);
+      drawActivationCinematics(effectsCtx);
+      drawPendingWhenSetGlows(effectsCtx);
+      drawFinalZoneFlashOverlay(effectsCtx);
+    }
     return result;
+  }
+
+  function drawActionCompositorOnlyFrame(layers, source, dirtyMask, started){
+    if(!(lastReport && lastReport.available && lastCanvasMetrics)) return null;
+    const metrics = lastCanvasMetrics;
+    drawVfxLayers(layers, metrics.cssW, metrics.cssH, metrics.dpr, {clearEffects:true, clearParticles:true});
+    drawHoverOverlay({dirty:false});
+    renderCounters.dirtyDraws++;
+    renderCounters.vfxOnlyDraws++;
+    renderCounters.actionVfxOnlyDraws++;
+    renderCounters.lastVfxLayerOnly = true;
+    renderCounters.lastDirtyMask = dirtyMask;
+    renderCounters.lastDirtySource = source || '';
+    const frameMs = nowMs() - started;
+    recordFrameMs(frameMs);
+    const layerCount = layerIds.reduce(function(total, id){ return total + (document.getElementById(id) ? 1 : 0); }, 0);
+    lastReport = Object.assign({}, lastReport || {}, {
+      dirtyDraws:renderCounters.dirtyDraws,
+      fullSceneRedraws:renderCounters.fullSceneRedraws,
+      backgroundLayerRedraws:renderCounters.backgroundLayerRedraws,
+      cardLayerRedraws:renderCounters.cardLayerRedraws,
+      effectLayerRedraws:renderCounters.effectLayerRedraws,
+      particleLayerRedraws:renderCounters.particleLayerRedraws,
+      uiLayerRedraws:renderCounters.uiLayerRedraws,
+      hoverLayerRedraws:renderCounters.hoverLayerRedraws,
+      hoverOnlyDraws:renderCounters.hoverOnlyDraws,
+      vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+      actionVfxOnlyDraws:renderCounters.actionVfxOnlyDraws,
+      actionVfxFrameRequests:renderCounters.actionVfxFrameRequests,
+      vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+      deferredVfxFrames:renderCounters.deferredVfxFrames,
+      lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
+      lastDirtyMask:renderCounters.lastDirtyMask,
+      lastDirtySource:renderCounters.lastDirtySource,
+      canvas:Object.assign({}, lastReport.canvas || {}, {
+        totalLayerPixelArea:totalLayerPixelArea(),
+        layers:layerCount
+      }),
+      vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
+      animations:getTimeline() && typeof getTimeline().report === 'function' ? getTimeline().report() : null,
+      lastMs:roundMs(frameMs),
+      avgMs:roundMs(averageFrameMs()),
+      maxMs:roundMs(maxFrameMs()),
+      rafAvgGapMs:roundMs(averageRafGapMs()),
+      rafMaxGapMs:roundMs(maxRafGapMs()),
+      rafSamples:rafGapSamples.length,
+      rafLongIdleGaps,
+      fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+      source
+    });
+    return lastReport;
   }
 
   function scheduleHoverDraw(){
     if(hoverRaf) return;
+    if(isActionAnimationActive() || wasActionAnimatingRecently(120)) {
+      renderCounters.hoverDuringActionSkips++;
+      return;
+    }
     hoverRaf = requestAnimationFrame(function(){
       recordRafGap();
       hoverRaf = 0;
@@ -2548,6 +2798,14 @@
     const ctx = canvas && canvas.getContext ? canvas.getContext('2d', {alpha:true}) : null;
     if(!ctx) return null;
 
+    const actionAnimating = isActionAnimationActive();
+    const forbiddenMask = forbiddenActionDirtyMask(dirtyMask);
+    if(actionAnimating && forbiddenMask){
+      deferActionDirtyRender(source || 'action-active-render', dirtyMask);
+      const compositorOnly = drawActionCompositorOnlyFrame(layers, source || 'action-forbidden-render', dirtyMask, started);
+      if(compositorOnly) return compositorOnly;
+    }
+
     const vfxOnly = !!(lastReport && lastReport.available && lastCanvasMetrics)
       && !!(dirtyMask & (DIRTY_EFFECTS | DIRTY_PARTICLES))
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
@@ -2574,7 +2832,14 @@
         hoverLayerRedraws:renderCounters.hoverLayerRedraws,
         hoverOnlyDraws:renderCounters.hoverOnlyDraws,
         vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+        actionVfxOnlyDraws:renderCounters.actionVfxOnlyDraws,
+        actionVfxFrameRequests:renderCounters.actionVfxFrameRequests,
         vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+        deferredVfxFrames:renderCounters.deferredVfxFrames,
+        deferredActionDirtyFrames:renderCounters.deferredActionDirtyFrames,
+        postActionDeferredFrames:renderCounters.postActionDeferredFrames,
+        hoverDuringActionSkips:renderCounters.hoverDuringActionSkips,
+        pendingWhenSetPulseSkips:renderCounters.pendingWhenSetPulseSkips,
         lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
         lastDirtyMask:renderCounters.lastDirtyMask,
         lastDirtySource:renderCounters.lastDirtySource,
@@ -2591,6 +2856,131 @@
         rafSamples:rafGapSamples.length,
         rafLongIdleGaps,
         fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+        vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
+        animations:getTimeline() && typeof getTimeline().report === 'function' ? getTimeline().report() : null,
+        source
+      });
+      return lastReport;
+  }
+
+  function currentLayerSet(){
+    const board = document.getElementById('board');
+    if(!board) return null;
+    const canvas = document.getElementById(canvasId) || ensureCanvas(board);
+    return canvas && canvas.__fateLayers ? canvas.__fateLayers : null;
+  }
+
+  function scheduleActionVfxFrame(source, dirtyMask){
+    if(actionVfxRaf) return true;
+    renderCounters.actionVfxFrameRequests++;
+    actionVfxRaf = requestAnimationFrame(function(){
+      recordRafGap();
+      actionVfxRaf = 0;
+      if(!isActiveMatchScreen()) {
+        teardownScene('action-vfx-offscreen');
+        return;
+      }
+      const layers = currentLayerSet();
+      if(!layers) {
+        scheduleRender(source || 'vfx-animation');
+        return;
+      }
+      drawActionCompositorOnlyFrame(layers, source || 'action-vfx-animation', dirtyMask || DIRTY_VFX_ONLY, nowMs());
+    });
+    return true;
+  }
+
+    const hoverOnly = !!(lastReport && lastReport.available && lastCanvasMetrics)
+      && !!(dirtyMask & DIRTY_HOVER)
+      && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS | DIRTY_MOTION | DIRTY_PARTICLES));
+    if(hoverOnly){
+      drawHoverOverlay({dirty:true});
+      renderCounters.dirtyDraws++;
+      renderCounters.lastDirtyMask = dirtyMask;
+      renderCounters.lastDirtySource = source || '';
+      const frameMs = nowMs() - started;
+      recordFrameMs(frameMs);
+      lastReport = Object.assign({}, lastReport || {}, {
+        dirtyDraws:renderCounters.dirtyDraws,
+        hoverLayerRedraws:renderCounters.hoverLayerRedraws,
+        hoverOnlyDraws:renderCounters.hoverOnlyDraws,
+        lastDirtyMask:renderCounters.lastDirtyMask,
+        lastDirtySource:renderCounters.lastDirtySource,
+        lastMs:roundMs(frameMs),
+        avgMs:roundMs(averageFrameMs()),
+        maxMs:roundMs(maxFrameMs()),
+        rafAvgGapMs:roundMs(averageRafGapMs()),
+        rafMaxGapMs:roundMs(maxRafGapMs()),
+        rafSamples:rafGapSamples.length,
+        rafLongIdleGaps,
+        fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+        source
+      });
+      return lastReport;
+    }
+
+    const sourceText = String(source || '').toLowerCase();
+    const cardLayerOnly = (sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0)
+      && !!(lastReport && lastReport.available && lastLayout && lastSnapshot && lastCanvasMetrics)
+      && !!(dirtyMask & DIRTY_BOARD_CARDS)
+      && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
+    if(cardLayerOnly){
+      const metrics = lastCanvasMetrics;
+      const cssW = metrics.cssW;
+      const cssH = metrics.cssH;
+      const dpr = metrics.dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+      const draw = drawScene(ctx, lastLayout, lastSnapshot, cssW, cssH, dpr);
+      renderCounters.cardLayerRedraws++;
+      lastHitMap = {
+        cards:draw.hitMap.cards || [],
+        cells:draw.hitMap.cells || [],
+        handCards:lastHitMap.handCards || [],
+        opponentHandCards:lastHitMap.opponentHandCards || [],
+        piles:lastHitMap.piles || [],
+        uiCommands:lastHitMap.uiCommands || []
+      };
+      drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
+      refreshHoverHitFromHitMap(draw.hitMap);
+      drawHoverOverlay({dirty:false});
+      drawCount++;
+      renderCounters.dirtyDraws++;
+      if(sourceText.indexOf('zone-scroll') >= 0) renderCounters.zoneScrollOnlyDraws++;
+      else renderCounters.cardLayerOnlyDraws++;
+      renderCounters.lastDirtyMask = dirtyMask;
+      renderCounters.lastDirtySource = source || '';
+      const frameMs = nowMs() - started;
+      recordFrameMs(frameMs);
+      const layerCount = layerIds.reduce(function(total, id){ return total + (document.getElementById(id) ? 1 : 0); }, 0);
+      lastReport = Object.assign({}, lastReport, {
+        draws:drawCount,
+        dirtyDraws:renderCounters.dirtyDraws,
+        cardLayerRedraws:renderCounters.cardLayerRedraws,
+        zoneScrollOnlyDraws:renderCounters.zoneScrollOnlyDraws,
+        cardLayerOnlyDraws:renderCounters.cardLayerOnlyDraws,
+        deferredVfxFrames:renderCounters.deferredVfxFrames,
+        deferredActionDirtyFrames:renderCounters.deferredActionDirtyFrames,
+        postActionDeferredFrames:renderCounters.postActionDeferredFrames,
+        hoverDuringActionSkips:renderCounters.hoverDuringActionSkips,
+        pendingWhenSetPulseSkips:renderCounters.pendingWhenSetPulseSkips,
+        lastDirtyMask:renderCounters.lastDirtyMask,
+        lastDirtySource:renderCounters.lastDirtySource,
+        cards:draw.cards,
+        zones:draw.zones,
+        hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length, uiCommands:lastHitMap.uiCommands.length},
+        canvas:Object.assign({}, lastReport.canvas || {}, {
+          totalLayerPixelArea:totalLayerPixelArea(),
+          layers:layerCount
+        }),
+        lastMs:roundMs(frameMs),
+        avgMs:roundMs(averageFrameMs()),
+        maxMs:roundMs(maxFrameMs()),
+        rafAvgGapMs:roundMs(averageRafGapMs()),
+        rafMaxGapMs:roundMs(maxRafGapMs()),
+        rafSamples:rafGapSamples.length,
+        rafLongIdleGaps,
+        fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
         source
       });
       return lastReport;
@@ -2599,10 +2989,14 @@
     const snapshot = options && options.snapshot
       ? options.snapshot
       : (typeof window.fateBuildRenderSnapshot === 'function' ? window.fateBuildRenderSnapshot() : null);
+    if(actionAnimating) {
+      noteActionRendererEvent('layout-rebuild', {dirtySource:source || '', dirtyMask});
+    }
     if(!snapshot) {
       lastReport = {available:false, reason:'snapshot-unavailable', version:ADAPTER_VERSION};
       return lastReport;
     }
+    lastSnapshot = snapshot;
 
     const measuredBoardRect = board.getBoundingClientRect ? board.getBoundingClientRect() : {left:0, top:0, width:board.clientWidth || 1280, height:board.clientHeight || 720};
     const boardRect = getStableBoardViewport(board, measuredBoardRect);
@@ -2632,7 +3026,10 @@
       lastReport = {available:false, reason:'layout-unavailable', version:ADAPTER_VERSION};
       return lastReport;
     }
+    const prevLayoutStructureKey = lastLayoutStructureKey;
+    const nextLayoutStructureKey = layoutStructureKey(layout);
     lastLayout = layout;
+    lastLayoutStructureKey = nextLayoutStructureKey;
     const dpr = effectiveDpr;
     const pxW = Math.max(1, Math.round(cssW * dpr));
     const pxH = Math.max(1, Math.round(cssH * dpr));
@@ -2647,7 +3044,7 @@
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
     syncHoverCanvas(canvas, cssW, cssH, dpr, scaleMetrics);
-    const uiOnly = !!(lastReport && lastReport.available && lastHitMap.cards && lastHitMap.cards.length)
+    const uiOnly = !!(lastReport && lastReport.available)
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_MOTION))
       && !!(dirtyMask & (DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS));
     if(uiOnly){
@@ -2691,7 +3088,10 @@
         hoverLayerRedraws:renderCounters.hoverLayerRedraws,
         hoverOnlyDraws:renderCounters.hoverOnlyDraws,
         vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+        actionVfxOnlyDraws:renderCounters.actionVfxOnlyDraws,
+        actionVfxFrameRequests:renderCounters.actionVfxFrameRequests,
         vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
+        deferredVfxFrames:renderCounters.deferredVfxFrames,
         lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
         lastDirtyMask:renderCounters.lastDirtyMask,
         lastDirtySource:renderCounters.lastDirtySource,
@@ -2721,6 +3121,80 @@
       if(maybeAdaptRenderScale()) scheduleRender('adaptive-render-scale');
       return lastReport;
     }
+
+    const freshCardLayerOnly = !!(lastReport && lastReport.available)
+      && !canvasResized
+      && !!(dirtyMask & DIRTY_BOARD_CARDS)
+      && prevLayoutStructureKey
+      && prevLayoutStructureKey === nextLayoutStructureKey
+      && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
+    if(freshCardLayerOnly){
+      ensureInput(canvas);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+      const draw = drawScene(ctx, layout, snapshot, cssW, cssH, dpr);
+      renderCounters.cardLayerRedraws++;
+      lastHitMap = {
+        cards:draw.hitMap.cards || [],
+        cells:draw.hitMap.cells || [],
+        handCards:lastHitMap.handCards || [],
+        opponentHandCards:lastHitMap.opponentHandCards || [],
+        piles:lastHitMap.piles || [],
+        uiCommands:lastHitMap.uiCommands || []
+      };
+      if(dirtyMask & (DIRTY_EFFECTS | DIRTY_PARTICLES)) {
+        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:true});
+      } else {
+        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
+      }
+      refreshHoverHitFromHitMap(draw.hitMap);
+      drawHoverOverlay({dirty:false});
+      drawCount++;
+      renderCounters.dirtyDraws++;
+      renderCounters.cardLayerOnlyDraws++;
+      renderCounters.lastDirtyMask = dirtyMask;
+      renderCounters.lastDirtySource = source || '';
+      const layerCount = layerIds.reduce(function(total, id){ return total + (document.getElementById(id) ? 1 : 0); }, 0);
+      const frameMs = nowMs() - started;
+      recordFrameMs(frameMs);
+      lastReport = Object.assign({}, lastReport, {
+        draws:drawCount,
+        dirtyDraws:renderCounters.dirtyDraws,
+        cardLayerRedraws:renderCounters.cardLayerRedraws,
+        cardLayerOnlyDraws:renderCounters.cardLayerOnlyDraws,
+        zoneScrollOnlyDraws:renderCounters.zoneScrollOnlyDraws,
+        deferredVfxFrames:renderCounters.deferredVfxFrames,
+        lastDirtyMask:renderCounters.lastDirtyMask,
+        lastDirtySource:renderCounters.lastDirtySource,
+        cards:draw.cards,
+        expectedCards:snapshot.counts && snapshot.counts.boardCards || 0,
+        zones:draw.zones,
+        hitMap:{cards:lastHitMap.cards.length, cells:lastHitMap.cells.length, handCards:lastHitMap.handCards.length, opponentHandCards:lastHitMap.opponentHandCards.length, piles:lastHitMap.piles.length, uiCommands:lastHitMap.uiCommands.length},
+        canvas:Object.assign({}, lastReport.canvas || {}, {
+          dpr:scaleMetrics.rawDpr,
+          maxDpr:scaleMetrics.maxDpr,
+          renderScale:scaleMetrics.renderScale,
+          effectiveDpr,
+          totalLayerPixelArea:totalLayerPixelArea(),
+          layers:layerCount
+        }),
+        snapshotSignature:snapshot.signature || '',
+        layoutSignature:layout.snapshotSignature || '',
+        lastMs:roundMs(frameMs),
+        avgMs:roundMs(averageFrameMs()),
+        maxMs:roundMs(maxFrameMs()),
+        rafAvgGapMs:roundMs(averageRafGapMs()),
+        rafMaxGapMs:roundMs(maxRafGapMs()),
+        rafSamples:rafGapSamples.length,
+        rafLongIdleGaps,
+        fps:averageFrameMs() > 0 ? roundMs(1000 / averageFrameMs()) : 0,
+        source
+      });
+      if(maybeAdaptRenderScale()) scheduleRender('adaptive-render-scale');
+      if(getTimeline() && getTimeline().hasActiveAnimations && getTimeline().hasActiveAnimations()) scheduleRender('animation');
+      return lastReport;
+    }
+
     ['background', 'effects', 'particles', 'ui'].forEach(function(name){
       const layer = layers[name];
       const layerCtx = layer && layer.getContext ? layer.getContext('2d', {alpha:true}) : null;
@@ -2764,6 +3238,9 @@
     refreshHoverHitFromHitMap(draw.hitMap);
     drawHoverOverlay({dirty:false});
     drawCount++;
+    if(isActionAnimationActive()) {
+      noteActionRendererEvent('full-scene-redraw', {dirtySource:source || '', dirtyMask});
+    }
     renderCounters.fullSceneRedraws++;
     if(String(source || '').toLowerCase().indexOf('vfx') >= 0) {
       renderCounters.vfxFullSceneFallbacks++;
@@ -2771,8 +3248,8 @@
     }
     renderCounters.lastDirtyMask = dirtyMask;
     renderCounters.lastDirtySource = source || '';
-    const domCells = board.querySelectorAll('.cell').length;
-    const domCards = board.querySelectorAll('.bc').length;
+    const domCells = 0;
+    const domCards = 0;
     const layerCount = layerIds.reduce(function(total, id){ return total + (document.getElementById(id) ? 1 : 0); }, 0);
     const frameMs = nowMs() - started;
     recordFrameMs(frameMs);
@@ -2784,6 +3261,13 @@
       draws:drawCount,
       dirtyDraws:renderCounters.dirtyDraws,
       fullSceneRedraws:renderCounters.fullSceneRedraws,
+      zoneScrollOnlyDraws:renderCounters.zoneScrollOnlyDraws,
+      cardLayerOnlyDraws:renderCounters.cardLayerOnlyDraws,
+      deferredVfxFrames:renderCounters.deferredVfxFrames,
+      deferredActionDirtyFrames:renderCounters.deferredActionDirtyFrames,
+      postActionDeferredFrames:renderCounters.postActionDeferredFrames,
+      hoverDuringActionSkips:renderCounters.hoverDuringActionSkips,
+      pendingWhenSetPulseSkips:renderCounters.pendingWhenSetPulseSkips,
       backgroundLayerRedraws:renderCounters.backgroundLayerRedraws,
       cardLayerRedraws:renderCounters.cardLayerRedraws,
       effectLayerRedraws:renderCounters.effectLayerRedraws,
@@ -2792,6 +3276,8 @@
       hoverLayerRedraws:renderCounters.hoverLayerRedraws,
       hoverOnlyDraws:renderCounters.hoverOnlyDraws,
       vfxOnlyDraws:renderCounters.vfxOnlyDraws,
+      actionVfxOnlyDraws:renderCounters.actionVfxOnlyDraws,
+      actionVfxFrameRequests:renderCounters.actionVfxFrameRequests,
       vfxFullSceneFallbacks:renderCounters.vfxFullSceneFallbacks,
       lastVfxLayerOnly:renderCounters.lastVfxLayerOnly,
       lastDirtyMask:renderCounters.lastDirtyMask,
@@ -2845,9 +3331,39 @@
     return lastReport;
   }
 
-  function scheduleRender(source){
+  function enqueueRender(source, dirtyMask){
     const src = source || 'scheduled';
-    pendingDirtyMask |= dirtyMaskForSource(src);
+    const nextMask = Number(dirtyMask) || dirtyMaskForSource(src);
+    const srcLower = String(src || '').toLowerCase();
+    const nextIsVfxOnly = isVfxOnlyDirty(nextMask);
+    if(isActionAnimationActive()) {
+      if(srcLower.indexOf('hand-hover') >= 0 || srcLower.indexOf('viewport-hover') >= 0 || srcLower.indexOf('pile-hover') >= 0) {
+        renderCounters.hoverDuringActionSkips++;
+        return;
+      }
+      const forbiddenMask = forbiddenActionDirtyMask(nextMask);
+      if(forbiddenMask) {
+        deferActionDirtyRender(src, nextMask);
+        return;
+      }
+    }
+    if(srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionAnimatingRecently(120) && heavyActionDirtyMask(nextMask)) {
+      const age = msSinceLastActionAnimation();
+      schedulePostActionRender(src, nextMask, Math.max(24, 120 - (Number.isFinite(age) ? age : 0)));
+      return;
+    }
+    if(redrawRaf && nextIsVfxOnly && (pendingDirtyMask & ~DIRTY_VFX_ONLY)) {
+      pendingPostFrameVfx = true;
+      renderCounters.deferredVfxFrames++;
+      return;
+    }
+    if(redrawRaf && !nextIsVfxOnly && isVfxOnlyDirty(pendingDirtyMask)) {
+      pendingDirtyMask = 0;
+      pendingDirtySources = [];
+      pendingPostFrameVfx = true;
+      renderCounters.deferredVfxFrames++;
+    }
+    pendingDirtyMask |= nextMask;
     if(pendingDirtySources.indexOf(src) < 0) pendingDirtySources.push(src);
     if(redrawRaf) return;
     redrawRaf = requestAnimationFrame(function(){
@@ -2858,11 +3374,21 @@
       pendingDirtyMask = 0;
       pendingDirtySources = [];
       if(!isActiveMatchScreen()) {
+        pendingPostFrameVfx = false;
         teardownScene('scheduled-offscreen');
         return;
       }
       if(ownsBoard()) renderFromGameState({source:sources, dirtyMask});
+      if(pendingPostFrameVfx) {
+        pendingPostFrameVfx = false;
+        scheduleRender('vfx-animation');
+      }
     });
+  }
+
+  function scheduleRender(source){
+    const src = source || 'scheduled';
+    enqueueRender(src, dirtyMaskForSource(src));
   }
 
   function report(){
@@ -2954,6 +3480,7 @@
     setViewportHoverHit,
     scrollZoneAtClient,
     flashBoardCardActivation,
+    playEffectActivationCinematic,
     queuePlacementMotion,
     suppressInitialPlacementMotion,
     hideBoardCardForVfx,

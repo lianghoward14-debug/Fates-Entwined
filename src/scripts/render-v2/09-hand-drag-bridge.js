@@ -232,7 +232,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     ctx.save();
-    ctx.fillStyle = 'rgba(5,7,12,.04)';
+    ctx.fillStyle = 'rgba(5,7,12,.98)';
     ctx.strokeStyle = 'rgba(255,225,120,.62)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();

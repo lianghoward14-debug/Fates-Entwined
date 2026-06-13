@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 2;
+  const VERSION = 3;
   const VFX_BUDGET = {
     maxActiveParticles:0,
     maxActiveParticlesLow:0,
@@ -67,6 +67,10 @@
     if(name === 'in-cubic') return x * x * x;
     if(name === 'in-quart') return x * x * x * x;
     if(name === 'out-quint') return 1 - Math.pow(1 - x, 5);
+    if(name === 'out-expo-soft') return x >= 1 ? 1 : 1 - Math.pow(2, -8 * x);
+    if(name === 'snap-settle') return x < .72
+      ? 1 - Math.pow(1 - (x / .72), 4)
+      : 1 - Math.pow(1 - ((x - .72) / .28), 2) * .045;
     if(name === 'in-out-cubic') return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
     if(name === 'out-back-soft'){
       const c1 = 1.28;
@@ -109,6 +113,28 @@
       if(localStorage.getItem('fateLowEffects') === '1') return true;
     } catch(e) {}
     return document.documentElement.classList.contains('fate-low-effects');
+  }
+
+  function actionPresenter(){
+    return window.FateActionPresentation || null;
+  }
+
+  function actionAnimationActive(){
+    const presenter = actionPresenter();
+    try {
+      return !!(presenter && typeof presenter.isActionAnimating === 'function' && presenter.isActionAnimating());
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function noteActionEvent(kind, details){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.noteRendererEvent === 'function') {
+        presenter.noteRendererEvent(kind, Object.assign({source:'FateVfxDirector'}, details || {}));
+      }
+    } catch(e) {}
   }
 
   function rect(input){
@@ -205,6 +231,12 @@
     const lift = Number.isFinite(Number(p.lift)) ? Number(p.lift) : (path === 'direct' ? .04 : .18);
     const liftY = Math.sin(Math.PI * raw) * lift * Math.max(16, h * .30);
     const arcY = Math.sin(Math.PI * raw) * arc * arcBase;
+    const sideArc = Number(p.sideArc) || 0;
+    if(sideArc && dist > 1){
+      const sideWave = Math.sin(Math.PI * raw) * sideArc * Math.min(170, dist * .26);
+      cx += (-(toC.y - fromC.y) / dist) * sideWave;
+      cy += ((toC.x - fromC.x) / dist) * sideWave;
+    }
     if(path === 'drop') cy += Math.abs(arcY) * .72;
     else cy -= liftY + arcY;
     return rectFromCenter(cx, cy, w, h);
@@ -446,15 +478,43 @@
     }
     const visual = (card && card.visual) || card;
     const textureSize = rect(opts.textureSize) || r;
-    const texture = window.FateCardTextureCache && typeof window.FateCardTextureCache.getBaseCardTexture === 'function'
-      ? window.FateCardTextureCache.getBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, {
-        visual,
-        dpr:Number(opts.textureDpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
-        preferFullArt:true,
-        source:'vfx-card',
-        onChange:function(){ scheduleRender('vfx-texture-ready'); }
-      })
-      : null;
+    const cache = window.FateCardTextureCache;
+    const textureOptions = {
+      visual,
+      dpr:Number(opts.textureDpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+      preferFullArt:true,
+      source:'vfx-card',
+      onChange:function(){ scheduleRender('vfx-texture-ready'); }
+    };
+    let texture = null;
+    if(cache && typeof cache.getBaseCardTexture === 'function'){
+      if(actionAnimationActive() && typeof cache.peekBaseCardTexture === 'function'){
+        texture = cache.peekBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, textureOptions);
+        if(!(texture && texture.loaded && texture.canvas && !texture.failed) && typeof cache.findReadyBaseCardTexture === 'function'){
+          const fallbackTexture = cache.findReadyBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, textureOptions);
+          if(fallbackTexture && fallbackTexture.loaded && fallbackTexture.canvas && !fallbackTexture.failed) {
+            texture = fallbackTexture;
+            noteActionEvent('texture-reuse-rescaled', {
+              stage:'draw-card',
+              iid:card && card.iid,
+              cardName:card && card.name,
+              requestedSize:{w:Math.round(textureSize.w || 0), h:Math.round(textureSize.h || 0)},
+              reusedSize:{w:Math.round(fallbackTexture.width || 0), h:Math.round(fallbackTexture.height || 0)}
+            });
+          }
+        }
+        if(!(texture && texture.loaded && texture.canvas && !texture.failed)){
+          noteActionEvent('texture-miss', {
+            stage:'draw-card',
+            iid:card && card.iid,
+            cardName:card && card.name,
+            textureSize:{w:Math.round(textureSize.w || 0), h:Math.round(textureSize.h || 0)}
+          });
+        }
+      } else {
+        texture = cache.getBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, textureOptions);
+      }
+    }
     if(texture && texture.loaded && texture.canvas){
       try {
         ctx.drawImage(texture.canvas, r.x, r.y, r.w, r.h);
@@ -510,6 +570,63 @@
         onChange:function(){ scheduleRender('vfx-texture-ready'); }
       });
     } catch(e) {}
+  }
+
+  function preflightMotionTextures(type, payload, options){
+    const cache = window.FateCardTextureCache;
+    const recipes = window.FateVfxRecipes;
+    const recipeType = String(type || '').toUpperCase();
+    const out = {
+      ready:true,
+      recipeType,
+      total:0,
+      readyCount:0,
+      pending:0,
+      failed:0,
+      missing:[]
+    };
+    if(!cache || typeof cache.getBaseCardTexture !== 'function') {
+      out.ready = false;
+      out.reason = 'texture-cache-unavailable';
+      return out;
+    }
+    if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return out;
+    const opts = options || {};
+    const primitives = recipes.expand(recipeType, payload || {}) || [];
+    primitives.forEach(function(p){
+      if(!p || !p.card || p.faceDown) return;
+      if(['cardMove','cardImpact','cardLift','cardFlip','cardSummon'].indexOf(p.kind) < 0) return;
+      const size = stableMotionTextureSize(p, rect(p.toRect || p.rect || p.fromRect));
+      if(!size) return;
+      out.total++;
+      p.textureSize = size;
+      let rec = null;
+      try {
+        rec = cache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
+          visual:(p.card && p.card.visual) || p.card,
+          dpr:Number(opts.dpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+          preferFullArt:true,
+          source:opts.source || 'vfx-card-preflight',
+          onChange:function(){ scheduleRender('vfx-texture-ready'); }
+        });
+      } catch(e) {
+        rec = null;
+      }
+      if(rec && rec.loaded && rec.canvas && !rec.failed) out.readyCount++;
+      else {
+        out.ready = false;
+        if(rec && rec.pending) out.pending++;
+        else if(rec && rec.failed) out.failed++;
+        out.missing.push({
+          iid:p.card && p.card.iid,
+          cardName:p.card && p.card.name,
+          pending:!!(rec && rec.pending),
+          failed:!!(rec && rec.failed),
+          size:{w:Math.round(size.w || 0), h:Math.round(size.h || 0)}
+        });
+      }
+    });
+    return out;
   }
 
   function drawGlowRect(ctx, r, color, alpha){
@@ -685,42 +802,51 @@
     if(p.kind === 'numberPop'){
       const r = rect(p.rect);
       if(!r) return;
-      const text = String(p.text || '');
-      const isFateDelta = p.theme === 'fate-delta' || p.theme === 'fate-loss' || p.theme === 'fate-gain' || /^[-+]/.test(text);
-      const isLoss = p.theme === 'fate-loss' || /^-/.test(text);
-      const rise = Number(p.rise) || (isFateDelta ? Math.max(42, r.h * .34) : 38);
-      const hold = isFateDelta
-        ? (p.progress < .06 ? (p.progress / .06) : (p.progress > .88 ? (1 - p.progress) / .12 : 1))
-        : Math.sin(Math.PI * p.progress);
-      const pop = isFateDelta ? Math.min(1, p.progress / .18) : p.progress;
+      const finalText = String(p.text || '');
+      const isFateDelta = p.theme === 'fate-delta' || p.theme === 'fate-loss' || p.theme === 'fate-gain' || /^[-+]/.test(finalText);
+      const isLoss = p.theme === 'fate-loss' || /^-/.test(finalText);
+      const sign = p.sign != null ? String(p.sign) : (isLoss ? '-' : (/^\+/.test(finalText) ? '+' : ''));
+      const targetValue = Math.max(0, Math.abs(Number(p.endValue != null ? p.endValue : finalText.replace(/[^\d.-]/g, '')) || 0));
+      const countPortion = isFateDelta ? 0 : clamp(Number(p.countPortion) || .30, .08, .76);
+      const holdEnd = clamp(Number(p.holdEnd) || (isFateDelta ? .72 : .68), countPortion + .04, .94);
+      let shownText = finalText;
+      let finalEmphasis = 0;
+      if(isFateDelta && targetValue > 0 && countPortion > 0){
+        const countT = clamp(p.progress / countPortion, 0, 1);
+        const shown = Math.max(1, Math.min(targetValue, Math.floor(1 + Math.max(0, targetValue - 1) * countT)));
+        finalEmphasis = countT >= 1
+          ? Math.max(0, 1 - clamp((p.progress - countPortion) / Math.max(.001, Number(p.emphasisPortion) || .16), 0, 1))
+          : 0;
+        shownText = sign + shown;
+      }
+      const enter = clamp(p.progress / .12, 0, 1);
+      const exit = p.progress > holdEnd ? clamp((p.progress - holdEnd) / Math.max(.001, 1 - holdEnd), 0, 1) : 0;
+      const alpha = isFateDelta ? clamp(enter * (1 - exit), 0, 1) : Math.sin(Math.PI * p.progress);
+      const lift = Number(p.rise) || (isFateDelta ? Math.max(18, r.h * .16) : 38);
+      const x = isFateDelta ? (r.x + r.w * .86) : (r.x + r.w / 2);
+      const yBase = isFateDelta ? (r.y + Math.max(12, r.h * .06)) : (r.y + r.h * .22);
+      const y = yBase - lift * Math.max(0, exit - .08) / .92;
       const scale = isFateDelta
-        ? (.72 + ease('out-back-soft', pop) * .38 - Math.max(0, p.progress - .36) * .06)
-        : (1 + Math.sin(Math.PI * p.progress) * .18);
-      const x = isFateDelta ? (r.x + r.w * .82) : (r.x + r.w / 2);
-      const y = isFateDelta ? (r.y - 8 - rise * t) : (r.y + r.h * .22 - rise * t);
-      const color = p.color || (isFateDelta ? (isLoss ? '#ff6060' : '#7fff90') : '#ffe37a');
-      const glow = isFateDelta ? (isLoss ? 'rgba(255,96,96,.62)' : 'rgba(127,255,144,.62)') : 'rgba(255,226,105,.28)';
+        ? 1
+        : (1 + Math.sin(Math.PI * p.progress) * .12);
+      const color = p.color || (isFateDelta ? (isLoss ? '#ff6f7d' : '#55e68a') : '#ffe37a');
+      const fontSize = Math.max(19, Math.round(r.w * (isFateDelta ? .185 : .17)));
+      const padX = Math.max(7, fontSize * .30);
+      const boxW = Math.max(fontSize * 1.62, shownText.length * fontSize * .54 + padX * 2);
+      const boxH = Math.max(fontSize * 1.02, fontSize + 6);
       ctx.save();
-      ctx.globalAlpha = clamp(hold, 0, 1);
+      ctx.globalAlpha = alpha;
       ctx.translate(x, y);
       ctx.scale(scale, scale);
       ctx.fillStyle = color;
-      ctx.strokeStyle = isFateDelta ? 'rgba(0,0,0,.92)' : 'rgba(0,0,0,.82)';
-      ctx.lineWidth = isFateDelta ? Math.max(5, Math.round(r.w * .04)) : 4;
-      ctx.shadowColor = glow;
-      ctx.shadowBlur = isFateDelta ? Math.max(12, r.w * .10) : 0;
-      ctx.font = '950 ' + Math.max(24, Math.round(r.w * (isFateDelta ? .255 : .17))) + 'px Cinzel, Georgia, serif';
+      ctx.strokeStyle = 'rgba(0,0,0,.64)';
+      ctx.lineWidth = isFateDelta ? 1.35 : 3;
+      ctx.shadowBlur = 0;
+      ctx.font = '900 ' + fontSize + 'px system-ui, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.strokeText(text, 0, 0);
-      ctx.fillText(text, 0, 0);
-      if(isFateDelta){
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha *= .55;
-        ctx.strokeStyle = isLoss ? 'rgba(255,190,196,.80)' : 'rgba(210,255,220,.80)';
-        ctx.lineWidth = 1.2;
-        ctx.strokeText(text, 0, 0);
-      }
+      ctx.strokeText(shownText, 0, 0);
+      ctx.fillText(shownText, 0, 0);
       ctx.restore();
       return;
     }
@@ -740,16 +866,37 @@
       }
       const settleStart = clamp(1 - ((Number(p.settleMs) || 0) / Math.max(1, Number(p.duration) || 1)), .52, 1);
       const settleT = raw > settleStart ? clamp((raw - settleStart) / Math.max(.001, 1 - settleStart), 0, 1) : 0;
-      const rotation = lerp(
+      const fromForMotion = rect(p.fromRect) || rect(p.rect) || rr;
+      const toForMotion = rect(p.toRect) || rect(p.rect) || rr;
+      const fromC = center(fromForMotion);
+      const toC = center(toForMotion);
+      const dx = toC.x - fromC.x;
+      const dy = toC.y - fromC.y;
+      const bankSign = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 1 : -1) : (dy >= 0 ? -1 : 1);
+      let rotation = lerp(
         (Number(p.startRotate) || 0),
         (Number(p.endRotate) || 0),
         t
       ) * Math.PI / 180 + (Number(p.rotate) || 0) * Math.PI / 180 * Math.sin(Math.PI * raw) * (1 - settleT * .7);
+      if(p.bank) rotation += bankSign * Number(p.bank) * Math.PI / 180 * Math.sin(Math.PI * moveRaw) * (1 - settleT * .45);
+      if(p.wobble && settleT > 0) rotation += Number(p.wobble) * Math.PI / 180 * Math.sin(settleT * Math.PI * 5) * (1 - settleT);
       const peakScale = Number(p.scale) || 1;
       const endScale = Number(p.endScale) || 1;
       let scale = lerp(1, peakScale, Math.sin(Math.PI * raw));
       if(raw > .72) scale = lerp(scale, endScale, clamp((raw - .72) / .28, 0, 1));
       if(p.settleMs) scale += Math.sin(Math.PI * settleT) * .018;
+      let scaleX = scale;
+      let scaleY = scale;
+      if(p.launchSquash && raw < .22){
+        const q = Math.sin(Math.PI * clamp(raw / .22, 0, 1)) * Number(p.launchSquash);
+        scaleX += q;
+        scaleY -= q * .45;
+      }
+      if(p.landSquash && settleT > 0){
+        const q = Math.sin(Math.PI * settleT) * Number(p.landSquash);
+        scaleX += q;
+        scaleY -= q * .55;
+      }
       ctx.save();
       let alpha = 1;
       if(p.fadeIn) alpha *= clamp(raw / .18, 0, 1);
@@ -759,7 +906,7 @@
       if(p.kind === 'cardMove') drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
       ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
       ctx.rotate(rotation);
-      ctx.scale(scale, scale);
+      ctx.scale(scaleX, scaleY);
       drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr)});
       ctx.restore();
       return;
@@ -816,12 +963,19 @@
     const scale = Number(dragPreview.scale) || 1;
     const w = r.w * scale;
     const h = r.h * scale;
+    const cardRect = {x:-w / 2, y:-h / 2, w, h};
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
     ctx.rotate((dragPreview.invalid ? -2 : 1.2) * Math.PI / 180);
-    drawCardMotionShadow(ctx, {x:-w / 2, y:-h / 2, w, h}, .32, .18);
-    drawCard(ctx, dragPreview.card, {x:-w / 2, y:-h / 2, w, h}, {textureDpr:2});
+    drawCardMotionShadow(ctx, cardRect, .32, .18);
+    ctx.save();
+    roundedPath(ctx, cardRect.x, cardRect.y, cardRect.w, cardRect.h, Math.max(7, cardRect.w * .045));
+    ctx.fillStyle = 'rgb(6,8,13)';
+    ctx.fill();
+    ctx.clip();
+    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:2});
+    ctx.restore();
     ctx.restore();
     return true;
   }
@@ -918,6 +1072,9 @@
     const primitives = window.FateVfxPrimitives && typeof window.FateVfxPrimitives.report === 'function'
       ? window.FateVfxPrimitives.report()
       : null;
+    const audio = window.FateVfxAudioSync && typeof window.FateVfxAudioSync.report === 'function'
+      ? window.FateVfxAudioSync.report()
+      : null;
     return {
       available:true,
       version:VERSION,
@@ -970,6 +1127,7 @@
         primitiveKinds:recipeKinds
       },
       primitives,
+      audio,
       recent:{
         lastRecipe:recentRecipes[0] ? recentRecipes[0].type : '',
         lastRecipePayloadSummary:recentRecipes[0] ? recentRecipes[0].payloadSummary : null,
@@ -985,10 +1143,10 @@
         recent:eventBridgeStats.recent.slice(0, 10)
       },
       textureCache:texture ? {
-        baseHits:texture.baseHits,
-        baseMisses:texture.baseMisses,
-        baseRequests:texture.baseRequests,
-        hitRate:texture.baseRequests ? Math.round((texture.baseHits / texture.baseRequests) * 1000) / 10 : null
+        baseHits:texture.stats && texture.stats.baseHits,
+        baseMisses:texture.stats && texture.stats.baseMisses,
+        baseRequests:texture.stats && texture.stats.baseRequests,
+        hitRate:texture.stats && texture.stats.baseRequests ? Math.round((texture.stats.baseHits / texture.stats.baseRequests) * 1000) / 10 : null
       } : null,
       pass:domGhostCount() === 0,
       blockers:domGhostCount() === 0 ? [] : ['dom-ghosts-active']
@@ -1036,6 +1194,7 @@
     clear,
     tick,
     draw,
+    preflightMotionTextures,
     hasActiveEffects,
     setLowEffectsMode,
     setReducedMotionMode,
@@ -1045,38 +1204,50 @@
     updateDragPreview,
     clearDragPreview
   };
+  window.fateVfxDirectorReport = report;
+
+  function playThroughAction(type, payload, options){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.beginMotionOnly === 'function' &&
+        !(typeof presenter.isActive === 'function' && presenter.isActive())) {
+        return presenter.beginMotionOnly(type, payload || {}, options || {});
+      }
+    } catch(e) {}
+    return play(type, payload || {}, options || {});
+  }
 
   window.FateVfxEventBridge = {
     onAcceptedGameEvent:function(event){
       if(!event) return null;
       recordBridge('acceptedGameEvents', event.type, event.payload || event);
-      return play(event.type, event.payload || event, event.options || {});
+      return playThroughAction(event.type, event.payload || event, event.options || {});
     },
     onLocalIntent:function(intent){
       if(!intent) return null;
       recordBridge('localIntents', intent.type, intent.payload || intent);
-      return play(intent.type, intent.payload || intent, intent.options || {});
+      return playThroughAction(intent.type, intent.payload || intent, intent.options || {});
     },
     onPromptCreated:function(prompt){
       if(!prompt) return null;
       recordBridge('promptsCreated', 'SUPPORTER_ACTIVATE', prompt);
-      return play('SUPPORTER_ACTIVATE', prompt);
+      return playThroughAction('SUPPORTER_ACTIVATE', prompt);
     },
     onPromptResolved:function(prompt, choice){
       if(!prompt) return null;
       recordBridge('promptsResolved', 'SUPPORTER_ACTIVATE', Object.assign({}, prompt, {choice}));
-      return play('SUPPORTER_ACTIVATE', Object.assign({}, prompt, {choice}));
+      return playThroughAction('SUPPORTER_ACTIVATE', Object.assign({}, prompt, {choice}));
     },
     onStateDiff:function(diff){
       if(!diff) return null;
       if(diff.fateDelta > 0) {
         recordBridge('stateDiffs', 'FATE_GAIN', diff);
-        return play('FATE_GAIN', diff);
+        return playThroughAction('FATE_GAIN', diff);
       }
       if(diff.fateDelta < 0) {
         const payload = Object.assign({}, diff, {amount:Math.abs(diff.fateDelta)});
         recordBridge('stateDiffs', 'FATE_LOSS', payload);
-        return play('FATE_LOSS', payload);
+        return playThroughAction('FATE_LOSS', payload);
       }
       return null;
     },

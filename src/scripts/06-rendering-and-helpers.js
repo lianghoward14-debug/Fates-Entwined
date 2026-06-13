@@ -82,6 +82,14 @@ function noteRenderRequest(parts, normalized) {
   if(isBroad) {
     perf.broadRenderRequests = (perf.broadRenderRequests || 0) + 1;
     perf.lastBroadRenderParts = partList;
+    try {
+      if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
+        window.FateActionPresentation.noteRendererEvent('broad-render-request', {
+          source:'renderGame',
+          parts:partList
+        });
+      }
+    } catch(e) {}
   } else {
     perf.scopedRenderRequests = (perf.scopedRenderRequests || 0) + 1;
     perf.lastScopedRenderParts = partList;
@@ -110,6 +118,26 @@ function normalizeRenderParts(parts) {
     if(parts[k] && RENDER_ALL_PARTS[k]) out[k] = true;
   });
   return out;
+}
+function getHandRenderPartForPlayer(player) {
+  const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
+  return Number(player) === viewer ? 'hand' : 'oppHand';
+}
+function getBoardActionRenderPartsForPlayer(player, options) {
+  const opts = options || {};
+  const parts = {board:true, scores:true, blocks:true, topbar:true};
+  if(opts.hand !== false) parts[getHandRenderPartForPlayer(player)] = true;
+  if(opts.oppHand) parts[getHandRenderPartForPlayer(1 - Number(player))] = true;
+  if(opts.bothHands) {
+    parts.hand = true;
+    parts.oppHand = true;
+  }
+  if(opts.piles) parts.piles = true;
+  if(opts.landscape) parts.landscape = true;
+  return parts;
+}
+function renderBoardActionForPlayer(player, options) {
+  renderGame(getBoardActionRenderPartsForPlayer(player, options));
 }
 function mergeRenderParts(a, b) {
   const out = {...(a || {})};
@@ -412,26 +440,31 @@ function performGameRender(parts) {
     beginRenderCalculationFrame();
     const gameScreen = document.getElementById('s-game');
     if(gameScreen) gameScreen.classList.toggle('is-consolidating', !!G._consolidating);
-    const boardScrollSnap = dirty.board ? timed('boardScrollSnap', getBoardScrollSnapshot) : null;
+    const boardOwnedByRendererV2 = dirty.board && rendererV2OwnsBoardScene();
+    const boardScrollSnap = dirty.board && !boardOwnedByRendererV2 ? timed('boardScrollSnap', getBoardScrollSnapshot) : null;
     if(dirty.board) {
-      const boardState = timed('boardSignatures', getBoardRenderState);
-      const nextBoardSig = boardState.renderSignature;
-      const nextStructureSig = boardState.structureSignature;
-      const nextCellSigs = boardState.cellSignatures;
-      const boardEl = document.getElementById('board');
-      const boardHasZones = !!(boardEl && boardEl.querySelector('.zone'));
-      if(nextBoardSig !== _lastBoardRenderSignature || !boardEl || !boardHasZones){
-        const patched = boardEl && boardEl.children.length && nextStructureSig === _lastBoardStructureSignature && _lastBoardCellSignatures
-          ? timed('patchBoard', function(){ return patchChangedBoardCells(nextCellSigs, _lastBoardCellSignatures); })
-          : false;
-        if(breakdown) breakdown.boardPatched = !!patched;
-        if(!patched) timed('renderBoard', renderBoard);
-        _lastBoardRenderSignature = nextBoardSig;
-        _lastBoardStructureSignature = nextStructureSig;
-        _lastBoardCellSignatures = nextCellSigs;
-        timed('restoreBoardScroll', function(){ restoreBoardScrollSnapshot(boardScrollSnap); });
-        if(boardScrollSnap && (boardScrollSnap.left || boardScrollSnap.top) && typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(function(){ restoreBoardScrollSnapshot(boardScrollSnap); });
+      if(boardOwnedByRendererV2) {
+        timed('renderBoardV2', renderBoard);
+      } else {
+        const boardState = timed('boardSignatures', getBoardRenderState);
+        const nextBoardSig = boardState.renderSignature;
+        const nextStructureSig = boardState.structureSignature;
+        const nextCellSigs = boardState.cellSignatures;
+        const boardEl = document.getElementById('board');
+        const boardHasZones = !!(boardEl && boardEl.querySelector('.zone'));
+        if(nextBoardSig !== _lastBoardRenderSignature || !boardEl || !boardHasZones){
+          const patched = boardEl && boardEl.children.length && nextStructureSig === _lastBoardStructureSignature && _lastBoardCellSignatures
+            ? timed('patchBoard', function(){ return patchChangedBoardCells(nextCellSigs, _lastBoardCellSignatures); })
+            : false;
+          if(breakdown) breakdown.boardPatched = !!patched;
+          if(!patched) timed('renderBoard', renderBoard);
+          _lastBoardRenderSignature = nextBoardSig;
+          _lastBoardStructureSignature = nextStructureSig;
+          _lastBoardCellSignatures = nextCellSigs;
+          timed('restoreBoardScroll', function(){ restoreBoardScrollSnapshot(boardScrollSnap); });
+          if(boardScrollSnap && (boardScrollSnap.left || boardScrollSnap.top) && typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function(){ restoreBoardScrollSnapshot(boardScrollSnap); });
+          }
         }
       }
     }
@@ -441,7 +474,7 @@ function performGameRender(parts) {
     if(cancelBtn) cancelBtn.style.display = G._consolidating ? '' : 'none';
     if(dirty.scores) timed('renderZoneScores', renderZoneScores);
     if(dirty.piles) timed('renderPiles', renderPiles);
-    if((dirty.landscape || dirty.board || dirty.scores) && typeof renderLandscapePanel === 'function') timed('renderLandscapePanel', renderLandscapePanel);
+    if((dirty.landscape || dirty.scores) && typeof renderLandscapePanel === 'function') timed('renderLandscapePanel', renderLandscapePanel);
     if(dirty.oppHand) timed('renderOppHand', renderOppHand);
     if(G._consolidating) timed('highlightTributeCards', highlightTributeCards);
     if(dirty.blocks && typeof refreshBlockOverlays === 'function') timed('refreshBlockOverlays', refreshBlockOverlays);
@@ -665,9 +698,18 @@ function getOppHandRenderSignature() {
   return [oppP, landscapeReveal, oppHand.map(card=>card.iid + ':' + card.id + ':' + (landscapeReveal || revealed[card.iid] ? 1 : 0)).join(',')].join('|');
 }
 
+function applyOpponentHandDensity(container, count) {
+  if(!container) return;
+  const handCount = Math.max(0, Number(count) || 0);
+  container.dataset.count = String(handCount);
+  container.classList.toggle('opp-hand-compact', handCount >= 8);
+  container.classList.toggle('opp-hand-nine-plus', handCount >= 9);
+  container.classList.toggle('opp-hand-ten-plus', handCount >= 10);
+}
+
 var _pointerDown = false;
 var _renderDeferredByPointer = false;
-const RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR = '.placement-anim-ghost, .draw-fly-card, .guerilla-transfer-fly, .maria-discard-badge, .aff-change-overlay, .effect-activation-aura, .block-overlay, .effect-blocked-flash';
+const RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR = '.placement-anim-ghost, .draw-fly-card, .guerilla-transfer-fly, .maria-discard-badge, .aff-change-overlay, .effect-activation-aura, .block-overlay, .effect-blocked-flash, .consolidation-cinematic-overlay, .cc-overlay-v2';
 
 function rendererV2OwnsBoardScene() {
   return !!(window.FateMatchRendererAdapter
@@ -1487,6 +1529,7 @@ function renderOppHand() {
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsOpponentHand === 'function' && window.FateMatchRendererAdapter.ownsOpponentHand()){
     const oppP = getPerspectiveOpponentIndex();
     const oppHand = G.players[oppP].hand;
+    applyOpponentHandDensity(container, oppHand.length);
     container.textContent = '';
     container.style.cursor = '';
     container.onclick = null;
@@ -1501,6 +1544,7 @@ function renderOppHand() {
   _lastOppHandRenderSignature = nextSig;
   const oppP = getPerspectiveOpponentIndex();
   const oppHand = G.players[oppP].hand;
+  applyOpponentHandDensity(container, oppHand.length);
   const revealed = G._revealedCards || {};
   const landscapeRevealsHands = typeof isLandscapeActive === 'function' && isLandscapeActive('igb12');
   const hasRevealed = landscapeRevealsHands || oppHand.some(c => revealed[c.iid]);
@@ -1651,7 +1695,7 @@ window.setPolishFromDeck = function() {
   G.polishArmyUses[cp] = (G.polishArmyUses[cp]||0)+1;
   closeModal();
   toast('2nd Polish-Lithuanian Army is ready to set immediately for free!');
-  renderGame();
+  renderBoardActionForPlayer(cp, {hand:true, piles:true});
 };
 
 window.setMajaFromDeck = function() {
@@ -1669,7 +1713,7 @@ window.setMajaFromDeck = function() {
   }
   closeModal();
   toast('Maja Kaminska is ready to set immediately for free!');
-  renderGame();
+  renderBoardActionForPlayer(cp, {hand:true, piles:true});
 };
 
 // Show discard pile as a grid of card images
@@ -2123,6 +2167,15 @@ function ensurePlacementAnimationLayer() {
 function playPlacementAnimation(card, z, r, c) {
   if(!card || z == null || r == null || c == null) return 0;
   if(rendererV2OwnsBoardScene()){
+    try {
+      if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
+        window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
+          source:'playPlacementAnimation',
+          iid:card && card.iid,
+          z, r, c
+        });
+      }
+    } catch(e) {}
     return 0;
   }
   const enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
@@ -2262,10 +2315,9 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
       el.classList.add('shake-damage');
       playSfx('debuff');
     } else if(delta>0){
-      el.classList.add('buff-glow');
       playSfx('buff');
     }
-    setTimeout(()=>{el.classList.remove('shake-damage','buff-glow');},800);
+    setTimeout(()=>{el.classList.remove('shake-damage');},360);
     setTimeout(()=>{
       const f = document.createElement('div');
       f.className = 'card-fate-floater '+(delta>0?'up':'down');
@@ -2434,6 +2486,23 @@ function enforceHandLimit(player) {
     return true;
   }
   if(G._handLimitDiscard && G._handLimitDiscard.player === player) return true;
+  const cinematicWait = Math.max(
+    0,
+    (Number(G._cinematicUiLockUntil) || 0) - Date.now(),
+    document.body && document.body.classList.contains('cinematic-lock') ? 450 : 0
+  );
+  if(cinematicWait > 0) {
+    G._handLimitDiscard = { player: player, deferred: true };
+    if(G._handLimitDiscardTimer) clearTimeout(G._handLimitDiscardTimer);
+    G._handLimitDiscardTimer = setTimeout(function(){
+      G._handLimitDiscardTimer = null;
+      if(G._handLimitDiscard && G._handLimitDiscard.player === player && G._handLimitDiscard.deferred) {
+        G._handLimitDiscard = null;
+      }
+      enforceHandLimit(player);
+    }, Math.min(3600, cinematicWait + 90));
+    return true;
+  }
   G._handLimitDiscard = { player: player };
   openHandLimitDiscardModal(player);
   return true;
@@ -3945,7 +4014,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           discardBoardCard(bc, z, r, c);
           log(bc.owner===0?'p1':'p2',`Discarded ${bc.name} from Zone ${z+1}`);
           G.selectedBoardCard=null;
-          renderGame();
+          renderBoardActionForPlayer(bc.owner, {hand:false, piles:true});
         };
         acts.appendChild(disc);
       }
@@ -4070,6 +4139,7 @@ function renderCardEffectModalBody(title, bodyHtml) {
 function showModal(title, bodyHtml, actions, opts) {
   const titleStr = typeof title === 'string' ? title : String(title||'');
   const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
+  const skipDecorate = !!(opts && opts.skipDecorate);
   if(!(opts && opts.immediate)){
     const setEffectWait = effectModal && typeof G !== 'undefined' && G
       ? Math.max(0, (Number(G._setEffectModalLockUntil) || 0) - Date.now())
@@ -4118,7 +4188,7 @@ function showModal(title, bodyHtml, actions, opts) {
   });
   document.getElementById('modal').classList.add('on');
   const inGameModal = !!document.getElementById('s-game')?.classList.contains('active');
-  if(!inGameModal && typeof FateSVG !== 'undefined' && FateSVG && typeof FateSVG.decorate === 'function'){
+  if(!skipDecorate && !inGameModal && typeof FateSVG !== 'undefined' && FateSVG && typeof FateSVG.decorate === 'function'){
     const modalNode = document.getElementById('modal');
     const decorateModal = function(){ requestAnimationFrame(function(){ FateSVG.decorate(modalNode); }); };
     if(typeof requestIdleCallback === 'function') requestIdleCallback(decorateModal, {timeout:260});
@@ -4236,6 +4306,9 @@ function showBoardTargetPicker(opts, onConfirm) {
     const panel = document.createElement('section');
     panel.className = 'board-target-zone';
     const totalRows = G.board[z] ? G.board[z].length : 3;
+    const hasExtraRows = totalRows > 3;
+    let hasExtraCells = false;
+    if(hasExtraRows) panel.classList.add('has-extra-rows');
     for(let r = 0; r < totalRows; r++) {
       const rowEl = document.createElement('div');
       rowEl.className = 'board-target-row';
@@ -4248,6 +4321,10 @@ function showBoardTargetPicker(opts, onConfirm) {
       const cells = document.createElement('div');
       cells.className = 'board-target-cells';
       const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3;
+      if(rowCap > 3) {
+        hasExtraCells = true;
+        rowEl.classList.add('has-extra-cells');
+      }
       cells.style.gridTemplateColumns = 'repeat(' + rowCap + ', var(--board-target-cell-w, 118px))';
 
       for(let c = 0; c < rowCap; c++) {
@@ -4301,6 +4378,8 @@ function showBoardTargetPicker(opts, onConfirm) {
       rowEl.appendChild(cells);
       panel.appendChild(rowEl);
     }
+    if(hasExtraCells) panel.classList.add('has-extra-cells');
+    if(!hasExtraRows && !hasExtraCells) panel.classList.add('no-extra-board-space');
     zonesEl.appendChild(panel);
   });
 
@@ -4825,7 +4904,7 @@ function searchDeckForType(player, type, prompt, maxCount=1) {
       });
       shuffle(G.players[player].deck);
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
-      renderGame();
+      renderBoardActionForPlayer(player, {hand:true, piles:true});
       if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
     });
 }
@@ -4840,7 +4919,7 @@ function searchDeckForCard(player, filter, prompt, callback) {
       shuffle(G.players[player].deck);
       if(typeof playSfx === 'function') playSfx('searchFound');
       if(callback) callback(c);
-      renderGame();
+      renderBoardActionForPlayer(player, {hand:true, piles:true});
     });
 }
 
@@ -4925,7 +5004,7 @@ function addAffFromDeckDiscard(player, aff) {
     if(G.players[player].deck.length) shuffle(G.players[player].deck);
     if(added && typeof playSfx === 'function') playSfx('searchFound');
     toast(`Added ${added} ${label} card(s) to hand`);
-    renderGame();
+    renderBoardActionForPlayer(player, {hand:true, piles:true});
   };
   const chooseDiscard = () => {
     if(!fromDiscard.length){ finish(); return; }
@@ -5267,7 +5346,7 @@ window.doMove=function(i){
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;
   if(window._moveSourceCard && typeof markInitialEffectResolved === 'function') markInitialEffectResolved(window._moveSourceCard);
-  closeModal();toast('Card moved');renderGame();
+  closeModal();toast('Card moved');renderBoardActionForPlayer(window._moveCard && typeof window._moveCard.owner === 'number' ? window._moveCard.owner : G.currentPlayer, {hand:false});
 };
 
 function highlightForBlock(z, sourceCard) {
@@ -5498,7 +5577,7 @@ function discardBoardCard(card, z, r, c) {
       G.board[z][r][c] = null;
       fatePushDiscard(card.owner, card);
       toast('2 cards expended to remove Berkeley Homeless');
-      renderGame();
+      renderBoardActionForPlayer(G.currentPlayer, {hand:true, piles:true});
     });
     return;
   }
@@ -5522,7 +5601,7 @@ function discardBoardCard(card, z, r, c) {
       G.board[z][r][c] = null;
       fatePushDiscard(card.owner, card);
       toast(chosen[0].name+' expended to remove Berkeley Homeless');
-      renderGame();
+      renderBoardActionForPlayer(G.currentPlayer, {hand:true, piles:true});
     });
     return;
   }
@@ -5706,6 +5785,7 @@ function showFinalZoneReveal(zResults, opts) {
   opts = opts || {};
   const zones = Array.isArray(zResults) ? zResults : [];
   const revealStepMs = 900;
+  const renderV2Reveal = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();
   if(G && Array.isArray(G._finalZoneRevealTimers)){
     G._finalZoneRevealTimers.forEach(function(timer){ clearTimeout(timer); });
   }
@@ -5713,16 +5793,18 @@ function showFinalZoneReveal(zResults, opts) {
     G._finalZoneRevealTimers = [];
     G._finalZoneCanvasFlash = null;
   }
-  document.querySelectorAll('#board .zone.final-zone-board-flash').forEach(function(el){
-    el.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
-    el.style.removeProperty('--final-zone-delay');
-    el.removeAttribute('data-final-zone-label');
-    el.removeAttribute('data-final-zone-score');
-  });
+  if(!renderV2Reveal) {
+    document.querySelectorAll('#board .zone.final-zone-board-flash').forEach(function(el){
+      el.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
+      el.style.removeProperty('--final-zone-delay');
+      el.removeAttribute('data-final-zone-label');
+      el.removeAttribute('data-final-zone-score');
+    });
+  }
   zones.forEach(function(zr, i){
     const z = Number(zr.z);
     const ctrl = Number.isInteger(zr.ctrl) ? zr.ctrl : -1;
-    const zoneEl = document.querySelector('#board .zone[data-zone="'+z+'"]');
+    const zoneEl = renderV2Reveal ? null : document.querySelector('#board .zone[data-zone="'+z+'"]');
     const label = ctrl === 0 ? (G.players?.[0]?.name || 'Player 1') : ctrl === 1 ? (G.players?.[1]?.name || 'Player 2') : 'Tied';
     if(zoneEl) {
       zoneEl.style.setProperty('--final-zone-delay', '0ms');
@@ -5760,12 +5842,14 @@ function showFinalZoneReveal(zResults, opts) {
     if(G && Array.isArray(G._finalZoneRevealTimers)) G._finalZoneRevealTimers.push(addTimer, removeTimer);
   });
   const doneTimer = setTimeout(function(){
-    document.querySelectorAll('#board .zone.final-zone-board-flash').forEach(function(el){
-      el.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
-      el.style.removeProperty('--final-zone-delay');
-      el.removeAttribute('data-final-zone-label');
-      el.removeAttribute('data-final-zone-score');
-    });
+    if(!renderV2Reveal) {
+      document.querySelectorAll('#board .zone.final-zone-board-flash').forEach(function(el){
+        el.classList.remove('final-zone-board-flash','final-zone-board-p1','final-zone-board-p2','final-zone-board-tie');
+        el.style.removeProperty('--final-zone-delay');
+        el.removeAttribute('data-final-zone-label');
+        el.removeAttribute('data-final-zone-score');
+      });
+    }
     if(G) {
       G._finalZoneRevealTimers = [];
       G._finalZoneCanvasFlash = null;
@@ -5879,7 +5963,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "29": "Liberty, equality, and the pursuit of happiness",
   "30": "Cowards sink",
   "34": "I have a legacy, a country, to protect",
-  "35": "Is there anyone who can challenge me?",
+  "35": "Peace was never all that much of an interest to me anyways",
   "36": "France will not fall this day",
   "38": "Hahahahahahahaaaaaa",
   "39": "Show no mercy to the tyrants!",
@@ -5958,6 +6042,18 @@ function showConsolidationCinematic(card, opts) {
   if(typeof G !== 'undefined' && G && G._aiAbort && !document.getElementById('s-game')?.classList.contains('active')) return false;
   if(!card) return false;
   opts = opts || {};
+  if(rendererV2OwnsBoardScene()){
+    try {
+      if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
+        window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
+          source:'showConsolidationCinematic',
+          iid:card && card.iid,
+          card:card && card.name
+        });
+      }
+    } catch(e) {}
+    return false;
+  }
   var activeOverlay = document.querySelector('.cc-overlay-v2');
   if(activeOverlay || _consolidationCinematicShowing){
     _consolidationCinematicQueue.push({card: card, opts: Object.assign({}, opts)});
@@ -5965,7 +6061,7 @@ function showConsolidationCinematic(card, opts) {
   }
   _consolidationCinematicShowing = true;
   var rarity = String(card.rarity || 'circle').toLowerCase();
-  var colorMap = { star:'#e6a51f', square:'#d67fff', triangle:'#5ee37a', circle:'#f7f3e8' };
+  var colorMap = { star:'#fff05a', square:'#d67fff', triangle:'#5ee37a', circle:'#f7f3e8' };
   var color = colorMap[rarity] || colorMap.circle;
   var imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
   var subtitle = getCinematicVoiceline(card);
@@ -5995,11 +6091,11 @@ function showConsolidationCinematic(card, opts) {
   sigil.className = 'cc-sigil-v2 rarity-' + rarity;
   if(useStarSvg){
     // 5-pointed star outline centered
-    sigil.innerHTML = '<svg viewBox="0 0 200 190" style="width:100%;height:100%;overflow:visible;" xmlns="http://www.w3.org/2000/svg"><polygon points="100,5 123,68 190,68 135,110 155,175 100,138 45,175 65,110 10,68 77,68" fill="none" stroke="'+color+'" stroke-width="3" stroke-linejoin="round"/></svg>';
+    sigil.innerHTML = '<svg viewBox="0 0 200 190" style="width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 14px rgba(255,230,70,.58));" xmlns="http://www.w3.org/2000/svg"><polygon points="100,5 123,68 190,68 135,110 155,175 100,138 45,175 65,110 10,68 77,68" fill="none" stroke="'+color+'" stroke-width="6" stroke-linejoin="round"/></svg>';
     sigil.setAttribute('style',
       'position:absolute;left:50%;top:50%;width:min(74vmin,720px);height:min(71vmin,690px);' +
       'transform:translate(-50%,-50%) scale(.3) rotate(-18deg);opacity:0;' +
-      'transition:transform 1.2s cubic-bezier(.16,.8,.25,1),opacity .4s ease-out;pointer-events:none;will-change:transform,opacity;'
+      'transition:transform 1.55s cubic-bezier(.16,.86,.2,1),opacity 1.35s ease-out;pointer-events:none;will-change:transform,opacity;'
     );
   } else if(useTriangleSvg){
     // Triangle outline — square viewBox with centroid at exact center for proper alignment
@@ -6007,7 +6103,7 @@ function showConsolidationCinematic(card, opts) {
     sigil.setAttribute('style',
       'position:absolute;left:50%;top:50%;width:min(82vmin,780px);height:min(82vmin,780px);' +
       'transform:translate(-50%,-50%) scale(.3) rotate(-15deg);opacity:0;' +
-      'transition:transform 1.2s cubic-bezier(.16,.8,.25,1),opacity .4s ease-out;pointer-events:none;will-change:transform,opacity;'
+      'transition:transform 1.55s cubic-bezier(.16,.86,.2,1),opacity 1.35s ease-out;pointer-events:none;will-change:transform,opacity;'
     );
   } else {
     var sigilSize = (rarity==='square') ? 'min(58vmin,540px)' : 'min(79vmin,760px)';
@@ -6015,7 +6111,7 @@ function showConsolidationCinematic(card, opts) {
       'position:absolute;left:50%;top:50%;width:'+sigilSize+';height:'+sigilSize+';' +
       'transform:translate(-50%,-50%) scale(.3) rotate(-20deg);opacity:0;' +
       'border:'+(rarity==='square'?'6px':'3px')+' solid '+color+';border-radius:'+sigilRadius+';' +
-      'transition:transform 1.2s cubic-bezier(.16,.8,.25,1),opacity .4s ease-out;pointer-events:none;will-change:transform,opacity;'
+      'transition:transform 1.55s cubic-bezier(.16,.86,.2,1),opacity 1.35s ease-out;pointer-events:none;will-change:transform,opacity;'
     );
   }
   overlay.appendChild(sigil);
@@ -6027,7 +6123,7 @@ function showConsolidationCinematic(card, opts) {
     'position:relative;z-index:2;width:min(74vw,800px);height:min(94vh,980px);' +
     'display:flex;align-items:center;justify-content:center;' +
     'transform:'+(perfLite ? 'translateY(18px) scale(.94)' : 'translateY(70px) scale(.45)')+';opacity:0;' +
-    'transition:transform '+(perfLite ? '.28s ease-out' : '.6s cubic-bezier(.14,.95,.18,1.03)')+',opacity '+(perfLite ? '.14s' : '.25s')+' ease-out;will-change:transform,opacity;'
+    'transition:transform '+(perfLite ? '.28s ease-out' : '.72s cubic-bezier(.16,.88,.2,1)')+',opacity '+(perfLite ? '.14s' : '.28s')+' ease-out;will-change:transform,opacity;'
   );
   if(imgSrc){
     var imgEl = document.createElement('img');
@@ -6060,15 +6156,13 @@ function showConsolidationCinematic(card, opts) {
     overlay.style.opacity = '1';
     if(!perfLite){
       sigil.style.transform = 'translate(-50%,-50%) scale(' + (rarity === 'square' ? '1' : '1.15') + ') rotate(25deg)';
-      sigil.style.opacity = '.7';
+      sigil.style.opacity = rarity === 'star' ? '.48' : '.28';
     }
     cardWrap.style.transform = 'translateY(0) scale(1)';
     cardWrap.style.opacity = '1';
   }
   requestAnimationFrame(function(){ requestAnimationFrame(triggerEntrance); });
   setTimeout(triggerEntrance, 40); // Fallback: guaranteed to fire even if rAF is starved
-
-  if(!perfLite) setTimeout(function(){ sigil.style.opacity = '.18'; }, 960);
 
   // Subtitle + card disappear together.  Total cinematic ≈ 3s.
   //   normal:   subtitle at 140ms, fade-out at 2150ms (.55s), remove at 2800ms
@@ -6077,7 +6171,7 @@ function showConsolidationCinematic(card, opts) {
   //             subtitle duration = 2400 - 80 = 2320ms
   if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){ showCinematicSubtitle(subtitle, perfLite ? 2600 : 2740, rarity); }, perfLite ? 80 : 140);
   document.body.classList.add('cinematic-lock');
-  if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + (perfLite ? 2850 : 3050));
+  if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + (perfLite ? 2920 : 3180));
 
   if(opts.playVoice !== false && typeof playCardSound === 'function') playCardSound(card.id);
   if(opts.playSfx !== false && typeof playSfx === 'function') {
@@ -6085,14 +6179,14 @@ function showConsolidationCinematic(card, opts) {
   }
 
   // Fade-out: smooth transition so card + subtitle dissolve together
-  setTimeout(function(){ overlay.style.opacity = '0'; overlay.style.transition = 'opacity '+(perfLite ? '.3s' : '.34s')+' ease-in-out'; }, perfLite ? 2220 : 2340);
+  setTimeout(function(){ overlay.style.opacity = '0'; overlay.style.transition = 'opacity '+(perfLite ? '.34s' : '.44s')+' ease-in-out'; }, perfLite ? 2240 : 2400);
   setTimeout(function(){
     overlay.remove();
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     var next = _consolidationCinematicQueue.shift();
     if(next) setTimeout(function(){ showConsolidationCinematic(next.card, next.opts); }, 45);
-  }, perfLite ? 2570 : 2740);
+  }, perfLite ? 2620 : 2880);
 
   // Safety: force-cleanup if stuck
   setTimeout(function(){
@@ -6137,6 +6231,186 @@ function showEffectActivationGlow(z, r, c, card) {
     if(pulse.parentNode) pulse.remove();
   };
   setTimeout(cleanup, 780);
+}
+
+let _effectActivationCinematicShowing = false;
+let _effectActivationCinematicQueue = [];
+let _lastEffectActivationCinematicKey = '';
+let _lastEffectActivationCinematicAt = 0;
+function showEffectActivationCinematic(card, opts) {
+  const options = opts || {};
+  if(typeof document === 'undefined' || !card) return Promise.resolve(false);
+  const key = String(card.iid || card.id || card.name || 'card');
+  const now = Date.now();
+  if(key === _lastEffectActivationCinematicKey && now - _lastEffectActivationCinematicAt < 3200) {
+    return Promise.resolve(false);
+  }
+  if(_effectActivationCinematicShowing || document.querySelector('.effect-activation-cinematic')) {
+    return new Promise(function(resolve){
+      _effectActivationCinematicQueue.push({card:card, opts:Object.assign({}, options), resolve:resolve});
+    });
+  }
+  _lastEffectActivationCinematicKey = key;
+  _lastEffectActivationCinematicAt = now;
+  _effectActivationCinematicShowing = true;
+  return new Promise(function(resolve){
+    const perfLite = document.documentElement.classList.contains('fate-animations-off')
+      || document.documentElement.classList.contains('fate-super-performance-mode')
+      || document.body.classList.contains('fate-super-performance-mode');
+    const duration = Math.max(1400, Math.min(2800, Number(options.duration) || (perfLite ? 1800 : 2300)));
+    const rarity = String((card && card.rarity) || 'circle').toLowerCase();
+    const color = '#ffd966';
+    const imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
+    const overlay = document.createElement('div');
+    overlay.className = 'cc-overlay-v2 effect-activation-cinematic rarity-' + rarity + (perfLite ? ' perf-lite' : '');
+    overlay.setAttribute('style',
+      'position:fixed;inset:0;z-index:999998;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,.48);opacity:0;pointer-events:none;overflow:hidden;' +
+      'transition:opacity ' + (perfLite ? '.16s' : '.22s') + ' ease-out;'
+    );
+    const sigil = document.createElement('div');
+    sigil.setAttribute('style',
+      'position:absolute;left:50%;top:50%;width:min(48vmin,520px);height:min(48vmin,520px);' +
+      'transform:translate(-50%,-50%) scale(.72);opacity:0;border:2px solid rgba(255,217,102,.58);' +
+      'box-shadow:0 0 28px rgba(255,217,102,.28),inset 0 0 22px rgba(255,217,102,.12);' +
+      'transition:transform ' + (perfLite ? '.42s' : '.72s') + ' cubic-bezier(.13,.92,.16,1),opacity .24s ease-out;'
+    );
+    overlay.appendChild(sigil);
+    const cardWrap = document.createElement('div');
+    cardWrap.setAttribute('style',
+      'position:relative;z-index:2;width:min(46vw,360px);height:min(76vh,500px);display:flex;align-items:center;justify-content:center;' +
+      'transform:translateY(0) scale(.72);opacity:0;transition:transform ' + (perfLite ? '.22s' : '.36s') + ' cubic-bezier(.14,.95,.18,1.03),opacity .16s ease-out;' +
+      'filter:drop-shadow(0 0 18px rgba(255,217,102,.55));'
+    );
+    let imageReady = Promise.resolve(false);
+    if(imgSrc) {
+      const img = document.createElement('img');
+      img.alt = card.name || 'Activating card';
+      img.setAttribute('style','max-width:100%;max-height:100%;object-fit:contain;display:block;border-radius:10px;outline:2px solid rgba(255,217,102,.82);outline-offset:4px;');
+      imageReady = new Promise(function(done){
+        let settled = false;
+        function finish(result){
+          if(settled) return;
+          settled = true;
+          done(result);
+        }
+        img.onload = function(){ finish(true); };
+        img.onerror = function(){
+          if(card.img && img.src.indexOf(card.img) === -1) {
+            img.src = card.img;
+            setTimeout(function(){ finish(false); }, 160);
+          } else {
+            img.style.display = 'none';
+            finish(false);
+          }
+        };
+        setTimeout(function(){ finish(false); }, perfLite ? 220 : 360);
+        setTimeout(function(){
+          if(img.complete && img.naturalWidth > 0) finish(true);
+        }, 0);
+      });
+      img.src = imgSrc;
+      cardWrap.appendChild(img);
+    } else {
+      const fallback = document.createElement('div');
+      fallback.setAttribute('style','font-size:5rem;color:'+color+';text-shadow:0 0 18px rgba(255,217,102,.7);');
+      fallback.textContent = typeof getAffIcon === 'function' ? getAffIcon(card.aff) : '*';
+      cardWrap.appendChild(fallback);
+    }
+    const cardSquare = document.createElement('div');
+    cardSquare.setAttribute('style',
+      'position:absolute;left:50%;top:50%;width:min(46vw,360px);height:min(76vh,500px);' +
+      'transform:translate(-50%,-50%) scale(.88);opacity:0;border:2px solid rgba(255,217,102,.96);border-radius:6px;' +
+      'box-shadow:0 0 18px rgba(255,217,102,.72),inset 0 0 16px rgba(255,217,102,.18);' +
+      'transition:transform ' + Math.max(1.05, (duration - (perfLite ? 120 : 160)) / 1000).toFixed(2) + 's cubic-bezier(.18,.82,.18,1),opacity ' + Math.max(.65, (duration - (perfLite ? 360 : 480)) / 1000).toFixed(2) + 's ease-out;'
+    );
+    cardWrap.appendChild(cardSquare);
+    const label = document.createElement('div');
+    label.setAttribute('style',
+      'position:absolute;left:50%;bottom:-52px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
+      'font-family:var(--serif,serif);letter-spacing:.12em;text-transform:uppercase;text-shadow:0 0 14px rgba(255,217,102,.65);' +
+      'font-size:clamp(17px,2.1vw,28px);line-height:1;white-space:nowrap;opacity:0;transition:opacity .2s ease-out;'
+    );
+    label.textContent = 'Activate Effect';
+    cardWrap.appendChild(label);
+    overlay.appendChild(cardWrap);
+    document.body.appendChild(overlay);
+    document.body.classList.add('cinematic-lock');
+
+    let done = false;
+    function finish(result) {
+      if(done) return;
+      done = true;
+      overlay.style.opacity = '0';
+      setTimeout(function(){
+        if(overlay.parentNode) overlay.remove();
+        if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
+        _effectActivationCinematicShowing = false;
+        const next = _effectActivationCinematicQueue.shift();
+        if(next) {
+          showEffectActivationCinematic(next.card, next.opts).then(next.resolve);
+        }
+        resolve(result);
+      }, perfLite ? 160 : 220);
+    }
+
+    imageReady.then(function(){
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+        overlay.style.opacity = '1';
+        sigil.style.opacity = perfLite ? '.18' : '.34';
+        sigil.style.transform = 'translate(-50%,-50%) scale(1.28)';
+        cardWrap.style.opacity = '1';
+        cardWrap.style.transform = 'translateY(0) scale(1)';
+        cardSquare.style.opacity = '1';
+        cardSquare.style.transform = 'translate(-50%,-50%) scale(1.62)';
+        label.style.opacity = perfLite ? '.78' : '1';
+        });
+      });
+    });
+    if(typeof playCardSound === 'function' && options.playVoice === true) playCardSound(card.id);
+    if(typeof playSfx === 'function' && options.sfx !== false) playSfx('effect');
+    setTimeout(function(){
+      cardWrap.style.transform = 'translateY(0) scale(1)';
+      sigil.style.opacity = '0';
+      cardSquare.style.opacity = '0';
+      label.style.opacity = '0';
+    }, Math.max(520, duration - (perfLite ? 260 : 340)));
+    setTimeout(function(){ finish(true); }, duration);
+    setTimeout(function(){ finish(false); }, duration + 900);
+  });
+}
+
+function effectActivationCinematicDisabled() {
+  if(typeof window !== 'undefined' && window.FATE_DISABLE_EFFECT_ACTIVATION_CINEMATIC === true) return true;
+  try {
+    return localStorage.getItem('fateDisableEffectActivationCinematic') === '1';
+  } catch(e) {
+    return false;
+  }
+}
+
+function playEffectActivationCinematic(card, z, r, c, opts) {
+  const options = opts || {};
+  if(effectActivationCinematicDisabled()) return Promise.resolve(false);
+  if(!options.remote && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
+    try { window.__fateSendEffectActivationCinematic(card, z, r, c, options); } catch(e) {}
+  }
+  if(typeof showEffectActivationCinematic === 'function') {
+    return showEffectActivationCinematic(card, options);
+  }
+  const delay = Math.max(0, Math.min(180, Number(options.duration) || 120));
+  return new Promise(function(resolve){ setTimeout(function(){ resolve(false); }, delay); });
+}
+
+showEffectActivationGlow = function() {
+  return false;
+};
+
+if(typeof window !== 'undefined') {
+  window.showEffectActivationCinematic = showEffectActivationCinematic;
+  window.playEffectActivationCinematic = playEffectActivationCinematic;
+  window.showEffectActivationGlow = showEffectActivationGlow;
 }
 
 

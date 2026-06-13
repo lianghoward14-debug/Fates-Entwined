@@ -32,6 +32,7 @@ const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 let staticServer;
 let mainWindow = null;
 const diagnosticsDir = path.join(ROOT, 'diagnostics');
+const allowMultipleInstances = process.argv.includes('--allow-multiple-instances');
 
 function sanitizeDiagnosticSessionId(value) {
   const clean = String(value || '').replace(/[^a-zA-Z0-9_.-]/g, '-').slice(0, 80);
@@ -44,10 +45,41 @@ async function ensureDiagnosticsDir() {
 
 function diagnosticPaths(sessionId) {
   const cleanId = sanitizeDiagnosticSessionId(sessionId);
+  const isMatch = /^match[-_.]/i.test(cleanId);
+  const prefix = isMatch ? 'fate-match-performance' : 'fate-main-menu-first-minute';
   return {
-    latest: path.join(diagnosticsDir, 'fate-main-menu-first-minute-latest.jsonl'),
-    session: path.join(diagnosticsDir, `fate-main-menu-first-minute-${cleanId}.jsonl`)
+    latest: path.join(diagnosticsDir, `${prefix}-latest.jsonl`),
+    session: path.join(diagnosticsDir, `${prefix}-${cleanId}.jsonl`)
   };
+}
+
+async function prunePreviousMatchDiagnostics(currentPaths) {
+  await ensureDiagnosticsDir();
+  const currentSession = path.resolve(currentPaths && currentPaths.session || '');
+  const currentLatest = path.resolve(currentPaths && currentPaths.latest || '');
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(diagnosticsDir, { withFileTypes: true });
+  } catch (err) {
+    return { deleted: 0, errors: [String(err && err.message || err)] };
+  }
+  let deleted = 0;
+  const errors = [];
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry || !entry.isFile()) return;
+    const name = entry.name || '';
+    if (!/^fate-match-performance.*\.jsonl$/i.test(name)) return;
+    const target = path.resolve(diagnosticsDir, name);
+    if (target === currentSession || target === currentLatest) return;
+    if (target !== diagnosticsDir && !target.startsWith(diagnosticsDir + path.sep)) return;
+    try {
+      await fs.promises.unlink(target);
+      deleted += 1;
+    } catch (err) {
+      errors.push(`${name}: ${String(err && err.message || err)}`);
+    }
+  }));
+  return { deleted, errors };
 }
 
 async function writeDiagnosticLine(paths, payload, reset) {
@@ -151,11 +183,14 @@ ipcMain.handle('fate:get-performance-info', (event) => {
 ipcMain.handle('fate:start-ui-minute-log', async (event, meta) => {
   const sessionId = sanitizeDiagnosticSessionId(meta && meta.sessionId);
   const paths = diagnosticPaths(sessionId);
+  const isMatch = /^match[-_.]/i.test(sessionId);
+  const prune = isMatch ? await prunePreviousMatchDiagnostics(paths) : null;
   await writeDiagnosticLine(paths, {
     type: 'session-start',
     at: new Date().toISOString(),
     sessionId,
-    meta: meta || {}
+    meta: meta || {},
+    diagnosticsPruned: prune
   }, true);
   return { ok: true, sessionId, paths };
 });
@@ -360,7 +395,22 @@ applyPerformanceSwitches();
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId('com.fatesentwined.desktop');
 
-app.whenReady().then(createWindow);
+let shouldCreateMainWindow = true;
+if (!allowMultipleInstances) {
+  shouldCreateMainWindow = app.requestSingleInstanceLock();
+  if (!shouldCreateMainWindow) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => {
+      if (!mainWindow) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    });
+  }
+}
+
+if (shouldCreateMainWindow) app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (staticServer) staticServer.close();

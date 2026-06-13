@@ -10,6 +10,9 @@
   let imageFlushScheduled = false;
   let lastVisibilityRecoveryAt = 0;
   let titleWarmupScheduled = false;
+  let startupWarmupEpoch = 0;
+  let matchEntryEpoch = 0;
+  let matchWarmupTimers = [];
   const lifecycleEvents = [];
   let browserThrottleProbeTimer = 0;
   let browserThrottleProbeRunning = false;
@@ -681,7 +684,8 @@
     return null;
   }
 
-  function warmImage(src){
+  function warmImage(src, options){
+    const opts = options || {};
     if(!src || warmCache.has(src)) return;
     if(typeof FATE_BACKGROUND_URL === 'function' && /backgrounds|titlscreenbackgrounds|ingamebackgrouds/.test(src)) src = FATE_BACKGROUND_URL(src);
     if(warmCache.has(src)) return;
@@ -689,37 +693,169 @@
     const img = new Image();
     try{ img.decoding = 'async'; }catch(e){}
     img.src = src;
-    if(typeof img.decode === 'function') img.decode().catch(()=>{});
+    if(opts.decode !== false && typeof img.decode === 'function') img.decode().catch(()=>{});
   }
 
-  function warmGameAssets(){
+  const menuSchedulerState = {
+    queue:[],
+    running:false,
+    completed:0,
+    cancelled:0,
+    lastTask:'',
+    lastError:'',
+    lastRunMs:0
+  };
+
+  function ensureMenuScheduler(){
+    if(window.FateMenuScheduler) return window.FateMenuScheduler;
+    const scheduler = {
+      enqueue:function(label, task, options){
+        const opts = options || {};
+        if(typeof task !== 'function') return false;
+        menuSchedulerState.queue.push({
+          label:String(label || 'menu-task'),
+          task,
+          priority:Number(opts.priority) || 0,
+          timeoutMs:Math.max(120, Number(opts.timeoutMs) || 1200)
+        });
+        menuSchedulerState.queue.sort((a,b)=>b.priority - a.priority);
+        scheduleMenuSchedulerDrain();
+        return true;
+      },
+      cancel:function(reason){
+        menuSchedulerState.cancelled += menuSchedulerState.queue.length;
+        menuSchedulerState.queue.length = 0;
+        menuSchedulerState.running = false;
+        menuSchedulerState.lastError = reason || 'cancelled';
+      },
+      report:function(){
+        return {
+          queued:menuSchedulerState.queue.length,
+          running:menuSchedulerState.running,
+          completed:menuSchedulerState.completed,
+          cancelled:menuSchedulerState.cancelled,
+          lastTask:menuSchedulerState.lastTask,
+          lastError:menuSchedulerState.lastError,
+          lastRunMs:menuSchedulerState.lastRunMs
+        };
+      }
+    };
+    window.FateMenuScheduler = scheduler;
+    return scheduler;
+  }
+
+  function scheduleMenuSchedulerDrain(){
+    if(menuSchedulerState.running) return;
+    menuSchedulerState.running = true;
+    const schedule = window.requestIdleCallback || function(fn){ return setTimeout(function(){ fn({timeRemaining:function(){return 8;}}); }, 40); };
+    schedule(drainMenuScheduler, {timeout:900});
+  }
+
+  function drainMenuScheduler(deadline){
+    if(isStartupGameFlowActive()){
+      ensureMenuScheduler().cancel('game-flow-active');
+      return;
+    }
+    const timeRemaining = deadline && typeof deadline.timeRemaining === 'function'
+      ? deadline.timeRemaining.bind(deadline)
+      : function(){ return 6; };
+    const task = menuSchedulerState.queue.shift();
+    if(!task){
+      menuSchedulerState.running = false;
+      return;
+    }
+    const started = performance.now();
+    menuSchedulerState.lastTask = task.label;
+    Promise.race([
+      Promise.resolve().then(task.task),
+      waitStartupMs(task.timeoutMs)
+    ]).then(function(){
+      menuSchedulerState.completed += 1;
+    }, function(err){
+      menuSchedulerState.lastError = task.label + ': ' + String(err && err.message || err);
+    }).then(function(){
+      menuSchedulerState.lastRunMs = Math.round(performance.now() - started);
+      menuSchedulerState.running = false;
+      if(menuSchedulerState.queue.length && timeRemaining() > 1) scheduleMenuSchedulerDrain();
+      else if(menuSchedulerState.queue.length) setTimeout(scheduleMenuSchedulerDrain, 80);
+    });
+  }
+
+  function clearMatchWarmupTimers(){
+    if(!matchWarmupTimers.length) return;
+    matchWarmupTimers.forEach(function(id){ try{ clearTimeout(id); }catch(e){} });
+    matchWarmupTimers = [];
+  }
+
+  function markMatchEntry(reason){
+    matchEntryEpoch += 1;
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.matchEntry = {
+      epoch:matchEntryEpoch,
+      reason:reason || 'match-entry',
+      at:Math.round(performance.now()),
+      until:Math.round(performance.now() + (isElectronShell() ? 3200 : 1800))
+    };
+    clearMatchWarmupTimers();
+    return matchEntryEpoch;
+  }
+
+  function cancelStartupWarmup(reason){
+    startupWarmupEpoch += 1;
+    window.__fateStartupWarmupCancelled = true;
+    window.__fateStartupWarmupActive = false;
+    pendingImageRoots.clear();
+    imageFlushScheduled = false;
+    clearMatchWarmupTimers();
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.startupWarmupCancelled = {
+      reason:reason || 'cancelled',
+      at:Math.round(performance.now()),
+      epoch:startupWarmupEpoch
+    };
+    recordLifecycleEvent('startup-warmup-cancelled', perf.startupWarmupCancelled);
+  }
+
+  function warmGameAssets(options){
+    const opts = options || {};
+    const electronMatch = isElectronShell() && document.getElementById('s-game')?.classList.contains('active');
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    if(electronMatch && !opts.force){
+      perf.matchWarmupSkipped = {
+        at:Math.round(performance.now()),
+        reason:'electron-active-match',
+        policy:'hidden-match-image-warmup-disabled'
+      };
+      return;
+    }
     idle(function(){
       try{
         const g = (typeof G !== 'undefined' && G) ? G : null;
         const active = [];
         if(g && Array.isArray(g.players)){
           g.players.forEach(function(p){
-            active.push(...((p.hand || []).slice(0, 12)));
-            active.push(...((p.deck || []).slice(0, 10)));
-            active.push(...((p.discard || []).slice(-4)));
+            active.push(...((p.hand || []).slice(0, opts.light ? 6 : 12)));
+            if(!opts.light) active.push(...((p.deck || []).slice(0, 10)));
+            if(!opts.light) active.push(...((p.discard || []).slice(-4)));
           });
           (g.board || []).forEach(function(zone){ (zone || []).forEach(function(row){ (row || []).forEach(function(card){ if(card) active.push(card); }); }); });
         }
-        active.forEach(card=>{
+        active.slice(0, opts.light ? 16 : 48).forEach(card=>{
           if(!card || !card.img) return;
           const src = typeof window.getRuntimeCardImageSrc === 'function' ? window.getRuntimeCardImageSrc(card.img, 'thumb') : card.img;
-          warmImage(src);
+          warmImage(src, {decode:!opts.light});
         });
-        active.slice(0, 36).forEach(card=>{
+        if(!opts.light) active.slice(0, 24).forEach(card=>{
           if(card && card.img) warmImage(card.img);
         });
       }catch(e){}
-      ['blank.png','back.png','deck.png'].forEach(warmImage);
+      ['blank.png','back.png','deck.png'].forEach(function(src){ warmImage(src, {decode:!opts.light}); });
     });
   }
 
   function collectInitialAssets(){
     const assets = new Set(['blank.png','back.png','deck.png','booster1.png','pfpbooster.png']);
+    ['play1.png','play2.png','Illustration3.png'].forEach(name=>assets.add(name));
     for(let i = 1; i <= 5; i++) assets.add(`optimized/backgrounds/titlscreenbackgrounds_bg${i}.jpg`);
     for(let i = 1; i <= 12; i++) assets.add(`optimized/backgrounds/ingamebackgrouds_igb${i}.jpg`);
     ['root_play1.jpg','root_play2.jpg','root_booster1.jpg','root_pfpbooster.jpg'].forEach(name=>assets.add(`optimized/backgrounds/${name}`));
@@ -731,8 +867,18 @@
     return Array.from(assets).filter(Boolean);
   }
 
-  function showInitialLoadingScreen(total){
-    if(document.getElementById('fate-loading-screen')) return;
+  function showInitialLoadingScreen(total, options){
+    const opts = options || {};
+    const existing = document.getElementById('fate-loading-screen');
+    if(existing) {
+      existing.classList.remove('is-hiding','fate-loading-assets-done');
+      const title = existing.querySelector('.fate-loading-title');
+      const copy = existing.querySelector('.fate-loading-copy');
+      if(title && opts.title) title.textContent = opts.title;
+      if(copy && opts.copy) copy.textContent = opts.copy;
+      updateInitialLoadingScreen(0, total || 0);
+      return;
+    }
     const cloudOverlay = window.__fateCloudLoadingActive ? document.getElementById('cloud-loading-overlay') : null;
     if(cloudOverlay){
       cloudOverlay.id = 'fate-loading-screen';
@@ -745,20 +891,29 @@
     overlay.innerHTML = `
       <div class="fate-loading-panel">
         <div class="fate-loading-kicker">Fates Entwined</div>
-        <div class="fate-loading-title">Loading Assets</div>
-        <div class="fate-loading-copy">Preparing cards, portraits, backgrounds, and match UI.</div>
+        <div class="fate-loading-title">${opts.title || 'Loading Assets'}</div>
+        <div class="fate-loading-copy">${opts.copy || 'Preparing cards, portraits, backgrounds, and match UI.'}</div>
         <div class="fate-loading-bar"><div id="fate-loading-fill"></div></div>
         <div class="fate-loading-count" id="fate-loading-count">0 / ${total}</div>
       </div>`;
     document.body.appendChild(overlay);
   }
 
-  function updateInitialLoadingScreen(done, total){
+  function updateInitialLoadingScreen(done, total, label){
     const fill = document.getElementById('fate-loading-fill');
     const count = document.getElementById('fate-loading-count');
     const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 100;
     if(fill) fill.style.width = pct + '%';
-    if(count) count.textContent = `${done} / ${total}`;
+    if(count) count.textContent = label || `${done} / ${total}`;
+  }
+
+  function updateInitialLoadingStage(title, copy){
+    const overlay = document.getElementById('fate-loading-screen');
+    if(!overlay) return;
+    const titleEl = overlay.querySelector('.fate-loading-title');
+    const copyEl = overlay.querySelector('.fate-loading-copy');
+    if(titleEl && title) titleEl.textContent = title;
+    if(copyEl && copy) copyEl.textContent = copy;
   }
 
   function hideInitialLoadingScreen(){
@@ -775,6 +930,7 @@
   function preloadImage(src, options){
     const opts = options || {};
     return new Promise(resolve=>{
+      if(typeof opts.shouldCancel === 'function' && opts.shouldCancel()) { resolve(src); return; }
       const img = new Image();
       let done = false;
       const finish = ()=>{
@@ -783,6 +939,11 @@
         resolve(src);
       };
       const timer = setTimeout(finish, Number(opts.timeoutMs) || 3500);
+      if(typeof opts.shouldCancel === 'function' && opts.shouldCancel()) {
+        clearTimeout(timer);
+        finish();
+        return;
+      }
       img.onload = ()=>{ clearTimeout(timer); finish(); };
       img.onerror = ()=>{ clearTimeout(timer); finish(); };
       try{ img.decoding = 'async'; }catch(e){}
@@ -796,6 +957,15 @@
     const background = !!opts.background;
     if(window.__fateInitialAssetsPreloaded) return Promise.resolve();
     window.__fateInitialAssetsPreloaded = true;
+    const preloadEpoch = startupWarmupEpoch;
+    const shouldCancel = function(){
+      return !!(
+        window.__fateStartupWarmupCancelled ||
+        startupWarmupEpoch !== preloadEpoch ||
+        (typeof opts.shouldCancel === 'function' && opts.shouldCancel()) ||
+        (background && isStartupGameFlowActive())
+      );
+    };
     const assets = collectInitialAssets();
     const total = assets.length;
     let done = 0;
@@ -812,21 +982,24 @@
       if(force || done === total || done - lastLoadingPaintDone >= 5 || now - lastLoadingPaintAt >= 90){
         lastLoadingPaintAt = now;
         lastLoadingPaintDone = done;
-        updateInitialLoadingScreen(done, total);
+        if(typeof opts.onProgress === 'function') opts.onProgress(done, total);
+        else updateInitialLoadingScreen(done, total);
       }
     }
     const electronShell = isElectronShell();
     const workerCount = background
       ? Math.min(electronShell ? 1 : 3, total)
-      : Math.min(electronShell ? 6 : 10, total);
+      : Math.min(electronShell ? 2 : 4, total);
     const workers = Array.from({length:workerCount}, async function(){
       while(assets.length){
+        if(shouldCancel()) break;
         const src = assets.shift();
-        await preloadImage(src, {timeoutMs:background ? 1800 : 3500});
+        await preloadImage(src, {timeoutMs:background ? 1800 : 3500, shouldCancel});
+        if(shouldCancel()) break;
         warmCache.add(src);
         done += 1;
         maybePaintLoadingProgress(false);
-        if(background && done % 4 === 0) await new Promise(resolve=>setTimeout(resolve, 0));
+        if(background ? done % 4 === 0 : true) await new Promise(resolve=>setTimeout(resolve, 0));
       }
     });
     const minTime = background ? Promise.resolve() : new Promise(resolve=>setTimeout(resolve, 650));
@@ -834,12 +1007,468 @@
     return Promise.race([Promise.all(workers), hardStop])
       .then(()=>minTime)
       .then(()=>{
+        if(shouldCancel()) return;
         if(performance.now() - startedAt > 150) {
           done = total;
           maybePaintLoadingProgress(true);
         }
-        if(!background) hideInitialLoadingScreen();
+        if(!background && !opts.keepVisible) hideInitialLoadingScreen();
       });
+  }
+
+  function waitStartupFrame(count){
+    let remaining = Math.max(1, Number(count) || 1);
+    return new Promise(resolve=>{
+      function step(){
+        remaining -= 1;
+        if(remaining <= 0) resolve();
+        else requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  function waitStartupMs(ms){
+    return new Promise(resolve=>setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+  }
+
+  async function forceWarmLayout(root, limit){
+    try{
+      const base = root && root.querySelectorAll ? root : document;
+      base.getBoundingClientRect && base.getBoundingClientRect();
+      const max = Math.max(12, Number(limit) || 56);
+      const nodes = Array.from(base.querySelectorAll('button,img,.btn,.db-collection,.ch-content,.modal,.starter-deck-card,.coll-card')).slice(0, max);
+      for(let i = 0; i < nodes.length; i += 14){
+        nodes.slice(i, i + 14).forEach(function(el){
+          if(el && el.getBoundingClientRect) el.getBoundingClientRect();
+        });
+        await waitStartupFrame(1);
+      }
+    }catch(e){}
+  }
+
+  async function warmVisibleImages(root, limit){
+    const base = root && root.querySelectorAll ? root : document;
+    const imgs = Array.from(base.querySelectorAll('img')).slice(0, Math.max(1, Number(limit) || 36));
+    const deadline = performance.now() + 700;
+    for(let i = 0; i < imgs.length; i += 4){
+      const batch = imgs.slice(i, i + 4);
+      await Promise.race([
+        Promise.all(batch.map(function(img){
+          try{
+            img.loading = 'eager';
+            img.decoding = 'async';
+            img.fetchPriority = 'high';
+            if(img.complete && img.naturalWidth > 0) return Promise.resolve();
+            if(typeof img.decode === 'function') return img.decode().catch(()=>{});
+          }catch(e){}
+          return Promise.resolve();
+        })),
+        waitStartupMs(180)
+      ]);
+      await waitStartupFrame(1);
+      if(performance.now() > deadline) break;
+    }
+  }
+
+  async function runStartupStep(state, label, copy, task){
+    if(state.cancelled) return;
+    if(isStartupGameFlowActive()){
+      state.cancelled = true;
+      return;
+    }
+    updateInitialLoadingStage(label, copy);
+    updateInitialLoadingScreen(state.done, state.total, `${state.done} / ${state.total}`);
+    await waitStartupFrame(1);
+    if(state.cancelled) return;
+    try{ await task(); }catch(e){ state.errors.push({label, error:String(e && e.message || e)}); }
+    state.done = Math.min(state.total, state.done + 1);
+    updateInitialLoadingScreen(state.done, state.total, `${state.done} / ${state.total}`);
+    await waitStartupMs(20);
+  }
+
+  function isStartupGameFlowActive(){
+    const screen = getActiveScreenId();
+    return screen === 's-coin' || screen === 's-game' || screen === 's-matchmaking';
+  }
+
+  function cleanupStartupWarmupOverlays(){
+    try{
+      const difficulty = document.getElementById('s-difficulty-overlay');
+      if(difficulty) difficulty.classList.remove('on','no-edge-corners-modal');
+      const preset = document.getElementById('s-preset-overlay');
+      if(preset) preset.classList.remove('on','no-edge-corners-modal');
+      if(document.body) {
+        document.body.classList.remove('ai-preset-overlay-open','choose-deck-open');
+      }
+      const modal = document.getElementById('modal');
+      if(modal) {
+        modal.classList.remove('on');
+        delete modal.dataset.chooseDeckOpen;
+      }
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) {
+        modalBox.classList.remove('choose-deck-canonical-modal','choose-deck-runtime-modal','freeplay-mode-modal');
+      }
+    }catch(e){}
+  }
+
+  function installStartupWarmupOverlayGuard(){
+    if(window.__fateStartupWarmupOverlayGuardInstalled) return;
+    window.__fateStartupWarmupOverlayGuardInstalled = true;
+    window.addEventListener('fate-screen-changed', function(ev){
+      const to = ev && ev.detail && ev.detail.to || getActiveScreenId();
+      if(to === 's-coin' || to === 's-game' || to === 's-matchmaking') {
+        cancelStartupWarmup('screen-changed-to-' + to);
+        if(to === 's-game') markMatchEntry('screen-changed-to-game');
+        cleanupStartupWarmupOverlays();
+      }
+    });
+  }
+
+  function installWarmupSilence(){
+    const originals = {
+      playSfx: window.playSfx,
+      playMenuSfx: window.playMenuSfx,
+      onScreenChange: window.onScreenChange,
+      toast: window.toast
+    };
+    window.__fateStartupWarmupActive = true;
+    try{ window.playSfx = function(){}; }catch(e){}
+    try{ window.playMenuSfx = function(){}; }catch(e){}
+    try{ window.onScreenChange = function(){}; }catch(e){}
+    try{ window.toast = function(){}; }catch(e){}
+    return function restore(){
+      try{ if(originals.playSfx) window.playSfx = originals.playSfx; }catch(e){}
+      try{ if(originals.playMenuSfx) window.playMenuSfx = originals.playMenuSfx; }catch(e){}
+      try{ if(originals.onScreenChange) window.onScreenChange = originals.onScreenChange; }catch(e){}
+      try{ if(originals.toast) window.toast = originals.toast; }catch(e){}
+      window.__fateStartupWarmupActive = false;
+    };
+  }
+
+  async function warmDeckBuilderMenu(){
+    if(typeof window.showDeckBuilder !== 'function') return;
+    window.showDeckBuilder();
+    await waitStartupFrame(3);
+    await waitStartupMs(220);
+    const root = document.getElementById('s-deck');
+    if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(root);
+    await forceWarmLayout(root, 64);
+    await warmVisibleImages(root, 28);
+  }
+
+  async function warmFreePlayMenu(){
+    if(typeof window.openFreePlayMenu !== 'function') return;
+    if(typeof window.fateWarmFreePlayMenuAssets === 'function') await window.fateWarmFreePlayMenuAssets();
+    window.openFreePlayMenu();
+    await waitStartupFrame(2);
+    const modal = document.getElementById('modal');
+    if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(modal);
+    await forceWarmLayout(modal, 36);
+    await warmVisibleImages(modal, 8);
+    if(typeof window.closeModal === 'function') window.closeModal();
+  }
+
+  async function warmAiPickerMenu(){
+    if(typeof window.showAIDifficultyPicker !== 'function') return;
+    if(typeof window.fateWarmAIPickerAssets === 'function') await window.fateWarmAIPickerAssets();
+    window.showAIDifficultyPicker();
+    await waitStartupFrame(2);
+    const overlay = document.getElementById('s-difficulty-overlay');
+    await forceWarmLayout(overlay, 48);
+    await warmVisibleImages(overlay, 18);
+    cleanupStartupWarmupOverlays();
+  }
+
+  function prepareChallengerWarmupScreen(){
+    if(typeof window.showScreen === 'function') window.showScreen('s-challenger');
+    if(typeof window.seedBuiltInPresets === 'function') window.seedBuiltInPresets();
+    if(typeof window.syncStarterPresetMetadata === 'function') window.syncStarterPresetMetadata();
+    if(typeof window.fateWarmChallengerMenuAssets === 'function') window.fateWarmChallengerMenuAssets();
+    if(typeof window.preloadChallengerAssets === 'function') window.preloadChallengerAssets();
+  }
+
+  async function warmSocialMenu(){
+    if(typeof window.fateWarmSocialMenuAssets === 'function') await window.fateWarmSocialMenuAssets();
+    if(typeof window.showSocial !== 'function') return;
+    window.showSocial();
+    await waitStartupFrame(2);
+    const root = document.getElementById('s-social');
+    if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(root);
+    await forceWarmLayout(root, 42);
+    await warmVisibleImages(root, 18);
+  }
+
+  async function warmChallengerTab(tab){
+    prepareChallengerWarmupScreen();
+    const content = document.getElementById('ch-content');
+    const renderers = {
+      play:window.renderChPlayTab,
+      store:window.renderChStoreTab,
+      collection:window.renderChCollectionTab,
+      deckbuilder:window.renderChDeckBuilderTab
+    };
+    const render = renderers[tab];
+    if(!content || typeof render !== 'function') return;
+    try{
+      if(typeof window.switchChTab === 'function') {
+        window.switchChTab(tab, {force:true, warmup:true});
+      } else {
+        content.classList.toggle('ch-cdb-content', tab === 'deckbuilder');
+        render(content);
+        document.querySelectorAll('.ch-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab === tab));
+      }
+      const pane = content.querySelector(':scope > .ch-tab-pane[data-tab="'+tab+'"]') || content;
+      if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(pane);
+    }catch(e){}
+    await waitStartupFrame(2);
+    const pane = content.querySelector(':scope > .ch-tab-pane[data-tab="'+tab+'"]') || content;
+    await forceWarmLayout(pane, tab === 'collection' ? 72 : 52);
+    await warmVisibleImages(pane, tab === 'collection' ? 32 : 20);
+  }
+
+  async function warmMissionMenu(){
+    if(typeof window.renderMissionDaily === 'function') window.renderMissionDaily();
+    const root = document.getElementById('mission-control-window') || document.getElementById('s-mission-legacy');
+    if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(root);
+    await forceWarmLayout(root, 36);
+    await waitStartupFrame(1);
+  }
+
+  function scheduleBackgroundMenuPreloads(){
+    if(window.__fateBackgroundMenuPreloadsQueued) return;
+    window.__fateBackgroundMenuPreloadsQueued = true;
+    const scheduler = ensureMenuScheduler();
+    scheduler.enqueue('challenger-assets', function(){
+      if(typeof window.fateWarmChallengerMenuAssets === 'function') return window.fateWarmChallengerMenuAssets();
+      if(typeof window.preloadChallengerAssets === 'function') return window.preloadChallengerAssets();
+    }, {priority:4, timeoutMs:900});
+    scheduler.enqueue('social-assets', function(){
+      if(typeof window.fateWarmSocialMenuAssets === 'function') return window.fateWarmSocialMenuAssets();
+    }, {priority:3, timeoutMs:900});
+    scheduler.enqueue('menu-audio', function(){
+      if(typeof window.fateWarmMenuAudioSamples === 'function') return window.fateWarmMenuAudioSamples();
+    }, {priority:1, timeoutMs:600});
+  }
+
+  function waitForStartupEvent(eventName, predicate, timeoutMs){
+    return new Promise(resolve=>{
+      let done = false;
+      let timer = 0;
+      const finish = value=>{
+        if(done) return;
+        done = true;
+        if(timer) clearTimeout(timer);
+        window.removeEventListener(eventName, onEvent);
+        resolve(value);
+      };
+      const onEvent = ev=>{
+        try{
+          if(!predicate || predicate(ev)) finish(ev);
+        }catch(e){
+          finish(ev);
+        }
+      };
+      window.addEventListener(eventName, onEvent);
+      timer = setTimeout(()=>finish(null), timeoutMs || 1);
+    });
+  }
+
+  async function waitForProfileDataForMenuWarmup(){
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    const started = performance.now();
+    const status = {
+      onlineModule:'not-requested',
+      authReady:false,
+      cloudReady:!!window._fateCloudReady,
+      ms:0
+    };
+    perf.startupProfileWarmup = status;
+    function readProfileReadiness(){
+      const p = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : null;
+      const presets = p && p.challengerPresets ? Object.keys(p.challengerPresets).length : 0;
+      const owned = p && p.ownedCards ? Object.keys(p.ownedCards).length : 0;
+      return {
+        ready:!!(p && (p.starterChosen || presets > 0 || owned > 0 || p._fateAccountUid)),
+        presets,
+        owned,
+        starterChosen:!!(p && p.starterChosen)
+      };
+    }
+    try{
+      if(typeof window.FateOnlineReady === 'function'){
+        updateInitialLoadingStage('Syncing Profile', 'Loading account and collection data before menu warmup.');
+        const onlineResult = await Promise.race([
+          Promise.resolve().then(()=>window.FateOnlineReady()),
+          waitStartupMs(isElectronShell() ? 30000 : 10000).then(()=>null)
+        ]);
+        status.onlineModule = onlineResult ? 'loaded' : 'timeout';
+      } else {
+        status.onlineModule = 'unavailable';
+      }
+    }catch(e){
+      status.onlineModule = 'error';
+      status.error = String(e && e.message || e);
+    }
+
+    let authState = window.FATE_ONLINE || null;
+    let profileState = readProfileReadiness();
+    if(!authState || authState.ready !== true){
+      if(!profileState.ready){
+        updateInitialLoadingStage('Syncing Profile', 'Waiting for sign-in state.');
+        const ev = await waitForStartupEvent('fate-online-auth', ev=>!!(ev && ev.detail && ev.detail.ready), isElectronShell() ? 18000 : 8000);
+        if(ev && ev.detail) authState = ev.detail;
+        else authState = window.FATE_ONLINE || authState;
+      }
+    } else {
+      authState = window.FATE_ONLINE || authState;
+    }
+    status.authReady = !!(authState && authState.ready);
+
+    if(authState && authState.user && window._fateCloudReady !== true){
+      updateInitialLoadingStage('Syncing Profile', 'Loading cloud profile and deck data.');
+      await waitForStartupEvent('fate-cloud-ready', null, isElectronShell() ? 32000 : 9000);
+    }
+    status.cloudReady = !!window._fateCloudReady || !(authState && authState.user);
+    const profileStarted = performance.now();
+    while(performance.now() - profileStarted < (isElectronShell() ? 12000 : 3000)){
+      profileState = readProfileReadiness();
+      status.profilePresets = profileState.presets;
+      status.profileOwned = profileState.owned;
+      status.profileStarterChosen = profileState.starterChosen;
+      if(status.authReady && (!(authState && authState.user) || status.cloudReady)) {
+        status.profileReady = true;
+        break;
+      }
+      if(profileState.ready) {
+        status.profileReady = true;
+        break;
+      }
+      updateInitialLoadingStage('Syncing Profile', 'Waiting for collection and deck state.');
+      await waitStartupMs(250);
+      authState = window.FATE_ONLINE || authState;
+      status.authReady = !!(authState && authState.ready);
+      status.cloudReady = !!window._fateCloudReady || !(authState && authState.user);
+    }
+    status.profileReady = !!status.profileReady;
+    status.ms = Math.round(performance.now() - started);
+    perf.startupProfileWarmup = status;
+    return status;
+  }
+
+  async function runStartupLoadingSequence(){
+    if(window.__fateStartupLoadingSequenceStarted) return;
+    window.__fateStartupLoadingSequenceStarted = true;
+    window.__fateStartupLoadingManaged = true;
+    startupWarmupEpoch += 1;
+    const sequenceEpoch = startupWarmupEpoch;
+    window.__fateStartupWarmupCancelled = false;
+    try{ if(window.__fateStartupLoadingFallback) clearTimeout(window.__fateStartupLoadingFallback); }catch(e){}
+    const assetTotal = collectInitialAssets().length;
+    const menuStepTotal = 8;
+    const state = {done:0, total:assetTotal + menuStepTotal, cancelled:false, errors:[]};
+    const originalScreen = getActiveScreenId() || 's-title';
+    showInitialLoadingScreen(state.total, {
+      title:'Loading Menus',
+      copy:'Preparing menu assets and templates.'
+    });
+    const startedAt = performance.now();
+    let timeoutId = 0;
+    const timeout = new Promise(resolve=>{
+      timeoutId = setTimeout(function(){
+        state.cancelled = true;
+        window.__fateStartupWarmupCancelled = true;
+        resolve('timeout');
+      }, isElectronShell() ? 60000 : 20000);
+    });
+    async function runNonVisualPrep(label, copy, task, timeoutMs){
+      await runStartupStep(state, label, copy, function(){
+        if(typeof task !== 'function') return;
+        return Promise.race([
+          Promise.resolve().then(task),
+          waitStartupMs(timeoutMs || (isElectronShell() ? 8000 : 2500))
+        ]);
+      });
+    }
+    const work = (async function(){
+      await preloadInitialAssets({
+        keepVisible:true,
+        shouldCancel:function(){ return state.cancelled || startupWarmupEpoch !== sequenceEpoch || isStartupGameFlowActive(); },
+        onProgress:function(done){
+          if(state.cancelled || startupWarmupEpoch !== sequenceEpoch || isStartupGameFlowActive()) return;
+          state.done = Math.min(assetTotal, done);
+          updateInitialLoadingStage('Loading Assets', 'Decoding backgrounds, portraits, and card UI assets.');
+          updateInitialLoadingScreen(state.done, state.total, `${state.done} / ${state.total}`);
+        }
+      });
+      state.done = Math.max(state.done, assetTotal);
+      await runNonVisualPrep('Preparing Free Play', 'Caching Free Play templates and images.', function(){
+        return warmFreePlayMenu();
+      });
+      await runNonVisualPrep('Preparing AI Picker', 'Caching opponent templates and portraits.', function(){
+        if(typeof window.fateWarmAIPickerAssets === 'function') return window.fateWarmAIPickerAssets();
+      });
+      await runNonVisualPrep('Syncing Profile', 'Waiting for real collection and deck data before warming Challenger.', function(){
+        return waitForProfileDataForMenuWarmup();
+      }, isElectronShell() ? 34000 : 14000);
+      await runNonVisualPrep('Preparing Challenger Play', 'Prebuilding Challenger play tab.', function(){
+        return warmChallengerTab('play');
+      });
+      await runNonVisualPrep('Preparing Challenger Store', 'Prebuilding Challenger store tab.', function(){
+        return warmChallengerTab('store');
+      });
+      await runNonVisualPrep('Preparing Challenger Collection', 'Prebuilding Challenger collection tab.', function(){
+        return warmChallengerTab('collection');
+      });
+      await runNonVisualPrep('Preparing Challenger Deck Builder', 'Prebuilding Challenger deck builder tab.', function(){
+        return warmChallengerTab('deckbuilder');
+      });
+      await runNonVisualPrep('Finalizing Menus', 'Scheduling remaining menu asset work.', function(){
+        const title = document.getElementById('s-title');
+        optimizeImages(title || document);
+        scheduleBackgroundMenuPreloads();
+      });
+      return 'complete';
+    })();
+    const result = await Promise.race([work, timeout]);
+    state.cancelled = true;
+    window.__fateStartupWarmupCancelled = true;
+    clearTimeout(timeoutId);
+    const gameFlowActive = isStartupGameFlowActive();
+    try{
+      cleanupStartupWarmupOverlays();
+      if(!gameFlowActive && getActiveScreenId() !== originalScreen && typeof window.showScreen === 'function') window.showScreen(originalScreen && originalScreen !== 's-game' ? originalScreen : 's-title');
+    }catch(e){}
+    window.__fateMenusWarmed = true;
+    try{
+      if(typeof window.renderTitleProfile === 'function' && getActiveScreenId() === 's-title') window.renderTitleProfile();
+      if(typeof window.onScreenChange === 'function') window.onScreenChange(getActiveScreenId() || 's-title');
+    }catch(e){}
+    state.done = state.total;
+    updateInitialLoadingScreen(state.done, state.total, result === 'timeout' ? 'Ready' : `${state.total} / ${state.total}`);
+    hideInitialLoadingScreen();
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.startupMenuWarmup = {
+      result,
+      ms:Math.round(performance.now() - startedAt),
+      errors:state.errors
+    };
+    try{
+      perf.menuSamples = [];
+      perf.renderSamples = [];
+      perf.renderBreakdowns = [];
+      perf.longTaskSamples = [];
+      perf.longTasks = 0;
+      perf.slowFrames = 0;
+      perf.worstFrameMs = 0;
+      if(typeof window.fateStopMenuMinuteLog === 'function') window.fateStopMenuMinuteLog('startup-warmup-complete');
+      setTimeout(function(){
+        if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
+          window.fateStartMenuMinuteLog({durationMs:60000});
+        }
+      }, 120);
+    }catch(e){}
   }
 
   function warmTitleOpenAssets(){
@@ -873,15 +1502,65 @@
     }, initialDelay);
   }
 
+  function runElectronLightStartup(){
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    window.__fateStartupLoadingManaged = true;
+    window.__fateStartupWarmupCancelled = true;
+    window.__fateStartupWarmupActive = false;
+    window.__fateMenusWarmed = true;
+    try{ if(window.__fateStartupLoadingFallback) clearTimeout(window.__fateStartupLoadingFallback); }catch(e){}
+    perf.startupMenuWarmup = {
+      result:'skipped-electron-light-start',
+      ms:0,
+      errors:[]
+    };
+    perf.startupWarmupPolicy = {
+      mode:'electron-light-start',
+      fullWarmupOptIn:'localStorage.fateFullStartupWarmup=1'
+    };
+    recordLifecycleEvent('startup-warmup-skipped', perf.startupWarmupPolicy);
+    try{
+      updateInitialLoadingStage('Loading Menus', 'Ready.');
+      updateInitialLoadingScreen(1, 1, 'Ready');
+      hideInitialLoadingScreen();
+    }catch(e){}
+    setTimeout(function(){
+      try{ scheduleBackgroundMenuPreloads(); }catch(e){}
+    }, 1200);
+    try{
+      if(typeof window.fateStopMenuMinuteLog === 'function') window.fateStopMenuMinuteLog('electron-light-start');
+      setTimeout(function(){
+        if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
+          window.fateStartMenuMinuteLog({durationMs:60000});
+        }
+      }, 120);
+    }catch(e){}
+  }
+
   function installMatchWarmup(){
     if(window.__fateSmoothStartWarmupInstalled) return;
     window.__fateSmoothStartWarmupInstalled = true;
     const origStart = window.startGame;
     if(typeof origStart === 'function' && !origStart.__fateSmoothWarmWrapped){
       window.startGame = function(){
+        cancelStartupWarmup('start-game');
+        const entryEpoch = markMatchEntry('start-game');
         const result = origStart.apply(this, arguments);
-        setTimeout(warmGameAssets, 350);
-        setTimeout(warmGameAssets, 1400);
+        if(!isElectronShell()){
+          matchWarmupTimers.push(setTimeout(function(){
+            if(entryEpoch === matchEntryEpoch) warmGameAssets({light:true});
+          }, 900));
+          matchWarmupTimers.push(setTimeout(function(){
+            if(entryEpoch === matchEntryEpoch) warmGameAssets({light:true});
+          }, 2400));
+        } else {
+          const perf = window.__fatePerf = window.__fatePerf || {};
+          perf.matchWarmupSkipped = {
+            at:Math.round(performance.now()),
+            reason:'electron-start-game',
+            policy:'no-hidden-match-warmup'
+          };
+        }
         return result;
       };
       window.startGame.__fateSmoothWarmWrapped = true;
@@ -1219,6 +1898,11 @@
         lastHardRecoveryMs: perf.lastHardRecoveryMs || 0,
         suppressedOffscreenGameRenders: perf.suppressedOffscreenGameRenders || 0,
         lastSuppressedGameRender: perf.lastSuppressedGameRender || null,
+        matchEntry: perf.matchEntry || null,
+        matchWarmupSkipped: perf.matchWarmupSkipped || null,
+        startupWarmupCancelled: perf.startupWarmupCancelled || null,
+        menuScheduler: window.FateMenuScheduler && typeof window.FateMenuScheduler.report === 'function' ? window.FateMenuScheduler.report() : null,
+        menuViews: window.FateMenuViews && typeof window.FateMenuViews.report === 'function' ? window.FateMenuViews.report() : null,
         renderRequests: perf.renderRequests || 0,
         broadRenderRequests: perf.broadRenderRequests || 0,
         scopedRenderRequests: perf.scopedRenderRequests || 0,
@@ -1226,7 +1910,10 @@
         lastBroadRenderParts: perf.lastBroadRenderParts || '',
         lastScopedRenderParts: perf.lastScopedRenderParts || '',
         canvasBoard: typeof window.fateCanvasBoardReport === 'function' ? window.fateCanvasBoardReport() : null,
+        actionPresentation: typeof window.fateActionPerfReport === 'function' ? window.fateActionPerfReport() : null,
+        vfx: window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
         renderV2Flags: window.FateRenderV2Flags && typeof window.FateRenderV2Flags.report === 'function' ? window.FateRenderV2Flags.report() : null,
+        matchRenderer: window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function' ? window.FateMatchRendererAdapter.report() : null,
         renderSnapshot: typeof window.fateRenderSnapshotReport === 'function' ? window.fateRenderSnapshotReport() : null,
         matchLayout: typeof window.fateMatchLayoutReport === 'function' ? window.fateMatchLayoutReport() : null,
         recentRenderSamples: (perf.renderSamples || []).slice(-10),
@@ -1570,10 +2257,24 @@
           scopedRenderRequests: perf.scopedRenderRequests || 0,
           lastRenderRequestParts: perf.lastRenderRequestParts || '',
           lastBroadRenderParts: perf.lastBroadRenderParts || '',
-          lastScopedRenderParts: perf.lastScopedRenderParts || ''
+          lastScopedRenderParts: perf.lastScopedRenderParts || '',
+          startupMenuWarmup: perf.startupMenuWarmup || null,
+          startupProfileWarmup: perf.startupProfileWarmup || null,
+          menuScheduler: window.FateMenuScheduler && typeof window.FateMenuScheduler.report === 'function' ? window.FateMenuScheduler.report() : null,
+          menuViews: window.FateMenuViews && typeof window.FateMenuViews.report === 'function' ? window.FateMenuViews.report() : null
         },
         canvasBoard: typeof window.fateCanvasBoardReport === 'function' ? window.fateCanvasBoardReport() : null,
+        diagnosticsAvailable:{
+          actionPresentation:!!window.FateActionPresentation,
+          actionPresentationReport:typeof window.fateActionPerfReport === 'function',
+          vfxDirector:!!window.FateVfxDirector,
+          vfxDirectorReport:!!(window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function'),
+          textureCache:!!window.FateCardTextureCache
+        },
+        actionPresentation: typeof window.fateActionPerfReport === 'function' ? window.fateActionPerfReport() : null,
+        vfx: window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
         renderV2Flags: window.FateRenderV2Flags && typeof window.FateRenderV2Flags.report === 'function' ? window.FateRenderV2Flags.report() : null,
+        matchRenderer: window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function' ? window.FateMatchRendererAdapter.report() : null,
         renderSnapshot: typeof window.fateRenderSnapshotReport === 'function' ? window.fateRenderSnapshotReport() : null,
         matchLayout: typeof window.fateMatchLayoutReport === 'function' ? window.fateMatchLayoutReport() : null,
         selectorCounts,
@@ -1788,6 +2489,7 @@
       return formatLagTraceSummary(summary);
     };
     let activeMenuMinuteLog = null;
+    let activeMatchMinuteLog = null;
     function getElectronDiagnosticsApi(){
       try{
         const api = window.FateElectronDiagnostics;
@@ -1804,20 +2506,47 @@
         return false;
       }
     }
-    function makeMenuMinuteSessionId(){
+    function readCompactGameState(){
+      try{
+        const g = (typeof G !== 'undefined' && G) ? G : (window.G || null);
+        if(!g) return null;
+        return {
+          phase:g.phase || '',
+          turn:Number(g.turn) || 0,
+          currentPlayer:typeof g.currentPlayer === 'number' ? g.currentPlayer : null,
+          aiPlayer:typeof g.aiPlayer === 'number' ? g.aiPlayer : null,
+          isOnline:!!g._onlineRoomCode,
+          isSpectator:!!g._isSpectator,
+          boardCards:g.board ? g.board.reduce(function(n, z){
+            return n + (Array.isArray(z) ? z.reduce(function(m, r){
+              return m + (Array.isArray(r) ? r.filter(Boolean).length : 0);
+            }, 0) : 0);
+          }, 0) : 0,
+          p1Hand:g.players && g.players[0] && Array.isArray(g.players[0].hand) ? g.players[0].hand.length : 0,
+          p2Hand:g.players && g.players[1] && Array.isArray(g.players[1].hand) ? g.players[1].hand.length : 0,
+          p1Deck:g.players && g.players[0] && Array.isArray(g.players[0].deck) ? g.players[0].deck.length : 0,
+          p2Deck:g.players && g.players[1] && Array.isArray(g.players[1].deck) ? g.players[1].deck.length : 0
+        };
+      }catch(e){
+        return null;
+      }
+    }
+    function makeMinuteSessionId(kind){
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       let mode = getActiveScreenId() || 'menu';
       try{
         if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE) mode = String(CURRENT_MODE).slice(0, 18);
       }catch(e){}
-      return stamp + '-' + mode;
+      return (kind === 'match' ? 'match-' : '') + stamp + '-' + mode;
     }
-    function compactMenuMinuteSnapshot(snapshot){
+    function compactMinuteSnapshot(snapshot){
       if(!snapshot) return null;
       return {
+        loggerVersion:2,
         at:snapshot.at,
         activeScreen:snapshot.activeScreen,
         hidden:snapshot.hidden,
+        gameState:snapshot.gameState || readCompactGameState(),
         htmlClasses:snapshot.htmlClasses,
         bodyClasses:snapshot.bodyClasses,
         viewport:snapshot.viewport,
@@ -1833,16 +2562,96 @@
         recentLongTasks:snapshot.recentLongTasks,
         lifecycleEvents:snapshot.lifecycleEvents,
         fpsHistory:snapshot.fpsHistory,
+        diagnosticsAvailable:snapshot.diagnosticsAvailable,
+        actionPresentation:snapshot.actionPresentation,
+        vfx:snapshot.vfx,
         renderV2Flags:snapshot.renderV2Flags,
+        matchRenderer:snapshot.matchRenderer,
         renderSnapshot:snapshot.renderSnapshot,
         matchLayout:snapshot.matchLayout
       };
     }
-    function stopMenuMinuteLog(reason){
-      const state = activeMenuMinuteLog;
+    function readFrameGapContext(gapMs, now, isMatch){
+      const perfState = window.__fatePerf || {};
+      let action = null;
+      try{
+        if(typeof window.fateActionPerfReport === 'function') {
+          const report = window.fateActionPerfReport();
+          action = {
+            active:report && report.active || null,
+            recent:report && report.recent && report.recent[0] || null
+          };
+        }
+      }catch(e){}
+      let vfx = null;
+      try{
+        if(window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function') {
+          const report = window.FateVfxDirector.report();
+          vfx = report ? {
+            active:report.active || null,
+            performance:report.performance ? {
+              lastVfxMs:report.performance.lastVfxMs,
+              avgVfxMs:report.performance.avgVfxMs,
+              maxVfxMs:report.performance.maxVfxMs,
+              draws:report.performance.draws
+            } : null
+          } : null;
+        }
+      }catch(e){}
+      let matchRenderer = null;
+      try{
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function') {
+          const report = window.FateMatchRendererAdapter.report();
+          matchRenderer = report ? {
+            source:report.source || '',
+            lastMs:report.lastMs,
+            avgMs:report.avgMs,
+            maxMs:report.maxMs,
+            lastDirtyMask:report.lastDirtyMask,
+            lastDirtySource:report.lastDirtySource,
+            fullSceneRedraws:report.fullSceneRedraws,
+            dirtyDraws:report.dirtyDraws,
+            vfxOnlyDraws:report.vfxOnlyDraws,
+            zoneScrollOnlyDraws:report.zoneScrollOnlyDraws
+          } : null;
+        }
+      }catch(e){}
+      let animationCount = 0;
+      try{ animationCount = document.getAnimations ? document.getAnimations().length : 0; }catch(e){}
+      const entry = perfState.matchEntry || null;
+      const entryAgeMs = entry && entry.at ? Math.max(0, now - entry.at) : null;
+      return {
+        gapMs,
+        atMs:Math.round(now),
+        kind:isMatch ? 'match-frame-gap' : 'menu-frame-gap',
+        phase:isMatch && entryAgeMs !== null ? (entryAgeMs < 3200 ? 'match-entry' : (entryAgeMs < 10000 ? 'early-match' : 'steady')) : 'steady',
+        entryAgeMs:entryAgeMs === null ? null : Math.round(entryAgeMs),
+        screen:getActiveScreenId(),
+        hidden:!!document.hidden,
+        hasFocus:document.hasFocus ? !!document.hasFocus() : null,
+        visibilityState:document.visibilityState || '',
+        nativeTimerDelayMs:Math.round((Number(perfState.nativeTimerDelayMs) || 0) * 10) / 10,
+        longTasks:Number(perfState.longTasks) || 0,
+        recentLongTasks:(perfState.longTaskSamples || []).slice(-4),
+        renderRequests:Number(perfState.renderRequests) || 0,
+        broadRenderRequests:Number(perfState.broadRenderRequests) || 0,
+        scopedRenderRequests:Number(perfState.scopedRenderRequests) || 0,
+        lastRenderRequestParts:perfState.lastRenderRequestParts || '',
+        animationCount,
+        action,
+        vfx,
+        matchRenderer,
+        gameState:readCompactGameState(),
+        likelyExternalPause:gapMs > 500 && (!perfState.longTaskSamples || !perfState.longTaskSamples.length || (perfState.longTaskSamples.slice(-1)[0].start + perfState.longTaskSamples.slice(-1)[0].duration < now - gapMs))
+      };
+    }
+    function stopMinuteLog(kind, reason){
+      const isMatch = kind === 'match';
+      const state = isMatch ? activeMatchMinuteLog : activeMenuMinuteLog;
       if(!state || state.stopped) return state || null;
       state.stopped = true;
-      activeMenuMinuteLog = null;
+      if(isMatch) activeMatchMinuteLog = null;
+      else activeMenuMinuteLog = null;
       try{ clearInterval(state.timer); }catch(e){}
       try{ if(state.frameRaf) cancelAnimationFrame(state.frameRaf); }catch(e){}
       const api = getElectronDiagnosticsApi();
@@ -1853,23 +2662,45 @@
         reason:reason || 'complete',
         elapsedMs:Math.round(performance.now() - state.startedAt),
         samples:state.sampleCount || 0,
-        finalScreen:getActiveScreenId()
+        finalScreen:getActiveScreenId(),
+        logKind:state.kind || kind || 'menu'
       };
       if(api && typeof api.finishUiMinuteLog === 'function') api.finishUiMinuteLog(payload).catch(function(){});
       return Object.assign({ok:true}, payload, {paths:state.paths || null});
     }
-    function startMenuMinuteLog(reason, options){
+    function stopMenuMinuteLog(reason){
+      return stopMinuteLog('menu', reason);
+    }
+    function stopMatchMinuteLog(reason){
+      return stopMinuteLog('match', reason);
+    }
+    function startMinuteLog(kind, reason, options){
       const api = getElectronDiagnosticsApi();
       if(!api) return {ok:false, reason:'electron-diagnostics-unavailable'};
-      if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) return {ok:true, alreadyRunning:true, sessionId:activeMenuMinuteLog.sessionId, paths:activeMenuMinuteLog.paths || null};
-      if(gameScreenActive()) return {ok:false, reason:'game-screen-active'};
+      const isMatch = kind === 'match';
+      const current = isMatch ? activeMatchMinuteLog : activeMenuMinuteLog;
+      if(current && !current.stopped) return {ok:true, alreadyRunning:true, sessionId:current.sessionId, paths:current.paths || null};
+      if(!isMatch && gameScreenActive()) return {ok:false, reason:'game-screen-active'};
+      if(isMatch && !gameScreenActive()) return {ok:false, reason:'game-screen-not-active'};
       const opts = options || {};
-      const durationMs = Math.max(5000, Math.min(120000, Number(opts.durationMs) || 60000));
+      const untilEndScreen = !!(isMatch && opts.untilEndScreen);
+      const requestedDurationMs = Number(opts.durationMs) || (untilEndScreen ? 3600000 : 60000);
+      const durationMs = isMatch
+        ? Math.max(5000, Math.min(3600000, requestedDurationMs))
+        : Math.max(5000, Math.min(120000, requestedDurationMs));
       const intervalMs = Math.max(500, Math.min(5000, Number(opts.intervalMs) || 1000));
+      const endScreenTailMs = untilEndScreen ? Math.max(1000, Math.min(30000, Number(opts.endScreenTailMs) || 10000)) : 0;
+      const leftMatchTailMs = untilEndScreen ? Math.max(1000, Math.min(30000, Number(opts.leftMatchTailMs) || 5000)) : 0;
       const state = {
-        sessionId:makeMenuMinuteSessionId(),
+        kind:isMatch ? 'match' : 'menu',
+        sessionId:makeMinuteSessionId(isMatch ? 'match' : 'menu'),
         startedAt:performance.now(),
         startedIso:new Date().toISOString(),
+        untilEndScreen,
+        endScreenTailMs,
+        leftMatchTailMs,
+        endScreenFirstSeenAt:0,
+        nonMatchScreenFirstSeenAt:0,
         sampleCount:0,
         stopped:false,
         paths:null,
@@ -1877,11 +2708,13 @@
         intervalFrames:0,
         intervalMaxGap:0,
         intervalSlowGaps:[],
+        intervalSlowGapDetails:[],
         sampleBusy:false,
         timer:0,
         frameRaf:0
       };
-      activeMenuMinuteLog = state;
+      if(isMatch) activeMatchMinuteLog = state;
+      else activeMenuMinuteLog = state;
       function frame(now){
         if(state.stopped) return;
         const gap = now - state.lastFrameAt;
@@ -1889,23 +2722,38 @@
         state.intervalFrames += 1;
         if(gap > state.intervalMaxGap) state.intervalMaxGap = gap;
         if(gap > 34) {
-          state.intervalSlowGaps.push(Math.round(gap * 10) / 10);
+          const roundedGap = Math.round(gap * 10) / 10;
+          state.intervalSlowGaps.push(roundedGap);
           if(state.intervalSlowGaps.length > 20) state.intervalSlowGaps.shift();
+          try{
+            state.intervalSlowGapDetails.push(readFrameGapContext(roundedGap, now, isMatch));
+            if(state.intervalSlowGapDetails.length > 12) state.intervalSlowGapDetails.shift();
+          }catch(e){}
         }
         state.frameRaf = requestAnimationFrame(frame);
       }
       state.frameRaf = requestAnimationFrame(frame);
       function readFrameInterval(){
         const elapsed = Math.max(1, performance.now() - (state.lastSampleAt || state.startedAt));
+        const entry = window.__fatePerf && window.__fatePerf.matchEntry || null;
+        const now = performance.now();
+        const entryAgeMs = entry && entry.at ? Math.max(0, now - entry.at) : null;
+        const phase = isMatch && entryAgeMs !== null
+          ? (entryAgeMs < 3200 ? 'match-entry' : (entryAgeMs < 10000 ? 'early-match' : 'steady'))
+          : 'steady';
         const item = {
           frames:state.intervalFrames,
           fps:Math.round(state.intervalFrames * 1000 / elapsed),
           maxFrameGapMs:Math.round(state.intervalMaxGap * 10) / 10,
-          slowFrameGaps:state.intervalSlowGaps.slice(-20)
+          slowFrameGaps:state.intervalSlowGaps.slice(-20),
+          slowFrameDetails:state.intervalSlowGapDetails.slice(-12),
+          phase,
+          entryAgeMs:entryAgeMs === null ? null : Math.round(entryAgeMs)
         };
         state.intervalFrames = 0;
         state.intervalMaxGap = 0;
         state.intervalSlowGaps = [];
+        state.intervalSlowGapDetails = [];
         state.lastSampleAt = performance.now();
         return item;
       }
@@ -1922,12 +2770,34 @@
             sampleIndex:state.sampleCount,
             elapsedMs,
             frameInterval:readFrameInterval(),
-            snapshot:compactMenuMinuteSnapshot(getLagTraceSnapshot())
+            logKind:state.kind,
+            snapshot:compactMinuteSnapshot(getLagTraceSnapshot())
           };
           state.sampleCount += 1;
           await api.appendUiMinuteLog(payload);
-          if(gameScreenActive()) stopMenuMinuteLog('entered-game-screen');
-          else if(elapsedMs >= durationMs) stopMenuMinuteLog('duration-complete');
+          const activeScreen = getActiveScreenId();
+          if(!isMatch && gameScreenActive()) {
+            stopMenuMinuteLog('entered-game-screen');
+          } else if(isMatch && untilEndScreen) {
+            const sampleNow = performance.now();
+            if(activeScreen === 's-win') {
+              if(!state.endScreenFirstSeenAt) state.endScreenFirstSeenAt = sampleNow;
+              state.nonMatchScreenFirstSeenAt = 0;
+              if(sampleNow - state.endScreenFirstSeenAt >= endScreenTailMs) stopMatchMinuteLog('end-screen-tail-complete');
+            } else if(activeScreen !== 's-game') {
+              if(!state.nonMatchScreenFirstSeenAt) state.nonMatchScreenFirstSeenAt = sampleNow;
+              state.endScreenFirstSeenAt = 0;
+              if(sampleNow - state.nonMatchScreenFirstSeenAt >= leftMatchTailMs) stopMatchMinuteLog('left-match-screen-before-end');
+            } else {
+              state.endScreenFirstSeenAt = 0;
+              state.nonMatchScreenFirstSeenAt = 0;
+            }
+            if(!state.stopped && elapsedMs >= durationMs) stopMatchMinuteLog('duration-hard-cap-before-end-screen');
+          } else if(isMatch && !gameScreenActive()) {
+            stopMatchMinuteLog('left-game-screen');
+          } else if(elapsedMs >= durationMs) {
+            stopMinuteLog(state.kind, 'duration-complete');
+          }
         }catch(e){
           state.lastError = String(e && e.message || e);
         }finally{
@@ -1937,9 +2807,14 @@
       const meta = {
         sessionId:state.sessionId,
         reason:reason || 'main-menu-diagnostics',
+        logKind:state.kind,
+        loggerVersion:2,
         startedAt:state.startedIso,
         durationMs,
         intervalMs,
+        untilEndScreen,
+        endScreenTailMs,
+        leftMatchTailMs,
         location:String(location.href || ''),
         userAgent:navigator.userAgent || '',
         screen:getActiveScreenId(),
@@ -1947,7 +2822,8 @@
       };
       api.startUiMinuteLog(meta).then(function(res){
         state.paths = res && res.paths || null;
-        window.__fateLatestMenuMinuteLogPath = state.paths && state.paths.latest || null;
+        if(isMatch) window.__fateLatestMatchMinuteLogPath = state.paths && state.paths.latest || null;
+        else window.__fateLatestMenuMinuteLogPath = state.paths && state.paths.latest || null;
         writeSample('initial-sample');
       }, function(err){
         state.lastError = String(err && err.message || err);
@@ -1955,11 +2831,19 @@
       state.timer = setInterval(function(){ writeSample('sample'); }, intervalMs);
       return {ok:true, sessionId:state.sessionId, paths:state.paths || null};
     }
+    function startMenuMinuteLog(reason, options){
+      return startMinuteLog('menu', reason, options);
+    }
+    function startMatchMinuteLog(reason, options){
+      return startMinuteLog('match', reason || 'match-start', options);
+    }
     function installMenuMinuteLogger(){
       if(window.__fateMenuMinuteLoggerInstalled) return;
       window.__fateMenuMinuteLoggerInstalled = true;
       window.fateStartMenuMinuteLog = function(options){ return startMenuMinuteLog('manual', options); };
       window.fateStopMenuMinuteLog = function(reason){ return stopMenuMinuteLog(reason || 'manual'); };
+      window.fateStartMatchMinuteLog = function(options){ return startMatchMinuteLog('manual-match', options); };
+      window.fateStopMatchMinuteLog = function(reason){ return stopMatchMinuteLog(reason || 'manual'); };
       window.fateMenuMinuteLogStatus = function(){
         const state = activeMenuMinuteLog;
         return state ? {
@@ -1972,16 +2856,40 @@
           lastError:state.lastError || ''
         } : {running:false, latestPath:window.__fateLatestMenuMinuteLogPath || null};
       };
+      window.fateMatchMinuteLogStatus = function(){
+        const state = activeMatchMinuteLog;
+        return state ? {
+          running:!state.stopped,
+          sessionId:state.sessionId,
+          elapsedMs:Math.round(performance.now() - state.startedAt),
+          samples:state.sampleCount || 0,
+          paths:state.paths || null,
+          latestPath:window.__fateLatestMatchMinuteLogPath || null,
+          untilEndScreen:!!state.untilEndScreen,
+          endScreenTailMs:state.endScreenTailMs || 0,
+          endScreenSeen:!!state.endScreenFirstSeenAt,
+          lastError:state.lastError || ''
+        } : {running:false, latestPath:window.__fateLatestMatchMinuteLogPath || null};
+      };
       window.addEventListener('fate-screen-changed', function(ev){
         const to = ev && ev.detail && ev.detail.to || getActiveScreenId();
         if(to === 's-game') {
           if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) stopMenuMinuteLog('entered-game-screen');
+          startMatchMinuteLog('entered-game-screen', {durationMs:3600000, intervalMs:1000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
         } else {
-          startMenuMinuteLog('screen-changed-to-' + to);
+          if(activeMatchMinuteLog && !activeMatchMinuteLog.stopped) {
+            if(activeMatchMinuteLog.untilEndScreen && to === 's-win') {
+              activeMatchMinuteLog.endScreenFirstSeenAt = activeMatchMinuteLog.endScreenFirstSeenAt || performance.now();
+            } else {
+              stopMatchMinuteLog('screen-changed-to-' + to);
+            }
+          }
+          if(!activeMatchMinuteLog || activeMatchMinuteLog.stopped) startMenuMinuteLog('screen-changed-to-' + to);
         }
       });
       if(!gameScreenActive()) startMenuMinuteLog('startup-menu');
     }
+    installMenuMinuteLogger();
     function tick(now){
       const focusThrottled = !document.hasFocus();
       if(document.hidden || window.__fatePageHidden || focusThrottled){
@@ -2082,6 +2990,12 @@
           if(perf.longTaskSamples.length > 40) perf.longTaskSamples.splice(0, perf.longTaskSamples.length - 40);
         });
         observer.observe({entryTypes:['longtask']});
+        window.fateLongTaskSnapshot = function(){
+          return {
+            count:Number(perf.longTasks) || 0,
+            recent:(perf.longTaskSamples || []).slice(-12)
+          };
+        };
       }catch(e){}
     }
     function describeMenuTarget(el){
@@ -2337,8 +3251,9 @@
     installObserver();
     installFrameDiagnostics();
     installVisibilityRecovery();
-    installMenuMinuteLogger();
     installMatchWarmup();
+    installStartupWarmupOverlayGuard();
+    runStartupLoadingSequence();
     const timer = window.__fateNativeSetTimeout || window.setTimeout;
     if(electronShell) timer(warmTitleOpenAssets, 1200);
     else warmTitleOpenAssets();
@@ -2346,7 +3261,28 @@
     if(!electronShell) idle(warmGameAssets);
   }
 
-  window.fatePreloadInitialAssets = preloadInitialAssets;
+    window.fatePreloadInitialAssets = preloadInitialAssets;
+  window.fateWarmProfileDependentMenus = async function(){
+    const originalScreen = getActiveScreenId() || 's-title';
+    if(originalScreen === 's-game' || originalScreen === 's-coin' || originalScreen === 's-matchmaking') return false;
+    if(window.__fateProfileMenuWarmupRunning) return false;
+    window.__fateProfileMenuWarmupRunning = true;
+    try{
+      await waitForProfileDataForMenuWarmup();
+      await warmChallengerTab('play');
+      await warmChallengerTab('store');
+      await warmChallengerTab('collection');
+      await warmChallengerTab('deckbuilder');
+      if(typeof window.showScreen === 'function' && getActiveScreenId() !== originalScreen) {
+        window.showScreen(originalScreen && originalScreen !== 's-game' ? originalScreen : 's-title');
+      }
+      return true;
+    }catch(e){
+      return false;
+    }finally{
+      window.__fateProfileMenuWarmupRunning = false;
+    }
+  };
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
   else init();

@@ -9,6 +9,10 @@
   const missing = {};
   let played = 0;
   let skipped = 0;
+  let lastPlayMs = 0;
+  let maxPlayMs = 0;
+  let longPlayCount = 0;
+  let lastCue = '';
 
   function nowMs(){
     return (window.performance && performance.now) ? performance.now() : Date.now();
@@ -30,7 +34,13 @@
     }
     try {
       if(typeof playSfx === 'function'){
+        const started = nowMs();
         playSfx(cue);
+        const elapsed = nowMs() - started;
+        lastPlayMs = Math.round(elapsed * 10) / 10;
+        maxPlayMs = Math.max(maxPlayMs, lastPlayMs);
+        lastCue = cue;
+        if(elapsed >= 8) longPlayCount++;
         played++;
         return true;
       }
@@ -71,6 +81,10 @@
       played,
       skipped,
       muted:isMuted(),
+      lastPlayMs,
+      maxPlayMs,
+      longPlayCount,
+      lastCue,
       missingCueCount:Object.keys(missing).length,
       missingCues:Object.assign({}, missing)
     };
