@@ -269,7 +269,11 @@
   }
   async function hasActiveOnlineMatches(){
     if(!FO.rtdb || !FO.get) return false;
-    const snap = await FO.get(FO.ref(FO.rtdb, 'liveMatches')).catch(()=>null);
+    const base = FO.ref(FO.rtdb, 'liveMatches');
+    const target = (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(base, FO.orderByChild('updatedAt'), FO.limitToLast(16))
+      : base;
+    const snap = await FO.get(target).catch(()=>null);
     const matches = snap?.val?.() || {};
     return Object.values(matches).some(isLiveOnlineRoom);
   }
@@ -401,7 +405,6 @@
     sharedAISyncTimer = setTimeout(async ()=>{
       await ensureSharedAIRoster().catch(e=>console.warn('Shared AI roster sync failed', e));
       watchSharedAIRoster();
-      await runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
     }, 1400);
   }
   function startSharedAISimulationLoop(){

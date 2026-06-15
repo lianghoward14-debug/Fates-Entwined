@@ -27,6 +27,128 @@ Reason:
 
 This does not mean multiplayer is less important. It means performance Phase 0 gives the safest first win and better measurement before large online changes.
 
+## Server-Authoritative No-Compromise Definition
+
+The multiplayer migration may be implemented in phases, but it must not be
+called professionally complete until all of these are true:
+
+- The server constructs the initial match state from room seed, player order,
+  deck choices, and deterministic shuffle/RNG.
+- The client sends intents only. Client `postState` may be used for temporary
+  compatibility diagnostics, but not as match truth in the finished system.
+- Every accepted action type has a server reducer: turn choice, end turn, card
+  placement, consolidation, board actions, hand actions, modal choices, zone
+  pickers, affiliation pickers, landscape choices, forfeit, disconnect timeout,
+  and result finalization.
+- `FATE_WS_REDUCER_MODE=strict` can run a real match without falling back to
+  client-proposed state.
+- Unsupported or malformed intents are rejected, logged, and never sequenced as
+  accepted authoritative actions.
+- Reconnect restores from server state and event history only.
+- Match end, rewards, ELO, forfeit, and disconnect outcomes are idempotent and
+  finalized by the server.
+- Tests prove that a malicious client cannot skip turns, change hidden state,
+  invent board state, replay stale actions, submit invalid card choices, or
+  write results directly.
+
+Any intermediate bridge mode must be labelled as such. Passing transport,
+durability, or hash-lineage tests is not enough to mark the architecture
+professionally complete.
+
+Current strict reducer progress:
+
+- Implemented server-owned `MATCH_START` bootstrap from room seed and the two
+  validated 40-card decks. The server checks real card IDs and rarity copy
+  limits, deterministically shuffles, draws opening hands, stores canonical
+  state/hash, and emits that state in the start event.
+- Implemented server-owned reducers for `CHOOSE_TURN`, `END_TURN`, `FORFEIT`
+  with server-derived loser/winner, canonical final match state, and Fly room
+  winner/loser/end-reason metadata, `HAND_ACTION` `placeSelected` for
+  metadata-plain Supporter placement arming and whitelisted real
+  passive/consolidation/picker/effect Supporters (`05`,
+  `09`, `12`, `16`, `18`, `20`, `24`, `26`, `28`, `31`, `32`, `33`, `47`,
+  `49`, `52`, `53`, `54`, `76`, `91`),
+  `START_CONSOLIDATE` for metadata-plain zero-cost character placement arming,
+  `START_CONSOLIDATE` setup plus consolidation `CLICK_CELL` tribute
+  selection/finalization for metadata-plain paid characters with normal
+  one-reinforcement Supporter tributes,
+  Alexander the Magnificient (`35`) Fate snapshot from friendly Supporters
+  remaining in the placement zone after tribute spend,
+  United Nations 5th Army (`09`) as a real two-reinforcement tribute with
+  server-side use decrement and discard preservation,
+  Ralph's Courtesy Clerk (`24`) as a real board-local adjacency reinforcement
+  modifier during consolidation,
+  Marie Lamboure / Deterrance (`36`) as a real consolidation-time zone Fate
+  penalty,
+  Chingachlook (`45`) placement restriction during consolidation placement,
+  Great Oak Infantry (`47`) as a real consolidation tribute that grants +3
+  permanent Fate to the consolidated card,
+  Irvine Businessman (`49`) as a real zone-local character-as-tribute enabler
+  for metadata-plain character tributes,
+  Berkeley CS Major / Artillery Distance (`50`) locked-zone tribute exclusion,
+  placement, and `MODAL_ACTION` zone choice,
+  17th British Regiment (`05`) same-zone Fate gain, Makenna (`12`) friendly
+  immunity picker, MINAE Death Squad (`16`) opponent Supporter discard,
+  1st US Marines (`18`) suppression state and cleanup, South Wind Spearman
+  (`20`) Shield Wall movement locks, UCPD (`26`) reveal state, Kazumi (`27`)
+  paid consolidation draw-three, Temecula Resident (`32`) draw-one, shared draw
+  handling for West Caribbea hand-arrival and armed Christopher Erbs Fate bonus,
+  server-owned Christopher Erbs draw-choice modal activation/decline, 2nd
+  Polish-Lithuanian Army (`28`) set-use counter, Oathbound Noble Fighter (`31`)
+  same-zone Fate loss with immunity/Shield Wall rejection, West Caribbea Infantry
+  (`33`) hand-bonus state,
+  The Vigilantes (`52`) placement and `PICK_ZONE` same-zone opponent Supporter
+  mark,
+  Colombo Thug (`53`) same-zone consolidation restriction,
+  Wolf Creek (`54`) on-set placement, same-zone friendly character picker,
+  final movement click, and Rozsi (`34`) move-into-zone Fate bonus,
+  Alondra Hopkins (`14`) paid consolidation placement with adjacent/diagonal
+  opponent Supporter discard and Fate gain,
+  Lydia (`56`) paid consolidation placement with five-use initialization,
+  ALPINE Infantry (`76`) Fate/immunity/no-bonus/no-consolidate flags,
+  Wodny Potok Villager (`91`) Snowy Village use count and opponent
+  landscape-change lock,
+  Boleslaw Kopewicz (`86`) as a real three-reinforcement consolidation tribute
+  that grants +4 permanent Fate to the consolidated card,
+  and basic hand-to-board `CLICK_CELL` placement for metadata-plain character
+  cards, metadata-plain Supporter fixture cards, and whitelisted real
+  passive/consolidation/picker/effect Supporters (`05`, `09`, `12`, `16`,
+  `18`, `20`, `24`, `26`, `28`, `31`, `32`, `33`, `47`, `49`, `50`, `52`,
+  `53`, `54`, `76`, `91`).
+- Added strict smoke coverage proving unsupported gameplay actions are rejected
+  instead of accepted through client-state fallback.
+- Basic placement/arming reducers are intentionally narrow. They reject
+  real/special Supporters outside the explicit whitelist, special placement
+  cards, contested-only placement, affinity/landscape effects, board targeting,
+  move effects, blocking effects, picker/modal effects outside the explicit
+  implemented reducers, manual Wolf Creek board activation and other
+  reaction-dependent Supporter activations, and any pending interaction that
+  needs a dedicated reducer unless the reducer can model the exact rule.
+- Paid consolidation is covered for normal one-reinforcement Supporter tributes,
+  United Nations 5th Army (`09`), Alondra Hopkins (`14`), Ralph's Courtesy Clerk
+  (`24`) adjacency, Alexander the Magnificient (`35`), Marie Lamboure (`36`)
+  Deterrance, Christopher Erbs (`40`) use initialization, Kazumi (`27`)
+  draw-three, Chingachlook (`45`) placement restriction, Great Oak Infantry
+  (`47`), Irvine Businessman (`49`), Berkeley CS Major (`50`) Artillery locks,
+  Colombo Thug (`53`), Lydia (`56`), and Boleslaw Kopewicz (`86`). Variable costs,
+  character-tribute cards outside
+  the Irvine path, zone-dependent discounts, French Fusiliers passive-copy
+  behavior, and most real card effects still require dedicated reducers.
+- Real-card strict placement still requires server-side card metadata. The
+  fixture reducers are not proof that real catalog cards are all covered.
+- Added server-side card catalog loading from `src/scripts/01-data-and-state.js`.
+  In strict mode, unknown cards and real effect/affiliation cards are rejected
+  until a dedicated reducer exists.
+- Fly server-bootstrapped rooms no longer depend on host `STATE_SYNC` as the
+  opening source of truth. The client applies the server `MATCH_START` state
+  after local game creation.
+- Local WebSocket authority smoke now covers server-normalized `FORFEIT` with
+  empty client payload, room end-state mutation, and winner/loser metadata.
+- The architecture is still not complete until these rejected action families
+  receive server reducers, normal score-based match-end resolution,
+  server-finalized rewards/ELO, disconnect timeout, reconnect replay, and
+  `FATE_WS_REDUCER_MODE=strict` can run a real match.
+
 ## Planned Order
 
 1. Rendering Phase 0: correctness and measurement only.

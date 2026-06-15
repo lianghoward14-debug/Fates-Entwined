@@ -63,7 +63,7 @@ const CARDS = [
     flavor:'"As one of Dylan Kirby\'s fourteen Children, he seems to have inherited his father\'s persuasiveness"',img:'13.png'},
   {id:'14',name:'Alondra Hopkins',ability:'Unseen Strikes',type:'Dauntless',aff:'eventide',
     fate:12,cost:4,rarity:'triangle',
-    effect:'While this card is in play, your Opponent cannot set any Supporter adjacent to this card. Any opponent supporter card that was adjacent or diagonal to this card when it is set are discarded, and this card gains 1 Fate for each one.',
+    effect:'While this card is in play, your opponent cannot set any Supporter adjacent to this card. Any opponent supporter card that was adjacent or diagonal to this card when it is set are discarded, and this card gains 1 Fate for each one.',
     flavor:'"Unmatched speed and agility - her body count is in the thousands"',img:'14.png'},
   {id:'15',name:'Zsofia Szocs',ability:'Blue Danube Waltz',type:'Coordinator',aff:'third_great_war',
       fate:2,cost:2,rarity:'triangle',

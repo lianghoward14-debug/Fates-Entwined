@@ -1,8 +1,99 @@
 //  SCREEN MANAGEMENT
 // ══════════════════════════════════════════════════════════════
+function installFateMenuViewRuntime() {
+  if(window.FateMenuViews) return window.FateMenuViews;
+  const views = new Map();
+  const resolveRoot = root => typeof root === 'function' ? root() : (typeof root === 'string' ? document.querySelector(root) : root);
+  const runtime = {
+    register(name, spec) {
+      if(!name || !spec) return null;
+      const existing = views.get(name) || {};
+      const view = {
+        name,
+        mounted: existing.mounted || false,
+        dirty: existing.dirty !== false,
+        lastSig: existing.lastSig || '',
+        renders: existing.renders || 0,
+        skips: existing.skips || 0,
+        ...existing,
+        ...spec
+      };
+      views.set(name, view);
+      return view;
+    },
+    invalidate(name) {
+      if(name) {
+        const view = views.get(name);
+        if(view) view.dirty = true;
+        return;
+      }
+      views.forEach(view=>{ view.dirty = true; });
+    },
+    markFresh(name, sig) {
+      const view = views.get(name);
+      if(!view) return;
+      view.lastSig = String(sig ?? (typeof view.signature === 'function' ? view.signature({}) : (view.signature || '')));
+      view.dirty = false;
+      view.mounted = true;
+    },
+    markDetached(name) {
+      const view = views.get(name);
+      if(!view) return;
+      view.mounted = false;
+    },
+    render(name, opts) {
+      const view = views.get(name);
+      if(!view) return false;
+      const options = opts || {};
+      const root = resolveRoot(view.root);
+      if(view.root && !root) return false;
+      const sig = String(typeof view.signature === 'function' ? view.signature(options) : (view.signature || ''));
+      const fresh = !options.force && view.mounted && !view.dirty && view.lastSig === sig;
+      if(fresh) {
+        view.skips++;
+        if(typeof view.onFresh === 'function') view.onFresh({root, sig, opts:options, view});
+        return false;
+      }
+      view.dirty = false;
+      const result = typeof view.render === 'function' ? view.render({root, sig, opts:options, view}) : true;
+      view.lastSig = sig;
+      view.mounted = true;
+      view.renders++;
+      return result !== false;
+    },
+    defer(name, opts) {
+      this.postPaint(()=>this.render(name, opts));
+    },
+    postPaint(fn) {
+      requestAnimationFrame(()=>setTimeout(fn, 0));
+    },
+    report() {
+      return Array.from(views.values()).map(view=>({
+        name:view.name,
+        mounted:!!view.mounted,
+        attached:!!(resolveRoot(view.root)?.isConnected),
+        dirty:!!view.dirty,
+        renders:view.renders || 0,
+        skips:view.skips || 0,
+        lastSig:view.lastSig
+      }));
+    }
+  };
+  window.FateMenuViews = runtime;
+  return runtime;
+}
+installFateMenuViewRuntime();
+
 function showScreen(id) {
   const prev = document.querySelector('.screen.active');
   const prevId = prev ? prev.id : null;
+  const lightMenuChange = !!(
+    window.__fateStartupWarmupActive ||
+    window.__fateMenusWarmed ||
+    document.documentElement.classList.contains('fate-low-effects') ||
+    document.documentElement.classList.contains('fate-performance-mode') ||
+    document.documentElement.classList.contains('fate-performance-plus-mode')
+  );
   document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.classList.remove('screen-fade-in');});
   const el = document.getElementById(id);
   el.classList.add('active');
@@ -15,15 +106,20 @@ function showScreen(id) {
     else cleanupTutorialAndDialogueArtifacts({dismissTutorial:true});
   }
   window.dispatchEvent(new CustomEvent('fate-screen-changed', { detail:{from:prevId, to:id} }));
-  // All screens get a subtle fade-in
-  el.classList.add('screen-fade-in');
-  setTimeout(()=>el.classList.remove('screen-fade-in'),500);
+  // Cold menu warmup should make later screen changes direct and cheap.
+  if(!lightMenuChange) {
+    el.classList.add('screen-fade-in');
+    setTimeout(()=>el.classList.remove('screen-fade-in'),500);
+  }
   if(typeof playSfx==='function') playSfx('screenTransition');
   // Log panel disabled
   const lw=document.getElementById('log-wrap');
   if(lw) lw.style.display = 'none';
   // Refresh title profile display when viewing title
-  if(id==='s-title' && typeof renderTitleProfile==='function') renderTitleProfile();
+  if(id==='s-title'){
+    if(typeof safeRenderTitleProfile==='function') safeRenderTitleProfile();
+    else if(typeof renderTitleProfile==='function') renderTitleProfile();
+  }
   // Switch music
   if(typeof onScreenChange==='function') onScreenChange(id);
 }
@@ -33,6 +129,8 @@ function showScreen(id) {
 // ══════════════════════════════════════════════════════════════
 let dbFilter_ = 'all';
 let dbSearch_ = '';
+let _titleDeckBuilderMounted = false;
+let _presetPickerSig = '';
 
 function fateActiveScreenId() {
   return document.querySelector('.screen.active')?.id || '';
@@ -210,25 +308,59 @@ function syncDeckBuilderHeader() {
   if(deckLabel) deckLabel.textContent = 'Deck List';
 }
 
+function titleDeckBuilderDeckSig() {
+  const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
+  return [G.dbCurrentPlayer, G._loadedPresetId || '', (deck || []).join(',')].join('|');
+}
+
+function titleDeckBuilderCollectionSig() {
+  return [dbFilter_, dbSearch_, titleDeckBuilderDeckSig()].join('|');
+}
+
+function syncTitleDeckBuilderPresetWarning() {
+  const pid = G._loadedPresetId;
+  if(pid && typeof PRESET_DECKS!=='undefined' && PRESET_DECKS[pid] && PRESET_DECKS[pid].builtin){
+    if(typeof showStarterDeckWarningBanner==='function') showStarterDeckWarningBanner();
+  } else {
+    if(typeof hideStarterDeckWarningBanner==='function') hideStarterDeckWarningBanner();
+  }
+}
+
+function ensureTitleDeckBuilderViews() {
+  if(!window.FateMenuViews) return;
+  window.FateMenuViews.register('titleDeckCollection', {
+    root: '#db-collection',
+    signature: titleDeckBuilderCollectionSig,
+    render: ()=>renderDBCollection(),
+    onFresh: ()=>refreshDBCollectionCounts()
+  });
+  window.FateMenuViews.register('titleDeckList', {
+    root: '#db-deck-list',
+    signature: titleDeckBuilderDeckSig,
+    render: ()=>renderDBDeck()
+  });
+}
+
 function showDeckBuilder() {
   G.dbCurrentPlayer = 0;
+  const previousSearch = dbSearch_;
   dbSearch_ = '';
   showScreen('s-deck');
   syncDeckBuilderHeader();
   // Title deck builder is now P1-only. (Multiplayer deck selection will come later.)
   const whoBtn = document.getElementById('db-who-btn');
   if(whoBtn) whoBtn.style.display = 'none';
+  ensureTitleDeckBuilderViews();
   const renderAll = ()=>{
     syncDeckBuilderHeader();
-    renderDBCollection();
-    renderDBDeck();
-    // Sync starter-deck warning banner with current preset state
-    const pid = G._loadedPresetId;
-    if(pid && typeof PRESET_DECKS!=='undefined' && PRESET_DECKS[pid] && PRESET_DECKS[pid].builtin){
-      if(typeof showStarterDeckWarningBanner==='function') showStarterDeckWarningBanner();
+    if(window.FateMenuViews) {
+      window.FateMenuViews.render('titleDeckCollection', {force:!!previousSearch});
+      window.FateMenuViews.render('titleDeckList');
     } else {
-      if(typeof hideStarterDeckWarningBanner==='function') hideStarterDeckWarningBanner();
+      renderDBCollection();
+      renderDBDeck();
     }
+    syncTitleDeckBuilderPresetWarning();
   };
   requestAnimationFrame(renderAll);
 }
@@ -238,13 +370,34 @@ function setDbSearch(value) {
   renderDBCollection();
 }
 
-// Show preset picker screen (entry to starting a game)
-function showPresetPicker(vsAI) {
-  showScreen('s-preset');
-  document.getElementById('s-preset')?.classList.toggle('no-edge-corners-modal', !!vsAI);
-  document.getElementById('preset-mode-label').textContent =
-    vsAI ? 'Playing vs AI - pick a preset deck' : 'Both players will use the same preset deck';
+function titlePresetPickerSig(vsAI) {
+  const keys = Object.keys(PRESET_DECKS || {}).sort();
+  const presetSig = keys.map(pid=>{
+    const p = PRESET_DECKS[pid] || {};
+    return [
+      pid,
+      p.name || '',
+      p.description || '',
+      p.faceCardId || '',
+      (p.displayCardIds || []).join(','),
+      (p.ids || []).join(',')
+    ].join(':');
+  }).join('|');
+  return (vsAI ? 'ai' : 'mirror') + '|' + presetSig;
+}
+
+function ensureTitlePresetPickerView() {
+  if(!window.FateMenuViews) return;
+  window.FateMenuViews.register('titlePresetPicker', {
+    root: '#preset-cards',
+    signature: opts=>titlePresetPickerSig(!!opts.vsAI),
+    render: ({opts, sig})=>renderTitlePresetPicker(!!opts.vsAI, sig)
+  });
+}
+
+function renderTitlePresetPicker(vsAI, sig) {
   const container = document.getElementById('preset-cards');
+  if(!container) return;
   container.innerHTML = '';
   const keys = Object.keys(PRESET_DECKS);
   if(keys.length===0){
@@ -297,6 +450,19 @@ function showPresetPicker(vsAI) {
     customBtn.title = '';
     customBtn.setAttribute('aria-hidden','true');
   }
+  _presetPickerSig = sig;
+  container.dataset.presetMounted = '1';
+}
+
+// Show preset picker screen (entry to starting a game)
+function showPresetPicker(vsAI) {
+  showScreen('s-preset');
+  document.getElementById('s-preset')?.classList.toggle('no-edge-corners-modal', !!vsAI);
+  document.getElementById('preset-mode-label').textContent =
+    vsAI ? 'Playing vs AI - pick a preset deck' : 'Both players will use the same preset deck';
+  ensureTitlePresetPickerView();
+  if(window.FateMenuViews) window.FateMenuViews.render('titlePresetPicker', {vsAI:!!vsAI});
+  else renderTitlePresetPicker(!!vsAI, titlePresetPickerSig(!!vsAI));
 }
 
 function toggleDBPlayer() {
@@ -356,6 +522,8 @@ function settleTitleDeckBuilderImages(root) {
 function renderDBCollection() {
   const col = document.getElementById('db-collection');
   if(!col) return;
+  const root = document.getElementById('s-deck');
+  const sig = titleDeckBuilderCollectionSig();
   const searchEl = document.getElementById('db-search');
   if(searchEl && searchEl.value !== dbSearch_) searchEl.value = dbSearch_;
   const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
@@ -378,9 +546,18 @@ function renderDBCollection() {
       };
     });
     if(renderCanvasDeckCollection(col, entries, {
+      virtualize:true,
+      lowScroll:true,
+      maxDpr:1,
+      hoverRedraw:false,
       onClick:(card)=>openDeckBuilderCardDetail(card),
       onContextMenu:(card)=>addToDeck(card.id)
-    })) return;
+    })) {
+      _titleDeckBuilderMounted = true;
+      if(root) root.dataset.dbCollectionSig = sig;
+      if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckCollection', sig);
+      return;
+    }
   }
   const renderSeq = ++_dbCollectionRenderSeq;
   const scrollTop = col.scrollTop;
@@ -406,15 +583,23 @@ function renderDBCollection() {
     col.scrollTop = scrollTop;
     col.removeAttribute('aria-busy');
     refreshDBCollectionCounts();
+    _titleDeckBuilderMounted = true;
+    if(root) root.dataset.dbCollectionSig = sig;
+    if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckCollection', sig);
   });
 }
 
 function refreshDBCollectionCounts() {
+  const root = document.getElementById('s-deck');
   const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
   const deckCounts = getDeckCardCounts(deck);
   if(typeof refreshCanvasDeckCollectionCounts === 'function' && refreshCanvasDeckCollectionCounts(document.getElementById('db-collection'), function(entry){
     entry.count = deckCounts[entry.card.id] || 0;
-  })) return;
+  })) {
+    if(root) root.dataset.dbCollectionSig = titleDeckBuilderCollectionSig();
+    if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckCollection', titleDeckBuilderCollectionSig());
+    return;
+  }
   document.querySelectorAll('#db-collection .db-mc[data-card-id]').forEach(el=>{
     const id = el.dataset.cardId;
     const count = deckCounts[id] || 0;
@@ -431,6 +616,8 @@ function refreshDBCollectionCounts() {
       limit.remove();
     }
   });
+  if(root) root.dataset.dbCollectionSig = titleDeckBuilderCollectionSig();
+  if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckCollection', titleDeckBuilderCollectionSig());
 }
 
 // Open the detail modal from the deck builder, with add/remove actions
@@ -504,6 +691,8 @@ function renderDBDeck() {
   const list = document.getElementById('db-deck-list');
   const cnt = document.getElementById('db-count');
   if(!list || !cnt) return;
+  const root = document.getElementById('s-deck');
+  const sig = titleDeckBuilderDeckSig();
   for(let i=deck.length-1;i>=0;i--){
     if(isRetiredCardForBuilder(deck[i])) deck.splice(i,1);
   }
@@ -532,6 +721,9 @@ function renderDBDeck() {
       if(!ok) cnt._completePlayed=false;
       cnt.textContent = deck.length+' / 40 cards';
       cnt.className='db-count'+(ok?' ok':'');
+      _titleDeckBuilderMounted = true;
+      if(root) root.dataset.dbDeckSig = sig;
+      if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckList', sig);
       return;
     }
   }
@@ -569,6 +761,9 @@ function renderDBDeck() {
   if(!ok) cnt._completePlayed=false;
   cnt.textContent = deck.length+' / 40 cards';
   cnt.className='db-count'+(ok?' ok':'');
+  _titleDeckBuilderMounted = true;
+  if(root) root.dataset.dbDeckSig = sig;
+  if(window.FateMenuViews) window.FateMenuViews.markFresh('titleDeckList', sig);
 }
 
 function addToDeck(id) {

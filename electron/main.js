@@ -240,13 +240,20 @@ function startStaticServer() {
             }
             const ext = path.extname(target).toLowerCase();
             const url = req.url || '';
-            const cacheControl = LONG_CACHE_EXTENSIONS.has(ext) || (VERSIONED_CACHE_EXTENSIONS.has(ext) && /\?v=/.test(url))
+            const cacheControl = LONG_CACHE_EXTENSIONS.has(ext)
               ? 'public, max-age=31536000, immutable'
-              : 'no-cache';
-            res.writeHead(200, {
+              : (VERSIONED_CACHE_EXTENSIONS.has(ext) || ext === '.html'
+                ? 'no-store, no-cache, must-revalidate, max-age=0'
+                : 'no-cache');
+            const headers = {
               'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
               'Cache-Control': cacheControl
-            });
+            };
+            if (cacheControl.includes('no-cache')) {
+              headers.Pragma = 'no-cache';
+              headers.Expires = '0';
+            }
+            res.writeHead(200, headers);
             res.end(data);
           });
         });
@@ -388,6 +395,14 @@ async function createWindow() {
     }
   });
 
+  try {
+    await win.webContents.session.clearCache();
+    await win.webContents.session.clearStorageData({
+      storages: ['serviceworkers', 'cachestorage']
+    });
+  } catch (err) {
+    console.warn('Failed to clear local Electron web cache', err);
+  }
   await win.loadURL(startUrl);
 }
 

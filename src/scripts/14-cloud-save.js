@@ -339,8 +339,15 @@
       return;
     }
     if(_loadingOverlay) return;
+    var startupOverlay = document.getElementById('fate-loading-screen');
+    var canReuseStartupOverlay = !!(startupOverlay && !startupOverlay.classList.contains('fate-loading-assets-done') && !startupOverlay.classList.contains('is-hiding'));
+    if(!canReuseStartupOverlay && (window.__fateMenusWarmed || window.__fateStartupLoadingManaged)){
+      window.__fateCloudLoadingActive = false;
+      window.__fateCloudLoadingSuppressed = true;
+      return;
+    }
     window.__fateCloudLoadingActive = true;
-    _loadingOverlay = document.getElementById('fate-loading-screen') || document.createElement('div');
+    _loadingOverlay = startupOverlay || document.createElement('div');
     const isAssetOverlay = _loadingOverlay.id === 'fate-loading-screen';
     _loadingOverlayWasAsset = isAssetOverlay;
     if(!isAssetOverlay) _loadingOverlay.id = 'cloud-loading-overlay';
@@ -399,12 +406,14 @@
     var timedOut = false;
     var loadTimeout = 0;
     var loadPromise = cloudLoadAll(uid);
+    var startupManagedLoad = !!(window.__fateStartupLoadingManaged || document.getElementById('fate-loading-screen'));
+    var cloudLoadTimeoutMs = startupManagedLoad ? 30000 : 7000;
     var timeoutPromise = new Promise(function(resolve){
       loadTimeout = setTimeout(function(){
         timedOut = true;
         hideCloudLoadingOverlay();
         resolve(true);
-      }, 7000);
+      }, cloudLoadTimeoutMs);
     });
 
     return Promise.race([loadPromise, timeoutPromise]).then(function(hadCloudData){
@@ -429,6 +438,9 @@
       hideCloudLoadingOverlay();
 
       window.dispatchEvent(new CustomEvent('fate-cloud-ready', { detail: { uid: uid } }));
+      if(window.__fateMenusWarmed && typeof window.fateWarmProfileDependentMenus === 'function'){
+        setTimeout(function(){ window.fateWarmProfileDependentMenus().catch(function(){}); }, 0);
+      }
       console.log('[CloudSave] Cloud data ready for ' + uid + (timedOut ? ' after loading screen timeout' : ''));
     }).catch(function(e){
       clearTimeout(loadTimeout);

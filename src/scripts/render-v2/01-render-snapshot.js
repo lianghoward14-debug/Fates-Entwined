@@ -150,6 +150,8 @@
     base.type = card.type || '';
     base.aff = card.aff || '';
     base.rarity = card.rarity || '';
+    base.img = card.img || (visual && visual.img) || '';
+    base.runtimeImg = card.runtimeImg || (visual && visual.runtimeImg) || base.img;
     base.fate = card.fate;
     base.currentFate = card.currentFate;
     base.cost = card.cost;
@@ -159,7 +161,9 @@
       markedForDeath:!!card._markedForDeath,
       noConsolidate:!!card.noConsolidate,
       xFate:!!card.xFate,
-      xCost:!!card.xCost
+      xCost:!!card.xCost,
+      pendingWhenSet:!!card._pendingWhenSetEffect,
+      presentationDeparting:!!card._presentationDeparting
     };
     return base;
   }

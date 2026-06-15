@@ -149,7 +149,7 @@ window._fateMigrateIfNeeded = _fateMigrateIfNeeded;
 window._fateReloadProfile = function() { loadPresetsFromStorage(); };
 
 
-const FATE_BACKGROUND_ASSET_VERSION = 'bg20260526b';
+const FATE_BACKGROUND_ASSET_VERSION = 'bg20260612a';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
   if(path.includes('v=' + FATE_BACKGROUND_ASSET_VERSION)) return path;

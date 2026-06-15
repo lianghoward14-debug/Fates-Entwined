@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateCardTextureCache) return;
 
-  const CACHE_VERSION = 1;
+  const CACHE_VERSION = 2;
   const artRecords = new Map();
   const baseRecords = new Map();
   const stats = {
@@ -13,6 +13,7 @@
     misses:0,
     baseRequests:0,
     baseHits:0,
+    baseFallbackHits:0,
     baseMisses:0,
     baseBuilds:0,
     basePending:0,
@@ -291,6 +292,40 @@
     ].join('|');
   }
 
+  function baseIdentity(card, options){
+    const opts = options || {};
+    const visual = opts.visual || (card && card.visual) || null;
+    const hidden = !!(opts.faceDown || (card && (card.faceDown || card.hidden)) || (visual && visual.isHidden));
+    return {
+      id:String(card && card.id != null ? card.id : (card && card.iid != null ? card.iid : '')),
+      img:cardTextureSrc(card, opts),
+      hidden:hidden ? 'down' : 'up',
+      rarity:String(card && card.rarity ? card.rarity : ''),
+      aff:String(card && card.aff ? card.aff : (visual && visual.aff ? visual.aff : '')),
+      dpr:dprBucket(opts.dpr)
+    };
+  }
+
+  function recordMatchesIdentity(rec, identity){
+    if(!rec || !identity) return false;
+    if(rec.cardId != null) {
+      return String(rec.cardId) === identity.id &&
+        String(rec.artSrc || '') === identity.img &&
+        String(rec.hiddenKey || '') === identity.hidden &&
+        String(rec.rarityKey || '') === identity.rarity &&
+        String(rec.affKey || '') === identity.aff &&
+        String(rec.dprKey || dprBucket(rec.dpr)) === identity.dpr;
+    }
+    const parts = String(rec.key || '').split('|');
+    return parts.length >= 8 &&
+      parts[0] === identity.id &&
+      parts[1] === identity.img &&
+      parts[2] === identity.hidden &&
+      parts[3] === identity.rarity &&
+      parts[4] === identity.aff &&
+      parts[7] === identity.dpr;
+  }
+
   function drawImageCover(ctx, img, x, y, w, h){
     const iw = img.naturalWidth || img.width || 1;
     const ih = img.naturalHeight || img.height || 1;
@@ -376,6 +411,7 @@
       if(typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
       return rec;
     }
+    if(opts.noCreate || opts.peekOnly) return null;
 
     stats.baseMisses++;
     rec = {
@@ -392,6 +428,11 @@
       width,
       height,
       dpr,
+      dprKey:dprBucket(dpr),
+      cardId:String(card && card.id != null ? card.id : (card && card.iid != null ? card.iid : '')),
+      hiddenKey:baseIdentity(card, opts).hidden,
+      rarityKey:String(card && card.rarity ? card.rarity : ''),
+      affKey:String(card && card.aff ? card.aff : (visual && visual.aff ? visual.aff : '')),
       pixels:0,
       artSrc:cardTextureSrc(card, opts)
     };
@@ -413,6 +454,41 @@
     }
     prune();
     return rec;
+  }
+
+  function peekBaseCardTexture(card, size, options){
+    const opts = Object.assign({}, options || {}, {noCreate:true, peekOnly:true});
+    const key = buildBaseKey(card, size, opts);
+    return baseRecords.get(key) || null;
+  }
+
+  function findReadyBaseCardTexture(card, size, options){
+    const opts = options || {};
+    const identity = baseIdentity(card, opts);
+    const width = Math.max(1, Math.round(Number(size && size.w) || Number(size && size.width) || opts.width || 1));
+    const height = Math.max(1, Math.round(Number(size && size.h) || Number(size && size.height) || opts.height || 1));
+    let best = null;
+    let bestScore = Infinity;
+    baseRecords.forEach(function(rec){
+      if(!rec || !rec.loaded || !rec.canvas || rec.failed) return;
+      if(!recordMatchesIdentity(rec, identity)) return;
+      const score = Math.abs((Number(rec.width) || 0) - width) + Math.abs((Number(rec.height) || 0) - height);
+      if(score < bestScore) {
+        best = rec;
+        bestScore = score;
+      }
+    });
+    if(best) {
+      stats.baseFallbackHits++;
+      best.lastUsed = nowMs();
+      best.useCount++;
+    }
+    return best;
+  }
+
+  function isBaseCardTextureReady(card, size, options){
+    const rec = peekBaseCardTexture(card, size, options || {});
+    return !!(rec && rec.loaded && rec.canvas && !rec.failed);
   }
 
   function collectVisibleCards(snapshot, layout){
@@ -559,6 +635,9 @@
     preload,
     preloadVisible,
     getBaseCardTexture,
+    peekBaseCardTexture,
+    findReadyBaseCardTexture,
+    isBaseCardTextureReady,
     getArtBitmap,
     clearUnused,
     report,

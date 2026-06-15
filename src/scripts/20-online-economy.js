@@ -6,6 +6,7 @@
   let marketplaceListings = [];
   let marketplaceTransactions = [];
   let publicDecks = [];
+  let publicDeckDetailCache = new Map();
   let marketplaceUnsub = null;
   let publicDecksUnsub = null;
   let publicDecksPage = 0;
@@ -134,12 +135,11 @@
   }
   function watchPublicDecks(){
     if(!canUseFirebase() || publicDecksUnsub) return;
-    publicDecksUnsub = FO.onValue(cappedFeed('publicDecks', 'updatedAt', PUBLIC_DECK_FEED_LIMIT), snap=>{
+    publicDecksUnsub = FO.onValue(cappedFeed('publicDeckSummaries', 'updatedAt', PUBLIC_DECK_FEED_LIMIT), snap=>{
       publicDecksLoaded = true;
       const raw = snap.val() || {};
       publicDecks = Object.entries(raw)
         .map(([id, value])=>normalizePublicDeck({ deckId:id, id, ...(value || {}) }))
-        .filter(d=>Array.isArray(d.ids) && d.ids.length > 0)
         .sort((a,b)=>avgRating(b) - avgRating(a) || Number(b.updatedAt || b.timestamp || 0) - Number(a.updatedAt || a.timestamp || 0));
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
       try{
@@ -157,6 +157,7 @@
     marketplaceListings = [];
     marketplaceTransactions = [];
     publicDecks = [];
+    publicDeckDetailCache.clear();
     window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
     window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
     window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
@@ -172,19 +173,44 @@
     if(!canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return null; }
     const p = await FO.syncPublicProfile().catch(()=>profile());
     const id = deck.id || deck.deckId || `${u.uid}_${Date.now()}`;
-    const payload = {
-      ...deck,
+    const ids = Array.isArray(deck.ids) ? deck.ids.slice(0, 80) : [];
+    const uniqueIds = Array.from(new Set(ids));
+    const displayCardIds = (Array.isArray(deck.displayCardIds) && deck.displayCardIds.length ? deck.displayCardIds : uniqueIds).slice(0,4);
+    const base = {
       id,
       deckId:id,
       ownerUid:u.uid,
       username:p.chosenUsername || p.displayName || profileName(),
       ownerName:p.chosenUsername || p.displayName || profileName(),
       ownerPhotoURL:p.photoURL || p.profileImg || profilePhoto(),
-      ratings: deck.ratings || {},
-      comments: deck.comments || {},
+      name:String(deck.name || 'Shared Deck').slice(0,80),
+      description:String(deck.description || '').slice(0,240),
+      faceCardId:deck.faceCardId || displayCardIds[0] || '',
+      displayCardIds,
+      sourcePid:deck.sourcePid || '',
+      timestamp:deck.timestamp || Date.now(),
+      createdAt:deck.createdAt || FO.serverTimestamp(),
       updatedAt:FO.serverTimestamp()
     };
-    await FO.set(FO.ref(FO.rtdb, `publicDecks/${id}`), payload);
+    const summary = {
+      ...base,
+      totalCards:ids.length,
+      uniqueCards:uniqueIds.length,
+      ratingAvg:0,
+      ratingCount:0,
+      commentCount:0
+    };
+    const detail = {
+      ...base,
+      ids,
+      totalCards:ids.length,
+      uniqueCards:uniqueIds.length
+    };
+    await FO.update(FO.ref(FO.rtdb), {
+      [`publicDeckSummaries/${id}`]:summary,
+      [`publicDeckDetails/${id}`]:detail
+    });
+    publicDeckDetailCache.set(id, normalizePublicDeck(detail));
     if(window.toast) toast('Deck published');
     return id;
   }
@@ -510,12 +536,20 @@
       id:d.id || d.deckId,
       deckId:d.deckId || d.id,
       username:d.username || d.ownerName || 'Player',
+      ids:Array.isArray(d.ids) ? d.ids : [],
+      displayCardIds:Array.isArray(d.displayCardIds) ? d.displayCardIds : [],
+      totalCards:Number(d.totalCards || (Array.isArray(d.ids) ? d.ids.length : 0)) || 0,
+      uniqueCards:Number(d.uniqueCards || (Array.isArray(d.ids) ? new Set(d.ids).size : 0)) || 0,
+      ratingAvg:Number(d.ratingAvg || 0) || 0,
+      ratingCount:Number(d.ratingCount || ratings.length || 0) || 0,
+      commentCount:Number(d.commentCount || comments.length || 0) || 0,
       ratings,
       comments
     };
   }
   function avgRating(deck){
     const ratings = Array.isArray(deck.ratings) ? deck.ratings : [];
+    if(Number(deck?.ratingCount || 0) > 0) return Number(deck.ratingAvg || 0) || 0;
     if(!ratings.length) return 0;
     return ratings.reduce((sum,r)=>sum + Number(r.stars || 0), 0) / ratings.length;
   }
@@ -523,7 +557,33 @@
     const full = Math.max(0, Math.min(5, Math.round(r)));
     return '&#9733;'.repeat(full) + '&#9734;'.repeat(5 - full);
   }
-  function publicDeckById(id){ return publicDecks.find(d=>d.id === id || d.deckId === id); }
+  function publicDeckById(id){
+    const key = String(id || '');
+    return publicDeckDetailCache.get(key) || publicDecks.find(d=>d.id === key || d.deckId === key);
+  }
+  async function loadPublicDeckDetail(id){
+    const key = String(id || '');
+    if(!key || !canUseFirebase()) return publicDeckById(key);
+    const summary = publicDecks.find(d=>d.id === key || d.deckId === key) || {};
+    const [detailSnap, ratingsSnap, commentsSnap] = await Promise.all([
+      FO.get(FO.ref(FO.rtdb, `publicDeckDetails/${key}`)).catch(()=>null),
+      FO.get(FO.ref(FO.rtdb, `publicDeckRatings/${key}`)).catch(()=>null),
+      FO.get(cappedFeed(`publicDeckComments/${key}`, 'createdAt', 80)).catch(()=>null)
+    ]);
+    const detail = detailSnap?.val?.() || {};
+    const ratingsObj = ratingsSnap?.val?.() || {};
+    const commentsObj = commentsSnap?.val?.() || {};
+    const full = normalizePublicDeck({
+      ...summary,
+      ...detail,
+      id:key,
+      deckId:key,
+      ratings:ratingsObj,
+      comments:commentsObj
+    });
+    if(detail && Object.keys(detail).length) publicDeckDetailCache.set(key, full);
+    return full;
+  }
   function ownsPublicDeck(deck){
     const u = user();
     if(!deck || !u) return false;
@@ -548,7 +608,7 @@
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     publicDecksPage = Math.max(0, Math.min(page, totalPages - 1));
     const pageDecks = sorted.slice(publicDecksPage * pageSize, publicDecksPage * pageSize + pageSize);
-    const totalRatings = sorted.reduce((sum,d)=>sum + (Array.isArray(d.ratings) ? d.ratings.length : 0), 0);
+    const totalRatings = sorted.reduce((sum,d)=>sum + (Number(d.ratingCount || 0) || (Array.isArray(d.ratings) ? d.ratings.length : 0)), 0);
     let html = `<div class="pd-hub">
       <section class="pd-hub-hero">
         <div class="pd-hub-copy">
@@ -618,9 +678,16 @@
     document.getElementById('modal').classList.add('on');
   };
 
-  window.viewPublicDeck = function viewPublicDeck(id){
-    const d = publicDeckById(id);
+  window.viewPublicDeck = async function viewPublicDeck(id){
+    let d = publicDeckById(id);
     if(!d) return;
+    if(!Array.isArray(d.ids) || !d.ids.length){
+      if(typeof resetModalChrome === 'function') resetModalChrome();
+      document.getElementById('modal-body').innerHTML = '<div class="pd-empty-state"><div class="pd-empty-title">Loading deck...</div><p>Opening the deck details.</p></div>';
+      document.getElementById('modal-title').textContent = '';
+      document.getElementById('modal-acts').innerHTML = '';
+    }
+    d = await loadPublicDeckDetail(id).catch(()=>d) || d;
     if(typeof resetModalChrome === 'function') resetModalChrome();
     const counts = {};
     (d.ids || []).forEach(cardId=>{ counts[cardId] = (counts[cardId] || 0) + 1; });
@@ -644,16 +711,16 @@
             <b>${rating.toFixed(1)}</b>
             <em>Rating</em>
             <span class="pd-stars">${renderStars(rating)}</span>
-            <small>${d.ratings.length} vote${d.ratings.length!==1?'s':''}</small>
+            <small>${d.ratingCount || d.ratings.length} vote${(d.ratingCount || d.ratings.length)!==1?'s':''}</small>
           </div>
         </aside>
         <main class="pd-detail-summary">
           <div class="pd-author">Shared by ${esc(d.username)}</div>
           <h2>${esc(d.name || 'Shared Deck')}</h2>
           <div class="pd-detail-metrics">
-            <span><b>${(d.ids || []).length}</b><em>Total Cards</em></span>
-            <span><b>${uniqueCards.length}</b><em>Unique Cards</em></span>
-            <span><b>${(d.comments || []).length}</b><em>Comments</em></span>
+            <span><b>${d.totalCards || (d.ids || []).length}</b><em>Total Cards</em></span>
+            <span><b>${d.uniqueCards || uniqueCards.length}</b><em>Unique Cards</em></span>
+            <span><b>${d.commentCount || (d.comments || []).length}</b><em>Comments</em></span>
           </div>
           <p>${esc(d.description || 'No description yet.')}</p>
         </main>
@@ -729,27 +796,34 @@
       return;
     }
     let removed = true;
-    await FO.remove(FO.ref(FO.rtdb, `publicDecks/${d.deckId || d.id}`)).catch(e=>{
+    const deckId = d.deckId || d.id;
+    await FO.update(FO.ref(FO.rtdb), {
+      [`publicDeckSummaries/${deckId}`]:null,
+      [`publicDeckDetails/${deckId}`]:null,
+      [`publicDeckRatings/${deckId}`]:null,
+      [`publicDeckComments/${deckId}`]:null
+    }).catch(e=>{
       console.error('Remove public deck failed', e);
       if(window.toast) toast('Could not remove deck');
       removed = false;
     });
     if(!removed) return;
     publicDecks = publicDecks.filter(deck => deck.id !== id && deck.deckId !== id);
+    publicDeckDetailCache.delete(deckId);
     if(window.toast) toast('Deck removed from Public Decks');
     showPublicDecks(publicDecksPage);
   };
 
-  window.viewPublicDeckComments = function viewPublicDeckComments(id){
-    const d = publicDeckById(id);
+  window.viewPublicDeckComments = async function viewPublicDeckComments(id){
+    const d = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
     if(!d) return;
     const comments = Array.isArray(d.comments) ? [...d.comments] : [];
     comments.sort(function(a,b){ return (a.timestamp || 0) - (b.timestamp || 0); });
     const u = user();
-    const ratings = d.ratings || {};
-    const myRating = u ? ratings[u.uid] : null;
+    const ratings = Array.isArray(d.ratings) ? d.ratings : [];
+    const myRating = u ? ratings.find(r=>r && r.uid === u.uid) : null;
     const ratingAvg = avgRating(d);
-    const ratingCount = Object.keys(ratings).length;
+    const ratingCount = d.ratingCount || ratings.length;
     const deckDesc = d.description || 'Custom deck';
     const uniqueCount = new Set(d.ids || []).size;
     const faceCard = d.faceCardId ? cardById(d.faceCardId) : cardById((d.ids || [])[0]);
@@ -803,8 +877,8 @@
     if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-comments-modal');
   };
 
-  window.loadPublicDeck = function loadPublicDeck(id){
-    const d = publicDeckById(id);
+  window.loadPublicDeck = async function loadPublicDeck(id){
+    const d = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
     if(!d) return;
     const importName = (d.name || 'Shared Deck') + ' (imported)';
     const alreadyImported = Object.values(PRESET_DECKS || {}).some(function(p){
@@ -832,7 +906,11 @@
   window.submitRating = async function submitRating(id, stars){
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
-    await FO.set(FO.ref(FO.rtdb, `publicDecks/${id}/ratings/${u.uid}`), { uid:u.uid, username:profileName(), stars:Number(stars), timestamp:Date.now() }).catch(function(e){ console.warn('Rating failed', e); });
+    await FO.set(FO.ref(FO.rtdb, `publicDeckRatings/${id}/${u.uid}`), { uid:u.uid, username:profileName(), stars:Number(stars), timestamp:Date.now(), createdAt:FO.serverTimestamp() }).catch(function(e){ console.warn('Rating failed', e); });
+    const deck = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
+    const ratings = Array.isArray(deck?.ratings) ? deck.ratings : [];
+    const ratingAvg = ratings.length ? ratings.reduce((sum,r)=>sum + Number(r.stars || 0), 0) / ratings.length : 0;
+    await FO.update(FO.ref(FO.rtdb, `publicDeckSummaries/${id}`), { ratingAvg, ratingCount:ratings.length, updatedAt:FO.serverTimestamp() }).catch(()=>{});
     if(window.toast) toast('Rating submitted');
     viewPublicDeckComments(id);
   };
@@ -842,7 +920,10 @@
     if(!text){ if(window.toast) toast('Comment cannot be empty'); return; }
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
-    await FO.push(FO.ref(FO.rtdb, `publicDecks/${id}/comments`), { uid:u.uid, username:profileName(), text:text.slice(0,240), timestamp:Date.now() }).catch(e=>console.warn('Comment failed', e));
+    await FO.push(FO.ref(FO.rtdb, `publicDeckComments/${id}`), { uid:u.uid, username:profileName(), text:text.slice(0,240), timestamp:Date.now(), createdAt:FO.serverTimestamp() }).catch(e=>console.warn('Comment failed', e));
+    const deck = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
+    const commentCount = Array.isArray(deck?.comments) ? deck.comments.length : Number(deck?.commentCount || 0) + 1;
+    await FO.update(FO.ref(FO.rtdb, `publicDeckSummaries/${id}`), { commentCount, updatedAt:FO.serverTimestamp() }).catch(()=>{});
     const inCommentWindow = !!document.querySelector('#modal .public-deck-comments-modal');
     setTimeout(()=>inCommentWindow ? viewPublicDeckComments(id) : viewPublicDeck(id), 150);
   };

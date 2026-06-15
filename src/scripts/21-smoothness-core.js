@@ -684,16 +684,222 @@
     return null;
   }
 
+  function waitMatchPreloadMs(ms){
+    return new Promise(function(resolve){ setTimeout(resolve, Math.max(0, Number(ms) || 0)); });
+  }
+
   function warmImage(src, options){
     const opts = options || {};
-    if(!src || warmCache.has(src)) return;
+    if(!src || warmCache.has(src)) return Promise.resolve({src:src || '', cached:true, ok:!!src});
     if(typeof FATE_BACKGROUND_URL === 'function' && /backgrounds|titlscreenbackgrounds|ingamebackgrouds/.test(src)) src = FATE_BACKGROUND_URL(src);
-    if(warmCache.has(src)) return;
+    if(warmCache.has(src)) return Promise.resolve({src, cached:true, ok:true});
     warmCache.add(src);
-    const img = new Image();
-    try{ img.decoding = 'async'; }catch(e){}
-    img.src = src;
-    if(opts.decode !== false && typeof img.decode === 'function') img.decode().catch(()=>{});
+    return new Promise(function(resolve){
+      let done = false;
+      const finish = function(ok, extra){
+        if(done) return;
+        done = true;
+        resolve(Object.assign({src, cached:false, ok:!!ok}, extra || {}));
+      };
+      const img = new Image();
+      const timeout = setTimeout(function(){ finish(false, {timeout:true}); }, Math.max(800, Number(opts.timeoutMs) || 2800));
+      try{ img.decoding = 'async'; }catch(e){}
+      img.onload = function(){
+        if(opts.decode !== false && typeof img.decode === 'function') {
+          img.decode().then(function(){
+            clearTimeout(timeout);
+            finish(true, {decoded:true, width:img.naturalWidth || img.width || 0, height:img.naturalHeight || img.height || 0});
+          }).catch(function(){
+            clearTimeout(timeout);
+            finish(true, {decoded:false, width:img.naturalWidth || img.width || 0, height:img.naturalHeight || img.height || 0});
+          });
+          return;
+        }
+        clearTimeout(timeout);
+        finish(true, {decoded:false, width:img.naturalWidth || img.width || 0, height:img.naturalHeight || img.height || 0});
+      };
+      img.onerror = function(){
+        clearTimeout(timeout);
+        finish(false, {error:true});
+      };
+      img.src = src;
+      if(img.complete && (img.naturalWidth || img.width)) img.onload();
+    });
+  }
+
+  function warmCardTexture(card, options){
+    if(!card || !card.img) return 0;
+    const opts = options || {};
+    const thumb = typeof window.getRuntimeCardImageSrc === 'function' ? window.getRuntimeCardImageSrc(card.img, 'thumb') : card.img;
+    const full = card.img;
+    warmImage(thumb, {decode:opts.decode !== false});
+    if(opts.fullArt) warmImage(full, {decode:false});
+    const cache = window.FateCardTextureCache;
+    if(!cache) return 1;
+    try {
+      const visual = Object.assign({}, card.visual || {}, {
+        runtimeImg:thumb,
+        img:full,
+        name:card.name,
+        rarity:card.rarity,
+        aff:card.aff
+      });
+      if(typeof cache.preload === 'function') cache.preload(thumb, {source:opts.source || 'match-prewarm'});
+      if(typeof cache.getBaseCardTexture === 'function') {
+        const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+        const source = opts.source || 'match-prewarm';
+        cache.getBaseCardTexture(card, {w:74, h:104}, {visual, dpr, preferFullArt:true, source:source + '-hand'});
+        if(!opts.light) cache.getBaseCardTexture(card, {w:96, h:134}, {visual, dpr, preferFullArt:true, source:source + '-board'});
+      }
+    } catch(e) {}
+    return 1;
+  }
+
+  function waitForTextureRecords(records, timeoutMs){
+    const list = (records || []).filter(Boolean);
+    const started = performance.now();
+    return new Promise(function(resolve){
+      function finish(reason){
+        const pending = list.filter(function(rec){ return rec && rec.pending && !rec.loaded && !rec.failed; }).length;
+        const loaded = list.filter(function(rec){ return rec && rec.loaded; }).length;
+        const failed = list.filter(function(rec){ return rec && rec.failed; }).length;
+        resolve({reason, loaded, failed, pending, total:list.length});
+      }
+      function tick(){
+        const pending = list.some(function(rec){ return rec && rec.pending && !rec.loaded && !rec.failed; });
+        if(!pending) return finish('ready');
+        if(performance.now() - started >= timeoutMs) return finish('timeout');
+        setTimeout(tick, 80);
+      }
+      tick();
+    });
+  }
+
+  async function warmMatchAssetsNow(options){
+    const opts = options || {};
+    const started = performance.now();
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
+    const source = opts.source || 'matchup-loader';
+    const maxCards = Math.max(20, Math.min(120, Number(opts.maxCards) || 80));
+    const cards = collectMatchWarmCards({light:false}).slice(0, maxCards);
+    const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+    const records = [];
+    const staticAssets = ['blank.png','back.png','deck.png'];
+    let warmedCards = 0;
+    let imageOk = 0;
+    let imageFailed = 0;
+    const total = Math.max(1, cards.length + staticAssets.length + 2);
+    const publish = function(stage, done, extra){
+      const item = Object.assign({
+        stage,
+        done,
+        total,
+        progress:Math.max(0, Math.min(1, done / total)),
+        cards:warmedCards
+      }, extra || {});
+      perf.matchWarmupProgress = item;
+      onProgress(item);
+    };
+    publish('collect', 0, {cardCount:cards.length});
+    for(let i = 0; i < cards.length; i++){
+      const card = cards[i];
+      const thumb = typeof window.getRuntimeCardImageSrc === 'function' ? window.getRuntimeCardImageSrc(card.img, 'thumb') : card.img;
+      const full = card.img;
+      const visual = Object.assign({}, card.visual || {}, {
+        runtimeImg:thumb,
+        img:full,
+        name:card.name,
+        rarity:card.rarity,
+        aff:card.aff
+      });
+      const imgResult = await warmImage(thumb, {decode:true, timeoutMs:3200});
+      if(imgResult && imgResult.ok) imageOk += 1;
+      else imageFailed += 1;
+      if(full && full !== thumb) warmImage(full, {decode:false, timeoutMs:3200});
+      const cache = window.FateCardTextureCache;
+      if(cache && typeof cache.getBaseCardTexture === 'function'){
+        try{
+          records.push(cache.getBaseCardTexture(card, {w:74, h:104}, {visual, dpr, preferFullArt:true, source:source + '-hand'}));
+          records.push(cache.getBaseCardTexture(card, {w:96, h:134}, {visual, dpr, preferFullArt:true, source:source + '-board'}));
+        }catch(e){}
+      }
+      warmedCards += 1;
+      publish('cards', Math.min(total - 2, warmedCards), {cardName:card.name || '', imageOk, imageFailed});
+      if(i % 4 === 3) await waitMatchPreloadMs(0);
+    }
+    for(let i = 0; i < staticAssets.length; i++){
+      const result = await warmImage(staticAssets[i], {decode:true, timeoutMs:2200});
+      if(result && result.ok) imageOk += 1;
+      else imageFailed += 1;
+      publish('static', cards.length + i + 1, {asset:staticAssets[i], imageOk, imageFailed});
+    }
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmAssetImages === 'function') {
+      try {
+        await window.FateMatchRendererAdapter.prewarmAssetImages(staticAssets);
+      } catch(e) {}
+    }
+    if(typeof window.fateWarmMenuAudioSamples === 'function') {
+      window.fateWarmMenuAudioSamples([
+        'supporterSet',
+        'characterSet',
+        'characterSet_Initiator',
+        'characterSet_Coordinator',
+        'characterSet_Dauntless',
+        'characterSet_Improvisor',
+        'place',
+        'starPlace',
+        'coinFlip'
+      ]);
+    }
+    if(typeof window.fateWarmSyntheticSfx === 'function') {
+      window.fateWarmSyntheticSfx(['draw','place','consolidate','discard']);
+    }
+    publish('textures', total - 1, {records:records.length});
+    const textureWait = await waitForTextureRecords(records, Math.max(1200, Number(opts.textureTimeoutMs) || 4200));
+    const report = {
+      at:Math.round(performance.now()),
+      ms:Math.round((performance.now() - started) * 10) / 10,
+      source,
+      cards:warmedCards,
+      imageOk,
+      imageFailed,
+      textureRecords:records.length,
+      textureWait,
+      textureCache:window.FateCardTextureCache && typeof window.FateCardTextureCache.report === 'function'
+        ? window.FateCardTextureCache.report()
+        : null
+    };
+    perf.matchWarmup = report;
+    publish('ready', total, report);
+    recordLifecycleEvent('match-preload-complete', report);
+    return report;
+  }
+
+  function collectMatchWarmCards(options){
+    const opts = options || {};
+    const g = (typeof G !== 'undefined' && G) ? G : null;
+    const cards = [];
+    if(!g || !Array.isArray(g.players)) return cards;
+    g.players.forEach(function(player){
+      if(!player) return;
+      cards.push(...((player.hand || []).slice(0, 8)));
+      cards.push(...((player.deck || []).slice(0, opts.light ? 8 : 18)));
+      if(!opts.light) cards.push(...((player.discard || []).slice(-4)));
+    });
+    (g.board || []).forEach(function(zone){
+      (zone || []).forEach(function(row){
+        (row || []).forEach(function(card){ if(card) cards.push(card); });
+      });
+    });
+    const seen = new Set();
+    return cards.filter(function(card){
+      if(!card || !card.img) return false;
+      const key = String(card.iid || '') + '|' + String(card.id || '') + '|' + String(card.img || '');
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   const menuSchedulerState = {
@@ -820,6 +1026,16 @@
     const opts = options || {};
     const electronMatch = isElectronShell() && document.getElementById('s-game')?.classList.contains('active');
     const perf = window.__fatePerf = window.__fatePerf || {};
+    const progress = perf.matchWarmupProgress || null;
+    if(progress && progress.source === 'matchup-loader' && progress.stage === 'ready' && /^pre-match-/.test(String(opts.source || ''))) {
+      perf.matchWarmupSkipped = {
+        at:Math.round(performance.now()),
+        reason:'matchup-loader-already-ready',
+        source:opts.source || '',
+        policy:'legacy-pre-match-warmup-disabled'
+      };
+      return;
+    }
     if(electronMatch && !opts.force){
       perf.matchWarmupSkipped = {
         at:Math.round(performance.now()),
@@ -830,24 +1046,51 @@
     }
     idle(function(){
       try{
-        const g = (typeof G !== 'undefined' && G) ? G : null;
-        const active = [];
-        if(g && Array.isArray(g.players)){
-          g.players.forEach(function(p){
-            active.push(...((p.hand || []).slice(0, opts.light ? 6 : 12)));
-            if(!opts.light) active.push(...((p.deck || []).slice(0, 10)));
-            if(!opts.light) active.push(...((p.discard || []).slice(-4)));
+        const active = collectMatchWarmCards(opts).slice(0, opts.light ? 32 : 60);
+        let warmed = 0;
+        active.forEach(function(card){
+          warmed += warmCardTexture(card, {
+            light:!!opts.light,
+            fullArt:!opts.light,
+            decode:!opts.light,
+            source:opts.source || 'match-prewarm'
           });
-          (g.board || []).forEach(function(zone){ (zone || []).forEach(function(row){ (row || []).forEach(function(card){ if(card) active.push(card); }); }); });
+        });
+        if(typeof window.fateWarmMenuAudioSamples === 'function') {
+          window.fateWarmMenuAudioSamples([
+            'supporterSet',
+            'characterSet',
+            'characterSet_Initiator',
+            'characterSet_Coordinator',
+            'characterSet_Dauntless',
+            'characterSet_Improvisor',
+            'place',
+            'starPlace'
+          ]);
         }
-        active.slice(0, opts.light ? 16 : 48).forEach(card=>{
-          if(!card || !card.img) return;
-          const src = typeof window.getRuntimeCardImageSrc === 'function' ? window.getRuntimeCardImageSrc(card.img, 'thumb') : card.img;
-          warmImage(src, {decode:!opts.light});
-        });
-        if(!opts.light) active.slice(0, 24).forEach(card=>{
-          if(card && card.img) warmImage(card.img);
-        });
+        if(!opts.light && typeof window.fateWarmSyntheticSfx === 'function') {
+          window.fateWarmSyntheticSfx(['draw','place','consolidate','discard']);
+        }
+        const latestProgress = perf.matchWarmupProgress || null;
+        if(latestProgress && latestProgress.source === 'matchup-loader' && latestProgress.stage === 'ready' && /^pre-match-/.test(String(opts.source || ''))) {
+          perf.matchWarmupSkipped = {
+            at:Math.round(performance.now()),
+            reason:'matchup-loader-already-ready',
+            source:opts.source || '',
+            policy:'legacy-pre-match-report-suppressed'
+          };
+          return;
+        }
+        perf.matchWarmup = {
+          at:Math.round(performance.now()),
+          light:!!opts.light,
+          force:!!opts.force,
+          source:opts.source || '',
+          cards:warmed,
+          textureCache:window.FateCardTextureCache && typeof window.FateCardTextureCache.report === 'function'
+            ? window.FateCardTextureCache.report()
+            : null
+        };
       }catch(e){}
       ['blank.png','back.png','deck.png'].forEach(function(src){ warmImage(src, {decode:!opts.light}); });
     });
@@ -1094,6 +1337,16 @@
 
   function cleanupStartupWarmupOverlays(){
     try{
+      if(typeof window.closeMissionControl === 'function') {
+        try { window.closeMissionControl(); } catch(e) {}
+      } else {
+        const mission = document.getElementById('mission-control-window');
+        if(mission) {
+          mission.classList.remove('on');
+          mission.hidden = true;
+        }
+        if(document.body) document.body.classList.remove('mission-control-open');
+      }
       const difficulty = document.getElementById('s-difficulty-overlay');
       if(difficulty) difficulty.classList.remove('on','no-edge-corners-modal');
       const preset = document.getElementById('s-preset-overlay');
@@ -1181,6 +1434,25 @@
     cleanupStartupWarmupOverlays();
   }
 
+  async function warmChooseDeckMenu(){
+    const fn = window.renderFreePlayTitlePresetDeckPickModal
+      || window.renderChallengerDeckPickModal
+      || window.showFreePlayTitlePresetModal
+      || window.showTitlePresetModal
+      || window.showDeckPickModal;
+    if(typeof fn !== 'function') return;
+    try {
+      if(fn === window.renderFreePlayTitlePresetDeckPickModal || fn === window.renderChallengerDeckPickModal) fn.call(window, 0);
+      else fn.call(window);
+    } catch(e) { return; }
+    await waitStartupFrame(2);
+    const modal = document.getElementById('modal');
+    if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(modal);
+    await forceWarmLayout(modal, 54);
+    await warmVisibleImages(modal, 16);
+    cleanupStartupWarmupOverlays();
+  }
+
   function prepareChallengerWarmupScreen(){
     if(typeof window.showScreen === 'function') window.showScreen('s-challenger');
     if(typeof window.seedBuiltInPresets === 'function') window.seedBuiltInPresets();
@@ -1234,6 +1506,9 @@
     if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(root);
     await forceWarmLayout(root, 36);
     await waitStartupFrame(1);
+    if(typeof window.closeMissionControl === 'function') {
+      try { window.closeMissionControl(); } catch(e) {}
+    }
   }
 
   function scheduleBackgroundMenuPreloads(){
@@ -1366,7 +1641,7 @@
     window.__fateStartupWarmupCancelled = false;
     try{ if(window.__fateStartupLoadingFallback) clearTimeout(window.__fateStartupLoadingFallback); }catch(e){}
     const assetTotal = collectInitialAssets().length;
-    const menuStepTotal = 8;
+    const menuStepTotal = 11;
     const state = {done:0, total:assetTotal + menuStepTotal, cancelled:false, errors:[]};
     const originalScreen = getActiveScreenId() || 's-title';
     showInitialLoadingScreen(state.total, {
@@ -1406,8 +1681,14 @@
       await runNonVisualPrep('Preparing Free Play', 'Caching Free Play templates and images.', function(){
         return warmFreePlayMenu();
       });
+      await runNonVisualPrep('Preparing Choose Deck', 'Caching deck picker templates and thumbnails.', function(){
+        return warmChooseDeckMenu();
+      });
       await runNonVisualPrep('Preparing AI Picker', 'Caching opponent templates and portraits.', function(){
-        if(typeof window.fateWarmAIPickerAssets === 'function') return window.fateWarmAIPickerAssets();
+        return warmAiPickerMenu();
+      });
+      await runNonVisualPrep('Preparing Deck Builder', 'Prebuilding title deck builder layout.', function(){
+        return warmDeckBuilderMenu();
       });
       await runNonVisualPrep('Syncing Profile', 'Waiting for real collection and deck data before warming Challenger.', function(){
         return waitForProfileDataForMenuWarmup();
@@ -1425,9 +1706,18 @@
         return warmChallengerTab('deckbuilder');
       });
       await runNonVisualPrep('Finalizing Menus', 'Scheduling remaining menu asset work.', function(){
+        if(typeof window.showMissionControl === 'function') {
+          try { window.showMissionControl(); } catch(e) {}
+        }
         const title = document.getElementById('s-title');
         optimizeImages(title || document);
         scheduleBackgroundMenuPreloads();
+        if(typeof warmMissionMenu === 'function') {
+          return Promise.resolve(warmMissionMenu()).then(function(){
+            cleanupStartupWarmupOverlays();
+          });
+        }
+        cleanupStartupWarmupOverlays();
       });
       return 'complete';
     })();
@@ -1546,21 +1836,16 @@
         cancelStartupWarmup('start-game');
         const entryEpoch = markMatchEntry('start-game');
         const result = origStart.apply(this, arguments);
-        if(!isElectronShell()){
-          matchWarmupTimers.push(setTimeout(function(){
-            if(entryEpoch === matchEntryEpoch) warmGameAssets({light:true});
-          }, 900));
-          matchWarmupTimers.push(setTimeout(function(){
-            if(entryEpoch === matchEntryEpoch) warmGameAssets({light:true});
-          }, 2400));
-        } else {
-          const perf = window.__fatePerf = window.__fatePerf || {};
-          perf.matchWarmupSkipped = {
-            at:Math.round(performance.now()),
-            reason:'electron-start-game',
-            policy:'no-hidden-match-warmup'
-          };
-        }
+        if(typeof window.fateWarmMatchAssets === 'function') return result;
+        matchWarmupTimers.push(setTimeout(function(){
+          if(entryEpoch === matchEntryEpoch) warmGameAssets({light:false, force:true, source:'pre-match-early'});
+        }, 120));
+        matchWarmupTimers.push(setTimeout(function(){
+          if(entryEpoch === matchEntryEpoch) warmGameAssets({light:false, force:true, source:'pre-match-mid'});
+        }, 950));
+        matchWarmupTimers.push(setTimeout(function(){
+          if(entryEpoch === matchEntryEpoch) warmGameAssets({light:true, force:true, source:'pre-match-late'});
+        }, 2400));
         return result;
       };
       window.startGame.__fateSmoothWarmWrapped = true;
@@ -1903,12 +2188,17 @@
         startupWarmupCancelled: perf.startupWarmupCancelled || null,
         menuScheduler: window.FateMenuScheduler && typeof window.FateMenuScheduler.report === 'function' ? window.FateMenuScheduler.report() : null,
         menuViews: window.FateMenuViews && typeof window.FateMenuViews.report === 'function' ? window.FateMenuViews.report() : null,
-        renderRequests: perf.renderRequests || 0,
-        broadRenderRequests: perf.broadRenderRequests || 0,
-        scopedRenderRequests: perf.scopedRenderRequests || 0,
-        lastRenderRequestParts: perf.lastRenderRequestParts || '',
-        lastBroadRenderParts: perf.lastBroadRenderParts || '',
-        lastScopedRenderParts: perf.lastScopedRenderParts || '',
+          renderRequests: perf.renderRequests || 0,
+          broadRenderRequests: perf.broadRenderRequests || 0,
+          scopedRenderRequests: perf.scopedRenderRequests || 0,
+          pointerDeferredGameRenders: perf.pointerDeferredGameRenders || 0,
+          pointerBypassedGameRenderDeferrals: perf.pointerBypassedGameRenderDeferrals || 0,
+          lastPointerRenderDecision: perf.lastPointerRenderDecision || null,
+          v2BoardActionFastPathRenders: perf.v2BoardActionFastPathRenders || 0,
+          lastV2BoardActionFastPath: perf.lastV2BoardActionFastPath || null,
+          lastRenderRequestParts: perf.lastRenderRequestParts || '',
+          lastBroadRenderParts: perf.lastBroadRenderParts || '',
+          lastScopedRenderParts: perf.lastScopedRenderParts || '',
         canvasBoard: typeof window.fateCanvasBoardReport === 'function' ? window.fateCanvasBoardReport() : null,
         actionPresentation: typeof window.fateActionPerfReport === 'function' ? window.fateActionPerfReport() : null,
         vfx: window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
@@ -2250,9 +2540,14 @@
           hardRecoveries: perf.hardRecoveries || 0,
           lastHardRecoveryReason: perf.lastHardRecoveryReason || '',
           lastHardRecoveryMs: perf.lastHardRecoveryMs || 0,
-          suppressedOffscreenGameRenders: perf.suppressedOffscreenGameRenders || 0,
-          lastSuppressedGameRender: perf.lastSuppressedGameRender || null,
-          renderRequests: perf.renderRequests || 0,
+        suppressedOffscreenGameRenders: perf.suppressedOffscreenGameRenders || 0,
+        lastSuppressedGameRender: perf.lastSuppressedGameRender || null,
+        matchEntry: perf.matchEntry || null,
+        matchWarmup: perf.matchWarmup || null,
+        matchWarmupProgress: perf.matchWarmupProgress || null,
+        matchWarmupSkipped: perf.matchWarmupSkipped || null,
+        startupWarmupCancelled: perf.startupWarmupCancelled || null,
+        renderRequests: perf.renderRequests || 0,
           broadRenderRequests: perf.broadRenderRequests || 0,
           scopedRenderRequests: perf.scopedRenderRequests || 0,
           lastRenderRequestParts: perf.lastRenderRequestParts || '',
@@ -2287,7 +2582,9 @@
         renderCallers,
         menuSummary:summarizeMenuSamples(),
         recentMenuSamples:(perf.menuSamples || []).slice(-30),
-        recentLongTasks: (perf.longTaskSamples || []).slice(-12),
+          recentLongTasks: (perf.longTaskSamples || []).slice(-12),
+          matchTraceSummary:summarizeMatchSamples(),
+          recentMatchSamples:(perf.matchSamples || []).slice(-20),
         lifecycleEvents: (perf.lifecycleEvents || lifecycleEvents || []).slice(-20),
         browserRenderThrottleLastProbe: perf.browserRenderThrottleLastProbe || null,
         browserRenderThrottleLast: perf.browserRenderThrottleLast || null,
@@ -2315,6 +2612,120 @@
         delete item.totalMs;
       });
       return out;
+    }
+    function recordMatchSample(sample){
+      try{
+        const active = getActiveScreenId();
+        const inGame = active === 's-game';
+        if(!inGame && !(sample && sample.force)) return;
+        perf.matchSamples = perf.matchSamples || [];
+        const row = Object.assign({
+          at:Date.now(),
+          startMs:0,
+          endMs:0,
+          screen:active,
+          turn:(typeof G !== 'undefined' && G ? G.turn : null),
+          currentPlayer:(typeof G !== 'undefined' && G ? G.currentPlayer : null)
+        }, sample || {});
+        perf.matchSamples.push(row);
+        if(perf.matchSamples.length > 160) perf.matchSamples.splice(0, perf.matchSamples.length - 160);
+        const key = row.name || row.kind || 'unknown';
+        perf.matchTraceStats = perf.matchTraceStats || {};
+        const stat = perf.matchTraceStats[key] || (perf.matchTraceStats[key] = {count:0, totalMs:0, maxMs:0, slow:0, lastMs:0, lastAt:0});
+        const ms = Number(row.ms) || 0;
+        stat.count += 1;
+        stat.totalMs += ms;
+        stat.maxMs = Math.max(stat.maxMs || 0, ms);
+        stat.lastMs = ms;
+        stat.lastAt = row.at || Date.now();
+        if(ms >= 34) stat.slow += 1;
+      }catch(e){}
+    }
+    function summarizeMatchSamples(){
+      const stats = perf.matchTraceStats || {};
+      return Object.entries(stats).map(function(entry){
+        const name = entry[0];
+        const item = entry[1] || {};
+        const count = Number(item.count) || 0;
+        return {
+          name,
+          count,
+          avgMs:count ? Math.round((Number(item.totalMs || 0) / count) * 10) / 10 : 0,
+          maxMs:Math.round((Number(item.maxMs) || 0) * 10) / 10,
+          slow:Number(item.slow) || 0,
+          lastMs:Math.round((Number(item.lastMs) || 0) * 10) / 10
+        };
+      }).sort(function(a, b){ return (b.maxMs || 0) - (a.maxMs || 0) || (b.count || 0) - (a.count || 0); }).slice(0, 20);
+    }
+    function matchSamplesNearWindow(startMs, durationMs){
+      try{
+        const start = Number(startMs) || 0;
+        const end = start + (Number(durationMs) || 0);
+        return (perf.matchSamples || []).filter(function(sample){
+          const s = Number(sample.startMs) || 0;
+          const e = Number(sample.endMs) || s;
+          return e >= start - 8 && s <= end + 8;
+        }).slice(-8).map(function(sample){
+          return {
+            name:sample.name || sample.kind || 'unknown',
+            ms:sample.ms || 0,
+            startMs:Math.round((Number(sample.startMs) || 0) * 10) / 10,
+            endMs:Math.round((Number(sample.endMs) || 0) * 10) / 10,
+            label:sample.label || '',
+            turn:sample.turn,
+            currentPlayer:sample.currentPlayer
+          };
+        });
+      }catch(e){
+        return [];
+      }
+    }
+    function lightMatchTraceSnapshot(){
+      const active = getActiveScreenId();
+      const perfState = window.__fatePerf || {};
+      return {
+        at:new Date().toISOString(),
+        activeScreen:active,
+        hidden:document.hidden || !!window.__fatePageHidden,
+        gameState:readCompactGameState(),
+        perf:{
+          longTasks:perfState.longTasks || 0,
+          nativeTimerDelayMs:perfState.nativeTimerDelayMs || 0,
+          renderRequests:perfState.renderRequests || 0,
+          broadRenderRequests:perfState.broadRenderRequests || 0,
+          scopedRenderRequests:perfState.scopedRenderRequests || 0,
+          lastRenderRequestParts:perfState.lastRenderRequestParts || '',
+          matchEntry:perfState.matchEntry || null,
+          matchWarmup:perfState.matchWarmup || null,
+          matchWarmupProgress:perfState.matchWarmupProgress || null,
+          matchTraceSummary:summarizeMatchSamples()
+        },
+        recentMatchSamples:(perfState.matchSamples || []).slice(-20),
+        recentLongTasks:(perfState.longTaskSamples || []).slice(-12),
+        actionPresentation:typeof window.fateActionPerfReport === 'function' ? window.fateActionPerfReport() : null,
+        vfx:window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? (function(report){
+          return report ? {
+            active:report.active || null,
+            performance:report.performance || null,
+            eventBridge:report.eventBridge || null
+          } : null;
+        })(window.FateVfxDirector.report()) : null,
+        matchRenderer:window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function' ? (function(report){
+          return report ? {
+            draws:report.draws,
+            dirtyDraws:report.dirtyDraws,
+            fullSceneRedraws:report.fullSceneRedraws,
+            cardLayerOnlyDraws:report.cardLayerOnlyDraws,
+            vfxOnlyDraws:report.vfxOnlyDraws,
+            lastMs:report.lastMs,
+            avgMs:report.avgMs,
+            maxMs:report.maxMs,
+            source:report.source,
+            lastDirtySource:report.lastDirtySource
+          } : null;
+        })(window.FateMatchRendererAdapter.report()) : null,
+        diagnosticsMode:'match-light'
+      };
     }
     window.fateTraceLag = function(seconds){
       const durationMs = Math.max(2000, Math.min(20000, Math.round((Number(seconds) || 8) * 1000)));
@@ -2542,7 +2953,7 @@
     function compactMinuteSnapshot(snapshot){
       if(!snapshot) return null;
       return {
-        loggerVersion:2,
+        loggerVersion:3,
         at:snapshot.at,
         activeScreen:snapshot.activeScreen,
         hidden:snapshot.hidden,
@@ -2573,6 +2984,7 @@
     }
     function readFrameGapContext(gapMs, now, isMatch){
       const perfState = window.__fatePerf || {};
+      const richContext = Number(gapMs) >= 100;
       let action = null;
       try{
         if(typeof window.fateActionPerfReport === 'function') {
@@ -2585,7 +2997,7 @@
       }catch(e){}
       let vfx = null;
       try{
-        if(window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function') {
+        if(richContext && window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function') {
           const report = window.FateVfxDirector.report();
           vfx = report ? {
             active:report.active || null,
@@ -2600,7 +3012,7 @@
       }catch(e){}
       let matchRenderer = null;
       try{
-        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function') {
+        if(richContext && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function') {
           const report = window.FateMatchRendererAdapter.report();
           matchRenderer = report ? {
             source:report.source || '',
@@ -2617,7 +3029,7 @@
         }
       }catch(e){}
       let animationCount = 0;
-      try{ animationCount = document.getAnimations ? document.getAnimations().length : 0; }catch(e){}
+      if(richContext) try{ animationCount = document.getAnimations ? document.getAnimations().length : 0; }catch(e){}
       const entry = perfState.matchEntry || null;
       const entryAgeMs = entry && entry.at ? Math.max(0, now - entry.at) : null;
       return {
@@ -2632,7 +3044,9 @@
         visibilityState:document.visibilityState || '',
         nativeTimerDelayMs:Math.round((Number(perfState.nativeTimerDelayMs) || 0) * 10) / 10,
         longTasks:Number(perfState.longTasks) || 0,
-        recentLongTasks:(perfState.longTaskSamples || []).slice(-4),
+          recentLongTasks:(perfState.longTaskSamples || []).slice(-4),
+          recentMatchSamples:(perfState.matchSamples || []).slice(-8),
+          matchTraceSummary:summarizeMatchSamples(),
         renderRequests:Number(perfState.renderRequests) || 0,
         broadRenderRequests:Number(perfState.broadRenderRequests) || 0,
         scopedRenderRequests:Number(perfState.scopedRenderRequests) || 0,
@@ -2710,6 +3124,8 @@
         intervalSlowGaps:[],
         intervalSlowGapDetails:[],
         sampleBusy:false,
+        lightMatchLogging:isMatch && opts.deepSnapshots !== true,
+        deepEvery:isMatch ? Math.max(0, Math.min(60, Number(opts.deepEvery) || 0)) : 1,
         timer:0,
         frameRaf:0
       };
@@ -2725,10 +3141,12 @@
           const roundedGap = Math.round(gap * 10) / 10;
           state.intervalSlowGaps.push(roundedGap);
           if(state.intervalSlowGaps.length > 20) state.intervalSlowGaps.shift();
-          try{
-            state.intervalSlowGapDetails.push(readFrameGapContext(roundedGap, now, isMatch));
-            if(state.intervalSlowGapDetails.length > 12) state.intervalSlowGapDetails.shift();
-          }catch(e){}
+          if(gap > 50 || state.intervalSlowGapDetails.length < 3) {
+            try{
+              state.intervalSlowGapDetails.push(readFrameGapContext(roundedGap, now, isMatch));
+              if(state.intervalSlowGapDetails.length > 8) state.intervalSlowGapDetails.shift();
+            }catch(e){}
+          }
         }
         state.frameRaf = requestAnimationFrame(frame);
       }
@@ -2761,7 +3179,8 @@
         if(state.stopped || state.sampleBusy) return;
         state.sampleBusy = true;
         try{
-          await readElectronPerformanceInfo();
+          const deepSnapshot = !isMatch || !state.lightMatchLogging || (state.deepEvery > 0 && state.sampleCount > 0 && state.sampleCount % state.deepEvery === 0);
+          if(deepSnapshot) await readElectronPerformanceInfo();
           const elapsedMs = Math.round(performance.now() - state.startedAt);
           const payload = {
             type:kind || 'sample',
@@ -2771,8 +3190,9 @@
             elapsedMs,
             frameInterval:readFrameInterval(),
             logKind:state.kind,
-            snapshot:compactMinuteSnapshot(getLagTraceSnapshot())
+            snapshot:deepSnapshot ? compactMinuteSnapshot(getLagTraceSnapshot()) : lightMatchTraceSnapshot()
           };
+          if(state.lightMatchLogging) payload.diagnosticsMode = deepSnapshot ? 'match-deep' : 'match-light';
           state.sampleCount += 1;
           await api.appendUiMinuteLog(payload);
           const activeScreen = getActiveScreenId();
@@ -2808,7 +3228,7 @@
         sessionId:state.sessionId,
         reason:reason || 'main-menu-diagnostics',
         logKind:state.kind,
-        loggerVersion:2,
+        loggerVersion:3,
         startedAt:state.startedIso,
         durationMs,
         intervalMs,
@@ -2875,7 +3295,7 @@
         const to = ev && ev.detail && ev.detail.to || getActiveScreenId();
         if(to === 's-game') {
           if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) stopMenuMinuteLog('entered-game-screen');
-          startMatchMinuteLog('entered-game-screen', {durationMs:3600000, intervalMs:1000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
+          startMatchMinuteLog('entered-game-screen', {durationMs:3600000, intervalMs:2000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
         } else {
           if(activeMatchMinuteLog && !activeMatchMinuteLog.stopped) {
             if(activeMatchMinuteLog.untilEndScreen && to === 's-win') {
@@ -2984,7 +3404,8 @@
             perf.longTaskSamples.push({
               duration: Math.round(entry.duration * 10) / 10,
               start: Math.round(entry.startTime * 10) / 10,
-              name: entry.name || 'longtask'
+              name: entry.name || 'longtask',
+              matchSamples: matchSamplesNearWindow(entry.startTime, entry.duration)
             });
           });
           if(perf.longTaskSamples.length > 40) perf.longTaskSamples.splice(0, perf.longTaskSamples.length - 40);
@@ -3065,10 +3486,45 @@
       if(typeof fn !== 'function' || fn.__fatePerfWrapped) return;
       window[name] = function(){
         const t0 = performance.now();
-        try{ return fn.apply(this, arguments); }
+        try{
+          const result = fn.apply(this, arguments);
+          if(result && typeof result.then === 'function' && opts && opts.async){
+            const label = summarizeArgs(arguments);
+            result.then(function(){
+              recordMatchSample({
+                kind:'async-complete',
+                name,
+                ms:Math.round((performance.now() - t0) * 10) / 10,
+                startMs:t0,
+                endMs:performance.now(),
+                label
+              });
+            }, function(){
+              recordMatchSample({
+                kind:'async-error',
+                name,
+                ms:Math.round((performance.now() - t0) * 10) / 10,
+                startMs:t0,
+                endMs:performance.now(),
+                label
+              });
+            });
+          }
+          return result;
+        }
         finally{
           const ms = performance.now() - t0;
           const rounded = Math.round(ms * 10) / 10;
+          if(ms > (opts && opts.matchThresholdMs !== undefined ? opts.matchThresholdMs : 8) && (opts && opts.match || getActiveScreenId() === 's-game')){
+            recordMatchSample({
+              kind:'function',
+              name,
+              ms:rounded,
+              startMs:t0,
+              endMs:t0 + ms,
+              label:summarizeArgs(arguments)
+            });
+          }
           if(ms > (opts && opts.menu ? 8 : 12)){
             if(opts && opts.menu){
               recordMenuSample({
@@ -3102,6 +3558,16 @@
     [
       'performGameRender','renderBoard','renderHand','renderOppHand','showModal'
     ].forEach(function(name){ wrapPerfFunction(name, {render:true, menu:name === 'showModal'}); });
+    [
+      'startGame','drawCard','addCardToHand',
+      'placeSelected','finalizeConsolidate','commitNormalSetAfterPresentation','commitConsolidationAfterPresentation',
+      'renderBoardActionForPlayer','renderGame','renderGameImmediate','renderGameParts','renderPiles',
+      'renderLandscapePanel','updateTopBar','updateActiveEffectsPanel','refreshBlockOverlays',
+      'applyContinuousEffects','highlightValidCells','getValidPlacementOptionsForCard','checkReactions','checkWin',
+      'activateBoardCard','renderEffectResolutionForPlayer','getZoneScore','getBaseZoneScore',
+      'runAITurn','aiGenerateAllMoves','aiChooseMoveWithMCTS','aiRunRootMCTS','aiEvaluateMove',
+      'aiSimulateOutcome','aiDeepEval','aiDoPlace','aiDoConsolidate','aiActivateEffects'
+    ].forEach(function(name){ wrapPerfFunction(name, {render:false, match:true, async:/^(runAITurn|aiChooseMoveWithMCTS|aiRunRootMCTS|aiDoPlace|aiDoConsolidate|aiActivateEffects|drawCard)$/.test(name), matchThresholdMs:4}); });
     [
       'showScreen','openFreePlayMenu','openChallengerMenu','showDeckBuilder','showMissionControl',
       'showSocial','showPublicDecks','switchChTab','dbFilter','setCdbFilter',
@@ -3262,6 +3728,7 @@
   }
 
     window.fatePreloadInitialAssets = preloadInitialAssets;
+  window.fateWarmMatchAssets = warmMatchAssetsNow;
   window.fateWarmProfileDependentMenus = async function(){
     const originalScreen = getActiveScreenId() || 's-title';
     if(originalScreen === 's-game' || originalScreen === 's-coin' || originalScreen === 's-matchmaking') return false;

@@ -1661,8 +1661,11 @@ async function aiDoPlace(choice) {
       }
     }));
     if(!majaDeckCinematic) {
-      playCardSound(card.id);
-      playSfx(card.rarity==='star'?'starPlace':'place');
+      if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
+      else setTimeout(function(){ playCardSound(card.id); }, 0);
+      const aiSetSfx = card.rarity === 'star' ? 'starPlace' : 'place';
+      if(typeof playSfxDeferred === 'function') playSfxDeferred(aiSetSfx, 0);
+      else setTimeout(function(){ playSfx(aiSetSfx); }, 0);
     }
     log('p2', `AI placed ${card.name} in Zone ${choice.z+1}`);
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true});
@@ -1769,7 +1772,7 @@ async function aiDoConsolidate(choice) {
     let cinematicRequested = false;
     const requestConsolidationCinematic = function(){
       if(cinematicRequested || typeof showConsolidationCinematic !== 'function') return;
-      const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true});
+      const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
       if(shown !== false) cinematicRequested = true;
     };
     if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
@@ -2776,7 +2779,7 @@ async function aiRunEffect(card, z, r, c) {
                 });
                 if(placedCard.type !== 'Supporter' && typeof showConsolidationCinematic === 'function') {
                   G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2300);
-                  setTimeout(function(){ showConsolidationCinematic(placedCard, {playVoice:true, playSfx:true}); }, Math.max(0, placementDelay || 0) + 90);
+                  setTimeout(function(){ showConsolidationCinematic(placedCard, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, Math.max(0, placementDelay || 0) + 90);
                 }
                 if(typeof aiTriggerWhenSet === 'function' && WHEN_SET_IDS.has(placedCard.id)) await aiTriggerWhenSet(placedCard, zi, ri, ci);
                 placed = true;

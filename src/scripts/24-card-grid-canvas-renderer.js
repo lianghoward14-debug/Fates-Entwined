@@ -113,6 +113,18 @@
       ctx.fillRect(rect.x + artPad, rect.y + artPad, rect.w - artPad * 2, rect.h - artPad * 2);
     }
 
+    if(entry.locked) {
+      ctx.fillStyle = 'rgba(0,0,0,.62)';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      if(!state.suppressLockedGlyph) {
+        ctx.fillStyle = 'rgba(255,255,255,.17)';
+        ctx.font = '700 ' + Math.max(34, Math.floor(rect.w * .34)) + 'px Cinzel, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', rect.x + rect.w / 2, rect.y + rect.h / 2);
+      }
+    }
+
     if(inDeck) {
       ctx.fillStyle = 'rgba(76,175,80,.18)';
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -162,11 +174,21 @@
     entries = Array.isArray(entries) ? entries : [];
     if(!entries.length) return false;
 
+    if(typeof container.__fateCanvasGridCleanup === 'function') {
+      try { container.__fateCanvasGridCleanup(); } catch(e) {}
+      container.__fateCanvasGridCleanup = null;
+    }
     if(container.__fateCanvasGridResizeObserver) {
       try { container.__fateCanvasGridResizeObserver.disconnect(); } catch(e) {}
       container.__fateCanvasGridResizeObserver = null;
     }
+    const virtualize = !!opts.virtualize;
+    const lowScroll = virtualize || !!opts.lowScroll;
+    const maxDpr = Math.max(1, Number(opts.maxDpr) || (lowScroll ? 1 : 2.5));
+    const hoverRedraw = opts.hoverRedraw !== false && !lowScroll;
     container.classList.add('canvas-card-grid-mode');
+    container.classList.toggle('canvas-card-grid-virtualized', virtualize);
+    container.classList.toggle('canvas-card-grid-low-scroll', lowScroll);
     container.innerHTML = '';
 
     const wrap = document.createElement('div');
@@ -183,10 +205,12 @@
     container.appendChild(wrap);
 
     const ctx = canvas.getContext('2d', { alpha:true });
-    const state = { hoveredIndex:-1, redraw:null };
+    const state = { hoveredIndex:-1, redraw:null, suppressLockedGlyph:!!opts.suppressLockedGlyph };
     let rects = [];
     let resizeTimer = 0;
-    const useStarSheen = isEnhancedVisualFxOn() && entries.some(function(entry){
+    let scrollRaf = 0;
+    let lastVirtualKey = '';
+    const useStarSheen = !lowScroll && isEnhancedVisualFxOn() && entries.some(function(entry){
       return entry && entry.card && entry.card.rarity === 'star';
     });
 
@@ -202,13 +226,36 @@
       const startX = opts.align === 'left' ? 0 : Math.max(0, Math.floor((width - usedW) / 2));
       const rows = Math.ceil(entries.length / cols);
       const height = rows * cardH + Math.max(0, rows - 1) * gap;
-      return { width, height, cardW, cardH, gap, cols, startX };
+      return { width, height, cardW, cardH, gap, cols, rows, startX };
+    }
+
+    function computePaintWindow(layout) {
+      if(!virtualize) {
+        return { top:0, height:layout.height, startIndex:0, endIndex:entries.length, key:'full' };
+      }
+      const rowStep = layout.cardH + layout.gap;
+      const viewportH = Math.max(1, container.clientHeight || Math.min(layout.height, 760));
+      const scrollTop = Math.max(0, container.scrollTop || 0);
+      const overscanRows = Math.max(1, Number(opts.overscanRows) || 2);
+      const startRow = Math.max(0, Math.floor(scrollTop / rowStep) - overscanRows);
+      const endRow = Math.min(layout.rows, Math.ceil((scrollTop + viewportH) / rowStep) + overscanRows);
+      const visibleRows = Math.max(1, endRow - startRow);
+      const paintH = visibleRows * layout.cardH + Math.max(0, visibleRows - 1) * layout.gap;
+      const top = startRow * rowStep;
+      return {
+        top,
+        height:Math.max(1, paintH),
+        startIndex:Math.min(entries.length, startRow * layout.cols),
+        endIndex:Math.min(entries.length, endRow * layout.cols),
+        key:[layout.width, layout.cols, startRow, endRow, top].join('|')
+      };
     }
 
     function syncHitboxes(layout) {
       hitLayer.innerHTML = '';
       sheenLayer.innerHTML = '';
-      rects.forEach(function(rect, i){
+      rects.forEach(function(rect){
+        const i = rect.entryIndex;
         const entry = entries[i];
         if(useStarSheen && entry && entry.card && entry.card.rarity === 'star') {
           const sheen = document.createElement('span');
@@ -259,14 +306,16 @@
           ev.stopPropagation();
           if(typeof opts.onContextMenu === 'function') opts.onContextMenu(entry.card, entry, ev);
         };
-        btn.onmouseenter = function(){ state.hoveredIndex = i; draw(); };
-        btn.onmouseleave = function(){ if(state.hoveredIndex === i){ state.hoveredIndex = -1; draw(); } };
+        if(hoverRedraw) {
+          btn.onmouseenter = function(){ state.hoveredIndex = i; draw(false); };
+          btn.onmouseleave = function(){ if(state.hoveredIndex === i){ state.hoveredIndex = -1; draw(false); } };
+        }
         hitLayer.appendChild(btn);
       });
       hitLayer.style.width = layout.width + 'px';
-      hitLayer.style.height = layout.height + 'px';
+      hitLayer.style.height = (virtualize ? Math.max(1, canvas.clientHeight || 1) : layout.height) + 'px';
       sheenLayer.style.width = layout.width + 'px';
-      sheenLayer.style.height = layout.height + 'px';
+      sheenLayer.style.height = (virtualize ? Math.max(1, canvas.clientHeight || 1) : layout.height) + 'px';
     }
 
     let sheenFirstPaintDone = false;
@@ -285,47 +334,80 @@
       }
     }
 
-    function draw(syncHits) {
+    function draw(syncHits, scrollOnly) {
       if(!ctx) return;
       if(syncHits === undefined) syncHits = true;
       state.time = (window.performance && performance.now) ? performance.now() : Date.now();
       const layout = computeLayout();
-      const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      const paintWindow = computePaintWindow(layout);
+      const dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
+      const virtualKey = virtualize ? (paintWindow.key + '|' + dpr) : '';
+      if(scrollOnly && virtualize && virtualKey === lastVirtualKey) return;
       const pxW = Math.max(1, Math.round(layout.width * dpr));
-      const pxH = Math.max(1, Math.round(layout.height * dpr));
+      const pxH = Math.max(1, Math.round(paintWindow.height * dpr));
       if(canvas.width !== pxW || canvas.height !== pxH) {
         canvas.width = pxW;
         canvas.height = pxH;
       }
       canvas.style.width = layout.width + 'px';
-      canvas.style.height = layout.height + 'px';
+      canvas.style.height = paintWindow.height + 'px';
+      if(virtualize) {
+        canvas.style.position = 'absolute';
+        canvas.style.left = '0';
+        canvas.style.top = paintWindow.top + 'px';
+        hitLayer.style.top = paintWindow.top + 'px';
+        sheenLayer.style.top = paintWindow.top + 'px';
+      } else {
+        canvas.style.position = '';
+        canvas.style.left = '';
+        canvas.style.top = '';
+        hitLayer.style.top = '';
+        sheenLayer.style.top = '';
+      }
       wrap.style.minHeight = layout.height + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, layout.width, layout.height);
-      rects = entries.map(function(entry, i){
+      ctx.clearRect(0, 0, layout.width, paintWindow.height);
+      rects = [];
+      for(let i = paintWindow.startIndex; i < paintWindow.endIndex; i++) {
+        const entry = entries[i];
         entry.index = i;
         const col = i % layout.cols;
         const row = Math.floor(i / layout.cols);
-        return {
+        const y = row * (layout.cardH + layout.gap);
+        rects.push({
           x: layout.startX + col * (layout.cardW + layout.gap),
-          y: row * (layout.cardH + layout.gap),
+          y: virtualize ? y - paintWindow.top : y,
           w: layout.cardW,
-          h: layout.cardH
-        };
-      });
-      entries.forEach(function(entry, i){ drawCard(ctx, entry, rects[i], state); });
+          h: layout.cardH,
+          entryIndex: i
+        });
+      }
+      rects.forEach(function(rect){ drawCard(ctx, entries[rect.entryIndex], rect, state); });
+      lastVirtualKey = virtualKey;
       if(syncHits) {
         syncHitboxes(layout);
         forceSheenFirstPaint();
       }
     }
-    state.redraw = draw;
+    state.redraw = function(){ draw(false); };
     draw();
     const repaintAfterImageWarmup = function(){ draw(true); forceSheenFirstPaint(); };
     if(typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(repaintAfterImageWarmup);
     }
-    [180, 640].forEach(function(ms){ setTimeout(repaintAfterImageWarmup, ms); });
+    if(!lowScroll) {
+      [180, 640].forEach(function(ms){ setTimeout(repaintAfterImageWarmup, ms); });
+    }
+
+    function onScroll() {
+      if(!virtualize) return;
+      if(scrollRaf) return;
+      scrollRaf = requestAnimationFrame(function(){
+        scrollRaf = 0;
+        draw(true, true);
+      });
+    }
+    if(virtualize) container.addEventListener('scroll', onScroll, { passive:true });
 
     if(typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(function(){
@@ -335,6 +417,15 @@
       ro.observe(container);
       container.__fateCanvasGridResizeObserver = ro;
     }
+    container.__fateCanvasGridCleanup = function(){
+      if(scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      if(virtualize) container.removeEventListener('scroll', onScroll);
+      if(container.__fateCanvasGridResizeObserver) {
+        try { container.__fateCanvasGridResizeObserver.disconnect(); } catch(e) {}
+        container.__fateCanvasGridResizeObserver = null;
+      }
+    };
     container.__fateCanvasGridState = { entries, draw };
     return true;
   }

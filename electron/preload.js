@@ -29,3 +29,13 @@ contextBridge.exposeInMainWorld('FateElectronDiagnostics', {
     return ipcRenderer.invoke('fate:finish-ui-minute-log', payload || {});
   }
 });
+
+setTimeout(() => {
+  ipcRenderer.invoke('fate:append-ui-minute-log', {
+    type: 'preload-ready',
+    at: new Date().toISOString(),
+    sessionId: 'preload-boot',
+    href: location.href,
+    userAgent: navigator.userAgent
+  }).catch(() => {});
+}, 0);

@@ -115,11 +115,11 @@ function startGame(vsAI=false) {
   }
   initGameState();
   G._aiFateMultiplier = vsAI ? getAIFateMultiplier(G._selectedAI) : 1;
+  if(typeof applyGameBackground === 'function'){
+    _lastGameSong = applyGameBackground(G._onlineGameSong || null);
+  }
   // Show pre-game matchup display
   showPreGameMatchup(vsAI, ()=>{
-    if(typeof applyGameBackground === 'function'){
-      _lastGameSong = applyGameBackground(G._onlineGameSong || null);
-    }
     if(typeof initInGameChat === 'function') initInGameChat();
     showScreen('s-coin');
     doCoinFlip();
@@ -199,7 +199,148 @@ function getAIProfileImg(ai, shape='circle') {
   return 'aiicons/ai' + ((seed % 18) + 1) + '.png';
 }
 
-// Pre-game matchup screen — shows both players' decks and profiles
+function matchPreloadLoaderHtml(onlineMatch) {
+  return `
+    <div class="match-preload-panel" id="match-preload-panel">
+      <div class="match-preload-copy">
+        <div class="match-preload-status" id="match-preload-status">Loading assets.</div>
+      </div>
+      <div class="match-preload-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span id="match-preload-fill"></span>
+      </div>
+    </div>`;
+}
+
+function updateMatchPreloadUi(progress, status, meta) {
+  const value = Math.max(0, Math.min(1, Number(progress) || 0));
+  const fill = document.getElementById('match-preload-fill');
+  const panel = document.getElementById('match-preload-panel');
+  const statusEl = document.getElementById('match-preload-status');
+  const metaEl = document.getElementById('match-preload-meta');
+  if(fill) fill.style.width = Math.round(value * 100) + '%';
+  if(panel) {
+    const bar = panel.querySelector('.match-preload-bar');
+    if(bar) bar.setAttribute('aria-valuenow', String(Math.round(value * 100)));
+  }
+  if(statusEl) statusEl.textContent = value >= 1 ? 'Finished.' : 'Loading assets.';
+  if(metaEl) metaEl.textContent = '';
+}
+
+function runMatchPreloadGate(onlineMatch) {
+  const gateStarted = performance.now ? performance.now() : Date.now();
+  const waitForMinimumGate = function(){
+    const now = performance.now ? performance.now() : Date.now();
+    const remaining = Math.max(0, 5000 - (now - gateStarted));
+    return new Promise(function(resolve){ setTimeout(resolve, remaining); });
+  };
+  let localReport = null;
+  updateMatchPreloadUi(0.03);
+  const warm = typeof window.fateWarmMatchAssets === 'function'
+    ? window.fateWarmMatchAssets({
+      source:onlineMatch ? 'online-matchup-loader' : 'matchup-loader',
+      maxCards:onlineMatch ? 96 : 80,
+      onProgress:function(item){
+        const localPortion = onlineMatch ? 0.74 : 1;
+        const value = Math.max(0.03, Math.min(localPortion, (Number(item.progress) || 0) * localPortion));
+        updateMatchPreloadUi(value);
+      }
+    })
+    : Promise.resolve({missingWarmup:true});
+  return Promise.resolve(warm)
+    .then(function(report){
+      localReport = report || {};
+      if(!onlineMatch || typeof window.fatePublishOnlineMatchPreload !== 'function') return null;
+      updateMatchPreloadUi(0.78);
+      return window.fatePublishOnlineMatchPreload(localReport);
+    })
+    .then(function(){
+      if(!onlineMatch || typeof window.fateWaitForOnlineMatchPreload !== 'function') return null;
+      updateMatchPreloadUi(0.82);
+      return window.fateWaitForOnlineMatchPreload({
+        localReport,
+        timeoutMs:15000,
+        onProgress:function(item){
+          const ready = Number(item && item.readyCount || 0);
+          const total = Math.max(2, Number(item && item.total || 2));
+          const value = 0.82 + Math.min(0.16, (ready / total) * 0.16);
+          updateMatchPreloadUi(value);
+        }
+      });
+    })
+    .then(function(){
+      updateMatchPreloadUi(1);
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmMatchEntryLayers === 'function') {
+        try {
+          window.FateMatchRendererAdapter.prewarmMatchEntryLayers({
+            source:onlineMatch ? 'online-matchup-loader' : 'matchup-loader'
+          });
+        } catch(e) {}
+      }
+      return waitForMinimumGate();
+    })
+    .catch(function(err){
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.matchPreloadGateError = String(err && err.message || err);
+      updateMatchPreloadUi(1);
+      return waitForMinimumGate();
+    });
+}
+
+function recordMatchEntryStep(step, extra) {
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    const item = Object.assign({
+      at:Math.round(performance.now ? performance.now() : Date.now()),
+      step:String(step || 'step')
+    }, extra || {});
+    if(!Array.isArray(perf.matchEntrySteps)) perf.matchEntrySteps = [];
+    perf.matchEntrySteps.push(item);
+    if(perf.matchEntrySteps.length > 40) perf.matchEntrySteps.shift();
+  } catch(e) {}
+}
+
+function showMatchEntryLoadingVeil() {
+  const started = performance.now ? performance.now() : Date.now();
+  recordMatchEntryStep('entry-veil-show');
+  let veil = document.getElementById('match-entry-loading-veil');
+  if(!veil) {
+    veil = document.createElement('div');
+    veil.id = 'match-entry-loading-veil';
+    veil.className = 'match-entry-loading-veil';
+    veil.innerHTML = '<div class="match-entry-loading-panel"><div class="match-preload-status">Loading assets.</div><div class="match-preload-bar" aria-hidden="true"><span style="width:100%"></span></div></div>';
+    document.body.appendChild(veil);
+  }
+  veil.classList.add('on');
+  veil.setAttribute('aria-hidden', 'false');
+  return started;
+}
+
+function hideMatchEntryLoadingVeil(startedAt) {
+  const veil = document.getElementById('match-entry-loading-veil');
+  const started = Number(startedAt) || (performance.now ? performance.now() : Date.now());
+  const close = function(){
+    const node = document.getElementById('match-entry-loading-veil');
+    if(!node) return;
+    node.classList.remove('on');
+    node.setAttribute('aria-hidden', 'true');
+    recordMatchEntryStep('entry-veil-hide', {
+      visibleMs:Math.round(((performance.now ? performance.now() : Date.now()) - started) * 10) / 10
+    });
+    setTimeout(function(){
+      if(node && !node.classList.contains('on')) node.remove();
+    }, 220);
+  };
+  const elapsed = (performance.now ? performance.now() : Date.now()) - started;
+  const minVisible = 260;
+  const delay = Math.max(0, minVisible - elapsed);
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      setTimeout(close, delay);
+    });
+  });
+}
+
+// Pre-game matchup screen - shows both players' decks and profiles
 function showPreGameMatchup(vsAI, onContinue) {
   const diffNames = {easy:'Rookie', medium:'Apprentice', hard:'Veteran', extreme:'Master'};
   const diffElo = {easy:800, medium:1000, hard:1200, extreme:1400};
@@ -268,8 +409,7 @@ function showPreGameMatchup(vsAI, onContinue) {
       <div style="font-family:Cinzel,serif;font-size:.75rem;color:var(--dim);letter-spacing:.12em;">${CURRENT_MODE==='challenger'?'CHALLENGER MODE':'FREE PLAY'}</div>
     </div>`;
   if(onlineMatch){
-    let remain = 5;
-    const countdownBody = body + `<div class="online-versus-countdown">Coin flip begins in <span id="online-versus-count">${remain}</span>...</div>`;
+    const countdownBody = body + matchPreloadLoaderHtml(true);
     G._onlineLocalModalBypass = true;
     window.__fateOnlineLocalModalBypass = true;
     try{
@@ -280,21 +420,19 @@ function showPreGameMatchup(vsAI, onContinue) {
     }
     const modalEl = document.getElementById('modal');
     if(modalEl) modalEl.classList.add('match-overview-modal','online-match-overview-modal');
-    const timer = setInterval(()=>{
-      remain -= 1;
-      const el = document.getElementById('online-versus-count');
-      if(el) el.textContent = String(Math.max(0, remain));
-      if(remain <= 0){
-        clearInterval(timer);
-        closeModal();
-        onContinue();
-      }
-    },1000);
+    runMatchPreloadGate(true).then(function(){
+      closeModal();
+      onContinue();
+    });
     return;
   }
-  showModal('Match Overview', body, [{label:'Begin Match', pri:true, action:()=>{closeModal();onContinue();}}]);
+  showModal('Match Overview', body + matchPreloadLoaderHtml(false), []);
   const modalEl = document.getElementById('modal');
   if(modalEl) modalEl.classList.add('match-overview-modal');
+  runMatchPreloadGate(false).then(function(){
+    closeModal();
+    onContinue();
+  });
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1338,8 +1476,11 @@ function doCoinFlip() {
 
 function chooseTurn(goFirst) {
   // coinWinner decides — if they choose first, they go first
+  const entryVeilStarted = showMatchEntryLoadingVeil();
+  recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
   showScreen('s-game');
+  recordMatchEntryStep('screen-game-active');
   G.phase = 'main';
   G._turnInputLockUntil = 0;
   G._aiRunning = false;
@@ -1349,9 +1490,15 @@ function chooseTurn(goFirst) {
   if(typeof applyPendingSelvaSupportBoost === 'function') applyPendingSelvaSupportBoost(G.currentPlayer);
   // First player doesn't draw
   log('sys','Game begins! '+G.players[G.currentPlayer].name+' goes first.');
+  const renderStarted = performance.now ? performance.now() : Date.now();
   if(typeof renderGameImmediate === 'function') renderGameImmediate();
   else renderGame();
+  recordMatchEntryStep('initial-render-called', {
+    ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
+  });
   updateTopBar();
+  recordMatchEntryStep('topbar-updated');
+  hideMatchEntryLoadingVeil(entryVeilStarted);
   // If AI goes first, trigger its turn
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
     stopTurnTimer();

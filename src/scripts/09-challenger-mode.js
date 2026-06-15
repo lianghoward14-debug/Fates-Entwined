@@ -631,6 +631,9 @@ function preloadChallengerAssets() {
     'optimized/backgrounds/titlscreenbackgrounds_bg3.jpg',
     'play1.png',
     'play2.png',
+    'Illustration3.png',
+    'pfpbooster.png',
+    'booster1.png',
     'blank.png',
     'optimized/backgrounds/ingamebackgrouds_igb1.jpg',
     'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
@@ -638,8 +641,10 @@ function preloadChallengerAssets() {
   ]);
   try {
     if(typeof getChallengerCardPool === 'function') {
-      getChallengerCardPool().forEach(card => {
-        if(card && card.img) srcs.add(card.img);
+      getChallengerCardPool().slice(0, 32).forEach(card => {
+        if(card && card.img) {
+          srcs.add(typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'thumb') : card.img);
+        }
       });
     }
   } catch(e) {}
@@ -650,14 +655,14 @@ function preloadChallengerAssets() {
       : src
   ));
   const loadBatch = (start=0) => {
-    const end = Math.min(start + 16, list.length);
+    const end = Math.min(start + 8, list.length);
     for(let i = start; i < end; i++) {
       const img = new Image();
       img.decoding = 'async';
       img.loading = 'eager';
       img.src = list[i];
       _challengerAssetWarmupImages.push(img);
-      if(typeof img.decode === 'function') img.decode().catch(()=>{});
+      if(i < 14 && typeof img.decode === 'function') img.decode().catch(()=>{});
     }
     if(end < list.length) {
       const schedule = window.requestIdleCallback || ((fn)=>setTimeout(fn, 60));
@@ -667,30 +672,60 @@ function preloadChallengerAssets() {
   loadBatch();
 }
 
+try {
+  window.fateWarmChallengerMenuAssets = preloadChallengerAssets;
+} catch(e) {}
+
 // â”€â”€â”€ TITLE SCREEN ENTRY POINTS â”€â”€â”€
 let _freePlayMenuOpeningAt = 0;
-function openFreePlayMenu() {
-  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  if(now - _freePlayMenuOpeningAt < 220) return;
-  _freePlayMenuOpeningAt = now;
-  CURRENT_MODE = 'free';
-  closeAllOverlays();
-  seedBuiltInPresets();
-  syncStarterPresetMetadata();
-  showModal(
-    'Free Play',
-    `<div class="freeplay-mode-shell">
+let _freePlayMenuHtmlCache = '';
+let _freePlayWarmupPromise = null;
+
+const FREE_PLAY_MENU_IMAGES = [
+  {
+    key:'chosen',
+    src:'optimized/backgrounds/ingamebackgrouds_igb9.jpg',
+    fallback:'ingamebackgrouds/igb9.png?v=bg20260510d'
+  },
+  {
+    key:'random',
+    src:'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
+    fallback:'ingamebackgrouds/igb4.png?v=bg20260510d'
+  },
+  {
+    key:'human',
+    src:'optimized/backgrounds/ingamebackgrouds_igb1.jpg',
+    fallback:'ingamebackgrouds/igb1.png?v=bg20260510d'
+  }
+];
+
+function getFreePlayImageSrc(path) {
+  return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(path) : path;
+}
+
+function getFreePlayMenuImage(key) {
+  return FREE_PLAY_MENU_IMAGES.find(img => img.key === key) || FREE_PLAY_MENU_IMAGES[0];
+}
+
+function renderFreePlayArt(key) {
+  const img = getFreePlayMenuImage(key);
+  return `<span class="freeplay-mode-art"><img src="${getFreePlayImageSrc(img.src)}" alt="" loading="eager" decoding="async" fetchpriority="high" draggable="false" onerror="this.onerror=null;this.src='${img.fallback}';"></span>`;
+}
+
+function buildFreePlayMenuHtml() {
+  if(_freePlayMenuHtmlCache) return _freePlayMenuHtmlCache;
+  _freePlayMenuHtmlCache = `<div class="freeplay-mode-shell">
       <section class="freeplay-mode-hero">
         <div>
           <div class="freeplay-mode-kicker">Practice Table</div>
           <h2>Choose a Free Play Match</h2>
           <p>Pick a controlled AI duel, roll a random opponent, or queue into a human match with your title-screen presets.</p>
         </div>
-        <div class="freeplay-mode-mark"><img class="freeplay-mode-mark-icon" src="blank.png" alt=""></div>
+        <div class="freeplay-mode-mark"><img class="freeplay-mode-mark-icon" src="blank.png" alt="" loading="eager" decoding="async" draggable="false"></div>
       </section>
       <div class="freeplay-mode-grid">
         <button class="freeplay-mode-card chosen" type="button" onclick="closeModal();setTimeout(()=>showAIDifficultyPicker(),140);">
-          <span class="freeplay-mode-art"><img src="${typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL('optimized/backgrounds/ingamebackgrouds_igb9.jpg') : 'optimized/backgrounds/ingamebackgrouds_igb9.jpg'}" alt="" onerror="this.onerror=null;this.src='ingamebackgrouds/igb9.png?v=bg20260510d';"></span>
+          ${renderFreePlayArt('chosen')}
           <span class="freeplay-mode-copy">
             <span class="freeplay-mode-label">Chosen AI</span>
             <b>Select Your Rival</b>
@@ -699,7 +734,7 @@ function openFreePlayMenu() {
           <span class="freeplay-mode-cta">Choose AI</span>
         </button>
         <button class="freeplay-mode-card random" type="button" onclick="closeModal();setTimeout(()=>startRandomAiFreePlay(),140);">
-          <span class="freeplay-mode-art"><img src="${typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL('optimized/backgrounds/ingamebackgrouds_igb4.jpg') : 'optimized/backgrounds/ingamebackgrouds_igb4.jpg'}" alt="" onerror="this.onerror=null;this.src='ingamebackgrouds/igb4.png?v=bg20260510d';"></span>
+          ${renderFreePlayArt('random')}
           <span class="freeplay-mode-copy">
             <span class="freeplay-mode-label">Random AI</span>
             <b>Quick Skirmish</b>
@@ -708,7 +743,7 @@ function openFreePlayMenu() {
           <span class="freeplay-mode-cta">Roll Opponent</span>
         </button>
         <button class="freeplay-mode-card human" type="button" onclick="closeModal();setTimeout(()=>startFreePlayMatchmaking(),140);">
-          <span class="freeplay-mode-art"><img src="${typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL('optimized/backgrounds/ingamebackgrouds_igb1.jpg') : 'optimized/backgrounds/ingamebackgrouds_igb1.jpg'}" alt="" onerror="this.onerror=null;this.src='ingamebackgrouds/igb1.png?v=bg20260510d';"></span>
+          ${renderFreePlayArt('human')}
           <span class="freeplay-mode-copy">
             <span class="freeplay-mode-label">Free Play Vs Human</span>
             <b>Human Queue</b>
@@ -717,8 +752,55 @@ function openFreePlayMenu() {
           <span class="freeplay-mode-cta">Find Player</span>
         </button>
       </div>
-    </div>`,
-    [{label:'Cancel', action:closeModal}]
+    </div>`;
+  return _freePlayMenuHtmlCache;
+}
+
+function warmFreePlayMenuAssets() {
+  if(_freePlayWarmupPromise) return _freePlayWarmupPromise;
+  buildFreePlayMenuHtml();
+  const sources = ['blank.png', ...FREE_PLAY_MENU_IMAGES.map(img => getFreePlayImageSrc(img.src))];
+  _freePlayWarmupPromise = Promise.all(sources.map(src => new Promise(resolve => {
+    const img = new Image();
+    let done = false;
+    const finish = () => {
+      if(done) return;
+      done = true;
+      resolve(src);
+    };
+    const timer = setTimeout(finish, 1800);
+    img.onload = () => { clearTimeout(timer); finish(); };
+    img.onerror = () => { clearTimeout(timer); finish(); };
+    try { img.decoding = 'async'; } catch(e) {}
+    try { img.loading = 'eager'; } catch(e) {}
+    img.src = src;
+    if(typeof img.decode === 'function') img.decode().then(() => {
+      clearTimeout(timer);
+      finish();
+    }).catch(() => {});
+  })));
+  return _freePlayWarmupPromise;
+}
+
+try {
+  window.fateBuildFreePlayMenuHtml = buildFreePlayMenuHtml;
+  window.fateWarmFreePlayMenuAssets = warmFreePlayMenuAssets;
+} catch(e) {}
+
+function openFreePlayMenu() {
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if(now - _freePlayMenuOpeningAt < 220) return;
+  _freePlayMenuOpeningAt = now;
+  CURRENT_MODE = 'free';
+  closeAllOverlays();
+  seedBuiltInPresets();
+  syncStarterPresetMetadata();
+  warmFreePlayMenuAssets();
+  showModal(
+    'Free Play',
+    buildFreePlayMenuHtml(),
+    [{label:'Cancel', action:closeModal}],
+    {immediate:true, skipDecorate:true}
   );
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('freeplay-mode-modal');
@@ -870,10 +952,146 @@ function pickStarterDeck(starterId) {
 
 // â”€â”€â”€ CHALLENGER HUB UI â”€â”€â”€
 let _currentChTab = 'play';
-function switchChTab(tab) {
+const _chTabDomState = {};
+
+function cleanupChTabPaneBeforeDetach(pane) {
+  if(!pane) return;
+  try {
+    const tab = pane.dataset && pane.dataset.tab;
+    if(tab) {
+      _chTabDomState[tab] = _chTabDomState[tab] || {};
+      _chTabDomState[tab].scrollTop = pane.scrollTop || 0;
+      const scroller = pane.querySelector('.cdb-collection,.cdb-decklist,.collection-grid,[data-preserve-scroll]');
+      if(scroller) _chTabDomState[tab].innerScrollTop = scroller.scrollTop || 0;
+      if(window.FateMenuViews && typeof window.FateMenuViews.markDetached === 'function') {
+        window.FateMenuViews.markDetached('challenger:' + tab);
+      }
+    }
+    pane.querySelectorAll('.canvas-card-grid-mode').forEach(node=>{
+      if(typeof node.__fateCanvasGridCleanup === 'function') node.__fateCanvasGridCleanup();
+    });
+  } catch(e) {}
+}
+
+function getChTabPane(tab, create=true) {
+  const content = document.getElementById('ch-content');
+  if(!content) return null;
+  if(create && content.dataset.persistentTabs !== '1') {
+    content.innerHTML = '';
+    content.dataset.persistentTabs = '1';
+  }
+  let pane = content.querySelector(':scope > .ch-tab-pane[data-tab="'+tab+'"]');
+  if(!pane && create) {
+    pane = document.createElement('div');
+    pane.className = 'ch-tab-pane';
+    pane.dataset.tab = tab;
+    pane.hidden = true;
+    pane.style.display = 'none';
+    content.appendChild(pane);
+  }
+  if(pane) pane.classList.toggle('ch-cdb-content', tab === 'deckbuilder');
+  return pane;
+}
+
+function getChRendererForTab(tab) {
+  return {
+    play:renderChPlayTab,
+    store:renderChStoreTab,
+    collection:renderChCollectionTab,
+    deckbuilder:renderChDeckBuilderTab
+  }[tab] || null;
+}
+
+function getChTabStateSig(tab) {
+  const p = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : {};
+  const presets = p.challengerPresets || {};
+  const owned = p.ownedCards || {};
+  const cdbDeck = typeof _cdbDeck !== 'undefined' && Array.isArray(_cdbDeck) ? _cdbDeck.join(',') : '';
+  const cdbSaved = typeof _cdbCurrentDeckId !== 'undefined' ? (_cdbCurrentDeckId || '') : '';
+  const base = [
+    tab,
+    p.starlight || 0,
+    p.unopenedPacks || 0,
+    p.unopenedProfilePacks || 0,
+    p.challengerElo || 600,
+    Object.keys(presets).sort().map(k=>{
+      const deck = presets[k] || {};
+      return k + ':' + (deck.name || '') + ':' + (deck.ids || []).join(',');
+    }).join('|')
+  ];
+  if(tab === 'store' || tab === 'collection') {
+    base.push(Object.keys(owned).sort().map(k=>k+':' + owned[k]).join(','));
+  }
+  if(tab === 'deckbuilder') base.push(cdbSaved, cdbDeck);
+  return base.join('||');
+}
+
+function ensureChTabMenuView(tab) {
+  if(!window.FateMenuViews) return;
+  window.FateMenuViews.register('challenger:' + tab, {
+    root:()=>getChTabPane(tab),
+    signature:()=>getChTabStateSig(tab),
+    render:({root})=>{
+      const render = getChRendererForTab(tab);
+      if(typeof render !== 'function') return false;
+      render(root);
+      root.dataset.mounted = '1';
+      return true;
+    },
+    onFresh:({root})=>{
+      if(root) root.dataset.mounted = '1';
+    }
+  });
+}
+
+function resolveChRenderTarget(content, tab) {
+  const parent = document.getElementById('ch-content');
+  if(content === parent) return getChTabPane(tab);
+  return content;
+}
+
+function setChTabPaneVisibility(content, activePane) {
+  if(!content || !activePane) return;
+  Array.from(content.querySelectorAll(':scope > .ch-tab-pane')).forEach(node=>{
+    const active = node === activePane;
+    node.hidden = false;
+    node.removeAttribute('hidden');
+    node.style.display = '';
+    node.classList.toggle('active', active);
+    node.setAttribute('aria-hidden', active ? 'false' : 'true');
+    if(active) {
+      node.removeAttribute('inert');
+    } else {
+      node.setAttribute('inert', '');
+    }
+  });
+}
+
+function restoreChTabScroll(tab, pane) {
+  const state = _chTabDomState[tab];
+  if(!state || !pane) return;
+  requestAnimationFrame(function(){
+    try {
+      pane.scrollTop = state.scrollTop || 0;
+      const scroller = pane.querySelector('.cdb-collection,.cdb-decklist,.collection-grid,[data-preserve-scroll]');
+      if(scroller) scroller.scrollTop = state.innerScrollTop || 0;
+    } catch(e) {}
+  });
+}
+
+function switchChTab(tab, opts) {
+  const options = opts || {};
+  const sameTab = _currentChTab === tab;
   _currentChTab = tab;
   document.querySelectorAll('.ch-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   updateChTopbar();
+  const lightweightTabs = !!(
+    window.__fateStartupWarmupActive ||
+    window.__fateMenusWarmed ||
+    document.documentElement.classList.contains('fate-low-effects') ||
+    document.documentElement.classList.contains('fate-performance-mode') ||
+    document.documentElement.classList.contains('fate-performance-plus-mode')
+  );
   // Set tab-specific background
   const bgEl = document.querySelector('#s-challenger .screen-bg img');
   if(bgEl){
@@ -883,17 +1101,36 @@ function switchChTab(tab) {
   const content = document.getElementById('ch-content');
   if(!content) return;
   content.classList.toggle('ch-cdb-content', tab === 'deckbuilder');
+  const pane = getChTabPane(tab);
+  if(!pane) return;
+  ensureChTabMenuView(tab);
+  const renderTab = function(){
+    setChTabPaneVisibility(content, pane);
+    const render = getChRendererForTab(tab);
+    const shouldRender = options.force === true || sameTab || pane.dataset.mounted !== '1' || pane.childElementCount === 0;
+    if(window.FateMenuViews) {
+      window.FateMenuViews.render('challenger:' + tab, {force:shouldRender});
+      pane.dataset.mounted = '1';
+    } else if(shouldRender && typeof render === 'function') {
+      render(pane);
+      pane.dataset.mounted = '1';
+    }
+    setChTabPaneVisibility(content, pane);
+    content.dataset.renderedTab = tab;
+    content.dataset.activeTab = tab;
+    content.style.opacity='1';
+    restoreChTabScroll(tab, pane);
+  };
+  if(lightweightTabs) {
+    content.style.transition='none';
+    content.style.opacity='1';
+    renderTab();
+    return;
+  }
   // Quick fade transition
   content.style.opacity='0';
   content.style.transition='opacity .2s ease';
-  setTimeout(()=>{
-    content.innerHTML = '';
-    if(tab==='play') renderChPlayTab(content);
-    else if(tab==='store') renderChStoreTab(content);
-    else if(tab==='collection') renderChCollectionTab(content);
-    else if(tab==='deckbuilder') renderChDeckBuilderTab(content);
-    content.style.opacity='1';
-  }, 200);
+  setTimeout(renderTab, 200);
 }
 
 function updateChTopbar() {
@@ -909,6 +1146,8 @@ function updateChTopbar() {
 
 // â”€â”€â”€ CHALLENGER PLAY TAB â”€â”€â”€
 function renderChPlayTab(content) {
+  content = resolveChRenderTarget(content, 'play');
+  if(!content) return;
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = Object.keys(presets);
   const elo = USER_PROFILE.challengerElo || 600;
@@ -943,7 +1182,7 @@ function renderChPlayTab(content) {
         </div>
         <div class="ch-v5-match-grid">
           <button class="ch-v5-match ch-v5-human" type="button" onclick="chStartMatchmaking()">
-            <span class="ch-v5-match-art"><img src="play2.png" alt="" onerror="this.style.display='none'"></span>
+            <span class="ch-v5-match-art"><img src="play2.png" alt="" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none'"></span>
             <span class="ch-v5-match-copy">
               <b>Ranked Human</b>
               <em>Random human queue with ELO, rewards, and ladder movement.</em>
@@ -951,7 +1190,7 @@ function renderChPlayTab(content) {
             <span class="ch-v5-match-cta">Find Match</span>
           </button>
           <button class="ch-v5-match ch-v5-ai" type="button" onclick="chStartVsAI()">
-            <span class="ch-v5-match-art"><img src="play1.png" alt="" onerror="this.style.display='none'"></span>
+            <span class="ch-v5-match-art"><img src="play1.png" alt="" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none'"></span>
             <span class="ch-v5-match-copy">
               <b>AI Challenge</b>
               <em>Roll straight into a random AI fight for Challenger progress.</em>
@@ -1375,6 +1614,8 @@ function chStartWithDeck(pid) {
 
 // â”€â”€â”€ CHALLENGER STORE TAB â”€â”€â”€
 function renderChStoreTab(content) {
+  content = resolveChRenderTarget(content, 'store');
+  if(!content) return;
   const packs = USER_PROFILE.unopenedPacks || 0;
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
@@ -1851,6 +2092,8 @@ function cancelListing(i){
 }
 
 function renderChStoreTab(content) {
+  content = resolveChRenderTarget(content, 'store');
+  if(!content) return;
   const packs = USER_PROFILE.unopenedPacks || 0;
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
@@ -1892,7 +2135,7 @@ function renderChStoreTab(content) {
           <div class="store-grid">
             <div class="booster-tile standard-booster ch-store-product ch-store-product-standard">
               <div class="booster-art standard-booster-art ch-store-product-art">
-                <img src="Illustration3.png" alt="Standard Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
+                <img src="Illustration3.png" alt="Standard Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Base Set</div>
@@ -1907,7 +2150,7 @@ function renderChStoreTab(content) {
             </div>
             <div class="booster-tile favored-booster-gold ch-store-product ch-store-product-favored">
               <div class="booster-art favored-gold-art ch-store-product-art">
-                <img src="Illustration3.png" alt="Favored Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>FAVORED</div>'">
+                <img src="Illustration3.png" alt="Favored Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>FAVORED</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Premium Odds</div>
@@ -1922,7 +2165,7 @@ function renderChStoreTab(content) {
             </div>
             <div class="booster-tile ch-store-product ch-store-product-profile">
               <div class="booster-art ch-store-product-art">
-                <img src="pfpbooster.png" alt="Profile Picture Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PROFILE</div>'">
+                <img src="pfpbooster.png" alt="Profile Picture Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PROFILE</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Profile</div>
@@ -2126,6 +2369,8 @@ function closePackOpening() {
 // â”€â”€â”€ CHALLENGER COLLECTION TAB â”€â”€â”€
 let _collFilter = 'all';
 function renderChCollectionTab(content) {
+  content = resolveChRenderTarget(content, 'collection');
+  if(!content) return;
   const owned = USER_PROFILE.ownedCards || {};
   const collectionPool = getChallengerCardPool();
   const collectionIds = new Set(collectionPool.map(c=>c.id));
@@ -2157,12 +2402,34 @@ function renderChCollectionTab(content) {
     if(['star','square','triangle','circle'].includes(_collFilter)) return c.rarity===_collFilter;
     return true;
   }));
+  if(typeof renderCanvasDeckCollection === 'function') {
+    const entries = cards.map(c=>{
+      const ct = owned[c.id] || 0;
+      return {
+        card:c,
+        count:0,
+        ownedText:ct>0 ? `x${ct}` : '',
+        locked:ct <= 0,
+        title:`${c.name} - ${ct>0 ? `Owned: ${ct}` : 'Not owned'}`,
+        ariaLabel:c.name
+      };
+    });
+    if(renderCanvasDeckCollection(grid, entries, {
+      align:'left',
+      virtualize:false,
+      lowScroll:true,
+      maxDpr:1,
+      hoverRedraw:false,
+      suppressLockedGlyph:true,
+      onClick:(card)=>openCardDetail(card)
+    })) return;
+  }
   cards.forEach(c=>{
     const ct = owned[c.id] || 0;
     const el = document.createElement('div');
     el.className = `coll-card ${ct>0?'owned':'not-owned'} rarity-${c.rarity}`;
     el.innerHTML = `
-      ${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}" onerror="this.style.display='none'">`:''}
+      ${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.style.display='none'">`:''}
       ${ct>0?`<div class="coll-count">x${ct}</div>`:''}`;
     el.onclick = ()=>openCardDetail(c);
     el.title = `${c.name} - ${ct>0?`Owned: ${ct}`:'Not owned'}`;
@@ -2220,6 +2487,8 @@ function showChallengerStarterDeckWarning(name) {
 window.showChallengerStarterDeckWarning = showChallengerStarterDeckWarning;
 
 function renderChDeckBuilderTab(content) {
+  content = resolveChRenderTarget(content, 'deckbuilder');
+  if(!content) return;
   const owned = USER_PROFILE.ownedCards || {};
   const presets = USER_PROFILE.challengerPresets || {};
   const presetKeys = Object.keys(presets);
@@ -2709,6 +2978,10 @@ function renderCdbCollection() {
     });
     if(renderCanvasDeckCollection(col, entries, {
       align:'left',
+      virtualize:true,
+      lowScroll:true,
+      maxDpr:1,
+      hoverRedraw:false,
       onClick:(card)=>openCardDetail(card),
       onContextMenu:(card)=>cdbAdd(card.id)
     })) return;
@@ -3932,8 +4205,48 @@ function showPartyPanel() {
 
 // ─── SOCIAL SCREEN (merged single page) ───
 let _socialTab = 'friends';
+let _socialMenuWarmupPromise = null;
+
+function warmSocialMenuAssets() {
+  if(_socialMenuWarmupPromise) return _socialMenuWarmupPromise;
+  const sources = new Set(['blank.png']);
+  try {
+    (SOCIAL?.friends || []).forEach(p => { if(p && p.profileImg) sources.add(p.profileImg); });
+    (SOCIAL?.party?.members || []).forEach(p => { if(p && p.profileImg) sources.add(p.profileImg); });
+    (SIMULATED_ONLINE_PLAYERS || []).forEach(p => { if(p && p.profileImg) sources.add(p.profileImg); });
+    if(typeof getProfileImgSrc === 'function') {
+      const own = getProfileImgSrc();
+      if(own) sources.add(own);
+    }
+  } catch(e) {}
+  _socialMenuWarmupPromise = Promise.all(Array.from(sources).filter(Boolean).map(src => new Promise(resolve => {
+    const img = new Image();
+    let done = false;
+    const finish = () => {
+      if(done) return;
+      done = true;
+      resolve(src);
+    };
+    const timer = setTimeout(finish, 1400);
+    img.onload = () => { clearTimeout(timer); finish(); };
+    img.onerror = () => { clearTimeout(timer); finish(); };
+    try { img.decoding = 'async'; } catch(e) {}
+    try { img.loading = 'eager'; } catch(e) {}
+    img.src = src;
+    if(typeof img.decode === 'function') img.decode().then(() => {
+      clearTimeout(timer);
+      finish();
+    }).catch(() => {});
+  })));
+  return _socialMenuWarmupPromise;
+}
+
+try {
+  window.fateWarmSocialMenuAssets = warmSocialMenuAssets;
+} catch(e) {}
 
 function showSocial() {
+  warmSocialMenuAssets();
   if(typeof showScreen === 'function') showScreen('s-social');
   else { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('s-social').classList.add('active'); }
   renderSocialPage();
@@ -3977,7 +4290,7 @@ function renderSocialPage() {
     const readyColor = m.ready ? '#7fffa0' : '#ff6b6b';
     return `<div class="social-party-member">
       <div class="social-party-pic">
-        ${m.profileImg ? `<img src="${m.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
+        ${m.profileImg ? `<img src="${m.profileImg}" loading="eager" decoding="async" draggable="false" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">★</span>':''}</div>
@@ -4011,7 +4324,7 @@ function renderSocialPage() {
           : `<div class="social-friend-list" style="overflow:hidden;">${pageFriends.map(f => `
             <div class="social-friend-row" onclick='inspectProfile(${jsString(f.username)})'>
               <div class="social-friend-pic">
-                ${f.profileImg ? `<img src="${f.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${f.username.charAt(0).toUpperCase()}</span>`}
+                ${f.profileImg ? `<img src="${f.profileImg}" loading="eager" decoding="async" draggable="false" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${f.username.charAt(0).toUpperCase()}</span>`}
                 <span class="social-status-dot" style="background:${statusColors[f.status]||'#888'};"></span>
               </div>
               <div class="social-friend-info">

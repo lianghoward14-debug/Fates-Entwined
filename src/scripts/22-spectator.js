@@ -31,6 +31,18 @@
       return window.FATE_ENABLE_LIVE_MATCH_LISTINGS === true;
     }
   }
+  function liveMatchesQueryTarget(limit=16){
+    const base = FO().ref(FO().rtdb, 'liveMatches');
+    return (FO().query && FO().orderByChild && FO().limitToLast)
+      ? FO().query(base, FO().orderByChild('updatedAt'), FO().limitToLast(limit))
+      : base;
+  }
+  function spectatorChatQueryTarget(code){
+    const base = FO().ref(FO().rtdb, `rooms/${code}/chat`);
+    return (FO().query && FO().orderByChild && FO().limitToLast)
+      ? FO().query(base, FO().orderByChild('createdAt'), FO().limitToLast(80))
+      : base;
+  }
 
   function liveMatchTimeValue(value){
     if(typeof value === 'number') return value;
@@ -119,7 +131,7 @@
     const u = window.FATE_ONLINE?.user;
     if(!u || !FO().rtdb || !FO().get || !FO().remove) return;
     try{
-      const snap = await FO().get(FO().ref(FO().rtdb, 'liveMatches'));
+      const snap = await FO().get(liveMatchesQueryTarget(32));
       const entries = snap.val() || {};
       const codes = Object.keys(entries);
       for(let i=0; i<codes.length; i++){
@@ -178,7 +190,7 @@
   function subscribeLiveMatches(){
     unsubscribeLiveMatches();
     if(!FO().rtdb || !FO().onValue) return;
-    liveMatchesUnsub = FO().onValue(FO().ref(FO().rtdb, 'liveMatches'), snap=>{
+    liveMatchesUnsub = FO().onValue(liveMatchesQueryTarget(16), snap=>{
       const val = snap.val() || {};
       renderLiveMatchesList(Object.values(val));
     });
@@ -417,13 +429,7 @@
       spectatorActionsUnsub = FO().onChildAdded(ar, snap=>queueSpectatorAction(snap.val() || {}));
       return;
     }
-    spectatorActionsUnsub = FO().onValue(arBase, snap=>{
-      const val = snap.val() || {};
-      Object.values(val)
-        .filter(a=> (a?.seq||0) > spectatorLastAppliedSeq && !spectatorActionBuffer.has(Number(a?.seq || 0) || 0))
-        .sort((a,b)=> (a.seq||0) - (b.seq||0))
-        .forEach(queueSpectatorAction);
-    });
+    console.warn('[Spectator] Action replay requires keyed RTDB queries; refusing unbounded action-log fallback.');
   }
 
   async function applySpectatorAction(action){
@@ -468,7 +474,17 @@
         const fn = window.__fateOnlineOriginalFns?.[payload.fn];
         if(typeof fn === 'function'){
           const card = g.board?.[payload.z]?.[payload.r]?.[payload.c] || null;
+          const fx = payload.effectCinematic || (/^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || '')) ? payload : null);
+          const fxCard = fx ? (g.board?.[fx.z]?.[fx.r]?.[fx.c] || null) : null;
+          if(fxCard && typeof window.showEffectActivationCinematic === 'function') {
+            await window.showEffectActivationCinematic(fxCard, {remote:true, source:'spectator-board-action-effect-cinematic'});
+          }
           await fn.call(window, card, payload.z, payload.r, payload.c);
+        }
+      } else if(type === 'EFFECT_CINEMATIC'){
+        const card = g.board?.[payload.z]?.[payload.r]?.[payload.c] || null;
+        if(card && typeof window.showEffectActivationCinematic === 'function') {
+          await window.showEffectActivationCinematic(card, {remote:true, source:'spectator-effect-cinematic'});
         }
       } else if(type === 'HAND_ACTION'){
         const fn = window.__fateOnlineOriginalFns?.[payload.fn];
@@ -484,6 +500,11 @@
           await fn.call(window, card);
         }
       } else if(type === 'MODAL_ACTION'){
+        const fx = payload.effectCinematic || (g.selectedBoardCard ? {z:g.selectedBoardCard.z, r:g.selectedBoardCard.r, c:g.selectedBoardCard.c} : null);
+        const fxCard = fx ? (g.board?.[fx.z]?.[fx.r]?.[fx.c] || null) : null;
+        if(fxCard && typeof window.showEffectActivationCinematic === 'function') {
+          await window.showEffectActivationCinematic(fxCard, {remote:true, source:'spectator-modal-action-effect-cinematic'});
+        }
         const modalAction = g._onlinePendingModalActions?.[payload.actionIndex];
         if(modalAction && typeof modalAction.action === 'function') await modalAction.action();
         g._onlinePendingModalActions = null;
@@ -543,7 +564,7 @@
       }
     });
     // Watch chat separately to avoid downloading actions/players on every change
-    chatUnsub = FO().onValue(FO().ref(FO().rtdb, `rooms/${code}/chat`), snap=>{
+    chatUnsub = FO().onValue(spectatorChatQueryTarget(code), snap=>{
       const chatVal = snap.val();
       const json = JSON.stringify(chatVal || {});
       if(json === lastChatJson) return; // skip if unchanged

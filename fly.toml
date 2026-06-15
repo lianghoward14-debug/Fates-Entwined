@@ -8,6 +8,19 @@ primary_region = 'lax'
 
 [build]
 
+[env]
+  FATE_WS_DATA_DIR = '/data/fate-authority'
+  FATE_WS_FLY_STORE = '1'
+  FATE_WS_REQUIRE_FLY_STORE = '1'
+  FATE_WS_DURABLE_WRITES = 'off'
+  FATE_WS_REQUIRE_DURABLE_WRITES = '0'
+  FATE_WS_STATE_GATE = '1'
+  FATE_WS_REDUCER_MODE = 'turns'
+
+[[mounts]]
+  source = 'fate_authority_data'
+  destination = '/data'
+
 [http_service]
   internal_port = 8787
   force_https = true

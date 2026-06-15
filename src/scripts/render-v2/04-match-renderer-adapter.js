@@ -276,8 +276,8 @@
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
-    if(s.indexOf('pile-hover') >= 0) return DIRTY_HOVER;
-    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('pile-hover') >= 0) return DIRTY_PILES | DIRTY_HOVER;
+    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HAND | DIRTY_HOVER;
     if(s.indexOf('zone-scroll') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
@@ -285,6 +285,10 @@
     if(s.indexOf('pending-when-set') >= 0) return DIRTY_EFFECTS;
     if(s === 'input' || s === 'viewport-input') return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('resize') >= 0 || s.indexOf('screen-enter') >= 0 || s.indexOf('adaptive-render-scale') >= 0) return DIRTY_ALL | DIRTY_LAYOUT;
+    if(s.indexOf('opponent-hand-texture-ready') >= 0 || s.indexOf('opp-hand-texture-ready') >= 0 || s.indexOf('opphand-texture-ready') >= 0) return DIRTY_OPP_HAND;
+    if(s.indexOf('pile-texture-ready') >= 0) return DIRTY_PILES;
+    if(s.indexOf('hand-texture-ready') >= 0) return DIRTY_HAND;
+    if(s.indexOf('texture-ready') >= 0) return DIRTY_BOARD_CARDS;
     if(s.indexOf('opponent') >= 0 || s.indexOf('opphand') >= 0 || s.indexOf('opp-hand') >= 0) return DIRTY_OPP_HAND;
     if(s.indexOf('hand') >= 0) return DIRTY_HAND | DIRTY_EFFECTS;
     if(s.indexOf('pile') >= 0 || s.indexOf('deck') >= 0 || s.indexOf('discard') >= 0) return DIRTY_PILES;
@@ -293,6 +297,7 @@
     if(s.indexOf('motion') >= 0 || s.indexOf('animation') >= 0) return DIRTY_MOTION | DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('asset') >= 0) return DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES;
     if(s.indexOf('texture') >= 0) return DIRTY_BOARD_CARDS;
+    if(s.indexOf('board-action-fast-path') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('renderboard') >= 0 || s.indexOf('board-commit') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('block') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
@@ -340,6 +345,16 @@
     return Infinity;
   }
 
+  function msSinceLastAction(){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.msSinceLastAction === 'function') {
+        return Number(presenter.msSinceLastAction());
+      }
+    } catch(e) {}
+    return msSinceLastActionAnimation();
+  }
+
   function wasActionAnimatingRecently(ms){
     const presenter = actionPresenter();
     try {
@@ -348,6 +363,16 @@
       }
     } catch(e) {}
     return msSinceLastActionAnimation() <= Math.max(0, Number(ms) || 0);
+  }
+
+  function wasActionRecently(ms){
+    const presenter = actionPresenter();
+    try {
+      if(presenter && typeof presenter.wasActionRecently === 'function') {
+        return !!presenter.wasActionRecently(ms);
+      }
+    } catch(e) {}
+    return msSinceLastAction() <= Math.max(0, Number(ms) || 0);
   }
 
   function schedulePostActionRender(source, dirtyMask, delayMs){
@@ -365,7 +390,7 @@
       postActionDirtyMask = 0;
       postActionSources = [];
       enqueueRender('post-action-deferred:' + sources, maskToFlush);
-    }, Math.max(18, Math.min(140, Number(delayMs) || 72)));
+    }, Math.max(18, Math.min(260, Number(delayMs) || 72)));
     return true;
   }
 
@@ -393,9 +418,9 @@
   function scheduleTextureRender(source){
     const key = String(source || 'texture-ready');
     if(!(lastReport && lastReport.available)) return;
-    if(isActionAnimationActive() || wasActionAnimatingRecently(140)) {
+    if(isActionAnimationActive() || wasActionAnimatingRecently(180) || wasActionRecently(260)) {
       const dirtyMask = dirtyMaskForSource(key);
-      schedulePostActionRender(key, dirtyMask, isActionAnimationActive() ? 120 : 72);
+      schedulePostActionRender(key, dirtyMask, isActionAnimationActive() ? 180 : 160);
       return;
     }
     if(pendingTextureTimers[key]) return;
@@ -590,7 +615,7 @@
     hoverCanvas.style.height = canvas.style.height;
     hoverCanvas.style.display = 'block';
     hoverCanvas.style.pointerEvents = 'none';
-    hoverCanvas.style.zIndex = '4';
+    hoverCanvas.style.zIndex = '420';
     canvas.__fateLayers = {
       background:backgroundCanvas,
       cards:canvas,
@@ -670,6 +695,22 @@
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
+  function drawImageContain(ctx, img, x, y, w, h, options){
+    const opts = options || {};
+    try {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    } catch(e) {}
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const scale = Math.min(w / iw, h / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    const dx = x + (w - dw) / 2 + (Number(opts.offsetX) || 0);
+    const dy = y + (h - dh) / 2 + (Number(opts.offsetY) || 0);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
   function getAssetImage(src, onChange){
     const key = String(src || '');
     if(!key) return null;
@@ -688,6 +729,34 @@
     img.src = key;
     assetImageCache.set(key, rec);
     return rec;
+  }
+
+  function prewarmAssetImages(srcs){
+    const list = Array.isArray(srcs) ? srcs : [];
+    const promises = list.map(function(src){
+      const rec = getAssetImage(src);
+      if(!rec || rec.loaded || rec.failed) return Promise.resolve({src, ready:!!(rec && rec.loaded), failed:!!(rec && rec.failed)});
+      return new Promise(function(resolve){
+        const img = rec.img;
+        if(!img) return resolve({src, ready:false, failed:true});
+        const finish = function(){
+          resolve({src, ready:!!rec.loaded, failed:!!rec.failed});
+        };
+        const prevLoad = img.onload;
+        const prevError = img.onerror;
+        img.onload = function(){
+          if(typeof prevLoad === 'function') prevLoad.apply(this, arguments);
+          finish();
+        };
+        img.onerror = function(){
+          if(typeof prevError === 'function') prevError.apply(this, arguments);
+          finish();
+        };
+        if(img.complete) finish();
+        setTimeout(finish, 2400);
+      });
+    });
+    return Promise.all(promises);
   }
 
   function drawAssetCover(ctx, src, r, onChange){
@@ -718,15 +787,62 @@
     ctx.fillText(aff, r.x + r.w / 2, r.y + r.h / 2);
   }
 
-  function getTexture(card, visual, r, onChange){
-    if(!window.FateCardTextureCache || typeof window.FateCardTextureCache.getBaseCardTexture !== 'function') return null;
+  function fullArtSource(card, visual){
+    if(card && card.img) return card.img;
+    if(visual && visual.img) return visual.img;
+    if(card && card.visual && card.visual.img) return card.visual.img;
+    if(card && card.runtimeImg) return card.runtimeImg;
+    if(visual && visual.runtimeImg) return visual.runtimeImg;
+    if(card && card.visual && card.visual.runtimeImg) return card.visual.runtimeImg;
+    return '';
+  }
+
+  function getReadyTexture(card, visual, r){
+    if(!window.FateCardTextureCache) return null;
+    const size = {w:r.w, h:r.h};
+    const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+    const src = fullArtSource(card, visual);
+    const options = {
+      visual,
+      src,
+      dpr,
+      preferFullArt:true,
+      source:'match-v2-card'
+    };
     try {
-      return window.FateCardTextureCache.getBaseCardTexture(card, {w:r.w, h:r.h}, {
-        visual,
-        dpr:2,
-        preferFullArt:true,
-        onChange
-      });
+      if(typeof window.FateCardTextureCache.peekBaseCardTexture === 'function') {
+        const exact = window.FateCardTextureCache.peekBaseCardTexture(card, size, options);
+        if(exact && exact.loaded && exact.canvas && !exact.failed) return exact;
+      }
+      if(typeof window.FateCardTextureCache.findReadyBaseCardTexture === 'function') {
+        const ready = window.FateCardTextureCache.findReadyBaseCardTexture(card, size, options);
+        if(ready && ready.loaded && ready.canvas && !ready.failed) return ready;
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  function getTexture(card, visual, r, onChange, textureOptions){
+    const texOpts = textureOptions || {};
+    if(texOpts.readyOnly) return getReadyTexture(card, visual, r);
+    if(!window.FateCardTextureCache || typeof window.FateCardTextureCache.getBaseCardTexture !== 'function') return null;
+    const size = {w:r.w, h:r.h};
+    const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+    const src = fullArtSource(card, visual);
+    const options = {
+      visual,
+      src,
+      dpr,
+      preferFullArt:true,
+      source:'match-v2-card',
+      onChange
+    };
+    try {
+      if(typeof window.FateCardTextureCache.findReadyBaseCardTexture === 'function') {
+        const ready = window.FateCardTextureCache.findReadyBaseCardTexture(card, size, options);
+        if(ready) return ready;
+      }
+      return window.FateCardTextureCache.getBaseCardTexture(card, size, options);
     } catch(e) {
       return null;
     }
@@ -1296,7 +1412,7 @@
     if(!prevRect && pendingPlacementRect){
       pendingPlacementRectByIid.delete(iid);
       if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
-        window.FateVfxEventBridge.onAcceptedGameEvent({
+        const vfxId = window.FateVfxEventBridge.onAcceptedGameEvent({
           type:'PLAY_CARD',
           payload:{
             iid,
@@ -1306,7 +1422,7 @@
             targetRect:nextRect
           }
         });
-        hideBoardCardForVfx(iid, 420);
+        if(vfxId) hideBoardCardForVfx(iid, 420);
         return null;
       }
       if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
@@ -1325,7 +1441,7 @@
     if(!prevRect && lastReport && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
       const fromRect = fallbackBoardEntrySourceRect(card, nextRect);
       if(fromRect){
-        window.FateVfxEventBridge.onAcceptedGameEvent({
+        const vfxId = window.FateVfxEventBridge.onAcceptedGameEvent({
           type:'PLAY_CARD',
           payload:{
             iid,
@@ -1340,14 +1456,14 @@
             settleMs:80
           }
         });
-        hideBoardCardForVfx(iid, 360);
+        if(vfxId) hideBoardCardForVfx(iid, 360);
         return null;
       }
     }
     if(!prevRect || sameRect(prevRect, nextRect)) return timeline.getForCard && timeline.getForCard(iid, 'card-move');
     if(!snapshotChanged) return timeline.getForCard && timeline.getForCard(iid, 'card-move');
     if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
-      window.FateVfxEventBridge.onAcceptedGameEvent({
+      const vfxId = window.FateVfxEventBridge.onAcceptedGameEvent({
         type:'MOVE_CARD',
         payload:{
           iid,
@@ -1364,7 +1480,7 @@
           settleMs:96
         }
       });
-      hideBoardCardForVfx(iid, 430);
+      if(vfxId) hideBoardCardForVfx(iid, 430);
       return null;
     }
     if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
@@ -1383,11 +1499,13 @@
 
   function drawCardContent(ctx, entry, visual, r, onChange, options){
     const opts = options || {};
-    const texture = getTexture(entry.card, visual, r, onChange);
+    const texture = getTexture(entry.card, visual, r, onChange, {readyOnly:!!opts.readyTextureOnly});
     if(texture && texture.loaded && !texture.failed && texture.canvas) {
       ctx.drawImage(texture.canvas, r.x, r.y, r.w, r.h);
+    } else if(opts.readyTextureOnly) {
+      drawFallbackCard(ctx, visual, r);
     } else {
-      const fullArtSrc = visual && (visual.img || visual.runtimeImg);
+      const fullArtSrc = fullArtSource(entry && entry.card, visual);
       const art = window.FateCardTextureCache && typeof window.FateCardTextureCache.getArtBitmap === 'function'
         ? window.FateCardTextureCache.getArtBitmap(fullArtSrc, {source:'match-v2-full-art', onChange})
         : null;
@@ -1497,7 +1615,7 @@
       pendingWhenSetPulseRaf = setTimeout(function(){
         pendingWhenSetPulseRaf = 0;
         scheduleRender('pending-when-set-pulse');
-      }, 90);
+      }, 240);
     }
   }
 
@@ -1793,6 +1911,39 @@
     ctx.restore();
   }
 
+  function drawPileDeckBack(ctx, r){
+    const rec = getAssetImage('deck.png', function(){ scheduleTextureRender('asset-ready'); });
+    if(rec && rec.loaded && !rec.failed && rec.img) {
+      roundedPath(ctx, r.x, r.y, r.w, r.h, Math.max(4, r.w * .06));
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = '#07101d';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      drawImageContain(ctx, rec.img, r.x + 1, r.y + 1, Math.max(1, r.w - 2), Math.max(1, r.h - 2));
+      ctx.restore();
+      return;
+    }
+    drawCardBack(ctx, r, 'Deck', 'deck.png');
+  }
+
+  function drawPileDiscardCard(ctx, card, r){
+    if(!card) return false;
+    const visual = card.visual || card;
+    const src = fullArtSource(card, visual);
+    const rec = getAssetImage(src, function(){ scheduleTextureRender('pile-texture-ready'); });
+    if(rec && rec.loaded && !rec.failed && rec.img) {
+      roundedPath(ctx, r.x, r.y, r.w, r.h, Math.max(4, r.w * .06));
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = '#05070d';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      drawImageContain(ctx, rec.img, r.x + 1, r.y + 1, Math.max(1, r.w - 2), Math.max(1, r.h - 2));
+      ctx.restore();
+      return true;
+    }
+    return false;
+  }
+
   function drawEmptyPileSlot(ctx, r){
     const grd = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
     grd.addColorStop(0, 'rgba(14,18,29,.86)');
@@ -1842,11 +1993,13 @@
     ctx.strokeStyle = 'rgba(224,188,84,.42)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    const cardR = {x:r.x + 2, y:r.y + 5, w:Math.max(1, r.w - 4), h:Math.max(1, r.h - 10)};
+    const cardR = {x:r.x + 1, y:r.y + 1, w:Math.max(1, r.w - 2), h:Math.max(1, r.h - 2)};
     if(isDeck) {
-      drawCardBack(ctx, cardR, 'Deck', 'deck.png');
+      drawPileDeckBack(ctx, cardR);
     } else if(!top) {
       drawEmptyPileSlot(ctx, cardR);
+    } else if(drawPileDiscardCard(ctx, top, cardR)) {
+      // The pile preview uses the source image directly for readability.
     } else {
       drawCardContent(ctx, {card:top}, top.visual || top, cardR, function(){ scheduleTextureRender('pile-texture-ready'); }, {pulse:false, tilt:0, hideFateBadge:true});
     }
@@ -1866,11 +2019,11 @@
     if(!pile || !pile.rect || !isPileViewportHovered(pile)) return;
     const r = pile.rect;
     ctx.save();
-    roundedPath(ctx, r.x + 1, r.y + 1, Math.max(1, r.w - 2), Math.max(1, r.h - 2), 7);
-    ctx.shadowColor = 'rgba(255,216,92,.54)';
-    ctx.shadowBlur = 8;
-    ctx.strokeStyle = 'rgba(255,224,104,.86)';
-    ctx.lineWidth = 1.7;
+    roundedPath(ctx, r.x + 1, r.y + 1, Math.max(1, r.w - 2), Math.max(1, r.h - 2), 8);
+    ctx.shadowColor = 'rgba(255,216,92,.72)';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = 'rgba(255,226,100,.98)';
+    ctx.lineWidth = 2.4;
     ctx.stroke();
     ctx.restore();
   }
@@ -1914,15 +2067,18 @@
   }
 
   function drawHoveredHandCard(ctx, entry, visual, r, onChange, disabled){
-    const scale = 1.06;
-    const lift = Math.max(8, r.h * .06);
+    const scale = 1.28;
+    const lift = Math.max(22, r.h * .22);
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
     ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.46)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 12;
     ctx.translate(cx, cy - lift);
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
-    drawCardVisual(ctx, entry, visual, r, onChange, {pulse:false, tilt:0, lift:.65, hideFateBadge:true, noShadow:true});
+    drawCardVisual(ctx, entry, visual, r, onChange, {pulse:false, tilt:0, lift:1, hideFateBadge:true, noShadow:true, readyTextureOnly:true});
     if(disabled) drawDisabledCardOverlay(ctx, r);
     ctx.restore();
   }
@@ -2276,11 +2432,12 @@
       }
       const visual = item.card.visual || item.card;
       const disabled = isSupporterLimitDisabled(item, snapshot);
-      const isHovered = !disabled && !!(viewportHoverHit && viewportHoverHit.kind === 'hand-card' && Number(viewportHoverHit.index) === Number(item.index));
+      const isDraggingCard = !!(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'));
+      const isHovered = !isDraggingCard && !disabled && !!(viewportHoverHit && viewportHoverHit.kind === 'hand-card' && Number(viewportHoverHit.index) === Number(item.index));
       const entry = {card:item.card, c:item.index, r:0, z:0};
       const onChange = function(){ scheduleTextureRender('hand-texture-ready'); };
       if(isHovered) {
-        drawHoveredHandCard(ctx, entry, visual, item.rect, onChange, disabled);
+        hoveredHandItem = {entry, visual, rect:item.rect, onChange, disabled};
       } else {
         drawCardVisual(ctx, entry, visual, item.rect, onChange, {pulse:false, tilt:0, lift:0, hideFateBadge:true, noShadow:true});
         if(disabled) drawDisabledCardOverlay(ctx, item.rect);
@@ -2288,7 +2445,9 @@
       hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
     }
     handCards.forEach(drawHandItem);
-    if(hoveredHandItem) drawHandItem(hoveredHandItem);
+    if(hoveredHandItem) {
+      drawHoveredHandCard(ctx, hoveredHandItem.entry, hoveredHandItem.visual, hoveredHandItem.rect, hoveredHandItem.onChange, hoveredHandItem.disabled);
+    }
 
     const oppCards = layout.opponentHand && Array.isArray(layout.opponentHand.cards) ? layout.opponentHand.cards : [];
     oppCards.forEach(function(item){
@@ -2550,14 +2709,6 @@
     }
     const hoverCanvas = layers.hover || document.getElementById(hoverCanvasId);
     if(!hoverCanvas || !canvas) return null;
-    const pxW = Math.max(1, Math.round(cssW * dpr));
-    const pxH = Math.max(1, Math.round(cssH * dpr));
-    if(hoverCanvas.width !== pxW) hoverCanvas.width = pxW;
-    if(hoverCanvas.height !== pxH) hoverCanvas.height = pxH;
-    hoverCanvas.__fateCssW = cssW;
-    hoverCanvas.__fateCssH = cssH;
-    hoverCanvas.style.width = cssW + 'px';
-    hoverCanvas.style.height = cssH + 'px';
     lastCanvasMetrics = Object.assign({cssW, cssH, dpr}, scaleMetrics || {});
     return hoverCanvas;
   }
@@ -2580,6 +2731,9 @@
     ctx.setTransform(metrics.dpr, 0, 0, metrics.dpr, 0, 0);
     ctx.clearRect(0, 0, metrics.cssW, metrics.cssH);
     drawHoverCue(ctx, hoverHit);
+    if(window.FateVfxDirector && typeof window.FateVfxDirector.drawDragPreviewOverlay === 'function'){
+      window.FateVfxDirector.drawDragPreviewOverlay(ctx);
+    }
     renderCounters.hoverLayerRedraws++;
     if(opts.dirty !== false) {
       renderCounters.hoverOnlyDraws++;
@@ -2778,11 +2932,12 @@
   }
 
   function ensureInput(canvas){
-    if(!canvas || !ownsBoard() || !isActiveMatchScreen()) return;
+    const target = document.getElementById('board') || canvas;
+    if(!target || !ownsBoard() || !isActiveMatchScreen()) return;
     if(!window.FateMatchSceneInput) return;
     if(!input) input = new window.FateMatchSceneInput(window.FateMatchRendererAdapter);
     else if(typeof input.updateScene === 'function') input.updateScene(window.FateMatchRendererAdapter);
-    input.attach(canvas);
+    input.attach(target);
   }
 
   function renderFromGameState(options){
@@ -3347,9 +3502,9 @@
         return;
       }
     }
-    if(srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionAnimatingRecently(120) && heavyActionDirtyMask(nextMask)) {
-      const age = msSinceLastActionAnimation();
-      schedulePostActionRender(src, nextMask, Math.max(24, 120 - (Number.isFinite(age) ? age : 0)));
+    if(srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionRecently(180) && heavyActionDirtyMask(nextMask)) {
+      const age = msSinceLastAction();
+      schedulePostActionRender(src, nextMask, Math.max(24, 180 - (Number.isFinite(age) ? age : 0)));
       return;
     }
     if(redrawRaf && nextIsVfxOnly && (pendingDirtyMask & ~DIRTY_VFX_ONLY)) {
@@ -3467,6 +3622,55 @@
     return true;
   }
 
+  function prewarmMatchEntryLayers(options){
+    const opts = options || {};
+    const started = nowMs();
+    const board = document.getElementById('board');
+    if(!board) return {ok:false, reason:'missing-board'};
+    const cssW = Math.max(960, Math.round(Number(opts.width) || window.innerWidth || 1280));
+    const cssH = Math.max(540, Math.round(Number(opts.height) || window.innerHeight || 720));
+    const dpr = Math.min(2, Math.max(1, Number(window.devicePixelRatio || 1)));
+    const pxW = Math.max(1, Math.round(cssW * dpr));
+    const pxH = Math.max(1, Math.round(cssH * dpr));
+    const ids = [backgroundCanvasId, cardCanvasId, effectCanvasId, particleCanvasId, hoverCanvasId, uiCanvasId];
+    let prepared = 0;
+    ids.forEach(function(id){
+      const canvas = makeLayerCanvas(id, id === cardCanvasId ? 'Fates Entwined match board' : '');
+      if(id === uiCanvasId && document.body && canvas.parentNode !== document.body) document.body.appendChild(canvas);
+      else if(id !== uiCanvasId && canvas.parentNode !== board) board.appendChild(canvas);
+      if(canvas.width !== pxW) canvas.width = pxW;
+      if(canvas.height !== pxH) canvas.height = pxH;
+      canvas.__fatePrewarmed = true;
+      canvas.__fatePrewarmCssW = cssW;
+      canvas.__fatePrewarmCssH = cssH;
+      canvas.style.display = 'none';
+      try{
+        const ctx = canvas.getContext && canvas.getContext('2d', {alpha:true});
+        if(ctx) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, 1, 1);
+          prepared += 1;
+        }
+      }catch(e){}
+    });
+    const report = {
+      ok:true,
+      source:opts.source || 'match-entry-prewarm',
+      layers:prepared,
+      cssW,
+      cssH,
+      dpr,
+      pxW,
+      pxH,
+      ms:roundMs(nowMs() - started)
+    };
+    try{
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.matchEntryLayerPrewarm = report;
+    }catch(e){}
+    return report;
+  }
+
   window.FateMatchRendererAdapter = {
     version:ADAPTER_VERSION,
     ownsBoard,
@@ -3479,8 +3683,10 @@
     setHoverHit,
     setViewportHoverHit,
     scrollZoneAtClient,
+    prewarmMatchEntryLayers,
     flashBoardCardActivation,
     playEffectActivationCinematic,
+    prewarmAssetImages,
     queuePlacementMotion,
     suppressInitialPlacementMotion,
     hideBoardCardForVfx,

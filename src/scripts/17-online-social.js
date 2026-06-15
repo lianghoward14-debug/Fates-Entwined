@@ -18,6 +18,7 @@
   let profileUnsubs = new Map();
   let renderTimer = null;
   let renderPendingWhileHidden = false;
+  let socialRenderDirty = true;
   let renderSeq = 0;
   let lastHtml = '';
   let onlinePage = 0;
@@ -128,6 +129,8 @@
   }
 
   function scheduleRender(){
+    socialRenderDirty = true;
+    if(window.FateMenuViews) window.FateMenuViews.invalidate('onlineSocial');
     syncTopPendingBadge();
     if(document.hidden || window.__fatePageHidden){
       renderPendingWhileHidden = true;
@@ -140,6 +143,8 @@
   function forceSocialRender(){
     syncTopPendingBadge();
     clearTimeout(renderTimer);
+    socialRenderDirty = true;
+    if(window.FateMenuViews) window.FateMenuViews.invalidate('onlineSocial');
     lastHtml = '';
     if(document.getElementById('s-social')?.classList.contains('active')) renderSocialPage();
   }
@@ -168,6 +173,28 @@
     if(typeof window.updatePendingBadge === 'function') {
       try{ window.updatePendingBadge(); }catch(e){}
     }
+  }
+  function socialStateSig(){
+    const u = window.FATE_ONLINE?.user;
+    const partyMembers = onlineParty?.members ? Object.keys(onlineParty.members).sort().join(',') : '';
+    return [
+      u?.uid || 'signed-out',
+      onlinePage,
+      Object.keys(friends || {}).sort().join(','),
+      Object.keys(requests || {}).sort().join(','),
+      onlineUids.slice().sort().join(','),
+      activePartyId || '',
+      partyMembers,
+      Object.keys(partyInvites || {}).sort().join(',')
+    ].join('|');
+  }
+  function ensureOnlineSocialView(){
+    if(!window.FateMenuViews) return;
+    window.FateMenuViews.register('onlineSocial', {
+      root:'#social-content',
+      signature:socialStateSig,
+      render:()=>renderSocialPage()
+    });
   }
   function cleanupProfileSubs(keepSet){
     for(const [uid, unsub] of profileUnsubs.entries()){
@@ -203,7 +230,7 @@
     unsubFriends = unsubReq = unsubPresence = unsubThreads = null;
     unsubPartyInvites = unsubUserParty = unsubPartyState = null;
     cleanupProfileSubs();
-    friends = {}; requests = {}; onlineUids = []; threads = {}; partyInvites = {}; onlineParty = null; activePartyId = ''; profileMap = new Map(); lastHtml = '';
+    friends = {}; requests = {}; onlineUids = []; threads = {}; partyInvites = {}; onlineParty = null; activePartyId = ''; profileMap = new Map(); lastHtml = ''; socialRenderDirty = true;
     syncTopPendingBadge();
     window.FATE_ONLINE_PARTY = null;
     partyDisconnectArmedFor = '';
@@ -709,10 +736,15 @@
     const seq = ++renderSeq;
     const content = document.getElementById('social-content');
     if(!content) return;
+    watchWorldChat();
+    if(content.dataset.socialMounted === '1' && !socialRenderDirty && lastHtml) return;
     const u = window.FATE_ONLINE?.user;
     if(!u){
       const html = `<div class="social-signin-stage"><div class="social-signin-card"><div class="social-signin-orb">G</div><div class="social-signin-title">Google Sign-In Required</div><div class="social-signin-copy">Sign into a Google account to use friends, parties, online players, world chat, and shared decks.</div><button class="btn pri social-signin-btn" onclick="window.fateSignInWithGoogle()">Sign In With Google</button></div></div>`;
       if(lastHtml !== html){ content.innerHTML = html; lastHtml = html; }
+      content.dataset.socialMounted = '1';
+      socialRenderDirty = false;
+      if(window.FateMenuViews) window.FateMenuViews.markFresh('onlineSocial', socialStateSig());
       return;
     }
     watchSocial();
@@ -793,6 +825,9 @@
         inp.onkeydown = e=>{ if(e.key==='Enter') addFriendFromInput(); };
       }
     }
+    content.dataset.socialMounted = '1';
+    socialRenderDirty = false;
+    if(window.FateMenuViews) window.FateMenuViews.markFresh('onlineSocial', socialStateSig());
   }
 
   function showOnlineFriendRequests(){
@@ -802,7 +837,15 @@
   }
 
   window.renderSocialPage = renderSocialPage;
-  window.showSocial = function(){ if(typeof showScreen==='function') showScreen('s-social'); watchSocial(); renderSocialPage(); };
+  window.showSocial = function(){
+    if(typeof showScreen==='function') showScreen('s-social');
+    watchSocial();
+    ensureOnlineSocialView();
+    const content = document.getElementById('social-content');
+    if(content?.dataset.socialMounted === '1' && !socialRenderDirty && lastHtml) return;
+    if(window.FateMenuViews) window.FateMenuViews.render('onlineSocial');
+    else renderSocialPage();
+  };
   window.socialAddFriendFromInput = addFriendFromInput;
   window.acceptOnlineFriend = acceptFriend;
   window.declineOnlineFriend = declineFriend;
@@ -992,6 +1035,7 @@
   }
 
   async function sendWorldChatOnline(){
+    watchWorldChat();
     const sideInput = document.getElementById('sp-wc-input');
     const inp = document.getElementById('wc-input');
     if(sideInput && sideInput.value.trim() && inp){
@@ -1155,7 +1199,11 @@
     ensureProfileSub(peerUid);
     FO.update(FO.ref(FO.rtdb, `privateThreads/${u.uid}/${peerUid}`), { unread:0 }).catch(()=>{});
     unsubDmProfile = FO.subscribeProfile ? FO.subscribeProfile(peerUid, p=>{ profileMap.set(peerUid, p || fallback(peerUid)); renderDmMessagesOnly(); }) : null;
-    unsubDm = FO.onValue(FO.ref(FO.rtdb, `privateMessages/${u.uid}/${peerUid}/messages`), snap=>{
+    const dmRef = FO.ref(FO.rtdb, `privateMessages/${u.uid}/${peerUid}/messages`);
+    const dmTarget = (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(dmRef, FO.orderByChild('createdAt'), FO.limitToLast(80))
+      : dmRef;
+    unsubDm = FO.onValue(dmTarget, snap=>{
       const val = snap.val() || {};
       dmMessages = Object.entries(val).map(([id,m])=>Object.assign({id}, m)).filter(m=>m.text);
       dmMessages.sort((a,b)=>timestampOf(a)-timestampOf(b));
@@ -1242,7 +1290,14 @@
     wrappedOpen._fateOnlineWrapped = true;
     window.openDirectMessage = wrappedOpen;
     clearLocalFakeWorldChat();
-    watchWorldChat();
+    if(!window._fateOnlineBaseToggleWorldChat && typeof window.toggleWorldChat === 'function' && !window.toggleWorldChat._fateOnlineWrapped){
+      window._fateOnlineBaseToggleWorldChat = window.toggleWorldChat;
+      window.toggleWorldChat = function(){
+        watchWorldChat();
+        return window._fateOnlineBaseToggleWorldChat.apply(this, arguments);
+      };
+      window.toggleWorldChat._fateOnlineWrapped = true;
+    }
     installWorldChatHandlers();
   }
 
@@ -1255,7 +1310,10 @@
     setTimeout(patchExistingChatUi, 300);
     setTimeout(patchExistingChatUi, 1200);
   }
-  if(FO.onAuth) FO.onAuth(()=>{ watchWorldChat(); scheduleChatPatch(); });
+  if(FO.onAuth) FO.onAuth(s=>{
+    if(!s?.user) watchWorldChat();
+    scheduleChatPatch();
+  });
   window.addEventListener('DOMContentLoaded', scheduleChatPatch);
   scheduleChatPatch();
 

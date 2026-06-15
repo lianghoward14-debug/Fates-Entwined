@@ -21,6 +21,7 @@
       this.handleViewportPointerDown = this.handleViewportPointerDown.bind(this);
       this.handleViewportPointerUp = this.handleViewportPointerUp.bind(this);
       this.handleViewportPointerMove = this.handleViewportPointerMove.bind(this);
+      this.handleViewportClick = this.handleViewportClick.bind(this);
       this.handleWheel = this.handleWheel.bind(this);
     }
 
@@ -36,6 +37,7 @@
       document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:true});
       document.addEventListener('pointerup', this.handleViewportPointerUp, {capture:true, passive:false});
       document.addEventListener('pointermove', this.handleViewportPointerMove, {capture:true, passive:true});
+      document.addEventListener('click', this.handleViewportClick, {capture:true, passive:false});
     }
 
     detach(){
@@ -47,6 +49,7 @@
       document.removeEventListener('pointerdown', this.handleViewportPointerDown, true);
       document.removeEventListener('pointerup', this.handleViewportPointerUp, true);
       document.removeEventListener('pointermove', this.handleViewportPointerMove, true);
+      document.removeEventListener('click', this.handleViewportClick, true);
       if(this.moveRaf) {
         cancelAnimationFrame(this.moveRaf);
         this.moveRaf = 0;
@@ -67,6 +70,27 @@
       return this.pointFromClient(ev.clientX, ev.clientY);
     }
 
+    recordInputDebug(kind, data){
+      try {
+        const perf = window.__fatePerf = window.__fatePerf || {};
+        const list = perf.sceneInputDebug = Array.isArray(perf.sceneInputDebug) ? perf.sceneInputDebug : [];
+        list.push(Object.assign({
+          at:Math.round(performance.now ? performance.now() : Date.now()),
+          kind
+        }, data || {}));
+        while(list.length > 36) list.shift();
+      } catch(e) {}
+    }
+
+    targetSummary(target){
+      if(!target) return '';
+      const id = target.id ? ('#' + target.id) : '';
+      const cls = target.className && typeof target.className === 'string'
+        ? ('.' + target.className.trim().split(/\s+/).slice(0, 4).join('.'))
+        : '';
+      return String((target.tagName || 'node').toLowerCase() + id + cls);
+    }
+
     pointFromClient(clientX, clientY){
       const target = this.container;
       const r = target && target.getBoundingClientRect ? target.getBoundingClientRect() : {left:0, top:0, width:1, height:1};
@@ -83,16 +107,47 @@
     isModalBlockingSceneInput(){
       try {
         const modal = document.getElementById('modal');
-        if(modal && modal.classList && modal.classList.contains('on')) return true;
-        const blockers = document.querySelectorAll('.overlay.on, .card-info-overlay, [role="dialog"][aria-modal="true"], .modal[aria-modal="true"], .card-detail-modal, .card-info-modal');
+        if(modal && modal.classList && modal.classList.contains('on')) {
+          this.recordInputDebug('blocked-modal', {source:'#modal.on'});
+          return true;
+        }
+        const blockers = document.querySelectorAll('.overlay.on, .card-info-overlay.on, [role="dialog"][aria-modal="true"], .modal[aria-modal="true"], .card-detail-modal.on, .card-info-modal.on');
         for(let i = 0; i < blockers.length; i++){
           const el = blockers[i];
           if(!el) continue;
           const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
           if(style && (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0)) continue;
-          if(el.getClientRects && el.getClientRects().length) return true;
+          if(style && style.pointerEvents === 'none') continue;
+          if(el.getClientRects && el.getClientRects().length) {
+            this.recordInputDebug('blocked-modal', {source:this.targetSummary(el)});
+            return true;
+          }
         }
       } catch(e) {}
+      return false;
+    }
+
+    isDomControlTarget(target){
+      if(!target || !target.closest) return false;
+      return !!target.closest('button, a, input, select, textarea, label, summary, [role="button"], [data-scene-input="ignore"], .side-panel, .right-panel, .hud-panel, .match-side-panel, #right-panel, #turn-panel, #topbar, #btn-end-turn');
+    }
+
+    isViewportCanvasTarget(target){
+      if(!target) return false;
+      if(target === this.container) return true;
+      if(this.container && this.container.contains && this.container.contains(target)) return true;
+      if(target.classList && target.classList.contains('fate-match-v2-layer-canvas')) return true;
+      const ids = [
+        'fate-match-v2-canvas',
+        'fate-match-v2-ui-canvas',
+        'fate-match-v2-hover-canvas',
+        'fate-match-v2-effect-canvas',
+        'fate-board-canvas'
+      ];
+      for(let i = 0; i < ids.length; i++){
+        const canvas = document.getElementById(ids[i]);
+        if(canvas && (target === canvas || (canvas.contains && canvas.contains(target)))) return true;
+      }
       return false;
     }
 
@@ -119,6 +174,11 @@
       const scene = this.scene || window.FateMatchRendererAdapter;
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
       if(!hitMap) return null;
+      const point = this.pointFromClient(clientX, clientY);
+      const candidates = [
+        {x:clientX, y:clientY, space:'viewport'},
+        {x:point.x, y:point.y, space:'board'}
+      ];
       const groups = [
         {items:Array.isArray(hitMap.uiCommands) ? hitMap.uiCommands : [], kind:'ui-command'},
         {items:Array.isArray(hitMap.handCards) ? hitMap.handCards : [], kind:'hand-card'},
@@ -130,8 +190,12 @@
         for(let i = group.items.length - 1; i >= 0; i--){
           const hit = group.items[i];
           const r = hit && hit.rect;
-          if(r && clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) {
-            return Object.assign({kind:group.kind}, hit);
+          if(!r) continue;
+          for(let c = 0; c < candidates.length; c++){
+            const p = candidates[c];
+            if(p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+              return Object.assign({kind:group.kind, clientX, clientY, x:p.x, y:p.y, hitSpace:p.space}, hit);
+            }
           }
         }
       }
@@ -147,8 +211,16 @@
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
+      if(this.isDomControlTarget(ev.target)) {
+        this.recordInputDebug('viewport-down-dom-control', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
       const hit = this.viewportHitTest(ev.clientX, ev.clientY);
-      if(!hit) return;
+      if(!hit) {
+        this.recordInputDebug('viewport-down-miss', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      this.recordInputDebug('viewport-down-hit', {target:this.targetSummary(ev.target), kind:hit.kind, command:hit.command || '', index:hit.index, hitSpace:hit.hitSpace || '', clientX:ev.clientX, clientY:ev.clientY});
       this.viewportPointerDownHit = hit;
       this.viewportPointerDownPoint = {clientX:ev.clientX, clientY:ev.clientY};
     }
@@ -162,23 +234,63 @@
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
+      if(this.isDomControlTarget(ev.target)) {
+        this.recordInputDebug('viewport-up-dom-control', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        this.viewportPointerDownHit = null;
+        this.viewportPointerDownPoint = null;
+        return;
+      }
       const started = this.viewportPointerDownHit;
       const startedPoint = this.viewportPointerDownPoint;
       this.viewportPointerDownHit = null;
       this.viewportPointerDownPoint = null;
-      if(!started || !startedPoint) return;
-      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) return;
+      if(!started || !startedPoint) {
+        this.recordInputDebug('viewport-up-no-start', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) {
+        this.recordInputDebug('viewport-up-moved', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
       const ended = this.viewportHitTest(ev.clientX, ev.clientY);
-      if(!ended || ended.kind !== started.kind) return;
+      if(!ended || ended.kind !== started.kind) {
+        this.recordInputDebug('viewport-up-hit-mismatch', {target:this.targetSummary(ev.target), started:started.kind, ended:ended && ended.kind || '', clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
       if(ended.kind === 'hand-card' && ended.index !== started.index) return;
       if(ended.kind === 'opponent-hand-card' && ended.index !== started.index) return;
       if(ended.kind === 'pile' && (ended.playerIndex !== started.playerIndex || ended.pile !== started.pile)) return;
       if(ended.kind === 'ui-command' && ended.command !== started.command) return;
-      if(performance.now && performance.now() - this.lastHandledAt < 80) return;
+      if(performance.now && performance.now() - this.lastHandledAt < 80) {
+        this.recordInputDebug('viewport-up-throttled', {target:this.targetSummary(ev.target), kind:ended.kind, command:ended.command || ''});
+        return;
+      }
       this.lastHandledAt = performance.now ? performance.now() : Date.now();
+      this.recordInputDebug('viewport-dispatch', {target:this.targetSummary(ev.target), kind:ended.kind, command:ended.command || '', index:ended.index, hitSpace:ended.hitSpace || ''});
       ev.preventDefault();
       ev.stopPropagation();
       this.dispatchViewportHit(ended);
+    }
+
+    handleViewportClick(ev){
+      if(this.isModalBlockingSceneInput()) return;
+      const scene = this.scene || window.FateMatchRendererAdapter;
+      if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
+      if(this.isDomControlTarget(ev.target)) {
+        this.recordInputDebug('viewport-click-dom-control', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      if(performance.now && performance.now() - this.lastHandledAt < 80) return;
+      const hit = this.viewportHitTest(ev.clientX, ev.clientY);
+      if(!hit || (hit.kind !== 'hand-card' && hit.kind !== 'opponent-hand-card' && hit.kind !== 'pile' && hit.kind !== 'ui-command')) {
+        this.recordInputDebug('viewport-click-miss', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      this.lastHandledAt = performance.now ? performance.now() : Date.now();
+      this.recordInputDebug('viewport-click-dispatch', {target:this.targetSummary(ev.target), kind:hit.kind, command:hit.command || '', index:hit.index, hitSpace:hit.hitSpace || ''});
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.dispatchViewportHit(hit);
     }
 
     handleViewportPointerMove(ev){
@@ -283,7 +395,15 @@
         }
       } finally {
         if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
-          window.FateMatchRendererAdapter.scheduleRender('input');
+          if(isCellActionMode) {
+            setTimeout(function(){
+              if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+                window.FateMatchRendererAdapter.scheduleRender('input');
+              }
+            }, 120);
+          } else {
+            window.FateMatchRendererAdapter.scheduleRender('input');
+          }
         }
       }
     }

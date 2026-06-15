@@ -56,14 +56,32 @@ function getCachedSfxNoiseBuffer(ctx, dur, decay, gainVal, variant){
   const d = buf.getChannelData(0);
   for(let i=0;i<d.length;i++) {
     const t = i / d.length;
-    let sample = (Math.random()*2-1) * Math.pow(1-t, decay) * gainVal;
-    if(variant === 'sine') sample *= Math.sin(Math.PI * t);
+    let sample;
+    if(variant === 'drawSwoosh') {
+      sample = (Math.random()*2-1) * Math.sin(Math.PI*t) * 0.4 * (1-t*0.5);
+    } else {
+      sample = (Math.random()*2-1) * Math.pow(1-t, decay) * gainVal;
+      if(variant === 'sine') sample *= Math.sin(Math.PI * t);
+    }
     d[i] = sample;
   }
   cache.set(key, buf);
   return buf;
 }
 window.getCachedFateSfxNoiseBuffer = getCachedSfxNoiseBuffer;
+
+function warmFateSyntheticSfx(types) {
+  const list = Array.isArray(types) && types.length ? types : ['draw','place','consolidate','discard'];
+  try {
+    const ctx = getAudioCtx();
+    getSfxBus(ctx);
+    if(list.includes('draw')) getCachedSfxNoiseBuffer(ctx, 0.15, 0.5, 0.4, 'drawSwoosh');
+    if(list.includes('place')) getCachedSfxNoiseBuffer(ctx, 0.06, 2.2, 0.5);
+    if(list.includes('consolidate')) getCachedSfxNoiseBuffer(ctx, 0.04, 2.5, 0.3);
+    if(list.includes('discard')) getCachedSfxNoiseBuffer(ctx, 0.35, 1.2, 0.35);
+  } catch(e) {}
+}
+window.fateWarmSyntheticSfx = warmFateSyntheticSfx;
 
 const FATE_SAMPLE_SFX = {
   menuOpen: {src:'soundeffects/codex-redesign/menu_open_silk_gate.wav', gain:0.92},
@@ -191,7 +209,12 @@ function playFateLossTone(effectiveVol) {
 
 function playSfx(type) {
   if(_masterVol<=0) return;
-  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel'].includes(type);
+  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition'].includes(type);
+  if(isMenuSound) {
+    const startupOverlay = typeof document !== 'undefined' ? document.getElementById('fate-loading-screen') : null;
+    if(startupOverlay && !startupOverlay.classList.contains('is-hiding')) return;
+    if(typeof window !== 'undefined' && window.__fateStartupWarmupActive) return;
+  }
   const effectiveVol = isMenuSound ? _menuVol : _sfxVol;
   if(effectiveVol<=0) return;
   if(type === 'fateLose') playFateLossTone(effectiveVol);
@@ -303,12 +326,7 @@ function playSfx(type) {
     else if(type==='draw'){
       // Slick card slide: filtered swoosh + snappy transient + tonal pop
       // Swoosh noise
-      const buf = ctx.createBuffer(1,ctx.sampleRate*0.15,ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for(let i=0;i<d.length;i++){
-        const t=i/d.length;
-        d[i] = (Math.random()*2-1) * Math.sin(Math.PI*t) * 0.4 * (1-t*0.5);
-      }
+      const buf = getCachedSfxNoiseBuffer(ctx, 0.15, 0.5, 0.4, 'drawSwoosh');
       const src = ctx.createBufferSource(); src.buffer = buf;
       const bp = ctx.createBiquadFilter(); bp.type='bandpass';
       bp.frequency.setValueAtTime(1200,now); bp.frequency.exponentialRampToValueAtTime(4000,now+0.12);
@@ -1733,11 +1751,34 @@ function playCardSound(cardId) {
   const soundFile = CARD_SOUNDS[cardId];
   if(!soundFile) return;
   try {
-    const audio = new Audio(SET_VOICELINE_PATH(soundFile));
+    let src = SET_VOICELINE_PATH(soundFile);
+    const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set']);
+    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + 'v=20260614b';
+    const audio = new Audio(src);
     // Normalize voiceline volume - cap at 0.7 to prevent loud clips
     audio.volume = Math.min(0.7, _voiceVol * _masterVol);
     audio.play().catch(()=>{});
   } catch(e){}
+}
+
+function deferMatchAudio(fn, delayMs) {
+  const run = function(){
+    try { fn(); } catch(e) {}
+  };
+  const delay = Math.max(0, Number(delayMs) || 0);
+  const afterPaint = function(){
+    setTimeout(run, delay);
+  };
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(afterPaint);
+  else setTimeout(run, delay);
+}
+
+function playCardSoundDeferred(cardId, delayMs) {
+  deferMatchAudio(function(){ playCardSound(cardId); }, delayMs);
+}
+
+function playSfxDeferred(type, delayMs) {
+  deferMatchAudio(function(){ playSfx(type); }, delayMs);
 }
 
 function applyAudioVolumes() {
@@ -2197,7 +2238,8 @@ function showProfile() {
 }
 
 function refreshProfileDisplays() {
-  if(typeof renderTitleProfile==='function') renderTitleProfile();
+  if(typeof safeRenderTitleProfile==='function') safeRenderTitleProfile();
+  else if(typeof renderTitleProfile==='function') renderTitleProfile();
   if(typeof updatePlayerBanners==='function') updatePlayerBanners();
 }
 

@@ -611,6 +611,15 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
   if(!cards.length) return false;
   if(!Array.isArray(G.players[playerIndex].discard)) G.players[playerIndex].discard = [];
   G.players[playerIndex].discard.push(...cards);
+  try {
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmAssetImages === 'function') {
+      const srcs = cards.map(function(card){
+        const visual = card && card.visual;
+        return (card && card.img) || (visual && visual.img) || (card && card.runtimeImg) || (visual && visual.runtimeImg) || '';
+      }).filter(Boolean);
+      if(srcs.length) window.FateMatchRendererAdapter.prewarmAssetImages(srcs);
+    }
+  } catch(e) {}
   if(options.sound !== false) playDiscardSfx();
   return true;
 }

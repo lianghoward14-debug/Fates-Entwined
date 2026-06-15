@@ -137,7 +137,58 @@ function getBoardActionRenderPartsForPlayer(player, options) {
   return parts;
 }
 function renderBoardActionForPlayer(player, options) {
-  renderGame(getBoardActionRenderPartsForPlayer(player, options));
+  const parts = getBoardActionRenderPartsForPlayer(player, options);
+  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()){
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.v2BoardActionFastPathRenders = (perf.v2BoardActionFastPathRenders || 0) + 1;
+      perf.lastV2BoardActionFastPath = {
+        parts:Object.keys(parts || {}).filter(function(k){ return parts[k]; }).join(','),
+        mode:'single-v2-schedule',
+        at:Date.now()
+      };
+    } catch(e) {}
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('board-action-fast-path');
+    }
+    if(parts.topbar && typeof updateTopBar === 'function') {
+      setTimeout(function(){ try { updateTopBar(); } catch(e) {} }, 0);
+    }
+    if(parts.landscape && typeof renderLandscapePanel === 'function') {
+      setTimeout(function(){ try { renderLandscapePanel(); } catch(e) {} }, 0);
+    }
+    return;
+  }
+  renderGame(parts);
+}
+function shouldDeferGameRenderForPointer(dirty) {
+  if(!_pointerDown) return false;
+  const parts = dirty || {};
+  const gameplayDirty = !!(parts.board || parts.hand || parts.oppHand || parts.piles || parts.scores || parts.blocks || parts.topbar);
+  if(!gameplayDirty) return true;
+  try {
+    const presenter = window.FateActionPresentation;
+    if(presenter) {
+      if(typeof presenter.isActive === 'function' && presenter.isActive()) return false;
+      if(typeof presenter.wasActionRecently === 'function' && presenter.wasActionRecently(420)) return false;
+    }
+  } catch(e) {}
+  try {
+    if(typeof G !== 'undefined' && G && (G._actionPresentationActive || G._consolidating || G.placing)) return false;
+  } catch(e) {}
+  return true;
+}
+function notePointerRenderDecision(kind, dirty) {
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    if(kind === 'deferred') perf.pointerDeferredGameRenders = (perf.pointerDeferredGameRenders || 0) + 1;
+    else if(kind === 'bypassed') perf.pointerBypassedGameRenderDeferrals = (perf.pointerBypassedGameRenderDeferrals || 0) + 1;
+    perf.lastPointerRenderDecision = {
+      kind,
+      parts:Object.keys(dirty || {}).filter(function(k){ return dirty[k]; }).join(','),
+      at:Date.now()
+    };
+  } catch(e) {}
 }
 function mergeRenderParts(a, b) {
   const out = {...(a || {})};
@@ -761,9 +812,15 @@ function renderGame(parts) {
   _renderGameScheduled = true;
   requestAnimationFrame(function(){
     _renderGameScheduled = false;
-    if(_pointerDown){ _renderDeferredByPointer = true; return; }
     const dirty = _renderGameDirty || {...RENDER_ALL_PARTS};
     _renderGameDirty = null;
+    if(shouldDeferGameRenderForPointer(dirty)){
+      _renderGameDirty = mergeRenderParts(_renderGameDirty, dirty);
+      _renderDeferredByPointer = true;
+      notePointerRenderDecision('deferred', dirty);
+      return;
+    }
+    if(_pointerDown) notePointerRenderDecision('bypassed', dirty);
     if(!isGameRenderScreenActive()){
       noteSuppressedOffscreenGameRender('renderGame:rAF');
       return;
@@ -5482,12 +5539,16 @@ function log(type, msg) {
   if(G.gameLog.length > maxLogEntries) G.gameLog.splice(0, G.gameLog.length - maxLogEntries);
   const panel=document.getElementById('log-panel');
   if(!panel) return;
-  const el=document.createElement('div');
-  el.className='le '+type;
-  el.textContent=`T${G.turn}: ${msg}`;
-  panel.appendChild(el);
-  while(panel.children.length > maxLogEntries) panel.removeChild(panel.firstElementChild);
-  panel.scrollTop=panel.scrollHeight;
+  const turn = G.turn;
+  setTimeout(function(){
+    if(!panel.isConnected) return;
+    const el=document.createElement('div');
+    el.className='le '+type;
+    el.textContent=`T${turn}: ${msg}`;
+    panel.appendChild(el);
+    while(panel.children.length > maxLogEntries) panel.removeChild(panel.firstElementChild);
+    panel.scrollTop=panel.scrollHeight;
+  }, 0);
 }
 
 function toast(msg, durationMs) {
@@ -5496,11 +5557,15 @@ function toast(msg, durationMs) {
   if(!el) return;
   const text = String(msg || '');
   const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.lastToast = {at:Math.round(performance.now ? performance.now() : Date.now()), text, isEffectAlert};
+  } catch(e) {}
   el.textContent=text;
   el.classList.toggle('toast-effect-alert', isEffectAlert);
   el.classList.add('on');
   clearTimeout(window._toast);
-  const holdMs = Math.max(900, Number(durationMs) || 4500) + (isEffectAlert ? 1000 : 0);
+  const holdMs = Math.max(isEffectAlert ? 5600 : 900, Number(durationMs) || (isEffectAlert ? 5600 : 4500));
   window._toast=setTimeout(()=>{
     el.classList.remove('on');
     el.classList.remove('toast-effect-alert');
@@ -5862,24 +5927,17 @@ function showFinalZoneReveal(zResults, opts) {
 function showBlockedAnimation(msg) {
   if(G._aiAbort) return;
   playSfx('zoneBlock');
+  const text = String(msg || 'BLOCKED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '');
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.lastBlockedAnimation = {at:Math.round(performance.now ? performance.now() : Date.now()), text};
+  } catch(e) {}
   if(rendererV2OwnsBoardScene()){
-    const text = String(msg || 'BLOCKED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '');
-    const report = window.FateMatchRendererAdapter.report && window.FateMatchRendererAdapter.report();
-    const canvas = report && report.canvas || {};
-    const w = Math.max(320, Number(canvas.cssW) || window.innerWidth || 1280);
-    const h = Math.max(240, Number(canvas.cssH) || window.innerHeight || 720);
-    if(window.FateVfxDirector && typeof window.FateVfxDirector.play === 'function'){
-      window.FateVfxDirector.play('LANDSCAPE_TRIGGER', {
-        rect:{x:w * .5 - 160, y:h * .42 - 40, w:320, h:80},
-        text:text + '!',
-        color:'#ff9ea5'
-      });
-    }
+    if(typeof toast === 'function') toast(text + '!', 6200);
     return;
   }
   const flash = document.createElement('div');
   flash.className = 'effect-blocked-flash';
-  const text = String(msg || 'BLOCKED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '');
   flash.innerHTML = `<div class="ebf-inner">${escapeHtml(text)}!</div>`;
   document.body.appendChild(flash);
   setTimeout(()=>flash.remove(), 1550);
@@ -5949,12 +6007,12 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "7": "Hey look over there, your divisions are encircled",
   "8": "I got fired from my job over Chinese lesbians",
   "10": "Eternity draws ever closer to nothingness",
-  "11": "I'm confident we can find a solution that works for everyone",
+  "11": "Agree to these terms, or you might find an exploding pineapple on your doorstep one day",
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
-  "14": "Can you keep up?",
-  "15": "Hahahaha, You haven't even taken me out on a date yet",
-  "17": "This is so dumb! What am I doing here!",
+  "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
+  "15": "I consulted with populace - they will not you cross the Danube!",
+  "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
   "21": "All that is solid melts into air, all that is holy is profaned",
   "22": "Yeah, science is pretty dang cool",
@@ -5963,7 +6021,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "29": "Liberty, equality, and the pursuit of happiness",
   "30": "Cowards sink",
   "34": "I have a legacy, a country, to protect",
-  "35": "Peace was never all that much of an interest to me anyways",
+  "35": "The armies of Greece welcome you with open arms!",
   "36": "France will not fall this day",
   "38": "Hahahahahahahaaaaaa",
   "39": "Show no mercy to the tyrants!",
@@ -5976,7 +6034,8 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "55": "Ahaha...every swing of my blade leaves a chasm in the cosmic fabric",
   "56": "Your godlike powers, versus my rusty sword and undeeeniable face card",
   "57": "We have things in these mountains you'd never dream of",
-  "61": "You'll never run fast enough to escape",
+  "40": "I know it sucks watching me dismemeber, decapitate, and disembowel your mother like that, but for Christ's sake, she was a zombie!",
+  "61": "Uhhhh...you do know that I can blow your brains out before you can reach me with that giant cleaver?",
   "66": "Look at Curry man, so inspirational",
   "67": "You just said nothing",
   "77": "My heart no longer sings...I've walked a thousand lives of men",
@@ -6042,7 +6101,7 @@ function showConsolidationCinematic(card, opts) {
   if(typeof G !== 'undefined' && G && G._aiAbort && !document.getElementById('s-game')?.classList.contains('active')) return false;
   if(!card) return false;
   opts = opts || {};
-  if(rendererV2OwnsBoardScene()){
+  if(rendererV2OwnsBoardScene() && opts.allowRenderV2Cinematic !== true){
     try {
       if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
         window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
@@ -6509,9 +6568,11 @@ function refreshBlockOverlays() {
   const blocks = normalizeBlockedCells();
   if(rendererV2OwnsBoardScene()){
     removeRenderV2LegacyLiveVisuals();
-    _lastBlockOverlaySignature = blocks.map(function(b){
+    const signature = blocks.map(function(b){
       return [b.z, b.r, b.c, b.type || 'movement'].join(':');
     }).sort().join('|');
+    if(signature === _lastBlockOverlaySignature) return;
+    _lastBlockOverlaySignature = signature;
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('block-overlays');
     return;
   }

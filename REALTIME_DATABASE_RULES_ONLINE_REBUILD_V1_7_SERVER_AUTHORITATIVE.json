@@ -3,29 +3,32 @@
     ".read": false,
     ".write": false,
     "publicProfiles": {
-      ".read": true,
+      ".read": "auth != null && query.orderByChild == 'usernameLower' && query.equalTo != null && query.limitToFirst <= 5",
+      ".indexOn": ["usernameLower"],
       "$uid": {
+        ".read": "auth != null",
         ".write": "auth != null && auth.uid == $uid"
       }
     },
     "friendInviteCodes": {
-      ".read": "auth != null",
       "$code": {
+        ".read": "auth != null",
         ".write": "auth != null && (!data.exists() || data.val() == auth.uid || newData.val() == auth.uid)"
       }
     },
     "usernames": {
-      ".read": "auth != null",
       "$username": {
+        ".read": "auth != null",
         "$uid": {
           ".write": "auth != null && auth.uid == $uid"
         }
       }
     },
     "presence": {
-      ".read": "auth != null",
+      ".read": "auth != null && query.orderByChild == 'online' && query.equalTo == true && query.limitToFirst <= 40",
       ".indexOn": ["online"],
       "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
         ".write": "auth != null && auth.uid == $uid"
       }
     },
@@ -76,21 +79,22 @@
       }
     },
     "parties": {
-      ".read": "auth != null",
       "$partyId": {
+        ".read": "auth != null && (data.child('members').child(auth.uid).exists() || root.child('userParties').child(auth.uid).val() == $partyId || root.child('partyInvites').child(auth.uid).hasChildren())",
         ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('leaderUid').val() == auth.uid && newData.child('members').child(auth.uid).exists()) || (data.exists() && data.child('leaderUid').val() == auth.uid) || (data.exists() && newData.exists() && (data.child('members').child(auth.uid).exists() || newData.child('members').child(auth.uid).exists())))"
       }
     },
     "liveMatches": {
-      ".read": true,
+      ".read": "auth != null && query.orderByChild == 'updatedAt' && query.limitToLast <= 32",
       ".indexOn": ["updatedAt"],
       "$roomCode": {
+        ".read": "auth != null",
         ".write": "auth != null && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || (!newData.exists() && data.exists() && data.child('hostUid').val() == auth.uid))"
       }
     },
     "rooms": {
-      ".read": "auth != null",
       "$roomCode": {
+        ".read": "auth != null",
         ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('hostUid').val() == auth.uid && newData.child('roomCode').val() == $roomCode && newData.child('status').val() == 'lobby') || (data.exists() && !newData.exists() && data.child('status').val() == 'lobby' && data.child('hostUid').val() == auth.uid))",
         "roomCode": {
           ".write": "auth != null && !data.parent().exists() && newData.val() == $roomCode"
@@ -211,6 +215,7 @@
           }
         },
         "chat": {
+          ".indexOn": ["createdAt"],
           "$msgId": {
             ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && newData.child('text').isString() && newData.child('text').val().length <= 240 && (root.child('rooms').child($roomCode).child('hostUid').val() == auth.uid || root.child('rooms').child($roomCode).child('guestUid').val() == auth.uid || root.child('rooms').child($roomCode).child('spectators').child(auth.uid).exists())"
           }
@@ -227,24 +232,27 @@
       }
     },
     "matchmaking": {
-      ".read": "auth != null",
+      ".read": "auth != null && query.orderByChild == 'queueKey' && query.equalTo != null && query.limitToFirst <= 30",
+      ".indexOn": ["queueKey", "updatedAt"],
       "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
         ".write": "auth != null && auth.uid == $uid"
       }
     },
     "leaderboards": {
       "challenger": {
-        ".read": true,
+        ".read": "auth != null && query.orderByChild == 'elo' && query.limitToLast <= 100",
         ".indexOn": ["elo"],
         "$uid": {
+          ".read": "auth != null",
           ".write": "auth != null && ((auth.uid == $uid && newData.child('uid').val() == auth.uid) || (newData.child('isAI').val() == true && newData.child('aiId').val() == $uid))"
         }
       }
     },
     "challengerAI": {
-      ".read": true,
       "seasons": {
         "$season": {
+          ".read": "auth != null",
           ".write": "auth != null"
         }
       }
@@ -256,25 +264,59 @@
       }
     },
     "publicDecks": {
-      ".read": true,
+      ".read": false,
       ".indexOn": ["updatedAt"],
       "$deckId": {
-        ".write": "auth != null && ((!newData.exists() && data.child('ownerUid').val() == auth.uid) || (newData.exists() && newData.child('ownerUid').val() == auth.uid && (!data.exists() || data.child('ownerUid').val() == auth.uid)) || (data.exists() && newData.exists() && newData.child('ownerUid').val() == data.child('ownerUid').val() && (newData.child('ratings').val() != data.child('ratings').val() || newData.child('comments').val() != data.child('comments').val())))"
+        ".write": false
+      }
+    },
+    "publicDeckSummaries": {
+      ".read": "auth != null && query.orderByChild == 'updatedAt' && query.limitToLast <= 60",
+      ".indexOn": ["updatedAt", "ratingAvg"],
+      "$deckId": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!newData.exists() && data.child('ownerUid').val() == auth.uid) || (newData.exists() && (!data.exists() || newData.child('ownerUid').val() == data.child('ownerUid').val()) && (newData.child('ownerUid').val() == auth.uid || data.exists())))"
+      }
+    },
+    "publicDeckDetails": {
+      "$deckId": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!newData.exists() && data.child('ownerUid').val() == auth.uid) || (newData.exists() && newData.child('ownerUid').val() == auth.uid && (!data.exists() || data.child('ownerUid').val() == auth.uid)))"
+      }
+    },
+    "publicDeckRatings": {
+      "$deckId": {
+        ".read": "auth != null",
+        ".indexOn": ["createdAt"],
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "publicDeckComments": {
+      "$deckId": {
+        ".read": "auth != null && query.orderByChild == 'createdAt' && query.limitToLast <= 80",
+        ".indexOn": ["createdAt"],
+        "$msgId": {
+          ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && newData.child('text').isString() && newData.child('text').val().length <= 240"
+        }
       }
     },
     "marketplace": {
-      ".read": true,
       "listings": {
+        ".read": "auth != null && query.orderByChild == 'createdAt' && query.limitToLast <= 160",
         ".indexOn": ["createdAt"],
         "$listingId": {
+          ".read": "auth != null",
           ".write": "auth != null && ((!newData.exists() && data.child('sellerUid').val() == auth.uid) || (newData.exists() && newData.child('sellerUid').val() == auth.uid && (!data.exists() || data.child('sellerUid').val() == auth.uid)) || (data.exists() && newData.exists() && data.child('status').val() == 'active' && newData.child('status').val() == 'sold' && newData.child('buyerUid').val() == auth.uid && newData.child('sellerUid').val() == data.child('sellerUid').val() && newData.child('cardId').val() == data.child('cardId').val() && newData.child('price').val() == data.child('price').val()))"
         }
       }
     },
     "worldChat": {
-      ".read": "auth != null",
+      ".read": "auth != null && query.orderByChild == 'createdAt' && query.limitToLast <= 100",
       ".indexOn": ["createdAt"],
       "$msgId": {
+        ".read": "auth != null",
         ".write": "auth != null && newData.child('uid').val() == auth.uid"
       }
     },
@@ -283,6 +325,7 @@
         ".read": "auth != null && auth.uid == $ownerUid",
         "$peerUid": {
           "messages": {
+            ".indexOn": ["createdAt"],
             "$msgId": {
               ".write": "auth != null && (auth.uid == $ownerUid || auth.uid == $peerUid)"
             }

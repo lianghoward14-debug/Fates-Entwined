@@ -308,6 +308,11 @@ async function run() {
     if (!finalRoom.actions || !finalRoom.actions['000005']) throw new Error('Firebase action 000005 missing');
     if (finalRoom.status !== 'ended') throw new Error(`expected room status ended, got ${finalRoom.status}`);
     if (finalRoom.phase !== 'ended') throw new Error(`expected room phase ended, got ${finalRoom.phase}`);
+    if (finalRoom.winnerUid !== hostUid) throw new Error(`expected host winnerUid, got ${finalRoom.winnerUid}`);
+    if (finalRoom.loserUid !== guestUid) throw new Error(`expected guest loserUid, got ${finalRoom.loserUid}`);
+    if (Number(finalRoom.winnerIndex) !== 0 || Number(finalRoom.loserIndex) !== 1) {
+      throw new Error(`expected winnerIndex 0 and loserIndex 1, got ${finalRoom.winnerIndex}/${finalRoom.loserIndex}`);
+    }
 
     console.log(JSON.stringify({
       ok: true,
@@ -332,6 +337,10 @@ async function run() {
         phase: finalRoom.phase,
         endedBy: finalRoom.endedBy || null,
         endReason: finalRoom.endReason || null,
+        winnerUid: finalRoom.winnerUid || null,
+        loserUid: finalRoom.loserUid || null,
+        winnerIndex: finalRoom.winnerIndex ?? null,
+        loserIndex: finalRoom.loserIndex ?? null,
         actionKeys: Object.keys(finalRoom.actions || {}).sort()
       }
     }, null, 2));

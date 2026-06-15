@@ -6,11 +6,13 @@
 
   const VERSION = 7;
   const MATCH_ACTION_MOTION_DISABLED = true;
+  const ACTION_MOTION_FRAME_GAP_LIMIT_MS = 34;
   const recent = [];
   let active = null;
   let nextId = 1;
   let lastAnimationEndedAt = 0;
   let lastActionFinishedAt = 0;
+  let autoMotionDisabledReason = '';
 
   function nowMs(){
     return (window.performance && performance.now) ? performance.now() : Date.now();
@@ -69,6 +71,7 @@
   }
 
   function matchActionMotionDisabled(){
+    if(autoMotionDisabledReason) return true;
     if(MATCH_ACTION_MOTION_DISABLED) {
       try {
         return localStorage.getItem('fateEnableMatchActionMotion') !== '1';
@@ -77,6 +80,18 @@
       }
     }
     return animationsOff();
+  }
+
+  function consolidationMotionAllowed(){
+    try {
+      if(localStorage.getItem('fateDisableConsolidationMotion') === '1') return false;
+    } catch(e) {}
+    try {
+      return !document.documentElement.classList.contains('fate-disable-consolidation-motion')
+        && !(document.body && document.body.classList && document.body.classList.contains('fate-disable-consolidation-motion'));
+    } catch(e) {
+      return true;
+    }
   }
 
   function motionFx(){
@@ -107,6 +122,7 @@
       degradedReason:'',
       presentMs:0,
       commitMs:0,
+      commitBreakdown:{},
       events:[],
       warnedKeys:Object.create(null),
       animation:{
@@ -282,6 +298,10 @@
     tx.status = status || tx.status || 'complete';
     tx.textureAfter = textureReport();
     tx.textureDelta = textureDelta(tx.textureBefore, tx.textureAfter);
+    if(tx.animation && tx.animation.frameCount > 0 && tx.animation.maxFrameGapMs > ACTION_MOTION_FRAME_GAP_LIMIT_MS) {
+      autoMotionDisabledReason = 'frame-gap-' + round(tx.animation.maxFrameGapMs) + 'ms';
+      tx.autoMotionDisabledAfter = autoMotionDisabledReason;
+    }
     const perfAfter = perfCounters();
     tx.perfDelta = {
       renderRequests:perfAfter.renderRequests - tx.perfBefore.renderRequests,
@@ -299,6 +319,7 @@
       presentError:tx.presentError || '',
       motionDisabled:!!tx.motionDisabled,
       motionDisabledReason:tx.motionDisabledReason || '',
+      autoMotionDisabledAfter:tx.autoMotionDisabledAfter || '',
       degraded:!!tx.degraded,
       degradedReason:tx.degradedReason || '',
       preflight:tx.preflight,
@@ -307,6 +328,7 @@
       }),
       perfDelta:tx.perfDelta,
       textureDelta:tx.textureDelta,
+      commitBreakdown:tx.commitBreakdown || {},
       forbidden:tx.events.filter(function(e){
         if(e.kind === 'dom-mutation') return Number(e.legacyActionNodes) > 0;
         return ['full-scene-redraw','layout-rebuild','broad-render-request','renderer-broad-schedule','texture-miss','forbidden-render-during-action'].indexOf(e.kind) >= 0;
@@ -584,12 +606,14 @@
         index:t && t.index != null ? t.index : index
       };
     }).filter(function(item){ return !!item.rect; });
+    const resultCard = opts.inst || opts.card || target.card || null;
+    const resultCardIid = (resultCard && resultCard.iid) || (opts.inst && opts.inst.iid) || (opts.card && opts.card.iid) || (target.card && target.card.iid);
     return {
       targetRect,
-      targetIid:target.card && target.card.iid,
+      targetIid:resultCardIid,
       targetCard:target.card || null,
-      resultCard:opts.inst || opts.card || target.card || null,
-      resultCardIid:(opts.inst && opts.inst.iid) || (opts.card && opts.card.iid) || (target.card && target.card.iid),
+      resultCard,
+      resultCardIid,
       faceDown:!!opts.faceDown,
       tributes
     };
@@ -689,7 +713,7 @@
       renderHint:'preflight and compositor consolidation before tribute removal/result commit'
     });
     tx.tributeCount = Array.isArray(opts.tributes) ? opts.tributes.length : 0;
-    if(matchActionMotionDisabled()) {
+    if(matchActionMotionDisabled() && !consolidationMotionAllowed()) {
       commitWithoutPresentation(tx, opts.commit, 'consolidation-motion-disabled');
       return true;
     }
@@ -698,7 +722,7 @@
     waitForPreflight(tx, 'CONSOLIDATE', payload, 220).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       let delay = 0;
-      if(payload && preflight && preflight.ready !== false && !animationsOff()){
+      if(payload && preflight && preflight.ready !== false && consolidationMotionAllowed()){
         delay = beginAnimationPhase(tx, duration);
         rawDirectorPlay('CONSOLIDATE', payload);
         tx.presentMs = round(delay);
@@ -729,7 +753,7 @@
     const recipe = String(type || '').toUpperCase();
     const opts = options || {};
     if(!recipe) return null;
-    if(matchActionMotionDisabled()) return null;
+    if(matchActionMotionDisabled() && !(recipe === 'CONSOLIDATE' && consolidationMotionAllowed())) return null;
     if(animationsOff() && recipe !== 'CONSOLIDATE') return null;
     if(active) {
       pushEvent(active, 'joined-motion-facade', {recipe});
@@ -772,9 +796,19 @@
     return Math.max(0, nowMs() - lastAnimationEndedAt);
   }
 
+  function msSinceLastAction(){
+    if(!lastActionFinishedAt) return Infinity;
+    return Math.max(0, nowMs() - lastActionFinishedAt);
+  }
+
   function wasActionAnimatingRecently(ms){
     const windowMs = Math.max(0, Number(ms) || 0);
     return msSinceLastActionAnimation() <= windowMs;
+  }
+
+  function wasActionRecently(ms){
+    const windowMs = Math.max(0, Number(ms) || 0);
+    return msSinceLastAction() <= windowMs;
   }
 
   function isActive(){
@@ -803,7 +837,11 @@
       lastAnimationEndedAt:round(lastAnimationEndedAt),
       lastActionFinishedAt:round(lastActionFinishedAt),
       msSinceLastActionAnimation:round(msSinceLastActionAnimation()),
+      msSinceLastAction:round(msSinceLastAction()),
       matchActionMotionDisabled:matchActionMotionDisabled(),
+      consolidationMotionAllowed:consolidationMotionAllowed(),
+      autoMotionDisabledReason,
+      actionMotionFrameGapLimitMs:ACTION_MOTION_FRAME_GAP_LIMIT_MS,
       recent:recent.slice(0, 12)
     };
   }
@@ -819,6 +857,8 @@
     isActionAnimating,
     wasActionAnimatingRecently,
     msSinceLastActionAnimation,
+    msSinceLastAction,
+    wasActionRecently,
     isActive,
     report
   };

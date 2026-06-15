@@ -5,6 +5,7 @@
 // loaded on sign-in. localStorage serves as a fast cache only.
 
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check.js';
 import {
   getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence,
   signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
@@ -30,6 +31,37 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+function getAppCheckSiteKey(){
+  try{
+    if(window.FATE_RECAPTCHA_V3_SITE_KEY) return String(window.FATE_RECAPTCHA_V3_SITE_KEY);
+    if(window.FIREBASE_APPCHECK_SITE_KEY) return String(window.FIREBASE_APPCHECK_SITE_KEY);
+    return String(localStorage.getItem('fateAppCheckSiteKey') || '');
+  }catch(_){ return ''; }
+}
+function shouldUseAppCheckDebug(){
+  try{
+    if(localStorage.getItem('fateAppCheckDebug') === '1') return true;
+    const host = String(location.hostname || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '' || location.protocol === 'file:';
+  }catch(_){ return false; }
+}
+let appCheck = null;
+try{
+  const siteKey = getAppCheckSiteKey();
+  if(shouldUseAppCheckDebug() && typeof self !== 'undefined' && !self.FIREBASE_APPCHECK_DEBUG_TOKEN){
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  if(siteKey){
+    appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  }else{
+    console.warn('[FateOnline] App Check site key missing. Set window.FATE_RECAPTCHA_V3_SITE_KEY before enabling RTDB App Check enforcement.');
+  }
+}catch(e){
+  console.warn('[FateOnline] App Check initialization skipped', e);
+}
 const auth = getAuth(app);
 const rtdb = getDatabase(app);
 
@@ -380,7 +412,7 @@ async function signOutNow(){
 
 window.FATE_ONLINE = state;
 window.FateOnline = Object.assign(window.FateOnline || {}, {
-  app, auth, rtdb, storage, ref, child, get, set, update, push, remove, onValue, off, onDisconnect,
+  app, appCheck, auth, rtdb, storage, ref, child, get, set, update, push, remove, onValue, off, onDisconnect,
   serverTimestamp, query, orderByChild, orderByKey, startAt, equalTo, limitToFirst, limitToLast, runTransaction,
   onChildAdded,
   onAuth, syncPublicProfile, makeBaseCode, normalizeUsername,

@@ -56,7 +56,7 @@
 
   const imageCache = new Map();
   const fateAnimByIid = new Map();
-  const CANVAS_FATE_PULSE_MS = 420;
+  const CANVAS_FATE_PULSE_MS = 1920;
   const LAYOUT_RETRY_MS = 900;
   const backBuffer = document.createElement('canvas');
   const retainedFrame = document.createElement('canvas');
@@ -566,13 +566,15 @@
     const buffed = Number.isFinite(printed) && Number.isFinite(shown) && shown > printed;
     const debuffed = Number.isFinite(printed) && Number.isFinite(shown) && shown < printed;
     const color = buffed ? '#7fff90' : debuffed ? '#ff6060' : '#ffd95c';
-    const glow = buffed ? 'rgba(127,255,144,.50)' : debuffed ? 'rgba(255,96,96,.52)' : 'rgba(241,196,15,.48)';
     let pulse = 0;
+    let pulseProgress = 0;
     let deltaText = '';
     if(fateAnim && fateAnim.changedAt){
       const elapsed = performance.now() - fateAnim.changedAt;
       if(elapsed >= 0 && elapsed < CANVAS_FATE_PULSE_MS) {
-        pulse = 1 - (elapsed / CANVAS_FATE_PULSE_MS);
+        const rawPulse = elapsed / CANVAS_FATE_PULSE_MS;
+        pulseProgress = rawPulse;
+        pulse = rawPulse < .82 ? 1 : Math.max(0, 1 - ((rawPulse - .82) / .18));
         if(fateAnim.delta) deltaText = (fateAnim.delta > 0 ? '+' : '') + fateAnim.delta;
       }
     }
@@ -589,15 +591,8 @@
     fill.addColorStop(1, 'rgba(2,3,6,.98)');
 
     ctx.save();
-    ctx.shadowColor = glow;
-    ctx.shadowBlur = selected ? 10 : 7;
-    ctx.shadowOffsetY = 2;
-    if(pulse > 0){
-      const grow = 1 + pulse * .14;
-      ctx.translate(bx + badgeW / 2, by + badgeH / 2);
-      ctx.scale(grow, grow);
-      ctx.translate(-(bx + badgeW / 2), -(by + badgeH / 2));
-    }
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     roundedPath(ctx, bx, by, badgeW, badgeH, r);
     ctx.fillStyle = fill;
     ctx.fill();
@@ -616,8 +611,7 @@
     ctx.font = '900 ' + Math.max(10, Math.round(badgeH * .58)) + 'px Cinzel, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = glow;
-    ctx.shadowBlur = 5;
+    ctx.shadowBlur = 0;
     const hiddenFate = visual && visual.isHidden;
     if(hiddenFate){
       ctx.beginPath();
@@ -634,21 +628,18 @@
 
     if(pulse > 0){
       ctx.save();
-      const ringPad = 2 + (1 - pulse) * 8;
-      roundedPath(ctx, bx - ringPad, by - ringPad, badgeW + ringPad * 2, badgeH + ringPad * 2, r + ringPad);
-      ctx.globalAlpha = Math.max(0, pulse * .65);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = color;
-      ctx.shadowColor = glow;
-      ctx.shadowBlur = 8;
-      ctx.stroke();
       if(deltaText){
         ctx.globalAlpha = Math.max(0, pulse);
         ctx.fillStyle = color;
         ctx.font = '900 ' + Math.max(10, Math.round(badgeH * .45)) + 'px Cinzel, serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(deltaText, bx + badgeW / 2, by - 5 - (1 - pulse) * 12);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0,0,0,.82)';
+        const tx = bx + badgeW / 2;
+        const ty = by - Math.max(8, badgeH * .48) - pulseProgress * Math.max(7, badgeH * .36);
+        ctx.strokeText(deltaText, tx, ty);
+        ctx.fillText(deltaText, tx, ty);
       }
       ctx.restore();
     }

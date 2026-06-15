@@ -3831,6 +3831,52 @@ html body .fate-loading-screen.fate-loading-cloud{
   z-index:99999!important;
 }
 
+html body .fate-loading-screen:not(.is-hiding),
+html body .fate-loading-screen.fate-loading-cloud:not(.is-hiding){
+  opacity:1!important;
+  background:
+    radial-gradient(circle at 50% 38%,rgba(232,196,82,.12),rgba(2,3,7,.16) 62%,rgba(2,3,7,.26) 100%),
+    linear-gradient(180deg,rgba(2,3,7,.34),rgba(3,5,11,.50)),
+    url('../../optimized/backgrounds/titlscreenbackgrounds_bg1.jpg') center/cover no-repeat!important;
+}
+
+html body .fate-loading-screen:not(.is-hiding) .fate-loading-panel,
+html body .fate-loading-screen.fate-loading-cloud:not(.is-hiding) .fate-loading-panel{
+  background:linear-gradient(180deg,rgba(17,21,34,.99),rgba(4,6,14,1))!important;
+  box-shadow:0 34px 96px rgba(0,0,0,.86),inset 0 0 0 1px rgba(255,255,255,.07)!important;
+}
+
+html body #s-deck #db-collection .db-mc:hover,
+html body #s-challenger #cdb-collection .db-mc:hover{
+  outline:1px solid rgba(255,218,82,.96)!important;
+  outline-offset:-1px!important;
+  transform:none!important;
+  filter:none!important;
+}
+
+html body #s-deck .canvas-card-grid-hitbox:hover,
+html body #s-challenger .canvas-card-grid-hitbox:hover{
+  outline:1px solid rgba(255,218,82,.96)!important;
+  outline-offset:-2px!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}
+
+html body.fate-v2-dragging-card #s-deck #db-collection .db-mc:hover,
+html body.fate-v2-dragging-card #s-challenger #cdb-collection .db-mc:hover,
+html body.fate-v2-dragging-card #s-deck .canvas-card-grid-hitbox:hover,
+html body.fate-v2-dragging-card #s-challenger .canvas-card-grid-hitbox:hover{
+  outline:0!important;
+  box-shadow:none!important;
+  transform:none!important;
+  filter:none!important;
+}
+
+html.fate-match-renderer-v2-mode body.fate-v2-dragging-card #s-game .cell.placeable:hover{
+  box-shadow:none!important;
+  transform:none!important;
+}
+
 html body .fate-loading-panel{
   position:relative!important;
 }
@@ -12826,4 +12872,313 @@ html.fate-animations-off body .fate-loading-panel::after,
 html.fate-animations-off body .fate-loading-bar-indeterminate #fate-loading-fill,
 html.fate-animations-off body :is(.online-lag-spinner,.timer-pulse,.badge-pulse,.gold-border-pulse,.levelup-glow,.pack-prompt-pulse){
   animation:none!important;
+}
+
+/* Codex 2026-06-12: crowded opponent hands should stay inside the left panel. */
+html body #s-game #opp-hand.opp-hand-compact{
+  --opp-hand-card-w:52px;
+  --opp-hand-card-h:73px;
+  display:grid!important;
+  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
+  grid-auto-rows:var(--opp-hand-card-h)!important;
+  justify-content:center!important;
+  align-content:start!important;
+  gap:.34rem!important;
+  flex:0 0 auto!important;
+  max-height:226px!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding:.16rem .08rem .2rem!important;
+}
+
+html body #s-game #opp-hand.opp-hand-nine-plus{
+  --opp-hand-card-w:48px;
+  --opp-hand-card-h:67px;
+  gap:.3rem!important;
+  max-height:214px!important;
+}
+
+html body #s-game #opp-hand.opp-hand-ten-plus{
+  --opp-hand-card-w:42px;
+  --opp-hand-card-h:59px;
+  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
+  gap:.28rem!important;
+  max-height:202px!important;
+}
+
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back{
+  width:var(--opp-hand-card-w)!important;
+  height:var(--opp-hand-card-h)!important;
+  min-width:var(--opp-hand-card-w)!important;
+  min-height:var(--opp-hand-card-h)!important;
+  border-radius:4px!important;
+  flex:0 0 auto!important;
+}
+
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back.opp-revealed{
+  box-shadow:0 2px 8px rgba(0,0,0,.55),0 0 7px rgba(255,180,50,.2)!important;
+}
+
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back:hover{
+  transform:translateY(-2px)!important;
+}
+
+/* Codex 2026-06-13: persistent Challenger panes must preserve deck builder scroll layout. */
+html body #s-challenger .ch-content{
+  display:flex!important;
+  flex-direction:column!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #s-challenger .ch-tab-pane{
+  width:100%!important;
+  min-height:0!important;
+  flex:1 1 auto!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+
+html body #s-challenger .ch-tab-pane:not([hidden]){
+  display:block!important;
+}
+
+html body #s-challenger .ch-tab-pane[hidden],
+html body #s-challenger .ch-tab-pane:not(.active){
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  content-visibility:hidden!important;
+}
+
+html body #s-challenger .ch-tab-pane.active{
+  visibility:visible!important;
+  pointer-events:auto!important;
+  content-visibility:visible!important;
+}
+
+html body #s-challenger .ch-tab-pane.ch-cdb-content{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.72rem!important;
+  min-height:0!important;
+  height:100%!important;
+  overflow:hidden!important;
+}
+
+html body #s-challenger .ch-tab-pane.ch-cdb-content > .ch-filter-bar,
+html body #s-challenger .ch-tab-pane.ch-cdb-content > .cdb-command-panel{
+  flex:0 0 auto!important;
+}
+
+html body #s-challenger .ch-tab-pane.ch-cdb-content .cdb-wrap{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+}
+
+html body #s-challenger .ch-tab-pane.ch-cdb-content .cdb-left,
+html body #s-challenger .ch-tab-pane.ch-cdb-content .cdb-right{
+  min-height:0!important;
+}
+
+html body #s-challenger .ch-tab-pane.ch-cdb-content .cdb-collection,
+html body #s-challenger .ch-tab-pane.ch-cdb-content .cdb-decklist{
+  min-height:0!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain!important;
+}
+
+/* Codex 2026-06-13: virtualized deck-builder card grids keep scroll paint bounded. */
+html body #s-deck #db-collection.canvas-card-grid-low-scroll,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll{
+  contain:layout paint style!important;
+  will-change:auto!important;
+  transform:none!important;
+  filter:none!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}
+
+html body #s-challenger #coll-grid.canvas-card-grid-mode{
+  display:block!important;
+  grid-template-columns:none!important;
+  gap:0!important;
+  width:100%!important;
+}
+
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-wrap,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-wrap,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-wrap{
+  position:relative!important;
+  width:100%!important;
+  overflow:visible!important;
+  contain:layout paint style!important;
+  transform:none!important;
+  will-change:auto!important;
+}
+
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-surface,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-surface,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-surface{
+  display:block!important;
+  pointer-events:none!important;
+  border-radius:4px!important;
+  box-shadow:none!important;
+  filter:none!important;
+  transform:none!important;
+  transition:none!important;
+  will-change:auto!important;
+}
+
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer{
+  display:none!important;
+}
+
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-hit-layer,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-hit-layer,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-hit-layer{
+  contain:layout style!important;
+  transform:none!important;
+  transition:none!important;
+  will-change:auto!important;
+}
+
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-hitbox,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-hitbox,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-hitbox{
+  background:transparent!important;
+  box-shadow:none!important;
+  filter:none!important;
+  transform:none!important;
+  transition:none!important;
+}
+
+/* Codex 2026-06-13: final Challenger tab isolation guard. */
+html body #s-challenger .ch-content > .ch-tab-pane[hidden],
+html body #s-challenger .ch-content > .ch-tab-pane:not(.active){
+  display:block!important;
+  visibility:visible!important;
+  pointer-events:none!important;
+  content-visibility:visible!important;
+  opacity:0!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  overflow:hidden!important;
+  contain:layout paint style!important;
+  transform:translateZ(0)!important;
+}
+
+html body #s-challenger .ch-content{
+  position:relative!important;
+}
+
+html body #s-challenger .ch-content > .ch-tab-pane,
+html body #s-challenger .ch-content > .ch-tab-pane[hidden]{
+  display:block!important;
+  content-visibility:visible!important;
+}
+
+html body #s-challenger .ch-content > .ch-tab-pane.ch-cdb-content,
+html body #s-challenger .ch-content > .ch-tab-pane.ch-cdb-content[hidden]{
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+html body #s-challenger .ch-content > .ch-tab-pane.active{
+  position:relative!important;
+  opacity:1!important;
+  z-index:1!important;
+  pointer-events:auto!important;
+  overflow-y:auto!important;
+  transform:none!important;
+}
+
+/* Codex 2026-06-13: full-board target modals keep extra rows inside the affected zone. */
+html body #modal .modal.board-target-picker-modal{
+  max-height:96vh!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body{
+  max-height:calc(96vh - 108px)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-zones{
+  align-items:start!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-zone,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  max-height:none!important;
+  overflow:hidden!important;
+  overscroll-behavior:contain!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone.has-extra-rows{
+  max-height:min(calc(96vh - 228px), calc((var(--board-target-cell-w,98px) * 1.34 * 3) + .96rem))!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding-right:.44rem!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:rgba(218,185,82,.34) transparent!important;
+}
+
+html body #modal .board-target-zone:not(.has-extra-rows)::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows::-webkit-scrollbar{
+  width:4px!important;
+  display:block!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows::-webkit-scrollbar-track{
+  background:transparent!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows::-webkit-scrollbar-thumb{
+  background:rgba(218,185,82,.34)!important;
+  border-radius:999px!important;
+}
+
+html body #modal .board-target-cells{
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-row.has-extra-cells .board-target-cells{
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  overscroll-behavior-x:contain!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:rgba(218,185,82,.28) transparent!important;
+}
+
+html body #modal .board-target-row:not(.has-extra-cells) .board-target-cells::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-scrollbar{
+  height:4px!important;
+  display:block!important;
+}
+
+html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-scrollbar-track{
+  background:transparent!important;
+}
+
+html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-scrollbar-thumb{
+  background:rgba(218,185,82,.28)!important;
+  border-radius:999px!important;
 }

@@ -938,10 +938,9 @@ function createBoardCardEl(card, z, r, c) {
       el.classList.add('shake-damage');
       playSfx('debuff');
     } else if(delta>0){
-      el.classList.add('buff-glow');
       playSfx('buff');
     }
-    setTimeout(()=>{el.classList.remove('shake-damage','buff-glow');},800);
+    setTimeout(()=>{el.classList.remove('shake-damage');},360);
     setTimeout(()=>{
       const f = document.createElement('div');
       f.className = 'card-fate-floater '+(delta>0?'up':'down');
@@ -3032,12 +3031,12 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "7": "Hey look over there, your divisions are encircled",
   "8": "I got fired from my job over Chinese lesbians",
   "10": "Eternity draws ever closer to nothingless",
-  "11": "I'm confident we can find a solution that works for everyone",
+  "11": "Agree to these terms, or you might find an exploding pineapple on your doorstep one day",
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
-  "14": "Can you keep up?",
-  "15": "Hahahaha, You haven't even taken me out on a date yet",
-  "17": "This is so dumb! What am I doing here!",
+  "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
+  "15": "I consulted with populace - they will not you cross the Danube!",
+  "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
   "21": "All that is solid melts into air, all that is holy is profaned",
   "22": "Yeah, science is pretty dang cool",
@@ -3046,7 +3045,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "29": "Liberty, equality, and the pursuit of happiness",
   "30": "Cowards sink",
   "34": "I have a legacy, a country, to protect",
-  "35": "Is there anyone who can challenge me?",
+  "35": "The armies of Greece welcome you with open arms!",
   "36": "France will not fall this day",
   "38": "Hahahahahahahaaaaaa",
   "39": "Show no mercy to the tyrants!",
@@ -3059,7 +3058,8 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "55": "Ahaha...every swing of my blade leaves a chasm in the cosmic fabric",
   "56": "Your godlike powers, versus my rusty sword and undeeeniable face card",
   "57": "We have things in these mountains you'd never dream of",
-  "61": "You'll never run fast enough to escape",
+  "40": "I know it sucks watching me dismemeber, decapitate, and disembowel your mother like that, but for Christ's sake, she was a zombie!",
+  "61": "Uhhhh...you do know that I can blow your brains out before you can reach me with that giant cleaver?",
   "66": "Look at Curry man, so inspirational",
   "67": "You just said nothing",
   "77": "My heart no longer sings...I've walked a thousand lives of men"

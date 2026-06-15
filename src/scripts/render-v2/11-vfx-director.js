@@ -28,6 +28,24 @@
     'pilePulse',
     'handFanPulse'
   ]);
+  const BRIDGE_CARD_ACTION_RECIPES = new Set([
+    'PLAY_CARD',
+    'DRAW_CARD',
+    'DISCARD_CARD',
+    'DESTROY_CARD',
+    'MOVE_CARD',
+    'SWAP_CARDS',
+    'RETURN_TO_HAND',
+    'HAND_DISCARD',
+    'DECK_TO_BOARD',
+    'DECK_TO_HAND',
+    'DISCARD_TO_HAND',
+    'SEARCH_TO_HAND',
+    'CARD_REVEAL',
+    'CARD_SUPPRESS',
+    'CARD_NEGATE',
+    'CONSOLIDATE'
+  ]);
 
   let activeRecipes = [];
   let activePrimitives = [];
@@ -45,6 +63,7 @@
   let dragPreview = null;
   const eventBridgeStats = {
     acceptedGameEvents:0,
+    suppressedGameEvents:0,
     localIntents:0,
     promptsCreated:0,
     promptsResolved:0,
@@ -481,7 +500,7 @@
     const cache = window.FateCardTextureCache;
     const textureOptions = {
       visual,
-      dpr:Number(opts.textureDpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+      dpr:Number(opts.textureDpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
       preferFullArt:true,
       source:'vfx-card',
       onChange:function(){ scheduleRender('vfx-texture-ready'); }
@@ -564,7 +583,7 @@
     try {
       window.FateCardTextureCache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
         visual:(p.card && p.card.visual) || p.card,
-        dpr:Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+        dpr:Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
         preferFullArt:true,
         source:'vfx-card-prime',
         onChange:function(){ scheduleRender('vfx-texture-ready'); }
@@ -604,7 +623,7 @@
       try {
         rec = cache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
           visual:(p.card && p.card.visual) || p.card,
-          dpr:Number(opts.dpr) || Math.min(1.25, Math.max(1, window.devicePixelRatio || 1)),
+          dpr:Number(opts.dpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
           preferFullArt:true,
           source:opts.source || 'vfx-card-preflight',
           onChange:function(){ scheduleRender('vfx-texture-ready'); }
@@ -1135,6 +1154,7 @@
       },
       eventBridge:{
         acceptedGameEvents:eventBridgeStats.acceptedGameEvents,
+        suppressedGameEvents:eventBridgeStats.suppressedGameEvents,
         localIntents:eventBridgeStats.localIntents,
         promptsCreated:eventBridgeStats.promptsCreated,
         promptsResolved:eventBridgeStats.promptsResolved,
@@ -1184,6 +1204,14 @@
     eventBridgeStats.recent = eventBridgeStats.recent.slice(0, 18);
   }
 
+  function suppressAcceptedBridgeMotion(type, options){
+    const recipeType = String(type || '').toUpperCase();
+    if(!BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
+    const opts = options || {};
+    if(opts.forceBridgeVfx || opts.allowBridgeVfx) return false;
+    return true;
+  }
+
   window.FateVfxDirector = {
     version:VERSION,
     budgets:VFX_BUDGET,
@@ -1202,7 +1230,8 @@
     getRecentRecipes:function(){ return recentRecipes.slice(); },
     setDragPreview,
     updateDragPreview,
-    clearDragPreview
+    clearDragPreview,
+    drawDragPreviewOverlay:function(ctx){ return drawDragPreview(ctx); }
   };
   window.fateVfxDirectorReport = report;
 
@@ -1220,6 +1249,10 @@
   window.FateVfxEventBridge = {
     onAcceptedGameEvent:function(event){
       if(!event) return null;
+      if(suppressAcceptedBridgeMotion(event.type, event.options || {})) {
+        recordBridge('suppressedGameEvents', event.type, event.payload || event);
+        return null;
+      }
       recordBridge('acceptedGameEvents', event.type, event.payload || event);
       return playThroughAction(event.type, event.payload || event, event.options || {});
     },
@@ -1255,6 +1288,7 @@
       return {
         available:true,
         acceptedGameEvents:eventBridgeStats.acceptedGameEvents,
+        suppressedGameEvents:eventBridgeStats.suppressedGameEvents,
         localIntents:eventBridgeStats.localIntents,
         promptsCreated:eventBridgeStats.promptsCreated,
         promptsResolved:eventBridgeStats.promptsResolved,

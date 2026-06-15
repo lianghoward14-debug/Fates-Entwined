@@ -1002,6 +1002,7 @@ function isBlockedByAlondra(z,r,c,player) {
 }
 
 function clearPlaceHighlights() {
+  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
   document.querySelectorAll('#board .cell.placeable').forEach(el=>el.classList.remove('placeable'));
   document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
@@ -1436,18 +1437,41 @@ async function clickCell(z,r,c) {
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, z, r, c);
   consumePendingPlacementFlags(card, inst);
   const handIndex = G.selectedHandCard;
+  function createSetCommitProfiler(tx){
+    const target = tx || {};
+    target.commitBreakdown = target.commitBreakdown || {};
+    const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    let last = start;
+    return function(name){
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      target.commitBreakdown[String(name || 'step') + 'Ms'] = Math.round((now - last) * 10) / 10;
+      target.commitBreakdown.totalSoFarMs = Math.round((now - start) * 10) / 10;
+      last = now;
+    };
+  }
+  function deferSetCommitHook(fn){
+    const run = function(){ try { fn(); } catch(e) {} };
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ setTimeout(run, 0); });
+    else setTimeout(run, 0);
+  }
   function commitNormalSetAfterPresentation(tx){
+    const markCommit = createSetCommitProfiler(tx);
     G.board[z][r][c] = inst;
     applyRiveraBuffToPlacedCard(inst, inst.owner);
-    if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, z, r, c);
     if(player.hand[handIndex] === card) player.hand.splice(handIndex, 1);
     else player.hand = player.hand.filter(c => c !== card);
+    markCommit('state');
+    if(typeof trackDailyCardPlacement === 'function') {
+      deferSetCommitHook(function(){ trackDailyCardPlacement(inst, z, r, c); });
+    }
+    markCommit('dailyTrackingScheduled');
 
   // Show consolidation cinematic for Lina free-set character cards (they bypass the consolidation flow)
   if(isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function'){
     G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
     setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, 90);
   }
+  markCommit('linaFreeCinematic');
 
   // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
@@ -1455,29 +1479,41 @@ async function clickCell(z,r,c) {
       modifyFate(inst,3,'permanent');
     }
   }));
+  markCommit('anickaPassive');
 
   // Play card placement sound (rarity-based) — skip if cinematic already handles audio
   var _cinematicHandlesAudio = isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
   if(!_cinematicHandlesAudio){
-    playCardSound(card.id);
+    if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
+    else setTimeout(function(){ playCardSound(card.id); }, 0);
     if(typeof playSfx === 'function') {
-      playSfx(card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet'));
+      const setSfxType = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
+      if(typeof playSfxDeferred === 'function') playSfxDeferred(setSfxType, 0);
+      else setTimeout(function(){ playSfx(setSfxType); }, 0);
     }
   }
+  markCommit('audioSchedule');
   // Tutorial event hooks
   if(typeof tutorialEvent==='function' && _tutorialActive){
-    if(inst.type==='Supporter') tutorialEvent('placeSupporter');
-    else tutorialEvent('placeCharacter');
+    deferSetCommitHook(function(){
+      if(inst.type==='Supporter') tutorialEvent('placeSupporter');
+      else tutorialEvent('placeCharacter');
+    });
   }
   // AI dialogue hooks (safe — triggerAIDialogue checks if AI game)
-  if(typeof triggerAIDialogue==='function' && G.currentPlayer !== G.aiPlayer){
-    if(inst.type==='Supporter') triggerAIDialogue('opponentPlacedSupporter');
-    else triggerAIDialogue('opponentPlacedCharacter');
-  } else if(typeof triggerAIDialogue==='function' && G.currentPlayer === G.aiPlayer){
-    triggerAIDialogue('aiPlacedCard');
+  if(typeof triggerAIDialogue==='function'){
+    const dialogueEvent = G.currentPlayer !== G.aiPlayer
+      ? (inst.type==='Supporter' ? 'opponentPlacedSupporter' : 'opponentPlacedCharacter')
+      : 'aiPlacedCard';
+    deferSetCommitHook(function(){ triggerAIDialogue(dialogueEvent); });
   }
   // Affiliation-specific placement layer
-  if(inst.aff) playSfx('affPlace_'+inst.aff);
+  if(inst.aff) {
+    const affSfx = 'affPlace_' + inst.aff;
+    if(typeof playSfxDeferred === 'function') playSfxDeferred(affSfx, 24);
+    else setTimeout(function(){ playSfx(affSfx); }, 24);
+  }
+  markCommit('hooks');
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
   if(card.type==='Supporter') {
     if(!isLinaFree) G.supportsPlacedThisTurn++;
@@ -1491,18 +1527,24 @@ async function clickCell(z,r,c) {
   }
   // Clear Lina free flag after use
   if(isLinaFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
+  markCommit('supporterTracking');
   
   log(G.currentPlayer===0?'p1':'p2', `${player.name} placed ${card.name} in Zone ${z+1}`);
+  markCommit('log');
 
   G.placing = false;
   G.selectedHandCard = null;
   clearPlaceHighlights();
+  markCommit('clearHighlights');
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
+    markCommit('continuousEffects');
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true});
     else renderGame({board:true, hand:true, scores:true, blocks:true, topbar:true});
+    markCommit('renderRequest');
 
     requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, z, r, c));
+    markCommit('scheduleWhenSet');
   }
 
   const actionPresenter = window.FateActionPresentation;
@@ -2080,13 +2122,15 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     if(typeof applyBoleslawConsolidationBonus === 'function') applyBoleslawConsolidationBonus(inst, targetZ, cp);
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-    if(typeof trackDailyCardPlacement === 'function') trackDailyCardPlacement(inst, targetZ, targetR, targetC);
+    if(typeof trackDailyCardPlacement === 'function') {
+      setTimeout(function(){ trackDailyCardPlacement(inst, targetZ, targetR, targetC); }, 0);
+    }
     const placementDelay = _consolidationMotionMs ? 0 : Math.min(360, 180 + tributes.length * 40);
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
     if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
       G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2350);
-      setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, Math.max(0, placementDelay || 0) + 90);
+      setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, Math.max(0, placementDelay || 0) + 90);
     }
     if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('consolidations', 1, 'add');
 

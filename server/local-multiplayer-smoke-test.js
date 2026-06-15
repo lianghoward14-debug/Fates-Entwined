@@ -193,6 +193,7 @@ async function run() {
       FATE_WS_REQUIRE_TOKEN: ALLOW_FAKE_TOKENS ? '0' : '1',
       FATE_WS_DURABLE_WRITES: 'off',
       FATE_WS_REQUIRE_DURABLE_WRITES: '0',
+      FATE_WS_STATE_GATE: '0',
       FATE_WS_PING_MS: '60000'
     }),
     stdio: ['ignore', 'pipe', 'pipe']
@@ -251,10 +252,24 @@ async function run() {
     }));
     await expectAccepted(guest, landscapePick, 'PICK_LANDSCAPE_ZONE', 5);
 
+    const forfeitGuest = sendIntent(guest, 'FORFEIT', {
+      clientActionId: `smoke:guest-forfeit:${Date.now()}`
+    });
+    const forfeitAccepted = await expectAccepted(guest, forfeitGuest, 'FORFEIT', 6);
+    if (forfeitAccepted.action.payload.playerIndex !== 1) {
+      throw new Error(`expected server-normalized forfeit playerIndex 1, got ${forfeitAccepted.action.payload.playerIndex}`);
+    }
+    if (forfeitAccepted.roomPatch.status !== 'ended' || forfeitAccepted.roomPatch.phase !== 'ended') {
+      throw new Error(`expected forfeit to end room, got ${JSON.stringify(forfeitAccepted.roomPatch)}`);
+    }
+    if (forfeitAccepted.roomPatch.winnerUid !== HOST_UID || forfeitAccepted.roomPatch.loserUid !== GUEST_UID) {
+      throw new Error(`expected host winner and guest loser, got ${JSON.stringify(forfeitAccepted.roomPatch)}`);
+    }
+
     const roomsRes = await fetch(`http://${HOST}:${PORT}/rooms`);
     const rooms = await roomsRes.json();
     const room = rooms.find(item => item.code === ROOM_CODE);
-    if (!room || room.lastSeq !== 5 || room.currentTurnUid !== GUEST_UID) {
+    if (!room || room.lastActionSeq !== 6 || room.status !== 'ended' || room.phase !== 'ended' || room.winnerUid !== HOST_UID || room.loserUid !== GUEST_UID) {
       throw new Error(`unexpected room summary: ${JSON.stringify(room)}`);
     }
 
@@ -267,7 +282,8 @@ async function run() {
         'host CLICK_CELL seq 2',
         'host END_TURN seq 3',
         'guest CLICK_CELL seq 4',
-        'guest PICK_LANDSCAPE_ZONE seq 5'
+        'guest PICK_LANDSCAPE_ZONE seq 5',
+        'guest FORFEIT seq 6'
       ],
       rejectedAsExpected: 'host stale CLICK_CELL after turn passed',
       roomSummary: room

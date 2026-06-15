@@ -1,9 +1,36 @@
 //  INIT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+var _titleProfileSig = '';
+function getTitleProfileSig(){
+  var p = {};
+  try { p = (typeof USER_PROFILE !== 'undefined' && USER_PROFILE) ? USER_PROFILE : (window.USER_PROFILE || {}); } catch(e) { p = window.USER_PROFILE || {}; }
+  return [
+    p.username || '',
+    p.bio || '',
+    p.level || 1,
+    p.xp || 0,
+    p.elo || 600,
+    p.challengerElo || 600,
+    p.wins || 0,
+    p.losses || 0,
+    p.challengerWins || 0,
+    p.challengerLosses || 0,
+    JSON.stringify(p.profileImg || '')
+  ].join('|');
+}
 function safeRenderTitleProfile(){
   if(typeof renderTitleProfile !== 'function') return;
+  var sig = getTitleProfileSig();
+  var profile = document.getElementById('title-profile');
+  if(profile && profile.dataset.titleProfileMounted === '1' && profile.dataset.titleProfileSig === sig) return;
   try {
     renderTitleProfile();
+    profile = document.getElementById('title-profile');
+    if(profile){
+      profile.dataset.titleProfileMounted = '1';
+      profile.dataset.titleProfileSig = sig;
+    }
+    _titleProfileSig = sig;
   } catch(e) {
     console.warn('Title profile render failed', e);
   }
@@ -1162,6 +1189,13 @@ window.ensureTitleMissionControlButton = ensureTitleMissionControlButton;
    Mission Control — dedicated screen with daily missions + live matches
    ═══════════════════════════════════════════════════════════════════ */
 var _missionLiveUnsub = null;
+var _missionLiveStartTimer = null;
+var _missionDailySig = '';
+var _missionDailyHtml = '';
+
+function setMissionHtml(el, html){
+  if(el && el.innerHTML !== html) el.innerHTML = html;
+}
 
 function showMissionControl(){
   var win = document.getElementById('mission-control-window');
@@ -1171,7 +1205,7 @@ function showMissionControl(){
     document.body.classList.add('mission-control-open');
   }
   renderMissionDaily();
-  renderMissionLive();
+  renderMissionLive({defer:true});
 }
 
 function closeMissionControl(){
@@ -1184,6 +1218,10 @@ function closeMissionControl(){
   if(_missionLiveUnsub){
     try{_missionLiveUnsub();}catch(e){}
     _missionLiveUnsub = null;
+  }
+  if(_missionLiveStartTimer){
+    clearTimeout(_missionLiveStartTimer);
+    _missionLiveStartTimer = null;
   }
 }
 
@@ -1238,22 +1276,58 @@ function renderMissionDaily(){
     + '<div class="dc-reward-badge" style="color:#ffd700!important;border-color:rgba(255,215,0,.3)!important;">+50 ★</div>'
     + '</div>';
   html += '</div>';
-  el.innerHTML = html;
+  var sig = today + '|' + doneCount + '|' + totalReward + '|' + totalBonuses + '|' + daily.challenges.map(function(ch){
+    var def = pool.find(function(c){ return c.id === ch.id; });
+    return ch.id + ':' + (ch.completed ? 1 : 0) + ':' + (def ? (prog[def.key] || 0) : 0);
+  }).join(',');
+  if(_missionDailySig !== sig || _missionDailyHtml !== html){
+    _missionDailySig = sig;
+    _missionDailyHtml = html;
+    setMissionHtml(el, html);
+  }
 }
 
-function renderMissionLive(){
+function missionControlIsOpen(){
+  var win = document.getElementById('mission-control-window');
+  return !!(win && !win.hidden && win.classList.contains('on'));
+}
+
+function scheduleMissionLiveStart(){
+  if(_missionLiveStartTimer) clearTimeout(_missionLiveStartTimer);
+  var schedule = window.FateMenuViews && typeof window.FateMenuViews.postPaint === 'function'
+    ? window.FateMenuViews.postPaint.bind(window.FateMenuViews)
+    : function(fn){ requestAnimationFrame(function(){ setTimeout(fn, 0); }); };
+  schedule(function(){
+    _missionLiveStartTimer = setTimeout(function(){
+      _missionLiveStartTimer = null;
+      if(missionControlIsOpen()) renderMissionLive({startNow:true});
+    }, 0);
+  });
+}
+
+function renderMissionLive(opts){
+  opts = opts || {};
   var el = document.getElementById('mission-window-live-container') || document.getElementById('mission-live-container');
   if(!el) return;
   var FO = window.FateOnline || {};
   if(!FO.rtdb || !FO.onValue || !FO.ref){
-    el.innerHTML = '<div class="mission-live-empty">Online services are still loading. Close and reopen Mission Control in a moment.</div>';
+    setMissionHtml(el, '<div class="mission-live-empty">Online services are still loading. Close and reopen Mission Control in a moment.</div>');
     return;
   }
   if(!window.FATE_ONLINE?.user){
-    el.innerHTML = '<div class="mission-live-empty">Sign in via Social to view live matches.</div>';
+    setMissionHtml(el, '<div class="mission-live-empty">Sign in via Social to view live matches.</div>');
     return;
   }
-  el.innerHTML = '<div class="mission-live-loading">Searching for live matches...</div>';
+  if(opts.defer && !opts.startNow){
+    if(el.dataset.missionLiveMounted !== '1') {
+      setMissionHtml(el, '<div class="mission-live-loading">Searching for live matches...</div>');
+      el.dataset.missionLiveMounted = '1';
+    }
+    scheduleMissionLiveStart();
+    return;
+  }
+  setMissionHtml(el, '<div class="mission-live-loading">Searching for live matches...</div>');
+  el.dataset.missionLiveMounted = '1';
   if(_missionLiveUnsub){ try{_missionLiveUnsub();}catch(e){} _missionLiveUnsub=null; }
   try{
     var baseRef = FO.ref(FO.rtdb, 'liveMatches');
@@ -1267,13 +1341,14 @@ function renderMissionLive(){
       renderMissionLiveList(el, matches);
     });
   }catch(e){
-    el.innerHTML = '<div class="mission-live-empty">Could not connect to live matches.</div>';
+    setMissionHtml(el, '<div class="mission-live-empty">Could not connect to live matches.</div>');
   }
 }
 
 function renderMissionLiveList(el, matches){
   if(!matches.length){
-    el.innerHTML = '<div class="mission-live-empty">No live matches right now. Check back later!</div>';
+    setMissionHtml(el, '<div class="mission-live-empty">No live matches right now. Check back later!</div>');
+    el.dataset.missionLiveMounted = '1';
     return;
   }
   var html = '<div class="mission-live-grid">';
@@ -1298,7 +1373,8 @@ function renderMissionLiveList(el, matches){
       + '</div>';
   });
   html += '</div>';
-  el.innerHTML = html;
+  setMissionHtml(el, html);
+  el.dataset.missionLiveMounted = '1';
 }
 
 window.addEventListener('fate-screen-changed', function(e){

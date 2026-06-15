@@ -171,8 +171,8 @@
     const oppCols = Math.min(4, Math.max(1, oppCount || 1));
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
     const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
-    const baseOppCardW = hasRevealedOppCards
-      ? clamp(winW * (denseOppHand ? 0.035 : 0.038), denseOppHand ? 52 : 56, denseOppHand ? 61 : 66)
+    const baseOppCardW = hasRevealedOppCards && !denseOppHand
+      ? clamp(winW * 0.038, 56, 66)
       : clamp(winW * (denseOppHand ? 0.031 : 0.034), denseOppHand ? 32 : 34, denseOppHand ? 50 : 54);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
