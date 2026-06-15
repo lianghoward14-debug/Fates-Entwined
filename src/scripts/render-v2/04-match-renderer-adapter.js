@@ -279,7 +279,7 @@
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
     if(s.indexOf('pile-hover') >= 0) return DIRTY_HOVER;
-    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HAND | DIRTY_HOVER;
     if(s.indexOf('zone-scroll') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
@@ -2039,15 +2039,15 @@
     if(!r || (pile && !isPileViewportHovered(pile))) return;
     ctx.save();
     roundedPath(ctx, r.x + 1.5, r.y + 1.5, Math.max(1, r.w - 3), Math.max(1, r.h - 3), 8);
-    ctx.shadowColor = 'rgba(255,216,92,.72)';
-    ctx.shadowBlur = 13;
-    ctx.strokeStyle = 'rgba(255,226,100,.96)';
-    ctx.lineWidth = 2.7;
+    ctx.shadowColor = 'rgba(255,216,92,.54)';
+    ctx.shadowBlur = 9;
+    ctx.strokeStyle = 'rgba(255,226,100,.86)';
+    ctx.lineWidth = 1.9;
     ctx.stroke();
     ctx.shadowBlur = 0;
     roundedPath(ctx, r.x + 5, r.y + 5, Math.max(1, r.w - 10), Math.max(1, r.h - 10), 6);
-    ctx.strokeStyle = 'rgba(255,241,151,.54)';
-    ctx.lineWidth = 1.15;
+    ctx.strokeStyle = 'rgba(255,241,151,.36)';
+    ctx.lineWidth = .85;
     ctx.stroke();
     ctx.restore();
   }
@@ -2067,6 +2067,14 @@
     if((interaction.phase || '') !== 'main') return false;
     const iid = card.iid != null ? String(card.iid) : '';
     return freeSetIids(snapshot).indexOf(iid) < 0;
+  }
+
+  function isViewportHoveredHandItem(item){
+    if(!item || !viewportHoverHit || viewportHoverHit.kind !== 'hand-card') return false;
+    const hoverIid = viewportHoverHit.iid ? String(viewportHoverHit.iid) : '';
+    const itemIid = String(item.iid || (item.card && item.card.iid) || '');
+    if(hoverIid && itemIid && hoverIid === itemIid) return true;
+    return Number(item.index) === Number(viewportHoverHit.index);
   }
 
   function drawDisabledCardOverlay(ctx, r, label){
@@ -2486,11 +2494,12 @@
       }
       const visual = item.card.visual || item.card;
       const disabled = isSupporterLimitDisabled(item, snapshot);
+      hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
+      if(isViewportHoveredHandItem(item) && !disabled) return;
       const entry = {card:item.card, c:item.index, r:0, z:0};
       const onChange = function(){ scheduleTextureRender('hand-texture-ready'); };
       drawCardVisual(ctx, entry, visual, item.rect, onChange, {pulse:false, tilt:0, lift:0, hideFateBadge:true, noShadow:true});
       if(disabled) drawDisabledCardOverlay(ctx, item.rect);
-      hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
     }
     handCards.forEach(drawHandItem);
 
