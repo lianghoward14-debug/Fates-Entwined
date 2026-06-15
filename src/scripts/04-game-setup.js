@@ -235,17 +235,40 @@ function runMatchPreloadGate(onlineMatch) {
   };
   let localReport = null;
   updateMatchPreloadUi(0.03);
-  const warm = typeof window.fateWarmMatchAssets === 'function'
-    ? window.fateWarmMatchAssets({
-      source:onlineMatch ? 'online-matchup-loader' : 'matchup-loader',
+  const localPortion = onlineMatch ? 0.74 : 1;
+  const runWarmPass = function(pass, from, to){
+    if(typeof window.fateWarmMatchAssets !== 'function') return Promise.resolve({missingWarmup:true, pass});
+    return window.fateWarmMatchAssets({
+      source:(onlineMatch ? 'online-matchup-loader' : 'matchup-loader') + '-pass-' + pass,
       maxCards:onlineMatch ? 96 : 80,
+      forceImages:pass > 1,
+      pass,
       onProgress:function(item){
-        const localPortion = onlineMatch ? 0.74 : 1;
-        const value = Math.max(0.03, Math.min(localPortion, (Number(item.progress) || 0) * localPortion));
-        updateMatchPreloadUi(value);
+        const progress = Math.max(0, Math.min(1, Number(item && item.progress) || 0));
+        const value = from + (to - from) * progress;
+        updateMatchPreloadUi(Math.max(0.03, Math.min(localPortion, value)));
       }
-    })
-    : Promise.resolve({missingWarmup:true});
+    });
+  };
+  const warm = runWarmPass(1, 0.03, localPortion * 0.58)
+    .then(function(firstReport){
+      return runWarmPass(2, localPortion * 0.58, localPortion).then(function(secondReport){
+        return {
+          at:secondReport && secondReport.at,
+          ms:Math.round(((Number(firstReport && firstReport.ms) || 0) + (Number(secondReport && secondReport.ms) || 0)) * 10) / 10,
+          cards:Number(secondReport && secondReport.cards || firstReport && firstReport.cards || 0) || 0,
+          imageOk:(Number(firstReport && firstReport.imageOk) || 0) + (Number(secondReport && secondReport.imageOk) || 0),
+          imageFailed:(Number(firstReport && firstReport.imageFailed) || 0) + (Number(secondReport && secondReport.imageFailed) || 0),
+          textureRecords:Number(secondReport && secondReport.textureRecords || firstReport && firstReport.textureRecords || 0) || 0,
+          textureWait:secondReport && secondReport.textureWait || firstReport && firstReport.textureWait || null,
+          textureCache:secondReport && secondReport.textureCache || firstReport && firstReport.textureCache || null,
+          firstPass:firstReport || null,
+          secondPass:secondReport || null,
+          source:onlineMatch ? 'online-matchup-loader-double-pass' : 'matchup-loader-double-pass',
+          doublePass:true
+        };
+      });
+    });
   return Promise.resolve(warm)
     .then(function(report){
       localReport = report || {};
@@ -1491,13 +1514,18 @@ function chooseTurn(goFirst) {
   // First player doesn't draw
   log('sys','Game begins! '+G.players[G.currentPlayer].name+' goes first.');
   const renderStarted = performance.now ? performance.now() : Date.now();
-  if(typeof renderGameImmediate === 'function') renderGameImmediate();
-  else renderGame();
+  if(typeof renderGameImmediate === 'function') {
+    if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+      renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
+    } else {
+      renderGameImmediate();
+    }
+  } else renderGame();
   recordMatchEntryStep('initial-render-called', {
     ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
   });
-  updateTopBar();
-  recordMatchEntryStep('topbar-updated');
+  if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
+  recordMatchEntryStep('topbar-ready');
   hideMatchEntryLoadingVeil(entryVeilStarted);
   // If AI goes first, trigger its turn
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer){

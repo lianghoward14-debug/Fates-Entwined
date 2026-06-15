@@ -38,8 +38,10 @@
   let postActionDirtyMask = 0;
   let postActionSources = [];
   let postActionRenderTimer = 0;
+  let lastResizeKey = '';
   const pendingTextureTimers = {};
   let lastCanvasMetrics = null;
+  let lastHoverMetrics = null;
   let lastLayout = null;
   let lastSnapshot = null;
   let lastLayoutStructureKey = '';
@@ -276,8 +278,8 @@
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
-    if(s.indexOf('pile-hover') >= 0) return DIRTY_PILES | DIRTY_HOVER;
-    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HAND | DIRTY_HOVER;
+    if(s.indexOf('pile-hover') >= 0) return DIRTY_HOVER;
+    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('zone-scroll') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
@@ -285,20 +287,28 @@
     if(s.indexOf('pending-when-set') >= 0) return DIRTY_EFFECTS;
     if(s === 'input' || s === 'viewport-input') return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('resize') >= 0 || s.indexOf('screen-enter') >= 0 || s.indexOf('adaptive-render-scale') >= 0) return DIRTY_ALL | DIRTY_LAYOUT;
+    if(s.indexOf('board-action-fast-path') >= 0) {
+      let mask = DIRTY_BOARD_CARDS;
+      if(s.indexOf('hand') >= 0) mask |= DIRTY_HAND;
+      if(s.indexOf('opphand') >= 0 || s.indexOf('opp-hand') >= 0) mask |= DIRTY_OPP_HAND;
+      if(s.indexOf('pile') >= 0 || s.indexOf('deck') >= 0 || s.indexOf('discard') >= 0) mask |= DIRTY_PILES;
+      if(s.indexOf('effects') >= 0 || s.indexOf('vfx') >= 0) mask |= DIRTY_EFFECTS;
+      if(s.indexOf('hover') >= 0) mask |= DIRTY_HOVER;
+      return mask;
+    }
     if(s.indexOf('opponent-hand-texture-ready') >= 0 || s.indexOf('opp-hand-texture-ready') >= 0 || s.indexOf('opphand-texture-ready') >= 0) return DIRTY_OPP_HAND;
     if(s.indexOf('pile-texture-ready') >= 0) return DIRTY_PILES;
     if(s.indexOf('hand-texture-ready') >= 0) return DIRTY_HAND;
     if(s.indexOf('texture-ready') >= 0) return DIRTY_BOARD_CARDS;
     if(s.indexOf('opponent') >= 0 || s.indexOf('opphand') >= 0 || s.indexOf('opp-hand') >= 0) return DIRTY_OPP_HAND;
-    if(s.indexOf('hand') >= 0) return DIRTY_HAND | DIRTY_EFFECTS;
+    if(s.indexOf('hand') >= 0) return DIRTY_HAND;
     if(s.indexOf('pile') >= 0 || s.indexOf('deck') >= 0 || s.indexOf('discard') >= 0) return DIRTY_PILES;
     if(s.indexOf('particle') >= 0) return DIRTY_PARTICLES | DIRTY_EFFECTS;
     if(s === 'animation') return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('motion') >= 0 || s.indexOf('animation') >= 0) return DIRTY_MOTION | DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('asset') >= 0) return DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES;
     if(s.indexOf('texture') >= 0) return DIRTY_BOARD_CARDS;
-    if(s.indexOf('board-action-fast-path') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS | DIRTY_HOVER;
-    if(s.indexOf('renderboard') >= 0 || s.indexOf('board-commit') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
+    if(s.indexOf('renderboard') >= 0 || s.indexOf('board-commit') >= 0) return DIRTY_BOARD_CARDS;
     if(s.indexOf('block') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('board') >= 0 || s.indexOf('cell') >= 0 || s.indexOf('place') >= 0) return DIRTY_BOARD_CARDS | DIRTY_EFFECTS | DIRTY_HOVER;
     return DIRTY_ALL;
@@ -465,6 +475,7 @@
     lastHitMap = {cards:[], cells:[], handCards:[], opponentHandCards:[], piles:[], uiCommands:[]};
     lastLayout = null;
     lastSnapshot = null;
+    lastHoverMetrics = null;
     lastLayoutStructureKey = '';
     layerIds.forEach(function(id){
       const canvas = document.getElementById(id);
@@ -545,7 +556,7 @@
     const particleCanvas = makeLayerCanvas(particleCanvasId);
     const uiCanvas = makeLayerCanvas(uiCanvasId);
     const hoverCanvas = makeLayerCanvas(hoverCanvasId);
-    const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas, hoverCanvas];
+    const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas];
     Array.from(board.children).forEach(function(child){
       if(boardLayers.indexOf(child) < 0) child.remove();
     });
@@ -553,6 +564,7 @@
       if(layer.parentNode !== board) board.appendChild(layer);
     });
     if(document.body && uiCanvas.parentNode !== document.body) document.body.appendChild(uiCanvas);
+    if(document.body && hoverCanvas.parentNode !== document.body) document.body.appendChild(hoverCanvas);
 
     board.style.position = 'relative';
     board.style.left = '';
@@ -608,9 +620,9 @@
     uiCanvas.style.right = 'auto';
     uiCanvas.style.bottom = 'auto';
     uiCanvas.style.zIndex = '410';
-    hoverCanvas.style.position = 'absolute';
-    hoverCanvas.style.left = '0';
-    hoverCanvas.style.top = '0';
+    hoverCanvas.style.setProperty('position', 'fixed', 'important');
+    hoverCanvas.style.setProperty('left', '0', 'important');
+    hoverCanvas.style.setProperty('top', '0', 'important');
     hoverCanvas.style.width = canvas.style.width;
     hoverCanvas.style.height = canvas.style.height;
     hoverCanvas.style.display = 'block';
@@ -983,6 +995,13 @@
     if(!timeline || !iid) return;
     const fateValue = getCardFateValue(card, visual);
     const prev = lastCardFateByIid.get(iid);
+    if(card && card._suppressNextFatePulse && prev != null && prev !== fateValue) {
+      delete card._suppressNextFatePulse;
+      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
+      else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'fate-pulse');
+      lastCardFateByIid.set(iid, fateValue);
+      return;
+    }
     if(animationsOff()){
       if(prev != null && prev !== fateValue && window.FateVfxEventBridge && typeof window.FateVfxEventBridge.cancelForCard === 'function') {
         window.FateVfxEventBridge.cancelForCard(iid);
@@ -2015,15 +2034,20 @@
       && viewportHoverHit.pile === pile.pile);
   }
 
-  function drawPileHoverBorder(ctx, pile){
-    if(!pile || !pile.rect || !isPileViewportHovered(pile)) return;
-    const r = pile.rect;
+  function drawPileHoverBorder(ctx, pile, rectOverride){
+    const r = rectOverride || (pile && pile.rect);
+    if(!r || (pile && !isPileViewportHovered(pile))) return;
     ctx.save();
-    roundedPath(ctx, r.x + 1, r.y + 1, Math.max(1, r.w - 2), Math.max(1, r.h - 2), 8);
+    roundedPath(ctx, r.x + 1.5, r.y + 1.5, Math.max(1, r.w - 3), Math.max(1, r.h - 3), 8);
     ctx.shadowColor = 'rgba(255,216,92,.72)';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = 'rgba(255,226,100,.98)';
-    ctx.lineWidth = 2.4;
+    ctx.shadowBlur = 13;
+    ctx.strokeStyle = 'rgba(255,226,100,.96)';
+    ctx.lineWidth = 2.7;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    roundedPath(ctx, r.x + 5, r.y + 5, Math.max(1, r.w - 10), Math.max(1, r.h - 10), 6);
+    ctx.strokeStyle = 'rgba(255,241,151,.54)';
+    ctx.lineWidth = 1.15;
     ctx.stroke();
     ctx.restore();
   }
@@ -2081,6 +2105,37 @@
     drawCardVisual(ctx, entry, visual, r, onChange, {pulse:false, tilt:0, lift:1, hideFateBadge:true, noShadow:true, readyTextureOnly:true});
     if(disabled) drawDisabledCardOverlay(ctx, r);
     ctx.restore();
+  }
+
+  function drawViewportHoverOverlay(ctx){
+    if(!ctx || !viewportHoverHit || !lastLayout || !lastSnapshot) return;
+    if(viewportHoverHit.kind === 'hand-card') {
+      const handCards = lastLayout.hand && Array.isArray(lastLayout.hand.cards) ? lastLayout.hand.cards : [];
+      const item = handCards.find(function(candidate){
+        return candidate && viewportHoverHit.iid && String(candidate.iid || (candidate.card && candidate.card.iid) || '') === String(viewportHoverHit.iid);
+      }) || handCards.find(function(candidate){ return candidate && Number(candidate.index) === Number(viewportHoverHit.index); });
+      if(!item || !item.card || !item.rect) return;
+      const isDraggingCard = !!(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'));
+      if(isDraggingCard || (item.card.flags && item.card.flags.presentationDeparting)) return;
+      const disabled = isSupporterLimitDisabled(item, lastSnapshot);
+      if(disabled) return;
+      const hoverRect = viewportHoverHit.rect || item.rect;
+      drawHoveredHandCard(ctx, {card:item.card, c:item.index, r:0, z:0}, item.card.visual || item.card, hoverRect, function(){}, false);
+      return;
+    }
+    if(viewportHoverHit.kind === 'pile') {
+      if(viewportHoverHit.rect) {
+        drawPileHoverBorder(ctx, null, viewportHoverHit.rect);
+        return;
+      }
+      const piles = lastLayout.piles && Array.isArray(lastLayout.piles.items) ? lastLayout.piles.items : [];
+      const pile = piles.find(function(candidate){
+        return candidate
+          && Number(candidate.playerIndex) === Number(viewportHoverHit.playerIndex)
+          && candidate.pile === viewportHoverHit.pile;
+      });
+      if(pile) drawPileHoverBorder(ctx, pile);
+    }
   }
 
   function drawHandPanel(ctx, handRect, snapshot, count){
@@ -2423,7 +2478,6 @@
     if(!ctx || !layout || !snapshot) return hitMap;
     const handCards = layout.hand && Array.isArray(layout.hand.cards) ? layout.hand.cards : [];
     if(layout.hand && layout.hand.rect) drawHandPanel(ctx, layout.hand.rect, snapshot, handCards.length);
-    let hoveredHandItem = null;
     function drawHandItem(item){
       if(!item || !item.card || !item.rect) return;
       if(item.card.flags && item.card.flags.presentationDeparting) {
@@ -2432,22 +2486,13 @@
       }
       const visual = item.card.visual || item.card;
       const disabled = isSupporterLimitDisabled(item, snapshot);
-      const isDraggingCard = !!(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'));
-      const isHovered = !isDraggingCard && !disabled && !!(viewportHoverHit && viewportHoverHit.kind === 'hand-card' && Number(viewportHoverHit.index) === Number(item.index));
       const entry = {card:item.card, c:item.index, r:0, z:0};
       const onChange = function(){ scheduleTextureRender('hand-texture-ready'); };
-      if(isHovered) {
-        hoveredHandItem = {entry, visual, rect:item.rect, onChange, disabled};
-      } else {
-        drawCardVisual(ctx, entry, visual, item.rect, onChange, {pulse:false, tilt:0, lift:0, hideFateBadge:true, noShadow:true});
-        if(disabled) drawDisabledCardOverlay(ctx, item.rect);
-      }
+      drawCardVisual(ctx, entry, visual, item.rect, onChange, {pulse:false, tilt:0, lift:0, hideFateBadge:true, noShadow:true});
+      if(disabled) drawDisabledCardOverlay(ctx, item.rect);
       hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
     }
     handCards.forEach(drawHandItem);
-    if(hoveredHandItem) {
-      drawHoveredHandCard(ctx, hoveredHandItem.entry, hoveredHandItem.visual, hoveredHandItem.rect, hoveredHandItem.onChange, hoveredHandItem.disabled);
-    }
 
     const oppCards = layout.opponentHand && Array.isArray(layout.opponentHand.cards) ? layout.opponentHand.cards : [];
     oppCards.forEach(function(item){
@@ -2462,9 +2507,6 @@
       if(!pile || !pile.rect) return;
       drawPile(ctx, pile);
       hitMap.piles.push({kind:'pile', playerIndex:pile.playerIndex, pile:pile.pile, rect:pile.hitRect || pile.rect, count:pile.count});
-    });
-    piles.forEach(function(pile){
-      drawPileHoverBorder(ctx, pile);
     });
     drawCommandDock(ctx, hitMap, snapshot, cssW, cssH);
     return hitMap;
@@ -2709,7 +2751,28 @@
     }
     const hoverCanvas = layers.hover || document.getElementById(hoverCanvasId);
     if(!hoverCanvas || !canvas) return null;
+    const boardRect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : {left:0, top:0};
+    const hoverW = Math.max(1, window.innerWidth || cssW);
+    const hoverH = Math.max(1, window.innerHeight || cssH);
+    const hoverPxW = Math.max(1, Math.round(hoverW * dpr));
+    const hoverPxH = Math.max(1, Math.round(hoverH * dpr));
+    if(hoverCanvas.width !== hoverPxW) hoverCanvas.width = hoverPxW;
+    if(hoverCanvas.height !== hoverPxH) hoverCanvas.height = hoverPxH;
+    hoverCanvas.__fateCssW = hoverW;
+    hoverCanvas.__fateCssH = hoverH;
+    hoverCanvas.style.setProperty('position', 'fixed', 'important');
+    hoverCanvas.style.setProperty('left', '0', 'important');
+    hoverCanvas.style.setProperty('top', '0', 'important');
+    hoverCanvas.style.setProperty('width', hoverW + 'px', 'important');
+    hoverCanvas.style.setProperty('height', hoverH + 'px', 'important');
     lastCanvasMetrics = Object.assign({cssW, cssH, dpr}, scaleMetrics || {});
+    lastHoverMetrics = Object.assign({
+      cssW:hoverW,
+      cssH:hoverH,
+      dpr,
+      boardX:Number(boardRect.left) || 0,
+      boardY:Number(boardRect.top) || 0
+    }, scaleMetrics || {});
     return hoverCanvas;
   }
 
@@ -2724,15 +2787,24 @@
 
   function drawHoverOverlay(options){
     const opts = options || {};
-    const metrics = lastCanvasMetrics;
+    const metrics = lastHoverMetrics || lastCanvasMetrics;
     const hoverCanvas = document.getElementById(hoverCanvasId);
     const ctx = hoverCanvas && hoverCanvas.getContext ? hoverCanvas.getContext('2d', {alpha:true}) : null;
     if(!ctx || !metrics) return false;
     ctx.setTransform(metrics.dpr, 0, 0, metrics.dpr, 0, 0);
     ctx.clearRect(0, 0, metrics.cssW, metrics.cssH);
-    drawHoverCue(ctx, hoverHit);
+    if(hoverHit) {
+      ctx.save();
+      ctx.translate(Number(metrics.boardX) || 0, Number(metrics.boardY) || 0);
+      drawHoverCue(ctx, hoverHit);
+      ctx.restore();
+    }
+    drawViewportHoverOverlay(ctx);
     if(window.FateVfxDirector && typeof window.FateVfxDirector.drawDragPreviewOverlay === 'function'){
+      ctx.save();
+      ctx.translate(Number(metrics.boardX) || 0, Number(metrics.boardY) || 0);
       window.FateVfxDirector.drawDragPreviewOverlay(ctx);
+      ctx.restore();
     }
     renderCounters.hoverLayerRedraws++;
     if(opts.dirty !== false) {
@@ -3502,8 +3574,8 @@
         return;
       }
     }
-    if(srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionRecently(180) && heavyActionDirtyMask(nextMask)) {
-      const age = msSinceLastAction();
+    if(srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionAnimatingRecently(180) && heavyActionDirtyMask(nextMask)) {
+      const age = msSinceLastActionAnimation();
       schedulePostActionRender(src, nextMask, Math.max(24, 180 - (Number.isFinite(age) ? age : 0)));
       return;
     }
@@ -3591,7 +3663,7 @@
 
   function viewportHoverKey(hit){
     if(!hit) return '';
-    if(hit.kind === 'hand-card' || hit.kind === 'opponent-hand-card') return [hit.kind, hit.index || 0].join(':');
+    if(hit.kind === 'hand-card' || hit.kind === 'opponent-hand-card') return [hit.kind, hit.iid || '', hit.index || 0].join(':');
     if(hit.kind === 'pile') return [hit.kind, hit.playerIndex, hit.pile || ''].join(':');
     if(hit.kind === 'ui-command') return [hit.kind, hit.command || ''].join(':');
     return hit.kind || '';
@@ -3708,7 +3780,13 @@
   };
   window.fateMatchRendererV2Report = report;
 
-  window.addEventListener('resize', function(){ if(ownsBoard()) scheduleRender('resize'); }, {passive:true});
+  window.addEventListener('resize', function(){
+    if(!ownsBoard()) return;
+    const key = Math.round(window.innerWidth || 0) + 'x' + Math.round(window.innerHeight || 0) + '@' + Math.round((window.devicePixelRatio || 1) * 100);
+    if(key === lastResizeKey) return;
+    lastResizeKey = key;
+    scheduleRender('resize');
+  }, {passive:true});
   window.addEventListener('fate-screen-changed', function(ev){
     const to = ev && ev.detail ? ev.detail.to : '';
     if(to !== 's-game') teardownScene('screen-change');

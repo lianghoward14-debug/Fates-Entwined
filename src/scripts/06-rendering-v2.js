@@ -2841,6 +2841,11 @@ let _hoverPreviewRaf = null;
 let _hoverPreviewPoint = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
+  try {
+    const game = document.getElementById('s-game');
+    const v2Owns = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();
+    if(game && game.classList && game.classList.contains('active') && v2Owns) return;
+  } catch(_e) {}
   const el = document.createElement('div');
   el.className = 'card-hover-preview';
   el.innerHTML = `
@@ -3035,7 +3040,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
   "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
-  "15": "I consulted with populace - they will not you cross the Danube!",
+  "15": "The sword of King Stephen I will fall upon you!",
   "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
   "21": "All that is solid melts into air, all that is holy is profaned",
@@ -3095,6 +3100,15 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   // Inline visibility is intentional: older patches hide cinematic text elements.
   el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:8.25vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;';
   document.body.appendChild(el);
+  try {
+    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    const lineHeight = style ? (parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.18)) : 0;
+    const h = el.getBoundingClientRect ? el.getBoundingClientRect().height : 0;
+    if(lineHeight > 0 && h > lineHeight * 1.45) {
+      el.classList.add('multi-line');
+      el.style.setProperty('bottom', '6vh', 'important');
+    }
+  } catch(e) {}
   const ttl = Math.max(900, Number(durationMs) || 2200);
   setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(400, ttl - 520));
   setTimeout(function(){ if(el.parentNode) el.remove(); }, ttl + 120);

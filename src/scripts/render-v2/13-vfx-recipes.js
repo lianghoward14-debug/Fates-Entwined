@@ -188,8 +188,8 @@
     const p = payload || {};
     const amount = Math.max(1, Math.abs(Number(p.amount != null ? p.amount : p.fateDelta) || 1));
     const countMs = 1;
-    const holdMs = 1690;
-    const exitMs = 90;
+    const holdMs = 2350;
+    const exitMs = 180;
     const duration = countMs + holdMs + exitMs;
     return P().numberPop({
       text:fateDeltaText(p, sign),
@@ -198,12 +198,13 @@
       rect:payloadRect(p, ['rect', 'targetRect', 'cardRect']),
       startOffset:18,
       duration,
-      rise:Math.max(8, (Number((payloadRect(p, ['rect', 'targetRect', 'cardRect']) || {}).h) || 90) * .08),
+      rise:Math.max(10, (Number((payloadRect(p, ['rect', 'targetRect', 'cardRect']) || {}).h) || 90) * .10),
       countPortion:countMs / duration,
       holdEnd:(countMs + holdMs) / duration,
       emphasisPortion:.01,
       color,
       theme,
+      fontScale:1.24,
       priority:'high'
     });
   }

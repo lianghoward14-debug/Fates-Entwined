@@ -787,9 +787,10 @@ try {
   window.fateWarmFreePlayMenuAssets = warmFreePlayMenuAssets;
 } catch(e) {}
 
-function openFreePlayMenu() {
+function openFreePlayMenu(options) {
+  const opts = options || {};
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  if(now - _freePlayMenuOpeningAt < 220) return;
+  if(!opts.force && now - _freePlayMenuOpeningAt < 220) return;
   _freePlayMenuOpeningAt = now;
   CURRENT_MODE = 'free';
   closeAllOverlays();

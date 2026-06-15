@@ -382,6 +382,11 @@
     const gy = state && Number.isFinite(state.gripY) ? state.gripY : h / 2;
     const p = boardPointFromClient(x, y);
     if(!p) return;
+    if(state) {
+      state.lastGhostX = x;
+      state.lastGhostY = y;
+      state.lastGhostAt = (window.performance && performance.now) ? performance.now() : Date.now();
+    }
     if(window.FateVfxDirector && typeof window.FateVfxDirector.updateDragPreview === 'function'){
       window.FateVfxDirector.updateDragPreview({
         card:state && state.card,
@@ -397,6 +402,13 @@
   function cleanup(options){
     const opts = options || {};
     if(state && state.el) state.el.classList.remove('fate-v2-drag-source');
+    if(state && state.card) {
+      try { delete state.card._presentationDeparting; } catch(e) {}
+      try {
+        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true, board:false, scores:false});
+        else if(typeof renderHand === 'function') renderHand();
+      } catch(e) {}
+    }
     clearGhost();
     if(hoverRaf) {
       cancelAnimationFrame(hoverRaf);
@@ -474,6 +486,13 @@
     state.canPayReinforcement = state.card && state.card.type !== 'Supporter' ? hasEnoughReinforcement(state.card) : true;
     state.ghost = makeGhost(state.el, ev);
     if(state.el) state.el.classList.add('fate-v2-drag-source');
+    if(state.card) {
+      try { state.card._presentationDeparting = true; } catch(e) {}
+      try {
+        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true, board:false, scores:false});
+        else if(typeof renderHand === 'function') renderHand();
+      } catch(e) {}
+    }
     document.body.classList.add('fate-v2-dragging-card');
     if(typeof playSfx === 'function') playSfx('dragStart');
     G.selectedHandCard = state.idx;

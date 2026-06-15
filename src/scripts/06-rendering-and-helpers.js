@@ -15,6 +15,7 @@ let _lastTopBarShellSignature = '';
 let _lastPlayerBannersSignature = '';
 let _lastTopBarEffectsSourceSignature = '';
 let _lastActionBarLayoutSignature = '';
+let _lastPlayerBannerActiveSignature = '';
 let _renderCalcCache = null;
 let _renderDiagnosticsEnabled = null;
 const RENDER_ALL_PARTS = Object.freeze({
@@ -125,7 +126,12 @@ function getHandRenderPartForPlayer(player) {
 }
 function getBoardActionRenderPartsForPlayer(player, options) {
   const opts = options || {};
-  const parts = {board:true, scores:true, blocks:true, topbar:true};
+  const parts = {
+    board:true,
+    scores:opts.scores !== false,
+    blocks:opts.blocks === true,
+    topbar:opts.topbar === true
+  };
   if(opts.hand !== false) parts[getHandRenderPartForPlayer(player)] = true;
   if(opts.oppHand) parts[getHandRenderPartForPlayer(1 - Number(player))] = true;
   if(opts.bothHands) {
@@ -134,29 +140,28 @@ function getBoardActionRenderPartsForPlayer(player, options) {
   }
   if(opts.piles) parts.piles = true;
   if(opts.landscape) parts.landscape = true;
+  if(opts.effects) parts.effects = true;
+  if(opts.hover) parts.hover = true;
   return parts;
 }
 function renderBoardActionForPlayer(player, options) {
   const parts = getBoardActionRenderPartsForPlayer(player, options);
   if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()){
+    const partSource = renderPartSource(parts);
     try {
       const perf = window.__fatePerf = window.__fatePerf || {};
       perf.v2BoardActionFastPathRenders = (perf.v2BoardActionFastPathRenders || 0) + 1;
       perf.lastV2BoardActionFastPath = {
-        parts:Object.keys(parts || {}).filter(function(k){ return parts[k]; }).join(','),
-        mode:'single-v2-schedule',
+        parts:partSource,
+        mode:'match-frame-scheduler',
         at:Date.now()
       };
     } catch(e) {}
-    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
-      window.FateMatchRendererAdapter.scheduleRender('board-action-fast-path');
-    }
-    if(parts.topbar && typeof updateTopBar === 'function') {
-      setTimeout(function(){ try { updateTopBar(); } catch(e) {} }, 0);
-    }
-    if(parts.landscape && typeof renderLandscapePanel === 'function') {
-      setTimeout(function(){ try { renderLandscapePanel(); } catch(e) {} }, 0);
-    }
+    FateMatchFrameScheduler.request({
+      dirty:parts,
+      reason:'board-action-fast-path',
+      adapterSource:'board-action-fast-path:' + partSource
+    });
     return;
   }
   renderGame(parts);
@@ -195,6 +200,9 @@ function mergeRenderParts(a, b) {
   Object.keys(b || {}).forEach(k=>{ if(b[k]) out[k] = true; });
   return out;
 }
+function renderPartSource(parts) {
+  return Object.keys(parts || {}).filter(function(k){ return parts[k]; }).join(',');
+}
 function isGameRenderScreenActive() {
   const game = document.getElementById('s-game');
   return !!(game && game.classList.contains('active'));
@@ -212,6 +220,9 @@ function noteSuppressedOffscreenGameRender(source) {
 function invalidateRenderCaches() {
   _renderGameScheduled = false;
   _renderGameDirty = null;
+  if(window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.reset === 'function') {
+    window.FateMatchFrameScheduler.reset('invalidate-render-caches');
+  }
   _lastBoardRenderSignature = '';
   _lastHandRenderSignature = '';
   _lastHandLabelSignature = '';
@@ -225,9 +236,214 @@ function invalidateRenderCaches() {
   _lastPlayerBannersSignature = '';
   _lastTopBarEffectsSourceSignature = '';
   _lastActionBarLayoutSignature = '';
+  _lastPlayerBannerActiveSignature = '';
   _renderCalcCache = null;
 }
 window.invalidateFateRenderCaches = invalidateRenderCaches;
+
+const FateMatchFrameScheduler = (function(){
+  let scheduled = false;
+  let flushing = false;
+  let dirty = null;
+  let adapterSources = [];
+  let afterPaint = [];
+  let nonCritical = [];
+  let lastFlushAt = 0;
+  let lastFlushMs = 0;
+  let flushCount = 0;
+  let requestCount = 0;
+  let mergedRequestCount = 0;
+  let lastReason = '';
+  let lastDirty = '';
+  let lastAdapterSources = '';
+
+  function addUnique(list, value){
+    const text = String(value || '').trim();
+    if(text && list.indexOf(text) < 0) list.push(text);
+  }
+  function noteRequest(reason, parts){
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.matchFrameSchedulerRequests = (perf.matchFrameSchedulerRequests || 0) + 1;
+      perf.lastMatchFrameSchedulerRequest = {
+        reason:reason || '',
+        parts:renderPartSource(parts),
+        scheduled,
+        at:Date.now()
+      };
+    } catch(e) {}
+  }
+  function enqueueTask(list, fn, label){
+    if(typeof fn !== 'function') return;
+    list.push({fn, label:label || fn.name || 'task'});
+  }
+  function enqueueTasks(list, tasks){
+    if(!tasks) return;
+    if(Array.isArray(tasks)) {
+      tasks.forEach(function(task){
+        if(typeof task === 'function') enqueueTask(list, task, task.name);
+        else if(task && typeof task.fn === 'function') enqueueTask(list, task.fn, task.label);
+      });
+    } else if(typeof tasks === 'function') {
+      enqueueTask(list, tasks, tasks.name);
+    }
+  }
+  function runTaskList(list, budgetMs){
+    if(!list.length) return 0;
+    const started = performance.now ? performance.now() : Date.now();
+    let ran = 0;
+    while(list.length){
+      const task = list.shift();
+      try { task.fn(); } catch(err) { console.error('MatchFrameScheduler task failed:', task.label, err); }
+      ran++;
+      const now = performance.now ? performance.now() : Date.now();
+      if(budgetMs && now - started >= budgetMs) {
+        setTimeout(function(){ runTaskList(list, budgetMs); }, 0);
+        break;
+      }
+    }
+    return ran;
+  }
+  function v2OwnsMatchScene(){
+    try {
+      return typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();
+    } catch(e) {
+      return false;
+    }
+  }
+  function adapterOwnedParts(parts){
+    return !!(parts && (parts.board || parts.hand || parts.oppHand || parts.piles || parts.scores || parts.blocks || parts.effects || parts.hover));
+  }
+  function domDirtyFrom(parts){
+    const out = {};
+    if(parts && parts.topbar) out.topbar = true;
+    if(parts && parts.landscape) out.landscape = true;
+    return out;
+  }
+  function schedule(){
+    if(scheduled) return;
+    scheduled = true;
+    _renderGameScheduled = true;
+    requestAnimationFrame(flush);
+  }
+  function request(options){
+    const opts = options || {};
+    const parts = normalizeRenderParts(opts.dirty || opts.parts || {});
+    noteRequest(opts.reason || opts.source || 'request', parts);
+    requestCount++;
+    if(dirty) mergedRequestCount++;
+    dirty = mergeRenderParts(dirty, parts);
+    if(opts.adapterSource) addUnique(adapterSources, opts.adapterSource);
+    enqueueTasks(afterPaint, opts.afterPaint);
+    enqueueTasks(nonCritical, opts.nonCritical);
+    lastReason = opts.reason || opts.source || lastReason || 'request';
+    schedule();
+  }
+  function requestRender(parts, reason){
+    request({dirty:parts, reason:reason || 'renderGame'});
+  }
+  function commit(options){
+    const opts = options || {};
+    if(typeof opts.stateMutation === 'function') opts.stateMutation();
+    request({
+      dirty:opts.dirty || opts.parts || {},
+      reason:opts.reason || 'commit',
+      adapterSource:opts.adapterSource,
+      afterPaint:opts.afterPaint,
+      nonCritical:opts.nonCritical
+    });
+  }
+  function flush(){
+    scheduled = false;
+    _renderGameScheduled = false;
+    if(flushing) return;
+    if(!dirty && !adapterSources.length && !afterPaint.length && !nonCritical.length) return;
+    flushing = true;
+    const started = performance.now ? performance.now() : Date.now();
+    const frameDirty = dirty || {};
+    const frameSources = adapterSources.slice();
+    dirty = null;
+    adapterSources = [];
+    _renderGameDirty = null;
+    try {
+      if(!isGameRenderScreenActive()){
+        noteSuppressedOffscreenGameRender('MatchFrameScheduler');
+        return;
+      }
+      if(shouldDeferGameRenderForPointer(frameDirty)){
+        dirty = mergeRenderParts(dirty, frameDirty);
+        frameSources.forEach(function(src){ addUnique(adapterSources, src); });
+        _renderDeferredByPointer = true;
+        notePointerRenderDecision('deferred', frameDirty);
+        return;
+      }
+      if(_pointerDown) notePointerRenderDecision('bypassed', frameDirty);
+      const ownsV2 = v2OwnsMatchScene();
+      if(ownsV2 && adapterOwnedParts(frameDirty)) {
+        const source = frameSources.join('+') || ('match-frame:' + renderPartSource(frameDirty));
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+          window.FateMatchRendererAdapter.scheduleRender(source);
+        }
+        const domDirty = domDirtyFrom(frameDirty);
+        if(domDirty.topbar && typeof updateTopBar === 'function') enqueueTask(afterPaint, function(){ updateTopBar(); }, 'updateTopBar');
+        if(domDirty.landscape && typeof renderLandscapePanel === 'function') enqueueTask(afterPaint, function(){ renderLandscapePanel(); }, 'renderLandscapePanel');
+      } else {
+        performGameRender(frameDirty);
+      }
+      requestAnimationFrame(function(){
+        runTaskList(afterPaint, 3);
+        if(nonCritical.length) setTimeout(function(){ runTaskList(nonCritical, 4); }, 0);
+      });
+    } finally {
+      flushing = false;
+      const ended = performance.now ? performance.now() : Date.now();
+      lastFlushAt = Date.now();
+      lastFlushMs = roundRenderMs(ended - started);
+      flushCount++;
+      lastDirty = renderPartSource(frameDirty);
+      lastAdapterSources = frameSources.join('+');
+      try {
+        const perf = window.__fatePerf = window.__fatePerf || {};
+        perf.matchFrameSchedulerFlushes = flushCount;
+        perf.matchFrameSchedulerLastFlushMs = lastFlushMs;
+        perf.matchFrameSchedulerMergedRequests = mergedRequestCount;
+        perf.lastMatchFrameSchedulerFlush = report();
+      } catch(e) {}
+      if(dirty || afterPaint.length || nonCritical.length) schedule();
+    }
+  }
+  function reset(reason){
+    scheduled = false;
+    flushing = false;
+    dirty = null;
+    adapterSources = [];
+    afterPaint = [];
+    nonCritical = [];
+    lastReason = reason || 'reset';
+  }
+  function report(){
+    return {
+      available:true,
+      version:1,
+      scheduled,
+      flushing,
+      dirty:renderPartSource(dirty || {}),
+      adapterSources:adapterSources.join('+'),
+      afterPaint:afterPaint.length,
+      nonCritical:nonCritical.length,
+      flushCount,
+      requestCount,
+      mergedRequestCount,
+      lastFlushAt,
+      lastFlushMs,
+      lastReason,
+      lastDirty,
+      lastAdapterSources
+    };
+  }
+  return {request, requestRender, commit, flush, reset, report};
+})();
+if(typeof window !== 'undefined') window.FateMatchFrameScheduler = FateMatchFrameScheduler;
 function replaceElementChildren(el, childOrFrag) {
   if(!el) return;
   if(typeof el.replaceChildren === 'function') el.replaceChildren(childOrFrag);
@@ -792,7 +1008,7 @@ function _flushDeferredRender(){
     noteSuppressedOffscreenGameRender('renderGame:pointerFlush');
     return;
   }
-  performGameRender(dirty);
+  FateMatchFrameScheduler.requestRender(dirty, 'pointer-flush');
 }
 document.addEventListener('pointerdown', function(){ _pointerDown = true; }, true);
 document.addEventListener('pointerup', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
@@ -808,30 +1024,13 @@ function renderGame(parts) {
   const normalizedParts = normalizeRenderParts(parts);
   noteRenderRequest(parts, normalizedParts);
   _renderGameDirty = mergeRenderParts(_renderGameDirty, normalizedParts);
-  if(_renderGameScheduled) return;
-  _renderGameScheduled = true;
-  requestAnimationFrame(function(){
-    _renderGameScheduled = false;
-    const dirty = _renderGameDirty || {...RENDER_ALL_PARTS};
-    _renderGameDirty = null;
-    if(shouldDeferGameRenderForPointer(dirty)){
-      _renderGameDirty = mergeRenderParts(_renderGameDirty, dirty);
-      _renderDeferredByPointer = true;
-      notePointerRenderDecision('deferred', dirty);
-      return;
-    }
-    if(_pointerDown) notePointerRenderDecision('bypassed', dirty);
-    if(!isGameRenderScreenActive()){
-      noteSuppressedOffscreenGameRender('renderGame:rAF');
-      return;
-    }
-    performGameRender(dirty);
-  });
+  FateMatchFrameScheduler.requestRender(normalizedParts, 'renderGame');
 }
 // Immediate render for critical moments (game start, turn change)
 function renderGameImmediate(parts) {
   _renderGameScheduled = false;
   _renderGameDirty = null;
+  FateMatchFrameScheduler.reset('renderGameImmediate');
   if(!isGameRenderScreenActive()){
     noteSuppressedOffscreenGameRender('renderGameImmediate');
     return;
@@ -859,8 +1058,14 @@ function renderPiles() {
     set('my-deck-count',myDeck,'my-deck');
     set('my-discard-count',myDisc,'my-discard');
     set('opp-discard-count',oppDisc,'opp-discard');
-    document.querySelectorAll('.pile-card-canvas').forEach(function(canvas){ canvas.remove(); });
-    document.querySelectorAll('.pile-slot .pile-cards').forEach(function(slot){ slot.textContent = ''; slot.style.background = ''; });
+    if(!renderPiles._v2DomCleared) {
+      document.querySelectorAll('.pile-card-canvas').forEach(function(canvas){ canvas.remove(); });
+      document.querySelectorAll('.pile-slot .pile-cards').forEach(function(slot){
+        if(slot.textContent) slot.textContent = '';
+        if(slot.style && slot.style.background) slot.style.background = '';
+      });
+      renderPiles._v2DomCleared = true;
+    }
     const myDeckEl = document.getElementById('my-deck');
     const myDiscardEl = document.getElementById('my-discard');
     const oppDeckEl = document.getElementById('opp-deck');
@@ -1587,7 +1792,7 @@ function renderOppHand() {
     const oppP = getPerspectiveOpponentIndex();
     const oppHand = G.players[oppP].hand;
     applyOpponentHandDensity(container, oppHand.length);
-    container.textContent = '';
+    if(container.firstChild) container.textContent = '';
     container.style.cursor = '';
     container.onclick = null;
     const lbl=document.getElementById('opp-hand-lbl');
@@ -2415,7 +2620,7 @@ function renderHand() {
   const hc = document.getElementById('hand-cards');
   if(!hc) return;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsHand === 'function' && window.FateMatchRendererAdapter.ownsHand()){
-    hc.textContent = '';
+    if(hc.firstChild) hc.textContent = '';
     const countEl = document.getElementById('hand-count');
     const countText = `(${hand.length})`;
     if(countEl && countEl.textContent !== countText) countEl.textContent = countText;
@@ -2721,6 +2926,7 @@ function updateTopBar() {
   const cp=G.currentPlayer;
   const isAITurn = G.aiEnabled && (G.currentPlayer===G.aiPlayer || G._aiRunning);
   const perspectivePlayer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
+  const perspectiveOpponent = 1 - perspectivePlayer;
   const isOwnTurn = cp === perspectivePlayer;
   const displayName = isOwnTurn ? (G.players[cp].name || 'Player') : 'Opponent';
   const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+"'s Turn";
@@ -2763,6 +2969,8 @@ function updateTopBar() {
   if(bannerSig !== _lastPlayerBannersSignature){
     _lastPlayerBannersSignature = bannerSig;
     updatePlayerBanners();
+  } else {
+    updatePlayerBannerActiveTurn(perspectivePlayer, perspectiveOpponent);
   }
   normalizeActionBarLayout();
   const effectsSig = getTopBarEffectsSourceSignature();
@@ -2995,7 +3203,6 @@ function getPlayerBannersSignature(currentPlayer, perspectivePlayer) {
   return [
     myP,
     oppP,
-    currentPlayer,
     G.aiEnabled ? 1 : 0,
     G.aiDifficulty || '',
     ai.name || '',
@@ -3005,6 +3212,16 @@ function getPlayerBannersSignature(currentPlayer, perspectivePlayer) {
     playerBannerSignatureFor(myP),
     playerBannerSignatureFor(oppP)
   ].join('|');
+}
+
+function updatePlayerBannerActiveTurn(myP, oppP) {
+  const sig = [myP, oppP, G.currentPlayer].join('|');
+  if(sig === _lastPlayerBannerActiveSignature) return;
+  _lastPlayerBannerActiveSignature = sig;
+  const myBanner = document.querySelector('.my-banner');
+  const oppBanner = document.querySelector('.opp-banner');
+  if(myBanner) myBanner.classList.toggle('active-turn', G.currentPlayer===myP);
+  if(oppBanner) oppBanner.classList.toggle('active-turn', G.currentPlayer===oppP);
 }
 
 function getTopBarEffectsSourceSignature() {
@@ -3515,6 +3732,44 @@ function updatePlayerStatBadge(el, opts) {
   }
 }
 
+function shouldDeferMatchEntryCanvasPaint() {
+  try {
+    const perf = window.__fatePerf || {};
+    const entry = perf.matchEntry;
+    if(!entry || !entry.until) return false;
+    const now = (performance && performance.now) ? performance.now() : Date.now();
+    return now < Number(entry.until) + 260;
+  } catch(e) {
+    return false;
+  }
+}
+
+function renderBannerCanvasImage(canvas, src, opts) {
+  if(!canvas || !src || typeof window.renderCanvasImage !== 'function') return false;
+  const options = opts || {};
+  const sig = [
+    src,
+    options.mode || '',
+    options.background || '',
+    options.cropY == null ? '' : options.cropY,
+    options.maxDpr == null ? '' : options.maxDpr
+  ].join('|');
+  if(canvas.dataset && canvas.dataset.profileCanvasSig === sig && canvas.__fateCanvasImageDrawn) return true;
+  if(shouldDeferMatchEntryCanvasPaint()) {
+    if(canvas.__fateProfileRenderTimer) clearTimeout(canvas.__fateProfileRenderTimer);
+    canvas.__fateProfileRenderTimer = setTimeout(function(){
+      canvas.__fateProfileRenderTimer = 0;
+      if(!canvas.isConnected) return;
+      window.renderCanvasImage(canvas, src, options);
+      if(canvas.dataset) canvas.dataset.profileCanvasSig = sig;
+    }, 220);
+    return true;
+  }
+  const ok = window.renderCanvasImage(canvas, src, options);
+  if(ok && canvas.dataset) canvas.dataset.profileCanvasSig = sig;
+  return ok;
+}
+
 if(typeof window !== 'undefined' && !window.__fateTitleAccountPositionerInstalled){
   window.__fateTitleAccountPositionerInstalled = true;
   window.addEventListener('resize', ()=>scheduleTitleAccountPosition(40));
@@ -3565,7 +3820,7 @@ function updatePlayerBanners() {
         canvas.setAttribute('aria-hidden','true');
         myPicEl.appendChild(canvas);
       }
-      window.renderCanvasImage(canvas, _myPicSrc, { mode:'cover', parent:myPicEl, background:'#080910' });
+      renderBannerCanvasImage(canvas, _myPicSrc, { mode:'cover', parent:myPicEl, background:'#080910' });
     } else {
       const _myExImg = myPicEl.querySelector('img');
       if(!_myExImg || _myExImg.getAttribute('src') !== _myPicSrc || _myExImg.style.cssText !== _myPicCrop){
@@ -3607,7 +3862,7 @@ function updatePlayerBanners() {
           canvas.setAttribute('aria-hidden','true');
           oppPicEl.appendChild(canvas);
         }
-        window.renderCanvasImage(canvas, aiImg, { mode:'cover', parent:oppPicEl, background:'#080910' });
+        renderBannerCanvasImage(canvas, aiImg, { mode:'cover', parent:oppPicEl, background:'#080910' });
       } else {
         const _oppExImg = oppPicEl.querySelector('img');
         if(!_oppExImg || _oppExImg.getAttribute('src') !== aiImg){
@@ -3640,7 +3895,7 @@ function updatePlayerBanners() {
           canvas.setAttribute('aria-hidden','true');
           oppPicEl.appendChild(canvas);
         }
-        window.renderCanvasImage(canvas, _oppSrc, { mode:'cover', parent:oppPicEl, background:'#080910' });
+        renderBannerCanvasImage(canvas, _oppSrc, { mode:'cover', parent:oppPicEl, background:'#080910' });
       } else {
         const _oppExImg2 = oppPicEl.querySelector('img');
         if(!_oppExImg2 || _oppExImg2.getAttribute('src') !== _oppSrc || _oppExImg2.style.cssText !== _oppCrop){
@@ -3662,10 +3917,7 @@ function updatePlayerBanners() {
     }
   }
   // Active turn highlight
-  const myBanner = document.querySelector('.my-banner');
-  const oppBanner = document.querySelector('.opp-banner');
-  if(myBanner) myBanner.classList.toggle('active-turn', G.currentPlayer===myP);
-  if(oppBanner) oppBanner.classList.toggle('active-turn', G.currentPlayer===oppP);
+  updatePlayerBannerActiveTurn(myP, oppP);
   // Auto-shrink long names
   fitBannerNames();
 }
@@ -5557,6 +5809,7 @@ function toast(msg, durationMs) {
   if(!el) return;
   const text = String(msg || '');
   const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
+  const effectAlertMs = 2000;
   try {
     const perf = window.__fatePerf = window.__fatePerf || {};
     perf.lastToast = {at:Math.round(performance.now ? performance.now() : Date.now()), text, isEffectAlert};
@@ -5565,7 +5818,7 @@ function toast(msg, durationMs) {
   el.classList.toggle('toast-effect-alert', isEffectAlert);
   el.classList.add('on');
   clearTimeout(window._toast);
-  const holdMs = Math.max(isEffectAlert ? 5600 : 900, Number(durationMs) || (isEffectAlert ? 5600 : 4500));
+  const holdMs = Math.max(isEffectAlert ? effectAlertMs : 900, Number(durationMs) || (isEffectAlert ? effectAlertMs : 4500));
   window._toast=setTimeout(()=>{
     el.classList.remove('on');
     el.classList.remove('toast-effect-alert');
@@ -5747,6 +6000,11 @@ let _hoverPreviewRaf = null;
 let _hoverPreviewPoint = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
+  try {
+    const game = document.getElementById('s-game');
+    const v2Owns = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();
+    if(game && game.classList && game.classList.contains('active') && v2Owns) return;
+  } catch(_e) {}
   const el = document.createElement('div');
   el.className = 'card-hover-preview';
   el.innerHTML = `
@@ -5933,7 +6191,7 @@ function showBlockedAnimation(msg) {
     perf.lastBlockedAnimation = {at:Math.round(performance.now ? performance.now() : Date.now()), text};
   } catch(e) {}
   if(rendererV2OwnsBoardScene()){
-    if(typeof toast === 'function') toast(text + '!', 6200);
+    if(typeof toast === 'function') toast(text + '!', 2000);
     return;
   }
   const flash = document.createElement('div');
@@ -6011,7 +6269,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
   "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
-  "15": "I consulted with populace - they will not you cross the Danube!",
+  "15": "The sword of King Stephen I will fall upon you!",
   "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
   "21": "All that is solid melts into air, all that is holy is profaned",
@@ -6082,6 +6340,15 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   // Inline visibility is intentional: older patches hide cinematic text elements.
   el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;';
   document.body.appendChild(el);
+  try {
+    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    const lineHeight = style ? (parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.18)) : 0;
+    const h = el.getBoundingClientRect ? el.getBoundingClientRect().height : 0;
+    if(lineHeight > 0 && h > lineHeight * 1.45) {
+      el.classList.add('multi-line');
+      el.style.setProperty('bottom', '24vh', 'important');
+    }
+  } catch(e) {}
   const ttl = Math.max(800, Number(durationMs) || 2100);
   setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(300, ttl - 470));
   setTimeout(function(){ if(el.parentNode) el.remove(); }, ttl + 100);

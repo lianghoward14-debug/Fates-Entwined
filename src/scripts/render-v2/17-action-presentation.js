@@ -83,6 +83,7 @@
   }
 
   function consolidationMotionAllowed(){
+    if(autoMotionDisabledReason) return false;
     try {
       if(localStorage.getItem('fateDisableConsolidationMotion') === '1') return false;
     } catch(e) {}

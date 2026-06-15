@@ -745,6 +745,25 @@
     const dpr = Math.max(1, Math.min(opts.maxDpr || 2.5, window.devicePixelRatio || 1));
     const pxW = Math.round(cssW * dpr);
     const pxH = Math.round(cssH * dpr);
+    const redraw = function(){ renderCanvasImage(canvas, src, opts); };
+    const img = src ? getImage(src, redraw) : null;
+    const imageState = img && img.complete && img.naturalWidth
+      ? ['ready', img.naturalWidth, img.naturalHeight].join(':')
+      : (src ? 'pending' : 'none');
+    const sig = [
+      src || '',
+      cssW,
+      cssH,
+      dpr,
+      opts.mode || 'cover',
+      opts.cropY == null ? '' : opts.cropY,
+      opts.background || '',
+      opts.styleWidth || '',
+      opts.styleHeight || '',
+      opts.fallbackText || '',
+      imageState
+    ].join('|');
+    if(canvas.__fateCanvasImageSig === sig && canvas.__fateCanvasImageDrawn) return true;
     if(canvas.width !== pxW || canvas.height !== pxH) {
       canvas.width = pxW;
       canvas.height = pxH;
@@ -761,8 +780,6 @@
       ctx.fillStyle = opts.background || '#080910';
       ctx.fillRect(0,0,cssW,cssH);
     }
-    const redraw = function(){ renderCanvasImage(canvas, src, opts); };
-    const img = src ? getImage(src, redraw) : null;
     const mode = opts.mode || 'cover';
     const ok = mode === 'contain'
       ? drawImageContain(ctx, img, 0, 0, cssW, cssH)
@@ -774,6 +791,8 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(String(opts.fallbackText).slice(0, 18), cssW / 2, cssH / 2);
     }
+    canvas.__fateCanvasImageSig = sig;
+    canvas.__fateCanvasImageDrawn = true;
     return true;
   }
 

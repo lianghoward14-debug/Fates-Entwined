@@ -2607,19 +2607,20 @@ body.cinematic-lock #modal{
   animation:ccCardStarV43 1.72s cubic-bezier(.12,.88,.2,1.02) both!important;
 }
 .consolidation-cinematic-overlay.rarity-star .cc-sigil-a{
-  background:conic-gradient(from 0deg,transparent 0 4%,rgba(230,165,31,.92) 7%,transparent 12%,transparent 17%,rgba(177,105,10,.82) 23%,transparent 31%,transparent 40%,rgba(245,190,56,.88) 47%,transparent 55%,transparent 63%,rgba(210,132,14,.86) 70%,transparent 78%,transparent 86%,rgba(230,165,31,.86) 92%,transparent 100%)!important;
-  filter:drop-shadow(0 0 24px rgba(230,165,31,.72))!important;
+  background:conic-gradient(from 0deg,transparent 0 5.5%,rgba(230,165,31,.74) 7%,transparent 8.8%,transparent 19%,rgba(177,105,10,.62) 22%,transparent 25%,transparent 43%,rgba(245,190,56,.70) 46.5%,transparent 49%,transparent 66%,rgba(210,132,14,.66) 70%,transparent 73%,transparent 88%,rgba(230,165,31,.68) 92%,transparent 94.5%,transparent 100%)!important;
+  filter:drop-shadow(0 0 12px rgba(230,165,31,.48))!important;
   animation:ccStarSigilV43 2.05s cubic-bezier(.12,.8,.2,1) both!important;
 }
 .consolidation-cinematic-overlay.rarity-star .cc-sigil-b{
   border-color:#e6a51f!important;
-  box-shadow:0 0 26px rgba(230,165,31,.72), inset 0 0 32px rgba(177,105,10,.28)!important;
+  border-width:1.5px!important;
+  box-shadow:0 0 12px rgba(230,165,31,.42), inset 0 0 16px rgba(177,105,10,.18)!important;
   animation:ccStarRingV43 2.05s ease-out both!important;
 }
 .consolidation-cinematic-overlay.rarity-star .cc-star-ribbons span{
-  background:linear-gradient(90deg,transparent,rgba(230,165,31,.92),rgba(255,198,54,.82),transparent)!important;
-  height:18px!important;
-  filter:drop-shadow(0 0 16px rgba(230,165,31,.72))!important;
+  background:linear-gradient(90deg,transparent,rgba(230,165,31,.62),rgba(255,198,54,.54),transparent)!important;
+  height:8px!important;
+  filter:drop-shadow(0 0 8px rgba(230,165,31,.46))!important;
   animation:ccStarRibbonV43 1.7s ease-out both!important;
 }
 .consolidation-cinematic-overlay.rarity-star .cc-star-ribbons span:nth-child(1){--base-rot:8deg;}
@@ -2627,8 +2628,9 @@ body.cinematic-lock #modal{
 .consolidation-cinematic-overlay.rarity-star .cc-star-ribbons span:nth-child(3){--base-rot:128deg;}
 .consolidation-cinematic-overlay.rarity-star .cc-star-ribbons span:nth-child(4){--base-rot:194deg;}
 .consolidation-cinematic-overlay.rarity-star .cc-star-orbit{
-  border-color:rgba(230,165,31,.72)!important;
-  box-shadow:0 0 18px rgba(230,165,31,.45)!important;
+  border-width:1px!important;
+  border-color:rgba(230,165,31,.46)!important;
+  box-shadow:0 0 8px rgba(230,165,31,.28)!important;
   animation:ccStarOrbitV43 1.95s ease-out both!important;
 }
 .consolidation-cinematic-overlay.rarity-star .cc-star-comets{

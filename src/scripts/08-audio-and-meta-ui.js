@@ -1753,7 +1753,7 @@ function playCardSound(cardId) {
   try {
     let src = SET_VOICELINE_PATH(soundFile);
     const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set']);
-    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + 'v=20260614b';
+    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + 'v=20260615a';
     const audio = new Audio(src);
     // Normalize voiceline volume - cap at 0.7 to prevent loud clips
     audio.volume = Math.min(0.7, _voiceVol * _masterVol);

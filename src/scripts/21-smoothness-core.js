@@ -690,9 +690,10 @@
 
   function warmImage(src, options){
     const opts = options || {};
-    if(!src || warmCache.has(src)) return Promise.resolve({src:src || '', cached:true, ok:!!src});
+    if(!src) return Promise.resolve({src:'', cached:true, ok:false});
+    if(!opts.force && warmCache.has(src)) return Promise.resolve({src, cached:true, ok:true});
     if(typeof FATE_BACKGROUND_URL === 'function' && /backgrounds|titlscreenbackgrounds|ingamebackgrouds/.test(src)) src = FATE_BACKGROUND_URL(src);
-    if(warmCache.has(src)) return Promise.resolve({src, cached:true, ok:true});
+    if(!opts.force && warmCache.has(src)) return Promise.resolve({src, cached:true, ok:true});
     warmCache.add(src);
     return new Promise(function(resolve){
       let done = false;
@@ -813,15 +814,16 @@
         rarity:card.rarity,
         aff:card.aff
       });
-      const imgResult = await warmImage(thumb, {decode:true, timeoutMs:3200});
+      const imgResult = await warmImage(thumb, {decode:true, timeoutMs:3200, force:!!opts.forceImages});
       if(imgResult && imgResult.ok) imageOk += 1;
       else imageFailed += 1;
-      if(full && full !== thumb) warmImage(full, {decode:false, timeoutMs:3200});
+      if(full && full !== thumb) warmImage(full, {decode:false, timeoutMs:3200, force:!!opts.forceImages});
       const cache = window.FateCardTextureCache;
       if(cache && typeof cache.getBaseCardTexture === 'function'){
         try{
           records.push(cache.getBaseCardTexture(card, {w:74, h:104}, {visual, dpr, preferFullArt:true, source:source + '-hand'}));
           records.push(cache.getBaseCardTexture(card, {w:96, h:134}, {visual, dpr, preferFullArt:true, source:source + '-board'}));
+          if(i < 16) records.push(cache.getBaseCardTexture(card, {w:132, h:184}, {visual, dpr, preferFullArt:true, source:source + '-drag'}));
         }catch(e){}
       }
       warmedCards += 1;
@@ -829,7 +831,7 @@
       if(i % 4 === 3) await waitMatchPreloadMs(0);
     }
     for(let i = 0; i < staticAssets.length; i++){
-      const result = await warmImage(staticAssets[i], {decode:true, timeoutMs:2200});
+      const result = await warmImage(staticAssets[i], {decode:true, timeoutMs:2200, force:!!opts.forceImages});
       if(result && result.ok) imageOk += 1;
       else imageFailed += 1;
       publish('static', cards.length + i + 1, {asset:staticAssets[i], imageOk, imageFailed});
@@ -1414,7 +1416,9 @@
   async function warmFreePlayMenu(){
     if(typeof window.openFreePlayMenu !== 'function') return;
     if(typeof window.fateWarmFreePlayMenuAssets === 'function') await window.fateWarmFreePlayMenuAssets();
-    window.openFreePlayMenu();
+    window.openFreePlayMenu({force:true, warmup:true});
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.freePlayWarmupOpens = (Number(perf.freePlayWarmupOpens) || 0) + 1;
     await waitStartupFrame(2);
     const modal = document.getElementById('modal');
     if(window.FateSVG && typeof window.FateSVG.decorate === 'function') window.FateSVG.decorate(modal);
@@ -1641,7 +1645,7 @@
     window.__fateStartupWarmupCancelled = false;
     try{ if(window.__fateStartupLoadingFallback) clearTimeout(window.__fateStartupLoadingFallback); }catch(e){}
     const assetTotal = collectInitialAssets().length;
-    const menuStepTotal = 11;
+    const menuStepTotal = 18;
     const state = {done:0, total:assetTotal + menuStepTotal, cancelled:false, errors:[]};
     const originalScreen = getActiveScreenId() || 's-title';
     showInitialLoadingScreen(state.total, {
@@ -1666,6 +1670,34 @@
         ]);
       });
     }
+    async function runTitleMenuWarmupPass(passLabel){
+      await runNonVisualPrep('Preparing Free Play ' + passLabel, 'Caching Free Play templates and images.', function(){
+        return warmFreePlayMenu();
+      });
+      await runNonVisualPrep('Preparing Choose Deck ' + passLabel, 'Caching deck picker templates and thumbnails.', function(){
+        return warmChooseDeckMenu();
+      });
+      await runNonVisualPrep('Preparing AI Picker ' + passLabel, 'Caching opponent templates and portraits.', function(){
+        return warmAiPickerMenu();
+      });
+      await runNonVisualPrep('Preparing Deck Builder ' + passLabel, 'Prebuilding title deck builder layout.', function(){
+        return warmDeckBuilderMenu();
+      });
+    }
+    async function runChallengerWarmupPass(passLabel){
+      await runNonVisualPrep('Preparing Challenger Play ' + passLabel, 'Prebuilding Challenger play tab.', function(){
+        return warmChallengerTab('play');
+      });
+      await runNonVisualPrep('Preparing Challenger Store ' + passLabel, 'Prebuilding Challenger store tab.', function(){
+        return warmChallengerTab('store');
+      });
+      await runNonVisualPrep('Preparing Challenger Collection ' + passLabel, 'Prebuilding Challenger collection tab.', function(){
+        return warmChallengerTab('collection');
+      });
+      await runNonVisualPrep('Preparing Challenger Deck Builder ' + passLabel, 'Prebuilding Challenger deck builder tab.', function(){
+        return warmChallengerTab('deckbuilder');
+      });
+    }
     const work = (async function(){
       await preloadInitialAssets({
         keepVisible:true,
@@ -1678,33 +1710,13 @@
         }
       });
       state.done = Math.max(state.done, assetTotal);
-      await runNonVisualPrep('Preparing Free Play', 'Caching Free Play templates and images.', function(){
-        return warmFreePlayMenu();
-      });
-      await runNonVisualPrep('Preparing Choose Deck', 'Caching deck picker templates and thumbnails.', function(){
-        return warmChooseDeckMenu();
-      });
-      await runNonVisualPrep('Preparing AI Picker', 'Caching opponent templates and portraits.', function(){
-        return warmAiPickerMenu();
-      });
-      await runNonVisualPrep('Preparing Deck Builder', 'Prebuilding title deck builder layout.', function(){
-        return warmDeckBuilderMenu();
-      });
+      await runTitleMenuWarmupPass('Pass 1');
+      await runTitleMenuWarmupPass('Pass 2');
       await runNonVisualPrep('Syncing Profile', 'Waiting for real collection and deck data before warming Challenger.', function(){
         return waitForProfileDataForMenuWarmup();
       }, isElectronShell() ? 34000 : 14000);
-      await runNonVisualPrep('Preparing Challenger Play', 'Prebuilding Challenger play tab.', function(){
-        return warmChallengerTab('play');
-      });
-      await runNonVisualPrep('Preparing Challenger Store', 'Prebuilding Challenger store tab.', function(){
-        return warmChallengerTab('store');
-      });
-      await runNonVisualPrep('Preparing Challenger Collection', 'Prebuilding Challenger collection tab.', function(){
-        return warmChallengerTab('collection');
-      });
-      await runNonVisualPrep('Preparing Challenger Deck Builder', 'Prebuilding Challenger deck builder tab.', function(){
-        return warmChallengerTab('deckbuilder');
-      });
+      await runChallengerWarmupPass('Pass 1');
+      await runChallengerWarmupPass('Pass 2');
       await runNonVisualPrep('Finalizing Menus', 'Scheduling remaining menu asset work.', function(){
         if(typeof window.showMissionControl === 'function') {
           try { window.showMissionControl(); } catch(e) {}
@@ -2204,6 +2216,7 @@
         vfx: window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
         renderV2Flags: window.FateRenderV2Flags && typeof window.FateRenderV2Flags.report === 'function' ? window.FateRenderV2Flags.report() : null,
         matchRenderer: window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function' ? window.FateMatchRendererAdapter.report() : null,
+        matchFrameScheduler: window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.report === 'function' ? window.FateMatchFrameScheduler.report() : null,
         renderSnapshot: typeof window.fateRenderSnapshotReport === 'function' ? window.fateRenderSnapshotReport() : null,
         matchLayout: typeof window.fateMatchLayoutReport === 'function' ? window.fateMatchLayoutReport() : null,
         recentRenderSamples: (perf.renderSamples || []).slice(-10),
@@ -2555,6 +2568,7 @@
           lastScopedRenderParts: perf.lastScopedRenderParts || '',
           startupMenuWarmup: perf.startupMenuWarmup || null,
           startupProfileWarmup: perf.startupProfileWarmup || null,
+          freePlayWarmupOpens: perf.freePlayWarmupOpens || 0,
           menuScheduler: window.FateMenuScheduler && typeof window.FateMenuScheduler.report === 'function' ? window.FateMenuScheduler.report() : null,
           menuViews: window.FateMenuViews && typeof window.FateMenuViews.report === 'function' ? window.FateMenuViews.report() : null
         },
@@ -2570,6 +2584,7 @@
         vfx: window.FateVfxDirector && typeof window.FateVfxDirector.report === 'function' ? window.FateVfxDirector.report() : null,
         renderV2Flags: window.FateRenderV2Flags && typeof window.FateRenderV2Flags.report === 'function' ? window.FateRenderV2Flags.report() : null,
         matchRenderer: window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.report === 'function' ? window.FateMatchRendererAdapter.report() : null,
+        matchFrameScheduler: window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.report === 'function' ? window.FateMatchFrameScheduler.report() : null,
         renderSnapshot: typeof window.fateRenderSnapshotReport === 'function' ? window.fateRenderSnapshotReport() : null,
         matchLayout: typeof window.fateMatchLayoutReport === 'function' ? window.fateMatchLayoutReport() : null,
         selectorCounts,
@@ -2724,6 +2739,7 @@
             lastDirtySource:report.lastDirtySource
           } : null;
         })(window.FateMatchRendererAdapter.report()) : null,
+        matchFrameScheduler:window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.report === 'function' ? window.FateMatchFrameScheduler.report() : null,
         diagnosticsMode:'match-light'
       };
     }
@@ -3055,6 +3071,7 @@
         action,
         vfx,
         matchRenderer,
+        matchFrameScheduler:richContext && window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.report === 'function' ? window.FateMatchFrameScheduler.report() : null,
         gameState:readCompactGameState(),
         likelyExternalPause:gapMs > 500 && (!perfState.longTaskSamples || !perfState.longTaskSamples.length || (perfState.longTaskSamples.slice(-1)[0].start + perfState.longTaskSamples.slice(-1)[0].duration < now - gapMs))
       };

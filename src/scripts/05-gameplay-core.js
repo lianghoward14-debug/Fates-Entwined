@@ -1539,8 +1539,11 @@ async function clickCell(z,r,c) {
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     markCommit('continuousEffects');
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true});
-    else renderGame({board:true, hand:true, scores:true, blocks:true, topbar:true});
+    if(typeof renderBoardActionForPlayer === 'function') {
+      renderBoardActionForPlayer(G.currentPlayer, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
+    } else {
+      renderGame({board:true, hand:true, scores:true});
+    }
     markCommit('renderRequest');
 
     requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, z, r, c));
@@ -1556,8 +1559,11 @@ async function clickCell(z,r,c) {
       commit:commitNormalSetAfterPresentation,
       rollback:function(){
         delete card._presentationDeparting;
-        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true});
-        else renderGame({board:true, hand:true, scores:true, blocks:true, topbar:true});
+        if(typeof renderBoardActionForPlayer === 'function') {
+          renderBoardActionForPlayer(G.currentPlayer, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
+        } else {
+          renderGame({board:true, hand:true, scores:true});
+        }
       }
     });
     if(started) return;
@@ -2772,12 +2778,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         restoreAnickaIfNeeded();
         toast('Extra safe row created in Zone '+(z+1)+'!');
         log(cp===0?'p1':'p2','Starlit Path: extra safe row in Zone '+(z+1));
-        renderEffectResolutionForPlayer(cp, {hand:false});
+        renderEffectResolutionForPlayer(cp, {hand:false, blocks:true});
         // Guard against late row rebuilds/extra-row layout changes visually dropping Anicka.
         setTimeout(function(){
           restoreAnickaIfNeeded();
           const rendered = document.querySelector('#board .bc[data-iid="'+String(anickaIid)+'"]');
-          if(!rendered && anickaStillOnBoard()) renderEffectResolutionForPlayer(cp, {hand:false});
+          if(!rendered && anickaStillOnBoard()) renderEffectResolutionForPlayer(cp, {hand:false, blocks:true});
         }, 80);
       } break;
     case '12': // Makenna: when set, select 2 cards in zone to make immune
@@ -2895,11 +2901,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '75': // Ledger-keepers: copy a supporter effect
       pickBoardSupporterEffect(cp,z); break;
     case '76': // ALPINE Infantry: gains 4 Fate, immune, can't consolidate
+      inst._suppressNextFatePulse = true;
       inst.currentFate = 5; // 1 base + 4
       inst.immuneFlag = true;
       inst.noBonus = true;
       inst.noConsolidate = true;
-      renderEffectResolutionForPlayer(cp, {hand:false}); break;
+      renderEffectResolutionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false}); break;
     case '01': // Felicyta Janowicz: no special when-set (passive aura handled in getEffectiveFate)
       break;
     case '46': // Phil: Monarchist Manifesto — Dauntless, gains 1 Fate per draw phase
@@ -3222,7 +3229,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       G.board[z].forEach(row=>row.forEach(cell=>{
         if(cell) cell.cantBeMoved = true;
       }));
-      renderEffectResolutionForPlayer(cp, {hand:false});
+      renderEffectResolutionForPlayer(cp, {hand:false, blocks:true});
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
     case '25': // Zimbabwean Honor Guard: set another copy from hand/deck for free
@@ -3569,7 +3576,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       G._markSelecting = { player: cp, sourceIid: card.iid, zone: z };
       G.placing = true;
       clearPlaceHighlights();
-      renderGame({board:true, scores:true, blocks:true, topbar:true});
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:true, topbar:false, effects:false, hover:false});
+      else renderGame({board:true, scores:true, blocks:true});
       restoreMarkViewportSnapshotRepeated(markStartSnap);
       document.querySelectorAll('#board .zone[data-zone="'+z+'"] .cell.mark-safe-choice,#board .zone[data-z="'+z+'"] .cell.mark-safe-choice').forEach(el=>el.classList.add('placeable'));
       toast('Choose one highlighted safe-square slot in Zone '+(z+1)+'.');

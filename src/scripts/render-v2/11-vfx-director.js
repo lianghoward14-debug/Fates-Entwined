@@ -61,6 +61,7 @@
   const vfxMsSamples = [];
   const spawnedParticlePrimitiveIds = new Set();
   let dragPreview = null;
+  const numberSpriteCache = new Map();
   const eventBridgeStats = {
     acceptedGameEvents:0,
     suppressedGameEvents:0,
@@ -78,6 +79,48 @@
 
   function clamp(value, min, max){
     return Math.max(min, Math.min(max, value));
+  }
+
+  function numberSprite(text, color, fontSize, lineWidth){
+    const safeText = String(text || '');
+    const safeColor = color || '#ffe37a';
+    const safeFont = Math.max(1, Math.round(Number(fontSize) || 18));
+    const safeLine = Math.max(0, Number(lineWidth) || 0);
+    const dpr = Math.max(1, Math.min(2, Number(window.devicePixelRatio) || 1));
+    const key = [safeText, safeColor, safeFont, Math.round(safeLine * 10), Math.round(dpr * 100)].join('|');
+    const hit = numberSpriteCache.get(key);
+    if(hit) return hit;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext && canvas.getContext('2d', {alpha:true});
+    if(!ctx) return null;
+    const font = '900 ' + safeFont + 'px system-ui, "Segoe UI", sans-serif';
+    ctx.font = font;
+    const measured = ctx.measureText(safeText);
+    const cssW = Math.max(1, Math.ceil(measured.width + safeFont * .9 + safeLine * 4));
+    const cssH = Math.max(1, Math.ceil(safeFont * 1.35 + safeLine * 4));
+    canvas.width = Math.max(1, Math.ceil(cssW * dpr));
+    canvas.height = Math.max(1, Math.ceil(cssH * dpr));
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = safeLine;
+    ctx.strokeStyle = 'rgba(0,0,0,.64)';
+    ctx.fillStyle = safeColor;
+    const x = cssW / 2;
+    const y = cssH / 2;
+    if(safeLine > 0) ctx.strokeText(safeText, x, y);
+    ctx.fillText(safeText, x, y);
+    const rec = {canvas, w:cssW, h:cssH};
+    numberSpriteCache.set(key, rec);
+    if(numberSpriteCache.size > 64) {
+      const first = numberSpriteCache.keys().next().value;
+      if(first) numberSpriteCache.delete(first);
+    }
+    return rec;
   }
 
   function ease(name, t){
@@ -507,22 +550,24 @@
     };
     let texture = null;
     if(cache && typeof cache.getBaseCardTexture === 'function'){
-      if(actionAnimationActive() && typeof cache.peekBaseCardTexture === 'function'){
+      if((opts.readyOnly || actionAnimationActive()) && typeof cache.peekBaseCardTexture === 'function'){
         texture = cache.peekBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, textureOptions);
         if(!(texture && texture.loaded && texture.canvas && !texture.failed) && typeof cache.findReadyBaseCardTexture === 'function'){
           const fallbackTexture = cache.findReadyBaseCardTexture(card, {w:textureSize.w, h:textureSize.h}, textureOptions);
           if(fallbackTexture && fallbackTexture.loaded && fallbackTexture.canvas && !fallbackTexture.failed) {
             texture = fallbackTexture;
-            noteActionEvent('texture-reuse-rescaled', {
-              stage:'draw-card',
-              iid:card && card.iid,
-              cardName:card && card.name,
-              requestedSize:{w:Math.round(textureSize.w || 0), h:Math.round(textureSize.h || 0)},
-              reusedSize:{w:Math.round(fallbackTexture.width || 0), h:Math.round(fallbackTexture.height || 0)}
-            });
+            if(actionAnimationActive()) {
+              noteActionEvent('texture-reuse-rescaled', {
+                stage:'draw-card',
+                iid:card && card.iid,
+                cardName:card && card.name,
+                requestedSize:{w:Math.round(textureSize.w || 0), h:Math.round(textureSize.h || 0)},
+                reusedSize:{w:Math.round(fallbackTexture.width || 0), h:Math.round(fallbackTexture.height || 0)}
+              });
+            }
           }
         }
-        if(!(texture && texture.loaded && texture.canvas && !texture.failed)){
+        if(actionAnimationActive() && !(texture && texture.loaded && texture.canvas && !texture.failed)){
           noteActionEvent('texture-miss', {
             stage:'draw-card',
             iid:card && card.iid,
@@ -849,23 +894,32 @@
         ? 1
         : (1 + Math.sin(Math.PI * p.progress) * .12);
       const color = p.color || (isFateDelta ? (isLoss ? '#ff6f7d' : '#55e68a') : '#ffe37a');
-      const fontSize = Math.max(19, Math.round(r.w * (isFateDelta ? .185 : .17)));
+      const fontScale = Math.max(.5, Math.min(2.2, Number(p.fontScale) || 1));
+      const fontSize = Math.max(19, Math.round(r.w * (isFateDelta ? .185 : .17) * fontScale));
       const padX = Math.max(7, fontSize * .30);
       const boxW = Math.max(fontSize * 1.62, shownText.length * fontSize * .54 + padX * 2);
       const boxH = Math.max(fontSize * 1.02, fontSize + 6);
+      const lineWidth = isFateDelta ? 1.35 : 3;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(x, y);
       ctx.scale(scale, scale);
-      ctx.fillStyle = color;
-      ctx.strokeStyle = 'rgba(0,0,0,.64)';
-      ctx.lineWidth = isFateDelta ? 1.35 : 3;
-      ctx.shadowBlur = 0;
-      ctx.font = '900 ' + fontSize + 'px system-ui, "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.strokeText(shownText, 0, 0);
-      ctx.fillText(shownText, 0, 0);
+      if(isFateDelta){
+        const sprite = numberSprite(shownText, color, fontSize, lineWidth);
+        if(sprite && sprite.canvas) {
+          ctx.drawImage(sprite.canvas, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+        }
+      } else {
+        ctx.fillStyle = color;
+        ctx.strokeStyle = 'rgba(0,0,0,.64)';
+        ctx.lineWidth = lineWidth;
+        ctx.shadowBlur = 0;
+        ctx.font = '900 ' + fontSize + 'px system-ui, "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeText(shownText, 0, 0);
+        ctx.fillText(shownText, 0, 0);
+      }
       ctx.restore();
       return;
     }
@@ -993,7 +1047,7 @@
     ctx.fillStyle = 'rgb(6,8,13)';
     ctx.fill();
     ctx.clip();
-    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:2});
+    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:1.5, textureSize:{x:0, y:0, w:132, h:184}, readyOnly:true});
     ctx.restore();
     ctx.restore();
     return true;

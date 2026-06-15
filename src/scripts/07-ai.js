@@ -104,7 +104,7 @@ function aiSleep(ms){
   });
 }
 
-// Visual pacing so consecutive AI sets/effects are trackable by humans.
+// Keep AI work visible without holding the frame loop hostage during board operations.
 const AI_VISUAL_PAUSE_THINK = 1100;
 const AI_VISUAL_PAUSE_PLACE = 1650;
 const AI_VISUAL_PAUSE_CONSOLIDATE = 3100;
@@ -123,11 +123,42 @@ function aiNowMs() {
   return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 }
 
-function aiYieldToFrame() {
+const AI_SEARCH_QUEUE_FRAME_BUDGET_MS = 1.75;
+
+function aiRecordSearchQueueYield(reason, elapsedMs) {
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.aiSearchQueueYields = (Number(perf.aiSearchQueueYields) || 0) + 1;
+    perf.aiSearchQueueLastYield = {
+      reason: reason || 'ai-search',
+      elapsedMs: Math.round((Number(elapsedMs) || 0) * 100) / 100,
+      at: Math.round(aiNowMs())
+    };
+  } catch(e) {}
+}
+
+function aiYieldToFrame(reason, elapsedMs) {
+  aiRecordSearchQueueYield(reason, elapsedMs);
   return new Promise(resolve => {
-    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(()=>resolve());
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(()=>setTimeout(resolve, 0));
     else setTimeout(resolve, 0);
   });
+}
+
+async function aiRunSearchQueue(items, worker, ctx, reason, budgetMs) {
+  const list = Array.isArray(items) ? items : [];
+  const maxMs = Math.max(0.75, Number(budgetMs) || AI_SEARCH_QUEUE_FRAME_BUDGET_MS);
+  let chunkStart = aiNowMs();
+  for(let i = 0; i < list.length; i++){
+    if(aiShouldAbortSearch(ctx)) return false;
+    worker(list[i], i);
+    const elapsed = aiNowMs() - chunkStart;
+    if(elapsed >= maxMs){
+      await aiYieldToFrame(reason, elapsed);
+      chunkStart = aiNowMs();
+    }
+  }
+  return true;
 }
 
 function aiShouldAbortSearch(ctx) {
@@ -137,56 +168,41 @@ function aiShouldAbortSearch(ctx) {
 
 function aiGetMCTSConfig() {
   const d = G.aiDifficulty || 'medium';
-  if(d === 'extreme') return {enabled:true, budgetMs:1450, maxCandidates:12, maxChunkMs:5.5, minVisits:72, exploration:1.18, depth:4};
-  if(d === 'hard') return {enabled:true, budgetMs:1050, maxCandidates:10, maxChunkMs:5, minVisits:52, exploration:1.28, depth:3};
-  if(d === 'medium') return {enabled:true, budgetMs:760, maxCandidates:8, maxChunkMs:4.5, minVisits:34, exploration:1.38, depth:3};
-  return {enabled:true, budgetMs:420, maxCandidates:6, maxChunkMs:4, minVisits:18, exploration:1.55, depth:2};
+  if(d === 'extreme') return {enabled:true, budgetMs:360, maxCandidates:8, maxChunkMs:2.25, minVisits:28, exploration:1.18, depth:3};
+  if(d === 'hard') return {enabled:true, budgetMs:260, maxCandidates:7, maxChunkMs:2, minVisits:22, exploration:1.28, depth:3};
+  if(d === 'medium') return {enabled:true, budgetMs:180, maxCandidates:6, maxChunkMs:1.75, minVisits:16, exploration:1.38, depth:2};
+  return {enabled:true, budgetMs:110, maxCandidates:5, maxChunkMs:1.5, minVisits:10, exploration:1.55, depth:2};
 }
 
 async function aiChooseMoveWithMCTS(moves, settings, ctx) {
   const cfg = aiGetMCTSConfig();
   const moveScores = [];
   let bestBaseScore = -Infinity;
-  let chunkStart = aiNowMs();
 
-  for(const move of moves){
-    if(aiShouldAbortSearch(ctx)) return null;
+  const scored = await aiRunSearchQueue(moves, function(move){
     const baseScore = aiEvaluateMove(move);
     moveScores.push({ move, baseScore, combined: 0 });
     if(baseScore > bestBaseScore) bestBaseScore = baseScore;
-    if(aiNowMs() - chunkStart >= cfg.maxChunkMs){
-      await aiYieldToFrame();
-      chunkStart = aiNowMs();
-    }
-  }
+  }, ctx, 'score-moves', cfg.maxChunkMs);
+  if(!scored) return null;
 
   const pruneThreshold = bestBaseScore - 25;
   const viable = moveScores.filter(ms => ms.baseScore >= pruneThreshold);
   if(!viable.length) return null;
 
   let bestCombined = -Infinity;
-  chunkStart = aiNowMs();
-  for(const ms of viable){
-    if(aiShouldAbortSearch(ctx)) return null;
+  const simulated = await aiRunSearchQueue(viable, function(ms){
     ms.combined = ms.baseScore + aiSimulateOutcome(ms.move);
     if(ms.combined > bestCombined) bestCombined = ms.combined;
-    if(aiNowMs() - chunkStart >= cfg.maxChunkMs){
-      await aiYieldToFrame();
-      chunkStart = aiNowMs();
-    }
-  }
+  }, ctx, 'simulate-moves', cfg.maxChunkMs);
+  if(!simulated) return null;
 
   if(viable.length > 1){
     const deepThreshold = bestCombined - 5;
-    chunkStart = aiNowMs();
-    for(const ms of viable){
-      if(aiShouldAbortSearch(ctx)) return null;
+    const deepEvaluated = await aiRunSearchQueue(viable, function(ms){
       if(ms.combined >= deepThreshold) ms.combined += aiDeepEval(ms.move);
-      if(aiNowMs() - chunkStart >= cfg.maxChunkMs){
-        await aiYieldToFrame();
-        chunkStart = aiNowMs();
-      }
-    }
+    }, ctx, 'deep-eval-moves', cfg.maxChunkMs);
+    if(!deepEvaluated) return null;
   }
 
   viable.sort((a,b)=>b.combined-a.combined);
@@ -228,7 +244,7 @@ async function aiRunRootMCTS(candidates, cfg, ctx) {
     child.mctsValue += reward;
     totalVisits++;
     if(aiNowMs() - chunkStart >= cfg.maxChunkMs){
-      await aiYieldToFrame();
+      await aiYieldToFrame('mcts-root', aiNowMs() - chunkStart);
       chunkStart = aiNowMs();
     }
   }
@@ -1668,8 +1684,8 @@ async function aiDoPlace(choice) {
       else setTimeout(function(){ playSfx(aiSetSfx); }, 0);
     }
     log('p2', `AI placed ${card.name} in Zone ${choice.z+1}`);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true});
-    else renderGame({board:true, scores:true, oppHand:true, blocks:true, topbar:true});
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
+    else renderGame({board:true, scores:true, oppHand:true});
   };
   const presenter = window.FateActionPresentation;
   let presented = false;
@@ -1682,8 +1698,8 @@ async function aiDoPlace(choice) {
         commit:function(){ commitAiPlace(); resolve(true); },
         rollback:function(){
           delete card._presentationDeparting;
-          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true});
-          else renderGame({board:true, scores:true, oppHand:true, blocks:true, topbar:true});
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
+          else renderGame({board:true, scores:true, oppHand:true});
           resolve(false);
         }
       });
@@ -1692,7 +1708,8 @@ async function aiDoPlace(choice) {
   }
   if(!presented) commitAiPlace();
   await resolveSetCardAfterPlacement(inst, choice.z, choice.r, choice.c);
-  renderGame({board:true, scores:true, blocks:true, topbar:true});
+  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
+  else renderGame({board:true, scores:true});
   await aiSleep(AI_VISUAL_PAUSE_PLACE);
 }
 
@@ -1782,7 +1799,7 @@ async function aiDoConsolidate(choice) {
 
     hand.splice(idx,1);
     log('p2', `AI consolidated ${choice.card.name} into Zone ${target.z+1}${useFaceDown ? ' face down' : ''}`);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
   };
   const presenter = window.FateActionPresentation;
@@ -1810,7 +1827,7 @@ async function aiDoConsolidate(choice) {
         },
         commit:function(tx, delay){ commitAiConsolidation(delay); resolve(true); },
         rollback:function(){
-          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
           else renderGame({board:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
           resolve(false);
         }
@@ -1820,7 +1837,8 @@ async function aiDoConsolidate(choice) {
   }
   if(!presented) commitAiConsolidation(0);
   await resolveSetCardAfterPlacement(inst, target.z, target.r, target.c);
-  renderGame({board:true, scores:true, blocks:true, topbar:true});
+  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:false, blocks:false, topbar:false, effects:false, hover:false});
+  else renderGame({board:true, scores:true});
   await aiSleep(AI_VISUAL_PAUSE_CONSOLIDATE);
 }
 
@@ -1980,7 +1998,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         commit:function(){
           G.board[slot.z][slot.r][slot.c] = extra;
           log('p2','AI: Zimbabwean Honor Guard set another copy for free');
-          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:!!handCopy});
+          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:!!handCopy, blocks:false, topbar:false, effects:false, hover:false});
           else renderGame({board:true, scores:true, oppHand:!!handCopy, blocks:true, topbar:true});
         }
       });
@@ -2076,7 +2094,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.players[cp][zoneName] = list.filter(c=>c.iid!==pick.iid);
       });
       shuffle(G.players[cp].deck);
-      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
       else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       break;
     }
@@ -2222,7 +2240,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
         shuffle(G.players[cp].deck);
-        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
+        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
         else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       } break;
     }
@@ -2430,7 +2448,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     fatePushDiscard(opp, target.card);
     card.vigilanteUsed = true;
     log('p2','AI: Vigilantes destroyed '+target.card.name);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true});
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
     return;
   }
@@ -2459,7 +2477,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     G.board[dest.z][dest.r][dest.c] = src.card;
     card.wolfCreekUsed = true;
     log('p2','AI: Wolf Creek moved '+src.card.name);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, blocks:true, topbar:true});
     return;
   }
@@ -2494,7 +2512,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     G.board[dest.z][dest.r][dest.c] = card;
     card._expMoved = true;
     log('p2','AI: ALPINE Expeditionary redeployed');
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, blocks:true, topbar:true});
   }
 }
@@ -2503,6 +2521,7 @@ async function aiRunEffect(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   const opp = 1-cp;
+  let effectNeedsBlocks = false;
   // Skip if this character's effect was already used
   if(card.effectUsedInitial && card.type!=='Dauntless' && card.type!=='Improvisor') return;
   if(card.type==='Initiator' && !G._suppressEffectPrompt){
@@ -2558,6 +2577,7 @@ async function aiRunEffect(card, z, r, c) {
         openCells.sort((a,b)=>b.score-a.score);
         const best = openCells[0];
         G.blockedCells.push({z,r:best.r,c:best.c,type:'zoe',owner:cp,blockedPlayer:opp});
+        effectNeedsBlocks = true;
         if(typeof showBlockVisual === 'function') showBlockVisual(z,best.r,best.c,'zoe');
         if(typeof playSfx === 'function') playSfx('zoeBlock');
         if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
@@ -2636,6 +2656,7 @@ async function aiRunEffect(card, z, r, c) {
         const existing = G.blockedCells.find(b=>b.z===best.z&&b.r===best.r&&b.c===best.c);
         if(existing) { existing.type = 'carolyn'; existing.owner = cp; existing.blockedPlayer = null; }
         else G.blockedCells.push({z:best.z,r:best.r,c:best.c,type:'carolyn',owner:cp,blockedPlayer:null});
+        effectNeedsBlocks = true;
         if(typeof showBlockVisual === 'function') showBlockVisual(best.z,best.r,best.c,'carolyn');
         log('p2',`AI: Carolyn permanently locked Zone ${best.z+1} row ${best.r+1} col ${best.c+1}`);
       }
@@ -2706,8 +2727,10 @@ async function aiRunEffect(card, z, r, c) {
     }
     case '43': { // Mark Kemper: add one extra safe cell
       if(typeof addBottomSafeSquareForPlayer === 'function') addBottomSafeSquareForPlayer(z, cp, 1);
+      effectNeedsBlocks = true;
       log('p2', `AI: Mark Kemper added one safe square in Zone ${z+1}`);
-      renderGame({board:true, scores:true, blocks:true, topbar:true});
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:true, topbar:false, effects:false, hover:false});
+      else renderGame({board:true, scores:true});
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
     }
@@ -2773,7 +2796,7 @@ async function aiRunEffect(card, z, r, c) {
                   commit:function(tx){
                     G.board[zi][ri][ci] = placedCard;
                     placementDelay = tx && tx.presentMs ? Math.max(0, Number(tx.presentMs) || 0) : 0;
-                    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+                    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
                     else renderGame({board:true, scores:true, blocks:true, topbar:true});
                   }
                 });
@@ -2904,13 +2927,13 @@ async function aiRunEffect(card, z, r, c) {
       card._declaredAff = declaredAff;
       if(typeof showAffChangeOverlay === 'function') showAffChangeOverlay(card, declaredAff);
       log('p2', `AI: Duncan Heyward declared ${AFF_LABEL[declaredAff]||declaredAff}`);
-      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false});
+      if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
       else renderGame({board:true, scores:true, blocks:true, topbar:true});
       break;
     }
   }
   card.effectUsedInitial = true;
-  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true});
+  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:effectNeedsBlocks, topbar:false, effects:false, hover:false});
   else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
 }
 
