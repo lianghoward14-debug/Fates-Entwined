@@ -47,7 +47,7 @@
 
     add(animation){
       if(!animation || !animation.kind) return null;
-      if(animationsOff() && animation.kind !== 'consolidation') return null;
+      if(animationsOff()) return null;
       const now = nowMs();
       const item = Object.assign({
         id:String(animation.id || (animation.kind + ':' + (animation.iid || '') + ':' + now + ':' + this.added)),
@@ -66,6 +66,11 @@
     }
 
     tick(now){
+      if(animationsOff()){
+        if(this.animations.length) this.cleared++;
+        this.animations = [];
+        return {active:0, completed:0};
+      }
       const t = Number(now) || nowMs();
       const active = [];
       const completed = [];

@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 3;
+  const VERSION = 7;
   const VFX_BUDGET = {
     maxActiveParticles:0,
     maxActiveParticlesLow:0,
@@ -14,6 +14,15 @@
     maxNumberPops:12,
     maxVfxMs:3,
     maxVfxMsLow:1.5
+  };
+  const MOTION_LANGUAGE = {
+    version:'tcg-motion-language-v2',
+    pathStyles:['direct','snap','drop','withdraw','overshoot','showcase','vault','strike','slam','float','s-curve'],
+    transformControls:['startScale','scale','endScale','textureScale','bank','rotate','wobble','skewX','skewY','launchSquash','landSquash'],
+    maxTextureScale:2.25,
+    compositorOnly:true,
+    particles:false,
+    domMotion:false
   };
   const MOTION_ONLY_BLOCKED_KINDS = new Set([
     'particleBurst',
@@ -46,6 +55,16 @@
     'CARD_NEGATE',
     'CONSOLIDATE'
   ]);
+  const ANIMATIONS_OFF_ALLOWED_RECIPES = new Set([]);
+  const ACTION_PRESENTATION_ALLOWED_RECIPES = new Set(Array.from(BRIDGE_CARD_ACTION_RECIPES).concat([
+    'CARD_FLIP',
+    'SUPPORTER_ACTIVATE',
+    'LANDSCAPE_TRIGGER',
+    'ZONE_SHIFT',
+    'ZONE_SCORE',
+    'ZONE_WIN_FLIP',
+    'INVALID_ACTION'
+  ]));
 
   let activeRecipes = [];
   let activePrimitives = [];
@@ -61,6 +80,8 @@
   const vfxMsSamples = [];
   const spawnedParticlePrimitiveIds = new Set();
   let dragPreview = null;
+  let vfxWakeTimer = 0;
+  let vfxWakeAt = 0;
   const numberSpriteCache = new Map();
   const eventBridgeStats = {
     acceptedGameEvents:0,
@@ -116,11 +137,47 @@
     ctx.fillText(safeText, x, y);
     const rec = {canvas, w:cssW, h:cssH};
     numberSpriteCache.set(key, rec);
-    if(numberSpriteCache.size > 64) {
+    if(numberSpriteCache.size > 128) {
       const first = numberSpriteCache.keys().next().value;
       if(first) numberSpriteCache.delete(first);
     }
     return rec;
+  }
+
+  function numberPopIsFateDelta(p, finalText){
+    return !!p && (
+      p.theme === 'fate-delta' ||
+      p.theme === 'fate-loss' ||
+      p.theme === 'fate-gain' ||
+      /^[-+]/.test(String(finalText || p.text || ''))
+    );
+  }
+
+  function numberPopSpec(p){
+    const r = rect(p && p.rect);
+    if(!r) return null;
+    const finalText = String(p.text || '');
+    const isFateDelta = numberPopIsFateDelta(p, finalText);
+    const isLoss = p.theme === 'fate-loss' || /^-/.test(finalText);
+    const color = p.color || (isFateDelta ? (isLoss ? '#ff6f7d' : '#55e68a') : '#ffe37a');
+    const fontScale = Math.max(.5, Math.min(2.2, Number(p.fontScale) || 1));
+    const fontSize = Math.max(19, Math.round(r.w * (isFateDelta ? .185 : .17) * fontScale));
+    return {
+      rect:r,
+      text:finalText,
+      isFateDelta,
+      isLoss,
+      color,
+      fontSize,
+      lineWidth:isFateDelta ? 1.35 : 3
+    };
+  }
+
+  function primeNumberPopSprite(p){
+    const spec = numberPopSpec(p);
+    if(!spec || !spec.isFateDelta) return;
+    p._numberPopSpec = spec;
+    p._numberPopSprite = numberSprite(spec.text, spec.color, spec.fontSize, spec.lineWidth);
   }
 
   function ease(name, t){
@@ -181,6 +238,12 @@
     return window.FateActionPresentation || null;
   }
 
+  function actionRecipeAllowedWhileAnimationsOff(recipeType, options){
+    if(BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
+    if(ANIMATIONS_OFF_ALLOWED_RECIPES.has(recipeType)) return true;
+    return false;
+  }
+
   function actionAnimationActive(){
     const presenter = actionPresenter();
     try {
@@ -233,6 +296,28 @@
     return (Number(a) || 0) + ((Number(b) || 0) - (Number(a) || 0)) * t;
   }
 
+  function finiteNumber(value, fallback){
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function motionPathDefaults(path){
+    switch(String(path || 'arc').toLowerCase()){
+      case 'direct': return {arc:0, lift:.04, sideArc:0};
+      case 'snap': return {arc:.08, lift:.08, sideArc:0};
+      case 'drop': return {arc:-.18, lift:.10, sideArc:.08};
+      case 'withdraw': return {arc:.12, lift:.18, sideArc:-.18};
+      case 'overshoot': return {arc:.22, lift:.22, sideArc:.22};
+      case 'showcase': return {arc:.30, lift:.36, sideArc:.34};
+      case 'vault': return {arc:.36, lift:.42, sideArc:.26};
+      case 'strike': return {arc:.10, lift:.09, sideArc:.18};
+      case 'slam': return {arc:-.08, lift:.06, sideArc:.10};
+      case 'float': return {arc:.18, lift:.30, sideArc:.22};
+      case 's-curve': return {arc:.24, lift:.24, sideArc:.42};
+      default: return {arc:.18, lift:.18, sideArc:.18};
+    }
+  }
+
   function lerpRect(a, b, t){
     const from = rect(a) || rect(b);
     const to = rect(b) || from;
@@ -283,22 +368,24 @@
     const h = lerp(from.h, to.h, travel);
     const dist = Math.hypot(toC.x - fromC.x, toC.y - fromC.y);
     const arcBase = Math.max(18, Math.min(180, dist * .18));
-    const pathArc = path === 'direct' ? 0
-      : path === 'snap' ? .08
-      : path === 'drop' ? -.18
-      : path === 'withdraw' ? .12
-      : path === 'overshoot' ? .22
-      : .18;
-    const arc = Number.isFinite(Number(p.arc)) ? Number(p.arc) : pathArc;
-    const lift = Number.isFinite(Number(p.lift)) ? Number(p.lift) : (path === 'direct' ? .04 : .18);
+    const defaults = motionPathDefaults(path);
+    const arc = Number.isFinite(Number(p.arc)) ? Number(p.arc) : defaults.arc;
+    const lift = Number.isFinite(Number(p.lift)) ? Number(p.lift) : defaults.lift;
     const liftY = Math.sin(Math.PI * raw) * lift * Math.max(16, h * .30);
     const arcY = Math.sin(Math.PI * raw) * arc * arcBase;
-    const sideArc = Number(p.sideArc) || 0;
+    const sideArc = Number.isFinite(Number(p.sideArc)) ? Number(p.sideArc) : defaults.sideArc;
     if(sideArc && dist > 1){
       const sideWave = Math.sin(Math.PI * raw) * sideArc * Math.min(170, dist * .26);
       cx += (-(toC.y - fromC.y) / dist) * sideWave;
       cy += ((toC.x - fromC.x) / dist) * sideWave;
     }
+    if(path === 's-curve' && dist > 1){
+      const secondWave = Math.sin(Math.PI * raw * 2) * Math.min(64, dist * .10);
+      cx += (-(toC.y - fromC.y) / dist) * secondWave;
+      cy += ((toC.x - fromC.x) / dist) * secondWave;
+    }
+    if(path === 'float') cy -= Math.sin(Math.PI * raw * 2) * Math.max(4, h * .035);
+    if(path === 'slam') cy += Math.pow(raw, 2.4) * Math.max(0, Number(p.slamDrop) || h * .08);
     if(path === 'drop') cy += Math.abs(arcY) * .72;
     else cy -= liftY + arcY;
     return rectFromCenter(cx, cy, w, h);
@@ -307,6 +394,26 @@
   function scheduleRender(reason){
     const adapter = window.FateMatchRendererAdapter;
     if(adapter && typeof adapter.scheduleRender === 'function') adapter.scheduleRender(reason || 'vfx-animation');
+  }
+
+  function clearVfxWakeTimer(){
+    if(!vfxWakeTimer) return;
+    clearTimeout(vfxWakeTimer);
+    vfxWakeTimer = 0;
+    vfxWakeAt = 0;
+  }
+
+  function armVfxWakeTimer(delayMs, reason){
+    const delay = Math.max(16, Math.min(2400, Number(delayMs) || 16));
+    const target = nowMs() + delay;
+    if(vfxWakeTimer && vfxWakeAt && vfxWakeAt <= target + 4) return;
+    clearVfxWakeTimer();
+    vfxWakeAt = target;
+    vfxWakeTimer = setTimeout(function(){
+      vfxWakeTimer = 0;
+      vfxWakeAt = 0;
+      scheduleRender(reason || 'vfx-static-hold-wake');
+    }, delay);
   }
 
   function normalizePrimitive(effectId, recipeType, primitive, now){
@@ -322,6 +429,7 @@
     p.eased = 0;
     p.done = false;
     if(p.kind === 'cardMove' || p.kind === 'cardImpact' || p.kind === 'cardLift') primeMotionTexture(p);
+    if(p.kind === 'numberPop') primeNumberPopSprite(p);
     return p;
   }
 
@@ -356,7 +464,7 @@
 
   function play(type, payload, options){
     const recipeType = String(type || '').toUpperCase();
-    if(animationsOff() && recipeType !== 'CONSOLIDATE') return null;
+    if(animationsOff() && !actionRecipeAllowedWhileAnimationsOff(recipeType, options || {})) return null;
     const recipes = window.FateVfxRecipes;
     if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
     const now = nowMs();
@@ -431,6 +539,7 @@
     activePrimitives = [];
     spawnedParticlePrimitiveIds.clear();
     dragPreview = null;
+    clearVfxWakeTimer();
     if(window.FateVfxParticlePool && typeof window.FateVfxParticlePool.clear === 'function') window.FateVfxParticlePool.clear();
   }
 
@@ -459,6 +568,12 @@
         spawnParticleBurst(p);
       }
       if(!p.done || t < p.start) active.push(p);
+      else if((p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift') && !p._finalDrawn) {
+        p._finalDrawn = true;
+        p.progress = 1;
+        p.eased = ease(p.easing, 1);
+        active.push(p);
+      }
     });
     activePrimitives = active;
     activeRecipes = activeRecipes.filter(function(recipe){
@@ -478,6 +593,44 @@
 
   function activeAtDraw(p){
     return p && p.progress >= 0 && p.progress <= 1 && nowMs() >= p.start;
+  }
+
+  function numberPopHoldEnd(p){
+    const finalText = String(p && p.text || '');
+    const isFateDelta = numberPopIsFateDelta(p, finalText);
+    const countPortion = isFateDelta ? 0 : clamp(Number(p && p.countPortion) || .30, .08, .76);
+    return clamp(Number(p && p.holdEnd) || (isFateDelta ? .72 : .68), countPortion + .04, .94);
+  }
+
+  function nextVfxFrameDelay(now){
+    const particles = window.FateVfxParticlePool && window.FateVfxParticlePool.active ? window.FateVfxParticlePool.active.length : 0;
+    if(particles > 0 || dragPreview) return 0;
+    if(!activePrimitives.length) return Infinity;
+    let nextDelay = Infinity;
+    for(let i = 0; i < activePrimitives.length; i++){
+      const p = activePrimitives[i];
+      if(!p) continue;
+      const start = Number(p.start) || 0;
+      const duration = Math.max(1, Number(p.duration) || 1);
+      if(now < start){
+        nextDelay = Math.min(nextDelay, start - now);
+        continue;
+      }
+      if(p.layer === 'audio' || p.layer === 'control' || p.kind === 'particleBurst'){
+        nextDelay = Math.min(nextDelay, Math.max(16, start + duration - now));
+        continue;
+      }
+      if(p.kind === 'numberPop' && numberPopIsFateDelta(p, p.text)){
+        const progress = clamp((now - start) / duration, 0, 1);
+        const holdEnd = numberPopHoldEnd(p);
+        if(progress >= .12 && progress < holdEnd){
+          nextDelay = Math.min(nextDelay, Math.max(16, start + duration * holdEnd - now));
+          continue;
+        }
+      }
+      return 0;
+    }
+    return nextDelay;
   }
 
   function activeScreenShakeOffset(){
@@ -608,13 +761,20 @@
     const to = rect(p && p.toRect);
     const base = rect(p && (p.textureRect || p.rect)) || to || from || fallback;
     if(!base) return fallback;
+    const textureScale = clamp(Math.max(
+      1,
+      Math.abs(finiteNumber(p && p.textureScale, 1)),
+      Math.abs(finiteNumber(p && p.startScale, 1)),
+      Math.abs(finiteNumber(p && p.scale, 1)),
+      Math.abs(finiteNumber(p && p.endScale, 1))
+    ), 1, MOTION_LANGUAGE.maxTextureScale);
     const w = Math.max(
       1,
-      Math.round(Math.max(Number(base.w) || 0, from ? from.w : 0, to ? to.w : 0))
+      Math.round(Math.max(Number(base.w) || 0, from ? from.w : 0, to ? to.w : 0) * textureScale)
     );
     const h = Math.max(
       1,
-      Math.round(Math.max(Number(base.h) || 0, from ? from.h : 0, to ? to.h : 0))
+      Math.round(Math.max(Number(base.h) || 0, from ? from.h : 0, to ? to.h : 0) * textureScale)
     );
     return {x:0, y:0, w, h};
   }
@@ -864,11 +1024,12 @@
       return;
     }
     if(p.kind === 'numberPop'){
-      const r = rect(p.rect);
-      if(!r) return;
-      const finalText = String(p.text || '');
-      const isFateDelta = p.theme === 'fate-delta' || p.theme === 'fate-loss' || p.theme === 'fate-gain' || /^[-+]/.test(finalText);
-      const isLoss = p.theme === 'fate-loss' || /^-/.test(finalText);
+      const spec = p._numberPopSpec || numberPopSpec(p);
+      if(!spec) return;
+      const r = spec.rect;
+      const finalText = spec.text;
+      const isFateDelta = spec.isFateDelta;
+      const isLoss = spec.isLoss;
       const sign = p.sign != null ? String(p.sign) : (isLoss ? '-' : (/^\+/.test(finalText) ? '+' : ''));
       const targetValue = Math.max(0, Math.abs(Number(p.endValue != null ? p.endValue : finalText.replace(/[^\d.-]/g, '')) || 0));
       const countPortion = isFateDelta ? 0 : clamp(Number(p.countPortion) || .30, .08, .76);
@@ -893,19 +1054,20 @@
       const scale = isFateDelta
         ? 1
         : (1 + Math.sin(Math.PI * p.progress) * .12);
-      const color = p.color || (isFateDelta ? (isLoss ? '#ff6f7d' : '#55e68a') : '#ffe37a');
-      const fontScale = Math.max(.5, Math.min(2.2, Number(p.fontScale) || 1));
-      const fontSize = Math.max(19, Math.round(r.w * (isFateDelta ? .185 : .17) * fontScale));
+      const color = spec.color;
+      const fontSize = spec.fontSize;
       const padX = Math.max(7, fontSize * .30);
       const boxW = Math.max(fontSize * 1.62, shownText.length * fontSize * .54 + padX * 2);
       const boxH = Math.max(fontSize * 1.02, fontSize + 6);
-      const lineWidth = isFateDelta ? 1.35 : 3;
+      const lineWidth = spec.lineWidth;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(x, y);
       ctx.scale(scale, scale);
       if(isFateDelta){
-        const sprite = numberSprite(shownText, color, fontSize, lineWidth);
+        const sprite = shownText === finalText
+          ? (p._numberPopSprite || (p._numberPopSprite = numberSprite(shownText, color, fontSize, lineWidth)))
+          : numberSprite(shownText, color, fontSize, lineWidth);
         if(sprite && sprite.canvas) {
           ctx.drawImage(sprite.canvas, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
         }
@@ -953,13 +1115,17 @@
       ) * Math.PI / 180 + (Number(p.rotate) || 0) * Math.PI / 180 * Math.sin(Math.PI * raw) * (1 - settleT * .7);
       if(p.bank) rotation += bankSign * Number(p.bank) * Math.PI / 180 * Math.sin(Math.PI * moveRaw) * (1 - settleT * .45);
       if(p.wobble && settleT > 0) rotation += Number(p.wobble) * Math.PI / 180 * Math.sin(settleT * Math.PI * 5) * (1 - settleT);
-      const peakScale = Number(p.scale) || 1;
-      const endScale = Number(p.endScale) || 1;
-      let scale = lerp(1, peakScale, Math.sin(Math.PI * raw));
+      const startScale = finiteNumber(p.startScale, 1);
+      const peakScale = finiteNumber(p.scale, 1);
+      const endScale = finiteNumber(p.endScale, 1);
+      let scale = lerp(startScale, peakScale, Math.sin(Math.PI * raw));
       if(raw > .72) scale = lerp(scale, endScale, clamp((raw - .72) / .28, 0, 1));
       if(p.settleMs) scale += Math.sin(Math.PI * settleT) * .018;
       let scaleX = scale;
       let scaleY = scale;
+      const skewPulse = Math.sin(Math.PI * raw) * (1 - settleT * .65);
+      const skewX = Math.tan((Number(p.skewX) || 0) * Math.PI / 180) * skewPulse;
+      const skewY = Math.tan((Number(p.skewY) || 0) * Math.PI / 180) * skewPulse;
       if(p.launchSquash && raw < .22){
         const q = Math.sin(Math.PI * clamp(raw / .22, 0, 1)) * Number(p.launchSquash);
         scaleX += q;
@@ -973,12 +1139,13 @@
       ctx.save();
       let alpha = 1;
       if(p.fadeIn) alpha *= clamp(raw / .18, 0, 1);
-      if(p.fadeOutLate) alpha *= raw < .58 ? 1 : Math.max(0, 1 - ((raw - .58) / .42) * .95);
-      else if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw * .92);
+      if(p.fadeOutLate) alpha *= raw < .58 ? 1 : Math.max(0, 1 - ((raw - .58) / .42));
+      else if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw);
       ctx.globalAlpha = alpha;
       if(p.kind === 'cardMove') drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
       ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
       ctx.rotate(rotation);
+      if(skewX || skewY) ctx.transform(1, skewY, skewX, 1, 0, 0);
       ctx.scale(scaleX, scaleY);
       drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr)});
       ctx.restore();
@@ -1057,8 +1224,12 @@
     const opts = options || {};
     const started = nowMs();
     if(animationsOff()){
-      activePrimitives = activePrimitives.filter(function(p){ return p && p.recipeType === 'CONSOLIDATE'; });
-      activeRecipes = activeRecipes.filter(function(r){ return r && r.type === 'CONSOLIDATE'; });
+      activePrimitives = activePrimitives.filter(function(p){
+        return p && ANIMATIONS_OFF_ALLOWED_RECIPES.has(p.recipeType);
+      });
+      activeRecipes = activeRecipes.filter(function(r){
+        return r && ANIMATIONS_OFF_ALLOWED_RECIPES.has(r.type);
+      });
       dragPreview = null;
     }
     const metrics = {
@@ -1088,7 +1259,17 @@
     maxVfxMs = Math.max(maxVfxMs, lastVfxMs);
     vfxMsSamples.push(lastVfxMs);
     while(vfxMsSamples.length > 36) vfxMsSamples.shift();
-    if(hasActiveEffects()) scheduleRender('vfx-animation');
+    if(hasActiveEffects()){
+      const nextDelay = nextVfxFrameDelay(started);
+      if(nextDelay <= 0){
+        clearVfxWakeTimer();
+        scheduleRender('vfx-animation');
+      } else if(Number.isFinite(nextDelay)){
+        armVfxWakeTimer(nextDelay, 'vfx-static-hold-wake');
+      }
+    } else {
+      clearVfxWakeTimer();
+    }
     return report();
   }
 
@@ -1164,7 +1345,8 @@
         dirtyLayerVfx:true,
         particleBudget:false,
         audioSync:!!window.FateVfxAudioSync,
-        primitiveReport:!!primitives
+        primitiveReport:!!primitives,
+        motionLanguage:MOTION_LANGUAGE
       },
       ownership:{
         domGhostsAllowed:false,
@@ -1192,7 +1374,9 @@
         droppedEffects:droppedEffects + (pool.droppedEffects || 0),
         skippedLowPriorityEffects,
         draws,
-        budgetMs:lowEffectsEnabled() ? VFX_BUDGET.maxVfxMsLow : VFX_BUDGET.maxVfxMs
+        budgetMs:lowEffectsEnabled() ? VFX_BUDGET.maxVfxMsLow : VFX_BUDGET.maxVfxMs,
+        staticHoldWakePending:!!vfxWakeTimer,
+        numberSpriteCache:numberSpriteCache.size
       },
       recipes:{
         registered:recipeNames,
@@ -1245,6 +1429,13 @@
     scheduleRender('vfx-drag-preview-clear');
   }
 
+  function getDragPreview(){
+    if(!dragPreview) return null;
+    return Object.assign({}, dragPreview, {
+      rect:dragPreview.rect ? Object.assign({}, dragPreview.rect) : null
+    });
+  }
+
   function recordBridge(kind, type, payload){
     const eventType = String(type || '').toUpperCase();
     eventBridgeStats[kind] = (Number(eventBridgeStats[kind]) || 0) + 1;
@@ -1263,12 +1454,18 @@
     if(!BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
     const opts = options || {};
     if(opts.forceBridgeVfx || opts.allowBridgeVfx) return false;
+    if(recipeType === 'MOVE_CARD' || recipeType === 'SWAP_CARDS' || recipeType === 'RETURN_TO_HAND' ||
+      recipeType === 'DISCARD_CARD' || recipeType === 'DESTROY_CARD' || recipeType === 'HAND_DISCARD' ||
+      recipeType === 'SEARCH_TO_HAND' || recipeType === 'DECK_TO_HAND' || recipeType === 'DISCARD_TO_HAND') {
+      return false;
+    }
     return true;
   }
 
   window.FateVfxDirector = {
     version:VERSION,
     budgets:VFX_BUDGET,
+    motionLanguage:MOTION_LANGUAGE,
     play,
     queue,
     cancel,
@@ -1284,6 +1481,7 @@
     getRecentRecipes:function(){ return recentRecipes.slice(); },
     setDragPreview,
     updateDragPreview,
+    getDragPreview,
     clearDragPreview,
     drawDragPreviewOverlay:function(ctx){ return drawDragPreview(ctx); }
   };

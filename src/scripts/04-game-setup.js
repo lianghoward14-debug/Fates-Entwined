@@ -1052,6 +1052,7 @@ function initGameState() {
 
   // Draw starting hands (6 each)
   G._pendingSelvaSupportBoost = [0, 0];
+  G._selvaSupportBoosts = [null, null];
   for(let i=0;i<6;i++) drawCard(0, 1, { skipOptionalImprovisors: true, openingHand: true });
   for(let i=0;i<6;i++) drawCard(1, 1, { skipOptionalImprovisors: true, openingHand: true });
 }
@@ -1168,20 +1169,34 @@ async function drawCard(player, count=1, options = {}) {
     // Christopher Erbs (40): per-player next drawn card gains 4 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
     if(erbsActiveForPlayer && card.id!=='70'){
-      card.currentFate = (card.currentFate || card.fate) + 4;
+      const erbsCanAffect = !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card));
+      if(erbsCanAffect) {
+        const beforeErbsFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+        card.currentFate = beforeErbsFate + 4;
+        if(typeof recordHandCardEffectModifier === 'function') {
+          recordHandCardEffectModifier(card, {
+            key:'christopher-erbs',
+            name:'Christopher Erbs',
+            text:'Hard Times, Strong Men: this drawn card gained +4 Fate.',
+            fateDelta:4
+          });
+        }
+        toast(`${card.name} gained 4 Fate from Hard Times, Strong Men!`);
+        log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +4 Fate`);
+      }
       if(Array.isArray(G.erbsActive)) G.erbsActive[player] = false;
       else G.erbsActive = false;
-      toast(`${card.name} gained 4 Fate from Hard Times, Strong Men!`);
-      log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +4 Fate`);
     }
     playSfx('draw');
-    // Animate visible draws for both players. Render-v2 uses canvas-only motion; legacy DOM draw stays own-hand only.
+    // Animate only local draws; opponent draws update hand state without a face-down flight.
     if(document.getElementById('s-game')?.classList.contains('active')){
       let v2DrawQueued = false;
-      if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
+      if(player === myP && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
         v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(i, player, {
           card,
-          faceDown:player !== myP
+          faceDown:false,
+          drawIndex:i,
+          drawCount:count
         });
       }
       if(!v2DrawQueued && player===myP) animateDrawCard(i);
@@ -1211,6 +1226,15 @@ function addCardToHand(player, card, options = {}) {
   if(G._westCaribNext && westCaribOwner === targetPlayer && card.id!=='70' && isCharacterCard){
     card._wciBonus = true;
     card._handCostDelta = (Number(card._handCostDelta) || 0) - 1;
+    if(typeof recordHandCardEffectModifier === 'function') {
+      recordHandCardEffectModifier(card, {
+        key:'west-caribbea-infantry',
+        name:'West Caribbea Infantry',
+        text:'The Company\'s Finest: -1 Reinforcement cost, +2 Fate when set.',
+        fateDelta:2,
+        costDelta:-1
+      });
+    }
     G._westCaribNext = false;
     if(announce){
       toast(card.name+' gained West Caribbea Infantry\'s bonus!');
@@ -1249,6 +1273,7 @@ function triggerSelvaIslandsPirateHandArrival(player, card, options = {}) {
   if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card)) return false;
   card._selvaArrivalTurn = G.turn;
   G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 1;
+  noteSelvaSupportBoost(player, 1, card);
   toast('Selva Islands Pirate: +1 Supporter placement this turn.');
   log(player===0?'p1':'p2', 'Selva Islands Pirate granted +1 Supporter placement this turn');
   if(typeof playSfx === 'function') playSfx('effect');
@@ -1262,12 +1287,34 @@ function applyPendingSelvaSupportBoost(player) {
   if(count <= 0) return false;
   G._pendingSelvaSupportBoost[player] = 0;
   G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + count;
+  noteSelvaSupportBoost(player, count, null);
   toast('Selva Islands Pirate: +' + count + ' Supporter placement' + (count===1?'':'s') + ' this turn.');
   log(player===0?'p1':'p2', 'Opening Selva Islands Pirate granted +' + count + ' Supporter placement' + (count===1?'':'s') + ' this turn');
   if(typeof playSfx === 'function') playSfx('effect');
   if(typeof updateTopBar === 'function') updateTopBar();
   return true;
 }
+
+function noteSelvaSupportBoost(player, count, card) {
+  if(!G || (player !== 0 && player !== 1)) return false;
+  const added = Math.max(0, Number(count) || 0);
+  if(added <= 0) return false;
+  if(!Array.isArray(G._selvaSupportBoosts)) G._selvaSupportBoosts = [null, null];
+  const prev = G._selvaSupportBoosts[player];
+  const prevExtra = prev && prev.turn === G.turn ? Math.max(0, Number(prev.extraSupports) || 0) : 0;
+  G._selvaSupportBoosts[player] = {
+    owner: player,
+    turn: G.turn,
+    extraSupports: prevExtra + added,
+    sourceIid: card && card.iid || null,
+    sourceName: card && card.name || 'Selva Islands Pirate'
+  };
+  if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  else if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+  return true;
+}
+
+if(typeof window !== 'undefined') window.noteSelvaSupportBoost = noteSelvaSupportBoost;
 
 function rendererV2OwnsMatchScene() {
   return !!(window.FateMatchRendererAdapter

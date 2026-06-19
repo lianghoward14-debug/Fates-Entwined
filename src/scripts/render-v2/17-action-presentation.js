@@ -4,9 +4,11 @@
   if(typeof window === 'undefined') return;
   if(window.FateActionPresentation) return;
 
-  const VERSION = 7;
-  const MATCH_ACTION_MOTION_DISABLED = true;
+  const VERSION = 23;
+  const MATCH_ACTION_MOTION_DISABLED = false;
+  const SIMPLE_SET_CARD_MOTION_ENABLED = false;
   const ACTION_MOTION_FRAME_GAP_LIMIT_MS = 34;
+  const AUTO_DISABLE_ON_FRAME_GAP = false;
   const recent = [];
   let active = null;
   let nextId = 1;
@@ -70,19 +72,51 @@
     }
   }
 
-  function matchActionMotionDisabled(){
-    if(autoMotionDisabledReason) return true;
+  function animationStateSummary(){
+    let enhancedVisualFx = null;
+    let disableMatchActionMotion = null;
+    let disableConsolidationMotion = null;
+    try {
+      enhancedVisualFx = localStorage.getItem('fateEnhancedVisualFx');
+      disableMatchActionMotion = localStorage.getItem('fateDisableMatchActionMotion');
+      disableConsolidationMotion = localStorage.getItem('fateDisableConsolidationMotion');
+    } catch(e) {}
+    let rootClasses = '';
+    let bodyClasses = '';
+    try { rootClasses = String(document.documentElement && document.documentElement.className || ''); } catch(e) {}
+    try { bodyClasses = String(document.body && document.body.className || ''); } catch(e) {}
+    return {
+      animationsOff:animationsOff(),
+      enhancedVisualFx,
+      disableMatchActionMotion,
+      disableConsolidationMotion,
+      rootClasses,
+      bodyClasses
+    };
+  }
+
+  function matchActionMotionDisableReason(){
+    if(animationsOff()) return 'fate-animations-off';
+    if(autoMotionDisabledReason) return autoMotionDisabledReason;
+    try {
+      if(localStorage.getItem('fateDisableMatchActionMotion') === '1') return 'fateDisableMatchActionMotion';
+    } catch(e) {}
     if(MATCH_ACTION_MOTION_DISABLED) {
       try {
-        return localStorage.getItem('fateEnableMatchActionMotion') !== '1';
+        if(localStorage.getItem('fateEnableMatchActionMotion') !== '1') return 'legacy-match-action-motion-disabled';
       } catch(e) {
-        return true;
+        return 'legacy-match-action-motion-disabled';
       }
     }
-    return animationsOff();
+    return '';
+  }
+
+  function matchActionMotionDisabled(){
+    return !!matchActionMotionDisableReason();
   }
 
   function consolidationMotionAllowed(){
+    if(animationsOff()) return false;
     if(autoMotionDisabledReason) return false;
     try {
       if(localStorage.getItem('fateDisableConsolidationMotion') === '1') return false;
@@ -300,8 +334,16 @@
     tx.textureAfter = textureReport();
     tx.textureDelta = textureDelta(tx.textureBefore, tx.textureAfter);
     if(tx.animation && tx.animation.frameCount > 0 && tx.animation.maxFrameGapMs > ACTION_MOTION_FRAME_GAP_LIMIT_MS) {
-      autoMotionDisabledReason = 'frame-gap-' + round(tx.animation.maxFrameGapMs) + 'ms';
-      tx.autoMotionDisabledAfter = autoMotionDisabledReason;
+      tx.frameGapExceeded = true;
+      tx.frameGapExceededMs = round(tx.animation.maxFrameGapMs);
+      pushEvent(tx, 'action-frame-gap-warning', {
+        maxFrameGapMs:tx.frameGapExceededMs,
+        limitMs:ACTION_MOTION_FRAME_GAP_LIMIT_MS
+      });
+      if(AUTO_DISABLE_ON_FRAME_GAP) {
+        autoMotionDisabledReason = 'frame-gap-' + round(tx.animation.maxFrameGapMs) + 'ms';
+        tx.autoMotionDisabledAfter = autoMotionDisabledReason;
+      }
     }
     const perfAfter = perfCounters();
     tx.perfDelta = {
@@ -323,6 +365,8 @@
       autoMotionDisabledAfter:tx.autoMotionDisabledAfter || '',
       degraded:!!tx.degraded,
       degradedReason:tx.degradedReason || '',
+      frameGapExceeded:!!tx.frameGapExceeded,
+      frameGapExceededMs:tx.frameGapExceededMs || 0,
       preflight:tx.preflight,
       animation:Object.assign({}, tx.animation, {
         maxFrameGapMs:round(tx.animation.maxFrameGapMs)
@@ -368,31 +412,41 @@
     return run();
   }
 
-  function scheduleCommit(tx, commit, delayMs){
+  function scheduleCommit(tx, commit, delayMs, finishDelayMs){
     const delay = Math.max(0, Number(delayMs) || 0);
+    const finishDelay = Math.max(delay, Number(finishDelayMs == null ? delay : finishDelayMs) || delay);
     const requestedAt = nowMs();
     tx.schedule = {
       requestedAt:round(requestedAt),
       delayMs:round(delay),
       expectedAt:round(requestedAt + delay),
+      finishDelayMs:round(finishDelay),
+      finishExpectedAt:round(requestedAt + finishDelay),
       longTasksBefore:longTaskSnapshot()
     };
     const run = function(){
       requestAnimationFrame(function(rafNow){
-        endAnimationPhase(tx);
         tx.schedule.firedAt = round(nowMs());
         tx.schedule.rafNow = round(Number(rafNow) || nowMs());
         tx.schedule.longTasksAtFire = longTaskSnapshot();
         const commitStart = nowMs();
         try {
+          try { window.__fateAllowActionCommitRenderUntil = nowMs() + 180; } catch(e) {}
           commit(tx, delay);
           tx.commitMs = round(nowMs() - commitStart);
-          finish(tx, tx.degraded ? 'degraded-snap' : 'complete');
         } catch(err) {
           tx.error = String(err && err.message || err);
           try { console.error('Action presentation transaction failed', err); } catch(e) {}
           finish(tx, 'failed');
+          return;
         }
+        const remaining = Math.max(0, finishDelay - delay);
+        setTimeout(function(){
+          requestAnimationFrame(function(){
+            endAnimationPhase(tx);
+            finish(tx, tx.degraded ? 'degraded-snap' : 'complete');
+          });
+        }, remaining);
       });
     };
     if(delay <= 0) run();
@@ -404,6 +458,10 @@
     tx.phase = 'committing';
     tx.motionDisabled = true;
     tx.motionDisabledReason = reason || 'match-action-motion-disabled';
+    pushEvent(tx, 'motion-disabled', {
+      reason:tx.motionDisabledReason,
+      animationState:animationStateSummary()
+    });
     tx.presentMs = 0;
     tx.schedule = {
       requestedAt:round(nowMs()),
@@ -417,7 +475,9 @@
     };
     const commitStart = nowMs();
     try {
+      clearPlacementPresentationArtifacts();
       commit(tx, 0);
+      clearPlacementPresentationArtifacts();
       tx.commitMs = round(nowMs() - commitStart);
       finish(tx, 'complete');
     } catch(err) {
@@ -432,6 +492,28 @@
       const adapter = window.FateMatchRendererAdapter;
       if(adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
         adapter.suppressInitialPlacementMotion(iid, duration || 420);
+      }
+    } catch(e) {}
+  }
+
+  function hidePlacedCardDuringPresentation(iid, duration){
+    try {
+      const adapter = window.FateMatchRendererAdapter;
+      if(adapter && typeof adapter.hideBoardCardForVfx === 'function') {
+        adapter.hideBoardCardForVfx(iid, Math.max(120, Math.round(Number(duration) || 320) + 24));
+      }
+    } catch(e) {}
+  }
+
+  function clearPlacementPresentationArtifacts(opts){
+    try {
+      const director = window.FateVfxDirector;
+      if(director && typeof director.clearDragPreview === 'function') director.clearDragPreview();
+      if(director && typeof director.cancelForCard === 'function') {
+        const placedIid = opts && opts.inst && opts.inst.iid;
+        const sourceIid = opts && opts.sourceCard && opts.sourceCard.iid;
+        if(placedIid != null) director.cancelForCard(placedIid);
+        if(sourceIid != null) director.cancelForCard(sourceIid);
       }
     } catch(e) {}
   }
@@ -526,27 +608,58 @@
     const p = payload || {};
     if(type === 'CONSOLIDATE') {
       const n = Array.isArray(p.tributes) ? p.tributes.length : 0;
-      if(n <= 1) return 500;
-      return 54 + Math.max(0, n - 1) * (202 + 86) + 202 + 150;
+      const firstStart = 90;
+      const moveMs = n <= 1 ? 760 : 720;
+      const gap = n <= 1 ? 0 : 360;
+      const revealAt = firstStart + Math.max(0, n - 1) * gap + moveMs - 110;
+      return revealAt + 580;
     }
-    if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') return 540;
-    if(type === 'DRAW_CARD' || type === 'DECK_TO_HAND' || type === 'DISCARD_TO_HAND') return 560;
-    if(type === 'SEARCH_TO_HAND') return 760;
-    if(type === 'DISCARD_CARD' || type === 'DESTROY_CARD' || type === 'HAND_DISCARD') return 430;
+    if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
+      const visibleMs = Math.max(560, Math.min(760, Number(p.duration) || 560));
+      return visibleMs + 54;
+    }
+    if(type === 'SET_CONFIRM') return 220;
+    if(type === 'SET_DRAG_LAND') return 360;
+    if(type === 'DRAW_CARD' || type === 'DECK_TO_HAND' || type === 'DISCARD_TO_HAND') {
+      const count = Math.max(1, Number(p.drawCount || p.count || 1) || 1);
+      return 700 + Math.min(5, count - 1) * 84;
+    }
+    if(type === 'SEARCH_TO_HAND') return 940;
+    if(type === 'MOVE_CARD' || type === 'SWAP_CARDS' || type === 'RETURN_TO_HAND') return 520;
+    if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
+    if(type === 'DESTROY_CARD') return 520;
     if(type === 'FATE_GAIN' || type === 'FATE_LOSS') return 260;
-    if(type === 'CARD_FLIP' || type === 'CARD_REVEAL') return 500;
-    return Math.max(180, Math.min(700, Number(p.duration) || 360));
+    if(type === 'CARD_FLIP') return 540;
+    if(type === 'CARD_REVEAL') return 660;
+    if(type === 'SUPPORTER_ACTIVATE') return 560;
+    if(type === 'LANDSCAPE_TRIGGER' || type === 'ZONE_SHIFT' || type === 'ZONE_SCORE' || type === 'ZONE_WIN_FLIP') return 220;
+    if(type === 'INVALID_ACTION' || type === 'CARD_SUPPRESS' || type === 'CARD_NEGATE') return 180;
+    return Math.max(240, Math.min(980, Number(p.duration) || 520));
   }
 
   function buildSetMotion(opts){
-    if(animationsOff()) return null;
+    if(opts) {
+      opts._motionSkipReason = '';
+      opts._motionBuildDetails = null;
+    }
     const fx = motionFx();
-    if(!fx || typeof fx.playRecipe !== 'function') return null;
+    if(!fx || typeof fx.playRecipe !== 'function') {
+      if(opts) opts._motionSkipReason = 'motion-facade-unavailable';
+      return null;
+    }
     const targetRect = targetRectForBoardTarget(opts.target);
-    const fromRect = (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null)
+    const fromRect = opts.fromRect
+      || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null)
       || sourceRectForBoardPlacement(Object.assign({source:'hand'}, opts), targetRect);
-    if(!targetRect || !fromRect) return null;
+    if(!targetRect || !fromRect) {
+      if(opts) {
+        opts._motionSkipReason = 'motion-rect-unavailable';
+        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!fromRect};
+      }
+      return null;
+    }
     const travel = Math.max(372, Math.min(460, Number(opts.durationMs) || 392));
+    const handoffHoldMs = 150;
     const payload = {
       iid:opts.inst && opts.inst.iid,
       card:opts.sourceCard || opts.inst || null,
@@ -555,6 +668,7 @@
       toRect:targetRect,
       targetRect,
       duration:travel,
+      handoffHoldMs,
       arc:.28,
       lift:.30,
       suppressMotionAudio:true,
@@ -562,17 +676,219 @@
       rotate:(opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0,
       bank:(opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0
     };
-    return {recipe:'PLAY_CARD', payload, duration:estimateDuration('PLAY_CARD', payload)};
+    const visibleMs = Math.max(560, Math.min(760, travel));
+    const totalVisibleMs = visibleMs + handoffHoldMs;
+    return {
+      recipe:'PLAY_CARD',
+      payload,
+      duration:estimateDuration('PLAY_CARD', payload),
+      commitDelayMs:Math.max(120, visibleMs - 40),
+      visibleMs:totalVisibleMs
+    };
+  }
+
+  function buildSimpleSetMotion(opts){
+    if(opts) {
+      opts._motionSkipReason = '';
+      opts._motionBuildDetails = null;
+    }
+    const targetRect = targetRectForBoardTarget(opts && opts.target);
+    if(!targetRect) {
+      if(opts) {
+        opts._motionSkipReason = 'motion-rect-unavailable';
+        opts._motionBuildDetails = {hasTargetRect:false, simpleSet:true};
+      }
+      return null;
+    }
+    let dragPreview = null;
+    try {
+      const director = window.FateVfxDirector;
+      if(director && typeof director.getDragPreview === 'function') dragPreview = director.getDragPreview();
+    } catch(e) {}
+    let fromRect = (opts && opts.fromRect) || (dragPreview && dragPreview.rect);
+    if(!fromRect) {
+      try {
+        const fx = motionFx();
+        if(fx && typeof fx.handRectForCard === 'function') fromRect = fx.handRectForCard(opts && opts.sourceCard);
+      } catch(e) {}
+    }
+    const payload = {
+      iid:opts.inst && opts.inst.iid,
+      card:opts.inst || opts.sourceCard || opts.card || (dragPreview && dragPreview.card) || null,
+      faceDown:!!(opts.inst && opts.inst.faceDown),
+      fromRect:fromRect || null,
+      toRect:targetRect,
+      targetRect,
+      suppressMotionAudio:false
+    };
+    if(fromRect && payload.card) return {recipe:'SET_DRAG_LAND', payload, duration:360};
+    return {recipe:'SET_CONFIRM', payload, duration:220};
+  }
+
+  function hideConsolidationTributes(payload, duration){
+    if(!payload || !Array.isArray(payload.tributes)) return;
+    try {
+      const adapter = window.FateMatchRendererAdapter;
+      if(!adapter || typeof adapter.hideBoardCardForVfx !== 'function') return;
+      const ttl = Math.max(220, Math.round(Number(duration) || 1000));
+      const seen = new Set();
+      payload.tributes.forEach(function(t){
+        const iid = t && t.iid;
+        if(iid == null) return;
+        const key = String(iid);
+        if(!key || seen.has(key)) return;
+        seen.add(key);
+        adapter.hideBoardCardForVfx(key, ttl);
+      });
+      if(typeof adapter.scheduleRender === 'function') adapter.scheduleRender('consolidation-hide-tributes');
+    } catch(e) {}
+  }
+
+  function runSimpleSetAfterCommit(tx, motion, opts, commit){
+    if(!tx || active !== tx) return;
+    tx.phase = 'committing';
+    tx.schedule = {
+      requestedAt:round(nowMs()),
+      delayMs:0,
+      expectedAt:round(nowMs()),
+      firedAt:round(nowMs()),
+      simpleSetMotion:true,
+      commitFirst:true,
+      longTasksBefore:longTaskSnapshot(),
+      longTasksAtFire:longTaskSnapshot()
+    };
+    const commitStart = nowMs();
+    try {
+      try { if(opts && opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
+      commit(tx, 0);
+      tx.commitMs = round(nowMs() - commitStart);
+    } catch(err) {
+      tx.error = String(err && err.message || err);
+      try { console.error('Action presentation transaction failed', err); } catch(e) {}
+      finish(tx, 'failed');
+      return;
+    }
+    if(!motion) {
+      tx.degraded = true;
+      tx.degradedReason = opts && opts._motionSkipReason || 'simple-set-motion-unavailable';
+      finish(tx, 'degraded-snap');
+      return;
+    }
+    nextFrame().then(function(){
+      if(!active || active.id !== tx.id) return;
+      const ms = beginAnimationPhase(tx, motion.duration);
+      const vfxId = rawDirectorPlay(motion.recipe, motion.payload, {allowMatchActionMotion:true});
+      tx.vfxId = vfxId || '';
+      tx.presentMs = round(ms);
+      if(!vfxId) {
+        endAnimationPhase(tx);
+        tx.degraded = true;
+        tx.degradedReason = 'director-rejected-motion';
+        pushEvent(tx, 'minimal-snap-path', {
+          reason:tx.degradedReason,
+          recipe:motion.recipe,
+          animationState:animationStateSummary()
+        });
+        finish(tx, 'degraded-snap');
+        return;
+      }
+      try {
+        const director = window.FateVfxDirector;
+        if(director && typeof director.clearDragPreview === 'function') director.clearDragPreview();
+      } catch(e) {}
+      setTimeout(function(){
+        finish(tx, 'complete');
+      }, ms + 34);
+    }).catch(function(err){
+      tx.error = String(err && err.message || err);
+      finish(tx, 'failed');
+    });
+  }
+
+  function runBoardPlacementAfterCommit(tx, motion, opts, commit){
+    if(!tx || active !== tx) return;
+    tx.phase = 'committing';
+    tx.schedule = {
+      requestedAt:round(nowMs()),
+      delayMs:0,
+      expectedAt:round(nowMs()),
+      firedAt:round(nowMs()),
+      boardPlacementMotion:true,
+      commitFirst:true,
+      longTasksBefore:longTaskSnapshot(),
+      longTasksAtFire:longTaskSnapshot()
+    };
+    const commitStart = nowMs();
+    try {
+      try { if(opts && opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
+      commit(tx, 0);
+      tx.commitMs = round(nowMs() - commitStart);
+    } catch(err) {
+      tx.error = String(err && err.message || err);
+      try { console.error('Action presentation transaction failed', err); } catch(e) {}
+      finish(tx, 'failed');
+      return;
+    }
+    if(!motion) {
+      tx.degraded = true;
+      tx.degradedReason = opts && opts._motionSkipReason || 'board-placement-motion-unavailable';
+      finish(tx, 'degraded-snap');
+      return;
+    }
+    waitForPreflight(tx, motion.recipe, motion.payload, 260).then(function(preflight){
+      if(!active || active.id !== tx.id) return;
+      if(preflight && preflight.ready === false && preflight.total > 0) {
+        tx.degraded = true;
+        tx.degradedReason = 'texture-preflight-timeout-after-commit';
+        pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
+        finish(tx, 'degraded-snap');
+        return;
+      }
+      const ms = beginAnimationPhase(tx, motion.duration);
+      const vfxId = rawDirectorPlay(motion.recipe, motion.payload, {allowMatchActionMotion:true});
+      tx.vfxId = vfxId || '';
+      tx.presentMs = round(ms);
+      if(!vfxId) {
+        endAnimationPhase(tx);
+        tx.degraded = true;
+        tx.degradedReason = 'director-rejected-motion';
+        pushEvent(tx, 'minimal-snap-path', {
+          reason:tx.degradedReason,
+          recipe:motion.recipe,
+          animationState:animationStateSummary()
+        });
+        finish(tx, 'degraded-snap');
+        return;
+      }
+      setTimeout(function(){
+        finish(tx, 'complete');
+      }, ms + 34);
+    }).catch(function(err){
+      tx.error = String(err && err.message || err);
+      finish(tx, 'failed');
+    });
   }
 
   function buildBoardPlacementMotion(opts){
-    if(animationsOff()) return null;
+    if(opts) {
+      opts._motionSkipReason = '';
+      opts._motionBuildDetails = null;
+    }
     const fx = motionFx();
-    if(!fx || typeof fx.playRecipe !== 'function') return null;
+    if(!fx || typeof fx.playRecipe !== 'function') {
+      if(opts) opts._motionSkipReason = 'motion-facade-unavailable';
+      return null;
+    }
     const targetRect = typeof fx.targetRectForBoardTarget === 'function' ? fx.targetRectForBoardTarget(opts.target) : null;
     const fromRect = sourceRectForBoardPlacement(opts, targetRect);
-    if(!targetRect || !fromRect) return null;
-    const travel = Math.max(220, Math.min(420, Number(opts.durationMs) || 320));
+    if(!targetRect || !fromRect) {
+      if(opts) {
+        opts._motionSkipReason = 'motion-rect-unavailable';
+        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!fromRect};
+      }
+      return null;
+    }
+    const travel = Math.max(540, Math.min(740, Number(opts.durationMs) || 640));
     const recipe = String(opts.recipe || opts.motionType || '').toUpperCase() || (String(opts.source || '').toLowerCase() === 'deck' ? 'DECK_TO_BOARD' : 'PLAY_CARD');
     const payload = {
       iid:opts.inst && opts.inst.iid,
@@ -582,9 +898,9 @@
       toRect:targetRect,
       targetRect,
       duration:travel,
-      path:opts.path || 'overshoot',
-      arc:Number(opts.arc == null ? .12 : opts.arc),
-      lift:Number(opts.lift == null ? .12 : opts.lift),
+      path:opts.path || 'showcase',
+      arc:Number(opts.arc == null ? .30 : opts.arc),
+      lift:Number(opts.lift == null ? .34 : opts.lift),
       overshoot:Number(opts.overshoot == null ? .12 : opts.overshoot),
       source:opts.source || opts.sourceKind || 'effect'
     };
@@ -615,20 +931,22 @@
       targetCard:target.card || null,
       resultCard,
       resultCardIid,
+      resultMotionIid:resultCardIid,
       faceDown:!!opts.faceDown,
       tributes
     };
   }
 
   function runSetOrPlacement(tx, motion, opts, commit, rollback, sourceOptions){
-    waitForPreflight(tx, motion ? motion.recipe : '', motion ? motion.payload : null, 180).then(function(preflight){
+    const preflightTimeout = Math.max(180, Number(sourceOptions && sourceOptions.preflightTimeoutMs) || 360);
+    waitForPreflight(tx, motion ? motion.recipe : '', motion ? motion.payload : null, preflightTimeout).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       if(motion && preflight && preflight.ready === false && preflight.total > 0) {
         tx.degraded = true;
         tx.degradedReason = 'texture-preflight-timeout';
         pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
       }
-      if(motion && !tx.degraded && !animationsOff()){
+      if(motion && !tx.degraded){
         if(opts.sourceCard) {
           try {
             opts.sourceCard._presentationDeparting = true;
@@ -639,18 +957,39 @@
         return nextFrame().then(function(){
           if(!active || active.id !== tx.id) return;
           const duration = beginAnimationPhase(tx, motion.duration);
-          rawDirectorPlay(motion.recipe, motion.payload);
+          const vfxId = rawDirectorPlay(motion.recipe, motion.payload, {allowMatchActionMotion:true});
+          tx.vfxId = vfxId || '';
+          if(!vfxId) {
+            endAnimationPhase(tx);
+            tx.degraded = true;
+            tx.degradedReason = 'director-rejected-motion';
+            pushEvent(tx, 'minimal-snap-path', {
+              reason:tx.degradedReason,
+              recipe:motion.recipe,
+              animationState:animationStateSummary()
+            });
+            try { if(opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
+            return scheduleCommit(tx, function(innerTx){
+              commit(innerTx);
+            }, 0);
+          }
           tx.presentMs = round(duration);
-          suppressInitialPlacement(opts.inst && opts.inst.iid, duration + 420);
+          suppressInitialPlacement(opts.inst && opts.inst.iid, duration + 160);
+          const commitDelay = Math.max(0, Math.min(duration, Number(motion.commitDelayMs == null ? duration : motion.commitDelayMs) || duration));
+          if(motion.recipe !== 'PLAY_CARD') hidePlacedCardDuringPresentation(opts.inst && opts.inst.iid, Math.max(duration, Number(motion.visibleMs) || 0) + 24);
           scheduleCommit(tx, function(innerTx){
             try { if(opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
             commit(innerTx);
-          }, duration);
+          }, commitDelay, duration + 34);
         });
       }
       tx.degraded = true;
-      tx.degradedReason = tx.degradedReason || (motion ? 'animation-disabled-or-preflight-degraded' : 'motion-rect-unavailable');
-      pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason});
+      tx.degradedReason = tx.degradedReason || (motion ? 'preflight-degraded' : (opts._motionSkipReason || 'motion-rect-unavailable'));
+      pushEvent(tx, 'minimal-snap-path', {
+        reason:tx.degradedReason,
+        motionBuildDetails:opts._motionBuildDetails || null,
+        animationState:animationStateSummary()
+      });
       scheduleCommit(tx, function(innerTx){
         try { if(opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
         commit(innerTx);
@@ -667,17 +1006,23 @@
     if(active) return false;
     if(typeof opts.commit !== 'function') return false;
     const tx = createTransaction('set-card', {
-      lockMs:820,
-      renderHint:'preflight, source-hand scoped render, compositor-only play-card, one commit render'
+      lockMs:760,
+      renderHint:'compositor set-card motion; board-entry fallback suppressed'
     });
     tx.cardName = opts.card && opts.card.name || opts.inst && opts.inst.name || '';
     tx.target = opts.target || null;
-    if(matchActionMotionDisabled()) {
-      commitWithoutPresentation(tx, opts.commit, 'set-card-motion-disabled');
+    if(SIMPLE_SET_CARD_MOTION_ENABLED) {
+      const simpleMotion = buildSimpleSetMotion(opts);
+      runSetOrPlacement(tx, simpleMotion, opts, opts.commit, opts.rollback, {hand:true, preflightTimeoutMs:320});
+      return true;
+    }
+    const disabledReason = matchActionMotionDisableReason();
+    if(disabledReason) {
+      commitWithoutPresentation(tx, opts.commit, disabledReason);
       return true;
     }
     const motion = buildSetMotion(opts);
-    runSetOrPlacement(tx, motion, opts, opts.commit, opts.rollback, {hand:true});
+    runSetOrPlacement(tx, motion, opts, opts.commit, opts.rollback, {hand:true, preflightTimeoutMs:420});
     return true;
   }
 
@@ -687,20 +1032,21 @@
     if(typeof opts.commit !== 'function') return false;
     const tx = createTransaction('board-placement', {
       lockMs:760,
-      renderHint:'preflight and compositor placement before board mutation'
+      renderHint:'compositor placement motion; board-entry fallback suppressed'
     });
     tx.cardName = opts.sourceCard && opts.sourceCard.name || opts.inst && opts.inst.name || '';
     tx.target = opts.target || null;
     tx.source = opts.source || opts.sourceKind || 'effect';
-    if(matchActionMotionDisabled()) {
-      commitWithoutPresentation(tx, opts.commit, 'board-placement-motion-disabled');
+    const motion = buildBoardPlacementMotion(opts);
+    const disabledReason = matchActionMotionDisableReason();
+    if(disabledReason) {
+      commitWithoutPresentation(tx, opts.commit, disabledReason);
       return true;
     }
-    const motion = buildBoardPlacementMotion(opts);
-    const source = String(opts.source || opts.sourceKind || '').toLowerCase();
     runSetOrPlacement(tx, motion, opts, opts.commit, opts.rollback, {
-      hand:!!opts.sourceCard && (!source || source === 'hand'),
-      piles:source === 'deck' || source === 'discard' || source === 'search' || source === 'effect'
+      hand:!!opts.sourceCard,
+      piles:String(opts.source || opts.sourceKind || '').toLowerCase() !== 'hand',
+      preflightTimeoutMs:360
     });
     return true;
   }
@@ -714,34 +1060,50 @@
       renderHint:'preflight and compositor consolidation before tribute removal/result commit'
     });
     tx.tributeCount = Array.isArray(opts.tributes) ? opts.tributes.length : 0;
-    if(matchActionMotionDisabled() && !consolidationMotionAllowed()) {
-      commitWithoutPresentation(tx, opts.commit, 'consolidation-motion-disabled');
+    const disabledReason = matchActionMotionDisableReason();
+    if(disabledReason || !consolidationMotionAllowed()) {
+      commitWithoutPresentation(tx, opts.commit, disabledReason || 'consolidation-motion-disabled');
       return true;
     }
     const payload = buildConsolidationPayload(opts);
     const duration = payload ? estimateDuration('CONSOLIDATE', payload) : 0;
-    waitForPreflight(tx, 'CONSOLIDATE', payload, 220).then(function(preflight){
+    if(payload) payload.resultMotionIid = 'consolidate-result:' + tx.id;
+    hideConsolidationTributes(payload, duration + 340);
+    waitForPreflight(tx, 'CONSOLIDATE', payload, 460).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       let delay = 0;
       if(payload && preflight && preflight.ready !== false && consolidationMotionAllowed()){
         delay = beginAnimationPhase(tx, duration);
-        rawDirectorPlay('CONSOLIDATE', payload);
+        const vfxId = rawDirectorPlay('CONSOLIDATE', payload, {allowMatchActionMotion:true});
+        tx.vfxId = vfxId || '';
+        if(!vfxId) {
+          endAnimationPhase(tx);
+          delay = 0;
+          tx.degraded = true;
+          tx.degradedReason = 'director-rejected-motion';
+          pushEvent(tx, 'minimal-snap-path', {
+            reason:tx.degradedReason,
+            recipe:'CONSOLIDATE',
+            animationState:animationStateSummary()
+          });
+        }
         tx.presentMs = round(delay);
         const adapter = window.FateMatchRendererAdapter;
         if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
-          adapter.suppressInitialPlacementMotion(payload.resultCardIid, delay + 170);
+          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay - 90));
         }
         if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
-          adapter.hideBoardCardForVfx(payload.resultCardIid, delay);
+          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay - 90));
         }
       } else {
         tx.degraded = true;
         tx.degradedReason = payload ? 'texture-preflight-timeout' : 'motion-rect-unavailable';
         pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
       }
+      const commitDelay = delay > 160 ? delay - 140 : delay;
       scheduleCommit(tx, function(innerTx){
         opts.commit(innerTx, delay);
-      }, delay);
+      }, commitDelay, delay + 34);
     }).catch(function(err){
       tx.error = String(err && err.message || err);
       try { if(typeof opts.rollback === 'function') opts.rollback(tx, err); } catch(e) {}
@@ -754,8 +1116,9 @@
     const recipe = String(type || '').toUpperCase();
     const opts = options || {};
     if(!recipe) return null;
+    const allowedWhenAnimationsOff = false;
     if(matchActionMotionDisabled() && !(recipe === 'CONSOLIDATE' && consolidationMotionAllowed())) return null;
-    if(animationsOff() && recipe !== 'CONSOLIDATE') return null;
+    if(animationsOff() && !allowedWhenAnimationsOff) return null;
     if(active) {
       pushEvent(active, 'joined-motion-facade', {recipe});
       return rawDirectorPlay(recipe, payload || {}, opts);
@@ -765,7 +1128,7 @@
       renderHint:'facade motion action; compositor-only frames'
     });
     const duration = estimateDuration(recipe, payload);
-    waitForPreflight(tx, recipe, payload || {}, 140).then(function(preflight){
+    waitForPreflight(tx, recipe, payload || {}, 220).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       if(preflight && preflight.ready === false && preflight.total > 0) {
         tx.degraded = true;
@@ -775,9 +1138,21 @@
         return;
       }
       const ms = beginAnimationPhase(tx, duration);
-      const id = rawDirectorPlay(recipe, payload || {}, opts);
+      const id = rawDirectorPlay(recipe, payload || {}, Object.assign({allowMatchActionMotion:true}, opts));
       tx.vfxId = id;
       tx.presentMs = round(ms);
+      if(!id) {
+        endAnimationPhase(tx);
+        tx.degraded = true;
+        tx.degradedReason = 'director-rejected-motion';
+        pushEvent(tx, 'minimal-snap-path', {
+          reason:tx.degradedReason,
+          recipe,
+          animationState:animationStateSummary()
+        });
+        finish(tx, 'degraded-snap');
+        return;
+      }
       setTimeout(function(){
         finish(tx, 'complete');
       }, ms + 34);
@@ -842,6 +1217,7 @@
       matchActionMotionDisabled:matchActionMotionDisabled(),
       consolidationMotionAllowed:consolidationMotionAllowed(),
       autoMotionDisabledReason,
+      autoDisableOnFrameGap:AUTO_DISABLE_ON_FRAME_GAP,
       actionMotionFrameGapLimitMs:ACTION_MOTION_FRAME_GAP_LIMIT_MS,
       recent:recent.slice(0, 12)
     };

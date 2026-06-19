@@ -4,17 +4,73 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxRecipes) return;
 
-  const VERSION = 7;
-  const STYLE_VERSION = 'professional-tcg-motion-v1';
+  const VERSION = 33;
+  const STYLE_VERSION = 'professional-tcg-motion-v28-slow-slide-consolidation';
   const MOTION = {
-    micro:72,
-    snap:118,
-    short:180,
-    normal:260,
-    travel:340,
-    heavy:460,
-    hold:42,
-    stagger:28
+    micro:96,
+    snap:154,
+    short:240,
+    normal:360,
+    travel:540,
+    heavy:760,
+    hold:132,
+    stagger:72
+  };
+  const MOTION_PROFILES = {
+    setShowcase:{
+      path:'showcase',
+      easing:'out-expo-soft',
+      arc:.34,
+      lift:.42,
+      scale:1.18,
+      endScale:1.10,
+      textureScale:1.72,
+      overshoot:.038,
+      launchSquash:.030,
+      skewX:.7,
+      settleMs:76
+    },
+    setLanding:{
+      path:'slam',
+      easing:'snap-settle',
+      scale:1.028,
+      endScale:1,
+      textureScale:1.10,
+      landSquash:.040,
+      wobble:1.8,
+      settleMs:82
+    },
+    tributeStrike:{
+      path:'s-curve',
+      easing:'in-out-cubic',
+      scale:1.05,
+      endScale:1,
+      textureScale:1.18,
+      launchSquash:.030,
+      landSquash:.032,
+      fadeOut:true,
+      skewX:1.1,
+      settleMs:70
+    },
+    consolidationReveal:{
+      path:'float',
+      easing:'out-expo-soft',
+      scale:1.16,
+      endScale:1.06,
+      textureScale:1.66,
+      skewY:.55,
+      settleMs:82
+    },
+    consolidationLanding:{
+      path:'slam',
+      easing:'snap-settle',
+      scale:1.032,
+      endScale:1,
+      textureScale:1.12,
+      landSquash:.042,
+      wobble:1.7,
+      settleMs:92
+    }
   };
 
   function P(){
@@ -103,6 +159,60 @@
     return clampRectToViewport(offsetRect(scaleRect(target, scale || 1.34), lane * target.w * .08, spread * target.h * .12), 10);
   }
 
+  function consolidationCollisionRect(from, target, index, count){
+    if(!from || !target) return from || target || null;
+    const n = Math.max(1, Number(count) || 1);
+    const rc = center(from);
+    const tc = center(target);
+    let dx = rc.x - tc.x;
+    let dy = rc.y - tc.y;
+    if(Math.abs(dx) + Math.abs(dy) < 1) {
+      const angle = (-80 + index * 38) * Math.PI / 180;
+      dx = Math.cos(angle);
+      dy = Math.sin(angle);
+    }
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const spread = n <= 1 ? 0 : ((index - (n - 1) / 2) / Math.max(1, n - 1));
+    const baseDistance = Math.max(Number(target.w) || 70, Number(target.h) || 96);
+    let distanceScale = 1;
+    let raw = target;
+    for(let tries = 0; tries < 6; tries++){
+      const ringX = dx / len * Math.max(58, baseDistance * 1.18 * distanceScale) + spread * target.w * .38;
+      const ringY = dy / len * Math.max(62, baseDistance * .94 * distanceScale) - target.h * .28;
+      raw = offsetRect(target, ringX, ringY);
+      const clamped = clampRectToViewport(raw, 10);
+      if(clamped && !overlapsRect(clamped, target)) return clamped;
+      if(raw && !overlapsRect(raw, target)) return raw;
+      distanceScale += .34;
+    }
+    return raw;
+  }
+
+  function overlapsRect(a, b){
+    if(!a || !b) return false;
+    const ax1 = Number(a.x) || 0;
+    const ay1 = Number(a.y) || 0;
+    const ax2 = ax1 + (Number(a.w) || 0);
+    const ay2 = ay1 + (Number(a.h) || 0);
+    const bx1 = Number(b.x) || 0;
+    const by1 = Number(b.y) || 0;
+    const bx2 = bx1 + (Number(b.w) || 0);
+    const by2 = by1 + (Number(b.h) || 0);
+    return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+  }
+
+  function consolidationStartRect(from, target, index, count){
+    if(!from || !target || !overlapsRect(from, target)) return from;
+    const n = Math.max(1, Number(count) || 1);
+    const lane = index % 2 ? -1 : 1;
+    const spread = n <= 1 ? 0 : ((index - (n - 1) / 2) / Math.max(1, n - 1));
+    return clampRectToViewport(offsetRect(
+      from,
+      lane * Math.max(28, target.w * .58),
+      -Math.max(22, target.h * (.22 + Math.abs(spread) * .10))
+    ), 10);
+  }
+
   function payloadRect(payload, names){
     for(let i = 0; i < names.length; i++){
       const r = payload && payload[names[i]];
@@ -151,6 +261,10 @@
       holdMs:0,
       priority:'normal'
     }, opts || {}));
+  }
+
+  function profiledMove(profileName, opts){
+    return cardMove(Object.assign({}, MOTION_PROFILES[profileName] || {}, opts || {}));
   }
 
   function snapMove(opts){
@@ -214,48 +328,149 @@
     const from = payloadRect(p, ['fromRect', 'sourceRect', 'handRect']);
     const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
     if(p.placementStyle === 'target-snap'){
-      const above = scaleRect(liftRect(to, .18), .98);
+      const above = scaleRect(liftRect(to, .26), 1.04);
       const list = [
-        cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:above || to || from, toRect:to, startOffset:0, duration:132, easing:'snap-settle', path:'direct', rotate:-5.2, scale:1.028, bank:4, landSquash:.045, wobble:3.2, settleMs:46, priority:'high'})
+        profiledMove('setLanding', {iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:above || to || from, toRect:to, startOffset:0, duration:240, rotate:-2.2, bank:1.2, wobble:.7, priority:'high'})
       ];
-      if(!p.suppressMotionAudio) list.push(P().soundCue({cue:'card_play_land', startOffset:82, priority:'high'}));
+      if(!p.suppressMotionAudio) list.push(P().soundCue({cue:'card_play_land', startOffset:190, priority:'high'}));
       return list;
     }
-    const featureScale = clamp(Number(p.featureScale) || 1.86, 1.34, 2.45);
-    const inspect = featuredRect(to, featureScale, {
-      lift:Number(p.featureLift == null ? .78 : p.featureLift),
-      xBias:Number(p.featureXBias) || 0
-    }) || liftRect(scaleRect(to, featureScale), .22) || to;
-    const load = from && inspect ? sideStep(awayFrom(from, inspect, Math.max(10, (from.h || 80) * .075)), inspect, Math.max(10, (from.w || 70) * .20)) : from;
-    const settleAbove = featuredRect(to, Math.max(1.18, featureScale * .72), {lift:.28, xBias:Number(p.featureXBias) * .38 || 0}) || liftRect(to, .20);
-    const duration = Math.max(320, Math.min(520, Number(p.duration) || 420));
-    const travelMs = Math.round(duration * .46);
-    const inspectMs = Math.round(duration * .22);
-    const settleStart = 54 + travelMs + inspectMs;
+    const featureScale = clamp(Number(p.featureScale) || 2.10, 1.52, 2.55);
+    const duration = Math.max(560, Math.min(760, Number(p.duration) || 660));
+    const handoffHoldMs = Math.max(0, Math.min(220, Number(p.handoffHoldMs) || 0));
+    const landAt = Math.max(0, duration - 34);
+    const peakScale = clamp(featureScale * .58, 1.12, 1.34);
     const list = [
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:from, toRect:load || from, startOffset:0, duration:54, easing:'in-quart', path:'direct', rotate:-7.0, bank:-4, scale:1.02, launchSquash:.035, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:load || from, toRect:inspect || to, startOffset:42, duration:travelMs, easing:'out-expo-soft', path:'overshoot', arc:Number(p.arc) || .20, lift:Number(p.lift) || .18, sideArc:Number(p.sideArc == null ? .32 : p.sideArc), rotate:Number(p.rotate) || 7.5, bank:8, scale:1.035, overshoot:.055, holdMs:inspectMs, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:inspect || load || from, toRect:settleAbove || to, startOffset:settleStart, duration:96, easing:'in-out-cubic', path:'direct', rotate:-2.2, scale:1.0, bank:-2, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:settleAbove || inspect || from, toRect:to, startOffset:settleStart + 78, duration:88, easing:'snap-settle', path:'direct', rotate:-4.2, scale:1.012, bank:-2, landSquash:.055, wobble:3.6, settleMs:44, priority:'high'})
+      cardMove({
+        iid:p.iid,
+        card:p.card,
+        faceDown:p.faceDown,
+        fromRect:from,
+        toRect:to,
+        targetRect:to,
+        startOffset:0,
+        duration,
+        easing:'out-expo-soft',
+        path:'showcase',
+        arc:Number(p.arc) || .20,
+        lift:Number(p.lift) || .26,
+        sideArc:Number(p.sideArc == null ? .22 : p.sideArc),
+        rotate:Number(p.rotate) || 4.4,
+        bank:Number(p.bank) || 3.2,
+        startScale:1,
+        scale:peakScale,
+        endScale:1,
+        textureScale:Math.max(1.45, featureScale * .78),
+        overshoot:.018,
+        holdMs:34,
+        launchSquash:.012,
+        landSquash:.018,
+        wobble:.65,
+        settleMs:130,
+        priority:'high'
+      }),
+      P().cardImpact({iid:p.iid, card:p.card || null, faceDown:p.faceDown, rect:to, startOffset:landAt, duration:156, amplitude:.007, priority:'high'})
     ];
+    if(handoffHoldMs > 0 && to) {
+      list.push(cardMove({
+        iid:String(p.iid || 'set') + ':handoff',
+        card:p.card,
+        faceDown:p.faceDown,
+        fromRect:to,
+        toRect:to,
+        targetRect:to,
+        startOffset:Math.max(0, duration - 18),
+        duration:handoffHoldMs,
+        easing:'linear',
+        path:'direct',
+        rotate:0,
+        bank:0,
+        startScale:1,
+        scale:1,
+        endScale:1,
+        textureScale:1.12,
+        holdMs:0,
+        landSquash:0,
+        wobble:0,
+        settleMs:0,
+        priority:'high'
+      }));
+    }
     if(!p.suppressMotionAudio) {
-      list.push(P().soundCue({cue:'card_play_land', startOffset:settleStart + 102, priority:'high'}));
+      list.push(P().soundCue({cue:'card_play_land', startOffset:Math.max(80, landAt - 18), priority:'high'}));
     }
     return list;
+  }
+
+  function setConfirm(payload){
+    const p = payload || {};
+    const rect = payloadRect(p, ['targetRect', 'toRect', 'rect', 'cellRect']);
+    return [
+      P().cardImpact({iid:p.iid, card:null, rect, startOffset:0, duration:168, amplitude:.010, color:'rgba(255,232,150,.54)', priority:'high'}),
+      P().soundCue({cue:'card_play_land', startOffset:28, priority:'high'})
+    ];
+  }
+
+  function setDragLand(payload){
+    const p = payload || {};
+    const from = payloadRect(p, ['fromRect', 'dragRect', 'sourceRect']);
+    const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
+    const lift = from && to ? Math.min(.10, Math.max(.035, Math.abs((center(from).y - center(to).y) / Math.max(1, to.h || 90)) * .025)) : .06;
+    return [
+      cardMove({
+        iid:p.iid,
+        card:p.card,
+        faceDown:p.faceDown,
+        fromRect:from || liftRect(to, .18) || to,
+        toRect:to,
+        targetRect:to,
+        startOffset:0,
+        duration:260,
+        easing:'out-expo-soft',
+        path:'direct',
+        arc:.035,
+        lift,
+        sideArc:0,
+        rotate:Number(p.rotate) || .35,
+        bank:0,
+        startScale:1,
+        scale:1.012,
+        endScale:1,
+        textureScale:1.08,
+        holdMs:0,
+        landSquash:.006,
+        wobble:.06,
+        settleMs:28,
+        priority:'high'
+      }),
+      P().soundCue({cue:'card_play_land', startOffset:222, priority:'high'})
+    ];
   }
 
   function drawCard(payload){
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'deckRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'handRect', 'slotRect']);
-    const start = Number(p.startOffset) || 0;
-    const peek = from && to ? sideStep(awayFrom(from, to, Math.max(12, (from.h || 80) * .10)), to, Math.max(12, (from.w || 70) * .20)) : from;
-    const hang = liftRect(to, .12);
+    const drawIndex = Math.max(0, Number(p.drawIndex == null ? p.index : p.drawIndex) || 0);
+    const drawCount = Math.max(1, Number(p.drawCount == null ? p.count : p.drawCount) || 1);
+    const lane = drawCount <= 1 ? 0 : (drawIndex - (drawCount - 1) / 2) / Math.max(1, drawCount - 1);
+    const start = (Number(p.startOffset) || 0) + (drawCount > 1 ? drawIndex * 84 : 0);
+    const baseId = String(p.iid || ('draw-' + drawIndex));
+    const w = Number((to || from || {}).w) || 70;
+    const h = Number((to || from || {}).h) || 98;
+    const peel = from ? offsetRect(from, lane * Math.max(5, w * .12), -Math.max(7, h * .08)) : from;
+    const revealScale = drawCount > 1 ? 1.10 : 1.16;
+    const reveal = to
+      ? clampRectToViewport(offsetRect(scaleRect(to, revealScale), lane * w * .58, -Math.max(36, h * .64)), 10)
+      : (peel || from);
+    const travelRotate = lane * 9 + (drawCount <= 1 ? -4 : 0);
+    const travelSide = lane * .34 - .12;
     return [
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown !== false, fromRect:from, toRect:peek || from, startOffset:start, duration:86, easing:'in-quart', path:'direct', rotate:-8.0, bank:-4, scale:1.035, launchSquash:.042, layer:p.layer || 'effects'}),
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown !== false, fromRect:peek || from, toRect:hang || to, startOffset:start + 62, duration:358, easing:'out-expo-soft', path:'withdraw', arc:.26, lift:.28, sideArc:-.34, rotate:-12.5, bank:-9, scale:1.068, holdMs:44, layer:p.layer || 'effects'}),
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown !== false, fromRect:hang || peek || from, toRect:to, startOffset:start + 414, duration:82, easing:'snap-settle', path:'direct', rotate:3.0, scale:1.006, landSquash:.035, wobble:2.6, layer:p.layer || 'effects'}),
-      P().soundCue({cue:'draw_card', startOffset:start + 96})
+      cardMove({iid:baseId + ':deck-peek', card:null, faceDown:true, fromRect:from, toRect:peel || from, startOffset:start, duration:96, easing:'out-quint', path:'direct', rotate:lane * 4.5 - 1.5, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:peel || from, toRect:reveal || to, startOffset:start + 72, duration:246, easing:'out-expo-soft', path:'s-curve', arc:.24, lift:.25, sideArc:travelSide, rotate:travelRotate, bank:lane * 4, scale:1, endScale:1, textureScale:1.22, holdMs:drawCount > 1 ? 34 : 48, launchSquash:.010, layer:p.layer || 'effects', priority:'high'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal || from, toRect:to, startOffset:start + 294, duration:248, easing:'snap-settle', path:'direct', rotate:-lane * 3.5, bank:0, scale:1, endScale:1, textureScale:1.12, landSquash:.010, wobble:.16, settleMs:44, layer:p.layer || 'effects', priority:'high'}),
+      P().cardImpact({iid:p.iid || baseId, card:null, rect:to, startOffset:start + 520, duration:64, amplitude:.006, priority:'normal'}),
+      P().soundCue({cue:p.cue || 'draw_card', startOffset:start + 94})
     ];
   }
 
@@ -263,26 +478,36 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'deckRect', 'discardRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'handRect', 'slotRect']);
-    const scan = from && to ? sideStep(liftRect(from, .20), to, Math.max(18, (from.w || 70) * .34)) : from;
-    const hover = liftRect(to, .15);
+    const sourceIsDiscard = p.source === 'discard';
+    const w = Number((to || from || {}).w) || 70;
+    const h = Number((to || from || {}).h) || 98;
+    const shuffleA = from ? offsetRect(from, Math.max(6, w * .12), -Math.max(4, h * .04)) : from;
+    const shuffleB = from ? offsetRect(from, -Math.max(8, w * .14), Math.max(4, h * .05)) : from;
+    const shuffleC = from ? offsetRect(from, Math.max(5, w * .09), Math.max(3, h * .025)) : from;
+    const reveal = to ? featuredRect(to, sourceIsDiscard ? 1.12 : 1.18, {lift:sourceIsDiscard ? .20 : .28, xBias:sourceIsDiscard ? -.08 : .10}) : (from || to);
+    const baseId = String(p.iid || 'search');
+    const findStart = sourceIsDiscard ? 214 : 360;
     return [
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown === true, fromRect:from, toRect:scan || from, startOffset:0, duration:128, easing:'out-quint', path:'direct', rotate:p.source === 'discard' ? -12 : 12, bank:p.source === 'discard' ? -5 : 5, scale:1.065, launchSquash:.045, layer:p.layer || 'effects', priority:'high'}),
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown === true, fromRect:scan || from, toRect:hover || to, startOffset:104, duration:456, easing:'out-expo-soft', path:'overshoot', arc:.34, lift:.36, sideArc:p.source === 'discard' ? -.48 : .48, rotate:p.source === 'discard' ? -16 : 16, bank:p.source === 'discard' ? -12 : 12, scale:1.09, overshoot:.090, holdMs:78, layer:p.layer || 'effects', priority:'high'}),
-      cardMove({iid:p.iid, card:p.card || null, faceDown:p.faceDown === true, fromRect:hover || scan || from, toRect:to, startOffset:624, duration:88, easing:'snap-settle', path:'direct', rotate:-3.4, landSquash:.045, wobble:3.2, layer:p.layer || 'effects', priority:'high'}),
-      P().soundCue({cue:'search_found', startOffset:116, priority:'high'})
-    ];
+      cardMove({iid:baseId + ':shuffle-a', card:null, faceDown:true, fromRect:from, toRect:shuffleA || from, startOffset:0, duration:104, easing:'in-out-cubic', path:'direct', rotate:sourceIsDiscard ? -2.0 : 3.0, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
+      cardMove({iid:baseId + ':shuffle-b', card:null, faceDown:true, fromRect:shuffleA || from, toRect:shuffleB || from, startOffset:74, duration:112, easing:'in-out-cubic', path:'direct', rotate:sourceIsDiscard ? 2.2 : -3.4, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
+      sourceIsDiscard ? null : cardMove({iid:baseId + ':shuffle-c', card:null, faceDown:true, fromRect:shuffleB || from, toRect:shuffleC || from, startOffset:152, duration:112, easing:'in-out-cubic', path:'direct', rotate:2.1, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
+      sourceIsDiscard ? null : cardMove({iid:baseId + ':shuffle-d', card:null, faceDown:true, fromRect:shuffleC || from, toRect:from, startOffset:232, duration:128, easing:'snap-settle', path:'direct', rotate:0, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:from, toRect:reveal || to, startOffset:findStart, duration:292, easing:'out-expo-soft', path:'s-curve', arc:.26, lift:.28, sideArc:sourceIsDiscard ? -.24 : .30, rotate:sourceIsDiscard ? -5.5 : 6.5, bank:sourceIsDiscard ? -3 : 3.4, scale:1, endScale:1, textureScale:1.24, holdMs:58, wobble:.18, settleMs:44, layer:p.layer || 'effects', priority:'high'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal || from, toRect:to, startOffset:findStart + 286, duration:238, easing:'snap-settle', path:'direct', rotate:sourceIsDiscard ? 1.2 : -1.2, bank:0, scale:1, endScale:1, textureScale:1.12, landSquash:.010, wobble:.16, settleMs:44, layer:p.layer || 'effects', priority:'high'}),
+      P().cardImpact({iid:p.iid || baseId, card:null, rect:to, startOffset:findStart + 508, duration:68, amplitude:.006, priority:'normal'}),
+      P().soundCue({cue:'search_found', startOffset:findStart + 20, priority:'high'})
+    ].filter(Boolean);
   }
 
   function discardCard(payload){
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'discardRect']);
-    const recoil = from && to ? sideStep(awayFrom(from, to, Math.max(18, (from.h || 80) * .12)), to, Math.max(8, (from.w || 70) * .10)) : from;
-    const dive = to ? liftRect(to, .10) : to;
+    const lift = from ? offsetRect(liftRect(from, .12), Math.max(4, (from.w || 70) * .05), 0) : from;
     return [
-      cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil || from, startOffset:0, duration:86, easing:'in-quart', path:'direct', rotate:-12.0, bank:-7, scale:1.045, launchSquash:.040, priority:'normal'}),
-      cardMove({iid:p.iid, card:p.card, fromRect:recoil || from, toRect:dive || to, startOffset:68, duration:326, easing:'out-expo-soft', path:'drop', arc:.24, lift:.13, sideArc:-.26, rotate:-24, bank:-11, scale:.72, overshoot:.055, fadeOut:true, priority:'high'}),
-      P().soundCue({cue:'discard_card', startOffset:304, priority:'high'})
+      cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:lift || from, startOffset:0, duration:122, easing:'out-quint', path:'direct', rotate:-4.5, bank:-2, scale:1.035, launchSquash:.016, priority:'high'}),
+      cardMove({iid:p.iid, card:p.card, fromRect:lift || from, toRect:to, startOffset:94, duration:318, easing:'in-quart', path:'drop', arc:.18, lift:.08, sideArc:-.18, rotate:-16, bank:-5, scale:1, fadeOutLate:true, priority:'high'}),
+      P().soundCue({cue:'discard_card', startOffset:278, priority:'high'})
     ];
   }
 
@@ -290,11 +515,11 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect', 'targetRect']);
     const to = payloadRect(p, ['toRect', 'discardRect']) || from;
-    const recoil = from ? offsetRect(from, 0, -Math.max(8, from.h * .075)) : from;
+    const recoil = from ? offsetRect(from, 0, -Math.max(12, from.h * .12)) : from;
     return [
-      cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil || from, startOffset:0, duration:90, easing:'out-quint', path:'direct', rotate:10, bank:7, scale:1.05, launchSquash:.04, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, fromRect:recoil || from, toRect:to, startOffset:70, duration:286, easing:'in-quart', path:'drop', arc:.20, lift:.08, sideArc:.30, rotate:28, bank:13, scale:.62, fadeOut:true, priority:'high'}),
-      P().soundCue({cue:'destroy_card', startOffset:88, priority:'high'})
+      cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil || from, startOffset:0, duration:142, easing:'out-quint', path:'direct', rotate:6, bank:3.5, scale:1.05, launchSquash:.024, priority:'high'}),
+      cardMove({iid:p.iid, card:p.card, fromRect:recoil || from, toRect:to, startOffset:116, duration:360, easing:'in-quart', path:'drop', arc:.22, lift:.10, sideArc:.30, rotate:20, bank:8, scale:1, fadeOut:true, priority:'high'}),
+      P().soundCue({cue:'destroy_card', startOffset:140, priority:'high'})
     ];
   }
 
@@ -318,14 +543,11 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
-    const pull = from && to ? awayFrom(from, to, Math.max(7, (from.h || 80) * .045)) : from;
-    const hang = liftRect(to, .13);
-    const travelMs = Math.max(230, Math.min(390, Number(p.duration) || 318));
+    const travelMs = Math.max(300, Math.min(500, Number(p.duration) || 390));
     return [
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:from, toRect:pull || from, startOffset:0, duration:60, easing:'in-quart', path:'direct', rotate:-4.0, bank:-4, scale:1.028, launchSquash:.034, priority:p.priority || 'normal'}),
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:pull || from, toRect:hang || to, startOffset:46, duration:travelMs, easing:p.easing || 'out-expo-soft', path:p.path || 'overshoot', arc:Number.isFinite(Number(p.arc)) ? Number(p.arc) : .24, lift:Number.isFinite(Number(p.lift)) ? Number(p.lift) : .24, sideArc:Number.isFinite(Number(p.sideArc)) ? Number(p.sideArc) : .30, rotate:Number.isFinite(Number(p.rotate)) ? Number(p.rotate) : 8.0, bank:Number.isFinite(Number(p.bank)) ? Number(p.bank) : 8, scale:Number(p.scale) || 1.06, overshoot:Number(p.overshoot) || .065, holdMs:46, priority:p.priority || 'high'}),
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:hang || pull || from, toRect:to, startOffset:46 + travelMs + 34, duration:82, easing:'snap-settle', path:'direct', rotate:-2.4, landSquash:.042, wobble:3.4, priority:p.priority || 'high'}),
-      P().soundCue({cue:p.cue || 'card_move', startOffset:44 + travelMs + 18})
+      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:from, toRect:to, startOffset:0, duration:travelMs, easing:p.easing || 'out-expo-soft', path:p.path || 's-curve', arc:Number.isFinite(Number(p.arc)) ? Number(p.arc) : .15, lift:Number.isFinite(Number(p.lift)) ? Number(p.lift) : .17, sideArc:Number.isFinite(Number(p.sideArc)) ? Number(p.sideArc) : .16, rotate:Number.isFinite(Number(p.rotate)) ? Number(p.rotate) : 2.2, bank:Number.isFinite(Number(p.bank)) ? Number(p.bank) : 1.8, scale:Number(p.scale) || 1.035, textureScale:1.10, overshoot:Number(p.overshoot) || .008, holdMs:14, landSquash:.010, wobble:.22, settleMs:52, priority:p.priority || 'high'}),
+      P().cardImpact({iid:p.iid, card:null, rect:to, startOffset:Math.max(90, travelMs - 34), duration:62, amplitude:.007, priority:p.priority || 'normal'}),
+      P().soundCue({cue:p.cue || 'card_move', startOffset:Math.max(80, travelMs - 64)})
     ];
   }
 
@@ -336,11 +558,11 @@
     const aTo = a.toRect || b.fromRect;
     const bTo = b.toRect || a.fromRect;
     return [
-      cardMove({iid:a.iid, card:a.card, fromRect:a.fromRect, toRect:liftRect(aTo, .18) || aTo, startOffset:0, duration:326, easing:'out-expo-soft', path:'overshoot', arc:.30, lift:.32, sideArc:.52, rotate:13.0, bank:12, scale:1.07, overshoot:.078, priority:'high'}),
-      cardMove({iid:b.iid, card:b.card, fromRect:b.fromRect, toRect:liftRect(bTo, .18) || bTo, startOffset:38, duration:326, easing:'out-expo-soft', path:'overshoot', arc:.30, lift:.32, sideArc:-.52, rotate:-13.0, bank:-12, scale:1.07, overshoot:.078, priority:'high'}),
-      cardMove({iid:a.iid, card:a.card, fromRect:liftRect(aTo, .18) || a.fromRect, toRect:aTo, startOffset:368, duration:78, easing:'snap-settle', path:'direct', rotate:-3.0, landSquash:.040, wobble:3.0, priority:'high'}),
-      cardMove({iid:b.iid, card:b.card, fromRect:liftRect(bTo, .18) || b.fromRect, toRect:bTo, startOffset:392, duration:78, easing:'snap-settle', path:'direct', rotate:3.0, landSquash:.040, wobble:3.0, priority:'high'}),
-      P().soundCue({cue:'card_move', startOffset:MOTION.normal + 44})
+      cardMove({iid:a.iid, card:a.card, fromRect:a.fromRect, toRect:aTo, startOffset:0, duration:410, easing:'out-expo-soft', path:'s-curve', arc:.22, lift:.24, sideArc:.40, rotate:7.0, bank:5, scale:1.04, overshoot:.010, priority:'high'}),
+      cardMove({iid:b.iid, card:b.card, fromRect:b.fromRect, toRect:bTo, startOffset:24, duration:410, easing:'out-expo-soft', path:'s-curve', arc:.22, lift:.24, sideArc:-.40, rotate:-7.0, bank:-5, scale:1.04, overshoot:.010, priority:'high'}),
+      P().cardImpact({iid:a.iid, card:null, rect:aTo, startOffset:382, duration:70, amplitude:.008, priority:'normal'}),
+      P().cardImpact({iid:b.iid, card:null, rect:bTo, startOffset:406, duration:70, amplitude:.008, priority:'normal'}),
+      P().soundCue({cue:'card_move', startOffset:338})
     ];
   }
 
@@ -348,92 +570,108 @@
     const p = payload || {};
     const targetRect = payloadRect(p, ['targetRect', 'toRect']);
     const tributes = Array.isArray(p.tributes) ? p.tributes : [];
-    const core = inset(targetRect, .09) || targetRect;
-    const focus = featuredRect(targetRect, tributes.length > 1 ? 1.72 : 1.54, {lift:.62}) || scaleRect(core || targetRect, 1.45) || core;
-    const list = [P().soundCue({cue:'consolidate_charge', startOffset:34, priority:'high'})];
-    if(tributes.length === 1){
-      const t = tributes[0] || {};
-      const from = t.rect || t.fromRect || t.cardRect;
-      const rise = featuredRect(core || targetRect, 1.48, {lift:.56}) || liftRect(core || targetRect, .28);
-      if(from){
-        list.push(cardMove({
-          iid:t.iid,
-          card:t.card,
-          fromRect:from,
-          toRect:rise || core || targetRect,
-          startOffset:44,
-          duration:156,
-          easing:'out-quint',
-          path:'arc',
-          arc:.12,
-          lift:.18,
-          rotate:6.0,
-          bank:6,
-          sideArc:.22,
-          scale:1.02,
-          holdMs:58,
-          launchSquash:.035,
-          priority:'high'
-        }));
-        list.push(cardMove({
-          iid:t.iid,
-          card:t.card,
-          fromRect:rise || from,
-          toRect:core || targetRect,
-          startOffset:212,
-          duration:96,
-          easing:'snap-settle',
-          path:'direct',
-          rotate:-2.4,
-          scale:1.012,
-          landSquash:.054,
-          wobble:3.8,
-          priority:'high'
-        }));
-        list.push(cardMove({iid:p.targetIid || t.iid, card:p.resultCard || p.targetCard || t.card, fromRect:core || targetRect, toRect:focus || targetRect, startOffset:300, duration:116, easing:'out-quint', path:'direct', rotate:2.4, scale:1.012, priority:'high'}));
-        list.push(cardMove({iid:p.targetIid || t.iid, card:p.resultCard || p.targetCard || t.card, fromRect:focus || targetRect, toRect:targetRect, startOffset:404, duration:96, easing:'snap-settle', path:'direct', rotate:-2.0, landSquash:.044, wobble:2.8, priority:'high'}));
-        list.push(P().cardImpact({iid:p.targetIid || t.iid, card:p.resultCard || p.targetCard || t.card, rect:targetRect, startOffset:404, duration:118, amplitude:.052, priority:'high'}));
-        list.push(P().soundCue({cue:'consolidate_impact', startOffset:392, priority:'high'}));
-      }
-      return list;
-    }
-    const gap = tributes.length > 1 ? 58 : 30;
-    const collideMs = tributes.length > 1 ? 166 : 150;
-    tributes.forEach(function(t, index){
-      const from = t && (t.rect || t.fromRect || t.cardRect);
-      if(!from) return;
-      const start = 44 + index * (collideMs + gap);
-      const lane = index % 2 ? -1 : 1;
-      const pull = sideStep(awayFrom(from, focus || targetRect, Math.max(18, (from.h || 80) * .11)), focus || targetRect, lane * Math.max(10, (from.w || 70) * .22));
-      const strike = strikeRect(focus || core, index, tributes.length, 1.0) || core;
+    const resultCard = p.resultCard || p.targetCard || null;
+    const resultIid = p.resultMotionIid || p.targetIid || p.resultCardIid;
+    const list = [P().soundCue({cue:'consolidate_charge', startOffset:42, priority:'high'})];
+    const gap = tributes.length <= 1 ? 0 : 360;
+    const firstStart = 90;
+    const moveMs = tributes.length <= 1 ? 760 : 720;
+    const stackTarget = targetRect ? scaleRect(targetRect, .98) : targetRect;
+    if(tributes.length === 1 && tributes[0]) {
+      const t = tributes[0];
+      const originalFrom = t && (t.rect || t.fromRect || t.cardRect);
+      const from = consolidationStartRect(originalFrom, targetRect, 0, 1) || originalFrom || targetRect;
       list.push(cardMove({
         iid:t.iid,
         card:t.card,
-        fromRect:pull || from,
-        toRect:strike || core,
-        startOffset:start,
-        duration:collideMs,
-        easing:'in-out-cubic',
-        path:'overshoot',
-        arc:.18 + Math.min(.06, index * .012),
-        lift:.18 + Math.min(.05, index * .010),
-        sideArc:lane * (.24 + Math.min(.08, index * .012)),
-        rotate:lane * (tributes.length > 1 ? 18 : 12),
-        bank:lane * 10,
-        scale:.92,
-        launchSquash:.040,
-        landSquash:.040,
-        overshoot:.10,
-        fadeOut:true,
+        fromRect:from,
+        toRect:targetRect,
+        startOffset:firstStart,
+        duration:moveMs,
+        easing:'out-expo-soft',
+        path:'direct',
+        arc:0,
+        lift:0,
+        sideArc:0,
+        rotate:-2.0,
+        bank:0,
+        startScale:1,
+        scale:1.035,
+        endScale:1,
+        textureScale:1.18,
+        fadeOutLate:true,
+        holdMs:210,
+        overshoot:.004,
+        landSquash:.010,
+        wobble:.12,
+        settleMs:64,
         priority:'high'
       }));
-      list.push(P().cardImpact({iid:t.iid, card:p.resultCard || p.targetCard || t.card, rect:focus || targetRect, startOffset:start + collideMs - 18, duration:64, amplitude:.030 + Math.min(.025, index * .004), priority:'high'}));
+      list.push(P().cardImpact({iid:t.iid, card:null, rect:targetRect, startOffset:firstStart + moveMs - 150, duration:86, amplitude:.006, priority:'high'}));
+    } else tributes.forEach(function(t, index){
+      const originalFrom = t && (t.rect || t.fromRect || t.cardRect);
+      if(!originalFrom) return;
+      const from = consolidationStartRect(originalFrom, targetRect, index, tributes.length) || originalFrom;
+      const start = firstStart + index * gap;
+      const lane = index % 2 ? -1 : 1;
+      const stackOffset = {
+        x:(stackTarget && stackTarget.x || 0) + lane * Math.min(8, (stackTarget && stackTarget.w || 80) * .035),
+        y:(stackTarget && stackTarget.y || 0) - index * Math.min(7, (stackTarget && stackTarget.h || 110) * .035),
+        w:stackTarget && stackTarget.w,
+        h:stackTarget && stackTarget.h
+      };
+      list.push(cardMove({
+        iid:t.iid,
+        card:t.card,
+        fromRect:from,
+        toRect:stackOffset,
+        startOffset:start,
+        duration:moveMs,
+        easing:'out-expo-soft',
+        path:'direct',
+        arc:0,
+        lift:0,
+        sideArc:0,
+        rotate:lane * 2.0,
+        bank:0,
+        startScale:1,
+        scale:1.020,
+        endScale:1,
+        textureScale:1.14,
+        fadeOutLate:true,
+        holdMs:230,
+        overshoot:.004,
+        wobble:.08,
+        settleMs:64,
+        priority:'high'
+      }));
+      list.push(P().cardImpact({iid:t.iid, card:null, rect:stackOffset, startOffset:start + moveMs - 150, duration:70, amplitude:.005, priority:'high'}));
     });
-    const hitAt = 44 + Math.max(0, tributes.length - 1) * (collideMs + gap) + collideMs;
-    list.push(cardMove({iid:p.targetIid, card:p.resultCard || p.targetCard, fromRect:focus || targetRect, toRect:focus || targetRect, startOffset:Math.max(0, hitAt - 34), duration:72, easing:'out-quint', path:'direct', rotate:1.8, scale:1.018, priority:'high'}));
-    list.push(cardMove({iid:p.targetIid, card:p.resultCard || p.targetCard, fromRect:focus || targetRect, toRect:targetRect, startOffset:hitAt + 52, duration:112, easing:'snap-settle', path:'direct', rotate:-2.2, landSquash:.052, wobble:3.2, priority:'high'}));
-    list.push(P().cardImpact({iid:p.targetIid, card:p.resultCard || p.targetCard, rect:targetRect, startOffset:hitAt + 52, duration:126, amplitude:tributes.length > 1 ? .070 : .050, priority:'high'}));
-    list.push(P().soundCue({cue:'consolidate_impact', startOffset:hitAt, priority:'high'}));
+    const revealAt = tributes.length === 1
+      ? firstStart + moveMs - 110
+      : firstStart + Math.max(0, tributes.length - 1) * gap + moveMs - 110;
+    list.push(cardMove({
+      iid:resultIid,
+      card:resultCard,
+      fromRect:targetRect,
+      toRect:targetRect,
+      startOffset:revealAt,
+      duration:560,
+      easing:'out-expo-soft',
+      path:'direct',
+      rotate:0,
+      bank:0,
+      startScale:1,
+      scale:1.045,
+      endScale:1,
+      textureScale:1.18,
+      holdMs:220,
+      wobble:.10,
+      settleMs:40,
+      priority:'high'
+    }));
+    list.push(P().cardImpact({iid:resultIid, card:resultCard, rect:targetRect, startOffset:revealAt + 170, duration:118, amplitude:.007, priority:'high'}));
+    list.push(P().soundCue({cue:'consolidate_impact', startOffset:revealAt + 156, priority:'high'}));
     return list;
   }
 
@@ -441,10 +679,11 @@
     const p = payload || {};
     const from = payloadRect(p, ['sourceRect', 'fromRect', 'rect']);
     const to = payloadRect(p, ['targetRect', 'toRect']) || from;
+    const show = featuredRect(from || to, 1.24, {lift:.20}) || from;
     return [
-      P().cardLift({iid:p.iid || p.sourceIid, card:p.card || p.sourceCard, rect:from, fromRect:from, toRect:from, startOffset:0, duration:138, easing:'out-quint', lift:.12, rotate:2.2, scale:1.032, priority:'normal'}),
-      cardMove({iid:p.proxyIid || p.sourceIid, card:p.card || p.sourceCard || null, fromRect:from, toRect:liftRect(to, .08) || to, startOffset:60, duration:154, easing:'out-expo-soft', path:'overshoot', arc:.16, lift:.16, rotate:5.2, scale:.88, fadeOut:true, priority:'normal'}),
-      P().soundCue({cue:'supporter_activate', startOffset:76})
+      cardMove({iid:p.iid || p.sourceIid, card:p.card || p.sourceCard, fromRect:from, toRect:show || from, startOffset:0, duration:260, easing:'out-expo-soft', path:'float', arc:.14, lift:.15, rotate:2.0, scale:1.06, textureScale:1.18, holdMs:72, priority:'normal'}),
+      cardMove({iid:p.proxyIid || p.sourceIid, card:p.card || p.sourceCard || null, fromRect:show || from, toRect:liftRect(to, .08) || to, startOffset:286, duration:238, easing:'out-expo-soft', path:'s-curve', arc:.13, lift:.13, rotate:2.8, scale:1, fadeOut:true, priority:'normal'}),
+      P().soundCue({cue:'supporter_activate', startOffset:108})
     ];
   }
 
@@ -452,9 +691,9 @@
     const p = payload || {};
     const rect = payloadRect(p, ['rect', 'zoneRect', 'targetRect']);
     return [
-      P().cardLift({iid:p.iid, card:p.card || null, rect, fromRect:rect, toRect:rect, startOffset:0, duration:120, easing:'out-quint', lift:.045, rotate:.6, scale:1.01, priority:'normal'}),
-      impact(p.iid, rect, 86, .030),
-      P().soundCue({cue:'landscape_trigger', startOffset:86})
+      P().cardLift({iid:p.iid, card:p.card || null, rect, fromRect:rect, toRect:rect, startOffset:0, duration:160, easing:'out-quint', lift:.045, rotate:.25, scale:1.012, priority:'normal'}),
+      impact(p.iid, rect, 118, .014),
+      P().soundCue({cue:'landscape_trigger', startOffset:106})
     ];
   }
 
@@ -471,8 +710,8 @@
     const rect = payloadRect(p, ['rect', 'targetRect', 'cardRect']);
     const nudge = offsetRect(rect, rect ? Math.max(2, rect.w * .018) : 0, 0);
     return [
-      snapMove({iid:p.iid, card:p.card, fromRect:rect, toRect:nudge || rect, startOffset:0, duration:46, rotate:1.0, scale:1.006, priority:'high'}),
-      snapMove({iid:p.iid, card:p.card, fromRect:nudge || rect, toRect:rect, startOffset:44, duration:64, rotate:-.8, scale:1.0, priority:'high'}),
+      snapMove({iid:p.iid, card:p.card, fromRect:rect, toRect:nudge || rect, startOffset:0, duration:74, rotate:.8, scale:1.006, priority:'high'}),
+      snapMove({iid:p.iid, card:p.card, fromRect:nudge || rect, toRect:rect, startOffset:70, duration:92, rotate:-.6, scale:1.0, priority:'high'}),
       P().soundCue({cue:'invalid_action', startOffset:24})
     ];
   }
@@ -481,11 +720,11 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'targetRect', 'rect']) || from;
-    const hang = liftRect(to, .14);
+    const hang = featuredRect(to, 1.32, {lift:.24}) || liftRect(to, .16);
     return [
-      cardMove({iid:p.iid, card:p.card, fromRect:from || scaleRect(to, .86), toRect:hang || to, startOffset:0, duration:330, easing:'out-expo-soft', path:'overshoot', arc:.18, lift:.20, rotate:4.2, scale:1.058, overshoot:.045, holdMs:52, fadeIn:!from, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, fromRect:hang || from || to, toRect:to, startOffset:360, duration:80, easing:'snap-settle', path:'direct', rotate:-1.6, priority:'high'}),
-      P().soundCue({cue:'card_reveal', startOffset:104})
+      cardMove({iid:p.iid, card:p.card, fromRect:from || to, toRect:hang || to, startOffset:0, duration:386, easing:'out-expo-soft', path:'showcase', arc:.20, lift:.23, rotate:2.6, scale:1.08, textureScale:1.24, overshoot:.018, holdMs:80, fadeIn:!from, priority:'high'}),
+      cardMove({iid:p.iid, card:p.card, fromRect:hang || from || to, toRect:to, startOffset:474, duration:142, easing:'snap-settle', path:'direct', rotate:-.8, landSquash:.010, priority:'high'}),
+      P().soundCue({cue:'card_reveal', startOffset:122})
     ];
   }
 
@@ -494,19 +733,21 @@
       const p = payload || {};
       const r = payloadRect(p, ['rect', 'targetRect', 'cardRect']);
       return [
-        P().cardLift({iid:p.iid, card:p.card, rect:r, fromRect:r, toRect:r, startOffset:0, duration:82, easing:'out-quint', lift:.065, rotate:-1.2, scale:1.018, priority:'normal'}),
-        P().cardFlip({iid:p.iid, card:p.card, rect:r, startOffset:54, duration:280, glowColor:'rgba(255,232,150,.20)', revealFlash:false, noGlow:true}),
-        P().cardImpact({iid:p.iid, card:p.card, rect:r, startOffset:316, duration:92, amplitude:.026, priority:'normal'}),
-        P().soundCue({cue:'card_flip', startOffset:196})
+        P().cardLift({iid:p.iid, card:p.card, rect:r, fromRect:r, toRect:r, startOffset:0, duration:150, easing:'out-quint', lift:.060, rotate:-.5, scale:1.020, priority:'normal'}),
+        P().cardFlip({iid:p.iid, card:p.card, rect:r, startOffset:104, duration:346, glowColor:'rgba(255,232,150,.12)', revealFlash:false, noGlow:true}),
+        P().cardImpact({iid:p.iid, card:p.card, rect:r, startOffset:426, duration:86, amplitude:.010, priority:'normal'}),
+        P().soundCue({cue:'card_flip', startOffset:238})
       ];
     },
     PLAY_CARD:playCard,
+    SET_CONFIRM:setConfirm,
+    SET_DRAG_LAND:setDragLand,
     DRAW_CARD:drawCard,
     DISCARD_CARD:discardCard,
     DESTROY_CARD:destroyCard,
     MOVE_CARD:moveCard,
     SWAP_CARDS:swapCards,
-    RETURN_TO_HAND:function(payload){ return moveCard(Object.assign({cue:'return_to_hand', path:'withdraw', rotate:-2.0, scale:.97, duration:MOTION.normal}, payload || {})); },
+    RETURN_TO_HAND:function(payload){ return moveCard(Object.assign({cue:'return_to_hand', path:'withdraw', rotate:-2.0, scale:1, duration:MOTION.normal}, payload || {})); },
     HAND_DISCARD:discardCard,
     DECK_TO_BOARD:playCard,
     DECK_TO_HAND:drawCard,
@@ -553,6 +794,13 @@
         available:true,
         version:VERSION,
         styleVersion:STYLE_VERSION,
+        motionLanguage:{
+          profiles:Object.keys(MOTION_PROFILES),
+          compositorOnly:true,
+          particles:false,
+          domMotion:false,
+          texturePreflightScale:true
+        },
         mode:'motion-only',
         particles:false,
         recipes:Object.keys(recipes),
