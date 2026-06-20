@@ -1551,6 +1551,21 @@ function playSfx(type) {
   } catch(e){}
 }
 
+function playEffectActivationClickSfx(opts) {
+  const options = opts || {};
+  const now = Date.now();
+  const key = options.remote ? '__fateLastRemoteEffectActivateSfxAt' : '__fateLastLocalEffectActivateSfxAt';
+  const minGap = Math.max(0, Number(options.minGapMs) || 120);
+  if(typeof window !== 'undefined') {
+    const last = Number(window[key]) || 0;
+    if(now - last < minGap) return false;
+    window[key] = now;
+  }
+  if(typeof playSfx === 'function') playSfx('effectActivate');
+  return true;
+}
+window.playEffectActivationClickSfx = playEffectActivationClickSfx;
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  AUDIO SYSTEM
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -2813,7 +2828,7 @@ window.viewPublicDeck = function(id){
         <div class="pd-rating" style="margin-bottom:.5rem;"><span class="pd-stars" style="font-size:1.1rem;">${renderStars(rating)}</span><span style="color:var(--dim);">${rating.toFixed(1)} (${d.ratings.length})</span></div>
         <div style="font-style:italic;color:var(--text);font-size:.9rem;line-height:1.5;">${escapeHtml(d.description||'No description.')}</div>
         <div style="margin-top:.8rem;">
-          <button class="btn sm" onclick="loadPublicDeck('${d.id}')" ${Object.values(PRESET_DECKS).some(p=>p._importedFromPublicId===d.id||(p.name===d.name+' (imported)'&&JSON.stringify(p.ids)===JSON.stringify(d.ids)))?'disabled style="opacity:.5;"':''}>${Object.values(PRESET_DECKS).some(p=>p._importedFromPublicId===d.id||(p.name===d.name+' (imported)'&&JSON.stringify(p.ids)===JSON.stringify(d.ids)))?'Already Imported':'Import to My Presets'}</button>
+          <button class="btn sm" onclick="loadPublicDeck('${d.id}')">Import</button>
           <button class="btn sm" onclick="rateDeck('${d.id}')">Rate</button>
         </div>
         <div id="pd-inline-rate"></div>
@@ -2873,30 +2888,62 @@ window.viewPublicDeck = function(id){
   }
 };
 
+function publicDeckImportIcon(kind){
+  if(kind === 'challenger') return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 8l18 8v13c0 12-7 21-18 27-11-6-18-15-18-27V16l18-8z" stroke-width="4"/><path d="M23 31h18M32 21v22" stroke-width="4"/><path d="M23 43c5 4 13 4 18 0" stroke-width="3" opacity=".55"/></g></svg>';
+  return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="14" width="40" height="36" rx="5" stroke-width="4"/><path d="M20 24h24M20 33h24M20 42h14" stroke-width="3.5"/><path d="M44 39l6 6-6 6" stroke-width="3"/></g></svg>';
+}
+
+function showPublicDeckImportChoice(id, d){
+  if(!d) return;
+  if(typeof resetModalChrome === 'function') resetModalChrome();
+  const total = Array.isArray(d.ids) ? d.ids.length : 0;
+  const unique = new Set(d.ids || []).size;
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '<div class="public-import-choice">'
+    + '<div class="public-import-choice-head"><span>Import Destination</span><h2>' + escapeHtml(d.name || 'Shared Deck') + '</h2><p>Choose where this public deck should land.</p></div>'
+    + '<div class="public-import-choice-meta"><span><b>' + total + '</b><em>cards</em></span><span><b>' + unique + '</b><em>unique</em></span></div>'
+    + '<div class="public-import-choice-grid">'
+    +   '<button type="button" class="public-import-option public-import-option-challenger" data-dest="challenger">'
+    +     '<span class="public-import-option-icon">' + publicDeckImportIcon('challenger') + '</span>'
+    +     '<span class="public-import-option-copy"><b>Challenger Deck</b><em>Save it if you own every card. Otherwise load the owned cards into the Challenger builder.</em></span>'
+    +   '</button>'
+    +   '<button type="button" class="public-import-option public-import-option-title" data-dest="title">'
+    +     '<span class="public-import-option-icon">' + publicDeckImportIcon('title') + '</span>'
+    +     '<span class="public-import-option-copy"><b>Title Deck Builder</b><em>Open this list as an unsaved title-screen builder deck.</em></span>'
+    +   '</button>'
+    + '</div></div>';
+  document.getElementById('modal-title').textContent = '';
+  const acts = document.getElementById('modal-acts');
+  acts.innerHTML = '';
+  const back=document.createElement('button');back.className='btn sm';back.textContent='Back';back.onclick=()=>viewPublicDeck(id);
+  const close=document.createElement('button');close.className='btn sm';close.textContent='Cancel';close.onclick=closeModal;
+  acts.appendChild(back);
+  acts.appendChild(close);
+  const meta = {
+    publicId:id,
+    name:d.name || 'Shared Deck',
+    description:d.description || '',
+    faceCardId:d.faceCardId || '',
+    displayCardIds:Array.isArray(d.displayCardIds) ? d.displayCardIds : []
+  };
+  body.querySelector('[data-dest="challenger"]').onclick = function(){
+    if(typeof window.importIdsToChallengerDeckBuilder !== 'function'){ toast('Challenger deck builder is not ready'); return; }
+    const result = window.importIdsToChallengerDeckBuilder(d.ids || [], meta);
+    if(result && (result.saved || result.alreadyImported) && typeof closeModal === 'function') closeModal();
+  };
+  body.querySelector('[data-dest="title"]').onclick = function(){
+    if(typeof window.importIdsToTitleDeckBuilder !== 'function'){ toast('Deck Builder is not ready'); return; }
+    window.importIdsToTitleDeckBuilder(d.ids || [], meta);
+  };
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-import-choice-modal');
+  document.getElementById('modal').classList.add('on');
+}
+
 window.loadPublicDeck = function(id){
   const d = PUBLIC_DECKS.find(x=>x.id===id);
   if(!d) return;
-  const alreadyImported = Object.values(PRESET_DECKS).some(p =>
-    p._importedFromPublicId === id ||
-    (p.name === d.name + ' (imported)' && JSON.stringify(p.ids) === JSON.stringify(d.ids))
-  );
-  if(alreadyImported){
-    toast('Already imported this deck');
-    return;
-  }
-  const key = 'user_'+Date.now();
-  PRESET_DECKS[key] = {
-    name: d.name+' (imported)',
-    description: d.description||'',
-    theme: 'Imported',
-    ids: [...d.ids],
-    faceCardId: d.faceCardId,
-    displayCardIds: d.displayCardIds||[],
-    _importedFromPublicId: id
-  };
-  savePresetsToStorage();
-  toast('Deck imported to your presets');
-  viewPublicDeck(id);
+  showPublicDeckImportChoice(id, d);
 };
 
 window.rateDeck = function(id){

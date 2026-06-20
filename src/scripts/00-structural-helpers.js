@@ -408,11 +408,40 @@ function createCardInstance(cardDef, owner) {
   if (card.cantBeReduced === undefined) card.cantBeReduced = false;
   if (card.cantBeMoved === undefined) card.cantBeMoved = false;
   if (card.faceDown === undefined) card.faceDown = false;
+  applyPermanentEffectImmunity(card);
   return card;
 }
 
 function isFaceDownCard(card) {
   return !!(card && card.faceDown);
+}
+
+function isAlpineInfantryCard(card) {
+  return !!(card && String(card.id || '') === '76');
+}
+
+function isCardEffectImmutable(card) {
+  return isAlpineInfantryCard(card);
+}
+
+function isFullyEffectImmuneCard(card) {
+  if (!card || isFaceDownCard(card)) return false;
+  return isCardEffectImmutable(card) || card.immuneFlag === true || card.opponentEffectImmune === true;
+}
+
+function applyPermanentEffectImmunity(card) {
+  if (!isCardEffectImmutable(card)) return false;
+  card.immuneFlag = true;
+  card.noBonus = true;
+  card.noConsolidate = true;
+  card.cantBeReduced = true;
+  card._effectImmutable = true;
+  delete card._wciBonus;
+  delete card._handCostDelta;
+  delete card._reinforcementBonus;
+  delete card._markedForDeath;
+  delete card._reinforcementOverride;
+  return true;
 }
 
 function canViewerSeeFaceDownCard(card, viewerP = getPerspectivePlayerIndex()) {
@@ -424,6 +453,34 @@ function getLiveCardFate(card) {
   if (!card) return 0;
   if (typeof card.currentFate === 'number') return card.currentFate;
   return typeof card.fate === 'number' ? card.fate : 0;
+}
+
+function markEffectFateVisualDelta(card, beforeValue, afterValue, source = 'effect') {
+  if (!card) return false;
+  const before = Math.max(0, Number(beforeValue) || 0);
+  const after = Math.max(0, Number(afterValue) || 0);
+  if (before === after) return false;
+  card._effectFateVisualSeq = (Number(card._effectFateVisualSeq) || 0) + 1;
+  card._effectFateVisualDelta = {
+    seq: card._effectFateVisualSeq,
+    before,
+    after,
+    delta: after - before,
+    source: String(source || 'effect'),
+    at: Date.now()
+  };
+  return true;
+}
+
+function shouldShowEffectFateVisualDelta(card, beforeValue, afterValue) {
+  if (!card || !card._effectFateVisualDelta) return false;
+  const marker = card._effectFateVisualDelta;
+  const before = Math.max(0, Number(beforeValue) || 0);
+  const after = Math.max(0, Number(afterValue) || 0);
+  if (before === after) return false;
+  if (Number(marker.before) !== before || Number(marker.after) !== after) return false;
+  if (Number(marker.delta) !== after - before) return false;
+  return Date.now() - (Number(marker.at) || 0) <= 3500;
 }
 
 function getPrintedFateLabel(card) {
@@ -491,26 +548,103 @@ function isSnowOnCarpathiansLandscapeActive() {
 
 function getPlacedCardFate(card, options = {}) {
   if (!card) return 0;
+  applyPermanentEffectImmunity(card);
   const printedFate = typeof card.fate === 'number' ? card.fate : 0;
   const tributeCount = typeof options.tributeCount === 'number' ? options.tributeCount : 0;
   const bonusFate = typeof options.bonusFate === 'number' ? options.bonusFate : 0;
   const carriedDelta = getLiveCardFate(card) - printedFate;
   const basePlacedFate = printedFate;
-  let placedFate = basePlacedFate + carriedDelta + bonusFate;
-  if (card._wciBonus) placedFate += 2;
+  let placedFate = basePlacedFate + carriedDelta;
+  if (!isCardEffectImmutable(card)) {
+    placedFate += bonusFate;
+    if (card._wciBonus) placedFate += 2;
+  }
   return placedFate;
 }
 
 function getDisplayedCardCost(card) {
   if (!card) return 0;
+  applyPermanentEffectImmunity(card);
   const owner = getPlayerForHandCard(card);
   if (card.id === '86' && playerHasMoreCharactersThanSupportersInHand(owner)) return 0;
   if (card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia'])) return 0;
+  if (isCardEffectImmutable(card)) return Math.max(0, typeof card.cost === 'number' ? card.cost : 0);
   return Math.max(0, (typeof card.cost === 'number' ? card.cost : 0) + (Number(card._handCostDelta) || 0));
+}
+
+function recordHandCardEffectModifier(card, effect) {
+  if (!card || !effect) return false;
+  const key = String(effect.key || effect.name || 'effect');
+  if (!Array.isArray(card._handEffectModifiers)) card._handEffectModifiers = [];
+  let row = card._handEffectModifiers.find(function(item){ return item && item.key === key; });
+  if (!row) {
+    row = {
+      key,
+      name: String(effect.name || 'Effect'),
+      text: String(effect.text || ''),
+      fateDelta: 0,
+      costDelta: 0
+    };
+    card._handEffectModifiers.push(row);
+  }
+  if (effect.name) row.name = String(effect.name);
+  if (effect.text) row.text = String(effect.text);
+  if (Number(effect.fateDelta)) row.fateDelta = (Number(row.fateDelta) || 0) + Number(effect.fateDelta);
+  if (Number(effect.costDelta)) row.costDelta = (Number(row.costDelta) || 0) + Number(effect.costDelta);
+  row.at = Date.now();
+  return true;
+}
+
+function getHandCardEffectModifiers(card) {
+  if (!card || isCardEffectImmutable(card)) return [];
+  const rows = [];
+  const seen = new Set();
+  function addRow(row) {
+    if (!row) return;
+    const key = String(row.key || row.name || rows.length);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const fateDelta = Number(row.fateDelta) || 0;
+    const costDelta = Number(row.costDelta) || 0;
+    let text = String(row.text || '');
+    const parts = [];
+    if (fateDelta) parts.push((fateDelta > 0 ? '+' : '') + fateDelta + ' Fate');
+    if (costDelta) parts.push((costDelta > 0 ? '+' : '') + costDelta + ' Reinforcement cost');
+    if (!text) text = parts.join(', ') || 'Card modified.';
+    rows.push({ key, name:String(row.name || 'Effect'), text, fateDelta, costDelta });
+  }
+  if (Array.isArray(card._handEffectModifiers)) card._handEffectModifiers.forEach(addRow);
+  if (card._wciBonus || Number(card._handCostDelta)) {
+    addRow({
+      key:'west-caribbea-infantry',
+      name:'West Caribbea Infantry',
+      text:'The Company\'s Finest: -1 Reinforcement cost, +2 Fate when set.',
+      fateDelta:card._wciBonus ? 2 : 0,
+      costDelta:Number(card._handCostDelta) || 0
+    });
+  }
+  const printed = Number(card.fate);
+  const current = Number(card.currentFate);
+  if (Number.isFinite(printed) && Number.isFinite(current) && current !== printed && !rows.some(function(row){ return Number(row.fateDelta) !== 0; })) {
+    addRow({
+      key:'fate-modified',
+      name:'Fate Modified',
+      text:(current > printed ? '+' : '') + (current - printed) + ' Fate from an active effect.',
+      fateDelta:current - printed
+    });
+  }
+  return rows;
 }
 
 function getSupportReinforcementValue(card) {
   if (!card) return 0;
+  applyPermanentEffectImmunity(card);
+  if (isCardEffectImmutable(card)) {
+    if (card.id === '86') return 3;
+    if (card.id === '09' && (card.usesLeft === null || card.usesLeft > 0)) return 2;
+    if (card.id === '37' && card._returnUsed) return 0.5;
+    return 1;
+  }
   if (card._markedForDeath) return 0; // Vigilantes: marked cards have 0 reinforcement
   let value = 1;
   if (card.id === '86') value = 3;
@@ -526,6 +660,17 @@ function consumePendingPlacementFlags(sourceCard, placedCard) {
   if (placedCard && placedCard._wciBonus) delete placedCard._wciBonus;
   if (sourceCard && sourceCard._handCostDelta) delete sourceCard._handCostDelta;
   if (placedCard && placedCard._handCostDelta) delete placedCard._handCostDelta;
+  if (sourceCard && sourceCard._handEffectModifiers) delete sourceCard._handEffectModifiers;
+  if (placedCard && placedCard._handEffectModifiers) delete placedCard._handEffectModifiers;
+}
+
+if (typeof window !== 'undefined') {
+  window.isAlpineInfantryCard = isAlpineInfantryCard;
+  window.isCardEffectImmutable = isCardEffectImmutable;
+  window.isFullyEffectImmuneCard = isFullyEffectImmuneCard;
+  window.applyPermanentEffectImmunity = applyPermanentEffectImmunity;
+  window.recordHandCardEffectModifier = recordHandCardEffectModifier;
+  window.getHandCardEffectModifiers = getHandCardEffectModifiers;
 }
 
 function getPlacementAnimationDurationMs(cardOrRarity) {

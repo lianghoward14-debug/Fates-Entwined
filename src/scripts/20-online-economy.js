@@ -105,8 +105,80 @@
     if(USER_PROFILE.ownedCards[cardId] <= 0) delete USER_PROFILE.ownedCards[cardId];
     return true;
   }
+  function localStorageFlag(name){
+    try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+  }
+  function authorityHttpBaseUrl(){
+    try{
+      const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+      if(explicit) return explicit.replace(/\/+$/, '');
+    }catch(e){}
+    const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
+    if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
+    let wsUrl = '';
+    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
+    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
+    if(!wsUrl) return '';
+    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+  }
+  function flyEconomyEnabled(){
+    return !!authorityHttpBaseUrl() && (
+      localStorageFlag('fateFlyRoomsEnabled') ||
+      localStorageFlag('fateRtdbDisabled') ||
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }
+  function rtdbDisabledMode(){
+    return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+  }
+  async function flyApiRequest(path, opts={}){
+    const base = authorityHttpBaseUrl();
+    if(!base) throw new Error('Fly authority API URL is not configured');
+    const headers = {'accept':'application/json'};
+    const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
+    if(token) headers.authorization = 'Bearer ' + token;
+    const method = String(opts.method || 'GET').toUpperCase();
+    const init = {method, headers};
+    if(opts.body !== undefined){
+      headers['content-type'] = 'application/json';
+      init.body = JSON.stringify(opts.body || {});
+    }
+    const res = await fetch(base + path, init);
+    if(!res.ok){
+      const text = await res.text().catch(()=> '');
+      throw new Error('Fly economy API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+    }
+    return await res.json();
+  }
+  function applyFlyMarketplacePayload(data){
+    marketplaceListings = Array.isArray(data?.listings) ? data.listings : [];
+    marketplaceTransactions = Array.isArray(data?.transactions) ? data.transactions : [];
+    marketplaceLoaded = true;
+    window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+    window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
+    updateMarketplaceRedeemButton();
+  }
+  async function refreshFlyMarketplace(){
+    if(!flyEconomyEnabled()) return null;
+    const data = await flyApiRequest(`/api/marketplace/listings?limit=${MARKETPLACE_FEED_LIMIT}`);
+    applyFlyMarketplacePayload(data);
+    try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){ console.warn('Marketplace render failed', e); }
+    return data;
+  }
+  async function refreshFlyPublicDecks(){
+    if(!flyEconomyEnabled()) return null;
+    const data = await flyApiRequest(`/api/public-decks?limit=${PUBLIC_DECK_FEED_LIMIT}`);
+    publicDecksLoaded = true;
+    publicDecks = (Array.isArray(data?.decks) ? data.decks : []).map(normalizePublicDeck);
+    window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
+    try{
+      if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
+    }catch(e){ console.warn('Public decks refresh failed', e); }
+    return data;
+  }
   function canUseFirebase(){
-    return !!(FO.rtdb && FO.ref && FO.onValue && FO.set && FO.update && FO.remove && FO.push);
+    return !flyEconomyEnabled() && !rtdbDisabledMode() && !!(FO.rtdb && FO.ref && FO.onValue && FO.set && FO.update && FO.remove && FO.push);
   }
   function cappedFeed(path, child, limit){
     const base = FO.ref(FO.rtdb, path);
@@ -115,6 +187,10 @@
       : base;
   }
   function watchMarketplace(){
+    if(flyEconomyEnabled()){
+      if(!marketplaceLoaded) refreshFlyMarketplace().catch(e=>console.warn('Fly marketplace refresh failed', e));
+      return;
+    }
     if(!canUseFirebase() || marketplaceUnsub) return;
     marketplaceUnsub = FO.onValue(cappedFeed('marketplace/listings', 'createdAt', MARKETPLACE_FEED_LIMIT), snap=>{
       marketplaceLoaded = true;
@@ -134,6 +210,10 @@
     }, err=>console.warn('Marketplace subscription failed', err));
   }
   function watchPublicDecks(){
+    if(flyEconomyEnabled()){
+      if(!publicDecksLoaded) refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks refresh failed', e));
+      return;
+    }
     if(!canUseFirebase() || publicDecksUnsub) return;
     publicDecksUnsub = FO.onValue(cappedFeed('publicDeckSummaries', 'updatedAt', PUBLIC_DECK_FEED_LIMIT), snap=>{
       publicDecksLoaded = true;
@@ -170,7 +250,7 @@
   async function publishDeck(deck){
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return null; }
-    if(!canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return null; }
+    if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return null; }
     const p = await FO.syncPublicProfile().catch(()=>profile());
     const id = deck.id || deck.deckId || `${u.uid}_${Date.now()}`;
     const ids = Array.isArray(deck.ids) ? deck.ids.slice(0, 80) : [];
@@ -206,6 +286,19 @@
       totalCards:ids.length,
       uniqueCards:uniqueIds.length
     };
+    if(flyEconomyEnabled()){
+      const data = await flyApiRequest('/api/public-decks', {
+        method:'POST',
+        body:{uid:u.uid, profile:p, deck:detail}
+      });
+      const saved = normalizePublicDeck(data.deck || detail);
+      publicDeckDetailCache.set(saved.deckId || saved.id, saved);
+      publicDecks = [saved, ...publicDecks.filter(d=>d.id !== saved.id && d.deckId !== saved.deckId)];
+      publicDecksLoaded = true;
+      window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
+      if(window.toast) toast('Deck published');
+      return saved.deckId || saved.id;
+    }
     await FO.update(FO.ref(FO.rtdb), {
       [`publicDeckSummaries/${id}`]:summary,
       [`publicDeckDetails/${id}`]:detail
@@ -217,11 +310,32 @@
   async function listMarketplaceCard(cardId, price){
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return null; }
-    if(!canUseFirebase()){ if(window.toast) toast('Online marketplace is not ready'); return null; }
+    if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online marketplace is not ready'); return null; }
     const c = cardById(cardId);
     if(!c){ if(window.toast) toast('Card not found'); return null; }
     if(!removeOwned(cardId, 1)){ if(window.toast) toast('You no longer own that card'); return null; }
     const sellerProfile = await FO.syncPublicProfile().catch(()=>profile());
+    if(flyEconomyEnabled()){
+      try{
+        const data = await flyApiRequest('/api/marketplace/listings', {
+          method:'POST',
+          body:{uid:u.uid, profile:sellerProfile, cardId, price:Math.max(10, Number(price || 100) || 100)}
+        });
+        const localListing = data.listing;
+        marketplaceListings = [localListing, ...marketplaceListings.filter(l=>l.listingId !== localListing.listingId)];
+        marketplaceLoaded = true;
+        window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+        if(typeof saveProfile === 'function') saveProfile();
+        if(window.toast) toast(`${c.name} listed for ${localListing.price} Starlight`);
+        try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){}
+        updateMarketplaceRedeemButton();
+        return localListing.listingId;
+      }catch(err){
+        addOwned(cardId, 1);
+        if(typeof saveProfile === 'function') saveProfile();
+        throw err;
+      }
+    }
     const listing = FO.push(FO.ref(FO.rtdb, 'marketplace/listings'));
     const payload = {
       listingId:listing.key,
@@ -256,8 +370,8 @@
     const el = document.getElementById('marketplace-listings');
     if(!el) return;
     updateMarketplaceRedeemButton();
-    const listings = canUseFirebase() ? marketplaceListings : (USER_PROFILE?.marketplace?.listings || []);
-    if(canUseFirebase() && !marketplaceLoaded){
+    const listings = (flyEconomyEnabled() || canUseFirebase()) ? marketplaceListings : (USER_PROFILE?.marketplace?.listings || []);
+    if((flyEconomyEnabled() || canUseFirebase()) && !marketplaceLoaded){
       el.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--dim);font-style:italic;">Loading marketplace...</div>`;
       return;
     }
@@ -386,6 +500,31 @@
     if((USER_PROFILE.starlight || 0) < price){ if(window.toast) toast('Not enough Starlight'); return; }
     const c = cardById(l.cardId);
     if(!c) return;
+    if(flyEconomyEnabled() && l.listingId){
+      USER_PROFILE.starlight -= price;
+      addOwned(l.cardId, 1);
+      try{
+        const data = await flyApiRequest(`/api/marketplace/listings/${encodeURIComponent(l.listingId)}/buy`, {
+          method:'POST',
+          body:{uid:user()?.uid || '', profile:profile()}
+        });
+        marketplaceListings = marketplaceListings.filter(item=>item.listingId !== l.listingId);
+        marketplaceTransactions = [data.listing, ...marketplaceTransactions.filter(item=>item.listingId !== l.listingId)].slice(0, 80);
+        window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+        window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
+      }catch(e){
+        USER_PROFILE.starlight += price;
+        removeOwned(l.cardId, 1);
+        console.warn('Fly marketplace buy failed', e);
+        if(window.toast) toast('Marketplace purchase failed');
+        return;
+      }
+      if(typeof saveProfile === 'function') saveProfile();
+      if(typeof playSfx === 'function') playSfx('starPlace');
+      if(typeof switchChTab === 'function') switchChTab('store');
+      setTimeout(()=>showMarketplacePurchaseNotice(c, price), 120);
+      return;
+    }
     USER_PROFILE.starlight -= price;
     addOwned(l.cardId, 1);
     if(canUseFirebase() && l.listingId){
@@ -433,6 +572,28 @@
     const pending = pendingSoldListings();
     const total = pending.reduce((sum,l)=>sum + Number(l.price || 0), 0);
     if(total <= 0){ if(window.toast) toast('No sales to redeem'); updateMarketplaceRedeemButton(); return; }
+    if(flyEconomyEnabled()){
+      const data = await flyApiRequest('/api/marketplace/redeem', {
+        method:'POST',
+        body:{uid:u?.uid || ''}
+      }).catch(e=>{
+        console.warn('Fly marketplace redeem failed', e);
+        if(window.toast) toast('Could not redeem sales');
+        return null;
+      });
+      if(!data) return;
+      const redeemedTotal = Number(data.redeemedStarlight || total) || total;
+      USER_PROFILE.starlight = (USER_PROFILE.starlight || 0) + redeemedTotal;
+      const redeemedIds = new Set((data.listings || []).map(l=>l.listingId));
+      marketplaceTransactions.forEach(l=>{
+        if(redeemedIds.has(l.listingId)){ l.sellerRedeemed = true; l.redeemedAt = l.redeemedAt || Date.now(); }
+      });
+      if(typeof saveProfile === 'function') saveProfile();
+      if(typeof updateChTopbar === 'function') updateChTopbar();
+      updateMarketplaceRedeemButton();
+      if(window.toast) toast(`Redeemed ${redeemedTotal} Starlight`);
+      return;
+    }
     USER_PROFILE.starlight = (USER_PROFILE.starlight || 0) + total;
     if(canUseFirebase()){
       const updates = {};
@@ -453,7 +614,7 @@
 
   window.showMarketplaceTransactions = function showMarketplaceTransactions(page=marketplaceTxPage){
     ensureWatchers('marketplace');
-    const tx = canUseFirebase()
+    const tx = (flyEconomyEnabled() || canUseFirebase())
       ? marketplaceTransactions
       : (USER_PROFILE?.marketplace?.listings || []).filter(l=>String(l.status || '') === 'sold');
     const pageSize = 10;
@@ -512,7 +673,19 @@
   window.cancelListing = async function cancelListing(i){
     const l = marketplaceListings[i] || USER_PROFILE?.marketplace?.listings?.[i];
     if(!l) return;
-    if(canUseFirebase() && l.listingId){
+    if(flyEconomyEnabled() && l.listingId){
+      const data = await flyApiRequest(`/api/marketplace/listings/${encodeURIComponent(l.listingId)}/cancel`, {
+        method:'POST',
+        body:{uid:user()?.uid || ''}
+      }).catch(e=>{
+        console.warn('Fly marketplace cancel failed', e);
+        if(window.toast) toast('Could not cancel listing');
+        return null;
+      });
+      if(!data) return;
+      marketplaceListings = marketplaceListings.filter(item=>item.listingId !== l.listingId);
+      window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+    }else if(canUseFirebase() && l.listingId){
       await FO.update(FO.ref(FO.rtdb, `marketplace/listings/${l.listingId}`), {
         ...l,
         status:'cancelled',
@@ -563,6 +736,12 @@
   }
   async function loadPublicDeckDetail(id){
     const key = String(id || '');
+    if(key && flyEconomyEnabled()){
+      const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(key)}`);
+      const full = normalizePublicDeck(data.deck || {});
+      if(full.deckId || full.id) publicDeckDetailCache.set(full.deckId || full.id, full);
+      return full;
+    }
     if(!key || !canUseFirebase()) return publicDeckById(key);
     const summary = publicDecks.find(d=>d.id === key || d.deckId === key) || {};
     const [detailSnap, ratingsSnap, commentsSnap] = await Promise.all([
@@ -624,7 +803,7 @@
           <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
         </div>
       </section>`;
-    if(canUseFirebase() && !publicDecksLoaded){
+    if((flyEconomyEnabled() || canUseFirebase()) && !publicDecksLoaded){
       html += `<div class="pd-empty-state">
         <div class="pd-empty-title">Loading public decks...</div>
         <p>Fetching the latest shared builds.</p>
@@ -791,12 +970,28 @@
       if(window.toast) toast('You can only remove your own public decks');
       return;
     }
-    if(!canUseFirebase()){
+    if(!flyEconomyEnabled() && !canUseFirebase()){
       if(window.toast) toast('Online economy is not ready');
       return;
     }
     let removed = true;
     const deckId = d.deckId || d.id;
+    if(flyEconomyEnabled()){
+      await flyApiRequest(`/api/public-decks/${encodeURIComponent(deckId)}/delete`, {
+        method:'POST',
+        body:{uid:user()?.uid || ''}
+      }).catch(e=>{
+        console.error('Remove Fly public deck failed', e);
+        if(window.toast) toast('Could not remove deck');
+        removed = false;
+      });
+      if(!removed) return;
+      publicDecks = publicDecks.filter(deck => deck.id !== id && deck.deckId !== id);
+      publicDeckDetailCache.delete(deckId);
+      if(window.toast) toast('Deck removed from Public Decks');
+      showPublicDecks(publicDecksPage);
+      return;
+    }
     await FO.update(FO.ref(FO.rtdb), {
       [`publicDeckSummaries/${deckId}`]:null,
       [`publicDeckDetails/${deckId}`]:null,
@@ -877,27 +1072,68 @@
     if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-comments-modal');
   };
 
+  function publicDeckImportIcon(kind){
+    if(kind === 'challenger') return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 8l18 8v13c0 12-7 21-18 27-11-6-18-15-18-27V16l18-8z" stroke-width="4"/><path d="M23 31h18M32 21v22" stroke-width="4"/><path d="M23 43c5 4 13 4 18 0" stroke-width="3" opacity=".55"/></g></svg>';
+    return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="14" width="40" height="36" rx="5" stroke-width="4"/><path d="M20 24h24M20 33h24M20 42h14" stroke-width="3.5"/><path d="M44 39l6 6-6 6" stroke-width="3"/></g></svg>';
+  }
+
+  function showPublicDeckImportChoice(id, d){
+    if(!d) return;
+    if(typeof resetModalChrome === 'function') resetModalChrome();
+    const total = Array.isArray(d.ids) ? d.ids.length : 0;
+    const unique = new Set(d.ids || []).size;
+    const body = document.getElementById('modal-body');
+    body.innerHTML = '<div class="public-import-choice">'
+      + '<div class="public-import-choice-head"><span>Import Destination</span><h2>' + esc(d.name || 'Shared Deck') + '</h2><p>Choose where this public deck should land.</p></div>'
+      + '<div class="public-import-choice-meta"><span><b>' + total + '</b><em>cards</em></span><span><b>' + unique + '</b><em>unique</em></span></div>'
+      + '<div class="public-import-choice-grid">'
+      +   '<button type="button" class="public-import-option public-import-option-challenger" data-dest="challenger">'
+      +     '<span class="public-import-option-icon">' + publicDeckImportIcon('challenger') + '</span>'
+      +     '<span class="public-import-option-copy"><b>Challenger Deck</b><em>Save it if you own every card. Otherwise load the owned cards into the Challenger builder.</em></span>'
+      +   '</button>'
+      +   '<button type="button" class="public-import-option public-import-option-title" data-dest="title">'
+      +     '<span class="public-import-option-icon">' + publicDeckImportIcon('title') + '</span>'
+      +     '<span class="public-import-option-copy"><b>Title Deck Builder</b><em>Open this list as an unsaved title-screen builder deck.</em></span>'
+      +   '</button>'
+      + '</div></div>';
+    document.getElementById('modal-title').textContent = '';
+    const acts = document.getElementById('modal-acts');
+    acts.innerHTML = '';
+    const back = document.createElement('button');
+    back.className = 'btn sm';
+    back.textContent = 'Back';
+    back.onclick = function(){ viewPublicDeck(id); };
+    acts.appendChild(back);
+    const close = document.createElement('button');
+    close.className = 'btn sm';
+    close.textContent = 'Cancel';
+    close.onclick = closeModal;
+    acts.appendChild(close);
+    const meta = {
+      publicId:id,
+      name:d.name || 'Shared Deck',
+      description:d.description || '',
+      faceCardId:d.faceCardId || '',
+      displayCardIds:Array.isArray(d.displayCardIds) ? d.displayCardIds : []
+    };
+    body.querySelector('[data-dest="challenger"]').onclick = function(){
+      if(typeof window.importIdsToChallengerDeckBuilder !== 'function'){ if(window.toast) toast('Challenger deck builder is not ready'); return; }
+      const result = window.importIdsToChallengerDeckBuilder(d.ids || [], meta);
+      if(result && (result.saved || result.alreadyImported) && typeof closeModal === 'function') closeModal();
+    };
+    body.querySelector('[data-dest="title"]').onclick = function(){
+      if(typeof window.importIdsToTitleDeckBuilder !== 'function'){ if(window.toast) toast('Deck Builder is not ready'); return; }
+      window.importIdsToTitleDeckBuilder(d.ids || [], meta);
+    };
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-import-choice-modal');
+    document.getElementById('modal').classList.add('on');
+  }
+
   window.loadPublicDeck = async function loadPublicDeck(id){
     const d = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
     if(!d) return;
-    const importName = (d.name || 'Shared Deck') + ' (imported)';
-    const alreadyImported = Object.values(PRESET_DECKS || {}).some(function(p){
-      return p._importedFromPublicId === id ||
-        (p.name === importName && JSON.stringify(p.ids) === JSON.stringify(d.ids || []));
-    });
-    if(alreadyImported){
-      if(window.toast) toast('Already imported this deck');
-      return;
-    }
-    const key = 'user_'+Date.now();
-    PRESET_DECKS[key] = {
-      name:importName, description:d.description || '', theme:'Imported',
-      ids:[...(d.ids || [])], faceCardId:d.faceCardId || '',
-      displayCardIds:d.displayCardIds || [], _importedFromPublicId: id
-    };
-    if(typeof savePresetsToStorage === 'function') savePresetsToStorage();
-    if(window.toast) toast('Deck imported to your presets');
-    viewPublicDeck(id);
+    showPublicDeckImportChoice(id, d);
   };
 
   window.rateDeck = function rateDeck(id){
@@ -906,6 +1142,24 @@
   window.submitRating = async function submitRating(id, stars){
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
+    if(flyEconomyEnabled()){
+      const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(id)}/rating`, {
+        method:'POST',
+        body:{uid:u.uid, username:profileName(), stars:Number(stars)}
+      }).catch(e=>{
+        console.warn('Fly rating failed', e);
+        if(window.toast) toast('Rating failed');
+        return null;
+      });
+      if(!data) return;
+      const deck = normalizePublicDeck(data.deck || {});
+      publicDeckDetailCache.set(deck.deckId || deck.id, deck);
+      publicDecks = publicDecks.map(d=>(d.id === id || d.deckId === id) ? normalizePublicDeck({...d, ...deck, ids:[]}) : d);
+      if(window.toast) toast('Rating submitted');
+      viewPublicDeckComments(id);
+      return;
+    }
+    if(!canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return; }
     await FO.set(FO.ref(FO.rtdb, `publicDeckRatings/${id}/${u.uid}`), { uid:u.uid, username:profileName(), stars:Number(stars), timestamp:Date.now(), createdAt:FO.serverTimestamp() }).catch(function(e){ console.warn('Rating failed', e); });
     const deck = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
     const ratings = Array.isArray(deck?.ratings) ? deck.ratings : [];
@@ -920,6 +1174,24 @@
     if(!text){ if(window.toast) toast('Comment cannot be empty'); return; }
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
+    if(flyEconomyEnabled()){
+      const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(id)}/comments`, {
+        method:'POST',
+        body:{uid:u.uid, username:profileName(), text:text.slice(0,240)}
+      }).catch(e=>{
+        console.warn('Fly comment failed', e);
+        if(window.toast) toast('Comment failed');
+        return null;
+      });
+      if(!data) return;
+      const deck = normalizePublicDeck(data.deck || {});
+      publicDeckDetailCache.set(deck.deckId || deck.id, deck);
+      publicDecks = publicDecks.map(d=>(d.id === id || d.deckId === id) ? normalizePublicDeck({...d, ...deck, ids:[]}) : d);
+      const inCommentWindow = !!document.querySelector('#modal .public-deck-comments-modal');
+      setTimeout(()=>inCommentWindow ? viewPublicDeckComments(id) : viewPublicDeck(id), 150);
+      return;
+    }
+    if(!canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return; }
     await FO.push(FO.ref(FO.rtdb, `publicDeckComments/${id}`), { uid:u.uid, username:profileName(), text:text.slice(0,240), timestamp:Date.now(), createdAt:FO.serverTimestamp() }).catch(e=>console.warn('Comment failed', e));
     const deck = await loadPublicDeckDetail(id).catch(()=>publicDeckById(id));
     const commentCount = Array.isArray(deck?.comments) ? deck.comments.length : Number(deck?.commentCount || 0) + 1;

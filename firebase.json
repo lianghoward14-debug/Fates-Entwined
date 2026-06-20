@@ -1,0 +1,13 @@
+{
+  "database": {
+    "rules": "REALTIME_DATABASE_RULES_ONLINE_REBUILD_V1_7_SERVER_AUTHORITATIVE.json"
+  },
+  "emulators": {
+    "database": {
+      "port": 9000
+    },
+    "ui": {
+      "enabled": true
+    }
+  }
+}

@@ -252,14 +252,35 @@
     "challengerAI": {
       "seasons": {
         "$season": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+          "ai": {
+            ".read": "auth != null && query.orderByChild == 'elo' && query.limitToLast <= 100",
+            ".indexOn": ["elo", "updatedAt"],
+            "$aiId": {
+              ".read": "auth != null",
+              ".write": "auth != null && newData.child('aiId').val() == $aiId"
+            }
+          },
+          "simSchedule": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "meta": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "matches": {
+            ".read": false,
+            "$matchId": {
+              ".write": "auth != null && !data.exists()"
+            }
+          }
         }
       }
     },
     "matchResults": {
-      ".read": "auth != null",
+      ".read": false,
       "$matchId": {
+        ".read": "auth != null && data.child('uid').val() == auth.uid",
         ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid"
       }
     },

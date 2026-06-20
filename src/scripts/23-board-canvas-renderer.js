@@ -222,7 +222,8 @@
       }
       return window.FateCardTextureCache.getBaseCardTexture(card, {w:rect.w, h:rect.h}, {
         visual,
-        dpr:window.devicePixelRatio || 1,
+        dpr:Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1))),
+        preferFullArt:true,
         onChange:textureCacheCallback
       });
     } catch(e) {
@@ -663,6 +664,7 @@
     ctx.save();
     roundedPath(ctx, x, y, w, h, radius);
     ctx.clip();
+    if(card && card._markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'grayscale(1) saturate(0) brightness(.78) contrast(.94)';
     const src = visual && (visual.runtimeImg || visual.img);
     const baseTexture = getBaseCardTexture((options && options.textureCard) || card, visual, rect);
     if(baseTexture && baseTexture.loaded && !baseTexture.failed && baseTexture.canvas) {
@@ -688,14 +690,6 @@
 
     drawTributeCue(ctx, rect, options && options.tributeState);
     drawFateBadge(ctx, visual, card, rect, false, options && options.fateAnim);
-
-    if(card && card._markedForDeath){
-      ctx.save();
-      roundedPath(ctx, x, y, w, h, radius);
-      ctx.fillStyle = 'rgba(80,0,0,.28)';
-      ctx.fill();
-      ctx.restore();
-    }
 
     return true;
   }
@@ -753,7 +747,11 @@
       const nextNum = Number(nextFate);
       rec.delta = Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0;
       rec.fate = nextFate;
-      rec.changedAt = shouldAnimateCanvasFateBadges() ? performance.now() : 0;
+      const showDelta = rec.delta
+        && typeof shouldShowEffectFateVisualDelta === 'function'
+        && shouldShowEffectFateVisualDelta(card, prevNum, nextNum);
+      rec.changedAt = showDelta && shouldAnimateCanvasFateBadges() ? performance.now() : 0;
+      if(!showDelta) rec.delta = 0;
     }
     return rec;
   }

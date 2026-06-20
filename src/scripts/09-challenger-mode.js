@@ -3129,6 +3129,80 @@ function cdbNewDeck() {
   renderChDeckBuilderTab(document.getElementById('ch-content'));
 }
 
+function buildChallengerImportDeck(ids) {
+  const rawIds = Array.isArray(ids) ? ids : [];
+  const owned = USER_PROFILE.ownedCards || {};
+  const deck = [];
+  let missingOwned = 0;
+  let skipped = 0;
+  let starUsed = false;
+  rawIds.forEach(id=>{
+    if(deck.length >= 40) { skipped++; return; }
+    const c = CARDS.find(card=>card.id===id);
+    if(!c || (typeof isRetiredChallengerCard === 'function' && isRetiredChallengerCard(c))) { skipped++; return; }
+    const ownedCount = Number(owned[id] || 0) || 0;
+    const inDeck = deck.filter(x=>x===id).length;
+    if(inDeck >= ownedCount) { missingOwned++; return; }
+    const limit = c.rarity === 'star' ? 1 : 3;
+    if(inDeck >= limit) { skipped++; return; }
+    if(c.rarity === 'star' && starUsed) { skipped++; return; }
+    deck.push(id);
+    if(c.rarity === 'star') starUsed = true;
+  });
+  return {ids:deck, missingOwned, skipped, requested:rawIds.length};
+}
+
+function importIdsToChallengerDeckBuilder(ids, meta = {}) {
+  const result = buildChallengerImportDeck(ids);
+  const importName = (meta.name || 'Shared Deck') + ' (imported)';
+  const complete = result.ids.length === Math.min(40, result.requested) && result.missingOwned === 0 && result.skipped === 0 && result.ids.length === 40;
+
+  if(complete) {
+    if(!USER_PROFILE.challengerPresets) USER_PROFILE.challengerPresets = {};
+    const alreadyImportedKey = Object.keys(USER_PROFILE.challengerPresets).find(pid=>{
+      const p = USER_PROFILE.challengerPresets[pid] || {};
+      return p._importedFromPublicId === meta.publicId ||
+        (p.name === importName && JSON.stringify(p.ids || []) === JSON.stringify(result.ids));
+    });
+    if(alreadyImportedKey) {
+      toast('Already imported this deck to Challenger');
+      return Object.assign({saved:false, alreadyImported:true}, result);
+    }
+    const pid = createChallengerDeckId('ch_public');
+    USER_PROFILE.challengerPresets[pid] = {
+      name: importName,
+      description: meta.description || '',
+      theme: 'Imported',
+      ids: result.ids.slice(),
+      faceCardId: meta.faceCardId || '',
+      displayCardIds: Array.isArray(meta.displayCardIds) ? meta.displayCardIds.slice(0, 7) : [],
+      _importedFromPublicId: meta.publicId || ''
+    };
+    saveProfile();
+    if(typeof playSfx === 'function') playSfx('deckComplete');
+    toast('Deck imported to My Challenger Decks');
+    return Object.assign({saved:true, presetId:pid}, result);
+  }
+
+  _cdbCurrentDeckId = null;
+  _cdbCurrentDeckIds = result.ids.slice(0, 40);
+  _cdbCurrentName = importName;
+  _cdbCurrentDesc = meta.description || '';
+  _cdbFilter = 'all';
+  _cdbSearch = '';
+  if(typeof closeModal === 'function') closeModal();
+  CURRENT_MODE = 'challenger';
+  if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
+  if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
+  if(typeof showScreen === 'function') showScreen('s-challenger');
+  switchChTab('deckbuilder', {force:true});
+  const missing = result.missingOwned + result.skipped;
+  if(missing > 0) toast(`Missing ${missing} card${missing===1?'':'s'}; imported ${result.ids.length} cards to the Challenger builder.`);
+  else toast(`Imported ${result.ids.length} cards to the Challenger builder.`);
+  return Object.assign({saved:false}, result);
+}
+window.importIdsToChallengerDeckBuilder = importIdsToChallengerDeckBuilder;
+
 function cdbEditDeck(pid) {
   const presets = USER_PROFILE.challengerPresets || {};
   const p = presets[pid];
@@ -3628,12 +3702,24 @@ function setMatchmakingStatus(text) {
   if(el) el.textContent = text || 'Ranked Matchmaking';
 }
 
+function hasOnlineQueueTransport() {
+  if(window.FateOnline?.rtdb) return true;
+  try {
+    const status = typeof window.fateGetWebSocketAuthorityStatus === 'function'
+      ? window.fateGetWebSocketAuthorityStatus()
+      : null;
+    return !!(status && status.flyRooms);
+  } catch(e) {
+    return false;
+  }
+}
+
 function showMatchmakingScreen(opts={}) {
   clearMatchmakingTimers();
   showScreen('s-matchmaking');
   const queueMode = opts.queueMode || (CURRENT_MODE === 'free' ? 'freeplay' : 'ranked');
   const queueFn = queueMode === 'freeplay' ? window.fateStartFreePlayRandomQueue : window.fateStartChallengerRandomQueue;
-  const useOnlineQueue = !!(opts.onlineQueue && window.FATE_ONLINE?.user && window.FateOnline?.rtdb && typeof queueFn === 'function');
+  const useOnlineQueue = !!(opts.onlineQueue && window.FATE_ONLINE?.user && hasOnlineQueueTransport() && typeof queueFn === 'function');
   setMatchmakingStatus(useOnlineQueue ? (queueMode === 'freeplay' ? 'Free Play Human Queue' : 'Random Human Queue') : (CURRENT_MODE === 'free' ? 'Free Play Matchmaking' : 'Ranked Matchmaking'));
   _matchmakingBgIdx = 1;
   updateMatchmakingBg();
@@ -5124,14 +5210,18 @@ window._fateStopOfflineSimulations = function(){
   if(_fateSimFriendReqInterval){ clearInterval(_fateSimFriendReqInterval); _fateSimFriendReqInterval = null; }
   if(_fateSimPartyInviteInterval){ clearInterval(_fateSimPartyInviteInterval); _fateSimPartyInviteInterval = null; }
 };
+function fateOnlineLayerLoaded(){
+  const online = window.FateOnline;
+  return !!(online && (online.rtdb || online.auth || typeof online.rtdbDisabledMode === 'function' || typeof online.rtdbAvailable === 'function'));
+}
 function simulateIncomingFriendRequests() {
   if(_fateSimFriendReqInterval) return;
   // Skip entirely if the online layer is loaded — these simulations are pure
   // overhead for online users and were leaking forever even though the inner
   // body early-returns when signed in.
-  if(window.FateOnline && window.FateOnline.rtdb) return;
+  if(fateOnlineLayerLoaded()) return;
   _fateSimFriendReqInterval = setInterval(() => {
-    if(window.FateOnline?.rtdb || window.FATE_ONLINE?.user){
+    if(fateOnlineLayerLoaded() || window.FATE_ONLINE?.user){
       // User came online after sim started — shut it down for good
       window._fateStopOfflineSimulations();
       return;
@@ -5167,9 +5257,9 @@ function simulateIncomingFriendRequests() {
 // Simulate incoming party invites
 function simulatePartyInvites() {
   if(_fateSimPartyInviteInterval) return;
-  if(window.FateOnline && window.FateOnline.rtdb) return;
+  if(fateOnlineLayerLoaded()) return;
   _fateSimPartyInviteInterval = setInterval(() => {
-    if(window.FateOnline?.rtdb || window.FATE_ONLINE?.user){
+    if(fateOnlineLayerLoaded() || window.FATE_ONLINE?.user){
       window._fateStopOfflineSimulations();
       return;
     }

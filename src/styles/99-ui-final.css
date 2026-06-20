@@ -451,6 +451,30 @@
 
 /* Rivera status-effect pill with affiliation icon. */
 #s-game .effect-pill.effect-pill-rivera{border-color:rgba(201,168,76,.55)!important;background:linear-gradient(180deg,rgba(42,34,15,.82),rgba(7,8,14,.88))!important;}
+#s-game .effect-pill.effect-pill-guerilla{
+  border-color:rgba(130,194,88,.58)!important;
+  background:linear-gradient(180deg,rgba(34,48,21,.84),rgba(7,10,8,.9))!important;
+  color:#e4f4c9!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{color:#a9df72!important;}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{
+  width:20px!important;
+  min-width:20px!important;
+  height:20px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon svg{
+  width:17px!important;
+  height:17px!important;
+  max-width:17px!important;
+  max-height:17px!important;
+  transform:translate(-.25px,-.75px)!important;
+  transform-origin:center center!important;
+  overflow:visible!important;
+}
 #s-game .effect-pill-aff-img{width:100%!important;height:100%!important;object-fit:contain!important;padding:2px!important;border-radius:50%!important;display:block!important;}
 #s-game .effect-pill-turns{
   position:absolute!important;right:-5px!important;bottom:-5px!important;min-width:14px!important;height:14px!important;padding:0 3px!important;
@@ -712,13 +736,28 @@
 
 /* v10: persistent status banners for Berkeley/Rivera should be visibly pill-like. */
 #s-game .effect-pill.effect-pill-rivera,
-#s-game .effect-pill.effect-pill-berkeley{
+#s-game .effect-pill.effect-pill-berkeley,
+#s-game .effect-pill.effect-pill-selva{
   min-height:24px!important;border-radius:999px!important;
   box-shadow:0 1px 8px rgba(201,168,76,.24),inset 0 1px 0 rgba(255,255,255,.08)!important;
 }
 #s-game .effect-pill.effect-pill-berkeley{
   border-color:rgba(58,143,217,.6)!important;
   background:linear-gradient(180deg,rgba(20,42,76,.86),rgba(7,8,14,.9))!important;
+}
+#s-game .effect-pill.effect-pill-selva{
+  border-color:rgba(65,190,210,.62)!important;
+  background:linear-gradient(180deg,rgba(14,54,64,.86),rgba(7,8,14,.9))!important;
+}
+#s-game .effect-pill.effect-pill-selva .effect-pill-icon{
+  color:#66e0dc!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#s-game .effect-pill.effect-pill-selva .effect-pill-icon svg{
+  width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important;
+  transform:translateY(-.5px)!important;
 }
 
 /* v10: floating Berkeley status banner reuses the Rivera banner shell. */
@@ -888,6 +927,13 @@
 #s-game .effect-pill-aff-svg svg{
   width:15px!important;height:15px!important;max-width:15px!important;max-height:15px!important;
   transform:none!important;display:block!important;overflow:visible!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{
+  width:23px!important;height:23px!important;min-width:23px!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon svg{
+  width:19px!important;height:19px!important;max-width:19px!important;max-height:19px!important;
+  transform:translate(-.25px,-.5px)!important;
 }
 #s-game .effect-pill-label{line-height:1!important;}
 

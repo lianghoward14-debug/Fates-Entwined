@@ -793,7 +793,10 @@ function getStatusEffectIcon(kind) {
     scout: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="28" cy="28" r="12"/><path d="M37 37l13 13"/><path d="M28 22v12M22 28h12" opacity=".7"/></g></svg>`,
     unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M9 37c4-9 10-13 16-13 8 0 10 8 16 8 4 0 8-2 14-9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 27c4 9 10 13 16 13 8 0 10-8 16-8 4 0 8 2 14 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="20"/><path d="M32 20v14l9 6"/><path d="M48 16l4-4"/></g></svg>`,
-    affiliation_buff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="18"/><path d="M32 18v28M18 32h28"/><path d="M20 20l8 8M44 20l-8 8" opacity=".35"/></g></svg>`
+    affiliation_buff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="18"/><path d="M32 18v28M18 32h28"/><path d="M20 20l8 8M44 20l-8 8" opacity=".35"/></g></svg>`,
+    selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 44c6-4 12-6 19-6s13 2 19 6" fill="none" stroke-width="4.5"/><path d="M14 51c6 2 12 2 18 0s12-2 18 0" fill="none" stroke-width="3" opacity=".55"/><path d="M32 15v28" fill="none" stroke-width="4"/><path d="M30 18c-7 3-12 9-15 18h15V18z" fill="currentColor" stroke="none"/><path d="M36 20c6 4 10 9 12 16H36V20z" fill="currentColor" stroke="none" opacity=".62"/><circle cx="48" cy="16" r="4" fill="currentColor" stroke="none" opacity=".75"/></g></svg>`,
+    guerilla: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27h28l7 4-7 4H16z" stroke-width="2.8"/><path d="M16 28l-6-4v13l6-4" stroke-width="2.6"/><path d="M46 31h9" stroke-width="2.6"/><path d="M24 23h17" stroke-width="2.4"/><path d="M30 36h7l-2 10h-9z" stroke-width="2.6"/><path d="M40 36l7 8" stroke-width="2.6"/><circle cx="24" cy="31" r="1.8" stroke-width="2.4"/></g></svg>`,
+    lydia: `<svg class="lydia-berknomaly-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 27) scale(.48)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M-45 11C-37-31-8-47 0-47C8-47 37-31 45 11" stroke-width="7.5"/><path d="M-30 32L-47 50L-30 67" stroke-width="7.5"/><path d="M30 32L47 50L30 67" stroke-width="7.5"/><path d="M-17 5L0-14L17 5L0 24Z" stroke-width="6"/><path d="M0 31V76" stroke-width="7.5"/></g></svg>`
   };
   return icons[kind] || icons.buff;
 }
@@ -898,9 +901,9 @@ function createBoardCardEl(card, z, r, c) {
   const visual = getCardVisualData(card, perspectivePlayer, {forceBoardHidden:true, boardPos:{z,r,c}});
   const isHidden = !!visual?.isHidden;
   el.dataset.owner=String(card.owner);
-  // Check if this card is suppressed by Secules or Lydia
+  // Check if this card is suppressed by reaction effects.
   const isSuppressedBySecules = card.type==='Coordinator' && typeof isCoordinatorSuppressedAt==='function' && isCoordinatorSuppressedAt(z,r,c);
-  const isSuppressedByLydia = card.type==='Supporter' && card._lydiaSuppressed;
+  const isSuppressedByLydia = card.type==='Supporter' && (card._lydiaSuppressed || card._reactionSuppressed);
   const isSuppressed = isSuppressedBySecules || isSuppressedByLydia;
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(card.immuneFlag?' immune':'')
@@ -1202,6 +1205,30 @@ function renderTopbarEffects() {
       cardAbility: card ? card.ability : '',
       cardEffect: card ? card.effect : 'Next character added to your hand costs 1 less Reinforcement and gains 2 Fate.',
       owner: wciOwner
+    });
+  }
+
+  const wineCountryCard = CARDS.find(c => c.id === '70');
+  if(G && Array.isArray(G.players)) {
+    G.players.forEach(function(player, holder){
+      const hand = player && Array.isArray(player.hand) ? player.hand : [];
+      const infiltrators = hand.filter(function(c){
+        return c && String(c.id) === '70' && c.guerilla_transferred && (Number(c.guerilla_turnsLeft) || 0) > 0;
+      });
+      if(!infiltrators.length) return;
+      const turns = Math.max(0, Math.max.apply(null, infiltrators.map(function(c){ return Number(c.guerilla_turnsLeft) || 0; })));
+      const count = infiltrators.length;
+      const sourceOwner = coerceStatusOwner(infiltrators[0].guerilla_owner, 1 - holder);
+      allEffects.push({
+        icon:getStatusEffectIcon('guerilla'),
+        label:'A Gun Behind Every Grapevine',
+        cardName:wineCountryCard ? wineCountryCard.name : 'Wine Country Guerilla',
+        cardAbility:wineCountryCard ? wineCountryCard.ability : 'A Gun Behind Every Grapevine',
+        cardEffect:'Wine Country Guerilla is infiltrating the opposing hand. At the start of that opponent\'s turn, it reduces a random eligible card in their hand by 2 Fate. ' + turns + ' turn' + (turns === 1 ? '' : 's') + ' remaining.',
+        owner:sourceOwner,
+        extraClass:'effect-pill-guerilla',
+        turnsLeft:turns
+      });
     });
   }
 
@@ -1637,6 +1664,14 @@ function activateSelvaIslandsPirateFromHand(card) {
   }
 }
 
+function playEffectActivationButtonSound() {
+  if(typeof window !== 'undefined' && typeof window.playEffectActivationClickSfx === 'function') {
+    return window.playEffectActivationClickSfx();
+  }
+  if(typeof playSfx === 'function') playSfx('effectActivate');
+  return true;
+}
+
 function openCardDetail(card, fromHand=false, fromBoard=false) {
   if(!card){
     if(G.selectedHandCard!==null) card=G.players[G.currentPlayer].hand[G.selectedHandCard];
@@ -1691,6 +1726,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         const guer=document.createElement('button');
         guer.className='btn sm pri';guer.textContent='Activate Effect';
         guer.onclick=()=>{
+          playEffectActivationButtonSound();
           if(typeof activateWineCountryGuerillaFromHand === 'function') activateWineCountryGuerillaFromHand(card);
         };
         acts.appendChild(guer);
@@ -1740,61 +1776,83 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   }
   if(fromBoard && G.selectedBoardCard){
     const {card:bc,z,r,c}=G.selectedBoardCard;
-    const boardActionPlayer = (G._onlineRoomCode && Number.isInteger(G.localPlayerIndex)) ? G.localPlayerIndex : G.currentPlayer;
-    const canUseBoardCard = bc.owner===boardActionPlayer && (!G._onlineRoomCode || G.currentPlayer===boardActionPlayer);
+    const boardActionPlayer = G._onlineRoomCode
+      ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : null)
+      : getPerspectivePlayerIndex();
+    const canUseBoardCard = Number.isInteger(boardActionPlayer)
+      && bc.owner===boardActionPlayer
+      && G.currentPlayer===boardActionPlayer
+      && G.phase==='main'
+      && !G._isSpectator
+      && G._onlineRole !== 'spectator';
+    const canActivateDeferredSetEffect = Number.isInteger(boardActionPlayer)
+      && !isFaceDownCard(bc)
+      && typeof canActivatePendingWhenSetEffect === 'function'
+      && canActivatePendingWhenSetEffect(bc, z, r, c, boardActionPlayer);
     if(isFaceDownCard(bc) && canUseBoardCard){
       const flip=document.createElement('button');
       flip.className='btn sm pri';
       flip.textContent='Flip Face Up';
       flip.onclick=()=>{
         closeModal();
+        playEffectActivationButtonSound();
         const delay = flipFaceDownBoardCard(bc, z, r, c);
-        if(delay > 0 && typeof playSfx === 'function') playSfx('effect');
       };
       acts.appendChild(flip);
     }
-    if(canUseBoardCard && bc.type!=='Supporter' && !isFaceDownCard(bc)){
+    if(canActivateDeferredSetEffect){
+      const setAct=document.createElement('button');
+      setAct.className='btn sm pri';
+      setAct.textContent='Activate Effect';
+      setAct.onclick=()=>{playEffectActivationButtonSound(); activatePendingWhenSetEffect(bc,z,r,c);};
+      acts.appendChild(setAct);
+    }
+    const canActivateManualCharacterEffect = typeof shouldShowManualCharacterEffectButton === 'function'
+      ? shouldShowManualCharacterEffectButton(bc)
+      : ['21', '38', '40'].includes(String(bc.id || ''));
+    if(!canActivateDeferredSetEffect && canUseBoardCard && canActivateManualCharacterEffect && bc.type!=='Supporter' && !isFaceDownCard(bc)){
       // Coordinators: passive, no manual activation needed
       if(bc.type==='Coordinator'){
         // No button needed — coordinators are automatic
       } else if(bc.type==='Initiator' && bc.effectUsedInitial){
         // Initiator already fired — no button
-      } else if(bc.type==='Improvisor'){
+      } else if(bc.type==='Improvisor' && String(bc.id || '') !== '40'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
         act.className='btn sm pri';act.textContent='Activate Effect';
-        act.onclick=()=>triggerCharacterEffect(bc,z,r,c);
+        act.onclick=()=>{playEffectActivationButtonSound();triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
     }
     // Show Discard button for your own board cards (except ALPINE Infantry)
     if(canUseBoardCard && bc.id!=='76'){
       // Supporter active abilities — specific cards with board-activated effects
-      if(bc.type==='Supporter' && !isFaceDownCard(bc)){
+      if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
+        const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
         // Vigilantes (52): discard 4 supporters to remove a card (once per turn)
-        if(bc.id==='52' && !bc.vigilanteUsed){
+        if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
           const vigBtn=document.createElement('button');
           vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
-          vigBtn.onclick=()=>{closeModal();activateVigilantes(bc,z,r,c);};
+          vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
           acts.appendChild(vigBtn);
         }
         // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
-        if(bc.id==='54' && !bc.wolfCreekUsed){
+        if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
           const wcBtn=document.createElement('button');
           wcBtn.className='btn sm pri';wcBtn.textContent='Elusive Movements';
-          wcBtn.onclick=()=>{closeModal();activateWolfCreek(bc,z,r,c);};
+          wcBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWolfCreek(bc,z,r,c);};
           acts.appendChild(wcBtn);
         }
         // ALPINE Expeditionary (73): move once per turn
-        if(bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
+        if(!supporterActionsSuppressed && bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
           expBtn.className='btn sm pri';expBtn.textContent='Move (once/turn)';
-          expBtn.onclick=()=>{closeModal();activateExpeditionaryMove(bc,z,r,c);};
+          expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
         }
         // Busser movement: any card with _busserMoves can move to adjacent zone
-        if(bc._busserMoves > 0 && !bc._busserMovedThisTurn){
+        if(!supporterActionsSuppressed && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
           const busBtn=document.createElement('button');
           busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
           busBtn.onclick=()=>{closeModal();activateBusserMove(bc,z,r,c);};
@@ -1871,6 +1929,8 @@ function showModal(title, bodyHtml, actions) {
   resetModalChrome();
   const titleEl = document.getElementById('modal-title');
   const titleStr = typeof title === 'string' ? title : String(title||'');
+  const effectModalTitles = new Set(['Variable Cost','Over-Reinforcement','Chaparral Hoplite','Artillery Distance','Left Hook of the Incel','Rearrange Top 5']);
+  const effectModal = effectModalTitles.has(titleStr);
   if(titleStr.includes('<')) titleEl.innerHTML = titleStr;
   else titleEl.textContent = titleStr;
   document.getElementById('modal-body').innerHTML=bodyHtml;
@@ -1880,7 +1940,12 @@ function showModal(title, bodyHtml, actions) {
     const btn=document.createElement('button');
     btn.className='btn sm'+(a.danger?' danger':'')+(a.pri?' pri':'');
     btn.textContent=a.label;
-    btn.onclick=a.action;
+    btn.onclick=function(e){
+      const label = String(a.label || '').toLowerCase();
+      const cancelLike = a.danger || /cancel|close|back|skip|decline|no|leave/.test(label);
+      if(effectModal && !cancelLike) playEffectActivationButtonSound();
+      if(typeof a.action === 'function') return a.action(e);
+    };
     acts.appendChild(btn);
   });
   document.getElementById('modal').classList.add('on');
@@ -2329,29 +2394,39 @@ function showAffiliationPickerVisual(callback) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0));
   if(wait > 0){ setTimeout(()=>showAffiliationPickerVisual(callback), wait); return; }
   const affs = [
-    {key:'reality', label:'Reality'},
-    {key:'third_great_war', label:'Third Great War'},
-    {key:'expanded_worlds', label:'Expanded Worlds'},
-    {key:'eventide', label:'Eventide'}
+    {key:'reality', label:'Reality', note:'Anchors and anomalies', accent:'#e2c657', glow:'226,198,87'},
+    {key:'third_great_war', label:'Third Great War', note:'Front lines and banners', accent:'#e25a4f', glow:'226,90,79'},
+    {key:'expanded_worlds', label:'Expanded Worlds', note:'Maps beyond the map', accent:'#49bf69', glow:'73,191,105'},
+    {key:'eventide', label:'Eventide', note:'Twilight courts and oaths', accent:'#58c4f0', glow:'88,196,240'}
   ];
   const body = document.getElementById('modal-body');
   document.getElementById('modal-title').textContent = 'Declare Affiliation';
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) {
+    modalBox.classList.add('affiliation-picker-modal');
+    modalBox.style.maxWidth = '458px';
+  }
+  if(body) body.style.overflow = 'visible';
   body.innerHTML = `
-    <p style="color:var(--dim);font-style:italic;margin-bottom:1rem;text-align:center;">Choose the affiliation to apply.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;max-width:340px;margin:0 auto;">
+    <div class="aff-pick-shell">
+      <div class="aff-pick-herald">
+        <span class="aff-pick-herald-line"></span>
+        <span class="aff-pick-herald-copy">Choose the banner this effect will name</span>
+        <span class="aff-pick-herald-line"></span>
+      </div>
+      <div class="aff-pick-grid">
       ${affs.map(a=>`
-        <div class="aff-pick-square" data-aff="${a.key}" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:.8rem .5rem;background:rgba(20,22,30,.85);border:2px solid ${AFF_COLOR[a.key]||'var(--border)'};border-radius:10px;transition:all .2s;">
-          <div class="aff-pick-icon-frame" style="width:56px;height:56px;border-radius:50%;overflow:hidden;background:rgba(0,0,0,.3);border:2px solid ${AFF_COLOR[a.key]||'var(--border)'};display:flex;align-items:center;justify-content:center;color:${AFF_COLOR[a.key]||'var(--gold)'};">
+        <button class="aff-pick-square" data-aff="${a.key}" type="button" style="--aff-accent:${a.accent};--aff-glow:${a.glow};" aria-label="Declare ${a.label}">
+          <span class="aff-pick-icon-frame">
             ${typeof getAffIcon==='function' ? getAffIcon(a.key) : ''}
-          </div>
-          <div style="font-family:Cinzel,serif;font-size:.78rem;color:var(--text);text-align:center;line-height:1.2;">${a.label}</div>
-        </div>
+          </span>
+          <span class="aff-pick-label">${a.label}</span>
+          <span class="aff-pick-note">${a.note}</span>
+        </button>
       `).join('')}
+      </div>
     </div>`;
-  // Bind clicks
   body.querySelectorAll('.aff-pick-square').forEach(sq=>{
-    sq.onmouseenter=()=>{ sq.style.transform='scale(1.05)'; sq.style.boxShadow='0 0 16px '+AFF_COLOR[sq.dataset.aff]; };
-    sq.onmouseleave=()=>{ sq.style.transform=''; sq.style.boxShadow=''; };
     sq.onclick=()=>{
       closeModal();
       if(typeof playSfx==='function') playSfx('effect');
@@ -2498,7 +2573,7 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
 
 function pickBoardSupporterEffect(player, z) {
   // Ledger-keepers: copy a supporter effect — visual card picker
-  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','32','33','42','43','51','58','60','64','68','69','71','72','73','76','80'];
+  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','32','33','42','43','51','58','60','68','69','71','72','73','76','80'];
   const supporters=[];
   forEachBoardCard((card,bz,r,c)=>{if(card.type==='Supporter' && whenSetIds.includes(card.id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});});
   if(!supporters.length){toast('No supporters on field');return;}
@@ -2839,6 +2914,7 @@ let _hoverPreviewEl = null;
 let _hoverPreviewSize = null;
 let _hoverPreviewRaf = null;
 let _hoverPreviewPoint = null;
+let _hoverPreviewAnchorRect = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
   try {
@@ -2868,6 +2944,10 @@ function showHoverPreview(card, e) {
 function positionHoverPreview(e) {
   if(!_hoverPreviewEl) return;
   _hoverPreviewPoint = { x:e.clientX, y:e.clientY };
+  const anchorEl = e && e.target && e.target.closest ? e.target.closest('.bc,.opp-card-back,.deck-slot,.discard-slot,.preset-browse-tile') : null;
+  const currentEl = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget : null;
+  const rectEl = anchorEl || currentEl;
+  _hoverPreviewAnchorRect = rectEl && rectEl.getBoundingClientRect ? rectEl.getBoundingClientRect() : null;
   if(_hoverPreviewRaf) return;
   _hoverPreviewRaf = requestAnimationFrame(()=>{
     _hoverPreviewRaf = null;
@@ -2877,9 +2957,11 @@ function positionHoverPreview(e) {
       _hoverPreviewSize = { w:rect.width || 280, h:rect.height || 360 };
     }
     const p = _hoverPreviewPoint;
-    let x = p.x + 16, y = p.y - 20;
     const w = _hoverPreviewSize.w, h = _hoverPreviewSize.h;
-    if(x + w > window.innerWidth - 10) x = p.x - w - 16;
+    const anchor = _hoverPreviewAnchorRect;
+    let x = anchor ? anchor.left - w - 34 : p.x - w - 96, y = p.y - 20;
+    if(x < 10) x = p.x + 16;
+    if(x + w > window.innerWidth - 10) x = window.innerWidth - w - 10;
     if(y + h > window.innerHeight - 10) y = window.innerHeight - h - 10;
     if(y < 10) y = 10;
     _hoverPreviewEl.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
@@ -2890,6 +2972,7 @@ function removeHoverPreview() {
   if(_hoverPreviewEl) { _hoverPreviewEl.remove(); _hoverPreviewEl = null; }
   _hoverPreviewSize = null;
   _hoverPreviewPoint = null;
+  _hoverPreviewAnchorRect = null;
 }
 
 // ── CARD INFO OVERLAY (shows card detail on top of an open modal) ──
@@ -3039,7 +3122,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "11": "Agree to these terms, or you might find an exploding pineapple on your doorstep one day",
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
-  "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
+  "14": "you look exactly like the last 97 men I decapitated!",
   "15": "The sword of King Stephen I will fall upon you!",
   "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
@@ -3064,7 +3147,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "56": "Your godlike powers, versus my rusty sword and undeeeniable face card",
   "57": "We have things in these mountains you'd never dream of",
   "40": "I know it sucks watching me dismemeber, decapitate, and disembowel your mother like that, but for Christ's sake, she was a zombie!",
-  "61": "Uhhhh...you do know that I can blow your brains out before you can reach me with that giant cleaver?",
+  "61": "There's no point trying to run. I'll just put a bullet through your skull.",
   "66": "Look at Curry man, so inspirational",
   "67": "You just said nothing",
   "77": "My heart no longer sings...I've walked a thousand lives of men"

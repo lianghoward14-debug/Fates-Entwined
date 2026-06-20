@@ -1,7 +1,8 @@
 // FATES ENTWINED — CLOUD SAVE LAYER
-// Stores all player data in Firebase RTDB under players/{uid}/.
-// localStorage is kept as a fast cache; Firebase is the source of truth.
-// Requires window.FateOnline (from 15-online-auth.js) for Firebase access.
+// Stores all player data under the signed-in account.
+// localStorage is kept as a fast cache; Fly player-save is used in RTDB-disabled
+// mode, with Firebase RTDB remaining as the legacy fallback source of truth.
+// Requires window.FateOnline (from 15-online-auth.js) for auth/Firebase access.
 
 (function(){
   'use strict';
@@ -15,7 +16,78 @@
   window._fateCloudReady = false;
   window._fateCloudUid = null;
 
+  function _localStorageFlag(name){
+    try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+  }
+
+  function _authorityHttpBaseUrl(){
+    try{
+      var explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+      if(explicit) return explicit.replace(/\/+$/, '');
+    }catch(e){}
+    var globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
+    if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
+    var wsUrl = '';
+    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
+    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
+    if(!wsUrl) return '';
+    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+  }
+
+  function _useFlyCloudSave(){
+    return !!_authorityHttpBaseUrl() && (
+      _localStorageFlag('fateFlyRoomsEnabled') ||
+      _localStorageFlag('fateRtdbDisabled') ||
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }
+
+  function _rtdbDisabledMode(){
+    return _localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+  }
+
+  function _flyApiRequest(path, opts){
+    var base = _authorityHttpBaseUrl();
+    if(!base) return Promise.reject(new Error('Fly authority API URL is not configured'));
+    var FO = window.FateOnline || {};
+    var headers = {'accept':'application/json'};
+    var method = String((opts && opts.method) || 'GET').toUpperCase();
+    var init = {method:method, headers:headers};
+    var tokenPromise = FO.auth && FO.auth.currentUser && typeof FO.auth.currentUser.getIdToken === 'function'
+      ? FO.auth.currentUser.getIdToken(false).catch(function(){ return ''; })
+      : Promise.resolve('');
+    return tokenPromise.then(function(token){
+      if(token) headers.authorization = 'Bearer ' + token;
+      if(opts && Object.prototype.hasOwnProperty.call(opts, 'body')){
+        headers['content-type'] = 'application/json';
+        init.body = JSON.stringify(opts.body || {});
+      }
+      return fetch(base + path, init);
+    }).then(function(res){
+      return res.text().then(function(text){
+        var json = null;
+        try{ json = text ? JSON.parse(text) : null; }catch(e){}
+        if(!res.ok || (json && json.ok === false)) throw new Error('Fly cloud save failed: ' + res.status + ' ' + ((json && json.error) || text.slice(0, 160)));
+        return json || {};
+      });
+    });
+  }
+
+  function _flyCloudWritePath(uid, path, data){
+    if(!uid || !path) return Promise.resolve();
+    var payload = {};
+    payload[path] = data;
+    return _flyApiRequest('/api/player-save/' + encodeURIComponent(uid), {
+      method:'POST',
+      body:{uid:uid, data:payload}
+    }).catch(function(e){
+      console.warn('[CloudSave] Fly write failed for ' + path, e);
+    });
+  }
+
   function _fb(){
+    if(_useFlyCloudSave() || _rtdbDisabledMode()) return null;
     var FO = window.FateOnline;
     if(!FO || !FO.rtdb || !FO.ref || !FO.set || !FO.get || !FO.update) return null;
     return FO;
@@ -34,6 +106,10 @@
     clearTimeout(_cloudSaveDebounceTimers[key]);
     _cloudSaveDebounceTimers[key] = setTimeout(function(){
       if(_cloudUid !== uidAtSchedule) return;
+      if(_useFlyCloudSave()){
+        _flyCloudWritePath(uidAtSchedule, path, data);
+        return;
+      }
       var FO = _fb();
       if(!FO) return;
       var r = FO.ref(FO.rtdb, 'players/' + uidAtSchedule + '/' + path);
@@ -53,6 +129,7 @@
 
   // Immediate write (for critical saves like after a match)
   function _immediateCloudWrite(path, data){
+    if(_useFlyCloudSave() && _cloudUid) return _flyCloudWritePath(_cloudUid, path, data);
     var r = _userRef(path);
     if(!r) return Promise.resolve();
     var FO = _fb();
@@ -145,48 +222,76 @@
     _debouncedCloudWrite('settings', 'settings', settings, 800);
   }
 
+  function _buildCloudSavePayload(uid){
+    var payload = {};
+    var profile = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : null;
+    if(profile){
+      if(profile._fateAccountUid && profile._fateAccountUid !== uid){
+        console.warn('[CloudSave] blocked cross-account full profile write');
+      }else{
+        payload.profile = Object.assign({}, profile, {_fateAccountUid:uid});
+      }
+    }
+    var presets = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
+    if(presets != null) payload.presets = presets;
+    var lb = typeof LEADERBOARD !== 'undefined' ? LEADERBOARD : null;
+    if(lb) payload.leaderboard = lb;
+    var pd = typeof PUBLIC_DECKS !== 'undefined' ? PUBLIC_DECKS : null;
+    if(pd) payload.publicDecks = pd;
+    try {
+      var mh = localStorage.getItem('fate_match_history');
+      if(mh) payload.matchHistory = JSON.parse(mh);
+    } catch(e){}
+    try {
+      var dc = localStorage.getItem('fate_daily_challenges');
+      var date = typeof getDailyChallengeDate === 'function' ? getDailyChallengeDate() : '';
+      var prog = date ? localStorage.getItem('fate_daily_progress_' + date) : null;
+      var bonus = date ? localStorage.getItem('fate_daily_bonus_' + date) : null;
+      var daily = {};
+      if(dc) daily.challenges = JSON.parse(dc);
+      if(prog) daily.progress = JSON.parse(prog);
+      if(date) daily.date = date;
+      if(bonus) daily.bonusClaimed = true;
+      if(Object.keys(daily).length) payload.daily = daily;
+    } catch(e){}
+    try {
+      var ai = localStorage.getItem('fate_ai_elo_state');
+      if(ai) payload.aiEloState = JSON.parse(ai);
+    } catch(e){}
+    try {
+      var soc = localStorage.getItem('fate_social');
+      if(soc) payload.social = JSON.parse(soc);
+    } catch(e){}
+    var settings = {};
+    try { settings.menuV2 = localStorage.getItem('fate_menu_v2'); } catch(e){}
+    try { settings.sidePanel = localStorage.getItem('fate_side_panel'); } catch(e){}
+    payload.settings = settings;
+    return payload;
+  }
+
   // Save everything in a single batched write (used on sign-in migration)
   function cloudSaveAll(){
     if(!_cloudUid) return;
+    if(_useFlyCloudSave()){
+      var flyData = _buildCloudSavePayload(_cloudUid);
+      if(Object.keys(flyData).length){
+        _flyApiRequest('/api/player-save/' + encodeURIComponent(_cloudUid), {
+          method:'POST',
+          body:{uid:_cloudUid, data:flyData}
+        }).catch(function(e){
+          console.warn('[CloudSave] Fly batched migration write failed', e);
+        });
+      }
+      return;
+    }
     var FO = _fb();
     if(!FO) return;
     var batch = {};
     var uid = _cloudUid;
     var base = 'players/' + uid + '/';
     try {
-      var profile = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : null;
-      if(profile){
-        if(profile._fateAccountUid && profile._fateAccountUid !== uid){
-          console.warn('[CloudSave] blocked cross-account full profile write');
-        } else {
-          batch[base + 'profile'] = Object.assign({}, profile, {_fateAccountUid:uid});
-        }
-      }
-      var presets = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
-      if(presets != null) batch[base + 'presets'] = presets;
-      var lb = typeof LEADERBOARD !== 'undefined' ? LEADERBOARD : null;
-      if(lb) batch[base + 'leaderboard'] = lb;
-      var pd = typeof PUBLIC_DECKS !== 'undefined' ? PUBLIC_DECKS : null;
-      if(pd) batch[base + 'publicDecks'] = pd;
-      try { var mh = localStorage.getItem('fate_match_history'); if(mh) batch[base + 'matchHistory'] = JSON.parse(mh); } catch(e){}
-      try {
-        var dc = localStorage.getItem('fate_daily_challenges');
-        var date = typeof getDailyChallengeDate === 'function' ? getDailyChallengeDate() : '';
-        var prog = date ? localStorage.getItem('fate_daily_progress_' + date) : null;
-        var bonus = date ? localStorage.getItem('fate_daily_bonus_' + date) : null;
-        var daily = {};
-        if(dc) daily.challenges = JSON.parse(dc);
-        if(prog) daily.progress = JSON.parse(prog);
-        if(date) daily.date = date;
-        if(bonus) daily.bonusClaimed = true;
-        if(Object.keys(daily).length) batch[base + 'daily'] = daily;
-      } catch(e){}
-      try { var ai = localStorage.getItem('fate_ai_elo_state'); if(ai) batch[base + 'aiEloState'] = JSON.parse(ai); } catch(e){}
-      try { var soc = localStorage.getItem('fate_social'); if(soc) batch[base + 'social'] = JSON.parse(soc); } catch(e){}
-      var settings = {};
-      try { settings.menuV2 = localStorage.getItem('fate_menu_v2'); } catch(e){}
-      try { settings.sidePanel = localStorage.getItem('fate_side_panel'); } catch(e){}
-      batch[base + 'settings'] = settings;
+      var payload = _buildCloudSavePayload(uid);
+      Object.keys(payload).forEach(function(key){ batch[base + key] = payload[key]; });
     } catch(e){ console.warn('[CloudSave] batch build failed', e); }
     if(Object.keys(batch).length){
       FO.update(FO.ref(FO.rtdb), batch).catch(function(e){
@@ -199,6 +304,22 @@
   // Loads all data from Firebase and writes into globals + localStorage cache
 
   function cloudLoadAll(uid){
+    if(_useFlyCloudSave()){
+      return _flyApiRequest('/api/player-save/' + encodeURIComponent(uid), {method:'GET'})
+        .then(function(res){
+          var data = res && res.data;
+          if(!data){
+            console.log('[CloudSave] No Fly cloud data for ' + uid + ' - will upload current local data');
+            return false;
+          }
+          console.log('[CloudSave] Loaded Fly cloud data for ' + uid);
+          _applyCloudData(data, uid);
+          return true;
+        }).catch(function(e){
+          console.warn('[CloudSave] Failed to load Fly cloud data', e);
+          return false;
+        });
+    }
     var FO = _fb();
     if(!FO || !uid) return Promise.resolve(false);
     var playerRef = FO.ref(FO.rtdb, 'players/' + uid);

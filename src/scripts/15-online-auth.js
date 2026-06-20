@@ -1,8 +1,8 @@
 
 // FATES ENTWINED ONLINE REBUILD V1
-// Google auth + Firebase RTDB identity foundation.
-// Cloud save: all player data is stored in Firebase under players/{uid}/ and
-// loaded on sign-in. localStorage serves as a fast cache only.
+// Google auth + online identity foundation.
+// In RTDB-disabled/Fly mode, public profile and cloud-save traffic is routed to
+// the Fly authority. Firebase RTDB remains the legacy fallback path.
 
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check.js';
@@ -38,12 +38,15 @@ function getAppCheckSiteKey(){
     return String(localStorage.getItem('fateAppCheckSiteKey') || '');
   }catch(_){ return ''; }
 }
-function shouldUseAppCheckDebug(){
+function isLocalAppCheckHost(){
   try{
-    if(localStorage.getItem('fateAppCheckDebug') === '1') return true;
     const host = String(location.hostname || '').toLowerCase();
     return host === 'localhost' || host === '127.0.0.1' || host === '' || location.protocol === 'file:';
   }catch(_){ return false; }
+}
+function shouldUseAppCheckDebug(){
+  if(!isLocalAppCheckHost()) return false;
+  return true;
 }
 let appCheck = null;
 try{
@@ -63,20 +66,21 @@ try{
   console.warn('[FateOnline] App Check initialization skipped', e);
 }
 const auth = getAuth(app);
-const rtdb = getDatabase(app);
+const rawRtdb = rtdbDisabledMode() ? null : getDatabase(app);
+const rtdb = rawRtdb;
 
 // Disable Firebase internal stats reporting to prevent promise feedback loop
 // that causes 12fps lock during gameplay
 try {
-  const _origSet = rtdb._repo?.server_?.reportStats;
-  if(rtdb._repo && rtdb._repo.server_) {
+  const _origSet = rtdb?._repo?.server_?.reportStats;
+  if(rtdb?._repo && rtdb._repo.server_) {
     rtdb._repo.server_.reportStats = function(){};
   }
   // Also try to disable via the connection
   setTimeout(function(){
     try {
-      if(rtdb._repo && rtdb._repo.server_) rtdb._repo.server_.reportStats = function(){};
-      if(rtdb._repo && rtdb._repo.server_ && rtdb._repo.server_.connection_) {
+      if(rtdb?._repo && rtdb._repo.server_) rtdb._repo.server_.reportStats = function(){};
+      if(rtdb?._repo && rtdb._repo.server_ && rtdb._repo.server_.connection_) {
         var conn = rtdb._repo.server_.connection_;
         if(conn.reportStats) conn.reportStats = function(){};
       }
@@ -260,6 +264,56 @@ function emit(){
 }
 function onAuth(fn){ state.listeners.add(fn); try{ fn(state); }catch(e){} return ()=>state.listeners.delete(fn); }
 
+function localStorageFlag(name){
+  try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+}
+function rtdbDisabledMode(){
+  return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+}
+function rtdbAvailable(){
+  return !rtdbDisabledMode() && !!rtdb;
+}
+function authorityHttpBaseUrl(){
+  try{
+    const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+    if(explicit) return explicit.replace(/\/+$/, '');
+  }catch(e){}
+  const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
+  if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
+  let wsUrl = '';
+  try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
+  if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
+  if(!wsUrl) return '';
+  return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+}
+function flyProfilesEnabled(){
+  return !!authorityHttpBaseUrl() && (
+    localStorageFlag('fateFlyRoomsEnabled') ||
+    localStorageFlag('fateRtdbDisabled') ||
+    window.FATE_FLY_ROOMS_ENABLED === true ||
+    window.FATE_RTDB_DISABLED === true
+  );
+}
+async function flyApiRequest(path, opts={}){
+  const base = authorityHttpBaseUrl();
+  if(!base) throw new Error('Fly authority API URL is not configured');
+  const headers = {'accept':'application/json'};
+  const token = await auth.currentUser?.getIdToken?.().catch(()=> '');
+  if(token) headers.authorization = 'Bearer ' + token;
+  const method = String(opts.method || 'GET').toUpperCase();
+  const init = {method, headers};
+  if(opts.body !== undefined){
+    headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(opts.body || {});
+  }
+  const res = await fetch(base + path, init);
+  if(!res.ok){
+    const text = await res.text().catch(()=> '');
+    throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+  }
+  return await res.json();
+}
+
 async function syncPublicProfile(opts={}){
   const user = auth.currentUser;
   if(!user) return null;
@@ -300,9 +354,41 @@ async function syncPublicProfile(opts={}){
     matchesPlayed,
     rank: getLocalRankLabel(),
     bio: getLocalBio(),
-    updatedAt: serverTimestamp(),
+    updatedAt: rtdbAvailable() ? serverTimestamp() : Date.now(),
     schemaVersion: 1
   };
+  if(flyProfilesEnabled()){
+    const flyPayload = Object.assign({}, payload, {updatedAt:Date.now()});
+    try{
+      const data = await flyApiRequest(`/api/profiles/${encodeURIComponent(uid)}`, {
+        method:'POST',
+        body:{uid, profile:flyPayload}
+      });
+      state.profile = Object.assign({}, flyPayload, data?.profile || {});
+      state.baseCode = baseCode;
+      renderAuthPanel();
+      emit();
+      return state.profile;
+    }catch(e){
+      console.warn('Fly public profile sync failed', e);
+      if(localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true){
+        state.profile = flyPayload;
+        state.baseCode = baseCode;
+        renderAuthPanel();
+        emit();
+        return state.profile;
+      }
+    }
+  }
+  if(!rtdbAvailable()){
+    const localOnlyProfile = Object.assign({}, payload, {updatedAt:Date.now(), rtdbDisabled:true});
+    state.profile = localOnlyProfile;
+    state.baseCode = baseCode;
+    renderAuthPanel();
+    emit();
+    console.warn('[FateOnline] RTDB profile sync skipped because RTDB is disabled and Fly profile sync is unavailable.');
+    return state.profile;
+  }
   const multiPathUpdate = {};
   Object.keys(payload).forEach(k => { multiPathUpdate[`publicProfiles/${uid}/${k}`] = payload[k]; });
   multiPathUpdate[`friendInviteCodes/${baseCode}`] = uid;
@@ -313,6 +399,17 @@ async function syncPublicProfile(opts={}){
   renderAuthPanel();
   emit();
   return payload;
+}
+
+async function getPublicProfileOnline(uid){
+  const safeUid = String(uid || '').trim();
+  if(!safeUid) return null;
+  if(flyProfilesEnabled()){
+    const data = await flyApiRequest(`/api/profiles/${encodeURIComponent(safeUid)}`);
+    return data?.profile || null;
+  }
+  if(!rtdbAvailable()) return null;
+  return (await get(ref(rtdb, `publicProfiles/${safeUid}`))).val();
 }
 
 function renderAuthPanel(){
@@ -395,7 +492,7 @@ async function signIn(){
 async function signOutNow(){
   const oldUser = auth.currentUser;
   try{
-    if(oldUser){
+    if(oldUser && !flyProfilesEnabled() && rtdbAvailable()){
       await update(ref(rtdb, `presence/${oldUser.uid}`), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
     }
     state.unsubs.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
@@ -416,12 +513,39 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
   serverTimestamp, query, orderByChild, orderByKey, startAt, equalTo, limitToFirst, limitToLast, runTransaction,
   onChildAdded,
   onAuth, syncPublicProfile, makeBaseCode, normalizeUsername,
-  getPublicProfile: async uid => (await get(ref(rtdb, `publicProfiles/${uid}`))).val(),
+  getPublicProfile: getPublicProfileOnline,
+  flyProfilesEnabled,
+  rtdbDisabledMode,
+  rtdbAvailable,
   requireUser(){ const u=auth.currentUser; if(!u){ if(window.toast) toast('Sign in with Google first'); throw new Error('not signed in'); } return u; },
   escapeHtml
 });
 window.fateSignInWithGoogle = signIn;
 window.fateSignOut = signOutNow;
+
+async function syncSignedInPresenceAndProfile(user){
+  if(!user) return;
+  if(flyProfilesEnabled()){
+    await syncPublicProfile();
+    return;
+  }
+  if(!rtdbAvailable()){
+    await syncPublicProfile();
+    return;
+  }
+  const pRef = ref(rtdb, `presence/${user.uid}`);
+  await Promise.all([
+    syncPublicProfile(),
+    update(pRef, { uid:user.uid, online:true, lastSeen:serverTimestamp() })
+  ]);
+  onDisconnect(pRef).update({ online:false, lastSeen:serverTimestamp() }).catch(()=>{});
+  const poll = setInterval(()=>{
+    if(auth.currentUser && !document.hidden && !document.getElementById('s-game')?.classList.contains('active')){
+      update(pRef, { online:true, lastSeen:serverTimestamp() }).catch(()=>{});
+    }
+  }, 60000);
+  state.unsubs.push(()=>clearInterval(poll));
+}
 
 async function finishSignedInOnlineStartup(user){
   if(!user || auth.currentUser !== user) return;
@@ -437,14 +561,7 @@ async function finishSignedInOnlineStartup(user){
   }catch(e){ console.warn('Cloud data load failed, using local data', e); }
 
   try{
-    const pRef = ref(rtdb, `presence/${user.uid}`);
-    await Promise.all([
-      syncPublicProfile(),
-      update(pRef, { uid:user.uid, online:true, lastSeen:serverTimestamp() })
-    ]);
-    onDisconnect(pRef).update({ online:false, lastSeen:serverTimestamp() }).catch(()=>{});
-    const poll = setInterval(()=>{ if(auth.currentUser && !document.hidden && !document.getElementById('s-game')?.classList.contains('active')) update(pRef, { online:true, lastSeen:serverTimestamp() }).catch(()=>{}); }, 60000);
-    state.unsubs.push(()=>clearInterval(poll));
+    await syncSignedInPresenceAndProfile(user);
   }catch(e){ console.error('Public profile sync failed', e); }
 }
 
@@ -469,7 +586,7 @@ onAuthStateChanged(auth, async user => {
     if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(user.uid);
     else if(typeof window._fateSetActiveUid === 'function') window._fateSetActiveUid(user.uid);
 
-    // Load all player data from Firebase (source of truth)
+    // Load all player data from the active online save backend.
     try{
       if(window.FateCloudSave){
         await window.FateCloudSave.onSignIn(user.uid);
@@ -477,14 +594,7 @@ onAuthStateChanged(auth, async user => {
     }catch(e){ console.warn('Cloud data load failed, using local data', e); }
 
     try{
-      const pRef = ref(rtdb, `presence/${user.uid}`);
-      await Promise.all([
-        syncPublicProfile(),
-        update(pRef, { uid:user.uid, online:true, lastSeen:serverTimestamp() })
-      ]);
-      onDisconnect(pRef).update({ online:false, lastSeen:serverTimestamp() }).catch(()=>{});
-      const poll = setInterval(()=>{ if(auth.currentUser && !document.hidden && !document.getElementById('s-game')?.classList.contains('active')) update(pRef, { online:true, lastSeen:serverTimestamp() }).catch(()=>{}); }, 60000);
-      state.unsubs.push(()=>clearInterval(poll));
+      await syncSignedInPresenceAndProfile(user);
     }catch(e){ console.error('Public profile sync failed', e); }
   } else {
     state.unsubs.splice(0).forEach(fn=>{ try{fn();}catch(e){} });

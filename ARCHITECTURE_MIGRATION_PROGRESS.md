@@ -57,17 +57,28 @@ professionally complete.
 
 Current strict reducer progress:
 
+- Current completion tracking excludes temporarily disabled card IDs `81`-`100`
+  from the official in-game denominator. Some reducers already exist for those
+  IDs from earlier migration work, but they are not counted as required current
+  scope until the card pool re-enables them.
 - Implemented server-owned `MATCH_START` bootstrap from room seed and the two
   validated 40-card decks. The server checks real card IDs and rarity copy
   limits, deterministically shuffles, draws opening hands, stores canonical
   state/hash, and emits that state in the start event.
 - Implemented server-owned reducers for `CHOOSE_TURN`, `END_TURN`, `FORFEIT`
   with server-derived loser/winner, canonical final match state, and Fly room
-  winner/loser/end-reason metadata, `HAND_ACTION` `placeSelected` for
+  winner/loser/end-reason metadata, server-generated `DISCONNECT_TIMEOUT` after
+  the Fly authority disconnect grace window with canonical final match state and
+  winner/loser/end-reason metadata, `MATCH_RESULT` with server-computed zone
+  scores, zone-majority winner, total-Fate tiebreaker, official draw handling,
+  canonical final match state, Fly room winner/loser/draw metadata, and
+  replayable server reward/ELO ledger metadata for final outcomes,
+  `HAND_ACTION` `placeSelected` for
   metadata-plain Supporter placement arming and whitelisted real
   passive/consolidation/picker/effect Supporters (`05`,
-  `09`, `12`, `16`, `18`, `20`, `24`, `26`, `28`, `31`, `32`, `33`, `47`,
-  `49`, `52`, `53`, `54`, `76`, `91`),
+  `09`, `16`, `18`, `20`, `24`, `25`, `26`, `28`, `31`, `32`, `33`, `42`,
+  `37`, `44`, `47`, `49`, `50`, `52`, `53`, `54`, `58`, `59`, `60`, `62`, `63`, `64`, `65`,
+  `68`, `69`, `70`, `71`, `72`, `73`, `74`, `75`, `76`, `78`, `79`, `80`, `91`, `94`),
   `START_CONSOLIDATE` for metadata-plain zero-cost character placement arming,
   `START_CONSOLIDATE` setup plus consolidation `CLICK_CELL` tribute
   selection/finalization for metadata-plain paid characters with normal
@@ -78,8 +89,8 @@ Current strict reducer progress:
   server-side use decrement and discard preservation,
   Ralph's Courtesy Clerk (`24`) as a real board-local adjacency reinforcement
   modifier during consolidation,
-  Marie Lamboure / Deterrance (`36`) as a real consolidation-time zone Fate
-  penalty,
+  Marie Lamboure / Deterrance (`36`) as a real paid consolidation card and
+  consolidation-time zone Fate penalty,
   Chingachlook (`45`) placement restriction during consolidation placement,
   Great Oak Infantry (`47`) as a real consolidation tribute that grants +3
   permanent Fate to the consolidated card,
@@ -87,42 +98,143 @@ Current strict reducer progress:
   for metadata-plain character tributes,
   Berkeley CS Major / Artillery Distance (`50`) locked-zone tribute exclusion,
   placement, and `MODAL_ACTION` zone choice,
-  17th British Regiment (`05`) same-zone Fate gain, Makenna (`12`) friendly
-  immunity picker, MINAE Death Squad (`16`) opponent Supporter discard,
+  Howard (`03`) same-zone Fate doubling, Zoe (`04`) same-zone opponent
+  consolidation block, Jorge Alvarez (`06`) non-Star deck search, Maja
+  Kaminska (`07`) deck/discard Supporter search plus Supporter-limit override,
+  Lina (`08`) deck/discard Reality search into strict free placement,
+  Johnathan Kirby (`13`) deck Supporter search, Isaac Perez (`22`) adjacent-card
+  Supporter-placement boost, Carolyn (`17`) permanent all-board cell lock with
+  Zoe-lock upgrade behavior, Santiago (`30`) same-zone opponent Fate halving,
+  Juan Carlos (`39`) opponent-card move into his zone, Mark Kemper (`43`) extra
+  safe-square creation,
+  Anicka Konvicka (`02`) Starlit Path extra safe row and same-zone placement
+  Fate bonus, Henry Dong (`21`) hand-discard Fate boost through placement
+  arming and strict manual `BOARD_ACTION` activation, Zimbabwean Honor Guard
+  (`25`) once-per-turn free extra-copy placement from hand/deck without
+  consuming a normal Supporter set, Jake (`38`) Supporter-discard Fate boost
+  through placement arming and strict manual `BOARD_ACTION` activation with
+  once-per-turn validation,
+  17th British Regiment (`05`) same-zone Fate gain, Makenna (`12`) paid
+  Coordinator consolidation with friendly immunity picker, MINAE Death Squad
+  (`16`) opponent Supporter discard,
   1st US Marines (`18`) suppression state and cleanup, South Wind Spearman
   (`20`) Shield Wall movement locks, UCPD (`26`) reveal state, Kazumi (`27`)
   paid consolidation draw-three, Temecula Resident (`32`) draw-one, shared draw
   handling for West Caribbea hand-arrival and armed Christopher Erbs Fate bonus,
-  server-owned Christopher Erbs draw-choice modal activation/decline, 2nd
-  Polish-Lithuanian Army (`28`) set-use counter, Oathbound Noble Fighter (`31`)
-  same-zone Fate loss with immunity/Shield Wall rejection, West Caribbea Infantry
-  (`33`) hand-bonus state,
-  The Vigilantes (`52`) placement and `PICK_ZONE` same-zone opponent Supporter
-  mark,
+  West Coast Dreaming (`igb9`) outside-draw optional board-target +3 Fate
+  picker/cancel continuation,
+  Frontier of Innovation (`igb2`) and Qingdao Breakthrough (`igb8`) end-turn
+  landscape zone choices through strict `PICK_LANDSCAPE_ZONE`, including legal
+  non-current-player choosers, duplicate-resolution rejection, zone Fate bonus,
+  extra safe-row creation, and final score accounting for canonical landscape
+  zone bonuses,
+  server-owned Christopher Erbs draw-choice modal activation/decline plus
+  direct `BOARD_ACTION` `triggerCharacterEffect` arming for Christopher Erbs
+  (`40`) with legacy/render-v2 card modal buttons aligned to the strict
+  reducer, manual `BOARD_ACTION` board discard with ALPINE Infantry rejection,
+  Artillery leaving-field flag, Lydia aura unsuppression, Wine Country
+  infiltration, and Robo-stolen return-to-deck handling, `BOARD_ACTION`
+  face-down board reveal with supported placement/when-set resolution,
+  `BOARD_ACTION` deferred when-set activation for supported server reducers,
+  Panacea (`igb7`) Eventide landscape `BOARD_ACTION` movement with server-owned
+  target validation, once-per-turn flagging, Rozsi move-in bonus, and turn reset, West
+  German Soldier (`42`) draw-two into forced server-owned `PICK_CARDS_VISUAL`
+  hand discard, including Christopher Erbs draw-modal continuation, 2nd
+  Polish-Lithuanian Army (`28`) set-use counter, Dylan Kirby (`29`) paid
+  consolidation placement with deck/discard Third Great War search, Oathbound
+  Noble Fighter (`31`) same-zone Fate loss with immunity/Shield Wall rejection,
+  Cosmic GF (`48`) paid consolidation placement with chained Expanded Worlds
+  deck-then-discard search, West Caribbea Infantry
+  (`33`) hand-bonus state, Crossroads Worker (`58`) discard Supporter recovery
+  with Zion Canyon block handling, 6th French Fusiliers (`37`) server-owned
+  copy picker for official enabled while-on-field Supporter passives (`20`,
+  `49`, `53`, `59`, `64`) plus copied scoring/consolidation parity, IB Student
+  (`60`) deck Supporter search with
+  deterministic server shuffle after resolution, Great Oak High Schooler (`68`)
+  non-Star Coordinator deck search, Breakfast Republic Busser (`69`)
+  same-zone friendly-card movement grant, `BOARD_ACTION` adjacent-zone movement,
+  once-per-turn reset, move counter, and Rozsi move-in bonus, Ledger-keepers (`75`) server-owned
+  `PICK_ZONE` copy picker for already-authoritative Supporter when-set reducers
+  (`05`, `16`, `18`, `25`, `26`, `31`, `32`, `33`, `42`, `50`, `58`, `60`,
+  `68`, `69`, `71`, `72`, `73`, `76`, `80`) with copied-source validation for
+  follow-up picker/modal/move interactions, Wine Country Guerilla (`70`) strict
+  placement, hand activation, board-discard infiltration, deterministic
+  turn-start debuff tick, and original-owner discard return, Santa Anna: Prosperity of a Treasure Port
+  (`igb16`) `HAND_ACTION` discard-from-hand into verified friendly face-up board
+  target +2 Fate, Rivera (`51`) affiliation-choice modal,
+  three-turn matching-character Fate buff state, and set-time buff application,
+  Mark Menz (`66`) affiliation-choice modal with same-zone owned-card
+  affiliation conversion, immunity handling, and Fate gain, Duncan Heyward
+  (`77`) affiliation-choice modal with declared-affiliation scoring and shared
+  strict validation for `MODAL_ACTION`/`PICK_AFFILIATION` answers, Maria Song
+  (`61`) paid consolidation with
+  opponent-card copy purge from hand/deck, Berkeley Homeless (`62`) on-set
+  opponent-safe-row move and no-consolidation flags, 1st West Caribbea Marines
+  (`65`) contested-only placement with Fate set to 4, Fort Calvin Watcher (`71`)
+  draw-reveal state, Robo en la Noche (`72`) deterministic opponent-hand steal,
+  ALPINE Expeditionary (`73`) same-zone Initiator/Improvisor discard and Fate
+  gain plus `BOARD_ACTION` once-per-turn move to contested/friendly rows, Selva
+  Islands Pirate (`74`) hand-arrival Supporter-placement boost and strict
+  `HAND_ACTION` discard activation to raise the turn Supporter cap to three, and
+  Apparition of Berkeley (`80`) same-zone character discard into draw-two,
+  The Vigilantes (`52`) placement `PICK_ZONE` same-zone opponent Supporter mark
+  plus `BOARD_ACTION` manual activation with three-Supporter expend picker and
+  same-zone destroy target,
+  Greek Hoplite (`63`) and Cook Islands Duelist (`64`) strict placement and
+  normal tribute eligibility backed by existing server scoring parity,
+  official passive/scoring parity and strict placement/consolidation admission
+  for Felicyta (`01`), Post-Modernist Dylan (`10`), Anne Stone (`11`), Zsofia
+  (`15`), Kvetka (`19`), Cathy (`23`), Rozsi (`34`), Jimmy (`41`), Soviet
+  Grenadiers (`44`), Bobby Jones (`55`), Jeremiah Jones (`57`), and Maroon
+  Knights (`59`),
+  Mr. Secules (`67`) paid consolidation placement with one-use state
+  initialization, authoritative adjacent Coordinator suppression in final
+  scoring, server-owned one-use Supporter when-set negation, and server-owned
+  one-use Initiator when-set negation for supported Initiator reducers,
   Colombo Thug (`53`) same-zone consolidation restriction,
-  Wolf Creek (`54`) on-set placement, same-zone friendly character picker,
-  final movement click, and Rozsi (`34`) move-into-zone Fate bonus,
+  Wolf Creek (`54`) on-set placement and `BOARD_ACTION` manual activation,
+  same-zone friendly character picker, final movement click, once-per-turn
+  manual-use guard, and Rozsi (`34`) move-into-zone Fate bonus,
   Alondra Hopkins (`14`) paid consolidation placement with adjacent/diagonal
   opponent Supporter discard and Fate gain,
-  Lydia (`56`) paid consolidation placement with five-use initialization,
+  Phil (`46`) paid consolidation placement with server-owned draw-phase Fate
+  growth at canonical turn advance,
+  Lydia (`56`) paid consolidation placement with five-use initialization and
+  server-owned Supporter when-set negation,
   ALPINE Infantry (`76`) Fate/immunity/no-bonus/no-consolidate flags,
+  Chaparral Hoplite (`78`) strict placement, normal tribute eligibility, and
+  server-owned consolidation set-mode modal for normal versus face-down
+  placement with face-down when-set suppression,
+  Havano Citizen (`79`) normal strict Supporter placement plus server-owned
+  hand negation/deployment for supported Supporter and Initiator when-set
+  effects that affect the Havano player's cards,
   Wodny Potok Villager (`91`) Snowy Village use count and opponent
   landscape-change lock,
+  Sebastyen Janowicz (`83`) same-zone friendly-character permanent Fate buff,
+  Wojciech / Fisherman (`90`) affiliation-choice modal with deterministic
+  random matching deck pulls into hand,
+  Wodny Potok Mailman (`94`) Triangle deck picker into a four-turn delayed
+  delivery ledger,
   Boleslaw Kopewicz (`86`) as a real three-reinforcement consolidation tribute
   that grants +4 permanent Fate to the consolidated card,
   and basic hand-to-board `CLICK_CELL` placement for metadata-plain character
   cards, metadata-plain Supporter fixture cards, and whitelisted real
-  passive/consolidation/picker/effect Supporters (`05`, `09`, `12`, `16`,
-  `18`, `20`, `24`, `26`, `28`, `31`, `32`, `33`, `47`, `49`, `50`, `52`,
-  `53`, `54`, `76`, `91`).
+  passive/consolidation/picker/effect cards (`03`, `04`, `05`, `06`, `07`, `08`,
+  `09`, `13`, `16`, `17`,
+  `18`, `20`, `24`, `25`, `26`, `28`, `31`, `32`, `33`, `37`, `42`, `44`, `47`, `49`, `50`, `52`,
+  `53`, `54`, `58`, `59`, `60`, `62`, `63`, `64`, `65`, `68`, `69`, `70`, `71`, `72`, `73`,
+  `74`, `75`, `76`, `78`, `79`, `80`, `91`, `94`) plus whitelisted real consolidation
+  characters (`01`, `02`, `03`, `04`, `06`, `07`, `08`, `10`, `11`, `12`, `13`, `14`,
+  `15`, `17`, `19`, `21`, `22`, `23`, `27`, `29`, `30`, `34`, `35`, `36`, `38`,
+  `39`, `40`, `41`, `43`, `45`, `46`, `48`, `51`, `55`, `56`, `57`, `61`, `66`,
+  `67`, `77`, `83`, `90`).
 - Added strict smoke coverage proving unsupported gameplay actions are rejected
   instead of accepted through client-state fallback.
 - Basic placement/arming reducers are intentionally narrow. They reject
   real/special Supporters outside the explicit whitelist, special placement
-  cards, contested-only placement, affinity/landscape effects, board targeting,
+  cards without dedicated contested-row rules, affinity/landscape effects, board targeting,
   move effects, blocking effects, picker/modal effects outside the explicit
-  implemented reducers, manual Wolf Creek board activation and other
-  reaction-dependent Supporter activations, and any pending interaction that
+  implemented reducers, reaction-dependent Supporter activations, and any pending interaction that
   needs a dedicated reducer unless the reducer can model the exact rule.
 - Paid consolidation is covered for normal one-reinforcement Supporter tributes,
   United Nations 5th Army (`09`), Alondra Hopkins (`14`), Ralph's Courtesy Clerk
@@ -130,24 +242,381 @@ Current strict reducer progress:
   Deterrance, Christopher Erbs (`40`) use initialization, Kazumi (`27`)
   draw-three, Chingachlook (`45`) placement restriction, Great Oak Infantry
   (`47`), Irvine Businessman (`49`), Berkeley CS Major (`50`) Artillery locks,
-  Colombo Thug (`53`), Lydia (`56`), and Boleslaw Kopewicz (`86`). Variable costs,
+  Phil (`46`) draw-phase Fate growth, Colombo Thug (`53`), Lydia (`56`), and Boleslaw Kopewicz (`86`). Variable costs,
   character-tribute cards outside
-  the Irvine path, zone-dependent discounts, French Fusiliers passive-copy
-  behavior, and most real card effects still require dedicated reducers.
+  the Irvine path, zone-dependent discounts, and most real card effects still
+  require dedicated reducers.
 - Real-card strict placement still requires server-side card metadata. The
   fixture reducers are not proof that real catalog cards are all covered.
+- Server-owned reaction windows now cover Supporter when-set effects for Lydia
+  (`56`) and Mr. Secules (`67`), plus supported Initiator when-set effects for
+  Mr. Secules (`67`): the reducer pauses the original effect, blocks unrelated
+  actions while the window is pending, accepts only the reacting player, applies
+  accept/decline, cancels or resumes the original effect, and the Fly authority
+  auto-declines expired prompts. Havano Citizen (`79`) now uses the same
+  reaction window for supported when-set targeting effects and atomically
+  deploys from hand as part of `REACTION_CHOICE`. Remaining reaction families,
+  especially unsupported manual activated trigger families, still require their
+  own reducers before they are counted complete.
+- Manual Supporter `BOARD_ACTION` reducers for Vigilantes (`52`), Wolf Creek
+  (`54`), Breakfast Republic Busser movement (`69`), and ALPINE Expeditionary
+  (`73`) now reject Lydia/Secules/Havano-suppressed sources, and render-v2 hides
+  those manual action buttons while the Supporter is suppressed.
+- Server passive/aura gates now share the same suppression model as active
+  Supporter effects, so Lydia/Secules/Havano/global suppression disables
+  passive scoring and consolidation effects for French Fusiliers copied
+  passives (`37`), Irvine Businessman (`49`), Colombo Thug (`53`), Maroon
+  Knights (`59`), Cook Islands Duelist (`64`), and other shared passive hooks.
+- Server-owned Supporter when-set reducers now also respect global Supporter
+  suppression before opening reaction, picker, search, draw, lock, reveal, or
+  copied-effect continuations. This covers the shared when-set family used by
+  cards such as `05`, `16`, `18`, `25`, `26`, `31`, `32`, `33`, `42`, `50`,
+  `58`, `60`, `68`, `69`, `71`, `72`, `73`, `75`, and `80`, while preserving
+  effect-immune Supporters such as ALPINE Infantry (`76`).
+- Server-owned immediate free-placement now requires a live server pending
+  marker instead of trusting reusable card flags, consumes those flags after
+  placement, and admits supported paid non-Supporter free sets such as Lina
+  (`08`) setting a paid Reality card without consolidation cost.
+- Server placement now uses a shared placed-Fate helper that carries hand Fate
+  changes, applies West Caribbea Infantry (`33`) temporary +2 Fate on set, and
+  consumes hand-only placement modifiers after the card enters the board. This
+  keeps direct placement, consolidation placement, and reaction deployment in
+  line with the client `getPlacedCardFate` path.
+- Server-owned `PICK_CARDS_VISUAL` source-pile selections now require stable
+  candidate identity: either a card `iid`, or explicit `source`/`index` plus a
+  matching card id/name. Loose index-only or id-only deck/discard picker
+  payloads are rejected instead of resolving to whichever candidate the server
+  happens to see first. This hardens the shared search/picker path used by
+  Maja, Lina, Johnathan, Dylan, Cosmic GF, Crossroads, IB Student, Great Oak,
+  Mailman-style delivery, and related reducers.
+- Server-owned `BOARD_ACTION` source validation now honors the online wrapper's
+  `cardIid`/`cardId` fields in addition to nested `card` identity. Shared board
+  source resolution now rejects stale or mismatched source cards for manual
+  character effects, deferred when-set activations, board discard/reveal actions,
+  Panacea/Busser movement starters, and converted manual Supporter activations
+  such as Vigilantes, Wolf Creek, and ALPINE Expeditionary.
+- Server-owned board-card candidate selection now requires a stable board
+  identity: either card `iid`, or explicit `z`/`r`/`c` plus card id/name. This
+  prevents board candidate pickers such as Vigilantes expend selection from
+  accepting loose id-only payloads. Santa Anna hand activation target validation
+  now also accepts and verifies flat or nested target card identity, and the
+  client sends id/name alongside target iid for that hand-to-board intent.
+- Server-owned `PICK_ZONE` target parsing now requires card identity for every
+  selected board entry, while accepting either nested `card` identity or flat
+  `iid`/`id`/`name` fields. This closes coordinate-only zone picker payloads
+  across one-target and multi-target effects such as Vigilantes, Makenna, MINAE,
+  Wolf Creek, French Fusiliers, Maria Song, Howard, Santiago, Juan Carlos, West
+  Coast Dreaming, and related server-owned zone pickers.
+- Server-owned card and zone picker prompts now receive stable server prompt ids
+  through the shared reducer result path. Online card-search, hand-discard,
+  board-candidate, zone-picker, board-target, and optional-cancel actions send
+  those ids, and the reducer rejects missing or mismatched picker prompt ids
+  before resolving the selected cards or targets.
+- Server-owned pending movement prompts now use the same shared prompt-id
+  contract. Online `CLICK_CELL` movement completions send the active pending
+  move id, and missing or stale ids are rejected before resolving movement for
+  Wolf Creek, Juan Carlos, Busser, Panacea, ALPINE Expeditionary, Berkeley
+  Homeless, Carolyn, Zoe, Mark Kemper, and related pending-move reducers.
+- Server-owned paid consolidation prompts now also receive stable prompt ids
+  through the shared reducer result path. Online consolidation tribute and
+  placement `CLICK_CELL` actions send the active consolidation id, and missing
+  or stale ids are rejected before selecting tributes or final placement.
+- Server-owned reaction choices now require the exact active `promptId` before
+  resolving Lydia, Mr. Secules, or Havano reaction windows, including
+  server-generated timeout choices. Server-owned modal prompts now carry stable
+  prompt ids for Christopher Erbs, affiliation choice, Artillery Distance, and
+  Chaparral set-mode choices; online modal and affiliation-picker actions send
+  that prompt id, and the reducer rejects both missing and mismatched prompt ids
+  whenever an active server prompt owns the choice.
 - Added server-side card catalog loading from `src/scripts/01-data-and-state.js`.
   In strict mode, unknown cards and real effect/affiliation cards are rejected
   until a dedicated reducer exists.
 - Fly server-bootstrapped rooms no longer depend on host `STATE_SYNC` as the
   opening source of truth. The client applies the server `MATCH_START` state
   after local game creation.
+- Fly authority/replay rooms now fail closed instead of downgrading gameplay
+  actions to Firebase action-log or player-node fallback writes. Legacy Firebase
+  fallback remains only for non-Fly rooms with no configured authority; the
+  runtime authority status report exposes `firebaseActionFallbackAllowed` for
+  verification.
+- Strict Fly authority mode now supports compact gameplay intents. The server
+  advertises `reducerMode` during WebSocket hello, Fly replay prejoins the
+  authority socket to learn it before the first action, and the client omits
+  full `postState`/`stateHash` snapshots plus delayed `STATE_SYNC` for strict
+  server-reduced gameplay actions. Accepted events still carry the server
+  produced canonical `postState` and hash.
 - Local WebSocket authority smoke now covers server-normalized `FORFEIT` with
-  empty client payload, room end-state mutation, and winner/loser metadata.
+  empty client payload, room end-state mutation, winner/loser metadata, and a
+  replayed server-finalized reward ledger. It also covers ranked
+  server-generated `DISCONNECT_TIMEOUT` with deterministic ELO/starlight deltas
+  from Fly player snapshots.
+- Fly room mutations now run through a per-room action queue. Client WebSocket
+  intents, API match start, reaction timeouts, and disconnect timeouts serialize
+  through the same queue so duplicate sequence numbers cannot be produced while
+  another accepted action is awaiting persistence. The local WebSocket smoke
+  proves this by sending two same-room host intents back-to-back and requiring
+  distinct accepted sequence numbers before turn advancement.
+- WebSocket gameplay intents are now idempotent by seated user plus
+  `clientActionId`. A retry receives the original accepted event with its
+  original sequence number even if turn ownership has since changed, while an
+  attempt to reuse the same `clientActionId` for a different action type is
+  rejected. The local WebSocket smoke covers both the accepted replay and the
+  conflicting-type rejection.
+- The browser authority bridge now preserves stable `clientActionId` values
+  across transient WebSocket timeout/disconnect retries in Fly
+  authority/fallback-off modes. Direct authority actions that did not already
+  have an id receive one before the first send, and
+  `fateGetWebSocketAuthorityStatus()` reports retry max attempts, attempts,
+  successes, failures, and last retry reason for live diagnostics. Retry
+  eligibility now follows the actual fallback policy, so any configured
+  WebSocket authority path with Firebase action fallback disabled receives the
+  bounded same-id retry behavior.
+- Accepted echoes of locally optimistic actions now still acknowledge the
+  authoritative sequence, state hash, post-state correction, and pending
+  reaction metadata before skipping duplicate local mutation. This keeps Fly
+  replay bookkeeping aligned even when the local client already applied the
+  action optimistically.
+- Before applying and sending a WebSocket authority intent on a no-fallback
+  path, the browser now performs a Fly `/resume` catch-up from the last locally
+  applied sequence, buffers/drains missed accepted events, refreshes the latest
+  server state hash, and blocks the local optimistic mutation if catch-up fails.
+  It reports catch-up attempts/successes/failures plus the latest catch-up seq
+  through `fateGetWebSocketAuthorityStatus()`.
+- If a no-fallback Fly authority intent is rejected after local optimistic
+  application, the browser now rolls back through
+  `GET /api/rooms/{code}/resume?includeState=1`, applies the server canonical
+  state/hash, discards stale buffered actions through the recovered sequence, and
+  reports rejected-resync attempts/successes/failures through
+  `fateGetWebSocketAuthorityStatus()`. This removes the RTDB action-log
+  dependency from rejected-action recovery.
+- Online forfeit/disconnect result screens and normal score-result win screens
+  now prefer the Fly `rewardLedger` from accepted finalization events, apply the
+  local player delta once, and fall back to the legacy local reward calculation
+  only when the server ledger is absent.
+- Firebase durable writes now include stable `serverMatchRewardLedgers` and
+  `matchResults` records from the Fly reward ledger. Ranked score, draw,
+  forfeit, and disconnect outcomes also update Challenger leaderboard and public
+  profile ELO/count fields from the server ledger.
+- Fly reconnect replay now has a dedicated `GET /api/rooms/{code}/resume`
+  endpoint returning the room, server state hash, last sequence, and capped
+  event window. Started-room rejoin uses that endpoint and delays replay until
+  local `MATCH_START` bootstrap has created game state, avoiding RTDB action-log
+  fallback on the resume path.
+- Fly room side channels now cover capped durable room chat and per-player
+  replay progress without RTDB. The server owns
+  `GET/POST /api/rooms/{code}/chat` plus `POST /api/rooms/{code}/progress`; the
+  browser sends chat/progress to those endpoints in Fly room mode, normalizes
+  chat from Fly room polling/socket messages, and keeps lag/pause diagnostics
+  supplied by Fly `players/{uid}.actionSeq` instead of Firebase player-node
+  writes.
+- Random matchmaking now has a Fly-owned no-RTDB path in Fly room mode. The
+  browser enters `POST /api/matchmaking/enter`, and the server either atomically
+  joins a compatible waiting room for the same mode/party target or creates a new
+  waiting Fly room. Matched queue entries are removed immediately; cancellation
+  calls `POST /api/matchmaking/leave` instead of deleting `matchmaking/{uid}` in
+  RTDB. Challenger and Free Play matchmaking screens now also treat Fly room
+  transport as a valid online queue transport instead of requiring
+  `FateOnline.rtdb`, so RTDB-disabled builds can reach the Fly queue from the
+  normal menu buttons.
+- Fly room departure now has a server-owned no-RTDB path. The browser calls
+  `POST /api/rooms/{code}/leave` for Fly rooms when not already sending a
+  forfeit; the server deletes host-left lobbies, removes guest lobby seats, and
+  marks active-match departures disconnected so the normal server disconnect
+  timer can finalize if the player does not return.
+- Fly room presence now has a throttled heartbeat path. The browser's Fly room
+  watcher calls `POST /api/rooms/{code}/heartbeat`; the server refreshes
+  `connected`/`lastSeen` and clears stale disconnect timers without Firebase
+  `.info/connected`.
+- Fly room polling now drives the queued-room auto-start path, matching the old
+  RTDB room watcher behavior. This lets Fly matchmaking hosts automatically start
+  after a compatible guest joins and both deck snapshots are ready. Fly lobby
+  rendering also uses the profile snapshots already present in the Fly room
+  payload instead of opening public-profile RTDB subscriptions for seated
+  players.
+- Room-scoped client operations now recognize an already-normalized Fly room even
+  if the global Fly-room flag is late or stale. Deck selection, room chat,
+  preload readiness, action-progress reporting, host start, leave cleanup, and
+  legacy player-node fallback guards route by `room._flyRoom`/room code before
+  touching RTDB; `fateGetWebSocketAuthorityStatus()` exposes
+  `activeRoomUsesFly` for diagnostics.
+- Fly room discovery now has a no-RTDB path. The server exposes
+  `GET /api/rooms?uid=...`, returning only rooms where the authenticated user is
+  seated and excluding ended rooms by default. The browser exposes
+  `fateDiscoverMyFlyRooms()`/`fateRecoverMyFlyRoom()` and runs a quiet startup
+  recovery pass that resumes the newest active Fly match or watches the newest
+  lobby room after auth is ready.
+- Fly/RTDB-disabled room transport now fails closed instead of silently falling
+  back to legacy `rooms/*` or `matchmaking/*` RTDB paths. `18-online-rooms.js`
+  exposes `rtdbDisabled` and `firebaseRoomTransportAllowed` in
+  `fateGetWebSocketAuthorityStatus()`, routes accidental Fly watches back to the
+  Fly poller, and blocks RTDB private-room creation, joins, watchers, presence,
+  queue cleanup, queue creation, queue scans, queue host-switch watchers, and
+  queued joins whenever RTDB is disabled or Fly rooms are active.
+- RTDB-disabled auth bootstrap now withholds the Realtime Database handle from
+  `window.FateOnline` instead of exporting a live `rtdb` object. Firebase Auth
+  and Storage remain available, App Check still initializes before any possible
+  legacy RTDB use, but `getDatabase(app)` is not called when
+  `fateRtdbDisabled`/`FATE_RTDB_DISABLED` is active. Public profile sync falls
+  back to a local signed-in profile if Fly profile sync is unavailable, while
+  legacy presence/profile writes and subscriptions naturally fail closed through
+  the shared `FateOnline.rtdbAvailable()`/`rtdbDisabledMode()` diagnostics.
+- Fly-owned result/profile mirrors now persist server-finalized reward ledgers
+  without RTDB. The authority updates durable match-result rows, per-player
+  profile stats, and a Challenger leaderboard from the same ledger used for
+  Firebase mirroring, exposes them through `/api/match-results`,
+  `GET/POST /api/profiles/{uid}`, and `/api/leaderboards/challenger`, and the
+  browser auth/profile bridge syncs public profile identity to Fly while
+  skipping Firebase presence writes in Fly/RTDB-disabled mode. The leaderboard
+  bridge reads Fly leaderboard data through `FateOnline.getOnlineLeaderboard()`
+  in Fly/RTDB-disabled mode.
+- Fly authority now has an explicit server-side RTDB admin mirror kill switch.
+  `FATE_WS_DISABLE_FIREBASE_RTDB=1` or `FATE_RTDB_DISABLED=1` prevents
+  `getAdminAccessToken()`, Firebase room reads, accepted-action mirrors, and
+  result-ledger mirrors from touching RTDB even when service account credentials
+  are present. Firebase Auth token verification remains separate. Health
+  responses expose `firebaseRtdbDisabled`/`firebaseDurableWrites`, and the Fly
+  store smoke boots with the kill switch enabled and asserts server-generated
+  disconnect-timeout events persist to Fly replay without RTDB mirroring.
+- Fly deployment config is now pinned to the authority server instead of the
+  Electron desktop `npm start` command. `fly.toml` defines
+  `node server/fate-ws-authority.js` as the `app` process, enables strict
+  reducer mode, requires the mounted Fly store, requires Firebase Auth tokens,
+  sets the RTDB kill switches, and keeps Firebase durable writes off. The
+  `server:fly-local` npm script starts a local strict/no-RTDB volume-backed
+  authority, and `smoke:fly-config` asserts the Fly process, volume, and
+  environment contract. Fly machine lifecycle is pinned for live multiplayer:
+  `auto_stop_machines='off'` and `min_machines_running=1`, trading a small
+  always-on hosting cost for no cold-start/sleep interruption during active
+  WebSocket matches. `smoke:fly-local-runtime` starts the local Fly wrapper,
+  asserts strict/no-RTDB health, creates a room, and verifies `rooms.json`
+  persistence. The Dockerfile is now authority-only: it copies server runtime
+  files, the card catalog source file, and the public website assets, then
+  starts `node server/fate-ws-authority.js` without installing or launching
+  Electron/static-server tooling. `.dockerignore` is now a default-deny
+  allowlist for those runtime inputs, so the Fly build context excludes Electron
+  builds, desktop assets, old backups, and other non-authority bulk data.
+- Fly deploy now has a single cutover preflight. `npm run smoke:fly-cutover`
+  runs the Fly config, local runtime, volume-store, browser test-readiness,
+  RTDB rules-lockdown, RTDB-disconnect, App Check, WebSocket authority,
+  bootstrap, reducer, state-gate, strict-reducer, and card-catalog smokes.
+  `npm run
+  deploy:fly-authority` is scoped to `fly deploy --config fly.toml`, and npm's
+  `predeploy:fly-authority` hook runs the cutover preflight before a Fly publish
+  can start through the package script.
+- Local browser testing now has an explicit Fly-authority switch. The game
+  exposes `fateEnableLocalFlyAuthorityForTesting()` for the default local
+  `ws://127.0.0.1:8787`/`http://127.0.0.1:8787` test path, supports `?flyTest=1`
+  plus `flyWs`/`flyApi` URL params, and `fateGetWebSocketAuthorityStatus()`
+  reports RTDB-disabled, authority-only, Fly-room, and Firebase fallback status
+  before Free Play, Challenger, Social, Public Decks, Marketplace, Spectator, or
+  live match testing starts.
+- Fly-owned social basics now cover parties, world chat, friends, friend
+  requests, player lookup, and direct messages needed for RTDB-disabled
+  matchmaking sessions. The server exposes `/api/social/state`,
+  `/api/social/lookup`, `/api/friends/*`, `/api/direct-messages/*`,
+  `/api/parties`, and `/api/world-chat`; persists parties, party invites,
+  capped world chat, friend edges, friend requests, private threads, and capped
+  private message logs in the Fly volume snapshot; and `17-online-social.js`
+  polls or opens those Fly endpoints in RTDB-disabled/Fly-room mode instead of
+  subscribing to `friends`, `presence`, `partyInvites`, `userParties`,
+  `parties`, `worldChat`, `privateThreads`, or `privateMessages` RTDB nodes.
+- Fly-owned economy/community feeds now cover marketplace and public decks in
+  RTDB-disabled mode. The authority exposes capped `/api/marketplace/listings`
+  and `/api/public-decks` list/detail endpoints, owner-checks listing cancel and
+  public-deck delete, supports card list/buy/redeem, deck publish/rate/comment,
+  and persists those records in the Fly volume snapshot. `20-online-economy.js`
+  uses those Fly endpoints when RTDB is disabled instead of opening
+  `marketplace/listings`, `publicDeckSummaries`, `publicDeckDetails`,
+  `publicDeckRatings`, or `publicDeckComments` RTDB paths.
+- Fly-owned player cloud save now covers the account data slices that
+  `14-cloud-save.js` previously wrote under `players/{uid}`. In RTDB-disabled
+  mode the browser reads and writes `GET/POST /api/player-save/{uid}`, the
+  server token-checks the UID, merges field updates, persists saves in the Fly
+  volume snapshot, and allows larger save payloads through a 1 MB HTTP body cap.
+- Fly-owned spectator/live-match discovery now covers the title Spectator panel
+  and Mission Control live-match list in RTDB-disabled mode. The authority
+  exposes capped `/api/live-matches`, room spectator join/heartbeat/leave, and
+  viewer-gated room replay/chat reads; `22-spectator.js` joins Fly rooms as a
+  spectator, polls capped event/chat endpoints, sends spectator chat through
+  Fly room chat, and avoids `liveMatches`, `rooms/{code}/actions`,
+  `rooms/{code}/chat`, and `rooms/{code}/spectators` RTDB listeners when Fly is
+  enabled. `10-init.js` now routes Mission Control live-match cards through the
+  same Fly feed.
+- RTDB-disabled client guards are now explicit across the non-room global-feed
+  modules, not just implied by `FateOnline.rtdb` being null. Cloud save, public
+  profile reads, social/friends/party/world-chat/DM, Challenger
+  leaderboard/shared-AI, marketplace/public decks, spectator/live-match, and
+  Mission Control live-match fallbacks all check the RTDB-disabled flag before
+  using legacy Firebase. `npm run smoke:rtdb-disconnect-static` locks this
+  contract alongside the Fly config, Dockerfile, and `.dockerignore` deploy
+  checks.
+- The server-authoritative RTDB rules file now has a rules-lockdown smoke for
+  the original bandwidth-risk collections. `npm run smoke:rtdb-rules-lockdown`
+  parses `REALTIME_DATABASE_RULES_ONLINE_REBUILD_V1_7_SERVER_AUTHORITATIVE.json`
+  and asserts root reads stay closed, public/global feeds require auth plus
+  capped indexed queries, legacy `publicDecks` remains unreadable,
+  `challengerAI` shared-AI reads use capped `elo` queries, and `matchResults`
+  cannot be read as a whole collection. The legacy shared-AI client query was
+  aligned to `orderByChild('elo') + limitToLast(100)` so the tightened rule has a
+  compatible capped path.
+- Firebase deploy configuration now points at the locked rules file directly.
+  `firebase.json` uses
+  `REALTIME_DATABASE_RULES_ONLINE_REBUILD_V1_7_SERVER_AUTHORITATIVE.json`,
+  `.firebaserc` binds the default/production project to `fates-entwined-41491`,
+  and `npm run deploy:rtdb-rules` is scoped to `firebase deploy --only database
+  --project fates-entwined-41491`. The rules-lockdown smoke also verifies these
+  deploy pointers so an older permissive rules file cannot silently become the
+  CLI target.
+- App Check bootstrap now has an explicit static smoke and stricter debug
+  behavior. `15-online-auth.js` initializes Firebase App Check with reCAPTCHA v3
+  and token auto-refresh before any `getDatabase(app)` call, while the debug
+  provider is limited to localhost/file hosts instead of being enabled by a
+  production localStorage flag. `npm run smoke:rtdb-appcheck-static` verifies
+  that contract, and `predeploy:rtdb-rules` now runs the rules-lockdown,
+  RTDB-disconnect, and App Check smokes before any RTDB rules publish command.
+- Fly-mode profile reads now avoid `publicProfiles/{uid}` subscriptions. The
+  auth bridge exposes `flyProfilesEnabled()`, `16-online-core.js` turns
+  `subscribeProfile()` into a one-shot Fly `getPublicProfile()` read when RTDB
+  is disabled, and sign-in/sign-out presence writes remain skipped in Fly mode.
+- Fly-mode Challenger leaderboard/shared-AI no longer touches RTDB
+  `challengerAI` paths. `19-online-elo.js` continues to read the Fly
+  leaderboard, but shared AI roster/simulation calls become local-only in
+  RTDB-disabled mode instead of opening `challengerAI/seasons/*` listeners,
+  transactions, or leaderboard mirror writes.
+- Added `npm run smoke:fly-store`, which starts the Fly authority with a
+  temporary volume directory, creates and starts a room, verifies `rooms.json`
+  and `events.jsonl`, verifies Fly matchmaking can create and match a ranked
+  queue room, verifies Fly profile upsert/restore, verifies Fly party/world-chat
+  create, invite, accept, disband, send, and restore paths, verifies Fly
+  friend request/accept/remove, direct message send/read/restore, player
+  cloud-save merge/restore, live-match listing plus spectator join/chat/leave,
+  marketplace list/buy/cancel/redeem, and public-deck
+  publish/list/detail/rate/comment/delete/restore paths, verifies Fly room discovery
+  for seated host/guest and excludes an unseated user, verifies lobby heartbeat plus guest/host leave cleanup, posts Fly
+  chat/progress side-channel updates, restarts the server, confirms `/resume`
+  restores the room, server state hash, chat, per-player progress, and
+  `MATCH_START` event from disk, then persists a
+  disconnected player, restarts again, and confirms the restored disconnect
+  timer server-finalizes the match with a replayable `DISCONNECT_TIMEOUT` plus
+  Fly leaderboard/profile/match-result rows from the server ledger. The
+  same smoke now intentionally rewinds `rooms.json` to a stale started-room
+  snapshot and later deletes `rooms.json` entirely; both restarts must
+  repair/rebuild the room from the append-only `events.jsonl` log. It also
+  verifies `SIGTERM` graceful shutdown marks live sockets disconnected and
+  writes a final Fly snapshot before exit.
+- `MATCH_RESULT` score finalization now mirrors deterministic continuous Fate
+  passives for face-down/no-bonus cards, Jimmy damage Fate, Greek Hoplite copy
+  scaling, Soviet Grenadiers adjacency, coordinator auras and Jeremiah scaling,
+  Post-Modernist Dylan penalties, Zsofia, Maroon Knights, Duncan Heyward,
+  Bobby Jones, Cook Islands Duelist stable target-memory scoring, and
+  landscape/multiplier modifiers.
+- Cook Islands Duelist final scoring is now server-owned: the server preserves
+  a still-valid stored target, selects a deterministic adjacent opponent target
+  when needed, clears stale target memory when no target remains, and marks its
+  continuous damage source before scoring Jimmy-style Fate.
 - The architecture is still not complete until these rejected action families
-  receive server reducers, normal score-based match-end resolution,
-  server-finalized rewards/ELO, disconnect timeout, reconnect replay, and
-  `FATE_WS_REDUCER_MODE=strict` can run a real match.
+  receive server reducers and `FATE_WS_REDUCER_MODE=strict` can run a real
+  match.
 
 ## Planned Order
 

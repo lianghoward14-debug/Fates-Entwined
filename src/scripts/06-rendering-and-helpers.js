@@ -943,15 +943,17 @@ function getHandRenderSignature() {
   const canActFromHand = (cp === G.currentPlayer);
   const canInspectHand = !G._isSpectator;
   const force = G._forceHandEnterIids ? Array.from(G._forceHandEnterIids).sort().join(',') : '';
+  const tutorialSig = typeof tutorialHandRenderStateSignature === 'function' ? tutorialHandRenderStateSignature() : '';
   const hand = G.players?.[cp]?.hand || [];
   return [
     cp, G.currentPlayer, G.phase, canActFromHand ? 1 : 0, canInspectHand ? 1 : 0, G.selectedHandCard ?? '',
     G.supportsPlacedThisTurn, G.maxSupportsPerTurn, G.extraSupportsThisTurn,
-    G.majaEffectThisTurn ? 1 : 0, force,
+    G.majaEffectThisTurn ? 1 : 0, force, tutorialSig,
     hand.map(card=>[
       card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
       card.fate, card.currentFate, card._wciBonus ? 1 : 0,
-      card._handCostDelta || 0, card.guerilla_transferred ? 1 : 0
+      card._handCostDelta || 0, card.guerilla_transferred ? 1 : 0,
+      typeof getHandCardEffectModifiers === 'function' ? JSON.stringify(getHandCardEffectModifiers(card)) : ''
     ].join(':')).join(',')
   ].join('|');
 }
@@ -977,6 +979,65 @@ function applyOpponentHandDensity(container, count) {
 var _pointerDown = false;
 var _renderDeferredByPointer = false;
 const RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR = '.placement-anim-ghost, .draw-fly-card, .guerilla-transfer-fly, .maria-discard-badge, .aff-change-overlay, .effect-activation-aura, .block-overlay, .effect-blocked-flash, .consolidation-cinematic-overlay, .cc-overlay-v2';
+
+function buildHandEffectMarkerHTML(card) {
+  const rows = typeof getHandCardEffectModifiers === 'function' ? getHandCardEffectModifiers(card) : [];
+  if(!rows.length) return '';
+  return '<div class="hand-effect-marker" aria-label="Card effect modifiers" onclick="event.stopPropagation();" onmouseenter="showHandEffectTooltip(event)" onmousemove="positionHandEffectTooltip(event)" onmouseleave="hideHandEffectTooltip()">' +
+    '<span class="hand-effect-marker-icon" aria-hidden="true">i</span>' +
+    '<div class="hand-effect-tooltip">' +
+      rows.map(function(row){
+        return '<div class="hand-effect-row">' +
+          '<div class="hand-effect-name">' + escapePlacementAnimHtml(row.name || 'Effect') + '</div>' +
+          '<div class="hand-effect-text">' + escapePlacementAnimHtml(row.text || 'Card modified.') + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+  '</div>';
+}
+
+let _handEffectTooltipPortal = null;
+function getHandEffectTooltipPortal() {
+  if(_handEffectTooltipPortal && _handEffectTooltipPortal.isConnected) return _handEffectTooltipPortal;
+  _handEffectTooltipPortal = document.createElement('div');
+  _handEffectTooltipPortal.className = 'hand-effect-tooltip hand-effect-tooltip-portal';
+  document.body.appendChild(_handEffectTooltipPortal);
+  return _handEffectTooltipPortal;
+}
+
+function positionHandEffectTooltip(ev) {
+  if(!_handEffectTooltipPortal || !_handEffectTooltipPortal.isConnected) return;
+  const marker = ev && ev.currentTarget ? ev.currentTarget : null;
+  const card = marker && marker.closest ? marker.closest('.hc') : null;
+  const rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : (marker && marker.getBoundingClientRect ? marker.getBoundingClientRect() : null);
+  if(!rect) return;
+  const width = Math.min(300, Math.max(240, window.innerWidth - 32));
+  const gap = 24;
+  let x = rect.left - width - gap;
+  if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
+  let y = rect.top + Math.min(12, rect.height * .12);
+  const estimatedHeight = Math.min(170, Math.max(96, _handEffectTooltipPortal.offsetHeight || 118));
+  if(y + estimatedHeight > window.innerHeight - 12) y = window.innerHeight - estimatedHeight - 12;
+  if(y < 12) y = 12;
+  _handEffectTooltipPortal.style.width = width + 'px';
+  _handEffectTooltipPortal.style.left = Math.round(x) + 'px';
+  _handEffectTooltipPortal.style.top = Math.round(y) + 'px';
+}
+
+function showHandEffectTooltip(ev) {
+  const marker = ev && ev.currentTarget ? ev.currentTarget : null;
+  const source = marker && marker.querySelector ? marker.querySelector('.hand-effect-tooltip') : null;
+  if(!source) return;
+  const portal = getHandEffectTooltipPortal();
+  portal.innerHTML = source.innerHTML;
+  portal.classList.add('is-visible');
+  positionHandEffectTooltip(ev);
+}
+
+function hideHandEffectTooltip() {
+  if(!_handEffectTooltipPortal) return;
+  _handEffectTooltipPortal.classList.remove('is-visible');
+}
 
 function rendererV2OwnsBoardScene() {
   return !!(window.FateMatchRendererAdapter
@@ -1350,7 +1411,15 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
     const target = selected && selected[0] ? selected[0] : null;
     if(!target) return;
     const handSnapshot = { index:handIndex, iid:card.iid || '', id:card.id || '' };
-    const payload = { z:target.z, r:target.r, c:target.c, iid:target.card && target.card.iid, playerIndex:player };
+    const payload = {
+      z:target.z,
+      r:target.r,
+      c:target.c,
+      iid:target.card && target.card.iid,
+      id:target.card && target.card.id,
+      name:target.card && target.card.name,
+      playerIndex:player
+    };
     const applied = resolveSantaAnnaProsperity(card, payload);
     if(applied && G._onlineRoomCode && typeof window.__fateSendSantaAnnaAction === 'function') {
       window.__fateSendSantaAnnaAction(handSnapshot, payload);
@@ -1537,7 +1606,9 @@ function processLandscapeDrawQueue() {
     viewerPlayerIndex:getPerspectivePlayerIndex(),
     zones:[0,1,2],
     entries:entries,
-    showOpponentOverlay:true
+    showOpponentOverlay:true,
+    allowOptionalCancelServerAction:true,
+    onCancel:finish
   }, function(chosen){
     const target = chosen && chosen[0] && chosen[0].card;
     if(target) {
@@ -1548,10 +1619,6 @@ function processLandscapeDrawQueue() {
     }
     finish();
   });
-  const cancelBtn = document.querySelector('#modal-acts .btn:not(.pri)');
-  if(cancelBtn) {
-    cancelBtn.onclick = function(){ closeModal(); finish(); };
-  }
 }
 
 function createCompactPickerCardElement(card, viewerP, opts) {
@@ -1823,7 +1890,7 @@ function renderOppHand() {
     if(landscapeRevealsHands || revealed[card.iid]) {
       // Show face-up with card art
       if(el.className !== 'opp-card-back opp-revealed') el.className='opp-card-back opp-revealed';
-      const revealedStyle = 'width:60px;height:84px;border-radius:5px;flex-shrink:0;overflow:hidden;position:relative;border:1.5px solid rgba(255,180,50,.6);box-shadow:0 3px 10px rgba(0,0,0,.6),0 0 8px rgba(255,180,50,.25);cursor:pointer;transition:transform .15s;';
+      const revealedStyle = 'width:var(--opp-hand-card-w,60px);height:var(--opp-hand-card-h,84px);border-radius:5px;flex-shrink:0;overflow:hidden;position:relative;border:1.5px solid rgba(255,180,50,.6);box-shadow:0 3px 10px rgba(0,0,0,.6),0 0 8px rgba(255,180,50,.25);cursor:pointer;transition:transform .15s;';
       if(el.style.cssText !== revealedStyle) el.style.cssText = revealedStyle;
       const oppImg = card.img ? getRuntimeCardImageSrc(card.img, 'detail') : '';
       const visualSig = [oppImg || '', card.name || ''].join('|');
@@ -2311,8 +2378,9 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
   const hiddenOnBoard = !!(boardPos && isFaceDownCard(card) && (options.forceBoardHidden || card.owner !== viewerP));
   if(!hiddenOnBoard){
     const handCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : card.cost;
-    const handBonusFate = card._wciBonus ? 2 : 0;
-    const liveFate = getLiveCardFate(card) + (!boardPos ? handBonusFate : 0);
+    const immutable = typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card);
+    const handBonusFate = card._wciBonus && !immutable ? 2 : 0;
+    const liveFate = (immutable && !boardPos ? (Number(card.fate) || 0) : getLiveCardFate(card)) + (!boardPos ? handBonusFate : 0);
     return {
       card,
       isHidden: false,
@@ -2381,12 +2449,14 @@ function getStatusEffectIcon(kind) {
     fort_calvin: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="27" cy="27" r="12"/><path d="M36 36l14 14"/><path d="M24 27h6M27 24v6" opacity=".7"/><path d="M12 50h14" stroke-width="2.8" opacity=".45"/></g></svg>`,
     berkeley_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 43h25l14-14" stroke-width="4"/><path d="M20 43l-5 9M34 43l5 9" stroke-width="3"/><rect x="42" y="16" width="12" height="12" rx="2" stroke-width="3.5"/><path d="M16 34h14" stroke-width="3.5"/></g></svg>`,
     erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="19"/><path d="M32 19v14l9 5"/><path d="M21 15l-5-5M43 15l5-5"/><path d="M25 48h14" opacity=".45"/></g></svg>`,
+    selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 44c6-4 12-6 19-6s13 2 19 6" fill="none" stroke-width="4.5"/><path d="M14 51c6 2 12 2 18 0s12-2 18 0" fill="none" stroke-width="3" opacity=".55"/><path d="M32 15v28" fill="none" stroke-width="4"/><path d="M30 18c-7 3-12 9-15 18h15V18z" fill="currentColor" stroke="none"/><path d="M36 20c6 4 10 9 12 16H36V20z" fill="currentColor" stroke="none" opacity=".62"/><circle cx="48" cy="16" r="4" fill="currentColor" stroke="none" opacity=".75"/></g></svg>`,
+    guerilla: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27h28l7 4-7 4H16z" stroke-width="2.8"/><path d="M16 28l-6-4v13l6-4" stroke-width="2.6"/><path d="M46 31h9" stroke-width="2.6"/><path d="M24 23h17" stroke-width="2.4"/><path d="M30 36h7l-2 10h-9z" stroke-width="2.6"/><path d="M40 36l7 8" stroke-width="2.6"/><circle cx="24" cy="31" r="1.8" stroke-width="2.4"/></g></svg>`,
     ballad: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M38 12v32" stroke-width="4"/><path d="M38 12l14 5v10l-14-5" stroke-width="4"/><ellipse cx="25" cy="46" rx="11" ry="7" stroke-width="4"/><path d="M14 20c4-4 8-4 12 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
     mail_delivery: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"><rect x="10" y="18" width="44" height="30" rx="4"/><path d="M12 21l20 16 20-16"/><path d="M43 10v12M37 16h12" stroke-linecap="round"/></g></svg>`,
     village_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 31L32 13l22 18"/><path d="M17 29v24h30V29"/><path d="M27 53V38h10v15"/><path d="M19 18h10" opacity=".45"/></g></svg>`,
     rivera_aff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="18"/><path d="M32 18v28M18 32h28"/><path d="M22 22l20 20M42 22L22 42" opacity=".35"/></g></svg>`,
     wojciech: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 40c0 8 7 13 15 13s15-5 15-13" stroke-width="4"/><path d="M17 40c5-9 25-9 30 0" stroke-width="4"/><path d="M22 31c1-8 7-13 14-13 5 0 9 2 12 6" stroke-width="3"/><path d="M21 40c4 3 18 3 22 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
-    lydia: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 10v32" stroke-width="4"/><path d="M32 10l16 6v11l-16-6" stroke-width="4"/><ellipse cx="22" cy="44" rx="10" ry="7" stroke-width="4"/><path d="M48 40l-12 12M36 40l12 12" stroke-width="3" opacity=".65"/></g></svg>`,
+    lydia: `<svg class="lydia-berknomaly-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 27) scale(.48)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M-45 11C-37-31-8-47 0-47C8-47 37-31 45 11" stroke-width="7.5"/><path d="M-30 32L-47 50L-30 67" stroke-width="7.5"/><path d="M30 32L47 50L30 67" stroke-width="7.5"/><path d="M-17 5L0-14L17 5L0 24Z" stroke-width="6"/><path d="M0 31V76" stroke-width="7.5"/></g></svg>`,
     secules: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20h28M14 32h36M20 44h24" stroke-width="4"/><path d="M48 16L16 48" stroke-width="4"/><circle cx="32" cy="32" r="21" stroke-width="2.5" opacity=".38"/></g></svg>`,
     blame_game: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18h22c7 0 12 5 12 12s-5 12-12 12H22" stroke-width="4"/><path d="M24 30h18M30 22l-8 8 8 8" stroke-width="3.5"/><path d="M15 47c8-4 17-4 25 0" stroke-width="3" opacity=".45"/></g></svg>`,
     marie_deterrence: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36v12c0 11-7 20-18 26-11-6-18-15-18-26V18z" stroke-width="4"/><path d="M22 35h20" stroke-width="5"/><path d="M20 13h24" stroke-width="3" opacity=".5"/></g></svg>`
@@ -2654,7 +2724,8 @@ function renderHand() {
     if(!el) el = document.createElement('div');
     const canPlay = canActFromHand && canPlayCard(card);
     const supporterLimitReached = canActFromHand && isSupporterLimitReachedForCard(card);
-    const canSelectForDetailAction = canPlay || supporterLimitReached;
+    const tutorialBlocked = canActFromHand && typeof tutorialCanPlayHandCardNow === 'function' && !tutorialCanPlayHandCardNow(card);
+    const canSelectForDetailAction = (canPlay || supporterLimitReached) && !tutorialBlocked;
     const forceEnter = !!(G._forceHandEnterIids && G._forceHandEnterIids.has(card.iid));
     const isNew = forceEnter || !G._seenHandIids || !G._seenHandIids.has(card.iid);
     if(!G._seenHandIids) G._seenHandIids = new Set();
@@ -2663,6 +2734,7 @@ function renderHand() {
     const className = 'hc'
       +(G.selectedHandCard===i && canActFromHand?' sel':'')
       +((!canSelectForDetailAction || supporterLimitReached)?' dim':'')
+      +(tutorialBlocked?' tutorial-blocked':'')
       +(supporterLimitReached?' supporter-limit-reached':'')
       +(isNew?' hc-entering':'')
       +(card.rarity==='star'?' star-card':'')
@@ -2678,13 +2750,16 @@ function renderHand() {
     }
     const fate = getLiveCardFate(card);
     const runtimeImg = card.img ? getRuntimeCardImageSrc(card.img, 'hand') : '';
-    const visualSig = [runtimeImg, card.img || '', card.name || '', card.aff || '', fate].join('|');
+    const handEffectRows = typeof getHandCardEffectModifiers === 'function' ? getHandCardEffectModifiers(card) : [];
+    const handEffectSig = JSON.stringify(handEffectRows);
+    const visualSig = [runtimeImg, card.img || '', card.name || '', card.aff || '', fate, handEffectSig].join('|');
     if(el.__fateHandVisualSig !== visualSig){
       el.__fateHandVisualSig = visualSig;
       el.innerHTML=`
         <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" fetchpriority="high" data-full-src="${card.img}" onerror="this.onerror=null;this.src=this.dataset.fullSrc||'${card.img}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
         <div class="bc-fate">${fate}</div>
-        <div class="bc-name">${escapePlacementAnimHtml(card.name)}</div>`;
+        <div class="bc-name">${escapePlacementAnimHtml(card.name)}</div>
+        ${buildHandEffectMarkerHTML(card)}`;
       const img = el.querySelector('.bc-art img');
       if(img && card.img) {
         const fallbackSrc = card.img;
@@ -3001,6 +3076,7 @@ function coerceStatusOwner(value, fallback) {
 let _topbarEffectsLastHtml = null;
 let _effectTooltipPortal = null;
 let _effectTooltipGlobalCleanupBound = false;
+const TOPBAR_STATUS_VISIBLE_LIMIT = 5;
 
 function clearNodeChildren(node) {
   if(!node) return;
@@ -3121,6 +3197,79 @@ function createEffectPillNode() {
   return pill;
 }
 
+function getStatusOverflowIcon() {
+  return '<svg class="effect-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<path d="M5 7.5h14M5 12h14M5 16.5h14"/>' +
+    '<path d="M3.5 7.5h.01M3.5 12h.01M3.5 16.5h.01"/>' +
+  '</svg>';
+}
+
+function formatStatusOverflowEffects(effects) {
+  const safeEffects = Array.isArray(effects) ? effects : [];
+  return safeEffects.map(function(e) {
+    return [
+      e && e.label || '',
+      e && e.cardName || '',
+      e && e.cardAbility || '',
+      e && e.cardEffect || '',
+      e && e.extraClass || '',
+      e && e.turnsLeft || ''
+    ].join('|');
+  }).join('||');
+}
+
+function compactTopbarStatusEffects(effects, side) {
+  const list = Array.isArray(effects) ? effects : [];
+  if(list.length <= TOPBAR_STATUS_VISIBLE_LIMIT) return list.slice();
+  const visibleCount = Math.max(1, TOPBAR_STATUS_VISIBLE_LIMIT - 1);
+  const shown = list.slice(0, visibleCount);
+  const hidden = list.slice(visibleCount);
+  shown.push({
+    isOverflow: true,
+    overflowEffects: hidden,
+    overflowSide: side,
+    icon: getStatusOverflowIcon(),
+    label: '+' + hidden.length + ' Effects',
+    cardName: side === 'left' ? 'Your Active Effects' : "Opponent's Active Effects",
+    cardAbility: 'Status Summary',
+    cardEffect: hidden.map(function(e){ return e && e.label ? e.label : e && e.cardName ? e.cardName : 'Effect'; }).join(', '),
+    owner: side === 'left' ? getPerspectivePlayerIndex() : 1 - getPerspectivePlayerIndex(),
+    extraClass: 'effect-pill-overflow',
+    overflowSig: formatStatusOverflowEffects(hidden)
+  });
+  return shown;
+}
+
+function showStatusEffectOverflowModal(effects, side) {
+  const list = Array.isArray(effects) ? effects : [];
+  const ownerLabel = side === 'left' ? 'Your effects' : "Opponent's effects";
+  const rows = list.map(function(e) {
+    const icon = e && e.icon ? e.icon : getStatusOverflowIcon();
+    const name = e && e.cardName ? e.cardName : (e && e.label ? e.label : 'Active Effect');
+    const ability = e && e.cardAbility ? e.cardAbility : (e && e.label ? e.label : '');
+    const effect = e && e.cardEffect ? e.cardEffect : '';
+    return '<button type="button" class="status-overflow-row">' +
+      '<span class="status-overflow-row-icon">' + icon + '</span>' +
+      '<span class="status-overflow-row-copy">' +
+        '<b>' + escapeHtml(name) + '</b>' +
+        (ability ? '<em>' + escapeHtml(ability) + '</em>' : '') +
+        (effect ? '<small>' + escapeHtml(effect) + '</small>' : '') +
+      '</span>' +
+    '</button>';
+  }).join('');
+  showModal('Active Effects', '<div class="status-overflow-shell">' +
+    '<div class="status-overflow-head">' +
+      '<span>' + escapeHtml(ownerLabel) + '</span>' +
+      '<b>' + list.length + ' hidden</b>' +
+    '</div>' +
+    '<div class="status-overflow-list">' + rows + '</div>' +
+  '</div>', [
+    {label:'Close', pri:true, action:function(){ closeModal(); }}
+  ], {immediate:true, skipDecorate:true});
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('status-overflow-modal');
+}
+
 function syncEffectPills(container, effects, side) {
   if(!container) return '';
   if(!effects.length) hideEffectTooltipPortal();
@@ -3136,7 +3285,9 @@ function syncEffectPills(container, effects, side) {
       e.label || '',
       e.cardName || '',
       e.cardAbility || '',
-      e.cardEffect || ''
+      e.cardEffect || '',
+      e.isOverflow ? 'overflow' : '',
+      e.overflowSig || ''
     ].join('|');
     signatureParts.push(sig);
     var pill = container.children[i];
@@ -3144,6 +3295,31 @@ function syncEffectPills(container, effects, side) {
       pill = createEffectPillNode();
       if(container.children[i]) container.insertBefore(pill, container.children[i]);
       else container.appendChild(pill);
+    }
+    if(e.isOverflow) {
+      pill._statusOverflowEffects = Array.isArray(e.overflowEffects) ? e.overflowEffects.slice() : [];
+      pill._statusOverflowSide = side;
+      pill.setAttribute('role', 'button');
+      pill.setAttribute('tabindex', '0');
+      pill.setAttribute('aria-label', 'Show hidden active effects');
+      pill.onclick = function() {
+        hideEffectTooltipPortal();
+        showStatusEffectOverflowModal(this._statusOverflowEffects || [], this._statusOverflowSide || side);
+      };
+      pill.onkeydown = function(ev) {
+        if(ev && (ev.key === 'Enter' || ev.key === ' ')) {
+          ev.preventDefault();
+          this.click();
+        }
+      };
+    } else {
+      pill._statusOverflowEffects = null;
+      pill._statusOverflowSide = null;
+      pill.removeAttribute('role');
+      pill.removeAttribute('tabindex');
+      pill.removeAttribute('aria-label');
+      pill.onclick = null;
+      pill.onkeydown = null;
     }
     if(pill.dataset.effectSig === sig) continue;
     pill.dataset.effectSig = sig;
@@ -3234,6 +3410,16 @@ function getTopBarEffectsSourceSignature() {
       }
     });
   }
+  const handBits = [];
+  if(G && Array.isArray(G.players)) {
+    G.players.forEach(function(player, holder){
+      const hand = player && Array.isArray(player.hand) ? player.hand : [];
+      hand.forEach(function(c){
+        if(!c || String(c.id) !== '70' || !c.guerilla_transferred) return;
+        handBits.push([holder, c.iid || '', c.guerilla_owner ?? '', c.guerilla_turnsLeft ?? 0].join(':'));
+      });
+    });
+  }
   return [
     typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0,
     JSON.stringify(G.blockedCells || []),
@@ -3250,6 +3436,8 @@ function getTopBarEffectsSourceSignature() {
     JSON.stringify(G._balladEffects || []),
     JSON.stringify(G._mailDeliveries || []),
     JSON.stringify(G._blameGameEffects || []),
+    JSON.stringify(G._selvaSupportBoosts || []),
+    handBits.join(','),
     boardBits.join(',')
   ].join('|');
 }
@@ -3377,6 +3565,52 @@ function renderTopbarEffects() {
   }
 
   // Fort Calvin Watcher — reveals opponent's next draws
+  // Selva Islands Pirate - extra Supporter placements this turn.
+  if(Array.isArray(G._selvaSupportBoosts)) {
+    const card = CARDS.find(c => c.id === '74');
+    G._selvaSupportBoosts.forEach(function(fx, owner){
+      if(!fx || fx.turn !== G.turn || owner !== G.currentPlayer) return;
+      const extra = Math.max(0, Number(fx.extraSupports) || 0);
+      if(extra <= 0) return;
+      const total = Math.max(0, Number(G.maxSupportsPerTurn) || 0) + Math.max(0, Number(G.extraSupportsThisTurn) || 0);
+      allEffects.push({
+        icon: getStatusEffectIcon('selva'),
+        label: card ? card.ability : 'A New Pacifica',
+        cardName: card ? card.name : 'Selva Islands Pirate',
+        cardAbility: card ? card.ability : 'A New Pacifica',
+        cardEffect: '+' + extra + ' Supporter placement' + (extra === 1 ? '' : 's') + ' this turn. You can set up to ' + total + ' Supporters this turn.',
+        owner: owner,
+        extraClass: 'effect-pill-selva',
+        turnsLeft: 1
+      });
+    });
+  }
+
+  const wineCountryCard = CARDS.find(c => c.id === '70');
+  if(G && Array.isArray(G.players)) {
+    G.players.forEach(function(player, holder){
+      const hand = player && Array.isArray(player.hand) ? player.hand : [];
+      const infiltrators = hand.filter(function(c){
+        return c && String(c.id) === '70' && c.guerilla_transferred && (Number(c.guerilla_turnsLeft) || 0) > 0;
+      });
+      if(!infiltrators.length) return;
+      const turns = Math.max(0, Math.max.apply(null, infiltrators.map(function(c){ return Number(c.guerilla_turnsLeft) || 0; })));
+      const count = infiltrators.length;
+      const sourceOwner = coerceStatusOwner(infiltrators[0].guerilla_owner, 1 - holder);
+      allEffects.push({
+        icon:getStatusEffectIcon('guerilla'),
+        label:'A Gun Behind Every Grapevine',
+        cardName:wineCountryCard ? wineCountryCard.name : 'Wine Country Guerilla',
+        cardAbility:wineCountryCard ? wineCountryCard.ability : 'A Gun Behind Every Grapevine',
+        cardEffect:'Wine Country Guerilla is infiltrating the opposing hand. At the start of that opponent\'s turn, it reduces a random eligible card in their hand by 2 Fate. ' + turns + ' turn' + (turns === 1 ? '' : 's') + ' remaining.',
+        owner:sourceOwner,
+        extraClass:'effect-pill-guerilla',
+        turnsLeft:turns
+      });
+    });
+  }
+
+  // Fort Calvin Watcher - reveals opponent's next draws.
   if(G._fortCalvinActive && G._fortCalvinActive.length > 0) {
     G._fortCalvinActive.filter(w => w.remaining > 0).forEach(w => {
       const card = CARDS.find(c => c.id === '71');
@@ -3580,6 +3814,8 @@ function renderTopbarEffects() {
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
+  const myVisibleEffects = compactTopbarStatusEffects(myEffects, 'left');
+  const oppVisibleEffects = compactTopbarStatusEffects(oppEffects, 'right');
 
   const mySig = myEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || ''].join('|')).join('||');
   const oppSig = oppEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || ''].join('|')).join('||');
@@ -3588,8 +3824,8 @@ function renderTopbarEffects() {
     return;
   }
   _topbarEffectsLastHtml = nextHtml;
-  leftBar.dataset.effectPillsSig = syncEffectPills(leftBar, myEffects, 'left');
-  rightBar.dataset.effectPillsSig = syncEffectPills(rightBar, oppEffects, 'right');
+  leftBar.dataset.effectPillsSig = syncEffectPills(leftBar, myVisibleEffects, 'left');
+  rightBar.dataset.effectPillsSig = syncEffectPills(rightBar, oppVisibleEffects, 'right');
 
   if(statusDock) {
     statusDock.classList.remove('active','has-both-sides');
@@ -3724,8 +3960,7 @@ function updatePlayerStatBadge(el, opts) {
   if(el.dataset.profileStatSig === sig) return;
   el.dataset.profileStatSig = sig;
   if(elo != null) {
-    const suffix = mode === 'ai' ? `ELO ${elo}` : `ELO ${elo} &bull; ${wins}W ${losses}L`;
-    const nextHtml = `${renderRankBadge(elo, 'sm')}<div class="pb-elo-line">${suffix}</div>`;
+    const nextHtml = renderRankBadge(elo, 'sm');
     if(el.innerHTML !== nextHtml) el.innerHTML = nextHtml;
   } else {
     if(el.textContent !== 'Local Player') el.textContent = 'Local Player';
@@ -4075,6 +4310,14 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   '</div>';
 }
 
+function playEffectActivationButtonSound() {
+  if(typeof window !== 'undefined' && typeof window.playEffectActivationClickSfx === 'function') {
+    return window.playEffectActivationClickSfx();
+  }
+  if(typeof playSfx === 'function') playSfx('effectActivate');
+  return true;
+}
+
 function openCardDetail(card, fromHand=false, fromBoard=false) {
   if(fromBoard && typeof G !== 'undefined' && G && G._consolidating) return;
   if(!card){
@@ -4165,7 +4408,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     const santa=document.createElement('button');
     santa.className='btn sm pri';
     santa.textContent='Prosperity +2 Fate';
-    santa.onclick=()=>activateSantaAnnaProsperityFromHand(card);
+    santa.onclick=()=>{playEffectActivationButtonSound(); activateSantaAnnaProsperityFromHand(card);};
     acts.appendChild(santa);
   }
   if((fromHand||G.selectedHandCard!==null) && !fromBoard && canUseHandCard){
@@ -4235,8 +4478,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       flip.textContent='Flip Face Up';
       flip.onclick=()=>{
         closeModal();
+        playEffectActivationButtonSound();
         const delay = flipFaceDownBoardCard(bc, z, r, c);
-        if(delay > 0 && typeof playSfx === 'function') playSfx('effect');
       };
       acts.appendChild(flip);
     }
@@ -4244,7 +4487,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       const setAct=document.createElement('button');
       setAct.className='btn sm pri';
       setAct.textContent='Activate Effect';
-      setAct.onclick=()=>activatePendingWhenSetEffect(bc,z,r,c);
+      setAct.onclick=()=>{playEffectActivationButtonSound(); activatePendingWhenSetEffect(bc,z,r,c);};
       acts.appendChild(setAct);
     }
     if(!canActivateDeferredSetEffect && canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
@@ -4253,12 +4496,12 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         // No button needed — coordinators are automatic
       } else if(bc.type==='Initiator' && bc.effectUsedInitial){
         // Initiator already fired — no button
-      } else if(bc.type==='Improvisor' || bc.id==='89'){
+      } else if((bc.type==='Improvisor' && String(bc.id || '') !== '40') || bc.id==='89'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
         act.className='btn sm pri';act.textContent='Activate Effect';
-        act.onclick=()=>triggerCharacterEffect(bc,z,r,c);
+        act.onclick=()=>{playEffectActivationButtonSound(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
     }
@@ -4273,34 +4516,34 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
           const vigBtn=document.createElement('button');
           vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
-          vigBtn.onclick=()=>{closeModal();activateVigilantes(bc,z,r,c);};
+          vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
           acts.appendChild(vigBtn);
         }
         // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
         if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
           const wcBtn=document.createElement('button');
           wcBtn.className='btn sm pri';wcBtn.textContent='Elusive Movements';
-          wcBtn.onclick=()=>{closeModal();activateWolfCreek(bc,z,r,c);};
+          wcBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWolfCreek(bc,z,r,c);};
           acts.appendChild(wcBtn);
         }
         // ALPINE Expeditionary (73): move once per turn
         if(!supporterActionsSuppressed && bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
           expBtn.className='btn sm pri';expBtn.textContent='Move (once/turn)';
-          expBtn.onclick=()=>{closeModal();activateExpeditionaryMove(bc,z,r,c);};
+          expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
         }
         // Busser movement: any card with _busserMoves can move to adjacent zone
-        if(!supporterActionsSuppressed && bc._busserMoves > 0 && !bc._busserMovedThisTurn){
+        if(!supporterActionsSuppressed && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
           const busBtn=document.createElement('button');
           busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
-          busBtn.onclick=()=>{closeModal();activateBusserMove(bc,z,r,c);};
+          busBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateBusserMove(bc,z,r,c);};
           acts.appendChild(busBtn);
         }
         if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
           const snowBtn=document.createElement('button');
           snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
-          snowBtn.onclick=()=>{closeModal();activateWodnyPotokYouth(bc,z,r,c);};
+          snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
           acts.appendChild(snowBtn);
         }
       }
@@ -4308,7 +4551,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         const landMove=document.createElement('button');
         landMove.className='btn sm pri';
         landMove.textContent='Landscape Move';
-        landMove.onclick=()=>{closeModal();activateLandscapeEventideMove(bc,z,r,c);};
+        landMove.onclick=()=>{playEffectActivationButtonSound();closeModal();activateLandscapeEventideMove(bc,z,r,c);};
         acts.appendChild(landMove);
       }
       if(bc.type!=='Supporter' || ALLOW_MANUAL_SUPPORTER_DISCARD){
@@ -4403,7 +4646,10 @@ function resetModalChrome() {
       'affiliation-picker-modal',
       'board-target-picker-modal',
       'move-target-picker-modal',
-      'hand-limit-discard-modal'
+      'hand-limit-discard-modal',
+      'end-turn-warning-modal',
+      'reaction-choice-modal',
+      'status-overflow-modal'
     );
     delete modalBox.dataset.chooseDeckModal;
     modalBox.removeAttribute('style');
@@ -4478,7 +4724,9 @@ function showModal(title, bodyHtml, actions, opts) {
       if(typeof playSfx === 'function'){
         const label = String(a.label || '').toLowerCase();
         const cancelLike = a.danger || /cancel|close|back|skip|decline|no|leave/.test(label);
-        playSfx(a.sfx || (cancelLike ? 'modalCancel' : 'modalConfirm'));
+        if(a.sfx) playSfx(a.sfx);
+        else if(effectModal && !cancelLike) playEffectActivationButtonSound();
+        else playSfx(cancelLike ? 'modalCancel' : 'modalConfirm');
       }
       if(typeof a.action === 'function') {
         const result = a.action(e);
@@ -4693,7 +4941,10 @@ function showBoardTargetPicker(opts, onConfirm) {
   });
 
   showModal(opts.title || 'Select Target', '', [
-    {label:'Cancel', action:closeModal},
+    {label:'Cancel', action:function(){
+      closeModal();
+      if(typeof opts.onCancel === 'function') opts.onCancel();
+    }},
     {label:opts.confirmLabel || 'Confirm', pri:true, action:function(){
       if(!selected.length){ toast('Select a card first'); return; }
       closeModal();
@@ -4850,6 +5101,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
     return;
   }
   if(!cards.length){toast('No matching cards found');if(onConfirm) onConfirm([]); return;}
+  if(typeof tutorialFilterCardPickerOptions === 'function') {
+    const tutorialCards = tutorialFilterCardPickerOptions(cards, opts || {});
+    if(Array.isArray(tutorialCards) && tutorialCards.length) cards = tutorialCards;
+  }
   const maxCount = opts.maxCount || 1;
   const minCount = opts.minCount || 0;
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
@@ -5376,34 +5631,39 @@ function showAffiliationPickerVisual(callback) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0));
   if(wait > 0){ setTimeout(()=>showAffiliationPickerVisual(callback), wait); return; }
   const affs = [
-    {key:'reality', label:'Reality'},
-    {key:'third_great_war', label:'Third Great War'},
-    {key:'expanded_worlds', label:'Expanded Worlds'},
-    {key:'eventide', label:'Eventide'}
+    {key:'reality', label:'Reality', note:'Anchors and anomalies', accent:'#e2c657', glow:'226,198,87'},
+    {key:'third_great_war', label:'Third Great War', note:'Front lines and banners', accent:'#e25a4f', glow:'226,90,79'},
+    {key:'expanded_worlds', label:'Expanded Worlds', note:'Maps beyond the map', accent:'#49bf69', glow:'73,191,105'},
+    {key:'eventide', label:'Eventide', note:'Twilight courts and oaths', accent:'#58c4f0', glow:'88,196,240'}
   ];
   const body = document.getElementById('modal-body');
   document.getElementById('modal-title').textContent = 'Declare Affiliation';
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
     modalBox.classList.add('affiliation-picker-modal');
-    modalBox.style.maxWidth = '382px';
+    modalBox.style.maxWidth = '458px';
   }
   if(body) body.style.overflow = 'visible';
   body.innerHTML = `
-    <p style="color:var(--dim);font-size:.76rem;font-style:italic;margin-bottom:.6rem;text-align:center;">Choose the affiliation to apply.</p>
-    <div class="aff-pick-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.72rem;padding:.08rem;">
+    <div class="aff-pick-shell">
+      <div class="aff-pick-herald">
+        <span class="aff-pick-herald-line"></span>
+        <span class="aff-pick-herald-copy">Choose the banner this effect will name</span>
+        <span class="aff-pick-herald-line"></span>
+      </div>
+      <div class="aff-pick-grid">
       ${affs.map(a=>`
-        <div class="aff-pick-square" data-aff="${a.key}" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:.6rem .4rem;background:linear-gradient(180deg,rgba(20,22,30,.92),rgba(12,14,22,.95));border:1.5px solid ${AFF_COLOR[a.key]||'var(--border)'};border-radius:8px;transition:all .18s ease;">
-          <div class="aff-pick-icon-frame" style="width:44px;height:44px;border-radius:50%;overflow:hidden;background:rgba(0,0,0,.4);border:1.5px solid ${AFF_COLOR[a.key]||'var(--border)'};display:flex;align-items:center;justify-content:center;color:${AFF_COLOR[a.key]||'var(--gold)'};font-size:1.4rem;">
+        <button class="aff-pick-square" data-aff="${a.key}" type="button" style="--aff-accent:${a.accent};--aff-glow:${a.glow};" aria-label="Declare ${a.label}">
+          <span class="aff-pick-icon-frame">
             ${typeof getAffIcon==='function' ? getAffIcon(a.key) : ''}
-          </div>
-          <div style="font-family:Cinzel,serif;font-size:.68rem;color:var(--text);text-align:center;line-height:1.15;letter-spacing:.02em;">${a.label}</div>
-        </div>
+          </span>
+          <span class="aff-pick-label">${a.label}</span>
+          <span class="aff-pick-note">${a.note}</span>
+        </button>
       `).join('')}
+      </div>
     </div>`;
   body.querySelectorAll('.aff-pick-square').forEach(sq=>{
-    sq.onmouseenter=()=>{ sq.style.transform='scale(1.025)'; sq.style.boxShadow='0 0 14px '+AFF_COLOR[sq.dataset.aff]; sq.style.borderColor=AFF_COLOR[sq.dataset.aff]; };
-    sq.onmouseleave=()=>{ sq.style.transform=''; sq.style.boxShadow=''; };
     sq.onclick=()=>{
       closeModal();
       if(typeof playSfx==='function') playSfx('effect');
@@ -5562,7 +5822,7 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
 
 function pickBoardSupporterEffect(player, z) {
   // Ledger-keepers: copy a supporter effect — visual card picker
-  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','42','43','50','51','58','60','64','68','69','71','72','73','76','80'];
+  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','42','43','50','51','58','60','68','69','71','72','73','76','80'];
   const supporters=[];
   forEachBoardCard((card,bz,r,c)=>{if(card.type==='Supporter' && whenSetIds.includes(card.id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});});
   if(!supporters.length){toast('No supporters on field');return;}
@@ -5998,6 +6258,7 @@ let _hoverPreviewEl = null;
 let _hoverPreviewSize = null;
 let _hoverPreviewRaf = null;
 let _hoverPreviewPoint = null;
+let _hoverPreviewAnchorRect = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
   try {
@@ -6027,6 +6288,10 @@ function showHoverPreview(card, e) {
 function positionHoverPreview(e) {
   if(!_hoverPreviewEl) return;
   _hoverPreviewPoint = { x:e.clientX, y:e.clientY };
+  const anchorEl = e && e.target && e.target.closest ? e.target.closest('.bc,.opp-card-back,.deck-slot,.discard-slot,.preset-browse-tile') : null;
+  const currentEl = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget : null;
+  const rectEl = anchorEl || currentEl;
+  _hoverPreviewAnchorRect = rectEl && rectEl.getBoundingClientRect ? rectEl.getBoundingClientRect() : null;
   if(_hoverPreviewRaf) return;
   _hoverPreviewRaf = requestAnimationFrame(()=>{
     _hoverPreviewRaf = null;
@@ -6036,9 +6301,11 @@ function positionHoverPreview(e) {
       _hoverPreviewSize = { w:rect.width || 280, h:rect.height || 360 };
     }
     const p = _hoverPreviewPoint;
-    let x = p.x + 16, y = p.y - 20;
     const w = _hoverPreviewSize.w, h = _hoverPreviewSize.h;
-    if(x + w > window.innerWidth - 10) x = p.x - w - 16;
+    const anchor = _hoverPreviewAnchorRect;
+    let x = anchor ? anchor.left - w - 34 : p.x - w - 96, y = p.y - 20;
+    if(x < 10) x = p.x + 16;
+    if(x + w > window.innerWidth - 10) x = window.innerWidth - w - 10;
     if(y + h > window.innerHeight - 10) y = window.innerHeight - h - 10;
     if(y < 10) y = 10;
     _hoverPreviewEl.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
@@ -6049,6 +6316,7 @@ function removeHoverPreview() {
   if(_hoverPreviewEl) { _hoverPreviewEl.remove(); _hoverPreviewEl = null; }
   _hoverPreviewSize = null;
   _hoverPreviewPoint = null;
+  _hoverPreviewAnchorRect = null;
 }
 
 // ── CARD INFO OVERLAY (shows card detail on top of an open modal) ──
@@ -6268,7 +6536,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "11": "Agree to these terms, or you might find an exploding pineapple on your doorstep one day",
   "12": "A robbery in the night...we must rescue the birds",
   "13": "The commonwealth will unite against this threat",
-  "14": "Look, I know your eager to fight me...but you look exactly like the last four hundred and eighty six men I decapitated!",
+  "14": "you look exactly like the last 97 men I decapitated!",
   "15": "The sword of King Stephen I will fall upon you!",
   "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
@@ -6293,7 +6561,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "56": "Your godlike powers, versus my rusty sword and undeeeniable face card",
   "57": "We have things in these mountains you'd never dream of",
   "40": "I know it sucks watching me dismemeber, decapitate, and disembowel your mother like that, but for Christ's sake, she was a zombie!",
-  "61": "Uhhhh...you do know that I can blow your brains out before you can reach me with that giant cleaver?",
+  "61": "There's no point trying to run. I'll just put a bullet through your skull.",
   "66": "Look at Curry man, so inspirational",
   "67": "You just said nothing",
   "77": "My heart no longer sings...I've walked a thousand lives of men",
@@ -6695,7 +6963,13 @@ function showEffectActivationCinematic(card, opts) {
       });
     });
     if(typeof playCardSound === 'function' && options.playVoice === true) playCardSound(card.id);
-    if(typeof playSfx === 'function' && options.sfx !== false) playSfx('effect');
+    if(options.sfx !== false) {
+      if(typeof window !== 'undefined' && typeof window.playEffectActivationClickSfx === 'function') {
+        window.playEffectActivationClickSfx({remote:!!options.remote, minGapMs:260});
+      } else if(typeof playSfx === 'function') {
+        playSfx('effectActivate');
+      }
+    }
     setTimeout(function(){
       cardWrap.style.transform = 'translateY(0) scale(1)';
       sigil.style.opacity = '0';

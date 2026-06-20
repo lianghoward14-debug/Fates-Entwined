@@ -155,6 +155,9 @@
     base.fate = card.fate;
     base.currentFate = card.currentFate;
     base.cost = card.cost;
+    base.handEffectModifiers = typeof window.getHandCardEffectModifiers === 'function'
+      ? window.getHandCardEffectModifiers(card)
+      : [];
     base.flags = {
       faceDown:!!card.faceDown,
       immune:!!card.immuneFlag,

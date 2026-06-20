@@ -171,16 +171,19 @@
     const oppCols = Math.min(4, Math.max(1, oppCount || 1));
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
     const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
+    const denseOppCardMaxW = denseOppHand ? (oppCount >= 9 ? 42 : 50) : 54;
+    const denseOppCardMinW = denseOppHand ? (oppCount >= 9 ? 30 : 32) : 34;
     const baseOppCardW = hasRevealedOppCards && !denseOppHand
       ? clamp(winW * 0.038, 56, 66)
-      : clamp(winW * (denseOppHand ? 0.031 : 0.034), denseOppHand ? 32 : 34, denseOppHand ? 50 : 54);
+      : clamp(winW * (denseOppHand ? 0.027 : 0.034), denseOppCardMinW, denseOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
     const oppFallback = rect(22, denseOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
     if(denseOppHand) {
-      oppRect = rect(oppRect.x, oppRect.y + 18, oppRect.w, oppRect.h);
+      const denseInsetY = oppCount >= 9 ? 6 : 18;
+      oppRect = rect(oppRect.x, oppRect.y + denseInsetY, oppRect.w, Math.max(1, oppRect.h - denseInsetY));
     }
     const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
     const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;

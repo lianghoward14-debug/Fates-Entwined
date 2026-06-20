@@ -1,5 +1,6 @@
 // FATES ENTWINED ONLINE SOCIAL V1.8
-// Stable Social integration over RTDB publicProfiles/friends/presence.
+// Stable Social integration. Fly is used in RTDB-disabled mode; RTDB remains
+// the legacy fallback for non-Fly sessions.
 // Wires RTDB friends/profiles plus existing World Chat and DM UI; does not add new panels.
 (function(){
   const FO = window.FateOnline || {};
@@ -23,6 +24,9 @@
   let lastHtml = '';
   let onlinePage = 0;
   let lastPartyMemberCount = -1;
+  let flySocialPollTimer = 0;
+  let flyWorldChatPollTimer = 0;
+  let flyWorldChatLastSeq = 0;
   const ONLINE_PAGE_SIZE = 40;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
@@ -31,6 +35,89 @@
   function photoOf(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL || p?.profileImg || 'blank.png'); }
   function fallback(uid){ return { uid, chosenUsername:'Player', displayName:'Player', username:'Player', baseCode:FO.makeBaseCode?FO.makeBaseCode(uid):uid, photoURL:'blank.png', level:1, challengerElo:600, bio:'' }; }
   function profileOf(uid){ return profileMap.get(uid) || (FO.profileCache && FO.profileCache.get(uid)) || fallback(uid); }
+  function localStorageFlag(name){
+    try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+  }
+  function authorityHttpBaseUrl(){
+    try{
+      const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+      if(explicit) return explicit.replace(/\/+$/, '');
+    }catch(e){}
+    const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
+    if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
+    let wsUrl = '';
+    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
+    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
+    if(!wsUrl) return '';
+    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+  }
+  function flySocialEnabled(){
+    return !!authorityHttpBaseUrl() && (
+      localStorageFlag('fateFlyRoomsEnabled') ||
+      localStorageFlag('fateRtdbDisabled') ||
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }
+  function rtdbDisabledMode(){
+    return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+  }
+  function firebaseSocialAllowed(){
+    return !rtdbDisabledMode() && !!(FO.rtdb && FO.ref);
+  }
+  async function flyApiRequest(path, opts={}){
+    const base = authorityHttpBaseUrl();
+    if(!base) throw new Error('Fly authority API URL is not configured');
+    const headers = {'accept':'application/json'};
+    const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
+    if(token) headers.authorization = 'Bearer ' + token;
+    const method = String(opts.method || 'GET').toUpperCase();
+    const init = {method, headers};
+    if(opts.body !== undefined){
+      headers['content-type'] = 'application/json';
+      init.body = JSON.stringify(opts.body || {});
+    }
+    const res = await fetch(base + path, init);
+    if(!res.ok){
+      const text = await res.text().catch(()=> '');
+      throw new Error('Fly social API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+    }
+    return await res.json();
+  }
+  function applyFlySocialState(state){
+    const u = window.FATE_ONLINE?.user;
+    friends = state?.friends || {};
+    requests = state?.requests || {};
+    threads = state?.threads || {};
+    onlineUids = Array.isArray(state?.onlineUids) ? state.onlineUids.filter(Boolean) : [];
+    partyInvites = state?.partyInvites || {};
+    const profiles = state?.profiles || {};
+    Object.entries(profiles).forEach(([uid, profile])=>{
+      profileMap.set(uid, profile || fallback(uid));
+      if(FO.profileCache && profile) FO.profileCache.set(uid, profile);
+    });
+    const nextParty = state?.party || null;
+    onlineParty = nextParty;
+    activePartyId = nextParty?.partyId || '';
+    window.FATE_ONLINE_PARTY = nextParty || null;
+    Object.keys(nextParty?.members || {}).forEach(uid=>{
+      if(!profileMap.has(uid)) profileMap.set(uid, fallback(uid));
+    });
+    Object.keys(partyInvites || {}).forEach(uid=>{
+      if(!profileMap.has(uid)) profileMap.set(uid, fallback(uid));
+    });
+    if(u && !profileMap.has(u.uid)) profileMap.set(u.uid, window.FATE_ONLINE?.profile || fallback(u.uid));
+    handlePartyInviteNotifications(partyInvites);
+    syncTopPendingBadge();
+  }
+  async function refreshFlySocialState(){
+    const u = window.FATE_ONLINE?.user;
+    if(!u || !flySocialEnabled()) return null;
+    const data = await flyApiRequest(`/api/social/state?uid=${encodeURIComponent(u.uid)}`);
+    applyFlySocialState(data);
+    scheduleRender();
+    return data;
+  }
   function socialSfx(type){
     try{
       if(typeof window.playSfx === 'function') window.playSfx(type || 'uiClick');
@@ -227,6 +314,8 @@
     try{ if(unsubPartyInvites) unsubPartyInvites(); }catch(e){}
     try{ if(unsubUserParty) unsubUserParty(); }catch(e){}
     try{ if(unsubPartyState) unsubPartyState(); }catch(e){}
+    if(flySocialPollTimer) clearInterval(flySocialPollTimer);
+    flySocialPollTimer = 0;
     unsubFriends = unsubReq = unsubPresence = unsubThreads = null;
     unsubPartyInvites = unsubUserParty = unsubPartyState = null;
     cleanupProfileSubs();
@@ -240,7 +329,7 @@
   }
   function armPartyDisconnect(partyId, partyData){
     const u = window.FATE_ONLINE?.user;
-    if(!u || !partyId || !FO.rtdb || !FO.ref || !FO.onDisconnect || partyDisconnectArmedFor === partyId) return;
+    if(!u || !partyId || !firebaseSocialAllowed() || !FO.onDisconnect || partyDisconnectArmedFor === partyId) return;
     partyDisconnectArmedFor = partyId;
     FO.onDisconnect(FO.ref(FO.rtdb, `userParties/${u.uid}`)).remove().catch(()=>{});
     FO.onDisconnect(FO.ref(FO.rtdb, `parties/${partyId}`)).remove().catch(()=>{});
@@ -283,7 +372,18 @@
       return;
     }
     if(opts.silent) suppressPartyDisbandNoticeUntil = Date.now() + 1800;
-    if(id && FO.rtdb && FO.update){
+    if(id && flySocialEnabled()){
+      await flyApiRequest(`/api/parties/${encodeURIComponent(id)}/leave`, {
+        method:'POST',
+        body:{uid:u?.uid || '', profile:window.FATE_ONLINE?.profile || {}}
+      }).catch(e=>console.warn('Fly party leave failed', e));
+      clearLocalPartyState();
+      await refreshFlySocialState().catch(()=>{});
+      forceSocialRender();
+      if(!opts.silent) showPartySystemNotice(reason || 'Your party was disbanded.');
+      return;
+    }
+    if(id && firebaseSocialAllowed() && FO.update){
       await FO.update(FO.ref(FO.rtdb), partyCleanupUpdates(id, data, u?.uid)).catch(e=>console.warn('Party disband failed', e));
     }
     clearLocalPartyState();
@@ -292,7 +392,7 @@
   }
   function handlePartyInviteNotifications(nextInvites){
     Object.keys(nextInvites || {}).forEach(fromUid=>{
-      ensureProfileSub(fromUid);
+      if(!flySocialEnabled()) ensureProfileSub(fromUid);
       if(seenPartyInviteIds.has(fromUid)) return;
       seenPartyInviteIds.add(fromUid);
       if(!partyInvitesInitialLoaded) return;
@@ -304,12 +404,17 @@
     try{ if(unsubPartyState) unsubPartyState(); }catch(e){}
     unsubPartyState = null;
     activePartyId = partyId || '';
+    if(flySocialEnabled()){
+      refreshFlySocialState().catch(e=>console.warn('Fly party refresh failed', e));
+      return;
+    }
     if(!partyId){
       onlineParty = null;
       window.FATE_ONLINE_PARTY = null;
       scheduleRender();
       return;
     }
+    if(!firebaseSocialAllowed() || !FO.onValue) return;
     unsubPartyState = FO.onValue(FO.ref(FO.rtdb, `parties/${partyId}`), snap=>{
       const data = snap.val();
       const u = window.FATE_ONLINE?.user;
@@ -337,7 +442,20 @@
   }
   function watchSocial(){
     const u = window.FATE_ONLINE?.user;
-    if(!u || !FO.rtdb){
+    if(u && flySocialEnabled()){
+      if(currentUid !== u.uid){
+        resetWatchers();
+        currentUid = u.uid;
+        profileMap.set(u.uid, window.FATE_ONLINE?.profile || fallback(u.uid));
+        refreshFlySocialState().catch(e=>console.warn('Fly social state failed', e));
+        flySocialPollTimer = setInterval(()=>{
+          if(!document.hidden && !window.__fatePageHidden) refreshFlySocialState().catch(()=>{});
+        }, 5000);
+      }
+      scheduleRender();
+      return;
+    }
+    if(!u || !firebaseSocialAllowed()){
       if(currentUid){ resetWatchers(); currentUid = null; }
       scheduleRender();
       return;
@@ -389,6 +507,25 @@
   async function lookupPlayer(term){
     const raw = String(term||'').trim();
     if(!raw) return null;
+    if(flySocialEnabled()){
+      await refreshFlySocialState().catch(()=>{});
+      const lowerRaw = raw.toLowerCase();
+      const found = [...profileMap.entries()].find(([uid, p])=>{
+        return uid === raw ||
+          String(p?.baseCode || '').toLowerCase() === lowerRaw ||
+          String(nameOf(p) || '').toLowerCase() === lowerRaw ||
+          String(p?.username || '').toLowerCase() === lowerRaw;
+      });
+      if(found) return {uid:found[0], profile:found[1]};
+      const data = await flyApiRequest(`/api/social/lookup?term=${encodeURIComponent(raw)}`).catch(()=>null);
+      const profile = Array.isArray(data?.profiles) ? data.profiles[0] : null;
+      if(profile?.uid){
+        profileMap.set(profile.uid, profile);
+        return {uid:profile.uid, profile};
+      }
+      return null;
+    }
+    if(!firebaseSocialAllowed() || !FO.get || !FO.query || !FO.orderByChild || !FO.equalTo || !FO.limitToFirst) return null;
     const up = raw.toUpperCase();
     if(up.startsWith('FATE-')){
       const uid = (await FO.get(FO.ref(FO.rtdb, `friendInviteCodes/${up}`))).val();
@@ -405,6 +542,26 @@
     const inp = document.getElementById('social-add-input');
     const term = inp?.value || '';
     const u = getUser(); if(!u) return;
+    if(flySocialEnabled()){
+      const found = await lookupPlayer(term).catch(()=>null);
+      if(!found?.uid){ if(window.toast) toast('Player not found'); return; }
+      if(found.uid === u.uid){ if(window.toast) toast('That is your own player ID'); return; }
+      const data = await flyApiRequest('/api/friends/request', {
+        method:'POST',
+        body:{uid:u.uid, toUid:found.uid, profile:window.FATE_ONLINE?.profile || {}}
+      }).catch(e=>{
+        console.warn('Fly friend request failed', e);
+        if(window.toast) toast('Friend request failed');
+        return null;
+      });
+      if(!data) return;
+      if(inp) inp.value='';
+      applyFlySocialState(data.state || {});
+      forceSocialRender();
+      if(window.toast) toast('Friend request sent');
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Social service is not ready'); return; }
     const found = await lookupPlayer(term).catch(e=>{ console.error(e); return null; });
     if(!found || !found.uid){ if(window.toast) toast('Player not found'); return; }
     if(found.uid === u.uid){ if(window.toast) toast('That is your own player ID'); return; }
@@ -418,6 +575,23 @@
   }
   async function acceptFriend(fromUid){
     const u = getUser(); if(!u) return;
+    if(flySocialEnabled()){
+      const data = await flyApiRequest('/api/friends/accept', {
+        method:'POST',
+        body:{uid:u.uid, fromUid}
+      }).catch(e=>{
+        console.warn('Fly friend accept failed', e);
+        if(window.toast) toast('Could not add friend');
+        return null;
+      });
+      if(!data) return;
+      applyFlySocialState(data.state || {});
+      refreshFriendRequestsModal();
+      forceSocialRender();
+      if(window.toast) toast('Friend added');
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Social service is not ready'); return; }
     const now = FO.serverTimestamp();
     delete requests[fromUid];
     friends[fromUid] = { uid:fromUid, createdAt:Date.now() };
@@ -433,6 +607,18 @@
   }
   async function declineFriend(fromUid){
     const u = getUser(); if(!u) return;
+    if(flySocialEnabled()){
+      const data = await flyApiRequest('/api/friends/decline', {
+        method:'POST',
+        body:{uid:u.uid, fromUid}
+      }).catch(()=>null);
+      if(data?.state) applyFlySocialState(data.state);
+      delete requests[fromUid];
+      refreshFriendRequestsModal();
+      forceSocialRender();
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update) return;
     delete requests[fromUid];
     refreshFriendRequestsModal();
     forceSocialRender();
@@ -440,12 +626,29 @@
   }
   async function removeFriend(friendUid){
     const u = getUser(); if(!u) return;
+    if(flySocialEnabled()){
+      const data = await flyApiRequest('/api/friends/remove', {
+        method:'POST',
+        body:{uid:u.uid, friendUid}
+      }).catch(e=>{
+        console.warn('Fly friend remove failed', e);
+        if(window.toast) toast('Could not remove friend');
+        return null;
+      });
+      if(!data) return;
+      applyFlySocialState(data.state || {});
+      forceSocialRender();
+      if(window.toast) toast('Friend removed');
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Social service is not ready'); return; }
     await FO.update(FO.ref(FO.rtdb), { [`friends/${u.uid}/${friendUid}`]: null, [`friends/${friendUid}/${u.uid}`]: null });
     if(window.toast) toast('Friend removed');
   }
 
   async function inspectOnlineProfile(uid){
-    ensureProfileSub(uid);
+    if(flySocialEnabled()) await refreshFlySocialState().catch(()=>{});
+    else ensureProfileSub(uid);
     const p = profileOf(uid);
     const code = p.baseCode || (FO.makeBaseCode ? FO.makeBaseCode(uid) : uid);
     const isFriend = !!friends[uid];
@@ -576,7 +779,23 @@
   async function createOnlineParty(){
     socialSfx('uiClick');
     const u = getUser(); if(!u) return;
-    if(!FO.rtdb || !FO.ref || !FO.set){ if(window.toast) toast('Party service is not ready'); return null; }
+    if(flySocialEnabled()){
+      try{
+        const data = await flyApiRequest('/api/parties', {
+          method:'POST',
+          body:{uid:u.uid, profile:window.FATE_ONLINE?.profile || {}}
+        });
+        applyFlySocialState(data.state || {party:data.party});
+        forceSocialRender();
+        if(window.toast) toast('Party created');
+        return onlineParty;
+      }catch(e){
+        console.warn('Fly party create failed', e);
+        if(window.toast) toast('Could not create party');
+        return null;
+      }
+    }
+    if(!firebaseSocialAllowed() || !FO.set){ if(window.toast) toast('Party service is not ready'); return null; }
     const partyId = `party_${u.uid}`;
     const partyData = {
       leaderUid:u.uid,
@@ -632,7 +851,22 @@
       status:'pending',
       createdAt:FO.serverTimestamp ? FO.serverTimestamp() : Date.now()
     };
-    if(!FO.rtdb || !FO.ref || !FO.set){
+    if(flySocialEnabled()){
+      try{
+        const data = await flyApiRequest(`/api/parties/${encodeURIComponent(party.partyId || activePartyId)}/invite`, {
+          method:'POST',
+          body:{uid:u.uid, toUid:uid, profile:senderProfile}
+        });
+        applyFlySocialState(data.state || {});
+        forceSocialRender();
+        if(window.toast) toast('Party request sent');
+      }catch(e){
+        console.warn('Fly party invite failed', e);
+        if(window.toast) toast('Party request failed');
+      }
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.set){
       if(window.toast) toast('Party service is not ready');
       return;
     }
@@ -658,6 +892,22 @@
     const invite = partyInvites?.[fromUid];
     const partyId = invite?.partyId;
     if(!partyId){ if(window.toast) toast('Party request expired'); return; }
+    if(flySocialEnabled()){
+      try{
+        const data = await flyApiRequest(`/api/parties/${encodeURIComponent(partyId)}/accept`, {
+          method:'POST',
+          body:{uid:u.uid, fromUid, profile:window.FATE_ONLINE?.profile || {}}
+        });
+        applyFlySocialState(data.state || {party:data.party});
+        forceSocialRender();
+        if(window.toast) toast('Joined party');
+      }catch(e){
+        console.warn('Fly party accept failed', e);
+        if(window.toast) toast('Could not join party');
+      }
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.get || !FO.update){ if(window.toast) toast('Party service is not ready'); return; }
     const party = (await FO.get(FO.ref(FO.rtdb, `parties/${partyId}`)).catch(()=>null))?.val();
     if(!party || !party.members){ if(window.toast) toast('Party no longer exists'); return; }
     const members = party.members || {};
@@ -668,7 +918,7 @@
       cleanup[`partyInvites/${u.uid}/${uid}`] = null;
       cleanup[`sentPartyInvites/${uid}/${u.uid}`] = null;
     });
-    if(!FO.rtdb || !FO.update){ if(window.toast) toast('Party service is not ready'); return; }
+    if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Party service is not ready'); return; }
     let joined = true;
     await FO.update(FO.ref(FO.rtdb), {
       [`parties/${partyId}/members/${u.uid}`]: { uid:u.uid, status:'Ready', joinedAt:FO.serverTimestamp ? FO.serverTimestamp() : Date.now() },
@@ -694,6 +944,19 @@
   async function declineOnlinePartyInvite(fromUid){
     socialSfx('menuClose');
     const u = getUser(); if(!u) return;
+    if(flySocialEnabled()){
+      const invite = partyInvites?.[fromUid];
+      const partyId = invite?.partyId || activePartyId || 'none';
+      await flyApiRequest(`/api/parties/${encodeURIComponent(partyId)}/decline`, {
+        method:'POST',
+        body:{uid:u.uid, fromUid}
+      }).catch(e=>console.warn('Fly party decline failed', e));
+      delete partyInvites[fromUid];
+      await refreshFlySocialState().catch(()=>{});
+      forceSocialRender();
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update) return;
     await FO.update(FO.ref(FO.rtdb), {
       [`partyInvites/${u.uid}/${fromUid}`]: null,
       [`sentPartyInvites/${fromUid}/${u.uid}`]: null
@@ -718,7 +981,16 @@
     const u = window.FATE_ONLINE?.user;
     const party = onlineParty;
     const partyId = party?.partyId || activePartyId;
-    if(!u || !partyId || !FO.rtdb || !FO.update) return;
+    if(!u || !partyId) return;
+    if(flySocialEnabled()){
+      try{
+        const blob = JSON.stringify({uid:u.uid});
+        const base = authorityHttpBaseUrl();
+        if(base && navigator.sendBeacon) navigator.sendBeacon(base + `/api/parties/${encodeURIComponent(partyId)}/leave`, new Blob([blob], {type:'application/json'}));
+      }catch(e){}
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.update) return;
     FO.update(FO.ref(FO.rtdb), partyCleanupUpdates(partyId, party, u.uid)).catch(()=>{});
   }
   window.addEventListener('pagehide', resetPartyBeforePageExit);
@@ -992,9 +1264,55 @@
 
   function watchWorldChat(){
     const u = window.FATE_ONLINE?.user;
-    if(!u || !FO.rtdb){
+    if(u && flySocialEnabled()){
       try{ if(unsubWorldChat) unsubWorldChat(); }catch(e){}
       unsubWorldChat = null;
+      clearLocalFakeWorldChat();
+      const refresh = async function(force=false){
+        const socialOpen = document.getElementById('s-social')?.classList.contains('active');
+        if(!force && !worldChatIsOpen() && !socialOpen) return;
+        const after = worldInitialLoaded ? flyWorldChatLastSeq : 0;
+        const data = await flyApiRequest(`/api/world-chat?limit=100&after=${encodeURIComponent(after)}`).catch(e=>{
+          console.warn('Fly world chat refresh failed', e);
+          return null;
+        });
+        if(!data) return;
+        const incoming = Array.isArray(data.messages) ? data.messages : [];
+        const existing = Array.isArray(window.FATE_ONLINE_WORLD_CHAT) ? window.FATE_ONLINE_WORLD_CHAT : [];
+        const byId = new Map(existing.map(m=>[m.id || String(m.seq || ''), m]));
+        incoming.forEach(m=>{
+          const id = m.id || String(m.seq || '');
+          if(id) byId.set(id, {
+            id,
+            seq:Number(m.seq || 0) || 0,
+            uid:m.uid || m.fromUid || '',
+            from:m.from || m.name || 'Player',
+            text:String(m.text || '').slice(0, 240),
+            timestamp:timestampOf(m),
+            photoURL:m.photoURL || m.profileImg || null
+          });
+        });
+        const arr = [...byId.values()].filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
+        flyWorldChatLastSeq = Math.max(Number(data.chatSeq || 0) || 0, ...arr.map(m=>Number(m.seq || 0) || 0), flyWorldChatLastSeq);
+        if(!worldInitialLoaded){
+          arr.forEach(m=>seenWorldIds.add(m.id || String(m.seq || '')));
+          worldInitialLoaded = true;
+        }
+        window.FATE_ONLINE_WORLD_CHAT = arr;
+        if(window.SOCIAL) window.SOCIAL.worldChat = [];
+        scheduleWorldChatRender(force);
+      };
+      refresh(true);
+      if(!flyWorldChatPollTimer){
+        flyWorldChatPollTimer = setInterval(()=>refresh(false), 3500);
+      }
+      return;
+    }
+    if(!u || !firebaseSocialAllowed()){
+      try{ if(unsubWorldChat) unsubWorldChat(); }catch(e){}
+      unsubWorldChat = null;
+      if(flyWorldChatPollTimer) clearInterval(flyWorldChatPollTimer);
+      flyWorldChatPollTimer = 0;
       worldInitialLoaded = false;
       seenWorldIds = new Set();
       return;
@@ -1076,6 +1394,28 @@
     inp.value = '';
     window.FATE_WORLD_CHAT_FORCE_BOTTOM_ON_NEXT_RENDER = true;
     try{
+      if(flySocialEnabled()){
+        const data = await flyApiRequest('/api/world-chat', {
+          method:'POST',
+          body:{uid:u.uid, text:payload.text, profile:p}
+        });
+        const messages = Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []);
+        const arr = messages.map(m=>({
+          id:m.id || String(m.seq || ''),
+          seq:Number(m.seq || 0) || 0,
+          uid:m.uid || m.fromUid || '',
+          from:m.from || m.name || 'Player',
+          text:String(m.text || '').slice(0, 240),
+          timestamp:timestampOf(m),
+          photoURL:m.photoURL || m.profileImg || null
+        })).filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
+        window.FATE_ONLINE_WORLD_CHAT = arr;
+        flyWorldChatLastSeq = Math.max(Number(data.chatSeq || 0) || 0, ...arr.map(m=>Number(m.seq || 0) || 0), flyWorldChatLastSeq);
+        scheduleWorldChatRender(true);
+        if(typeof window.playSfx === 'function') window.playSfx('uiClick');
+        return;
+      }
+      if(!firebaseSocialAllowed() || !FO.push){ throw new Error('World chat service is not ready'); }
       await FO.push(FO.ref(FO.rtdb, 'worldChat'), payload);
       if(typeof window.playSfx === 'function') window.playSfx('uiClick');
     }catch(e){
@@ -1192,7 +1532,27 @@
 
   function openOnlineDirectMessage(peerUid){
     const u = getUser(); if(!u || !peerUid) return;
+    if(flySocialEnabled()){
+      socialSfx('menuOpen');
+      closeDmSub();
+      dmPeerUid = peerUid;
+      dmShellOpen = false;
+      if(!profileMap.has(peerUid)) profileMap.set(peerUid, fallback(peerUid));
+      flyApiRequest(`/api/direct-messages/${encodeURIComponent(peerUid)}?uid=${encodeURIComponent(u.uid)}&limit=80`)
+        .then(data=>{
+          dmMessages = Array.isArray(data.messages) ? data.messages : [];
+          if(data.state) applyFlySocialState(data.state);
+          renderDirectMessageModal(true);
+        })
+        .catch(e=>{
+          console.warn('Fly DM open failed', e);
+          if(window.toast) toast('Could not open messages');
+        });
+      renderDirectMessageModal(true);
+      return;
+    }
     socialSfx('menuOpen');
+    if(!firebaseSocialAllowed() || !FO.update || !FO.onValue){ if(window.toast) toast('Message service is not ready'); return; }
     closeDmSub();
     dmPeerUid = peerUid;
     dmShellOpen = false;
@@ -1221,6 +1581,25 @@
     const text = String(inp?.value || '').trim();
     if(!text) return;
     const p = currentProfile();
+    if(flySocialEnabled()){
+      if(inp) inp.value = '';
+      const data = await flyApiRequest(`/api/direct-messages/${encodeURIComponent(dmPeerUid)}`, {
+        method:'POST',
+        body:{uid:u.uid, text:text.slice(0,240), profile:p}
+      }).catch(e=>{
+        if(inp) inp.value = text;
+        console.error('Fly private message send failed', e);
+        if(window.toast) toast('Message failed to send');
+        return null;
+      });
+      if(!data) return;
+      dmMessages = Array.isArray(data.messages) ? data.messages : (data.message ? [...dmMessages, data.message] : dmMessages);
+      if(data.state) applyFlySocialState(data.state);
+      renderDirectMessageModal(false);
+      if(typeof window.playSfx === 'function') window.playSfx('uiClick');
+      return;
+    }
+    if(!firebaseSocialAllowed() || !FO.push || !FO.update){ if(window.toast) toast('Message service is not ready'); return; }
     const msgId = FO.push(FO.ref(FO.rtdb, `privateMessages/${u.uid}/${dmPeerUid}/messages`)).key;
     const now = Date.now();
     const payload = {

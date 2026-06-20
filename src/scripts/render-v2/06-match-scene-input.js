@@ -181,6 +181,7 @@
       ];
       const groups = [
         {items:Array.isArray(hitMap.uiCommands) ? hitMap.uiCommands : [], kind:'ui-command'},
+        {items:Array.isArray(hitMap.handEffectIcons) ? hitMap.handEffectIcons : [], kind:'hand-effect-icon'},
         {items:Array.isArray(hitMap.handCards) ? hitMap.handCards : [], kind:'hand-card'},
         {items:Array.isArray(hitMap.opponentHandCards) ? hitMap.opponentHandCards : [], kind:'opponent-hand-card'},
         {items:Array.isArray(hitMap.piles) ? hitMap.piles : [], kind:'pile'}
@@ -306,7 +307,7 @@
         return;
       }
       const hit = this.viewportHitTest(ev.clientX, ev.clientY);
-      scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'pile') ? hit : null);
+        scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'pile') ? hit : null);
     }
 
     handlePointerMove(ev){

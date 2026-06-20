@@ -634,9 +634,9 @@
       const moveMs = n <= 1 ? 880 : 760;
       const gap = n <= 1 ? 0 : 390;
       const revealAt = n <= 1
-        ? firstStart + 294 + (moveMs - 180) - 42
+        ? firstStart + 120
         : firstStart + Math.max(0, n - 1) * gap + moveMs - 24;
-      return revealAt + (n > 1 ? 760 : 580);
+      return revealAt + (n > 1 ? 760 : 590);
     }
     if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
       if(String(p.placementStyle || '') === 'local-square') {
@@ -652,7 +652,7 @@
       const count = Math.max(1, Number(p.drawCount || p.count || 1) || 1);
       return 700 + Math.min(5, count - 1) * 84;
     }
-    if(type === 'SEARCH_TO_HAND') return 940;
+    if(type === 'SEARCH_TO_HAND') return 1100;
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS' || type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
     if(type === 'DESTROY_CARD') return 520;
@@ -1151,17 +1151,17 @@
         tx.presentMs = round(delay);
         const adapter = window.FateMatchRendererAdapter;
         if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
-          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay - 90));
+          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay + 120));
         }
         if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
-          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay - 90));
+          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay + 120));
         }
       } else {
         tx.degraded = true;
         tx.degradedReason = payload ? 'texture-preflight-timeout' : 'motion-rect-unavailable';
         pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
       }
-      const commitDelay = delay > 160 ? delay - 140 : delay;
+      const commitDelay = delay > 160 ? delay - 34 : delay;
       scheduleCommit(tx, function(innerTx){
         opts.commit(innerTx, delay);
       }, commitDelay, delay + 34);

@@ -16,7 +16,7 @@ function coercePlayerIndex(value, fallback) {
   return fallback;
 }
 
-const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['20','49','53','59','65','92','93']);
+const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['20','49','53','59','64','65','92','93']);
 
 function getFrenchFusiliersCopiedPassiveId(card) {
   if(!card || String(card.id) !== '37') return '';
@@ -270,6 +270,8 @@ function tickRiveraBuffsForCurrentPlayer() {
 
 function applyRiveraBuffToPlacedCard(inst, owner) {
   if(!inst || typeof G === 'undefined' || !G) return false;
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
+  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(inst)) return false;
   if(inst.id === '51') return false; // declaring Rivera does not buff himself.
   if(!isRiveraEligibleCharacter(inst)) return false;
   if(inst.noBonus) return false;
@@ -348,6 +350,21 @@ function deferTurnEndUntilModalComplete(reason) {
   return true;
 }
 
+function closeEndTurnWarningModalForTimeout() {
+  if(typeof document === 'undefined') return false;
+  const modalEl = document.getElementById('modal');
+  const modalBox = document.querySelector('#modal .modal');
+  if(!modalEl || !modalBox || !modalEl.classList.contains('on') || !modalBox.classList.contains('end-turn-warning-modal')) return false;
+  if(typeof closeModal === 'function') closeModal();
+  else {
+    modalEl.classList.remove('on');
+    modalBox.classList.remove('end-turn-warning-modal');
+  }
+  if(typeof G !== 'undefined' && G) G._deferredEndTurn = null;
+  setDeferredEndTurnUi(false);
+  return true;
+}
+
 function maybeCompleteDeferredTurnEnd(trigger) {
   if(typeof G === 'undefined' || !G || !G._deferredEndTurn || G._deferredEndTurnExecuting) return false;
   const pending = G._deferredEndTurn;
@@ -376,8 +393,123 @@ window.isTurnEndDeferrableModalOpen = isTurnEndDeferrableModalOpen;
 window.deferTurnEndUntilModalComplete = deferTurnEndUntilModalComplete;
 window.maybeCompleteDeferredTurnEnd = maybeCompleteDeferredTurnEnd;
 
-function endTurn() {
-  if(!G._deferredEndTurnExecuting && deferTurnEndUntilModalComplete('end-turn')) return false;
+function getCurrentActionPlayerForEndTurnWarning() {
+  if(!G || G.phase !== 'main') return null;
+  if(G._isSpectator || G._onlineRole === 'spectator') return null;
+  if(G._onlineRoomCode) {
+    const idx = Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : G._onlinePlayerIndex;
+    return Number.isInteger(idx) && idx === G.currentPlayer ? idx : null;
+  }
+  if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return null;
+  const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+  return Number.isInteger(viewer) && viewer === G.currentPlayer ? viewer : G.currentPlayer;
+}
+
+function pushEndTurnEffectWarning(list, card, label, zone) {
+  if(!card || !label) return;
+  const key = (card.iid || card.id || card.name || list.length) + ':' + label;
+  if(list.some(entry => entry.key === key)) return;
+  list.push({
+    key,
+    name: card.name || 'Card',
+    label,
+    zone: Number.isInteger(zone) ? zone + 1 : null
+  });
+}
+
+function collectPendingCardWindowEffectsForEndTurn(player) {
+  const pending = [];
+  if(player !== 0 && player !== 1) return pending;
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(card, z, r, c) {
+      if(!card || card.owner !== player || isFaceDownCard(card)) return;
+      const canUseBoardCard = G.currentPlayer === player && G.phase === 'main';
+      if(!canUseBoardCard) return;
+      const hasPendingSet = typeof canActivatePendingWhenSetEffect === 'function'
+        && canActivatePendingWhenSetEffect(card, z, r, c, player);
+      if(hasPendingSet) {
+        pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
+        return;
+      }
+      if(typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(card)) {
+        pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
+      }
+      if(card.type === 'Supporter') {
+        const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
+        if(!suppressed) {
+          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Marked for Death', z);
+          if(card.id === '54' && !card.wolfCreekUsed) pushEndTurnEffectWarning(pending, card, 'Elusive Movements', z);
+          if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
+          if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Move to Adjacent Zone', z);
+          if((card.id === '93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '93'))) && !card.effectUsedThisTurn) {
+            pushEndTurnEffectWarning(pending, card, 'Snowball Fight', z);
+          }
+        }
+      }
+      if(typeof isLandscapeActive === 'function'
+        && isLandscapeActive('igb7')
+        && card.aff === 'eventide'
+        && card._landscapeEventideMovedTurn !== G.turn
+        && !card.cantBeMoved) {
+        pushEndTurnEffectWarning(pending, card, 'Landscape Move', z);
+      }
+    });
+  }
+  const hand = G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
+  hand.forEach(function(card) {
+    if(!card) return;
+    if(card.id === '70' && !card.guerilla_transferred) pushEndTurnEffectWarning(pending, card, 'Activate Effect', null);
+    if(card.id === '74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))) {
+      pushEndTurnEffectWarning(pending, card, 'Discard - Set 3 Supporters', null);
+    }
+  });
+  return pending;
+}
+
+function escapeEndTurnWarningText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, function(ch) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch] || ch;
+  });
+}
+
+function showEndTurnEffectWarning(effects) {
+  const shown = effects.slice(0, 3);
+  const more = Math.max(0, effects.length - shown.length);
+  const listHtml = shown.map(function(entry) {
+    const zone = entry.zone ? '<span>Zone ' + entry.zone + '</span>' : '<span>Hand</span>';
+    return '<li><b>' + escapeEndTurnWarningText(entry.name) + '</b><em>' + escapeEndTurnWarningText(entry.label) + '</em>' + zone + '</li>';
+  }).join('');
+  const moreHtml = more ? '<div class="end-turn-warning-more">+' + more + ' more available</div>' : '';
+  showModal('Unused Effect', '<div class="end-turn-warning-shell">' +
+    '<div class="end-turn-warning-mark">!</div>' +
+    '<div class="end-turn-warning-copy">' +
+      '<p>You still have a card-window effect available.</p>' +
+      '<ul>' + listHtml + '</ul>' +
+      moreHtml +
+    '</div>' +
+  '</div>', [
+    {label:'Go Back', pri:true, action:function(){ closeModal(); }},
+    {label:'End Turn', danger:true, action:function(){ closeModal(); endTurn({skipEffectWarning:true}); }}
+  ], {immediate:true, skipDecorate:true});
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('end-turn-warning-modal');
+}
+
+function shouldWarnBeforeEndingTurn(opts) {
+  if(opts && opts.skipEffectWarning) return false;
+  if(!G || G._onlineApplyingRemoteAction || G._aiRunning) return false;
+  const player = getCurrentActionPlayerForEndTurnWarning();
+  if(player === null) return false;
+  const effects = collectPendingCardWindowEffectsForEndTurn(player);
+  if(!effects.length) return false;
+  showEndTurnEffectWarning(effects);
+  return true;
+}
+
+function endTurn(opts) {
+  if(!(opts && opts.skipModalDeferral) && !G._deferredEndTurnExecuting && deferTurnEndUntilModalComplete('end-turn')) return false;
+  if(typeof tutorialCanEndTurn === 'function' && !tutorialCanEndTurn()) return false;
+  if(shouldWarnBeforeEndingTurn(opts)) return false;
   if(G._turnInputLockUntil && Date.now() < G._turnInputLockUntil) return;
   G._turnInputLockUntil = Date.now() + 350;
   if(typeof tutorialEvent==='function' && _tutorialActive) tutorialEvent('endTurn');
@@ -468,6 +600,7 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  clearStalePendingWhenSetEffects();
   if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
     window.FateVfxEventBridge.onAcceptedGameEvent({
       type:'TURN_START',
@@ -486,6 +619,7 @@ async function nextPlayerTurn() {
   }); }); });
   G.extraSupportsThisTurn = 0;
   G.maxSupportsPerTurn = 2; // reset (Selva Islands Pirate may have changed it)
+  if(Array.isArray(G._selvaSupportBoosts)) G._selvaSupportBoosts[G.currentPlayer] = null;
   if(typeof resetLandscapeSupporterEffectTurnCount === 'function') resetLandscapeSupporterEffectTurnCount(G.currentPlayer);
   if(typeof applyPendingSelvaSupportBoost === 'function') applyPendingSelvaSupportBoost(G.currentPlayer);
 
@@ -508,6 +642,7 @@ async function nextPlayerTurn() {
       if(card.id==='54') card.wolfCreekUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
+      if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
       card._landscapeEventideMovedTurn = null;
     }
   });
@@ -525,13 +660,21 @@ async function nextPlayerTurn() {
   const guerillaCards = holderHand.filter(c=>c.id==='70' && c.guerilla_transferred && c.guerilla_turnsLeft>0);
   guerillaCards.forEach(gc=>{
     // Pick a random non-guerilla card in this hand and reduce its fate by 2.
-    const candidates = holderHand.filter(c=>c.iid!==gc.iid && c.id!=='70');
+    const candidates = holderHand.filter(c=>c.iid!==gc.iid && c.id!=='70' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)));
     if(candidates.length>0){
       const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
       const target = candidates[Math.floor(rng()*candidates.length)];
       const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
       target.currentFate = Math.max(0, before - 2);
       if(target.currentFate < before){
+        if(typeof recordHandCardEffectModifier === 'function') {
+          recordHandCardEffectModifier(target, {
+            key:'wine-country-guerilla:' + (gc.iid || '70'),
+            name:'Wine Country Guerilla',
+            text:'A Gun Behind Every Grapevine: Fate reduced while this card infiltrates the hand.',
+            fateDelta:target.currentFate - before
+          });
+        }
         if(typeof playFateChangeSound === 'function') playFateChangeSound(target, before, target.currentFate, currentPlayer);
         if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
         const sourceOwner = (gc.guerilla_owner===0 || gc.guerilla_owner===1) ? gc.guerilla_owner : (1-currentPlayer);
@@ -596,6 +739,8 @@ async function nextPlayerTurn() {
 
     renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
 
+  if(typeof tutorialOnTurnStart === 'function') tutorialOnTurnStart(G.currentPlayer);
+
   // Start turn timer (skip for AI — AI manages its own pacing)
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
     stopTurnTimer();
@@ -647,7 +792,7 @@ let _aiTurnVisualTimerInterval = null;
 let _aiTurnVisualSeconds = 0;
 
 function getTurnTimeLimit() {
-  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 20;
+  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 25;
   return _tutorialActive ? 300 : TURN_TIME_LIMIT;
 }
 
@@ -739,7 +884,8 @@ function startTurnTimer() {
     if(_turnTimerRemaining <= 0){
       stopTurnTimer();
       toast("Time's up! Turn auto-ended.");
-      endTurn();
+      const closedEndTurnWarning = closeEndTurnWarningModalForTimeout();
+      endTurn({skipEffectWarning:true, skipModalDeferral:closedEndTurnWarning});
     }
   }, 1000);
 }
@@ -821,6 +967,7 @@ function selectHandCard(idx) {
   const player = G.players[G.currentPlayer];
   const card = player.hand[idx];
   if(!card) return;
+  if(typeof tutorialCanSelectHandCard === 'function' && !tutorialCanSelectHandCard(card)) return;
 
   // Wine Country Guerilla (70): before infiltration, it is manually activated from the hand detail window.
   // After infiltration, it is view-only and cannot be set.
@@ -853,8 +1000,9 @@ function placeSelected() {
   const player = G.players[G.currentPlayer];
   const card = player.hand[G.selectedHandCard];
   if(!card) return;
+  if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'place')) return;
 
-  // Lina free-set bypass: skip all placement restrictions
+  // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
   const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
 
   if(!isLinaFree && card.type==='Supporter') {
@@ -977,9 +1125,15 @@ function highlightValidCells(card, extraClass) {
   const classes = ['placeable'];
   if(extraClass) classes.push(extraClass);
   const options = getValidPlacementOptionsForCard(card, G.currentPlayer);
+  const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
   options.forEach(function(o){
     const cellEl = document.querySelector(`#board .cell[data-z="${o.z}"][data-r="${o.r}"][data-c="${o.c}"]`);
-    if(cellEl) cellEl.classList.add.apply(cellEl.classList, classes);
+    if(cellEl) {
+      cellEl.classList.add.apply(cellEl.classList, classes);
+      if(tutorialTarget && Number(tutorialTarget.z) === Number(o.z) && Number(tutorialTarget.r) === Number(o.r) && Number(tutorialTarget.c) === Number(o.c)) {
+        cellEl.classList.add('tutorial-target-square');
+      }
+    }
   });
   return options.length;
 }
@@ -1004,7 +1158,7 @@ function isBlockedByAlondra(z,r,c,player) {
 function clearPlaceHighlights() {
   if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
   document.querySelectorAll('#board .cell.placeable').forEach(el=>el.classList.remove('placeable'));
-  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice'));
+  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
   document.querySelectorAll('#board .bc.tribute-available,#board .bc.tribute-selected,#board .bc.tribute-ready').forEach(el=>{
     el.classList.remove('tribute-available','tribute-selected','tribute-ready');
@@ -1064,16 +1218,17 @@ function beginBoardCardTargetSelection(opts) {
 function vigilantePickTarget(targetZ, cp, opp, inst) {
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===opp) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
+    if(cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
   if(oppCards.length===0){toast('No opponent cards in Zone '+(targetZ+1));return;}
   pickCardInZone(targetZ,'Marked for Death: select one opponent card in this zone.',(tgt)=>{
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     toast(tgt.name+' has been Marked for Death — 0 Reinforcement!');
     log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
     renderGame({board:true, scores:true, topbar:true});
-  }, cell=>cell && cell.owner===opp);
+  }, cell=>cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
 }
 
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +2 Fate (not setting)
@@ -1344,6 +1499,9 @@ async function clickCell(z,r,c) {
     const mv = G._busserMovingCard;
     const cp = typeof mv.card._busserOwner === 'number' ? mv.card._busserOwner : G.currentPlayer;
     const ownerSafeRow = cp === 0 ? 2 : 0;
+    if(mv.card.cantBeMoved || mv.card.immuneFlag || mv.card.id==='76'){toast('This card cannot be moved');G._busserMovingCard=null;return;}
+    if(Number(mv.card._busserMoves||0)<=0){toast('No Busser moves remaining');G._busserMovingCard=null;return;}
+    if(mv.card._busserMovedThisTurn){toast('This card already moved this turn');G._busserMovingCard=null;return;}
     // Validate: must be contested row or owner's safe row in adjacent zone
     if(r !== 1 && r !== ownerSafeRow){toast('Can only move to contested row or your safe row');return;}
     const adjZones = [];
@@ -1353,6 +1511,12 @@ async function clickCell(z,r,c) {
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     mv.card._busserMovedThisTurn = true;
+    mv.card._busserMoves = Math.max(0, (Number(mv.card._busserMoves||0)||0) - 1);
+    if(mv.card._busserMoves <= 0){
+      mv.card._busserMoves = 0;
+      mv.card._busserOwner = null;
+      mv.card._busserSourceIid = null;
+    }
     G._busserMovingCard = null;
     G.placing = false;
     clearPlaceHighlights();
@@ -1389,16 +1553,15 @@ async function clickCell(z,r,c) {
   const player = G.players[G.currentPlayer];
   const card = player.hand[G.selectedHandCard];
   if(!card) return;
+  if(typeof tutorialCanPlaceCardAt === 'function' && !tutorialCanPlaceCardAt(card, z, r, c)) return;
 
   // Check validity again
   if(G.board[z][r][c]!==null){playSfx('blocked');toast('Cell is occupied');return;}
   if(isBlocked(z,r,c)){playSfx('blocked');toast('Cell is blocked');return;}
   // Enforce safe row ownership — P1 can only place on row 2+, P2 on row 0
   const cp = G.currentPlayer;
-  if(r===0 && cp===0 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid))){playSfx('blocked');toast('Cannot place on opponent\'s safe row');return;}
-  if(r===2 && cp===1 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid))){playSfx('blocked');toast('Cannot place on opponent\'s safe row');return;}
-  if(r>=3 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid)) && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,c,cp)){
-    playSfx('blocked');toast('Cannot place on an unavailable safe square');return;
+  if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, cp)){
+    playSfx('blocked');toast(r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row');return;
   }
   if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0){
     playSfx('blocked');toast('Artillery Distance locks this zone - cannot set cards here.');return;
@@ -1434,6 +1597,7 @@ async function clickCell(z,r,c) {
   const inst = newInstance(card);
   inst.owner = G.currentPlayer;
   inst.currentFate = getPlacedCardFate(card);
+  markCardSetTurn(inst, G.currentPlayer);
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, z, r, c);
   consumePendingPlacementFlags(card, inst);
   const handIndex = G.selectedHandCard;
@@ -1496,8 +1660,8 @@ async function clickCell(z,r,c) {
   // Tutorial event hooks
   if(typeof tutorialEvent==='function' && _tutorialActive){
     deferSetCommitHook(function(){
-      if(inst.type==='Supporter') tutorialEvent('placeSupporter');
-      else tutorialEvent('placeCharacter');
+      if(inst.type==='Supporter') tutorialEvent('placeSupporter', {card:inst, z, r, c, kind:'place'});
+      else tutorialEvent('placeCharacter', {card:inst, z, r, c, kind:'place'});
     });
   }
   // AI dialogue hooks (safe — triggerAIDialogue checks if AI game)
@@ -1552,10 +1716,16 @@ async function clickCell(z,r,c) {
 
   const actionPresenter = window.FateActionPresentation;
   if(actionPresenter && typeof actionPresenter.beginSetCard === 'function'){
+    let presentationFromRect = null;
+    try {
+      presentationFromRect = window.__fateNextSetFromRect || null;
+      window.__fateNextSetFromRect = null;
+    } catch(e) {}
     const started = actionPresenter.beginSetCard({
       sourceCard:card,
       inst,
       target:{z:z, r:r, c:c},
+      fromRect:presentationFromRect,
       commit:commitNormalSetAfterPresentation,
       rollback:function(){
         delete card._presentationDeparting;
@@ -1621,7 +1791,7 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
   return count;
 }
 
-function beginImmediateFreePlacement(player, card, message) {
+function beginImmediateFreePlacement(player, card, message, effectInfo) {
   if(!card) return;
   card.effectUsedInitial = false;
   card._effectTurnLocked = false;
@@ -1629,6 +1799,17 @@ function beginImmediateFreePlacement(player, card, message) {
   card.whenSetActivated = false;
   if(!G._linaFreeIids) G._linaFreeIids = new Set();
   G._linaFreeIids.add(card.iid);
+  if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card))) {
+    const info = effectInfo || {};
+    const sourceName = info.name || 'Free Placement';
+    const ability = info.ability ? String(info.ability) + ': ' : '';
+    recordHandCardEffectModifier(card, {
+      key:info.key || ('free-placement:' + sourceName),
+      name:sourceName,
+      text:info.text || (ability + 'this card can be set for free.'),
+      costDelta:0
+    });
+  }
   renderGame({hand:true, topbar:true});
   if(player !== G.currentPlayer) return;
   const idx = G.players[player].hand.findIndex(h=>h.iid===card.iid);
@@ -1682,7 +1863,7 @@ function canUseAsConsolidationTribute(card, owner) {
   if(card.noConsolidate) return false;
   // ALPINE Infantry is immune to effects and can never be spent as tribute,
   // including older instances that may not have noConsolidate stamped yet.
-  if(card.id === '76') return false;
+  if(typeof isCardEffectImmutable === 'function' ? isCardEffectImmutable(card) : card.id === '76') return false;
   return true;
 }
 
@@ -1737,6 +1918,7 @@ function initiateConsolidate() {
   if(G.selectedHandCard===null){toast('Select a character card from your hand first');return;}
   const card = G.players[G.currentPlayer].hand[G.selectedHandCard];
   if(!card||card.type==='Supporter'){toast('Select a character card (not a Supporter)');return;}
+  if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'consolidate')) return;
 
   // Lina free-set: skip consolidation entirely, just place directly
   const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
@@ -1872,6 +2054,8 @@ function highlightTributeCards() {
     el.classList.remove('tribute-cell-available','tribute-cell-selected','tribute-cell-ready');
     el.removeAttribute('data-tribute-label');
   });
+  document.querySelectorAll('#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('tutorial-target-square'));
+  const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
   const running = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
   const requirementsMet = con.phase === 'select_placement' || (running >= con.cost && con.phase === 'select_tributes');
   con.allPossible.forEach((s,i)=>{
@@ -1899,6 +2083,9 @@ function highlightTributeCards() {
           cell.classList.remove('tribute-cell-selected','tribute-cell-ready');
         }
       }
+      if(cell && tutorialTarget && Number(tutorialTarget.z) === Number(s.z) && Number(tutorialTarget.r) === Number(s.r) && Number(tutorialTarget.c) === Number(s.c)) {
+        cell.classList.add('tutorial-target-square');
+      }
     }
   });
 }
@@ -1918,6 +2105,7 @@ function handleConsolidateClick(z,r,c) {
   if(con.phase==='select_tributes'){
     const idx = con.allPossible.findIndex(s=>s.z===z&&s.r===r&&s.c===c);
     if(idx===-1) return false;
+    if(typeof tutorialCanSelectConsolidationTribute === 'function' && !tutorialCanSelectConsolidationTribute(con, z, r, c)) return true;
     const running = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
     const wasReady = running >= con.cost;
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -1960,6 +2148,7 @@ function handleConsolidateClick(z,r,c) {
   }
 
   if(con.phase==='select_placement'){
+    if(typeof tutorialCanPlaceConsolidationAt === 'function' && !tutorialCanPlaceConsolidationAt(con, z, r, c)) return true;
     const placementIdx = con.chosenIdxs.findIndex(i=>{
       const s=con.allPossible[i];
       return s.z===z&&s.r===r&&s.c===c;
@@ -2077,6 +2266,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     inst.owner = cp;
     const basePrintedFate = card.fate;
     inst.currentFate = getPlacedCardFate(card, {bonusFate, tributeCount: tributes.length});
+    markCardSetTurn(inst, cp);
     if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, targetZ, targetR, targetC);
     if(typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(cp, inst, targetZ);
     inst.faceDown = !!useFaceDown;
@@ -2095,9 +2285,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
         if(!row) return;
         row.forEach((cell, mc)=>{
           if(cell&&cell.id==='36'&&cell.owner!==cp){
-            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 2.');
-            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 2;
-            toast('Deterrance activated: Zone '+(tz+1)+' loses 2 Fate.');
+            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 3.');
+            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
+            toast('Deterrance activated: Zone '+(tz+1)+' loses 3 Fate.');
             if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(tz, mr, mc, cell);
             if(typeof playSfx === 'function') playSfx('debuff');
             if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
@@ -2145,6 +2335,17 @@ function finalizeConsolidate(card, tributes, targetIdx) {
 
     G.players[cp].hand = G.players[cp].hand.filter(c => c !== card);
     G.selectedHandCard = null;
+
+    if(typeof tutorialEvent === 'function' && _tutorialActive) {
+      tutorialEvent('placeCharacter', {
+        card:inst,
+        z:targetZ,
+        r:targetR,
+        c:targetC,
+        kind:'consolidate',
+        tributes:tributes
+      });
+    }
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
@@ -2243,7 +2444,7 @@ function getFriendlyZoneCharacterSupportCounts(owner, z) {
   const counts = {characters:0, supporters:0};
   if(!G.board || !G.board[z]) return counts;
   G.board[z].forEach(row=>row && row.forEach(cell=>{
-    if(!cell || cell.owner!==owner || isFaceDownCard(cell) || cell.id==='76') return;
+    if(!cell || cell.owner!==owner || isFaceDownCard(cell) || (typeof isCardEffectImmutable === 'function' ? isCardEffectImmutable(cell) : cell.id==='76')) return;
     if(cell.type === 'Supporter') counts.supporters++;
     if(typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, owner) : cell.type !== 'Supporter') counts.characters++;
   }));
@@ -2443,7 +2644,7 @@ async function activateWodnyPotokYouth(card, z, r, c) {
       toast('Select an opponent card.');
       return;
     }
-    if(tgt.immuneFlag || tgt.id === '76') {
+    if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id === '76')) {
       showBlockedAnimation('this card is immune');
       return;
     }
@@ -2477,7 +2678,7 @@ function tickCarpathianSpecters() {
 
 const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','21','22','27','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
 const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
-  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','64','66','68','69','75','77','80','82','84','90','94','bh25'
+  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -2504,8 +2705,33 @@ function cardHasDeferredSetEffect(card) {
   return WINDOWED_WHEN_SET_EFFECT_IDS.has(id) && (WHEN_SET_IDS.has(id) || (card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial));
 }
 
+function markCardSetTurn(card, player) {
+  if(!card || typeof G === 'undefined' || !G) return;
+  card._setTurn = G.turn;
+  card._setOwner = typeof player === 'number' ? player : (typeof card.owner === 'number' ? card.owner : G.currentPlayer);
+}
+
+function isSameTurnAsCardSet(card) {
+  if(!card || typeof G === 'undefined' || !G) return false;
+  if(Number.isFinite(card._setTurn)) return card._setTurn === G.turn;
+  if(card._pendingWhenSetEffect && Number.isFinite(card._pendingWhenSetEffect.turnQueued)) {
+    return card._pendingWhenSetEffect.turnQueued === G.turn;
+  }
+  return false;
+}
+
+function expireStalePendingWhenSetEffect(card) {
+  if(!card || !card._pendingWhenSetEffect) return false;
+  const pendingTurn = Number(card._pendingWhenSetEffect.turnQueued);
+  if(Number.isFinite(pendingTurn) && pendingTurn === G.turn) return false;
+  delete card._pendingWhenSetEffect;
+  if(card.type === 'Supporter') card.whenSetActivated = true;
+  return true;
+}
+
 function queueDeferredWhenSetEffect(card, z, r, c) {
   if(!card || !cardHasDeferredSetEffect(card)) return false;
+  markCardSetTurn(card);
   card._pendingWhenSetEffect = {
     z,
     r,
@@ -2520,6 +2746,7 @@ function queueDeferredWhenSetEffect(card, z, r, c) {
 
 function canActivatePendingWhenSetEffect(card, z, r, c, player = G.currentPlayer) {
   if(!card || !card._pendingWhenSetEffect || isFaceDownCard(card)) return false;
+  if(expireStalePendingWhenSetEffect(card)) return false;
   if(card.owner !== player || G.currentPlayer !== player) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
   const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null;
@@ -2535,8 +2762,18 @@ function clearPendingWhenSetEffectsForPlayer(player) {
     if(!card || !card._pendingWhenSetEffect) return;
     const owner = typeof card.owner === 'number' ? card.owner : card._pendingWhenSetEffect.owner;
     if(owner !== player) return;
+    if(card.type === 'Supporter') card.whenSetActivated = true;
     delete card._pendingWhenSetEffect;
     cleared = true;
+  });
+  return cleared;
+}
+
+function clearStalePendingWhenSetEffects() {
+  if(typeof forEachBoardCard !== 'function') return false;
+  let cleared = false;
+  forEachBoardCard(function(card){
+    if(expireStalePendingWhenSetEffect(card)) cleared = true;
   });
   return cleared;
 }
@@ -2546,6 +2783,7 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     toast('This effect can only be activated during its owner\'s turn.');
     return;
   }
+  if(typeof tutorialCanActivateBoardEffect === 'function' && !tutorialCanActivateBoardEffect(card, z, r, c)) return;
   const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : {z,r,c};
   const az = pos && typeof pos.z === 'number' ? pos.z : z;
   const ar = pos && typeof pos.r === 'number' ? pos.r : r;
@@ -2561,11 +2799,13 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     await playEffectActivationCinematic(card, az, ar, ac, {source:'pending-when-set'});
   }
   await triggerWhenSet(card, az, ar, ac, { forceImmediate:true, manualActivation:true, skipActivationCinematic:true });
+  if(typeof tutorialEvent === 'function' && _tutorialActive) tutorialEvent('activateEffect', {card, id:card.id, z:az, r:ar, c:ac});
   renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
 }
 
 async function triggerWhenSet(inst, z, r, c, opts = {}) {
   if(!inst || isFaceDownCard(inst)) return;
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
   const cp = G.currentPlayer;
   const opp = 1-cp;
   const id = inst.id;
@@ -2792,16 +3032,18 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         // Delay slightly so the card is rendered first
         setTimeout(()=>{
           pickMultipleInZone(z,2,'Makenna: Select up to 2 friendly cards to make immune:',(targets)=>{
-            targets.forEach(t=>{ t.card.immuneFlag=true; });
+            targets.forEach(t=>{
+              if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(t.card))) t.card.immuneFlag=true;
+            });
             toast('Selected cards are now immune');
             renderEffectResolutionForPlayer(cp, {hand:false});
           }, c=>c.owner===cp);
         },100);
       } break;
-    case '05': // 17th British Regiment: select card in zone, +2 Fate
-      pickCardInZone(z,'Select a card to gain 2 Fate:',(tgt,tz,tr,tc)=>{
-        modifyFate(tgt,2,'permanent');
-        log(cp===0?'p1':'p2',`Liberators of Rwanda: ${tgt.name} gains 2 Fate`);
+    case '05': // 17th British Regiment: select card in zone, +3 Fate
+      pickCardInZone(z,'Select a card to gain 3 Fate:',(tgt,tz,tr,tc)=>{
+        modifyFate(tgt,3,'permanent');
+        log(cp===0?'p1':'p2',`Liberators of Rwanda: ${tgt.name} gains 3 Fate`);
         renderEffectResolutionForPlayer(cp, {hand:false});
       }); break;
     case '26': { // UCPD: reveal opponent hand — mark cards as revealed persistently
@@ -2842,16 +3084,16 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           renderHand();
         });
       } break;
-    case '31': // Hemorrhaging Wound: card in zone loses 2 Fate
-      pickCardInZone(z,'Select a card to lose 2 Fate:',(tgt)=>{
-        if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation('this card is immune');return;}
+    case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
+      pickCardInZone(z,'Select a card to lose 3 Fate:',(tgt)=>{
+        if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
         const before = tgt.currentFate || tgt.fate || 0;
-        const changed = setCardFateValue(tgt, before - 2, cp);
+        const changed = setCardFateValue(tgt, before - 3, cp);
         if(!changed && before > 0){
           showBlockedAnimation('Shield Wall prevents Fate loss');
           return;
         }
-        log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 2 Fate`);
+        log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderEffectResolutionForPlayer(cp, {hand:false});
       }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
@@ -2901,6 +3143,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '75': // Ledger-keepers: copy a supporter effect
       pickBoardSupporterEffect(cp,z); break;
     case '76': // ALPINE Infantry: gains 4 Fate, immune, can't consolidate
+      if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
       inst._suppressNextFatePulse = true;
       inst.currentFate = 5; // 1 base + 4
       inst.immuneFlag = true;
@@ -2977,26 +3220,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '64': { // Cook Islands Duelist: zone picker for adjacent/diagonal target
-      const adj = getAdjacentAndDiagonalCards(z,r,c).filter(a=>a.card.type!=='Dauntless');
-      if(adj.length===0){toast('No eligible adjacent cards');break;}
-      const validIds = new Set(adj.map(a=>a.card.iid));
-      showZonePicker(z, 'Blade Dance: select an adjacent or diagonal non-Dauntless card.', adj, 1, G.currentPlayer, (chosen)=>{
-        if(!chosen.length) return;
-        const target = chosen[0].card;
-        if(target.immuneFlag || target.id==='76'){showBlockedAnimation('this card is immune');return;}
-        const newFate = inst.currentFate;
-        const before = target.currentFate || target.fate || 0;
-        const changed = setCardFateValue(target, newFate, cp);
-        if(!changed && newFate < before){
-          if(target.immuneFlag || target.id==='76'){showBlockedAnimation('this card is immune');return;}
-          showBlockedAnimation('Shield Wall prevents Fate loss');
-          return;
-        }
-        toast(`${target.name}'s Fate is now ${newFate}`);
-        log(cp===0?'p1':'p2',`Blade Dance set ${target.name}'s Fate to ${newFate}`);
-        renderEffectResolutionForPlayer(cp, {hand:false});
-      }, cell=>cell && validIds.has(cell.iid));
+    case '64': { // Cook Islands Duelist: passive handled in getEffectiveFate
+      toast('Blade Dance is passive - it applies while Cook Islands Duelist is on the field.');
       break;
     }
     case '66': { // Mark Menz: declare affiliation via icon picker, change cards in zone
@@ -3004,7 +3229,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         let changed = 0;
         const changedCards = [];
         G.board[z].forEach(row=>row.forEach(cell=>{
-          if(cell && cell.owner===cp && !cell.immuneFlag && cell.aff!==aff){
+          if(cell && cell.owner===cp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)) && cell.aff!==aff){
             cell.aff = aff;
             if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(cell, cp);
             // Mark Menz only: persist a semi-transparent affiliation overlay on changed cards.
@@ -3051,47 +3276,28 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '69': { // Breakfast Republic Busser: move any friendly supporter to this zone and re-activate
-      const friendlySupporters = [];
-      G.board.forEach((zone,zi)=>zone.forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid){
-          friendlySupporters.push({card:cell,z:zi,r:ri,c:ci});
+    case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
+      const candidates = [];
+      if(G.board[z]) G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
+        if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76'){
+          candidates.push({card:cell,z:z,r:ri,c:ci});
         }
-      })));
-      if(friendlySupporters.length===0){toast('No friendly Supporters to move');break;}
-      pickCardFromAnyZone('Corner! Behind!: select any friendly Supporter to move into this zone and re-activate.',(target,srcZ,srcR,srcC)=>{
-        if(!target) return;
-        const src = friendlySupporters.find(x=>x.card.iid===target.iid);
-        if(!src){toast('Select a friendly Supporter');return;}
-        const ownerSafeRow = cp === 0 ? 2 : 0;
-        const allowedRows = new Set([1, ownerSafeRow]);
-        const options = [];
-        for(let rr=0;rr<G.board[z].length;rr++){
-          if(!allowedRows.has(rr)) continue;
-          const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, rr) : 3;
-          for(let cc=0;cc<rowCap;cc++){
-            if(rr>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,rr,cc,cp)) continue;
-            if(!G.board[z][rr][cc] && !G.blockedCells.some(b=>b.z===z&&b.r===rr&&b.c===cc&&b.type==='carolyn') && !(rr===r&&cc===c)){
-              options.push({z,r:rr,c:cc});
-            }
-          }
+      }));
+      if(candidates.length===0){toast('No movable friendly cards in this zone');break;}
+      pickCardInZone(z,'Corner! Behind!: select a friendly card in this zone to move between adjacent zones.',(target)=>{
+        if(!target || target.owner!==cp || isFaceDownCard(target) || target.cantBeMoved || target.immuneFlag || target.id==='76'){
+          toast('Select a movable friendly card');
+          return;
         }
-        if(!options.length){ toast('No open contested or safe square in this zone'); renderEffectResolutionForPlayer(cp, {hand:false}); return; }
-        G._busserMoving = { card: target, src, options, zone: z, player: cp };
-        G.placing = true;
-        clearPlaceHighlights();
+        target._busserMoves = Math.max(3, Number(target._busserMoves||0)||0);
+        target._busserOwner = cp;
+        target._busserMovedThisTurn = false;
+        target._busserSourceIid = inst.iid || null;
+        inst.effectUsedInitial = true;
+        inst.whenSetActivated = true;
+        toast(target.name + ' can move to adjacent zones.');
         renderEffectResolutionForPlayer(cp, {hand:false});
-        options.forEach(o=>{
-          const el = document.querySelector(`#board .cell[data-z="${o.z}"][data-r="${o.r}"][data-c="${o.c}"]`);
-          if(el) el.classList.add('placeable');
-        });
-        [...new Set(options.map(o=>o.z))].forEach(zi=>{
-          const zoneEl = document.querySelector(`#board .zone[data-zone="${zi}"], #board .zone[data-z="${zi}"]`) || document.querySelectorAll('#board .zone, .board .zone')[zi];
-          if(zoneEl) zoneEl.classList.add('busser-zone-target');
-        });
-        toast('Choose the exact square for Breakfast Republic Busser');
-        setHint('Busser: choose an open highlighted contested or friendly safe square.');
-      }, cell=>cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid);
+      }, cell=>cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76');
       break;
     }
     case '71': { // Fort Calvin Watcher: reveal next 3 opp draw-phase cards, send characters to bottom
@@ -3185,7 +3391,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
         if(typeof addCardToHand==='function') addCardToHand(cp, found, {announce:false});
         else G.players[cp].hand.push(found);
-        beginImmediateFreePlacement(cp, found, 'Place '+found.name+' for free from Flower Picking.');
+        beginImmediateFreePlacement(cp, found, 'Place '+found.name+' for free from Flower Picking.', {
+          key:'kvetka-svoboda-free-set',
+          name:'Kvetka Svoboda',
+          ability:'Flower Picking',
+          text:'Flower Picking: this card can be set immediately for free.'
+        });
         toast(found.name+' is ready to set immediately for free.');
         inst.effectUsedInitial = true;
       });
@@ -3244,7 +3455,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==extra.iid);
           if(typeof addCardToHand==='function') addCardToHand(cp, extra, { announce:false });
           else G.players[cp].hand.push(extra);
-          beginImmediateFreePlacement(cp, extra, 'Place the extra Zimbabwean Honor Guard for free.');
+          beginImmediateFreePlacement(cp, extra, 'Place the extra Zimbabwean Honor Guard for free.', {
+            key:'zimbabwean-honor-guard-free-set',
+            name:'Zimbabwean Honor Guard',
+            ability:'Africa, United',
+            text:'Africa, United: this extra copy can be set immediately for free.'
+          });
           toast('Another Zimbabwean Honor Guard is ready to set immediately for free!');
         }
       } break;
@@ -3275,6 +3491,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case '52': { // Vigilantes: same-zone card-picker window
       pickCardInZone(z,'Vigilantes: Select an opponent supporter in this zone:',(tgt)=>{
+        if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
         tgt._markedForDeath = true;
         tgt._reinforcementOverride = 0;
         if(typeof playSfx==='function') playSfx('fateLose');
@@ -3283,7 +3500,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         inst.effectUsedInitial = true;
         renderEffectResolutionForPlayer(cp, {hand:false});
         if(typeof updateTopBar === 'function') updateTopBar();
-      }, function(cell){ return cell && cell.owner===opp && cell.type==='Supporter' && cell.id!=='76' && !cell.immuneFlag; });
+      }, function(cell){ return cell && cell.owner===opp && cell.type==='Supporter' && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
       break;
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
@@ -3303,7 +3520,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const adjCards = getAdjacentAndDiagonalCards(z,r,c);
         let gained = 0;
         adjCards.forEach(({card:ac,z:az,r:ar,c:ac2})=>{
-          if(ac.owner===opp && ac.type==='Supporter' && ac.id!=='76' && !ac.immuneFlag){
+          if(ac.owner===opp && ac.type==='Supporter' && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac))){
             G.board[az][ar][ac2]=null;
             fatePushDiscard(opp, ac);
             gained++;
@@ -3392,7 +3609,15 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     toast(card.name + "'s Initiator effect already activated.");
     return;
   }
+  if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !opts.fromSet && !isSameTurnAsCardSet(card)){
+    toast(card.name + "'s Initiator effect can only activate on the turn it was set.");
+    return;
+  }
   if(card.type==='Coordinator' && card.effectUsedInitial && !['01','11','15','19','23','57'].includes(id)){
+    toast(`${card.name}'s effect already activated.`);
+    return;
+  }
+  if(id === '21' && card.effectUsedInitial){
     toast(`${card.name}'s effect already activated.`);
     return;
   }
@@ -3420,13 +3645,13 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     // Initiators
     case '03': // Howard: double Fate of card in zone, then +5
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
-        if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation('this card is immune');return;}
+        if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
         const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
         tgt.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
         log(cp===0?'p1':'p2',`Moffitt Inspiration: ${tgt.name} Fate became ${tgt.currentFate}`);
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false});
-      },c=>!c.immuneFlag); break;
+      },c=>!(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(c))); break;
     case '04': // Zoe: block consolidation on a square
       highlightForBlock(z, card); break;
     case '06': // Jorge Alvarez: search deck for non-star card
@@ -3453,7 +3678,16 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         confirmLabel:'Add to Hand'
       }, (chosen)=>{
         chosen.forEach(c=>{
+          if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
           c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
+          if(typeof recordHandCardEffectModifier === 'function') {
+            recordHandCardEffectModifier(c, {
+              key:'maja-kaminska-oblique-order',
+              name:'Maja Kaminska',
+              text:'Oblique Order: this Supporter gained +4 Fate permanently.',
+              fateDelta:4
+            });
+          }
           if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'deck', G.players[cp].hand.length);
           if(typeof addCardToHand==='function') addCardToHand(cp, c);
           else G.players[cp].hand.push(c);
@@ -3471,7 +3705,12 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, found, source, G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, found);
         else G.players[cp].hand.push(found);
-        beginImmediateFreePlacement(cp, found, 'Place ' + found.name + ' for free from Lina\'s effect.');
+        beginImmediateFreePlacement(cp, found, 'Place ' + found.name + ' for free from Lina\'s effect.', {
+          key:'lina-free-set',
+          name:'Lina',
+          ability:'Autistic Femcel Rizz',
+          text:'Autistic Femcel Rizz: this card can be set immediately for free.'
+        });
         toast(found.name+' is ready to set immediately for free!');
       }); break;
     case '13': // Johnathan Kirby: search deck for 2 supporters
@@ -3508,7 +3747,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '83': { // Sebastyen Janowicz: friendly characters in zone +2 permanently
       let count = 0;
       G.board[z].forEach(row=>row && row.forEach(cell=>{
-        if(cell && cell.owner===cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && !isFaceDownCard(cell) && cell.id!=='76'){
+        if(cell && cell.owner===cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && !isFaceDownCard(cell) && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(cell))){
           modifyFate(cell, 2, 'permanent');
           count++;
         }
@@ -3548,13 +3787,13 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '30': // Santiago: discard an opponent card in this zone's contested row
       pickCardInZone(z,'Select an opponent card in this zone\'s contested row to discard:',(tgt,tz,tr,tc)=>{
         if(tgt.owner===cp){toast('Must select opponent card');return;}
-        if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation('this card is immune');return;}
+        if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
         if(tr!==1){toast('Santiago can only target the contested row');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`El Matador del Mares: discarded ${tgt.name}`);
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-      },(c,tz,tr)=>c.owner===opp && tr===1 && !c.immuneFlag); break;
+      },(c,tz,tr)=>c.owner===opp && tr===1 && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(c))); break;
     case '39': // Juan Carlos: move opponent's card from ANY zone to open spot
       pickCardFromAnyZone('Select opponent\'s card to move:',(tgt,tz,tr,tc)=>{
         if(tgt.owner===cp){toast('Select opponent card');return;}
@@ -3644,11 +3883,13 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       break;
     case '12': // Makenna: select 2 cards, make immune
       pickMultipleInZone(z,2,'Select up to 2 friendly cards to make immune:',(targets)=>{
-        targets.forEach(t=>{ t.card.immuneFlag=true; });
+        targets.forEach(t=>{
+          if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(t.card))) t.card.immuneFlag=true;
+        });
         card.effectUsedInitial = true;
         toast('Selected cards are now immune');
         renderEffectResolutionForPlayer(cp, {hand:false});
-      }, c=>c.owner===cp); break;
+      }, c=>c.owner===cp && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c))); break;
     case '15': // Zsofia Szocs: passive (handled in getEffectiveFate)
       toast('Blue Danube Waltz is passive — applies while Zsofia is on the field.');
       break;
@@ -3779,8 +4020,11 @@ function shouldShowManualCharacterEffectButton(card) {
   if(!card || card.type === 'Supporter') return false;
   const id = String(card.id || '');
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
+  if(id === '40') return Number(card.usesLeft || 0) > 0;
+  if(id === '21' && card.effectUsedInitial) return false;
   if(card.type === 'Coordinator') return false;
   if(card.type === 'Improvisor') return false;
+  if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial) return isSameTurnAsCardSet(card);
   if(card.type === 'Initiator' && card.effectUsedInitial) return canRetryInitialSetEffect(card);
   return true;
 }
@@ -3815,7 +4059,8 @@ function capEffectiveFateForLandscape(value, z) {
 }
 
 function modifyFate(card, amount, type) {
-  if(card.immuneFlag) return;
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
+  if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : card.immuneFlag) return;
   if(amount<0 && G.shieldWallZones.length>0) {
     // Check if card is in a shieldwall zone
     let inShield = false;
@@ -3829,10 +4074,12 @@ function modifyFate(card, amount, type) {
 }
 
 function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
-  if(!card || typeof playSfx !== 'function') return;
+  if(!card) return;
   const before = Math.max(0, Number(beforeValue) || 0);
   const after = Math.max(0, Number(afterValue) || 0);
   if(after === before) return;
+  if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(card, before, after, 'effect');
+  if(typeof playSfx !== 'function') return;
   const now = Date.now();
   if(!G._lastFateChangeSfxAt) G._lastFateChangeSfxAt = {};
   const key = String(card.iid || card.id || 'card') + ':' + (after > before ? 'gain' : 'lose');
@@ -3853,7 +4100,8 @@ function recordFateReductionEvent(owner, beforeValue, afterValue) {
 }
 
 function setCardFateValue(card, newValue, sourceOwner) {
-  if(!card || card.immuneFlag) return false;
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
+  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : card.immuneFlag)) return false;
   const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const targetValue = Math.max(0, Number(newValue) || 0);
   if(targetValue < before && G.shieldWallZones.length>0) {
@@ -3867,6 +4115,52 @@ function setCardFateValue(card, newValue, sourceOwner) {
   recordFateReductionEvent(sourceOwner, before, after);
   playFateChangeSound(card, before, after, sourceOwner);
   return after !== before;
+}
+
+function getStablePassiveTargetRank(source, target) {
+  const key = String(source && (source.iid || source.id) || '') + ':' + String(target && (target.iid || target.id) || '');
+  let hash = 2166136261;
+  for(let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function noteCookIslandsDuelistContinuousSource(source) {
+  if(!source || (source.owner !== 0 && source.owner !== 1)) return;
+  if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
+  G._continuousDamageSources.add(source.owner + ':64:' + (source.iid || source.id || 'source'));
+}
+
+function getCookIslandsDuelistTarget(source, zHint) {
+  if(!source || !cardActsAsPassive(source, '64') || isFaceDownCard(source) || isSupporterEffectSuppressed(source)) return null;
+  let pos = null;
+  if(G.board && G.board[zHint]) {
+    G.board[zHint].forEach((row, r)=>row && row.forEach((cell, c)=>{
+      if(!pos && cell && cell.iid === source.iid) pos = {z:zHint, r:r, c:c};
+    }));
+  }
+  if(!pos && typeof forEachBoardCard === 'function') {
+    forEachBoardCard((cell, z, r, c)=>{
+      if(!pos && cell && cell.iid === source.iid) pos = {z:z, r:r, c:c};
+    });
+  }
+  if(!pos || typeof getAdjacentCards !== 'function') return null;
+  const candidates = getAdjacentCards(pos.z, pos.r, pos.c).filter(entry=>{
+    const target = entry && entry.card;
+    if(!target || target.owner === source.owner || isFaceDownCard(target)) return false;
+    return !(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(target) : (target.immuneFlag || target.id === '76'));
+  });
+  if(!candidates.length) {
+    delete source._cookIslandsDuelistTargetIid;
+    return null;
+  }
+  const current = candidates.find(entry=>String(entry.card.iid) === String(source._cookIslandsDuelistTargetIid));
+  if(current) return current;
+  candidates.sort((a, b)=>getStablePassiveTargetRank(source, a.card) - getStablePassiveTargetRank(source, b.card));
+  source._cookIslandsDuelistTargetIid = candidates[0].card.iid;
+  return candidates[0];
 }
 
 function isCoordinatorSuppressedAt(z, r, c) {
@@ -3891,16 +4185,20 @@ function isSupporterEffectSuppressed(card) {
 
 function isEffectImmuneSource(card) {
   if(!card || isFaceDownCard(card)) return false;
-  return String(card.id || '') === '76' || card.immuneFlag === true || card.opponentEffectImmune === true;
+  return typeof isFullyEffectImmuneCard === 'function'
+    ? isFullyEffectImmuneCard(card)
+    : (String(card.id || '') === '76' || card.immuneFlag === true || card.opponentEffectImmune === true);
 }
 
 function getEffectiveFate(card, z) {
   if(!card) return 0;
   if(isFaceDownCard(card)) return 0;
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
   // ALPINE Infantry: no bonus applies, invisible to other effects
+  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card)) return capEffectiveFateForLandscape(card.currentFate, z);
   if(card.noBonus) return capEffectiveFateForLandscape(card.currentFate, z);
   // Helper: ALPINE (76) is invisible — should not be counted by any other card's effect
-  const isInvisible = (c) => c && (c.id==='76' || isFaceDownCard(c));
+  const isInvisible = (c) => c && ((typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) || isFaceDownCard(c));
   // Jimmy 41: fate = 2x total damage done this game by owner
   const getContinuousDamageCount = (owner) => {
     if(!G._continuousDamageSources) return 0;
@@ -3936,15 +4234,15 @@ function getEffectiveFate(card, z) {
     bonus += 3;
   }
 
-  // 1st West Caribbea Marines (65): always gains 3 Fate (built-in bonus)
+  // 1st West Caribbea Marines (65): increases its own Fate to 4 while set
   if(cardActsAsPassive(card, '65') && !isSupporterEffectSuppressed(card)) bonus += 3;
-  // Greek Hoplite (63): +1 Fate per copy of self in same zone, including itself
+  // Greek Hoplite (63): +2 Fate per copy of self in same zone, including itself
   if(card.id==='63' && !isSupporterEffectSuppressed(card)){
     let copies = 0;
     G.board[z].forEach(row=>row.forEach(cell=>{
       if(cell && cell.id==='63' && cell.owner===card.owner && !isInvisible(cell) && !isSupporterEffectSuppressed(cell)) copies++;
     }));
-    bonus += copies;
+    bonus += copies * 2;
   }
   if(card.id==='44' && !isSupporterEffectSuppressed(card)){
     let sourcePos = null;
@@ -3953,9 +4251,24 @@ function getEffectiveFate(card, z) {
     }));
     if(sourcePos){
       const adj = getAdjacentCards(z, sourcePos.r, sourcePos.c);
-      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 2;
+      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 3;
     }
   }
+  if(cardActsAsPassive(card, '64') && !isSupporterEffectSuppressed(card)) {
+    const targetInfo = getCookIslandsDuelistTarget(card, z);
+    if(targetInfo) {
+      bonus += 3;
+      noteCookIslandsDuelistContinuousSource(card);
+    }
+  }
+  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
+    if(!cell || isInvisible(cell) || !cardActsAsPassive(cell, '64') || isSupporterEffectSuppressed(cell)) return;
+    const targetInfo = getCookIslandsDuelistTarget(cell, z);
+    if(targetInfo && targetInfo.card && targetInfo.card.iid === card.iid) {
+      bonus -= 3;
+      noteCookIslandsDuelistContinuousSource(cell);
+    }
+  }));
 
   // --- Coordinator passive buffs ---
   // Jeremiah Jones (57) boosts each friendly coordinator aura by 1 potency.
@@ -3976,8 +4289,8 @@ function getEffectiveFate(card, z) {
     // Felicyta (01): +3 to adjacent friendly cards
     if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 3 + jeremiahBoost;
     // Phil (46): no zone aura
-    // Anne Stone (11): +2 to supporters in zone
-    if(cell.id==='11' && card.type==='Supporter') bonus += 2 + jeremiahBoost;
+    // Anne Stone (11): +3 to supporters in zone
+    if(cell.id==='11' && card.type==='Supporter') bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
@@ -4005,7 +4318,7 @@ function getEffectiveFate(card, z) {
   if(card.type==='Dauntless' && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
       if(cell && cell.id==='44' && cell.owner===card.owner && !isInvisible(cell) && !isSupporterEffectSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {
-        bonus += 2;
+        bonus += 3;
       }
     }));
   }
@@ -4070,8 +4383,8 @@ function getZoneScore(z, player) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function checkWin() {
   if(G._finalZoneRevealActive && !G._skipFinalZoneReveal) return;
-  // Tutorial: force end after 10 turns
-  if(_tutorialActive && G._tutorialTurnLimit && G.turnNumber >= G._tutorialTurnLimit) {
+  // Tutorial: force end after the scripted lesson turn limit.
+  if(_tutorialActive && G._tutorialTurnLimit && (G.turnNumber >= G._tutorialTurnLimit || G.turn >= G._tutorialTurnLimit)) {
     if(typeof tutorialEvent==='function') tutorialEvent('gameEnd');
   }
   hidePassTurnOverlay();
@@ -4387,7 +4700,7 @@ async function activateVigilantes(card, z, r, c) {
   }
   const availSups = [];
   forEachBoardCard((bc, bz, br, bc2) => {
-    if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && bc.id!=='76'){
+    if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(bc))){
       availSups.push({card:bc, z:bz, r:br, c:bc2});
     }
   });
@@ -4412,7 +4725,7 @@ async function activateVigilantes(card, z, r, c) {
     if(zoneTargets.length===0){toast('No cards in this zone');return;}
 
     pickCardInZone(z,'Vigilantes: Select a card in this zone to destroy:',(tgt,locZ,locR,locC)=>{
-      if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation('this card is immune');return;}
+      if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
       chosen.forEach(function(sc){
         const src = availSups.find(function(s){return s.card.iid===sc.iid;});
         if(src) discardBoardCard(src.card, src.z, src.r, src.c);
@@ -4423,7 +4736,7 @@ async function activateVigilantes(card, z, r, c) {
       log(cp===0?'p1':'p2', 'Vigilantes expended 3 supporters to destroy '+tgt.name+' in Zone '+(locZ+1));
       playSfx('effect');
       renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-    }, function(cell){ return !!cell && cell.id!=='76' && !cell.immuneFlag; });
+    }, function(cell){ return !!cell && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
   });
 }
 
@@ -4547,6 +4860,18 @@ function activateLandscapeEventideMove(card, z, r, c) {
 
 function activateBusserMove(card, fromZ, fromR, fromC) {
   var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
+  if(!card || card.cantBeMoved || card.immuneFlag || card.id==='76'){
+    toast('This card cannot be moved');
+    return;
+  }
+  if(Number(card._busserMoves||0)<=0){
+    toast('No Busser moves remaining');
+    return;
+  }
+  if(card._busserMovedThisTurn){
+    toast('This card already moved this turn');
+    return;
+  }
   var ownerSafeRow = cp === 0 ? 2 : 0;
   // Adjacent zones are fromZ-1 and fromZ+1
   var adjZones = [];
@@ -4590,7 +4915,7 @@ function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
     }
     return [];
   }
-  const affectsOpponent = new Set(['16','26','31','50','61','62','64','71','72','73','75','76','77','80','91']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','75','76','77','80','91']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
@@ -4697,6 +5022,16 @@ function checkReactions(actionType, actionData) {
       return G._reactionPromptSeq === _reactionPromptId;
     };
     var timerHtml = '<div id="reaction-timer" class="reaction-timer">'+_reactionCountdown+'s</div>';
+    var getReactionKindLabel = function(candidate){
+      if(candidate.type === 'lydia') return 'Lydia - Berknomaly';
+      if(candidate.type === 'secules') return '"You Just Said Nothing" - Effect Expended';
+      if(candidate.type === 'havano') return 'Havano Citizen - Deploy from hand';
+      return 'Improvisor Reaction';
+    };
+    var getReactionLocationLabel = function(candidate){
+      if(typeof candidate.z === 'number') return 'Zone ' + (candidate.z + 1);
+      return 'Hand';
+    };
     var finishReaction = function(allowed) {
       if(!isCurrentReactionPrompt()) return;
       if(_reactionTimer) clearInterval(_reactionTimer);
@@ -4704,7 +5039,77 @@ function checkReactions(actionType, actionData) {
       closeModal();
       resolve(allowed);
     };
+    var useReactionChoice = function(candidate) {
+      if(_reactionTimer) clearInterval(_reactionTimer);
+      if(!isCurrentReactionPrompt()) return;
+      G._reactionPending = false;
+      closeModal();
+      const hasBoardSource = typeof candidate.z === 'number' && typeof candidate.r === 'number' && typeof candidate.c === 'number';
+      const cinematic = hasBoardSource && typeof playEffectActivationCinematic === 'function'
+        ? playEffectActivationCinematic(candidate.card, candidate.z, candidate.r, candidate.c, {source:'improvisor-reaction'})
+        : Promise.resolve(false);
+      Promise.resolve(cinematic)
+        .then(function(){ return executeReaction(candidate, actionData); })
+        .then(function(result){ resolve(result === true); });
+    };
     G._reactionPending = true;
+
+    if(reactions.length > 1) {
+      var optionHtml = reactions.map(function(candidate, idx){
+        var candidateName = candidate.card.name || 'Improvisor';
+        var candidateImg = candidate.card.img
+          ? '<img src="'+candidate.card.img+'" alt="'+escapeHtml(candidateName)+'">'
+          : '<span>'+escapeHtml((candidateName || '?').slice(0,1))+'</span>';
+        return '<button class="reaction-choice-card" type="button" data-reaction-idx="'+idx+'">'+
+          '<span class="reaction-choice-art">'+candidateImg+'</span>'+
+          '<span class="reaction-choice-copy">'+
+            '<b>'+escapeHtml(candidateName)+'</b>'+
+            '<em>'+escapeHtml(getReactionKindLabel(candidate))+'</em>'+
+            '<small>'+escapeHtml(getReactionLocationLabel(candidate))+'</small>'+
+          '</span>'+
+        '</button>';
+      }).join('');
+      showModal(
+        'Choose Reaction ('+_reactionCountdown+'s)',
+        '<div class="reaction-panel reaction-choice-panel">'+
+          '<div class="reaction-choice-head">'+
+            '<div class="reaction-kicker">Improvisor Reaction</div>'+
+            '<div class="reaction-prompt"><span>Opponent played</span><strong>'+escapeHtml(cardName)+'</strong><span>Choose who responds.</span></div>'+
+          '</div>'+
+          '<div class="reaction-choice-grid">'+optionHtml+'</div>'+
+          timerHtml+
+        '</div>',
+        [
+          {label:'Allow Effect', action:function(){ finishReaction(true); }}
+        ],
+        {immediate:true}
+      );
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('reaction-choice-modal');
+      setTimeout(function(){
+        document.querySelectorAll('#modal .reaction-choice-card').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var idx = Number(btn.getAttribute('data-reaction-idx'));
+            if(Number.isInteger(idx) && reactions[idx]) useReactionChoice(reactions[idx]);
+          });
+        });
+      }, 0);
+      _reactionTimer = setInterval(function(){
+        if(!isCurrentReactionPrompt()){
+          clearInterval(_reactionTimer);
+          return;
+        }
+        _reactionCountdown--;
+        var timerEl = document.getElementById('reaction-timer');
+        if(timerEl) timerEl.textContent = _reactionCountdown+'s';
+        var titleEl = document.getElementById('modal-title');
+        if(titleEl) titleEl.textContent = 'Choose Reaction ('+_reactionCountdown+'s)';
+        if(_reactionCountdown <= 0){
+          finishReaction(true);
+        }
+      }, 1000);
+      return;
+    }
 
     showModal(
       reactorName+' — React? ('+_reactionCountdown+'s)',
@@ -4884,4 +5289,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','64','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25']);

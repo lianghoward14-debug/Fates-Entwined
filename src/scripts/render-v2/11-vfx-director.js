@@ -1230,7 +1230,6 @@
       activeRecipes = activeRecipes.filter(function(r){
         return r && ANIMATIONS_OFF_ALLOWED_RECIPES.has(r.type);
       });
-      dragPreview = null;
     }
     const metrics = {
       cssW:Number(opts.cssW) || 1,
