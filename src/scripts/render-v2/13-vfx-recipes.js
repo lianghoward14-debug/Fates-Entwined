@@ -4,8 +4,8 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxRecipes) return;
 
-  const VERSION = 33;
-  const STYLE_VERSION = 'professional-tcg-motion-v28-slow-slide-consolidation';
+  const VERSION = 36;
+  const STYLE_VERSION = 'professional-tcg-motion-v31-multi-consolidation-slam';
   const MOTION = {
     micro:96,
     snap:154,
@@ -327,6 +327,65 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect', 'handRect']);
     const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
+    if(p.placementStyle === 'local-square'){
+      const hover = scaleRect(liftRect(to, .20), 1.10);
+      const squash = scaleRect(to, 1.035, .980);
+      const list = [
+        cardMove({
+          iid:p.iid,
+          card:p.card,
+          faceDown:p.faceDown,
+          fromRect:hover || to || from,
+          toRect:to,
+          targetRect:to,
+          startOffset:0,
+          duration:Math.max(280, Math.min(420, Number(p.duration) || 340)),
+          easing:'out-expo-soft',
+          path:'direct',
+          arc:0,
+          lift:0,
+          sideArc:0,
+          rotate:-1.8,
+          bank:0,
+          startScale:1.10,
+          scale:1.055,
+          endScale:1,
+          textureScale:1.22,
+          fadeIn:true,
+          holdMs:18,
+          landSquash:.012,
+          wobble:.22,
+          settleMs:58,
+          priority:'high'
+        }),
+        cardMove({
+          iid:String(p.iid || 'set') + ':settle',
+          card:p.card,
+          faceDown:p.faceDown,
+          fromRect:squash || to,
+          toRect:to,
+          targetRect:to,
+          startOffset:Math.max(190, Math.min(340, Number(p.duration) || 340) - 78),
+          duration:96,
+          easing:'snap-settle',
+          path:'direct',
+          rotate:.45,
+          bank:0,
+          startScale:1.015,
+          scale:1.010,
+          endScale:1,
+          textureScale:1.12,
+          holdMs:0,
+          landSquash:.006,
+          wobble:.12,
+          settleMs:34,
+          priority:'high'
+        }),
+        P().cardImpact({iid:p.iid, card:p.card || null, faceDown:p.faceDown, rect:to, startOffset:Math.max(210, Math.min(360, Number(p.duration) || 340) - 40), duration:112, amplitude:.006, priority:'high'})
+      ];
+      if(!p.suppressMotionAudio) list.push(P().soundCue({cue:'card_play_land', startOffset:Math.max(190, Math.min(360, Number(p.duration) || 340) - 44), priority:'high'}));
+      return list;
+    }
     if(p.placementStyle === 'target-snap'){
       const above = scaleRect(liftRect(to, .26), 1.04);
       const list = [
@@ -573,41 +632,75 @@
     const resultCard = p.resultCard || p.targetCard || null;
     const resultIid = p.resultMotionIid || p.targetIid || p.resultCardIid;
     const list = [P().soundCue({cue:'consolidate_charge', startOffset:42, priority:'high'})];
-    const gap = tributes.length <= 1 ? 0 : 360;
+    const gap = tributes.length <= 1 ? 0 : 390;
     const firstStart = 90;
-    const moveMs = tributes.length <= 1 ? 760 : 720;
+    const moveMs = tributes.length <= 1 ? 880 : 760;
     const stackTarget = targetRect ? scaleRect(targetRect, .98) : targetRect;
     if(tributes.length === 1 && tributes[0]) {
       const t = tributes[0];
       const originalFrom = t && (t.rect || t.fromRect || t.cardRect);
       const from = consolidationStartRect(originalFrom, targetRect, 0, 1) || originalFrom || targetRect;
+      const fc = center(from || targetRect);
+      const tc = center(targetRect || from);
+      const dx = fc.x - tc.x;
+      const dy = fc.y - tc.y;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const windup = from ? offsetRect(
+        scaleRect(from, 1.080),
+        dx / len * Math.max(28, (from.w || 70) * .36),
+        dy / len * Math.max(20, (from.h || 100) * .22) - Math.max(16, (from.h || 100) * .12)
+      ) : from;
       list.push(cardMove({
         iid:t.iid,
         card:t.card,
         fromRect:from,
-        toRect:targetRect,
+        toRect:windup || from,
         startOffset:firstStart,
-        duration:moveMs,
+        duration:310,
         easing:'out-expo-soft',
         path:'direct',
         arc:0,
         lift:0,
         sideArc:0,
-        rotate:-2.0,
+        rotate:-7.0,
         bank:0,
         startScale:1,
-        scale:1.035,
-        endScale:1,
-        textureScale:1.18,
-        fadeOutLate:true,
-        holdMs:210,
-        overshoot:.004,
-        landSquash:.010,
-        wobble:.12,
-        settleMs:64,
+        scale:1.115,
+        endScale:1.080,
+        textureScale:1.30,
+        holdMs:74,
+        overshoot:.010,
+        wobble:.26,
+        settleMs:58,
         priority:'high'
       }));
-      list.push(P().cardImpact({iid:t.iid, card:null, rect:targetRect, startOffset:firstStart + moveMs - 150, duration:86, amplitude:.006, priority:'high'}));
+      list.push(cardMove({
+        iid:t.iid,
+        card:t.card,
+        fromRect:windup || from,
+        toRect:targetRect,
+        startOffset:firstStart + 294,
+        duration:moveMs - 180,
+        easing:'out-expo-soft',
+        path:'direct',
+        arc:0,
+        lift:0,
+        sideArc:0,
+        rotate:4.8,
+        bank:0,
+        startScale:1.080,
+        scale:1.105,
+        endScale:1,
+        textureScale:1.30,
+        fadeOutLate:true,
+        holdMs:286,
+        overshoot:.010,
+        landSquash:.032,
+        wobble:.62,
+        settleMs:104,
+        priority:'high'
+      }));
+      list.push(P().cardImpact({iid:t.iid, card:null, rect:targetRect, startOffset:firstStart + moveMs - 42, duration:142, amplitude:.014, priority:'high'}));
     } else tributes.forEach(function(t, index){
       const originalFrom = t && (t.rect || t.fromRect || t.cardRect);
       if(!originalFrom) return;
@@ -645,33 +738,37 @@
         settleMs:64,
         priority:'high'
       }));
-      list.push(P().cardImpact({iid:t.iid, card:null, rect:stackOffset, startOffset:start + moveMs - 150, duration:70, amplitude:.005, priority:'high'}));
+      list.push(P().cardImpact({iid:t.iid, card:null, rect:stackOffset, startOffset:start + moveMs - 118, duration:82, amplitude:.006, priority:'high'}));
     });
     const revealAt = tributes.length === 1
-      ? firstStart + moveMs - 110
-      : firstStart + Math.max(0, tributes.length - 1) * gap + moveMs - 110;
+      ? firstStart + 294 + (moveMs - 180) - 42
+      : firstStart + Math.max(0, tributes.length - 1) * gap + moveMs - 24;
+    const resultFrom = tributes.length > 1 && targetRect
+      ? clampRectToViewport(offsetRect(scaleRect(targetRect, 1.34), 0, -Math.max(64, (targetRect.h || 110) * .82)), 10)
+      : (targetRect ? clampRectToViewport(offsetRect(scaleRect(targetRect, 1.24), 0, -Math.max(28, (targetRect.h || 110) * .30)), 10) : targetRect);
     list.push(cardMove({
       iid:resultIid,
       card:resultCard,
-      fromRect:targetRect,
+      fromRect:resultFrom || targetRect,
       toRect:targetRect,
       startOffset:revealAt,
-      duration:560,
-      easing:'out-expo-soft',
+      duration:tributes.length > 1 ? 620 : 620,
+      easing:tributes.length > 1 ? 'snap-settle' : 'snap-settle',
       path:'direct',
-      rotate:0,
+      rotate:tributes.length > 1 ? -6.4 : 2.8,
       bank:0,
-      startScale:1,
-      scale:1.045,
+      startScale:tributes.length > 1 ? 1.28 : 1.20,
+      scale:tributes.length > 1 ? 1.36 : 1.155,
       endScale:1,
-      textureScale:1.18,
-      holdMs:220,
-      wobble:.10,
-      settleMs:40,
+      textureScale:tributes.length > 1 ? 1.62 : 1.36,
+      holdMs:tributes.length > 1 ? 210 : 240,
+      landSquash:tributes.length > 1 ? .068 : .036,
+      wobble:tributes.length > 1 ? 2.55 : .92,
+      settleMs:tributes.length > 1 ? 128 : 104,
       priority:'high'
     }));
-    list.push(P().cardImpact({iid:resultIid, card:resultCard, rect:targetRect, startOffset:revealAt + 170, duration:118, amplitude:.007, priority:'high'}));
-    list.push(P().soundCue({cue:'consolidate_impact', startOffset:revealAt + 156, priority:'high'}));
+    list.push(P().cardImpact({iid:resultIid, card:resultCard, rect:targetRect, startOffset:revealAt + (tributes.length > 1 ? 430 : 390), duration:tributes.length > 1 ? 178 : 148, amplitude:tributes.length > 1 ? .020 : .015, priority:'high'}));
+    list.push(P().soundCue({cue:'consolidate_impact', startOffset:revealAt + (tributes.length > 1 ? 394 : 360), priority:'high'}));
     return list;
   }
 

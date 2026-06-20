@@ -4,9 +4,10 @@
   if(typeof window === 'undefined') return;
   if(window.FateActionPresentation) return;
 
-  const VERSION = 23;
+  const VERSION = 24;
   const MATCH_ACTION_MOTION_DISABLED = false;
   const SIMPLE_SET_CARD_MOTION_ENABLED = false;
+  const SET_CARD_MOTION_MODE = 'local-square'; // Revert to 'source-flight' to restore hand-to-board set flights.
   const ACTION_MOTION_FRAME_GAP_LIMIT_MS = 34;
   const AUTO_DISABLE_ON_FRAME_GAP = false;
   const recent = [];
@@ -543,6 +544,27 @@
     try { return Number(window.G && window.G.currentPlayer) || 0; } catch(e) { return 0; }
   }
 
+  function currentViewer(){
+    try {
+      if(typeof window.getPerspectivePlayerIndex === 'function') return Number(window.getPerspectivePlayerIndex());
+    } catch(e) {}
+    try { return Number(window.G && window.G.currentPlayer) || 0; } catch(e) { return 0; }
+  }
+
+  function topScreenSetOrigin(targetRect){
+    if(!targetRect) return null;
+    const w = Math.max(42, Math.min(92, Number(targetRect.w) || 70));
+    const h = Math.max(58, Math.min(128, Number(targetRect.h) || Math.round(w * 1.38)));
+    const vw = Math.max(320, window.innerWidth || 1280);
+    const tx = (Number(targetRect.x) || 0) + (Number(targetRect.w) || w) / 2 - w / 2;
+    return {
+      x:Math.max(12, Math.min(vw - w - 12, tx)),
+      y:Math.max(18, Math.min(82, (Number(targetRect.y) || 120) - h - 42)),
+      w,
+      h
+    };
+  }
+
   function scopedSourceRender(opts, options){
     const o = options || {};
     const owner = actionSourceOwner(opts || {});
@@ -609,12 +631,18 @@
     if(type === 'CONSOLIDATE') {
       const n = Array.isArray(p.tributes) ? p.tributes.length : 0;
       const firstStart = 90;
-      const moveMs = n <= 1 ? 760 : 720;
-      const gap = n <= 1 ? 0 : 360;
-      const revealAt = firstStart + Math.max(0, n - 1) * gap + moveMs - 110;
-      return revealAt + 580;
+      const moveMs = n <= 1 ? 880 : 760;
+      const gap = n <= 1 ? 0 : 390;
+      const revealAt = n <= 1
+        ? firstStart + 294 + (moveMs - 180) - 42
+        : firstStart + Math.max(0, n - 1) * gap + moveMs - 24;
+      return revealAt + (n > 1 ? 760 : 580);
     }
     if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
+      if(String(p.placementStyle || '') === 'local-square') {
+        const visibleMs = Math.max(360, Math.min(520, Number(p.duration) || 380));
+        return visibleMs + 92;
+      }
       const visibleMs = Math.max(560, Math.min(760, Number(p.duration) || 560));
       return visibleMs + 54;
     }
@@ -648,13 +676,46 @@
       return null;
     }
     const targetRect = targetRectForBoardTarget(opts.target);
-    const fromRect = opts.fromRect
-      || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null)
-      || sourceRectForBoardPlacement(Object.assign({source:'hand'}, opts), targetRect);
-    if(!targetRect || !fromRect) {
+    const owner = actionSourceOwner(opts);
+    const opponentSource = Number(owner) !== Number(currentViewer());
+    if(SET_CARD_MOTION_MODE === 'local-square') {
+      if(!targetRect) {
+        if(opts) {
+          opts._motionSkipReason = 'motion-rect-unavailable';
+          opts._motionBuildDetails = {hasTargetRect:false, localSquare:true};
+        }
+        return null;
+      }
+      const localDuration = Math.max(300, Math.min(420, Number(opts.durationMs) || 340));
+      const payload = {
+        iid:opts.inst && opts.inst.iid,
+        card:opts.sourceCard || opts.inst || null,
+        faceDown:!!(opts.inst && opts.inst.faceDown),
+        fromRect:targetRect,
+        toRect:targetRect,
+        targetRect,
+        duration:localDuration,
+        placementStyle:'local-square',
+        suppressMotionAudio:true
+      };
+      const duration = estimateDuration('PLAY_CARD', payload);
+      return {
+        recipe:'PLAY_CARD',
+        payload,
+        duration,
+        commitDelayMs:Math.max(150, localDuration - 54),
+        visibleMs:duration,
+        motionMode:SET_CARD_MOTION_MODE
+      };
+    }
+    const fromRect = opponentSource
+      ? (topScreenSetOrigin(targetRect) || opts.fromRect)
+      : (opts.fromRect || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null));
+    const resolvedFromRect = fromRect || sourceRectForBoardPlacement(Object.assign({source:'hand'}, opts), targetRect);
+    if(!targetRect || !resolvedFromRect) {
       if(opts) {
         opts._motionSkipReason = 'motion-rect-unavailable';
-        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!fromRect};
+        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!resolvedFromRect};
       }
       return null;
     }
@@ -664,17 +725,17 @@
       iid:opts.inst && opts.inst.iid,
       card:opts.sourceCard || opts.inst || null,
       faceDown:!!(opts.inst && opts.inst.faceDown),
-      fromRect,
+      fromRect:resolvedFromRect,
       toRect:targetRect,
       targetRect,
       duration:travel,
       handoffHoldMs,
-      arc:.28,
-      lift:.30,
+      arc:opponentSource ? .10 : .28,
+      lift:opponentSource ? .12 : .30,
       suppressMotionAudio:true,
-      sideArc:(opts.inst && opts.inst.owner === 1) ? -.42 : .42,
-      rotate:(opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0,
-      bank:(opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0
+      sideArc:opponentSource ? 0 : ((opts.inst && opts.inst.owner === 1) ? -.42 : .42),
+      rotate:opponentSource ? -4.5 : ((opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0),
+      bank:opponentSource ? -2.2 : ((opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0)
     };
     const visibleMs = Math.max(560, Math.min(760, travel));
     const totalVisibleMs = visibleMs + handoffHoldMs;
@@ -1216,6 +1277,7 @@
       msSinceLastAction:round(msSinceLastAction()),
       matchActionMotionDisabled:matchActionMotionDisabled(),
       consolidationMotionAllowed:consolidationMotionAllowed(),
+      setCardMotionMode:SET_CARD_MOTION_MODE,
       autoMotionDisabledReason,
       autoDisableOnFrameGap:AUTO_DISABLE_ON_FRAME_GAP,
       actionMotionFrameGapLimitMs:ACTION_MOTION_FRAME_GAP_LIMIT_MS,
