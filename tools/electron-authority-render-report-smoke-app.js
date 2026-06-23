@@ -8,6 +8,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const RESULT_PATH = process.env.FATE_AUTHORITY_RENDER_SMOKE_RESULT || '';
+let smokeStage = 'startup';
 const MIME_TYPES = {
   '.html':'text/html; charset=utf-8',
   '.js':'text/javascript; charset=utf-8',
@@ -36,6 +37,11 @@ function writeResult(payload){
   try{
     fs.writeFileSync(RESULT_PATH, JSON.stringify(payload, null, 2), 'utf8');
   }catch(err){}
+}
+
+function setStage(stage){
+  smokeStage = stage;
+  writeResult({ok:false, pending:true, stage:smokeStage});
 }
 
 function startStaticServer(){
@@ -92,7 +98,9 @@ async function waitFor(win, expression, label, timeoutMs=15000){
 }
 
 async function main(){
+  setStage('starting-static-server');
   const { server, url } = await startStaticServer();
+  setStage('creating-window');
   const win = new BrowserWindow({
     show:false,
     width:1280,
@@ -109,9 +117,12 @@ async function main(){
   win.webContents.on('console-message', (_event, level, message)=>{
     if(level >= 2) process.stderr.write(`[renderer] ${message}\n`);
   });
+  setStage('loading-url');
   await win.loadURL(url);
+  setStage('waiting-for-report-dependencies');
   await waitFor(win, 'window.fateAuthorityRenderReport && window.getFateGameState && window.renderGame', 'authority render report dependencies');
 
+  setStage('executing-render-report');
   const report = await win.webContents.executeJavaScript(`(async function(){
     function emptyBoard(){
       return Array.from({length:3}, function(){
@@ -176,6 +187,13 @@ async function main(){
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('no-sandbox');
+const watchdog = setTimeout(()=>{
+  const payload = {ok:false, error:'Timed out in Electron authority render smoke', stage:smokeStage};
+  writeResult(payload);
+  try{ app.exit(1); }catch(err){ process.exit(1); }
+}, 35000);
 process.on('uncaughtException', err=>{
   const payload = {ok:false, error:String(err && err.message || err), stack:String(err && err.stack || '')};
   writeResult(payload);
