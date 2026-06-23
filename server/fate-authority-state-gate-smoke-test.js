@@ -149,6 +149,7 @@ async function main(){
     second.placing = false;
     second.blockingCell = false;
     second.pendingEffect = null;
+    second.pendingInteraction = null;
     const secondHash = canonicalStateHash(second);
     ws.send(JSON.stringify({
       kind:'intent',

@@ -144,14 +144,14 @@ async function main(){
     }));
     const hello = await waitForKind(ws, 'hello-ok');
     assert.strictEqual(hello.serverStateHash, firstHash);
+    assert.strictEqual(hello.reducerMode, 'strict');
 
-    const tamperedClick = state({currentPlayer:0, turn:1, placing:true});
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'unsupported-click',
       roomCode:code,
       type:'CLICK_CELL',
-      payload:{playerIndex:0, turn:1, z:0, r:0, c:0, placing:false, baseStateHash:firstHash, postState:tamperedClick, stateHash:canonicalStateHash(tamperedClick)}
+      payload:{playerIndex:0, turn:1, z:0, r:0, c:0, placing:false, baseStateHash:firstHash}
     }));
     const rejected = await waitForKind(ws, 'rejected');
     assert.match(rejected.reason, /not implemented for non-placement CLICK_CELL/);
@@ -200,12 +200,13 @@ async function main(){
     second.placing = false;
     second.blockingCell = false;
     second.pendingEffect = null;
+    second.pendingInteraction = null;
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'strict-end',
       roomCode:code,
       type:'END_TURN',
-      payload:{playerIndex:0, turn:1, baseStateHash:firstHash, postState:first, stateHash:firstHash}
+      payload:{playerIndex:0, turn:1, baseStateHash:firstHash}
     }));
     const accepted = await waitForKind(ws, 'accepted');
     assert.strictEqual(accepted.action.payload.serverReduced, true);

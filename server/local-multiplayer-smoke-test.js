@@ -2,6 +2,7 @@
 'use strict';
 
 const { spawn } = require('child_process');
+const {getCardCatalog} = require('./fate-card-catalog');
 
 const PORT = Number(process.env.FATE_WS_SMOKE_PORT || 8797);
 const HOST = '127.0.0.1';
@@ -51,6 +52,26 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function validDeck(){
+  return getCardCatalog().cards
+    .filter(card=>card && !card.retired && !card.temporarilyDisabled)
+    .slice(0, 40)
+    .map(card=>card.id);
+}
+
+async function apiRequest(method, path, body){
+  const res = await fetch(`http://${HOST}:${PORT}${path}`, {
+    method,
+    headers:{'content-type':'application/json'},
+    body:body === undefined ? undefined : JSON.stringify(body)
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch (_) {}
+  if(!res.ok || json?.ok === false) throw new Error(`${method} ${path} failed ${res.status}: ${json?.error || text.slice(0, 200)}`);
+  return json;
+}
+
 async function waitForHealth(timeoutMs = 6000) {
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
@@ -87,7 +108,7 @@ function waitForMessage(client, predicate, label, timeoutMs = 2500) {
   });
 }
 
-function createClient(uid, idToken, roomPatch = {}) {
+function createClient(uid, idToken, roomPatch = {}, roomCode = ROOM_CODE) {
   const ws = new WebSocket(WS_URL);
   const client = { uid, ws, messages: [], listeners: new Set() };
   ws.addEventListener('message', event => {
@@ -102,7 +123,7 @@ function createClient(uid, idToken, roomPatch = {}) {
       clearTimeout(timer);
       ws.send(JSON.stringify({
         kind: 'hello',
-        roomCode: ROOM_CODE,
+        roomCode,
         uid,
         idToken,
         lastSeq: 1,
@@ -172,6 +193,16 @@ async function expectAccepted(client, requestId, type, seq) {
   return msg;
 }
 
+async function expectAcceptedAnySeq(client, requestId, type) {
+  const msg = await waitForMessage(
+    client,
+    item => item.kind === 'accepted' && item.requestId === requestId,
+    `${type} accepted`
+  );
+  if (msg.action.type !== type) throw new Error(`expected ${type}, got ${msg.action.type}`);
+  return msg;
+}
+
 async function expectRejected(client, requestId, reasonFragment) {
   const msg = await waitForMessage(
     client,
@@ -194,6 +225,7 @@ async function run() {
       FATE_WS_DURABLE_WRITES: 'off',
       FATE_WS_REQUIRE_DURABLE_WRITES: '0',
       FATE_WS_STATE_GATE: '0',
+      FATE_WS_DISCONNECT_TIMEOUT_MS: '120',
       FATE_WS_PING_MS: '60000'
     }),
     stdio: ['ignore', 'pipe', 'pipe']
@@ -207,28 +239,57 @@ async function run() {
   try {
     const health = await waitForHealth();
     if (health.durableWrites !== false) throw new Error('smoke server should run without durable writes');
+    if (health.resultLedgerPersistence !== true) throw new Error(`expected result ledger persistence capability, got ${JSON.stringify(health)}`);
+    if (health.flyResumeReplay !== true) throw new Error(`expected flyResumeReplay capability, got ${JSON.stringify(health)}`);
 
     const host = await createClient(HOST_UID, HOST_TOKEN);
     const guest = await createClient(GUEST_UID, GUEST_TOKEN);
     clients.push(host, guest);
 
-    const placeHost = sendIntent(host, 'CLICK_CELL', actionPayload(0, 'host-place-card', {
+    const burstHostA = sendIntent(host, 'CLICK_CELL', actionPayload(0, 'host-burst-a', {
       z: 0,
       r: 2,
       c: 1,
       placing: true,
       selectedHand: { id: '05', iid: 'host-card-1' }
     }));
-    await expectAccepted(host, placeHost, 'CLICK_CELL', 2);
-    await waitForMessage(guest, msg => msg.kind === 'accepted' && msg.action?.seq === 2, 'guest receives host placement');
-
-    const endHost = sendIntent(host, 'END_TURN', actionPayload(0, 'host-end-turn', {
-      nextCurrentPlayer: 1
+    const burstHostB = sendIntent(host, 'CLICK_CELL', actionPayload(0, 'host-burst-b', {
+      z: 1,
+      r: 2,
+      c: 1,
+      placing: true,
+      selectedHand: { id: '31', iid: 'host-card-2' }
     }));
-    const endAccepted = await expectAccepted(host, endHost, 'END_TURN', 3);
+    const burstAccepted = await Promise.all([
+      expectAcceptedAnySeq(host, burstHostA, 'CLICK_CELL'),
+      expectAcceptedAnySeq(host, burstHostB, 'CLICK_CELL')
+    ]);
+    const burstSeqs = burstAccepted.map(msg => Number(msg.action.seq)).sort((a, b) => a - b);
+    if (burstSeqs[0] !== 2 || burstSeqs[1] !== 3 || burstSeqs[0] === burstSeqs[1]) {
+      throw new Error(`expected concurrent host intents to serialize as seq 2 and 3, got ${burstSeqs.join(', ')}`);
+    }
+    await waitForMessage(guest, msg => msg.kind === 'accepted' && msg.action?.seq === 2, 'guest receives first host burst placement');
+    await waitForMessage(guest, msg => msg.kind === 'accepted' && msg.action?.seq === 3, 'guest receives second host burst placement');
+
+    const endPayload = actionPayload(0, 'host-end-turn', {
+      nextCurrentPlayer: 1
+    });
+    const endHost = sendIntent(host, 'END_TURN', endPayload);
+    const endAccepted = await expectAccepted(host, endHost, 'END_TURN', 4);
     if (endAccepted.roomPatch.currentTurnUid !== GUEST_UID) {
       throw new Error(`expected room turn to move to guest, got ${endAccepted.roomPatch.currentTurnUid}`);
     }
+    const retryEndHost = sendIntent(host, 'END_TURN', Object.assign({}, endPayload));
+    const retryEndAccepted = await expectAccepted(host, retryEndHost, 'END_TURN', 4);
+    if (retryEndAccepted.idempotentReplay !== true || retryEndAccepted.action.clientActionId !== endPayload.clientActionId) {
+      throw new Error(`expected duplicate END_TURN to replay original accepted action, got ${JSON.stringify(retryEndAccepted)}`);
+    }
+    const conflictingRetry = sendIntent(host, 'CLICK_CELL', Object.assign({}, endPayload, {
+      z: 2,
+      r: 2,
+      c: 1
+    }));
+    await expectRejected(host, conflictingRetry, 'clientActionId already used');
 
     const staleHost = sendIntent(host, 'CLICK_CELL', actionPayload(0, 'host-stale-turn', {
       z: 1,
@@ -244,18 +305,18 @@ async function run() {
       placing: true,
       selectedHand: { id: '31', iid: 'guest-card-1' }
     }));
-    await expectAccepted(guest, placeGuest, 'CLICK_CELL', 4);
+    await expectAccepted(guest, placeGuest, 'CLICK_CELL', 5);
 
     const landscapePick = sendIntent(guest, 'PICK_LANDSCAPE_ZONE', actionPayload(1, 'guest-landscape-zone', {
       chooserIndex: 1,
       zone: 2
     }));
-    await expectAccepted(guest, landscapePick, 'PICK_LANDSCAPE_ZONE', 5);
+    await expectAccepted(guest, landscapePick, 'PICK_LANDSCAPE_ZONE', 6);
 
     const forfeitGuest = sendIntent(guest, 'FORFEIT', {
       clientActionId: `smoke:guest-forfeit:${Date.now()}`
     });
-    const forfeitAccepted = await expectAccepted(guest, forfeitGuest, 'FORFEIT', 6);
+    const forfeitAccepted = await expectAccepted(guest, forfeitGuest, 'FORFEIT', 7);
     if (forfeitAccepted.action.payload.playerIndex !== 1) {
       throw new Error(`expected server-normalized forfeit playerIndex 1, got ${forfeitAccepted.action.payload.playerIndex}`);
     }
@@ -265,12 +326,75 @@ async function run() {
     if (forfeitAccepted.roomPatch.winnerUid !== HOST_UID || forfeitAccepted.roomPatch.loserUid !== GUEST_UID) {
       throw new Error(`expected host winner and guest loser, got ${JSON.stringify(forfeitAccepted.roomPatch)}`);
     }
+    if (!forfeitAccepted.action.payload.rewardLedger?.serverFinalized || forfeitAccepted.action.payload.rewardLedger.endReason !== 'forfeit') {
+      throw new Error(`expected server-finalized forfeit reward ledger, got ${JSON.stringify(forfeitAccepted.action.payload.rewardLedger)}`);
+    }
+    if (forfeitAccepted.resultLedgerWrite !== false) {
+      throw new Error(`expected local durable-off forfeit resultLedgerWrite=false, got ${JSON.stringify(forfeitAccepted)}`);
+    }
 
     const roomsRes = await fetch(`http://${HOST}:${PORT}/rooms`);
     const rooms = await roomsRes.json();
     const room = rooms.find(item => item.code === ROOM_CODE);
-    if (!room || room.lastActionSeq !== 6 || room.status !== 'ended' || room.phase !== 'ended' || room.winnerUid !== HOST_UID || room.loserUid !== GUEST_UID) {
+    if (!room || room.lastActionSeq !== 7 || room.status !== 'ended' || room.phase !== 'ended' || room.winnerUid !== HOST_UID || room.loserUid !== GUEST_UID || room.resultLedger?.endReason !== 'forfeit') {
       throw new Error(`unexpected room summary: ${JSON.stringify(room)}`);
+    }
+
+    const deck = validDeck();
+    const created = await apiRequest('POST', '/api/rooms', {
+      uid:HOST_UID,
+      mode:'ranked',
+      profile:{username:'Smoke Host', challengerElo:1000, challengerWins:3, challengerLosses:1, humanWins:2, humanLosses:1, matchesPlayed:4},
+      deckChoice:{deckIds:deck, name:'Host Smoke Deck', ready:true}
+    });
+    const disconnectRoomCode = created.room.code;
+    await apiRequest('POST', `/api/rooms/${disconnectRoomCode}/join`, {
+      uid:GUEST_UID,
+      profile:{username:'Smoke Guest', challengerElo:800, challengerWins:1, challengerLosses:3, humanWins:1, humanLosses:2, matchesPlayed:4},
+      deckChoice:{deckIds:deck, name:'Guest Smoke Deck', ready:true}
+    });
+    await apiRequest('POST', `/api/rooms/${disconnectRoomCode}/start`, {
+      uid:HOST_UID,
+      seed:'disconnect-timeout-smoke'
+    });
+    const resumeStarted = await apiRequest('GET', `/api/rooms/${disconnectRoomCode}/resume?after=0&limit=20`);
+    if(!resumeStarted.room || resumeStarted.lastSeq < 1 || !resumeStarted.events.some(item => item.action?.type === 'MATCH_START')){
+      throw new Error(`unexpected started resume payload: ${JSON.stringify(resumeStarted)}`);
+    }
+    const started = (await apiRequest('GET', `/api/rooms/${disconnectRoomCode}`)).room;
+    const disconnectHost = await createClient(HOST_UID, HOST_TOKEN, started, disconnectRoomCode);
+    const disconnectGuest = await createClient(GUEST_UID, GUEST_TOKEN, started, disconnectRoomCode);
+    clients.push(disconnectHost, disconnectGuest);
+    disconnectGuest.ws.close();
+    const timeoutAccepted = await waitForMessage(
+      disconnectHost,
+      msg => msg.kind === 'accepted' && msg.action?.type === 'DISCONNECT_TIMEOUT',
+      'server disconnect timeout',
+      4000
+    );
+    if(timeoutAccepted.roomPatch.winnerUid !== HOST_UID || timeoutAccepted.roomPatch.loserUid !== GUEST_UID){
+      throw new Error(`unexpected disconnect room patch: ${JSON.stringify(timeoutAccepted.roomPatch)}`);
+    }
+    const ledger = timeoutAccepted.action.payload.rewardLedger;
+    if(!ledger || !ledger.serverFinalized || !ledger.ranked || ledger.endReason !== 'disconnect'){
+      throw new Error(`expected ranked server disconnect reward ledger, got ${JSON.stringify(ledger)}`);
+    }
+    if(timeoutAccepted.resultLedgerWrite !== false){
+      throw new Error(`expected local durable-off disconnect resultLedgerWrite=false, got ${JSON.stringify(timeoutAccepted)}`);
+    }
+    if(ledger.byUid?.[HOST_UID]?.oldElo !== 1000 || ledger.byUid?.[HOST_UID]?.newElo !== 1008 || ledger.byUid?.[HOST_UID]?.delta !== 8 || ledger.byUid?.[HOST_UID]?.starlightGained !== 99){
+      throw new Error(`unexpected host reward ledger: ${JSON.stringify(ledger.byUid?.[HOST_UID])}`);
+    }
+    if(ledger.byUid?.[GUEST_UID]?.oldElo !== 800 || ledger.byUid?.[GUEST_UID]?.newElo !== 790 || ledger.byUid?.[GUEST_UID]?.delta !== -10){
+      throw new Error(`unexpected guest reward ledger: ${JSON.stringify(ledger.byUid?.[GUEST_UID])}`);
+    }
+    const disconnectFinal = (await apiRequest('GET', `/api/rooms/${disconnectRoomCode}`)).room;
+    if(disconnectFinal.status !== 'ended' || disconnectFinal.endReason !== 'disconnect' || disconnectFinal.winnerUid !== HOST_UID || disconnectFinal.loserUid !== GUEST_UID || disconnectFinal.resultLedger?.byUid?.[HOST_UID]?.newElo !== 1008){
+      throw new Error(`unexpected disconnect final room: ${JSON.stringify(disconnectFinal)}`);
+    }
+    const resumeEnded = await apiRequest('GET', `/api/rooms/${disconnectRoomCode}/resume?after=1&limit=20`);
+    if(resumeEnded.lastSeq < 2 || !resumeEnded.events.some(item => item.action?.type === 'DISCONNECT_TIMEOUT')){
+      throw new Error(`unexpected ended resume payload: ${JSON.stringify(resumeEnded)}`);
     }
 
     console.log(JSON.stringify({
@@ -279,11 +403,12 @@ async function run() {
       url: WS_URL,
       room: ROOM_CODE,
       accepted: [
-        'host CLICK_CELL seq 2',
-        'host END_TURN seq 3',
-        'guest CLICK_CELL seq 4',
-        'guest PICK_LANDSCAPE_ZONE seq 5',
-        'guest FORFEIT seq 6'
+        'host concurrent CLICK_CELL seq 2+3',
+        'host END_TURN seq 4 with idempotent retry',
+        'guest CLICK_CELL seq 5',
+        'guest PICK_LANDSCAPE_ZONE seq 6',
+        'guest FORFEIT seq 7',
+        'server DISCONNECT_TIMEOUT on API-started room'
       ],
       rejectedAsExpected: 'host stale CLICK_CELL after turn passed',
       roomSummary: room

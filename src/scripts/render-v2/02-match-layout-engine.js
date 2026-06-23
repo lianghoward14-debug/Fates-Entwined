@@ -167,20 +167,24 @@
 
     const oppCount = oppCards.length;
     const denseOppHand = oppCount >= 9;
-    const oppGap = denseOppHand ? 5 : 6;
-    const oppCols = Math.min(4, Math.max(1, oppCount || 1));
-    const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
+    const exactNineOppHand = oppCount === 9;
+    const oppGap = denseOppHand ? (exactNineOppHand ? 6 : 5) : 6;
+    const oppCols = exactNineOppHand ? 3 : Math.min(4, Math.max(1, oppCount || 1));
+    const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / oppCols));
     const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
+    const denseOppCardMaxW = denseOppHand ? (exactNineOppHand ? 49 : 42) : 54;
+    const denseOppCardMinW = denseOppHand ? (exactNineOppHand ? 34 : 30) : 34;
     const baseOppCardW = hasRevealedOppCards && !denseOppHand
       ? clamp(winW * 0.038, 56, 66)
-      : clamp(winW * (denseOppHand ? 0.031 : 0.034), denseOppHand ? 32 : 34, denseOppHand ? 50 : 54);
+      : clamp(winW * (denseOppHand ? (exactNineOppHand ? 0.031 : 0.027) : 0.034), denseOppCardMinW, denseOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
     const oppFallback = rect(22, denseOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
     if(denseOppHand) {
-      oppRect = rect(oppRect.x, oppRect.y + 18, oppRect.w, oppRect.h);
+      const denseInsetY = oppCount >= 9 ? 0 : 18;
+      oppRect = rect(oppRect.x, oppRect.y + denseInsetY, oppRect.w, Math.max(1, oppRect.h - denseInsetY));
     }
     const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
     const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
@@ -197,9 +201,9 @@
     const opponentHand = {
       rect:oppRect,
       cards:oppCards.map(function(card, index){
-        const row = Math.floor(index / 4);
-        const col = index % 4;
-        const rowCount = row === oppRows - 1 ? (oppCount - row * 4) : 4;
+        const row = Math.floor(index / oppCols);
+        const col = index % oppCols;
+        const rowCount = row === oppRows - 1 ? (oppCount - row * oppCols) : oppCols;
         const totalRowW = oppCardW * rowCount + oppGap * Math.max(0, rowCount - 1);
         const rowStartX = oppRect.x + Math.max(0, (oppRect.w - totalRowW) / 2);
         return {

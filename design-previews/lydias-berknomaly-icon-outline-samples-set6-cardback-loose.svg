@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs>
+    <style>
+      .bg{fill:#070a10}
+      .tile{fill:#0c1320;stroke:#2a3d58;stroke-width:2}
+      .title{font-family:Georgia,serif;font-size:33px;font-weight:700;letter-spacing:5px;fill:#e8eef8}
+      .sub{font-family:Arial,sans-serif;font-size:15px;letter-spacing:2px;fill:#90a0b6}
+      .label{font-family:Georgia,serif;font-size:18px;font-weight:700;fill:#e8eef8}
+      .note{font-family:Arial,sans-serif;font-size:13px;fill:#8797ac}
+      .num{font-family:Georgia,serif;font-size:21px;font-weight:700;fill:#dcecff}
+      .icon *{fill:none;stroke:currentColor;stroke-width:7.5;stroke-linecap:round;stroke-linejoin:round}
+      .icon .mid{stroke-width:6}
+      .icon .thin{stroke-width:4}
+      .icon .fill{fill:currentColor;stroke:none}
+    </style>
+  </defs>
+  <rect class="bg" width="1280" height="620"/>
+  <path d="M0 84H1280" stroke="#253750" stroke-width="2"/>
+  <text class="title" x="640" y="48" text-anchor="middle">LYDIA'S BERKNOMALY</text>
+  <text class="sub" x="640" y="72" text-anchor="middle">MONOCHROME SVG ICON SAMPLES - SET 6 / LOOSE CARD BACK FAMILY</text>
+
+  <g transform="translate(64 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">1</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 11C-37-31-8-47 0-47C8-47 37-31 45 11"/>
+      <path d="M-30 32L-47 50L-30 67"/>
+      <path d="M30 32L47 50L30 67"/>
+      <path class="mid" d="M-17 5L0-14L17 5L0 24Z"/>
+      <path d="M0 31V76"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Diamond Stem</text>
+    <text class="note" x="102" y="189" text-anchor="middle">familiar but cleaner</text>
+  </g>
+
+  <g transform="translate(308 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">2</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-42 4C-32-34-9-48 0-48C9-48 32-34 42 4"/>
+      <path class="mid" d="M-30 28C-42 36-45 52-31 63"/>
+      <path class="mid" d="M30 28C42 36 45 52 31 63"/>
+      <path d="M-15 76H15L7 31H-7Z"/>
+      <path class="mid" d="M-21 2H21M0-18V22"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Compass Arch</text>
+    <text class="note" x="102" y="189" text-anchor="middle">navigation sigil</text>
+  </g>
+
+  <g transform="translate(552 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">3</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-44 15C-40-18-20-40 0-46C20-40 40-18 44 15"/>
+      <path class="mid" d="M-35 34L-51 49L-35 63"/>
+      <path class="mid" d="M35 34L51 49L35 63"/>
+      <path d="M-22 30H22L10 76H-10Z"/>
+      <path class="mid" d="M-19-2C-8-17 8-17 19-2"/>
+      <path class="thin" d="M-10 16C-3 20 3 20 10 16"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Little Shrine</text>
+    <text class="note" x="102" y="189" text-anchor="middle">ritual object feel</text>
+  </g>
+
+  <g transform="translate(796 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">4</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-48 8C-38-31-8-47 0-47C8-47 38-31 48 8"/>
+      <path d="M-38 29C-47 39-45 54-30 62"/>
+      <path d="M38 29C47 39 45 54 30 62"/>
+      <path class="mid" d="M-18 4L18 4L0 30Z"/>
+      <path d="M0 35L-19 75M0 35L19 75"/>
+      <path class="thin" d="M-25 75H25"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Tripod Oracle</text>
+    <text class="note" x="102" y="189" text-anchor="middle">less card-back literal</text>
+  </g>
+
+  <g transform="translate(1040 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">5</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-43 10C-31-25-10-45 0-47C10-45 31-25 43 10"/>
+      <path class="mid" d="M-32 31L-43 48L-27 61"/>
+      <path class="mid" d="M32 31L43 48L27 61"/>
+      <path d="M-8 34V76H8V34"/>
+      <path class="mid" d="M-22 8C-10-8 10-8 22 8"/>
+      <path class="thin" d="M-36-12L-21-4M36-12L21-4"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Signal Crown</text>
+    <text class="note" x="102" y="189" text-anchor="middle">broadcast-like twist</text>
+  </g>
+
+  <g transform="translate(64 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">6</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-44 17C-35-25-7-46 0-46C7-46 35-25 44 17"/>
+      <path class="mid" d="M-33 37C-21 43-13 54-15 69"/>
+      <path class="mid" d="M33 37C21 43 13 54 15 69"/>
+      <path d="M0 30V76"/>
+      <path class="mid" d="M-18-1C-5-13 5-13 18-1C10 13 5 18 0 18C-5 18-10 13-18-1Z"/>
+      <path class="thin" d="M0-30V-16"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Needle Eye</text>
+    <text class="note" x="102" y="189" text-anchor="middle">thin sacred mark</text>
+  </g>
+
+  <g transform="translate(308 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">7</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-46 10C-36-29-13-45 0-49C13-45 36-29 46 10"/>
+      <path d="M-35 33L-52 54"/>
+      <path d="M35 33L52 54"/>
+      <path class="mid" d="M-29 57C-18 68-6 70 0 64C6 70 18 68 29 57"/>
+      <path d="M0 30V64"/>
+      <path class="mid" d="M-18 3H18"/>
+      <circle class="fill" cx="0" cy="-14" r="4"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Hooked Chalice</text>
+    <text class="note" x="102" y="189" text-anchor="middle">more ornamental</text>
+  </g>
+
+  <g transform="translate(552 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">8</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 7C-34-27-12-44 0-47C12-44 34-27 45 7"/>
+      <path class="mid" d="M-34 29C-43 41-43 54-31 64"/>
+      <path class="mid" d="M34 29C43 41 43 54 31 64"/>
+      <path d="M-12 32H12L21 76H-21Z"/>
+      <path class="mid" d="M-15-4H15L22 14H-22Z"/>
+      <path class="thin" d="M-45 7L-22 14M45 7L22 14"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Tablet Mark</text>
+    <text class="note" x="102" y="189" text-anchor="middle">solid game-icon shape</text>
+  </g>
+
+  <g transform="translate(796 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">9</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-46 13C-35-27-10-46 0-48C10-46 35-27 46 13"/>
+      <path d="M-39 33C-48 43-48 57-35 68"/>
+      <path d="M39 33C48 43 48 57 35 68"/>
+      <path class="mid" d="M0 32C-12 43-13 62 0 76C13 62 12 43 0 32Z"/>
+      <path class="mid" d="M-20 6C-10-8 10-8 20 6"/>
+      <path class="thin" d="M-7 20H7"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Teardrop Seal</text>
+    <text class="note" x="102" y="189" text-anchor="middle">smoothest variant</text>
+  </g>
+
+  <g transform="translate(1040 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">10</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 12C-31-29-9-45 0-48C9-45 31-29 45 12"/>
+      <path class="mid" d="M-32 34L-48 52L-28 68"/>
+      <path class="mid" d="M32 34L48 52L28 68"/>
+      <path d="M-13 34L0 76L13 34"/>
+      <path class="mid" d="M-19 2C-8-10 8-10 19 2"/>
+      <path class="thin" d="M-18 21H18M0-27V-10"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Berknomaly Fork</text>
+    <text class="note" x="102" y="189" text-anchor="middle">balanced final mark</text>
+  </g>
+</svg>

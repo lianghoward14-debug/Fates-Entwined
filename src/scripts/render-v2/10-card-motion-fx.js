@@ -308,14 +308,14 @@
     const fromRect = pileRect(owner, 'deck') || pileRect(null, 'deck');
     const toRect = (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner, fromRect);
     if(!fromRect || !toRect) return false;
-    return play('DECK_TO_HAND', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:Number(owner) !== Number(currentViewer())}, opts || {}));
+    return play('DECK_TO_HAND', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:false}, opts || {}));
   }
 
   function sendDiscardCardToHand(card, owner, handIndex, opts){
     const fromRect = pileRect(owner, 'discard') || pileRect(null, 'discard');
     const toRect = (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner, fromRect);
     if(!fromRect || !toRect) return false;
-    return play('DISCARD_TO_HAND', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:Number(owner) !== Number(currentViewer())}, opts || {}));
+    return play('DISCARD_TO_HAND', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:false}, opts || {}));
   }
 
   function searchCardToHand(card, owner, source, opts){
@@ -331,7 +331,7 @@
       fromRect,
       toRect,
       source:pileName,
-      faceDown:Number(owner) !== Number(currentViewer())
+      faceDown:false
     }, options));
   }
 
@@ -339,7 +339,7 @@
     const fromRect = anyHandRectByIid(card && card.iid) || (Number(fromOwner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, fromOwner));
     const toRect = Number(toOwner) === Number(currentViewer()) ? handSlotRect(999) : opponentHandSlotRect(999, toOwner);
     if(!fromRect || !toRect) return false;
-    return play('MOVE_CARD', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:Number(toOwner) !== Number(currentViewer())}, opts || {}));
+    return play('MOVE_CARD', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:false}, opts || {}));
   }
 
   function revealCard(card, rectSource, rectTarget, opts){

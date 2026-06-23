@@ -1551,6 +1551,21 @@ function playSfx(type) {
   } catch(e){}
 }
 
+function playEffectActivationClickSfx(opts) {
+  const options = opts || {};
+  const now = Date.now();
+  const key = options.remote ? '__fateLastRemoteEffectActivateSfxAt' : '__fateLastLocalEffectActivateSfxAt';
+  const minGap = Math.max(0, Number(options.minGapMs) || 120);
+  if(typeof window !== 'undefined') {
+    const last = Number(window[key]) || 0;
+    if(now - last < minGap) return false;
+    window[key] = now;
+  }
+  if(typeof playSfx === 'function') playSfx('effectActivate');
+  return true;
+}
+window.playEffectActivationClickSfx = playEffectActivationClickSfx;
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  AUDIO SYSTEM
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -2242,6 +2257,60 @@ function refreshProfileDisplays() {
   else if(typeof renderTitleProfile==='function') renderTitleProfile();
   if(typeof updatePlayerBanners==='function') updatePlayerBanners();
 }
+function getPublicProfileImgSrc(shape='square') {
+  const p = USER_PROFILE.profileImg;
+  const appendCrop = (src) => {
+    if(!src || !p || typeof p !== 'object') return src;
+    const hasCrop = p.cropFocusX !== undefined || p.cropFocusY !== undefined || p.cropZoom !== undefined || p.cropY !== undefined || p.cropTx !== undefined || p.cropTy !== undefined;
+    if(!hasCrop) return src;
+    const fx = Math.max(0, Math.min(1000, Math.round(Number(p.cropFocusX ?? 0.5) * 1000)));
+    const fy = Math.max(0, Math.min(1000, Math.round(Number(p.cropFocusY ?? 0.5) * 1000)));
+    const z = Math.max(100, Math.min(400, Math.round(Number(p.cropZoom || 1) * 100)));
+    const sep = src.includes('?') ? '&' : '?';
+    return `${src}${sep}fc=${fx},${fy},${z}`;
+  };
+  if(p && typeof p === 'object') {
+    if(p.pfpId) return appendCrop(`pfp/pfp${Math.max(1, parseInt(p.pfpId, 10) || 1)}.png`);
+    if(p.cardImg) return appendCrop(p.cardImg);
+    if(p.src && !String(p.src).startsWith('data:')) return appendCrop(p.src);
+    if(p.cardId) {
+      const card = CARDS.find(c=>c.id===p.cardId);
+      if(card && card.img) return appendCrop(card.img);
+    }
+  }
+  if(typeof p === 'string' && p && p !== '[object Object]' && !p.startsWith('data:')) return p;
+  const resolved = getProfileImgSrc(shape);
+  return resolved && !String(resolved).startsWith('data:') ? resolved : (typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png');
+}
+function syncProfileIdentityOnline() {
+  const state = window.FATE_ONLINE || null;
+  const user = state && state.user;
+  const photoURL = getPublicProfileImgSrc('square');
+  const username = USER_PROFILE.username || 'Player';
+  if(user && state.profile){
+    Object.assign(state.profile, {
+      chosenUsername:username,
+      displayName:username,
+      username,
+      photoURL,
+      profileImg:photoURL,
+      bio:USER_PROFILE.bio || '',
+      level:USER_PROFILE.level || 1,
+      challengerElo:USER_PROFILE.challengerElo || 600
+    });
+    try{ window.FateOnline?.profileCache?.set(user.uid, state.profile); }catch(e){}
+    try{ window.dispatchEvent(new CustomEvent('fate-online-auth', {detail:state})); }catch(e){}
+  }
+  setTimeout(function(){
+    if(window.FateOnline && typeof window.FateOnline.syncPublicProfile === 'function'){
+      window.FateOnline.syncPublicProfile().then(function(){
+        if(typeof window.renderSocialPage === 'function') window.renderSocialPage();
+      }).catch(function(e){ console.warn('Online profile sync after profile edit failed', e); });
+    }else if(typeof window.renderSocialPage === 'function') {
+      window.renderSocialPage();
+    }
+  }, 0);
+}
 
 function renderProfileModal(editing) {
   if(typeof resetModalChrome === 'function') resetModalChrome();
@@ -2330,6 +2399,7 @@ function renderProfileModal(editing) {
       USER_PROFILE.bio = b;
       saveProfile();
       refreshProfileDisplays();
+      syncProfileIdentityOnline();
       toast('Profile saved');
       renderProfileModal(false);
     };
@@ -2435,6 +2505,8 @@ function openProfileImageEditor() {
   defaultEl.onclick = ()=>{
     USER_PROFILE.profileImg = typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png';
     saveProfile();
+    refreshProfileDisplays();
+    syncProfileIdentityOnline();
     renderProfileModal(false);
     toast('Default profile picture equipped');
   };
@@ -2610,6 +2682,31 @@ function updateCropperDisplay() {
 }
 
 function saveCroppedImage(card) {
+  const buildProfileImagePayload = (dataUrl='') => {
+    const imgEl = document.getElementById('cropper-img');
+    const scale = (_cropState?.baseScale || 1) * (_cropState?.zoom || 1);
+    const cropBox = getCropBoxMetrics();
+    clampCropperOffsets();
+    const sx = imgEl ? Math.max(0, (cropBox.x - _cropState.offsetX) / scale) : 0;
+    const sy = imgEl ? Math.max(0, (cropBox.y - _cropState.offsetY) / scale) : 0;
+    const sw = imgEl ? Math.min(imgEl.naturalWidth - sx, cropBox.w / scale) : 0;
+    const sh = imgEl ? Math.min(imgEl.naturalHeight - sy, cropBox.h / scale) : 0;
+    const focusX = imgEl && imgEl.naturalWidth ? (sx + sw/2) / imgEl.naturalWidth : 0.5;
+    const focusY = imgEl && imgEl.naturalHeight ? (sy + sh/2) / imgEl.naturalHeight : 0.5;
+    const payload = {
+      cardImg: card.img,
+      cardId: card.id,
+      pfpId: card.pfpId||null,
+      cropZoom: _cropState ? _cropState.zoom : 1,
+      cropFocusX: Math.max(0, Math.min(1, focusX)),
+      cropFocusY: Math.max(0, Math.min(1, focusY)),
+      cropTx: _cropState ? Math.round((_cropState.offsetX / 300) * 100) : 0,
+      cropTy: _cropState ? Math.round((_cropState.offsetY / 300) * 100) : 0,
+      cropY: _cropState ? Math.round(_cropState.offsetY / 3) : 25
+    };
+    if(dataUrl) payload.dataUrl = dataUrl;
+    return payload;
+  };
   // Try canvas approach first (works if same-origin)
   try {
     const img = document.getElementById('cropper-img');
@@ -2626,9 +2723,10 @@ function saveCroppedImage(card) {
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/png');
     if(dataUrl && dataUrl.length > 100){
-      USER_PROFILE.profileImg = { dataUrl, cardId: card.id, pfpId: card.pfpId||null };
+      USER_PROFILE.profileImg = buildProfileImagePayload(dataUrl);
       saveProfile();
       refreshProfileDisplays();
+      syncProfileIdentityOnline();
       toast('Profile picture saved');
       renderProfileModal(false);
       document.onmousemove = null;
@@ -2638,29 +2736,10 @@ function saveCroppedImage(card) {
   } catch(e){}
   // Fallback: store card image with crop metadata for CSS-based cropping
   {
-    const img2 = document.getElementById('cropper-img');
-    const scale2 = (_cropState?.baseScale || 1) * (_cropState?.zoom || 1);
-    const cropBox2 = getCropBoxMetrics();
-    clampCropperOffsets();
-    const sx = img2 ? Math.max(0, (cropBox2.x - _cropState.offsetX) / scale2) : 0;
-    const sy = img2 ? Math.max(0, (cropBox2.y - _cropState.offsetY) / scale2) : 0;
-    const sw = img2 ? Math.min(img2.naturalWidth - sx, cropBox2.w / scale2) : 0;
-    const sh = img2 ? Math.min(img2.naturalHeight - sy, cropBox2.h / scale2) : 0;
-    const focusX = img2 && img2.naturalWidth ? (sx + sw/2) / img2.naturalWidth : 0.5;
-    const focusY = img2 && img2.naturalHeight ? (sy + sh/2) / img2.naturalHeight : 0.5;
-    USER_PROFILE.profileImg = {
-      cardImg: card.img,
-      cardId: card.id,
-      pfpId: card.pfpId||null,
-      cropZoom: _cropState ? _cropState.zoom : 1,
-      cropFocusX: Math.max(0, Math.min(1, focusX)),
-      cropFocusY: Math.max(0, Math.min(1, focusY)),
-      cropTx: _cropState ? Math.round((_cropState.offsetX / 300) * 100) : 0,
-      cropTy: _cropState ? Math.round((_cropState.offsetY / 300) * 100) : 0,
-      cropY: _cropState ? Math.round(_cropState.offsetY / 3) : 25
-    };
+    USER_PROFILE.profileImg = buildProfileImagePayload();
     saveProfile();
     refreshProfileDisplays();
+    syncProfileIdentityOnline();
     toast('Profile picture saved');
     renderProfileModal(false);
     document.onmousemove = null;
@@ -2813,7 +2892,7 @@ window.viewPublicDeck = function(id){
         <div class="pd-rating" style="margin-bottom:.5rem;"><span class="pd-stars" style="font-size:1.1rem;">${renderStars(rating)}</span><span style="color:var(--dim);">${rating.toFixed(1)} (${d.ratings.length})</span></div>
         <div style="font-style:italic;color:var(--text);font-size:.9rem;line-height:1.5;">${escapeHtml(d.description||'No description.')}</div>
         <div style="margin-top:.8rem;">
-          <button class="btn sm" onclick="loadPublicDeck('${d.id}')" ${Object.values(PRESET_DECKS).some(p=>p._importedFromPublicId===d.id||(p.name===d.name+' (imported)'&&JSON.stringify(p.ids)===JSON.stringify(d.ids)))?'disabled style="opacity:.5;"':''}>${Object.values(PRESET_DECKS).some(p=>p._importedFromPublicId===d.id||(p.name===d.name+' (imported)'&&JSON.stringify(p.ids)===JSON.stringify(d.ids)))?'Already Imported':'Import to My Presets'}</button>
+          <button class="btn sm" onclick="loadPublicDeck('${d.id}')">Import</button>
           <button class="btn sm" onclick="rateDeck('${d.id}')">Rate</button>
         </div>
         <div id="pd-inline-rate"></div>
@@ -2873,30 +2952,84 @@ window.viewPublicDeck = function(id){
   }
 };
 
+function publicDeckImportIcon(kind){
+  if(kind === 'challenger') return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 8l18 8v13c0 12-7 21-18 27-11-6-18-15-18-27V16l18-8z" stroke-width="4"/><path d="M23 31h18M32 21v22" stroke-width="4"/><path d="M23 43c5 4 13 4 18 0" stroke-width="3" opacity=".55"/></g></svg>';
+  return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="14" width="40" height="36" rx="5" stroke-width="4"/><path d="M20 24h24M20 33h24M20 42h14" stroke-width="3.5"/><path d="M44 39l6 6-6 6" stroke-width="3"/></g></svg>';
+}
+
+function resetPublicDeckImportModalState(){
+  if(typeof resetModalChrome === 'function') resetModalChrome();
+  const modal = document.querySelector('#modal .modal');
+  if(modal){
+    modal.classList.remove('public-decks-modal','public-deck-import-choice-modal','public-deck-view-modal','deck-inspect-compact-modal','title-deck-preview-modal','challenger-my-decks-modal','choose-deck-canonical-modal','choose-deck-runtime-modal');
+    modal.removeAttribute('style');
+  }
+  const body = document.getElementById('modal-body');
+  if(body){
+    body.removeAttribute('style');
+    body.className = '';
+  }
+  const acts = document.getElementById('modal-acts');
+  if(acts) acts.removeAttribute('style');
+  const title = document.getElementById('modal-title');
+  if(title) title.removeAttribute('style');
+  document.getElementById('modal')?.classList.remove('no-edge-corners-modal');
+  document.body?.classList.remove('choose-deck-open');
+}
+
+function showPublicDeckImportChoice(id, d){
+  if(!d) return;
+  if(typeof resetModalChrome === 'function') resetModalChrome();
+  const total = Array.isArray(d.ids) ? d.ids.length : 0;
+  const unique = new Set(d.ids || []).size;
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '<div class="public-import-choice">'
+    + '<div class="public-import-choice-head"><span>Import Destination</span><h2>' + escapeHtml(d.name || 'Shared Deck') + '</h2><p>Choose where this public deck should land.</p></div>'
+    + '<div class="public-import-choice-meta"><span><b>' + total + '</b><em>cards</em></span><span><b>' + unique + '</b><em>unique</em></span></div>'
+    + '<div class="public-import-choice-grid">'
+    +   '<button type="button" class="public-import-option public-import-option-challenger" data-dest="challenger">'
+    +     '<span class="public-import-option-icon">' + publicDeckImportIcon('challenger') + '</span>'
+    +     '<span class="public-import-option-copy"><b>Challenger Deck</b><em>Save it if you own every card. Otherwise load the owned cards into the Challenger builder.</em></span>'
+    +   '</button>'
+    +   '<button type="button" class="public-import-option public-import-option-title" data-dest="title">'
+    +     '<span class="public-import-option-icon">' + publicDeckImportIcon('title') + '</span>'
+    +     '<span class="public-import-option-copy"><b>Title Deck Builder</b><em>Open this list as an unsaved title-screen builder deck.</em></span>'
+    +   '</button>'
+    + '</div></div>';
+  document.getElementById('modal-title').textContent = '';
+  const acts = document.getElementById('modal-acts');
+  acts.innerHTML = '';
+  const back=document.createElement('button');back.className='btn sm';back.textContent='Back';back.onclick=()=>viewPublicDeck(id);
+  const close=document.createElement('button');close.className='btn sm';close.textContent='Cancel';close.onclick=closeModal;
+  acts.appendChild(back);
+  acts.appendChild(close);
+  const meta = {
+    publicId:id,
+    name:d.name || 'Shared Deck',
+    description:d.description || '',
+    faceCardId:d.faceCardId || '',
+    displayCardIds:Array.isArray(d.displayCardIds) ? d.displayCardIds : []
+  };
+  body.querySelector('[data-dest="challenger"]').onclick = function(){
+    if(typeof window.importIdsToChallengerDeckBuilder !== 'function'){ toast('Challenger deck builder is not ready'); return; }
+    resetPublicDeckImportModalState();
+    const result = window.importIdsToChallengerDeckBuilder(d.ids || [], meta);
+    if(result && (result.saved || result.alreadyImported) && typeof closeModal === 'function') closeModal();
+  };
+  body.querySelector('[data-dest="title"]').onclick = function(){
+    if(typeof window.importIdsToTitleDeckBuilder !== 'function'){ toast('Deck Builder is not ready'); return; }
+    resetPublicDeckImportModalState();
+    window.importIdsToTitleDeckBuilder(d.ids || [], meta);
+  };
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-import-choice-modal');
+  document.getElementById('modal').classList.add('on');
+}
+
 window.loadPublicDeck = function(id){
   const d = PUBLIC_DECKS.find(x=>x.id===id);
   if(!d) return;
-  const alreadyImported = Object.values(PRESET_DECKS).some(p =>
-    p._importedFromPublicId === id ||
-    (p.name === d.name + ' (imported)' && JSON.stringify(p.ids) === JSON.stringify(d.ids))
-  );
-  if(alreadyImported){
-    toast('Already imported this deck');
-    return;
-  }
-  const key = 'user_'+Date.now();
-  PRESET_DECKS[key] = {
-    name: d.name+' (imported)',
-    description: d.description||'',
-    theme: 'Imported',
-    ids: [...d.ids],
-    faceCardId: d.faceCardId,
-    displayCardIds: d.displayCardIds||[],
-    _importedFromPublicId: id
-  };
-  savePresetsToStorage();
-  toast('Deck imported to your presets');
-  viewPublicDeck(id);
+  showPublicDeckImportChoice(id, d);
 };
 
 window.rateDeck = function(id){

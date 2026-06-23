@@ -1,12 +1,14 @@
 
 // FATES ENTWINED ONLINE ELO V1
-// Realtime leaderboard mirror over RTDB. Client-trusted alpha until Cloud Functions are added.
+// Online leaderboard bridge. Fly is used in RTDB-disabled mode; RTDB remains the
+// legacy fallback path for non-Fly sessions.
 (function(){
   const FO = window.FateOnline || {};
   let leaderboard = {};
   let lbUnsub = null;
   let sharedAISimulationTimer = null;
   let sharedAISyncTimer = null;
+  let flyLeaderboardFetchInFlight = null;
   const ONLINE_LEADERBOARD_LIMIT = 100;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -14,6 +16,85 @@
   function profile(){ return window.FATE_ONLINE?.profile || {}; }
   function localProfile(){ try{ if(typeof window.getFateLocalProfile === 'function') return window.getFateLocalProfile() || {}; }catch(e){} return window.USER_PROFILE || {}; }
   function nameOf(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
+  function localStorageFlag(name){
+    try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+  }
+  function authorityHttpBaseUrl(){
+    try{
+      const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+      if(explicit) return explicit.replace(/\/+$/, '');
+    }catch(e){}
+    const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
+    if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
+    let wsUrl = '';
+    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
+    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
+    if(!wsUrl) return '';
+    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+  }
+  function flyLeaderboardEnabled(){
+    return !!authorityHttpBaseUrl() && (
+      localStorageFlag('fateFlyRoomsEnabled') ||
+      localStorageFlag('fateRtdbDisabled') ||
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }
+  function rtdbDisabledMode(){
+    return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+  }
+  function firebaseLeaderboardAllowed(){
+    return !rtdbDisabledMode() && !!(FO.rtdb && FO.ref);
+  }
+  async function flyApiRequest(path){
+    const base = authorityHttpBaseUrl();
+    if(!base) throw new Error('Fly authority API URL is not configured');
+    const headers = {'accept':'application/json'};
+    const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
+    if(token) headers.authorization = 'Bearer ' + token;
+    const res = await fetch(base + path, {headers});
+    if(!res.ok){
+      const text = await res.text().catch(()=> '');
+      throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+    }
+    return await res.json();
+  }
+  async function fetchFlyLeaderboard(){
+    if(!flyLeaderboardEnabled()) return leaderboard;
+    if(flyLeaderboardFetchInFlight) return flyLeaderboardFetchInFlight;
+    flyLeaderboardFetchInFlight = flyApiRequest(`/api/leaderboards/challenger?limit=${ONLINE_LEADERBOARD_LIMIT}`)
+      .then(data=>{
+        const next = {};
+        (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
+          const uid = entry?.uid || entry?.username || entry?.name;
+          if(!uid) return;
+          next[uid] = {
+            uid:entry.uid || uid,
+            name:entry.name || entry.username || 'Player',
+            username:entry.username || entry.name || 'Player',
+            baseCode:entry.baseCode || '',
+            photoURL:entry.photoURL || entry.profileImg || 'blank.png',
+            profileImg:entry.profileImg || entry.photoURL || 'blank.png',
+            elo:Number(entry.challengerElo ?? entry.elo ?? 600) || 600,
+            wins:Number(entry.challengerWins ?? entry.wins ?? 0) || 0,
+            losses:Number(entry.challengerLosses ?? entry.losses ?? 0) || 0,
+            updatedAt:Number(entry.updatedAt || Date.now()) || Date.now(),
+            isOnline:true,
+            source:'fly-authority'
+          };
+        });
+        leaderboard = next;
+        window.FATE_ONLINE_LEADERBOARD = leaderboard;
+        try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
+        return leaderboard;
+      })
+      .catch(e=>{
+        console.warn('Fly leaderboard fetch failed', e);
+        return leaderboard;
+      })
+      .finally(()=>{ flyLeaderboardFetchInFlight = null; });
+    return flyLeaderboardFetchInFlight;
+  }
   function currentMonthKey(){
     try{ if(typeof window.getMonthKey === 'function') return window.getMonthKey(); }catch(e){}
     const d = new Date();
@@ -159,11 +240,34 @@
     return clamp(expected, 0, 1);
   }
   function seasonPath(){ return `challengerAI/seasons/${currentMonthKey()}`; }
+  function sharedAIQueryTarget(){
+    const base = FO.ref(FO.rtdb, `${seasonPath()}/ai`);
+    return (FO.query && FO.orderByChild && FO.limitToLast)
+      ? FO.query(base, FO.orderByChild('elo'), FO.limitToLast(100))
+      : base;
+  }
   let sharedAIUnsub = null;
   let sharedAISeason = '';
 
+  function buildLocalSharedAIRoster(){
+    const records = localAIList().map(ai=>{
+      const id = aiIdFor(ai);
+      ai.aiId = id;
+      return applySharedAIRecord(aiEntry(ai, {aiId:id, updatedAt:Date.now()}));
+    }).filter(Boolean);
+    window.FATE_SHARED_AI_ROSTER = records;
+    try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
+    return records;
+  }
+
   async function syncMyLeaderboard(){
-    const u=user(); if(!u || !FO.rtdb) return;
+    const u=user(); if(!u) return;
+    if(flyLeaderboardEnabled()){
+      await FO.syncPublicProfile?.().catch(()=>{});
+      await fetchFlyLeaderboard().catch(()=>{});
+      return;
+    }
+    if(!firebaseLeaderboardAllowed()) return;
     const p = await FO.syncPublicProfile().catch(()=>profile());
     await FO.update(FO.ref(FO.rtdb, `leaderboards/challenger/${u.uid}`), {
       uid:u.uid,
@@ -177,7 +281,8 @@
     });
   }
   async function writeAILeaderboardEntry(rec){
-    if(!FO.rtdb || !rec?.aiId) return;
+    if(flyLeaderboardEnabled()) return;
+    if(!firebaseLeaderboardAllowed() || !rec?.aiId) return;
     await FO.update(FO.ref(FO.rtdb, `leaderboards/challenger/${rec.aiId}`), {
       uid:rec.aiId,
       aiId:rec.aiId,
@@ -198,11 +303,12 @@
     });
   }
   async function ensureSharedAIRoster(){
-    const u=user(); if(!u || !FO.rtdb) return [];
+    if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
+    const u=user(); if(!u || !firebaseLeaderboardAllowed()) return [];
     const list = localAIList();
     if(!list.length) return [];
     const basePath = seasonPath();
-    const snap = await FO.get(FO.ref(FO.rtdb, `${basePath}/ai`)).catch(()=>null);
+    const snap = await FO.get(sharedAIQueryTarget()).catch(()=>null);
     const existing = snap?.val() || {};
     const updates = {};
     const applied = [];
@@ -246,12 +352,18 @@
     return applied.filter(Boolean);
   }
   function watchSharedAIRoster(){
-    if(!FO.rtdb) return;
+    if(flyLeaderboardEnabled()){
+      if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
+      sharedAISeason = currentMonthKey();
+      buildLocalSharedAIRoster();
+      return;
+    }
+    if(!firebaseLeaderboardAllowed()) return;
     const nextSeason = currentMonthKey();
     if(sharedAIUnsub && sharedAISeason === nextSeason) return;
     if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
     sharedAISeason = nextSeason;
-    sharedAIUnsub = FO.onValue(FO.ref(FO.rtdb, `${seasonPath()}/ai`), snap=>{
+    sharedAIUnsub = FO.onValue(sharedAIQueryTarget(), snap=>{
       const records = Object.values(snap.val() || {}).map(applySharedAIRecord).filter(Boolean);
       window.FATE_SHARED_AI_ROSTER = records;
       try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
@@ -268,7 +380,14 @@
     return freshEnough || connected;
   }
   async function hasActiveOnlineMatches(){
-    if(!FO.rtdb || !FO.get) return false;
+    if(flyLeaderboardEnabled()){
+      if(typeof window.fateFetchFlyLiveMatches === 'function'){
+        const matches = await window.fateFetchFlyLiveMatches(16).catch(()=>[]);
+        return Array.isArray(matches) && matches.some(isLiveOnlineRoom);
+      }
+      return false;
+    }
+    if(!firebaseLeaderboardAllowed() || !FO.get) return false;
     const base = FO.ref(FO.rtdb, 'liveMatches');
     const target = (FO.query && FO.orderByChild && FO.limitToLast)
       ? FO.query(base, FO.orderByChild('updatedAt'), FO.limitToLast(16))
@@ -291,7 +410,8 @@
     return pairs;
   }
   async function claimAISimulationBatch(targetCount){
-    const u=user(); if(!u || !FO.rtdb || !FO.runTransaction) return 0;
+    if(flyLeaderboardEnabled()) return 0;
+    const u=user(); if(!u || !firebaseLeaderboardAllowed() || !FO.runTransaction) return 0;
     const claimId = `${u.uid}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const cadenceMs = 10 * 60 * 1000;
     const count = Math.max(0, Math.min(200, Math.round(Number(targetCount) || 0)));
@@ -312,12 +432,13 @@
     return tx?.committed && val.lastClaim?.id === claimId ? Number(val.lastClaim.count || 0) || 0 : 0;
   }
   async function runSharedAISimulations(){
-    const u=user(); if(!u || !FO.rtdb) return 0;
+    if(flyLeaderboardEnabled()) return 0;
+    const u=user(); if(!u || !firebaseLeaderboardAllowed()) return 0;
     await ensureSharedAIRoster();
     if(await hasActiveOnlineMatches()) return 0;
     const basePath = seasonPath();
     const day = currentDayKey();
-    const snap = await FO.get(FO.ref(FO.rtdb, `${basePath}/ai`)).catch(()=>null);
+    const snap = await FO.get(sharedAIQueryTarget()).catch(()=>null);
     const roster = Object.values(snap?.val() || {}).map(r=>aiEntry(r, r));
     if(roster.length < 2) return 0;
     const byId = new Map(roster.map(r=>[r.aiId, {...r}]));
@@ -383,7 +504,18 @@
     return ran;
   }
   async function submitSharedAIResult(aiLike, didWin){
-    const u=user(); if(!u || !FO.rtdb || !aiLike?.name) return;
+    if(flyLeaderboardEnabled()){
+      if(aiLike?.name){
+        const rec = aiEntry(aiLike, {
+          wins:Number(aiLike.wins || 0) + (didWin ? 1 : 0),
+          losses:Number(aiLike.losses || 0) + (didWin ? 0 : 1),
+          updatedAt:Date.now()
+        });
+        applySharedAIRecord(rec);
+      }
+      return;
+    }
+    const u=user(); if(!u || !firebaseLeaderboardAllowed() || !aiLike?.name) return;
     const local = findLocalAI(aiLike) || aiLike;
     const id = aiIdFor(local);
     const recRef = FO.ref(FO.rtdb, `${seasonPath()}/ai/${id}`);
@@ -408,6 +540,7 @@
     }, 1400);
   }
   function startSharedAISimulationLoop(){
+    if(flyLeaderboardEnabled()) return;
     if(sharedAISimulationTimer) return;
     sharedAISimulationTimer = setInterval(()=>{
       if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
@@ -442,6 +575,12 @@
     }
     const wins = Number.isFinite(Number(givenWins)) ? Number(givenWins) : Number(localProfile().challengerWins||0);
     const losses = Number.isFinite(Number(givenLosses)) ? Number(givenLosses) : Number(localProfile().challengerLosses||0);
+    if(flyLeaderboardEnabled()){
+      await FO.syncPublicProfile?.().catch(()=>{});
+      await fetchFlyLeaderboard().catch(()=>{});
+      return {oldElo,newElo,delta};
+    }
+    if(!firebaseLeaderboardAllowed()) return {oldElo,newElo,delta};
     const matchId = `${Date.now()}_${u.uid}_${Math.random().toString(36).slice(2,7)}`;
     await FO.update(FO.ref(FO.rtdb), {
       [`matchResults/${matchId}`]: { matchId, uid:u.uid, opponentUid, roomCode, didWin, oldElo, newElo, delta, source, createdAt:FO.serverTimestamp() },
@@ -457,7 +596,11 @@
     return {oldElo,newElo,delta};
   }
   function watchLeaderboard(){
-    if(!FO.rtdb || lbUnsub) return;
+    if(flyLeaderboardEnabled()){
+      fetchFlyLeaderboard().catch(()=>{});
+      return;
+    }
+    if(!firebaseLeaderboardAllowed() || lbUnsub) return;
     const base = FO.ref(FO.rtdb, 'leaderboards/challenger');
     const target = (FO.query && FO.orderByChild && FO.limitToLast)
       ? FO.query(base, FO.orderByChild('elo'), FO.limitToLast(ONLINE_LEADERBOARD_LIMIT))
@@ -488,6 +631,7 @@
     runSharedAISimulations,
     startSharedAISimulationLoop,
     ensureSharedAILeaderboard(){
+      if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
       scheduleSharedAISync();
       return window.FATE_SHARED_AI_ROSTER || [];
     },
@@ -496,7 +640,8 @@
     getOnlineLeaderboard:()=>{
       watchLeaderboard();
       return leaderboard;
-    }
+    },
+    refreshFlyLeaderboard:fetchFlyLeaderboard
   });
 
   // Mirror local Challenger result calculations to cloud without changing the existing result UI.

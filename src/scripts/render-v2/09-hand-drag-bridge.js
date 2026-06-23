@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchHandDragBridge) return;
 
-  const BRIDGE_VERSION = 1;
+  const BRIDGE_VERSION = 2;
   const DRAG_THRESHOLD = 10;
   let state = null;
   let blockClickUntil = 0;
@@ -13,6 +13,7 @@
   let moveRaf = 0;
   const DROP_PREVIEW_INTERVAL_MS = 42;
   const DROP_PREVIEW_MIN_DELTA = 12;
+  let handOrganizer = null;
 
   function adapter(){
     return window.FateMatchRendererAdapter || null;
@@ -39,6 +40,10 @@
     return Math.max(min, Math.min(max, Number(value) || 0));
   }
 
+  function nowMs(){
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
   function handIndex(el){
     const hand = document.getElementById('hand-cards');
     return hand ? Array.prototype.indexOf.call(hand.children, el) : -1;
@@ -49,6 +54,17 @@
     const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
     const p = G.players[cp];
     return p && p.hand ? p.hand[idx] : null;
+  }
+
+  function currentHandOwner(){
+    if(typeof G === 'undefined' || !G) return 0;
+    return typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+  }
+
+  function currentHand(){
+    if(typeof G === 'undefined' || !G || !G.players) return null;
+    const p = G.players[currentHandOwner()];
+    return p && Array.isArray(p.hand) ? p.hand : null;
   }
 
   function isFreeSetCard(card){
@@ -108,10 +124,10 @@
     if(!ownsBoard() || !activeGame()) return false;
     if(!ev || ev.button !== 0) return false;
     if(cardEl && cardEl.classList && cardEl.classList.contains('dim') && !isFreeSetCard(card)) return false;
-    if(typeof G === 'undefined' || !G || G.phase !== 'main') return false;
+    if(typeof G === 'undefined' || !G || String(G.phase || '').toLowerCase() !== 'main') return false;
     if(G._isSpectator) return false;
     const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
-    if(cp !== G.currentPlayer) return false;
+    if(Number(cp) !== Number(G.currentPlayer)) return false;
     if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return false;
     if(G._boardTargeting || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._busserMoving || G._busserMovingCard || G._markSelecting) return false;
     return idx >= 0 && !!card;
@@ -127,6 +143,219 @@
       if(r && clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) return hit;
     }
     return null;
+  }
+
+  function viewportHandHits(){
+    const scene = adapter();
+    const liveMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
+    return liveMap && Array.isArray(liveMap.handCards) ? liveMap.handCards : [];
+  }
+
+  function viewportHandStripRect(hits){
+    const list = Array.isArray(hits) ? hits : [];
+    let rect = null;
+    list.forEach(function(hit){
+      const r = hit && hit.rect;
+      if(!r) return;
+      if(!rect) rect = {x:r.x, y:r.y, w:r.w, h:r.h};
+      else {
+        const minX = Math.min(rect.x, r.x);
+        const minY = Math.min(rect.y, r.y);
+        const maxX = Math.max(rect.x + rect.w, r.x + r.w);
+        const maxY = Math.max(rect.y + rect.h, r.y + r.h);
+        rect = {x:minX, y:minY, w:maxX - minX, h:maxY - minY};
+      }
+    });
+    if(!rect) return null;
+    return rect;
+  }
+
+  function requestHandOnlyRender(){
+    const scene = adapter();
+    if(scene && typeof scene.scheduleRender === 'function') {
+      scene.scheduleRender('hand-organizer');
+      return;
+    }
+    if(window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.request === 'function') {
+      window.FateMatchFrameScheduler.request({
+        dirty:{hand:true},
+        reason:'hand-organizer',
+        adapterSource:'hand-organizer'
+      });
+      return;
+    }
+    try {
+      if(typeof renderHand === 'function') renderHand();
+    } catch(e) {}
+  }
+
+  function escapeText(value){
+    if(typeof escapeHtml === 'function') return escapeHtml(value == null ? '' : String(value));
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function cardImageSrc(card){
+    if(!card) return '';
+    const visual = card.visual || card;
+    let src = visual.runtimeImg || visual.img || card.runtimeImg || card.img || '';
+    try {
+      if(src && typeof getRuntimeCardImageSrc === 'function') src = getRuntimeCardImageSrc(src, 'hand');
+    } catch(e) {}
+    return src || '';
+  }
+
+  function canOpenHandOrganizer(){
+    if(!ownsBoard() || !activeGame()) return false;
+    if(typeof G === 'undefined' || !G || !G.players || G._isSpectator) return false;
+    const hand = currentHand();
+    return !!(hand && hand.length);
+  }
+
+  function pointInHandArea(clientX, clientY){
+    if(viewportHandHitFromPoint(clientX, clientY)) return true;
+    const hits = viewportHandHits();
+    const r = viewportHandStripRect(hits);
+    const pad = 28;
+    return !!(r && clientX >= r.x - pad && clientX <= r.x + r.w + pad && clientY >= r.y - pad && clientY <= r.y + r.h + pad);
+  }
+
+  function stopOrganizerEvent(ev){
+    if(!ev) return;
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+  }
+
+  function closeHandOrganizer(reason){
+    if(!handOrganizer) return;
+    if(handOrganizer.guardTimer) clearInterval(handOrganizer.guardTimer);
+    if(handOrganizer.root && handOrganizer.root.parentNode) handOrganizer.root.parentNode.removeChild(handOrganizer.root);
+    document.body.classList.remove('fate-hand-organizer-open');
+    handOrganizer = null;
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.lastHandOrganizerClose = {reason:reason || 'close', at:Date.now()};
+    } catch(e) {}
+  }
+
+  function guardHandOrganizer(){
+    if(!handOrganizer) return;
+    if(!activeGame() || typeof G === 'undefined' || !G || !G.players) {
+      closeHandOrganizer('inactive');
+      return;
+    }
+    if(currentHandOwner() !== handOrganizer.owner) {
+      closeHandOrganizer('perspective-changed');
+      return;
+    }
+    if(handOrganizer.openedDuringOwnTurn && Number(G.currentPlayer) !== Number(handOrganizer.owner)) {
+      closeHandOrganizer('turn-ended');
+      return;
+    }
+  }
+
+  function moveOrganizerCard(fromIndex, toIndex){
+    if(!handOrganizer) return;
+    const hand = currentHand();
+    if(!hand || hand.length < 2) return;
+    const from = clamp(Number(fromIndex), 0, hand.length - 1);
+    const to = clamp(Number(toIndex), 0, hand.length - 1);
+    if(from === to) return;
+    const selected = Number.isInteger(G.selectedHandCard) ? hand[G.selectedHandCard] : null;
+    const moved = hand.splice(from, 1)[0];
+    hand.splice(to, 0, moved);
+    if(selected) {
+      const nextSelected = hand.findIndex(function(card){ return card && selected && card.iid === selected.iid; });
+      G.selectedHandCard = nextSelected >= 0 ? nextSelected : null;
+    }
+    requestHandOnlyRender();
+    renderHandOrganizer();
+  }
+
+  function renderHandOrganizer(){
+    if(!handOrganizer || !handOrganizer.root) return;
+    guardHandOrganizer();
+    if(!handOrganizer) return;
+    const hand = currentHand() || [];
+    const rows = hand.map(function(card, index){
+      const img = cardImageSrc(card);
+      const name = card && card.name ? card.name : 'Card';
+      const type = card && card.type ? card.type : '';
+      return '<div class="fate-hand-organizer-card" data-index="' + index + '">' +
+        '<div class="fate-hand-organizer-thumb">' +
+          (img ? '<img src="' + escapeText(img) + '" alt="">' : '<span>' + escapeText(String(name).slice(0, 1) || 'F') + '</span>') +
+        '</div>' +
+        '<div class="fate-hand-organizer-meta">' +
+          '<span>Slot ' + (index + 1) + '</span>' +
+          '<strong>' + escapeText(name) + '</strong>' +
+          '<em>' + escapeText(type) + '</em>' +
+        '</div>' +
+        '<div class="fate-hand-organizer-actions">' +
+          '<button type="button" class="fate-hand-organizer-edge" title="Move to front" data-move="first" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>|&lt;</button>' +
+          '<button type="button" title="Move left" data-move="left" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>&lt;</button>' +
+          '<button type="button" title="Move right" data-move="right" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>&gt;</button>' +
+          '<button type="button" class="fate-hand-organizer-edge" title="Move to end" data-move="last" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>&gt;|</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    handOrganizer.root.innerHTML =
+      '<section class="fate-hand-organizer-panel" role="dialog" aria-modal="false" aria-label="Arrange hand">' +
+        '<header class="fate-hand-organizer-head">' +
+          '<div><span>Hand Order</span><strong>Arrange Cards</strong></div>' +
+          '<button type="button" class="fate-hand-organizer-close" data-close="1" title="Close">x</button>' +
+        '</header>' +
+        '<div class="fate-hand-organizer-list">' + rows + '</div>' +
+      '</section>';
+  }
+
+  function openHandOrganizer(){
+    if(!canOpenHandOrganizer()) return false;
+    closeHandOrganizer('reopen');
+    const root = document.createElement('div');
+    root.className = 'fate-hand-organizer-root';
+    root.addEventListener('pointerdown', stopOrganizerEvent, true);
+    root.addEventListener('pointerup', stopOrganizerEvent, true);
+    root.addEventListener('click', function(ev){
+      stopOrganizerEvent(ev);
+      const closeBtn = ev.target && ev.target.closest ? ev.target.closest('[data-close]') : null;
+      if(closeBtn) {
+        closeHandOrganizer('button');
+        return;
+      }
+      const btn = ev.target && ev.target.closest ? ev.target.closest('[data-move]') : null;
+      if(!btn || btn.disabled) return;
+      const hand = currentHand() || [];
+      const index = clamp(Number(btn.getAttribute('data-index')), 0, Math.max(0, hand.length - 1));
+      const move = btn.getAttribute('data-move');
+      if(move === 'first') moveOrganizerCard(index, 0);
+      else if(move === 'left') moveOrganizerCard(index, index - 1);
+      else if(move === 'right') moveOrganizerCard(index, index + 1);
+      else if(move === 'last') moveOrganizerCard(index, hand.length - 1);
+    }, true);
+    root.addEventListener('contextmenu', function(ev){
+      ev.preventDefault();
+      stopOrganizerEvent(ev);
+    }, true);
+    document.body.appendChild(root);
+    document.body.classList.add('fate-hand-organizer-open');
+    const owner = currentHandOwner();
+    handOrganizer = {
+      root,
+      owner,
+      openedTurnPlayer:typeof G !== 'undefined' && G ? G.currentPlayer : owner,
+      openedDuringOwnTurn:typeof G !== 'undefined' && G ? Number(G.currentPlayer) === Number(owner) : true,
+      guardTimer:setInterval(guardHandOrganizer, 250)
+    };
+    renderHandOrganizer();
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.lastHandOrganizerOpen = {owner, handCount:(currentHand() || []).length, at:Date.now()};
+    } catch(e) {}
+    return true;
   }
 
   function boardPointFromClient(clientX, clientY){
@@ -199,11 +428,22 @@
     return G.board[hit.z] && G.board[hit.z][hit.r] ? G.board[hit.z][hit.r][hit.c] : null;
   }
 
+  function canPlaceCardOnCell(card, hit){
+    if(!card || !hit || hit.kind !== 'cell') return false;
+    if(boardCardAt(hit)) return false;
+    if(typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))) return false;
+    const cp = typeof G !== 'undefined' && G ? G.currentPlayer : 0;
+    if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
+    if(card.contestedOnly && Number(hit.r) !== 1) return false;
+    if(card.type === 'Supporter' && card.id !== '76' && typeof isBlockedByAlondra === 'function' && isBlockedByAlondra(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
+    return true;
+  }
+
   function hitDropState(card, hit){
     if(!card || !hit) return 'invalid';
     const boardCard = boardCardAt(hit);
-    if(isFreeSetCard(card)) return boardCard ? 'invalid' : 'valid';
-    if(card.type === 'Supporter') return boardCard ? 'invalid' : 'valid';
+    if(isFreeSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
+    if(card.type === 'Supporter') return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
     return boardCard && boardCard.owner === G.currentPlayer && boardCard.type === 'Supporter' && !boardCard.noConsolidate ? 'valid' : 'invalid';
@@ -335,7 +575,6 @@
 
   function makeGhost(el, ev){
     clearGhost();
-    if(animationsOff()) return {bare:true};
     const r = state && state.sourceBoardRect ? Object.assign({}, state.sourceBoardRect) : null;
     const p = boardPointFromClient(ev.clientX, ev.clientY);
     const cellRect = state && state.hitMap && Array.isArray(state.hitMap.cells)
@@ -374,7 +613,7 @@
 
   function moveGhost(ghost, x, y, progress){
     if(!ghost) return;
-    if(animationsOff() || ghost.bare) return;
+    if(ghost.bare) return;
     const w = state && state.ghostW ? state.ghostW : 120;
     const h = state && state.ghostH ? state.ghostH : 170;
     const lift = Math.min(1, Math.max(0, Number(progress) || 0));
@@ -402,14 +641,14 @@
   function cleanup(options){
     const opts = options || {};
     if(state && state.el) state.el.classList.remove('fate-v2-drag-source');
-    if(state && state.card) {
+    if(state && state.card && !opts.keepDeparting) {
       try { delete state.card._presentationDeparting; } catch(e) {}
       try {
         if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true, board:false, scores:false});
         else if(typeof renderHand === 'function') renderHand();
       } catch(e) {}
     }
-    clearGhost();
+    if(!opts.keepGhost) clearGhost();
     if(hoverRaf) {
       cancelAnimationFrame(hoverRaf);
       hoverRaf = 0;
@@ -432,7 +671,7 @@
 
   function updateDropPreview(x, y, force){
     if(!state || !state.dragging) return null;
-    const now = (window.performance && performance.now) ? performance.now() : Date.now();
+    const now = nowMs();
     const lx = Number(state.lastPreviewX);
     const ly = Number(state.lastPreviewY);
     const movedEnough = !Number.isFinite(lx) || !Number.isFinite(ly)
@@ -486,13 +725,6 @@
     state.canPayReinforcement = state.card && state.card.type !== 'Supporter' ? hasEnoughReinforcement(state.card) : true;
     state.ghost = makeGhost(state.el, ev);
     if(state.el) state.el.classList.add('fate-v2-drag-source');
-    if(state.card) {
-      try { state.card._presentationDeparting = true; } catch(e) {}
-      try {
-        if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:true, board:false, scores:false});
-        else if(typeof renderHand === 'function') renderHand();
-      } catch(e) {}
-    }
     document.body.classList.add('fate-v2-dragging-card');
     if(typeof playSfx === 'function') playSfx('dragStart');
     G.selectedHandCard = state.idx;
@@ -538,14 +770,12 @@
   }
 
   function finishSupporterDrop(hit){
-    const iid = state.card && state.card.iid;
     const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
-    const scene = adapter();
+    try { window.__fateNextSetFromRect = from ? Object.assign({}, from) : null; } catch(e) {}
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;
     G.placing = true;
-    if(!animationsOff() && scene && typeof scene.queuePlacementMotion === 'function') scene.queuePlacementMotion(iid, from);
     if(typeof playSfx === 'function') playSfx('dragDrop');
     if(typeof clickCell === 'function') clickCell(Number(hit.z), Number(hit.r), Number(hit.c));
   }
@@ -596,12 +826,34 @@
     if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
   }
 
+  function onContextMenu(ev){
+    if(!ev) return;
+    if(handOrganizer && ev.target && ev.target.closest && ev.target.closest('.fate-hand-organizer-root')) {
+      ev.preventDefault();
+      stopOrganizerEvent(ev);
+      return;
+    }
+    if(!canOpenHandOrganizer() || !pointInHandArea(ev.clientX, ev.clientY)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    if(state) cleanup({clearPlacement:true});
+    openHandOrganizer();
+  }
+
   document.addEventListener('pointerdown', onPointerDown, true);
   document.addEventListener('pointermove', onPointerMove, {capture:true, passive:false});
   document.addEventListener('pointerup', onPointerUp, true);
+  document.addEventListener('contextmenu', onContextMenu, true);
   document.addEventListener('click', blockGhostClick, true);
-  window.addEventListener('blur', function(){ if(state) cleanup({clearPlacement:true}); });
-  document.addEventListener('visibilitychange', function(){ if(document.hidden && state) cleanup({clearPlacement:true}); });
+  window.addEventListener('blur', function(){
+    if(state) cleanup({clearPlacement:true});
+    closeHandOrganizer('blur');
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden && state) cleanup({clearPlacement:true});
+    if(document.hidden) closeHandOrganizer('hidden');
+  });
 
   window.FateMatchHandDragBridge = {
     version:BRIDGE_VERSION,
@@ -613,6 +865,7 @@
         version:BRIDGE_VERSION,
         active:!!state,
         dragging:!!(state && state.dragging),
+        organizerOpen:!!handOrganizer,
         ownsBoard:ownsBoard(),
         usesDomHand:false,
         usesHitMap:true

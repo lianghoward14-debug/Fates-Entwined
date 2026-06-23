@@ -1292,6 +1292,35 @@ function missionControlIsOpen(){
   return !!(win && !win.hidden && win.classList.contains('on'));
 }
 
+function missionFlyLiveEnabled(){
+  try{
+    return typeof window.fateFetchFlyLiveMatches === 'function' && (
+      localStorage.getItem('fateFlyRoomsEnabled') === '1' ||
+      localStorage.getItem('fateRtdbDisabled') === '1' ||
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }catch(e){
+    return typeof window.fateFetchFlyLiveMatches === 'function' && (
+      window.FATE_FLY_ROOMS_ENABLED === true ||
+      window.FATE_RTDB_DISABLED === true
+    );
+  }
+}
+
+function missionRtdbDisabledMode(){
+  try{
+    return localStorage.getItem('fateRtdbDisabled') === '1' ||
+      window.FATE_RTDB_DISABLED === true;
+  }catch(e){
+    return window.FATE_RTDB_DISABLED === true;
+  }
+}
+
+function missionFirebaseLiveAllowed(FO){
+  return !missionRtdbDisabledMode() && !!(FO && FO.rtdb && FO.onValue && FO.ref);
+}
+
 function scheduleMissionLiveStart(){
   if(_missionLiveStartTimer) clearTimeout(_missionLiveStartTimer);
   var schedule = window.FateMenuViews && typeof window.FateMenuViews.postPaint === 'function'
@@ -1310,7 +1339,8 @@ function renderMissionLive(opts){
   var el = document.getElementById('mission-window-live-container') || document.getElementById('mission-live-container');
   if(!el) return;
   var FO = window.FateOnline || {};
-  if(!FO.rtdb || !FO.onValue || !FO.ref){
+  var useFlyLive = missionFlyLiveEnabled();
+  if(!useFlyLive && !missionFirebaseLiveAllowed(FO)){
     setMissionHtml(el, '<div class="mission-live-empty">Online services are still loading. Close and reopen Mission Control in a moment.</div>');
     return;
   }
@@ -1329,6 +1359,23 @@ function renderMissionLive(opts){
   setMissionHtml(el, '<div class="mission-live-loading">Searching for live matches...</div>');
   el.dataset.missionLiveMounted = '1';
   if(_missionLiveUnsub){ try{_missionLiveUnsub();}catch(e){} _missionLiveUnsub=null; }
+  if(useFlyLive){
+    var refreshFlyLive = function(){
+      window.fateFetchFlyLiveMatches(16)
+        .then(function(matches){ renderMissionLiveList(el, matches || []); })
+        .catch(function(){ setMissionHtml(el, '<div class="mission-live-empty">Could not connect to live matches.</div>'); });
+    };
+    refreshFlyLive();
+    var flyLiveTimer = setInterval(function(){
+      if(missionControlIsOpen()) refreshFlyLive();
+    }, 4000);
+    _missionLiveUnsub = function(){ clearInterval(flyLiveTimer); };
+    return;
+  }
+  if(!missionFirebaseLiveAllowed(FO)){
+    setMissionHtml(el, '<div class="mission-live-empty">Live matches are available from Fly when the authority is connected.</div>');
+    return;
+  }
   try{
     var baseRef = FO.ref(FO.rtdb, 'liveMatches');
     var liveTarget = (FO.query && FO.orderByChild && FO.limitToLast)

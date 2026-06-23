@@ -185,6 +185,7 @@ function getUnownedPfpIds() {
 function resolveProfileImgSrc(imgData, shape='circle') {
   if(!imgData) return null;
   if(typeof imgData === 'string') {
+    if(imgData.trim() === '[object Object]') return null;
     if(imgData === DEFAULT_PROFILE_IMG || imgData === 'blank.png') return DEFAULT_PROFILE_IMG;
     return imgData;
   }

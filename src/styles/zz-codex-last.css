@@ -1,4 +1,4 @@
-﻿/* Last-loaded Codex overrides: keep this tiny and specific. */
+/* Last-loaded Codex overrides: keep this tiny and specific. */
 
 html body #s-social .social-party-command > .party-panel-clean,
 html body #s-social .social-party-command .party-panel-clean,
@@ -162,7 +162,7 @@ html body #s-title .title-performance-toggle .perf-toggle-copy b{
 }
 
 /* Tab-hidden: pause animations and kill transitions.
-   IMPORTANT: avoid universal * selector â€” it forces full style recalc on every
+   IMPORTANT: avoid universal * selector — it forces full style recalc on every
    element when the class toggles, which can permanently degrade the compositor
    to ~12 FPS after alt-tab on boards with many elements. Target game-specific
    elements instead. */
@@ -277,7 +277,7 @@ html.fate-performance-mode :is(#s-challenger:not(.active),#s-social:not(.active)
   contain-intrinsic-size:1000px 720px!important;
 }
 
-/* Modal containers must never use contain:layout â€” it prevents height recalc when
+/* Modal containers must never use contain:layout — it prevents height recalc when
    content loads async, causing random large empty spaces in profile inspect / card windows.
    contain:style is safe (isolates counters/quotes). */
 html body #modal .modal,
@@ -1155,7 +1155,7 @@ html body #s-game .cell.no-consolidate::before{
   max-height:none!important;
 }
 
-/* â”€â”€â”€ Daily missions: top-right (original position) â”€â”€â”€ */
+/* ─── Daily missions: top-right (original position) ─── */
 html body .daily-challenges-panel,
 html body #daily-challenges-panel{
   position:absolute!important;
@@ -1178,7 +1178,7 @@ body:has(#modal.on) #s-title #daily-challenges-panel{
   transition:filter .25s ease!important;
 }
 
-/* â”€â”€â”€ Daily challenge completion notification (overlay at top) â”€â”€â”€ */
+/* ─── Daily challenge completion notification (overlay at top) ─── */
 .dc-completion-notify{
   position:fixed;
   top:24px;left:50%;
@@ -1250,7 +1250,7 @@ body:has(#modal.on) #s-title #daily-challenges-panel{
   text-shadow:0 0 10px rgba(255,215,0,.25);
 }
 
-/* â”€â”€â”€ End zone flash: longer animation â”€â”€â”€ */
+/* ─── End zone flash: longer animation ─── */
 html body #s-game .zone.final-zone-board-flash{
   animation:finalZoneBoardFlashLong .86s ease-out var(--final-zone-delay,0ms) both!important;
   z-index:35!important;
@@ -1275,7 +1275,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   display:none!important;
 }
 
-/* â”€â”€ Suppressed card visual (Secules / Lydia) â”€â”€ */
+/* ── Suppressed card visual (Secules / Lydia) ── */
 .bc.fate-suppressed{
   filter:grayscale(.85) brightness(.7)!important;
   opacity:.7!important;
@@ -1296,13 +1296,13 @@ html body #s-game .zone.final-zone-board-flash::after{
   pointer-events:none;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   MAIN MENU V2  â€”  scoped under .fate-menu-v2 on #s-title.
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN MENU V2  —  scoped under .fate-menu-v2 on #s-title.
    Uses original layout (profile left, centered content) but with
    upgraded button design. Remove the class to revert instantly.
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Buttons: clean glass panels with gold borders, no corner decorations â”€â”€ */
+/* ── Buttons: clean glass panels with gold borders, no corner decorations ── */
 #s-title.fate-menu-v2 .title-btn{
   border-radius:6px!important;
   border:1px solid rgba(201,168,76,.2)!important;
@@ -1328,7 +1328,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   transform:translateY(-1px)!important;
 }
 
-/* Primary buttons: Free Play & Challenger â€” gold emphasis */
+/* Primary buttons: Free Play & Challenger — gold emphasis */
 #s-title.fate-menu-v2 #title-free-play-btn{
   border-color:rgba(201,168,76,.4)!important;
   background:linear-gradient(180deg,rgba(201,168,76,.13) 0%,rgba(201,168,76,.04) 100%)!important;
@@ -1354,7 +1354,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   box-shadow:0 0 22px rgba(255,215,0,.15)!important;
 }
 
-/* Exit button â€” subdued */
+/* Exit button — subdued */
 #s-title.fate-menu-v2 .title-btn-exit{
   opacity:.74!important;
   border-color:rgba(220,70,55,.45)!important;
@@ -1369,7 +1369,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   background:rgba(120,24,18,.18)!important;
 }
 
-/* â”€â”€ Audio panel: subtle glass treatment â”€â”€ */
+/* ── Audio panel: subtle glass treatment ── */
 #s-title.fate-menu-v2 .title-audio-panel{
   border:1px solid rgba(201,168,76,.1)!important;
   border-radius:6px!important;
@@ -1398,19 +1398,19 @@ html body #s-game .zone.final-zone-board-flash::after{
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SIDE PANEL â€” SUSPENDED, LEFT, STYLISH
+/* ═══════════════════════════════════════════════════════════════════
+   SIDE PANEL — SUSPENDED, LEFT, STYLISH
    Scoped under .fate-side-panel on #s-title. A floating panel on the
    LEFT with margin around it, decorative trim, section dividers,
    ornamental flourishes. Profile + daily challenges + compact chat.
    Remove the class to revert instantly.
    Toggle: localStorage.setItem('fate_side_panel','off') + refresh,
            or call window.toggleSidePanel().
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* --- Title screen: keep original centered layout â€” panel is overlaid --- */
+/* --- Title screen: keep original centered layout — panel is overlaid --- */
 #s-title.fate-side-panel{
-  /* Don't change flex-direction â€” panel is absolutely positioned */
+  /* Don't change flex-direction — panel is absolutely positioned */
 }
 
 /* --- Suspended panel: floats on left with margin (NOT flush to edge) --- */
@@ -1480,7 +1480,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   border-bottom-right-radius:8px;
 }
 
-/* --- Inner container (no scrolling â€” content fits) --- */
+/* --- Inner container (no scrolling — content fits) --- */
 #s-title.fate-side-panel .sp-inner{
   flex:1 1 auto!important;
   display:flex!important;
@@ -1668,7 +1668,7 @@ html body #s-game .zone.final-zone-board-flash::after{
   gap:.3rem!important;
 }
 #s-title.fate-side-panel .sp-wc-title::before{
-  content:'â—†'!important;
+  content:'◆'!important;
   font-size:.5rem!important;
   color:rgba(127,180,255,.6)!important;
 }
@@ -1859,9 +1859,9 @@ body:has(#modal.on) #fate-side-panel{
   margin-top:.6rem!important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════════
    MISSION CONTROL SCREEN
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════ */
 #s-mission{
   flex-direction:column;
   position:relative;
@@ -2519,6 +2519,14 @@ body.in-game #fate-corner-dock .ingame-chat-widget{
   font-size:1rem!important;
   line-height:1!important;
   filter:drop-shadow(0 0 5px rgba(232,196,82,.16))!important;
+}
+
+#fate-corner-dock.game-chat-dock .world-chat-icon svg,
+html body .world-chat-icon svg{
+  width:1.18em!important;
+  height:1.18em!important;
+  display:block!important;
+  color:currentColor!important;
 }
 
 #fate-corner-dock.game-chat-dock .world-chat-label,
@@ -3772,9 +3780,9 @@ html body #s-game .zone-banner-over{
   opacity:0!important;
 }
 
-/* Zone fate bar equal-spacing: gap above (bannerâ†’bar) = gap below (barâ†’squares) = 8px.
+/* Zone fate bar equal-spacing: gap above (banner→bar) = gap below (bar→squares) = 8px.
    Floating banner bottom sits at zoneTop+4.  Score card at top:12px (height 26px,
-   bottom 38px).  zone-hdr 46px â‡’ 46-38 = 8px below, 12-4 = 8px above.
+   bottom 38px).  zone-hdr 46px ⇒ 46-38 = 8px below, 12-4 = 8px above.
    margin:0 prevents stacking with the absolute top offset.                       */
 html body #s-game .zone-hdr{
   height:46px!important;
@@ -4657,6 +4665,15 @@ html body #tutorial-dialogue .tutorial-dialogue-text{
   padding-right:.45rem!important;
   scrollbar-width:thin!important;
   scrollbar-color:rgba(236,205,105,.42) transparent!important;
+  font-size:1.34rem!important;
+  line-height:1.42!important;
+}
+html body #tutorial-dialogue .tutorial-dialogue-title{
+  font-size:1.42rem!important;
+  line-height:1.08!important;
+}
+html body #tutorial-dialogue .tutorial-dialogue-text p{
+  margin:.62rem 0!important;
 }
 html body #tutorial-dialogue .tutorial-dialogue-text::-webkit-scrollbar{display:block!important;width:6px!important;}
 html body #tutorial-dialogue .tutorial-dialogue-text::-webkit-scrollbar-thumb{background:rgba(236,205,105,.42)!important;border-radius:999px!important;}
@@ -11315,6 +11332,24 @@ html body #modal .modal.daily-login-modal .daily-login-bg-img{
   pointer-events:none!important;
 }
 
+html body #s-game .hc.tutorial-blocked{
+  opacity:.46!important;
+  filter:grayscale(.9) saturate(.38) brightness(.62)!important;
+  cursor:not-allowed!important;
+}
+html body #s-game .hc.tutorial-blocked .bc-art::after{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  border-radius:inherit!important;
+  background:rgba(4,6,10,.42)!important;
+  box-shadow:inset 0 0 0 1px rgba(210,215,220,.16)!important;
+  pointer-events:none!important;
+}
+html body #s-game .hc.tutorial-blocked:hover{
+  transform:none!important;
+}
+
 html body #modal .modal.daily-login-modal .daily-login-hero{
   position:relative!important;
   z-index:1!important;
@@ -12894,8 +12929,8 @@ html body #s-game #opp-hand.opp-hand-compact{
 html body #s-game #opp-hand.opp-hand-nine-plus{
   --opp-hand-card-w:48px;
   --opp-hand-card-h:67px;
-  gap:.3rem!important;
-  max-height:214px!important;
+  gap:.28rem!important;
+  max-height:222px!important;
 }
 
 html body #s-game #opp-hand.opp-hand-ten-plus{
@@ -12921,6 +12956,129 @@ html body #s-game #opp-hand.opp-hand-compact .opp-card-back.opp-revealed{
 
 html body #s-game #opp-hand.opp-hand-compact .opp-card-back:hover{
   transform:translateY(-2px)!important;
+}
+
+/* Codex 2026-06-18: subtle hand-card effect modifier marker. */
+html body #s-game .hc{
+  position:relative!important;
+}
+
+html body #s-game .hc:has(.hand-effect-marker){
+  overflow:visible!important;
+  contain:layout style!important;
+}
+
+html body #s-game .hand-effect-marker{
+  position:absolute!important;
+  left:5px!important;
+  top:5px!important;
+  z-index:8!important;
+  width:17px!important;
+  height:17px!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  pointer-events:auto!important;
+}
+
+html body #s-game .hand-effect-marker-icon{
+  width:100%!important;
+  height:100%!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-family:Cinzel,serif!important;
+  font-size:10px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  color:#daf4ff!important;
+  background:rgba(8,10,16,.88)!important;
+  border:1px solid rgba(118,210,255,.78)!important;
+  box-shadow:0 2px 6px rgba(0,0,0,.35)!important;
+}
+
+html body #s-game .hand-effect-tooltip{
+  display:none!important;
+  position:absolute!important;
+  left:-330px!important;
+  top:2px!important;
+  transform:none!important;
+  width:300px!important;
+  max-width:min(300px,calc(100vw - 32px))!important;
+  padding:10px!important;
+  border-radius:7px!important;
+  background:rgba(5,7,12,.96)!important;
+  border:1px solid rgba(118,210,255,.42)!important;
+  box-shadow:0 12px 34px rgba(0,0,0,.58)!important;
+  pointer-events:none!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+
+html body #s-game .hand-effect-marker:hover .hand-effect-tooltip,
+html body #s-game .hc:hover .hand-effect-tooltip{
+  display:none!important;
+}
+
+html body #s-game .hc:hover > .hand-effect-marker > .hand-effect-tooltip,
+html body #s-game .hand-effect-marker:hover > .hand-effect-tooltip{
+  left:-330px!important;
+  right:auto!important;
+  top:2px!important;
+  transform:none!important;
+}
+
+html body #s-game .hand-effect-row + .hand-effect-row{
+  margin-top:7px!important;
+  padding-top:7px!important;
+  border-top:1px solid rgba(255,246,191,.08)!important;
+}
+
+html body > .hand-effect-tooltip.hand-effect-tooltip-portal{
+  display:none!important;
+  position:fixed!important;
+  z-index:12000!important;
+  left:0!important;
+  top:0!important;
+  transform:none!important;
+  width:300px!important;
+  max-width:calc(100vw - 32px)!important;
+  padding:10px!important;
+  border-radius:7px!important;
+  background:rgba(5,7,12,.96)!important;
+  border:1px solid rgba(118,210,255,.42)!important;
+  box-shadow:0 12px 34px rgba(0,0,0,.58)!important;
+  pointer-events:none!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+
+html body > .hand-effect-tooltip.hand-effect-tooltip-portal.is-visible{
+  display:block!important;
+}
+
+html body #s-game .hand-effect-name{
+  font-family:Cinzel,serif!important;
+  font-size:11px!important;
+  font-weight:800!important;
+  color:#daf4ff!important;
+  letter-spacing:.02em!important;
+  line-height:1.15!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+
+html body #s-game .hand-effect-text{
+  margin-top:4px!important;
+  font-family:"Crimson Pro",serif!important;
+  font-size:11px!important;
+  font-weight:600!important;
+  line-height:1.25!important;
+  color:rgba(231,226,205,.86)!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
 }
 
 /* Codex 2026-06-13: persistent Challenger panes must preserve deck builder scroll layout. */
@@ -13181,4 +13339,820 @@ html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-
 html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-scrollbar-thumb{
   background:rgba(218,185,82,.28)!important;
   border-radius:999px!important;
+}
+
+/* Codex 2026-06-18: affiliation declaration modal as a compact sigil window. */
+html body #modal .modal.affiliation-picker-modal{
+  width:min(458px,calc(100vw - 32px))!important;
+  max-width:458px!important;
+  padding:.92rem 1rem 1rem!important;
+  overflow:visible!important;
+  border:1px solid rgba(244,220,146,.72)!important;
+  border-radius:8px!important;
+  background:
+    radial-gradient(circle at 50% -18%,rgba(244,220,146,.2),transparent 42%),
+    linear-gradient(145deg,rgba(69,54,24,.22),transparent 28%,transparent 72%,rgba(37,72,87,.16)),
+    linear-gradient(180deg,rgba(15,20,31,.99),rgba(5,7,13,.99))!important;
+  box-shadow:0 30px 92px rgba(0,0,0,.82),0 0 34px rgba(244,220,146,.16),inset 0 0 0 1px rgba(255,248,201,.08)!important;
+}
+
+html body #modal .modal.affiliation-picker-modal::before{
+  content:''!important;
+  position:absolute!important;
+  inset:7px!important;
+  border:1px solid rgba(255,247,194,.09)!important;
+  border-radius:6px!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal::after{
+  content:''!important;
+  position:absolute!important;
+  left:22%!important;
+  right:22%!important;
+  top:-1px!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(255,237,164,.88),transparent)!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal #modal-title{
+  margin:0 0 .52rem!important;
+  padding:0 0 .46rem!important;
+  color:#fff0ad!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.98rem!important;
+  letter-spacing:.13em!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+  text-shadow:0 0 16px rgba(244,220,146,.2)!important;
+  border-bottom:1px solid rgba(255,232,149,.22)!important;
+}
+
+html body #modal .modal.affiliation-picker-modal #modal-body{
+  overflow:visible!important;
+  padding:.02rem 0 0!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-shell{
+  position:relative!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-herald{
+  display:grid!important;
+  grid-template-columns:1fr auto 1fr!important;
+  align-items:center!important;
+  gap:.52rem!important;
+  margin:0 0 .72rem!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-herald-line{
+  display:block!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(126,213,255,.34),rgba(255,232,149,.2),transparent)!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-herald-copy{
+  color:#8fdcff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.58rem!important;
+  letter-spacing:.12em!important;
+  line-height:1.2!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+  white-space:normal!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:.72rem!important;
+  overflow:visible!important;
+  padding:.04rem!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-square{
+  position:relative!important;
+  min-height:138px!important;
+  padding:.78rem .58rem .68rem!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.38rem!important;
+  appearance:none!important;
+  font:inherit!important;
+  cursor:pointer!important;
+  color:var(--aff-accent,#fff0ad)!important;
+  text-align:center!important;
+  border:1px solid rgba(var(--aff-glow,244,220,146),.5)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(var(--aff-glow,244,220,146),.12),transparent 42%),linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,0) 32%),linear-gradient(180deg,rgba(18,24,36,.98),rgba(6,8,14,.98))!important;
+  box-shadow:0 14px 30px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,255,255,.055),inset 0 -20px 38px rgba(0,0,0,.2)!important;
+  isolation:isolate!important;
+  overflow:hidden!important;
+  transform:translateZ(0)!important;
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease,background .16s ease!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-square::before{
+  content:''!important;
+  position:absolute!important;
+  left:12px!important;
+  right:12px!important;
+  top:8px!important;
+  height:2px!important;
+  border-radius:999px!important;
+  background:linear-gradient(90deg,transparent,var(--aff-accent,#fff0ad),transparent)!important;
+  opacity:.72!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-square::after{
+  content:''!important;
+  position:absolute!important;
+  inset:auto 10px 9px 10px!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-square:hover,
+html body #modal .modal.affiliation-picker-modal .aff-pick-square:focus-visible{
+  transform:translateY(-2px)!important;
+  border-color:rgba(var(--aff-glow,244,220,146),.88)!important;
+  box-shadow:0 19px 38px rgba(0,0,0,.6),0 0 26px rgba(var(--aff-glow,244,220,146),.24),inset 0 0 0 1px rgba(255,255,255,.08),inset 0 -20px 38px rgba(0,0,0,.18)!important;
+  outline:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-icon-frame,
+html body #modal .modal.affiliation-picker-modal .aff-pick-square > .aff-pick-icon-frame{
+  width:58px!important;
+  height:58px!important;
+  min-width:58px!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  color:var(--aff-accent,#fff0ad)!important;
+  border:2px solid rgba(var(--aff-glow,244,220,146),.86)!important;
+  background:radial-gradient(circle at 50% 42%,rgba(var(--aff-glow,244,220,146),.14),transparent 58%),radial-gradient(circle at 50% 52%,rgba(13,17,25,.98),rgba(4,5,10,.99))!important;
+  box-shadow:0 0 0 2px rgba(5,7,12,.92),0 0 0 3px rgba(255,247,194,.14),0 0 18px rgba(var(--aff-glow,244,220,146),.18),inset 0 0 0 1px rgba(255,255,255,.12)!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-icon-frame svg{
+  width:45px!important;
+  height:45px!important;
+  max-width:45px!important;
+  max-height:45px!important;
+  display:block!important;
+  transform:none!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-square[data-aff="third_great_war"] .aff-pick-icon-frame svg{
+  width:49px!important;
+  height:49px!important;
+  max-width:49px!important;
+  max-height:49px!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-label{
+  display:block!important;
+  max-width:100%!important;
+  color:#fff7d7!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  font-weight:700!important;
+  letter-spacing:.04em!important;
+  line-height:1.12!important;
+  text-wrap:balance!important;
+}
+
+html body #modal .modal.affiliation-picker-modal .aff-pick-note{
+  display:block!important;
+  max-width:100%!important;
+  color:#aebbc6!important;
+  font-size:.58rem!important;
+  line-height:1.22!important;
+}
+
+html body #modal .modal.affiliation-picker-modal #modal-acts{
+  margin:0!important;
+  min-height:0!important;
+}
+
+@media (max-width:420px){
+  html body #modal .modal.affiliation-picker-modal{
+    padding:.82rem .78rem .86rem!important;
+  }
+  html body #modal .modal.affiliation-picker-modal .aff-pick-grid{
+    gap:.56rem!important;
+  }
+  html body #modal .modal.affiliation-picker-modal .aff-pick-square{
+    min-height:116px!important;
+    padding:.66rem .42rem .56rem!important;
+  }
+  html body #modal .modal.affiliation-picker-modal .aff-pick-icon-frame{
+    width:50px!important;
+    height:50px!important;
+    min-width:50px!important;
+  }
+  html body #modal .modal.affiliation-picker-modal .aff-pick-icon-frame svg{
+    width:39px!important;
+    height:39px!important;
+    max-width:39px!important;
+    max-height:39px!important;
+  }
+  html body #modal .modal.affiliation-picker-modal .aff-pick-note{
+    display:none!important;
+  }
+}
+
+/* Codex 2026-06-18: Public deck import destination picker. */
+html body #modal .modal.public-deck-import-choice-modal{
+  width:min(620px,calc(100vw - 30px))!important;
+  max-width:min(620px,calc(100vw - 30px))!important;
+  padding:1.15rem 1.18rem 1rem!important;
+  background:linear-gradient(180deg,rgba(18,21,31,.98),rgba(6,8,14,.98))!important;
+  border:1px solid rgba(232,196,82,.36)!important;
+  box-shadow:0 24px 70px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.04) inset!important;
+}
+html body #modal .public-import-choice{display:flex!important;flex-direction:column!important;gap:.78rem!important;}
+html body #modal .public-import-choice-head{text-align:center!important;display:flex!important;flex-direction:column!important;gap:.24rem!important;}
+html body #modal .public-import-choice-head span{
+  font-family:'Cinzel',serif!important;font-size:.68rem!important;letter-spacing:.18em!important;text-transform:uppercase!important;color:rgba(232,196,82,.78)!important;
+}
+html body #modal .public-import-choice-head h2{
+  margin:0!important;color:#f4e4a6!important;font-family:'Cinzel',serif!important;font-size:1.18rem!important;line-height:1.15!important;
+}
+html body #modal .public-import-choice-head p{margin:0!important;color:rgba(235,238,247,.62)!important;font-size:.84rem!important;}
+html body #modal .public-import-choice-meta{display:flex!important;justify-content:center!important;gap:.5rem!important;}
+html body #modal .public-import-choice-meta span{
+  min-width:86px!important;padding:.38rem .58rem!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:8px!important;background:rgba(255,255,255,.035)!important;display:flex!important;align-items:baseline!important;justify-content:center!important;gap:.28rem!important;
+}
+html body #modal .public-import-choice-meta b{color:#fff4bd!important;font-family:'Cinzel',serif!important;font-size:1rem!important;}
+html body #modal .public-import-choice-meta em{
+  color:rgba(235,238,247,.5)!important;font-size:.68rem!important;font-style:normal!important;text-transform:uppercase!important;letter-spacing:.08em!important;
+}
+html body #modal .public-import-choice-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.78rem!important;}
+html body #modal .public-import-option{
+  appearance:none!important;cursor:pointer!important;text-align:left!important;min-height:148px!important;border-radius:8px!important;padding:.9rem!important;border:1px solid rgba(255,255,255,.1)!important;background:linear-gradient(180deg,rgba(24,29,42,.94),rgba(9,12,19,.96))!important;color:var(--text)!important;display:flex!important;flex-direction:column!important;gap:.78rem!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+}
+html body #modal .public-import-option:hover{transform:translateY(-2px)!important;border-color:rgba(232,196,82,.5)!important;box-shadow:0 14px 28px rgba(0,0,0,.36),0 0 18px rgba(232,196,82,.12)!important;}
+html body #modal .public-import-option-icon{
+  width:48px!important;height:48px!important;border-radius:999px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 48px!important;background:rgba(0,0,0,.24)!important;border:1px solid rgba(232,196,82,.4)!important;color:#e8c452!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)!important;
+}
+html body #modal .public-import-option-icon svg{width:30px!important;height:30px!important;display:block!important;}
+html body #modal .public-import-option-challenger .public-import-option-icon{
+  color:#f0ce62!important;border-color:rgba(240,206,98,.48)!important;background:radial-gradient(circle at 50% 40%,rgba(240,206,98,.17),rgba(13,11,5,.34))!important;
+}
+html body #modal .public-import-option-title .public-import-option-icon{
+  color:#7fc8ff!important;border-color:rgba(127,200,255,.46)!important;background:radial-gradient(circle at 50% 40%,rgba(127,200,255,.16),rgba(6,13,24,.34))!important;
+}
+html body #modal .public-import-option-copy{display:flex!important;flex-direction:column!important;gap:.28rem!important;}
+html body #modal .public-import-option-copy b{color:#fff4bd!important;font-family:'Cinzel',serif!important;font-size:.92rem!important;line-height:1.1!important;}
+html body #modal .public-import-option-copy em{color:rgba(235,238,247,.58)!important;font-size:.78rem!important;line-height:1.32!important;font-style:normal!important;}
+@media (max-width:640px){
+  html body #modal .public-import-choice-grid{grid-template-columns:1fr!important;}
+  html body #modal .public-import-option{min-height:124px!important;flex-direction:row!important;align-items:center!important;}
+}
+
+/* Codex 2026-06-19: brief end-turn warning for unused card-window effects. */
+html body #modal .modal.end-turn-warning-modal{
+  width:min(430px,calc(100vw - 34px))!important;
+  max-width:min(430px,calc(100vw - 34px))!important;
+  padding:1rem 1.05rem .94rem!important;
+  border:1px solid rgba(232,196,82,.44)!important;
+  background:linear-gradient(180deg,rgba(17,20,29,.98),rgba(7,9,15,.98))!important;
+  box-shadow:0 24px 64px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,255,255,.045)!important;
+}
+html body #modal .modal.end-turn-warning-modal #modal-title{
+  color:#ffe58c!important;
+  font-size:1.03rem!important;
+  letter-spacing:.11em!important;
+  text-align:left!important;
+  margin:0 0 .7rem!important;
+}
+html body #modal .end-turn-warning-shell{
+  display:grid!important;
+  grid-template-columns:46px minmax(0,1fr)!important;
+  gap:.78rem!important;
+  align-items:start!important;
+}
+html body #modal .end-turn-warning-mark{
+  width:42px!important;
+  height:42px!important;
+  border-radius:50%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  color:#fff4ba!important;
+  font-family:'Cinzel',serif!important;
+  font-size:1.28rem!important;
+  font-weight:800!important;
+  background:radial-gradient(circle at 50% 34%,rgba(255,223,112,.22),rgba(65,48,12,.46))!important;
+  border:1px solid rgba(232,196,82,.52)!important;
+  box-shadow:0 0 18px rgba(232,196,82,.14),inset 0 0 0 1px rgba(255,255,255,.08)!important;
+}
+html body #modal .end-turn-warning-copy{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.55rem!important;
+}
+html body #modal .end-turn-warning-copy p{
+  margin:0!important;
+  color:rgba(238,242,250,.82)!important;
+  font-size:.86rem!important;
+  line-height:1.34!important;
+}
+html body #modal .end-turn-warning-copy ul{
+  margin:0!important;
+  padding:0!important;
+  list-style:none!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.42rem!important;
+}
+html body #modal .end-turn-warning-copy li{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:.14rem .5rem!important;
+  align-items:center!important;
+  min-height:38px!important;
+  padding:.45rem .56rem!important;
+  border-radius:8px!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  background:rgba(255,255,255,.035)!important;
+}
+html body #modal .end-turn-warning-copy li b{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#fff7d4!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.78rem!important;
+}
+html body #modal .end-turn-warning-copy li em{
+  grid-column:1 / 2!important;
+  color:rgba(235,238,247,.64)!important;
+  font-size:.72rem!important;
+  font-style:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #modal .end-turn-warning-copy li span{
+  grid-column:2 / 3!important;
+  grid-row:1 / 3!important;
+  color:#8fcfff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.63rem!important;
+  letter-spacing:.07em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .end-turn-warning-more{
+  color:rgba(235,238,247,.5)!important;
+  font-size:.72rem!important;
+  text-align:right!important;
+}
+html body #modal .modal.end-turn-warning-modal #modal-acts{
+  margin-top:.86rem!important;
+  display:flex!important;
+  justify-content:flex-end!important;
+  gap:.55rem!important;
+}
+html body #modal .modal.end-turn-warning-modal #modal-acts .btn{
+  min-width:104px!important;
+}
+
+/* Codex 2026-06-19: center Lydia's Berknomaly status icon. */
+html body #s-game .effect-pill-lydia .effect-pill-icon{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+html body #s-game .effect-pill-lydia .effect-pill-icon svg.lydia-berknomaly-icon{
+  width:18px!important;
+  height:18px!important;
+  max-width:18px!important;
+  max-height:18px!important;
+  display:block!important;
+  transform:translateY(.5px)!important;
+  overflow:visible!important;
+}
+
+/* Codex 2026-06-19: chooser for multiple eligible Improvisor reactions. */
+html body #modal .modal.reaction-choice-modal{
+  box-sizing:border-box!important;
+  width:min(520px,calc(100vw - 36px))!important;
+  max-width:min(520px,calc(100vw - 36px))!important;
+  max-height:min(76vh,620px)!important;
+  padding:1rem 1.05rem .95rem!important;
+  overflow:hidden!important;
+  border:1px solid rgba(232,196,82,.42)!important;
+  background:linear-gradient(180deg,rgba(17,20,29,.98),rgba(6,8,14,.99))!important;
+  box-shadow:0 24px 68px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,255,255,.045)!important;
+}
+html body #modal .modal.reaction-choice-modal *{
+  box-sizing:border-box!important;
+}
+html body #modal .modal.reaction-choice-modal #modal-body{
+  min-width:0!important;
+  max-height:calc(min(76vh,620px) - 112px)!important;
+  overflow:visible!important;
+}
+html body #modal .modal.reaction-choice-modal #modal-title{
+  margin:0 0 .72rem!important;
+  color:#ffe58c!important;
+  text-align:left!important;
+  font-size:1.04rem!important;
+  letter-spacing:.1em!important;
+}
+html body #modal .reaction-choice-panel{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.78rem!important;
+}
+html body #modal .reaction-choice-head{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.36rem!important;
+}
+html body #modal .reaction-choice-grid{
+  min-width:0!important;
+  max-height:min(34vh,270px)!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding-right:3px!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:.5rem!important;
+}
+html body #modal .reaction-choice-grid::-webkit-scrollbar{
+  width:7px!important;
+}
+html body #modal .reaction-choice-grid::-webkit-scrollbar-track{
+  background:rgba(255,255,255,.035)!important;
+  border-radius:999px!important;
+}
+html body #modal .reaction-choice-grid::-webkit-scrollbar-thumb{
+  background:rgba(232,196,82,.32)!important;
+  border-radius:999px!important;
+}
+html body #modal .reaction-choice-card{
+  appearance:none!important;
+  cursor:pointer!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-height:70px!important;
+  display:grid!important;
+  grid-template-columns:52px minmax(0,1fr)!important;
+  gap:.68rem!important;
+  align-items:center!important;
+  padding:.55rem .66rem!important;
+  text-align:left!important;
+  color:#eef4ff!important;
+  border:1px solid rgba(255,255,255,.1)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(24,31,45,.95),rgba(9,12,19,.97))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)!important;
+  transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease!important;
+}
+html body #modal .reaction-choice-card:hover,
+html body #modal .reaction-choice-card:focus-visible{
+  transform:translateY(-1px)!important;
+  border-color:rgba(232,196,82,.55)!important;
+  box-shadow:0 12px 24px rgba(0,0,0,.34),0 0 18px rgba(232,196,82,.1),inset 0 0 0 1px rgba(255,255,255,.055)!important;
+  outline:none!important;
+}
+html body #modal .reaction-choice-art{
+  width:46px!important;
+  height:56px!important;
+  border-radius:6px!important;
+  overflow:hidden!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  color:#dcecff!important;
+  background:rgba(0,0,0,.26)!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+}
+html body #modal .reaction-choice-art img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center 25%!important;
+  display:block!important;
+}
+html body #modal .reaction-choice-art span{
+  font-family:'Cinzel',serif!important;
+  font-size:1.2rem!important;
+  font-weight:800!important;
+}
+html body #modal .reaction-choice-copy{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.18rem!important;
+}
+html body #modal .reaction-choice-copy b{
+  color:#fff4bd!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.9rem!important;
+  line-height:1.12!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #modal .reaction-choice-copy em{
+  color:rgba(235,238,247,.72)!important;
+  font-size:.76rem!important;
+  line-height:1.22!important;
+  font-style:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #modal .reaction-choice-copy small{
+  color:#8fcfff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.62rem!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .modal.reaction-choice-modal .reaction-timer{
+  align-self:flex-end!important;
+}
+
+/* Codex 2026-06-19: compact overflowing topbar status effects into a summary. */
+html body #s-game .effect-pill.effect-pill-overflow{
+  cursor:pointer!important;
+  border-color:rgba(232,196,82,.5)!important;
+  color:#ffeaa3!important;
+  background:linear-gradient(180deg,rgba(45,38,18,.88),rgba(8,10,15,.92))!important;
+  box-shadow:0 1px 8px rgba(232,196,82,.16),inset 0 1px 0 rgba(255,255,255,.08)!important;
+}
+html body #s-game .effect-pill.effect-pill-overflow:hover,
+html body #s-game .effect-pill.effect-pill-overflow:focus-visible{
+  transform:translateY(-1px)!important;
+  border-color:rgba(255,222,112,.76)!important;
+  box-shadow:0 7px 18px rgba(0,0,0,.34),0 0 18px rgba(232,196,82,.18),inset 0 1px 0 rgba(255,255,255,.1)!important;
+  outline:none!important;
+}
+html body #s-game .effect-pill-overflow .effect-pill-icon{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+html body #s-game .effect-pill-overflow .effect-overflow-icon{
+  width:16px!important;
+  height:16px!important;
+  display:block!important;
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-width:1.8!important;
+  stroke-linecap:round!important;
+  stroke-linejoin:round!important;
+}
+
+html body #modal .modal.status-overflow-modal{
+  box-sizing:border-box!important;
+  width:min(520px,calc(100vw - 36px))!important;
+  max-width:min(520px,calc(100vw - 36px))!important;
+  max-height:min(76vh,640px)!important;
+  padding:1rem 1.05rem .95rem!important;
+  overflow:hidden!important;
+  border:1px solid rgba(232,196,82,.42)!important;
+  background:linear-gradient(180deg,rgba(17,20,29,.98),rgba(6,8,14,.99))!important;
+  box-shadow:0 24px 68px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,255,255,.045)!important;
+}
+html body #modal .modal.status-overflow-modal *{
+  box-sizing:border-box!important;
+}
+html body #modal .modal.status-overflow-modal #modal-title{
+  margin:0 0 .72rem!important;
+  color:#ffe58c!important;
+  text-align:left!important;
+  font-size:1.04rem!important;
+  letter-spacing:.1em!important;
+}
+html body #modal .modal.status-overflow-modal #modal-body{
+  min-width:0!important;
+  max-height:calc(min(76vh,640px) - 112px)!important;
+  overflow:visible!important;
+}
+html body #modal .status-overflow-shell{
+  display:flex!important;
+  min-width:0!important;
+  flex-direction:column!important;
+  gap:.72rem!important;
+}
+html body #modal .status-overflow-head{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.7rem!important;
+  padding:.56rem .68rem!important;
+  border-radius:999px!important;
+  border:1px solid rgba(143,207,255,.2)!important;
+  background:linear-gradient(90deg,rgba(64,123,177,.13),rgba(232,196,82,.08))!important;
+}
+html body #modal .status-overflow-head span{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#8fcfff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  letter-spacing:.13em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .status-overflow-head b{
+  flex:0 0 auto!important;
+  color:#fff4bd!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.7rem!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .status-overflow-list{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:.5rem!important;
+  max-height:min(44vh,360px)!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding-right:4px!important;
+}
+html body #modal .status-overflow-list::-webkit-scrollbar{
+  width:7px!important;
+}
+html body #modal .status-overflow-list::-webkit-scrollbar-track{
+  background:rgba(255,255,255,.035)!important;
+  border-radius:999px!important;
+}
+html body #modal .status-overflow-list::-webkit-scrollbar-thumb{
+  background:rgba(232,196,82,.34)!important;
+  border-radius:999px!important;
+}
+html body #modal .status-overflow-row{
+  appearance:none!important;
+  cursor:default!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:68px!important;
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr)!important;
+  gap:.65rem!important;
+  align-items:start!important;
+  padding:.62rem .68rem!important;
+  text-align:left!important;
+  color:#eef4ff!important;
+  border:1px solid rgba(255,255,255,.1)!important;
+  border-radius:8px!important;
+  background:linear-gradient(180deg,rgba(24,31,45,.95),rgba(9,12,19,.97))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)!important;
+}
+html body #modal .status-overflow-row-icon{
+  width:34px!important;
+  height:34px!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+  color:#ffeaa3!important;
+  border:1px solid rgba(232,196,82,.32)!important;
+  background:rgba(0,0,0,.24)!important;
+}
+html body #modal .status-overflow-row-icon svg{
+  width:22px!important;
+  height:22px!important;
+  display:block!important;
+}
+html body #modal .status-overflow-row-copy{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.18rem!important;
+}
+html body #modal .status-overflow-row-copy b{
+  color:#fff4bd!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.84rem!important;
+  line-height:1.14!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #modal .status-overflow-row-copy em{
+  color:#8fcfff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.62rem!important;
+  line-height:1.15!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+  font-style:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #modal .status-overflow-row-copy small{
+  color:rgba(235,238,247,.74)!important;
+  font-size:.74rem!important;
+  line-height:1.28!important;
+  display:-webkit-box!important;
+  -webkit-line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.status-overflow-modal #modal-acts{
+  margin-top:.82rem!important;
+  display:flex!important;
+  justify-content:flex-end!important;
+}
+
+html body #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle,
+html body #ingame-chat-widget .ingame-chat-toggle{
+  position:relative!important;
+}
+html body #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-badge,
+html body #ingame-chat-widget .ingame-chat-badge,
+html body #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle.has-chat-unread::after,
+html body #ingame-chat-widget.has-chat-unread .ingame-chat-toggle::after,
+html body #ingame-chat-widget .ingame-chat-toggle.has-chat-unread::after{
+  content:""!important;
+  position:absolute!important;
+  top:4px!important;
+  right:10px!important;
+  width:9px!important;
+  height:9px!important;
+  min-width:9px!important;
+  padding:0!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,236,220,.86)!important;
+  background:#ff3b42!important;
+  color:transparent!important;
+  font-size:0!important;
+  line-height:0!important;
+  box-shadow:0 0 0 3px rgba(255,59,66,.12),0 0 12px rgba(255,59,66,.58)!important;
+  pointer-events:none!important;
+}
+html body #ingame-chat-widget .ingame-chat-notice{
+  display:none!important;
+}
+
+html body #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle .ingame-chat-red-dot,
+html body #ingame-chat-widget .ingame-chat-toggle .ingame-chat-red-dot{
+  position:absolute!important;
+  top:4px!important;
+  right:10px!important;
+  width:10px!important;
+  height:10px!important;
+  min-width:10px!important;
+  padding:0!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,236,220,.94)!important;
+  background:#ff3038!important;
+  box-shadow:0 0 0 3px rgba(255,48,56,.14),0 0 12px rgba(255,48,56,.68)!important;
+  pointer-events:none!important;
+  z-index:20!important;
+}
+
+html body #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle .ingame-chat-red-dot:not(.is-on),
+html body #ingame-chat-widget .ingame-chat-toggle .ingame-chat-red-dot:not(.is-on){
+  display:none!important;
+}
+
+/* Codex 2026-06-23: zone-picker opponent ownership overlay. */
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-card{
+  border-color:rgba(255,92,108,.7)!important;
+  box-shadow:inset 0 0 0 2px rgba(255,92,108,.62),0 0 18px rgba(204,28,48,.34)!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-card::after{
+  content:""!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:6!important;
+  pointer-events:none!important;
+  border-radius:4px!important;
+  background:linear-gradient(180deg,rgba(255,48,66,.36),rgba(114,0,24,.46))!important;
+  box-shadow:inset 0 0 0 2px rgba(255,94,110,.82),inset 0 0 22px rgba(185,18,36,.52)!important;
+  mix-blend-mode:normal!important;
+  opacity:.74!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card.is-selected .board-target-card::after{
+  opacity:.62!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-fate{
+  z-index:8!important;
 }

@@ -25,6 +25,10 @@ function aiInvalidateZoneScoreCache() { _aiZoneScoreCache = null; }
 async function runAITurn() {
   if(G.currentPlayer !== G.aiPlayer) return;
   if(G._aiRunning) return;
+  if(typeof _tutorialActive !== 'undefined' && _tutorialActive && typeof runTutorialAITurn === 'function') {
+    await runTutorialAITurn();
+    return;
+  }
   const aiTurnToken = (G._aiTurnToken || 0) + 1;
   G._aiTurnToken = aiTurnToken;
   const aiTurnNumber = G.turn;
@@ -1725,7 +1729,7 @@ async function aiDoConsolidate(choice) {
   affectedZones.forEach(tz=>{
     G.board[tz].forEach(row=>row.forEach(cell=>{
       if(cell&&cell.id==='36'&&cell.owner!==cp){
-        G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 2;
+        G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
       }
     }));
   });
@@ -1945,7 +1949,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       break;
     }
-    case '05': { // Liberators of Rwanda: +2 fate to own card in zone
+    case '05': { // Liberators of Rwanda: +3 fate to own card in zone
       const own = [];
       G.board[z].forEach((row,rr)=>row.forEach((cell,cc)=>{if(cell&&cell.owner===cp&&cell.iid!==inst.iid) own.push(cell);}));
       if(own.length){
@@ -1957,8 +1961,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(strat === 'ai_movement') target = own.find(c => c.id === '73');
         if(!target) target = aiPickByPriority(own, aiDeckSearchPriority(strat, 'character'));
         if(!target) { own.sort((a,b)=>b.currentFate - a.currentFate); target = own[0]; }
-        modifyFate(target, 2, 'permanent');
-        log('p2', `AI: Liberators of Rwanda +2 Fate to ${target.name}`);
+        modifyFate(target, 3, 'permanent');
+        log('p2', `AI: Liberators of Rwanda +3 Fate to ${target.name}`);
       } break;
     }
     case '25': { // Zimbabwean Honor Guard: set another copy from hand/deck for free
@@ -2018,16 +2022,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       break;
     }
-    case '31': { // Hemorrhaging Wound: -2 fate opp card in zone
+    case '31': { // Hemorrhaging Wound: -3 fate opp card in zone
       const opps=[];
       G.board[z].forEach(row=>row.forEach(cell=>{if(cell&&cell.owner===opp) opps.push(cell);}));
       if(opps.length){
         opps.sort((a,b)=>b.currentFate - a.currentFate);
         const target = opps[0];
         const before = target.currentFate || target.fate || 0;
-        const changed = setCardFateValue(target, before - 2, cp);
+        const changed = setCardFateValue(target, before - 3, cp);
         if(changed || before <= 0){
-          log('p2', `AI: Hemorrhaging Wound -2 Fate to ${target.name}`);
+          log('p2', `AI: Hemorrhaging Wound -3 Fate to ${target.name}`);
         }
       } break;
     }
@@ -2204,14 +2208,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         }
       }
       break;
-    case '64': { // Cook Islands Duelist: boost adjacent ally non-Dauntless
-      const adj = getAdjacentAndDiagonalCards(z,r,c).filter(a=>a.card.owner===cp && a.card.type!=='Dauntless' && !a.card.immuneFlag);
-      if(adj.length){
-        const target = adj.sort((a,b)=>(a.card.currentFate||0)-(b.card.currentFate||0))[0].card;
-        setCardFateValue(target, inst.currentFate, cp);
-        log('p2',`AI: Blade Dance set ${target.name} to ${inst.currentFate} Fate`);
-      } break;
-    }
+    case '64': // Cook Islands Duelist: passive handled in getEffectiveFate
+      break;
     case '66': { // Mark Menz: pick majority own affiliation in zone
       const affCounts = {};
       G.board[z].forEach(row=>row.forEach(cell=>{
@@ -2294,7 +2292,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._canMoveOncePerTurn=true; break;
     }
     case '75': { // Ledger-keepers: copy a useful supporter when-set effect
-      const copyableIds = ['05','16','25','31','32','33','42','43','50','58','60','64','68','69','71','72','73','76','80'];
+      const copyableIds = ['05','16','25','31','32','33','42','43','50','58','60','68','69','71','72','73','76','80'];
       const candidates = [];
       forEachBoardCard((card,bz,br,bc)=>{
         if(card.type==='Supporter' && card.iid!==inst.iid && copyableIds.includes(card.id) && !isFaceDownCard(card)){
@@ -2348,6 +2346,13 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         else G.players[cp].hand.push(picked);
         if(!G._linaFreeIids) G._linaFreeIids = new Set();
         G._linaFreeIids.add(picked.iid);
+        if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(picked))) {
+          recordHandCardEffectModifier(picked, {
+            key:'kvetka-svoboda-free-set',
+            name:'Kvetka Svoboda',
+            text:'Flower Picking: this card can be set immediately for free.'
+          });
+        }
         log('p2','AI: Kvetka prepared '+picked.name+' for free placement');
       }
       inst.effectUsedInitial = true;
@@ -2384,6 +2389,7 @@ async function aiActivateEffects() {
   const toActivate = [];
   forEachBoardCard((card,z,r,c)=>{
     if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid) && !isFaceDownCard(card)){
+      if(String(card.id) === '21' && card.effectUsedInitial) return;
       toActivate.push({card,z,r,c});
     }
   });
@@ -2523,6 +2529,7 @@ async function aiRunEffect(card, z, r, c) {
   const opp = 1-cp;
   let effectNeedsBlocks = false;
   // Skip if this character's effect was already used
+  if(String(card.id) === '21' && card.effectUsedInitial) return;
   if(card.effectUsedInitial && card.type!=='Dauntless' && card.type!=='Improvisor') return;
   if(card.type==='Initiator' && !G._suppressEffectPrompt){
     const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
@@ -2713,7 +2720,16 @@ async function aiRunEffect(card, z, r, c) {
       let added = 0;
       for(const c of sources) {
         if(added >= 3) break;
+        if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) continue;
         c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
+        if(typeof recordHandCardEffectModifier === 'function') {
+          recordHandCardEffectModifier(c, {
+            key:'maja-kaminska-oblique-order',
+            name:'Maja Kaminska',
+            text:'Oblique Order: this Supporter gained +4 Fate permanently.',
+            fateDelta:4
+          });
+        }
         if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false });
         else G.players[cp].hand.push(c);
         G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
@@ -2777,8 +2793,14 @@ async function aiRunEffect(card, z, r, c) {
         G.players[cp].discard = G.players[cp].discard.filter(x=>x.iid!==pick.iid);
         let placed = false;
         for(let zi=0; zi<3 && !placed; zi++){
+          if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===zi && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0) continue;
+          if(typeof getChingachlookPlacementBlockReason === 'function' && getChingachlookPlacementBlockReason(pick, zi, cp)) continue;
           for(let ri=0; ri<G.board[zi].length && !placed; ri++){
             for(let ci=0; ci<getBoardRowCapacity(zi, ri) && !placed; ci++){
+              const legalRow = typeof isContestedOrOwnSafeSquare === 'function'
+                ? isContestedOrOwnSafeSquare(zi, ri, ci, cp)
+                : (ri === 1 || ri === (cp === 0 ? 2 : 0));
+              if(!legalRow) continue;
               if(!G.board[zi][ri][ci] && !isBlocked(zi, ri, ci)){
                 const placedCard = newInstance(pick);
                 placedCard.owner = cp;

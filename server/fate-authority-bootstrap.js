@@ -75,7 +75,7 @@ function validateDeckIds(deckIds, catalog, label){
     const nextCount = (counts.get(id) || 0) + 1;
     counts.set(id, nextCount);
     const rarity = String(meta.rarity || '').toLowerCase();
-    const maxCopies = rarity === 'star' ? 1 : (rarity === 'square' ? 2 : 3);
+    const maxCopies = rarity === 'star' ? 1 : 3;
     if(nextCount > maxCopies) return `${label} contains too many copies of ${id}`;
   }
   return '';

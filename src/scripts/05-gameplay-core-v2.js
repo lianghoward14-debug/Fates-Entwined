@@ -335,6 +335,7 @@ async function nextPlayerTurn() {
       if(card.id==='54') card.wolfCreekUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
+      if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
     }
   });
   G._zimbabweUsedThisTurn = false;
@@ -452,6 +453,7 @@ let _aiTurnVisualTimerInterval = null;
 let _aiTurnVisualSeconds = 0;
 
 function getTurnTimeLimit() {
+  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 25;
   return _tutorialActive ? 300 : TURN_TIME_LIMIT;
 }
 
@@ -603,6 +605,12 @@ function updateTimerDisplay() {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CARD PLACEMENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function getLocalGameplayActionPlayerIndex() {
+  if(typeof getLocalActionPlayerIndex === 'function') return getLocalActionPlayerIndex();
+  if(typeof getPerspectivePlayerIndex === 'function') return getPerspectivePlayerIndex();
+  return G.currentPlayer;
+}
+
 function selectHandCard(idx) {
   if(G.phase!=='main') return;
   if(G.aiEnabled && (G.currentPlayer===G.aiPlayer || G._aiRunning)) return;
@@ -613,7 +621,9 @@ function selectHandCard(idx) {
     setHint('Select a card to play');
     renderGame();
   }
-  const player = G.players[G.currentPlayer];
+  const actionPlayer = getLocalGameplayActionPlayerIndex();
+  if(Number(actionPlayer) !== Number(G.currentPlayer)) return;
+  const player = G.players[actionPlayer];
   const card = player.hand[idx];
   if(!card) return;
 
@@ -643,11 +653,13 @@ function selectHandCard(idx) {
 
 function placeSelected() {
   if(G.selectedHandCard===null) {toast('Select a card from your hand first');return;}
-  const player = G.players[G.currentPlayer];
+  const actionPlayer = getLocalGameplayActionPlayerIndex();
+  if(Number(actionPlayer) !== Number(G.currentPlayer)) return;
+  const player = G.players[actionPlayer];
   const card = player.hand[G.selectedHandCard];
   if(!card) return;
 
-  // Lina free-set bypass: skip all placement restrictions
+  // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
   const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
 
   if(!isLinaFree && card.type==='Supporter') {
@@ -707,7 +719,7 @@ function highlightValidCells(card) {
       else if(r===1) rowOwner=-1; // contested
       else if(r===2) rowOwner=0;
       else {
-        rowOwner = typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z) : 0;
+        rowOwner = typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z, r) : 0;
       }
       const cp = G.currentPlayer;
       if(rowOwner!==-1 && rowOwner!==cp) continue;
@@ -731,6 +743,22 @@ function highlightValidCells(card) {
       }
     }
   }
+}
+
+function getSquareRowOwner(z, r) {
+  if(r === 0) return 1;
+  if(r === 1) return -1;
+  if(r === 2) return 0;
+  if(typeof getExtraSafeRowOwner === 'function') return getExtraSafeRowOwner(z, r);
+  return 0;
+}
+
+function isContestedOrOwnSafeSquare(z, r, c, player) {
+  const owner = getSquareRowOwner(z, r);
+  if(owner === -1) return true;
+  if(owner !== player) return false;
+  if(r >= 3 && typeof isPlayableSafeSquare === 'function') return isPlayableSafeSquare(z, r, c, player);
+  return true;
 }
 
 function isBlockedByAlondra(z,r,c,player) {
@@ -1019,6 +1047,9 @@ async function clickCell(z,r,c) {
     const mv = G._busserMovingCard;
     const cp = typeof mv.card._busserOwner === 'number' ? mv.card._busserOwner : G.currentPlayer;
     const ownerSafeRow = cp === 0 ? 2 : 0;
+    if(mv.card.cantBeMoved || mv.card.immuneFlag || mv.card.id==='76'){toast('This card cannot be moved');G._busserMovingCard=null;return;}
+    if(Number(mv.card._busserMoves||0)<=0){toast('No Busser moves remaining');G._busserMovingCard=null;return;}
+    if(mv.card._busserMovedThisTurn){toast('This card already moved this turn');G._busserMovingCard=null;return;}
     // Validate: must be contested row or owner's safe row in adjacent zone
     if(r !== 1 && r !== ownerSafeRow){toast('Can only move to contested row or your safe row');return;}
     const adjZones = [];
@@ -1028,6 +1059,12 @@ async function clickCell(z,r,c) {
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     mv.card._busserMovedThisTurn = true;
+    mv.card._busserMoves = Math.max(0, (Number(mv.card._busserMoves||0)||0) - 1);
+    if(mv.card._busserMoves <= 0){
+      mv.card._busserMoves = 0;
+      mv.card._busserOwner = null;
+      mv.card._busserSourceIid = null;
+    }
     G._busserMovingCard = null;
     G.placing = false;
     clearPlaceHighlights();
@@ -1054,7 +1091,9 @@ async function clickCell(z,r,c) {
     return;
   }
   if(!G.placing || G.selectedHandCard===null) return;
-  const player = G.players[G.currentPlayer];
+  const actionPlayer = getLocalGameplayActionPlayerIndex();
+  if(Number(actionPlayer) !== Number(G.currentPlayer)) return;
+  const player = G.players[actionPlayer];
   const card = player.hand[G.selectedHandCard];
   if(!card) return;
 
@@ -1062,16 +1101,14 @@ async function clickCell(z,r,c) {
   if(G.board[z][r][c]!==null){playSfx('blocked');toast('Cell is occupied');return;}
   if(isBlocked(z,r,c)){playSfx('blocked');toast('Cell is blocked');return;}
   // Enforce safe row ownership — P1 can only place on row 2+, P2 on row 0
-  const cp = G.currentPlayer;
-  if(r===0 && cp===0 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid))){playSfx('blocked');toast('Cannot place on opponent\'s safe row');return;}
-  if(r===2 && cp===1 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid))){playSfx('blocked');toast('Cannot place on opponent\'s safe row');return;}
-  if(r>=3 && !(G._linaFreeIids && G._linaFreeIids.has(card.iid)) && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,c,cp)){
-    playSfx('blocked');toast('Cannot place on an unavailable safe square');return;
+  const cp = actionPlayer;
+  if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, cp)){
+    playSfx('blocked');toast(r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row');return;
   }
   // Enforce contested-only placement
   if(card.contestedOnly && r!==1){playSfx('blocked');toast(card.name+' can only be placed in contested rows');return;}
 
-  const chingaBlockReason = getChingachlookPlacementBlockReason(card, z, G.currentPlayer);
+  const chingaBlockReason = getChingachlookPlacementBlockReason(card, z, cp);
   if(chingaBlockReason){
     playSfx('blocked');
     toast(chingaBlockReason);
@@ -1092,19 +1129,21 @@ async function clickCell(z,r,c) {
 
   // Place the card
   const inst = newInstance(card);
-  inst.owner = G.currentPlayer;
+  inst.owner = cp;
   inst.currentFate = getPlacedCardFate(card);
+  inst._setTurn = G.turn;
+  inst._setOwner = cp;
   consumePendingPlacementFlags(card, inst);
   G.board[z][r][c] = inst;
   applyRiveraBuffToPlacedCard(inst, inst.owner);
   triggerPlacementAnimation(inst, z, r, c);
   player.hand.splice(G.selectedHandCard, 1);
 
-  // Anicka Konvicka (02) Starlit Path: ANY card placed in this zone gains 2 Fate (owner-independent? No, only for her controller)
-  // Per card text: "Any card placed in this zone gains 2 Fate"
+  // Anicka Konvicka (02) Starlit Path: ANY card placed in this zone gains 3 Fate (owner-independent? No, only for her controller)
+  // Per card text: "Any card placed in this zone gains 3 Fate"
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell && cell.id==='02' && cell.owner===G.currentPlayer && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-      modifyFate(inst,2,'permanent');
+    if(cell && cell.id==='02' && Number(cell.owner)===Number(cp) && cell.iid!==inst.iid && !isFaceDownCard(cell)){
+      modifyFate(inst,3,'permanent');
     }
   }));
 
@@ -1245,7 +1284,9 @@ function canUseAsConsolidationTribute(card, owner) {
 
 function initiateConsolidate() {
   if(G.selectedHandCard===null){toast('Select a character card from your hand first');return;}
-  const card = G.players[G.currentPlayer].hand[G.selectedHandCard];
+  const actionPlayer = getLocalGameplayActionPlayerIndex();
+  if(Number(actionPlayer) !== Number(G.currentPlayer)) return;
+  const card = G.players[actionPlayer].hand[G.selectedHandCard];
   if(!card||card.type==='Supporter'){toast('Select a character card (not a Supporter)');return;}
 
   // Lina free-set: skip consolidation entirely, just place directly
@@ -1505,9 +1546,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
         if(!row) return;
         row.forEach((cell, mc)=>{
           if(cell&&cell.id==='36'&&cell.owner!==cp){
-            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 2.');
-            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 2;
-            toast('Deterrance activated: Zone '+(tz+1)+' loses 2 Fate.');
+            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 3.');
+            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
+            toast('Deterrance activated: Zone '+(tz+1)+' loses 3 Fate.');
             if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(tz, mr, mc, cell);
             if(typeof playSfx === 'function') playSfx('debuff');
           }
@@ -1532,6 +1573,8 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     inst.owner = cp;
     inst.currentFate = getPlacedCardFate(card, {bonusFate, tributeCount: tributes.length});
     inst.faceDown = !!useFaceDown;
+    inst._setTurn = G.turn;
+    inst._setOwner = cp;
     if(card._wciBonus) toast('West Caribbea Infantry bonus: -1 cost, +2 Fate!');
     consumePendingPlacementFlags(card, inst);
     G.board[targetZ][targetR][targetC] = inst;
@@ -1589,7 +1632,7 @@ async function triggerWhenSet(inst, z, r, c) {
   applyRiveraBuffToPlacedCard(inst, inst.owner);
 
   // Suppress check: only if current player is the suppression target
-  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type==='Supporter') {
+  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type==='Supporter' && inst.id!=='76' && !inst.immuneFlag && !inst.opponentEffectImmune) {
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     return;
   }
@@ -1692,10 +1735,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           }, c=>c.owner===cp);
         },100);
       } break;
-    case '05': // 17th British Regiment: select card in zone, +2 Fate
-      pickCardInZone(z,'Select a card to gain 2 Fate:',(tgt,tz,tr,tc)=>{
-        modifyFate(tgt,2,'permanent');
-        log(cp===0?'p1':'p2',`Liberators of Rwanda: ${tgt.name} gains 2 Fate`);
+    case '05': // 17th British Regiment: select card in zone, +3 Fate
+      pickCardInZone(z,'Select a card to gain 3 Fate:',(tgt,tz,tr,tc)=>{
+        modifyFate(tgt,3,'permanent');
+        log(cp===0?'p1':'p2',`Liberators of Rwanda: ${tgt.name} gains 3 Fate`);
         renderGame();
       }); break;
     case '26': { // UCPD: reveal opponent hand — mark cards as revealed persistently
@@ -1736,15 +1779,15 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           renderHand();
         });
       } break;
-    case '31': // Hemorrhaging Wound: card in zone loses 2 Fate
-      pickCardInZone(z,'Select a card to lose 2 Fate:',(tgt)=>{
+    case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
+      pickCardInZone(z,'Select a card to lose 3 Fate:',(tgt)=>{
         const before = tgt.currentFate || tgt.fate || 0;
-        const changed = setCardFateValue(tgt, before - 2, cp);
+        const changed = setCardFateValue(tgt, before - 3, cp);
         if(!changed && before > 0){
           showBlockedAnimation('Shield Wall prevents Fate loss');
           return;
         }
-        log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 2 Fate`);
+        log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderGame();
       }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
@@ -1867,25 +1910,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '64': { // Cook Islands Duelist: zone picker for adjacent/diagonal target
-      const adj = getAdjacentAndDiagonalCards(z,r,c).filter(a=>a.card.type!=='Dauntless');
-      if(adj.length===0){toast('No eligible adjacent cards');break;}
-      const validIds = new Set(adj.map(a=>a.card.iid));
-      showZonePicker(z, 'Blade Dance: select an adjacent or diagonal non-Dauntless card.', adj, 1, G.currentPlayer, (chosen)=>{
-        if(!chosen.length) return;
-        const target = chosen[0].card;
-        if(target.immuneFlag){showBlockedAnimation(target.name+' is IMMUNE');return;}
-        const newFate = inst.currentFate;
-        const before = target.currentFate || target.fate || 0;
-        const changed = setCardFateValue(target, newFate, cp);
-        if(!changed && newFate < before){
-          showBlockedAnimation('Shield Wall prevents Fate loss');
-          return;
-        }
-        toast(`${target.name}'s Fate is now ${newFate}`);
-        log(cp===0?'p1':'p2',`Blade Dance set ${target.name}'s Fate to ${newFate}`);
-        renderGame();
-      }, cell=>cell && validIds.has(cell.iid));
+    case '64': { // Cook Islands Duelist: passive handled in getEffectiveFate
+      toast('Blade Dance is passive - it applies while Cook Islands Duelist is on the field.');
       break;
     }
     case '66': { // Mark Menz: declare affiliation via icon picker, change cards in zone
@@ -1937,47 +1963,28 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '69': { // Breakfast Republic Busser: move any friendly supporter to this zone and re-activate
-      const friendlySupporters = [];
-      G.board.forEach((zone,zi)=>zone.forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid){
-          friendlySupporters.push({card:cell,z:zi,r:ri,c:ci});
+    case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
+      const candidates = [];
+      if(G.board[z]) G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
+        if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76'){
+          candidates.push({card:cell,z:z,r:ri,c:ci});
         }
-      })));
-      if(friendlySupporters.length===0){toast('No friendly Supporters to move');break;}
-      pickCardFromAnyZone('Corner! Behind!: select any friendly Supporter to move into this zone and re-activate.',(target,srcZ,srcR,srcC)=>{
-        if(!target) return;
-        const src = friendlySupporters.find(x=>x.card.iid===target.iid);
-        if(!src){toast('Select a friendly Supporter');return;}
-        const ownerSafeRow = cp === 0 ? 2 : 0;
-        const allowedRows = new Set([1, ownerSafeRow]);
-        const options = [];
-        for(let rr=0;rr<G.board[z].length;rr++){
-          if(!allowedRows.has(rr)) continue;
-          const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, rr) : 3;
-          for(let cc=0;cc<rowCap;cc++){
-            if(rr>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,rr,cc,cp)) continue;
-            if(!G.board[z][rr][cc] && !G.blockedCells.some(b=>b.z===z&&b.r===rr&&b.c===cc&&b.type==='carolyn') && !(rr===r&&cc===c)){
-              options.push({z,r:rr,c:cc});
-            }
-          }
+      }));
+      if(candidates.length===0){toast('No movable friendly cards in this zone');break;}
+      pickCardInZone(z,'Corner! Behind!: select a friendly card in this zone to move between adjacent zones.',(target)=>{
+        if(!target || target.owner!==cp || isFaceDownCard(target) || target.cantBeMoved || target.immuneFlag || target.id==='76'){
+          toast('Select a movable friendly card');
+          return;
         }
-        if(!options.length){ toast('No open contested or safe square in this zone'); renderGame(); return; }
-        G._busserMoving = { card: target, src, options, zone: z, player: cp };
-        G.placing = true;
-        clearPlaceHighlights();
+        target._busserMoves = Math.max(3, Number(target._busserMoves||0)||0);
+        target._busserOwner = cp;
+        target._busserMovedThisTurn = false;
+        target._busserSourceIid = inst.iid || null;
+        inst.effectUsedInitial = true;
+        inst.whenSetActivated = true;
+        toast(target.name + ' can move to adjacent zones.');
         renderGame();
-        options.forEach(o=>{
-          const el = document.querySelector(`[data-z="${o.z}"][data-r="${o.r}"][data-c="${o.c}"]`);
-          if(el) el.classList.add('placeable');
-        });
-        [...new Set(options.map(o=>o.z))].forEach(zi=>{
-          const zoneEl = document.querySelector(`.zone[data-zone="${zi}"], .zone[data-z="${zi}"]`) || document.querySelectorAll('#board .zone, .board .zone')[zi];
-          if(zoneEl) zoneEl.classList.add('busser-zone-target');
-        });
-        toast('Choose the exact square for Breakfast Republic Busser');
-        setHint('Busser: choose an open highlighted contested or friendly safe square.');
-      }, cell=>cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid);
+      }, cell=>cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76');
       break;
     }
     case '71': { // Fort Calvin Watcher: reveal next 3 opp draw-phase cards, send characters to bottom
@@ -2222,6 +2229,11 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   // Improvisors: triggered/reactive.
   if(card.type==='Initiator' && card.effectUsedInitial && card._effectTurnLocked){
     toast(card.name + "'s Initiator effect already activated.");
+    return;
+  }
+  const initialSetOnlyIds = new Set(['03','04','06','07','08','13','17','21','22','27','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
+  if(card.type==='Initiator' && initialSetOnlyIds.has(id) && !opts.fromSet && card._setTurn !== G.turn){
+    toast(card.name + "'s Initiator effect can only activate on the turn it was set.");
     return;
   }
   if(card.type==='Coordinator' && card.effectUsedInitial && !['01','11','15','19','23','57'].includes(id)){
@@ -2539,7 +2551,60 @@ function isCoordinatorSuppressedAt(z, r, c) {
 }
 
 function isSupporterAuraSuppressed(card) {
-  return !!(card && card.type === 'Supporter' && card._lydiaSuppressed);
+  if(!card || card.type !== 'Supporter') return false;
+  if(card.id === '76' || card.immuneFlag || card.opponentEffectImmune) return false;
+  if(card._lydiaSuppressed || card._reactionSuppressed) return true;
+  return !!(G && G.oppSuppressedNextTurn && G.suppressTarget === card.owner);
+}
+
+function cardActsAsCookIslandsDuelistPassive(card) {
+  return !!card && String(card.id || '') === '64';
+}
+
+function getStablePassiveTargetRank(source, target) {
+  const key = String(source && (source.iid || source.id) || '') + ':' + String(target && (target.iid || target.id) || '');
+  let hash = 2166136261;
+  for(let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function noteCookIslandsDuelistContinuousSource(source) {
+  if(!source || (source.owner !== 0 && source.owner !== 1)) return;
+  if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
+  G._continuousDamageSources.add(source.owner + ':64:' + (source.iid || source.id || 'source'));
+}
+
+function getCookIslandsDuelistTarget(source, zHint) {
+  if(!source || !cardActsAsCookIslandsDuelistPassive(source) || isFaceDownCard(source) || isSupporterAuraSuppressed(source)) return null;
+  let pos = null;
+  if(G.board && G.board[zHint]) {
+    G.board[zHint].forEach((row, r)=>row && row.forEach((cell, c)=>{
+      if(!pos && cell && cell.iid === source.iid) pos = {z:zHint, r:r, c:c};
+    }));
+  }
+  if(!pos && typeof forEachBoardCard === 'function') {
+    forEachBoardCard((cell, z, r, c)=>{
+      if(!pos && cell && cell.iid === source.iid) pos = {z:z, r:r, c:c};
+    });
+  }
+  if(!pos || typeof getAdjacentCards !== 'function') return null;
+  const candidates = getAdjacentCards(pos.z, pos.r, pos.c).filter(entry=>{
+    const target = entry && entry.card;
+    if(!target || target.owner === source.owner || isFaceDownCard(target)) return false;
+    return !(target.immuneFlag || target.id === '76');
+  });
+  if(!candidates.length) {
+    delete source._cookIslandsDuelistTargetIid;
+    return null;
+  }
+  const current = candidates.find(entry=>String(entry.card.iid) === String(source._cookIslandsDuelistTargetIid));
+  if(current) return current;
+  candidates.sort((a, b)=>getStablePassiveTargetRank(source, a.card) - getStablePassiveTargetRank(source, b.card));
+  source._cookIslandsDuelistTargetIid = candidates[0].card.iid;
+  return candidates[0];
 }
 
 function getEffectiveFate(card, z) {
@@ -2563,15 +2628,15 @@ function getEffectiveFate(card, z) {
   // No dynamic recalculation — uses currentFate set at placement time
   let bonus = 0;
 
-  // 1st West Caribbea Marines (65): always gains 3 Fate (built-in bonus)
+  // 1st West Caribbea Marines (65): increases its own Fate to 4 while set
   if(card.id==='65') bonus += 3;
-  // Greek Hoplite (63): +1 Fate per copy of self in same zone, including itself
+  // Greek Hoplite (63): +2 Fate per copy of self in same zone, including itself
   if(card.id==='63'){
     let copies = 0;
     G.board[z].forEach(row=>row.forEach(cell=>{
       if(cell && cell.id==='63' && cell.owner===card.owner && !isInvisible(cell)) copies++;
     }));
-    bonus += copies;
+    bonus += copies * 2;
   }
   if(card.id==='44' && !isSupporterAuraSuppressed(card)){
     let sourcePos = null;
@@ -2580,9 +2645,24 @@ function getEffectiveFate(card, z) {
     }));
     if(sourcePos){
       const adj = getAdjacentCards(z, sourcePos.r, sourcePos.c);
-      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 2;
+      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 3;
     }
   }
+  if(cardActsAsCookIslandsDuelistPassive(card) && !isSupporterAuraSuppressed(card)) {
+    const targetInfo = getCookIslandsDuelistTarget(card, z);
+    if(targetInfo) {
+      bonus += 3;
+      noteCookIslandsDuelistContinuousSource(card);
+    }
+  }
+  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
+    if(!cell || isInvisible(cell) || !cardActsAsCookIslandsDuelistPassive(cell) || isSupporterAuraSuppressed(cell)) return;
+    const targetInfo = getCookIslandsDuelistTarget(cell, z);
+    if(targetInfo && targetInfo.card && targetInfo.card.iid === card.iid) {
+      bonus -= 3;
+      noteCookIslandsDuelistContinuousSource(cell);
+    }
+  }));
 
   // --- Coordinator passive buffs ---
   // Jeremiah Jones (57) boosts each friendly coordinator aura by 1 potency.
@@ -2603,8 +2683,8 @@ function getEffectiveFate(card, z) {
     // Felicyta (01): +3 to adjacent friendly cards
     if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 3 + jeremiahBoost;
     // Phil (46): no zone aura
-    // Anne Stone (11): +2 to supporters in zone
-    if(cell.id==='11' && card.type==='Supporter') bonus += 2 + jeremiahBoost;
+    // Anne Stone (11): +3 to supporters in zone
+    if(cell.id==='11' && card.type==='Supporter') bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
@@ -2632,7 +2712,7 @@ function getEffectiveFate(card, z) {
   if(card.type==='Dauntless' && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
       if(cell && cell.id==='44' && cell.owner===card.owner && !isInvisible(cell) && !isSupporterAuraSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {
-        bonus += 2;
+        bonus += 3;
       }
     }));
   }
@@ -2771,7 +2851,14 @@ function checkWin() {
   let result = null;
   let starlightGained = 0;
   let freePackGained = false;
-  if(G.aiEnabled && winner >= 0){
+  const onlineServerRewardData = (!G.aiEnabled && onlineLocalPlayer !== null && G._onlineScoreRewardData && !G._onlineScoreRewardConsumed)
+    ? G._onlineScoreRewardData
+    : null;
+  if(onlineServerRewardData && onlineServerRewardData.result){
+    result = onlineServerRewardData.result;
+    starlightGained = Number(onlineServerRewardData.starlightGained || 0) || 0;
+    G._onlineScoreRewardConsumed = true;
+  } else if(G.aiEnabled && winner >= 0){
     const humanP = 1 - G.aiPlayer;
     const humanWon = winner === humanP;
     const settings = getAIDifficultySettings();
@@ -3102,6 +3189,18 @@ function activateExpeditionaryMove(card, z, r, c) {
 
 function activateBusserMove(card, fromZ, fromR, fromC) {
   var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
+  if(!card || card.cantBeMoved || card.immuneFlag || card.id==='76'){
+    toast('This card cannot be moved');
+    return;
+  }
+  if(Number(card._busserMoves||0)<=0){
+    toast('No Busser moves remaining');
+    return;
+  }
+  if(card._busserMovedThisTurn){
+    toast('This card already moved this turn');
+    return;
+  }
   var ownerSafeRow = cp === 0 ? 2 : 0;
   // Adjacent zones are fromZ-1 and fromZ+1
   var adjZones = [];
@@ -3134,7 +3233,7 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
 
 function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
   if(!inst) return [];
-  const affectsOpponent = new Set(['16','26','31','50','61','62','64','71','72','73','75','76','77','80']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','75','76','77','80']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
@@ -3344,4 +3443,4 @@ function executeReaction(reaction, actionData) {
     return beginHavanoDeployment(reaction, opp);
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','64','66','68','69','71','72','73','75','76','77','80','bh01','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','bh01','bh25']);

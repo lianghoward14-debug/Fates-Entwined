@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs>
+    <style>
+      .bg{fill:#070a10}
+      .tile{fill:#0c1320;stroke:#2a3d58;stroke-width:2}
+      .title{font-family:Georgia,serif;font-size:33px;font-weight:700;letter-spacing:5px;fill:#e8eef8}
+      .sub{font-family:Arial,sans-serif;font-size:15px;letter-spacing:2px;fill:#90a0b6}
+      .label{font-family:Georgia,serif;font-size:18px;font-weight:700;fill:#e8eef8}
+      .note{font-family:Arial,sans-serif;font-size:13px;fill:#8797ac}
+      .num{font-family:Georgia,serif;font-size:21px;font-weight:700;fill:#dcecff}
+      .icon *{fill:none;stroke:currentColor;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .icon .thin{stroke-width:5}
+      .icon .dot{fill:currentColor;stroke:none}
+    </style>
+  </defs>
+  <rect class="bg" width="1280" height="620"/>
+  <path d="M0 84H1280" stroke="#253750" stroke-width="2"/>
+  <text class="title" x="640" y="48" text-anchor="middle">LYDIA'S BERKNOMALY</text>
+  <text class="sub" x="640" y="72" text-anchor="middle">MONOCHROME SVG ICON SAMPLES</text>
+
+  <g transform="translate(64 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">1</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-33 4C-24-27 14-37 35-12C51 8 36 35 4 36C-23 37-42 25-33 4Z"/>
+      <path class="thin" d="M-12-28L13 31M28-23L-25 25"/>
+      <circle class="dot" r="6"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Orbit Knot</text>
+    <text class="note" x="102" y="189" text-anchor="middle">simple loop mark</text>
+  </g>
+
+  <g transform="translate(308 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">2</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M0-44L41 28H-41Z"/>
+      <path class="thin" d="M0-22L20 15H-20Z"/>
+      <path class="thin" d="M-27-31L29 42M29-31L-27 42"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Delta Fold</text>
+    <text class="note" x="102" y="189" text-anchor="middle">sharp abstract rune</text>
+  </g>
+
+  <g transform="translate(552 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">3</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-5-43C-31-23-37 16-11 40C18 26 35 0 29-32C18-22 5-26-5-43Z"/>
+      <path d="M5-43C31-23 37 16 11 40C-18 26-35 0-29-32C-18-22-5-26 5-43Z"/>
+      <path class="thin" d="M0-34V38M-25 0H25"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Twin Flame</text>
+    <text class="note" x="102" y="189" text-anchor="middle">mirrored anomaly</text>
+  </g>
+
+  <g transform="translate(796 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">4</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-38-7C-29-40 12-47 35-19C53 3 38 39 3 42"/>
+      <path d="M38 7C29 40-12 47-35 19C-53-3-38-39-3-42"/>
+      <circle r="14"/>
+      <path class="thin" d="M0-29V29M-29 0H29"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Broken Halo</text>
+    <text class="note" x="102" y="189" text-anchor="middle">clean and readable</text>
+  </g>
+
+  <g transform="translate(1040 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">5</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M0-46L15-15L49-10L24 13L30 47L0 31L-30 47L-24 13L-49-10L-15-15Z"/>
+      <path class="thin" d="M-25-26L26 27M26-26L-25 27"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Star Rift</text>
+    <text class="note" x="102" y="189" text-anchor="middle">bold emblem shape</text>
+  </g>
+
+  <g transform="translate(64 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">6</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-34 37C-36-10-9-39 35-32"/>
+      <path d="M35-32C37 15 9 44-35 37"/>
+      <path class="thin" d="M-23-18L25 30M25-18L-23 30"/>
+      <circle class="dot" cx="0" cy="12" r="6"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Turnstile</text>
+    <text class="note" x="102" y="189" text-anchor="middle">rotating anomaly</text>
+  </g>
+
+  <g transform="translate(308 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">7</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-44 0C-24-35 24-35 44 0C24 35-24 35-44 0Z"/>
+      <path class="thin" d="M-37 0H37M0-37V37"/>
+      <circle r="11"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Zero Eye</text>
+    <text class="note" x="102" y="189" text-anchor="middle">watchful symbol</text>
+  </g>
+
+  <g transform="translate(552 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">8</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M0-46L40-23V23L0 46L-40 23V-23Z"/>
+      <path class="thin" d="M0-25L22-13V13L0 25L-22 13V-13Z"/>
+      <path class="thin" d="M-22-13L22 13M22-13L-22 13M0-25V25"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Hex Bloom</text>
+    <text class="note" x="102" y="189" text-anchor="middle">geometric logo</text>
+  </g>
+
+  <g transform="translate(796 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">9</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-34 31C-20-7 10-29 42-34"/>
+      <path d="M-43 6C-11 34 24 35 45-10"/>
+      <path d="M-27-31C-18 9 11 37 38 37"/>
+      <circle r="13"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Threefold Drift</text>
+    <text class="note" x="102" y="189" text-anchor="middle">motion mark</text>
+  </g>
+
+  <g transform="translate(1040 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">10</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 89)">
+      <circle r="52"/>
+      <path d="M-31-33H31L50 0L31 33H-31L-50 0Z"/>
+      <path class="thin" d="M-18-18H18L30 0L18 18H-18L-30 0Z"/>
+      <path class="thin" d="M-37 0H37M0-37V37M-25-25L25 25M25-25L-25 25"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Prism Gate</text>
+    <text class="note" x="102" y="189" text-anchor="middle">stable status badge</text>
+  </g>
+</svg>

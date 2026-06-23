@@ -35,3 +35,24 @@ Players may get kicked from the lobby shortly after joining. The root cause invo
   - `endOnlineMatchBecauseOpponentLeft` (~line 587) — Forfeit/kick logic
   - `startRoomGame` (~line 1418) — Game bootstrap when room status changes
   - `handleWatchedRoom` (~line 1226) — Room field change handler
+
+## Phone / Hosted Website Testing
+
+The Fly-hosted game at `https://fates-entwined-main.fly.dev/` serves the browser game files used by phone testing. After one normal deploy that includes the static hotfix endpoint, you can update individual hosted files without rebuilding or redeploying the whole Fly image.
+
+One-time Fly setup:
+
+```powershell
+fly secrets set FATE_STATIC_HOTFIX_TOKEN="<long random token>"
+```
+
+Per-change publish from the repo root:
+
+```powershell
+$env:FATE_STATIC_HOTFIX_TOKEN="<same token>"
+npm run hotfix:fly-static -- index.html src/scripts/18-online-rooms.js src/styles/match-scene-v2.css
+```
+
+Files under `fates-entwined-website/` publish under `/website/...`; game files publish under their normal root paths such as `/index.html` and `/src/scripts/18-online-rooms.js`. HTML, JS, CSS, JSON, manifests, and `sw.js` are served with no-store headers so a phone browser refresh should pull the newest override.
+
+The upload route is disabled unless `FATE_STATIC_HOTFIX_TOKEN` is set on the server, and every upload must include the matching token.

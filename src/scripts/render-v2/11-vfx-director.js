@@ -1214,7 +1214,7 @@
     ctx.fillStyle = 'rgb(6,8,13)';
     ctx.fill();
     ctx.clip();
-    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:1.5, textureSize:{x:0, y:0, w:132, h:184}, readyOnly:true});
+    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:1.5, textureSize:{x:0, y:0, w:132, h:184}, readyOnly:false});
     ctx.restore();
     ctx.restore();
     return true;
@@ -1230,7 +1230,6 @@
       activeRecipes = activeRecipes.filter(function(r){
         return r && ANIMATIONS_OFF_ALLOWED_RECIPES.has(r.type);
       });
-      dragPreview = null;
     }
     const metrics = {
       cssW:Number(opts.cssW) || 1,

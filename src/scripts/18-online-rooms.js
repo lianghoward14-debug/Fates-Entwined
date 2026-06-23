@@ -1,5 +1,5 @@
 ﻿// FATES ENTWINED ONLINE ROOMS V1.3
-// RTDB room-code foundation. No render-loop syncing and no full-G snapshot writes.
+// Fly authority room transport, with RTDB room-code fallback only when enabled.
 (function(){
   const FO = window.FateOnline || {};
   let activeRoom = null;
@@ -36,9 +36,12 @@
   let appliedTurnChoiceFallbackIds = new Set();
   let appliedPlayerActionFallbackIds = new Set();
   let lastSyncedRoomChatKey = '';
+  let lobbyChatLastSeenKey = '';
+  let lobbyChatUnread = false;
   let endedRoomCodesHandled = new Set();
   let actionReplayBuffer = new Map();
   let actionReplayDrainScheduled = false;
+  let pendingFlyResumeEvents = null;
   const optimisticAppliedActionIds = new Set();
   let onlineStateSyncTimer = null;
   let authorityWs = null;
@@ -48,6 +51,23 @@
   let authorityJoinPromise = null;
   let authorityRequestCounter = 0;
   let lastAuthorityStateHash = '';
+  let authorityReducerMode = '';
+  const blockedRtdbRoomWarnings = new Set();
+  let authorityRetryAttempts = 0;
+  let authorityRetrySuccesses = 0;
+  let authorityRetryFailures = 0;
+  let authorityLastRetryReason = '';
+  let authorityLastRetryClientActionId = '';
+  let authorityCatchupAttempts = 0;
+  let authorityCatchupSuccesses = 0;
+  let authorityCatchupFailures = 0;
+  let authorityLastCatchupSeq = 0;
+  let authorityLastCatchupReason = '';
+  let authorityRejectedResyncAttempts = 0;
+  let authorityRejectedResyncSuccesses = 0;
+  let authorityRejectedResyncFailures = 0;
+  let authorityLastRejectedResyncReason = '';
+  let optimisticSendQueue = Promise.resolve();
   const authorityInflight = new Map();
   const authorityPersistPromises = new Map();
   const authorityPersistRetries = new Map();
@@ -57,7 +77,31 @@
   function makeCode(){ const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<6;i++) s += alphabet[Math.floor(Math.random()*alphabet.length)]; return s; }
   function getUser(){ try{return FO.requireUser();}catch(e){ return null; } }
   function pName(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
-  function pPhoto(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
+  function compactPhotoValue(value){
+    if(!value) return '';
+    if(value && typeof value === 'object'){
+      if(value.pfpId) return 'pfp/pfp' + (Math.max(1, parseInt(value.pfpId, 10) || 1)) + '.png';
+      if(value.cardImg) return value.cardImg;
+      if(value.src && !String(value.src).startsWith('data:')) return value.src;
+      return '';
+    }
+    const text = String(value || '').trim();
+    if(!text || text === '[object Object]') return '';
+    if(text.startsWith('data:')) return '';
+    return text;
+  }
+  function pPhoto(p){
+    const resolved = FO.profilePhoto ? FO.profilePhoto(p) : '';
+    return compactPhotoValue(resolved)
+      || compactPhotoValue(p?.profileImg)
+      || compactPhotoValue(p?.photoURL)
+      || compactPhotoValue(p?.img)
+      || 'blank.png';
+  }
+  function pCrop(p, fallback='center 22%'){
+    if(FO.profilePhotoCropStyle) return FO.profilePhotoCropStyle(p, fallback);
+    return `width:100%;height:100%;object-fit:cover;object-position:${fallback};`;
+  }
   async function profile(){ return await FO.syncPublicProfile().catch(()=>window.FATE_ONLINE?.profile || {}); }
   function hashSeed(str){
     let h = 2166136261;
@@ -217,6 +261,9 @@
       _riveraActiveEffects:cloneOnlinePlain(g._riveraActiveEffects),
       _skipImprovisorCheck:!!g._skipImprovisorCheck,
       _skipReactions:!!g._skipReactions,
+      pendingInteraction:cloneOnlinePlain(g.pendingInteraction),
+      _serverReactionSeq:g._serverReactionSeq,
+      _serverPendingReaction:cloneOnlinePlain(g._serverPendingReaction),
       _westCaribNext:cloneOnlinePlain(g._westCaribNext),
       _zimbabweUsedThisTurn:!!g._zimbabweUsedThisTurn,
       _consolidating:cloneOnlinePlain(g._consolidating),
@@ -284,7 +331,7 @@
       'instanceCounter','damageDoneP','supportersSetP','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_polishUsedThisTurn',
-      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','_westCaribNext',
+      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting'
     ].forEach(function(k){
@@ -318,8 +365,165 @@
     if(!payload.postState || !payload.stateHash) return false;
     const localState = captureOnlineCanonicalState();
     const localHash = onlineCanonicalStateHash(localState);
-    if(localHash === payload.stateHash) return false;
-    return applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
+    if(localHash === payload.stateHash){
+      setTimeout(maybeShowServerReactionPrompt, 0);
+      return false;
+    }
+    const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
+    if(applied) setTimeout(maybeShowServerReactionPrompt, 0);
+    return applied;
+  }
+  function applyAuthoritativePostState(action, reason){
+    const payload = action?.payload || {};
+    if(!payload.postState || !payload.stateHash) return false;
+    const hash = String(action?.serverStateHash || payload.stateHash || '');
+    if(hash) lastAuthorityStateHash = hash;
+    const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied) setTimeout(maybeShowServerReactionPrompt, 0);
+    return applied;
+  }
+
+  function acknowledgeAuthoritativeAction(action, reason){
+    if(!action) return false;
+    const type = String(action.type || '').toUpperCase();
+    const payload = action.payload || {};
+    const seq = Number(action.seq || 0) || 0;
+    if(seq){
+      lastActionSeq = Math.max(lastActionSeq, seq);
+      const g = gameState();
+      if(g) g._onlineActionSeq = lastActionSeq;
+    }
+    const hash = String(action.serverStateHash || payload.stateHash || '');
+    if(hash) lastAuthorityStateHash = hash;
+    if(shouldApplyServerStateDirectly(type, payload)){
+      applyAuthoritativePostState(action, reason || ('authoritative acknowledgement seq ' + (seq || '?')));
+    }else{
+      setTimeout(maybeShowServerReactionPrompt, 0);
+    }
+    return true;
+  }
+
+  function reactionEscapeHtml(value){
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[ch] || ch));
+  }
+
+  function reactionOptionLabel(option){
+    const kind = String(option?.kind || '');
+    if(kind === 'lydia') return 'Lydia';
+    if(kind === 'secules') return 'Mr. Secules';
+    if(kind === 'havano') return 'Havano Citizen';
+    return option?.label || 'Reaction';
+  }
+
+  function maybeShowServerReactionPrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingReaction;
+    if(!pending || typeof pending !== 'object') return;
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    const promptId = String(pending.promptId || '');
+    if(!promptId || g._onlineReactionPromptId === promptId) return;
+    g._onlineReactionPromptId = promptId;
+    const options = Array.isArray(pending.options) ? pending.options : [];
+    const sourceName = pending.sourceName || 'that effect';
+    let countdown = Math.max(5, Math.round(Number(pending.timeoutMs || 15000) / 1000));
+    let timer = null;
+    let finished = false;
+    const basePayload = choice => ({
+      playerIndex:localIndex,
+      promptId,
+      choice,
+      baseStateHash:onlineCanonicalStateHash(captureOnlineCanonicalState()),
+      clientActionId:'reaction:' + promptId + ':' + choice + ':' + Date.now()
+    });
+    const finish = (choice, optionIndex, deployment) => {
+      if(finished) return;
+      finished = true;
+      if(timer) clearInterval(timer);
+      const payload = basePayload(choice);
+      if(Number.isInteger(optionIndex)){
+        const option = options[optionIndex] || {};
+        payload.optionIndex = optionIndex;
+        payload.reaction = {
+          kind:option.kind || '',
+          z:option.z,
+          r:option.r,
+          c:option.c,
+          card:option.card || null
+        };
+        if(deployment) payload.deployment = deployment;
+      }
+      try{ if(typeof window.closeModal === 'function') window.closeModal(); }catch(e){}
+      sendAction('REACTION_CHOICE', payload).catch(err=>{
+        console.warn('Server reaction choice failed', err);
+        if(window.toast) toast('Reaction choice failed');
+      });
+    };
+    const optionButtons = options.map((option, idx) => {
+      const label = reactionOptionLabel(option);
+      if(String(option?.kind || '') === 'havano'){
+        const deployButtons = (Array.isArray(option.deploymentOptions) ? option.deploymentOptions : []).map((target, targetIdx) =>
+          `<button class="reaction-choice-card" type="button" data-server-reaction-idx="${idx}" data-server-reaction-deploy="${targetIdx}">` +
+            `<span class="reaction-choice-copy"><b>${reactionEscapeHtml(label)}</b><em>Negate and deploy</em><small>Zone ${Number(target.z) + 1}, Row ${Number(target.r) + 1}, Col ${Number(target.c) + 1}</small></span>` +
+          `</button>`
+        ).join('');
+        return deployButtons || '';
+      }
+      const loc = Number.isInteger(Number(option.z)) ? `Zone ${Number(option.z) + 1}` : 'Board';
+      return `<button class="reaction-choice-card" type="button" data-server-reaction-idx="${idx}">` +
+        `<span class="reaction-choice-copy"><b>${reactionEscapeHtml(label)}</b><em>Negate ${reactionEscapeHtml(sourceName)}</em><small>${reactionEscapeHtml(loc)}</small></span>` +
+      `</button>`;
+    }).join('');
+    const renderTitle = () => `React? (${countdown}s)`;
+    if(typeof window.showModal === 'function'){
+      window.showModal(
+        renderTitle(),
+        `<div class="reaction-panel reaction-choice-panel">` +
+          `<div class="reaction-choice-head">` +
+            `<div class="reaction-kicker">Server Reaction</div>` +
+            `<div class="reaction-prompt"><span>Opponent triggered</span><strong>${reactionEscapeHtml(sourceName)}</strong><span>Choose a response.</span></div>` +
+          `</div>` +
+          `<div class="reaction-choice-grid">${optionButtons}</div>` +
+          `<div id="server-reaction-timer" class="reaction-timer">${countdown}s</div>` +
+        `</div>`,
+        [{label:'Allow', action:()=>finish('decline')}],
+        {immediate:true}
+      );
+      setTimeout(()=>{
+        document.querySelectorAll('#modal [data-server-reaction-idx]').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            const idx = Number(btn.getAttribute('data-server-reaction-idx'));
+            if(!Number.isInteger(idx)) return;
+            const deployIdxRaw = btn.getAttribute('data-server-reaction-deploy');
+            let deployment = null;
+            if(deployIdxRaw !== null){
+              const deployIdx = Number(deployIdxRaw);
+              const option = options[idx] || {};
+              const deployOptions = Array.isArray(option.deploymentOptions) ? option.deploymentOptions : [];
+              deployment = Number.isInteger(deployIdx) ? deployOptions[deployIdx] || null : null;
+            }
+            finish('negate', idx, deployment);
+          });
+        });
+      }, 0);
+      timer = setInterval(()=>{
+        countdown -= 1;
+        const timerEl = document.getElementById('server-reaction-timer');
+        if(timerEl) timerEl.textContent = countdown + 's';
+        const titleEl = document.getElementById('modal-title');
+        if(titleEl) titleEl.textContent = renderTitle();
+        if(countdown <= 0) finish('timeout');
+      }, 1000);
+    } else {
+      setTimeout(()=>finish('timeout'), Math.max(1000, Number(pending.timeoutMs || 15000)));
+    }
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
@@ -387,6 +591,7 @@
     return !!(g && (
       g.placing ||
       g._consolidating ||
+      g._serverPendingReaction ||
       g._havanoDeploying ||
       g._boardTargeting ||
       g.blockingCell ||
@@ -466,9 +671,97 @@
   function optimisticActionIdFor(action){
     return String(action?.clientActionId || action?.payload?.clientActionId || '');
   }
+  function enqueueOptimisticSend(task){
+    const run = optimisticSendQueue.catch(()=>{}).then(task);
+    optimisticSendQueue = run.catch(()=>{});
+    return run;
+  }
+  function discardBufferedActionsThrough(seq){
+    const through = Number(seq || 0) || 0;
+    if(!through || !actionReplayBuffer.size) return;
+    actionReplayBuffer.forEach((value, key)=>{
+      if(Number(key || 0) <= through) actionReplayBuffer.delete(key);
+    });
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.onlineBufferedActions = actionReplayBuffer.size;
+    perf.onlineWaitingForActionSeq = actionReplayBuffer.size ? lastAppliedActionSeq + 1 : 0;
+  }
+  async function resyncRejectedOnlineActionFromFly(code, reason){
+    if(!code || !authorityHttpBaseUrl() || firebaseActionFallbackAllowed()) return false;
+    authorityRejectedResyncAttempts += 1;
+    authorityLastRejectedResyncReason = String(reason || 'rejected action');
+    try{
+      const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
+      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=500&includeState=1`);
+      const room = normalizeFlyRoom(data.room);
+      if(room.roomCode){
+        lastLobbyRoom = room;
+        lastLobbyPlayers = room.players;
+      }
+      const serverSeq = Number(data?.lastSeq || room.lastActionSeq || 0) || 0;
+      const stateHash = String(data?.serverStateHash || data?.canonicalHash || room.canonicalHash || '');
+      if(stateHash) lastAuthorityStateHash = stateHash;
+      const events = Array.isArray(data?.events) ? data.events : [];
+      events.forEach(item=>{
+        const action = item?.action || item?.accepted?.action || item;
+        bufferOnlineAction(action);
+      });
+      if(events.length) await actionReplayQueue.catch(()=>{});
+
+      const canonicalState = data?.canonicalState || null;
+      if(canonicalState && stateHash){
+        const syncAction = {
+          seq:serverSeq || lastAppliedActionSeq || lastActionSeq,
+          type:'STATE_SYNC',
+          payload:{
+            postState:canonicalState,
+            stateHash
+          }
+        };
+        reconcileOnlinePostState(syncAction, 'fly rejected action rollback: ' + (reason || 'unknown'));
+        lastActionSeq = Math.max(lastActionSeq, serverSeq);
+        lastAppliedActionSeq = Math.max(lastAppliedActionSeq, serverSeq);
+        discardBufferedActionsThrough(lastAppliedActionSeq);
+        const current = gameState();
+        if(current){
+          current._onlineActionSeq = lastActionSeq;
+          current._onlineAppliedActionSeq = lastAppliedActionSeq;
+          current._onlineLagPauseActive = false;
+        }
+        reportActionProgress(lastAppliedActionSeq, {force:true});
+        if(typeof evaluateLagPause === 'function') evaluateLagPause();
+        authorityLastCatchupSeq = Math.max(authorityLastCatchupSeq, serverSeq);
+        authorityRejectedResyncSuccesses += 1;
+        return true;
+      }
+      if(serverSeq > lastActionSeq) lastActionSeq = serverSeq;
+      const g = gameState();
+      if(g){
+        g._onlineActionSeq = Math.max(g._onlineActionSeq || 0, lastActionSeq);
+        if(events.length) g._onlineLagPauseActive = false;
+      }
+      authorityLastCatchupSeq = Math.max(authorityLastCatchupSeq, serverSeq);
+      authorityRejectedResyncSuccesses += 1;
+      if(events.length){
+        reportActionProgress(lastAppliedActionSeq, {force:true});
+        if(typeof evaluateLagPause === 'function') evaluateLagPause();
+      }
+      return events.length > 0;
+    }catch(e){
+      authorityRejectedResyncFailures += 1;
+      authorityLastRejectedResyncReason = e && e.message || String(e);
+      console.warn('Fly rejected-action resync failed', e);
+      return false;
+    }
+  }
   async function resyncRejectedOnlineAction(reason){
     const g = gameState();
     const code = g?._onlineRoomCode || activeRoom;
+    if(code && authorityHttpBaseUrl() && !firebaseActionFallbackAllowed()){
+      const ok = await resyncRejectedOnlineActionFromFly(code, reason);
+      if(ok) return true;
+      return false;
+    }
     if(!code || !FO.get || !FO.ref || !FO.rtdb) return false;
     const snap = await FO.get(cappedRoomActionsRef(code, 1)).catch(()=>null);
     const actions = Object.values(snap?.val() || {})
@@ -544,37 +837,125 @@
       requestAnimationFrame(step);
     });
   }
+  function isStrictCompactAuthorityAction(type){
+    if(firebaseActionFallbackAllowed()) return false;
+    const strictAuthority = String(authorityReducerMode || '').toLowerCase() === 'strict'
+      || authorityOnlyMode()
+      || rtdbDisabledMode()
+      || window.FATE_HOSTED_FLY_GAME === true;
+    if(!strictAuthority) return false;
+    return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
+  }
+  function shouldApplyServerStateDirectly(actionType, payload){
+    return isStrictCompactAuthorityAction(actionType)
+      && !!payload
+      && !!payload.postState
+      && !!payload.stateHash
+      && !firebaseActionFallbackAllowed();
+  }
+  function normalizedClientPendingInteraction(g){
+    if(!g || typeof g !== 'object') return null;
+    if(g.pendingInteraction && typeof g.pendingInteraction === 'object') return g.pendingInteraction;
+    if(g._serverPendingReaction) return {kind:'reaction', bucket:'reaction', playerIndex:g._serverPendingReaction.playerIndex, promptId:g._serverPendingReaction.promptId || ''};
+    if(g._serverPendingModalAction) return {kind:g._serverPendingModalAction.kind || 'modalAction', bucket:'modalAction', playerIndex:g._serverPendingModalAction.playerIndex, promptId:g._serverPendingModalAction.promptId || ''};
+    if(g._serverPendingZonePick) return {kind:g._serverPendingZonePick.kind || 'zonePick', bucket:'zonePick', playerIndex:g._serverPendingZonePick.playerIndex, promptId:g._serverPendingZonePick.promptId || ''};
+    if(g._serverPendingMove) return {kind:g._serverPendingMove.kind || 'move', bucket:'move', playerIndex:g._serverPendingMove.playerIndex, promptId:g._serverPendingMove.promptId || ''};
+    if(g._serverPendingCardPick) return {kind:g._serverPendingCardPick.kind || 'cardPick', bucket:'cardPick', playerIndex:g._serverPendingCardPick.playerIndex, promptId:g._serverPendingCardPick.promptId || ''};
+    if(g._consolidating) return {kind:g._consolidating.kind || 'consolidation', bucket:'consolidation', playerIndex:g._consolidating.playerIndex ?? g.currentPlayer, promptId:g._consolidating.promptId || ''};
+    return null;
+  }
+  function toAuthorityIntent(type, payload, g){
+    const actionType = String(type || '').toUpperCase();
+    if(/^(PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|CHOOSE_TURN|END_TURN|FORFEIT|MATCH_RESULT|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|REACTION_CHOICE)$/i.test(actionType)){
+      return actionType;
+    }
+    if(actionType === 'CLICK_CELL'){
+      const pending = normalizedClientPendingInteraction(g || gameState());
+      const bucket = String(pending?.bucket || pending?.kind || '');
+      if(bucket === 'consolidation' || bucket === 'consolidate') return 'SELECT_CONSOLIDATION_TRIBUTE';
+      if(bucket === 'move' || bucket === 'pickMove') return 'SELECT_PENDING_MOVE_CELL';
+      if(payload?.placing || payload?.selectedHand || Number.isInteger(Number(payload?.handIndex)) || g?.placing) return 'PLACE_CARD';
+      return 'SELECT_BOARD_TARGET';
+    }
+    if(actionType === 'MODAL_ACTION') return 'RESOLVE_MODAL';
+    if(actionType === 'PICK_CARDS_VISUAL') return 'RESOLVE_CARD_PICK';
+    if(actionType === 'PICK_ZONE' || actionType === 'PICK_LANDSCAPE_ZONE') return 'RESOLVE_ZONE_PICK';
+    if(actionType === 'PICK_AFFILIATION') return 'RESOLVE_AFFILIATION_PICK';
+    return actionType;
+  }
+  function strictAuthorityIntentForSend(type, payload, g){
+    const actionType = String(type || '').toUpperCase();
+    if(!isStrictCompactAuthorityAction(actionType)) return actionType;
+    return toAuthorityIntent(actionType, payload || null, g || gameState());
+  }
+  function actionMatchesPendingInteraction(type, pending){
+    const rawType = String(type || '').toUpperCase();
+    const bucket = String(pending?.bucket || pending?.kind || '');
+    let actionType = toAuthorityIntent(type, null, gameState());
+    if(rawType === 'CLICK_CELL'){
+      if(bucket === 'consolidation' || bucket === 'consolidate') actionType = 'SELECT_CONSOLIDATION_TRIBUTE';
+      else if(bucket === 'move' || bucket === 'pickMove') actionType = 'SELECT_PENDING_MOVE_CELL';
+      else actionType = 'PLACE_CARD';
+    }
+    if(!bucket) return true;
+    if(bucket === 'reaction' || bucket === 'reactionChoice') return actionType === 'REACTION_CHOICE';
+    if(bucket === 'modalAction' || bucket === 'modal') return actionType === 'RESOLVE_MODAL' || actionType === 'RESOLVE_AFFILIATION_PICK';
+    if(bucket === 'zonePick' || bucket === 'pickZone') return actionType === 'RESOLVE_ZONE_PICK';
+    if(bucket === 'move' || bucket === 'pickMove') return actionType === 'SELECT_PENDING_MOVE_CELL';
+    if(bucket === 'cardPick' || bucket === 'pickCards') return actionType === 'RESOLVE_CARD_PICK';
+    if(bucket === 'consolidation' || bucket === 'consolidate') return actionType === 'SELECT_CONSOLIDATION_TRIBUTE';
+    return false;
+  }
+  function pendingInteractionLabel(pending){
+    return String(pending?.message || pending?.kind || pending?.bucket || 'server prompt');
+  }
   function shouldRunForcedSyncForRoomSeq(roomSeq){
     const seq = Number(roomSeq || 0) || 0;
     if(seq <= 1) return true;
     return seq <= lastTurnBoundaryActionSeq;
   }
+  function needsAuthorityCatchupBeforeLocal(){
+    return !!(gameState()?._onlineRoomCode || activeRoom) && !!configuredAuthorityUrl() && !firebaseActionFallbackAllowed();
+  }
+  async function preflightAuthorityCatchupBeforeLocal(type){
+    const code = gameState()?._onlineRoomCode || activeRoom;
+    if(!code || !needsAuthorityCatchupBeforeLocal()) return false;
+    return await catchUpFlyAuthorityReplay(code, 'before local optimistic ' + String(type || '').toUpperCase());
+  }
   function sendOptimisticAction(type, payload, applyLocal){
     const clientActionId = makeOptimisticActionId(type);
     const outbound = Object.assign({}, payload || {}, { clientActionId });
-    const baseState = captureOnlineCanonicalState();
-    const baseStateHash = lastAuthorityStateHash || (baseState ? onlineCanonicalStateHash(baseState) : '');
-    if(baseStateHash) outbound.baseStateHash = baseStateHash;
+    const compactAuthorityPayload = isStrictCompactAuthorityAction(type);
     let localResult;
     let localApplied = false;
+    function stampBaseStateHash(){
+      const baseState = captureOnlineCanonicalState();
+      const baseStateHash = lastAuthorityStateHash || (baseState ? onlineCanonicalStateHash(baseState) : '');
+      if(baseStateHash) outbound.baseStateHash = baseStateHash;
+    }
     async function sendAfterLocalApply(){
       try{
         if(localResult && typeof localResult.then === 'function') await localResult;
         await waitOnlineActionSettle(type);
-        attachOnlinePostState(outbound);
+        if(!compactAuthorityPayload) attachOnlinePostState(outbound);
       }catch(e){
         console.error('Optimistic local action failed before sync', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         else if(window.toast) toast('Action failed');
         return;
       }
-      return sendAction(type, outbound).catch(e=>{
+      return enqueueOptimisticSend(()=>{
+        stampBaseStateHash();
+        return sendAction(type, outbound);
+      }).catch(e=>{
         console.error('Online optimistic action send failed', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         else if(window.toast) toast('Action failed');
       });
     }
     function scheduleFollowupStateSync(delayMs){
+      if(compactAuthorityPayload) return;
+      if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()) return;
       const g = gameState();
       if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return;
       if(!Number.isInteger(g._onlinePlayerIndex)) return;
@@ -595,20 +976,29 @@
         sendAction('STATE_SYNC', syncPayload).catch(e=>console.error('Online state sync send failed', e));
       }, delayMs);
     }
-    if(typeof applyLocal === 'function'){
-      try{
-        rememberOptimisticAction(clientActionId);
-        localApplied = true;
-        localResult = applyLocal();
-      }catch(e){
-        optimisticAppliedActionIds.delete(clientActionId);
-        console.error('Optimistic local action threw', e, type, outbound);
-        throw e;
+    function applyLocalAndSend(){
+      if(typeof applyLocal === 'function'){
+        try{
+          rememberOptimisticAction(clientActionId);
+          localApplied = true;
+          localResult = applyLocal();
+        }catch(e){
+          optimisticAppliedActionIds.delete(clientActionId);
+          console.error('Optimistic local action threw', e, type, outbound);
+          throw e;
+        }
       }
+      sendAfterLocalApply();
+      scheduleFollowupStateSync(1250);
+      return localResult;
     }
-    sendAfterLocalApply();
-    scheduleFollowupStateSync(1250);
-    return localResult;
+    const latestBeforeLocal = gameState();
+    if(isOnlineMatchState(latestBeforeLocal) && !canSendLocalAction(latestBeforeLocal, type)) return;
+    if(needsAuthorityCatchupBeforeLocal()){
+      return preflightAuthorityCatchupBeforeLocal(type)
+        .then(()=>applyLocalAndSend());
+    }
+    return applyLocalAndSend();
   }
 
   function sendBootstrapStateSync(reason){
@@ -625,9 +1015,10 @@
     sendAction('STATE_SYNC', syncPayload).catch(e=>console.warn('Bootstrap online state sync failed', e));
   }
 
-  function canSendLocalAction(g){
+  function canSendLocalAction(g, type){
     if(!isOnlineMatchState(g)) return false;
     if(g._onlineApplyingRemoteAction) return false;
+    const actionType = String(type || '').toUpperCase();
     if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
       if(window.toast) toast('Spectators cannot take game actions.');
       return false;
@@ -636,7 +1027,20 @@
       if(window.toast) toast('Match is syncing. Please wait.');
       return false;
     }
-    if(g.currentPlayer !== g._onlinePlayerIndex){
+    const pending = normalizedClientPendingInteraction(g);
+    if(pending){
+      const pendingPlayer = Number(pending.playerIndex);
+      if(Number.isInteger(pendingPlayer) && pendingPlayer !== Number(g._onlinePlayerIndex)){
+        if(window.toast) toast('Waiting for opponent to resolve ' + pendingInteractionLabel(pending) + '.');
+        return false;
+      }
+      if(actionType && !actionMatchesPendingInteraction(actionType, pending)){
+        if(window.toast) toast('Resolve ' + pendingInteractionLabel(pending) + ' first.');
+        return false;
+      }
+    }
+    const turnAgnosticAction = /^(CHOOSE_TURN|REACTION_CHOICE)$/i.test(actionType);
+    if(!turnAgnosticAction && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)){
       onlineTurnError();
       return false;
     }
@@ -663,7 +1067,7 @@
     const code = gameState()?._onlineRoomCode || activeRoom;
     const room = lastLobbyRoom;
     const uid = playerIndex === 0 ? room?.hostUid : room?.guestUid;
-    if(flyRoomsEnabled()) return;
+    if(roomUsesFly(code)) return;
     if(!code || !uid || !FO.update) return;
     FO.update(FO.ref(FO.rtdb), {
       [`rooms/${code}/currentTurnUid`]: uid,
@@ -677,7 +1081,7 @@
     try{ return !!document.getElementById('s-coin')?.classList.contains('active'); }catch(e){ return false; }
   }
   async function publishTurnChoiceFallback(code, payload, u){
-    if(flyRoomsEnabled()) return false;
+    if(roomUsesFly(code)) return false;
     if(!code || !u || !FO.update || !FO.ref || !FO.rtdb) return false;
     const choice = {
       roomCode:code,
@@ -696,7 +1100,7 @@
   }
   async function publishPlayerActionFallback(code, type, payload, u){
     const actionType = String(type || '').toUpperCase();
-    if(flyRoomsEnabled()) return false;
+    if(roomUsesFly(code)) return false;
     if(!code || !u || !actionType || actionType === 'STATE_SYNC' || !FO.update || !FO.ref || !FO.rtdb) return false;
     const safePayload = onlineFirebaseSafeValue(payload || {});
     const clientAt = Date.now();
@@ -758,7 +1162,7 @@
       if(!choice || choice.roomCode !== room.roomCode) continue;
       const playerIndex = Number(choice.playerIndex);
       const expectedUid = playerIndex === 0 ? room.hostUid : room.guestUid;
-      if(uid !== expectedUid || playerIndex !== g._coinWinner) continue;
+      if(uid !== expectedUid || Number(playerIndex) !== Number(g._coinWinner)) continue;
       const choiceId = String(choice.clientActionId || uid + ':' + choice.clientAt || '');
       if(choiceId && appliedTurnChoiceFallbackIds.has(choiceId)) continue;
       if(choiceId) appliedTurnChoiceFallbackIds.add(choiceId);
@@ -816,7 +1220,7 @@
     };
     const perf = window.__fatePerf = window.__fatePerf || {};
     perf.onlineMatchPreload = Object.assign({}, payload, {published:false});
-    if(flyRoomsEnabled() || room._flyRoom){
+    if(roomUsesFly(room || code)){
       const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/preload`, {
         method:'POST',
         body:{uid:u.uid, matchPreload:payload}
@@ -874,7 +1278,7 @@
         clearTimeout(timeout);
         finish(reason, snap);
       };
-      if(flyRoomsEnabled() || room._flyRoom){
+      if(roomUsesFly(room || code)){
         const poll = async function(){
           if(settled) return;
           try{
@@ -936,7 +1340,7 @@
     if(el) el.classList.remove('on');
     lagPauseVisible = false;
     lastLagPauseReason = '';
-    if(g && g.phase === 'main' && g.currentPlayer === g._onlinePlayerIndex){
+    if(g && g.phase === 'main' && Number(g.currentPlayer) === Number(g._onlinePlayerIndex)){
       try{ if(typeof window.startTurnTimer === 'function') window.startTurnTimer(); }catch(e){}
     }
   }
@@ -990,8 +1394,7 @@
   function reportActionProgress(seq, opts={}){
     const code = activeRoomCode();
     const uid = localUserUid();
-    if(flyRoomsEnabled()) return;
-    if(!code || !uid || !FO.update) return;
+    if(!code || !uid) return;
     const safeSeq = Math.max(0, Number(seq || 0) || 0);
     const force = !!opts.force || !!opts.turnBoundary || safeSeq <= 1;
     if(!force){
@@ -1004,6 +1407,20 @@
     if(reportSeq === lastReportedActionSeq && now - lastReportedActionAt < 1200) return;
     lastReportedActionSeq = reportSeq;
     lastReportedActionAt = now;
+    if(roomUsesFly(code)){
+      flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/progress`, {
+        method:'POST',
+        body:{uid, actionSeq:reportSeq, clientAt:Date.now()}
+      }).then(data=>{
+        if(data?.room){
+          const nextRoom = normalizeFlyRoom(data.room);
+          lastLobbyRoom = nextRoom;
+          lastLobbyPlayers = nextRoom.players;
+        }
+      }).catch(e=>console.warn('Fly action progress report failed', e));
+      return;
+    }
+    if(!FO.update) return;
     FO.update(FO.ref(FO.rtdb), {
       [`rooms/${code}/players/${uid}/actionSeq`]: reportSeq,
       [`rooms/${code}/players/${uid}/actionSeqClientAt`]: Date.now()
@@ -1016,7 +1433,7 @@
     const code = room?.roomCode || g._onlineRoomCode || activeRoom;
     const uid = localUserUid();
     try{
-      if(code && uid && room?.hostUid === uid && FO.update && !flyRoomsEnabled()){
+      if(code && uid && room?.hostUid === uid && FO.update && !roomUsesFly(room || code)){
         await FO.update(FO.ref(FO.rtdb), {
           [`rooms/${code}/status`]:'ended',
           [`rooms/${code}/endedBy`]:uid,
@@ -1075,6 +1492,50 @@
     if(bg.backgroundSize) winScreen.style.backgroundSize = bg.backgroundSize;
     if(bg.backgroundPosition) winScreen.style.backgroundPosition = bg.backgroundPosition;
     if(bg.backgroundRepeat) winScreen.style.backgroundRepeat = bg.backgroundRepeat;
+  }
+  function collectOnlineServerRewardData(outcome, action, sourceG){
+    const ledger = action?.payload?.rewardLedger || action?.roomPatch?.resultLedger || null;
+    if(!ledger || !ledger.serverFinalized) return null;
+    const g = sourceG || gameState();
+    const profile = (typeof USER_PROFILE !== 'undefined' && USER_PROFILE) ? USER_PROFILE : null;
+    const localUid = window.FATE_ONLINE?.user?.uid || '';
+    const localIdx = Number.isInteger(g?._onlinePlayerIndex) ? g._onlinePlayerIndex : null;
+    const entry = (localUid && ledger.byUid && ledger.byUid[localUid]) ||
+      (localIdx !== null && ledger.byIndex && ledger.byIndex[String(localIdx)]) ||
+      null;
+    if(!entry) return null;
+    let levelsGained = 0;
+    let newLevel = profile?.level || 1;
+    if(profile && g && !g._onlineForfeitRewardsApplied){
+      if(entry.ranked){
+        profile.challengerElo = Number(entry.newElo || profile.challengerElo || 600) || 600;
+        profile.challengerWins = Number(entry.challengerWins ?? profile.challengerWins ?? 0) || 0;
+        profile.challengerLosses = Number(entry.challengerLosses ?? profile.challengerLosses ?? 0) || 0;
+      }
+      profile.humanWins = Number(entry.humanWins ?? profile.humanWins ?? 0) || 0;
+      profile.humanLosses = Number(entry.humanLosses ?? profile.humanLosses ?? 0) || 0;
+      profile.matchesPlayed = Number(entry.matchesPlayed ?? profile.matchesPlayed ?? 0) || 0;
+      if(Number(entry.starlightGained || 0) > 0) profile.starlight = (Number(profile.starlight || 0) || 0) + Number(entry.starlightGained || 0);
+      if(Number(entry.xpGained || 0) > 0 && typeof awardXp === 'function'){
+        const xp = awardXp(Number(entry.xpGained || 0));
+        levelsGained = Number(xp?.levelsGained || 0) || 0;
+        newLevel = Number(xp?.newLevel || profile.level || 1) || 1;
+      }
+      if(typeof saveProfile === 'function') saveProfile();
+      g._onlineForfeitRewardsApplied = true;
+    }
+    return {
+      isRanked:!!entry.ranked,
+      serverFinalized:true,
+      result:{
+        eloChange:Number(entry.delta || 0) || 0,
+        xpGained:Number(entry.xpGained || 0) || 0,
+        levelsGained,
+        newLevel,
+        isDraw:!!entry.isDraw
+      },
+      starlightGained:Number(entry.starlightGained || 0) || 0
+    };
   }
   function collectOnlineForfeitRewardData(outcome, sourceG){
     const g = sourceG || gameState();
@@ -1169,7 +1630,7 @@
     return {
       name: pName(prof) || fallbackName || 'Player',
       img: pPhoto(prof),
-      crop: 'object-fit:cover;object-position:center 22%;',
+      crop: pCrop(prof),
       elo,
       wins: Number(prof?.wins || prof?.challengerWins || 0) || 0,
       losses: Number(prof?.losses || prof?.challengerLosses || 0) || 0,
@@ -1238,6 +1699,7 @@
     lastAppliedActionSeq = 0;
     lastAuthorityStateHash = '';
     actionReplayQueue = Promise.resolve();
+    optimisticSendQueue = Promise.resolve();
     actionReplayBuffer.clear();
     actionReplayDrainScheduled = false;
     lastReportedActionSeq = -1;
@@ -1410,7 +1872,7 @@
     const choice = getDeckChoice(key);
     if(!choice || !Array.isArray(choice.ids) || choice.ids.length !== 40){ if(window.toast) toast('Choose a valid 40-card deck'); return; }
     currentDeckChoiceKey = choice.key;
-    if(flyRoomsEnabled()){
+    if(roomUsesFly(code)){
       try{
         const prof = await profile();
         const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/player`, {
@@ -1460,6 +1922,22 @@
     if(!isParticipant){ if(window.toast) toast('Join the room before chatting'); return; }
     const prof = window.FATE_ONLINE?.profile || {};
     try{
+      if(roomUsesFly(room || roomCode)){
+        const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(roomCode)}/chat`, {
+          method:'POST',
+          body:{uid:u.uid, text, profile:prof}
+        });
+        const messages = Array.isArray(data?.messages) ? data.messages : (data?.message ? [data.message] : []);
+        const nextRoom = Object.assign({}, room, {
+          chat:messages,
+          chatSeq:Number(data?.chatSeq || room.chatSeq || 0) || 0
+        });
+        lastLobbyRoom = nextRoom;
+        syncRoomChatToInGame(nextRoom);
+        if(input) input.value = '';
+        renderLobby(nextRoom, nextRoom.players || lastLobbyPlayers, true);
+        return;
+      }
       const msgRef = FO.push(FO.ref(FO.rtdb, `rooms/${roomCode}/chat`));
       await FO.set(msgRef, {
         uid:u.uid,
@@ -1473,16 +1951,80 @@
       if(window.toast) toast('Chat failed');
     }
   }
+  function normalizeRoomChatEntries(chat){
+    if(Array.isArray(chat)){
+      return chat.map((msg, index)=>({ id:String(msg?.id || msg?.seq || index), msg:msg || {} }));
+    }
+    return Object.entries(chat || {}).map(([id, msg])=>({ id, msg:msg || {} }));
+  }
+  function sortedRoomChatEntries(room, limit=80){
+    return normalizeRoomChatEntries(room?.chat)
+      .sort((a,b)=>(Number(a.msg.createdAt || 0) || 0) - (Number(b.msg.createdAt || 0) || 0))
+      .slice(-Math.max(1, limit || 80));
+  }
+  function roomChatEntriesKey(entries){
+    return (entries || []).map(({id, msg})=>`${id}:${msg?.seq || 0}:${msg?.createdAt || 0}:${msg?.text || ''}`).join('|');
+  }
+  function noteLobbyChatArrival(room, entries){
+    const list = Array.isArray(entries) ? entries : sortedRoomChatEntries(room);
+    const key = roomChatEntriesKey(list);
+    if(!key){
+      lobbyChatUnread = false;
+      lobbyChatLastSeenKey = '';
+      return key;
+    }
+    if(!lobbyChatLastSeenKey){
+      lobbyChatLastSeenKey = key;
+      return key;
+    }
+    if(key !== lobbyChatLastSeenKey){
+      const latest = list[list.length - 1]?.msg || {};
+      const uid = window.FATE_ONLINE?.user?.uid || '';
+      if(latest.uid && latest.uid !== uid) lobbyChatUnread = true;
+    }
+    return key;
+  }
+  function markLobbyChatRead(){
+    const entries = sortedRoomChatEntries(lastLobbyRoom);
+    lobbyChatLastSeenKey = roomChatEntriesKey(entries);
+    lobbyChatUnread = false;
+    const badge = document.getElementById('online-room-chat-notify');
+    if(badge) badge.classList.remove('on');
+    const panel = document.getElementById('online-room-chat-panel');
+    if(panel) panel.classList.remove('has-unread');
+  }
+  function renderLobbyChat(room){
+    const entries = sortedRoomChatEntries(room, 40);
+    const key = noteLobbyChatArrival(room, entries);
+    const uid = window.FATE_ONLINE?.user?.uid || '';
+    const rows = entries.map(({id, msg})=>{
+      const player = roomPlayerIndexForUid(room, msg.uid);
+      const prof = liveProfiles.get(msg.uid) || lastLobbyPlayers?.[msg.uid]?.profileSnapshot || {};
+      const from = msg.isSpectator ? 'Spectator' : (msg.name || pName(prof));
+      const mine = !!(uid && msg.uid === uid);
+      return `<div class="online-room-chat-message ${mine ? 'is-mine' : ''}" data-id="${esc(id)}">
+        <span class="online-room-chat-name">${esc(from)}</span>
+        <span class="online-room-chat-text">${esc(String(msg.text || ''))}</span>
+      </div>`;
+    }).join('') || '<div class="online-room-chat-empty">No messages yet.</div>';
+    return `<div class="online-room-chat-panel ${lobbyChatUnread ? 'has-unread' : ''}" id="online-room-chat-panel" data-chat-key="${esc(key)}" onclick="window.fateMarkLobbyChatRead && window.fateMarkLobbyChatRead()">
+      <div class="online-room-chat-header">
+        <span>Lobby Chat</span>
+        <span class="online-room-chat-notify ${lobbyChatUnread ? 'on' : ''}" id="online-room-chat-notify" aria-hidden="true"></span>
+      </div>
+      <div class="online-room-chat-messages" id="online-room-chat-messages">${rows}</div>
+      <div class="online-room-chat-input-row">
+        <input id="online-room-chat-input" maxlength="240" placeholder="Message" autocomplete="off" onfocus="window.fateMarkLobbyChatRead && window.fateMarkLobbyChatRead()" onkeydown="if(event.key==='Enter'){ event.preventDefault(); window.fateSendRoomChat('${esc(room?.roomCode || activeRoom || '')}'); }">
+        <button class="btn sm pri" onclick="window.fateSendRoomChat('${esc(room?.roomCode || activeRoom || '')}')">Send</button>
+      </div>
+    </div>`;
+  }
   function syncRoomChatToInGame(room){
     if(!room || typeof window.fateSetOnlineInGameMessages !== 'function') return;
-    const chat = room.chat || {};
-    const key = Object.keys(chat).sort().slice(-80).map(id=>`${id}:${chat[id]?.createdAt || 0}:${chat[id]?.text || ''}`).join('|');
+    const entries = sortedRoomChatEntries(room);
+    const key = noteLobbyChatArrival(room, entries);
     if(key === lastSyncedRoomChatKey) return;
     lastSyncedRoomChatKey = key;
-    const entries = Object.entries(room.chat || {})
-      .map(([id, msg])=>({ id, msg:msg || {} }))
-      .sort((a,b)=>(Number(a.msg.createdAt || 0) || 0) - (Number(b.msg.createdAt || 0) || 0))
-      .slice(-80);
     const messages = entries.map(({id, msg})=>{
       const player = roomPlayerIndexForUid(room, msg.uid);
       const isSpectatorMsg = player === null && !!msg.isSpectator;
@@ -1498,6 +2040,11 @@
       };
     });
     window.fateSetOnlineInGameMessages(messages);
+    const latest = messages[messages.length - 1];
+    const uid = window.FATE_ONLINE?.user?.uid || '';
+    if(latest && latest.uid && latest.uid !== uid && typeof window.fateNotifyInGameChatMessage === 'function'){
+      window.fateNotifyInGameChatMessage(latest);
+    }
   }
   function selectedDeckName(player){
     if(player?.selectedDeckName) return player.selectedDeckName;
@@ -1549,6 +2096,29 @@
       deckIds:[...deck.deckIds]
     };
   }
+  function deckCardById(id){
+    const cards = Array.isArray(window.CARDS) ? window.CARDS : (typeof CARDS !== 'undefined' && Array.isArray(CARDS) ? CARDS : []);
+    return cards.find(card=>String(card?.id || '') === String(id || '')) || null;
+  }
+  function deckCopyLimitFor(card){
+    return String(card?.rarity || '').toLowerCase() === 'star' ? 1 : 3;
+  }
+  function validateOnlineQueueDeck(deck){
+    const ids = Array.isArray(deck?.deckIds) ? deck.deckIds.map(id=>String(id || '')) : [];
+    if(ids.length !== 40) return 'Choose a valid 40-card deck first';
+    const counts = new Map();
+    for(const id of ids){
+      const card = deckCardById(id);
+      if(!id || !card) return `Selected deck contains an unknown card (${id || 'empty slot'})`;
+      const retired = typeof isRetiredCardForBuilder === 'function' ? isRetiredCardForBuilder(card) : (card.retired || card.temporarilyDisabled);
+      if(retired) return `${card.name || id} is not available for online play`;
+      const count = (counts.get(id) || 0) + 1;
+      counts.set(id, count);
+      const limit = deckCopyLimitFor(card);
+      if(count > limit) return `${card.name || id} has ${count} copies; max ${limit} allowed`;
+    }
+    return '';
+  }
   function emitRandomQueueStatus(status, message, extra={}){
     const detail = { status, message, roomCode:randomQueueState.roomCode || '', role:randomQueueState.role || '', ...extra };
     try{ randomQueueState.handlers?.onStatus?.(detail); }catch(e){}
@@ -1556,6 +2126,17 @@
   }
   async function removeOwnQueueEntry(){
     const u = window.FATE_ONLINE?.user;
+    if(u && (flyRoomsEnabled() || roomUsesFly(randomQueueState.roomCode))){
+      await flyApiRequest('/api/matchmaking/leave', {
+        method:'POST',
+        body:{uid:u.uid}
+      }).catch(()=>{});
+      return;
+    }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/leave');
+      return;
+    }
     if(u && FO.rtdb && FO.remove) await FO.remove(FO.ref(FO.rtdb, `matchmaking/${u.uid}`)).catch(()=>{});
   }
   function clearRandomQueueWatcher(){
@@ -1565,9 +2146,12 @@
     partyQueueWaitTimer = null;
   }
   async function setConnectedOnDisconnect(code, uid){
+    if(!firebaseRoomTransportAllowed()) return false;
     await FO.onDisconnect(FO.ref(FO.rtdb, `rooms/${code}/players/${uid}`)).update({connected:false, disconnectedAt:FO.serverTimestamp()}).catch(()=>{});
+    return true;
   }
   async function touchRoomUpdatedAt(code, now){
+    if(!firebaseRoomTransportAllowed()) return false;
     if(!code || !FO.update || !FO.ref || !FO.rtdb) return false;
     return FO.update(FO.ref(FO.rtdb), {
       [`rooms/${code}/updatedAt`]: now || FO.serverTimestamp()
@@ -1577,6 +2161,7 @@
     });
   }
   async function releaseGuestSeatIfHeld(code, uid){
+    if(!firebaseRoomTransportAllowed()) return false;
     if(!code || !uid || !FO.ref || !FO.rtdb) return false;
     if(FO.runTransaction){
       const claim = await FO.runTransaction(FO.ref(FO.rtdb, `rooms/${code}/guestUid`), current => {
@@ -1599,6 +2184,7 @@
   let _connectedUnsub = null;
   function startConnectionHeartbeat(code, uid){
     stopConnectionHeartbeat();
+    if(!firebaseRoomTransportAllowed()) return;
     if(!FO.rtdb || !FO.onValue || !FO.ref) return;
     const connRef = FO.ref(FO.rtdb, '.info/connected');
     _connectedUnsub = FO.onValue(connRef, snap => {
@@ -1673,6 +2259,11 @@
       activeRoom = room.roomCode;
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
+      if(room.status !== 'lobby' && opts.allowStarted){
+        await resumeFlyRoom(room.roomCode, {silent:!!opts.silent, quiet});
+        if(!quiet && window.toast) toast('Rejoining online match...');
+        return true;
+      }
       watchFlyRoom(room.roomCode, {openDeckPicker:!pendingDeck && room.status === 'lobby', silent:!!opts.silent});
       if(!quiet && room.status !== 'lobby' && window.toast) toast('Rejoining online match...');
       return true;
@@ -1681,6 +2272,75 @@
       if(!quiet && window.toast) toast(/not found/i.test(e.message || '') ? 'Room not found' : 'Could not join room');
       return false;
     }
+  }
+
+  async function resumeFlyRoom(code, opts={}){
+    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=0&limit=500`);
+    const room = normalizeFlyRoom(data.room);
+    if(!room.roomCode) throw new Error('Fly resume returned no room');
+    const events = Array.isArray(data.events) ? data.events : [];
+    activeRoom = room.roomCode;
+    lastLobbyRoom = room;
+    lastLobbyPlayers = room.players;
+    lastActionSeq = Math.max(lastActionSeq || 0, Number(data.lastSeq || room.lastActionSeq || 0) || 0);
+    if(data.serverStateHash || data.canonicalHash) lastAuthorityStateHash = String(data.serverStateHash || data.canonicalHash || '');
+    pendingFlyResumeEvents = {
+      roomCode:room.roomCode,
+      lastSeq:Number(data.lastSeq || room.lastActionSeq || 0) || 0,
+      events
+    };
+    watchFlyRoom(room.roomCode, {silent:!!opts.silent});
+    if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing' || room.status === 'ended'){
+      startRoomGame(room);
+    }
+    return room;
+  }
+
+  async function discoverMyFlyRooms(opts={}){
+    const u = getUser();
+    if(!u || !flyRoomsEnabled()) return [];
+    const includeEnded = opts.includeEnded ? '1' : '0';
+    const limit = Math.min(50, Math.max(1, Number(opts.limit || 10) || 10));
+    const data = await flyApiRequest(`/api/rooms?uid=${encodeURIComponent(u.uid)}&includeEnded=${includeEnded}&limit=${limit}`);
+    return (Array.isArray(data?.rooms) ? data.rooms : [])
+      .map(normalizeFlyRoom)
+      .filter(room=>room.roomCode && (opts.includeEnded || room.status !== 'ended'));
+  }
+
+  function bestRecoverableFlyRoom(rooms){
+    const list = Array.isArray(rooms) ? rooms.filter(room=>room && room.roomCode && room.status !== 'ended') : [];
+    if(!list.length) return null;
+    const rank = room=>{
+      const status = String(room.status || room.phase || '').toLowerCase();
+      if(status === 'playing' || status === 'matchup' || status === 'starting') return 0;
+      if(status === 'lobby') return 1;
+      return 2;
+    };
+    list.sort((a,b)=>{
+      const ar = rank(a);
+      const br = rank(b);
+      if(ar !== br) return ar - br;
+      return (Number(b.updatedAt || b.lastTouched || b.startedAt || 0) || 0) - (Number(a.updatedAt || a.lastTouched || a.startedAt || 0) || 0);
+    });
+    return list[0] || null;
+  }
+
+  async function recoverMyFlyRoom(opts={}){
+    if(activeRoom || gameState()?._onlineRoomCode || !flyRoomsEnabled()) return null;
+    const rooms = await discoverMyFlyRooms({limit:10});
+    const room = bestRecoverableFlyRoom(rooms);
+    if(!room) return null;
+    activeRoom = room.roomCode;
+    lastLobbyRoom = room;
+    lastLobbyPlayers = room.players;
+    if(room.status === 'lobby'){
+      watchFlyRoom(room.roomCode, {silent:!!opts.silent});
+      if(!opts.silent && window.toast) toast('Recovered online room ' + room.roomCode + '.');
+      return room;
+    }
+    await resumeFlyRoom(room.roomCode, {silent:!!opts.silent});
+    if(!opts.silent && window.toast) toast('Recovered online match ' + room.roomCode + '.');
+    return room;
   }
 
   async function createRoom(mode='freeplay'){
@@ -1694,6 +2354,11 @@
         if(window.toast) toast('Could not create Fly room. Check authority server.');
         return false;
       }
+    }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('rooms/create');
+      if(window.toast) toast('Fly authority is required while RTDB is disabled.');
+      return false;
     }
     const prof = await profile();
     const now = FO.serverTimestamp();
@@ -1736,6 +2401,11 @@
     if(!/^[A-Z0-9]{6}$/.test(code)){ if(!quiet && window.toast) toast('Enter a valid 6-character room code'); return false; }
     if(flyRoomsEnabled()){
       return await joinFlyRoom(code, opts);
+    }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('rooms/join');
+      if(!quiet && window.toast) toast('Fly authority is required while RTDB is disabled.');
+      return false;
     }
     const snap = await FO.get(FO.ref(FO.rtdb, `rooms/${code}`));
     const room = snap.val();
@@ -1819,11 +2489,33 @@
     let stopped = false;
     let timer = 0;
     let lastWarn = 0;
+    let lastHeartbeatAt = 0;
+    async function sendFlyHeartbeat(){
+      const u = window.FATE_ONLINE?.user;
+      if(!u || Date.now() - lastHeartbeatAt < 5000) return;
+      lastHeartbeatAt = Date.now();
+      await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/heartbeat`, {
+        method:'POST',
+        body:{uid:u.uid}
+      }).then(data=>{
+        if(data?.room){
+          const nextRoom = normalizeFlyRoom(data.room);
+          lastLobbyRoom = nextRoom;
+          lastLobbyPlayers = nextRoom.players;
+        }
+      }).catch(e=>{
+        if(Date.now() - lastWarn > 5000){
+          console.warn('Fly room heartbeat failed', e);
+          lastWarn = Date.now();
+        }
+      });
+    }
     function handleFlyRoom(apiRoom){
       const room = normalizeFlyRoom(apiRoom);
       if(!room.roomCode) return;
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
+      syncRoomChatToInGame(room);
       if(activeRoomSilent) {
         // Keep the cached room fresh without reopening the lobby modal.
       }else{
@@ -1831,6 +2523,7 @@
       }
       evaluateLagPause();
       maybeHandleOpponentDisconnect(room, room.players);
+      maybeAutoStartQueuedRoom(room, room.players);
       if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing') startRoomGame(room);
       if(room.status === 'ended') handleRoomEnded(room);
     }
@@ -1839,6 +2532,7 @@
       try{
         const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
         if(data?.room) handleFlyRoom(data.room);
+        await sendFlyHeartbeat();
       }catch(e){
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room watch failed', e);
@@ -1862,6 +2556,15 @@
     activeRoom = code;
     activeRoomSilent = !!opts.silent;
     if(!activeRoomSilent) closeModal();
+    if(roomUsesFly(code) || flyRoomsEnabled()){
+      watchFlyRoom(code, opts);
+      return;
+    }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('rooms/watch');
+      if(!activeRoomSilent && window.toast) toast('Fly authority is required while RTDB is disabled.');
+      return;
+    }
     const roomFieldUnsubs = [];
     const pr = FO.ref(FO.rtdb, `rooms/${code}/players`);
     let initialRoomLoaded = false;
@@ -1912,6 +2615,7 @@
       const chat = s.val() || {};
       const room = mergeRoomPatch({ chat });
       syncRoomChatToInGame(room);
+      if(!activeRoomSilent && room.status === 'lobby') renderLobby(room, null, true);
     });
     roomFieldUnsubs.push(chatUnsub);
     roomUnsub = function(){
@@ -1978,8 +2682,12 @@
     const hostActive = isConnectedPlayer(hostNode);
     const keep = new Set([current.hostUid]);
     if(current.guestUid) keep.add(current.guestUid);
-    keep.forEach(ensureRoomProfile);
-    cleanupRoomProfileSubs(keep);
+    if(current._flyRoom){
+      cleanupRoomProfileSubs(null);
+    }else{
+      keep.forEach(ensureRoomProfile);
+      cleanupRoomProfileSubs(keep);
+    }
 
     const u = window.FATE_ONLINE?.user;
     const isHost = u && current.hostUid === u.uid;
@@ -2002,6 +2710,7 @@
     const startInline = isHost
       ? `<button class="btn pri online-room-start-btn" ${canStart?'':'disabled'} onclick="window.fateHostStartRoom('${esc(current.roomCode)}')">Start Game</button>`
       : `<div class="online-room-countdown">Waiting for host to start...</div>`;
+    const chatDraft = document.getElementById('online-room-chat-input')?.value || '';
     const html = `
       <div class="online-room-lobby online-room-lobby-v15 online-room-lobby-v21">
         <div class="online-room-code">${esc(current.roomCode)}</div>
@@ -2014,6 +2723,7 @@
             <span>Guest: ${esc(guestActive ? selectedDeckName(guestNode) : 'Waiting')}</span>
           </div>
         </div>
+        ${renderLobbyChat(current)}
         <div class="online-room-start-row">${guestActive ? startInline : '<div class="online-room-note online-room-wait-note">Waiting for a second player.</div>'}</div>
         <div class="online-room-note">Host starts after both players choose decks. The versus screen then advances by countdown on both clients.</div>
       </div>`;
@@ -2021,6 +2731,10 @@
     if(html === lastLobbyHtml && document.getElementById('modal')?.style?.display !== 'none') return;
     lastLobbyHtml = html;
     showModal((isRanked ? 'Ranked Room ' : 'Room ') + esc(current.roomCode), html, actions);
+    const input = document.getElementById('online-room-chat-input');
+    if(input && chatDraft) input.value = chatDraft;
+    const messages = document.getElementById('online-room-chat-messages');
+    if(messages) messages.scrollTop = messages.scrollHeight;
   }
 
   async function hostStartRoomFly(code, opts={}){
@@ -2064,7 +2778,7 @@
 
   async function hostStartRoom(code, opts={}){
     const u=getUser(); if(!u) return;
-    if(flyRoomsEnabled()) return await hostStartRoomFly(code, opts);
+    if(roomUsesFly(code)) return await hostStartRoomFly(code, opts);
     try{
       const room=(await FO.get(FO.ref(FO.rtdb,`rooms/${code}`))).val();
       if(!room || room.hostUid !== u.uid){ if(window.toast) toast('Only host can start'); return; }
@@ -2183,6 +2897,15 @@
         applyOnlineCanonicalState(startPayload.postState, 'server match bootstrap');
         applyOnlineRoomIdentity(room, players);
       }
+      if(pendingFlyResumeEvents && pendingFlyResumeEvents.roomCode === room.roomCode){
+        const resumeEvents = Array.isArray(pendingFlyResumeEvents.events) ? pendingFlyResumeEvents.events : [];
+        resumeEvents.forEach(item=>{
+          const action = item?.action || item?.accepted?.action || item;
+          bufferOnlineAction(action);
+        });
+        if(Number(pendingFlyResumeEvents.lastSeq || 0) > lastActionSeq) lastActionSeq = Number(pendingFlyResumeEvents.lastSeq || 0);
+        pendingFlyResumeEvents = null;
+      }
       if(typeof window.updatePlayerBanners === 'function') setTimeout(()=>window.updatePlayerBanners(), 80);
       if(localIndex === 0) setTimeout(()=>updateRoomTurn(gameState()?.currentPlayer), 1200);
       reportActionProgress(lastAppliedActionSeq || lastActionSeq || 1, {force:true});
@@ -2224,6 +2947,7 @@
     const localUid = window.FATE_ONLINE?.user?.uid;
     const optimisticActionId = optimisticActionIdFor(action);
     if(action.uid === localUid && optimisticActionId && optimisticAppliedActionIds.has(optimisticActionId)){
+      acknowledgeAuthoritativeAction(action, 'local optimistic acknowledgement seq ' + (action.seq || '?'));
       return;
     }
     if(action.uid !== localUid && optimisticActionId && appliedPlayerActionFallbackIds.has(optimisticActionId) && !action._fromPlayerFallback){
@@ -2237,11 +2961,24 @@
       return;
     }
     if(type === 'EFFECT_CINEMATIC'){
-      if(action.uid === localUid) return;
+      if(action.uid === localUid){
+        acknowledgeAuthoritativeAction(action, 'local cinematic acknowledgement seq ' + (action.seq || '?'));
+        return;
+      }
       const card = g.board?.[payload.z]?.[payload.r]?.[payload.c] || null;
       if(card && typeof window.showEffectActivationCinematic === 'function') {
         await window.showEffectActivationCinematic(card, {remote:true, source:'online-effect-cinematic'});
       }
+      return;
+    }
+    if(shouldApplyServerStateDirectly(type, payload)){
+      if(action.uid !== localUid && typeof window.playSfx === 'function') window.playSfx('onlineRemote');
+      applyAuthoritativePostState(action, 'authoritative server state seq ' + (action.seq || '?'));
+      return;
+    }
+    if(isStrictCompactAuthorityAction(type)){
+      console.warn('Strict Fly authority action is missing canonical server state; skipping local replay.', action);
+      await resyncRejectedOnlineAction('strict accepted action missing postState ' + type).catch(()=>false);
       return;
     }
     if(action.uid !== localUid) {
@@ -2252,18 +2989,79 @@
       }
     }
 
-    const turnAgnosticAction = type === 'CHOOSE_TURN';
+    if(type === 'DISCONNECT_TIMEOUT'){
+      reconcileOnlinePostState(action, 'server disconnect timeout seq ' + (action.seq || '?'));
+      const current = gameState();
+      const localIndex = Number.isInteger(current?._onlinePlayerIndex) ? current._onlinePlayerIndex : null;
+      const result = payload.postState?.matchResult || payload.matchResult || {};
+      const winnerIndex = Number(result.winnerIndex);
+      const localWon = localIndex !== null && winnerIndex === localIndex;
+      const rewardData = collectOnlineServerRewardData(localWon ? 'victory' : 'defeat', action, current);
+      if(window.toast) toast(localWon ? 'Opponent disconnected' : 'Disconnected from match');
+      showOnlineForfeitResult(localWon ? 'victory' : 'defeat', captureOnlineGameBackground(), {
+        reason:localWon ? 'Opponent disconnected.' : 'You disconnected.',
+        rewardData
+      });
+      if(current) current._onlineResultMarked = true;
+      setTimeout(()=>{
+        activeRoom = null;
+        const latest = gameState();
+        if(latest){
+          latest._onlineRoomCode = null;
+          latest._onlineRole = null;
+          latest._onlinePlayerIndex = null;
+          latest._onlineRoomMode = null;
+          latest.localPlayerIndex = null;
+          latest.viewerPlayerIndex = null;
+          latest._onlineActionLogMode = false;
+          latest._onlineApplyingRemoteAction = false;
+        }
+        clearRoomWatchers();
+      }, 0);
+      return;
+    }
+
+    if(type === 'MATCH_RESULT'){
+      reconcileOnlinePostState(action, 'server match result seq ' + (action.seq || '?'));
+      const current = gameState();
+      if(current){
+        const localIndex = Number.isInteger(current._onlinePlayerIndex) ? current._onlinePlayerIndex : null;
+        const result = payload.postState?.matchResult || payload.matchResult || {};
+        const winnerIndex = Number(result.winnerIndex);
+        const outcome = result.isDraw ? 'draw' : (localIndex !== null && winnerIndex === localIndex ? 'victory' : 'defeat');
+        const rewardData = collectOnlineServerRewardData(outcome, action, current);
+        current._onlineScoreRewardData = rewardData;
+        current._onlineScoreRewardConsumed = false;
+        current._onlineApplyingServerMatchResult = true;
+      }
+      try{
+        const check = window.__fateOnlineOriginalFns?.checkWin || window.checkWin;
+        if(typeof check === 'function') check.call(window);
+      }finally{
+        const latest = gameState();
+        if(latest){
+          latest._onlineApplyingServerMatchResult = false;
+          latest._onlineResultMarked = true;
+        }
+      }
+      if(typeof window.disbandOnlineParty === 'function'){
+        window.disbandOnlineParty('Party disbanded after the match.', {silent:true}).catch(()=>{});
+      }
+      return;
+    }
+
+    const turnAgnosticAction = type === 'CHOOSE_TURN' || type === 'REACTION_CHOICE';
     if(type !== 'FORFEIT'){
       if(actionPlayer === null || actionPlayer === undefined){
         console.warn('Ignoring online action without a room player', action);
         return;
       }
-      if(actionPlayer !== payload.playerIndex){
+      if(Number(actionPlayer) !== Number(payload.playerIndex)){
         console.warn('Ignoring online action with mismatched player index', action);
         reconcileOnlinePostState(action, 'player-index mismatch');
         return;
       }
-      if(!turnAgnosticAction && g.currentPlayer !== payload.playerIndex){
+      if(!turnAgnosticAction && Number(g.currentPlayer) !== Number(payload.playerIndex)){
         console.warn('Ignoring online action for inactive turn', action, 'current=', g.currentPlayer);
         reconcileOnlinePostState(action, 'turn mismatch');
         return;
@@ -2277,7 +3075,20 @@
     g._placementUiLockUntil = 0;
     g._reactionPending = false;
 
-    if(action.uid !== localUid && typeof window.playSfx === 'function') window.playSfx('onlineRemote');
+    if(action.uid !== localUid && typeof window.playSfx === 'function') {
+      const fnName = String(payload?.fn || '');
+      const remoteEffectActivation =
+        (type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
+        (type === 'MODAL_ACTION' && !!payload?.effectCinematic) ||
+        (type === 'HAND_ACTION' && /^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName));
+      if(remoteEffectActivation && typeof window.playEffectActivationClickSfx === 'function') {
+        window.playEffectActivationClickSfx({remote:true});
+      } else if(remoteEffectActivation) {
+        window.playSfx('effectActivate');
+      } else {
+        window.playSfx('onlineRemote');
+      }
+    }
 
     await withRemoteAction(async ()=>{
       if(type === 'END_TURN'){
@@ -2286,7 +3097,7 @@
         return;
       }
       if(type === 'CHOOSE_TURN'){
-        if(payload.playerIndex !== g._coinWinner){
+        if(Number(payload.playerIndex) !== Number(g._coinWinner)){
           console.warn('Ignoring online turn-order choice from non-winner', action);
           return;
         }
@@ -2369,15 +3180,16 @@
         const pending = g._onlinePendingLandscapeZonePicker;
         if(!pending || typeof pending.onChoose !== 'function') return;
         const zone = Number(payload.zone);
-        if(g.currentPlayer !== g._onlinePlayerIndex) g._onlineSilentEndTurnUntil = Date.now() + 700;
+        if(Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)) g._onlineSilentEndTurnUntil = Date.now() + 700;
         await pending.onChoose(Number.isInteger(zone) ? zone : null);
         g._onlinePendingLandscapeZonePicker = null;
         return;
       }
       if(type === 'FORFEIT'){
         if(action.uid !== localUid){
+          const rewardData = collectOnlineServerRewardData('victory', action);
           if(window.toast) toast('Opponent forfeited');
-          showOnlineForfeitResult('victory');
+          showOnlineForfeitResult('victory', null, {rewardData});
           const current = gameState();
           if(current) current._onlineResultMarked = true;
           setTimeout(()=>{
@@ -2463,6 +3275,10 @@
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
 
+  function rtdbDisabledMode(){
+    return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
+  }
+
   function authorityHttpBaseUrl(){
     try{
       const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
@@ -2481,18 +3297,16 @@
   function flyActionReplayEnabled(){
     return !!authorityHttpBaseUrl() && (
       localStorageFlag('fateFlyActionReplay') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ACTION_REPLAY === true ||
-      window.FATE_RTDB_DISABLED === true
+      rtdbDisabledMode() ||
+      window.FATE_FLY_ACTION_REPLAY === true
     );
   }
 
   function authorityOnlyMode(){
     return (
       localStorageFlag('fateFlyAuthorityOnly') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_AUTHORITY_ONLY === true ||
-      window.FATE_RTDB_DISABLED === true
+      rtdbDisabledMode() ||
+      window.FATE_FLY_AUTHORITY_ONLY === true
     );
   }
 
@@ -2502,13 +3316,42 @@
     return flyActionReplayEnabled() || flyRoomsEnabled() || authorityOnlyMode();
   }
 
+  function firebaseActionFallbackAllowed(){
+    if(authorityOnlyMode()) return false;
+    if(flyActionReplayEnabled()) return false;
+    if(flyRoomsEnabled()) return false;
+    if(configuredAuthorityUrl()) return false;
+    return true;
+  }
+
   function flyRoomsEnabled(){
     return !!authorityHttpBaseUrl() && (
       localStorageFlag('fateFlyRoomsEnabled') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
+      rtdbDisabledMode() ||
+      window.FATE_FLY_ROOMS_ENABLED === true
     );
+  }
+
+  function roomUsesFly(roomOrCode){
+    if(flyRoomsEnabled()) return true;
+    if(roomOrCode && typeof roomOrCode === 'object' && roomOrCode._flyRoom) return true;
+    const code = typeof roomOrCode === 'string'
+      ? String(roomOrCode || '').trim().toUpperCase()
+      : String(roomOrCode?.roomCode || '').trim().toUpperCase();
+    if(!code) return false;
+    const room = lastLobbyRoom || {};
+    return !!(room._flyRoom && String(room.roomCode || '').trim().toUpperCase() === code);
+  }
+
+  function firebaseRoomTransportAllowed(){
+    return !rtdbDisabledMode() && !flyRoomsEnabled();
+  }
+
+  function warnBlockedRtdbRoomFallback(label){
+    const key = String(label || 'rooms');
+    if(blockedRtdbRoomWarnings.has(key)) return;
+    blockedRtdbRoomWarnings.add(key);
+    console.warn('Blocked legacy RTDB room fallback while Fly/RTDB-disabled mode is active:', key);
   }
 
   async function flyApiRequest(path, opts={}){
@@ -2563,6 +3406,9 @@
         ready:!!deck.ready,
         _flyDeckReady:!!deck.ready || Number(deck.deckCount || 0) === 40,
         matchPreload:p.matchPreload || null,
+        actionSeq:Number(p.actionSeq || 0) || 0,
+        actionSeqClientAt:Number(p.actionSeqClientAt || 0) || 0,
+        actionSeqServerAt:Number(p.actionSeqServerAt || 0) || 0,
         _flyPlayer:true
       };
     });
@@ -2577,10 +3423,14 @@
       playerOrder:room.playerOrder || {0:room.hostUid || '', 1:room.guestUid || ''},
       currentTurnUid:room.currentTurnUid || '',
       lastActionSeq:Number(room.lastActionSeq || 0) || 0,
+      canonicalHash:room.canonicalHash || room.serverStateHash || '',
       seed:room.seed || '',
       song:room.song || '',
       startedAt:room.startedAt || 0,
       endedAt:room.endedAt || 0,
+      endReason:room.endReason || '',
+      chatSeq:Number(room.chatSeq || 0) || 0,
+      chat:Array.isArray(room.chat) ? room.chat : [],
       players
     };
   }
@@ -2589,6 +3439,9 @@
     let stopped = false;
     let timer = 0;
     let lastWarn = 0;
+    if(configuredAuthorityUrl()){
+      ensureAuthorityJoined(code).catch(e=>console.warn('Fly authority prejoin failed', e));
+    }
     async function poll(){
       if(stopped) return;
       try{
@@ -2614,6 +3467,40 @@
       if(timer) clearTimeout(timer);
     };
     poll();
+  }
+
+  async function catchUpFlyAuthorityReplay(code, reason){
+    if(!code || !authorityHttpBaseUrl() || firebaseActionFallbackAllowed()) return false;
+    authorityCatchupAttempts += 1;
+    authorityLastCatchupReason = String(reason || 'authority-send');
+    try{
+      const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
+      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=500`);
+      const room = normalizeFlyRoom(data.room);
+      if(room.roomCode){
+        lastLobbyRoom = room;
+        lastLobbyPlayers = room.players;
+      }
+      if(data.serverStateHash || data.canonicalHash) lastAuthorityStateHash = String(data.serverStateHash || data.canonicalHash || '');
+      const events = Array.isArray(data?.events) ? data.events : [];
+      events.forEach(item=>{
+        const action = item?.action || item?.accepted?.action || item;
+        bufferOnlineAction(action);
+      });
+      const serverSeq = Number(data?.lastSeq || room.lastActionSeq || 0) || 0;
+      if(serverSeq > lastActionSeq) lastActionSeq = serverSeq;
+      authorityLastCatchupSeq = Math.max(authorityLastCatchupSeq, serverSeq);
+      const g = gameState();
+      if(g) g._onlineActionSeq = Math.max(g._onlineActionSeq || 0, lastActionSeq);
+      if(events.length) await actionReplayQueue.catch(()=>{});
+      authorityCatchupSuccesses += 1;
+      return true;
+    }catch(e){
+      authorityCatchupFailures += 1;
+      authorityLastCatchupReason = e && e.message || String(e);
+      console.warn('Fly authority catch-up before send failed', e);
+      return false;
+    }
   }
 
   function subscribeActions(code){
@@ -2648,6 +3535,7 @@
     authorityJoined = false;
     authorityJoinPromise = null;
     authorityRoomCode = '';
+    authorityReducerMode = '';
     for(const item of authorityInflight.values()){
       try{ item.reject(new Error('authority socket closed')); }catch(e){}
       if(item.timer) clearTimeout(item.timer);
@@ -2673,6 +3561,27 @@
     if(msg.kind === 'hello-ok'){
       authorityJoined = true;
       if(msg.serverStateHash) lastAuthorityStateHash = String(msg.serverStateHash || '');
+      if(msg.reducerMode) authorityReducerMode = String(msg.reducerMode || '').toLowerCase();
+      return;
+    }
+    if(msg.kind === 'room-chat'){
+      const code = String(msg.roomCode || '').toUpperCase();
+      const roomCode = String(lastLobbyRoom?.roomCode || activeRoom || '').toUpperCase();
+      const message = msg.message && typeof msg.message === 'object' ? msg.message : null;
+      if(code && roomCode && code === roomCode && message){
+        const chat = normalizeRoomChatEntries(lastLobbyRoom?.chat)
+          .map(entry=>entry.msg)
+          .filter(entry=>String(entry?.id || '') !== String(message.id || ''));
+        chat.push(message);
+        chat.sort((a,b)=>(Number(a.createdAt || 0) || 0) - (Number(b.createdAt || 0) || 0));
+        const nextRoom = Object.assign({}, lastLobbyRoom || {roomCode}, {
+          chat:chat.slice(-80),
+          chatSeq:Number(msg.chatSeq || message.seq || lastLobbyRoom?.chatSeq || 0) || 0
+        });
+        lastLobbyRoom = nextRoom;
+        syncRoomChatToInGame(nextRoom);
+        if(nextRoom.status === 'lobby') renderLobby(nextRoom, nextRoom.players || lastLobbyPlayers, true);
+      }
       return;
     }
     if(msg.kind === 'accepted' || msg.kind === 'rejected' || msg.kind === 'error'){
@@ -2713,7 +3622,7 @@
   function waitForAuthorityOpen(ws){
     if(ws.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((resolve, reject)=>{
-      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), 2500);
+      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), 8000);
       ws.addEventListener('open', ()=>{ clearTimeout(timer); resolve(); }, {once:true});
       ws.addEventListener('error', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority connection failed')); }, {once:true});
       ws.addEventListener('close', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority closed before join')); }, {once:true});
@@ -2761,7 +3670,7 @@
         const started = Date.now();
         const timer = setInterval(()=>{
           if(authorityJoined){ clearInterval(timer); resolve(); }
-          else if(Date.now() - started > 2500){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
+          else if(Date.now() - started > 8000){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
         }, 40);
       });
       return true;
@@ -2772,14 +3681,17 @@
     });
     return authorityJoinPromise;
   }
-  async function sendActionViaAuthority(type, payload){
-    const code = gameState()?._onlineRoomCode || activeRoom;
-    if(!code) return null;
-    const url = configuredAuthorityUrl();
-    if(!url) return null;
-    await ensureAuthorityJoined(code);
+  function makeDirectAuthorityActionId(type){
+    return 'direct:' + String(type || 'ACTION').toUpperCase() + ':' + Date.now() + ':' + (++optimisticActionCounter);
+  }
+
+  function authorityRetryMaxAttempts(){
+    return configuredAuthorityUrl() && !firebaseActionFallbackAllowed() ? 3 : 1;
+  }
+
+  async function sendActionViaAuthorityOnce(code, type, payload, attempt){
     if(!authorityWs || authorityWs.readyState !== WebSocket.OPEN) throw new Error('WebSocket authority is not connected');
-    const requestId = 'act:' + Date.now() + ':' + (++authorityRequestCounter);
+    const requestId = 'act:' + Date.now() + ':' + (++authorityRequestCounter) + ':' + Math.max(0, Number(attempt || 0));
     const outbound = {
       kind:'intent',
       requestId,
@@ -2791,11 +3703,57 @@
     return await new Promise((resolve, reject)=>{
       const timer = setTimeout(()=>{
         authorityInflight.delete(requestId);
-        reject(new Error('WebSocket authority did not accept action in time'));
+        const err = new Error('WebSocket authority did not accept action in time');
+        err.authorityTimeout = true;
+        reject(err);
       }, 3500);
       authorityInflight.set(requestId, {resolve, reject, timer});
-      authorityWs.send(JSON.stringify(outbound));
+      try{
+        authorityWs.send(JSON.stringify(outbound));
+      }catch(e){
+        authorityInflight.delete(requestId);
+        clearTimeout(timer);
+        reject(e);
+      }
     });
+  }
+
+  async function sendActionViaAuthority(type, payload){
+    const code = gameState()?._onlineRoomCode || activeRoom;
+    if(!code) return null;
+    const url = configuredAuthorityUrl();
+    if(!url) return null;
+    const maxAttempts = authorityRetryMaxAttempts();
+    let lastErr = null;
+    for(let attempt = 0; attempt < maxAttempts; attempt += 1){
+      try{
+        await ensureAuthorityJoined(code);
+        await catchUpFlyAuthorityReplay(code, 'before authority send ' + String(type || '').toUpperCase());
+        const accepted = await sendActionViaAuthorityOnce(code, type, payload, attempt);
+        if(attempt > 0) authorityRetrySuccesses += 1;
+        return accepted;
+      }catch(e){
+        lastErr = e;
+        if(e && e.authorityRejected) throw e;
+        if(attempt >= maxAttempts - 1) break;
+        authorityRetryAttempts += 1;
+        authorityLastRetryReason = e && e.message || String(e);
+        authorityLastRetryClientActionId = String(payload?.clientActionId || '');
+        console.warn('Retrying WebSocket authority action with stable clientActionId', {
+          type,
+          clientActionId:authorityLastRetryClientActionId,
+          attempt:attempt + 1,
+          maxAttempts,
+          reason:authorityLastRetryReason
+        });
+        closeAuthoritySocket();
+        await new Promise(resolve=>setTimeout(resolve, 180 + attempt * 220));
+      }
+    }
+    authorityRetryFailures += 1;
+    authorityLastRetryReason = lastErr && lastErr.message || 'WebSocket authority action failed';
+    authorityLastRetryClientActionId = String(payload?.clientActionId || '');
+    throw lastErr || new Error('WebSocket authority action failed');
   }
   async function persistAuthorityAcceptedAction(code, accepted){
     if(shouldSkipAuthorityRtdbPersist(accepted)) return true;
@@ -2857,7 +3815,10 @@
     const code = String(accepted?.roomCode || gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
     if(!action || !code) return;
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
-    bufferOnlineAction(action);
+    const bufferedAction = accepted.serverStateHash
+      ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
+      : action;
+    bufferOnlineAction(bufferedAction);
     if(!shouldSkipAuthorityRtdbPersist(accepted)){
       ensureAuthorityAcceptedActionPersisted(code, accepted).catch(()=>{});
     }
@@ -2870,11 +3831,18 @@
     const actionType = String(type || '').toUpperCase();
     payload = onlineFirebaseSafeValue(payload || {});
     const authorityEnabled = !!configuredAuthorityUrl();
+    const allowFirebaseFallback = firebaseActionFallbackAllowed();
+    const authorityActionType = authorityEnabled && !allowFirebaseFallback
+      ? strictAuthorityIntentForSend(actionType, payload, gameState())
+      : actionType;
+    if(authorityEnabled && authorityActionType !== 'STATE_SYNC' && authorityActionType !== 'EFFECT_CINEMATIC' && !payload.clientActionId){
+      payload.clientActionId = makeDirectAuthorityActionId(authorityActionType);
+    }
     let fallbackPublished = false;
     if(authorityOnlyMode() && !authorityEnabled){
       throw new Error('Fly authority-only mode is enabled but no WebSocket authority URL is configured');
     }
-    if(!authorityEnabled && !authorityOnlyMode() && actionType === 'CHOOSE_TURN'){
+    if(allowFirebaseFallback && actionType === 'CHOOSE_TURN'){
       fallbackPublished = await publishPlayerActionFallback(code, actionType, payload, u).catch(e=>{
         console.warn('Player-node action fallback publish failed', e);
         return false;
@@ -2882,7 +3850,7 @@
     }
     try{
       try{
-        const accepted = await sendActionViaAuthority(actionType, payload);
+        const accepted = await sendActionViaAuthority(authorityActionType, payload);
         if(accepted){
           if(!shouldSkipAuthorityRtdbPersist(accepted)){
             await ensureAuthorityAcceptedActionPersisted(code, accepted);
@@ -2894,13 +3862,19 @@
           console.warn('WebSocket authority rejected action.', e.message, actionType, payload);
           throw e;
         }
-        if(authorityOnlyMode()){
-          console.warn('WebSocket authority action path failed and Firebase fallback is disabled.', e);
+        if(!allowFirebaseFallback){
+          console.warn('WebSocket authority action path failed and RTDB action fallback is disabled.', e);
           if(window.toast) toast('Fly authority unavailable - action not sent');
           throw e;
         }
         console.warn('WebSocket authority action path failed; falling back to Firebase transaction.', e);
         if(window.toast) toast('WebSocket authority unavailable - using Firebase sync');
+      }
+      if(!allowFirebaseFallback){
+        const err = new Error('RTDB action fallback is disabled for Fly authority rooms');
+        console.warn(err.message, actionType);
+        if(window.toast) toast('Fly authority unavailable - action not sent');
+        throw err;
       }
       if(actionType === 'CHOOSE_TURN'){
         await sendActionDirectFirebase(code, actionType, payload, u);
@@ -2982,12 +3956,23 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.endTurn.apply(this, arguments);
         }
-        if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && g.currentPlayer !== g._onlinePlayerIndex) {
+        if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)) {
           return;
         }
         if(!canSendLocalAction(g)) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
+        }
+        if(Number(g.turn || 0) >= Number(g.maxTurns || 0)){
+          const payload = {
+            playerIndex:g.currentPlayer,
+            turn:g.turn,
+            baseStateHash:lastAuthorityStateHash || ''
+          };
+          return sendAction('MATCH_RESULT', payload).catch(e=>{
+            console.error('Online match result finalization failed', e);
+            if(window.toast) toast('Could not finalize match result with server.');
+          });
         }
         const args = arguments;
         return sendOptimisticAction('END_TURN', { playerIndex:g.currentPlayer, turn:g.turn }, ()=>{
@@ -3005,7 +3990,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.chooseTurn.apply(this, arguments);
         }
-        if(g._coinWinner !== g._onlinePlayerIndex){
+        if(Number(g._coinWinner) !== Number(g._onlinePlayerIndex)){
           onlineTurnError();
           return;
         }
@@ -3077,10 +4062,13 @@
         }
         if(!canSendLocalAction(g)) return;
         const args = arguments;
+        const pendingMove = g._serverPendingMove || null;
+        const pendingConsolidation = g._consolidating || null;
         return sendOptimisticAction('CLICK_CELL', {
           playerIndex:g.currentPlayer,
           turn:g.turn,
           z,r,c,
+          promptId:(pendingMove && pendingMove.promptId) || (pendingConsolidation && pendingConsolidation.promptId) || '',
           placing:!!g.placing,
           selectedHand:selectedHandSnapshot(g)
         }, ()=>originals.clickCell.apply(this, args));
@@ -3095,7 +4083,7 @@
         if(isOnlineMatchState(g) && !g._onlineResultMarked && g._onlinePlayerIndex === 0){
           g._onlineResultMarked = true;
           const code = g._onlineRoomCode;
-          if(!flyRoomsEnabled()){
+          if(!roomUsesFly(code)){
             FO.update(FO.ref(FO.rtdb), {
               [`rooms/${code}/status`]:'ended',
               [`rooms/${code}/phase`]:'ended',
@@ -3127,15 +4115,17 @@
           return originals.showModal.apply(this, arguments);
         }
         g._onlinePendingModalActions = actions;
-        const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
+        const localCanChoose = Number(g.currentPlayer) === Number(g._onlinePlayerIndex);
         if(!localCanChoose){
           return;
         }
         const wrappedActions = actions.map((action, actionIndex)=>Object.assign({}, action, {
           action:()=>{
+            const pendingModal = gameState()?._serverPendingModalAction || null;
             return sendOptimisticAction('MODAL_ACTION', {
               playerIndex:g.currentPlayer,
               turn:g.turn,
+              promptId:pendingModal && pendingModal.promptId || '',
               actionIndex,
               effectCinematic:selectedBoardEffectCinematicPayload(g)
             }, ()=>action.action());
@@ -3156,15 +4146,17 @@
           return originals.pickCardsVisual.apply(this, arguments);
         }
         g._onlinePendingPickCardsVisual = { cards:cards || [], onConfirm };
-        const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
+        const localCanChoose = Number(g.currentPlayer) === Number(g._onlinePlayerIndex);
         if(!localCanChoose) return;
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest)) return;
+          const pendingPick = latest?._serverPendingCardPick || null;
           return sendOptimisticAction('PICK_CARDS_VISUAL', {
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
+            promptId:pendingPick && pendingPick.promptId || '',
             selectedCards:(chosen || []).map(cardIdentity)
           }, ()=>onConfirm(chosen));
         };
@@ -3180,15 +4172,17 @@
           return originals.showZonePicker.apply(this, arguments);
         }
         g._onlinePendingZonePicker = { entries:entries || [], onConfirm };
-        const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
+        const localCanChoose = Number(g.currentPlayer) === Number(g._onlinePlayerIndex);
         if(!localCanChoose) return;
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest)) return;
+          const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
+            promptId:pendingPick && pendingPick.promptId || '',
             selectedEntries:(chosen || []).map(boardSelectionPayload)
           }, ()=>onConfirm(chosen));
         };
@@ -3205,19 +4199,43 @@
         }
         const entries = (opts && Array.isArray(opts.entries)) ? opts.entries : [];
         g._onlinePendingZonePicker = { entries, onConfirm };
-        const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
+        const localCanChoose = Number(g.currentPlayer) === Number(g._onlinePlayerIndex);
         if(!localCanChoose) return;
+        const wrappedOpts = Object.assign({}, opts || {});
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest)) return;
+          const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
+            promptId:pendingPick && pendingPick.promptId || '',
             selectedEntries:(chosen || []).map(boardSelectionPayload)
           }, ()=>onConfirm(chosen));
         };
-        return originals.showBoardTargetPicker.call(this, opts, wrappedConfirm);
+        if(wrappedOpts.allowOptionalCancelServerAction === true){
+          const originalCancel = wrappedOpts.onCancel;
+          wrappedOpts.onCancel = ()=>{
+            const latest = gameState();
+            if(latest?._onlineApplyingRemoteAction){
+              if(typeof originalCancel === 'function') return originalCancel();
+              return onConfirm([]);
+            }
+            if(!canSendLocalAction(latest)) return;
+            const pendingPick = latest?._serverPendingZonePick || null;
+            return sendOptimisticAction('PICK_ZONE', {
+              playerIndex:latest.currentPlayer,
+              turn:latest.turn,
+              promptId:pendingPick && pendingPick.promptId || '',
+              selectedEntries:[]
+            }, ()=>{
+              if(typeof originalCancel === 'function') return originalCancel();
+              return onConfirm([]);
+            });
+          };
+        }
+        return originals.showBoardTargetPicker.call(this, wrappedOpts, wrappedConfirm);
       };
     }
 
@@ -3230,15 +4248,17 @@
           return originals.showAffiliationPickerVisual.apply(this, arguments);
         }
         g._onlinePendingAffiliationPicker = { callback };
-        const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
+        const localCanChoose = Number(g.currentPlayer) === Number(g._onlinePlayerIndex);
         if(!localCanChoose) return;
         const wrappedCallback = (aff)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return callback(aff);
           if(!canSendLocalAction(latest)) return;
+          const pendingModal = latest?._serverPendingModalAction || null;
           return sendOptimisticAction('PICK_AFFILIATION', {
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
+            promptId:pendingModal && pendingModal.promptId || '',
             aff:String(aff || '')
           }, ()=>callback(aff));
         };
@@ -3274,7 +4294,7 @@
             zone:Number(zone)
           }, ()=>{
             const applying = gameState();
-            if(applying && applying.currentPlayer !== applying._onlinePlayerIndex) applying._onlineSilentEndTurnUntil = Date.now() + 700;
+            if(applying && Number(applying.currentPlayer) !== Number(applying._onlinePlayerIndex)) applying._onlineSilentEndTurnUntil = Date.now() + 700;
             return onChoose(zone);
           });
         };
@@ -3303,6 +4323,7 @@
       'activateVigilantes',
       'activateWolfCreek',
       'activateExpeditionaryMove',
+      'activateLandscapeEventideMove',
       'activateBusserMove',
       'activateWodnyPotokYouth',
       'discardBoardCard',
@@ -3398,23 +4419,33 @@
     const code = gameState()?._onlineRoomCode || activeRoom;
     const u = window.FATE_ONLINE?.user;
     if(code && u && !passive){
-      if(flyRoomsEnabled()){
+      if(roomUsesFly(code)){
         const flyRoom = lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom : {};
         if(markForfeit && flyRoom.status !== 'lobby') await sendAction('FORFEIT',{}).catch(()=>{});
-      }else{
-      const room = (await FO.get(FO.ref(FO.rtdb, `rooms/${code}`))).val() || {};
-      if(room.status === 'lobby'){
-        if(room.hostUid === u.uid){
-          await FO.remove(FO.ref(FO.rtdb, `rooms/${code}`)).catch(()=>{});
-        }else{
-          const patch = { [`rooms/${code}/players/${u.uid}`]: null, [`rooms/${code}/updatedAt`]: FO.serverTimestamp() };
-          if(room.guestUid === u.uid) patch[`rooms/${code}/guestUid`] = null;
-          await FO.update(FO.ref(FO.rtdb), patch).catch(()=>{});
+        else {
+          await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/leave`, {
+            method:'POST',
+            body:{uid:u.uid}
+          }).catch(e=>console.warn('Fly room leave failed', e));
         }
       }else{
-        if(markForfeit) await sendAction('FORFEIT',{}).catch(()=>{});
-        await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/players/${u.uid}/connected`]:false, [`rooms/${code}/updatedAt`]:FO.serverTimestamp() }).catch(()=>{});
-      }
+        if(!firebaseRoomTransportAllowed()){
+          warnBlockedRtdbRoomFallback('rooms/leave');
+        }else{
+          const room = (await FO.get(FO.ref(FO.rtdb, `rooms/${code}`))).val() || {};
+          if(room.status === 'lobby'){
+            if(room.hostUid === u.uid){
+              await FO.remove(FO.ref(FO.rtdb, `rooms/${code}`)).catch(()=>{});
+            }else{
+              const patch = { [`rooms/${code}/players/${u.uid}`]: null, [`rooms/${code}/updatedAt`]: FO.serverTimestamp() };
+              if(room.guestUid === u.uid) patch[`rooms/${code}/guestUid`] = null;
+              await FO.update(FO.ref(FO.rtdb), patch).catch(()=>{});
+            }
+          }else{
+            if(markForfeit) await sendAction('FORFEIT',{}).catch(()=>{});
+            await FO.update(FO.ref(FO.rtdb), { [`rooms/${code}/players/${u.uid}/connected`]:false, [`rooms/${code}/updatedAt`]:FO.serverTimestamp() }).catch(()=>{});
+          }
+        }
       }
     }
     activeRoom=null;
@@ -3450,11 +4481,61 @@
     if(room?.roomCode && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(room.roomCode);
   }
 
+  async function startFlyRandomQueue(mode, deckChoice, handlers={}, partyTargetUid=''){
+    const u = getUser(); if(!u) return false;
+    const deck = normalizeQueueDeck(deckChoice);
+    if(!deck){ if(window.toast) toast('Choose a valid 40-card deck first'); return false; }
+    const deckErr = validateOnlineQueueDeck(deck);
+    if(deckErr){
+      emitRandomQueueStatus('error', deckErr);
+      if(window.toast) toast(deckErr);
+      return false;
+    }
+    const prof = await profile();
+    const data = await flyApiRequest('/api/matchmaking/enter', {
+      method:'POST',
+      body:{
+        uid:u.uid,
+        mode,
+        profile:prof,
+        deckChoice:flyDeckChoiceFromRoomDeck(deck),
+        partyTargetUid:partyTargetUid || ''
+      }
+    });
+    const room = normalizeFlyRoom(data.room);
+    if(!room.roomCode) throw new Error('Fly matchmaking returned no room');
+    if(data.accepted?.action) bufferOnlineAction(data.accepted.action);
+    activeRoom = room.roomCode;
+    lastLobbyRoom = room;
+    lastLobbyPlayers = room.players;
+    randomQueueState.roomCode = room.roomCode;
+    randomQueueState.role = data.matched ? 'guest' : 'host';
+    window.FATE_ONLINE_PENDING_ROOM_DECK = deck;
+    watchFlyRoom(room.roomCode, {silent:true});
+    if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing'){
+      randomQueueState.started = true;
+      emitRandomQueueStatus('starting', 'Match found. Starting game...');
+      await startRoomGame(room);
+      return true;
+    }
+    if(data.matched){
+      randomQueueState.started = false;
+      emitRandomQueueStatus('matched', 'Opponent found. Waiting for host...');
+    }else{
+      emitRandomQueueStatus('waiting', partyTargetUid ? 'Waiting for your party member...' : 'Waiting for a random player...');
+    }
+    return true;
+  }
+
   async function createQueuedRoom(deckChoice, mode='ranked'){
     const u = getUser(); if(!u) return null;
     mode = normalizeRoomMode(mode);
     const deck = normalizeQueueDeck(deckChoice);
     if(!deck){ if(window.toast) toast('Choose a valid 40-card deck first'); return null; }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/create-room');
+      throw new Error('Legacy RTDB matchmaking fallback is disabled');
+    }
     const prof = await profile();
     const now = FO.serverTimestamp();
     let code = '';
@@ -3497,6 +4578,10 @@
   }
 
   async function findRandomQueueOpponent(selfUid, mode='ranked', partyTargetUid=''){
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/find');
+      return null;
+    }
     mode = normalizeRoomMode(mode);
     const targetKey = queueKeyFor(mode, 'waiting', partyTargetUid ? selfUid : '');
     const queueRef = (FO.query && FO.orderByChild && FO.equalTo && FO.limitToFirst)
@@ -3531,6 +4616,10 @@
 
   function watchForLowerUidQueueHost(deckChoice, mode='ranked', partyTargetUid=''){
     clearRandomQueueWatcher();
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/watch');
+      return;
+    }
     const u = window.FATE_ONLINE?.user;
     if(!u || !FO.rtdb || !FO.onValue) return;
     const myUid = String(u.uid);
@@ -3590,6 +4679,10 @@
     const deck = normalizeQueueDeck(deckChoice);
     if(!deck) return false;
     mode = normalizeRoomMode(mode);
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/join');
+      return false;
+    }
     window.FATE_ONLINE_PENDING_ROOM_DECK = deck;
     const joined = await joinRoom(entry.roomCode, {silent:true, quiet:true}).catch(e=>{ console.warn('Queued join failed', e); return false; });
     if(!joined) return false;
@@ -3625,6 +4718,12 @@
     mode = normalizeRoomMode(mode);
     const deck = normalizeQueueDeck(deckChoice);
     if(!deck){ if(window.toast) toast('Choose a valid 40-card deck first'); return false; }
+    const deckErr = validateOnlineQueueDeck(deck);
+    if(deckErr){
+      emitRandomQueueStatus('error', deckErr);
+      if(window.toast) toast(deckErr);
+      return false;
+    }
     await cancelChallengerRandomQueue({silent:true, keepScreen:true}).catch(()=>{});
     randomQueueState = { active:true, roomCode:null, role:null, started:false, handlers };
     window.FATE_ONLINE_PENDING_ROOM_DECK = deck;
@@ -3650,6 +4749,20 @@
     }
     const partyTargetUid = getQueuePartyTargetUid();
     emitRandomQueueStatus('searching', partyTargetUid ? `Searching ${queueModeLabel(mode)} queue for party member...` : `Searching random ${queueModeLabel(mode)} queue...`);
+    if(flyRoomsEnabled()){
+      try{
+        return await startFlyRandomQueue(mode, deck, handlers, partyTargetUid);
+      }catch(e){
+        console.error('Fly random queue failed', e);
+        emitRandomQueueStatus('error', 'Could not enter Fly random queue. Try again.');
+        return false;
+      }
+    }
+    if(!firebaseRoomTransportAllowed()){
+      warnBlockedRtdbRoomFallback('matchmaking/start');
+      emitRandomQueueStatus('error', 'Fly authority is required while RTDB is disabled.');
+      return false;
+    }
 
     const opponent = await findRandomQueueOpponent(u.uid, mode, partyTargetUid);
     if(opponent && randomQueueState.active){
@@ -3723,11 +4836,14 @@
   window.fateResumeOnlineRoom = function(code){
     return joinRoom(code, {quiet:true, allowStarted:true, silent:false, resume:true});
   };
+  window.fateDiscoverMyFlyRooms = discoverMyFlyRooms;
+  window.fateRecoverMyFlyRoom = recoverMyFlyRoom;
   window.fateHostStartRoom = hostStartRoom;
   window.fateSetRoomDeckChoice = setRoomDeckChoice;
   window.fateOpenRoomDeckPicker = openOnlineDeckPicker;
   window.fateChooseRoomDeck = chooseRoomDeck;
   window.fateSendRoomChat = sendRoomChat;
+  window.fateMarkLobbyChatRead = markLobbyChatRead;
   window.fateSendRoomAction = sendAction;
   window.fatePublishOnlineMatchPreload = publishOnlineMatchPreload;
   window.fateWaitForOnlineMatchPreload = waitForOnlineMatchPreload;
@@ -3737,6 +4853,7 @@
       if(value) localStorage.setItem('fateWsAuthorityUrl', value);
       else localStorage.removeItem('fateWsAuthorityUrl');
       if(value) localStorage.setItem('fateWsAuthorityEnabled', '1');
+      else localStorage.removeItem('fateWsAuthorityEnabled');
     }catch(e){}
     closeAuthoritySocket();
     if(window.toast) toast(value ? 'WebSocket authority set.' : 'WebSocket authority disabled.');
@@ -3747,13 +4864,54 @@
     try{
       localStorage.setItem('fateWsAuthorityEnabled', '1');
       localStorage.setItem('fateFlyActionReplay', '1');
-      if(!opts || opts.rooms !== false) localStorage.setItem('fateFlyRoomsEnabled', '1');
+      if(opts && opts.rooms === false) localStorage.removeItem('fateFlyRoomsEnabled');
+      else localStorage.setItem('fateFlyRoomsEnabled', '1');
       if(opts && opts.authorityOnly === false) localStorage.removeItem('fateFlyAuthorityOnly');
       else localStorage.setItem('fateFlyAuthorityOnly', '1');
-      if(opts && opts.rtdbDisabled) localStorage.setItem('fateRtdbDisabled', '1');
+      if(opts && opts.rtdbDisabled === false) localStorage.removeItem('fateRtdbDisabled');
+      else localStorage.setItem('fateRtdbDisabled', '1');
       if(opts && opts.apiUrl) localStorage.setItem('fateFlyApiUrl', String(opts.apiUrl).trim());
+      else localStorage.removeItem('fateFlyApiUrl');
     }catch(e){}
     return window.fateGetWebSocketAuthorityStatus();
+  };
+  window.fateEnableLocalFlyAuthorityForTesting = function(opts){
+    opts = opts || {};
+    const url = String(opts.url || localStorage.getItem('fateWsAuthorityUrl') || window.FATE_WS_AUTHORITY_URL || 'ws://127.0.0.1:8787').trim();
+    const apiUrl = String(opts.apiUrl || url.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:')).replace(/\/+$/, '');
+    return window.fateEnableFlyAuthority(url, {
+      apiUrl,
+      rtdbDisabled:opts.rtdbDisabled !== false,
+      authorityOnly:opts.authorityOnly !== false,
+      rooms:opts.rooms !== false
+    });
+  };
+  window.fateApplyFlyAuthorityTestParams = function(){
+    let params = null;
+    try{ params = new URLSearchParams(window.location.search || ''); }catch(e){ return window.fateGetWebSocketAuthorityStatus(); }
+    const shouldEnable = params.has('flyTest')
+      || params.get('fateFlyTest') === '1'
+      || params.get('fateAuthority') === 'local'
+      || params.get('fateAuthority') === 'fly';
+    if(!shouldEnable) return window.fateGetWebSocketAuthorityStatus();
+    const url = params.get('flyWs')
+      || params.get('fateWsAuthorityUrl')
+      || params.get('wsAuthority')
+      || window.FATE_WS_AUTHORITY_URL
+      || 'ws://127.0.0.1:8787';
+    const apiUrl = params.get('flyApi')
+      || params.get('fateFlyApiUrl')
+      || params.get('authorityApi')
+      || '';
+    const status = window.fateEnableLocalFlyAuthorityForTesting({
+      url,
+      apiUrl,
+      rtdbDisabled:params.get('rtdbDisabled') !== '0',
+      authorityOnly:params.get('authorityOnly') !== '0',
+      rooms:params.get('flyRooms') !== '0'
+    });
+    console.info('[FateOnline] Fly authority test mode enabled from URL params', status);
+    return status;
   };
   window.fateDisableFlyAuthority = function(){
     try{
@@ -3762,22 +4920,160 @@
       localStorage.removeItem('fateFlyAuthorityOnly');
       localStorage.removeItem('fateRtdbDisabled');
       localStorage.removeItem('fateSkipAuthorityRtdbPersist');
+      localStorage.removeItem('fateFlyApiUrl');
+      localStorage.removeItem('fateWsAuthorityUrl');
+      localStorage.removeItem('fateWsAuthorityEnabled');
     }catch(e){}
+    closeAuthoritySocket();
     return window.fateGetWebSocketAuthorityStatus();
+  };
+  function countCanonicalBoardCards(g){
+    let count = 0;
+    const board = Array.isArray(g?.board) ? g.board : [];
+    board.forEach(zone=>{
+      if(!Array.isArray(zone)) return;
+      zone.forEach(row=>{
+        if(!Array.isArray(row)) return;
+        row.forEach(card=>{ if(card) count += 1; });
+      });
+    });
+    return count;
+  }
+  function onlinePendingInteractionKind(g){
+    if(!g) return '';
+    if(g.pendingInteraction && typeof g.pendingInteraction === 'object') return String(g.pendingInteraction.kind || g.pendingInteraction.bucket || '');
+    if(g._serverPendingReaction) return 'reaction';
+    if(g._serverPendingModalAction) return 'modalAction';
+    if(g._serverPendingZonePick) return 'zonePick';
+    if(g._serverPendingMove) return 'move';
+    if(g._serverPendingCardPick) return 'cardPick';
+    if(g._consolidating) return 'consolidation';
+    if(g._boardTargeting) return 'boardTarget';
+    return '';
+  }
+  function finiteAuthorityNumber(value){
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+  function renderedAuthorityBoardReport(){
+    const info = {
+      count:0,
+      source:'none',
+      rendererAvailable:false,
+      rendererOwnsBoard:false,
+      rendererCards:null,
+      rendererExpectedCards:null,
+      renderSnapshotBoardCount:null,
+      domBoardCount:null,
+      lastRenderDirtyMask:null,
+      lastRenderDirtySource:''
+    };
+    function useCount(source, value){
+      if(info.source !== 'none') return;
+      if(value === null) return;
+      info.count = value;
+      info.source = source;
+    }
+    if(typeof window.fateMatchRendererV2Report === 'function'){
+      try{
+        const report = window.fateMatchRendererV2Report();
+        info.rendererAvailable = !!report?.available;
+        info.rendererOwnsBoard = !!report?.ownsBoard;
+        info.rendererCards = finiteAuthorityNumber(report?.cards);
+        info.rendererExpectedCards = finiteAuthorityNumber(report?.expectedCards);
+        info.lastRenderDirtyMask = finiteAuthorityNumber(report?.lastDirtyMask);
+        info.lastRenderDirtySource = String(report?.lastDirtySource || report?.source || '');
+        useCount('renderer-cards', info.rendererCards);
+        useCount('renderer-expectedCards', info.rendererExpectedCards);
+      }catch(e){}
+    }
+    if(typeof window.fateBuildRenderSnapshot === 'function'){
+      try{
+        const snapshot = window.fateBuildRenderSnapshot();
+        info.renderSnapshotBoardCount = finiteAuthorityNumber(snapshot?.counts?.boardCards);
+        useCount('render-snapshot', info.renderSnapshotBoardCount);
+      }catch(e){}
+    }
+    try{
+      info.domBoardCount = document.querySelectorAll('#board .cell.has-card, #board .bc').length;
+      useCount('dom-board', info.domBoardCount);
+    }catch(e){}
+    return info;
+  }
+  window.fateAuthorityRenderReport = function(){
+    const g = gameState();
+    const versionText = (function(){
+      try{ return document.getElementById('game-version')?.textContent || ''; }catch(e){ return ''; }
+    })();
+    const room = String(g?._onlineRoomCode || activeRoom || authorityRoomCode || '').trim().toUpperCase();
+    const canonicalBoardCount = countCanonicalBoardCards(g);
+    const rendered = renderedAuthorityBoardReport();
+    const hasRenderedBoardCount = rendered.source !== 'none';
+    const renderedBoardMatchesCanonical = hasRenderedBoardCount && rendered.count === canonicalBoardCount;
+    let renderMismatchReason = '';
+    if(!hasRenderedBoardCount) renderMismatchReason = 'no rendered board count available';
+    else if(!renderedBoardMatchesCanonical) renderMismatchReason = 'canonical board count ' + canonicalBoardCount + ' != ' + rendered.source + ' ' + rendered.count;
+    return {
+      build:window.FATE_BUILD || window.FATE_BUILD_ID || versionText || '',
+      room,
+      seq:Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(lastActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0, Number(g?._onlineActionSeq || 0) || 0),
+      stateHash:lastAuthorityStateHash || '',
+      canonicalBoardCount,
+      renderedBoardCount:rendered.count,
+      renderedBoardSource:rendered.source,
+      renderedBoardMatchesCanonical,
+      renderMismatchReason,
+      rendererAvailable:rendered.rendererAvailable,
+      rendererOwnsBoard:rendered.rendererOwnsBoard,
+      rendererCards:rendered.rendererCards,
+      rendererExpectedCards:rendered.rendererExpectedCards,
+      renderSnapshotBoardCount:rendered.renderSnapshotBoardCount,
+      domBoardCount:rendered.domBoardCount,
+      lastRenderDirtyMask:rendered.lastRenderDirtyMask,
+      lastRenderDirtySource:rendered.lastRenderDirtySource,
+      currentPlayer:Number.isInteger(Number(g?.currentPlayer)) ? Number(g.currentPlayer) : null,
+      phase:String(g?.phase || ''),
+      pendingInteractionKind:onlinePendingInteractionKind(g),
+      pendingInteractionPlayerIndex:Number.isInteger(Number(g?.pendingInteraction?.playerIndex)) ? Number(g.pendingInteraction.playerIndex) : null,
+      pendingInteractionPromptId:String(g?.pendingInteraction?.promptId || ''),
+      localPlayerIndex:Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : null
+    };
   };
   window.fateGetWebSocketAuthorityStatus = function(){
     return {
       url:configuredAuthorityUrl(),
       apiUrl:authorityHttpBaseUrl(),
+      reducerMode:authorityReducerMode || '',
+      rtdbDisabled:rtdbDisabledMode(),
       flyActionReplay:flyActionReplayEnabled(),
       flyRooms:flyRoomsEnabled(),
+      activeRoomUsesFly:roomUsesFly(activeRoom || lastLobbyRoom || ''),
       authorityOnly:authorityOnlyMode(),
+      firebaseActionFallbackAllowed:firebaseActionFallbackAllowed(),
+      firebaseRoomTransportAllowed:firebaseRoomTransportAllowed(),
+      strictCompactPayloads:isStrictCompactAuthorityAction('HAND_ACTION'),
       roomCode:authorityRoomCode,
       joined:authorityJoined,
       readyState:authorityWs ? authorityWs.readyState : -1,
-      inflight:authorityInflight.size
+      inflight:authorityInflight.size,
+      retryMaxAttempts:authorityRetryMaxAttempts(),
+      retryAttempts:authorityRetryAttempts,
+      retrySuccesses:authorityRetrySuccesses,
+      retryFailures:authorityRetryFailures,
+      lastRetryReason:authorityLastRetryReason,
+      lastRetryClientActionId:authorityLastRetryClientActionId,
+      catchupAttempts:authorityCatchupAttempts,
+      catchupSuccesses:authorityCatchupSuccesses,
+      catchupFailures:authorityCatchupFailures,
+      lastCatchupSeq:authorityLastCatchupSeq,
+      lastCatchupReason:authorityLastCatchupReason,
+      rejectedResyncAttempts:authorityRejectedResyncAttempts,
+      rejectedResyncSuccesses:authorityRejectedResyncSuccesses,
+      rejectedResyncFailures:authorityRejectedResyncFailures,
+      lastRejectedResyncReason:authorityLastRejectedResyncReason
     };
   };
+  window.fateApplyFlyAuthorityTestParams();
   window.fateOnlineStateReport = function(){
     const g = gameState();
     const state = captureOnlineCanonicalState(g);
@@ -3824,6 +5120,25 @@
       });
     }
     setTimeout(tryResume, 350);
+  })();
+
+  (function installFlyRoomStartupRecovery(){
+    let attempts = 0;
+    let done = false;
+    function tryRecover(){
+      if(done || activeRoom || gameState()?._onlineRoomCode) return;
+      attempts += 1;
+      if(!flyRoomsEnabled()) return;
+      if(!getUser()){
+        if(attempts < 40) setTimeout(tryRecover, 250);
+        return;
+      }
+      done = true;
+      recoverMyFlyRoom({silent:true}).catch(e=>{
+        console.warn('Fly room startup recovery failed', e);
+      });
+    }
+    setTimeout(tryRecover, 900);
   })();
 
   setTimeout(()=>{

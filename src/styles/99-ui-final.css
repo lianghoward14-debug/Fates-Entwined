@@ -451,6 +451,30 @@
 
 /* Rivera status-effect pill with affiliation icon. */
 #s-game .effect-pill.effect-pill-rivera{border-color:rgba(201,168,76,.55)!important;background:linear-gradient(180deg,rgba(42,34,15,.82),rgba(7,8,14,.88))!important;}
+#s-game .effect-pill.effect-pill-guerilla{
+  border-color:rgba(130,194,88,.58)!important;
+  background:linear-gradient(180deg,rgba(34,48,21,.84),rgba(7,10,8,.9))!important;
+  color:#e4f4c9!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{color:#a9df72!important;}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{
+  width:20px!important;
+  min-width:20px!important;
+  height:20px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon svg{
+  width:17px!important;
+  height:17px!important;
+  max-width:17px!important;
+  max-height:17px!important;
+  transform:translate(-.25px,-.75px)!important;
+  transform-origin:center center!important;
+  overflow:visible!important;
+}
 #s-game .effect-pill-aff-img{width:100%!important;height:100%!important;object-fit:contain!important;padding:2px!important;border-radius:50%!important;display:block!important;}
 #s-game .effect-pill-turns{
   position:absolute!important;right:-5px!important;bottom:-5px!important;min-width:14px!important;height:14px!important;padding:0 3px!important;
@@ -712,13 +736,28 @@
 
 /* v10: persistent status banners for Berkeley/Rivera should be visibly pill-like. */
 #s-game .effect-pill.effect-pill-rivera,
-#s-game .effect-pill.effect-pill-berkeley{
+#s-game .effect-pill.effect-pill-berkeley,
+#s-game .effect-pill.effect-pill-selva{
   min-height:24px!important;border-radius:999px!important;
   box-shadow:0 1px 8px rgba(201,168,76,.24),inset 0 1px 0 rgba(255,255,255,.08)!important;
 }
 #s-game .effect-pill.effect-pill-berkeley{
   border-color:rgba(58,143,217,.6)!important;
   background:linear-gradient(180deg,rgba(20,42,76,.86),rgba(7,8,14,.9))!important;
+}
+#s-game .effect-pill.effect-pill-selva{
+  border-color:rgba(65,190,210,.62)!important;
+  background:linear-gradient(180deg,rgba(14,54,64,.86),rgba(7,8,14,.9))!important;
+}
+#s-game .effect-pill.effect-pill-selva .effect-pill-icon{
+  color:#66e0dc!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#s-game .effect-pill.effect-pill-selva .effect-pill-icon svg{
+  width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important;
+  transform:translateY(-.5px)!important;
 }
 
 /* v10: floating Berkeley status banner reuses the Rivera banner shell. */
@@ -888,6 +927,13 @@
 #s-game .effect-pill-aff-svg svg{
   width:15px!important;height:15px!important;max-width:15px!important;max-height:15px!important;
   transform:none!important;display:block!important;overflow:visible!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon{
+  width:23px!important;height:23px!important;min-width:23px!important;
+}
+#s-game .effect-pill.effect-pill-guerilla .effect-pill-icon svg{
+  width:19px!important;height:19px!important;max-width:19px!important;max-height:19px!important;
+  transform:translate(-.25px,-.5px)!important;
 }
 #s-game .effect-pill-label{line-height:1!important;}
 
@@ -5085,6 +5131,115 @@ body.cinematic-lock #modal{
   background:rgba(0,0,0,.24)!important;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)!important;
 }
+#modal .online-room-chat-panel{
+  width:min(520px,100%)!important;
+  margin:.35rem auto .55rem!important;
+  padding:.62rem!important;
+  border:1px solid rgba(201,168,76,.2)!important;
+  border-radius:8px!important;
+  background:rgba(3,5,12,.36)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)!important;
+}
+#modal .online-room-chat-header{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.55rem!important;
+  margin-bottom:.45rem!important;
+  color:#f3df9d!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.7rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+#modal .online-room-chat-notify{
+  width:9px!important;
+  height:9px!important;
+  flex:0 0 9px!important;
+  border-radius:999px!important;
+  background:#ff3b42!important;
+  box-shadow:0 0 0 3px rgba(255,59,66,.11),0 0 12px rgba(255,59,66,.5)!important;
+  opacity:0!important;
+  transform:scale(.65)!important;
+  transition:opacity .18s ease,transform .18s ease!important;
+}
+#modal .online-room-chat-notify.on{
+  opacity:1!important;
+  transform:scale(1)!important;
+  animation:lobbyChatNotifyPulse 1.4s ease-in-out infinite!important;
+}
+#modal .online-room-chat-messages{
+  height:92px!important;
+  overflow:auto!important;
+  padding:.42rem .48rem!important;
+  border:1px solid rgba(255,255,255,.07)!important;
+  border-radius:6px!important;
+  background:rgba(0,0,0,.22)!important;
+  color:#ede7db!important;
+  font-size:.78rem!important;
+  line-height:1.35!important;
+}
+#modal .online-room-chat-message{
+  display:grid!important;
+  grid-template-columns:minmax(74px,auto) minmax(0,1fr)!important;
+  gap:.5rem!important;
+  align-items:baseline!important;
+  padding:.12rem 0!important;
+}
+#modal .online-room-chat-message.is-mine .online-room-chat-name{
+  color:#d7b75b!important;
+}
+#modal .online-room-chat-name{
+  min-width:0!important;
+  color:#ffcf7a!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.64rem!important;
+  letter-spacing:.06em!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+#modal .online-room-chat-text{
+  min-width:0!important;
+  overflow-wrap:anywhere!important;
+}
+#modal .online-room-chat-empty{
+  color:rgba(237,231,219,.54)!important;
+  font-size:.76rem!important;
+  font-style:italic!important;
+  text-align:center!important;
+  padding:1.15rem .4rem!important;
+}
+#modal .online-room-chat-input-row{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:.45rem!important;
+  align-items:center!important;
+  margin-top:.48rem!important;
+}
+#modal .online-room-chat-input-row input{
+  min-width:0!important;
+  height:36px!important;
+  padding:0 .65rem!important;
+  border:1px solid rgba(201,168,76,.28)!important;
+  border-radius:6px!important;
+  background:rgba(0,0,0,.34)!important;
+  color:#fffaf0!important;
+  font-size:.82rem!important;
+  outline:none!important;
+}
+#modal .online-room-chat-input-row input:focus{
+  border-color:rgba(255,214,118,.58)!important;
+  box-shadow:0 0 0 2px rgba(201,168,76,.12)!important;
+}
+#modal .online-room-chat-input-row .btn{
+  min-width:70px!important;
+  height:36px!important;
+}
+@keyframes lobbyChatNotifyPulse{
+  0%,100%{box-shadow:0 0 0 3px rgba(255,59,66,.1),0 0 10px rgba(255,59,66,.42);}
+  50%{box-shadow:0 0 0 5px rgba(255,59,66,.05),0 0 16px rgba(255,59,66,.64);}
+}
 
 #modal :is(.choose-deck-canonical-modal,.challenger-my-decks-modal,.online-room-deck-picker-modal){
   width:var(--codex-modal-wide)!important;
@@ -5224,6 +5379,26 @@ body.cinematic-lock #modal{
   backface-visibility:hidden!important;
 }
 .ingame-chat-badge.has-new{animation:ingameChatBadgePulse .8s ease-in-out infinite!important;}
+.ingame-chat-toggle{position:relative!important;}
+.ingame-chat-badge{
+  position:absolute!important;
+  top:4px!important;
+  right:5px!important;
+  width:9px!important;
+  height:9px!important;
+  min-width:9px!important;
+  padding:0!important;
+  border-radius:999px!important;
+  background:#ff3b42!important;
+  border:1px solid rgba(255,236,220,.86)!important;
+  color:transparent!important;
+  font-size:0!important;
+  line-height:0!important;
+  box-shadow:0 0 0 3px rgba(255,59,66,.12),0 0 12px rgba(255,59,66,.58)!important;
+  pointer-events:none!important;
+}
+.ingame-chat-badge.has-new{animation:lobbyChatNotifyPulse 1.4s ease-in-out infinite!important;}
+.ingame-chat-notice{display:none!important;}
 .ingame-chat-notice{
   position:absolute!important;
   right:0!important;

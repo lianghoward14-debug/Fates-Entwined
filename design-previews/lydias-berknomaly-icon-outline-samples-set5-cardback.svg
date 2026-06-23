@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs>
+    <style>
+      .bg{fill:#070a10}
+      .tile{fill:#0c1320;stroke:#2a3d58;stroke-width:2}
+      .title{font-family:Georgia,serif;font-size:33px;font-weight:700;letter-spacing:5px;fill:#e8eef8}
+      .sub{font-family:Arial,sans-serif;font-size:15px;letter-spacing:2px;fill:#90a0b6}
+      .label{font-family:Georgia,serif;font-size:18px;font-weight:700;fill:#e8eef8}
+      .note{font-family:Arial,sans-serif;font-size:13px;fill:#8797ac}
+      .num{font-family:Georgia,serif;font-size:21px;font-weight:700;fill:#dcecff}
+      .icon *{fill:none;stroke:currentColor;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
+      .icon .mid{stroke-width:7}
+      .icon .thin{stroke-width:5}
+      .icon .fill{fill:currentColor;stroke:none}
+    </style>
+  </defs>
+  <rect class="bg" width="1280" height="620"/>
+  <path d="M0 84H1280" stroke="#253750" stroke-width="2"/>
+  <text class="title" x="640" y="48" text-anchor="middle">LYDIA'S BERKNOMALY</text>
+  <text class="sub" x="640" y="72" text-anchor="middle">MONOCHROME SVG ICON SAMPLES - SET 5 / CARD BACK INSPIRED</text>
+
+  <g transform="translate(64 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">1</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-47 16C-38-30-9-50 0-50C9-50 38-30 47 16"/>
+      <path d="M-35 36C-51 48-45 67-23 72"/>
+      <path d="M35 36C51 48 45 67 23 72"/>
+      <path d="M0 32V79"/>
+      <circle class="mid" cx="0" cy="10" r="20"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Backmark Echo</text>
+    <text class="note" x="102" y="189" text-anchor="middle">closest to card back</text>
+  </g>
+
+  <g transform="translate(308 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">2</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-49 13C-35-38-5-49 0-49C5-49 35-38 49 13"/>
+      <path class="mid" d="M-29 33L-52 56L-31 74"/>
+      <path class="mid" d="M29 33L52 56L31 74"/>
+      <path d="M0 31L-8 79H8Z"/>
+      <circle class="mid" cx="0" cy="5" r="17"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Inverted Crest</text>
+    <text class="note" x="102" y="189" text-anchor="middle">sharper center drop</text>
+  </g>
+
+  <g transform="translate(552 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">3</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 18C-43-18-19-43 0-46C19-43 43-18 45 18"/>
+      <path class="mid" d="M-33 41C-22 46-15 58-18 72"/>
+      <path class="mid" d="M33 41C22 46 15 58 18 72"/>
+      <path d="M0 35V74"/>
+      <path class="mid" d="M-18 4C-9-7 9-7 18 4C15 20 5 27 0 27C-5 27-15 20-18 4Z"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Watchful Stem</text>
+    <text class="note" x="102" y="189" text-anchor="middle">eye instead of circle</text>
+  </g>
+
+  <g transform="translate(796 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">4</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-49 10C-39-28-16-48 0-50C16-48 39-28 49 10"/>
+      <path class="mid" d="M-39 35C-56 51-45 70-18 70"/>
+      <path class="mid" d="M39 35C56 51 45 70 18 70"/>
+      <path d="M0 37C-8 52-8 66 0 80C8 66 8 52 0 37Z"/>
+      <path class="mid" d="M-20 8C-10-5 10-5 20 8C13 22 5 26 0 26C-5 26-13 22-20 8Z"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Drop Oracle</text>
+    <text class="note" x="102" y="189" text-anchor="middle">mystic card-back riff</text>
+  </g>
+
+  <g transform="translate(1040 114)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">5</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-47 13C-30-23-15-44 0-47C15-44 30-23 47 13"/>
+      <path class="mid" d="M-37 33L-22 49L-36 66"/>
+      <path class="mid" d="M37 33L22 49L36 66"/>
+      <path d="M-8 34L0 76L8 34"/>
+      <circle class="mid" cx="0" cy="6" r="18"/>
+      <path class="thin" d="M-28-7H-16M16-7H28"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Split Backmark</text>
+    <text class="note" x="102" y="189" text-anchor="middle">extra small cuts</text>
+  </g>
+
+  <g transform="translate(64 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">6</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 18C-36-25-13-45 0-48C13-45 36-25 45 18"/>
+      <path class="mid" d="M-31 34C-43 42-47 57-34 68C-24 76-11 72-6 61"/>
+      <path class="mid" d="M31 34C43 42 47 57 34 68C24 76 11 72 6 61"/>
+      <path d="M0 36V79"/>
+      <path class="mid" d="M-19 5C-8-11 8-11 19 5"/>
+      <path class="thin" d="M-12 22C-4 27 4 27 12 22"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Curled Emblem</text>
+    <text class="note" x="102" y="189" text-anchor="middle">more organic hooks</text>
+  </g>
+
+  <g transform="translate(308 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">7</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-48 20C-42-18-14-48 0-50C14-48 42-18 48 20"/>
+      <path class="mid" d="M-36 39C-29 50-21 62-23 75"/>
+      <path class="mid" d="M36 39C29 50 21 62 23 75"/>
+      <path d="M0 33V78"/>
+      <path class="mid" d="M-19 7H19"/>
+      <path class="thin" d="M0-12V25"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Sacred Hinge</text>
+    <text class="note" x="102" y="189" text-anchor="middle">simplest readable one</text>
+  </g>
+
+  <g transform="translate(552 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">8</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-48 15C-35-30-9-49 0-50C9-49 35-30 48 15"/>
+      <path class="mid" d="M-38 34C-48 47-43 63-25 69"/>
+      <path class="mid" d="M38 34C48 47 43 63 25 69"/>
+      <path d="M0 34L-15 77H15Z"/>
+      <path class="mid" d="M-21 4C-13-11 13-11 21 4L0 27Z"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Triangle Eye</text>
+    <text class="note" x="102" y="189" text-anchor="middle">card-back plus glyph</text>
+  </g>
+
+  <g transform="translate(796 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">9</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-48 16C-37-25-13-45 0-48C13-45 37-25 48 16"/>
+      <path class="mid" d="M-36 34L-54 55L-32 72"/>
+      <path class="mid" d="M36 34L54 55L32 72"/>
+      <path d="M0 35V80"/>
+      <circle class="mid" cx="0" cy="5" r="17"/>
+      <path class="thin" d="M-24 55H-8M8 55H24"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Twin Hook Seal</text>
+    <text class="note" x="102" y="189" text-anchor="middle">side hooks emphasized</text>
+  </g>
+
+  <g transform="translate(1040 360)">
+    <rect class="tile" width="204" height="204" rx="10"/>
+    <text class="num" x="18" y="31">10</text>
+    <g class="icon" style="color:#edf6ff" transform="translate(102 88)">
+      <path d="M-45 14C-40-24-13-45 0-48C13-45 40-24 45 14"/>
+      <path class="mid" d="M-34 34C-48 45-45 63-23 69"/>
+      <path class="mid" d="M34 34C48 45 45 63 23 69"/>
+      <path d="M0 32C-13 48-10 67 0 79C10 67 13 48 0 32Z"/>
+      <path class="mid" d="M-17 4C-6-7 6-7 17 4C11 18 5 23 0 23C-5 23-11 18-17 4Z"/>
+      <path class="thin" d="M-31 22L-17 31M31 22L17 31"/>
+    </g>
+    <text class="label" x="102" y="170" text-anchor="middle">Berknomaly Seal</text>
+    <text class="note" x="102" y="189" text-anchor="middle">most finished logo</text>
+  </g>
+</svg>

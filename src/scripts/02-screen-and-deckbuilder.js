@@ -837,3 +837,34 @@ function autoFillDeck() {
   renderDBCollection();
   renderDBDeck();
 }
+
+function importIdsToTitleDeckBuilder(ids, meta = {}) {
+  const rawIds = Array.isArray(ids) ? ids : [];
+  const deck = [];
+  let skipped = 0;
+  let starUsed = false;
+  rawIds.forEach(id=>{
+    if(deck.length >= 40) { skipped++; return; }
+    const c = CARDS.find(card=>card.id===id);
+    if(!c || isRetiredCardForBuilder(c)) { skipped++; return; }
+    const currentCount = deck.filter(x=>x===id).length;
+    const limit = c.rarity === 'star' ? 1 : 3;
+    if(currentCount >= limit) { skipped++; return; }
+    if(c.rarity === 'star' && starUsed) { skipped++; return; }
+    deck.push(id);
+    if(c.rarity === 'star') starUsed = true;
+  });
+  G.dbCurrentPlayer = 0;
+  G.p1Deck = deck;
+  G._loadedPresetId = null;
+  dbFilter_ = 'all';
+  dbSearch_ = '';
+  if(typeof hideStarterDeckWarningBanner === 'function') hideStarterDeckWarningBanner();
+  if(typeof closeModal === 'function') closeModal();
+  showDeckBuilder();
+  const name = String(meta.name || 'Public deck');
+  if(skipped > 0) toast(`Imported ${deck.length} cards to Deck Builder. ${skipped} unavailable cards were skipped.`);
+  else toast(`Imported "${name}" to Deck Builder`);
+  return {ids:deck, skipped};
+}
+window.importIdsToTitleDeckBuilder = importIdsToTitleDeckBuilder;

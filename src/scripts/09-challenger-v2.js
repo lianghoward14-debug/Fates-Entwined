@@ -1,5 +1,5 @@
-﻿//  BUILT-IN STARTER PRESET DECKS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  BUILT-IN STARTER PRESET DECKS
+// ═══════════════════════════════════════════════════════
 const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh01','bh25']);
 
 function isRetiredChallengerCard(cardOrId) {
@@ -80,7 +80,7 @@ function syncStarterPresetMetadata() {
   if(changed) saveProfile();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 //  CHALLENGER MODE
 //
 //  Self-contained progression system. All state lives on USER_PROFILE
@@ -88,11 +88,11 @@ function syncStarterPresetMetadata() {
 //
 //  Pure functions (no DOM mutations) are kept separate from UI functions
 //  so they can be called server-side once multiplayer lands.
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 
 const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="display:inline-block;vertical-align:-3px;filter:drop-shadow(0 0 4px rgba(255,215,0,.8));"><defs><linearGradient id="sl-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff8c4"/><stop offset="50%" stop-color="#ffd700"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient></defs><path d="M12 2 L14 9 L21 10 L15.5 14.5 L17 21 L12 17.5 L7 21 L8.5 14.5 L3 10 L10 9 Z" fill="url(#sl-grad)" stroke="#fff8c4" stroke-width=".3"/></svg>';
 
-// â”€â”€â”€ PACK GENERATION (pure, multiplayer-safe) â”€â”€â”€
+// ─── PACK GENERATION (pure, multiplayer-safe) ───
 // Pack uses card IDs 1-80. Not all IDs exist in the CARDS array (some are reserved for expansion).
 // We filter to existing cards only.
 function getPackCardPool() {
@@ -155,7 +155,7 @@ function generatePack() {
     const c = pickRandom(byRarity.circle);
     if(c) pick.push(c.id); else break;
   }
-  // Sort rarest last: circle → triangle → square → star
+  // Sort rarest last: circle ? triangle ? square ? star
   const rarityRank = {circle:0, triangle:1, square:2, star:3};
   pick.sort((a,b)=>{
     const ca = CARDS.find(c=>c.id===a);
@@ -179,7 +179,7 @@ function grantCardsToProfile(cardIds) {
   return results;
 }
 
-// â”€â”€â”€ STARLIGHT ECONOMY â”€â”€â”€
+// ─── STARLIGHT ECONOMY ───
 // Pack cost and reward tuning.
 const PACK_COST_STARLIGHT = 100;
 
@@ -240,7 +240,7 @@ function showDropBar(drops) {
 window.showDropBar = showDropBar;
 window.clearDropBar = function(){ var el = document.getElementById('fate-drop-bar'); if(el) el.remove(); };
 
-// â”€â”€â”€ MATCH RESULT RECORDING (mode-aware) â”€â”€â”€
+// ─── MATCH RESULT RECORDING (mode-aware) ───
 
 // Free Play: XP only, no ELO change and no permanent win/loss tracking.
 function recordFreePlayResult(didWin, opponentElo=1000) {
@@ -299,7 +299,7 @@ awardXp = function(amount){
   return result;
 };
 
-// â”€â”€â”€ STARTER DECKS (no Star cards) â”€â”€â”€
+// ─── STARTER DECKS (no Star cards) ───
 // Each uses 40 cards. Multiplayer-safe: ids only, resolved via CARDS array at runtime.
 const STARTER_DECKS = [
   {
@@ -583,7 +583,7 @@ function preloadChallengerAssets() {
   loadBatch();
 }
 
-// â”€â”€â”€ TITLE SCREEN ENTRY POINTS â”€â”€â”€
+// ─── TITLE SCREEN ENTRY POINTS ───
 function openFreePlayMenu() {
   CURRENT_MODE = 'free';
   closeAllOverlays();
@@ -637,7 +637,7 @@ function openFreePlayMenu() {
 }
 
 
-// ─── OPPONENT FOUND OVERLAY (standalone, no modal) ───
+// --- OPPONENT FOUND OVERLAY (standalone, no modal) ---
 function showOpponentFound(ai, aiWins, aiLosses, onContinue) {
   playSfx('starPlace');
   removeOpponentFound(); // clean up any existing
@@ -722,7 +722,7 @@ function openChallengerMenu() {
   }
 }
 
-// â”€â”€â”€ STARTER PICK â”€â”€â”€
+// ─── STARTER PICK ───
 function showStarterPick() {
   showScreen('s-starter-pick');
   const grid = document.getElementById('starter-deck-grid');
@@ -776,7 +776,7 @@ function pickStarterDeck(starterId) {
   },700);
 }
 
-// â”€â”€â”€ CHALLENGER HUB UI â”€â”€â”€
+// ─── CHALLENGER HUB UI ───
 let _currentChTab = 'play';
 function switchChTab(tab) {
   _currentChTab = tab;
@@ -815,7 +815,7 @@ function updateChTopbar() {
   if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
 }
 
-// â”€â”€â”€ CHALLENGER PLAY TAB â”€â”€â”€
+// ─── CHALLENGER PLAY TAB ───
 function renderChPlayTab(content) {
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = Object.keys(presets);
@@ -956,7 +956,7 @@ function renderChallengerDeckOrderEditor() {
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</div>
-        <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">${escapeHtml(p.theme || 'Challenger')} • Position ${index + 1}</div>
+        <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">${escapeHtml(p.theme || 'Challenger')} � Position ${index + 1}</div>
       </div>`;
     const moveWrap = document.createElement('div');
     moveWrap.style.display = 'flex';
@@ -1214,7 +1214,7 @@ function chStartWithDeck(pid) {
   showAIDifficultyPicker();
 }
 
-// â”€â”€â”€ CHALLENGER STORE TAB â”€â”€â”€
+// ─── CHALLENGER STORE TAB ───
 function renderChStoreTab(content) {
   const packs = USER_PROFILE.unopenedPacks || 0;
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
@@ -1330,9 +1330,9 @@ function generateFavoredPack() {
   return cards;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  MARKETPLACE — Multiplayer-ready auction/buyout system
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
+//  MARKETPLACE � Multiplayer-ready auction/buyout system
+// ═══════════════════════════════════════════════════════
 function getMarketplace(){
   if(!USER_PROFILE.marketplace) USER_PROFILE.marketplace={listings:[]};
   return USER_PROFILE.marketplace;
@@ -1404,14 +1404,14 @@ function listCardForSale(cardId){
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;font-size:.95rem;color:var(--gold);margin-bottom:.3rem;">${escapeHtml(c.name)}</div>
-        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} · <span style="color:${rarCol}">${c.rarity}</span></div>
+        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} � <span style="color:${rarCol}">${c.rarity}</span></div>
         <div style="font-size:.68rem;color:var(--dim);opacity:.7;">${escapeHtml(c.ability||'')}</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:.6rem;justify-content:center;">
       <label style="font-size:.8rem;color:var(--dim);">Price:</label>
       <div style="display:flex;align-items:center;gap:.35rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:.35rem .6rem;">
-        <span style="font-size:.7rem;color:var(--gold);">✦</span>
+        <span style="font-size:.7rem;color:var(--gold);">?</span>
         <input type="number" id="sell-price" min="10" max="10000" value="100" style="padding:.2rem;background:transparent;border:none;color:var(--text);font-size:.9rem;width:80px;outline:none;font-family:inherit;">
       </div>
       <span style="font-size:.7rem;color:var(--dim);">Starlight</span>
@@ -1598,7 +1598,7 @@ function listCardForSale(cardId){
         <div class="market-list-card-copy">
           <div class="market-list-kicker">Marketplace Listing</div>
           <div class="market-list-name">${escapeHtml(c.name)}</div>
-          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` • Cost ${c.xCost?'X':c.cost}`:''} • ${affLabel} • ${rarity}</div>
+          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` � Cost ${c.xCost?'X':c.cost}`:''} � ${affLabel} � ${rarity}</div>
           <div class="market-list-note">Set a Starlight price. The card leaves your collection while listed and returns if you cancel the listing.</div>
         </div>
       </div>
@@ -1815,7 +1815,7 @@ function _openNextPack() {
   showPackOpening(results);
 }
 
-// â”€â”€â”€ PACK OPENING ANIMATION â”€â”€â”€
+// ─── PACK OPENING ANIMATION ───
 function showPackOpening(results, packType) {
   const overlay = document.getElementById('pack-opening-overlay');
   const stage = document.getElementById('pack-stage-content');
@@ -1965,7 +1965,7 @@ function closePackOpening() {
   }
 }
 
-// â”€â”€â”€ CHALLENGER COLLECTION TAB â”€â”€â”€
+// ─── CHALLENGER COLLECTION TAB ───
 let _collFilter = 'all';
 function renderChCollectionTab(content) {
   const owned = USER_PROFILE.ownedCards || {};
@@ -2017,7 +2017,7 @@ function setCollFilter(f) {
   renderChCollectionTab(document.getElementById('ch-content'));
 }
 
-// â”€â”€â”€ CHALLENGER DECK BUILDER TAB â”€â”€â”€
+// ─── CHALLENGER DECK BUILDER TAB ───
 let _cdbFilter = 'all';
 let _cdbSearch = '';
 let _cdbCurrentDeckId = null; // null = building a new deck
@@ -2451,7 +2451,7 @@ function renderCdbCollection() {
     el.appendChild(ownedBadge);
     el.onclick = ()=>openCardDetail(c);
     el.oncontextmenu = (e)=>{e.preventDefault();cdbAdd(c.id);};
-    el.title = `Owned: ${owned_n} • In deck: ${inDeck} • Right-click to add`;
+    el.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
     col.appendChild(el);
   });
 }
@@ -2503,6 +2503,80 @@ function cdbNewDeck() {
   renderChDeckBuilderTab(document.getElementById('ch-content'));
 }
 
+function buildChallengerImportDeck(ids) {
+  const rawIds = Array.isArray(ids) ? ids : [];
+  const owned = USER_PROFILE.ownedCards || {};
+  const deck = [];
+  let missingOwned = 0;
+  let skipped = 0;
+  let starUsed = false;
+  rawIds.forEach(id=>{
+    if(deck.length >= 40) { skipped++; return; }
+    const c = CARDS.find(card=>card.id===id);
+    if(!c || (typeof isRetiredChallengerCard === 'function' && isRetiredChallengerCard(c))) { skipped++; return; }
+    const ownedCount = Number(owned[id] || 0) || 0;
+    const inDeck = deck.filter(x=>x===id).length;
+    if(inDeck >= ownedCount) { missingOwned++; return; }
+    const limit = c.rarity === 'star' ? 1 : 3;
+    if(inDeck >= limit) { skipped++; return; }
+    if(c.rarity === 'star' && starUsed) { skipped++; return; }
+    deck.push(id);
+    if(c.rarity === 'star') starUsed = true;
+  });
+  return {ids:deck, missingOwned, skipped, requested:rawIds.length};
+}
+
+function importIdsToChallengerDeckBuilder(ids, meta = {}) {
+  const result = buildChallengerImportDeck(ids);
+  const importName = (meta.name || 'Shared Deck') + ' (imported)';
+  const complete = result.ids.length === Math.min(40, result.requested) && result.missingOwned === 0 && result.skipped === 0 && result.ids.length === 40;
+
+  if(complete) {
+    if(!USER_PROFILE.challengerPresets) USER_PROFILE.challengerPresets = {};
+    const alreadyImportedKey = Object.keys(USER_PROFILE.challengerPresets).find(pid=>{
+      const p = USER_PROFILE.challengerPresets[pid] || {};
+      return p._importedFromPublicId === meta.publicId ||
+        (p.name === importName && JSON.stringify(p.ids || []) === JSON.stringify(result.ids));
+    });
+    if(alreadyImportedKey) {
+      toast('Already imported this deck to Challenger');
+      return Object.assign({saved:false, alreadyImported:true}, result);
+    }
+    const pid = createChallengerDeckId('ch_public');
+    USER_PROFILE.challengerPresets[pid] = {
+      name: importName,
+      description: meta.description || '',
+      theme: 'Imported',
+      ids: result.ids.slice(),
+      faceCardId: meta.faceCardId || '',
+      displayCardIds: Array.isArray(meta.displayCardIds) ? meta.displayCardIds.slice(0, 7) : [],
+      _importedFromPublicId: meta.publicId || ''
+    };
+    saveProfile();
+    if(typeof playSfx === 'function') playSfx('deckComplete');
+    toast('Deck imported to My Challenger Decks');
+    return Object.assign({saved:true, presetId:pid}, result);
+  }
+
+  _cdbCurrentDeckId = null;
+  _cdbCurrentDeckIds = result.ids.slice(0, 40);
+  _cdbCurrentName = importName;
+  _cdbCurrentDesc = meta.description || '';
+  _cdbFilter = 'all';
+  _cdbSearch = '';
+  if(typeof closeModal === 'function') closeModal();
+  CURRENT_MODE = 'challenger';
+  if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
+  if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
+  if(typeof showScreen === 'function') showScreen('s-challenger');
+  switchChTab('deckbuilder', {force:true});
+  const missing = result.missingOwned + result.skipped;
+  if(missing > 0) toast(`Missing ${missing} card${missing===1?'':'s'}; imported ${result.ids.length} cards to the Challenger builder.`);
+  else toast(`Imported ${result.ids.length} cards to the Challenger builder.`);
+  return Object.assign({saved:false}, result);
+}
+window.importIdsToChallengerDeckBuilder = importIdsToChallengerDeckBuilder;
+
 function cdbEditDeck(pid) {
   const presets = USER_PROFILE.challengerPresets || {};
   const p = presets[pid];
@@ -2523,7 +2597,7 @@ function cdbAdd(id) {
   const inDeck = _cdbCurrentDeckIds.filter(x=>x===id).length;
   if(inDeck >= owned_n){toast(`You don't own any more copies of ${c.name}`);return;}
   // Rarity copy limits
-  const lim = c.rarity==='star'?1:c.rarity==='square'?2:3;
+  const lim = c.rarity==='star'?1:3;
   if(inDeck >= lim){toast(`Max ${lim} copies of this card allowed`);return;}
   // Star rarity: only 1 star card total in deck
   if(c.rarity==='star'){
@@ -2868,7 +2942,7 @@ showLeaderboard = function(page=0) {
         continue;
       }
       const isMe = entry.username===USER_PROFILE.username;
-      const rankSym = overallIndex===0?'🥇':overallIndex===1?'🥈':overallIndex===2?'🥉':`#${overallIndex+1}`;
+      const rankSym = overallIndex===0?'??':overallIndex===1?'??':overallIndex===2?'??':`#${overallIndex+1}`;
       const imgSrc = resolveProfileImgSrc(entry.profileImg) || (typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png');
       const frameColor = getFrameColor(entry);
       html += `<div class="lb-row" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;border:1px solid var(--border);border-radius:10px;margin-bottom:0;background:${isMe?'rgba(201,168,76,.08)':'rgba(0,0,0,.35)'};">
@@ -2904,7 +2978,7 @@ showLeaderboard = function(page=0) {
 };
 
 
-// ─── MATCHMAKING WAITING SCREEN ───
+// --- MATCHMAKING WAITING SCREEN ---
 let _matchmakingTimer = null;
 let _matchmakingBgTimer = null;
 let _matchmakingBgIdx = 1;
@@ -2962,12 +3036,24 @@ function setMatchmakingStatus(text) {
   if(el) el.textContent = text || 'Ranked Matchmaking';
 }
 
+function hasOnlineQueueTransport() {
+  if(window.FateOnline?.rtdb) return true;
+  try {
+    const status = typeof window.fateGetWebSocketAuthorityStatus === 'function'
+      ? window.fateGetWebSocketAuthorityStatus()
+      : null;
+    return !!(status && status.flyRooms);
+  } catch(e) {
+    return false;
+  }
+}
+
 function showMatchmakingScreen(opts={}) {
   clearMatchmakingTimers();
   showScreen('s-matchmaking');
   const queueMode = opts.queueMode || (CURRENT_MODE === 'free' ? 'freeplay' : 'ranked');
   const queueFn = queueMode === 'freeplay' ? window.fateStartFreePlayRandomQueue : window.fateStartChallengerRandomQueue;
-  const useOnlineQueue = !!(opts.onlineQueue && window.FATE_ONLINE?.user && window.FateOnline?.rtdb && typeof queueFn === 'function');
+  const useOnlineQueue = !!(opts.onlineQueue && window.FATE_ONLINE?.user && hasOnlineQueueTransport() && typeof queueFn === 'function');
   setMatchmakingStatus(useOnlineQueue ? (queueMode === 'freeplay' ? 'Free Play Human Queue' : 'Random Human Queue') : (CURRENT_MODE === 'free' ? 'Free Play Matchmaking' : 'Ranked Matchmaking'));
   _matchmakingBgIdx = 1;
   updateMatchmakingBg();
@@ -3072,13 +3158,13 @@ function cancelMatchmaking() {
 }
 window.cancelMatchmaking = cancelMatchmaking;
 window.showMatchmakingScreen = showMatchmakingScreen;
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  SOCIAL SYSTEM
 //  Friends, chat, online players, parties, emoji, world chat
 //  All data stored in localStorage for now; designed for backend sync.
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 
-// ─── DATA ───
+// --- DATA ---
 let SOCIAL = {
   friends: [],           // [{username, profileImg, elo, status:'online'|'offline'|'in-game', addedAt}]
   friendRequests: [],    // [{from, profileImg, elo, sentAt}]
@@ -3137,20 +3223,20 @@ function findLiveAIPlayer(username) {
   return (Array.isArray(aiList) ? aiList : []).find(ai=>ai && ai.name === username) || null;
 }
 
-// ─── EMOJI SUPPORT ───
+// --- EMOJI SUPPORT ---
 const EMOJI_LIST = [
-  '😀','😂','😎','🤔','😤','🔥','💀','👑','⚔️','🛡️',
-  '🃏','🎴','✨','💫','🌟','❤️','💔','👊','🤝','👋',
-  '🎉','🏆','💪','😈','🙏','👀','💯','⭐','🎯','🗡️',
-  '😭','🥳','😏','🫡','🤯','😱','🥶','🤡','👏','🫶',
-  '💥','🌀','🧠','🪦','🏳️','☠️','🔮','🎲','🎭','🫣',
-  '😴','🤑','😇','🥺','🫠','💣','🪄','🍀','🦅','🐉',
-  '🤣','😜','🥹','😡','🤫','🫢','😵','🤩','🥴','😬',
-  '👍','👎','✌️','🤞','🫰','💅','🙌','🤲','👆','🖕',
-  '💀','🕊️','🐺','🦁','🐍','🦂','🦇','🐗','🦊','🐻',
-  '⚡','❄️','🌊','🌪️','☀️','🌙','💧','🔱','⛓️','🧊',
-  '💎','🪙','📜','🗝️','🏰','⚓','🧭','🪖','🏹','🔔',
-  '🤬','😶','🫥','🤥','😮','🥱','🫤','😑','🤓','🧐'
+  '??','??','??','??','??','??','??','??','??','???',
+  '??','??','?','??','??','??','??','??','??','??',
+  '??','??','??','??','??','??','??','?','??','???',
+  '??','??','??','??','??','??','??','??','??','??',
+  '??','??','??','??','???','??','??','??','??','??',
+  '??','??','??','??','??','??','??','??','??','??',
+  '??','??','??','??','??','??','??','??','??','??',
+  '??','??','??','??','??','??','??','??','??','??',
+  '??','???','??','??','??','??','??','??','??','??',
+  '?','??','??','???','??','??','??','??','??','??',
+  '??','??','??','???','??','?','??','??','??','??',
+  '??','??','??','??','??','??','??','??','??','??'
 ];
 
 function renderEmojiPicker(onSelect) {
@@ -3166,7 +3252,7 @@ function renderEmojiPicker(onSelect) {
   return wrap;
 }
 
-// ─── FRIEND SYSTEM ───
+// --- FRIEND SYSTEM ---
 function addFriend(username) {
   if(username === USER_PROFILE.username) { toast('Cannot add yourself'); return; }
   if(SOCIAL.blocked.includes(username)) { toast('This user is blocked'); return; }
@@ -3246,7 +3332,7 @@ function unblockUser(username) {
   toast(`${username} unblocked`);
 }
 
-// ─── INSPECT PROFILE ───
+// --- INSPECT PROFILE ---
 function inspectProfile(username) {
   const friend = SOCIAL.friends.find(f => f.username === username);
   const online = SIMULATED_ONLINE_PLAYERS.find(p => p.username === username);
@@ -3268,12 +3354,14 @@ function inspectProfile(username) {
   const displayLevel = Math.max(1, parseInt(player.level || lbEntry?.level || (liveAI ? Math.round((elo - 500) / 100) : 1), 10) || 1);
   const rankFrame = typeof getRankFrameStyle==='function' ? getRankFrameStyle(elo,'icon') : '';
   const profileImg = (typeof resolveProfileImgSrc === 'function' ? resolveProfileImgSrc(player.profileImg || player.img) : null) || player.profileImg || player.img || null;
+  const profileCropSource = Object.assign({}, player || {}, {profileImg:player?.profileImg || player?.img || profileImg, photoURL:player?.photoURL || profileImg});
+  const profileCrop = window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(profileCropSource) : 'width:100%;height:100%;object-fit:cover;object-position:center 20%;';
   const bio = player.bio || lbEntry?.bio || '';
 
   const body = `
     <div class="profile-wrap">
       <div class="profile-img-wrap" style="${rankFrame};cursor:default;">
-        ${profileImg ? `<img src="${profileImg}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;" alt="">` : `<span class="pi-placeholder">${username.charAt(0).toUpperCase()}</span>`}
+        ${profileImg ? `<img src="${profileImg}" style="${profileCrop}" alt="">` : `<span class="pi-placeholder">${username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div class="profile-info">
         <div class="profile-name">${escapeHtml(username)}</div>
@@ -3306,21 +3394,24 @@ function inspectProfile(username) {
   saveSocial();
 }
 
-// ─── DIRECT MESSAGES ───
+// --- DIRECT MESSAGES ---
 function openDirectMessage(username) {
   if(!SOCIAL.conversations[username]) SOCIAL.conversations[username] = [];
   const msgs = SOCIAL.conversations[username];
   const friend = SOCIAL.friends.find(f => f.username === username);
-  const friendPic = friend?.profileImg || null;
+  const friendPic = resolveSocialProfileImgSrc(friend?.profileImg);
+  const friendCrop = window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(friend || {profileImg:friendPic}) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
+  const myCrop = typeof getProfileCropStyle === 'function' ? getProfileCropStyle() : 'width:100%;height:100%;object-fit:cover;object-position:center center;';
   const friendElo = friend?.elo || 600;
 
   const renderChat = () => {
     const chatHtml = msgs.map(m => {
       const isMe = m.from === USER_PROFILE.username;
       const senderPic = isMe ? getProfileImgSrc() : friendPic;
+      const senderCrop = isMe ? myCrop : friendCrop;
       return `<div class="social-dm ${isMe ? 'social-dm-me' : 'social-dm-them'}">
         <div class="social-dm-avatar">
-          ${senderPic ? `<img src="${senderPic}" style="width:100%;height:100%;object-fit:cover;">` : `<span>${m.from.charAt(0).toUpperCase()}</span>`}
+          ${senderPic ? `<img src="${senderPic}" style="${senderCrop}">` : `<span>${m.from.charAt(0).toUpperCase()}</span>`}
         </div>
         <div class="social-dm-bubble">
           <div class="social-dm-name">${escapeHtml(m.from)}</div>
@@ -3331,7 +3422,7 @@ function openDirectMessage(username) {
     }).join('');
 
     const headerPic = friendPic
-      ? `<img src="${friendPic}" style="width:100%;height:100%;object-fit:cover;">`
+      ? `<img src="${friendPic}" style="${friendCrop}">`
       : `<span style="font-size:1.4rem;color:var(--dim);">${username.charAt(0).toUpperCase()}</span>`;
 
     const body = `
@@ -3339,14 +3430,14 @@ function openDirectMessage(username) {
         <div class="social-dm-header-pic" style="${typeof getRankFrameStyle==='function'?getRankFrameStyle(friendElo,'icon'):''}">${headerPic}</div>
         <div class="social-dm-header-info">
           <div class="social-dm-header-name">${escapeHtml(username)}</div>
-          <div class="social-dm-header-meta">${friendElo} ELO · ${renderRankBadge(friendElo,'sm')}</div>
+          <div class="social-dm-header-meta">${friendElo} ELO � ${renderRankBadge(friendElo,'sm')}</div>
         </div>
       </div>
       <div class="social-chat-box" id="social-dm-box">
         ${chatHtml || '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No messages yet. Say hello!</div>'}
       </div>
       <div class="social-chat-input-row">
-        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji">😀</button>
+        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji">??</button>
         <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
         <button class="btn sm pri" onclick='sendDirectMessage(${jsString(username)})'>Send</button>
       </div>
@@ -3416,8 +3507,8 @@ function sendDirectMessage(username) {
   // Simulate a reply after a short delay
   setTimeout(() => {
     const replies = [
-      'GG!', 'Nice deck!', 'Want to play?', 'Good luck!', '😎',
-      'Let\'s go!', 'Ready when you are', 'Cool!', '👊', 'Interesting strategy...'
+      'GG!', 'Nice deck!', 'Want to play?', 'Good luck!', '??',
+      'Let\'s go!', 'Ready when you are', 'Cool!', '??', 'Interesting strategy...'
     ];
     SOCIAL.conversations[username].push({
       from: username,
@@ -3432,7 +3523,7 @@ function sendDirectMessage(username) {
   playSfx('uiClick');
 }
 
-// ─── PARTY SYSTEM ───
+// --- PARTY SYSTEM ---
 function createParty() {
   SOCIAL.party = {
     id: 'party_' + Date.now(),
@@ -3456,7 +3547,7 @@ function inviteToParty(username) {
   const friend = SOCIAL.friends.find(f => f.username === username);
   SOCIAL.party.members.push({
     username,
-    profileImg: friend?.profileImg || null,
+    profileImg: resolveSocialProfileImgSrc(friend?.profileImg) || null,
     elo: friend?.elo || 600,
     ready: false
   });
@@ -3487,12 +3578,14 @@ function showPartyPanel() {
   const membersHtml = p.members.map(m => {
     const isLeader = m.username === p.leader;
     const readyColor = m.ready ? '#7fffa0' : '#ff6b6b';
+    const memberPic = resolveSocialProfileImgSrc(m.profileImg);
+    const memberCrop = window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(m || {profileImg:memberPic}) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
     return `<div class="social-party-member">
       <div class="social-party-pic">
-        ${m.profileImg ? `<img src="${m.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1.2rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
+        ${memberPic ? `<img src="${memberPic}" style="${memberCrop}">` : `<span style="font-size:1.2rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-family:'Cinzel',serif;font-size:.9rem;color:${isLeader?'var(--gold)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.6rem;color:var(--gold);">★ LEADER</span>':''}</div>
+        <div style="font-family:'Cinzel',serif;font-size:.9rem;color:${isLeader?'var(--gold)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.6rem;color:var(--gold);">? LEADER</span>':''}</div>
         <div style="font-size:.7rem;color:var(--dim);">${m.elo} ELO</div>
       </div>
       <span style="width:10px;height:10px;border-radius:50%;background:${readyColor};flex-shrink:0;" title="${m.ready?'Ready':'Not Ready'}"></span>
@@ -3515,7 +3608,7 @@ function showPartyPanel() {
   showModal('Party', body, actions);
 }
 
-// ─── SOCIAL SCREEN (merged single page) ───
+// --- SOCIAL SCREEN (merged single page) ---
 let _socialTab = 'friends';
 
 function showSocial() {
@@ -3560,13 +3653,15 @@ function renderSocialPage() {
   const partyHtml = party ? party.members.map(m => {
     const isLeader = m.username === party.leader;
     const readyColor = m.ready ? '#7fffa0' : '#ff6b6b';
+    const memberPic = resolveSocialProfileImgSrc(m.profileImg);
+    const memberCrop = window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(m || {profileImg:memberPic}) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
     return `<div class="social-party-member">
       <div class="social-party-pic">
-        ${m.profileImg ? `<img src="${m.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
+        ${memberPic ? `<img src="${memberPic}" style="${memberCrop}">` : `<span style="font-size:1rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">★</span>':''}</div>
-        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO · <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
+        <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">?</span>':''}</div>
+        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO � <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
       </div>
     </div>`;
   }).join('') : '';
@@ -3585,25 +3680,29 @@ function renderSocialPage() {
         <div class="social-section-header">FRIENDS (${friends.length})</div>
         ${friends.length === 0
           ? `<div style="text-align:center;padding:2.5rem 1.5rem;color:#c8ccd8;font-size:1.3rem;line-height:1.6;font-family:Cinzel,serif;">No friends yet.<br><span style="font-size:1rem;color:#a0a8b8;">Add someone or browse online players.</span></div>`
-          : `<div class="social-friend-list" style="overflow:hidden;">${pageFriends.map(f => `
+          : `<div class="social-friend-list" style="overflow:hidden;">${pageFriends.map(f => {
+            const friendPic = resolveSocialProfileImgSrc(f.profileImg);
+            const friendCrop = window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(f || {profileImg:friendPic}) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
+            return `
             <div class="social-friend-row" onclick='inspectProfile(${jsString(f.username)})'>
               <div class="social-friend-pic">
-                ${f.profileImg ? `<img src="${f.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${f.username.charAt(0).toUpperCase()}</span>`}
+                ${friendPic ? `<img src="${friendPic}" style="${friendCrop}">` : `<span style="font-size:1rem;color:var(--dim);">${f.username.charAt(0).toUpperCase()}</span>`}
                 <span class="social-status-dot" style="background:${statusColors[f.status]||'#888'};"></span>
               </div>
               <div class="social-friend-info">
                 <div class="social-friend-name">${escapeHtml(f.username)}</div>
-                <div class="social-friend-meta">${f.elo} ELO · <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
+                <div class="social-friend-meta">${f.elo} ELO � <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
               </div>
               <div class="social-friend-actions">
-                <button class="btn sm" onclick='event.stopPropagation();openDirectMessage(${jsString(f.username)})' title="Message">💬</button>
-                <button class="btn sm" onclick='event.stopPropagation();inviteToParty(${jsString(f.username)})' title="Invite to Party">🎮</button>
+                <button class="btn sm" onclick='event.stopPropagation();openDirectMessage(${jsString(f.username)})' title="Message">??</button>
+                <button class="btn sm" onclick='event.stopPropagation();inviteToParty(${jsString(f.username)})' title="Invite to Party">??</button>
               </div>
-            </div>`).join('')}</div>
+            </div>`;
+          }).join('')}</div>
             ${totalFriendPages > 1 ? `<div style="display:flex;justify-content:center;align-items:center;gap:.6rem;margin-top:.5rem;">
-              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>‹ Prev</button>
+              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>� Prev</button>
               <span style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.06em;">Page ${window._socialFriendPage+1} / ${totalFriendPages}</span>
-              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next ›</button>
+              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next �</button>
             </div>` : ''}`}
       </div>
 
@@ -3628,7 +3727,7 @@ function renderSocialPage() {
                   <div style="font-size:.6rem;color:var(--dim);">${p.elo} ELO</div>
                 </div>
                 ${isFriend
-                  ? '<span style="font-size:.6rem;color:var(--gold);">★</span>'
+                  ? '<span style="font-size:.6rem;color:var(--gold);">?</span>'
                   : `<button class="btn sm" style="font-size:.6rem;padding:.2rem .4rem;" onclick='event.stopPropagation();addFriend(${jsString(p.username)});renderSocialPage();'>+</button>`}
               </div>`;
             }).join('')}
@@ -3666,7 +3765,7 @@ function socialAddFriendFromInput() {
   renderSocialPage();
 }
 
-// ─── WORLD CHAT (bottom-right of title screen) ───
+// --- WORLD CHAT (bottom-right of title screen) ---
 let _worldChatOpen = false;
 let _worldChatUnread = 0;
 
@@ -3728,8 +3827,8 @@ function initWorldChat() {
   // Seed some initial messages
   if(false && SOCIAL.worldChat.length === 0) {
     const msgs = [
-      {from:'CardMaster99', text:'Anyone want to duel? 🔥', timestamp:Date.now()-120000},
-      {from:'AceOfFates', text:'Just pulled a Star card from a pack!!! ✨', timestamp:Date.now()-90000},
+      {from:'CardMaster99', text:'Anyone want to duel? ??', timestamp:Date.now()-120000},
+      {from:'AceOfFates', text:'Just pulled a Star card from a pack!!! ?', timestamp:Date.now()-90000},
       {from:'ZoneControl', text:'GG everyone', timestamp:Date.now()-60000},
       {from:'FateStar', text:'New player here, any tips?', timestamp:Date.now()-30000},
       {from:'DeckSlinger', text:'Shield Wall decks are OP lol', timestamp:Date.now()-15000},
@@ -3744,18 +3843,18 @@ function initWorldChat() {
   widget.className = 'world-chat-widget';
   widget.innerHTML = `
     <div class="world-chat-toggle" id="world-chat-toggle">
-      <span class="world-chat-icon" aria-hidden="true">💬</span>
+      <span class="world-chat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4.75 6.25c0-1.1.9-2 2-2h10.5c1.1 0 2 .9 2 2v7.25c0 1.1-.9 2-2 2h-5.38l-4.62 3.25v-3.25h-.5c-1.1 0-2-.9-2-2V6.25Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 8.75h8M8 11.5h5.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
       <span class="world-chat-label">World Chat</span>
       <span class="world-chat-badge" id="world-chat-badge" style="display:none;">0</span>
     </div>
     <div class="world-chat-panel" id="world-chat-panel" style="display:none;">
       <div class="world-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);letter-spacing:.08em;">WORLD CHAT</span>
-        <button class="world-chat-close" onclick="toggleWorldChat()">✕</button>
+        <button class="world-chat-close" onclick="toggleWorldChat()">?</button>
       </div>
       <div class="world-chat-messages" id="world-chat-messages"></div>
       <div class="world-chat-input-row">
-        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()">😀</button>
+        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()">??</button>
         <input type="text" class="social-chat-input" id="wc-input" placeholder="Say something..." maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter')sendWorldChat()">
         <button class="btn sm pri" onclick="sendWorldChat()">Send</button>
       </div>
@@ -3912,11 +4011,11 @@ function simulateWorldChatMessage() {
   if(senders.length === 0) return;
   const sender = senders[Math.floor(Math.random() * senders.length)];
   const messages = [
-    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! 🎉', 'Shield Wall is so strong',
-    'Need tips for Eventide decks', 'Looking for a challenge ⚔️', 'Hello everyone 👋',
+    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! ??', 'Shield Wall is so strong',
+    'Need tips for Eventide decks', 'Looking for a challenge ??', 'Hello everyone ??',
     'That was a close match!', 'Love the new cards', 'Trading cards anyone?',
-    'Just opened a Star card! 🌟', 'Best Coordinator?', 'Third Great War decks are fire 🔥',
-    'Any new players need help?', 'Party up?', 'Let\'s gooo 💪', '😎', 'Wow', 'Nice!',
+    'Just opened a Star card! ??', 'Best Coordinator?', 'Third Great War decks are fire ??',
+    'Any new players need help?', 'Party up?', 'Let\'s gooo ??', '??', 'Wow', 'Nice!',
   ];
   SOCIAL.worldChat.push({
     from: sender.username,
@@ -3937,6 +4036,11 @@ function simulateWorldChatMessage() {
 
 function updateWorldChatBadge() {
   const badge = document.getElementById('world-chat-badge');
+  try{
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
+      window.FateMatchRendererAdapter.scheduleRender('chat-unread');
+    }
+  }catch(e){}
   if(!badge) return;
   if(_worldChatUnread > 0) {
     badge.style.display = 'inline-flex';
@@ -3946,7 +4050,7 @@ function updateWorldChatBadge() {
   }
 }
 
-// ─── EXPOSE GLOBALS ───
+// --- EXPOSE GLOBALS ---
 window.showSocial = showSocial;
 window.switchSocialTab = switchSocialTab;
 window.inspectProfile = inspectProfile;
@@ -3967,16 +4071,46 @@ window.installFateCornerDock = installFateCornerDock;
 window.scheduleFateCornerDock = scheduleFateCornerDock;
 window.renderSocialPage = renderSocialPage;
 
-// ─── IN-GAME CHAT (popup during matches) ───
+// --- IN-GAME CHAT (popup during matches) ---
 let _inGameChatOpen = false;
 let _inGameMessages = [];
 let _inGameChatUnread = 0;
 let _inGameKnownMessageIds = new Set();
+let _inGameNotifiedMessageIds = new Set();
+
+function resolveSocialProfileImgSrc(value) {
+  if(!value) return '';
+  try{
+    if(typeof window.FateOnline?.profilePhoto === 'function') {
+      const resolved = window.FateOnline.profilePhoto({profileImg:value});
+      if(resolved && resolved !== 'blank.png') return resolved;
+    }
+  }catch(e){}
+  try{
+    if(typeof resolveProfileImgSrc === 'function') {
+      const resolved = resolveProfileImgSrc(value, 'square') || resolveProfileImgSrc(value, 'circle');
+      if(resolved && !String(resolved).startsWith('data:')) return resolved;
+    }
+  }catch(e){}
+  if(typeof value === 'string'){
+    const text = value.trim();
+    return text && text !== '[object Object]' && !text.startsWith('data:') ? text : '';
+  }
+  if(value && typeof value === 'object'){
+    if(value.pfpId) return `pfp/pfp${Math.max(1, parseInt(value.pfpId, 10) || 1)}.png`;
+    if(value.cardImg) return value.cardImg;
+    if(value.src && !String(value.src).startsWith('data:')) return value.src;
+  }
+  return '';
+}
 
 function initInGameChat() {
+  const preserveUnread = Math.max(0, Number(_inGameChatUnread || 0) || 0);
+  const preserveNotified = _inGameNotifiedMessageIds instanceof Set ? new Set(_inGameNotifiedMessageIds) : new Set();
   _inGameMessages = [];
-  _inGameChatUnread = 0;
+  _inGameChatUnread = preserveUnread;
   _inGameKnownMessageIds = new Set();
+  _inGameNotifiedMessageIds = preserveNotified;
   // Remove existing widget if any
   const existing = document.getElementById('ingame-chat-widget');
   if(existing) existing.remove();
@@ -3998,30 +4132,32 @@ function initInGameChat() {
   const p2Name = p2Profile.name || G.players[1].name || 'Player 2';
   const p1Elo = p1Profile.elo || USER_PROFILE.elo || 1000;
   const p2Elo = p2Profile.elo || G._aiOpponentElo || (G._selectedAI ? G._selectedAI.elo : 1000);
-  const p1Img = p1Profile.img || (typeof getProfileImgSrc === 'function' ? getProfileImgSrc() : null);
-  const p2Img = p2Profile.img || (G._selectedAI && typeof getAIProfileImg === 'function' ? getAIProfileImg(G._selectedAI, 'circle') : (G._selectedAI && G._selectedAI.img ? G._selectedAI.img : null));
+  const p1Img = resolveSocialProfileImgSrc(p1Profile.profileImg || p1Profile.photoURL || p1Profile.img) || (typeof getProfileImgSrc === 'function' ? getProfileImgSrc() : null);
+  const p2Img = resolveSocialProfileImgSrc(p2Profile.profileImg || p2Profile.photoURL || p2Profile.img) || (G._selectedAI && typeof getAIProfileImg === 'function' ? getAIProfileImg(G._selectedAI, 'circle') : (G._selectedAI && G._selectedAI.img ? G._selectedAI.img : null));
+  const p1Crop = p1Profile.crop || (window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(Object.assign({}, p1Profile, {profileImg:p1Profile.profileImg || p1Profile.photoURL || p1Profile.img || p1Img})) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;');
+  const p2Crop = p2Profile.crop || (window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(Object.assign({}, p2Profile, {profileImg:p2Profile.profileImg || p2Profile.photoURL || p2Profile.img || p2Img})) : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;');
 
   widget.innerHTML = `
     <div class="ingame-chat-toggle">
-      <span aria-hidden="true">💬</span>
+      <span aria-hidden="true">??</span>
       <span class="ingame-chat-badge" id="ingame-chat-badge" style="display:none;">0</span>
     </div>
     <div class="ingame-chat-panel" id="ingame-chat-panel" style="display:none;">
       <div class="ingame-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.76rem;color:var(--gold);letter-spacing:.06em;">MATCH LOBBY</span>
-        <button class="world-chat-close" onclick="toggleInGameChat()">✕</button>
+        <button class="world-chat-close" onclick="toggleInGameChat()">?</button>
       </div>
       <div class="ingame-chat-matchup">
         <div class="ingame-chat-player-card">
           <div class="ingame-chat-pic p1">
-            ${p1Img ? '<img src="'+p1Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
+            ${p1Img ? '<img src="'+p1Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+p1Crop+'">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
           </div>
           <div class="ingame-chat-name p1">${escapeHtml(p1Name)}</div>
         </div>
         <div class="ingame-chat-versus">VS</div>
         <div class="ingame-chat-player-card">
           <div class="ingame-chat-pic p2">
-            ${p2Img ? '<img src="'+p2Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
+            ${p2Img ? '<img src="'+p2Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+p2Crop+'">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
           </div>
           <div class="ingame-chat-name p2">${escapeHtml(p2Name)}</div>
         </div>
@@ -4042,6 +4178,7 @@ function initInGameChat() {
     toggle.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); toggleInGameChat(); });
     toggle.addEventListener('keydown', e=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleInGameChat(); } });
   }
+  updateInGameChatBadge();
 }
 
 function toggleInGameChat() {
@@ -4094,16 +4231,48 @@ function renderInGameMessages() {
 
 function updateInGameChatBadge() {
   const badge = document.getElementById('ingame-chat-badge');
+  const widget = document.getElementById('ingame-chat-widget');
+  const toggle = widget?.querySelector?.('.ingame-chat-toggle');
+  if(widget) widget.classList.toggle('has-chat-unread', _inGameChatUnread > 0);
+  if(toggle) toggle.classList.toggle('has-chat-unread', _inGameChatUnread > 0);
+  if(toggle){
+    let dot = toggle.querySelector('.ingame-chat-red-dot');
+    if(!dot){
+      dot = document.createElement('span');
+      dot.className = 'ingame-chat-red-dot';
+      dot.setAttribute('aria-hidden', 'true');
+      dot.style.cssText = 'position:absolute;top:4px;right:5px;width:10px;height:10px;border-radius:999px;background:#ff2f3b;border:1px solid rgba(255,240,230,.95);box-shadow:0 0 0 3px rgba(255,47,59,.14),0 0 12px rgba(255,47,59,.65);pointer-events:none;display:none;z-index:5;';
+      toggle.appendChild(dot);
+    }
+    dot.classList.toggle('is-on', _inGameChatUnread > 0);
+    dot.style.display = _inGameChatUnread > 0 ? 'block' : 'none';
+  }
+  try{
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
+      window.FateMatchRendererAdapter.scheduleRender('chat-unread');
+    }
+  }catch(e){}
   if(!badge) return;
   if(_inGameChatUnread > 0) {
     badge.style.display = 'inline-flex';
-    badge.textContent = _inGameChatUnread > 9 ? '9+' : String(_inGameChatUnread);
+    badge.textContent = '';
+    badge.setAttribute('aria-label', _inGameChatUnread > 1 ? `${_inGameChatUnread} unread messages` : 'Unread message');
     badge.classList.add('has-new');
   } else {
     badge.style.display = 'none';
-    badge.textContent = '0';
+    badge.textContent = '';
+    badge.removeAttribute('aria-label');
     badge.classList.remove('has-new');
   }
+}
+
+function fateNotifyInGameChatMessage(message) {
+  if(!message) return;
+  const id = String(message.id || message.seq || message.createdAt || message.timestamp || message.text || '');
+  if(id && _inGameNotifiedMessageIds.has(id)) return;
+  if(id) _inGameNotifiedMessageIds.add(id);
+  _inGameChatUnread += 1;
+  updateInGameChatBadge();
 }
 
 function showInGameChatNotice(message) {
@@ -4133,10 +4302,9 @@ function fateSetOnlineInGameMessages(messages) {
   _inGameMessages = list;
   if(_inGameChatOpen){
     renderInGameMessages();
-  }else if(newestRemote){
-    _inGameChatUnread += 1;
-    updateInGameChatBadge();
-    showInGameChatNotice(newestRemote);
+  }
+  if(newestRemote){
+    fateNotifyInGameChatMessage(newestRemote);
     if(typeof playSfx === 'function') playSfx('menuOpen');
   }
 }
@@ -4165,7 +4333,7 @@ function sendInGameChat() {
   // AI auto-reply if playing vs AI
   if(G.aiEnabled) {
     setTimeout(() => {
-      const aiReplies = ['GG','Nice move!','Hmm...','🤔','Interesting...','👊','Good luck!','😎','Well played'];
+      const aiReplies = ['GG','Nice move!','Hmm...','??','Interesting...','??','Good luck!','??','Well played'];
       _inGameMessages.push({
         from: G.players[G.aiPlayer]?.name || 'AI',
         player: G.aiPlayer,
@@ -4192,16 +4360,41 @@ function removeInGameChat() {
   _inGameMessages = [];
   _inGameChatUnread = 0;
   _inGameKnownMessageIds = new Set();
+  _inGameNotifiedMessageIds = new Set();
 }
 
 window.toggleInGameChat = toggleInGameChat;
 window.sendInGameChat = sendInGameChat;
 window.fateSetOnlineInGameMessages = fateSetOnlineInGameMessages;
+window.fateNotifyInGameChatMessage = fateNotifyInGameChatMessage;
 window.toggleInGameEmoji = toggleInGameEmoji;
 window.initInGameChat = initInGameChat;
 window.removeInGameChat = removeInGameChat;
+window.fateDebugOnlineUi = function fateDebugOnlineUi(){
+  const selected = Number.isInteger(G?.selectedHandCard) ? G.selectedHandCard : null;
+  const local = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : null;
+  const hand = Number.isInteger(local) ? (G?.players?.[local]?.hand || []) : [];
+  return {
+    build:'1782051801',
+    room:G?._onlineRoomCode || '',
+    currentPlayer:G?.currentPlayer,
+    phase:G?.phase,
+    localPlayerIndex:G?.localPlayerIndex,
+    onlinePlayerIndex:G?._onlinePlayerIndex,
+    perspective:local,
+    selectedHandCard:selected,
+    selectedCard:selected != null ? (hand[selected]?.name || hand[selected]?.id || null) : null,
+    handCount:hand.length,
+    chatOpen:_inGameChatOpen,
+    chatUnread:_inGameChatUnread,
+    chatBadgeVisible:document.getElementById('ingame-chat-badge')?.style.display || '',
+    chatButtonHasUnread:!!document.querySelector('#ingame-chat-widget .ingame-chat-toggle.has-chat-unread'),
+    profile0:G?.playerProfiles?.[0] || null,
+    profile1:G?.playerProfiles?.[1] || null
+  };
+};
 
-// ─── NOTIFICATION POPUP SYSTEM (top-left) ───
+// --- NOTIFICATION POPUP SYSTEM (top-left) ---
 let _notifQueue = [];
 let _notifShowing = false;
 
@@ -4356,7 +4549,7 @@ if(typeof document !== 'undefined') {
   });
 }
 
-// ─── MATCH HISTORY ───
+// --- MATCH HISTORY ---
 function getMatchHistory() {
   try { return JSON.parse(localStorage.getItem('fate_match_history') || '[]'); } catch(e){ return []; }
 }
@@ -4409,8 +4602,8 @@ function showMatchHistory(page) {
       const p1Won = m.winner === m.p1;
       const p1NameColor = p1Won ? '#7fffa0' : '#ff6b6b';
       const p2NameColor = !p1Won ? '#7fffa0' : '#ff6b6b';
-      const p1Arrow = m.p1Change > 0 ? '▲' : m.p1Change < 0 ? '▼' : '–';
-      const p2Arrow = m.p2Change > 0 ? '▲' : m.p2Change < 0 ? '▼' : '–';
+      const p1Arrow = m.p1Change > 0 ? '?' : m.p1Change < 0 ? '?' : '�';
+      const p2Arrow = m.p2Change > 0 ? '?' : m.p2Change < 0 ? '?' : '�';
       const p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       const p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
       const p1Img = m.p1Img || null;
@@ -4421,7 +4614,7 @@ function showMatchHistory(page) {
             ${p1Img?`<img src="${p1Img}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:1.1rem;color:var(--dim);">${(m.p1||'?').charAt(0)}</span>`}
           </div>
           <div style="flex:1;min-width:0;">
-            <div style="font-family:Cinzel,serif;font-size:.92rem;color:${p1NameColor};font-weight:${p1Won?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.p1)}${p1Won?' ★':''}</div>
+            <div style="font-family:Cinzel,serif;font-size:.92rem;color:${p1NameColor};font-weight:${p1Won?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.p1)}${p1Won?' ?':''}</div>
             <div style="font-size:.68rem;color:var(--dim);margin-top:.2rem;">${m.p1Elo||'?'} ELO <span style="color:${p1EloColor};font-family:Cinzel,serif;font-weight:700;">${p1Arrow}${Math.abs(m.p1Change||0)}</span></div>
           </div>
         </div>
@@ -4436,7 +4629,7 @@ function showMatchHistory(page) {
             ${p2Img?`<img src="${p2Img}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:1.1rem;color:var(--dim);">${(m.p2||'?').charAt(0)}</span>`}
           </div>
           <div style="flex:1;min-width:0;">
-            <div style="font-family:Cinzel,serif;font-size:.92rem;color:${p2NameColor};font-weight:${!p1Won?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.p2)}${!p1Won?' ★':''}</div>
+            <div style="font-family:Cinzel,serif;font-size:.92rem;color:${p2NameColor};font-weight:${!p1Won?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.p2)}${!p1Won?' ?':''}</div>
             <div style="font-size:.68rem;color:var(--dim);margin-top:.2rem;">${m.p2Elo||'?'} ELO <span style="color:${p2EloColor};font-family:Cinzel,serif;font-weight:700;">${p2Arrow}${Math.abs(m.p2Change||0)}</span></div>
           </div>
         </div>
@@ -4444,16 +4637,16 @@ function showMatchHistory(page) {
     });
     html += '</div>';
     html += `<div style="display:flex;justify-content:center;align-items:center;gap:.8rem;margin-top:.8rem;">
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>◀ Prev</button>
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>? Prev</button>
       <span style="font-family:Cinzel,serif;font-size:.7rem;color:var(--dim);">Page ${_matchHistPage+1} / ${totalPages}</span>
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next ▶</button>
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next ?</button>
     </div>`;
   }
   showModal('Recent Matches', html, [{label:'Close', action:closeModal}]);
 }
 window.showMatchHistory = showMatchHistory;
 
-// ─── DIVISION PAGE ───
+// --- DIVISION PAGE ---
 const DIVISION_DESCRIPTIONS = {
   'Footman': 'New recruits learning the basics of fate and strategy. Every journey begins here.',
   'Captain-Officer': 'Competent strategists who understand zone control and supporter placement.',
@@ -4494,9 +4687,9 @@ function showDivisionPage(page, memberPage) {
       <div style="display:flex;align-items:center;justify-content:center;gap:.4rem;">
         ${rankIconId ? `<img src="rankicons/${rankIconId}.png" style="width:24px;height:24px;object-fit:contain;" onerror="this.style.display='none'">` : `<div style="width:22px;height:22px;">${rank.icon}</div>`}
         <span style="font-family:Cinzel,serif;font-size:1rem;color:${rank.color};font-weight:700;">${rank.name}</span>
-        ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">★ YOU</span>':''}
+        ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">? YOU</span>':''}
       </div>
-      <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO · ${members.length} player${members.length!==1?'s':''}</div>
+      <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO � ${members.length} player${members.length!==1?'s':''}</div>
     </div>
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx+1})" ${_divisionPageIdx>=reversedRanks.length-1?'disabled':''}>Next</button>
   </div>`;
@@ -4528,7 +4721,7 @@ function showDivisionPage(page, memberPage) {
             <span style="font-family:Cinzel,serif;font-size:.9rem;color:${isMe?'var(--gold)':'var(--text)'};font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(entry.username)}${isMe?' <span style="font-size:.55rem;color:var(--gold);">(YOU)</span>':''}</span>
             <span style="font-family:Cinzel,serif;font-size:.6rem;color:${rank.color};background:${rank.bg};padding:.12rem .4rem;border-radius:999px;border:1px solid ${rank.color}40;">${entry.elo} ELO</span>
           </div>
-          <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem;">${entry.wins||0}W / ${entry.losses||0}L${(entry.wins||0)+(entry.losses||0)>0?' · '+Math.round((entry.wins||0)*100/((entry.wins||0)+(entry.losses||0)))+'% WR':''}</div>
+          <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem;">${entry.wins||0}W / ${entry.losses||0}L${(entry.wins||0)+(entry.losses||0)>0?' � '+Math.round((entry.wins||0)*100/((entry.wins||0)+(entry.losses||0)))+'% WR':''}</div>
         </div>
       </div>`;
     } else {
@@ -4563,7 +4756,7 @@ function showDivisionPage(page, memberPage) {
 }
 window.showDivisionPage = showDivisionPage;
 
-// ─── DIVISION REWARDS (first-time achievement) ───
+// --- DIVISION REWARDS (first-time achievement) ---
 function checkDivisionReward(elo) {
   const rank = getRank(elo);
   if(!USER_PROFILE._achievedDivisions) USER_PROFILE._achievedDivisions = [];
@@ -4579,45 +4772,45 @@ function checkDivisionReward(elo) {
 window.checkDivisionReward = checkDivisionReward;
 
 
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  DAILY CHALLENGES
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 const DAILY_CHALLENGE_POOL = [
-  { id:'win_any',       label:'First Victory',         desc:'Win any match.',                          target:1,  key:'wins',       reward:{starlight:25},  icon:'⚔️' },
-  { id:'win_3',         label:'Hat Trick',             desc:'Win 3 matches.',                          target:3,  key:'wins',       reward:{starlight:60}, icon:'🎯' },
-  { id:'win_5',         label:'Warpath',               desc:'Win 5 matches.',                          target:5,  key:'wins',       reward:{starlight:100}, icon:'🗡️' },
-  { id:'place_10',      label:'Field Commander',       desc:'Place 10 cards in one match.',            target:10, key:'cardsPlaced',reward:{starlight:30},  icon:'🃏' },
-  { id:'place_20',      label:'Full Deployment',       desc:'Place 20 cards total.',                   target:20, key:'cardsPlaced',reward:{starlight:45},  icon:'📋' },
-  { id:'consolidate_1', label:'Power Play',            desc:'Consolidate once.',                       target:1,  key:'consolidations',reward:{starlight:20},icon:'⚡' },
-  { id:'consolidate_3', label:'Chain Reaction',        desc:'Consolidate 3 times.',                    target:3,  key:'consolidations',reward:{starlight:50},icon:'🔗' },
-  { id:'zone_sweep',    label:'Domination',            desc:'Win all 3 zones in one match.',           target:3,  key:'zonesWon',   reward:{starlight:75}, icon:'🏆' },
-  { id:'use_effect_1',  label:'Spark',                 desc:'Activate a card effect.',                 target:1,  key:'effects',    reward:{starlight:15},  icon:'✨' },
-  { id:'use_effect_5',  label:'Tactician',             desc:'Activate 5 effects.',                     target:5,  key:'effects',    reward:{starlight:40},  icon:'🔮' },
-  { id:'use_effect_10', label:'Mastermind',            desc:'Activate 10 effects.',                    target:10, key:'effects',    reward:{starlight:70}, icon:'🧠' },
-  { id:'play_match',    label:'Ready for Duty',        desc:'Complete a match.',                       target:1,  key:'matches',    reward:{starlight:15},  icon:'🎮' },
-  { id:'play_3',        label:'Marathon',              desc:'Complete 3 matches.',                     target:3,  key:'matches',    reward:{starlight:35},  icon:'🏃' },
-  { id:'play_5',        label:'Iron Will',             desc:'Complete 5 matches.',                     target:5,  key:'matches',    reward:{starlight:55}, icon:'💎' },
-  { id:'supporter_5',   label:'Supply Line',           desc:'Place 5 supporters.',                     target:5,  key:'supporters', reward:{starlight:25},  icon:'🛡️' },
-  { id:'supporter_10',  label:'Army Builder',          desc:'Place 10 supporters.',                    target:10, key:'supporters', reward:{starlight:45},  icon:'🏰' },
-  { id:'char_3',        label:'Summon the Heroes',     desc:'Place 3 characters.',                     target:3,  key:'characters', reward:{starlight:35},  icon:'👑' },
-  { id:'char_5',        label:'Council of War',        desc:'Place 5 characters.',                     target:5,  key:'characters', reward:{starlight:55}, icon:'⭐' },
-  { id:'star_place',    label:'Star Power',            desc:'Place a star-rarity card.',                target:1,  key:'starPlaced', reward:{starlight:40},  icon:'🌟' },
-  { id:'square_place',  label:'Rare Find',             desc:'Place 2 square-rarity cards.',             target:2,  key:'squarePlaced',reward:{starlight:30}, icon:'🟪' },
-  { id:'open_pack',     label:'Collector',             desc:'Open a booster pack.',                     target:1,  key:'packsOpened',reward:{starlight:20},  icon:'🎁' },
-  { id:'open_3_packs',  label:'Unboxing Spree',        desc:'Open 3 booster packs.',                   target:3,  key:'packsOpened',reward:{starlight:50}, icon:'📦' },
-  { id:'zone_control_2',label:'Strategist',            desc:'Control 2 zones at once.',                 target:2,  key:'zonesControlled',reward:{starlight:30},icon:'🗺️' },
-  { id:'first_blood',   label:'First Blood',           desc:'Win the first zone scored.',               target:1,  key:'firstZone',  reward:{starlight:22},  icon:'🩸' },
-  { id:'play_eventide', label:'Eventide Rising',       desc:'Place 3 Eventide cards.',                  target:3,  key:'affEventide',reward:{starlight:27},  icon:'🌙' },
-  { id:'play_war',      label:'To Arms!',              desc:'Place 3 Third Great War cards.',            target:3,  key:'affWar',     reward:{starlight:27},  icon:'⚔️' },
-  { id:'play_expanded', label:'New Horizons',          desc:'Place 3 Expanded Worlds cards.',            target:3,  key:'affExpanded',reward:{starlight:27},  icon:'🌍' },
-  { id:'play_reality',  label:'Face the Truth',        desc:'Place 3 Reality cards.',                    target:3,  key:'affReality', reward:{starlight:27},  icon:'👁️' },
-  { id:'earn_xp',       label:'Growth Spurt',          desc:'Earn 50 XP.',                              target:50, key:'xpEarned',   reward:{starlight:30},  icon:'📈' },
-  { id:'earn_100xp',    label:'Level Grind',           desc:'Earn 100 XP.',                             target:100,key:'xpEarned',   reward:{starlight:55}, icon:'📊' },
-  { id:'earn_starlight',label:'Shining Bright',        desc:'Earn 100 Starlight total.',                 target:100,key:'starlightEarned',reward:{starlight:25},icon:'💰' },
-  { id:'deck_build',    label:'Architect',             desc:'Save a deck in the deck builder.',          target:1,  key:'decksSaved', reward:{starlight:20},  icon:'🔧' },
-  { id:'close_zone',    label:'Nail Biter',            desc:'Win a zone by 2 or fewer fate.',            target:1,  key:'closeZone',  reward:{starlight:35},  icon:'😰' },
-  { id:'win_fast',      label:'Blitz',                 desc:'Win a match in 6 turns or fewer.',          target:1,  key:'fastWin',    reward:{starlight:60}, icon:'⏱️' },
-  { id:'play_variety',  label:'Diverse Arsenal',       desc:'Place cards from 3 different affiliations.', target:3, key:'affVariety', reward:{starlight:32},  icon:'🎨' },
+  { id:'win_any',       label:'First Victory',         desc:'Win any match.',                          target:1,  key:'wins',       reward:{starlight:25},  icon:'??' },
+  { id:'win_3',         label:'Hat Trick',             desc:'Win 3 matches.',                          target:3,  key:'wins',       reward:{starlight:60}, icon:'??' },
+  { id:'win_5',         label:'Warpath',               desc:'Win 5 matches.',                          target:5,  key:'wins',       reward:{starlight:100}, icon:'???' },
+  { id:'place_10',      label:'Field Commander',       desc:'Place 10 cards in one match.',            target:10, key:'cardsPlaced',reward:{starlight:30},  icon:'??' },
+  { id:'place_20',      label:'Full Deployment',       desc:'Place 20 cards total.',                   target:20, key:'cardsPlaced',reward:{starlight:45},  icon:'??' },
+  { id:'consolidate_1', label:'Power Play',            desc:'Consolidate once.',                       target:1,  key:'consolidations',reward:{starlight:20},icon:'?' },
+  { id:'consolidate_3', label:'Chain Reaction',        desc:'Consolidate 3 times.',                    target:3,  key:'consolidations',reward:{starlight:50},icon:'??' },
+  { id:'zone_sweep',    label:'Domination',            desc:'Win all 3 zones in one match.',           target:3,  key:'zonesWon',   reward:{starlight:75}, icon:'??' },
+  { id:'use_effect_1',  label:'Spark',                 desc:'Activate a card effect.',                 target:1,  key:'effects',    reward:{starlight:15},  icon:'?' },
+  { id:'use_effect_5',  label:'Tactician',             desc:'Activate 5 effects.',                     target:5,  key:'effects',    reward:{starlight:40},  icon:'??' },
+  { id:'use_effect_10', label:'Mastermind',            desc:'Activate 10 effects.',                    target:10, key:'effects',    reward:{starlight:70}, icon:'??' },
+  { id:'play_match',    label:'Ready for Duty',        desc:'Complete a match.',                       target:1,  key:'matches',    reward:{starlight:15},  icon:'??' },
+  { id:'play_3',        label:'Marathon',              desc:'Complete 3 matches.',                     target:3,  key:'matches',    reward:{starlight:35},  icon:'??' },
+  { id:'play_5',        label:'Iron Will',             desc:'Complete 5 matches.',                     target:5,  key:'matches',    reward:{starlight:55}, icon:'??' },
+  { id:'supporter_5',   label:'Supply Line',           desc:'Place 5 supporters.',                     target:5,  key:'supporters', reward:{starlight:25},  icon:'???' },
+  { id:'supporter_10',  label:'Army Builder',          desc:'Place 10 supporters.',                    target:10, key:'supporters', reward:{starlight:45},  icon:'??' },
+  { id:'char_3',        label:'Summon the Heroes',     desc:'Place 3 characters.',                     target:3,  key:'characters', reward:{starlight:35},  icon:'??' },
+  { id:'char_5',        label:'Council of War',        desc:'Place 5 characters.',                     target:5,  key:'characters', reward:{starlight:55}, icon:'?' },
+  { id:'star_place',    label:'Star Power',            desc:'Place a star-rarity card.',                target:1,  key:'starPlaced', reward:{starlight:40},  icon:'??' },
+  { id:'square_place',  label:'Rare Find',             desc:'Place 2 square-rarity cards.',             target:2,  key:'squarePlaced',reward:{starlight:30}, icon:'??' },
+  { id:'open_pack',     label:'Collector',             desc:'Open a booster pack.',                     target:1,  key:'packsOpened',reward:{starlight:20},  icon:'??' },
+  { id:'open_3_packs',  label:'Unboxing Spree',        desc:'Open 3 booster packs.',                   target:3,  key:'packsOpened',reward:{starlight:50}, icon:'??' },
+  { id:'zone_control_2',label:'Strategist',            desc:'Control 2 zones at once.',                 target:2,  key:'zonesControlled',reward:{starlight:30},icon:'???' },
+  { id:'first_blood',   label:'First Blood',           desc:'Win the first zone scored.',               target:1,  key:'firstZone',  reward:{starlight:22},  icon:'??' },
+  { id:'play_eventide', label:'Eventide Rising',       desc:'Place 3 Eventide cards.',                  target:3,  key:'affEventide',reward:{starlight:27},  icon:'??' },
+  { id:'play_war',      label:'To Arms!',              desc:'Place 3 Third Great War cards.',            target:3,  key:'affWar',     reward:{starlight:27},  icon:'??' },
+  { id:'play_expanded', label:'New Horizons',          desc:'Place 3 Expanded Worlds cards.',            target:3,  key:'affExpanded',reward:{starlight:27},  icon:'??' },
+  { id:'play_reality',  label:'Face the Truth',        desc:'Place 3 Reality cards.',                    target:3,  key:'affReality', reward:{starlight:27},  icon:'???' },
+  { id:'earn_xp',       label:'Growth Spurt',          desc:'Earn 50 XP.',                              target:50, key:'xpEarned',   reward:{starlight:30},  icon:'??' },
+  { id:'earn_100xp',    label:'Level Grind',           desc:'Earn 100 XP.',                             target:100,key:'xpEarned',   reward:{starlight:55}, icon:'??' },
+  { id:'earn_starlight',label:'Shining Bright',        desc:'Earn 100 Starlight total.',                 target:100,key:'starlightEarned',reward:{starlight:25},icon:'??' },
+  { id:'deck_build',    label:'Architect',             desc:'Save a deck in the deck builder.',          target:1,  key:'decksSaved', reward:{starlight:20},  icon:'??' },
+  { id:'close_zone',    label:'Nail Biter',            desc:'Win a zone by 2 or fewer fate.',            target:1,  key:'closeZone',  reward:{starlight:35},  icon:'??' },
+  { id:'win_fast',      label:'Blitz',                 desc:'Win a match in 6 turns or fewer.',          target:1,  key:'fastWin',    reward:{starlight:60}, icon:'??' },
+  { id:'play_variety',  label:'Diverse Arsenal',       desc:'Place cards from 3 different affiliations.', target:3, key:'affVariety', reward:{starlight:32},  icon:'??' },
 ];
 
 function getDailyChallengeDate() {
@@ -4707,9 +4900,9 @@ function renderDailyChallengesPanel() {
       + '<div class="dc-item-center">'
       + '<div class="dc-item-label">' + def.label + '</div>'
       + '<div class="dc-item-desc">' + def.desc + '</div>'
-      + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + pct + '%"></div><span class="dc-bar-text">' + (done ? '✓ Complete' : cur + '/' + def.target) + '</span></div>'
+      + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + pct + '%"></div><span class="dc-bar-text">' + (done ? '? Complete' : cur + '/' + def.target) + '</span></div>'
       + '</div>'
-      + '<div class="dc-reward-badge">+' + def.reward.starlight + ' ★</div>'
+      + '<div class="dc-reward-badge">+' + def.reward.starlight + ' ?</div>'
       + '</div>';
   });
   html += '</div>';
@@ -4721,6 +4914,6 @@ window.updateDailyChallengeProgress = updateDailyChallengeProgress;
 window.renderDailyChallengesPanel = renderDailyChallengesPanel;
 
 
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  MATCH SUMMARY
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------

@@ -391,7 +391,21 @@ function showPreGameMatchup(vsAI, onContinue) {
   const op0 = onlineMatch ? (G.playerProfiles[0] || {}) : null;
   const op1 = onlineMatch ? (G.playerProfiles[1] || {}) : null;
   const safeOnlineName = p => (p && (p.name || p.chosenUsername || p.displayName || p.username || p.baseCode)) || 'Player';
-  const safeOnlinePic = p => (p && (p.img || p.photoURL || p.profileImg)) || 'blank.png';
+  const safeOnlinePic = p => {
+    const raw = p && (p.profileImg || p.photoURL || p.img || p.pfp);
+    if(typeof resolveProfileImgSrc === 'function'){
+      const resolved = resolveProfileImgSrc(raw, 'square') || resolveProfileImgSrc(raw, 'circle');
+      if(resolved) return resolved;
+    }
+    if(typeof raw === 'string' && raw.trim() && raw.trim() !== '[object Object]') return raw;
+    if(raw && typeof raw === 'object'){
+      if(raw.dataUrl) return raw.dataUrl;
+      if(raw.src) return raw.src;
+      if(raw.cardImg) return raw.cardImg;
+      if(raw.pfpId) return `pfp/pfp${Math.max(1, parseInt(raw.pfpId, 10) || 1)}.png`;
+    }
+    return 'blank.png';
+  };
   const safeOnlineLevel = p => Number(p && p.level || 1) || 1;
   const safeOnlineElo = p => Number(p && p.elo || p.challengerElo || 600) || 600;
   const displayP1Pic = onlineMatch ? safeOnlinePic(op0) : p1Pic;
@@ -1017,11 +1031,11 @@ function buildDefaultDecks() {
     const sup = activeCards.filter(c=>c.type==='Supporter');
     const chr = activeCards.filter(c=>c.type!=='Supporter');
     for(const c of sup){
-      const lim=c.rarity==='star'?1:c.rarity==='square'?2:3;
+      const lim=c.rarity==='star'?1:3;
       for(let i=0;i<lim && deck.length<28;i++) deck.push(c.id);
     }
     for(const c of chr){
-      const lim=c.rarity==='star'?1:c.rarity==='square'?2:3;
+      const lim=c.rarity==='star'?1:3;
       for(let i=0;i<lim && deck.length<40;i++) deck.push(c.id);
       if(deck.length>=40) break;
     }
@@ -1188,10 +1202,10 @@ async function drawCard(player, count=1, options = {}) {
       else G.erbsActive = false;
     }
     playSfx('draw');
-    // Animate only local draws; opponent draws update hand state without a face-down flight.
+    // Animate every visible draw through the same v2 path; the hand UI still controls hidden state.
     if(document.getElementById('s-game')?.classList.contains('active')){
       let v2DrawQueued = false;
-      if(player === myP && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
+      if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
         v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(i, player, {
           card,
           faceDown:false,
@@ -1500,7 +1514,7 @@ function doCoinFlip() {
         G._coinWinner = heads ? 0 : 1;
         const winner = G.players[G._coinWinner]?.name || `Player ${G._coinWinner + 1}`;
         result.textContent = `${heads ? 'Heads' : 'Tails'}. ${winner} wins the flip!`;
-        if(G._coinWinner === G._onlinePlayerIndex){
+        if(Number(G._coinWinner) === Number(G._onlinePlayerIndex)){
           winnerText.textContent = `${winner}, choose your turn order:`;
           btns.style.display = 'block';
         }else{

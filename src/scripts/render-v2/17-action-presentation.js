@@ -634,14 +634,15 @@
       const moveMs = n <= 1 ? 880 : 760;
       const gap = n <= 1 ? 0 : 390;
       const revealAt = n <= 1
-        ? firstStart + 294 + (moveMs - 180) - 42
+        ? firstStart + 120
         : firstStart + Math.max(0, n - 1) * gap + moveMs - 24;
-      return revealAt + (n > 1 ? 760 : 580);
+      return revealAt + (n > 1 ? 760 : 590);
     }
     if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
       if(String(p.placementStyle || '') === 'local-square') {
         const visibleMs = Math.max(360, Math.min(520, Number(p.duration) || 380));
-        return visibleMs + 92;
+        const handoffMs = Math.max(0, Math.min(180, Number(p.handoffHoldMs) || 0));
+        return visibleMs + Math.max(92, handoffMs + 28);
       }
       const visibleMs = Math.max(560, Math.min(760, Number(p.duration) || 560));
       return visibleMs + 54;
@@ -652,7 +653,7 @@
       const count = Math.max(1, Number(p.drawCount || p.count || 1) || 1);
       return 700 + Math.min(5, count - 1) * 84;
     }
-    if(type === 'SEARCH_TO_HAND') return 940;
+    if(type === 'SEARCH_TO_HAND') return 1100;
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS' || type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
     if(type === 'DESTROY_CARD') return 520;
@@ -695,6 +696,7 @@
         toRect:targetRect,
         targetRect,
         duration:localDuration,
+        handoffHoldMs:140,
         placementStyle:'local-square',
         suppressMotionAudio:true
       };
@@ -703,14 +705,12 @@
         recipe:'PLAY_CARD',
         payload,
         duration,
-        commitDelayMs:Math.max(150, localDuration - 54),
+        commitDelayMs:Math.max(220, localDuration + 34),
         visibleMs:duration,
         motionMode:SET_CARD_MOTION_MODE
       };
     }
-    const fromRect = opponentSource
-      ? (topScreenSetOrigin(targetRect) || opts.fromRect)
-      : (opts.fromRect || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null));
+    const fromRect = opts.fromRect || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null);
     const resolvedFromRect = fromRect || sourceRectForBoardPlacement(Object.assign({source:'hand'}, opts), targetRect);
     if(!targetRect || !resolvedFromRect) {
       if(opts) {
@@ -730,12 +730,12 @@
       targetRect,
       duration:travel,
       handoffHoldMs,
-      arc:opponentSource ? .10 : .28,
-      lift:opponentSource ? .12 : .30,
+      arc:.28,
+      lift:.30,
       suppressMotionAudio:true,
-      sideArc:opponentSource ? 0 : ((opts.inst && opts.inst.owner === 1) ? -.42 : .42),
-      rotate:opponentSource ? -4.5 : ((opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0),
-      bank:opponentSource ? -2.2 : ((opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0)
+      sideArc:(opts.inst && opts.inst.owner === 1) ? -.42 : .42,
+      rotate:(opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0,
+      bank:(opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0
     };
     const visibleMs = Math.max(560, Math.min(760, travel));
     const totalVisibleMs = visibleMs + handoffHoldMs;
@@ -1037,7 +1037,7 @@
           tx.presentMs = round(duration);
           suppressInitialPlacement(opts.inst && opts.inst.iid, duration + 160);
           const commitDelay = Math.max(0, Math.min(duration, Number(motion.commitDelayMs == null ? duration : motion.commitDelayMs) || duration));
-          if(motion.recipe !== 'PLAY_CARD') hidePlacedCardDuringPresentation(opts.inst && opts.inst.iid, Math.max(duration, Number(motion.visibleMs) || 0) + 24);
+          if(motion.recipe !== 'PLAY_CARD') hidePlacedCardDuringPresentation(opts.inst && opts.inst.iid, Math.max(duration, Number(motion.visibleMs) || 0) + 80);
           scheduleCommit(tx, function(innerTx){
             try { if(opts.sourceCard) delete opts.sourceCard._presentationDeparting; } catch(e) {}
             commit(innerTx);
@@ -1151,17 +1151,17 @@
         tx.presentMs = round(delay);
         const adapter = window.FateMatchRendererAdapter;
         if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
-          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay - 90));
+          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay + 80));
         }
         if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
-          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay - 90));
+          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay + 48));
         }
       } else {
         tx.degraded = true;
         tx.degradedReason = payload ? 'texture-preflight-timeout' : 'motion-rect-unavailable';
         pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
       }
-      const commitDelay = delay > 160 ? delay - 140 : delay;
+      const commitDelay = delay > 160 ? delay - 34 : delay;
       scheduleCommit(tx, function(innerTx){
         opts.commit(innerTx, delay);
       }, commitDelay, delay + 34);

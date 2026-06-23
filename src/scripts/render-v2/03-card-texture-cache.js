@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateCardTextureCache) return;
 
-  const CACHE_VERSION = 2;
+  const CACHE_VERSION = 3;
   const artRecords = new Map();
   const baseRecords = new Map();
   const stats = {
@@ -29,7 +29,7 @@
   };
   const defaults = {
     maxEntries:160,
-    maxPixels:48000000,
+    maxPixels:72000000,
     fallbackDelayMs:850
   };
 
@@ -258,6 +258,8 @@
 
   function dprBucket(value){
     const dpr = Number(value || window.devicePixelRatio || 1);
+    if(dpr >= 2.4) return '2.5x';
+    if(dpr >= 2.2) return '2.25x';
     if(dpr >= 2) return '2x';
     if(dpr >= 1.5) return '1.5x';
     return '1x';
@@ -327,6 +329,10 @@
   }
 
   function drawImageCover(ctx, img, x, y, w, h){
+    try {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    } catch(e) {}
     const iw = img.naturalWidth || img.width || 1;
     const ih = img.naturalHeight || img.height || 1;
     const scale = Math.max(w / iw, h / ih);
@@ -511,13 +517,19 @@
 
   function preloadVisible(snapshot, layout){
     const items = collectVisibleCards(snapshot, layout);
+    const boardDpr = Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1)));
     let requested = 0;
     items.forEach(function(item){
       const visual = item.card && item.card.visual;
       const src = cardTextureSrc(item.card, {visual});
       if(!src) return;
       preload(src, {source:item.source || 'visible'});
-      if(item.rect) getBaseCardTexture(item.card, {w:item.rect.w, h:item.rect.h}, {visual, source:item.source || 'visible'});
+      if(item.rect) getBaseCardTexture(item.card, {w:item.rect.w, h:item.rect.h}, {
+        visual,
+        source:item.source || 'visible',
+        preferFullArt:true,
+        dpr:item.source === 'board' ? boardDpr : undefined
+      });
       requested++;
     });
     return {requested, items:items.length, report:report()};

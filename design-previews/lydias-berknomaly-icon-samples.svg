@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#182132"/>
+      <stop offset="1" stop-color="#06080e"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#141b29"/>
+      <stop offset="1" stop-color="#070a10"/>
+    </linearGradient>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <style>
+      .title{font-family:Georgia,serif;font-size:34px;font-weight:700;letter-spacing:5px;fill:#f3dc8a}
+      .sub{font-family:Arial,sans-serif;font-size:15px;letter-spacing:2px;fill:#9fafc6}
+      .label{font-family:Georgia,serif;font-size:18px;font-weight:700;fill:#f5eab5}
+      .note{font-family:Arial,sans-serif;font-size:13px;fill:#8fa1b9}
+      .tile{fill:url(#card);stroke:#d8b64a;stroke-opacity:.32;stroke-width:1.5}
+      .ring{fill:#07101c;stroke:#e5c34f;stroke-width:2.4}
+      .inner{fill:#0b1320;stroke:rgba(255,255,255,.18);stroke-width:1}
+      .num{font-family:Georgia,serif;font-size:21px;font-weight:700;fill:#f9e89c}
+      .thin{fill:none;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect width="1280" height="620" fill="url(#bg)"/>
+  <path d="M0 84H1280" stroke="#d8b64a" stroke-opacity=".35"/>
+  <text class="title" x="640" y="48" text-anchor="middle">LYDIA'S BERKNOMALY</text>
+  <text class="sub" x="640" y="72" text-anchor="middle">ABSTRACT STATUS ICON SAMPLES</text>
+
+  <!-- 1 -->
+  <g transform="translate(64 114)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path class="thin" d="M70 95C82 64 117 53 137 74C150 88 143 111 121 120C96 130 72 119 70 95Z" stroke="#7ed7ff" stroke-width="8" filter="url(#softGlow)"/>
+    <path class="thin" d="M92 61L112 118M130 70L78 111" stroke="#f4d663" stroke-width="5"/>
+    <circle cx="102" cy="89" r="8" fill="#fff6bd"/>
+    <text class="num" x="18" y="31">1</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Folded Orbit</text>
+    <text class="note" x="102" y="189" text-anchor="middle">looped anomaly mark</text>
+  </g>
+
+  <!-- 2 -->
+  <g transform="translate(308 114)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M102 45L142 112H62Z" fill="#111927" stroke="#ffc857" stroke-width="6"/>
+    <path d="M102 64L123 101H81Z" fill="#69d2e7"/>
+    <path class="thin" d="M74 49L131 128M132 50L74 128" stroke="#ff6b9d" stroke-width="4"/>
+    <circle cx="102" cy="89" r="5" fill="#fff6bd"/>
+    <text class="num" x="18" y="31">2</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Impossible Delta</text>
+    <text class="note" x="102" y="189" text-anchor="middle">sharp and arcane</text>
+  </g>
+
+  <!-- 3 -->
+  <g transform="translate(552 114)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M102 40C130 60 136 97 114 127C86 117 68 91 72 62C82 70 94 63 102 40Z" fill="#88f0a8" opacity=".92"/>
+    <path d="M103 42C77 63 70 101 92 128C120 116 136 89 132 62C122 71 111 64 103 42Z" fill="#5aa8ff" opacity=".78"/>
+    <path class="thin" d="M102 51V127M75 88H130" stroke="#0a1320" stroke-width="6"/>
+    <text class="num" x="18" y="31">3</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Split Lantern</text>
+    <text class="note" x="102" y="189" text-anchor="middle">bright twin halves</text>
+  </g>
+
+  <!-- 4 -->
+  <g transform="translate(796 114)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path class="thin" d="M66 83C75 50 115 43 137 70C152 90 140 123 110 130" stroke="#f07ac4" stroke-width="8" filter="url(#softGlow)"/>
+    <path class="thin" d="M138 95C126 127 85 132 66 102C53 82 68 55 96 50" stroke="#81f4ff" stroke-width="8" filter="url(#softGlow)"/>
+    <circle cx="102" cy="89" r="15" fill="#101825" stroke="#ffe28a" stroke-width="5"/>
+    <path class="thin" d="M102 62V116M75 89H129" stroke="#ffe28a" stroke-width="4"/>
+    <text class="num" x="18" y="31">4</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Broken Halo</text>
+    <text class="note" x="102" y="189" text-anchor="middle">clean chaos symbol</text>
+  </g>
+
+  <!-- 5 -->
+  <g transform="translate(1040 114)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M102 43L119 74L154 79L129 104L135 139L102 122L69 139L75 104L50 79L85 74Z" fill="#ffcf5d"/>
+    <path d="M102 58L114 82L141 86L121 104L126 130L102 116L78 130L83 104L63 86L90 82Z" fill="#0d1421"/>
+    <path class="thin" d="M77 68L127 119M128 68L77 119" stroke="#6be6ff" stroke-width="5"/>
+    <text class="num" x="18" y="31">5</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Star Collapse</text>
+    <text class="note" x="102" y="189" text-anchor="middle">bold at tiny scale</text>
+  </g>
+
+  <!-- 6 -->
+  <g transform="translate(64 360)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path class="thin" d="M68 124C67 75 92 48 134 55" stroke="#b692ff" stroke-width="10" filter="url(#softGlow)"/>
+    <path class="thin" d="M136 54C137 103 112 130 70 123" stroke="#ffd46b" stroke-width="10" filter="url(#softGlow)"/>
+    <path class="thin" d="M80 73L126 119M126 73L80 119" stroke="#101724" stroke-width="6"/>
+    <circle cx="103" cy="96" r="6" fill="#fff2a8"/>
+    <text class="num" x="18" y="31">6</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Turnstile Rune</text>
+    <text class="note" x="102" y="189" text-anchor="middle">mysterious movement</text>
+  </g>
+
+  <!-- 7 -->
+  <g transform="translate(308 360)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M59 88C75 48 130 43 146 88C131 132 75 132 59 88Z" fill="#0e1826" stroke="#76f7c8" stroke-width="6"/>
+    <path d="M77 88C88 65 116 64 128 88C116 111 88 111 77 88Z" fill="#76f7c8"/>
+    <path class="thin" d="M61 88H143M102 50V126" stroke="#ff6b9d" stroke-width="5"/>
+    <circle cx="102" cy="88" r="9" fill="#fff4ad"/>
+    <text class="num" x="18" y="31">7</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Zero Eye</text>
+    <text class="note" x="102" y="189" text-anchor="middle">watchful anomaly</text>
+  </g>
+
+  <!-- 8 -->
+  <g transform="translate(552 360)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M102 43L143 68V110L102 135L61 110V68Z" fill="#111927" stroke="#7cc8ff" stroke-width="6"/>
+    <path d="M102 58L128 74V104L102 120L76 104V74Z" fill="#ef6f9e"/>
+    <path class="thin" d="M76 74L128 104M128 74L76 104M102 58V120" stroke="#ffe28a" stroke-width="4"/>
+    <text class="num" x="18" y="31">8</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Hex Bloom</text>
+    <text class="note" x="102" y="189" text-anchor="middle">crystal-like logo</text>
+  </g>
+
+  <!-- 9 -->
+  <g transform="translate(796 360)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path class="thin" d="M67 118C78 78 111 58 144 55" stroke="#ffe075" stroke-width="9"/>
+    <path class="thin" d="M61 95C96 121 127 120 148 81" stroke="#8ef4ff" stroke-width="9"/>
+    <path class="thin" d="M75 62C84 103 112 128 140 126" stroke="#ff7aa8" stroke-width="7"/>
+    <circle cx="102" cy="89" r="13" fill="#07101c" stroke="#fff5bf" stroke-width="5"/>
+    <text class="num" x="18" y="31">9</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Threefold Drift</text>
+    <text class="note" x="102" y="189" text-anchor="middle">soft abstract motion</text>
+  </g>
+
+  <!-- 10 -->
+  <g transform="translate(1040 360)" filter="url(#shadow)">
+    <rect class="tile" width="204" height="204" rx="12"/>
+    <circle class="ring" cx="102" cy="89" r="58"/>
+    <circle class="inner" cx="102" cy="89" r="45"/>
+    <path d="M72 56H132L151 89L132 122H72L53 89Z" fill="#111927" stroke="#f6d365" stroke-width="6"/>
+    <path d="M84 69H120L134 89L120 109H84L70 89Z" fill="#61e5ff"/>
+    <path class="thin" d="M65 89H139M102 55V123M77 65L127 113M127 65L77 113" stroke="#08101a" stroke-width="5"/>
+    <circle cx="102" cy="89" r="6" fill="#fff4b6"/>
+    <text class="num" x="18" y="31">10</text>
+    <text class="label" x="102" y="170" text-anchor="middle">Prism Gate</text>
+    <text class="note" x="102" y="189" text-anchor="middle">stable and emblematic</text>
+  </g>
+</svg>

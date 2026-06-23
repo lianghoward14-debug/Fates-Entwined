@@ -181,6 +181,7 @@
       ];
       const groups = [
         {items:Array.isArray(hitMap.uiCommands) ? hitMap.uiCommands : [], kind:'ui-command'},
+        {items:Array.isArray(hitMap.handEffectIcons) ? hitMap.handEffectIcons : [], kind:'hand-effect-icon'},
         {items:Array.isArray(hitMap.handCards) ? hitMap.handCards : [], kind:'hand-card'},
         {items:Array.isArray(hitMap.opponentHandCards) ? hitMap.opponentHandCards : [], kind:'opponent-hand-card'},
         {items:Array.isArray(hitMap.piles) ? hitMap.piles : [], kind:'pile'}
@@ -306,7 +307,7 @@
         return;
       }
       const hit = this.viewportHitTest(ev.clientX, ev.clientY);
-      scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'pile') ? hit : null);
+        scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'pile') ? hit : null);
     }
 
     handlePointerMove(ev){
@@ -415,15 +416,13 @@
           const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
           const card = G.players[cp] && G.players[cp].hand ? G.players[cp].hand[Number(hit.index)] : null;
           if(!card || G._isSpectator) return;
-          const canActFromHand = cp === G.currentPlayer;
+          const canActFromHand = Number(cp) === Number(G.currentPlayer);
           let selectable = false;
           try {
             selectable = canActFromHand && ((typeof canPlayCard === 'function' && canPlayCard(card)) || (typeof isSupporterLimitReachedForCard === 'function' && isSupporterLimitReachedForCard(card)));
           } catch(e) {}
-          if(selectable) {
-            G.selectedHandCard = Number(hit.index);
-            G.placing = false;
-          }
+          G.selectedHandCard = Number(hit.index);
+          G.placing = false;
           if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
         } else if(hit.kind === 'opponent-hand-card') {
           const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (Number(G.currentPlayer) || 0);
