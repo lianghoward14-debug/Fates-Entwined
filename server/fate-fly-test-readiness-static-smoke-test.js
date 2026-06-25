@@ -39,7 +39,7 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /18-online-rooms\.js\?v=1782060301/, 'index must cache-bust the online rooms script for test helpers');
+assert.match(indexText, /18-online-rooms\.js\?v=1782060401/, 'index must cache-bust the online rooms script for test helpers');
 assert.match(indexText, /04-game-setup\.js\?v=1782060101/, 'index must cache-bust the match setup script for preload gate changes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
 assert.match(read('src/scripts/04-game-setup.js'), /function startOnlineServerBootstrappedGame\(options\)[\s\S]*showScreen\('s-game'\)[\s\S]*window\.startOnlineServerBootstrappedGame/, 'online server bootstrap must enter the game without the coin screen');
@@ -51,6 +51,11 @@ assert.match(roomsText, /function maybeStartRoomGame\(room, reason\)[\s\S]*shoul
 assert.match(roomsText, /function handleLobbyMatchStartAccepted\(accepted\)[\s\S]*MATCH_START[\s\S]*maybeStartRoomGame\(nextRoom, 'websocket-match-start'\)/, 'accepted MATCH_START must hand off lobby clients through the guarded match entry path');
 assert.doesNotMatch(roomsText, /if\(isStartedRoomStatus\(room\.status\)\)\s*startRoomGame\(room\)/, 'Fly room watchers must not directly enter started rooms');
 assert.doesNotMatch(roomsText, /room\.status==='matchup'[\s\S]{0,160}startRoomGame\(room\)/, 'RTDB room watchers must not directly enter started rooms');
+assert.match(roomsText, /function publishOnlineMatchPlayable\(\)[\s\S]*playableReady:true[\s\S]*\/preload/, 'clients must publish playable readiness after in-game bootstrap');
+assert.match(roomsText, /function waitForOnlineMatchPlayable\(options\)[\s\S]*playableReadySnapshot[\s\S]*both-playable/, 'clients must wait for both playable readiness signals');
+assert.match(roomsText, /canSendLocalAction\(g, type\)[\s\S]*_onlineMatchPlayable === false[\s\S]*Waiting for both players to finish loading/, 'local actions must be blocked while the peer is still loading into the match');
+assert.match(roomsText, /window\.placeSelected = function\(\)[\s\S]*canSendLocalAction\(g, 'PLACE_CARD'\)[\s\S]*configuredAuthorityUrl\(\) && !firebaseActionFallbackAllowed\(\)[\s\S]*originals\.placeSelected/, 'strict online placement arming must stay local until the board click sends PLACE_CARD');
+assert.match(authorityText, /playableReady:!!preload\.playableReady[\s\S]*playableServerAt/, 'Fly room public player state must expose playable readiness');
 assert.match(roomsText, /if\(handleLobbyMatchStartAccepted\(accepted\)\) return;[\s\S]*bufferOnlineAction\(bufferedAction\)/, 'lobby MATCH_START must not be swallowed by in-match replay buffering');
 assert.match(read('src/scripts/render-v2/04-match-renderer-adapter.js'), /chat-unread[\s\S]*DIRTY_UI/, 'render-v2 chat notification must use UI-only dirty work');
 assert.match(roomsText, /function applyAuthoritativePostState[\s\S]*applyOnlineCanonicalState[\s\S]*isStrictCompactAuthorityAction\(type\)[\s\S]*applyAuthoritativePostState/, 'strict Fly accepted actions must apply server canonical postState directly');

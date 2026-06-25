@@ -877,6 +877,9 @@ function publicPlayer(player){
       ms:Number(preload.ms || 0) || 0,
       texturePending:Number(preload.texturePending || 0) || 0,
       textureFailed:Number(preload.textureFailed || 0) || 0,
+      playableReady:!!preload.playableReady,
+      playableClientAt:Number(preload.playableClientAt || 0) || 0,
+      playableServerAt:Number(preload.playableServerAt || 0) || 0,
       clientAt:Number(preload.clientAt || 0) || 0,
       serverAt:Number(preload.serverAt || 0) || 0
     },
@@ -2179,6 +2182,9 @@ function setRoomPlayerPreload(room, uid, preload){
     ms:Number(src.ms || 0) || 0,
     texturePending:Number(src.texturePending || 0) || 0,
     textureFailed:Number(src.textureFailed || 0) || 0,
+    playableReady:!!src.playableReady,
+    playableClientAt:Number(src.playableClientAt || 0) || 0,
+    playableServerAt:src.playableReady ? now() : 0,
     clientAt:Number(src.clientAt || 0) || 0,
     serverAt:now()
   };

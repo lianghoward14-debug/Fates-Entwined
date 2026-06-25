@@ -952,7 +952,7 @@
       }).catch(e=>{
         console.error('Online optimistic action send failed', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
-        else if(window.toast) toast('Action failed');
+        if(window.toast) toast(e && e.message ? e.message : 'Action failed');
       });
     }
     function scheduleFollowupStateSync(delayMs){
@@ -1027,6 +1027,11 @@
     }
     if(g._onlineLagPauseActive){
       if(window.toast) toast('Match is syncing. Please wait.');
+      return false;
+    }
+    if(g._onlineMatchPlayable === false){
+      setOnlinePlayableWaitVisible(true, playableReadySnapshot(lastLobbyRoom, lastLobbyPlayers, currentMatchPreloadKey(lastLobbyRoom)));
+      if(window.toast) toast('Waiting for both players to finish loading.');
       return false;
     }
     const pending = normalizedClientPendingInteraction(g);
@@ -1195,12 +1200,46 @@
     const entry = player && player.matchPreload;
     return !!(entry && entry.ready && (!key || String(entry.matchKey || '') === String(key || '')));
   }
+  function playableReadyEntry(player, key){
+    const entry = player && player.matchPreload;
+    return !!(entry && entry.playableReady && (!key || String(entry.matchKey || '') === String(key || '')));
+  }
   function preloadReadySnapshot(room, players, key){
     const r = room || lastLobbyRoom || {};
     const p = players || lastLobbyPlayers || {};
     const uids = [r.hostUid, r.guestUid].filter(Boolean);
     const readyCount = uids.filter(uid=>preloadReadyEntry(p[uid], key)).length;
     return {readyCount, total:uids.length || 2, key, uids};
+  }
+  function playableReadySnapshot(room, players, key){
+    const r = room || lastLobbyRoom || {};
+    const p = players || lastLobbyPlayers || {};
+    const uids = [r.hostUid, r.guestUid].filter(Boolean);
+    const readyCount = uids.filter(uid=>playableReadyEntry(p[uid], key)).length;
+    return {readyCount, total:uids.length || 2, key, uids};
+  }
+  function setOnlinePlayableWaitVisible(visible, detail){
+    try{
+      let veil = document.getElementById('online-playable-wait-veil');
+      if(!visible){
+        if(veil) veil.remove();
+        return;
+      }
+      if(!veil){
+        veil = document.createElement('div');
+        veil.id = 'online-playable-wait-veil';
+        veil.setAttribute('aria-live', 'polite');
+        veil.style.cssText = 'position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:rgba(5,8,16,.38);backdrop-filter:blur(2px);pointer-events:auto;';
+        veil.innerHTML = '<div style="max-width:360px;margin:1rem;padding:1rem 1.2rem;border:1px solid rgba(245,214,120,.42);background:rgba(10,13,24,.92);box-shadow:0 18px 45px rgba(0,0,0,.35);color:#f4e7c0;font-family:Cinzel,serif;text-align:center;"><div style="font-size:1rem;font-weight:700;margin-bottom:.35rem;">Syncing Match</div><div id="online-playable-wait-copy" style="font-family:Inter,system-ui,sans-serif;font-size:.9rem;line-height:1.35;color:#ddd3b3;">Waiting for both players to finish loading.</div></div>';
+        document.body.appendChild(veil);
+      }
+      const copy = document.getElementById('online-playable-wait-copy');
+      if(copy){
+        const ready = Number(detail?.readyCount || 0);
+        const total = Math.max(2, Number(detail?.total || 2));
+        copy.textContent = ready > 0 ? `Waiting for both players to finish loading. ${ready}/${total} ready.` : 'Waiting for both players to finish loading.';
+      }
+    }catch(e){}
   }
   async function publishOnlineMatchPreload(report){
     const g = gameState();
@@ -1258,9 +1297,11 @@
     return new Promise(function(resolve){
       let settled = false;
       let unsub = null;
+      let timeout = 0;
       const finish = function(reason, snap){
         if(settled) return;
         settled = true;
+        if(timeout) clearTimeout(timeout);
         try{ if(unsub) unsub(); }catch(e){}
         const result = Object.assign({reason, ms:Date.now() - started}, snap || preloadReadySnapshot(room, lastLobbyPlayers, key));
         perf.onlineMatchPreloadWait = result;
@@ -1273,11 +1314,10 @@
         if(snap.readyCount >= snap.total && snap.total >= 2) finish('both-ready', snap);
       };
       check(lastLobbyPlayers, room);
-      const timeout = setTimeout(function(){
+      timeout = setTimeout(function(){
         finish('timeout', preloadReadySnapshot(lastLobbyRoom || room, lastLobbyPlayers, key));
       }, timeoutMs);
       const done = function(reason, snap){
-        clearTimeout(timeout);
         finish(reason, snap);
       };
       if(roomUsesFly(room || code)){
@@ -1729,6 +1769,63 @@
       expiresAt:Date.now() + Math.max(5000, Number(ttlMs) || 90000)
     });
     return true;
+  }
+  async function publishOnlineMatchPlayable(){
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
+    const u = window.FATE_ONLINE?.user;
+    if(!code || !u || !isOnlineMatchState(g)) return false;
+    const key = currentMatchPreloadKey(room);
+    const prior = lastLobbyPlayers?.[u.uid]?.matchPreload || {};
+    const payload = Object.assign({}, prior, {
+      ready:prior.ready !== false,
+      roomCode:code,
+      uid:u.uid,
+      matchKey:key,
+      playableReady:true,
+      playableClientAt:Date.now(),
+      clientAt:Number(prior.clientAt || 0) || Date.now()
+    });
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.onlineMatchPlayable = Object.assign({}, payload, {published:false});
+    if(roomUsesFly(room || code)){
+      const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/preload`, {
+        method:'POST',
+        body:{uid:u.uid, matchPreload:payload}
+      });
+      if(data?.room){
+        const nextRoom = normalizeFlyRoom(data.room);
+        lastLobbyRoom = nextRoom;
+        lastLobbyPlayers = nextRoom.players;
+      }
+      perf.onlineMatchPlayable.published = true;
+      perf.onlineMatchPlayable.transport = 'fly';
+      return true;
+    }
+    if(!FO.update || !FO.ref || !FO.rtdb) return false;
+    await FO.update(FO.ref(FO.rtdb), {
+      [`rooms/${code}/players/${u.uid}/matchPreload`]:Object.assign({}, payload, {updatedAt:FO.serverTimestamp()}),
+      [`rooms/${code}/updatedAt`]:FO.serverTimestamp()
+    });
+    perf.onlineMatchPlayable.published = true;
+    perf.onlineMatchPlayable.transport = 'rtdb';
+    return true;
+  }
+  async function publishOnlineMatchPlayableWithRetry(){
+    let lastErr = null;
+    for(let attempt = 0; attempt < 3; attempt += 1){
+      try{
+        const ok = await publishOnlineMatchPlayable();
+        if(ok) return true;
+      }catch(err){
+        lastErr = err;
+        console.warn('Online playable readiness publish failed', {attempt:attempt + 1, err});
+      }
+      await new Promise(resolve=>setTimeout(resolve, 450 + attempt * 650));
+    }
+    if(lastErr) throw lastErr;
+    return false;
   }
 
   function hasOnlineMatchStartIntent(code, reason){
@@ -2277,6 +2374,70 @@
           [`rooms/${code}/players/${uid}/connected`]: true
         }).catch(()=>{});
         setConnectedOnDisconnect(code, uid).catch(()=>{});
+      }
+    });
+  }
+  function waitForOnlineMatchPlayable(options){
+    const opts = options || {};
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
+    const key = currentMatchPreloadKey(room);
+    const timeoutMs = Math.max(5000, Math.min(180000, Number(opts.timeoutMs) || 90000));
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
+    const started = Date.now();
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    return new Promise(function(resolve){
+      let settled = false;
+      let unsub = null;
+      let timeout = 0;
+      const finish = function(reason, snap){
+        if(settled) return;
+        settled = true;
+        if(timeout) clearTimeout(timeout);
+        try{ if(unsub) unsub(); }catch(e){}
+        const result = Object.assign({reason, ms:Date.now() - started}, snap || playableReadySnapshot(room, lastLobbyPlayers, key));
+        perf.onlineMatchPlayableWait = result;
+        resolve(result);
+      };
+      const check = function(players, nextRoom){
+        const currentRoom = nextRoom || lastLobbyRoom || room;
+        const snap = playableReadySnapshot(currentRoom, players || lastLobbyPlayers, key);
+        onProgress(snap);
+        if(snap.readyCount >= snap.total && snap.total >= 2) finish('both-playable', snap);
+      };
+      check(lastLobbyPlayers, room);
+      timeout = setTimeout(function(){
+        finish('timeout', playableReadySnapshot(lastLobbyRoom || room, lastLobbyPlayers, key));
+      }, timeoutMs);
+      const done = function(reason, snap){
+        finish(reason, snap);
+      };
+      if(roomUsesFly(room || code)){
+        const poll = async function(){
+          if(settled) return;
+          try{
+            const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
+            if(data?.room){
+              const nextRoom = normalizeFlyRoom(data.room);
+              lastLobbyRoom = nextRoom;
+              lastLobbyPlayers = nextRoom.players;
+              const snap = playableReadySnapshot(nextRoom, nextRoom.players, key);
+              onProgress(snap);
+              if(snap.readyCount >= snap.total && snap.total >= 2) return done('both-playable', snap);
+            }
+          }catch(e){}
+          if(!settled) setTimeout(poll, 650);
+        };
+        poll();
+        return;
+      }
+      if(FO.onValue && FO.ref && FO.rtdb && code){
+        unsub = FO.onValue(FO.ref(FO.rtdb, `rooms/${code}/players`), function(snap){
+          const players = snap.val() || {};
+          lastLobbyPlayers = players;
+          check(players, lastLobbyRoom || room);
+        });
       }
     });
   }
@@ -2979,6 +3140,7 @@
       g._onlineActionLogMode = true;
       g._onlineActionSeq = startSeq;
       g._onlineAppliedActionSeq = startSeq;
+      g._onlineMatchPlayable = false;
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       applyOnlineRoomIdentity(room, players);
 
@@ -3021,6 +3183,7 @@
       g._onlineAppliedActionSeq = startSeq;
       g._onlineStartedRoomCode = room.roomCode;
       g._onlineBootstrappingRoomCode = null;
+      g._onlineMatchPlayable = false;
       applyOnlineRoomIdentity(room, players);
       if(!directServerBootstrap && startPayload.postState && startPayload.stateHash){
         lastAuthorityStateHash = String(startPayload.stateHash || '');
@@ -3045,6 +3208,39 @@
 
       if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started.');
       subscribeActions(room.roomCode);
+      setOnlinePlayableWaitVisible(true, {readyCount:1, total:2});
+      await publishOnlineMatchPlayableWithRetry().catch(function(err){
+        console.warn('Could not publish online playable readiness', err);
+        return false;
+      });
+      const playable = await waitForOnlineMatchPlayable({
+        timeoutMs:90000,
+        onProgress:function(snap){ setOnlinePlayableWaitVisible(true, snap); }
+      });
+      const bothPlayable = playable && playable.reason === 'both-playable';
+      const latestAfterPlayable = gameState();
+      if(latestAfterPlayable && latestAfterPlayable._onlineRoomCode === room.roomCode){
+        latestAfterPlayable._onlineMatchPlayable = !!bothPlayable;
+      }
+      if(bothPlayable){
+        setOnlinePlayableWaitVisible(false);
+      }else{
+        setOnlinePlayableWaitVisible(true, playable);
+        if(window.toast) toast('Opponent is still loading. Match actions will unlock when both players are ready.');
+        waitForOnlineMatchPlayable({
+          timeoutMs:180000,
+          onProgress:function(snap){ setOnlinePlayableWaitVisible(true, snap); }
+        }).then(function(latePlayable){
+          if(latePlayable && latePlayable.reason === 'both-playable'){
+            const latest = gameState();
+            if(latest && latest._onlineRoomCode === room.roomCode) latest._onlineMatchPlayable = true;
+            setOnlinePlayableWaitVisible(false);
+            if(window.toast) toast('Both players are ready.');
+          }
+        }).catch(function(err){
+          console.warn('Late online playable wait failed', err);
+        });
+      }
       if(localIndex === 0 && !startPayload.serverBootstrapped) setTimeout(()=>sendBootstrapStateSync('match-start'), 220);
       // Spectator listings stay disabled until the deployed RTDB rules explicitly
       // allow /liveMatches writes; player match startup must not depend on them.
@@ -4208,7 +4404,10 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.placeSelected.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'PLACE_CARD')) return;
+        if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()){
+          return originals.placeSelected.apply(this, arguments);
+        }
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {
           fn:'placeSelected',
