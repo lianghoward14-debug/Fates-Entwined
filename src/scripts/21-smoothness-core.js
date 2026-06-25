@@ -783,8 +783,14 @@
     const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
     const source = opts.source || 'matchup-loader';
     const maxCards = Math.max(20, Math.min(120, Number(opts.maxCards) || 80));
-    const cards = collectMatchWarmCards({light:false}).slice(0, maxCards);
-    const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+    const light = !!opts.light;
+    const decodeImages = opts.decodeImages === true ? true : (opts.decodeImages === false ? false : !light);
+    const imageTimeoutMs = Math.max(250, Number(opts.imageTimeoutMs) || (light ? 650 : 3200));
+    const textureTimeoutMs = Math.max(250, Number(opts.textureTimeoutMs) || (light ? 650 : 4200));
+    const cards = collectMatchWarmCards({light}).slice(0, maxCards);
+    const dpr = light
+      ? Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1)))
+      : Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
     const records = [];
     const staticAssets = ['blank.png','back.png','deck.png'];
     let warmedCards = 0;
@@ -814,29 +820,29 @@
         rarity:card.rarity,
         aff:card.aff
       });
-      const imgResult = await warmImage(thumb, {decode:true, timeoutMs:3200, force:!!opts.forceImages});
+      const imgResult = await warmImage(thumb, {decode:decodeImages, timeoutMs:imageTimeoutMs, force:!!opts.forceImages});
       if(imgResult && imgResult.ok) imageOk += 1;
       else imageFailed += 1;
-      if(full && full !== thumb) warmImage(full, {decode:false, timeoutMs:3200, force:!!opts.forceImages});
+      if(full && full !== thumb && !light) warmImage(full, {decode:false, timeoutMs:imageTimeoutMs, force:!!opts.forceImages});
       const cache = window.FateCardTextureCache;
       if(cache && typeof cache.getBaseCardTexture === 'function'){
         try{
           records.push(cache.getBaseCardTexture(card, {w:74, h:104}, {visual, dpr, preferFullArt:true, source:source + '-hand'}));
           records.push(cache.getBaseCardTexture(card, {w:96, h:134}, {visual, dpr, preferFullArt:true, source:source + '-board'}));
-          if(i < 16) records.push(cache.getBaseCardTexture(card, {w:132, h:184}, {visual, dpr, preferFullArt:true, source:source + '-drag'}));
+          if(!light && i < 16) records.push(cache.getBaseCardTexture(card, {w:132, h:184}, {visual, dpr, preferFullArt:true, source:source + '-drag'}));
         }catch(e){}
       }
       warmedCards += 1;
       publish('cards', Math.min(total - 2, warmedCards), {cardName:card.name || '', imageOk, imageFailed});
-      if(i % 4 === 3) await waitMatchPreloadMs(0);
+      if(i % (light ? 8 : 4) === (light ? 7 : 3)) await waitMatchPreloadMs(0);
     }
     for(let i = 0; i < staticAssets.length; i++){
-      const result = await warmImage(staticAssets[i], {decode:true, timeoutMs:2200, force:!!opts.forceImages});
+      const result = await warmImage(staticAssets[i], {decode:!light, timeoutMs:light ? 700 : 2200, force:!!opts.forceImages});
       if(result && result.ok) imageOk += 1;
       else imageFailed += 1;
       publish('static', cards.length + i + 1, {asset:staticAssets[i], imageOk, imageFailed});
     }
-    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmAssetImages === 'function') {
+    if(!light && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmAssetImages === 'function') {
       try {
         await window.FateMatchRendererAdapter.prewarmAssetImages(staticAssets);
       } catch(e) {}
@@ -858,11 +864,12 @@
       window.fateWarmSyntheticSfx(['draw','place','consolidate','discard']);
     }
     publish('textures', total - 1, {records:records.length});
-    const textureWait = await waitForTextureRecords(records, Math.max(1200, Number(opts.textureTimeoutMs) || 4200));
+    const textureWait = await waitForTextureRecords(records, textureTimeoutMs);
     const report = {
       at:Math.round(performance.now()),
       ms:Math.round((performance.now() - started) * 10) / 10,
       source,
+      light,
       cards:warmedCards,
       imageOk,
       imageFailed,

@@ -228,47 +228,93 @@ function updateMatchPreloadUi(progress, status, meta) {
 
 function runMatchPreloadGate(onlineMatch) {
   const gateStarted = performance.now ? performance.now() : Date.now();
+  const minGateMs = onlineMatch ? 900 : 5000;
+  const peerWaitMs = onlineMatch ? 3000 : 15000;
   const waitForMinimumGate = function(){
     const now = performance.now ? performance.now() : Date.now();
-    const remaining = Math.max(0, 5000 - (now - gateStarted));
+    const remaining = Math.max(0, minGateMs - (now - gateStarted));
     return new Promise(function(resolve){ setTimeout(resolve, remaining); });
   };
   let localReport = null;
   updateMatchPreloadUi(0.03);
-  const localPortion = onlineMatch ? 0.74 : 1;
-  const runWarmPass = function(pass, from, to){
+  const localPortion = onlineMatch ? 0.72 : 1;
+  const runWarmPass = function(pass, from, to, passOptions){
     if(typeof window.fateWarmMatchAssets !== 'function') return Promise.resolve({missingWarmup:true, pass});
-    return window.fateWarmMatchAssets({
+    const warmOptions = Object.assign({
       source:(onlineMatch ? 'online-matchup-loader' : 'matchup-loader') + '-pass-' + pass,
-      maxCards:onlineMatch ? 96 : 80,
-      forceImages:pass > 1,
+      maxCards:onlineMatch ? 36 : 80,
+      forceImages:!onlineMatch && pass > 1,
       pass,
+      light:!!onlineMatch,
+      imageTimeoutMs:onlineMatch ? 650 : 3200,
+      textureTimeoutMs:onlineMatch ? 650 : 4200,
+      decodeImages:!onlineMatch,
       onProgress:function(item){
         const progress = Math.max(0, Math.min(1, Number(item && item.progress) || 0));
         const value = from + (to - from) * progress;
         updateMatchPreloadUi(Math.max(0.03, Math.min(localPortion, value)));
       }
-    });
+    }, passOptions || {});
+    return window.fateWarmMatchAssets(warmOptions);
   };
-  const warm = runWarmPass(1, 0.03, localPortion * 0.58)
-    .then(function(firstReport){
-      return runWarmPass(2, localPortion * 0.58, localPortion).then(function(secondReport){
-        return {
-          at:secondReport && secondReport.at,
-          ms:Math.round(((Number(firstReport && firstReport.ms) || 0) + (Number(secondReport && secondReport.ms) || 0)) * 10) / 10,
-          cards:Number(secondReport && secondReport.cards || firstReport && firstReport.cards || 0) || 0,
-          imageOk:(Number(firstReport && firstReport.imageOk) || 0) + (Number(secondReport && secondReport.imageOk) || 0),
-          imageFailed:(Number(firstReport && firstReport.imageFailed) || 0) + (Number(secondReport && secondReport.imageFailed) || 0),
-          textureRecords:Number(secondReport && secondReport.textureRecords || firstReport && firstReport.textureRecords || 0) || 0,
-          textureWait:secondReport && secondReport.textureWait || firstReport && firstReport.textureWait || null,
-          textureCache:secondReport && secondReport.textureCache || firstReport && firstReport.textureCache || null,
-          firstPass:firstReport || null,
-          secondPass:secondReport || null,
-          source:onlineMatch ? 'online-matchup-loader-double-pass' : 'matchup-loader-double-pass',
-          doublePass:true
-        };
+  const runBackgroundOnlineWarm = function(){
+    if(!onlineMatch || typeof window.fateWarmMatchAssets !== 'function') return;
+    const launch = function(){
+      try {
+        window.fateWarmMatchAssets({
+          source:'online-matchup-background-warm',
+          maxCards:80,
+          forceImages:false,
+          light:false,
+          imageTimeoutMs:1200,
+          textureTimeoutMs:1200,
+          decodeImages:false
+        });
+      } catch(e) {}
+    };
+    if(typeof window.requestIdleCallback === 'function') {
+      try { window.requestIdleCallback(launch, {timeout:1500}); return; } catch(e) {}
+    }
+    setTimeout(launch, 250);
+  };
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.matchPreloadGatePolicy = {onlineMatch:!!onlineMatch, minGateMs, peerWaitMs, localPortion};
+  } catch(e) {}
+  const warm = onlineMatch
+    ? runWarmPass(1, 0.03, localPortion, {
+      source:'online-matchup-loader-fast-pass',
+      maxCards:36,
+      light:true,
+      imageTimeoutMs:650,
+      textureTimeoutMs:650,
+      decodeImages:false
+    }).then(function(report){
+      return Object.assign({}, report || {}, {
+        source:'online-matchup-loader-fast-pass',
+        fastOnlineGate:true,
+        doublePass:false
       });
-    });
+    })
+    : runWarmPass(1, 0.03, localPortion * 0.58)
+      .then(function(firstReport){
+        return runWarmPass(2, localPortion * 0.58, localPortion).then(function(secondReport){
+          return {
+            at:secondReport && secondReport.at,
+            ms:Math.round(((Number(firstReport && firstReport.ms) || 0) + (Number(secondReport && secondReport.ms) || 0)) * 10) / 10,
+            cards:Number(secondReport && secondReport.cards || firstReport && firstReport.cards || 0) || 0,
+            imageOk:(Number(firstReport && firstReport.imageOk) || 0) + (Number(secondReport && secondReport.imageOk) || 0),
+            imageFailed:(Number(firstReport && firstReport.imageFailed) || 0) + (Number(secondReport && secondReport.imageFailed) || 0),
+            textureRecords:Number(secondReport && secondReport.textureRecords || firstReport && firstReport.textureRecords || 0) || 0,
+            textureWait:secondReport && secondReport.textureWait || firstReport && firstReport.textureWait || null,
+            textureCache:secondReport && secondReport.textureCache || firstReport && firstReport.textureCache || null,
+            firstPass:firstReport || null,
+            secondPass:secondReport || null,
+            source:'matchup-loader-double-pass',
+            doublePass:true
+          };
+        });
+      });
   return Promise.resolve(warm)
     .then(function(report){
       localReport = report || {};
@@ -281,7 +327,7 @@ function runMatchPreloadGate(onlineMatch) {
       updateMatchPreloadUi(0.82);
       return window.fateWaitForOnlineMatchPreload({
         localReport,
-        timeoutMs:15000,
+        timeoutMs:peerWaitMs,
         onProgress:function(item){
           const ready = Number(item && item.readyCount || 0);
           const total = Math.max(2, Number(item && item.total || 2));
@@ -292,6 +338,7 @@ function runMatchPreloadGate(onlineMatch) {
     })
     .then(function(){
       updateMatchPreloadUi(1);
+      runBackgroundOnlineWarm();
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmMatchEntryLayers === 'function') {
         try {
           window.FateMatchRendererAdapter.prewarmMatchEntryLayers({
