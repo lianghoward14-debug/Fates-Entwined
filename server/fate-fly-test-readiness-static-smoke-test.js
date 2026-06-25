@@ -77,7 +77,7 @@ assert.strictEqual(pkg.scripts['hotfix:fly-static'], 'node tools/publish-static-
 assert.ok((pkg.scripts['smoke:fly-cutover'] || '').includes('fate-fly-cutover-preflight-smoke-test.js'), 'cutover smoke must remain the combined gate');
 assert.match(authorityText, /FATE_STATIC_HOTFIX_TOKEN/, 'authority server must keep static hotfix uploads token-gated');
 assert.match(authorityText, /parts\[1\] === 'static-overrides'/, 'authority server must expose static override upload route');
-assert.match(authorityText, /pathname === '\/src\/scripts\/18-online-rooms\.js'[\s\S]*pathname\.startsWith\('\/src\/'\)[\s\S]*return ''/, 'authority server must not let persisted static overrides mask game source files');
+assert.match(authorityText, /pathname === '\/index\.html'[\s\S]*pathname === '\/src\/scripts\/18-online-rooms\.js'[\s\S]*pathname\.startsWith\('\/src\/'\)[\s\S]*return ''/, 'authority server must not let persisted static overrides mask game entrypoint or source files');
 assert.match(authorityText, /shouldFinalizeDisconnectImmediately[\s\S]*canonicalState[\s\S]*canonicalHash/, 'active Fly room disconnects must be eligible for immediate server-side match end');
 assert.match(authorityText, /markSocketDisconnected\(ws, \{immediate:!shuttingDown\}\)/, 'socket cleanup must end player disconnects immediately except during graceful server shutdown');
 assert.match(docs, /fateEnableLocalFlyAuthorityForTesting\(\)/, 'docs must mention the local Fly authority test helper');
