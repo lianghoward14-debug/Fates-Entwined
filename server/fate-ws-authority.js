@@ -559,7 +559,7 @@ function isAllowedStaticOverridePath(publicPath){
 function staticOverridePath(publicPath){
   if(!STATIC_OVERRIDE_DIR || !isAllowedStaticOverridePath(publicPath)) return '';
   const pathname = normalizePublicStaticPath(publicPath);
-  if(pathname === '/src/scripts/18-online-rooms.js') return '';
+  if(pathname === '/src/scripts/18-online-rooms.js' || pathname.startsWith('/src/')) return '';
   const target = path.resolve(STATIC_OVERRIDE_DIR, '.' + pathname);
   if(target === STATIC_OVERRIDE_DIR || !target.startsWith(STATIC_OVERRIDE_DIR + path.sep)) return '';
   return target;
