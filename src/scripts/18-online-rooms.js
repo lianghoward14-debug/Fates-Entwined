@@ -24,6 +24,7 @@
   let lastLagPauseReason = '';
   let activeRoomSilent = false;
   let randomQueueState = { active:false, roomCode:null, role:null, started:false, handlers:null };
+  const allowedOnlineMatchStarts = new Map();
   let randomQueueUnsub = null;
   let randomQueueSwitching = false;
   let partyQueueWaitTimer = null;
@@ -1716,6 +1717,86 @@
     setLagPause(false);
   }
 
+  function normalizedRoomCode(code){
+    return String(code || '').trim().toUpperCase();
+  }
+
+  function allowOnlineMatchStart(code, reason, ttlMs=90000){
+    const roomCode = normalizedRoomCode(code);
+    if(!roomCode) return false;
+    allowedOnlineMatchStarts.set(roomCode, {
+      reason:String(reason || 'manual'),
+      expiresAt:Date.now() + Math.max(5000, Number(ttlMs) || 90000)
+    });
+    return true;
+  }
+
+  function hasOnlineMatchStartIntent(code, reason){
+    const roomCode = normalizedRoomCode(code);
+    if(!roomCode) return false;
+    const entry = allowedOnlineMatchStarts.get(roomCode);
+    if(!entry) return false;
+    if(entry.expiresAt < Date.now()){
+      allowedOnlineMatchStarts.delete(roomCode);
+      return false;
+    }
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineMatchStartIntent = {
+        at:Date.now(),
+        roomCode,
+        requestedBy:String(reason || ''),
+        allowedBy:entry.reason
+      };
+    } catch(e) {}
+    return true;
+  }
+
+  function shouldEnterStartedRoom(room, reason){
+    const roomCode = normalizedRoomCode(room?.roomCode || activeRoom);
+    if(!roomCode || !isStartedRoomStatus(room?.status)) return false;
+    const g = gameState();
+    const currentCode = normalizedRoomCode(g?._onlineRoomCode || g?._onlineStartedRoomCode || g?._onlineBootstrappingRoomCode);
+    if(currentCode === roomCode) return true;
+    if(randomQueueState.active && normalizedRoomCode(randomQueueState.roomCode) === roomCode) return true;
+    if(hasOnlineMatchStartIntent(roomCode, reason)) return true;
+    if(!activeRoomSilent && normalizedRoomCode(activeRoom) === roomCode) return true;
+    return false;
+  }
+
+  function noteBlockedOnlineMatchStart(room, reason){
+    const roomCode = normalizedRoomCode(room?.roomCode || activeRoom);
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.blockedOnlineAutoMatchStart = {
+        at:Date.now(),
+        roomCode,
+        status:String(room?.status || ''),
+        reason:String(reason || ''),
+        silent:!!activeRoomSilent,
+        activeRoom:normalizedRoomCode(activeRoom)
+      };
+    } catch(e) {}
+    console.warn('Blocked online match auto-start without entry intent', {
+      roomCode,
+      status:room?.status,
+      reason,
+      silent:!!activeRoomSilent
+    });
+  }
+
+  function maybeStartRoomGame(room, reason){
+    if(!isStartedRoomStatus(room?.status)) return false;
+    if(!shouldEnterStartedRoom(room, reason)){
+      noteBlockedOnlineMatchStart(room, reason);
+      return false;
+    }
+    startRoomGame(room).catch(function(err){
+      console.error('Online room handoff failed', err);
+    });
+    return true;
+  }
+
 
   function getDeckOptions(){
     const opts = [];
@@ -2262,7 +2343,7 @@
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
       if(room.status !== 'lobby' && opts.allowStarted){
-        await resumeFlyRoom(room.roomCode, {silent:!!opts.silent, quiet});
+        await resumeFlyRoom(room.roomCode, {silent:!!opts.silent, quiet, allowEnter:true, reason:'explicit-resume'});
         if(!quiet && window.toast) toast('Rejoining online match...');
         return true;
       }
@@ -2291,9 +2372,10 @@
       lastSeq:Number(data.lastSeq || room.lastActionSeq || 0) || 0,
       events
     };
+    if(opts.allowEnter || opts.resume || opts.userInitiated) allowOnlineMatchStart(room.roomCode, opts.reason || 'explicit-resume');
     watchFlyRoom(room.roomCode, {silent:!!opts.silent});
     if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing' || room.status === 'ended'){
-      startRoomGame(room);
+      maybeStartRoomGame(room, opts.reason || 'resume');
     }
     return room;
   }
@@ -2340,8 +2422,8 @@
       if(!opts.silent && window.toast) toast('Recovered online room ' + room.roomCode + '.');
       return room;
     }
-    await resumeFlyRoom(room.roomCode, {silent:!!opts.silent});
-    if(!opts.silent && window.toast) toast('Recovered online match ' + room.roomCode + '.');
+    await resumeFlyRoom(room.roomCode, {silent:true, allowEnter:false, reason:'startup-recovery'});
+    if(!opts.silent && window.toast) toast('Found online match ' + room.roomCode + '. Use Resume to rejoin.');
     return room;
   }
 
@@ -2415,6 +2497,7 @@
     if(room.status !== 'lobby'){
       const canResumeStartedRoom = !!opts.allowStarted && (room.hostUid === u.uid || room.guestUid === u.uid);
       if(canResumeStartedRoom){
+        allowOnlineMatchStart(code, opts.reason || 'explicit-resume');
         watchRoom(code, {silent:!!opts.silent});
         startConnectionHeartbeat(code, u.uid);
         setConnectedOnDisconnect(code, u.uid).catch(()=>{});
@@ -2544,7 +2627,7 @@
       evaluateLagPause();
       maybeHandleOpponentDisconnect(room, room.players);
       maybeAutoStartQueuedRoom(room, room.players);
-      if(isStartedRoomStatus(room.status)) startRoomGame(room);
+      if(isStartedRoomStatus(room.status)) maybeStartRoomGame(room, 'fly-watch');
       if(room.status === 'ended') handleRoomEnded(room);
     }
     async function poll(){
@@ -2602,7 +2685,7 @@
         evaluateLagPause();
         maybeHandleOpponentDisconnect(room, lastLobbyPlayers || {});
         maybeAutoStartQueuedRoom(room, lastLobbyPlayers || {});
-        if(room.status==='matchup' || room.status==='starting' || room.status==='playing') startRoomGame(room);
+        if(room.status==='matchup' || room.status==='starting' || room.status==='playing') maybeStartRoomGame(room, 'rtdb-watch');
         if(room.status==='ended') handleRoomEnded(room);
       }finally{
         handlingRoom = false;
@@ -2659,6 +2742,7 @@
     const u = window.FATE_ONLINE?.user;
     if(!u) return;
     if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing'){
+      allowOnlineMatchStart(room.roomCode, 'random-queue');
       randomQueueState.started = true;
       clearRandomQueueWatcher();
       removeOwnQueueEntry().catch(()=>{});
@@ -2779,7 +2863,8 @@
         const nextRoom = normalizeFlyRoom(data.room);
         lastLobbyRoom = nextRoom;
         lastLobbyPlayers = nextRoom.players;
-        startRoomGame(nextRoom);
+        allowOnlineMatchStart(nextRoom.roomCode || code, opts.queue ? 'queue-host-start' : 'host-start');
+        maybeStartRoomGame(nextRoom, opts.queue ? 'queue-host-start' : 'host-start');
       }
       return true;
     }catch(e){
@@ -2813,6 +2898,7 @@
       const hostProf = liveProfiles.get(room.hostUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.hostUid}`))).val() || {};
       const guestProf = liveProfiles.get(room.guestUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.guestUid}`))).val() || {};
       if(!isConnectedPlayer(hostNode) || !isConnectedPlayer(guest)){ if(window.toast) toast('Both players must be connected'); return; }
+      allowOnlineMatchStart(code, opts.queue ? 'queue-host-start' : 'host-start');
       await FO.update(FO.ref(FO.rtdb), {
         [`rooms/${code}/status`]: 'matchup',
         [`rooms/${code}/phase`]: 'matchup',
@@ -3888,9 +3974,7 @@
         transport:'websocket-accepted'
       };
     } catch(e) {}
-    startRoomGame(nextRoom).catch(function(err){
-      console.error('Lobby MATCH_START handoff failed', err);
-    });
+    maybeStartRoomGame(nextRoom, 'websocket-match-start');
     return true;
   }
 
@@ -4595,11 +4679,12 @@
     randomQueueState.roomCode = room.roomCode;
     randomQueueState.role = data.matched ? 'guest' : 'host';
     window.FATE_ONLINE_PENDING_ROOM_DECK = deck;
+    allowOnlineMatchStart(room.roomCode, 'random-queue');
     watchFlyRoom(room.roomCode, {silent:true});
     if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing'){
       randomQueueState.started = true;
       emitRandomQueueStatus('starting', 'Match found. Starting game...');
-      await startRoomGame(room);
+      maybeStartRoomGame(room, 'random-queue');
       return true;
     }
     if(data.matched){
