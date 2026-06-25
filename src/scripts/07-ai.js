@@ -1674,10 +1674,10 @@ async function aiDoPlace(choice) {
       if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
       G.polishArmyUses[cp] = (G.polishArmyUses[cp] || 0) + 1;
     }
-    // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
+    // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 5 Fate.
     G.board[choice.z].forEach(row=>row.forEach(cell=>{
       if(cell && cell.id==='02' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-        modifyFate(inst,3,'permanent');
+        modifyFate(inst,5,'permanent');
       }
     }));
     if(!majaDeckCinematic) {
@@ -2434,30 +2434,6 @@ async function aiActivateEffects() {
 async function aiRunSupporterBoardAbility(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
-  const opp = 1 - cp;
-  if(card.id==='52' && !card.vigilanteUsed){
-    const sacrifices = [];
-    forEachBoardCard((bc,bz,br,bc2)=>{
-      if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && bc.id!=='76'){
-        sacrifices.push({card:bc,z:bz,r:br,c:bc2});
-      }
-    });
-    if(sacrifices.length < 3) return;
-    const targets = [];
-    forEachBoardCard((bc,bz,br,bc2)=>{ if(bc.owner===opp && !bc.immuneFlag) targets.push({card:bc,z:bz,r:br,c:bc2}); });
-    if(!targets.length) return;
-    sacrifices.sort((a,b)=>(a.card.currentFate||a.card.fate||0)-(b.card.currentFate||b.card.fate||0));
-    targets.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
-    sacrifices.slice(0,3).forEach(s=>{ G.board[s.z][s.r][s.c]=null; fatePushDiscard(cp, s.card); });
-    const target = targets[0];
-    G.board[target.z][target.r][target.c]=null;
-    fatePushDiscard(opp, target.card);
-    card.vigilanteUsed = true;
-    log('p2','AI: Vigilantes destroyed '+target.card.name);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:false, topbar:false, effects:false, hover:false});
-    else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
-    return;
-  }
   if(card.id==='54' && !card.wolfCreekUsed){
     const movable = [];
     G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{

@@ -636,6 +636,10 @@
 
   function clearGhost(){
     if(window.FateVfxDirector && typeof window.FateVfxDirector.clearDragPreview === 'function') window.FateVfxDirector.clearDragPreview();
+    const legacyGhost = document.getElementById('drag-ghost');
+    if(legacyGhost) legacyGhost.remove();
+    const v2Ghost = document.getElementById('fate-v2-drag-ghost');
+    if(v2Ghost) v2Ghost.remove();
   }
 
   function cleanup(options){
@@ -770,9 +774,8 @@
   }
 
   function finishSupporterDrop(hit){
-    const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
-    try { window.__fateNextSetFromRect = from ? Object.assign({}, from) : null; } catch(e) {}
+    try { window.__fateNextSetFromRect = null; } catch(e) {}
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;
     G.placing = true;

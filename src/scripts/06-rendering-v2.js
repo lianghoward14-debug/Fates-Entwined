@@ -245,7 +245,7 @@ function cardRenderSignature(card, z) {
     card.fate, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card._markedForDeath ? 1 : 0,
     card.noConsolidate ? 1 : 0, card.usesLeft || 0,
-    card.vigilanteUsed ? 1 : 0, card.wolfCreekUsed ? 1 : 0,
+    card.wolfCreekUsed ? 1 : 0,
     card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0
   ].join(':');
 }
@@ -442,7 +442,7 @@ function renderOppHand() {
   }
   // Update label
   const lbl=document.getElementById('opp-hand-lbl');
-  if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+  if(lbl) lbl.innerHTML="Opponent's Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
@@ -1093,8 +1093,7 @@ function updateTopBar() {
   }
   const curEl = document.getElementById('tp-cur');
   if(curEl) {
-    const displayName = isOwnTurn ? (G.players[cp].name || 'Player') : 'Opponent';
-    const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+"'s Turn";
+    const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+(isOwnTurn ? 'Your Turn' : "Opponent's Turn");
     curEl.textContent = turnText;
     curEl.classList.toggle('turn-title-long', turnText.length > 34);
     curEl.classList.toggle('turn-title-xlong', turnText.length > 46);
@@ -1102,7 +1101,7 @@ function updateTopBar() {
   const hudTurn = document.getElementById('turn-hud-turn');
   if(hudTurn) hudTurn.textContent = 'Turn '+G.turn+'/'+G.maxTurns;
   const hudPlayer = document.getElementById('turn-hud-player');
-  if(hudPlayer) hudPlayer.textContent = G.players[cp].name+"'s Turn";
+  if(hudPlayer) hudPlayer.textContent = isOwnTurn ? 'Your Turn' : "Opponent's Turn";
   const phaseEl = document.getElementById('tp-phase');
   if(phaseEl) phaseEl.textContent='';
   const endBtn = document.getElementById('btn-end-turn');
@@ -1868,13 +1867,6 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
         const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
-        // Vigilantes (52): discard 4 supporters to remove a card (once per turn)
-        if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
-          const vigBtn=document.createElement('button');
-          vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
-          vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
-          acts.appendChild(vigBtn);
-        }
         // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
         if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
           const wcBtn=document.createElement('button');
@@ -2953,6 +2945,10 @@ let _hoverPreviewPoint = null;
 let _hoverPreviewAnchorRect = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
+  try {
+    const target = e && e.target && e.target.closest ? e.target : null;
+    if(target && target.closest('#s-deck, #s-challenger .ch-cdb-content')) return;
+  } catch(_e) {}
   try {
     const game = document.getElementById('s-game');
     const v2Owns = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();

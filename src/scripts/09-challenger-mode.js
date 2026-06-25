@@ -4611,7 +4611,7 @@ function initWorldChat() {
     <div class="world-chat-panel" id="world-chat-panel" style="display:none;">
       <div class="world-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);letter-spacing:.08em;">WORLD CHAT</span>
-        <button class="world-chat-close" onclick="toggleWorldChat()">?</button>
+        <button class="world-chat-close" onclick="toggleWorldChat()">x</button>
       </div>
       <div class="world-chat-messages" id="world-chat-messages"></div>
       <div class="world-chat-input-row">
@@ -4931,7 +4931,7 @@ function initInGameChat() {
     <div class="ingame-chat-panel" id="ingame-chat-panel" style="display:none;">
       <div class="ingame-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.76rem;color:var(--gold);letter-spacing:.06em;">MATCH CHAT</span>
-        <button class="world-chat-close" onclick="toggleInGameChat()">?</button>
+        <button class="world-chat-close" onclick="toggleInGameChat()">x</button>
       </div>
       <div class="ingame-chat-switch" role="tablist" aria-label="Chat channel">
         <button id="ig-chat-tab-lobby" class="active" type="button" onclick="switchInGameChatTab('lobby')" role="tab" aria-selected="true">${G._isSpectator ? 'Spectator' : 'Lobby'}</button>
@@ -5507,8 +5507,8 @@ function showMatchHistory(page) {
     html += '<div style="display:flex;flex-direction:column;gap:.55rem;">';
     pageItems.forEach(function(m){
       var p1Won = m.winner === m.p1;
-      var p1Arrow = m.p1Change > 0 ? '?' : m.p1Change < 0 ? '?' : '–';
-      var p2Arrow = m.p2Change > 0 ? '?' : m.p2Change < 0 ? '?' : '–';
+      var p1Arrow = m.p1Change > 0 ? '+' : m.p1Change < 0 ? '-' : '';
+      var p2Arrow = m.p2Change > 0 ? '+' : m.p2Change < 0 ? '-' : '';
       var p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p1Img = m.p1Img || null;
@@ -5521,7 +5521,7 @@ function showMatchHistory(page) {
         + '</div>'
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;min-width:0;">'
-        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p1)+(p1Won?' ?':'')+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p1)+(p1Won?' W':'')+'</span>'
         + '<span style="font-size:.6rem;color:var(--dim);flex-shrink:0;">'+m.p1Elo+'</span>'
         + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.9rem;line-height:1;color:'+p1EloColor+';font-weight:900;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p1Arrow+Math.abs(m.p1Change||0)+'</span>'
         + '</div>'
@@ -5531,7 +5531,7 @@ function showMatchHistory(page) {
         // P2
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;align-items:flex-end;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;flex-direction:row-reverse;min-width:0;">'
-        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(!p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(!p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p2)+(!p1Won?' ?':'')+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(!p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(!p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p2)+(!p1Won?' W':'')+'</span>'
         + '<span style="font-size:.6rem;color:var(--dim);flex-shrink:0;">'+m.p2Elo+'</span>'
         + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.9rem;line-height:1;color:'+p2EloColor+';font-weight:900;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p2Arrow+Math.abs(m.p2Change||0)+'</span>'
         + '</div>'
@@ -5548,9 +5548,9 @@ function showMatchHistory(page) {
     });
     html += '</div>';
     html += `<div style="display:flex;justify-content:center;align-items:center;gap:.8rem;margin-top:.8rem;">
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>? Prev</button>
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>Prev</button>
       <span style="font-family:Cinzel,serif;font-size:.7rem;color:var(--dim);">Page ${_matchHistPage+1} / ${totalPages}</span>
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next ?</button>
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next</button>
     </div>`;
   }
   showModal('Recent Matches', html, [{label:'Close', action:closeModal}]);

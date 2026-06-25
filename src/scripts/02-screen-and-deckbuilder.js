@@ -541,7 +541,7 @@ function renderDBCollection() {
       return {
         card:c,
         count,
-        title:`Click to view details. Right-click to add.\n${c.ability}`,
+        title:'',
         ariaLabel:c.name
       };
     });
@@ -572,7 +572,6 @@ function renderDBCollection() {
     el.onclick=()=>openDeckBuilderCardDetail(c);
     // Right-click adds to deck (no more "+" UI).
     el.oncontextmenu=(e)=>{e.preventDefault();addToDeck(c.id);};
-    el.title=`Click to view details. Right-click to add.\n${c.ability}`;
     fragment.appendChild(el);
   });
   col.setAttribute('aria-busy', 'true');
@@ -708,7 +707,7 @@ function renderDBDeck() {
         card:c,
         count:n,
         subtitle:`${c.type}${c.cost>0?' ('+(c.xCost?'X':c.cost)+')':''}`,
-        title:'Click to view details'
+        title:''
       };
     }).filter(Boolean);
     if(renderCanvasDeckList(list, canvasEntries, {
@@ -753,7 +752,6 @@ function renderDBDeck() {
     row._deckCardId = id;
     row.innerHTML = _buildDeckRowHTML(c, id, n);
     row.onclick = ()=>openDeckBuilderCardDetail(c);
-    row.title = 'Click to view details';
     list.appendChild(row);
   });
   const ok = deck.length===40;

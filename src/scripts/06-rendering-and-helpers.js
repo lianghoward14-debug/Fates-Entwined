@@ -762,7 +762,7 @@ function cardRenderSignature(card, z) {
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card._markedForDeath ? 1 : 0,
     card.noConsolidate ? 1 : 0, card.usesLeft || 0,
-    card.vigilanteUsed ? 1 : 0, card.wolfCreekUsed ? 1 : 0,
+    card.wolfCreekUsed ? 1 : 0,
     card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0
   ].join(':');
 }
@@ -1863,7 +1863,7 @@ function renderOppHand() {
     container.style.cursor = '';
     container.onclick = null;
     const lbl=document.getElementById('opp-hand-lbl');
-    if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+    if(lbl) lbl.innerHTML="Opponent's Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderOppHand');
     else window.FateMatchRendererAdapter.renderFromGameState({opponentHand:true, source:'renderOppHand'});
     return;
@@ -1926,7 +1926,7 @@ function renderOppHand() {
   }
   // Update label
   const lbl=document.getElementById('opp-hand-lbl');
-  if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+  if(lbl) lbl.innerHTML="Opponent's Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
@@ -2448,7 +2448,7 @@ function getStatusEffectIcon(kind) {
     maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M9 37c4-9 10-13 16-13 8 0 10 8 16 8 4 0 8-2 14-9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 27c4 9 10 13 16 13 8 0 10-8 16-8 4 0 8 2 14 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 14v8M32 42v8" fill="none" stroke="currentColor" stroke-width="2.7" opacity=".45"/></svg>`,
     fort_calvin: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="27" cy="27" r="12"/><path d="M36 36l14 14"/><path d="M24 27h6M27 24v6" opacity=".7"/><path d="M12 50h14" stroke-width="2.8" opacity=".45"/></g></svg>`,
     berkeley_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 43h25l14-14" stroke-width="4"/><path d="M20 43l-5 9M34 43l5 9" stroke-width="3"/><rect x="42" y="16" width="12" height="12" rx="2" stroke-width="3.5"/><path d="M16 34h14" stroke-width="3.5"/></g></svg>`,
-    erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="19"/><path d="M32 19v14l9 5"/><path d="M21 15l-5-5M43 15l5-5"/><path d="M25 48h14" opacity=".45"/></g></svg>`,
+    erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 8l18 10-5 29-13 9-13-9-5-29 18-10z" stroke-width="3.8"/><path d="M24 25l8-8 8 8-8 8z" stroke-width="3.4"/><path d="M23 43h18M28 50h8" stroke-width="4"/><path d="M17 18l9 9M47 18l-9 9" opacity=".45" stroke-width="2.6"/></g></svg>`,
     selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 44c6-4 12-6 19-6s13 2 19 6" fill="none" stroke-width="4.5"/><path d="M14 51c6 2 12 2 18 0s12-2 18 0" fill="none" stroke-width="3" opacity=".55"/><path d="M32 15v28" fill="none" stroke-width="4"/><path d="M30 18c-7 3-12 9-15 18h15V18z" fill="currentColor" stroke="none"/><path d="M36 20c6 4 10 9 12 16H36V20z" fill="currentColor" stroke="none" opacity=".62"/><circle cx="48" cy="16" r="4" fill="currentColor" stroke="none" opacity=".75"/></g></svg>`,
     guerilla: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27h28l7 4-7 4H16z" stroke-width="2.8"/><path d="M16 28l-6-4v13l6-4" stroke-width="2.6"/><path d="M46 31h9" stroke-width="2.6"/><path d="M24 23h17" stroke-width="2.4"/><path d="M30 36h7l-2 10h-9z" stroke-width="2.6"/><path d="M40 36l7 8" stroke-width="2.6"/><circle cx="24" cy="31" r="1.8" stroke-width="2.4"/></g></svg>`,
     ballad: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M38 12v32" stroke-width="4"/><path d="M38 12l14 5v10l-14-5" stroke-width="4"/><ellipse cx="25" cy="46" rx="11" ry="7" stroke-width="4"/><path d="M14 20c4-4 8-4 12 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
@@ -3003,10 +3003,10 @@ function updateTopBar() {
   const perspectivePlayer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   const perspectiveOpponent = 1 - perspectivePlayer;
   const isOwnTurn = cp === perspectivePlayer;
-  const displayName = isOwnTurn ? (G.players[cp].name || 'Player') : 'Opponent';
-  const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+"'s Turn";
+  const displayName = isOwnTurn ? 'Your' : 'Opponent';
+  const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+(isOwnTurn ? 'Your Turn' : "Opponent's Turn");
   const hudTurnText = 'Turn '+G.turn+'/'+G.maxTurns;
-  const hudPlayerText = isOwnTurn ? (G.players[cp].name+"'s Turn") : "Opponent's Turn";
+  const hudPlayerText = isOwnTurn ? 'Your Turn' : "Opponent's Turn";
   const shellSig = [
     cp, G.turn, G.maxTurns, G.phase || '',
     isAITurn ? 1 : 0, isOwnTurn ? 1 : 0,
@@ -4542,13 +4542,6 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
         const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
-        // Vigilantes (52): discard 4 supporters to remove a card (once per turn)
-        if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
-          const vigBtn=document.createElement('button');
-          vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
-          vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
-          acts.appendChild(vigBtn);
-        }
         // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
         if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
           const wcBtn=document.createElement('button');
@@ -6268,6 +6261,10 @@ let _hoverPreviewPoint = null;
 let _hoverPreviewAnchorRect = null;
 function showHoverPreview(card, e) {
   removeHoverPreview();
+  try {
+    const target = e && e.target && e.target.closest ? e.target : null;
+    if(target && target.closest('#s-deck, #s-challenger .ch-cdb-content')) return;
+  } catch(_e) {}
   try {
     const game = document.getElementById('s-game');
     const v2Owns = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();

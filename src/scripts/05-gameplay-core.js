@@ -441,7 +441,6 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       if(card.type === 'Supporter') {
         const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
         if(!suppressed) {
-          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Marked for Death', z);
           if(card.id === '54' && !card.wolfCreekUsed) pushEndTurnEffectWarning(pending, card, 'Elusive Movements', z);
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
           if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Move to Adjacent Zone', z);
@@ -459,13 +458,6 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       }
     });
   }
-  const hand = G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
-  hand.forEach(function(card) {
-    if(!card) return;
-    if(card.id === '74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))) {
-      pushEndTurnEffectWarning(pending, card, 'Discard - Set 3 Supporters', null);
-    }
-  });
   return pending;
 }
 
@@ -641,7 +633,6 @@ async function nextPlayerTurn() {
   forEachBoardCard((card)=>{
     if(card.owner===G.currentPlayer) {
       card.effectUsedThisTurn = false;
-      if(card.id==='52') card.vigilanteUsed = false;
       if(card.id==='54') card.wolfCreekUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
@@ -1652,10 +1643,10 @@ async function clickCell(z,r,c) {
   }
   markCommit('linaFreeCinematic');
 
-  // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
+  // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 5 Fate.
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(cell && cell.id==='02' && cell.owner===G.currentPlayer && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-      modifyFate(inst,3,'permanent');
+      modifyFate(inst,5,'permanent');
     }
   }));
   markCommit('anickaPassive');
@@ -2296,22 +2287,20 @@ function finalizeConsolidate(card, tributes, targetIdx) {
 
     function commitConsolidationAfterPresentation(tx, presentationDelay){
       var _consolidationMotionMs = Math.max(0, Number(presentationDelay) || 0);
-    const affectedZones = [...new Set(tributes.map(t=>t.z))];
-    affectedZones.forEach(tz=>{
-      G.board[tz].forEach((row, mr)=>{
+    const deterranceZone = G.board[targetZ] || [];
+    deterranceZone.forEach((row, mr)=>{
         if(!row) return;
         row.forEach((cell, mc)=>{
           if(cell&&cell.id==='36'&&cell.owner!==cp){
-            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 3.');
-            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
-            toast('Deterrance activated: Zone '+(tz+1)+' loses 3 Fate.');
-            if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(tz, mr, mc, cell);
+            log('sys','Deterrance activated! Zone '+(targetZ+1)+' Fate reduced by 3.');
+            G.fateModifiers['deterrance_z'+targetZ] = (G.fateModifiers['deterrance_z'+targetZ]||0) - 3;
+            toast('Deterrance activated: Zone '+(targetZ+1)+' loses 3 Fate.');
+            if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(targetZ, mr, mc, cell);
             if(typeof playSfx === 'function') playSfx('debuff');
             if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
           }
         });
       });
-    });
 
     if(card._wciBonus) toast('West Caribbea Infantry bonus: -1 cost, +2 Fate!');
     try {
@@ -4704,59 +4693,6 @@ function checkWin() {
 // ══════════════════════════════════════════════════════════════
 //  SUPPORTER ACTIVE ABILITIES
 // ══════════════════════════════════════════════════════════════
-
-// Vigilantes (52): discard 3 own supporters from field to discard a card in this same zone
-async function activateVigilantes(card, z, r, c) {
-  const cp = G.currentPlayer;
-  const opp = 1 - cp;
-  const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [opp]);
-  if(!allowed) {
-    card.vigilanteUsed = true;
-    renderGame({board:true, scores:true, topbar:true});
-    return;
-  }
-  const availSups = [];
-  forEachBoardCard((bc, bz, br, bc2) => {
-    if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(bc))){
-      availSups.push({card:bc, z:bz, r:br, c:bc2});
-    }
-  });
-  if(availSups.length < 3){
-    toast('Need 3 supporters on the field to activate (have '+availSups.length+')');
-    return;
-  }
-  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardsVisual(availSups.map(s=>s.card), {
-    title:'Marked for Death — Select 3 Supporters to Expend',
-    subtitle:'These supporters will be discarded to remove one card in this same zone.',
-    maxCount:3, confirmLabel:'Expend'
-  }, (chosen)=>{
-    if(chosen.length < 3){toast('Must select exactly 3 supporters');return;}
-
-    const zoneTargets = [];
-    if(G.board[z]){
-      G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell) zoneTargets.push({card:cell,z:z,r:ri,c:ci});
-      }));
-    }
-    if(zoneTargets.length===0){toast('No cards in this zone');return;}
-
-    pickCardInZone(z,'Vigilantes: Select a card in this zone to destroy:',(tgt,locZ,locR,locC)=>{
-      if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
-      chosen.forEach(function(sc){
-        const src = availSups.find(function(s){return s.card.iid===sc.iid;});
-        if(src) discardBoardCard(src.card, src.z, src.r, src.c);
-      });
-      discardBoardCard(tgt, locZ, locR, locC);
-      card.vigilanteUsed = true;
-      toast('Vigilantes destroyed '+tgt.name+'!');
-      log(cp===0?'p1':'p2', 'Vigilantes expended 3 supporters to destroy '+tgt.name+' in Zone '+(locZ+1));
-      playSfx('effect');
-      renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-    }, function(cell){ return !!cell && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
-  });
-}
-
 
 function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   if(!cardToMove || !wolfCreekCard) return false;
