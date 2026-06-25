@@ -1761,8 +1761,8 @@ function applyAnickaStarlitPathPlacementBonus(state, inst, playerIndex, z){
     String(card.iid || '') !== String(inst.iid || '') &&
     !card.faceDown
   ).forEach(entry=>{
-    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 3);
-    inst._starlitPathBonus = (Number(inst._starlitPathBonus || 0) || 0) + 3;
+    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 5);
+    inst._starlitPathBonus = (Number(inst._starlitPathBonus || 0) || 0) + 5;
     inst._lastStarlitPathSource = entry.card.iid || null;
     applied += 1;
   });
@@ -1999,32 +1999,6 @@ function collectLandscapeEventideMoveOptions(state, card, playerIndex, fromZ, fr
     }
   }
   return options;
-}
-
-function isVigilantesExpendCandidate(card, playerIndex, sourceIid){
-  if(!card || typeof card !== 'object') return false;
-  return Number(card.owner) === playerIndex &&
-    String(card.type || '') === 'Supporter' &&
-    String(card.iid || '') !== String(sourceIid || '') &&
-    String(card.id || '') !== '76' &&
-    card.noConsolidate !== true &&
-    !isFaceDownServerCard(card);
-}
-
-function collectVigilantesExpendCandidates(state, playerIndex, sourceIid){
-  const candidates = [];
-  if(!Array.isArray(state?.board)) return candidates;
-  state.board.forEach((zone, z)=>{
-    if(!Array.isArray(zone)) return;
-    zone.forEach((row, r)=>{
-      if(!Array.isArray(row)) return;
-      row.forEach((card, c)=>{
-        if(!isVigilantesExpendCandidate(card, playerIndex, sourceIid)) return;
-        candidates.push({z, r, c, card});
-      });
-    });
-  });
-  return candidates;
 }
 
 function setPendingJuanCarlosPick(state, inst, playerIndex, z, r, c){
@@ -2872,6 +2846,32 @@ function isVigilantesTarget(card, playerIndex){
     card.immuneFlag !== true;
 }
 
+function isVigilantesExpendCandidate(card, playerIndex, sourceIid){
+  if(!card || typeof card !== 'object') return false;
+  return Number(card.owner) === playerIndex &&
+    String(card.type || '') === 'Supporter' &&
+    String(card.iid || '') !== String(sourceIid || '') &&
+    String(card.id || '') !== '76' &&
+    card.noConsolidate !== true &&
+    !isFaceDownServerCard(card);
+}
+
+function collectVigilantesExpendCandidates(state, playerIndex, sourceIid){
+  const candidates = [];
+  if(!Array.isArray(state?.board)) return candidates;
+  state.board.forEach((zone, z)=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach((row, r)=>{
+      if(!Array.isArray(row)) return;
+      row.forEach((card, c)=>{
+        if(!isVigilantesExpendCandidate(card, playerIndex, sourceIid)) return;
+        candidates.push({z, r, c, card});
+      });
+    });
+  });
+  return candidates;
+}
+
 function setPendingVigilantesPick(state, inst, playerIndex, z, r, c){
   if(String(inst?.id || '') !== '52') return;
   const zone = state?.board?.[z] || [];
@@ -3387,23 +3387,18 @@ function consolidationRunningTotal(con){
   }, 0);
 }
 
-function applyDeterranceForTributeZones(state, chosenTributes, playerIndex){
-  const affectedZones = [];
-  chosenTributes.forEach(tribute=>{
-    const z = Number(tribute?.z);
-    if(Number.isInteger(z) && !affectedZones.includes(z)) affectedZones.push(z);
-  });
-  affectedZones.forEach(z=>{
-    const zone = state.board?.[z] || [];
-    zone.forEach(row=>{
-      if(!Array.isArray(row)) return;
-      row.forEach(cell=>{
-        if(cell && String(cell.id || '') === '36' && Number(cell.owner) !== playerIndex){
-          if(!state.fateModifiers || typeof state.fateModifiers !== 'object') state.fateModifiers = {};
-          const key = `deterrance_z${z}`;
-          state.fateModifiers[key] = (Number(state.fateModifiers[key] || 0) || 0) - 3;
-        }
-      });
+function applyDeterranceForConsolidationZone(state, targetZone, playerIndex){
+  const z = Number(targetZone);
+  if(!Number.isInteger(z)) return;
+  const zone = state.board?.[z] || [];
+  zone.forEach(row=>{
+    if(!Array.isArray(row)) return;
+    row.forEach(cell=>{
+      if(cell && String(cell.id || '') === '36' && Number(cell.owner) !== playerIndex){
+        if(!state.fateModifiers || typeof state.fateModifiers !== 'object') state.fateModifiers = {};
+        const key = `deterrance_z${z}`;
+        state.fateModifiers[key] = (Number(state.fateModifiers[key] || 0) || 0) - 3;
+      }
     });
   });
 }
@@ -3502,7 +3497,7 @@ function finalizeBasicConsolidation(state, con, targetIdx, playerIndex, options,
   inst.owner = playerIndex;
   let bonusFate = 0;
   const chosenTributes = chosenIdxs.map(idx=>allPossible[idx]).filter(Boolean);
-  applyDeterranceForTributeZones(state, chosenTributes, playerIndex);
+  applyDeterranceForConsolidationZone(state, target.z, playerIndex);
   chosenIdxs.forEach(idx=>{
     const tribute = allPossible[idx];
     const live = state.board?.[tribute.z]?.[tribute.r]?.[tribute.c] || tribute.card;

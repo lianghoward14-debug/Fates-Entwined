@@ -42,7 +42,9 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 assert.match(indexText, /18-online-rooms\.js\?v=1782051801/, 'index must cache-bust the online rooms script for test helpers');
 assert.match(read('src/scripts/render-v2/04-match-renderer-adapter.js'), /chat-unread[\s\S]*DIRTY_UI/, 'render-v2 chat notification must use UI-only dirty work');
 assert.match(roomsText, /function applyAuthoritativePostState[\s\S]*applyOnlineCanonicalState[\s\S]*isStrictCompactAuthorityAction\(type\)[\s\S]*applyAuthoritativePostState/, 'strict Fly accepted actions must apply server canonical postState directly');
-assert.match(roomsText, /Strict Fly authority action is missing canonical server state; skipping local replay[\s\S]*resyncRejectedOnlineAction[\s\S]*return;[\s\S]*await withRemoteAction/, 'strict Fly accepted actions without postState must not fall into legacy local replay');
+assert.match(roomsText, /async function withLegacyRemoteReplayAction\(fn, playerIndex\)/, 'legacy online replay helper must be explicitly named as legacy');
+assert.doesNotMatch(roomsText, /withRemoteAction/, 'legacy replay helper must not keep the ambiguous withRemoteAction name');
+assert.match(roomsText, /Strict Fly authority action is missing canonical server state; skipping local replay[\s\S]*resyncRejectedOnlineAction[\s\S]*return;[\s\S]*await withLegacyRemoteReplayAction/, 'strict Fly accepted actions without postState must not fall into legacy local replay');
 assert.match(roomsText, /window\.fateAuthorityRenderReport\s*=\s*function\(\)/, 'browser must expose authority render convergence diagnostics');
 assert.match(roomsText, /function renderedAuthorityBoardReport\(\)[\s\S]*rendererAvailable[\s\S]*rendererOwnsBoard[\s\S]*rendererCards[\s\S]*rendererExpectedCards[\s\S]*renderSnapshotBoardCount[\s\S]*domBoardCount/, 'authority render diagnostics must expose renderer, snapshot, and DOM count sources');
 assert.match(roomsText, /renderedBoardSource[\s\S]*renderedBoardMatchesCanonical[\s\S]*renderMismatchReason[\s\S]*lastRenderDirtyMask[\s\S]*lastRenderDirtySource/, 'authority render diagnostics must report convergence status and render dirtiness');

@@ -97,6 +97,24 @@ async function waitFor(win, expression, label, timeoutMs=15000){
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+function loadDomReady(win, url){
+  return new Promise((resolve, reject)=>{
+    const timer = setTimeout(()=>reject(new Error('Timed out waiting for dom-ready')), 60000);
+    win.webContents.once('dom-ready', ()=>{
+      clearTimeout(timer);
+      resolve();
+    });
+    win.webContents.once('did-fail-load', (_event, code, description)=>{
+      clearTimeout(timer);
+      reject(new Error(`Page load failed ${code}: ${description}`));
+    });
+    win.loadURL(url).catch(err=>{
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
 async function main(){
   setStage('starting-static-server');
   const { server, url } = await startStaticServer();
@@ -118,7 +136,12 @@ async function main(){
     if(level >= 2) process.stderr.write(`[renderer] ${message}\n`);
   });
   setStage('loading-url');
-  await win.loadURL(url);
+  await loadDomReady(win, url);
+  setStage('waiting-for-render-dependencies');
+  await waitFor(win, 'window.getFateGameState && window.renderGame', 'render dependencies');
+  setStage('injecting-online-rooms');
+  const roomsScript = fs.readFileSync(path.join(ROOT, 'src', 'scripts', '18-online-rooms.js'), 'utf8');
+  await win.webContents.executeJavaScript(roomsScript + '\n//# sourceURL=fate-authority-render-smoke/18-online-rooms.js', true);
   setStage('waiting-for-report-dependencies');
   await waitFor(win, 'window.fateAuthorityRenderReport && window.getFateGameState && window.renderGame', 'authority render report dependencies');
 
@@ -193,22 +216,26 @@ const watchdog = setTimeout(()=>{
   const payload = {ok:false, error:'Timed out in Electron authority render smoke', stage:smokeStage};
   writeResult(payload);
   try{ app.exit(1); }catch(err){ process.exit(1); }
-}, 35000);
+}, 75000);
+function quitWithFailure(){
+  process.exitCode = 1;
+  try{ app.quit(); }catch(e){}
+}
 process.on('uncaughtException', err=>{
   const payload = {ok:false, error:String(err && err.message || err), stack:String(err && err.stack || '')};
   writeResult(payload);
   process.stderr.write(String(err && err.stack || err) + '\n');
-  try{ app.quit().finally(()=>{ process.exitCode = 1; }); }catch(e){ process.exitCode = 1; }
+  quitWithFailure();
 });
 process.on('unhandledRejection', err=>{
   const payload = {ok:false, error:String(err && err.message || err), stack:String(err && err.stack || '')};
   writeResult(payload);
   process.stderr.write(String(err && err.stack || err) + '\n');
-  try{ app.quit().finally(()=>{ process.exitCode = 1; }); }catch(e){ process.exitCode = 1; }
+  quitWithFailure();
 });
 app.whenReady().then(main).catch(err=>{
   const payload = {ok:false, error:String(err && err.message || err), stack:String(err && err.stack || '')};
   writeResult(payload);
   process.stderr.write(String(err && err.stack || err) + '\n');
-  app.quit().finally(()=>{ process.exitCode = 1; });
+  quitWithFailure();
 });

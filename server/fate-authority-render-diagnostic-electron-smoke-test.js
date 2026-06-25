@@ -29,7 +29,7 @@ const result = spawnSync(electronPath, [ELECTRON_APP_DIR], {
   cwd:ROOT,
   env:Object.assign({}, process.env, {FATE_AUTHORITY_RENDER_SMOKE_RESULT:RESULT_PATH}),
   encoding:'utf8',
-  timeout:45000,
+  timeout:100000,
   maxBuffer:8 * 1024 * 1024
 });
 
@@ -48,9 +48,12 @@ if(result.error && !payload){
 if(result.error && payload){
   payload.spawnError = String(result.error && result.error.message || result.error);
 }
-if(result.status !== 0 && !payload){
+if(result.status !== 0){
   if(result.stdout) process.stdout.write(result.stdout);
   if(result.stderr) process.stderr.write(result.stderr);
+  if(payload){
+    process.stderr.write(JSON.stringify(payload, null, 2) + '\n');
+  }
   process.stderr.write(`Electron render smoke exited with status ${result.status}\n`);
   process.exit(result.status || 1);
 }

@@ -48,12 +48,14 @@ function assertClientDirectApplyContract(){
   assert.match(roomsText, /function shouldApplyServerStateDirectly\(actionType, payload\)/);
   assert.match(roomsText, /if\(shouldApplyServerStateDirectly\(type, payload\)\)\{[\s\S]*?applyAuthoritativePostState\(action,[\s\S]*?return;/);
   assert.match(roomsText, /Strict Fly authority action is missing canonical server state; skipping local replay/);
+  assert.match(roomsText, /async function withLegacyRemoteReplayAction\(fn, playerIndex\)/);
+  assert.doesNotMatch(roomsText, /withRemoteAction/);
   assert.match(roomsText, /window\.fateAuthorityRenderReport/);
   assert.match(roomsText, /renderedBoardMatchesCanonical[\s\S]*renderMismatchReason/);
   assert.match(roomsText, /rendererAvailable[\s\S]*rendererOwnsBoard[\s\S]*renderSnapshotBoardCount[\s\S]*domBoardCount/);
   const directApplyIndex = roomsText.indexOf('if(shouldApplyServerStateDirectly(type, payload))');
   const strictQuarantineIndex = roomsText.indexOf('Strict Fly authority action is missing canonical server state; skipping local replay');
-  const legacyReplayIndex = roomsText.indexOf('await withRemoteAction(async ()=>');
+  const legacyReplayIndex = roomsText.indexOf('await withLegacyRemoteReplayAction(async ()=>');
   assert(directApplyIndex >= 0, 'strict direct-apply branch must exist');
   assert(strictQuarantineIndex > directApplyIndex, 'strict missing-postState quarantine must follow direct apply');
   assert(legacyReplayIndex > strictQuarantineIndex, 'strict quarantine must happen before legacy remote replay');
@@ -88,6 +90,17 @@ async function postJson(pathname, body){
   return json;
 }
 
+async function getJson(pathname){
+  const res = await fetch(`http://${HOST}:${PORT}${pathname}`);
+  const text = await res.text();
+  let json = null;
+  try{ json = text ? JSON.parse(text) : null; }catch(e){}
+  if(!res.ok || json?.ok === false){
+    throw new Error(`GET ${pathname} failed ${res.status}: ${json?.error || text.slice(0, 240)}`);
+  }
+  return json;
+}
+
 function waitForMessage(client, predicate, label, timeoutMs = 4000){
   const existing = client.messages.find(predicate);
   if(existing) return Promise.resolve(existing);
@@ -117,13 +130,18 @@ function applyDirectServerState(client, msg){
   client.seq = Math.max(client.seq || 0, Number(msg.action.seq || 0) || 0);
 }
 
-function createClient(uid, roomCode){
+function createClient(uid, roomCode, helloOptions){
+  const opts = helloOptions && typeof helloOptions === 'object' ? helloOptions : {};
   const ws = new WebSocket(`ws://${HOST}:${PORT}`);
-  const client = {uid, ws, roomCode, messages:[], listeners:new Set(), canonicalState:null, stateHash:'', seq:0};
+  const client = {uid, ws, roomCode, messages:[], listeners:new Set(), canonicalState:null, stateHash:'', seq:0, hello:null};
   ws.addEventListener('message', event=>{
     const raw = typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8');
     const msg = JSON.parse(raw);
     client.messages.push(msg);
+    if(msg.kind === 'hello-ok'){
+      client.hello = msg;
+      if(msg.serverStateHash) client.serverStateHash = String(msg.serverStateHash || '');
+    }
     if(msg.kind === 'accepted') applyDirectServerState(client, msg);
     client.listeners.forEach(listener=>listener(msg));
   });
@@ -136,9 +154,9 @@ function createClient(uid, roomCode){
         roomCode,
         uid,
         idToken:'',
-        lastSeq:0,
-        stateHash:'',
-        room:{hostUid:'host', guestUid:'guest', currentTurnUid:'host', lastActionSeq:0, playerOrder:{0:'host', 1:'guest'}}
+        lastSeq:Number(opts.lastSeq || 0) || 0,
+        stateHash:String(opts.stateHash || ''),
+        room:opts.room || {hostUid:'host', guestUid:'guest', currentTurnUid:'host', lastActionSeq:0, playerOrder:{0:'host', 1:'guest'}}
       }));
       try{
         await waitForMessage(client, msg=>msg.kind === 'hello-ok', `${uid} hello-ok`);
@@ -300,11 +318,32 @@ async function main(){
     assert.strictEqual(boardCardAt(host, 0, 0, 0).owner, 1);
     assert.strictEqual(host.stateHash, guest.stateHash, 'final state hash mismatch');
 
+    const resume = await getJson(`/api/rooms/${roomCode}/resume?after=0&limit=20&includeState=1`);
+    assert.strictEqual(resume.ok, true, 'resume payload was not ok');
+    assert.strictEqual(resume.lastSeq, host.seq, 'resume lastSeq mismatch');
+    assert.strictEqual(resume.serverStateHash, host.stateHash, 'resume server state hash mismatch');
+    assert.strictEqual(resume.canonicalHash, host.stateHash, 'resume canonical hash mismatch');
+    assert.strictEqual(canonicalStateHash(resume.canonicalState), host.stateHash, 'resume canonical state hash mismatch');
+    assert.strictEqual(resume.canonicalState?.board?.[0]?.[2]?.[0]?.owner, 0, 'resume missing host placement');
+    assert.strictEqual(resume.canonicalState?.board?.[0]?.[0]?.[0]?.owner, 1, 'resume missing guest placement');
+    assert(resume.events.some(item=>item.action?.type === 'PLACE_CARD' && item.action?.payload?.postState), 'resume did not include canonical placement events');
+
+    const refreshedGuest = await createClient('guest', roomCode, {
+      lastSeq:resume.lastSeq,
+      stateHash:resume.serverStateHash,
+      room:resume.room
+    });
+    clients.push(refreshedGuest);
+    assert.strictEqual(refreshedGuest.hello?.serverStateHash, host.stateHash, 'refreshed guest hello hash mismatch');
+    refreshedGuest.ws.close();
+
     console.log(JSON.stringify({
       ok:true,
       roomCode,
       seq:host.seq,
       stateHash:host.stateHash,
+      resumeVerified:true,
+      refreshedGuestHash:refreshedGuest.hello?.serverStateHash || '',
       placements:[
         {playerIndex:0, z:0, r:2, c:0, cardId:boardCardAt(host, 0, 2, 0)?.id || ''},
         {playerIndex:1, z:0, r:0, c:0, cardId:boardCardAt(host, 0, 0, 0)?.id || ''}

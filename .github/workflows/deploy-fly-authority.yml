@@ -1,0 +1,46 @@
+name: Deploy Fly authority
+
+on:
+  push:
+    branches:
+      - main
+      - codex/fly-authority-deploy
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fly-authority
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run cutover preflight
+        run: xvfb-run -a npm run smoke:fly-cutover
+
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly
+        run: flyctl deploy --config fly.toml --remote-only
+
+      - name: Verify live readiness
+        run: npm run smoke:fly-live-readiness

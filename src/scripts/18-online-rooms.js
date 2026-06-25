@@ -1046,7 +1046,7 @@
     }
     return true;
   }
-  async function withRemoteAction(fn, playerIndex){
+  async function withLegacyRemoteReplayAction(fn, playerIndex){
     const g = gameState();
     let prevRemoteActionPlayer = null;
     if(g){
@@ -1166,7 +1166,7 @@
       const choiceId = String(choice.clientActionId || uid + ':' + choice.clientAt || '');
       if(choiceId && appliedTurnChoiceFallbackIds.has(choiceId)) continue;
       if(choiceId) appliedTurnChoiceFallbackIds.add(choiceId);
-      withRemoteAction(async ()=>{
+      withLegacyRemoteReplayAction(async ()=>{
         if(isGameScreenActive()) return;
         if(typeof window.chooseTurn === 'function') window.chooseTurn(!!choice.goFirst);
         updateRoomTurn(gameState()?.currentPlayer);
@@ -3078,7 +3078,7 @@
     if(action.uid !== localUid && typeof window.playSfx === 'function') {
       const fnName = String(payload?.fn || '');
       const remoteEffectActivation =
-        (type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
+        (type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
         (type === 'MODAL_ACTION' && !!payload?.effectCinematic) ||
         (type === 'HAND_ACTION' && /^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName));
       if(remoteEffectActivation && typeof window.playEffectActivationClickSfx === 'function') {
@@ -3090,7 +3090,7 @@
       }
     }
 
-    await withRemoteAction(async ()=>{
+    await withLegacyRemoteReplayAction(async ()=>{
       if(type === 'END_TURN'){
         if(typeof window.endTurn === 'function') window.endTurn();
         updateRoomTurn(gameState()?.currentPlayer);
@@ -4320,7 +4320,6 @@
     const boardFns = [
       'triggerCharacterEffect',
       'activatePendingWhenSetEffect',
-      'activateVigilantes',
       'activateWolfCreek',
       'activateExpeditionaryMove',
       'activateLandscapeEventideMove',

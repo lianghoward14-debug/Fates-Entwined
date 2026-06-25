@@ -30,6 +30,7 @@
     "smoke:fly-local-runtime": "node server/fate-fly-local-runtime-smoke-test.js",
     "smoke:fly-store": "node server/fate-fly-store-smoke-test.js",
     "smoke:fly-test-readiness": "node server/fate-fly-test-readiness-static-smoke-test.js",
+    "smoke:fly-live-readiness": "node server/fate-fly-live-readiness-smoke-test.js",
     "smoke:fly-cutover": "node server/fate-fly-cutover-preflight-smoke-test.js",
     "smoke:ws-authority": "node server/local-multiplayer-smoke-test.js",
     "smoke:multiplayer": "node server/full-multiplayer-smoke-test.js",
