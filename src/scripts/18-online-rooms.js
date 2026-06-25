@@ -68,6 +68,7 @@
   let authorityRejectedResyncFailures = 0;
   let authorityLastRejectedResyncReason = '';
   let optimisticSendQueue = Promise.resolve();
+  let lobbyAuthorityPrejoinCode = '';
   const authorityInflight = new Map();
   const authorityPersistPromises = new Map();
   const authorityPersistRetries = new Map();
@@ -1698,6 +1699,7 @@
     lastActionSeq = 0;
     lastAppliedActionSeq = 0;
     lastAuthorityStateHash = '';
+    lobbyAuthorityPrejoinCode = '';
     actionReplayQueue = Promise.resolve();
     optimisticSendQueue = Promise.resolve();
     actionReplayBuffer.clear();
@@ -2480,6 +2482,23 @@
   }
   function joinFromInput(){ const inp=document.getElementById('online-room-code-input'); joinRoom(inp?.value||''); }
 
+  function isStartedRoomStatus(status){
+    return /^(matchup|starting|playing)$/i.test(String(status || ''));
+  }
+
+  function maybePrejoinLobbyAuthority(room){
+    if(!room || !room.roomCode || isStartedRoomStatus(room.status)) return;
+    if(!configuredAuthorityUrl() || typeof WebSocket === 'undefined') return;
+    const code = String(room.roomCode || '').trim().toUpperCase();
+    if(!code) return;
+    if(lobbyAuthorityPrejoinCode === code && authorityRoomCode === code && (authorityJoined || authorityJoinPromise)) return;
+    lobbyAuthorityPrejoinCode = code;
+    ensureAuthorityJoined(code).catch(function(err){
+      if(lobbyAuthorityPrejoinCode === code) lobbyAuthorityPrejoinCode = '';
+      console.warn('Fly lobby authority prejoin failed', err);
+    });
+  }
+
   function watchFlyRoom(code, opts={}){
     activeRoom = code;
     clearRoomWatchers();
@@ -2515,6 +2534,7 @@
       if(!room.roomCode) return;
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
+      maybePrejoinLobbyAuthority(room);
       syncRoomChatToInGame(room);
       if(activeRoomSilent) {
         // Keep the cached room fresh without reopening the lobby modal.
@@ -2524,7 +2544,7 @@
       evaluateLagPause();
       maybeHandleOpponentDisconnect(room, room.players);
       maybeAutoStartQueuedRoom(room, room.players);
-      if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing') startRoomGame(room);
+      if(isStartedRoomStatus(room.status)) startRoomGame(room);
       if(room.status === 'ended') handleRoomEnded(room);
     }
     async function poll(){
@@ -3810,11 +3830,52 @@
     return persistPromise;
   }
 
+  function handleLobbyMatchStartAccepted(accepted){
+    const action = accepted && accepted.action;
+    if(String(action?.type || '').toUpperCase() !== 'MATCH_START') return false;
+    const g = gameState();
+    if(isOnlineMatchState(g)) return false;
+    const code = String(accepted?.roomCode || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    if(!code) return false;
+    if(activeRoom && String(activeRoom || '').trim().toUpperCase() !== code) return false;
+    const payload = action.payload || {};
+    const roomPatch = accepted.roomPatch || {};
+    const baseRoom = lastLobbyRoom || {};
+    const nextRoom = Object.assign({}, baseRoom, roomPatch, {
+      _flyRoom:true,
+      roomCode:code,
+      status:roomPatch.status || baseRoom.status || 'playing',
+      phase:roomPatch.phase || baseRoom.phase || 'playing',
+      hostUid:payload.hostUid || baseRoom.hostUid || '',
+      guestUid:payload.guestUid || baseRoom.guestUid || '',
+      seed:payload.seed || roomPatch.seed || baseRoom.seed || '',
+      song:payload.song || roomPatch.song || baseRoom.song || '',
+      lastActionSeq:Math.max(Number(baseRoom.lastActionSeq || 0) || 0, Number(action.seq || 0) || 0)
+    });
+    if(!nextRoom.players || !Object.keys(nextRoom.players).length) nextRoom.players = lastLobbyPlayers || {};
+    lastLobbyRoom = nextRoom;
+    lastLobbyPlayers = nextRoom.players || lastLobbyPlayers || {};
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineLobbyMatchStartSignal = {
+        at:Date.now(),
+        roomCode:code,
+        seq:Number(action.seq || 0) || 0,
+        transport:'websocket-accepted'
+      };
+    } catch(e) {}
+    startRoomGame(nextRoom).catch(function(err){
+      console.error('Lobby MATCH_START handoff failed', err);
+    });
+    return true;
+  }
+
   function handleAuthorityAcceptedMessage(accepted){
     const action = accepted && accepted.action;
     const code = String(accepted?.roomCode || gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
     if(!action || !code) return;
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
+    if(handleLobbyMatchStartAccepted(accepted)) return;
     const bufferedAction = accepted.serverStateHash
       ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
       : action;

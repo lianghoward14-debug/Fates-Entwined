@@ -39,7 +39,12 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /18-online-rooms\.js\?v=1782051801/, 'index must cache-bust the online rooms script for test helpers');
+assert.match(indexText, /18-online-rooms\.js\?v=1782052601/, 'index must cache-bust the online rooms script for test helpers');
+assert.match(indexText, /04-game-setup\.js\?v=1782052601/, 'index must cache-bust the match setup script for preload gate changes');
+assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
+assert.match(roomsText, /function maybePrejoinLobbyAuthority\(room\)[\s\S]*ensureAuthorityJoined\(code\)/, 'Fly lobby clients must prejoin the WebSocket authority before host start');
+assert.match(roomsText, /function handleLobbyMatchStartAccepted\(accepted\)[\s\S]*MATCH_START[\s\S]*startRoomGame\(nextRoom\)/, 'accepted MATCH_START must hand off lobby clients into the match');
+assert.match(roomsText, /if\(handleLobbyMatchStartAccepted\(accepted\)\) return;[\s\S]*bufferOnlineAction\(bufferedAction\)/, 'lobby MATCH_START must not be swallowed by in-match replay buffering');
 assert.match(read('src/scripts/render-v2/04-match-renderer-adapter.js'), /chat-unread[\s\S]*DIRTY_UI/, 'render-v2 chat notification must use UI-only dirty work');
 assert.match(roomsText, /function applyAuthoritativePostState[\s\S]*applyOnlineCanonicalState[\s\S]*isStrictCompactAuthorityAction\(type\)[\s\S]*applyAuthoritativePostState/, 'strict Fly accepted actions must apply server canonical postState directly');
 assert.match(roomsText, /async function withLegacyRemoteReplayAction\(fn, playerIndex\)/, 'legacy online replay helper must be explicitly named as legacy');
