@@ -33,8 +33,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run cutover preflight
-        run: xvfb-run -a npm run smoke:fly-cutover
+      - name: Run deploy preflight
+        run: |
+          npm run smoke:fly-config
+          npm run smoke:fly-local-runtime
+          npm run smoke:fly-store
+          npm run smoke:fly-test-readiness
+          npm run smoke:rtdb-rules-lockdown
+          npm run smoke:rtdb-disconnect-static
+          npm run smoke:rtdb-appcheck-static
+          FATE_WS_SMOKE_ALLOW_FAKE=1 npm run smoke:ws-authority
+          npm run smoke:authority-bootstrap
+          npm run smoke:authority-reducer
+          npm run smoke:authority-state-gate
+          npm run smoke:authority-strict-reducer
+          npm run smoke:authority-two-client-placement
+          npm run smoke:card-catalog
 
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
