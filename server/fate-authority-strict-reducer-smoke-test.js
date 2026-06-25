@@ -105,7 +105,7 @@ async function createStartedRoom(){
     profile:{displayName:'Guest'},
     deckChoice:{name:'Guest Deck', deckIds:deck, ready:true}
   });
-  const started = await postJson(`http://127.0.0.1:${PORT}/api/rooms/${code}/start`, {uid:'host', seed:'strict-seed', song:'strict-song'});
+  const started = await postJson(`http://127.0.0.1:${PORT}/api/rooms/${code}/start`, {uid:'host', seed:'host-first', song:'strict-song'});
   return {code, startPayload:started.accepted.action.payload};
 }
 
@@ -156,15 +156,17 @@ async function main(){
     const rejected = await waitForKind(ws, 'rejected');
     assert.match(rejected.reason, /not implemented for non-placement CLICK_CELL/);
 
-    const firstHandCard = first.players?.[0]?.hand?.[0] || {};
+    const openingPlayer = Number(first.currentPlayer || 0) || 0;
+    const nextPlayer = openingPlayer === 0 ? 1 : 0;
+    const firstHandCard = first.players?.[openingPlayer]?.hand?.[0] || {};
     ws.send(JSON.stringify({
       kind:'intent',
-      requestId:'strict-place-selected-draw-phase',
+      requestId:'strict-place-selected-server-start',
       roomCode:code,
       type:'HAND_ACTION',
       payload:{
         fn:'placeSelected',
-        playerIndex:0,
+        playerIndex:nextPlayer,
         turn:1,
         selectedHand:{index:0, iid:firstHandCard.iid || '', id:firstHandCard.id || ''},
         baseStateHash:firstHash,
@@ -173,15 +175,15 @@ async function main(){
       }
     }));
     const placeSelectedRejected = await waitForKind(ws, 'rejected');
-    assert.match(placeSelectedRejected.reason, /main phase|dedicated server reducer/);
+    assert.match(placeSelectedRejected.reason, /priority|authenticated user|dedicated server reducer/);
 
     ws.send(JSON.stringify({
       kind:'intent',
-      requestId:'strict-start-consolidate-draw-phase',
+      requestId:'strict-start-consolidate-server-start',
       roomCode:code,
       type:'START_CONSOLIDATE',
       payload:{
-        playerIndex:0,
+        playerIndex:openingPlayer,
         turn:1,
         selectedHand:{index:0, iid:firstHandCard.iid || '', id:firstHandCard.id || ''},
         baseStateHash:firstHash,
@@ -190,10 +192,10 @@ async function main(){
       }
     }));
     const startConsolidateRejected = await waitForKind(ws, 'rejected');
-    assert.match(startConsolidateRejected.reason, /main phase|dedicated server reducer|character card/);
+    assert.match(startConsolidateRejected.reason, /main phase|dedicated server reducer|character card|reinforcement/);
 
     const second = JSON.parse(JSON.stringify(first));
-    second.currentPlayer = 1;
+    second.currentPlayer = nextPlayer;
     second.turn = 2;
     second.selectedHandCard = null;
     second.selectedBoardCard = null;
@@ -206,7 +208,7 @@ async function main(){
       requestId:'strict-end',
       roomCode:code,
       type:'END_TURN',
-      payload:{playerIndex:0, turn:1, baseStateHash:firstHash}
+      payload:{playerIndex:openingPlayer, turn:1, baseStateHash:firstHash}
     }));
     const accepted = await waitForKind(ws, 'accepted');
     assert.strictEqual(accepted.action.payload.serverReduced, true);

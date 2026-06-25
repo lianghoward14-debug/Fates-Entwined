@@ -222,7 +222,7 @@ async function exerciseFlyMatchmaking(){
   assert.strictEqual(guest.room.guestUid, 'queue-guest');
   assert.strictEqual(guest.room.players['queue-host'].deckChoice.ready, true);
   assert.strictEqual(guest.room.players['queue-guest'].deckChoice.ready, true);
-  assert.strictEqual(guest.room.status, 'matchup');
+  assert.strictEqual(guest.room.status, 'playing');
   assert.strictEqual(guest.accepted?.action?.type, 'MATCH_START');
   assert.ok(guest.accepted?.action?.payload?.postState, 'queued MATCH_START should include canonical server state');
   assert.ok(Number(guest.room.lastActionSeq || 0) >= 1, 'queued room should advance to the first action sequence');

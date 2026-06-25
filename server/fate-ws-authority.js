@@ -18,7 +18,7 @@ const {
   reduceServerAction
 } = require('./fate-authority-reducer');
 const {getCardCatalog} = require('./fate-card-catalog');
-const {buildInitialAuthorityState, validateDeckIds} = require('./fate-authority-bootstrap');
+const {buildInitialAuthorityState, makeSeededRng, validateDeckIds} = require('./fate-authority-bootstrap');
 
 const PORT = Number(process.env.PORT || process.env.FATE_WS_PORT || 8787);
 const HOST = process.env.HOST || process.env.FATE_WS_HOST || '0.0.0.0';
@@ -2890,19 +2890,23 @@ async function startRoomOnFlyQueued(room, uid, body){
   const seed = String(body?.seed || `${room.code}_${now()}_${crypto.randomBytes(4).toString('hex')}`).slice(0, 160);
   const song = String(body?.song || '').slice(0, 160);
   const roomMode = String(room.mode || body?.mode || 'freeplay').slice(0, 32);
+  const firstPlayerRng = makeSeededRng(seed + ':first-player');
+  const firstPlayer = Math.floor(firstPlayerRng() * 2) === 1 ? 1 : 0;
   const initial = buildInitialAuthorityState({
     catalog:authorityCardCatalog(),
     seed,
-    decks:{0:hostDeck, 1:guestDeck}
+    decks:{0:hostDeck, 1:guestDeck},
+    currentPlayer:firstPlayer,
+    phase:'main'
   });
   const roomPatch = {
-    status:'matchup',
-    phase:'matchup',
+    status:'playing',
+    phase:'main',
     startedAt:now(),
     updatedAt:now(),
     seed,
     song,
-    currentTurnUid:room.hostUid
+    currentTurnUid:room.playerOrder[firstPlayer] || (firstPlayer === 0 ? room.hostUid : room.guestUid)
   };
   const action = {
     seq,
@@ -2917,9 +2921,11 @@ async function startRoomOnFlyQueued(room, uid, body){
       profiles:{0:hostNode.profile || {}, 1:guestNode.profile || {}},
       decks:{0:[...hostDeck], 1:[...guestDeck]},
       deckNames:{0:hostNode.deckChoice?.name || 'Host Deck', 1:guestNode.deckChoice?.name || 'Guest Deck'},
+      firstPlayer,
       postState:initial.state,
       stateHash:initial.stateHash,
-      serverBootstrapped:true
+      serverBootstrapped:true,
+      serverStartedDirect:true
     },
     serverAuthoritative:true,
     authority:'fate-ws-authority',

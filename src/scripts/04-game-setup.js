@@ -126,6 +126,68 @@ function startGame(vsAI=false) {
   });
 }
 
+function startOnlineServerBootstrappedGame(options) {
+  const opts = options || {};
+  if(typeof cleanupLeavingGameScreenArtifacts === 'function') cleanupLeavingGameScreenArtifacts();
+  if(typeof G !== 'undefined' && G && G._bootInitPromise) G._bootInitPromise = null;
+  if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+  if(typeof playSfx==='function') playSfx('startGame');
+  G._tutorialTurnLimit = null;
+  G.maxTurns = 20;
+  if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') CURRENT_MODE = 'free';
+  const passOverlay = document.getElementById('pt-overlay');
+  if(passOverlay) passOverlay.classList.remove('on');
+  if(typeof stopAllMusic==='function') stopAllMusic();
+  if(typeof _lastGameSong !== 'undefined') _lastGameSong = opts.song || G._onlineGameSong || null;
+  if(!G.p1Deck.length) buildDefaultDecks();
+  G.players[0].name = USER_PROFILE.username || 'Player 1';
+  G.players[1].name = 'Player 2';
+  G.aiEnabled = false;
+  G.aiPlayer = 1;
+  initGameState();
+  if(typeof applyGameBackground === 'function'){
+    _lastGameSong = applyGameBackground(opts.song || G._onlineGameSong || null);
+  }
+  showPreGameMatchup(false, ()=>{
+    try{
+      if(typeof initInGameChat === 'function') initInGameChat();
+      const entryVeilStarted = showMatchEntryLoadingVeil();
+      recordMatchEntryStep('online-server-bootstrap-start');
+      if(typeof opts.applyServerState === 'function') opts.applyServerState();
+      G.phase = 'main';
+      G._turnInputLockUntil = 0;
+      G._aiRunning = false;
+      G._aiAbort = false;
+      G._aiAborted = false;
+      G._aiTurnToken = 0;
+      showScreen('s-game');
+      recordMatchEntryStep('online-server-bootstrap-game-active');
+      const currentName = G.players[G.currentPlayer]?.name || `Player ${Number(G.currentPlayer || 0) + 1}`;
+      log('sys','Online match begins! '+currentName+' goes first.');
+      const renderStarted = performance.now ? performance.now() : Date.now();
+      if(typeof renderGameImmediate === 'function') {
+        if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+          renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
+        } else {
+          renderGameImmediate();
+        }
+      } else renderGame();
+      recordMatchEntryStep('online-server-bootstrap-render-called', {
+        ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
+      });
+      if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
+      recordMatchEntryStep('online-server-bootstrap-topbar-ready');
+      hideMatchEntryLoadingVeil(entryVeilStarted);
+      startTurnTimer();
+      if(typeof opts.afterEnter === 'function') opts.afterEnter();
+    } catch(err) {
+      console.error('Online server bootstrap entry failed', err);
+      if(typeof opts.onError === 'function') opts.onError(err);
+    }
+  });
+}
+window.startOnlineServerBootstrappedGame = startOnlineServerBootstrappedGame;
+
 function isHowardDevMode() {
   return !!(window.__fateHowardDevMode || (typeof G !== 'undefined' && G && G._howardDevMode));
 }

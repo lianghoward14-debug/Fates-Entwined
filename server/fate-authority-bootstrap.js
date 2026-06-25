@@ -104,6 +104,10 @@ function buildInitialAuthorityState(input){
   const catalog = input && input.catalog;
   const decks = input && input.decks || {};
   const seed = String(input && input.seed || 'fates');
+  const requestedCurrent = Number(input && input.currentPlayer);
+  const currentPlayer = Number.isInteger(requestedCurrent) && requestedCurrent >= 0 && requestedCurrent <= 1 ? requestedCurrent : 0;
+  const requestedPhase = String(input && input.phase || 'main').toLowerCase();
+  const phase = requestedPhase === 'draw' ? 'draw' : 'main';
   const hostDeck = Array.isArray(decks[0]) ? decks[0] : decks['0'];
   const guestDeck = Array.isArray(decks[1]) ? decks[1] : decks['1'];
   const hostErr = validateDeckIds(hostDeck, catalog, 'host deck');
@@ -131,11 +135,11 @@ function buildInitialAuthorityState(input){
     landscapeBgNum:null,
     _landscapeState:null,
     _landscapeDrawQueue:[],
-    currentPlayer:0,
+    currentPlayer,
     turn:1,
     turnNumber:1,
     maxTurns:20,
-    phase:'draw',
+    phase,
     selectedHandCard:null,
     selectedBoardCard:null,
     placing:false,
@@ -187,7 +191,9 @@ function buildInitialAuthorityState(input){
     _busserMovingCard:null,
     _markSelecting:null,
     _havanoDeploying:null,
-    _boardTargeting:null
+    _boardTargeting:null,
+    _coinWinner:currentPlayer,
+    _serverStartedDirect:phase === 'main'
   };
   return {state, stateHash:canonicalStateHash(state)};
 }

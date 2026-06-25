@@ -2745,7 +2745,7 @@
         </div>
         ${renderLobbyChat(current)}
         <div class="online-room-start-row">${guestActive ? startInline : '<div class="online-room-note online-room-wait-note">Waiting for a second player.</div>'}</div>
-        <div class="online-room-note">Host starts after both players choose decks. The versus screen then advances by countdown on both clients.</div>
+        <div class="online-room-note">Host starts after both players choose decks. The server opens the match for both clients.</div>
       </div>`;
     if(deckPickerOpenForRoom === current.roomCode) return;
     if(html === lastLobbyHtml && document.getElementById('modal')?.style?.display !== 'none') return;
@@ -2774,7 +2774,7 @@
         method:'POST',
         body:{uid:u.uid, seed, song, mode:normalizeRoomMode(room.mode)}
       });
-      if(data?.accepted) bufferOnlineAction(data.accepted.action);
+      if(data?.accepted && String(data.accepted.action?.type || '').toUpperCase() !== 'MATCH_START') bufferOnlineAction(data.accepted.action);
       if(data?.room){
         const nextRoom = normalizeFlyRoom(data.room);
         lastLobbyRoom = nextRoom;
@@ -2876,6 +2876,7 @@
       const decks = startPayload.decks || {};
       if(Array.isArray(decks[0]) && decks[0].length === 40) g.p1Deck = [...decks[0]];
       if(Array.isArray(decks[1]) && decks[1].length === 40) g.p2Deck = [...decks[1]];
+      const startSeq = Math.max(1, Number(startAction.seq || room.lastActionSeq || 1) || 1);
 
       // Set local-only perspective before game creation. These are intentionally
       // never read from remote snapshots and never written by render functions.
@@ -2890,10 +2891,31 @@
       g._onlineGameSong = song;
       g._onlineRng = makeSeededRng(seed);
       g._onlineActionLogMode = true;
+      g._onlineActionSeq = startSeq;
+      g._onlineAppliedActionSeq = startSeq;
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       applyOnlineRoomIdentity(room, players);
 
-      if(typeof window.startGame === 'function') window.startGame(false);
+      lastActionSeq = Math.max(lastActionSeq, startSeq);
+      lastAppliedActionSeq = Math.max(lastAppliedActionSeq, startSeq);
+      discardBufferedActionsThrough(startSeq);
+      const directServerBootstrap = !!(startPayload.serverBootstrapped && startPayload.serverStartedDirect && startPayload.postState && startPayload.stateHash && typeof window.startOnlineServerBootstrappedGame === 'function');
+      if(directServerBootstrap){
+        await new Promise(function(resolve, reject){
+          window.startOnlineServerBootstrappedGame({
+            song,
+            applyServerState:function(){
+              lastAuthorityStateHash = String(startPayload.stateHash || '');
+              applyOnlineCanonicalState(startPayload.postState, 'server direct match bootstrap');
+              applyOnlineRoomIdentity(room, players);
+            },
+            afterEnter:resolve,
+            onError:reject
+          });
+        });
+      } else if(typeof window.startGame === 'function') {
+        window.startGame(false);
+      }
 
       // startGame/initGameState touches player names and can rebuild state; restore
       // online-only identity/perspective immediately after without syncing full G.
@@ -2909,10 +2931,12 @@
       if(typeof window.applyGameBackground === 'function') window.applyGameBackground(song);
       if(typeof window._lastGameSong !== 'undefined') window._lastGameSong = song;
       g._onlineActionLogMode = true;
+      g._onlineActionSeq = startSeq;
+      g._onlineAppliedActionSeq = startSeq;
       g._onlineStartedRoomCode = room.roomCode;
       g._onlineBootstrappingRoomCode = null;
       applyOnlineRoomIdentity(room, players);
-      if(startPayload.postState && startPayload.stateHash){
+      if(!directServerBootstrap && startPayload.postState && startPayload.stateHash){
         lastAuthorityStateHash = String(startPayload.stateHash || '');
         applyOnlineCanonicalState(startPayload.postState, 'server match bootstrap');
         applyOnlineRoomIdentity(room, players);
@@ -2933,7 +2957,7 @@
         randomQueueState = { active:false, roomCode:null, role:null, started:true, handlers:null };
       }
 
-      if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started: matchup/coin bootstrap active.');
+      if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started.');
       subscribeActions(room.roomCode);
       if(localIndex === 0 && !startPayload.serverBootstrapped) setTimeout(()=>sendBootstrapStateSync('match-start'), 220);
       // Spectator listings stay disabled until the deployed RTDB rules explicitly

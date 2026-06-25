@@ -39,9 +39,11 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /18-online-rooms\.js\?v=1782052601/, 'index must cache-bust the online rooms script for test helpers');
-assert.match(indexText, /04-game-setup\.js\?v=1782052601/, 'index must cache-bust the match setup script for preload gate changes');
+assert.match(indexText, /18-online-rooms\.js\?v=1782060101/, 'index must cache-bust the online rooms script for test helpers');
+assert.match(indexText, /04-game-setup\.js\?v=1782060101/, 'index must cache-bust the match setup script for preload gate changes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
+assert.match(read('src/scripts/04-game-setup.js'), /function startOnlineServerBootstrappedGame\(options\)[\s\S]*showScreen\('s-game'\)[\s\S]*window\.startOnlineServerBootstrappedGame/, 'online server bootstrap must enter the game without the coin screen');
+assert.match(authorityText, /firstPlayer[\s\S]*buildInitialAuthorityState\([\s\S]*phase:'main'[\s\S]*status:'playing'/, 'Fly MATCH_START must create a directly playable main-phase server state');
 assert.match(roomsText, /function maybePrejoinLobbyAuthority\(room\)[\s\S]*ensureAuthorityJoined\(code\)/, 'Fly lobby clients must prejoin the WebSocket authority before host start');
 assert.match(roomsText, /function handleLobbyMatchStartAccepted\(accepted\)[\s\S]*MATCH_START[\s\S]*startRoomGame\(nextRoom\)/, 'accepted MATCH_START must hand off lobby clients into the match');
 assert.match(roomsText, /if\(handleLobbyMatchStartAccepted\(accepted\)\) return;[\s\S]*bufferOnlineAction\(bufferedAction\)/, 'lobby MATCH_START must not be swallowed by in-match replay buffering');
@@ -62,7 +64,7 @@ assert.match(roomsText, /function toAuthorityIntent\(type, payload, g\)[\s\S]*PL
 assert.match(roomsText, /function strictAuthorityIntentForSend\(type, payload, g\)[\s\S]*isStrictCompactAuthorityAction\(actionType\)[\s\S]*toAuthorityIntent\(actionType, payload \|\| null, g \|\| gameState\(\)\)/, 'browser must send normalized authority intents for strict Fly actions');
 assert.match(roomsText, /const authorityActionType = authorityEnabled && !allowFirebaseFallback[\s\S]*strictAuthorityIntentForSend\(actionType, payload, gameState\(\)\)[\s\S]*sendActionViaAuthority\(authorityActionType, payload\)/, 'WebSocket authority sends must use normalized strict intent names');
 assert.match(authorityText, /CLICK_CELL\|PLACE_CARD\|SELECT_CONSOLIDATION_TRIBUTE\|SELECT_PENDING_MOVE_CELL[\s\S]*RESOLVE_MODAL[\s\S]*RESOLVE_ZONE_PICK[\s\S]*RESOLVE_AFFILIATION_PICK/, 'WebSocket authority validator must allow normalized strict intent names');
-assert.match(read('server/fate-authority-two-client-placement-smoke-test.js'), /sendIntent\(host, 'PLACE_CARD'[\s\S]*expectAcceptedOnBoth\(host, guest, 'PLACE_CARD'[\s\S]*sendIntent\(guest, 'PLACE_CARD'/, 'two-client placement proof must exercise canonical PLACE_CARD intents');
+assert.match(read('server/fate-authority-two-client-placement-smoke-test.js'), /assert\.strictEqual\(host\.canonicalState\.phase, 'main'\)[\s\S]*sendIntent\(firstClient, 'PLACE_CARD'[\s\S]*expectAcceptedOnBoth\(firstClient, secondClient, 'PLACE_CARD'/, 'two-client placement proof must place immediately after direct MATCH_START');
 assert.match(read('server/fate-authority-reducer-smoke-test.js'), /msg\('SELECT_CONSOLIDATION_TRIBUTE'[\s\S]*msg\('RESOLVE_ZONE_PICK'[\s\S]*msg\('RESOLVE_CARD_PICK'[\s\S]*msg\('SELECT_PENDING_MOVE_CELL'[\s\S]*msg\('RESOLVE_AFFILIATION_PICK'[\s\S]*msg\('RESOLVE_MODAL'/, 'authority reducer smoke must cover canonical pending-resolution intents');
 assert.match(roomsText, /function normalizedClientPendingInteraction\(g\)[\s\S]*function actionMatchesPendingInteraction\(type, pending\)[\s\S]*function pendingInteractionLabel\(pending\)/, 'browser must normalize pendingInteraction for local action gating');
 assert.match(roomsText, /function canSendLocalAction\(g, type\)[\s\S]*normalizedClientPendingInteraction\(g\)[\s\S]*actionMatchesPendingInteraction\(actionType, pending\)[\s\S]*Resolve /, 'browser must block unrelated local actions while a server pending interaction exists');

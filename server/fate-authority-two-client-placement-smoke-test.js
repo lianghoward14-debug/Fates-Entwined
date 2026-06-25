@@ -267,55 +267,54 @@ async function main(){
     await waitForMessage(host, msg=>msg.kind === 'accepted' && Number(msg.action?.seq || 0) === startSeq && msg.action?.type === 'MATCH_START', 'host match start');
     await waitForMessage(guest, msg=>msg.kind === 'accepted' && Number(msg.action?.seq || 0) === startSeq && msg.action?.type === 'MATCH_START', 'guest match start');
     assert.strictEqual(host.stateHash, guest.stateHash, 'match start state hash mismatch');
-    assert.strictEqual(host.canonicalState?.phase, 'draw');
-
-    const chooseId = sendIntent(host, 'CHOOSE_TURN', {
-      playerIndex:0,
-      goFirst:true,
-      baseStateHash:host.stateHash
-    });
-    await expectAcceptedOnBoth(host, guest, 'CHOOSE_TURN', chooseId, 'choose turn');
     assert.strictEqual(host.canonicalState.phase, 'main');
-    assert.strictEqual(host.canonicalState.currentPlayer, 0);
+    assert.ok(Number(host.canonicalState.currentPlayer) === 0 || Number(host.canonicalState.currentPlayer) === 1, 'MATCH_START must select an opening player');
 
-    const hostSelected = firstHandCardPayload(host, 0);
-    const hostPlaceId = sendIntent(host, 'PLACE_CARD', {
-      playerIndex:0,
-      turn:host.canonicalState.turn,
+    const firstPlayer = Number(host.canonicalState.currentPlayer);
+    const firstClient = firstPlayer === 0 ? host : guest;
+    const secondClient = firstPlayer === 0 ? guest : host;
+    const firstRow = firstPlayer === 0 ? 2 : 0;
+    const secondPlayer = firstPlayer === 0 ? 1 : 0;
+    const secondRow = secondPlayer === 0 ? 2 : 0;
+
+    const firstSelected = firstHandCardPayload(firstClient, firstPlayer);
+    const firstPlaceId = sendIntent(firstClient, 'PLACE_CARD', {
+      playerIndex:firstPlayer,
+      turn:firstClient.canonicalState.turn,
       z:0,
-      r:2,
+      r:firstRow,
       c:0,
       placing:true,
-      selectedHand:hostSelected,
-      baseStateHash:host.stateHash
+      selectedHand:firstSelected,
+      baseStateHash:firstClient.stateHash
     });
-    await expectAcceptedOnBoth(host, guest, 'PLACE_CARD', hostPlaceId, 'host placement');
-    assert(boardCardAt(guest, 0, 2, 0), 'guest did not receive host board card');
-    assert.strictEqual(boardCardAt(guest, 0, 2, 0).owner, 0);
+    await expectAcceptedOnBoth(firstClient, secondClient, 'PLACE_CARD', firstPlaceId, 'opening placement');
+    assert(boardCardAt(secondClient, 0, firstRow, 0), 'opponent did not receive opening board card');
+    assert.strictEqual(boardCardAt(secondClient, 0, firstRow, 0).owner, firstPlayer);
 
-    const endId = sendIntent(host, 'END_TURN', {
-      playerIndex:0,
-      turn:host.canonicalState.turn,
-      baseStateHash:host.stateHash
+    const endId = sendIntent(firstClient, 'END_TURN', {
+      playerIndex:firstPlayer,
+      turn:firstClient.canonicalState.turn,
+      baseStateHash:firstClient.stateHash
     });
-    await expectAcceptedOnBoth(host, guest, 'END_TURN', endId, 'host end turn');
-    assert.strictEqual(host.canonicalState.currentPlayer, 1);
+    await expectAcceptedOnBoth(firstClient, secondClient, 'END_TURN', endId, 'opening end turn');
+    assert.strictEqual(firstClient.canonicalState.currentPlayer, secondPlayer);
 
-    const guestSelected = firstHandCardPayload(guest, 1);
-    const guestPlaceId = sendIntent(guest, 'PLACE_CARD', {
-      playerIndex:1,
-      turn:guest.canonicalState.turn,
+    const secondSelected = firstHandCardPayload(secondClient, secondPlayer);
+    const secondPlaceId = sendIntent(secondClient, 'PLACE_CARD', {
+      playerIndex:secondPlayer,
+      turn:secondClient.canonicalState.turn,
       z:0,
-      r:0,
+      r:secondRow,
       c:0,
       placing:true,
-      selectedHand:guestSelected,
-      baseStateHash:guest.stateHash
+      selectedHand:secondSelected,
+      baseStateHash:secondClient.stateHash
     });
-    await expectAcceptedOnBoth(guest, host, 'PLACE_CARD', guestPlaceId, 'guest placement');
-    assert(boardCardAt(host, 0, 2, 0), 'host lost its own placed card');
-    assert(boardCardAt(host, 0, 0, 0), 'host did not receive guest board card');
-    assert.strictEqual(boardCardAt(host, 0, 0, 0).owner, 1);
+    await expectAcceptedOnBoth(secondClient, firstClient, 'PLACE_CARD', secondPlaceId, 'reply placement');
+    assert(boardCardAt(firstClient, 0, firstRow, 0), 'opener lost its own placed card');
+    assert(boardCardAt(firstClient, 0, secondRow, 0), 'opener did not receive reply board card');
+    assert.strictEqual(boardCardAt(firstClient, 0, secondRow, 0).owner, secondPlayer);
     assert.strictEqual(host.stateHash, guest.stateHash, 'final state hash mismatch');
 
     const resume = await getJson(`/api/rooms/${roomCode}/resume?after=0&limit=20&includeState=1`);
@@ -324,8 +323,8 @@ async function main(){
     assert.strictEqual(resume.serverStateHash, host.stateHash, 'resume server state hash mismatch');
     assert.strictEqual(resume.canonicalHash, host.stateHash, 'resume canonical hash mismatch');
     assert.strictEqual(canonicalStateHash(resume.canonicalState), host.stateHash, 'resume canonical state hash mismatch');
-    assert.strictEqual(resume.canonicalState?.board?.[0]?.[2]?.[0]?.owner, 0, 'resume missing host placement');
-    assert.strictEqual(resume.canonicalState?.board?.[0]?.[0]?.[0]?.owner, 1, 'resume missing guest placement');
+    assert.strictEqual(resume.canonicalState?.board?.[0]?.[firstRow]?.[0]?.owner, firstPlayer, 'resume missing opening placement');
+    assert.strictEqual(resume.canonicalState?.board?.[0]?.[secondRow]?.[0]?.owner, secondPlayer, 'resume missing reply placement');
     assert(resume.events.some(item=>item.action?.type === 'PLACE_CARD' && item.action?.payload?.postState), 'resume did not include canonical placement events');
 
     const refreshedGuest = await createClient('guest', roomCode, {

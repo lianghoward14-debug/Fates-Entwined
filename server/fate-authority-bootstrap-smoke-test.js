@@ -31,6 +31,8 @@ assert(boot.state.players[0].hand[0].img, 'compact state cards should preserve r
 assert.strictEqual(boot.state.players[1].hand.length, 6);
 assert.strictEqual(boot.state.players[1].deck.length, 34);
 assert.strictEqual(boot.state.currentPlayer, 0);
+assert.strictEqual(boot.state.phase, 'main');
+assert.strictEqual(boot.state._serverStartedDirect, true);
 assert.strictEqual(boot.state.turn, 1);
 assert.strictEqual(boot.state.instanceCounter, 80);
 assert.strictEqual(canonicalStateHash(boot.state), boot.stateHash);
