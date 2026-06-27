@@ -13,11 +13,13 @@ function read(rel){
 
 const roomsText = read('src/scripts/18-online-rooms.js');
 const indexText = read('index.html');
+const profileText = read('src/scripts/03-profile-and-progression.js');
 const challengerText = read('src/scripts/09-challenger-mode.js');
 const challengerV2Text = read('src/scripts/09-challenger-v2.js');
 const pkg = JSON.parse(read('package.json'));
 const docs = read('WEBSOCKET_AUTHORITATIVE_SERVER.md') + '\n' + read('ARCHITECTURE_MIGRATION_PROGRESS.md');
 const authorityText = read('server/fate-ws-authority.js');
+const smoothnessText = read('src/scripts/21-smoothness-core.js');
 
 assert.match(indexText, /host\s*!==\s*'fates-entwined-main\.fly\.dev'/, 'hosted game bootstrap must target the Fly production hostname');
 assert.match(indexText, /window\.FATE_WS_AUTHORITY_ENABLED\s*=\s*true[\s\S]*window\.FATE_WS_AUTHORITY_URL\s*=\s*origin\.replace\(\//, 'hosted game bootstrap must auto-configure WebSocket authority from the page origin');
@@ -44,10 +46,13 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 
 assert.match(indexText, /05-gameplay-core\.js\?v=1782601200/, 'index must cache-bust gameplay placement fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782601200/, 'index must cache-bust renderer extra-cell fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1782613200/, 'index must cache-bust the online rooms script for client-resolved gameplay');
+assert.match(indexText, /03-profile-and-progression\.js\?v=1782613800/, 'index must cache-bust daily login startup prompt fixes');
+assert.match(indexText, /18-online-rooms\.js\?v=1782613800/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782600600/, 'index must cache-bust the challenger matchmaking script');
 assert.match(indexText, /04-game-setup\.js\?v=1782603000/, 'index must cache-bust the match setup script for preload gate changes');
-assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
+assert.match(indexText, /21-smoothness-core\.js\?v=1782613800/, 'index must cache-bust the smoothness script for warmup policy changes');
+assert.match(profileText, /function checkDailyLoginOnStartup\(\)[\s\S]*startupLoadingActive[\s\S]*fate-startup-loading-finished[\s\S]*showDailyLoginPanel/, 'daily login startup prompt must wait for the loading overlay to finish');
+assert.match(smoothnessText, /function hideInitialLoadingScreen\(\)[\s\S]*__fateStartupLoadingFinished[\s\S]*fate-startup-loading-finished/, 'startup loader must signal when daily rewards can open');
 assert.match(read('src/scripts/04-game-setup.js'), /function startOnlineServerBootstrappedGame\(options\)[\s\S]*showScreen\('s-game'\)[\s\S]*window\.startOnlineServerBootstrappedGame/, 'online server bootstrap must enter the game without the coin screen');
 for (const [label, text] of [['challenger-mode', challengerText], ['challenger-v2', challengerV2Text]]) {
   assert.doesNotMatch(text, /getFallbackMatchmakingAI|Queue Fallback Activated|No Human Players Online|selectAIOpponent\(fallbackAi|Simulate finding a match/, `${label} must not contain the retired AI matchmaking fallback`);
@@ -119,7 +124,7 @@ assert.match(roomsText, /fly-room-not-found/, 'stale Fly room watchers must reco
 assert.match(read('server/fate-authority-reducer-smoke-test.js'), /browser-stale-iid-101[\s\S]*server-iid-101/, 'authority reducer smoke must cover stale browser iid placement snapshots');
 assert.match(roomsText, /function renderedAuthorityBoardReport\(\)[\s\S]*rendererAvailable[\s\S]*rendererOwnsBoard[\s\S]*rendererCards[\s\S]*rendererExpectedCards[\s\S]*renderSnapshotBoardCount[\s\S]*domBoardCount/, 'authority render diagnostics must expose renderer, snapshot, and DOM count sources');
 assert.match(roomsText, /renderedBoardSource[\s\S]*renderedBoardMatchesCanonical[\s\S]*renderMismatchReason[\s\S]*lastRenderDirtyMask[\s\S]*lastRenderDirtySource/, 'authority render diagnostics must report convergence status and render dirtiness');
-assert.match(roomsText, /function applyOnlineCanonicalState\(state, reason\)[\s\S]*invalidateFateRenderCaches\(\)[\s\S]*renderGame\(\{force:true\}\)/, 'canonical server state apply must invalidate caches and force a render');
+assert.match(roomsText, /function applyOnlineCanonicalState\(state, reason\)[\s\S]*invalidateFateRenderCaches\(\)[\s\S]*renderOnlineAuthoritativeState\(reason \|\| 'online-authoritative-state'\)/, 'canonical server state apply must invalidate caches and use the online authoritative fast render path');
 assert.match(read('server/fate-authority-reducer.js'), /function normalizedPendingInteraction\(state\)[\s\S]*state\.pendingInteraction = normalizedPendingInteraction\(state\)[\s\S]*function reducedResult/, 'server reducer must derive normalized pendingInteraction before canonical hashing');
 assert.match(roomsText, /pendingInteraction:cloneOnlinePlain\(g\.pendingInteraction\)[\s\S]*'pendingInteraction'[\s\S]*pendingInteractionPromptId/, 'browser must capture, apply, and report normalized pendingInteraction');
 assert.match(read('server/fate-authority-reducer.js'), /function toAuthorityIntent\(type, payload, state\)[\s\S]*PLACE_CARD[\s\S]*SELECT_CONSOLIDATION_TRIBUTE[\s\S]*SELECT_PENDING_MOVE_CELL[\s\S]*RESOLVE_ZONE_PICK/, 'server reducer must bridge legacy action names to normalized authority intents');
@@ -157,11 +162,14 @@ assert.match(roomsText, /sendAction\(clientResolvedCommit \? 'ACTION_RESULT' : t
 assert.match(roomsText, /if\(String\(actionType \|\| ''\)\.toUpperCase\(\) === 'ACTION_RESULT'\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*postState/, 'browser must apply ACTION_RESULT postState directly');
 assert.match(roomsText, /async function applyOnlineAction\(action\)[\s\S]*shouldApplyServerStateDirectly\(type, payload\)[\s\S]*applyAuthoritativePostState\(action[\s\S]*const optimisticActionId = optimisticActionIdFor\(action\)/, 'ACTION_RESULT postState must apply before local optimistic acknowledgements can skip it');
 assert.match(roomsText, /function applyAuthoritativePostState\(action, reason\)[\s\S]*localOnlineStateMatchesHash\(payload\.stateHash\)[\s\S]*return false/, 'matching client-resolved accepted echoes must not rebuild the already-correct local state');
+assert.match(roomsText, /function renderOnlineAuthoritativeState\(reason\)[\s\S]*board-action-fast-path:online-authoritative-state[\s\S]*renderOnlineAuthoritativeState\(reason \|\| 'online-authoritative-state'\)/, 'online authoritative state applies must use the targeted board-action fast render path');
 assert.match(roomsText, /function onlineCellActionPending\(g\)[\s\S]*clientResolvedGameplayEnabled\(\) && g\.selectedHandCard !== null/, 'client-resolved board clicks with a selected hand card must not escape the sync wrapper');
 assert.match(roomsText, /function canCaptureClientResolvedBeforeLocalPromise\(type, payload\)[\s\S]*PLACE_CARD[\s\S]*BOARD_ACTION\|HAND_ACTION[\s\S]*function sendOptimisticAction[\s\S]*fastClientResolvedCapture[\s\S]*waitOnlineActionSettle\(type, \{fast:fastClientResolvedCapture\}\)/, 'client-resolved placement and activate effects must publish postState without waiting for animation promises');
 assert.match(roomsText, /function sendClientResolvedAutoCommit\(reason\)[\s\S]*actionKind:'AUTO_CLIENT_STATE_COMMIT'[\s\S]*sendAction\('ACTION_RESULT', payload\)/, 'client-resolved mode must auto-commit local state mutations that escape a wrapper');
 assert.match(roomsText, /clientResolvedCommitInFlight > 0[\s\S]*scheduleClientResolvedAutoCommit\(reason \|\| 'commit-in-flight-retry', 70\)/, 'client-resolved watchdog commits must retry while a network commit is in flight');
 assert.match(roomsText, /const watchLocalMutation = reason=>setTimeout\(\(\)=>scheduleClientResolvedAutoCommit\(reason, 60\)[\s\S]*document\.addEventListener\('pointerup'/, 'client-resolved mode must quickly watch local UI mutations for post-action commits');
+assert.match(roomsText, /function isClientResolvedStaleBaseError\(err\)[\s\S]*stale baseStateHash[\s\S]*staleBaseRetryCount < 2[\s\S]*client-resolved-stale-base-retry/, 'client-resolved stale base rejects must retry from the latest local postState');
+assert.match(roomsText, /staleClientResolvedReject[\s\S]*!staleClientResolvedReject[\s\S]*client-resolved-stale-base-kept-local/, 'client-resolved stale base rejects must not rollback the local optimistic placement before retry');
 assert.match(roomsText, /clientResolvedGameplayEnabled\(\)\s*\?\s*'client-resolved-board-action-without-source'[\s\S]*if\(!clientResolvedGameplayEnabled\(\)\)[\s\S]*Could not sync that board effect/, 'client-resolved board effects must run even when source coordinates are unavailable');
 assert.match(roomsText, /if\(g\._onlineLagPauseActive\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*setLagPause\(false\)[\s\S]*client-resolved-cleared-lag-pause/, 'client-resolved local actions must clear legacy lag pause instead of blocking');
 assert.match(roomsText, /function needsAuthorityCatchupBeforeLocal\(type\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*isClientResolvedGameplayAction\(type\)[\s\S]*hasPendingAuthorityReplay\(\)/, 'client-resolved local actions must not wait for HTTP catch-up unless replay is pending');

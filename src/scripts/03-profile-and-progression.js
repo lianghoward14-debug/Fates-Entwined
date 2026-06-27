@@ -866,11 +866,20 @@ function handleFateChatCommand(text) {
 
 function checkDailyLoginOnStartup() {
   if(window.__fateDailyLoginPromptedThisSession) return;
+  const startupLoadingActive = function(){
+    const overlay = document.getElementById('fate-loading-screen');
+    return !!(overlay && !overlay.classList.contains('is-hiding') && !window.__fateStartupLoadingFinished);
+  };
   const openPrompt = function(delay){
     if(window.__fateDailyLoginPromptedThisSession) return;
     window.__fateDailyLoginPromptedThisSession = true;
     setTimeout(function(){
       requestAnimationFrame(function(){
+        if(startupLoadingActive()){
+          window.__fateDailyLoginPromptedThisSession = false;
+          waitForStartupLoader(650);
+          return;
+        }
         const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
         if(modalOpen) {
           window.__fateDailyLoginPromptedThisSession = false;
@@ -882,6 +891,22 @@ function checkDailyLoginOnStartup() {
       });
     }, Number.isFinite(delay) ? delay : 450);
   };
+  const waitForStartupLoader = function(delay){
+    let settled = false;
+    const settle = function(nextDelay){
+      if(settled) return;
+      settled = true;
+      window.removeEventListener('fate-startup-loading-finished', onStartupReady);
+      openPrompt(nextDelay);
+    };
+    const onStartupReady = function(){ settle(delay || 650); };
+    window.addEventListener('fate-startup-loading-finished', onStartupReady);
+    setTimeout(function(){ settle(delay || 650); }, 9000);
+  };
+  if(startupLoadingActive()){
+    waitForStartupLoader(650);
+    return;
+  }
   const cloudPending = !!(window.__fateCloudLoadingActive || (window._fateCloudUid && !window._fateCloudReady));
   if(!cloudPending) {
     openPrompt(1700);

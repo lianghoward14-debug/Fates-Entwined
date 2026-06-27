@@ -1176,7 +1176,13 @@
       return;
     }
     overlay.classList.add('is-hiding');
-    setTimeout(()=>overlay.remove(), 280);
+    setTimeout(()=>{
+      overlay.remove();
+      if(!window.__fateStartupLoadingFinished){
+        window.__fateStartupLoadingFinished = true;
+        try{ window.dispatchEvent(new CustomEvent('fate-startup-loading-finished')); }catch(e){}
+      }
+    }, 280);
   }
 
   function preloadImage(src, options){

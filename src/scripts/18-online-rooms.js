@@ -370,6 +370,34 @@
     const localState = captureOnlineCanonicalState();
     return !!localState && onlineCanonicalStateHash(localState) === expected;
   }
+  function renderOnlineAuthoritativeState(reason){
+    const g = gameState();
+    const player = Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : Number(g?.currentPlayer || 0) || 0;
+    if(typeof window.renderBoardActionForPlayer === 'function'){
+      window.renderBoardActionForPlayer(player, {
+        bothHands:true,
+        oppHand:true,
+        piles:true,
+        scores:true,
+        effects:true
+      });
+      return;
+    }
+    if(window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.request === 'function'){
+      window.FateMatchFrameScheduler.request({
+        dirty:{board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true},
+        reason:'online-authoritative-state',
+        adapterSource:'board-action-fast-path:online-authoritative-state:board,hand,opphand,piles,scores,effects'
+      });
+      return;
+    }
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
+      window.FateMatchRendererAdapter.scheduleRender('board-action-fast-path:online-authoritative-state:board,hand,opphand,piles,scores,effects');
+      return;
+    }
+    if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true});
+    else if(typeof window.renderBoard === 'function') window.renderBoard();
+  }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
@@ -433,8 +461,7 @@
       }
     }
     if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
-    if(typeof window.renderGame === 'function') window.renderGame({force:true});
-    else if(typeof window.renderBoard === 'function') window.renderBoard();
+    renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     console.warn('Applied authoritative online state:', reason || 'state-sync');
     return true;
@@ -1028,6 +1055,12 @@
       }, 2500);
     });
   }
+  function isClientResolvedStaleBaseError(err){
+    return !!(clientResolvedGameplayEnabled()
+      && err
+      && err.authorityRejected
+      && /stale baseStateHash/i.test(String(err.message || '')));
+  }
   function isTurnBoundaryOnlineAction(actionOrType){
     const type = typeof actionOrType === 'string'
       ? actionOrType
@@ -1184,6 +1217,7 @@
     let localResult;
     let localApplied = false;
     let finishLocalCommit = null;
+    let staleBaseRetryCount = 0;
     function stampBaseStateHash(){
       if(clientResolvedCommit){
         const baseStateHash = lastAuthorityStateHash || '';
@@ -1202,6 +1236,23 @@
         return Promise.resolve(sendAction(clientResolvedCommit ? 'ACTION_RESULT' : type, outbound))
           .finally(()=>{ if(finish) finish(); });
       }).catch(e=>{
+        if(clientResolvedCommit && isClientResolvedStaleBaseError(e) && staleBaseRetryCount < 2){
+          staleBaseRetryCount += 1;
+          const serverHash = String(e.serverStateHash || lastAuthorityStateHash || '');
+          if(serverHash) outbound.baseStateHash = serverHash;
+          try{
+            attachOnlinePostState(outbound);
+            recordOnlineDiagnostic('client-resolved-stale-base-retry', {
+              actionType:String(type || '').toUpperCase(),
+              retry:staleBaseRetryCount,
+              baseStateHash:String(outbound.baseStateHash || ''),
+              stateHash:String(outbound.stateHash || '')
+            });
+            return sendAuthorityNow();
+          }catch(retryErr){
+            console.warn('Client-resolved stale-base retry capture failed', retryErr);
+          }
+        }
         console.error('Online optimistic action send failed', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         if(window.toast) toast(e && e.message ? e.message : 'Action failed');
@@ -4431,7 +4482,11 @@
         serverSeq:Number(msg.serverSeq || 0) || 0,
         serverStateHash:String(msg.serverStateHash || '')
       });
-      if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash){
+      const staleClientResolvedReject = msg.kind === 'rejected'
+        && clientResolvedGameplayEnabled()
+        && String(msg.action?.type || '').toUpperCase() === 'ACTION_RESULT'
+        && /stale baseStateHash/i.test(String(msg.reason || ''));
+      if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash && !staleClientResolvedReject){
         lastAuthorityStateHash = String(msg.serverStateHash || '');
         applyOnlineCanonicalState(msg.serverState, 'authority rejection resync');
         const serverSeq = Number(msg.serverSeq || 0) || 0;
@@ -4448,6 +4503,13 @@
           reportActionProgress(lastAppliedActionSeq, {force:true});
           if(typeof evaluateLagPause === 'function') evaluateLagPause();
         }
+      }else if(staleClientResolvedReject && msg.serverStateHash){
+        lastAuthorityStateHash = String(msg.serverStateHash || '');
+        recordOnlineDiagnostic('client-resolved-stale-base-kept-local', {
+          requestId:String(msg.requestId || ''),
+          serverSeq:Number(msg.serverSeq || 0) || 0,
+          serverStateHash:String(msg.serverStateHash || '')
+        });
       }
       const requestId = String(msg.requestId || '');
       const pending = requestId ? authorityInflight.get(requestId) : null;
