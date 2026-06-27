@@ -222,6 +222,49 @@
       ) : []
     ) : [];
   }
+  function replaceOnlineArrayContents(target, next){
+    const arr = Array.isArray(target) ? target : [];
+    const values = Array.isArray(next) ? next : [];
+    arr.length = values.length;
+    for(let i = 0; i < values.length; i++) arr[i] = values[i];
+    return arr;
+  }
+  function syncOnlineCardListInPlace(target, list){
+    return replaceOnlineArrayContents(target, expandOnlineCardList(list));
+  }
+  function syncOnlineBoardInPlace(target, board){
+    const next = expandOnlineBoard(board);
+    const out = Array.isArray(target) ? target : [];
+    out.length = next.length;
+    for(let z = 0; z < next.length; z++){
+      const nextZone = Array.isArray(next[z]) ? next[z] : [];
+      const zone = Array.isArray(out[z]) ? out[z] : [];
+      zone.length = nextZone.length;
+      for(let r = 0; r < nextZone.length; r++){
+        const nextRow = Array.isArray(nextZone[r]) ? nextZone[r] : [];
+        zone[r] = replaceOnlineArrayContents(zone[r], nextRow);
+      }
+      out[z] = zone;
+    }
+    return out;
+  }
+  function syncOnlinePlayersInPlace(target, players){
+    const source = Array.isArray(players) ? players : [];
+    const out = Array.isArray(target) ? target : [];
+    out.length = source.length;
+    for(let idx = 0; idx < source.length; idx++){
+      const p = source[idx] || {};
+      const player = out[idx] && typeof out[idx] === 'object' ? out[idx] : {};
+      player.name = p?.name || ('Player ' + (idx + 1));
+      player.color = p?.color || (idx === 0 ? 'var(--p1)' : 'var(--p2)');
+      player.deck = syncOnlineCardListInPlace(player.deck, p?.deck);
+      player.hand = syncOnlineCardListInPlace(player.hand, p?.hand);
+      player.discard = syncOnlineCardListInPlace(player.discard, p?.discard);
+      out[idx] = player;
+    }
+    while(out.length < 2) out.push({name:'Player '+(out.length+1), deck:[], hand:[], discard:[], color:out.length===0?'var(--p1)':'var(--p2)'});
+    return out;
+  }
   function captureOnlineCanonicalState(sourceG){
     const g = sourceG || gameState();
     if(!g || !Array.isArray(g.players)) return null;
@@ -321,6 +364,12 @@
   function onlineCanonicalStateHash(state){
     return onlineStableHash(JSON.stringify(state || null));
   }
+  function localOnlineStateMatchesHash(hash){
+    const expected = String(hash || '');
+    if(!expected) return false;
+    const localState = captureOnlineCanonicalState();
+    return !!localState && onlineCanonicalStateHash(localState) === expected;
+  }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
@@ -351,17 +400,8 @@
       _onlineApplyingRemoteAction:g._onlineApplyingRemoteAction,
       _onlineRemoteActionPlayer:g._onlineRemoteActionPlayer
     };
-    g.players = (state.players || []).map(function(p, idx){
-      return {
-        name:p?.name || ('Player ' + (idx + 1)),
-        color:p?.color || (idx === 0 ? 'var(--p1)' : 'var(--p2)'),
-        deck:expandOnlineCardList(p?.deck),
-        hand:expandOnlineCardList(p?.hand),
-        discard:expandOnlineCardList(p?.discard)
-      };
-    });
-    while(g.players.length < 2) g.players.push({name:'Player '+(g.players.length+1), deck:[], hand:[], discard:[], color:g.players.length===0?'var(--p1)':'var(--p2)'});
-    g.board = expandOnlineBoard(state.board);
+    g.players = syncOnlinePlayersInPlace(g.players, state.players);
+    g.board = syncOnlineBoardInPlace(g.board, state.board);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
@@ -417,6 +457,10 @@
     if(!payload.postState || !payload.stateHash) return false;
     const hash = String(action?.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
+    if(localOnlineStateMatchesHash(payload.stateHash)){
+      setTimeout(maybeShowServerPendingPrompts, 0);
+      return false;
+    }
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
     if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
@@ -999,8 +1043,9 @@
     if(!isTurnBoundaryOnlineAction(action)) return;
     lastTurnBoundaryActionSeq = Math.max(lastTurnBoundaryActionSeq, Number(action?.seq || 0) || 0);
   }
-  function waitOnlineActionSettle(type){
-    const frames = /^(CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE)$/i.test(String(type || '')) ? 4 : 2;
+  function waitOnlineActionSettle(type, opts){
+    const fast = !!(opts && opts.fast);
+    const frames = fast ? 1 : (/^(CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE)$/i.test(String(type || '')) ? 4 : 2);
     return new Promise(resolve=>{
       if(typeof requestAnimationFrame !== 'function'){
         setTimeout(resolve, frames * 18);
@@ -1117,6 +1162,14 @@
       && !firebaseActionFallbackAllowed()
       && hasPendingAuthorityReplay();
   }
+  function canCaptureClientResolvedBeforeLocalPromise(type, payload){
+    if(!clientResolvedGameplayEnabled()) return false;
+    const actionType = String(type || '').toUpperCase();
+    if(actionType === 'CLICK_CELL'){
+      return toAuthorityIntent(actionType, payload || null, gameState()) === 'PLACE_CARD';
+    }
+    return /^(END_TURN|CHOOSE_TURN)$/i.test(actionType);
+  }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
     if(!code || !needsAuthorityCatchupBeforeLocal(type)) return false;
@@ -1156,8 +1209,9 @@
     async function sendAfterLocalApply(){
       try{
         if(compactAuthorityPayload && !strictCompactActionNeedsPostState(type, outbound)) return sendAuthorityNow();
-        if(localResult && typeof localResult.then === 'function') await localResult;
-        await waitOnlineActionSettle(type);
+        const fastClientResolvedCapture = clientResolvedCommit && canCaptureClientResolvedBeforeLocalPromise(type, outbound);
+        if(localResult && typeof localResult.then === 'function' && !fastClientResolvedCapture) await localResult;
+        await waitOnlineActionSettle(type, {fast:fastClientResolvedCapture});
         if(clientResolvedCommit) outbound.actionKind = String(type || '').toUpperCase();
         attachOnlinePostState(outbound);
         if(finishLocalCommit){
