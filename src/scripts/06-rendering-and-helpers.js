@@ -4787,7 +4787,7 @@ function showModal(title, bodyHtml, actions, opts) {
     if(typeof requestIdleCallback === 'function') requestIdleCallback(decorateModal, {timeout:260});
     else setTimeout(decorateModal, 140);
   }
-  playSfx('menuOpen');
+  if(!(opts && opts.silentOpen)) playSfx('menuOpen');
 }
 
 function closeModal() {

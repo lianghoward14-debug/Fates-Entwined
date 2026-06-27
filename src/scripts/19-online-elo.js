@@ -68,9 +68,10 @@
     }
     return await res.json();
   }
-  async function fetchFlyLeaderboard(){
+  async function fetchFlyLeaderboard(opts={}){
     if(!flyLeaderboardEnabled()) return leaderboard;
-    if(flyLeaderboardFetchedAt && Date.now() - flyLeaderboardFetchedAt < 30000) return leaderboard;
+    const force = !!(opts && opts.force);
+    if(!force && flyLeaderboardFetchedAt && Date.now() - flyLeaderboardFetchedAt < 30000) return leaderboard;
     if(flyLeaderboardFetchInFlight) return flyLeaderboardFetchInFlight;
     flyLeaderboardFetchInFlight = flyApiRequest(`/api/leaderboards/challenger?limit=${ONLINE_LEADERBOARD_LIMIT}`)
       .then(data=>{

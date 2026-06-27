@@ -1528,7 +1528,8 @@ function showPresetOverlay(vsAI, page=_presetOverlayPage) {
         </div>
         <div class="preset-tile-info">
           <div class="preset-name">${escapeHtml(p.name)}</div>
-          <div class="preset-desc">${escapeHtml(p.description||'')}</div>
+          ${renderDeckThemePill(p.theme || 'Hybrid')}
+        <div class="preset-desc">${escapeHtml(p.description||'')}</div>
           <div class="preset-minis">${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : previews.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="" loading="lazy" decoding="async" draggable="false">`:''}
           </div>`).join('')}</div>
           <div class="preset-action-row">

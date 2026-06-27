@@ -285,6 +285,7 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
     isAI = !!opts.isAI;
   }
   opts = normalizeResultOptions(opts);
+  if(isAI && !(opts && opts.forfeit) && typeof window.clearPendingAiChallengeForfeit === 'function') window.clearPendingAiChallengeForfeit();
   if(!USER_PROFILE.challengerElo) USER_PROFILE.challengerElo = 600;
   const myElo = USER_PROFILE.challengerElo;
   const K = didWin ? 32 : 40; // losses sting more
@@ -313,6 +314,63 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   if(drops.length) showDropBar(drops);
   return {eloChange:change, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel};
 }
+
+const FATE_PENDING_AI_CHALLENGE_FORFEIT_KEY = 'fate.pendingAiChallengeForfeit.v1';
+
+function getPendingAiChallengeForfeit() {
+  try {
+    const raw = localStorage.getItem(FATE_PENDING_AI_CHALLENGE_FORFEIT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function markPendingAiChallengeForfeit(ai) {
+  if(!ai || CURRENT_MODE !== 'challenger') return;
+  try {
+    const entry = {
+      id:'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+      createdAt:Date.now(),
+      name:String(ai.name || 'AI Opponent'),
+      elo:Number(ai.elo || ai.trueElo || 600) || 600,
+      img:ai.img || ai.profileImg || 'blank.png',
+      username:USER_PROFILE?.username || 'Player'
+    };
+    localStorage.setItem(FATE_PENDING_AI_CHALLENGE_FORFEIT_KEY, JSON.stringify(entry));
+  } catch(e) {}
+}
+
+function clearPendingAiChallengeForfeit() {
+  try { localStorage.removeItem(FATE_PENDING_AI_CHALLENGE_FORFEIT_KEY); } catch(e) {}
+}
+
+function processPendingAiChallengeForfeit() {
+  const pending = getPendingAiChallengeForfeit();
+  if(!pending || !pending.name) return;
+  clearPendingAiChallengeForfeit();
+  const prevMode = CURRENT_MODE;
+  const prevSelected = G._selectedAI;
+  const prevElo = G._aiOpponentElo;
+  try {
+    CURRENT_MODE = 'challenger';
+    G._selectedAI = {name:pending.name, elo:Number(pending.elo || 600) || 600, img:pending.img || 'blank.png'};
+    G._aiOpponentElo = Number(pending.elo || 600) || 600;
+    recordChallengerResult(false, G._aiOpponentElo, true, {forfeit:true, skipXp:true, skipDrops:true});
+    if(typeof toast === 'function') toast('AI challenge forfeited: ELO deducted');
+  } catch(e) {
+    console.warn('Failed to apply pending AI challenge forfeit', e);
+  } finally {
+    CURRENT_MODE = prevMode;
+    G._selectedAI = prevSelected || null;
+    G._aiOpponentElo = prevElo;
+  }
+}
+
+window.markPendingAiChallengeForfeit = markPendingAiChallengeForfeit;
+window.clearPendingAiChallengeForfeit = clearPendingAiChallengeForfeit;
+window.processPendingAiChallengeForfeit = processPendingAiChallengeForfeit;
+setTimeout(processPendingAiChallengeForfeit, 0);
 
 // Hook into awardXp: grant starlight on level-up (enough for ~2 packs, scales up)
 const _origAwardXp = awardXp;
@@ -345,7 +403,7 @@ const STARTER_DECKS = [
     id: 'starter_maelstrom',
     name: 'Relentless Maelstrom',
     description: 'Consolidate for Alondra Hopkins, then stack Fate on her with recycled buff supporters.',
-    theme: 'Eventide',
+    theme: 'Concentrated Fate',
     faceCardId: '14',
     displayCardIds: ['14','06','27','76','44','65','20'],
     ids: [
@@ -359,7 +417,7 @@ const STARTER_DECKS = [
     id: 'starter_freeworld',
     name: 'The Free World',
     description: 'Flood the board with Third Great War cards, then declare the affiliation with Duncan Heyward for massive bonuses.',
-    theme: 'Third Great War',
+    theme: 'Affiliation',
     faceCardId: '29',
     displayCardIds: ['29','77','01','13','42','59','28'],
     ids: [
@@ -373,7 +431,7 @@ const STARTER_DECKS = [
     id: 'starter_incel',
     name: 'Reign of the Furious Incel',
     description: "Recycle Oathbound Noble Fighter procs to supercharge Jimmy's passive Fate gain. Use Lina to search out Jimmy.",
-    theme: 'Reality',
+    theme: 'Fate Leech',
     faceCardId: '41',
     displayCardIds: ['41','10','08','70','36','31','58'],
     ids: [
@@ -387,7 +445,7 @@ const STARTER_DECKS = [
     id: 'starter_assault',
     name: 'Mass Assault Doctrine',
     description: 'Stack Czechoslovak Maroon Knights, Greek Hoplites and Anne Stone in the same zone for huge supporter bonuses.',
-    theme: 'Expanded Worlds',
+    theme: 'Supporters',
     faceCardId: '11',
     displayCardIds: ['11','63','43','59','25','16','05'],
     ids: [
@@ -405,7 +463,7 @@ const AI_ONLY_RANDOM_DECKS = [
     baseStrategy: 'starter_maelstrom',
     name: 'Relentless Maelstrom 2',
     description: 'A sharper Maelstrom shell with stronger supporter recursion, movement pressure and consolidation ambushes.',
-    theme: 'Eventide',
+    theme: 'Concentrated Fate',
     faceCardId: '14',
     displayCardIds: ['14','06','27','69','54','44','20'],
     ids: [
@@ -420,7 +478,7 @@ const AI_ONLY_RANDOM_DECKS = [
     baseStrategy: 'starter_freeworld',
     name: 'Free World 2',
     description: 'A stronger Third Great War list that floods the board, digs harder for Duncan, and protects its zone plan.',
-    theme: 'Third Great War',
+    theme: 'Affiliation',
     faceCardId: '29',
     displayCardIds: ['29','77','01','71','59','37','28'],
     ids: [
@@ -435,7 +493,7 @@ const AI_ONLY_RANDOM_DECKS = [
     baseStrategy: 'starter_incel',
     name: 'Furious Incel 2',
     description: "A nastier Reality shell that loops more pressure, hand disruption and Fate-loss triggers into Jimmy's scaling.",
-    theme: 'Reality',
+    theme: 'Fate Leech',
     faceCardId: '41',
     displayCardIds: ['41','10','08','30','31','69','72'],
     ids: [
@@ -450,7 +508,7 @@ const AI_ONLY_RANDOM_DECKS = [
     baseStrategy: 'starter_assault',
     name: 'Mass Assault 2',
     description: 'A heavier supporter swarm that snowballs Anne, Jeremiah and the Maroon Knights while keeping pressure on the board.',
-    theme: 'Expanded Worlds',
+    theme: 'Supporters',
     faceCardId: '11',
     displayCardIds: ['11','57','59','63','25','16','69'],
     ids: [
@@ -1439,6 +1497,7 @@ function renderChallengerDeckPickModal(page=0) {
       </div>
       <div class="preset-card-body">
         <div class="preset-name">${escapeHtml(p.name)}</div>
+        ${renderDeckThemePill(p.theme || 'Hybrid')}
         <div class="preset-desc">${escapeHtml(p.description||'')}</div>
         <div class="preset-minis">
           ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : displayCards.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
@@ -1516,6 +1575,7 @@ function renderFreePlayTitlePresetDeckPickModal(page=0) {
       </div>
       <div class="preset-card-body">
         <div class="preset-name">${escapeHtml(p.name)}</div>
+        ${renderDeckThemePill(p.theme || 'Hybrid')}
         <div class="preset-desc">${escapeHtml(p.description||'')}</div>
         <div class="preset-minis">
           ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : previews.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
@@ -1571,6 +1631,7 @@ window.startRandomAiChallenge = function(){
     return;
   }
   const ai = aiList[Math.floor(Math.random() * aiList.length)];
+  if(typeof markPendingAiChallengeForfeit === 'function') markPendingAiChallengeForfeit(ai);
   G._pickDeckAfterAi = true;
   G._aiRewardMultiplier = 1.5;
   // Find leaderboard entry for wins/losses
@@ -2450,6 +2511,7 @@ let _cdbCurrentDeckId = null; // null = building a new deck
 let _cdbCurrentDeckIds = [];
 let _cdbCurrentName = 'New Deck';
 let _cdbCurrentDesc = '';
+let _cdbCurrentTheme = 'Hybrid';
 let _challengerDeckBrowsePage = 0;
 
 function createChallengerDeckId(prefix='ch_user') {
@@ -2611,6 +2673,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
       </div>
       <div class="preset-tile-info">
         <div class="preset-name">${escapeHtml(preset.name)}</div>
+        ${renderDeckThemePill(preset.theme || 'Hybrid')}
         <div class="preset-desc">${escapeHtml(preset.description||'')}</div>
         <div class="preset-minis">
           ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : displayCards.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
@@ -3125,6 +3188,7 @@ function cdbNewDeck() {
   _cdbCurrentDeckIds = [];
   _cdbCurrentName = 'New Deck';
   _cdbCurrentDesc = '';
+  _cdbCurrentTheme = 'Hybrid';
   _cdbFilter = 'all';
   renderChDeckBuilderTab(document.getElementById('ch-content'));
 }
@@ -3188,6 +3252,7 @@ function importIdsToChallengerDeckBuilder(ids, meta = {}) {
   _cdbCurrentDeckIds = result.ids.slice(0, 40);
   _cdbCurrentName = importName;
   _cdbCurrentDesc = meta.description || '';
+  _cdbCurrentTheme = normalizeDeckTheme(meta.theme || 'Hybrid');
   _cdbFilter = 'all';
   _cdbSearch = '';
   if(typeof closeModal === 'function') closeModal();
@@ -3212,6 +3277,7 @@ function cdbEditDeck(pid) {
   _cdbCurrentDeckIds = [...p.ids];
   _cdbCurrentName = p.name;
   _cdbCurrentDesc = p.description || '';
+  _cdbCurrentTheme = normalizeDeckTheme(p.theme || 'Hybrid');
   renderChDeckBuilderTab(document.getElementById('ch-content'));
 }
 
@@ -3252,6 +3318,7 @@ function cdbClear() {
   _cdbCurrentDeckId = null;
   _cdbCurrentName = 'Unsaved Deck';
   _cdbCurrentDesc = '';
+  _cdbCurrentTheme = 'Hybrid';
   renderCdbCollection();
   renderCdbDecklist();
   renderChDeckBuilderTab(document.getElementById('ch-content'));
@@ -3285,6 +3352,7 @@ function openCdbSaveAsNewDialog() {
       <div class="cdb-save-form">
         <label>Deck Name<input id="cdb-save-name" maxlength="36" value="${escapeHtml(defaultName)}"></label>
         <label>Description<textarea id="cdb-save-desc" maxlength="120">${escapeHtml(_cdbCurrentDesc || '')}</textarea></label>
+        ${renderDeckThemeSelector(_cdbCurrentTheme || 'Hybrid', 'cdb-save-theme')}
         <div class="cdb-save-note">Choose one face card and up to seven display cards before saving.</div>
       </div>
     </div>
@@ -3389,13 +3457,14 @@ function openCdbSaveAsNewDialog() {
   save.onclick = () => {
     const name = (body.querySelector('#cdb-save-name')?.value || '').trim();
     const desc = (body.querySelector('#cdb-save-desc')?.value || '').trim();
+    const theme = normalizeDeckTheme(body.querySelector('#cdb-save-theme')?.value || _cdbCurrentTheme || 'Hybrid');
     if(!name){ toast('Please enter a deck name'); return; }
     if(!USER_PROFILE.challengerPresets) USER_PROFILE.challengerPresets = {};
     const pid = createChallengerDeckId();
     USER_PROFILE.challengerPresets[pid] = {
       name,
       description: desc || 'Custom challenger deck',
-      theme: 'Challenger',
+      theme,
       ids: [..._cdbCurrentDeckIds],
       faceCardId: currentFace,
       displayCardIds: currentDisplay.slice(0,7)
@@ -3403,6 +3472,7 @@ function openCdbSaveAsNewDialog() {
     _cdbCurrentDeckId = pid;
     _cdbCurrentName = name;
     _cdbCurrentDesc = desc;
+    _cdbCurrentTheme = theme;
     saveProfile();
     if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('decksSaved', 1, 'add');
     if(typeof playSfx==='function') playSfx('starPlace');
@@ -3422,6 +3492,7 @@ function cdbOverwriteDeck() {
     showChallengerStarterDeckWarning(existing.name || name || 'Starter deck');
     return;
   }
+  const theme = normalizeDeckTheme(_cdbCurrentTheme || existing.theme || 'Hybrid');
   if(!name){toast('Please enter a deck name');return;}
   if(_cdbCurrentDeckIds.length !== 40){toast(`Deck must be exactly 40 cards (currently ${_cdbCurrentDeckIds.length})`);return;}
   if(!_cdbCurrentDeckId){toast('No current deck to overwrite');return;}
@@ -3433,10 +3504,10 @@ function cdbOverwriteDeck() {
     ? existing.displayCardIds.map(id=>deckCards.find(c=>c.id===id)).filter(Boolean)
     : deckCards.filter(c=>c.img).slice(0,7)).slice(0,7);
   USER_PROFILE.challengerPresets[_cdbCurrentDeckId] = {
-    name, description: desc || 'Custom challenger deck', theme: 'Challenger',
-    ids: [..._cdbCurrentDeckIds], faceCardId: face?.id, displayCardIds: display.map(c=>c.id)
+    name, description: desc || 'Custom challenger deck', theme,
+      ids: [..._cdbCurrentDeckIds], faceCardId: face?.id, displayCardIds: display.map(c=>c.id)
   };
-  _cdbCurrentName = name; _cdbCurrentDesc = desc;
+  _cdbCurrentName = name; _cdbCurrentDesc = desc; _cdbCurrentTheme = theme;
   saveProfile();
   if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('decksSaved', 1, 'add');
   if(typeof playSfx==='function') playSfx('deckComplete');
@@ -3578,7 +3649,11 @@ function getMergedChallengerLeaderboardEntries() {
     }) === index;
   });
 }
-showLeaderboard = function(page=0) {
+showLeaderboard = async function(page=0, opts={}) {
+  const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
+  if(!(opts && opts.skipFresh) && !modalAlreadyOpen && window.FateOnline && typeof window.FateOnline.refreshFlyLeaderboard === 'function') {
+    try { await window.FateOnline.refreshFlyLeaderboard({force:true}); } catch(e) {}
+  }
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const sorted = getMergedChallengerLeaderboardEntries().sort((a,b)=>b.elo-a.elo);
   const pageSize = 5;
@@ -5450,7 +5525,7 @@ function showMatchHistory(page) {
       <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next ▶</button>
     </div>`;
   }
-  showModal('Recent Matches', html, [{label:'Close', action:closeModal}]);
+  showModal('Recent Matches', html, [{label:'Close', action:closeModal}], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
   const matchModal = document.querySelector('#modal .modal');
   if(matchModal) matchModal.classList.add('recent-matches-modal');
 }
@@ -5573,7 +5648,7 @@ function showDivisionPage(page, memberPage) {
       <button class="btn sm pri" onclick="showDivisionPage()" style="font-size:.6rem;padding:.2rem .5rem;">Divisions</button>
     </div>
   </div>`;
-  showModal(titleHtml, `<div class="division-pro-shell">${html}</div>`, [{label:'Close', action:closeModal}]);
+  showModal(titleHtml, `<div class="division-pro-shell">${html}</div>`, [{label:'Close', action:closeModal}], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
   const divisionModal = document.querySelector('#modal .modal');
   if(divisionModal) divisionModal.classList.add('division-pro-modal');
 }

@@ -1921,10 +1921,10 @@ function resetModalChrome() {
   }
 }
 
-function showModal(title, bodyHtml, actions) {
+function showModal(title, bodyHtml, actions, opts) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
-    setTimeout(()=>showModal(title, bodyHtml, actions), wait);
+    setTimeout(()=>showModal(title, bodyHtml, actions, opts), wait);
     return;
   }
   resetModalChrome();
@@ -1954,7 +1954,7 @@ function showModal(title, bodyHtml, actions) {
     const modalNode = document.getElementById('modal');
     requestAnimationFrame(function(){ FateSVG.decorate(modalNode); });
   }
-  playSfx('menuOpen');
+  if(!(opts && opts.silentOpen)) playSfx('menuOpen');
 }
 
 function closeModal() {

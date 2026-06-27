@@ -4616,6 +4616,7 @@ function checkWin() {
     // Official draw
     const xpResult = awardXp(12);
     if(CURRENT_MODE === 'challenger'){
+      if(typeof window.clearPendingAiChallengeForfeit === 'function') window.clearPendingAiChallengeForfeit();
       const settings2 = getAIDifficultySettings();
       const resolvedOpponentElo2 = G._aiOpponentElo || settings2.opponentElo;
       const aiRewardMult2 = Number(G._aiRewardMultiplier || 1);
@@ -4625,6 +4626,7 @@ function checkWin() {
     saveProfile();
     result = {eloChange:0, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel, isDraw:true};
   } else if(G.aiEnabled && winner < 0){
+    if(CURRENT_MODE === 'challenger' && typeof window.clearPendingAiChallengeForfeit === 'function') window.clearPendingAiChallengeForfeit();
     const xpResult = awardXp(8);
     saveProfile();
     result = {eloChange:0, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel};

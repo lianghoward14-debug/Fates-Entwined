@@ -11763,6 +11763,13 @@ html body #s-challenger #cdb-collection.canvas-card-grid-mode{
   scrollbar-gutter:stable!important;
 }
 
+html body #s-deck #db-collection.canvas-card-grid-mode{
+  justify-content:flex-start!important;
+  align-content:flex-start!important;
+  padding-left:1rem!important;
+  scrollbar-gutter:stable!important;
+}
+
 html body #s-game #tp-timer,
 html body #s-game .tp-mid #tp-timer,
 html body #s-game.ai-turn #tp-timer,
@@ -14068,4 +14075,116 @@ html body #modal .modal.status-overflow-modal #modal-acts{
   margin-top:.82rem!important;
   display:flex!important;
   justify-content:flex-end!important;
+}
+
+/* Codex 2026-06-28: social rank alignment, deck themes, and opponent hand density. */
+html body #s-social .social-online-command .social-online-card-grid{
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+html body #s-social .social-online-command .social-online-card-grid::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+html body #s-social .social-online-command .social-online-card{
+  grid-template-columns:78px minmax(0,1fr) 176px 28px!important;
+  column-gap:.88rem!important;
+  overflow:hidden!important;
+}
+html body #s-social .social-online-command .social-online-card-title,
+html body #s-social .social-online-command .social-online-card-meta{
+  grid-column:2!important;
+  min-width:0!important;
+}
+html body #s-social .social-online-command .social-online-card-rank{
+  grid-column:3!important;
+  grid-row:1 / span 2!important;
+  width:176px!important;
+  min-width:176px!important;
+  max-width:176px!important;
+  justify-self:stretch!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:visible!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md{
+  width:144px!important;
+  min-width:144px!important;
+  max-width:144px!important;
+  justify-content:flex-start!important;
+  transform:scale(1.08)!important;
+  transform-origin:center center!important;
+}
+html body #s-social .social-online-command .social-online-card-add,
+html body #s-social .social-online-command .social-online-card-self{
+  grid-column:4!important;
+  grid-row:1!important;
+  justify-self:end!important;
+}
+
+html body #modal .modal.cdb-save-modal .deck-theme-field{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.25rem!important;
+  margin-top:-.08rem!important;
+  color:var(--gold)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .modal.cdb-save-modal .deck-theme-select{
+  width:100%!important;
+  min-height:34px!important;
+  border:1px solid rgba(218,185,82,.45)!important;
+  border-radius:6px!important;
+  background:rgba(2,5,12,.9)!important;
+  color:var(--text)!important;
+  padding:.34rem .56rem!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.76rem!important;
+  letter-spacing:.03em!important;
+  outline:none!important;
+}
+html body .deck-theme-pill{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  max-width:100%!important;
+  min-height:20px!important;
+  padding:.12rem .5rem!important;
+  border:1px solid rgba(91,181,255,.42)!important;
+  border-radius:999px!important;
+  background:rgba(7,22,37,.78)!important;
+  color:#8fcfff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.07em!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  flex:0 0 auto!important;
+}
+html body .deck-theme-pill.deck-theme-long{font-size:.55rem!important;letter-spacing:.04em!important;}
+html body .deck-theme-pill.deck-theme-xlong{font-size:.48rem!important;letter-spacing:.01em!important;padding-inline:.42rem!important;}
+
+html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus){
+  --opp-hand-card-w:52px!important;
+  --opp-hand-card-h:73px!important;
+  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
+  gap:.36rem .5rem!important;
+  max-height:238px!important;
+  padding:.18rem .1rem .22rem!important;
+}
+html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus) .opp-card-back{
+  width:var(--opp-hand-card-w)!important;
+  height:var(--opp-hand-card-h)!important;
+  min-width:var(--opp-hand-card-w)!important;
+  min-height:var(--opp-hand-card-h)!important;
 }

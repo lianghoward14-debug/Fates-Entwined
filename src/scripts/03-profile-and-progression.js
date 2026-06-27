@@ -149,7 +149,7 @@ window._fateMigrateIfNeeded = _fateMigrateIfNeeded;
 window._fateReloadProfile = function() { loadPresetsFromStorage(); };
 
 
-const FATE_BACKGROUND_ASSET_VERSION = 'bg20260612a';
+const FATE_BACKGROUND_ASSET_VERSION = 'bg20260628a';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
   if(path.includes('v=' + FATE_BACKGROUND_ASSET_VERSION)) return path;
@@ -1031,6 +1031,65 @@ function sortCardsByArtNumber(cards){
   });
 }
 
+function getDeckThemeOptions(){
+  return [
+    'Negation',
+    'Resource Disruption',
+    'Hybrid',
+    'Mobility',
+    'Concentrated Fate',
+    'Affiliation',
+    'Dispersed Fate',
+    'Supporters',
+    'Disruption',
+    'Reactive',
+    'Fate Leech',
+    'Deception',
+    'Tempo',
+    'Combo',
+    'Speed',
+    'Control'
+  ];
+}
+
+function normalizeDeckTheme(theme, fallback='Hybrid'){
+  const raw = String(theme || '').trim();
+  const aliases = {
+    Affliation:'Affiliation',
+    affiliation:'Affiliation',
+    Custom:'Hybrid',
+    Challenger:'Hybrid',
+    Imported:'Hybrid',
+    Eventide:'Concentrated Fate',
+    Reality:'Fate Leech',
+    'Third Great War':'Affiliation',
+    'Expanded Worlds':'Supporters'
+  };
+  const candidate = aliases[raw] || aliases[raw.toLowerCase()] || raw || fallback;
+  const opts = getDeckThemeOptions();
+  return opts.includes(candidate) ? candidate : (opts.includes(fallback) ? fallback : 'Hybrid');
+}
+
+function deckThemeFitClass(theme){
+  const len = String(theme || '').length;
+  return len <= 8 ? ' deck-theme-short' : (len <= 12 ? ' deck-theme-medium' : (len <= 17 ? ' deck-theme-long' : ' deck-theme-xlong'));
+}
+
+function renderDeckThemeSelector(selectedTheme, inputId='deck-theme-inp'){
+  const selected = normalizeDeckTheme(selectedTheme);
+  const options = getDeckThemeOptions().map(theme=>`<option value="${escapeHtml(theme)}" ${theme===selected?'selected':''}>${escapeHtml(theme)}</option>`).join('');
+  return `<label class="deck-theme-field">Deck Theme<select id="${escapeHtml(inputId)}" class="deck-theme-select">${options}</select></label>`;
+}
+
+function renderDeckThemePill(theme){
+  const label = String(theme || '').trim() || 'Hybrid';
+  return `<span class="deck-theme-pill${deckThemeFitClass(label)}">${escapeHtml(label)}</span>`;
+}
+window.getDeckThemeOptions = getDeckThemeOptions;
+window.normalizeDeckTheme = normalizeDeckTheme;
+window.renderDeckThemeSelector = renderDeckThemeSelector;
+window.renderDeckThemePill = renderDeckThemePill;
+
 // Save current deck as a new preset
 function saveCurrentDeckAsPreset() {
   const deck = G.dbCurrentPlayer===0 ? G.p1Deck : G.p2Deck;
@@ -1052,6 +1111,7 @@ function openTitlePresetSaveDialog(deck) {
   ).slice(0,7);
   const defaultName = loaded?.name || '';
   const defaultDesc = loaded?.description || '';
+  const defaultTheme = normalizeDeckTheme(loaded?.theme || 'Hybrid');
 
   showModal('Save as Preset', '', []);
   const modalBox = document.querySelector('#modal .modal');
@@ -1066,6 +1126,7 @@ function openTitlePresetSaveDialog(deck) {
       <div class="cdb-save-form">
         <label>Deck Name<input id="preset-name-inp" maxlength="36" value="${escapeHtml(defaultName)}" placeholder="My Eagle Rush"></label>
         <label>Description<textarea id="preset-desc-inp" maxlength="120" placeholder="Fast aggressive supporters">${escapeHtml(defaultDesc)}</textarea></label>
+        ${renderDeckThemeSelector(defaultTheme, 'preset-theme-inp')}
         <div class="cdb-save-note">Choose one face card and up to seven display cards before saving.</div>
       </div>
     </div>
@@ -1165,6 +1226,7 @@ function openTitlePresetSaveDialog(deck) {
   ok.onclick=()=>{
     const n = document.getElementById('preset-name-inp').value.trim();
     const d = document.getElementById('preset-desc-inp').value.trim();
+    const theme = normalizeDeckTheme(document.getElementById('preset-theme-inp')?.value || 'Hybrid');
     if(!n){toast('Please enter a preset name');return;}
     const key = G._loadedPresetId || ('user_'+Date.now());
     const existing = PRESET_DECKS[key] || {};
@@ -1172,7 +1234,7 @@ function openTitlePresetSaveDialog(deck) {
       ...existing,
       name:n,
       description:d||'Custom deck',
-      theme:'Custom',
+      theme,
       ids:[...deck],
       faceCardId: currentFace,
       displayCardIds: currentDisplay.slice(0,7)
