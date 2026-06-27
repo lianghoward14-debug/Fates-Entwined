@@ -364,6 +364,29 @@
     if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true});
     else if(typeof window.renderBoard === 'function') window.renderBoard();
   }
+  function enterOnlineGameScreenFromAuthoritativeState(reason){
+    const g = gameState();
+    if(!g || !isOnlineMatchState(g)) return false;
+    if(String(g.phase || '') !== 'main') return false;
+    if(!isCoinScreenActive()) return false;
+    if(typeof window.showScreen === 'function') window.showScreen('s-game');
+    g._turnInputLockUntil = 0;
+    g._aiRunning = false;
+    g._aiAbort = false;
+    g._aiAborted = false;
+    g._aiTurnToken = 0;
+    if(!g._onlineGameScreenEnteredFromAuthority){
+      g._onlineGameScreenEnteredFromAuthority = true;
+      const currentName = g.players?.[g.currentPlayer]?.name || `Player ${Number(g.currentPlayer || 0) + 1}`;
+      if(typeof window.log === 'function') window.log('sys', 'Online match begins! ' + currentName + ' goes first.');
+    }
+    if(typeof window.startTurnTimer === 'function') window.startTurnTimer();
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineAuthorityEnteredGameScreen = { at:Date.now(), reason:String(reason || '') };
+    } catch(e) {}
+    return true;
+  }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
@@ -427,6 +450,7 @@
       }
     }
     if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+    enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     console.warn('Applied authoritative online state:', reason || 'state-sync');
