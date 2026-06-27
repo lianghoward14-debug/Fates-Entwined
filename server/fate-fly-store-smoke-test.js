@@ -329,6 +329,42 @@ async function assertFlySocialRestored(){
   assert.strictEqual(profile.profile.displayName, 'Social Host');
 }
 
+async function exerciseFlyChallengerAI(){
+  const roster = [
+    {uid:'monthly_2026_q2_alpha', aiId:'monthly_2026_q2_alpha', name:'Monthly Alpha', elo:700, trueElo:820, wins:2, losses:3, isAI:true, isMonthly:true, monthKey:'2026-Q2', generationVersion:3},
+    {uid:'monthly_2026_q2_beta', aiId:'monthly_2026_q2_beta', name:'Monthly Beta', elo:900, trueElo:1080, wins:4, losses:2, isAI:true, isMonthly:true, monthKey:'2026-Q2', generationVersion:3},
+    {uid:'monthly_2026_q2_gamma', aiId:'monthly_2026_q2_gamma', name:'Monthly Gamma', elo:1100, trueElo:1260, wins:5, losses:1, isAI:true, isMonthly:true, monthKey:'2026-Q2', generationVersion:3}
+  ];
+  const seeded = await requestJson('POST', '/api/challenger-ai/seed', {
+    uid:'ai-seeder',
+    monthKey:'2026-Q2',
+    roster
+  });
+  assert.strictEqual(seeded.roster.length, 3, 'Fly Challenger AI seed should store bounded roster');
+  const sim = await requestJson('POST', '/api/challenger-ai/simulate', {
+    uid:'ai-seeder',
+    monthKey:'2026-Q2',
+    count:4
+  });
+  assert.ok(sim.ran >= 1 && sim.ran <= 4, 'Fly Challenger AI simulation should run a small capped batch');
+  const second = await requestJson('POST', '/api/challenger-ai/simulate', {
+    uid:'ai-seeder',
+    monthKey:'2026-Q2',
+    count:4
+  });
+  assert.strictEqual(second.ran, 0, 'Fly Challenger AI simulation should obey the global cadence cap');
+  assert.strictEqual(second.skipped, 'cadence');
+  const leaderboard = await requestJson('GET', '/api/leaderboards/challenger?limit=50');
+  assert.ok(leaderboard.leaderboard.some(entry=>entry.aiId === 'monthly_2026_q2_alpha'), 'AI roster should appear on Fly leaderboard');
+  assert.ok(!leaderboard.leaderboard.some(entry=>String(entry.uid || '').includes('social-host') || /smoke/i.test(String(entry.name || entry.username || ''))), 'Fly leaderboard should filter smoke/internal profiles');
+}
+
+async function assertFlyChallengerAIRestored(){
+  const ai = await requestJson('GET', '/api/challenger-ai?monthKey=2026-Q2');
+  assert.strictEqual(ai.roster.length, 3, 'Fly Challenger AI roster should restore after restart');
+  assert.ok(Number(ai.schedule?.lastRunAt || 0) > 0, 'Fly Challenger AI cadence should restore after restart');
+}
+
 async function exerciseFlyEconomy(){
   const cards = validDeck();
   const listed = await requestJson('POST', '/api/marketplace/listings', {
@@ -520,6 +556,7 @@ async function main(){
     assert.strictEqual(profileSeed.profile.challengerElo, 720);
     assert.strictEqual(profileSeed.profile.matchesPlayed, 6);
     await exerciseFlySocial();
+    await exerciseFlyChallengerAI();
     await exerciseFlyEconomy();
     await exerciseFlyFriendsDmAndCloudSave();
     await exerciseFlyMatchmaking();
@@ -606,6 +643,7 @@ async function main(){
     assert.strictEqual(restoredProfileSeed.profile.challengerWins, 4);
     assert.strictEqual(restoredProfileSeed.profile.starlight, 12);
     await assertFlySocialRestored();
+    await assertFlyChallengerAIRestored();
     await assertFlyEconomyRestored();
     await assertFlyFriendsDmAndCloudSaveRestored();
     await exerciseFlyRoomDiscovery(code);

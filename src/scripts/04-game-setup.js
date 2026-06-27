@@ -148,43 +148,41 @@ function startOnlineServerBootstrappedGame(options) {
   if(typeof applyGameBackground === 'function'){
     _lastGameSong = applyGameBackground(opts.song || G._onlineGameSong || null);
   }
-  showPreGameMatchup(false, ()=>{
-    try{
-      if(typeof initInGameChat === 'function') initInGameChat();
-      const entryVeilStarted = showMatchEntryLoadingVeil();
-      recordMatchEntryStep('online-server-bootstrap-start');
-      if(typeof opts.applyServerState === 'function') opts.applyServerState();
-      G.phase = 'main';
-      G._turnInputLockUntil = 0;
-      G._aiRunning = false;
-      G._aiAbort = false;
-      G._aiAborted = false;
-      G._aiTurnToken = 0;
-      showScreen('s-game');
-      recordMatchEntryStep('online-server-bootstrap-game-active');
-      const currentName = G.players[G.currentPlayer]?.name || `Player ${Number(G.currentPlayer || 0) + 1}`;
-      log('sys','Online match begins! '+currentName+' goes first.');
-      const renderStarted = performance.now ? performance.now() : Date.now();
-      if(typeof renderGameImmediate === 'function') {
-        if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
-          renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
-        } else {
-          renderGameImmediate();
-        }
-      } else renderGame();
-      recordMatchEntryStep('online-server-bootstrap-render-called', {
-        ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
-      });
-      if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
-      recordMatchEntryStep('online-server-bootstrap-topbar-ready');
-      hideMatchEntryLoadingVeil(entryVeilStarted);
-      startTurnTimer();
-      if(typeof opts.afterEnter === 'function') opts.afterEnter();
-    } catch(err) {
-      console.error('Online server bootstrap entry failed', err);
-      if(typeof opts.onError === 'function') opts.onError(err);
-    }
-  });
+  try{
+    if(typeof initInGameChat === 'function') initInGameChat();
+    const entryVeilStarted = showMatchEntryLoadingVeil();
+    recordMatchEntryStep('online-server-bootstrap-start');
+    if(typeof opts.applyServerState === 'function') opts.applyServerState();
+    G.phase = 'main';
+    G._turnInputLockUntil = 0;
+    G._aiRunning = false;
+    G._aiAbort = false;
+    G._aiAborted = false;
+    G._aiTurnToken = 0;
+    showScreen('s-game');
+    recordMatchEntryStep('online-server-bootstrap-game-active');
+    const currentName = G.players[G.currentPlayer]?.name || `Player ${Number(G.currentPlayer || 0) + 1}`;
+    log('sys','Online match begins! '+currentName+' goes first.');
+    const renderStarted = performance.now ? performance.now() : Date.now();
+    if(typeof renderGameImmediate === 'function') {
+      if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+        renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
+      } else {
+        renderGameImmediate();
+      }
+    } else renderGame();
+    recordMatchEntryStep('online-server-bootstrap-render-called', {
+      ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
+    });
+    if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
+    recordMatchEntryStep('online-server-bootstrap-topbar-ready');
+    hideMatchEntryLoadingVeil(entryVeilStarted);
+    startTurnTimer();
+    if(typeof opts.afterEnter === 'function') opts.afterEnter();
+  } catch(err) {
+    console.error('Online server bootstrap entry failed', err);
+    if(typeof opts.onError === 'function') opts.onError(err);
+  }
 }
 window.startOnlineServerBootstrappedGame = startOnlineServerBootstrappedGame;
 
@@ -809,7 +807,6 @@ function predictMatchOutcome(trueElo1, trueElo2, upsetFloor=0) {
 // Legacy local AI simulation is disabled. AI ELO simulation now runs only through
 // the shared online simulation in 19-online-elo.js.
 function runAISimulation() {
-  return;
   const simKey = 'fate_ai_sim_cadence';
   let simData;
   try { simData = JSON.parse(localStorage.getItem(simKey) || '{}'); } catch(e){ simData = {}; }
@@ -824,6 +821,7 @@ function runAISimulation() {
     // Pick two random different AI opponents
     const aiSource = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
     const pool = [...aiSource];
+    if(pool.length < 2) return;
     const i1 = Math.floor(Math.random() * pool.length);
     let i2 = Math.floor(Math.random() * pool.length);
     while(i2 === i1 && pool.length > 1) i2 = Math.floor(Math.random() * pool.length);
@@ -941,7 +939,8 @@ const RANDOM_AI_PERSONALITIES = [
 ];
 const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
-const MONTHLY_AI_GENERATION_VERSION = 2;
+const MONTHLY_AI_GENERATION_VERSION = 3;
+const MONTHLY_AI_RESET_STORAGE_KEY = 'fate_monthly_ai_reset_v3_done';
 const MONTHLY_AI_SKILL_BANDS = [
   {visible:640, trueBase:560, record:.27, matches:[14,24]},
   {visible:735, trueBase:700, record:.34, matches:[16,28]},
@@ -976,6 +975,31 @@ function cleanupRetiredMonthlyAI(monthKey=getMonthKey()) {
     LEADERBOARD = LEADERBOARD.filter(entry => !(entry && entry.isMonthly && entry.monthKey !== monthKey));
     if(LEADERBOARD.length !== before && typeof saveLeaderboard === 'function') saveLeaderboard();
   }
+}
+
+function resetCurrentMonthlyAIEloStateOnce() {
+  const monthKey = getMonthKey();
+  try {
+    if(localStorage.getItem(MONTHLY_AI_RESET_STORAGE_KEY) === monthKey) return;
+  } catch(e){}
+  try { localStorage.removeItem('fate_monthly_ai_' + monthKey); } catch(e){}
+  try {
+    const state = loadAIEloState();
+    let changed = false;
+    Object.keys(state || {}).forEach(key => {
+      if(String(key).startsWith(monthKey + ':')) {
+        delete state[key];
+        changed = true;
+      }
+    });
+    if(changed) saveAIEloState(state);
+  } catch(e){}
+  if(typeof LEADERBOARD !== 'undefined' && Array.isArray(LEADERBOARD)) {
+    const before = LEADERBOARD.length;
+    LEADERBOARD = LEADERBOARD.filter(entry => !(entry && entry.isMonthly && entry.monthKey === monthKey));
+    if(LEADERBOARD.length !== before && typeof saveLeaderboard === 'function') saveLeaderboard();
+  }
+  try { localStorage.setItem(MONTHLY_AI_RESET_STORAGE_KEY, monthKey); } catch(e){}
 }
 
 function monthlyBandForSlot(monthKey, index) {
@@ -1099,6 +1123,7 @@ function generateMonthlyAI() {
 }
 
 function integrateMonthlyAI() {
+  resetCurrentMonthlyAIEloStateOnce();
   const monthly = generateMonthlyAI();
   const monthKey = getMonthKey();
   MONTHLY_AI_OPPONENTS = monthly.map(ai => ({...ai}));
@@ -1127,6 +1152,9 @@ function getRandomMatchAIOpponents() {
 if(typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
     integrateMonthlyAI();
+    setTimeout(() => {
+      try { runAISimulation(); } catch(e) { console.warn('AI simulation failed', e); }
+    }, 5000);
   });
 }
 

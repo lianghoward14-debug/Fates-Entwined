@@ -49,7 +49,8 @@ assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782601200/, 'index mus
 assert.match(indexText, /03-profile-and-progression\.js\?v=1782613800/, 'index must cache-bust daily login startup prompt fixes');
 assert.match(indexText, /18-online-rooms\.js\?v=1782614400/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782600600/, 'index must cache-bust the challenger matchmaking script');
-assert.match(indexText, /04-game-setup\.js\?v=1782603000/, 'index must cache-bust the match setup script for preload gate changes');
+assert.match(indexText, /04-game-setup\.js\?v=1782615000/, 'index must cache-bust the match setup script for monthly AI reset and simulation fixes');
+assert.match(indexText, /19-online-elo\.js\?v=1782615000/, 'index must cache-bust the online ELO script for bounded Fly Challenger AI fixes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782613800/, 'index must cache-bust the smoothness script for warmup policy changes');
 assert.match(profileText, /function checkDailyLoginOnStartup\(\)[\s\S]*startupLoadingActive[\s\S]*fate-startup-loading-finished[\s\S]*showDailyLoginPanel/, 'daily login startup prompt must wait for the loading overlay to finish');
 assert.match(smoothnessText, /function hideInitialLoadingScreen\(\)[\s\S]*__fateStartupLoadingFinished[\s\S]*fate-startup-loading-finished/, 'startup loader must signal when daily rewards can open');
@@ -153,6 +154,16 @@ assert.match(authorityText, /pathname === '\/index\.html'[\s\S]*pathname === '\/
 assert.match(authorityText, /shouldFinalizeDisconnectImmediately[\s\S]*canonicalState[\s\S]*canonicalHash/, 'active Fly room disconnects must be eligible for immediate server-side match end');
 assert.match(authorityText, /markSocketDisconnected\(ws, \{immediate:!shuttingDown\}\)/, 'socket cleanup must end player disconnects immediately except during graceful server shutdown');
 assert.match(authorityText, /flyMultiplayerDiagnostics:true/, 'Fly capabilities must advertise multiplayer diagnostics');
+assert.match(authorityText, /flyChallengerAI:true/, 'Fly capabilities must advertise bounded Challenger AI ladder support');
+assert.match(authorityText, /function isFlyInternalProfile\(value\)[\s\S]*smoke\|codex\|test[\s\S]*function flyLeaderboard\(limit = 100\)[\s\S]*!isFlyInternalProfile/, 'Fly leaderboard must filter Codex/smoke/internal profiles server-side');
+assert.match(authorityText, /function seedFlyAIRecords\(roster, monthKey[\s\S]*generationVersion[\s\S]*persistFlyRoomMutation/, 'Fly Challenger AI seed must reset monthly AI by generation and persist compact records');
+assert.match(authorityText, /function runFlyAISimulationBatch\(monthKey[\s\S]*cadenceMs = 10 \* 60 \* 1000[\s\S]*listFlyLiveMatches\(1\)[\s\S]*Math\.min\(4/, 'Fly Challenger AI simulation must be globally cadenced, capped, and skipped during live matches');
+assert.match(authorityText, /parts\[1\] === 'challenger-ai'[\s\S]*parts\[2\] === 'seed'[\s\S]*parts\[2\] === 'simulate'/, 'Fly authority must expose Challenger AI seed and simulate endpoints');
+const setupText = read('src/scripts/04-game-setup.js');
+assert.match(setupText, /MONTHLY_AI_GENERATION_VERSION = 3[\s\S]*fate_monthly_ai_reset_v3_done[\s\S]*resetCurrentMonthlyAIEloStateOnce/, 'monthly AI must reset local persisted ELO once');
+assert.match(setupText, /function runAISimulation\(\)[\s\S]*fate_ai_sim_cadence[\s\S]*setTimeout\(\(\) =>[\s\S]*runAISimulation\(\)/, 'local AI simulations must run on load');
+assert.doesNotMatch(setupText, /function runAISimulation\(\)\s*\{\s*return;/, 'local AI simulation must not be disabled by an immediate return');
+assert.match(read('src/scripts/19-online-elo.js'), /\/api\/challenger-ai\/seed[\s\S]*\/api\/challenger-ai\/simulate[\s\S]*count:4[\s\S]*startSharedAISimulationLoop\(\)/, 'online ELO bridge must use bounded Fly Challenger AI endpoints');
 assert.match(authorityText, /FATE_WS_GAMEPLAY_AUTHORITY[\s\S]*clientResolvedGameplayEnabled/, 'authority server must expose an explicit client-resolved gameplay mode flag');
 assert.match(authorityText, /ACTION_RESULT[\s\S]*client-resolved gameplay authority/, 'authority server must keep ACTION_RESULT behind the client-resolved mode');
 assert.match(authorityText, /gameplayAuthority:gameplayAuthorityMode\(\)/, 'authority server hello must advertise gameplay authority mode');

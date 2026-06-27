@@ -90,6 +90,7 @@ const sockets = new Set();
 const matchmaking = new Map();
 const flyPlayerStats = new Map();
 const flyMatchResults = new Map();
+const flyAIRecords = new Map();
 const flyParties = new Map();
 const flyPartyInvites = new Map();
 const flyWorldChat = [];
@@ -104,6 +105,7 @@ let flyWorldChatSeq = 0;
 let flyMarketplaceSeq = 0;
 let flyPublicDeckCommentSeq = 0;
 let flyPrivateMessageSeq = 0;
+let flyAISimSchedule = {};
 let certCache = { expiresAt: 0, certs: null };
 let serviceAccountCache = undefined;
 let adminTokenCache = { expiresAt: 0, accessToken: '' };
@@ -237,6 +239,8 @@ function flyRoomsSnapshotPayload(){
     matchmaking:[...matchmaking.values()].map(publicMatchmakingEntry).filter(Boolean),
     playerStats:[...flyPlayerStats.values()].filter(Boolean),
     matchResults:[...flyMatchResults.values()].filter(Boolean).slice(-5000),
+    aiRecords:[...flyAIRecords.values()].map(publicFlyAIRecord).filter(Boolean).slice(0, 80),
+    aiSimSchedule:Object.assign({}, flyAISimSchedule || {}),
     parties:[...flyParties.values()].map(publicFlyParty).filter(Boolean),
     partyInvites:[...flyPartyInvites.values()].map(publicFlyPartyInvite).filter(Boolean),
     worldChatSeq:flyWorldChatSeq,
@@ -329,6 +333,11 @@ function loadFlyRoomsSnapshot(){
     const result = publicFlyMatchResult(item);
     if(result?.matchId) flyMatchResults.set(result.matchId, result);
   });
+  (Array.isArray(parsed?.aiRecords) ? parsed.aiRecords : []).forEach(item=>{
+    const record = publicFlyAIRecord(item);
+    if(record?.aiId) flyAIRecords.set(record.aiId, record);
+  });
+  flyAISimSchedule = parsed?.aiSimSchedule && typeof parsed.aiSimSchedule === 'object' ? Object.assign({}, parsed.aiSimSchedule) : {};
   (Array.isArray(parsed?.parties) ? parsed.parties : []).forEach(item=>{
     const party = publicFlyParty(item);
     if(party?.partyId) flyParties.set(party.partyId, party);
@@ -1722,6 +1731,7 @@ function lookupFlyProfiles(term, limit = 8){
   return [...flyPlayerStats.values()]
     .map(publicFlyProfile)
     .filter(Boolean)
+    .filter(profile=>!isFlyInternalProfile(profile))
     .filter(profile=>{
       return profile.uid.toLowerCase() === raw ||
         String(profile.baseCode || '').toLowerCase() === raw ||
@@ -1827,6 +1837,51 @@ function publicFlyProfile(value){
     humanLosses:safeNonNegativeInteger(raw.humanLosses, 0),
     matchesPlayed:safeNonNegativeInteger(raw.matchesPlayed, 0),
     starlight:safeNonNegativeInteger(raw.starlight, 0),
+    updatedAt:Number(raw.updatedAt || 0) || now(),
+    source:'fly-authority'
+  };
+}
+
+function isFlyInternalProfile(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const uid = String(raw.uid || '').toLowerCase();
+  const name = String(raw.name || raw.username || raw.displayName || '').toLowerCase();
+  const baseCode = String(raw.baseCode || '').toLowerCase();
+  if(/(^|[-_])(smoke|codex|test|diagnostic|client-resolved|authority)([-_]|$)/.test(uid)) return true;
+  if(/^(fly\s+smoke|smoke\s+|codex\b|test\s+)/.test(name)) return true;
+  if(/\b(smoke|codex|test)\b/.test(name)) return true;
+  if(/(smoke|codex|test)/.test(baseCode)) return true;
+  return false;
+}
+
+function publicFlyAIRecord(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const aiId = String(raw.aiId || raw.uid || '').replace(/[.#$\/\[\]]/g, '_').slice(0, 128);
+  if(!aiId) return null;
+  const name = String(raw.name || raw.username || 'AI Opponent').slice(0, 48);
+  const elo = Math.max(100, Math.min(2600, safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600)));
+  const trueElo = Math.max(100, Math.min(3000, safeNonNegativeInteger(raw.trueElo, elo + 200)));
+  return {
+    uid:aiId,
+    aiId,
+    name,
+    username:name,
+    displayName:name,
+    photoURL:String(raw.photoURL || raw.profileImg || 'blank.png').slice(0, 180),
+    profileImg:String(raw.profileImg || raw.photoURL || 'blank.png').slice(0, 180),
+    challengerElo:elo,
+    elo,
+    trueElo,
+    challengerWins:Math.min(10000, safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0)),
+    challengerLosses:Math.min(10000, safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0)),
+    wins:Math.min(10000, safeNonNegativeInteger(raw.wins ?? raw.challengerWins, 0)),
+    losses:Math.min(10000, safeNonNegativeInteger(raw.losses ?? raw.challengerLosses, 0)),
+    matchesPlayed:Math.min(20000, safeNonNegativeInteger(raw.matchesPlayed, 0)),
+    seededWinRate:Math.max(0, Math.min(1, Number(raw.seededWinRate || 0) || 0)),
+    generationVersion:safeNonNegativeInteger(raw.generationVersion, 0),
+    isAI:true,
+    isMonthly:raw.isMonthly !== false,
+    monthKey:String(raw.monthKey || '').slice(0, 24),
     updatedAt:Number(raw.updatedAt || 0) || now(),
     source:'fly-authority'
   };
@@ -1959,11 +2014,134 @@ function applyFlyResultLedger(code, accepted){
   return changed;
 }
 
+function listFlyAIRecords(monthKey = ''){
+  const key = String(monthKey || '').slice(0, 24);
+  return [...flyAIRecords.values()]
+    .map(publicFlyAIRecord)
+    .filter(Boolean)
+    .filter(record=>!key || record.monthKey === key)
+    .sort((a,b)=>{
+      const eloDelta = (Number(b.elo || 0) || 0) - (Number(a.elo || 0) || 0);
+      if(eloDelta) return eloDelta;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+}
+
+function seedFlyAIRecords(roster, monthKey = ''){
+  const key = String(monthKey || '').slice(0, 24);
+  const incoming = (Array.isArray(roster) ? roster : []).slice(0, 40)
+    .map(item=>publicFlyAIRecord(Object.assign({}, item, {monthKey:key || item?.monthKey || ''})))
+    .filter(Boolean);
+  if(!incoming.length) return listFlyAIRecords(key);
+  const incomingIds = new Set(incoming.map(record=>record.aiId));
+  for(const [id, existing] of [...flyAIRecords.entries()]){
+    if(existing?.isMonthly && key && existing.monthKey !== key) flyAIRecords.delete(id);
+  }
+  incoming.forEach(record=>{
+    const existing = publicFlyAIRecord(flyAIRecords.get(record.aiId));
+    const shouldReset = !existing
+      || (record.isMonthly && existing.monthKey !== record.monthKey)
+      || Number(existing.generationVersion || 0) < Number(record.generationVersion || 0);
+    if(shouldReset){
+      flyAIRecords.set(record.aiId, record);
+      return;
+    }
+    flyAIRecords.set(record.aiId, publicFlyAIRecord(Object.assign({}, existing, {
+      name:record.name || existing.name,
+      username:record.username || existing.username,
+      displayName:record.displayName || existing.displayName,
+      photoURL:record.photoURL || existing.photoURL,
+      profileImg:record.profileImg || existing.profileImg,
+      trueElo:record.trueElo || existing.trueElo,
+      seededWinRate:record.seededWinRate || existing.seededWinRate,
+      generationVersion:Math.max(Number(existing.generationVersion || 0), Number(record.generationVersion || 0)),
+      monthKey:record.monthKey || existing.monthKey,
+      isMonthly:record.isMonthly !== false,
+      updatedAt:now()
+    })));
+  });
+  for(const [id, existing] of [...flyAIRecords.entries()]){
+    if(existing?.isMonthly && key && existing.monthKey === key && !incomingIds.has(id)) flyAIRecords.delete(id);
+  }
+  persistFlyRoomMutation();
+  return listFlyAIRecords(key);
+}
+
+function flyAIWinChance(a, b, seed){
+  const trueA = Number(a.trueElo || a.elo || 600) || 600;
+  const trueB = Number(b.trueElo || b.elo || 600) || 600;
+  const expected = 1 / (1 + Math.pow(10, (trueB - trueA) / 400));
+  const wobbleRng = makeSeededRng(`${seed}:${a.aiId}:${b.aiId}`);
+  const wobble = (wobbleRng() - 0.5) * 0.06;
+  return Math.max(0.03, Math.min(0.97, expected + wobble));
+}
+
+function flyAIPairs(records, rng){
+  const ids = records.map(record=>record.aiId);
+  for(let i=ids.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  const pairs = [];
+  for(let i=0; i + 1 < ids.length; i += 2){
+    if(ids[i] !== ids[i + 1]) pairs.push([ids[i], ids[i + 1]]);
+  }
+  return pairs;
+}
+
+function runFlyAISimulationBatch(monthKey = '', count = 4){
+  const key = String(monthKey || '').slice(0, 24);
+  const cadenceMs = 10 * 60 * 1000;
+  const lastRunAt = Number(flyAISimSchedule?.lastRunAt || 0) || 0;
+  if(lastRunAt && now() - lastRunAt < cadenceMs) return {ran:0, skipped:'cadence', roster:listFlyAIRecords(key)};
+  if(listFlyLiveMatches(1).length) return {ran:0, skipped:'live-match-active', roster:listFlyAIRecords(key)};
+  const roster = listFlyAIRecords(key);
+  if(roster.length < 2) return {ran:0, skipped:'empty-roster', roster};
+  const maxCount = Math.min(4, Math.max(1, Math.round(Number(count || 4) || 4)));
+  const rng = makeSeededRng(`${key || 'ai'}:${new Date().toISOString().slice(0,10)}:${now()}`);
+  const byId = new Map(roster.map(record=>[record.aiId, Object.assign({}, record)]));
+  const pairs = flyAIPairs(roster, rng);
+  let ran = 0;
+  for(let i=0; i<Math.min(maxCount, pairs.length); i++){
+    const a = byId.get(pairs[i][0]);
+    const b = byId.get(pairs[i][1]);
+    if(!a || !b) continue;
+    const chanceA = flyAIWinChance(a, b, `${key}:${i}`);
+    const aWins = rng() < chanceA;
+    const expectedA = 1 / (1 + Math.pow(10, (Number(b.elo || 600) - Number(a.elo || 600)) / 400));
+    const k = 24;
+    let changeA = Math.round(k * ((aWins ? 1 : 0) - expectedA));
+    if(aWins && changeA < 1) changeA = 1;
+    if(!aWins && changeA > -1) changeA = -1;
+    const changeB = -changeA;
+    a.elo = a.challengerElo = Math.max(100, Math.round(Number(a.elo || 600) + changeA));
+    b.elo = b.challengerElo = Math.max(100, Math.round(Number(b.elo || 600) + changeB));
+    a.wins = a.challengerWins = safeNonNegativeInteger(a.wins, 0) + (aWins ? 1 : 0);
+    a.losses = a.challengerLosses = safeNonNegativeInteger(a.losses, 0) + (aWins ? 0 : 1);
+    b.wins = b.challengerWins = safeNonNegativeInteger(b.wins, 0) + (aWins ? 0 : 1);
+    b.losses = b.challengerLosses = safeNonNegativeInteger(b.losses, 0) + (aWins ? 1 : 0);
+    a.matchesPlayed = safeNonNegativeInteger(a.matchesPlayed, 0) + 1;
+    b.matchesPlayed = safeNonNegativeInteger(b.matchesPlayed, 0) + 1;
+    a.updatedAt = b.updatedAt = now();
+    flyAIRecords.set(a.aiId, publicFlyAIRecord(a));
+    flyAIRecords.set(b.aiId, publicFlyAIRecord(b));
+    ran++;
+  }
+  flyAISimSchedule = {monthKey:key, lastRunAt:now(), lastRan:ran, updatedAt:now()};
+  if(ran) persistFlyRoomMutation();
+  return {ran, skipped:'', roster:listFlyAIRecords(key)};
+}
+
 function flyLeaderboard(limit = 100){
-  return [...flyPlayerStats.values()]
+  const humanEntries = [...flyPlayerStats.values()]
     .map(publicFlyProfile)
     .filter(Boolean)
-    .filter(entry=>Number(entry.challengerWins || 0) || Number(entry.challengerLosses || 0) || Number(entry.matchesPlayed || 0))
+    .filter(entry=>!isFlyInternalProfile(entry))
+    .filter(entry=>Number(entry.challengerWins || 0) || Number(entry.challengerLosses || 0) || Number(entry.matchesPlayed || 0));
+  const aiEntries = [...flyAIRecords.values()]
+    .map(publicFlyAIRecord)
+    .filter(Boolean);
+  return [...humanEntries, ...aiEntries]
     .sort((a,b)=>{
       const eloDelta = (Number(b.challengerElo || b.elo || 0) || 0) - (Number(a.challengerElo || a.elo || 0) || 0);
       if(eloDelta) return eloDelta;
@@ -3581,6 +3759,7 @@ async function handleApiRequest(req, res, url){
             flyDirectMessages:true,
             flySpectators:true,
             flyLiveMatches:true,
+            flyChallengerAI:true,
           flyActionReplay:true,
           flyMultiplayerDiagnostics:true,
           flyResumeReplay:true,
@@ -3615,6 +3794,27 @@ async function handleApiRequest(req, res, url){
         leaderboard:flyLeaderboard(limit)
       });
       return true;
+    }
+    if(parts[1] === 'challenger-ai'){
+      if(req.method === 'GET'){
+        const monthKey = String(url.searchParams.get('monthKey') || '').slice(0, 24);
+        writeJson(res, 200, {ok:true, roster:listFlyAIRecords(monthKey), schedule:Object.assign({}, flyAISimSchedule || {})});
+        return true;
+      }
+      if(req.method === 'POST' && parts[2] === 'seed'){
+        const body = await readJsonBody(req);
+        await verifyRequestUser(req, body);
+        const roster = seedFlyAIRecords(body.roster, body.monthKey);
+        writeJson(res, 200, {ok:true, roster});
+        return true;
+      }
+      if(req.method === 'POST' && parts[2] === 'simulate'){
+        const body = await readJsonBody(req);
+        await verifyRequestUser(req, body);
+        const result = runFlyAISimulationBatch(body.monthKey, body.count);
+        writeJson(res, 200, Object.assign({ok:true}, result));
+        return true;
+      }
     }
     if(req.method === 'GET' && parts[1] === 'live-matches'){
       await verifyFirebaseToken(bearerToken(req, {}));
@@ -4245,6 +4445,7 @@ const server = http.createServer((req, res)=>{
       flyDirectMessages:true,
       flySpectators:true,
       flyLiveMatches:true,
+      flyChallengerAI:true,
       flyActionReplay:true,
       flyMultiplayerDiagnostics:true,
       flyResumeReplay:true,

@@ -46,13 +46,19 @@
   function firebaseLeaderboardAllowed(){
     return !rtdbDisabledMode() && !!(FO.rtdb && FO.ref);
   }
-  async function flyApiRequest(path){
+  async function flyApiRequest(path, opts={}){
     const base = authorityHttpBaseUrl();
     if(!base) throw new Error('Fly authority API URL is not configured');
     const headers = {'accept':'application/json'};
+    const method = String(opts.method || 'GET').toUpperCase();
+    let body = opts.body;
+    if(body && typeof body !== 'string') {
+      headers['content-type'] = 'application/json';
+      body = JSON.stringify(body);
+    }
     const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
     if(token) headers.authorization = 'Bearer ' + token;
-    const res = await fetch(base + path, {headers});
+    const res = await fetch(base + path, {method, headers, body});
     if(!res.ok){
       const text = await res.text().catch(()=> '');
       throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
@@ -78,6 +84,13 @@
             elo:Number(entry.challengerElo ?? entry.elo ?? 600) || 600,
             wins:Number(entry.challengerWins ?? entry.wins ?? 0) || 0,
             losses:Number(entry.challengerLosses ?? entry.losses ?? 0) || 0,
+            aiId:entry.aiId || '',
+            trueElo:Number(entry.trueElo || 0) || 0,
+            isAI:!!entry.isAI,
+            isMonthly:!!entry.isMonthly,
+            monthKey:entry.monthKey || '',
+            seededWinRate:Number(entry.seededWinRate || 0) || 0,
+            generationVersion:Number(entry.generationVersion || 0) || 0,
             updatedAt:Number(entry.updatedAt || Date.now()) || Date.now(),
             isOnline:true,
             source:'fly-authority'
@@ -260,6 +273,42 @@
     return records;
   }
 
+  async function fetchFlySharedAIRoster(){
+    if(!flyLeaderboardEnabled()) return [];
+    const data = await flyApiRequest(`/api/challenger-ai?monthKey=${encodeURIComponent(currentMonthKey())}`).catch(()=>null);
+    const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+    if(records.length){
+      window.FATE_SHARED_AI_ROSTER = records;
+      try{ if(typeof window.saveLeaderboard === 'function') window.saveLeaderboard(); }catch(e){}
+      try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
+    }
+    return records;
+  }
+
+  async function seedFlySharedAIRoster(){
+    const localRecords = buildLocalSharedAIRoster();
+    if(!flyLeaderboardEnabled() || !user()) return localRecords;
+    const data = await flyApiRequest('/api/challenger-ai/seed', {
+      method:'POST',
+      body:{
+        uid:user().uid,
+        monthKey:currentMonthKey(),
+        roster:localRecords
+      }
+    }).catch(e=>{
+      console.warn('Fly shared AI seed failed', e);
+      return null;
+    });
+    const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+    if(records.length){
+      window.FATE_SHARED_AI_ROSTER = records;
+      try{ if(typeof window.saveLeaderboard === 'function') window.saveLeaderboard(); }catch(e){}
+      try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
+      return records;
+    }
+    return localRecords;
+  }
+
   async function syncMyLeaderboard(){
     const u=user(); if(!u) return;
     if(flyLeaderboardEnabled()){
@@ -303,7 +352,7 @@
     });
   }
   async function ensureSharedAIRoster(){
-    if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
+    if(flyLeaderboardEnabled()) return seedFlySharedAIRoster();
     const u=user(); if(!u || !firebaseLeaderboardAllowed()) return [];
     const list = localAIList();
     if(!list.length) return [];
@@ -355,7 +404,10 @@
     if(flyLeaderboardEnabled()){
       if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
       sharedAISeason = currentMonthKey();
-      buildLocalSharedAIRoster();
+      fetchFlySharedAIRoster().then(records=>{
+        if(!records.length) return seedFlySharedAIRoster();
+        return records;
+      }).catch(()=>seedFlySharedAIRoster());
       return;
     }
     if(!firebaseLeaderboardAllowed()) return;
@@ -432,7 +484,24 @@
     return tx?.committed && val.lastClaim?.id === claimId ? Number(val.lastClaim.count || 0) || 0 : 0;
   }
   async function runSharedAISimulations(){
-    if(flyLeaderboardEnabled()) return 0;
+    if(flyLeaderboardEnabled()){
+      if(!user()) return 0;
+      await seedFlySharedAIRoster();
+      const data = await flyApiRequest('/api/challenger-ai/simulate', {
+        method:'POST',
+        body:{uid:user().uid, monthKey:currentMonthKey(), count:4}
+      }).catch(e=>{
+        console.warn('Fly shared AI simulation failed', e);
+        return null;
+      });
+      const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+      if(records.length){
+        window.FATE_SHARED_AI_ROSTER = records;
+        try{ if(typeof window.saveLeaderboard === 'function') window.saveLeaderboard(); }catch(e){}
+      }
+      await fetchFlyLeaderboard().catch(()=>{});
+      return Number(data?.ran || 0) || 0;
+    }
     const u=user(); if(!u || !firebaseLeaderboardAllowed()) return 0;
     await ensureSharedAIRoster();
     if(await hasActiveOnlineMatches()) return 0;
@@ -540,11 +609,12 @@
     }, 1400);
   }
   function startSharedAISimulationLoop(){
-    if(flyLeaderboardEnabled()) return;
     if(sharedAISimulationTimer) return;
+    const cadence = flyLeaderboardEnabled() ? 10 * 60 * 1000 : 10 * 60 * 1000;
+    setTimeout(()=>{ if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e)); }, 3500);
     sharedAISimulationTimer = setInterval(()=>{
       if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
-    }, 10 * 60 * 1000);
+    }, cadence);
   }
   async function submitChallengerResult({didWin, opponentUid=null, opponentElo=1000, roomCode='', source='client', oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
     const u=user(); if(!u) return;
@@ -615,6 +685,8 @@
   if(FO.onAuth) FO.onAuth(s=>{
     if(s.user){
       syncMyLeaderboard().catch(()=>{});
+      scheduleSharedAISync();
+      startSharedAISimulationLoop();
     }else{
       if(lbUnsub){ try{ lbUnsub(); }catch(e){} lbUnsub = null; }
       if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
@@ -631,7 +703,7 @@
     runSharedAISimulations,
     startSharedAISimulationLoop,
     ensureSharedAILeaderboard(){
-      if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
+      if(flyLeaderboardEnabled()) return seedFlySharedAIRoster();
       scheduleSharedAISync();
       return window.FATE_SHARED_AI_ROSTER || [];
     },
