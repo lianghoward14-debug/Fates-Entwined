@@ -47,7 +47,9 @@ const STATE_GATE_ENABLED = process.env.FATE_WS_STATE_GATE !== '0';
 const REDUCER_MODE = String(process.env.FATE_WS_REDUCER_MODE || 'turns').toLowerCase();
 const GAMEPLAY_AUTHORITY_MODE = String(process.env.FATE_WS_GAMEPLAY_AUTHORITY || '').toLowerCase();
 const APP_ROOT = path.resolve(__dirname, '..');
-const WEBSITE_DIR = path.join(APP_ROOT, 'fates-entwined-website');
+const WEBSITE_DIR = process.env.FATE_WEBSITE_DIR
+  ? path.resolve(process.env.FATE_WEBSITE_DIR)
+  : path.join(APP_ROOT, 'fates-entwined-website');
 const DIST_DIR = path.join(APP_ROOT, 'dist');
 const INSTALLER_PUBLIC_PATH = '/installer/Fates-Entwined-Installer.exe';
 const STATIC_OVERRIDE_DIR = FLY_DATA_DIR ? path.join(FLY_DATA_DIR, 'static-overrides') : '';
