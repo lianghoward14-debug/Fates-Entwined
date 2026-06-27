@@ -543,6 +543,15 @@ function rearmRestoredTimers(){
   return restoredTimerCount;
 }
 
+function tryFlyRestoreStep(label, fn, fallback){
+  try{
+    return fn();
+  }catch(e){
+    console.error(`Fly durable store ${label} restore failed; continuing with in-memory fallback:`, e.message || e);
+    return fallback;
+  }
+}
+
 function contentTypeFor(filePath){
   const ext = path.extname(filePath).toLowerCase();
   if(ext === '.html') return 'text/html; charset=utf-8';
@@ -4401,18 +4410,24 @@ process.once('exit', ()=>{
 });
 
 try{
-  const restoredRooms = loadFlyRoomsSnapshot();
-  restoredEventCount = loadFlyEventsLog();
-  if(restoredEventCount > 0) persistFlyRoomsSnapshot();
-  const timers = rearmRestoredTimers();
+  ensureFlyStore();
+}catch(e){
+  console.error('Fly durable store startup failed:', e.message || e);
+  if(REQUIRE_FLY_STORE) process.exit(1);
+}
+
+{
+  const restoredRooms = tryFlyRestoreStep('rooms snapshot', loadFlyRoomsSnapshot, 0);
+  restoredEventCount = tryFlyRestoreStep('events log', loadFlyEventsLog, 0);
+  if(restoredEventCount > 0){
+    tryFlyRestoreStep('snapshot repair', persistFlyRoomsSnapshot, false);
+  }
+  const timers = tryFlyRestoreStep('timer', rearmRestoredTimers, 0);
   if(FLY_STORE_ENABLED){
     console.log(`Fly durable store: on (${FLY_DATA_DIR}); restored rooms=${restoredRooms}; restored events=${restoredEventCount}; restored timers=${timers}`);
   }else{
     console.log('Fly durable store: off (set FATE_WS_DATA_DIR to enable volume-backed replay)');
   }
-}catch(e){
-  console.error('Fly durable store startup failed:', e.message || e);
-  if(REQUIRE_FLY_STORE) process.exit(1);
 }
 
 server.listen(PORT, HOST, ()=>{
