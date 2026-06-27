@@ -12,23 +12,24 @@
   function resolvePhotoValue(value){
     if(!value) return '';
     if(value && typeof value === 'object'){
+      if(value.dataUrl) return String(value.dataUrl);
       if(value.pfpId) return 'pfp/pfp' + (Math.max(1, parseInt(value.pfpId, 10) || 1)) + '.png';
       if(value.cardImg) return value.cardImg;
       if(value.cardId && Array.isArray(window.CARDS)){
         const card = window.CARDS.find(c=>String(c.id) === String(value.cardId));
         if(card && card.img) return card.img;
       }
-      if(value.src && !String(value.src).startsWith('data:')) return value.src;
+      if(value.src) return String(value.src);
     }
     try{
       if(typeof window.resolveProfileImgSrc === 'function'){
         const resolved = window.resolveProfileImgSrc(value, 'square') || window.resolveProfileImgSrc(value, 'circle');
-        if(resolved && !String(resolved).startsWith('data:')) return resolved;
+        if(resolved) return String(resolved);
       }
     }catch(e){}
     if(typeof value === 'string'){
       const text = value.trim();
-      return text && text !== '[object Object]' && !text.startsWith('data:') ? text : '';
+      return text && text !== '[object Object]' ? text : '';
     }
     return '';
   }
@@ -43,6 +44,7 @@
   function profilePhotoCropStyle(p, fallback='center 22%'){
     const src = profilePhoto(p);
     const base = 'width:100%;height:100%;object-fit:cover;';
+    if(/^data:image\//i.test(String(src || ''))) return base + 'object-position:center center;transform:none;';
     const match = String(src || '').match(/[?&]fc=([0-9]{1,4}),([0-9]{1,4}),([0-9]{2,4})/);
     const imgCrop = p?.profileImg && typeof p.profileImg === 'object'
       ? p.profileImg

@@ -3004,10 +3004,10 @@ function updateTopBar() {
   const perspectivePlayer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   const perspectiveOpponent = 1 - perspectivePlayer;
   const isOwnTurn = cp === perspectivePlayer;
-  const displayName = isOwnTurn ? (G.players[cp].name || 'Player') : 'Opponent';
-  const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+"'s Turn";
+  const displayName = isOwnTurn ? 'Your' : 'Opponent';
+  const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+" Turn";
   const hudTurnText = 'Turn '+G.turn+'/'+G.maxTurns;
-  const hudPlayerText = isOwnTurn ? (G.players[cp].name+"'s Turn") : "Opponent's Turn";
+  const hudPlayerText = isOwnTurn ? 'Your Turn' : "Opponent's Turn";
   const shellSig = [
     cp, G.turn, G.maxTurns, G.phase || '',
     isAITurn ? 1 : 0, isOwnTurn ? 1 : 0,
@@ -4032,9 +4032,28 @@ function updatePlayerBanners() {
   // Determine player indices
   const myP = getPerspectivePlayerIndex();
   const oppP = 1 - myP;
+  const normalizeOnlineBannerProfile = (profile, playerIndex) => {
+    const p = profile || {};
+    const name = p.name || p.chosenUsername || p.displayName || p.username || p.baseCode || G.players[playerIndex]?.name || `Player ${playerIndex + 1}`;
+    const img = window.FateOnline?.profilePhoto
+      ? window.FateOnline.profilePhoto(p)
+      : (p.img || p.photoURL || p.profileImg || p.pfp || 'blank.png');
+    const crop = window.FateOnline?.profilePhotoCropStyle
+      ? window.FateOnline.profilePhotoCropStyle(p, 'center 22%')
+      : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
+    return {
+      ...p,
+      name,
+      img,
+      crop,
+      elo:Number(p.elo ?? p.challengerElo ?? 600) || 600,
+      wins:Number(p.wins ?? p.challengerWins ?? 0) || 0,
+      losses:Number(p.losses ?? p.challengerLosses ?? 0) || 0
+    };
+  };
   const getBannerProfile = (playerIndex) => {
     const matchProfile = G.playerProfiles && G.playerProfiles[playerIndex];
-    if(matchProfile) return matchProfile;
+    if(matchProfile) return normalizeOnlineBannerProfile(matchProfile, playerIndex);
     if(playerIndex === 0) {
       return {
         name: USER_PROFILE.username || G.players[0].name || 'Player 1',
@@ -6150,6 +6169,7 @@ function setHint(msg) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function discardBoardCard(card, z, r, c) {
   if(G._aiAbort) return;
+  if(!card) return;
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
   if(card.berkeleyHomeless && card.owner !== G.currentPlayer){

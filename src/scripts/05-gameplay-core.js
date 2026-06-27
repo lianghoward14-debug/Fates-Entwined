@@ -437,7 +437,7 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       if(card.type === 'Supporter') {
         const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
         if(!suppressed) {
-          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Marked for Death', z);
+          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Expendable Justice', z);
           if(card.id === '54' && !card.wolfCreekUsed) pushEndTurnEffectWarning(pending, card, 'Elusive Movements', z);
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
           if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Move to Adjacent Zone', z);
@@ -663,7 +663,8 @@ async function nextPlayerTurn() {
     const candidates = holderHand.filter(c=>c.iid!==gc.iid && c.id!=='70' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)));
     if(candidates.length>0){
       const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
-      const target = candidates[Math.floor(rng()*candidates.length)];
+      const onlineIdx = deterministicOnlineRandomIndex(candidates.length, `wineCountryGuerilla:${gc.iid || gc.id || 'source'}`, currentPlayer);
+      const target = candidates[onlineIdx >= 0 ? onlineIdx : Math.floor(rng()*candidates.length)];
       const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
       target.currentFate = Math.max(0, before - 2);
       if(target.currentFate < before){
@@ -1217,17 +1218,18 @@ function beginBoardCardTargetSelection(opts) {
 
 // Vigilantes (52) — pick opponent card in zone, set reinforcement to 0
 function vigilantePickTarget(targetZ, cp, opp, inst) {
+  return false;
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
     if(cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
   if(oppCards.length===0){toast('No opponent cards in Zone '+(targetZ+1));return;}
-  pickCardInZone(targetZ,'Marked for Death: select one opponent card in this zone.',(tgt)=>{
+  pickCardInZone(targetZ,'Obsolete Vigilantes effect is disabled.',(tgt)=>{
     if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
-    tgt._markedForDeath = true;
-    tgt._reinforcementOverride = 0;
-    toast(tgt.name+' has been Marked for Death — 0 Reinforcement!');
-    log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
+    return;
+    return;
+    toast('Obsolete Vigilantes effect is disabled.');
+    log(cp===0?'p1':'p2','Obsolete Vigilantes effect skipped');
     renderGame({board:true, scores:true, topbar:true});
   }, cell=>cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
 }
@@ -1792,6 +1794,31 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
   return count;
 }
 
+function clientSeededRandom(seed){
+  let h = 2166136261;
+  const s = String(seed || 'fates');
+  for(let i = 0; i < s.length; i++){
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let a = (h >>> 0) || 0x9e3779b9;
+  a |= 0;
+  a = (a + 0x6D2B79F5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+function deterministicOnlineRandomIndex(length, reason, playerIndex){
+  const max = Math.max(0, Number(length || 0) || 0);
+  if(max <= 0) return -1;
+  if(!G || !G._onlineRoomCode) return -1;
+  const counter = Math.max(0, Number(G._serverRngCounter || 0) || 0);
+  G._serverRngCounter = counter + 1;
+  const seed = `${G.seed || G.matchSeed || G.roomSeed || G._onlineSeed || 'fates'}:${reason || 'random'}:${playerIndex}:${counter}`;
+  return Math.floor(clientSeededRandom(seed) * max);
+}
+
 function beginImmediateFreePlacement(player, card, message, effectInfo) {
   if(!card) return;
   card.effectUsedInitial = false;
@@ -2048,6 +2075,8 @@ function doConsolidate(card, cost) {
 function highlightTributeCards() {
   const con = G._consolidating;
   if(!con) return;
+  if(!Array.isArray(con.allPossible)) con.allPossible = [];
+  if(!Array.isArray(con.chosenIdxs)) con.chosenIdxs = [];
   document.querySelectorAll('#board .bc.tribute-available,#board .bc.tribute-selected,#board .bc.tribute-ready').forEach(el=>{
     el.classList.remove('tribute-available','tribute-selected','tribute-ready');
   });
@@ -2057,7 +2086,10 @@ function highlightTributeCards() {
   });
   document.querySelectorAll('#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('tutorial-target-square'));
   const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
-  const running = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
+  const running = con.chosenIdxs.reduce((s,i)=>{
+    const item = con.allPossible[i];
+    return s + (item ? (item.reinforcement || 1) : 0);
+  },0);
   const requirementsMet = con.phase === 'select_placement' || (running >= con.cost && con.phase === 'select_tributes');
   con.allPossible.forEach((s,i)=>{
     const cell = document.querySelector(`#board .cell[data-z="${s.z}"][data-r="${s.r}"][data-c="${s.c}"]`);
@@ -2102,12 +2134,17 @@ function refreshConsolidationCanvasState() {
 function handleConsolidateClick(z,r,c) {
   const con = G._consolidating;
   if(!con) return false;
+  if(!Array.isArray(con.allPossible)) con.allPossible = [];
+  if(!Array.isArray(con.chosenIdxs)) con.chosenIdxs = [];
 
   if(con.phase==='select_tributes'){
     const idx = con.allPossible.findIndex(s=>s.z===z&&s.r===r&&s.c===c);
     if(idx===-1) return false;
     if(typeof tutorialCanSelectConsolidationTribute === 'function' && !tutorialCanSelectConsolidationTribute(con, z, r, c)) return true;
-    const running = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
+    const running = con.chosenIdxs.reduce((s,i)=>{
+      const item = con.allPossible[i];
+      return s + (item ? (item.reinforcement || 1) : 0);
+    },0);
     const wasReady = running >= con.cost;
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     const lastToggle = con._lastTributeToggle || {};
@@ -2130,7 +2167,10 @@ function handleConsolidateClick(z,r,c) {
       con._lastTributeToggle = { idx, action:'select', t:now };
     }
 
-    const newRunning = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
+    const newRunning = con.chosenIdxs.reduce((s,i)=>{
+      const item = con.allPossible[i];
+      return s + (item ? (item.reinforcement || 1) : 0);
+    },0);
 
     if(newRunning >= con.cost){
       if(newRunning > con.cost){
@@ -3335,7 +3375,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       const oppHand = G.players[opp].hand;
       if(oppHand.length===0){toast('Opponent has no cards');break;}
       const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
-      const idx = Math.floor(rng()*oppHand.length);
+      const onlineIdx = deterministicOnlineRandomIndex(oppHand.length, 'roboEnLaNoche', cp);
+      const idx = onlineIdx >= 0 ? onlineIdx : Math.floor(rng()*oppHand.length);
       const stolen = oppHand.splice(idx,1)[0];
       stolen._stolenByRobo = true; // flag: returns to opp deck when discarded
       stolen._roboOrigOwner = opp;
@@ -3513,14 +3554,17 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '47': // Great Oak Infantry: when used for consolidation, new card gains 3 Fate
       inst._greatOakBonus = true;
       break;
-    case '52': { // Vigilantes: same-zone card-picker window
+    case '52': {
+      if(typeof activateVigilantes === 'function') activateVigilantes(inst, z, r, c);
+      break;
+    }
+    case '52_legacy_disabled': { // Obsolete Vigilantes path.
       pickCardInZone(z,'Vigilantes: Select an opponent supporter in this zone:',(tgt)=>{
         if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
-        tgt._markedForDeath = true;
-        tgt._reinforcementOverride = 0;
+        return;
         if(typeof playSfx==='function') playSfx('fateLose');
-        toast(tgt.name+' — Reinforcement set to 0!');
-        log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
+        toast('Obsolete Vigilantes effect is disabled.');
+        log(cp===0?'p1':'p2','Obsolete Vigilantes effect skipped');
         inst.effectUsedInitial = true;
         renderEffectResolutionForPlayer(cp, {hand:false});
         if(typeof updateTopBar === 'function') updateTopBar();
@@ -3882,7 +3926,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         const chosen = [];
         const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
         while(matches.length && chosen.length < 2){
-          const idx = Math.floor(rng() * matches.length);
+          const onlineIdx = deterministicOnlineRandomIndex(matches.length, `wojciechFisherman:${aff}:${chosen.length}`, cp);
+          const idx = onlineIdx >= 0 ? onlineIdx : Math.floor(rng() * matches.length);
           chosen.push(matches.splice(idx, 1)[0]);
         }
         chosen.forEach(found=>{
@@ -4734,7 +4779,7 @@ async function activateVigilantes(card, z, r, c) {
   }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardsVisual(availSups.map(s=>s.card), {
-    title:'Marked for Death — Select 3 Supporters to Expend',
+    title:'Expendable Justice - Select 3 Supporters to Expend',
     subtitle:'These supporters will be discarded to remove one card in this same zone.',
     maxCount:3, confirmLabel:'Expend'
   }, (chosen)=>{
@@ -5022,6 +5067,12 @@ function checkReactions(actionType, actionData) {
     }
 
     if(reactions.length === 0){ resolve(true); return; }
+
+    var localOnlinePlayer = Number(G._onlinePlayerIndex);
+    if(G._onlineRoomCode && Number.isInteger(localOnlinePlayer) && opp !== localOnlinePlayer){
+      resolve(true);
+      return;
+    }
 
     // AI auto-reacts
     var isAI = G.aiEnabled && opp === G.aiPlayer;

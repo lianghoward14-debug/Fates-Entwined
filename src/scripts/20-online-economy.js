@@ -33,7 +33,32 @@
   }
   function profilePhoto(){
     const p = profile();
+    if(FO.profilePhoto) return FO.profilePhoto(p);
+    if(typeof window.resolveProfileImgSrc === 'function'){
+      try{
+        const resolved = window.resolveProfileImgSrc(p.profileImg || p.photoURL, 'square') || window.resolveProfileImgSrc(p.profileImg || p.photoURL, 'circle');
+        if(resolved) return resolved;
+      }catch(e){}
+    }
     return p.photoURL || p.profileImg || 'blank.png';
+  }
+  function publicDeckProfilePayload(p){
+    const src = profilePhoto();
+    return {
+      uid:user()?.uid || p?.uid || '',
+      name:p?.chosenUsername || p?.displayName || p?.username || profileName(),
+      username:p?.chosenUsername || p?.username || p?.displayName || profileName(),
+      displayName:p?.displayName || p?.chosenUsername || p?.username || profileName(),
+      baseCode:p?.baseCode || '',
+      photoURL:src,
+      profileImg:src,
+      profileCropFocusX:p?.profileCropFocusX,
+      profileCropFocusY:p?.profileCropFocusY,
+      profileCropY:p?.profileCropY,
+      profileCropZoom:p?.profileCropZoom,
+      challengerElo:p?.challengerElo ?? p?.elo,
+      elo:p?.elo ?? p?.challengerElo
+    };
   }
   function soldMarketplaceSources(){
     const sources = [
@@ -262,7 +287,7 @@
       ownerUid:u.uid,
       username:p.chosenUsername || p.displayName || profileName(),
       ownerName:p.chosenUsername || p.displayName || profileName(),
-      ownerPhotoURL:p.photoURL || p.profileImg || profilePhoto(),
+      ownerPhotoURL:profilePhoto(),
       name:String(deck.name || 'Shared Deck').slice(0,80),
       description:String(deck.description || '').slice(0,240),
       faceCardId:deck.faceCardId || displayCardIds[0] || '',
@@ -289,7 +314,7 @@
     if(flyEconomyEnabled()){
       const data = await flyApiRequest('/api/public-decks', {
         method:'POST',
-        body:{uid:u.uid, profile:p, deck:detail}
+        body:{uid:u.uid, profile:publicDeckProfilePayload(p), deck:detail}
       });
       const saved = normalizePublicDeck(data.deck || detail);
       publicDeckDetailCache.set(saved.deckId || saved.id, saved);

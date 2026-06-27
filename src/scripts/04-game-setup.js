@@ -461,7 +461,10 @@ function showPreGameMatchup(vsAI, onContinue) {
   const op0 = onlineMatch ? (G.playerProfiles[0] || {}) : null;
   const op1 = onlineMatch ? (G.playerProfiles[1] || {}) : null;
   const safeOnlineName = p => (p && (p.name || p.chosenUsername || p.displayName || p.username || p.baseCode)) || 'Player';
-  const safeOnlinePic = p => (p && (p.img || p.photoURL || p.profileImg)) || 'blank.png';
+  const safeOnlinePic = p => {
+    if(window.FateOnline?.profilePhoto) return window.FateOnline.profilePhoto(p || {});
+    return (p && (p.img || p.photoURL || p.profileImg)) || 'blank.png';
+  };
   const safeOnlineLevel = p => Number(p && p.level || 1) || 1;
   const safeOnlineElo = p => Number(p && p.elo || p.challengerElo || 600) || 600;
   const safeOnlineCrop = (p, fallback='center 22%') => {

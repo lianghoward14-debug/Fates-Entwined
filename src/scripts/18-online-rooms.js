@@ -3814,6 +3814,11 @@
       }
     }
 
+    if(shouldApplyServerStateDirectly(type, payload)){
+      applyAuthoritativePostState(action, 'buffered authoritative state seq ' + (action.seq || '?'));
+      return;
+    }
+
     if(isStrictCompactAuthorityAction(type) && !shouldApplyServerStateDirectly(type, payload)){
       console.warn('Strict Fly authority action is missing canonical server state; skipping local replay', action);
       resyncRejectedOnlineAction('strict accepted action missing postState seq ' + (action.seq || '?')).catch(()=>{});

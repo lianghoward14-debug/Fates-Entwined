@@ -86,6 +86,7 @@
   function photoStyleOf(p, fallback='center 22%'){
     const base = 'width:100%;height:100%;object-fit:cover;';
     const src = photoOf(p);
+    if(/^data:image\//i.test(String(src || ''))) return base + 'object-position:center center;transform:none;';
     const match = String(src || '').match(/[?&]fc=([0-9]{1,4}),([0-9]{1,4}),([0-9]{2,4})/);
     const imgCrop = p?.profileImg && typeof p.profileImg === 'object'
       ? p.profileImg

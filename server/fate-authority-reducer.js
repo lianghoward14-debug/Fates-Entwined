@@ -3065,7 +3065,6 @@ function setPendingWolfCreekPick(state, inst, playerIndex, z, r, c){
 function armPostWhenSetInteractionHooks(state, inst, playerIndex, z, r, c){
   setPendingArtilleryModal(state, inst, playerIndex, z, r, c);
   setPendingSameZoneWhenSetPick(state, inst, playerIndex, z, r, c);
-  setPendingVigilantesPick(state, inst, playerIndex, z, r, c);
   setPendingWolfCreekPick(state, inst, playerIndex, z, r, c);
   setPendingBreakfastBusserPick(state, inst, playerIndex, z, r, c);
 }
@@ -5732,21 +5731,7 @@ function reducePickZoneAction(room, msg, options){
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
   if(kind === 'vigilantesMark'){
-    const source = state.board?.[pending.z]?.[pending.r]?.[pending.c] || null;
-    if(!source || String(source.id || '') !== '52' || Number(source.owner) !== playerIndex){
-      return {ok:false, reason:'Vigilantes source is no longer on board'};
-    }
-    if(pending.iid && source.iid !== pending.iid) return {ok:false, reason:'Vigilantes source mismatch'};
-    if(selected.z !== Number(pending.z)) return {ok:false, reason:'Vigilantes target must be in the same zone'};
-    const target = state.board?.[selected.z]?.[selected.r]?.[selected.c] || null;
-    if(!target) return {ok:false, reason:'Vigilantes target is no longer on board'};
-    if(!cardMatchesPayloadIdentity(target, selected.card)) return {ok:false, reason:'Vigilantes target identity mismatch'};
-    if(!isVigilantesTarget(target, playerIndex)) return {ok:false, reason:'Vigilantes target is invalid'};
-    target._markedForDeath = true;
-    target._reinforcementOverride = 0;
-    source.effectUsedInitial = true;
-    state._serverPendingZonePick = null;
-    return reducedResult(state, {baseStateHash:base.baseStateHash});
+    return {ok:false, reason:'obsolete Vigilantes mark effect is disabled'};
   }
   if(kind === 'vigilantesDestroyTarget'){
     const source = state.board?.[pending.z]?.[pending.r]?.[pending.c] || null;
