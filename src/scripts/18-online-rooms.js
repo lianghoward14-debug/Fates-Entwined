@@ -3584,6 +3584,7 @@
     if(!isOnlineMatchState(g)) return;
     const type = String(action?.type || '').toUpperCase();
     const payload = action.payload || {};
+    const localUid = window.FATE_ONLINE?.user?.uid;
     if(type === 'MATCH_START'){
       if(payload.postState && payload.stateHash){
         if(action.serverStateHash) lastAuthorityStateHash = String(action.serverStateHash || '');
@@ -3592,8 +3593,12 @@
       }
       return;
     }
+    if(shouldApplyServerStateDirectly(type, payload)){
+      if(action.uid !== localUid && typeof window.playSfx === 'function') window.playSfx('onlineRemote');
+      applyAuthoritativePostState(action, 'authoritative server state seq ' + (action.seq || '?'));
+      return;
+    }
     const actionPlayer = onlineActionPlayer(action);
-    const localUid = window.FATE_ONLINE?.user?.uid;
     const optimisticActionId = optimisticActionIdFor(action);
     if(action.uid === localUid && optimisticActionId && optimisticAppliedActionIds.has(optimisticActionId)){
       acknowledgeAuthoritativeAction(action, 'local optimistic acknowledgement seq ' + (action.seq || '?'));
@@ -3618,11 +3623,6 @@
       if(card && typeof window.showEffectActivationCinematic === 'function') {
         await window.showEffectActivationCinematic(card, {remote:true, source:'online-effect-cinematic'});
       }
-      return;
-    }
-    if(shouldApplyServerStateDirectly(type, payload)){
-      if(action.uid !== localUid && typeof window.playSfx === 'function') window.playSfx('onlineRemote');
-      applyAuthoritativePostState(action, 'authoritative server state seq ' + (action.seq || '?'));
       return;
     }
     if(isStrictCompactAuthorityAction(type)){
@@ -4686,7 +4686,8 @@
       lastActionSeq = Math.max(lastActionSeq, seq);
       g._onlineActionSeq = lastActionSeq;
     }
-    Promise.resolve(applyOnlineAction(directAction)).then(()=>{
+    try{
+      applyAuthoritativePostState(directAction, 'accepted authoritative state seq ' + (seq || '?'));
       if(seq){
         lastAppliedActionSeq = Math.max(lastAppliedActionSeq, seq);
         const latest = gameState();
@@ -4701,10 +4702,10 @@
         });
       }
       evaluateLagPause();
-    }).catch(e=>{
+    }catch(e){
       console.error('Immediate accepted authoritative state apply failed; falling back to replay buffer', e, directAction);
       bufferOnlineAction(directAction);
-    });
+    }
     return true;
   }
 

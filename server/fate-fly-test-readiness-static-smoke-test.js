@@ -44,7 +44,7 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 
 assert.match(indexText, /05-gameplay-core\.js\?v=1782601200/, 'index must cache-bust gameplay placement fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782601200/, 'index must cache-bust renderer extra-cell fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1782611400/, 'index must cache-bust the online rooms script for client-resolved gameplay');
+assert.match(indexText, /18-online-rooms\.js\?v=1782612000/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782600600/, 'index must cache-bust the challenger matchmaking script');
 assert.match(indexText, /04-game-setup\.js\?v=1782603000/, 'index must cache-bust the match setup script for preload gate changes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
@@ -72,7 +72,8 @@ assert.match(roomsText, /function maybeShowServerCardPickPrompt\(\)[\s\S]*window
 assert.doesNotMatch(roomsText, /Server Reaction|Resolve the server prompt|Choose cards to resolve|Waiting for opponent to resolve|Resolve '\s*\+\s*pendingInteractionLabel|Online Free Play started|Ranked Challenger match started/, 'normal multiplayer gameplay UI must not expose server-only prompt labels');
 assert.match(roomsText, /window\.placeSelected = function\(\)[\s\S]*canSendLocalAction\(g, 'PLACE_CARD'\)[\s\S]*configuredAuthorityUrl\(\) && !firebaseActionFallbackAllowed\(\)[\s\S]*originals\.placeSelected/, 'strict online placement arming must stay local until the board click sends PLACE_CARD');
 assert.match(authorityText, /playableReady:!!preload\.playableReady[\s\S]*playableServerAt/, 'Fly room public player state must expose playable readiness');
-assert.match(roomsText, /function applyAcceptedCanonicalActionNow\(action, accepted\)[\s\S]*shouldApplyServerStateDirectly\(type, payload\)[\s\S]*applyOnlineAction\(directAction\)[\s\S]*lastAppliedActionSeq/, 'accepted strict Fly actions with postState must apply immediately instead of waiting for replay polling');
+assert.match(roomsText, /function applyAcceptedCanonicalActionNow\(action, accepted\)[\s\S]*shouldApplyServerStateDirectly\(type, payload\)[\s\S]*applyAuthoritativePostState\(directAction[\s\S]*lastAppliedActionSeq/, 'accepted strict Fly actions with postState must apply immediately instead of waiting for replay polling');
+assert.doesNotMatch(roomsText, /function applyAcceptedCanonicalActionNow\(action, accepted\)[\s\S]{0,900}applyOnlineAction\(directAction\)/, 'accepted canonical postState must not leak through legacy online action replay');
 assert.match(roomsText, /if\(handleLobbyMatchStartAccepted\(accepted\)\) return;[\s\S]*if\(applyAcceptedCanonicalActionNow\(action, accepted\)\)[\s\S]*bufferOnlineAction\(bufferedAction\)/, 'lobby MATCH_START must not be swallowed, and in-match canonical accepted actions must bypass replay buffering');
 assert.match(read('src/scripts/render-v2/04-match-renderer-adapter.js'), /chat-unread[\s\S]*DIRTY_UI/, 'render-v2 chat notification must use UI-only dirty work');
 assert.match(roomsText, /function applyAuthoritativePostState[\s\S]*applyOnlineCanonicalState[\s\S]*isStrictCompactAuthorityAction\(type\)[\s\S]*applyAuthoritativePostState/, 'strict Fly accepted actions must apply server canonical postState directly');
@@ -150,6 +151,7 @@ assert.match(authorityText, /gameplayAuthority:gameplayAuthorityMode\(\)[\s\S]*c
 assert.match(roomsText, /function clientResolvedGameplayEnabled\(\)[\s\S]*FATE_GAMEPLAY_AUTHORITY[\s\S]*fateClientResolvedGameplay/, 'browser must gate client-resolved gameplay with an explicit flag');
 assert.match(roomsText, /sendAction\(clientResolvedCommit \? 'ACTION_RESULT' : type, outbound\)/, 'browser gameplay wrappers must send ACTION_RESULT in client-resolved mode');
 assert.match(roomsText, /if\(String\(actionType \|\| ''\)\.toUpperCase\(\) === 'ACTION_RESULT'\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*postState/, 'browser must apply ACTION_RESULT postState directly');
+assert.match(roomsText, /async function applyOnlineAction\(action\)[\s\S]*shouldApplyServerStateDirectly\(type, payload\)[\s\S]*applyAuthoritativePostState\(action[\s\S]*const optimisticActionId = optimisticActionIdFor\(action\)/, 'ACTION_RESULT postState must apply before local optimistic acknowledgements can skip it');
 assert.match(roomsText, /function sendClientResolvedAutoCommit\(reason\)[\s\S]*actionKind:'AUTO_CLIENT_STATE_COMMIT'[\s\S]*sendAction\('ACTION_RESULT', payload\)/, 'client-resolved mode must auto-commit local state mutations that escape a wrapper');
 assert.match(roomsText, /const watchLocalMutation = reason=>setTimeout\(\(\)=>scheduleClientResolvedAutoCommit[\s\S]*document\.addEventListener\('pointerup'/, 'client-resolved mode must watch local UI mutations for post-action commits');
 assert.match(roomsText, /clientResolvedGameplayEnabled\(\)\s*\?\s*'client-resolved-board-action-without-source'[\s\S]*if\(!clientResolvedGameplayEnabled\(\)\)[\s\S]*Could not sync that board effect/, 'client-resolved board effects must run even when source coordinates are unavailable');
