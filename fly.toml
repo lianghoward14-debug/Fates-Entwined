@@ -22,6 +22,7 @@ primary_region = 'lax'
   FATE_WS_REQUIRE_DURABLE_WRITES = '0'
   FATE_WS_STATE_GATE = '1'
   FATE_WS_REDUCER_MODE = 'strict'
+  FATE_WS_GAMEPLAY_AUTHORITY = 'client-resolved'
 
 [[mounts]]
   source = 'fate_authority_data'

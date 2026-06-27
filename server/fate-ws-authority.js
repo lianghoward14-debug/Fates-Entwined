@@ -19,6 +19,13 @@ const {
 } = require('./fate-authority-reducer');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {buildInitialAuthorityState, makeSeededRng, validateDeckIds} = require('./fate-authority-bootstrap');
+const {
+  createRoomDiagnostics,
+  recordRoomDiagnostic,
+  recordClientReport,
+  publicRoomDiagnostics,
+  publicSystemDiagnostics
+} = require('./fate-multiplayer-diagnostics');
 
 const PORT = Number(process.env.PORT || process.env.FATE_WS_PORT || 8787);
 const HOST = process.env.HOST || process.env.FATE_WS_HOST || '0.0.0.0';
@@ -45,6 +52,7 @@ const REQUIRE_FLY_STORE = process.env.FATE_WS_REQUIRE_FLY_STORE === '1';
 const STATIC_HOTFIX_TOKEN = String(process.env.FATE_STATIC_HOTFIX_TOKEN || '').trim();
 const STATE_GATE_ENABLED = process.env.FATE_WS_STATE_GATE !== '0';
 const REDUCER_MODE = String(process.env.FATE_WS_REDUCER_MODE || 'turns').toLowerCase();
+const GAMEPLAY_AUTHORITY_MODE = String(process.env.FATE_WS_GAMEPLAY_AUTHORITY || '').toLowerCase();
 const APP_ROOT = path.resolve(__dirname, '..');
 const GAME_DIR = APP_ROOT;
 const WEBSITE_DIR = path.join(APP_ROOT, 'fates-entwined-website');
@@ -103,8 +111,21 @@ let flyStoreReady = false;
 let cardCatalogCache = null;
 let restoredTimerCount = 0;
 let restoredEventCount = 0;
+
+function gameplayAuthorityMode(){
+  return GAMEPLAY_AUTHORITY_MODE;
+}
+
+function clientResolvedGameplayEnabled(){
+  return gameplayAuthorityMode() === 'client-resolved';
+}
 let shuttingDown = false;
 let shutdownStartedAt = 0;
+let flyRoomsPersistTimer = 0;
+let flyRoomsPersistRunning = false;
+let flyRoomsPersistAgain = false;
+let flyRoomsPersistPromise = Promise.resolve();
+let flyEventsPersistPromise = Promise.resolve();
 
 function now(){ return Date.now(); }
 function roomCode(value){ return String(value || '').trim().toUpperCase(); }
@@ -208,9 +229,8 @@ function writeAtomicJson(filePath, value){
   fs.renameSync(tmpPath, filePath);
 }
 
-function persistFlyRoomsSnapshot(){
-  if(!ensureFlyStore()) return false;
-  const payload = {
+function flyRoomsSnapshotPayload(){
+  return {
     schemaVersion:1,
     savedAt:now(),
     rooms:[...rooms.values()].map(roomToDurable).filter(Boolean),
@@ -232,6 +252,11 @@ function persistFlyRoomsSnapshot(){
     privateThreads:[...flyPrivateThreads.entries()].map(([uid, threads])=>({uid, threads:[...threads.values()].map(publicFlyPrivateThread).filter(Boolean)})),
     privateMessages:[...flyPrivateMessages.entries()].map(([conversationKey, messages])=>({conversationKey, messages:messages.map(publicFlyPrivateMessage).filter(Boolean).slice(-200)}))
   };
+}
+
+function persistFlyRoomsSnapshot(){
+  if(!ensureFlyStore()) return false;
+  const payload = flyRoomsSnapshotPayload();
   writeAtomicJson(flyStorePath('rooms.json'), payload);
   return true;
 }
@@ -239,7 +264,45 @@ function persistFlyRoomsSnapshot(){
 function appendFlyEvent(code, accepted){
   if(!ensureFlyStore() || !accepted?.action) return false;
   const line = safeJson({schemaVersion:1, savedAt:now(), code, accepted}) + '\n';
-  fs.appendFileSync(flyStorePath('events.jsonl'), line);
+  flyEventsPersistPromise = flyEventsPersistPromise
+    .catch(()=>{})
+    .then(()=>fs.promises.appendFile(flyStorePath('events.jsonl'), line))
+    .catch(e=>console.error('Fly durable event append failed:', e.message || e));
+  return true;
+}
+
+function flushScheduledFlyRoomsSnapshot(){
+  if(flyRoomsPersistRunning){
+    flyRoomsPersistAgain = true;
+    return;
+  }
+  if(!ensureFlyStore()) return;
+  flyRoomsPersistRunning = true;
+  flyRoomsPersistAgain = false;
+  const filePath = flyStorePath('rooms.json');
+  const tmpPath = filePath + '.tmp';
+  const payload = safeJson(flyRoomsSnapshotPayload());
+  flyRoomsPersistPromise = fs.promises.writeFile(tmpPath, payload)
+    .then(()=>fs.promises.rename(tmpPath, filePath))
+    .catch(e=>console.error('Fly durable room persist failed:', e.message || e))
+    .finally(()=>{
+      flyRoomsPersistRunning = false;
+      if(flyRoomsPersistAgain && !shuttingDown) scheduleFlyRoomsSnapshotPersist();
+    });
+}
+
+function scheduleFlyRoomsSnapshotPersist(){
+  if(shuttingDown) return false;
+  if(!ensureFlyStore()) return false;
+  if(flyRoomsPersistTimer){
+    flyRoomsPersistAgain = true;
+    return true;
+  }
+  flyRoomsPersistTimer = setTimeout(()=>{
+    flyRoomsPersistTimer = 0;
+    flushScheduledFlyRoomsSnapshot();
+  }, 25);
+  flyRoomsPersistTimer.unref?.();
   return true;
 }
 
@@ -490,6 +553,9 @@ function contentTypeFor(filePath){
   if(ext === '.webp') return 'image/webp';
   if(ext === '.svg') return 'image/svg+xml';
   if(ext === '.ico') return 'image/x-icon';
+  if(ext === '.mp3') return 'audio/mpeg';
+  if(ext === '.wav') return 'audio/wav';
+  if(ext === '.ogg') return 'audio/ogg';
   if(ext === '.exe') return 'application/vnd.microsoft.portable-executable';
   return 'application/octet-stream';
 }
@@ -708,10 +774,26 @@ function markSocketDisconnected(ws, opts={}){
   if(stillConnected) clearDisconnectTimer(room, ws.fateUid);
   else if(opts.immediate !== false && shouldFinalizeDisconnectImmediately(room)){
     clearDisconnectTimer(room, ws.fateUid);
+    recordRoomDiagnostic(room, 'socket-disconnect-immediate-finalize', {
+      uid:ws.fateUid,
+      source:'websocket',
+      reason:'player socket disconnected from live authoritative room'
+    });
     finalizeDisconnectTimeout(room.code, ws.fateUid).catch(err=>{
       console.error('Immediate disconnect finalization failed:', err.message || err);
+      recordRoomDiagnostic(room, 'disconnect-finalize-error', {
+        uid:ws.fateUid,
+        source:'websocket',
+        reason:err.message || String(err),
+        severity:'error'
+      });
     });
   }else{
+    recordRoomDiagnostic(room, stillConnected ? 'socket-disconnect-duplicate-tab' : 'socket-disconnect-timer-scheduled', {
+      uid:ws.fateUid,
+      source:'websocket',
+      reason:stillConnected ? 'one socket closed but another socket remains connected' : 'player socket disconnected; disconnect timer scheduled'
+    });
     scheduleDisconnectTimer(room, ws.fateUid);
   }
   touch(room);
@@ -744,11 +826,13 @@ function makeRoom(code){
     reactionTimerPromptId:'',
     actionQueue:Promise.resolve(),
     resultLedger:null,
+    diagnostics:createRoomDiagnostics({code}, t),
     createdAt:t,
     updatedAt:t,
     lastTouched:t
   };
   rooms.set(code, room);
+  recordRoomDiagnostic(room, 'room-created', {source:'server', severity:'info'});
   return room;
 }
 function getRoom(code){ return rooms.get(code) || makeRoom(code); }
@@ -1695,6 +1779,12 @@ function publicRoom(room){
       return acc;
     }, {}),
     sockets:room.sockets.size,
+    diagnostics:{
+      counters:room.diagnostics?.counters || {},
+      issueCounts:room.diagnostics?.issueCounts || {},
+      lastFailure:room.diagnostics?.lastFailure || null,
+      lastRejected:room.diagnostics?.lastRejected || null
+    },
     createdAt:room.createdAt,
     updatedAt:room.updatedAt,
     lastTouched:room.lastTouched,
@@ -1954,7 +2044,7 @@ function joinRoomSpectator(room, uid){
     lastSeen:now()
   });
   touch(room);
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly spectator persist failed:', e.message || e); }
   return room.spectators[uid];
 }
 
@@ -1972,7 +2062,7 @@ function leaveRoomSpectator(room, uid){
   const had = !!room.spectators?.[uid];
   if(had) delete room.spectators[uid];
   touch(room);
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly spectator persist failed:', e.message || e); }
   return had;
 }
 
@@ -2045,6 +2135,16 @@ function createMatchmakingHostRoom(uid, body, profile, deckChoice, mode){
   });
   matchmaking.set(uid, entry);
   touch(room);
+  recordRoomDiagnostic(room, 'matchmaking-host-created', {
+    uid,
+    source:'matchmaking',
+    severity:'info',
+    extra:{
+      mode,
+      deckCount:deckChoice.deckIds.length,
+      partyTargetUid:body.partyTargetUid || ''
+    }
+  });
   persistFlyRoomMutation();
   return {room, entry};
 }
@@ -2096,6 +2196,16 @@ async function enterFlyMatchmaking(uid, body){
     matchmaking.delete(entry.uid);
     matchmaking.delete(uid);
     touch(room);
+    recordRoomDiagnostic(room, 'matchmaking-guest-matched', {
+      uid,
+      source:'matchmaking',
+      severity:'info',
+      extra:{
+        mode,
+        hostUid:room.hostUid,
+        deckCount:deckChoice.deckIds.length
+      }
+    });
     persistFlyRoomMutation();
     let accepted = null;
     try{
@@ -2105,6 +2215,12 @@ async function enterFlyMatchmaking(uid, body){
       });
     }catch(e){
       console.error(`Fly matchmaking auto-start failed for room ${room.code}:`, e.message || e);
+      recordRoomDiagnostic(room, 'matchmaking-auto-start-error', {
+        uid:room.hostUid,
+        source:'matchmaking',
+        reason:e.message || String(e),
+        severity:'error'
+      });
     }
     return {matched:true, role:'guest', room, accepted, entry:publicMatchmakingEntry(Object.assign({}, entry, {status:'matched', matchedUid:uid}))};
   }
@@ -2166,7 +2282,11 @@ function heartbeatFlyRoom(room, uid){
   player.lastSeen = now();
   clearDisconnectTimer(room, uid);
   touch(room);
-  persistFlyRoomMutation();
+  const lastPersist = Number(room._lastHeartbeatPersistAt || 0) || 0;
+  if(now() - lastPersist > 30000){
+    room._lastHeartbeatPersistAt = now();
+    persistFlyRoomMutation();
+  }
   return publicPlayer(player);
 }
 
@@ -2230,7 +2350,7 @@ function appendRoomChat(room, uid, text, profile){
   if(room.chat.length > 100) room.chat.splice(0, room.chat.length - 100);
   room.chatSeq = seq;
   touch(room);
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly chat persist failed:', e.message || e); }
   broadcast(room, {kind:'room-chat', roomCode:room.code, message:publicChatMessage(msg), chatSeq:room.chatSeq});
   return publicChatMessage(msg);
 }
@@ -2392,8 +2512,11 @@ function validateAction(room, ws, msg){
     if(winner !== playerIndex) return 'coin winner mismatch';
   }
   if(type === 'MATCH_RESULT' && !STATE_GATE_ENABLED) return 'MATCH_RESULT requires server state gate';
-  if(!/^(STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|EFFECT_CINEMATIC|FORFEIT|MATCH_RESULT)$/i.test(type)){
+  if(!/^(ACTION_RESULT|STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|EFFECT_CINEMATIC|FORFEIT|MATCH_RESULT)$/i.test(type)){
     return 'unknown action type';
+  }
+  if(type === 'ACTION_RESULT' && !clientResolvedGameplayEnabled()){
+    return 'ACTION_RESULT requires client-resolved gameplay authority';
   }
   const compactStrictIntent = STATE_GATE_ENABLED && REDUCER_MODE === 'strict' && type !== 'STATE_SYNC' && type !== 'EFFECT_CINEMATIC';
   if(!compactStrictIntent && type !== 'FORFEIT' && type !== 'MATCH_RESULT' && type !== 'REACTION_CHOICE' && !payload.postState){
@@ -2406,6 +2529,7 @@ function validateAuthorityStateGate(room, msg){
   if(!STATE_GATE_ENABLED) return {ok:true};
   const result = reduceServerAction(room, msg, {
     mode:REDUCER_MODE,
+    gameplayAuthority:gameplayAuthorityMode(),
     requireBaseHash:true,
     allowStateSyncAfterBootstrap:REDUCER_MODE !== 'strict',
     allowClientBootstrap:REDUCER_MODE !== 'strict',
@@ -2686,7 +2810,7 @@ async function finalizeDisconnectTimeoutQueued(roomCodeValue, uid){
   const roomPatch = roomPatchForAction(room, action);
   attachResultLedger(room, action, roomPatch);
   const accepted = {kind:'accepted', requestId:'', roomCode:code, action, roomPatch, durableWrite:false, flyEventLog:true, serverGenerated:true};
-  accepted.durableWrite = await persistAcceptedActionToFirebase(code, accepted);
+  persistAcceptedActionInBackground(code, accepted);
   room.lastSeq = nextSeq;
   applyAuthorityStateGate(room, gateResult);
   room.lastStateHash = String(room.canonicalHash || action.payload.stateHash || room.lastStateHash || '');
@@ -2694,6 +2818,19 @@ async function finalizeDisconnectTimeoutQueued(roomCodeValue, uid){
   applyRoomPatch(room, roomPatch);
   clearAllDisconnectTimers(room);
   appendRoomEvent(room, accepted);
+  recordRoomDiagnostic(room, 'disconnect-timeout-accepted', {
+    uid,
+    source:'websocket',
+    requestId:'',
+    action,
+    severity:'info',
+    extra:{
+      winnerUid,
+      loserUid:uid,
+      winnerIndex,
+      loserIndex
+    }
+  });
   broadcast(room, accepted);
   return accepted;
 }
@@ -2774,7 +2911,7 @@ async function finalizeReactionTimeoutQueued(roomCodeValue, promptId){
   };
   const roomPatch = roomPatchForAction(room, action);
   const accepted = {kind:'accepted', requestId:'', roomCode:code, action, roomPatch, durableWrite:false, flyEventLog:true, serverGenerated:true};
-  accepted.durableWrite = await persistAcceptedActionToFirebase(code, accepted);
+  persistAcceptedActionInBackground(code, accepted);
   room.lastSeq = nextSeq;
   applyAuthorityStateGate(room, gateResult);
   room.lastStateHash = String(room.canonicalHash || action.payload.stateHash || room.lastStateHash || '');
@@ -2836,12 +2973,8 @@ function appendRoomEvent(room, accepted){
   }
   room.updatedAt = now();
   applyFlyResultLedger(room.code, accepted);
-  try{
-    appendFlyEvent(room.code, accepted);
-    persistFlyRoomsSnapshot();
-  }catch(e){
-    console.error('Fly durable event persist failed:', e.message || e);
-  }
+  appendFlyEvent(room.code, accepted);
+  scheduleFlyRoomsSnapshotPersist();
 }
 
 function findAcceptedClientAction(room, uid, clientActionId){
@@ -2868,7 +3001,7 @@ function replayAcceptedClientAction(ws, accepted, requestId){
 
 function persistFlyRoomMutation(){
   try{
-    persistFlyRoomsSnapshot();
+    scheduleFlyRoomsSnapshotPersist();
   }catch(e){
     console.error('Fly durable room persist failed:', e.message || e);
   }
@@ -2938,7 +3071,7 @@ async function startRoomOnFlyQueued(room, uid, body){
     authorityTime:now()
   };
   const accepted = {kind:'accepted', requestId:String(body?.requestId || ''), roomCode:room.code, action, roomPatch, durableWrite:false, flyEventLog:true};
-  accepted.durableWrite = await persistAcceptedActionToFirebase(room.code, accepted);
+  persistAcceptedActionInBackground(room.code, accepted);
   room.lastSeq = seq;
   room.lastStateHash = initial.stateHash;
   room.canonicalState = initial.state;
@@ -3058,6 +3191,16 @@ async function persistAcceptedActionToFirebase(code, accepted){
   return true;
 }
 
+function persistAcceptedActionInBackground(code, accepted){
+  persistAcceptedActionToFirebase(code, accepted)
+    .then(ok=>{ accepted.durableWrite = !!ok; })
+    .catch(e=>{
+      accepted.durableWrite = false;
+      accepted.durableWriteError = String(e?.message || e || '').slice(0, 200);
+      console.error('Firebase durable action write failed after broadcast:', e.message || e);
+    });
+}
+
 async function firebaseGetJson(path){
   if(FIREBASE_RTDB_DISABLED) return null;
   if(!shouldUseDurableWrites()) return null;
@@ -3107,6 +3250,17 @@ async function handleHello(ws, msg){
   }
   clearDisconnectTimer(room, uid);
   touch(room);
+  recordRoomDiagnostic(room, 'websocket-hello-ok', {
+    uid,
+    source:'websocket',
+    severity:'info',
+    extra:{
+      playerIndex,
+      clientLastSeq:msg.lastSeq || 0,
+      clientStateHash:msg.stateHash || '',
+      serverStateHash:room.canonicalHash || room.lastStateHash || ''
+    }
+  });
   send(ws, {
     kind:'hello-ok',
     roomCode:code,
@@ -3116,6 +3270,7 @@ async function handleHello(ws, msg){
     flyEventLog:true,
     protocolVersion:2,
     reducerMode:REDUCER_MODE,
+    gameplayAuthority:gameplayAuthorityMode(),
     serverStateHash:room.canonicalHash || room.lastStateHash || '',
     serverTime:now()
   });
@@ -3139,12 +3294,22 @@ async function handleIntentQueued(ws, msg){
     const priorType = String(priorAccepted.action?.type || '').toUpperCase();
     const retryType = String(msg.type || '').toUpperCase();
     if(priorType && retryType && priorType !== retryType){
+      recordRoomDiagnostic(room, 'action-rejected', {
+        uid:ws.fateUid,
+        source:'websocket',
+        requestId:msg.requestId || '',
+        actionType:retryType,
+        clientActionId,
+        reason:'clientActionId already used for a different action type',
+        severity:'error'
+      });
       send(ws, {
         kind:'rejected',
         requestId:msg.requestId || '',
         reason:'clientActionId already used for a different action type',
         serverSeq:room.lastSeq,
-        serverStateHash:room.canonicalHash || room.lastStateHash || ''
+        serverStateHash:room.canonicalHash || room.lastStateHash || '',
+        serverState:room.canonicalState || null
       });
       return;
     }
@@ -3153,17 +3318,52 @@ async function handleIntentQueued(ws, msg){
   }
   const rejection = validateAction(room, ws, msg);
   if(rejection){
-    send(ws, { kind:'rejected', requestId:msg.requestId || '', reason:rejection, serverSeq:room.lastSeq });
+    recordRoomDiagnostic(room, 'action-rejected', {
+      uid:ws.fateUid,
+      source:'websocket',
+      requestId:msg.requestId || '',
+      actionType:msg.type,
+      clientActionId,
+      playerIndex:msg.payload?.playerIndex,
+      baseStateHash:msg.payload?.baseStateHash,
+      reason:rejection,
+      severity:'error'
+    });
+    send(ws, {
+      kind:'rejected',
+      requestId:msg.requestId || '',
+      reason:rejection,
+      serverSeq:room.lastSeq,
+      serverStateHash:room.canonicalHash || room.lastStateHash || '',
+      serverState:room.canonicalState || null
+    });
     return;
   }
   const gateResult = validateAuthorityStateGate(room, msg);
   if(!gateResult.ok){
+    recordRoomDiagnostic(room, 'action-rejected', {
+      uid:ws.fateUid,
+      source:'websocket',
+      requestId:msg.requestId || '',
+      actionType:msg.type,
+      clientActionId,
+      playerIndex:msg.payload?.playerIndex,
+      baseStateHash:msg.payload?.baseStateHash,
+      reason:gateResult.reason || 'state transition rejected',
+      severity:'error',
+      extra:{
+        reducerMode:REDUCER_MODE,
+        serverSeq:room.lastSeq,
+        serverStateHash:room.canonicalHash || room.lastStateHash || ''
+      }
+    });
     send(ws, {
       kind:'rejected',
       requestId:msg.requestId || '',
       reason:gateResult.reason || 'state transition rejected',
       serverSeq:room.lastSeq,
-      serverStateHash:room.canonicalHash || room.lastStateHash || ''
+      serverStateHash:room.canonicalHash || room.lastStateHash || '',
+      serverState:room.canonicalState || null
     });
     return;
   }
@@ -3189,7 +3389,7 @@ async function handleIntentQueued(ws, msg){
   const roomPatch = roomPatchForAction(room, action);
   attachResultLedger(room, action, roomPatch);
   const accepted = { kind:'accepted', requestId:msg.requestId || '', roomCode:code, action, roomPatch, durableWrite:false, flyEventLog:true };
-  accepted.durableWrite = await persistAcceptedActionToFirebase(code, accepted);
+  persistAcceptedActionInBackground(code, accepted);
   room.lastSeq = nextSeq;
   room.canonicalState = gateResult.canonicalState;
   room.canonicalHash = gateResult.canonicalHash;
@@ -3197,6 +3397,18 @@ async function handleIntentQueued(ws, msg){
   accepted.serverStateHash = room.canonicalHash || room.lastStateHash || '';
   applyRoomPatch(room, roomPatch);
   appendRoomEvent(room, accepted);
+  recordRoomDiagnostic(room, 'action-accepted', {
+    uid:ws.fateUid,
+    source:'websocket',
+    requestId:msg.requestId || '',
+    action,
+    severity:'info',
+    extra:{
+      reducerMode:REDUCER_MODE,
+      gameplayAuthority:gameplayAuthorityMode(),
+      serverReduced:!!gateResult.serverReduced
+    }
+  });
   broadcast(room, accepted);
   scheduleReactionTimer(room);
 }
@@ -3210,6 +3422,18 @@ function handleMessage(ws, data){
   Promise.resolve()
     .then(()=>msg.kind === 'hello' ? handleHello(ws, msg) : handleIntent(ws, msg))
     .catch(err=>{
+      const code = roomCode(msg.roomCode || ws.fateRoomCode);
+      const room = code ? rooms.get(code) : null;
+      if(room){
+        recordRoomDiagnostic(room, msg.kind === 'hello' ? 'websocket-hello-error' : 'websocket-message-error', {
+          uid:ws.fateUid || msg.uid || '',
+          source:'websocket',
+          requestId:msg.requestId || '',
+          actionType:msg.type,
+          reason:err.message || String(err),
+          severity:'error'
+        });
+      }
       send(ws, {kind:'error', requestId:msg.requestId || '', reason:err.message || String(err)});
       if(msg.kind === 'hello') closeSocket(ws, 1008, err.message || 'hello failed');
     });
@@ -3348,7 +3572,8 @@ async function handleApiRequest(req, res, url){
             flyDirectMessages:true,
             flySpectators:true,
             flyLiveMatches:true,
-            flyActionReplay:true,
+          flyActionReplay:true,
+          flyMultiplayerDiagnostics:true,
           flyResumeReplay:true,
           flyDurableStore:FLY_STORE_ENABLED,
           flyDurableStoreReady:flyStoreReady,
@@ -3366,6 +3591,12 @@ async function handleApiRequest(req, res, url){
         },
         time:now()
       });
+      return true;
+    }
+    if(req.method === 'GET' && parts[1] === 'diagnostics'){
+      await verifyFirebaseToken(bearerToken(req, {}));
+      const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 20) || 20));
+      writeJson(res, 200, Object.assign({ok:true}, publicSystemDiagnostics(rooms, matchmaking, {limit})));
       return true;
     }
     if(req.method === 'GET' && parts[1] === 'leaderboards' && parts[2] === 'challenger'){
@@ -3695,6 +3926,16 @@ async function handleApiRequest(req, res, url){
       const player = upsertRoomPlayer(room, uid, 'host', body.profile, body.deckChoice);
       if(player) player.connected = true;
       touch(room);
+      recordRoomDiagnostic(room, 'room-api-created', {
+        uid,
+        source:'api',
+        severity:'info',
+        extra:{
+          mode:room.mode,
+          deckReady:!!player?.deckChoice?.ready,
+          deckCount:Array.isArray(player?.deckChoice?.deckIds) ? player.deckChoice.deckIds.length : 0
+        }
+      });
       persistFlyRoomMutation();
       writeJson(res, 200, {ok:true, room:publicRoom(room)});
       return true;
@@ -3743,6 +3984,20 @@ async function handleApiRequest(req, res, url){
       const room = rooms.get(roomCode(parts[2]));
       if(!room){
         writeJson(res, 404, {ok:false, error:'room not found'});
+        return true;
+      }
+      if(req.method === 'GET' && parts[3] === 'diagnostics'){
+        await requireRoomViewerRequestUser(req, room);
+        const limit = Math.min(300, Math.max(1, Number(url.searchParams.get('limit') || 120) || 120));
+        writeJson(res, 200, {ok:true, diagnostics:publicRoomDiagnostics(room, {limit})});
+        return true;
+      }
+      if(req.method === 'POST' && parts[3] === 'diagnostics' && parts[4] === 'client'){
+        const body = await readJsonBody(req);
+        const uid = await verifyRequestUser(req, body);
+        if(!roomViewerIndexForUid(room, uid)) throw new Error('user is not seated or spectating this room');
+        const report = recordClientReport(room, body.report || body.clientReport || body, uid);
+        writeJson(res, 200, {ok:true, report, diagnostics:publicRoomDiagnostics(room, {limit:30})});
         return true;
       }
       if(req.method === 'GET' && parts.length === 3){
@@ -3829,6 +4084,16 @@ async function handleApiRequest(req, res, url){
         const player = upsertRoomPlayer(room, uid, uid === room.hostUid ? 'host' : 'guest', body.profile, body.deckChoice);
         if(player) player.connected = true;
         touch(room);
+        recordRoomDiagnostic(room, 'room-api-joined', {
+          uid,
+          source:'api',
+          severity:'info',
+          extra:{
+            role:uid === room.hostUid ? 'host' : 'guest',
+            deckReady:!!player?.deckChoice?.ready,
+            deckCount:Array.isArray(player?.deckChoice?.deckIds) ? player.deckChoice.deckIds.length : 0
+          }
+        });
         persistFlyRoomMutation();
         writeJson(res, 200, {ok:true, room:publicRoom(room)});
         return true;
@@ -3854,6 +4119,16 @@ async function handleApiRequest(req, res, url){
         const player = upsertRoomPlayer(room, uid, uid === room.hostUid ? 'host' : 'guest', body.profile, body.deckChoice);
         if(player) player.connected = true;
         touch(room);
+        recordRoomDiagnostic(room, 'room-player-updated', {
+          uid,
+          source:'api',
+          severity:'info',
+          extra:{
+            role:uid === room.hostUid ? 'host' : 'guest',
+            deckReady:!!player?.deckChoice?.ready,
+            deckCount:Array.isArray(player?.deckChoice?.deckIds) ? player.deckChoice.deckIds.length : 0
+          }
+        });
         persistFlyRoomMutation();
         writeJson(res, 200, {ok:true, room:publicRoom(room)});
         return true;
@@ -3863,6 +4138,18 @@ async function handleApiRequest(req, res, url){
         const uid = await verifyRequestUser(req, body);
         if(playerIndexForUid(room, uid) === null) throw new Error('user is not seated in this room');
         setRoomPlayerPreload(room, uid, body.matchPreload || body);
+        recordRoomDiagnostic(room, 'room-preload-updated', {
+          uid,
+          source:'api',
+          severity:'info',
+          extra:{
+            ready:!!(body.matchPreload || body).ready,
+            playableReady:!!(body.matchPreload || body).playableReady,
+            cards:(body.matchPreload || body).cards || 0,
+            texturePending:(body.matchPreload || body).texturePending || 0,
+            textureFailed:(body.matchPreload || body).textureFailed || 0
+          }
+        });
         persistFlyRoomMutation();
         writeJson(res, 200, {ok:true, room:publicRoom(room)});
         return true;
@@ -3871,6 +4158,15 @@ async function handleApiRequest(req, res, url){
         const body = await readJsonBody(req);
         const uid = await verifyRequestUser(req, body);
         const player = setRoomPlayerProgress(room, uid, body);
+        recordRoomDiagnostic(room, 'room-progress-updated', {
+          uid,
+          source:'api',
+          severity:'info',
+          extra:{
+            actionSeq:body.actionSeq || 0,
+            playableReady:!!body.playableReady
+          }
+        });
         writeJson(res, 200, {ok:true, room:publicRoom(room), player});
         return true;
       }
@@ -3885,6 +4181,19 @@ async function handleApiRequest(req, res, url){
     writeJson(res, 404, {ok:false, error:'unknown api route'});
     return true;
   }catch(err){
+    const maybeCode = parts[1] === 'rooms' && isRoomCode(parts[2]) ? roomCode(parts[2]) : '';
+    const failedRoom = maybeCode ? rooms.get(maybeCode) : null;
+    if(failedRoom){
+      recordRoomDiagnostic(failedRoom, 'api-error', {
+        source:'api',
+        reason:err.message || String(err),
+        severity:'error',
+        extra:{
+          method:req.method,
+          path:url.pathname
+        }
+      });
+    }
     apiError(res, err, /token|uid|seated|spectating|viewer|full/i.test(err.message || '') ? 403 : 400);
     return true;
   }
@@ -3928,12 +4237,15 @@ const server = http.createServer((req, res)=>{
       flySpectators:true,
       flyLiveMatches:true,
       flyActionReplay:true,
+      flyMultiplayerDiagnostics:true,
       flyResumeReplay:true,
       flyDurableStore:FLY_STORE_ENABLED,
       flyDurableStoreReady:flyStoreReady,
       flyDataDir:FLY_STORE_ENABLED ? FLY_DATA_DIR : '',
       stateGate:STATE_GATE_ENABLED,
       reducerMode:REDUCER_MODE,
+      gameplayAuthority:gameplayAuthorityMode(),
+      clientResolvedGameplay:clientResolvedGameplayEnabled(),
       cardCatalog:true,
       cardCatalogSize:authorityCardCatalog().cards.length,
       disconnectTimeoutMs:DISCONNECT_TIMEOUT_MS,
@@ -4049,12 +4361,24 @@ async function gracefulShutdown(signal){
   console.log(`Fates authority shutting down from ${signal || 'signal'}; draining for up to ${SHUTDOWN_GRACE_MS}ms`);
   clearInterval(roomMaintenanceInterval);
   clearInterval(pingInterval);
+  if(flyRoomsPersistTimer){
+    clearTimeout(flyRoomsPersistTimer);
+    flyRoomsPersistTimer = 0;
+    flyRoomsPersistAgain = false;
+  }
+  await flyRoomsPersistPromise.catch(()=>{});
+  await flyEventsPersistPromise.catch(()=>{});
+  if(flyRoomsPersistTimer){
+    clearTimeout(flyRoomsPersistTimer);
+    flyRoomsPersistTimer = 0;
+    flyRoomsPersistAgain = false;
+  }
   const queueResult = await waitForRoomActionQueues(Math.max(500, Math.floor(SHUTDOWN_GRACE_MS * 0.55)));
   if(!queueResult.drained) console.warn(`Shutdown queue drain timed out with ${queueResult.count} room queue(s) still pending`);
   for(const socket of [...sockets]){
     markSocketDisconnected(socket, {immediate:false});
   }
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Final Fly room snapshot persist failed:', e.message || e); }
   for(const socket of [...sockets]){
     closeSocket(socket, 1001, 'server restarting');
   }
@@ -4065,13 +4389,16 @@ async function gracefulShutdown(signal){
   for(const socket of [...sockets]){
     try{ socket.destroy(); }catch(e){}
   }
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Final Fly room snapshot persist failed:', e.message || e); }
   console.log(`Fates authority shutdown complete; queuesDrained=${!!queueResult.drained}; serverClosed=${!!closeResult.closed}`);
   process.exit(0);
 }
 
 process.once('SIGTERM', ()=>{ gracefulShutdown('SIGTERM').catch(err=>{ console.error('Graceful shutdown failed:', err.message || err); process.exit(1); }); });
 process.once('SIGINT', ()=>{ gracefulShutdown('SIGINT').catch(err=>{ console.error('Graceful shutdown failed:', err.message || err); process.exit(1); }); });
+process.once('exit', ()=>{
+  try{ persistFlyRoomsSnapshot(); }catch(e){}
+});
 
 try{
   const restoredRooms = loadFlyRoomsSnapshot();

@@ -43,6 +43,7 @@
   let actionReplayBuffer = new Map();
   let actionReplayDrainScheduled = false;
   let pendingFlyResumeEvents = null;
+  const flyMatchStartActions = new Map();
   const optimisticAppliedActionIds = new Set();
   let onlineStateSyncTimer = null;
   let authorityWs = null;
@@ -53,6 +54,7 @@
   let authorityRequestCounter = 0;
   let lastAuthorityStateHash = '';
   let authorityReducerMode = '';
+  let authorityGameplayMode = '';
   const blockedRtdbRoomWarnings = new Set();
   let authorityRetryAttempts = 0;
   let authorityRetrySuccesses = 0;
@@ -69,13 +71,42 @@
   let authorityRejectedResyncFailures = 0;
   let authorityLastRejectedResyncReason = '';
   let optimisticSendQueue = Promise.resolve();
+  let clientResolvedCommitInFlight = 0;
+  let clientResolvedAutoCommitTimer = null;
+  let lastClientResolvedAutoCommitHash = '';
   let lobbyAuthorityPrejoinCode = '';
+  let lobbyAuthorityPrejoinAttempts = 0;
+  let lobbyAuthorityPrejoinNextAt = 0;
   const authorityInflight = new Map();
   const authorityPersistPromises = new Map();
   const authorityPersistRetries = new Map();
+  const onlineDiagnosticsTimeline = [];
+  const AUTHORITY_OPEN_TIMEOUT_MS = 20000;
+  const AUTHORITY_HELLO_TIMEOUT_MS = 20000;
+  const AUTHORITY_ACTION_TIMEOUT_MS = 6500;
 
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+  function recordOnlineDiagnostic(event, details){
+    const g = gameState();
+    const entry = Object.assign({
+      at:Date.now(),
+      event:String(event || 'event').slice(0, 80),
+      room:String(g?._onlineRoomCode || activeRoom || authorityRoomCode || '').trim().toUpperCase(),
+      seq:Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(lastActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0, Number(g?._onlineActionSeq || 0) || 0),
+      localPlayer:Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : null,
+      currentPlayer:Number.isInteger(Number(g?.currentPlayer)) ? Number(g.currentPlayer) : null,
+      stateHash:lastAuthorityStateHash || ''
+    }, details || {});
+    onlineDiagnosticsTimeline.push(entry);
+    if(onlineDiagnosticsTimeline.length > 180) onlineDiagnosticsTimeline.splice(0, onlineDiagnosticsTimeline.length - 180);
+    try{
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineDiagnosticsLast = entry;
+      perf.onlineDiagnosticsCount = onlineDiagnosticsTimeline.length;
+    }catch(e){}
+    return entry;
+  }
   function makeCode(){ const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<6;i++) s += alphabet[Math.floor(Math.random()*alphabet.length)]; return s; }
   function getUser(){ try{return FO.requireUser();}catch(e){ return null; } }
   function pName(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
@@ -266,6 +297,10 @@
       pendingInteraction:cloneOnlinePlain(g.pendingInteraction),
       _serverReactionSeq:g._serverReactionSeq,
       _serverPendingReaction:cloneOnlinePlain(g._serverPendingReaction),
+      _serverPendingModalAction:cloneOnlinePlain(g._serverPendingModalAction),
+      _serverPendingZonePick:cloneOnlinePlain(g._serverPendingZonePick),
+      _serverPendingMove:cloneOnlinePlain(g._serverPendingMove),
+      _serverPendingCardPick:cloneOnlinePlain(g._serverPendingCardPick),
       _westCaribNext:cloneOnlinePlain(g._westCaribNext),
       _zimbabweUsedThisTurn:!!g._zimbabweUsedThisTurn,
       _consolidating:cloneOnlinePlain(g._consolidating),
@@ -333,7 +368,8 @@
       'instanceCounter','damageDoneP','supportersSetP','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_polishUsedThisTurn',
-      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction','_westCaribNext',
+      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
+      '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting'
     ].forEach(function(k){
@@ -368,11 +404,11 @@
     const localState = captureOnlineCanonicalState();
     const localHash = onlineCanonicalStateHash(localState);
     if(localHash === payload.stateHash){
-      setTimeout(maybeShowServerReactionPrompt, 0);
+      setTimeout(maybeShowServerPendingPrompts, 0);
       return false;
     }
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
-    if(applied) setTimeout(maybeShowServerReactionPrompt, 0);
+    if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
   }
   function applyAuthoritativePostState(action, reason){
@@ -381,7 +417,7 @@
     const hash = String(action?.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
-    if(applied) setTimeout(maybeShowServerReactionPrompt, 0);
+    if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
   }
 
@@ -400,7 +436,7 @@
     if(shouldApplyServerStateDirectly(type, payload)){
       applyAuthoritativePostState(action, reason || ('authoritative acknowledgement seq ' + (seq || '?')));
     }else{
-      setTimeout(maybeShowServerReactionPrompt, 0);
+      setTimeout(maybeShowServerPendingPrompts, 0);
     }
     return true;
   }
@@ -483,21 +519,29 @@
         `<span class="reaction-choice-copy"><b>${reactionEscapeHtml(label)}</b><em>Negate ${reactionEscapeHtml(sourceName)}</em><small>${reactionEscapeHtml(loc)}</small></span>` +
       `</button>`;
     }).join('');
-    const renderTitle = () => `React? (${countdown}s)`;
+    const renderTitle = () => options.length > 1 ? `Choose Reaction (${countdown}s)` : `${reactionOptionLabel(options[0] || {})} - React? (${countdown}s)`;
     if(typeof window.showModal === 'function'){
-      window.showModal(
-        renderTitle(),
-        `<div class="reaction-panel reaction-choice-panel">` +
-          `<div class="reaction-choice-head">` +
-            `<div class="reaction-kicker">Server Reaction</div>` +
-            `<div class="reaction-prompt"><span>Opponent triggered</span><strong>${reactionEscapeHtml(sourceName)}</strong><span>Choose a response.</span></div>` +
+      const prevBypass = window.__fateOnlineLocalModalBypass;
+      window.__fateOnlineLocalModalBypass = true;
+      try{
+        window.showModal(
+          renderTitle(),
+          `<div class="reaction-panel reaction-choice-panel">` +
+            `<div class="reaction-choice-head">` +
+              `<div class="reaction-kicker">Improvisor Reaction</div>` +
+              `<div class="reaction-prompt"><span>Opponent played</span><strong>${reactionEscapeHtml(sourceName)}</strong><span>${options.length > 1 ? 'Choose who responds.' : 'Negate it?'}</span></div>` +
+            `</div>` +
+            `<div class="reaction-choice-grid">${optionButtons}</div>` +
+            `<div id="server-reaction-timer" class="reaction-timer">${countdown}s</div>` +
           `</div>` +
-          `<div class="reaction-choice-grid">${optionButtons}</div>` +
-          `<div id="server-reaction-timer" class="reaction-timer">${countdown}s</div>` +
-        `</div>`,
-        [{label:'Allow', action:()=>finish('decline')}],
-        {immediate:true}
-      );
+          [{label:'Allow', action:()=>finish('decline')}],
+          {immediate:true}
+        );
+      }finally{
+        window.__fateOnlineLocalModalBypass = prevBypass;
+      }
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('reaction-choice-modal');
       setTimeout(()=>{
         document.querySelectorAll('#modal [data-server-reaction-idx]').forEach(btn=>{
           btn.addEventListener('click', ()=>{
@@ -526,6 +570,118 @@
     } else {
       setTimeout(()=>finish('timeout'), Math.max(1000, Number(pending.timeoutMs || 15000)));
     }
+  }
+  function serverPendingCardMatchesFilters(card, pending){
+    if(!card || !pending) return false;
+    if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
+    if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
+    if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
+    return true;
+  }
+  function serverPendingBoardCardCandidates(g, pending, playerIndex){
+    const cards = [];
+    const sourceIid = String(pending?.sourceIid || '');
+    const board = Array.isArray(g?.board) ? g.board : [];
+    board.forEach(zone=>{
+      if(!Array.isArray(zone)) return;
+      zone.forEach(row=>{
+        if(!Array.isArray(row)) return;
+        row.forEach(card=>{
+          if(!card || Number(card.owner) !== Number(playerIndex)) return;
+          if(sourceIid && String(card.iid || '') === sourceIid) return;
+          if(!serverPendingCardMatchesFilters(card, pending)) return;
+          cards.push(card);
+        });
+      });
+    });
+    return cards;
+  }
+  function serverPendingCardPickCandidates(g, pending){
+    const playerIndex = Number(pending?.playerIndex);
+    const player = Number.isInteger(playerIndex) ? g?.players?.[playerIndex] : null;
+    if(!player) return [];
+    const kind = String(pending?.kind || '');
+    if(kind === 'handDiscard' || kind === 'handDiscardBoost'){
+      return (Array.isArray(player.hand) ? player.hand : []).filter(card=>serverPendingCardMatchesFilters(card, pending));
+    }
+    if(kind === 'vigilantesExpendSupporters'){
+      return serverPendingBoardCardCandidates(g, Object.assign({}, pending, {filterType:'Supporter'}), playerIndex);
+    }
+    const sources = String(pending?.source || 'deck').split('+').map(s=>s.trim()).filter(Boolean);
+    const cards = [];
+    sources.forEach(source=>{
+      const pile = source === 'discard' ? player.discard : player.deck;
+      if(!Array.isArray(pile)) return;
+      pile.forEach(card=>{
+        if(serverPendingCardMatchesFilters(card, pending)) cards.push(card);
+      });
+    });
+    return cards;
+  }
+  function serverPendingCardPickTitle(pending){
+    const reason = String(pending?.reason || pending?.kind || '');
+    if(reason === 'ibStudent') return 'Search deck for a Supporter:';
+    if(reason === 'crossroadsWorker') return 'Add a Supporter from discard to hand:';
+    if(reason === 'greatOakHighSchooler') return 'Home of the Wolfpack';
+    if(reason === 'handDiscard') return 'Discard cards';
+    if(reason === 'handDiscardBoost') return 'Choose cards';
+    if(reason === 'mailDelivery') return 'Mail Delivery';
+    if(String(pending?.kind || '') === 'linaFreeSet') return 'Choose a Reality card';
+    return 'Choose cards';
+  }
+  function serverPendingCardPickSubtitle(pending){
+    const source = String(pending?.source || '');
+    if(String(pending?.reason || '') === 'ibStudent'){
+      const maxCount = Math.max(1, Number(pending?.maxCount || 1) || 1);
+      const type = pending?.filterType || 'Supporter';
+      return `From your deck - up to ${maxCount} ${type}(s)`;
+    }
+    if(source) return source === 'deck+discard' ? 'Search deck and discard' : 'From your ' + source;
+    if(String(pending?.kind || '').startsWith('hand')) return 'From your hand';
+    return 'Choose cards';
+  }
+  function serverPendingCardPickConfirmLabel(pending){
+    const reason = String(pending?.reason || '');
+    const kind = String(pending?.kind || '');
+    if(reason === 'ibStudent' || reason === 'crossroadsWorker' || reason === 'greatOakHighSchooler') return 'Add to Hand';
+    if(kind === 'handDiscard') return 'Discard';
+    return 'Choose';
+  }
+  function maybeShowServerCardPickPrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingCardPick;
+    if(!pending || typeof pending !== 'object'){
+      g._onlineShownServerCardPickPromptId = '';
+      return;
+    }
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    if(Number(g.currentPlayer) !== localIndex) return;
+    if(typeof window.pickCardsVisual !== 'function') return;
+    const promptKey = String(pending.promptId || '') || [
+      pending.kind || 'cardPick',
+      pending.reason || '',
+      pending.sourceIid || '',
+      g.turn || 0,
+      localIndex
+    ].join(':');
+    if(g._onlineShownServerCardPickPromptId === promptKey) return;
+    const cards = serverPendingCardPickCandidates(g, pending);
+    const minCount = Math.max(0, Number(pending.minCount || 0) || 0);
+    const maxCount = Math.max(minCount, Number(pending.maxCount || minCount || 1) || 1);
+    g._onlineShownServerCardPickPromptId = promptKey;
+    window.pickCardsVisual(cards, {
+      title:serverPendingCardPickTitle(pending),
+      subtitle:serverPendingCardPickSubtitle(pending),
+      minCount,
+      maxCount,
+      confirmLabel:serverPendingCardPickConfirmLabel(pending)
+    }, function(){});
+  }
+  function maybeShowServerPendingPrompts(){
+    maybeShowServerReactionPrompt();
+    maybeShowServerCardPickPrompt();
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
@@ -611,6 +767,19 @@
     if(Number.isInteger(maybeZ) && Number.isInteger(maybeR) && Number.isInteger(maybeC)){
       const card = g?.board?.[maybeZ]?.[maybeR]?.[maybeC] || args[0] || null;
       return { z:maybeZ, r:maybeR, c:maybeC, cardIid:card?.iid || '', cardId:card?.id || '' };
+    }
+    const argCard = args && args[0] && typeof args[0] === 'object' ? args[0] : null;
+    if(argCard && typeof window.findBoardPositionForCard === 'function'){
+      const found = window.findBoardPositionForCard(argCard);
+      if(found && Number.isInteger(found.z) && Number.isInteger(found.r) && Number.isInteger(found.c)){
+        const card = g?.board?.[found.z]?.[found.r]?.[found.c] || argCard;
+        return { z:found.z, r:found.r, c:found.c, cardIid:card?.iid || '', cardId:card?.id || '' };
+      }
+    }
+    const selected = g?.selectedBoardCard || null;
+    if(selected && Number.isInteger(selected.z) && Number.isInteger(selected.r) && Number.isInteger(selected.c)){
+      const card = g?.board?.[selected.z]?.[selected.r]?.[selected.c] || selected.card || argCard || null;
+      if(card) return { z:selected.z, r:selected.r, c:selected.c, cardIid:card?.iid || '', cardId:card?.id || '' };
     }
     return null;
   }
@@ -817,6 +986,12 @@
     const type = typeof actionOrType === 'string'
       ? actionOrType
       : String(actionOrType?.type || '');
+    if(type === 'ACTION_RESULT'){
+      const actionKind = typeof actionOrType === 'string'
+        ? ''
+        : String(actionOrType?.payload?.actionKind || '');
+      return /^(END_TURN|CHOOSE_TURN|FORFEIT|MATCH_RESULT)$/i.test(actionKind);
+    }
     return /^(MATCH_START|CHOOSE_TURN|END_TURN|FORFEIT)$/i.test(type);
   }
   function noteTurnBoundaryAction(action){
@@ -840,6 +1015,7 @@
     });
   }
   function isStrictCompactAuthorityAction(type){
+    if(clientResolvedGameplayEnabled()) return false;
     if(firebaseActionFallbackAllowed()) return false;
     const strictAuthority = String(authorityReducerMode || '').toLowerCase() === 'strict'
       || authorityOnlyMode()
@@ -848,7 +1024,18 @@
     if(!strictAuthority) return false;
     return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
   }
+  function strictCompactActionNeedsPostState(type, payload){
+    const actionType = String(type || '').toUpperCase();
+    return isStrictCompactAuthorityAction(type)
+      && (
+        /^(START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_LANDSCAPE_ZONE|PICK_AFFILIATION|REACTION_CHOICE)$/i.test(actionType)
+        || (actionType === 'CLICK_CELL' && !(payload && payload.placing))
+      );
+  }
   function shouldApplyServerStateDirectly(actionType, payload){
+    if(String(actionType || '').toUpperCase() === 'ACTION_RESULT'){
+      return clientResolvedGameplayEnabled() && !!payload && !!payload.postState && !!payload.stateHash;
+    }
     return isStrictCompactAuthorityAction(actionType)
       && !!payload
       && !!payload.postState
@@ -909,15 +1096,21 @@
     return false;
   }
   function pendingInteractionLabel(pending){
-    return String(pending?.message || pending?.kind || pending?.bucket || 'server prompt');
+    return String(pending?.message || pending?.kind || pending?.bucket || 'effect');
   }
   function shouldRunForcedSyncForRoomSeq(roomSeq){
     const seq = Number(roomSeq || 0) || 0;
     if(seq <= 1) return true;
     return seq <= lastTurnBoundaryActionSeq;
   }
+  function hasPendingAuthorityReplay(){
+    const g = gameState();
+    const knownSeq = Math.max(Number(lastActionSeq || 0) || 0, Number(g?._onlineActionSeq || 0) || 0);
+    const appliedSeq = Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0);
+    return knownSeq > appliedSeq || actionReplayBuffer.size > 0;
+  }
   function needsAuthorityCatchupBeforeLocal(){
-    return !!(gameState()?._onlineRoomCode || activeRoom) && !!configuredAuthorityUrl() && !firebaseActionFallbackAllowed();
+    return false;
   }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
@@ -927,35 +1120,45 @@
   function sendOptimisticAction(type, payload, applyLocal){
     const clientActionId = makeOptimisticActionId(type);
     const outbound = Object.assign({}, payload || {}, { clientActionId });
-    const compactAuthorityPayload = isStrictCompactAuthorityAction(type);
+    const clientResolvedCommit = clientResolvedGameplayEnabled() && isClientResolvedGameplayAction(type);
+    const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
     let localResult;
     let localApplied = false;
     function stampBaseStateHash(){
+      if(outbound.baseStateHash) return;
       const baseState = captureOnlineCanonicalState();
       const baseStateHash = lastAuthorityStateHash || (baseState ? onlineCanonicalStateHash(baseState) : '');
       if(baseStateHash) outbound.baseStateHash = baseStateHash;
     }
-    async function sendAfterLocalApply(){
-      try{
-        if(localResult && typeof localResult.then === 'function') await localResult;
-        await waitOnlineActionSettle(type);
-        if(!compactAuthorityPayload) attachOnlinePostState(outbound);
-      }catch(e){
-        console.error('Optimistic local action failed before sync', e, type, outbound);
-        if(localApplied) scheduleOptimisticCorrection(type);
-        else if(window.toast) toast('Action failed');
-        return;
-      }
+    function sendAuthorityNow(){
       return enqueueOptimisticSend(()=>{
         stampBaseStateHash();
-        return sendAction(type, outbound);
+        const finish = clientResolvedCommit ? noteClientResolvedCommitStart() : null;
+        return Promise.resolve(sendAction(clientResolvedCommit ? 'ACTION_RESULT' : type, outbound))
+          .finally(()=>{ if(finish) finish(); });
       }).catch(e=>{
         console.error('Online optimistic action send failed', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         if(window.toast) toast(e && e.message ? e.message : 'Action failed');
       });
     }
+    async function sendAfterLocalApply(){
+      try{
+        if(compactAuthorityPayload && !strictCompactActionNeedsPostState(type, outbound)) return sendAuthorityNow();
+        if(localResult && typeof localResult.then === 'function') await localResult;
+        await waitOnlineActionSettle(type);
+        if(clientResolvedCommit) outbound.actionKind = String(type || '').toUpperCase();
+        attachOnlinePostState(outbound);
+      }catch(e){
+        console.error('Optimistic local action failed before sync', e, type, outbound);
+        if(localApplied) scheduleOptimisticCorrection(type);
+        else if(window.toast) toast('Action failed');
+        return;
+      }
+      return sendAuthorityNow();
+    }
     function scheduleFollowupStateSync(delayMs){
+      if(clientResolvedCommit) return;
       if(compactAuthorityPayload) return;
       if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()) return;
       const g = gameState();
@@ -979,6 +1182,7 @@
       }, delayMs);
     }
     function applyLocalAndSend(){
+      if(compactAuthorityPayload || clientResolvedCommit) stampBaseStateHash();
       if(typeof applyLocal === 'function'){
         try{
           rememberOptimisticAction(clientActionId);
@@ -991,6 +1195,7 @@
         }
       }
       sendAfterLocalApply();
+      scheduleClientResolvedAutoCommit('post-local-' + String(type || '').toLowerCase(), 700);
       scheduleFollowupStateSync(1250);
       return localResult;
     }
@@ -1026,23 +1231,35 @@
       return false;
     }
     if(g._onlineLagPauseActive){
-      if(window.toast) toast('Match is syncing. Please wait.');
-      return false;
+      if(clientResolvedGameplayEnabled()){
+        g._onlineLagPauseActive = false;
+        setLagPause(false);
+        recordOnlineDiagnostic('client-resolved-cleared-lag-pause', {actionType});
+      }else{
+        if(window.toast) toast('Match is syncing. Please wait.');
+        return false;
+      }
     }
     if(g._onlineMatchPlayable === false){
-      setOnlinePlayableWaitVisible(true, playableReadySnapshot(lastLobbyRoom, lastLobbyPlayers, currentMatchPreloadKey(lastLobbyRoom)));
-      if(window.toast) toast('Waiting for both players to finish loading.');
-      return false;
+      g._onlineMatchPlayable = true;
+      setOnlinePlayableWaitVisible(false);
+      recordOnlineDiagnostic('playable-gate-auto-opened', {
+        roomCode:String(g._onlineRoomCode || activeRoom || '').toUpperCase(),
+        actionType
+      });
     }
     const pending = normalizedClientPendingInteraction(g);
     if(pending){
       const pendingPlayer = Number(pending.playerIndex);
       if(Number.isInteger(pendingPlayer) && pendingPlayer !== Number(g._onlinePlayerIndex)){
-        if(window.toast) toast('Waiting for opponent to resolve ' + pendingInteractionLabel(pending) + '.');
         return false;
       }
       if(actionType && !actionMatchesPendingInteraction(actionType, pending)){
-        if(window.toast) toast('Resolve ' + pendingInteractionLabel(pending) + ' first.');
+        const bucket = String(pending?.bucket || pending?.kind || '');
+        if(bucket === 'cardPick' || bucket === 'pickCards'){
+          g._onlineShownServerCardPickPromptId = '';
+          setTimeout(maybeShowServerCardPickPrompt, 0);
+        }
         return false;
       }
     }
@@ -1229,7 +1446,7 @@
         veil = document.createElement('div');
         veil.id = 'online-playable-wait-veil';
         veil.setAttribute('aria-live', 'polite');
-        veil.style.cssText = 'position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:rgba(5,8,16,.38);backdrop-filter:blur(2px);pointer-events:auto;';
+        veil.style.cssText = 'position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:rgba(5,8,16,.24);backdrop-filter:blur(1px);pointer-events:none;';
         veil.innerHTML = '<div style="max-width:360px;margin:1rem;padding:1rem 1.2rem;border:1px solid rgba(245,214,120,.42);background:rgba(10,13,24,.92);box-shadow:0 18px 45px rgba(0,0,0,.35);color:#f4e7c0;font-family:Cinzel,serif;text-align:center;"><div style="font-size:1rem;font-weight:700;margin-bottom:.35rem;">Syncing Match</div><div id="online-playable-wait-copy" style="font-family:Inter,system-ui,sans-serif;font-size:.9rem;line-height:1.35;color:#ddd3b3;">Waiting for both players to finish loading.</div></div>';
         document.body.appendChild(veil);
       }
@@ -1412,6 +1629,10 @@
       if(lagPauseVisible) setLagPause(false);
       return;
     }
+    if(roomUsesFly(activeRoomCode() || room)){
+      if(lagPauseVisible || g._onlineLagPauseActive) setLagPause(false);
+      return;
+    }
     const roomSeq = Math.max(Number(room.lastActionSeq || 0) || 0, Number(lastActionSeq || 0) || 0);
     if(!shouldRunForcedSyncForRoomSeq(roomSeq)){
       if(lagPauseVisible) setLagPause(false);
@@ -1450,15 +1671,17 @@
     lastReportedActionSeq = reportSeq;
     lastReportedActionAt = now;
     if(roomUsesFly(code)){
+      const room = lastLobbyRoom || {};
+      const player = room.players && uid ? room.players[uid] : null;
+      if(player){
+        player.actionSeq = Math.max(Number(player.actionSeq || 0) || 0, reportSeq);
+        player.actionSeqClientAt = Date.now();
+      }
+      if(!opts.turnBoundary && safeSeq > 1) return;
       flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/progress`, {
         method:'POST',
+        timeoutMs:2500,
         body:{uid, actionSeq:reportSeq, clientAt:Date.now()}
-      }).then(data=>{
-        if(data?.room){
-          const nextRoom = normalizeFlyRoom(data.room);
-          lastLobbyRoom = nextRoom;
-          lastLobbyPlayers = nextRoom.players;
-        }
       }).catch(e=>console.warn('Fly action progress report failed', e));
       return;
     }
@@ -1741,6 +1964,8 @@
     lastAppliedActionSeq = 0;
     lastAuthorityStateHash = '';
     lobbyAuthorityPrejoinCode = '';
+    lobbyAuthorityPrejoinAttempts = 0;
+    lobbyAuthorityPrejoinNextAt = 0;
     actionReplayQueue = Promise.resolve();
     optimisticSendQueue = Promise.resolve();
     actionReplayBuffer.clear();
@@ -1892,6 +2117,22 @@
       console.error('Online room handoff failed', err);
     });
     return true;
+  }
+
+  function rememberFlyStartAction(code, action){
+    const roomCode = String(code || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    if(!roomCode || String(action?.type || '').toUpperCase() !== 'MATCH_START' || !action.payload) return null;
+    flyMatchStartActions.set(roomCode, action);
+    if(flyMatchStartActions.size > 20){
+      const first = flyMatchStartActions.keys().next().value;
+      if(first) flyMatchStartActions.delete(first);
+    }
+    return action;
+  }
+
+  function cachedFlyStartAction(code){
+    const roomCode = String(code || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    return roomCode ? (flyMatchStartActions.get(roomCode) || null) : null;
   }
 
 
@@ -2309,7 +2550,8 @@
     if(u && (flyRoomsEnabled() || roomUsesFly(randomQueueState.roomCode))){
       await flyApiRequest('/api/matchmaking/leave', {
         method:'POST',
-        body:{uid:u.uid}
+        body:{uid:u.uid},
+        timeoutMs:30000
       }).catch(()=>{});
       return;
     }
@@ -2383,7 +2625,7 @@
     const room = lastLobbyRoom || {};
     const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
     const key = currentMatchPreloadKey(room);
-    const timeoutMs = Math.max(5000, Math.min(180000, Number(opts.timeoutMs) || 90000));
+    const timeoutMs = Math.max(3000, Math.min(10000, Number(opts.timeoutMs) || 10000));
     const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
     const started = Date.now();
     const perf = window.__fatePerf = window.__fatePerf || {};
@@ -2735,10 +2977,20 @@
     if(!configuredAuthorityUrl() || typeof WebSocket === 'undefined') return;
     const code = String(room.roomCode || '').trim().toUpperCase();
     if(!code) return;
+    if(Date.now() < lobbyAuthorityPrejoinNextAt) return;
     if(lobbyAuthorityPrejoinCode === code && authorityRoomCode === code && (authorityJoined || authorityJoinPromise)) return;
     lobbyAuthorityPrejoinCode = code;
-    ensureAuthorityJoined(code).catch(function(err){
-      if(lobbyAuthorityPrejoinCode === code) lobbyAuthorityPrejoinCode = '';
+    ensureAuthorityJoined(code).then(function(){
+      if(lobbyAuthorityPrejoinCode === code){
+        lobbyAuthorityPrejoinAttempts = 0;
+        lobbyAuthorityPrejoinNextAt = 0;
+      }
+    }).catch(function(err){
+      if(lobbyAuthorityPrejoinCode === code){
+        lobbyAuthorityPrejoinAttempts += 1;
+        lobbyAuthorityPrejoinNextAt = Date.now() + Math.min(15000, 2500 * lobbyAuthorityPrejoinAttempts);
+        lobbyAuthorityPrejoinCode = '';
+      }
       console.warn('Fly lobby authority prejoin failed', err);
     });
   }
@@ -2753,12 +3005,14 @@
     let timer = 0;
     let lastWarn = 0;
     let lastHeartbeatAt = 0;
+    let notFoundCount = 0;
     async function sendFlyHeartbeat(){
       const u = window.FATE_ONLINE?.user;
       if(!u || Date.now() - lastHeartbeatAt < 5000) return;
       lastHeartbeatAt = Date.now();
       await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/heartbeat`, {
         method:'POST',
+        timeoutMs:30000,
         body:{uid:u.uid}
       }).then(data=>{
         if(data?.room){
@@ -2767,6 +3021,7 @@
           lastLobbyPlayers = nextRoom.players;
         }
       }).catch(e=>{
+        if(e && e.status === 404) return;
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room heartbeat failed', e);
           lastWarn = Date.now();
@@ -2776,6 +3031,7 @@
     function handleFlyRoom(apiRoom){
       const room = normalizeFlyRoom(apiRoom);
       if(!room.roomCode) return;
+      notFoundCount = 0;
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
       maybePrejoinLobbyAuthority(room);
@@ -2794,16 +3050,38 @@
     async function poll(){
       if(stopped) return;
       try{
-        const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
+        const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`, { timeoutMs:12000 });
         if(data?.room) handleFlyRoom(data.room);
         await sendFlyHeartbeat();
       }catch(e){
+        if(e && e.status === 404){
+          notFoundCount += 1;
+          recordOnlineDiagnostic('fly-room-not-found', {
+            roomCode:String(code || '').toUpperCase(),
+            count:notFoundCount,
+            reason:e.message || String(e)
+          });
+          if(notFoundCount >= 2){
+            stopped = true;
+            if(timer) clearTimeout(timer);
+            if(String(activeRoom || '').toUpperCase() === String(code || '').toUpperCase()) activeRoom = null;
+            if(lastLobbyRoom && String(lastLobbyRoom.roomCode || '').toUpperCase() === String(code || '').toUpperCase()) lastLobbyRoom = null;
+            lastLobbyPlayers = null;
+            if(!activeRoomSilent && window.toast) toast('That online room is no longer available.');
+          }
+          return;
+        }
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room watch failed', e);
           lastWarn = Date.now();
         }
       }finally{
-        if(!stopped) timer = setTimeout(poll, 900);
+        if(!stopped) {
+          const watchingQueuedRoom = randomQueueState.active
+            && String(randomQueueState.roomCode || '').toUpperCase() === String(code || '').toUpperCase();
+          const startingOrFreshRoom = watchingQueuedRoom || isStartedRoomStatus(lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom.status : '');
+          timer = setTimeout(poll, startingOrFreshRoom ? 300 : 900);
+        }
       }
     }
     roomUnsub = function(){
@@ -3017,11 +3295,14 @@
     try{
       const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/start`, {
         method:'POST',
+        timeoutMs:45000,
         body:{uid:u.uid, seed, song, mode:normalizeRoomMode(room.mode)}
       });
       if(data?.accepted && String(data.accepted.action?.type || '').toUpperCase() !== 'MATCH_START') bufferOnlineAction(data.accepted.action);
+      else if(data?.accepted?.action) rememberFlyStartAction(code, data.accepted.action);
       if(data?.room){
         const nextRoom = normalizeFlyRoom(data.room);
+        nextRoom._startAction = cachedFlyStartAction(nextRoom.roomCode || code);
         lastLobbyRoom = nextRoom;
         lastLobbyPlayers = nextRoom.players;
         allowOnlineMatchStart(nextRoom.roomCode || code, opts.queue ? 'queue-host-start' : 'host-start');
@@ -3036,10 +3317,12 @@
   }
 
   async function fetchFlyStartAction(code){
-    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=300`);
+    const cached = cachedFlyStartAction(code);
+    if(cached) return cached;
+    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=300`, { timeoutMs:12000 });
     const events = Array.isArray(data?.events) ? data.events : [];
     const matchStart = events.find(item=>String(item?.action?.type || '').toUpperCase() === 'MATCH_START');
-    return matchStart?.action || null;
+    return rememberFlyStartAction(code, matchStart?.action) || null;
   }
 
   async function hostStartRoom(code, opts={}){
@@ -3109,7 +3392,7 @@
       let startAction = {};
       if(room._flyRoom){
         players = lastLobbyPlayers || room.players || {};
-        startAction = await fetchFlyStartAction(room.roomCode) || {};
+        startAction = room._startAction || cachedFlyStartAction(room.roomCode) || await fetchFlyStartAction(room.roomCode) || {};
         if(!startAction.payload) throw new Error('Fly MATCH_START event is not available yet');
       }else{
         players = (await FO.get(FO.ref(FO.rtdb, `rooms/${room.roomCode}/players`))).val() || {};
@@ -3206,41 +3489,45 @@
         randomQueueState = { active:false, roomCode:null, role:null, started:true, handlers:null };
       }
 
-      if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started.');
       subscribeActions(room.roomCode);
-      setOnlinePlayableWaitVisible(true, {readyCount:1, total:2});
-      await publishOnlineMatchPlayableWithRetry().catch(function(err){
+      const latestPlayableState = gameState();
+      if(latestPlayableState && latestPlayableState._onlineRoomCode === room.roomCode){
+        latestPlayableState._onlineMatchPlayable = true;
+      }
+      setOnlinePlayableWaitVisible(false);
+      publishOnlineMatchPlayableWithRetry().catch(function(err){
         console.warn('Could not publish online playable readiness', err);
         return false;
       });
-      const playable = await waitForOnlineMatchPlayable({
-        timeoutMs:90000,
-        onProgress:function(snap){ setOnlinePlayableWaitVisible(true, snap); }
-      });
-      const bothPlayable = playable && playable.reason === 'both-playable';
-      const latestAfterPlayable = gameState();
-      if(latestAfterPlayable && latestAfterPlayable._onlineRoomCode === room.roomCode){
-        latestAfterPlayable._onlineMatchPlayable = !!bothPlayable;
-      }
-      if(bothPlayable){
+      waitForOnlineMatchPlayable({
+        timeoutMs:6000,
+        onProgress:function(snap){
+          recordOnlineDiagnostic('online-playable-background-progress', Object.assign({
+            roomCode:String(room.roomCode || '').toUpperCase()
+          }, snap || {}));
+        }
+      }).then(function(playable){
+        if(playable && playable.reason === 'both-playable'){
+          const latest = gameState();
+          if(latest && latest._onlineRoomCode === room.roomCode) latest._onlineMatchPlayable = true;
+          recordOnlineDiagnostic('online-playable-background-ready', {
+            roomCode:String(room.roomCode || '').toUpperCase()
+          });
+        }else{
+          recordOnlineDiagnostic('online-playable-background-timeout', {
+            roomCode:String(room.roomCode || '').toUpperCase(),
+            reason:playable && playable.reason || 'timeout'
+          });
+        }
         setOnlinePlayableWaitVisible(false);
-      }else{
-        setOnlinePlayableWaitVisible(true, playable);
-        if(window.toast) toast('Opponent is still loading. Match actions will unlock when both players are ready.');
-        waitForOnlineMatchPlayable({
-          timeoutMs:180000,
-          onProgress:function(snap){ setOnlinePlayableWaitVisible(true, snap); }
-        }).then(function(latePlayable){
-          if(latePlayable && latePlayable.reason === 'both-playable'){
-            const latest = gameState();
-            if(latest && latest._onlineRoomCode === room.roomCode) latest._onlineMatchPlayable = true;
-            setOnlinePlayableWaitVisible(false);
-            if(window.toast) toast('Both players are ready.');
-          }
-        }).catch(function(err){
-          console.warn('Late online playable wait failed', err);
+      }).catch(function(err){
+        console.warn('Online playable background wait failed', err);
+        recordOnlineDiagnostic('online-playable-background-failed', {
+          roomCode:String(room.roomCode || '').toUpperCase(),
+          reason:err && err.message || String(err)
         });
-      }
+        setOnlinePlayableWaitVisible(false);
+      });
       if(localIndex === 0 && !startPayload.serverBootstrapped) setTimeout(()=>sendBootstrapStateSync('match-start'), 220);
       // Spectator listings stay disabled until the deployed RTDB rules explicitly
       // allow /liveMatches writes; player match startup must not depend on them.
@@ -3601,6 +3888,76 @@
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
 
+  function clientResolvedGameplayEnabled(){
+    return String(window.FATE_GAMEPLAY_AUTHORITY || '').toLowerCase() === 'client-resolved'
+      || String(authorityGameplayMode || '').toLowerCase() === 'client-resolved'
+      || localStorageFlag('fateClientResolvedGameplay');
+  }
+
+  function isClientResolvedGameplayAction(type){
+    return /^(END_TURN|CLICK_CELL|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|REACTION_CHOICE)$/i.test(String(type || ''));
+  }
+
+  function noteClientResolvedCommitStart(){
+    clientResolvedCommitInFlight += 1;
+    let done = false;
+    return function finishClientResolvedCommit(){
+      if(done) return;
+      done = true;
+      clientResolvedCommitInFlight = Math.max(0, clientResolvedCommitInFlight - 1);
+    };
+  }
+
+  function scheduleClientResolvedAutoCommit(reason, delayMs){
+    if(!clientResolvedGameplayEnabled()) return;
+    if(clientResolvedAutoCommitTimer) clearTimeout(clientResolvedAutoCommitTimer);
+    clientResolvedAutoCommitTimer = setTimeout(function(){
+      clientResolvedAutoCommitTimer = null;
+      sendClientResolvedAutoCommit(reason || 'local-state-watchdog').catch(e=>{
+        console.warn('Client-resolved auto state commit failed', e);
+      });
+    }, Math.max(40, Number(delayMs || 220) || 220));
+  }
+
+  async function sendClientResolvedAutoCommit(reason){
+    if(!clientResolvedGameplayEnabled() || clientResolvedCommitInFlight > 0) return false;
+    const g = gameState();
+    if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
+    if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)) return false;
+    if(g._onlineLagPauseActive) return false;
+    if(Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)) return false;
+    const state = captureOnlineCanonicalState();
+    const hash = onlineCanonicalStateHash(state);
+    if(!hash || hash === lastAuthorityStateHash || hash === lastClientResolvedAutoCommitHash) return false;
+    const payload = {
+      playerIndex:g._onlinePlayerIndex,
+      currentPlayer:g.currentPlayer,
+      turn:g.turn,
+      actionKind:'AUTO_CLIENT_STATE_COMMIT',
+      clientActionId:makeDirectAuthorityActionId('ACTION_RESULT'),
+      baseStateHash:lastAuthorityStateHash || '',
+      sourceReason:String(reason || 'local-state-watchdog')
+    };
+    attachOnlinePostState(payload);
+    if(!payload.postState || !payload.stateHash || payload.stateHash === lastAuthorityStateHash) return false;
+    lastClientResolvedAutoCommitHash = payload.stateHash;
+    const finish = noteClientResolvedCommitStart();
+    try{
+      recordOnlineDiagnostic('client-resolved-auto-commit', {
+        reason:String(reason || ''),
+        baseStateHash:String(payload.baseStateHash || ''),
+        stateHash:String(payload.stateHash || '')
+      });
+      await sendAction('ACTION_RESULT', payload);
+      return true;
+    }catch(e){
+      if(payload.stateHash === lastClientResolvedAutoCommitHash) lastClientResolvedAutoCommitHash = '';
+      throw e;
+    }finally{
+      finish();
+    }
+  }
+
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
   }
@@ -3692,16 +4049,58 @@
       headers['content-type'] = 'application/json';
       init.body = JSON.stringify(opts.body || {});
     }
-    const res = await fetch(base + path, init);
+    const started = Date.now();
+    const timeoutMs = Math.max(2000, Math.min(60000, Number(opts.timeoutMs) || 10000));
+    let timeout = 0;
+    if(typeof AbortController !== 'undefined' && !init.signal){
+      const controller = new AbortController();
+      init.signal = controller.signal;
+      timeout = setTimeout(function(){ try{ controller.abort(); }catch(e){} }, timeoutMs);
+    }
+    let res;
+    try{
+      res = await fetch(base + path, init);
+    }catch(err){
+      recordOnlineDiagnostic('fly-api-fetch-error', {
+        path,
+        method,
+        reason:err.message || String(err),
+        durationMs:Date.now() - started
+      });
+      throw err;
+    }finally{
+      if(timeout) clearTimeout(timeout);
+    }
     if(!res.ok){
       const text = await res.text().catch(()=>'');
-      throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+      recordOnlineDiagnostic('fly-api-error', {
+        path,
+        method,
+        status:res.status,
+        reason:text.slice(0, 220),
+        durationMs:Date.now() - started
+      });
+      const err = new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+      err.status = res.status;
+      err.body = text;
+      err.path = path;
+      throw err;
     }
-    return await res.json();
+    const json = await res.json();
+    if(/\/api\/matchmaking\/enter|\/start|\/join|\/resume/.test(path)){
+      recordOnlineDiagnostic('fly-api-ok', {
+        path,
+        method,
+        status:res.status,
+        durationMs:Date.now() - started,
+        roomCode:json?.room?.roomCode || json?.room?.code || json?.roomCode || ''
+      });
+    }
+    return json;
   }
 
-  async function flyApiJson(path){
-    return flyApiRequest(path);
+  async function flyApiJson(path, opts){
+    return flyApiRequest(path, opts || {});
   }
 
   function flyDeckChoiceFromRoomDeck(deck){
@@ -3772,7 +4171,7 @@
       if(stopped) return;
       try{
         const after = Math.max(0, lastAppliedActionSeq || 0);
-        const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=300`);
+        const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=300`, { timeoutMs:10000 });
         const events = Array.isArray(data?.events) ? data.events : [];
         events.forEach(item=>{
           const action = item?.action || item?.accepted?.action || item;
@@ -3862,6 +4261,7 @@
     authorityJoinPromise = null;
     authorityRoomCode = '';
     authorityReducerMode = '';
+    authorityGameplayMode = '';
     for(const item of authorityInflight.values()){
       try{ item.reject(new Error('authority socket closed')); }catch(e){}
       if(item.timer) clearTimeout(item.timer);
@@ -3888,6 +4288,14 @@
       authorityJoined = true;
       if(msg.serverStateHash) lastAuthorityStateHash = String(msg.serverStateHash || '');
       if(msg.reducerMode) authorityReducerMode = String(msg.reducerMode || '').toLowerCase();
+      if(msg.gameplayAuthority) authorityGameplayMode = String(msg.gameplayAuthority || '').toLowerCase();
+      recordOnlineDiagnostic('authority-hello-ok', {
+        playerIndex:Number(msg.playerIndex ?? -1),
+        lastSeq:Number(msg.lastSeq || 0) || 0,
+        serverStateHash:String(msg.serverStateHash || ''),
+        reducerMode:String(msg.reducerMode || ''),
+        gameplayAuthority:String(msg.gameplayAuthority || '')
+      });
       return;
     }
     if(msg.kind === 'room-chat'){
@@ -3912,6 +4320,18 @@
     }
     if(msg.kind === 'accepted' || msg.kind === 'rejected' || msg.kind === 'error'){
       if(msg.kind === 'accepted') handleAuthorityAcceptedMessage(msg);
+      recordOnlineDiagnostic('authority-' + msg.kind, {
+        requestId:String(msg.requestId || ''),
+        actionType:String(msg.action?.type || ''),
+        seq:Number(msg.action?.seq || 0) || 0,
+        reason:String(msg.reason || ''),
+        serverSeq:Number(msg.serverSeq || 0) || 0,
+        serverStateHash:String(msg.serverStateHash || '')
+      });
+      if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash){
+        lastAuthorityStateHash = String(msg.serverStateHash || '');
+        applyOnlineCanonicalState(msg.serverState, 'authority rejection resync');
+      }
       const requestId = String(msg.requestId || '');
       const pending = requestId ? authorityInflight.get(requestId) : null;
       if(pending){
@@ -3922,6 +4342,9 @@
           const err = new Error(msg.reason || 'WebSocket authority rejected action');
           err.authorityRejected = msg.kind === 'rejected';
           err.authorityKind = msg.kind;
+          err.serverSeq = Number(msg.serverSeq || 0) || 0;
+          err.serverStateHash = String(msg.serverStateHash || '');
+          err.serverState = msg.serverState || null;
           pending.reject(err);
         }
       }
@@ -3936,11 +4359,19 @@
     authorityWs = new WebSocket(url);
     authorityWs.onmessage = handleAuthorityMessage;
     authorityWs.onclose = function(){
+      recordOnlineDiagnostic('authority-socket-close', {
+        url,
+        reason:'WebSocket authority disconnected'
+      });
       authorityJoined = false;
       authorityJoinPromise = null;
       rejectAuthorityInflight('WebSocket authority disconnected');
     };
     authorityWs.onerror = function(){
+      recordOnlineDiagnostic('authority-socket-error', {
+        url,
+        reason:'WebSocket authority connection failed'
+      });
       rejectAuthorityInflight('WebSocket authority connection failed');
     };
     return authorityWs;
@@ -3948,7 +4379,7 @@
   function waitForAuthorityOpen(ws){
     if(ws.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((resolve, reject)=>{
-      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), 8000);
+      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), AUTHORITY_OPEN_TIMEOUT_MS);
       ws.addEventListener('open', ()=>{ clearTimeout(timer); resolve(); }, {once:true});
       ws.addEventListener('error', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority connection failed')); }, {once:true});
       ws.addEventListener('close', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority closed before join')); }, {once:true});
@@ -3996,7 +4427,7 @@
         const started = Date.now();
         const timer = setInterval(()=>{
           if(authorityJoined){ clearInterval(timer); resolve(); }
-          else if(Date.now() - started > 8000){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
+          else if(Date.now() - started > AUTHORITY_HELLO_TIMEOUT_MS){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
         }, 40);
       });
       return true;
@@ -4031,8 +4462,14 @@
         authorityInflight.delete(requestId);
         const err = new Error('WebSocket authority did not accept action in time');
         err.authorityTimeout = true;
+        recordOnlineDiagnostic('authority-timeout', {
+          requestId,
+          actionType:String(type || ''),
+          clientActionId:String(payload?.clientActionId || ''),
+          attempt:Number(attempt || 0) || 0
+        });
         reject(err);
-      }, 3500);
+      }, AUTHORITY_ACTION_TIMEOUT_MS);
       authorityInflight.set(requestId, {resolve, reject, timer});
       try{
         authorityWs.send(JSON.stringify(outbound));
@@ -4054,7 +4491,6 @@
     for(let attempt = 0; attempt < maxAttempts; attempt += 1){
       try{
         await ensureAuthorityJoined(code);
-        await catchUpFlyAuthorityReplay(code, 'before authority send ' + String(type || '').toUpperCase());
         const accepted = await sendActionViaAuthorityOnce(code, type, payload, attempt);
         if(attempt > 0) authorityRetrySuccesses += 1;
         return accepted;
@@ -4145,6 +4581,7 @@
     if(!code) return false;
     if(activeRoom && String(activeRoom || '').trim().toUpperCase() !== code) return false;
     const payload = action.payload || {};
+    rememberFlyStartAction(code, action);
     const roomPatch = accepted.roomPatch || {};
     const baseRoom = lastLobbyRoom || {};
     const nextRoom = Object.assign({}, baseRoom, roomPatch, {
@@ -4158,6 +4595,7 @@
       song:payload.song || roomPatch.song || baseRoom.song || '',
       lastActionSeq:Math.max(Number(baseRoom.lastActionSeq || 0) || 0, Number(action.seq || 0) || 0)
     });
+    nextRoom._startAction = action;
     if(!nextRoom.players || !Object.keys(nextRoom.players).length) nextRoom.players = lastLobbyPlayers || {};
     lastLobbyRoom = nextRoom;
     lastLobbyPlayers = nextRoom.players || lastLobbyPlayers || {};
@@ -4174,12 +4612,54 @@
     return true;
   }
 
+  function applyAcceptedCanonicalActionNow(action, accepted){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return false;
+    const type = String(action?.type || '').toUpperCase();
+    const payload = action?.payload || {};
+    if(!shouldApplyServerStateDirectly(type, payload)) return false;
+    const seq = Number(action?.seq || 0) || 0;
+    const directAction = accepted?.serverStateHash
+      ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
+      : action;
+    if(seq){
+      lastActionSeq = Math.max(lastActionSeq, seq);
+      g._onlineActionSeq = lastActionSeq;
+    }
+    Promise.resolve(applyOnlineAction(directAction)).then(()=>{
+      if(seq){
+        lastAppliedActionSeq = Math.max(lastAppliedActionSeq, seq);
+        const latest = gameState();
+        if(latest){
+          latest._onlineActionSeq = Math.max(Number(latest._onlineActionSeq || 0) || 0, lastActionSeq);
+          latest._onlineAppliedActionSeq = lastAppliedActionSeq;
+        }
+        discardBufferedActionsThrough(lastAppliedActionSeq);
+        reportActionProgress(lastAppliedActionSeq, {
+          turnBoundary:isTurnBoundaryOnlineAction(directAction),
+          force:isTurnBoundaryOnlineAction(directAction)
+        });
+      }
+      evaluateLagPause();
+    }).catch(e=>{
+      console.error('Immediate accepted authoritative state apply failed; falling back to replay buffer', e, directAction);
+      bufferOnlineAction(directAction);
+    });
+    return true;
+  }
+
   function handleAuthorityAcceptedMessage(accepted){
     const action = accepted && accepted.action;
     const code = String(accepted?.roomCode || gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
     if(!action || !code) return;
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
     if(handleLobbyMatchStartAccepted(accepted)) return;
+    if(applyAcceptedCanonicalActionNow(action, accepted)){
+      if(!shouldSkipAuthorityRtdbPersist(accepted)){
+        ensureAuthorityAcceptedActionPersisted(code, accepted).catch(()=>{});
+      }
+      return;
+    }
     const bufferedAction = accepted.serverStateHash
       ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
       : action;
@@ -4324,7 +4804,7 @@
         if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)) {
           return;
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'END_TURN')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
         }
@@ -4387,7 +4867,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.initiateConsolidate.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'START_CONSOLIDATE')) return;
         const args = arguments;
         return sendOptimisticAction('START_CONSOLIDATE', {
           playerIndex:g.currentPlayer,
@@ -4428,7 +4908,7 @@
         if(!onlineCellActionPending(g)){
           return originals.clickCell.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'CLICK_CELL')) return;
         const args = arguments;
         const pendingMove = g._serverPendingMove || null;
         const pendingConsolidation = g._consolidating || null;
@@ -4519,7 +4999,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_CARDS_VISUAL')) return;
           const pendingPick = latest?._serverPendingCardPick || null;
           return sendOptimisticAction('PICK_CARDS_VISUAL', {
             playerIndex:latest.currentPlayer,
@@ -4545,7 +5025,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
@@ -4573,7 +5053,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
@@ -4590,7 +5070,7 @@
               if(typeof originalCancel === 'function') return originalCancel();
               return onConfirm([]);
             }
-            if(!canSendLocalAction(latest)) return;
+            if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
             const pendingPick = latest?._serverPendingZonePick || null;
             return sendOptimisticAction('PICK_ZONE', {
               playerIndex:latest.currentPlayer,
@@ -4621,7 +5101,7 @@
         const wrappedCallback = (aff)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return callback(aff);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_AFFILIATION')) return;
           const pendingModal = latest?._serverPendingModalAction || null;
           return sendOptimisticAction('PICK_AFFILIATION', {
             playerIndex:latest.currentPlayer,
@@ -4647,10 +5127,7 @@
         const wrappedChoose = (zone)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onChoose(zone);
-          if(!isOnlineMatchState(latest) || latest._onlineLagPauseActive || latest._isSpectator || latest._onlineRole === 'spectator') {
-            if(window.toast) toast(latest?._onlineLagPauseActive ? 'Match is syncing. Please wait.' : 'Spectators cannot take game actions.');
-            return;
-          }
+          if(!canSendLocalAction(latest, 'PICK_LANDSCAPE_ZONE')) return;
           if(Number(player) !== latest._onlinePlayerIndex) {
             onlineTurnError();
             return;
@@ -4704,16 +5181,25 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals[fnName].apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'BOARD_ACTION')) return;
         const pos = onlineFunctionPositionPayload(g, arguments);
-        if(!pos) return originals[fnName].apply(this, arguments);
+        if(!pos) {
+          recordOnlineDiagnostic(clientResolvedGameplayEnabled() ? 'client-resolved-board-action-without-source' : 'blocked-unsynced-board-action', {
+            fn:fnName,
+            reason:'missing board source coordinates'
+          });
+          if(!clientResolvedGameplayEnabled()){
+            if(window.toast) toast('Could not sync that board effect. Select the card again.');
+            return;
+          }
+        }
         const args = arguments;
         const payload = Object.assign({
           fn:fnName,
           playerIndex:g.currentPlayer,
           turn:g.turn
-        }, pos);
-        if(fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect') {
+        }, pos || {});
+        if(pos && (fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect')) {
           payload.effectCinematic = boardEffectCinematicPayload(g, pos.z, pos.r, pos.c);
         }
         return sendOptimisticAction('BOARD_ACTION', payload, ()=>originals[fnName].apply(this, args));
@@ -4726,14 +5212,7 @@
     window.__fateSendSantaAnnaAction = function(selectedHand, target){
       const g = gameState();
       if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
-      if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
-        if(window.toast) toast('Spectators cannot take game actions.');
-        return false;
-      }
-      if(g._onlineLagPauseActive){
-        if(window.toast) toast('Match is syncing. Please wait.');
-        return false;
-      }
+      if(!canSendLocalAction(g, 'HAND_ACTION')) return false;
       return sendOptimisticAction('HAND_ACTION', {
         fn:'activateSantaAnnaProsperityFromHand',
         playerIndex:g._onlinePlayerIndex,
@@ -4745,7 +5224,7 @@
 
     window.__fateSendEffectActivationCinematic = function(card, z, r, c, opts){
       const g = gameState();
-      if(!canSendLocalAction(g)) return false;
+      if(!canSendLocalAction(g, 'EFFECT_CINEMATIC')) return false;
       if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
       const boardCard = g.board?.[z]?.[r]?.[c] || card || null;
       const payload = {
@@ -4770,7 +5249,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals[fnName].apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'HAND_ACTION')) return;
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {
           fn:fnName,
@@ -4780,6 +5259,16 @@
         }, ()=>originals[fnName].apply(this, args));
       };
     });
+
+    if(!window.__fateClientResolvedAutoCommitListenersInstalled){
+      window.__fateClientResolvedAutoCommitListenersInstalled = true;
+      const watchLocalMutation = reason=>setTimeout(()=>scheduleClientResolvedAutoCommit(reason, 180), 0);
+      try{
+        document.addEventListener('pointerup', ()=>watchLocalMutation('pointerup'), true);
+        document.addEventListener('keyup', ()=>watchLocalMutation('keyup'), true);
+        document.addEventListener('change', ()=>watchLocalMutation('change'), true);
+      }catch(e){}
+    }
   }
 
   async function leaveRoom(markForfeit, passive=false){
@@ -4861,6 +5350,7 @@
     const prof = await profile();
     const data = await flyApiRequest('/api/matchmaking/enter', {
       method:'POST',
+      timeoutMs:45000,
       body:{
         uid:u.uid,
         mode,
@@ -4871,7 +5361,9 @@
     });
     const room = normalizeFlyRoom(data.room);
     if(!room.roomCode) throw new Error('Fly matchmaking returned no room');
-    if(data.accepted?.action) bufferOnlineAction(data.accepted.action);
+    if(String(data.accepted?.action?.type || '').toUpperCase() === 'MATCH_START'){
+      room._startAction = rememberFlyStartAction(room.roomCode, data.accepted.action);
+    }else if(data.accepted?.action) bufferOnlineAction(data.accepted.action);
     activeRoom = room.roomCode;
     lastLobbyRoom = room;
     lastLobbyPlayers = room.players;
@@ -4893,6 +5385,14 @@
       emitRandomQueueStatus('waiting', partyTargetUid ? 'Waiting for your party member...' : 'Waiting for a random player...');
     }
     return true;
+  }
+
+  function markFlyRandomQueueFailed(){
+    randomQueueState.active = false;
+    randomQueueState.roomCode = null;
+    randomQueueState.role = null;
+    randomQueueState.started = false;
+    clearRandomQueueWatcher();
   }
 
   async function createQueuedRoom(deckChoice, mode='ranked'){
@@ -5122,6 +5622,8 @@
         return await startFlyRandomQueue(mode, deck, handlers, partyTargetUid);
       }catch(e){
         console.error('Fly random queue failed', e);
+        markFlyRandomQueueFailed();
+        setTimeout(()=>removeOwnQueueEntry().catch(()=>{}), 1500);
         emitRandomQueueStatus('error', 'Could not enter Fly random queue. Try again.');
         return false;
       }
@@ -5412,6 +5914,8 @@
       url:configuredAuthorityUrl(),
       apiUrl:authorityHttpBaseUrl(),
       reducerMode:authorityReducerMode || '',
+      gameplayAuthority:authorityGameplayMode || (clientResolvedGameplayEnabled() ? 'client-resolved' : ''),
+      clientResolvedGameplay:clientResolvedGameplayEnabled(),
       rtdbDisabled:rtdbDisabledMode(),
       flyActionReplay:flyActionReplayEnabled(),
       flyRooms:flyRoomsEnabled(),
@@ -5463,6 +5967,35 @@
       hash:onlineCanonicalStateHash(state),
       board
     };
+  };
+  window.fateOnlineDiagnosticsReport = function(){
+    let stateReport = null;
+    let renderReport = null;
+    let authorityStatus = null;
+    try{ stateReport = window.fateOnlineStateReport ? window.fateOnlineStateReport() : null; }catch(e){}
+    try{ renderReport = window.fateAuthorityRenderReport ? window.fateAuthorityRenderReport() : null; }catch(e){}
+    try{ authorityStatus = window.fateGetWebSocketAuthorityStatus ? window.fateGetWebSocketAuthorityStatus() : null; }catch(e){}
+    return Object.assign({
+      generatedAt:Date.now(),
+      room:String(gameState()?._onlineRoomCode || activeRoom || authorityRoomCode || '').trim().toUpperCase(),
+      authorityStatus,
+      render:renderReport,
+      timeline:onlineDiagnosticsTimeline.slice(-180)
+    }, stateReport || {});
+  };
+  window.fateSubmitOnlineDiagnostics = async function(){
+    const report = window.fateOnlineDiagnosticsReport();
+    const code = String(report.room || gameState()?._onlineRoomCode || activeRoom || authorityRoomCode || '').trim().toUpperCase();
+    const u = getUser();
+    if(!code) throw new Error('No online room is active');
+    if(!u) throw new Error('Sign in before submitting diagnostics');
+    return await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/diagnostics/client`, {
+      method:'POST',
+      body:{
+        uid:u.uid,
+        report
+      }
+    });
   };
   window.fateLeaveOnlineRoom = leaveRoom;
   installOnlineGameplayHooks();

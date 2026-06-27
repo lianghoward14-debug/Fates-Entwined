@@ -130,6 +130,29 @@ function validateActionSpecificTransition(type, payload, postState){
   return '';
 }
 
+function validateActionResultTransition(room, msg, opts){
+  const payload = msg?.payload || {};
+  const postState = payload.postState;
+  const playerIndex = Number(payload.playerIndex);
+  const actionKind = String(payload.actionKind || payload.sourceType || '').toUpperCase();
+  if(!actionKind) return {ok:false, reason:'ACTION_RESULT actionKind is required'};
+  if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1){
+    return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
+  }
+  const beforeCurrent = Number(room?.canonicalState?.currentPlayer);
+  if(Number.isInteger(beforeCurrent) && beforeCurrent >= 0 && beforeCurrent <= 1 && beforeCurrent !== playerIndex){
+    return {ok:false, reason:'ACTION_RESULT player does not have priority'};
+  }
+  const reduced = validateProposedTransition(room, msg, opts);
+  if(!reduced.ok) return reduced;
+  if(actionKind === 'END_TURN'){
+    const postCurrent = Number(postState.currentPlayer);
+    if(postCurrent === playerIndex) return {ok:false, reason:'END_TURN did not pass priority to opponent'};
+  }
+  reduced.actionKind = actionKind;
+  return reduced;
+}
+
 function validateProposedTransition(room, msg, opts){
   const options = opts || {};
   const type = String(msg.type || '').toUpperCase();
@@ -152,6 +175,35 @@ function validateProposedTransition(room, msg, opts){
   const actionErr = validateActionSpecificTransition(type, payload, postState);
   if(actionErr) return {ok:false, reason:actionErr};
   return {ok:true, canonicalState:postState, canonicalHash:computedHash, baseStateHash:baseHash};
+}
+
+function reduceActionResult(room, msg, options){
+  return validateActionResultTransition(room, msg, options);
+}
+
+function strictProposedStateFallback(room, msg, opts, reason){
+  const options = opts || {};
+  if(String(options.mode || '').toLowerCase() !== 'strict') return null;
+  const payload = msg?.payload || {};
+  if(!payload.postState || !payload.stateHash) return null;
+  const reduced = validateProposedTransition(room, msg, options);
+  if(!reduced.ok) return reduced;
+  reduced.serverReduced = false;
+  reduced.clientProposedFallback = true;
+  reduced.fallbackReason = reason || 'strict proposed-state fallback';
+  return reduced;
+}
+
+function rejectOrStrictProposedFallback(room, msg, opts, reason){
+  return strictProposedStateFallback(room, msg, opts, reason) || {ok:false, reason};
+}
+
+function reducerGapFallbackOrReject(room, msg, opts, reason){
+  const text = String(reason || 'server reducer is not implemented');
+  if(/dedicated server reducer|server reducer is not implemented|unsupported .*phase/i.test(text)){
+    return rejectOrStrictProposedFallback(room, msg, opts, text);
+  }
+  return {ok:false, reason:text};
 }
 
 function cloneState(state){
@@ -859,6 +911,7 @@ function reduceEndTurn(room, msg, options){
   state.currentPlayer = playerIndex === 0 ? 1 : 0;
   state.turn = Math.max(Number(state.turn || 0) + 1, Number(payload.turn || 0) + 1, 1);
   state.supportsPlacedThisTurn = 0;
+  state.maxSupportsPerTurn = 2;
   state.extraSupportsThisTurn = 0;
   state.majaEffectThisTurn = false;
   state._zimbabweUsedThisTurn = false;
@@ -3030,7 +3083,8 @@ function chingachlookPlacementBlockReason(state, card, z, owner, excludeIids){
 function validateSupporterPlacement(state, card, playerIndex, z, r, c){
   if(String(card.type || '') !== 'Supporter') return '';
   if(isServerFreePlacementCard(state, card, playerIndex)) return '';
-  const maxSupports = (Number(state.maxSupportsPerTurn || 0) || 0) + (Number(state.extraSupportsThisTurn || 0) || 0);
+  const baseSupports = Math.max(2, Number(state.maxSupportsPerTurn || 0) || 0);
+  const maxSupports = baseSupports + (Number(state.extraSupportsThisTurn || 0) || 0);
   const placed = Number(state.supportsPlacedThisTurn || 0) || 0;
   if(!state.majaEffectThisTurn && placed >= Math.max(0, maxSupports || 0)){
     return 'Supporter limit reached';
@@ -3101,13 +3155,30 @@ function hasBasicPlacementTarget(state, card, playerIndex){
 function selectedHandCardForState(state, payload, playerIndex){
   const selected = payload.selectedHand || {};
   const hand = state.players?.[playerIndex]?.hand || [];
-  let handIndex = Number.isInteger(Number(selected.index)) ? Number(selected.index) : Number(state.selectedHandCard);
-  if(!Number.isInteger(handIndex) || handIndex < 0 || handIndex >= hand.length) return {error:'selected hand card is invalid'};
-  let card = hand[handIndex];
-  if(selected.iid && card?.iid !== selected.iid){
-    handIndex = hand.findIndex(item=>item && item.iid === selected.iid);
-    card = hand[handIndex];
+  const indexed = Number.isInteger(Number(selected.index)) ? Number(selected.index) : Number(state.selectedHandCard);
+  let handIndex = Number.isInteger(indexed) ? indexed : -1;
+  let card = handIndex >= 0 && handIndex < hand.length ? hand[handIndex] : null;
+  if(selected.iid && (!card || String(card.iid || '') !== String(selected.iid))){
+    const iidIndex = hand.findIndex(item=>item && String(item.iid || '') === String(selected.iid));
+    if(iidIndex >= 0){
+      handIndex = iidIndex;
+      card = hand[handIndex];
+    }
   }
+  if(selected.id && (!card || String(card.id || '') !== String(selected.id))){
+    const indexedCard = indexed >= 0 && indexed < hand.length ? hand[indexed] : null;
+    if(indexedCard && String(indexedCard.id || '') === String(selected.id)){
+      handIndex = indexed;
+      card = indexedCard;
+    }else{
+      const idIndex = hand.findIndex(item=>item && String(item.id || '') === String(selected.id));
+      if(idIndex >= 0){
+        handIndex = idIndex;
+        card = hand[handIndex];
+      }
+    }
+  }
+  if(!Number.isInteger(handIndex) || handIndex < 0 || handIndex >= hand.length) return {error:'selected hand card is invalid'};
   if(!card) return {error:'selected hand card was not found'};
   if(selected.id && String(card.id || '') !== String(selected.id)) return {error:'selected hand card id mismatch'};
   return {hand, handIndex, card, selected};
@@ -3301,7 +3372,7 @@ function reducePlaceSelected(room, msg, options){
   const card = selected.card;
   if(String(card.id || '') === '70' && card.guerilla_transferred) return {ok:false, reason:'Wine Country Guerilla cannot be set from hand'};
   if(String(card.type || '') !== 'Supporter') return {ok:false, reason:'placeSelected is only implemented for Supporter placement'};
-  if(!isSupportedSupporterPlacementCard(card, options)) return {ok:false, reason:'HAND_ACTION card requires a dedicated server reducer'};
+  if(!isSupportedSupporterPlacementCard(card, options)) return rejectOrStrictProposedFallback(room, msg, options, 'HAND_ACTION card requires a dedicated server reducer');
   const supporterErr = validateSupporterPlacement(state, card, playerIndex, 0, 0, 0);
   if(supporterErr && /limit/i.test(supporterErr)) return {ok:false, reason:supporterErr};
   if(!hasBasicPlacementTarget(state, card, playerIndex)) return {ok:false, reason:'No open squares available for selected card'};
@@ -3327,8 +3398,8 @@ function reduceStartConsolidate(room, msg, options){
   if(selected.error) return {ok:false, reason:selected.error};
   const card = selected.card;
   if(String(card.type || '') === 'Supporter') return {ok:false, reason:'START_CONSOLIDATE requires a character card'};
-  if(card.xCost || (card.xFate && String(card.id || '') !== '35')) return {ok:false, reason:'START_CONSOLIDATE variable-cost cards require a dedicated server reducer'};
-  if(!isSupportedConsolidatingCard(card, options)) return {ok:false, reason:'START_CONSOLIDATE card requires a dedicated server reducer'};
+  if(card.xCost || (card.xFate && String(card.id || '') !== '35')) return rejectOrStrictProposedFallback(room, msg, options, 'START_CONSOLIDATE variable-cost cards require a dedicated server reducer');
+  if(!isSupportedConsolidatingCard(card, options)) return rejectOrStrictProposedFallback(room, msg, options, 'START_CONSOLIDATE card requires a dedicated server reducer');
   const cost = Math.max(0, (Number(card.cost || 0) || 0) + (Number(card._handCostDelta || 0) || 0));
   if(cost > 0){
     const tributes = basicTributeOptionsForState(state, card, playerIndex, options);
@@ -3571,16 +3642,16 @@ function reduceConsolidationClick(room, msg, options){
   const phase = String(con.phase || 'select_tributes');
   if(phase === 'select_placement'){
     const done = finalizeBasicConsolidation(state, con, idx, playerIndex, options);
-    if(!done.ok) return done;
+    if(!done.ok) return reducerGapFallbackOrReject(room, msg, options, done.reason || 'consolidation requires a dedicated server reducer');
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  if(phase !== 'select_tributes') return {ok:false, reason:'unsupported consolidation phase'};
+  if(phase !== 'select_tributes') return reducerGapFallbackOrReject(room, msg, options, 'unsupported consolidation phase');
   const running = consolidationRunningTotal(con);
   const selected = con.chosenIdxs.includes(idx);
   if(running >= (Number(con.cost || 0) || 0) && selected){
     con.phase = 'select_placement';
     const done = finalizeBasicConsolidation(state, con, idx, playerIndex, options);
-    if(!done.ok) return done;
+    if(!done.ok) return reducerGapFallbackOrReject(room, msg, options, done.reason || 'consolidation requires a dedicated server reducer');
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
   if(selected) con.chosenIdxs = con.chosenIdxs.filter(item=>item !== idx);
@@ -4060,7 +4131,7 @@ function reduceHandAction(room, msg, options){
   if(fn === 'activateWineCountryGuerillaFromHand') return reduceActivateWineCountryGuerillaFromHand(room, msg, options);
   if(fn === 'activateSelvaIslandsPirateFromHand') return reduceActivateSelvaIslandsPirateFromHand(room, msg, options);
   if(fn === 'activateSantaAnnaProsperityFromHand') return reduceActivateSantaAnnaProsperityFromHand(room, msg, options);
-  if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for HAND_ACTION ${fn || '(unknown)'}`};
+  if(String(options.mode || '').toLowerCase() === 'strict') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for HAND_ACTION ${fn || '(unknown)'}`);
   return validateProposedTransition(room, msg, options);
 }
 
@@ -4076,7 +4147,7 @@ function reduceBoardAction(room, msg, options){
   if(fn === 'activateExpeditionaryMove') return reduceActivateExpeditionaryMove(room, msg, options);
   if(fn === 'activateBusserMove') return reduceActivateBusserMove(room, msg, options);
   if(fn === 'activateLandscapeEventideMove') return reduceActivateLandscapeEventideMove(room, msg, options);
-  if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for BOARD_ACTION ${fn || '(unknown)'}`};
+  if(String(options.mode || '').toLowerCase() === 'strict') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for BOARD_ACTION ${fn || '(unknown)'}`);
   return validateProposedTransition(room, msg, options);
 }
 
@@ -4155,7 +4226,7 @@ function reduceTriggerCharacterEffect(room, msg, options){
     state.blockingCell = false;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for triggerCharacterEffect ${id || '(unknown)'}`};
+  if(String(options.mode || '').toLowerCase() === 'strict') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for triggerCharacterEffect ${id || '(unknown)'}`);
   return validateProposedTransition(room, msg, options);
 }
 
@@ -4185,7 +4256,7 @@ function reduceActivatePendingWhenSetEffect(room, msg, options){
     return {ok:false, reason:'Pending when-set effect source location mismatch'};
   }
   const id = String(src.source.id || '');
-  if(!SERVER_DEFERRED_WHEN_SET_IDS.has(id)) return {ok:false, reason:`server reducer is not implemented for deferred when-set ${id || '(unknown)'}`};
+  if(!SERVER_DEFERRED_WHEN_SET_IDS.has(id)) return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for deferred when-set ${id || '(unknown)'}`);
   delete src.source._pendingWhenSetEffect;
   src.source._effectNegatedByReaction = false;
   if(suppressSupportedWhenSetForState(state, src.source)){
@@ -4638,7 +4709,7 @@ function applyPendingAffiliationChoice(state, pending, playerIndex, payload){
     live._declaredAff = aff;
     live.affDeclared = aff;
     const applied = applyWojciechFishermanChoice(state, live, playerIndex, aff);
-    if(applied && applied.ok === false) return applied;
+    if(applied && applied.ok === false) return reducerGapFallbackOrReject(room, msg, options, applied.reason || 'affiliation choice requires a dedicated server reducer');
   } else {
     return {ok:false, reason:`server reducer is not implemented for affiliation source ${cardId || '(unknown)'}`};
   }
@@ -4718,10 +4789,10 @@ function reduceModalAction(room, msg, options){
       skipChaparralPrompt:true,
       faceDown
     });
-    if(!done.ok) return done;
+    if(!done.ok) return reducerGapFallbackOrReject(room, msg, options, done.reason || 'Chaparral consolidation requires a dedicated server reducer');
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  if(kind !== 'artilleryDistance') return {ok:false, reason:`server reducer is not implemented for MODAL_ACTION ${kind || '(unknown)'}`};
+  if(kind !== 'artilleryDistance') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for MODAL_ACTION ${kind || '(unknown)'}`);
   const actionIndex = Number(payload.actionIndex);
   if(!Number.isInteger(actionIndex) || actionIndex < 0 || actionIndex > 2) return {ok:false, reason:'Artillery Distance zone choice is invalid'};
   const loc = pendingSourceLocation(pending);
@@ -4753,7 +4824,7 @@ function reducePickAffiliationAction(room, msg, options){
   if(expectedPromptId && !payload.promptId) return {ok:false, reason:'PICK_AFFILIATION promptId is required'};
   if(expectedPromptId && String(payload.promptId || '') !== expectedPromptId) return {ok:false, reason:'PICK_AFFILIATION prompt mismatch'};
   const applied = applyPendingAffiliationChoice(state, pending, playerIndex, payload);
-  if(applied && applied.ok === false) return applied;
+  if(applied && applied.ok === false) return reducerGapFallbackOrReject(room, msg, options, applied.reason || 'affiliation choice requires a dedicated server reducer');
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -4809,7 +4880,7 @@ function reducePickLandscapeZoneAction(room, msg, options){
     state.blockingCell = false;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for landscape zone pick ${landscapeId || '(unknown)'}`};
+  if(String(options.mode || '').toLowerCase() === 'strict') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for landscape zone pick ${landscapeId || '(unknown)'}`);
   return validateProposedTransition(room, msg, options);
 }
 
@@ -5312,7 +5383,7 @@ function reducePickCardsVisualAction(room, msg, options){
       sourceResult.source.effectUsedInitial = true;
     }
   }else{
-    return {ok:false, reason:`server reducer is not implemented for PICK_CARDS_VISUAL ${kind || '(unknown)'}`};
+    return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for PICK_CARDS_VISUAL ${kind || '(unknown)'}`);
   }
   state._serverPendingCardPick = null;
   if(afterPick){
@@ -5709,7 +5780,7 @@ function reducePickZoneAction(room, msg, options){
     };
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  return {ok:false, reason:`server reducer is not implemented for PICK_ZONE ${kind || '(unknown)'}`};
+  return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for PICK_ZONE ${kind || '(unknown)'}`);
 }
 
 function reduceReactionChoice(room, msg, options){
@@ -5768,6 +5839,7 @@ function reduceServerAction(room, msg, opts){
   const options = opts || {};
   const mode = String(options.mode || 'lineage').toLowerCase();
   const type = String(msg.type || '').toUpperCase();
+  if(type === 'ACTION_RESULT') return reduceActionResult(room, msg, options);
   const intent = toAuthorityIntent(type, msg?.payload || null, room?.canonicalState);
   if(mode === 'lineage') return validateProposedTransition(room, msg, options);
   const pendingBlock = pendingInteractionBlockReason(type, normalizedPendingInteraction(room?.canonicalState));
@@ -5790,7 +5862,7 @@ function reduceServerAction(room, msg, opts){
   if(intent === 'FORFEIT') return reduceForfeit(room, msg, options);
   if(intent === 'DISCONNECT_TIMEOUT') return reduceDisconnectTimeout(room, msg, options);
   if(intent === 'MATCH_RESULT') return reduceMatchResult(room, msg, options);
-  if(mode === 'strict') return {ok:false, reason:`server reducer is not implemented for ${intent || type}`};
+  if(mode === 'strict') return rejectOrStrictProposedFallback(room, msg, options, `server reducer is not implemented for ${intent || type}`);
   return validateProposedTransition(room, msg, options);
 }
 
@@ -5799,5 +5871,6 @@ module.exports = {
   canonicalStateHash,
   validateCanonicalState,
   validateProposedTransition,
+  reduceActionResult,
   reduceServerAction
 };

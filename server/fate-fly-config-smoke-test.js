@@ -67,6 +67,7 @@ assertEnv(env, 'FATE_WS_DURABLE_WRITES', 'off');
 assertEnv(env, 'FATE_WS_REQUIRE_DURABLE_WRITES', '0');
 assertEnv(env, 'FATE_WS_STATE_GATE', '1');
 assertEnv(env, 'FATE_WS_REDUCER_MODE', 'strict');
+assertEnv(env, 'FATE_WS_GAMEPLAY_AUTHORITY', 'client-resolved');
 assert.strictEqual(service.internal_port, '8787', 'Fly internal port should match authority server default');
 assert.strictEqual(service.auto_stop_machines, 'off', 'Fly authority machines should not auto-stop during live WebSocket service');
 assert.strictEqual(service.min_machines_running, '1', 'Fly authority should keep one machine warm for live match hosting');
