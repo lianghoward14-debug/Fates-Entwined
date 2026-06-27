@@ -793,6 +793,7 @@
   function onlineCellActionPending(g){
     return !!(g && (
       g.placing ||
+      (clientResolvedGameplayEnabled() && g.selectedHandCard !== null && g.selectedHandCard !== undefined) ||
       g._consolidating ||
       g._serverPendingReaction ||
       g._havanoDeploying ||
@@ -1168,7 +1169,7 @@
     if(actionType === 'CLICK_CELL'){
       return toAuthorityIntent(actionType, payload || null, gameState()) === 'PLACE_CARD';
     }
-    return /^(END_TURN|CHOOSE_TURN)$/i.test(actionType);
+    return /^(END_TURN|CHOOSE_TURN|BOARD_ACTION|HAND_ACTION)$/i.test(actionType);
   }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
@@ -1270,7 +1271,7 @@
         }
       }
       Promise.resolve(sendAfterLocalApply()).finally(()=>{ if(finishLocalCommit) finishLocalCommit(); });
-      scheduleClientResolvedAutoCommit('post-local-' + String(type || '').toLowerCase(), 700);
+      scheduleClientResolvedAutoCommit('post-local-' + String(type || '').toLowerCase(), clientResolvedCommit ? 90 : 700);
       scheduleFollowupStateSync(1250);
       return localResult;
     }
@@ -1317,8 +1318,6 @@
         localPending:clientResolvedLocalCommitPending,
         commitInFlight:clientResolvedCommitInFlight
       });
-      if(window.toast) toast('Finishing previous action.');
-      return false;
     }
     if(g._onlineLagPauseActive){
       if(clientResolvedGameplayEnabled()){
@@ -4020,7 +4019,11 @@
   }
 
   async function sendClientResolvedAutoCommit(reason){
-    if(!clientResolvedGameplayEnabled() || clientResolvedCommitInFlight > 0) return false;
+    if(!clientResolvedGameplayEnabled()) return false;
+    if(clientResolvedCommitInFlight > 0){
+      scheduleClientResolvedAutoCommit(reason || 'commit-in-flight-retry', 70);
+      return false;
+    }
     const g = gameState();
     if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
     if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)) return false;
@@ -5377,7 +5380,7 @@
 
     if(!window.__fateClientResolvedAutoCommitListenersInstalled){
       window.__fateClientResolvedAutoCommitListenersInstalled = true;
-      const watchLocalMutation = reason=>setTimeout(()=>scheduleClientResolvedAutoCommit(reason, 180), 0);
+      const watchLocalMutation = reason=>setTimeout(()=>scheduleClientResolvedAutoCommit(reason, 60), 0);
       try{
         document.addEventListener('pointerup', ()=>watchLocalMutation('pointerup'), true);
         document.addEventListener('keyup', ()=>watchLocalMutation('keyup'), true);
