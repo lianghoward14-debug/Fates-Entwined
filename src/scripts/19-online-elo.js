@@ -9,6 +9,7 @@
   let sharedAISimulationTimer = null;
   let sharedAISyncTimer = null;
   let flyLeaderboardFetchInFlight = null;
+  let flyLeaderboardFetchedAt = 0;
   let flyRosterSeedInFlight = null;
   let flyRosterSeededAt = 0;
   const ONLINE_LEADERBOARD_LIMIT = 100;
@@ -69,6 +70,7 @@
   }
   async function fetchFlyLeaderboard(){
     if(!flyLeaderboardEnabled()) return leaderboard;
+    if(flyLeaderboardFetchedAt && Date.now() - flyLeaderboardFetchedAt < 30000) return leaderboard;
     if(flyLeaderboardFetchInFlight) return flyLeaderboardFetchInFlight;
     flyLeaderboardFetchInFlight = flyApiRequest(`/api/leaderboards/challenger?limit=${ONLINE_LEADERBOARD_LIMIT}`)
       .then(data=>{
@@ -104,6 +106,7 @@
           };
         });
         leaderboard = next;
+        flyLeaderboardFetchedAt = Date.now();
         window.FATE_ONLINE_LEADERBOARD = leaderboard;
         try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
         return leaderboard;

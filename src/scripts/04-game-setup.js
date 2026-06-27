@@ -642,6 +642,7 @@ function applyStoredAIEloState(ai) {
   if(!ai || !ai.name) return ai;
   const state = loadAIEloState();
   const rec = state[getAIRecordKey(ai)];
+  if(ai.isMonthly && rec && Number(rec.generationVersion) !== Number(MONTHLY_AI_GENERATION_VERSION)) return ai;
   if(rec && Number.isFinite(Number(rec.elo))) {
     const storedElo = Math.max(100, Math.round(Number(rec.elo)));
     const seededElo = Math.max(100, Math.round(Number(ai.elo) || 600));
@@ -670,6 +671,7 @@ function persistAIEloState(ai) {
   state[getAIRecordKey(ai)] = {
     elo: Math.max(100, Math.round(Number(ai.elo) || 600)),
     trueElo: Math.max(100, Math.round(Number(ai.trueElo) || Number(ai.elo) || 600)),
+    generationVersion: ai.isMonthly ? MONTHLY_AI_GENERATION_VERSION : undefined,
     updatedAt: Date.now()
   };
   saveAIEloState(state);
@@ -898,18 +900,18 @@ const RANDOM_AI_PERSONALITIES = [
 ];
 const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
-const MONTHLY_AI_GENERATION_VERSION = 2;
+const MONTHLY_AI_GENERATION_VERSION = 3;
 const MONTHLY_AI_SKILL_BANDS = [
-  {visible:640, trueBase:560, record:.27, matches:[14,24]},
-  {visible:735, trueBase:700, record:.34, matches:[16,28]},
-  {visible:860, trueBase:860, record:.42, matches:[18,32]},
-  {visible:990, trueBase:1010, record:.48, matches:[20,36]},
-  {visible:1125, trueBase:1170, record:.54, matches:[22,40]},
-  {visible:1260, trueBase:1330, record:.60, matches:[24,44]},
-  {visible:1405, trueBase:1500, record:.66, matches:[28,48]},
-  {visible:1535, trueBase:1645, record:.70, matches:[30,52]},
-  {visible:1685, trueBase:1810, record:.75, matches:[34,58]},
-  {visible:1830, trueBase:1990, record:.81, matches:[38,64]}
+  {visible:680, trueBase:680, record:.29, matches:[14,24]},
+  {visible:835, trueBase:835, record:.37, matches:[16,28]},
+  {visible:950, trueBase:950, record:.43, matches:[18,32]},
+  {visible:1075, trueBase:1075, record:.49, matches:[20,36]},
+  {visible:1165, trueBase:1165, record:.53, matches:[22,38]},
+  {visible:1265, trueBase:1265, record:.58, matches:[24,42]},
+  {visible:1365, trueBase:1365, record:.63, matches:[26,46]},
+  {visible:1495, trueBase:1495, record:.68, matches:[28,50]},
+  {visible:1645, trueBase:1645, record:.73, matches:[32,56]},
+  {visible:1815, trueBase:1815, record:.80, matches:[36,64]}
 ];
 
 function getMonthKey() {

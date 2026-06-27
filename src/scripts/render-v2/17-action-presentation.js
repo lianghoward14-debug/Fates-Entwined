@@ -73,6 +73,20 @@
     }
   }
 
+  function normalSetCardMotionEnabled(){
+    if(window.FATE_ENABLE_NORMAL_SET_ANIMATION === true) return true;
+    try { return localStorage.getItem('fateEnableNormalSetAnimation') === '1'; } catch(e) {}
+    return false;
+  }
+
+  window.setFateNormalSetAnimationEnabled = function(enabled){
+    window.FATE_ENABLE_NORMAL_SET_ANIMATION = !!enabled;
+    try {
+      if(enabled) localStorage.setItem('fateEnableNormalSetAnimation', '1');
+      else localStorage.removeItem('fateEnableNormalSetAnimation');
+    } catch(e) {}
+  };
+
   function animationStateSummary(){
     let enhancedVisualFx = null;
     let disableMatchActionMotion = null;
@@ -1064,6 +1078,7 @@
 
   function beginSetCard(options){
     const opts = options || {};
+    if(!normalSetCardMotionEnabled()) return false;
     if(active) return false;
     if(typeof opts.commit !== 'function') return false;
     const tx = createTransaction('set-card', {

@@ -15,8 +15,8 @@
   let shareDeckPage = 0;
   let marketplaceLoaded = false;
   let publicDecksLoaded = false;
-  const MARKETPLACE_FEED_LIMIT = 160;
-  const PUBLIC_DECK_FEED_LIMIT = 60;
+  const MARKETPLACE_FEED_LIMIT = 80;
+  const PUBLIC_DECK_FEED_LIMIT = 40;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function user(){ return window.FATE_ONLINE?.user || null; }

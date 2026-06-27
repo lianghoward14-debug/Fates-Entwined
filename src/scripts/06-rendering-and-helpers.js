@@ -4902,7 +4902,10 @@ function showBoardTargetPicker(opts, onConfirm) {
     const hasExtraRows = totalRows > 3;
     let hasExtraCells = false;
     if(hasExtraRows) panel.classList.add('has-extra-rows');
-    for(let r = 0; r < totalRows; r++) {
+    const baseDisplayRows = viewerP === 1 ? [2, 1, 0] : [0, 1, 2];
+    const displayRows = baseDisplayRows.filter(function(row){ return row < totalRows; });
+    for(let row = 3; row < totalRows; row++) displayRows.push(row);
+    displayRows.forEach(function(r) {
       const rowEl = document.createElement('div');
       rowEl.className = 'board-target-row';
 
@@ -4970,7 +4973,7 @@ function showBoardTargetPicker(opts, onConfirm) {
       }
       rowEl.appendChild(cells);
       panel.appendChild(rowEl);
-    }
+    });
     if(hasExtraCells) panel.classList.add('has-extra-cells');
     if(!hasExtraRows && !hasExtraCells) panel.classList.add('no-extra-board-space');
     zonesEl.appendChild(panel);
@@ -5014,6 +5017,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     viewerPlayerIndex: viewerP,
     zones: [z],
     entries: pickerEntries,
+    showOpponentOverlay: true,
     emptyMessage: 'No valid targets in this zone'
   }, function(chosen){
     onConfirm(chosen);
@@ -5150,10 +5154,27 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const totalPages = Math.ceil(cards.length / CARDS_PER_PAGE);
   const positionEntries = Array.isArray(opts.positionEntries) ? opts.positionEntries : null;
 
+  function getPickerCardOwner(index) {
+    const entry = positionEntries && positionEntries[index];
+    const card = cards[index];
+    if(Number.isInteger(Number(entry && entry.owner))) return Number(entry.owner);
+    if(Number.isInteger(Number(card && card.owner))) return Number(card.owner);
+    return null;
+  }
+
+  function pickerCardIsOpponent(index) {
+    const owner = getPickerCardOwner(index);
+    const viewer = typeof viewerP === 'number' ? viewerP : getPerspectivePlayerIndex();
+    return owner === 1 - viewer;
+  }
+
   function getPickerRowLabel(entry) {
     if(!entry || typeof entry.r !== 'number') return '';
     if(entry.r === 1) return 'Contested';
     const viewer = typeof viewerP === 'number' ? viewerP : getPerspectivePlayerIndex();
+    const owner = Number.isInteger(Number(entry.owner)) ? Number(entry.owner) : null;
+    if(owner === viewer) return 'Your side';
+    if(owner === 1 - viewer) return 'Opponent side';
     if(entry.r === 0) return viewer === 1 ? 'Your side' : 'Opponent side';
     if(entry.r === 2) return viewer === 0 ? 'Your side' : 'Opponent side';
     return 'Extra row';
@@ -5324,6 +5345,15 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.textAlign = 'center';
         pickerCtx.textBaseline = 'middle';
         pickerCtx.fillText(getAffIcon(visual.aff), x + cardW/2, y + cardH/2);
+      }
+      if(pickerCardIsOpponent(i)) {
+        pickerCtx.fillStyle = 'rgba(180,18,32,.28)';
+        pickerCtx.fillRect(x, y, cardW, cardH);
+        const grad = pickerCtx.createLinearGradient(x, y, x, y + cardH);
+        grad.addColorStop(0, 'rgba(255,80,92,.22)');
+        grad.addColorStop(1, 'rgba(92,0,18,.34)');
+        pickerCtx.fillStyle = grad;
+        pickerCtx.fillRect(x, y, cardW, cardH);
       }
       pickerCtx.restore();
       pickerCtx.lineWidth = selected.includes(i) ? 4 : 1.5;

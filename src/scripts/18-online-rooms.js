@@ -1,4 +1,4 @@
-﻿// FATES ENTWINED ONLINE ROOMS V1.3
+// FATES ENTWINED ONLINE ROOMS V1.3
 // Fly authority room transport, with RTDB room-code fallback only when enabled.
 (function(){
   const FO = window.FateOnline || {};
@@ -989,7 +989,7 @@
     authorityLastRejectedResyncReason = String(reason || 'rejected action');
     try{
       const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
-      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=500&includeState=1`);
+      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=120&includeState=1`);
       const room = normalizeFlyRoom(data.room);
       if(room.roomCode){
         lastLobbyRoom = room;
@@ -1966,7 +1966,7 @@
               if(snap.readyCount >= snap.total && snap.total >= 2) return done('both-ready', snap);
             }
           }catch(e){}
-          if(!settled) setTimeout(poll, 650);
+          if(!settled) setTimeout(poll, 1000);
         };
         poll();
         return;
@@ -2030,7 +2030,7 @@
               if(snap.readyCount >= snap.total && snap.total >= 2) return done('both-playable', snap);
             }
           }catch(e){}
-          if(!settled) setTimeout(poll, 650);
+          if(!settled) setTimeout(poll, 1000);
         };
         poll();
         return;
@@ -2834,7 +2834,7 @@
     return false;
   }
 
-  // ── Reconnection heartbeat ──────────────────────────────────────────
+  // -- Reconnection heartbeat ------------------------------------------
   // Firebase's onDisconnect fires on transient network blips.  Without a
   // reconnection listener the player stays marked disconnected forever,
   // causing a false "opponent left" even when both players are still here.
@@ -2932,7 +2932,7 @@
   }
 
   async function resumeFlyRoom(code, opts={}){
-    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=0&limit=500`);
+    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=0&limit=240&includeState=1`);
     const room = normalizeFlyRoom(data.room);
     if(!room.roomCode) throw new Error('Fly resume returned no room');
     const events = Array.isArray(data.events) ? data.events : [];
@@ -3179,7 +3179,7 @@
     let notFoundCount = 0;
     async function sendFlyHeartbeat(){
       const u = window.FATE_ONLINE?.user;
-      if(!u || Date.now() - lastHeartbeatAt < 5000) return;
+      if(!u || Date.now() - lastHeartbeatAt < 30000) return;
       lastHeartbeatAt = Date.now();
       await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/heartbeat`, {
         method:'POST',
@@ -3250,7 +3250,7 @@
           const watchingQueuedRoom = randomQueueState.active
             && String(randomQueueState.roomCode || '').toUpperCase() === String(code || '').toUpperCase();
           const startingOrFreshRoom = watchingQueuedRoom || isStartedRoomStatus(lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom.status : '');
-          timer = setTimeout(poll, startingOrFreshRoom ? 300 : 900);
+          timer = setTimeout(poll, startingOrFreshRoom ? 1000 : 2500);
         }
       }
     }
@@ -3482,7 +3482,7 @@
   async function fetchFlyStartAction(code){
     const cached = cachedFlyStartAction(code);
     if(cached) return cached;
-    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=300`, { timeoutMs:12000 });
+    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=80`, { timeoutMs:12000 });
     const events = Array.isArray(data?.events) ? data.events : [];
     const matchStart = events.find(item=>String(item?.action?.type || '').toUpperCase() === 'MATCH_START');
     return rememberFlyStartAction(code, matchStart?.action) || null;
@@ -4193,11 +4193,22 @@
     if(configuredAuthorityUrl()){
       ensureAuthorityJoined(code).catch(e=>console.warn('Fly authority prejoin failed', e));
     }
+    function authoritySocketReady(){
+      return !!(configuredAuthorityUrl()
+        && typeof WebSocket !== 'undefined'
+        && authorityJoined
+        && authorityWs
+        && authorityWs.readyState === WebSocket.OPEN);
+    }
     async function poll(){
       if(stopped) return;
+      if(authoritySocketReady()){
+        timer = setTimeout(poll, 5000);
+        return;
+      }
       try{
         const after = Math.max(0, lastAppliedActionSeq || 0);
-        const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=300`);
+        const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=80`);
         const events = Array.isArray(data?.events) ? data.events : [];
         events.forEach(item=>{
           const action = item?.action || item?.accepted?.action || item;
@@ -4210,7 +4221,7 @@
           lastWarn = Date.now();
         }
       }finally{
-        if(!stopped) timer = setTimeout(poll, 650);
+        if(!stopped) timer = setTimeout(poll, (typeof document !== 'undefined' && document.hidden) ? 5000 : 1500);
       }
     }
     async function hashDriftCheck(){
@@ -4241,7 +4252,7 @@
         driftTimer = 0;
         await hashDriftCheck();
         scheduleHashDriftCheck();
-      }, 5000);
+      }, 15000);
     }
     actionUnsub = function(){
       stopped = true;
@@ -4260,7 +4271,7 @@
     try{
       const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
       const includeState = options.includeState === true;
-      const limit = Math.max(1, Math.min(500, Number(options.limit || 500) || 500));
+      const limit = Math.max(1, Math.min(240, Number(options.limit || 120) || 120));
       const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=${limit}${includeState ? '&includeState=1' : ''}`);
       const room = normalizeFlyRoom(data.room);
       if(room.roomCode){

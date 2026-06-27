@@ -33,12 +33,15 @@ const REQUIRE_DURABLE_WRITES = process.env.FATE_WS_REQUIRE_DURABLE_WRITES === '1
 const PERSIST_RESULT_LEDGER = process.env.FATE_WS_PERSIST_RESULT_LEDGER !== '0';
 const MAX_MESSAGE_BYTES = 512 * 1024;
 const MAX_HTTP_BODY_BYTES = 1024 * 1024;
-const MAX_ROOM_EVENTS = Number(process.env.FATE_WS_MAX_ROOM_EVENTS || 1200);
+const MAX_ROOM_EVENTS = Number(process.env.FATE_WS_MAX_ROOM_EVENTS || 360);
 const ROOM_IDLE_MS = Number(process.env.FATE_WS_ROOM_IDLE_MS || 1000 * 60 * 90);
-const PING_MS = Number(process.env.FATE_WS_PING_MS || 25000);
+const PING_MS = Number(process.env.FATE_WS_PING_MS || 45000);
 const DISCONNECT_TIMEOUT_MS = Number(process.env.FATE_WS_DISCONNECT_TIMEOUT_MS || 30000);
 const REACTION_TIMEOUT_MS = Number(process.env.FATE_WS_REACTION_TIMEOUT_MS || 16000);
 const SHUTDOWN_GRACE_MS = Number(process.env.FATE_WS_SHUTDOWN_GRACE_MS || 4500);
+const FLY_PERSIST_DEBOUNCE_MS = Math.max(50, Number(process.env.FATE_WS_PERSIST_DEBOUNCE_MS || 750) || 750);
+const APPEND_FLY_EVENT_LOG = process.env.FATE_WS_APPEND_EVENT_LOG === '1';
+const LOAD_FLY_EVENT_LOG = process.env.FATE_WS_LOAD_EVENT_LOG === '1' || APPEND_FLY_EVENT_LOG;
 const FLY_DATA_DIR = String(process.env.FATE_WS_DATA_DIR || '').trim();
 const FLY_STORE_ENABLED = process.env.FATE_WS_FLY_STORE !== '0' && !!FLY_DATA_DIR;
 const REQUIRE_FLY_STORE = process.env.FATE_WS_REQUIRE_FLY_STORE === '1';
@@ -237,23 +240,23 @@ function flyRoomsSnapshotPayload(){
     rooms:[...rooms.values()].map(roomToDurable).filter(Boolean),
     matchmaking:[...matchmaking.values()].map(publicMatchmakingEntry).filter(Boolean),
     playerStats:[...flyPlayerStats.values()].filter(Boolean),
-    matchResults:[...flyMatchResults.values()].filter(Boolean).slice(-5000),
+    matchResults:[...flyMatchResults.values()].filter(Boolean).slice(-1500),
     aiRecords:[...flyAIRecords.values()].map(publicFlyAIRecord).filter(Boolean).slice(0, 80),
     aiSimSchedule:Object.assign({}, flyAISimSchedule || {}),
     parties:[...flyParties.values()].map(publicFlyParty).filter(Boolean),
     partyInvites:[...flyPartyInvites.values()].map(publicFlyPartyInvite).filter(Boolean),
     worldChatSeq:flyWorldChatSeq,
-    worldChat:flyWorldChat.map(publicFlyWorldChatMessage).filter(Boolean).slice(-500),
+    worldChat:flyWorldChat.map(publicFlyWorldChatMessage).filter(Boolean).slice(-200),
     marketplaceSeq:flyMarketplaceSeq,
-    marketplaceListings:[...flyMarketplaceListings.values()].map(publicFlyMarketplaceListing).filter(Boolean).slice(-1000),
+    marketplaceListings:[...flyMarketplaceListings.values()].map(publicFlyMarketplaceListing).filter(Boolean).slice(-500),
     publicDeckCommentSeq:flyPublicDeckCommentSeq,
-    publicDecks:[...flyPublicDecks.values()].map(publicFlyPublicDeck).filter(Boolean).slice(-1000),
+    publicDecks:[...flyPublicDecks.values()].map(publicFlyPublicDeck).filter(Boolean).slice(-500),
     playerSaves:[...flyPlayerSaves.values()].map(publicFlyPlayerSave).filter(Boolean),
     friends:[...flyFriends.entries()].map(([uid, friends])=>({uid, friends:[...friends]})),
     friendRequests:[...flyFriendRequests.values()].map(publicFlyFriendRequest).filter(Boolean),
     privateMessageSeq:flyPrivateMessageSeq,
     privateThreads:[...flyPrivateThreads.entries()].map(([uid, threads])=>({uid, threads:[...threads.values()].map(publicFlyPrivateThread).filter(Boolean)})),
-    privateMessages:[...flyPrivateMessages.entries()].map(([conversationKey, messages])=>({conversationKey, messages:messages.map(publicFlyPrivateMessage).filter(Boolean).slice(-200)}))
+    privateMessages:[...flyPrivateMessages.entries()].map(([conversationKey, messages])=>({conversationKey, messages:messages.map(publicFlyPrivateMessage).filter(Boolean).slice(-120)}))
   };
 }
 
@@ -291,12 +294,13 @@ function scheduleFlyRoomsSnapshotPersist(){
   flyRoomsPersistTimer = setTimeout(()=>{
     flyRoomsPersistTimer = 0;
     flushScheduledFlyRoomsSnapshot();
-  }, 25);
+  }, FLY_PERSIST_DEBOUNCE_MS);
   flyRoomsPersistTimer.unref?.();
   return true;
 }
 
 function appendFlyEvent(code, accepted){
+  if(!APPEND_FLY_EVENT_LOG) return false;
   if(!ensureFlyStore() || !accepted?.action) return false;
   const line = safeJson({schemaVersion:1, savedAt:now(), code, accepted}) + '\n';
   fs.appendFileSync(flyStorePath('events.jsonl'), line);
@@ -494,6 +498,7 @@ function applyAcceptedEventFromFlyLog(code, accepted){
 }
 
 function loadFlyEventsLog(){
+  if(!LOAD_FLY_EVENT_LOG) return 0;
   if(!ensureFlyStore()) return 0;
   const filePath = flyStorePath('events.jsonl');
   if(!fs.existsSync(filePath)) return 0;
@@ -577,10 +582,11 @@ function serveFile(res, filePath, downloadName){
       res.end('Not found\n');
       return;
     }
+    const isHtml = /\.html?$/i.test(filePath);
     const headers = {
       'content-type':contentTypeFor(filePath),
       'content-length':stat.size,
-      'cache-control':downloadName ? 'no-cache' : 'public, max-age=300'
+      'cache-control':downloadName || isHtml ? 'no-cache' : 'public, max-age=86400'
     };
     if(downloadName){
       headers['content-disposition'] = `attachment; filename="${downloadName}"`;
@@ -1168,12 +1174,12 @@ function appendFlyWorldChat(uid, text, profile){
     createdAt:now()
   });
   flyWorldChat.push(message);
-  if(flyWorldChat.length > 500) flyWorldChat.splice(0, flyWorldChat.length - 500);
+  if(flyWorldChat.length > 200) flyWorldChat.splice(0, flyWorldChat.length - 200);
   return message;
 }
 
 function listFlyWorldChat(limit = 100, after = 0){
-  const max = Math.min(100, Math.max(1, Number(limit || 100) || 100));
+  const max = Math.min(60, Math.max(1, Number(limit || 60) || 60));
   const minSeq = Math.max(0, Number(after || 0) || 0);
   return flyWorldChat
     .map(publicFlyWorldChatMessage)
@@ -1291,7 +1297,7 @@ function redeemFlyMarketplace(uid){
 }
 
 function listFlyMarketplace(limit = 160){
-  const max = Math.min(200, Math.max(1, Number(limit || 160) || 160));
+  const max = Math.min(120, Math.max(1, Number(limit || 80) || 80));
   const all = [...flyMarketplaceListings.values()]
     .map(publicFlyMarketplaceListing)
     .filter(Boolean)
@@ -1299,7 +1305,7 @@ function listFlyMarketplace(limit = 160){
     .slice(0, max);
   return {
     listings:all.filter(item=>item.status === 'active'),
-    transactions:all.filter(item=>item.status === 'sold').slice(0, 80)
+    transactions:all.filter(item=>item.status === 'sold').slice(0, 40)
   };
 }
 
@@ -1622,7 +1628,7 @@ function getThreadMap(uid){
 
 function listFlyPrivateMessages(uid, peerUid, limit = 80){
   const key = conversationKey(uid, peerUid);
-  const max = Math.min(100, Math.max(1, Number(limit || 80) || 80));
+  const max = Math.min(60, Math.max(1, Number(limit || 50) || 50));
   return (flyPrivateMessages.get(key) || []).map(publicFlyPrivateMessage).filter(Boolean).slice(-max);
 }
 
@@ -1644,7 +1650,7 @@ function appendFlyPrivateMessage(uid, peerUid, text, profile){
     createdAt:now()
   });
   const key = conversationKey(safeUid, safePeer);
-  const messages = (flyPrivateMessages.get(key) || []).concat(message).slice(-200);
+  const messages = (flyPrivateMessages.get(key) || []).concat(message).slice(-120);
   flyPrivateMessages.set(key, messages);
   getThreadMap(safeUid).set(safePeer, publicFlyPrivateThread({peerUid:safePeer, lastText:cleanText, lastAt:message.timestamp, unread:0}));
   const peerThread = getThreadMap(safePeer).get(safeUid) || {};
@@ -1722,7 +1728,7 @@ function publicRoom(room){
     resultLedger:room.resultLedger || null,
     eventCount:room.eventLog.length,
     chatSeq:Number(room.chatSeq || 0) || 0,
-    chat:publicChat(room, 80, 0),
+    chat:publicChat(room, 30, 0),
     spectatorCount:Object.keys(room.spectators || {}).length,
     spectators:Object.keys(room.spectators || {}).slice(0, 200).reduce((acc, uid)=>{
       acc[uid] = publicSpectator(room.spectators[uid]);
@@ -2279,7 +2285,7 @@ function heartbeatFlyRoom(room, uid){
   clearDisconnectTimer(room, uid);
   touch(room);
   const lastPersist = Number(room._lastHeartbeatPersistAt || 0) || 0;
-  if(now() - lastPersist > 30000){
+  if(now() - lastPersist > 120000){
     room._lastHeartbeatPersistAt = now();
     persistFlyRoomMutation();
   }
@@ -3559,7 +3565,7 @@ async function handleApiRequest(req, res, url){
       return true;
     }
     if(req.method === 'GET' && parts[1] === 'leaderboards' && parts[2] === 'challenger'){
-      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 100) || 100));
+      const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
       writeJson(res, 200, {
         ok:true,
         leaderboard:flyLeaderboard(limit)
@@ -3591,7 +3597,7 @@ async function handleApiRequest(req, res, url){
     if(parts[1] === 'marketplace'){
       if(req.method === 'GET' && parts[2] === 'listings'){
         await verifyFirebaseToken(bearerToken(req, {}));
-        const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 160) || 160));
+        const limit = Math.min(120, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
         writeJson(res, 200, Object.assign({ok:true}, listFlyMarketplace(limit)));
         return true;
       }
@@ -3633,7 +3639,7 @@ async function handleApiRequest(req, res, url){
     if(parts[1] === 'public-decks'){
       if(req.method === 'GET' && !parts[2]){
         await verifyFirebaseToken(bearerToken(req, {}));
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 60) || 60));
+        const limit = Math.min(80, Math.max(1, Number(url.searchParams.get('limit') || 40) || 40));
         writeJson(res, 200, {ok:true, decks:listFlyPublicDecks(limit)});
         return true;
       }
@@ -3735,7 +3741,7 @@ async function handleApiRequest(req, res, url){
         const uid = await verifyRequestUser(req, {uid:String(url.searchParams.get('uid') || '')});
         markFlyThreadRead(uid, peerUid);
         persistFlyRoomMutation();
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
+        const limit = Math.min(60, Math.max(1, Number(url.searchParams.get('limit') || 50) || 50));
         writeJson(res, 200, {ok:true, peerUid, messages:listFlyPrivateMessages(uid, peerUid, limit), state:flySocialStateFor(uid)});
         return true;
       }
@@ -3745,7 +3751,7 @@ async function handleApiRequest(req, res, url){
         if(body.profile) upsertFlyProfile(uid, body.profile);
         const message = appendFlyPrivateMessage(uid, peerUid, body.text, body.profile || body);
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, peerUid, message, messages:listFlyPrivateMessages(uid, peerUid, 80), state:flySocialStateFor(uid)});
+        writeJson(res, 200, {ok:true, peerUid, message, messages:listFlyPrivateMessages(uid, peerUid, 50), state:flySocialStateFor(uid)});
         return true;
       }
     }
@@ -3768,7 +3774,7 @@ async function handleApiRequest(req, res, url){
     if(parts[1] === 'world-chat'){
       if(req.method === 'GET'){
         await verifyFirebaseToken(bearerToken(req, {}));
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 100) || 100));
+        const limit = Math.min(60, Math.max(1, Number(url.searchParams.get('limit') || 40) || 40));
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
         writeJson(res, 200, {
           ok:true,
@@ -3786,7 +3792,7 @@ async function handleApiRequest(req, res, url){
           ok:true,
           chatSeq:flyWorldChatSeq,
           message,
-          messages:listFlyWorldChat(100, 0)
+          messages:listFlyWorldChat(40, 0)
         });
         return true;
       }
@@ -3951,7 +3957,7 @@ async function handleApiRequest(req, res, url){
       if(req.method === 'GET' && parts[3] === 'events'){
         await requireRoomViewerRequestUser(req, room);
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
-        const limit = Math.min(300, Math.max(1, Number(url.searchParams.get('limit') || 300) || 300));
+        const limit = Math.min(120, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
         const events = room.eventLog
           .filter(item=>Number(item?.action?.seq || 0) > after)
           .slice(0, limit);
@@ -3961,7 +3967,7 @@ async function handleApiRequest(req, res, url){
       if(req.method === 'GET' && parts[3] === 'chat'){
         await requireRoomViewerRequestUser(req, room);
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
+        const limit = Math.min(80, Math.max(1, Number(url.searchParams.get('limit') || 50) || 50));
         writeJson(res, 200, {ok:true, roomCode:room.code, chatSeq:Number(room.chatSeq || 0) || 0, messages:publicChat(room, limit, after)});
         return true;
       }
@@ -3975,7 +3981,7 @@ async function handleApiRequest(req, res, url){
       if(req.method === 'GET' && parts[3] === 'resume'){
         await requireRoomViewerRequestUser(req, room);
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
-        const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') || 500) || 500));
+        const limit = Math.min(MAX_ROOM_EVENTS, Math.max(1, Number(url.searchParams.get('limit') || 120) || 120));
         const includeState = url.searchParams.get('includeState') === '1' || url.searchParams.get('includeState') === 'true';
         const events = room.eventLog
           .filter(item=>Number(item?.action?.seq || 0) > after)

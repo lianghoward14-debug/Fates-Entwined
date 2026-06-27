@@ -353,6 +353,7 @@
             hasCard:!!cell.card,
             blocked:cell.blocked || null,
             markSafe:!!cell.markSafe,
+            markSafeChoice:!!cell.markSafeChoice,
             extra:!!cell.extra,
             card:cell.card || null
           };

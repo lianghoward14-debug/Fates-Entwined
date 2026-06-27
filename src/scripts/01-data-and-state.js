@@ -231,7 +231,7 @@ const CARDS = [
     flavor:'"A divine being, whose golden hair is said to harbor entire galaxies"',img:'55.png'},
   {id:'56',name:'Lydia',ability:'Berknomaly!?@#',type:'Improvisor',aff:'expanded_worlds',
     fate:7,cost:2,rarity:'star',
-    effect:'Whenever your opponent would activate the effect of a Supporter, you can negate or suppress the effect permanently (5 uses).',
+    effect:'Whenever your opponent activates a card effect, you can negate that activation (5 uses). If the negated effect began when that card was set, its while-on-field effects are also suppressed.',
     flavor:'"How is life with a floating magical sword following me everywhere I go? Not really that bad actually..."',img:'56.png'},
   {id:'57',name:'Jeremiah Jones',ability:'ALPINE, The Future',type:'Coordinator',aff:'expanded_worlds',
     fate:3,cost:3,rarity:'square',

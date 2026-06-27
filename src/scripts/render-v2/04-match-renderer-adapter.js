@@ -1293,7 +1293,7 @@
       if(Number(sel.player) !== Number(G.currentPlayer)) return false;
       if(typeof sel.zone === 'number' && z !== Number(sel.zone)) return false;
       const expectedRow = typeof getNextExtraRowIndex === 'function' ? getNextExtraRowIndex(z) : 3;
-      return r === expectedRow && !cell.markSafe;
+      return (cell && cell.markSafeChoice === true) || (r === expectedRow && !cell.markSafe);
     }
     if(G._havanoDeploying && squareMatchesOption(G._havanoDeploying.options, z, r, c)){
       return isOpenSquareTarget(z, r, c);

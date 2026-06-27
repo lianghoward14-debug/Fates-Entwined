@@ -32,6 +32,7 @@ function frenchFusiliersCopies(card, sourceId) {
 
 function cardActsAsPassive(card, sourceId) {
   if(!card) return false;
+  if(card._effectNegatedByReaction || card._lydiaSuppressed) return false;
   const wanted = String(sourceId);
   return String(card.id) === wanted || frenchFusiliersCopies(card, wanted);
 }
@@ -876,7 +877,12 @@ function cleanupGame() {
 
 function startTurnTimer() {
   stopTurnTimer();
-  _turnTimerRemaining = getTurnTimeLimit();
+  const limit = getTurnTimeLimit();
+  _turnTimerRemaining = limit;
+  if(G && G._onlineRoomCode && Number.isFinite(Number(G._turnStartedAt))) {
+    const elapsed = Math.max(0, Math.floor((Date.now() - Number(G._turnStartedAt)) / 1000));
+    _turnTimerRemaining = Math.max(1, Math.min(limit, limit - elapsed));
+  }
   _lastTurnWarnSecond = null;
   updateTimerDisplay();
   _turnTimerInterval = setInterval(()=>{
@@ -3012,17 +3018,17 @@ async function runWhenSetEffect(inst, z, r, c) {
     return;
   }
 
-  // Havano Citizen (79) also reacts to non-supporter when-set effects that target opponent cards.
-  // Lydia does not react to non-supporter effects.
+  // Havano reacts only when it is affected; Lydia can negate any fresh effect activation.
   const affectedByCharacterEffect = getCharacterEffectAffectedOwners(inst, z, r, c, cp, opp);
-  if(inst.type!=='Supporter' && affectedByCharacterEffect.includes(opp) && !G._suppressEffectPrompt){
-    const proceed = await checkReactions('targeting_effect', {
+  if(inst.type!=='Supporter' && !G._suppressEffectPrompt){
+    const proceed = await checkReactions('when_set_effect', {
       card:inst,
       z,
       r,
       c,
       sourceOwner:cp,
-      affectedOwners:affectedByCharacterEffect
+      affectedOwners:affectedByCharacterEffect,
+      fromSet:true
     });
     if(proceed) await _executeWhenSetSwitch(inst, z, r, c, cp, opp, id);
     return;
@@ -4023,9 +4029,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         card.usesLeft--;
         toast('Next card drawn gains 4 Fate! ('+(card.usesLeft)+' uses left)');
       } else toast('No uses remaining.'); break;
-    case '56': // Lydia: negate opponent effect (auto-reacts when new Supporters are set)
+    case '56': // Lydia: negate opponent effect activations (5 uses)
       if(card.usesLeft>0){
-        toast('Lydia is ready to negate an opponent Supporter effect ('+card.usesLeft+' uses remaining). This triggers automatically when your opponent sets a new Supporter.');
+        toast('Lydia is ready to negate an opponent effect activation ('+card.usesLeft+' uses remaining).');
       } else toast('No uses remaining.'); break;
     case '17': // Carolyn: block any open cell permanently
       {
@@ -5039,8 +5045,15 @@ function checkReactions(actionType, actionData) {
 
     var reactions = [];
 
-    // Lydia (56): negate opponent Supporter when-set effects
-    if(actionType === 'supporter_effect'){
+    function isLydiaReactionAction(type, data) {
+      if(!data || !data.card) return false;
+      if(data.lydiaEligible === false) return false;
+      if(data.card.owner !== cp && Number(data.sourceOwner) !== cp) return false;
+      return type === 'supporter_effect' || type === 'initiator_effect' || type === 'when_set_effect' || type === 'targeting_effect';
+    }
+
+    // Lydia (56): negate fresh opponent effect activations.
+    if(isLydiaReactionAction(actionType, actionData)){
       forEachBoardCard(function(card2, z2, r2, c2) {
         if(card2.id==='56' && (card2.usesLeft === null || card2.usesLeft === undefined)) card2.usesLeft = 5;
         if(card2.id==='56' && card2.owner===opp && card2.usesLeft > 0 && !card2.immuneFlag && !isFaceDownCard(card2)){
@@ -5342,7 +5355,10 @@ function executeReaction(reaction, actionData) {
   }
   if(reaction.type === 'lydia'){
     reaction.card.usesLeft--;
-    if(actionData.card && actionData.card.type === 'Supporter') actionData.card._lydiaSuppressed = true;
+    if(actionData.card) {
+      actionData.card._lydiaSuppressed = true;
+      actionData.card._effectNegatedByReaction = true;
+    }
     toast('Lydia negated '+(actionData.card ? actionData.card.name : 'effect')+'! ('+reaction.card.usesLeft+' uses left)');
     log(opp===0?'p1':'p2', 'Lydia negated '+(actionData.card ? actionData.card.name : 'effect'));
     playSfx('zoneBlock');

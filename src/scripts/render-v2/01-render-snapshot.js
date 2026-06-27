@@ -227,6 +227,7 @@
       const sourceZone = board[z] || [];
       const extraRows = Number(g.extraRows && g.extraRows[z]) || 0;
       const showMarkChoiceRow = !!(g._markSelecting && (typeof g._markSelecting.zone !== 'number' || g._markSelecting.zone === z));
+      const markChoiceRow = showMarkChoiceRow ? 3 + extraRows : -1;
       const totalRows = Math.max(sourceZone.length || 0, 3 + extraRows + (showMarkChoiceRow ? 1 : 0));
       const rows = [];
       for(let r = 0; r < totalRows; r++){
@@ -245,13 +246,14 @@
             extra:c >= 3,
             blocked:block ? {type:block.type || 'blocked', owner:block.owner} : null,
             markSafe:isMarkSafeSquare(g, z, r, c),
+            markSafeChoice:r === markChoiceRow,
             card:cardPublicState(card, viewer, {boardPos:{z,r,c}})
           });
         }
         rows.push({
           z,
           r,
-          owner:getExtraRowOwner(g, z, r),
+          owner:r === markChoiceRow && g._markSelecting ? Number(g._markSelecting.player) : getExtraRowOwner(g, z, r),
           fullExtraRow:isFullExtraRow(g, z, r),
           cells
         });

@@ -541,7 +541,7 @@
         refreshFlySocialState().catch(e=>console.warn('Fly social state failed', e));
         flySocialPollTimer = setInterval(()=>{
           if(!document.hidden && !window.__fatePageHidden) refreshFlySocialState().catch(()=>{});
-        }, 5000);
+        }, 30000);
       }
       scheduleRender();
       return;
@@ -1365,7 +1365,7 @@
         const socialOpen = document.getElementById('s-social')?.classList.contains('active');
         if(!force && !worldChatIsOpen() && !socialOpen) return;
         const after = worldInitialLoaded ? flyWorldChatLastSeq : 0;
-        const data = await flyApiRequest(`/api/world-chat?limit=100&after=${encodeURIComponent(after)}`).catch(e=>{
+        const data = await flyApiRequest(`/api/world-chat?limit=40&after=${encodeURIComponent(after)}`).catch(e=>{
           console.warn('Fly world chat refresh failed', e);
           return null;
         });
@@ -1385,7 +1385,7 @@
             photoURL:normalizePhotoValue(m.photoURL || m.profileImg) || null
           });
         });
-        const arr = [...byId.values()].filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
+        const arr = [...byId.values()].filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-60);
         flyWorldChatLastSeq = Math.max(Number(data.chatSeq || 0) || 0, ...arr.map(m=>Number(m.seq || 0) || 0), flyWorldChatLastSeq);
         if(!worldInitialLoaded){
           arr.forEach(m=>seenWorldIds.add(m.id || String(m.seq || '')));
@@ -1397,7 +1397,7 @@
       };
       refresh(true);
       if(!flyWorldChatPollTimer){
-        flyWorldChatPollTimer = setInterval(()=>refresh(false), 3500);
+        flyWorldChatPollTimer = setInterval(()=>refresh(false), 15000);
       }
       return;
     }
@@ -1501,7 +1501,7 @@
           text:String(m.text || '').slice(0, 240),
           timestamp:timestampOf(m),
           photoURL:normalizePhotoValue(m.photoURL || m.profileImg) || null
-        })).filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
+        })).filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-60);
         window.FATE_ONLINE_WORLD_CHAT = arr;
         flyWorldChatLastSeq = Math.max(Number(data.chatSeq || 0) || 0, ...arr.map(m=>Number(m.seq || 0) || 0), flyWorldChatLastSeq);
         scheduleWorldChatRender(true);
@@ -1634,7 +1634,7 @@
       dmPeerUid = peerUid;
       dmShellOpen = false;
       if(!profileMap.has(peerUid)) profileMap.set(peerUid, fallback(peerUid));
-      flyApiRequest(`/api/direct-messages/${encodeURIComponent(peerUid)}?uid=${encodeURIComponent(u.uid)}&limit=80`)
+      flyApiRequest(`/api/direct-messages/${encodeURIComponent(peerUid)}?uid=${encodeURIComponent(u.uid)}&limit=50`)
         .then(data=>{
           dmMessages = Array.isArray(data.messages) ? data.messages : [];
           if(data.state) applyFlySocialState(data.state);

@@ -263,7 +263,7 @@ const LEDGER_KEEPERS_SERVER_COPYABLE_WHEN_SET_IDS = new Set([
   '05','16','18','25','26','31','32','33','42','50','58','60','68','69','71','72','73','76','80'
 ]);
 const SERVER_DEFERRED_WHEN_SET_IDS = new Set([
-  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48',
+  '03','04','05','06','07','08','12','13','14','16','17','21','22','26','29','30','31','39','42','43','48',
   '50','51','52','54','58','60','61','62','66','68','69','75','77','80','90','94'
 ]);
 
@@ -275,6 +275,7 @@ function serverCopiedFrenchPassiveId(card){
 
 function serverCardActsAsPassive(card, sourceId, state){
   if(!card || isFaceDownServerCard(card) || isSupporterAuraSuppressed(card, state)) return false;
+  if(card._effectNegatedByReaction || card._lydiaSuppressed) return false;
   const wanted = String(sourceId || '');
   return String(card.id || '') === wanted || serverCopiedFrenchPassiveId(card) === wanted;
 }
@@ -836,6 +837,7 @@ function reduceChooseTurn(room, msg, options){
   }
   state.currentPlayer = payload.goFirst ? winner : (winner === 0 ? 1 : 0);
   state.turn = Number(state.turn || 1) || 1;
+  state._turnStartedAt = Date.now();
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -891,6 +893,7 @@ function reduceEndTurn(room, msg, options){
   tickServerWintertideForPlayer(state, Number(state.currentPlayer));
   applyPhilDrawPhaseGrowth(state, Number(state.currentPlayer));
   applyWineCountryGuerillaTurnTick(state, Number(state.currentPlayer));
+  state._turnStartedAt = Date.now();
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
   state.placing = false;
@@ -1178,6 +1181,12 @@ const SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS = new Set([
   '66','90'
 ]);
 
+const SERVER_REACTIONABLE_ANY_WHEN_SET_IDS = new Set([
+  ...SERVER_REACTIONABLE_SUPPORTER_WHEN_SET_IDS,
+  ...SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS,
+  '12','14','21','34','38','40','45','46','55','56','61','77','83','90'
+]);
+
 const SERVER_SUPPORTER_EFFECT_AFFECTS_OPPONENT_IDS = new Set([
   '16','26','31','50','53','61','62','71','72','73','75','76','77','80','91'
 ]);
@@ -1246,7 +1255,8 @@ function collectServerReactionOptions(state, sourceCard, sourceOwner, family, so
   const sourceType = String(sourceCard.type || '');
   const isSupporterWhenSet = String(family || '') === 'supporterWhenSet' && sourceType === 'Supporter';
   const isInitiatorWhenSet = String(family || '') === 'initiatorWhenSet' && sourceType === 'Initiator';
-  if(!isSupporterWhenSet && !isInitiatorWhenSet) return options;
+  const isAnyWhenSet = String(family || '') === 'whenSetEffect';
+  if(!isSupporterWhenSet && !isInitiatorWhenSet && !isAnyWhenSet) return options;
   for(let z = 0; z < 3; z += 1){
     const zone = state.board?.[z] || [];
     for(let r = 0; r < zone.length; r += 1){
@@ -1254,11 +1264,11 @@ function collectServerReactionOptions(state, sourceCard, sourceOwner, family, so
       for(let c = 0; c < row.length; c += 1){
         const card = row[c];
         if(!card || Number(card.owner) !== reactor || isFaceDownServerCard(card) || card.immuneFlag === true) continue;
-        if(isSupporterWhenSet && String(card.id || '') === '56'){
+        if(String(card.id || '') === '56'){
           if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 5;
           if(Number(card.usesLeft || 0) > 0) options.push(serverReactionOptionForBoardCard('lydia', card, z, r, c));
         }
-        if(String(card.id || '') === '67'){
+        if((isSupporterWhenSet || isInitiatorWhenSet) && String(card.id || '') === '67'){
           if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = card._seculesUsed ? 0 : 1;
           if(Number(card.usesLeft || 0) > 0) options.push(serverReactionOptionForBoardCard('secules', card, z, r, c));
         }
@@ -1276,6 +1286,7 @@ function armServerReactionWindowForWhenSet(state, inst, playerIndex, z, r, c){
   let kind = '';
   if(sourceType === 'Supporter' && SERVER_REACTIONABLE_SUPPORTER_WHEN_SET_IDS.has(id)) kind = 'supporterWhenSet';
   if(sourceType === 'Initiator' && SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS.has(id)) kind = 'initiatorWhenSet';
+  if(!kind && SERVER_REACTIONABLE_ANY_WHEN_SET_IDS.has(id)) kind = 'whenSetEffect';
   if(!kind) return false;
   if(isSupporterEffectSuppressedForState(state, inst)) return false;
   const options = collectServerReactionOptions(state, inst, playerIndex, kind, z);
@@ -5839,7 +5850,7 @@ function reduceReactionChoice(room, msg, options){
     source.card._effectNegatedByReaction = true;
   } else if(String(selected.option.kind || '') === 'lydia'){
     selected.card.usesLeft = Math.max(0, (Number(selected.card.usesLeft ?? 5) || 0) - 1);
-    if(String(source.card.type || '') === 'Supporter') source.card._lydiaSuppressed = true;
+    source.card._lydiaSuppressed = true;
     source.card._effectNegatedByReaction = true;
   } else if(String(selected.option.kind || '') === 'secules'){
     selected.card.usesLeft = 0;
