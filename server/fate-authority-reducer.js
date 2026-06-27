@@ -694,8 +694,118 @@ function stampServerPendingPromptIds(state){
   });
 }
 
+function pendingLegalTargets(pending){
+  const options = Array.isArray(pending?.legalTargets)
+    ? pending.legalTargets
+    : (Array.isArray(pending?.options)
+      ? pending.options
+      : (Array.isArray(pending?.allPossible) ? pending.allPossible : []));
+  return options
+    .map(item=>{
+      if(!item || typeof item !== 'object') return null;
+      const z = Number(item.z), r = Number(item.r), c = Number(item.c);
+      if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) return {z, r, c};
+      if(Number.isInteger(Number(item.zone))) return {z:Number(item.zone)};
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function pendingSourceCard(pending){
+  const source = pending?.sourceCard || pending?.source || pending?.card || null;
+  if(!source || typeof source !== 'object') return null;
+  const card = source.card && typeof source.card === 'object' ? source.card : source;
+  return {
+    id:card.id == null ? null : String(card.id),
+    iid:card.iid == null ? null : String(card.iid),
+    name:card.name == null ? '' : String(card.name)
+  };
+}
+
+function normalizedPendingInteraction(state){
+  if(!state || typeof state !== 'object') return null;
+  const pending = state._serverPendingReaction
+    ? {kind:'reaction', value:state._serverPendingReaction}
+    : (state._serverPendingModalAction
+      ? {kind:'modalAction', value:state._serverPendingModalAction}
+      : (state._serverPendingZonePick
+        ? {kind:'zonePick', value:state._serverPendingZonePick}
+        : (state._serverPendingMove
+          ? {kind:'move', value:state._serverPendingMove}
+          : (state._serverPendingCardPick
+            ? {kind:'cardPick', value:state._serverPendingCardPick}
+            : (state._consolidating ? {kind:'consolidation', value:state._consolidating} : null)))));
+  if(!pending) return null;
+  const value = pending.value || {};
+  return {
+    kind:String(value.kind || value.reason || pending.kind),
+    bucket:pending.kind,
+    playerIndex:Number.isInteger(Number(value.playerIndex)) ? Number(value.playerIndex) : (Number.isInteger(Number(state.currentPlayer)) ? Number(state.currentPlayer) : null),
+    promptId:String(value.promptId || ''),
+    message:String(value.message || value.prompt || value.reason || value.kind || pending.kind),
+    legalTargets:pendingLegalTargets(value),
+    sourceCard:pendingSourceCard(value),
+    min:Number.isFinite(Number(value.min ?? value.minCount)) ? Number(value.min ?? value.minCount) : null,
+    max:Number.isFinite(Number(value.max ?? value.maxCount)) ? Number(value.max ?? value.maxCount) : null
+  };
+}
+
+function refreshPendingInteraction(state){
+  if(!state || typeof state !== 'object') return;
+  state.pendingInteraction = normalizedPendingInteraction(state);
+}
+
+function toAuthorityIntent(type, payload, state){
+  const actionType = String(type || '').toUpperCase();
+  if(/^(PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|CHOOSE_TURN|END_TURN|FORFEIT|DISCONNECT_TIMEOUT|MATCH_RESULT|STATE_SYNC|EFFECT_CINEMATIC|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|REACTION_CHOICE)$/i.test(actionType)){
+    return actionType;
+  }
+  if(actionType === 'CLICK_CELL'){
+    const pending = normalizedPendingInteraction(state);
+    const bucket = String(pending?.bucket || pending?.kind || '');
+    if(bucket === 'consolidation' || bucket === 'consolidate') return 'SELECT_CONSOLIDATION_TRIBUTE';
+    if(bucket === 'move' || bucket === 'pickMove') return 'SELECT_PENDING_MOVE_CELL';
+    if(payload?.placing || payload?.selectedHand || Number.isInteger(Number(payload?.handIndex)) || state?.placing) return 'PLACE_CARD';
+    return 'SELECT_BOARD_TARGET';
+  }
+  if(actionType === 'MODAL_ACTION') return 'RESOLVE_MODAL';
+  if(actionType === 'PICK_CARDS_VISUAL') return 'RESOLVE_CARD_PICK';
+  if(actionType === 'PICK_ZONE' || actionType === 'PICK_LANDSCAPE_ZONE') return 'RESOLVE_ZONE_PICK';
+  if(actionType === 'PICK_AFFILIATION') return 'RESOLVE_AFFILIATION_PICK';
+  return actionType;
+}
+
+function pendingInteractionMatchesIntent(type, pending){
+  const rawType = String(type || '').toUpperCase();
+  const bucket = String(pending?.bucket || pending?.kind || '');
+  let actionType = toAuthorityIntent(type, null, null);
+  if(rawType === 'CLICK_CELL'){
+    if(bucket === 'consolidation' || bucket === 'consolidate') actionType = 'SELECT_CONSOLIDATION_TRIBUTE';
+    else if(bucket === 'move' || bucket === 'pickMove') actionType = 'SELECT_PENDING_MOVE_CELL';
+    else actionType = 'PLACE_CARD';
+  }
+  if(!bucket) return true;
+  if(['FORFEIT', 'DISCONNECT_TIMEOUT'].includes(actionType)) return true;
+  if(bucket === 'reaction') return actionType === 'REACTION_CHOICE';
+  if(bucket === 'modalAction' || bucket === 'modal') return actionType === 'RESOLVE_MODAL' || actionType === 'RESOLVE_AFFILIATION_PICK';
+  if(bucket === 'zonePick' || bucket === 'pickZone') return actionType === 'RESOLVE_ZONE_PICK';
+  if(bucket === 'move' || bucket === 'pickMove') return actionType === 'SELECT_PENDING_MOVE_CELL';
+  if(bucket === 'cardPick' || bucket === 'pickCards') return actionType === 'RESOLVE_CARD_PICK';
+  if(bucket === 'consolidation' || bucket === 'consolidate') return actionType === 'SELECT_CONSOLIDATION_TRIBUTE';
+  return false;
+}
+
+function pendingInteractionBlockReason(type, pending){
+  if(!pending || pendingInteractionMatchesIntent(type, pending)) return '';
+  const kind = String(pending.kind || pending.bucket || 'unknown');
+  const promptId = String(pending.promptId || '');
+  const intent = toAuthorityIntent(type, null, null) || String(type || 'ACTION').toUpperCase();
+  return `${intent} blocked by pendingInteraction=${kind}${promptId ? ' promptId=' + promptId : ''}`;
+}
+
 function reducedResult(state, extra){
   stampServerPendingPromptIds(state);
+  refreshPendingInteraction(state);
   const canonicalState = cloneState(state);
   const canonicalHash = canonicalStateHash(canonicalState);
   return Object.assign({ok:true, canonicalState, canonicalHash, serverReduced:true}, extra || {});
@@ -720,6 +830,10 @@ function reduceChooseTurn(room, msg, options){
   }
   const winner = Number(payload.playerIndex);
   if(!Number.isInteger(winner) || winner < 0 || winner > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
+  const coinWinner = Number(state._coinWinner);
+  if(Number.isInteger(coinWinner) && coinWinner >= 0 && coinWinner <= 1 && winner !== coinWinner){
+    return {ok:false, reason:'CHOOSE_TURN player is not the coin winner'};
+  }
   state.currentPlayer = payload.goFirst ? winner : (winner === 0 ? 1 : 0);
   state.turn = Number(state.turn || 1) || 1;
   return reducedResult(state, {baseStateHash:base.baseStateHash});
@@ -744,6 +858,7 @@ function reduceEndTurn(room, msg, options){
     state.oppSuppressedNextTurn = false;
     state.suppressTarget = null;
   }
+  applyServerLandscapeLockTurnTick(state);
   state.currentPlayer = playerIndex === 0 ? 1 : 0;
   state.turn = Math.max(Number(state.turn || 0) + 1, Number(payload.turn || 0) + 1, 1);
   state.supportsPlacedThisTurn = 0;
@@ -768,6 +883,12 @@ function reduceEndTurn(room, msg, options){
       });
     });
   }
+  resetServerLandscapeSupporterEffectTurnCount(state, Number(state.currentPlayer));
+  tickServerRiveraBuffsForPlayer(state, Number(state.currentPlayer));
+  tickServerMailDeliveriesForPlayer(state, Number(state.currentPlayer));
+  tickServerBlameGameForPlayer(state, Number(state.currentPlayer));
+  tickServerCarpathianSpecters(state);
+  tickServerWintertideForPlayer(state, Number(state.currentPlayer));
   applyPhilDrawPhaseGrowth(state, Number(state.currentPlayer));
   applyWineCountryGuerillaTurnTick(state, Number(state.currentPlayer));
   state.selectedHandCard = null;
@@ -776,6 +897,106 @@ function reduceEndTurn(room, msg, options){
   state.blockingCell = false;
   state.pendingEffect = null;
   return reducedResult(state, {baseStateHash:base.baseStateHash});
+}
+
+function applyServerLandscapeLockTurnTick(state){
+  if(!Array.isArray(state?._landscapeChangeLocks)) return;
+  state._landscapeChangeLocks = state._landscapeChangeLocks.map(value=>Math.max(0, (Number(value) || 0) - 1));
+}
+
+function resetServerLandscapeSupporterEffectTurnCount(state, playerIndex){
+  if(playerIndex !== 0 && playerIndex !== 1) return;
+  const st = state?._landscapeState;
+  if(!st || typeof st !== 'object' || !Array.isArray(st.supporterEffectsThisTurn)) return;
+  st.supporterEffectsThisTurn[playerIndex] = 0;
+}
+
+function tickServerRiveraBuffsForPlayer(state, playerIndex){
+  if(playerIndex !== 0 && playerIndex !== 1) return;
+  const currentTurn = Number(state?.turn || 1) || 1;
+  const buffs = normalizeServerRiveraEffects(state);
+  let changed = false;
+  buffs.forEach(buff=>{
+    if(!buff || Number(buff.owner) !== playerIndex) return;
+    if(Number(buff.lastTickTurn || 0) === currentTurn) return;
+    buff.turnsLeft = Math.max(0, (Number(buff.turnsLeft || 0) || 0) - 1);
+    buff.lastTickTurn = currentTurn;
+    const source = findBoardCardByIid(state, buff.sourceIid);
+    if(source){
+      source._riveraBuffTurnsLeft = buff.turnsLeft;
+      source.riveraTurnsLeft = buff.turnsLeft;
+      source._riveraLastTickTurn = currentTurn;
+    }
+    changed = true;
+  });
+  if(changed){
+    state._riveraBuffs = buffs.filter(buff=>buff && Number(buff.turnsLeft || 0) > 0);
+    normalizeServerRiveraEffects(state);
+  }
+}
+
+function tickServerMailDeliveriesForPlayer(state, playerIndex){
+  if(playerIndex !== 0 && playerIndex !== 1 || !Array.isArray(state?._mailDeliveries)) return;
+  const player = state.players?.[playerIndex];
+  if(!player || !Array.isArray(player.hand)) return;
+  for(let i = state._mailDeliveries.length - 1; i >= 0; i -= 1){
+    const delivery = state._mailDeliveries[i];
+    if(!delivery || Number(delivery.player) !== playerIndex) continue;
+    delivery.turnsLeft = Math.max(0, (Number(delivery.turnsLeft || 0) || 0) - 1);
+    if(delivery.turnsLeft > 0) continue;
+    state._mailDeliveries.splice(i, 1);
+    const card = delivery.card ? cloneState(delivery.card) : null;
+    if(!card) continue;
+    card.owner = playerIndex;
+    applyWestCaribHandArrival(state, playerIndex, card);
+    player.hand.push(card);
+    applySelvaIslandsPirateHandArrival(state, playerIndex, card);
+  }
+}
+
+function tickServerBlameGameForPlayer(state, playerIndex){
+  if(playerIndex !== 0 && playerIndex !== 1 || !Array.isArray(state?._blameGameEffects)) return;
+  const effect = state._blameGameEffects[playerIndex];
+  if(!effect || !effect.active) return;
+  effect.turnsLeft = Math.max(0, (Number(effect.turnsLeft || 0) || 0) - 1);
+  if(effect.turnsLeft <= 0) effect.active = false;
+}
+
+function tickServerCarpathianSpecters(state){
+  if(!Array.isArray(state?.board)) return;
+  state.board.forEach(zone=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach(row=>{
+      if(!Array.isArray(row)) return;
+      row.forEach(card=>{
+        if(!card || String(card.id || '') !== '95' || isFaceDownServerCard(card)) return;
+        card._specterTurnsOnField = (Number(card._specterTurnsOnField || 0) || 0) + 1;
+        card._specterFateGains = Number(card._specterFateGains || 0) || 0;
+        if(card._specterTurnsOnField >= 2 && card._specterFateGains < 6){
+          card._specterTurnsOnField = 0;
+          card._specterFateGains += 1;
+          card.currentFate = Math.max(0, (Number(card.currentFate ?? card.fate ?? 0) || 0) + 1);
+        }
+      });
+    });
+  });
+}
+
+function tickServerWintertideForPlayer(state, playerIndex){
+  if(playerIndex !== 0 && playerIndex !== 1 || !isLandscapeActiveForState(state, 'igb15') || !Array.isArray(state?.board)) return;
+  const currentTurn = Number(state.turn || 0) || 0;
+  state.board.forEach(zone=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach(row=>{
+      if(!Array.isArray(row)) return;
+      row.forEach(card=>{
+        if(!card || String(card.id || '') !== '100' || Number(card.owner) !== playerIndex || isFaceDownServerCard(card)) return;
+        if(Number(card._wintertideLastTurn || 0) === currentTurn) return;
+        card.currentFate = Math.max(0, (Number(card.currentFate ?? card.fate ?? 0) || 0) + 1);
+        card._wintertideLastTurn = currentTurn;
+      });
+    });
+  });
 }
 
 function applyWineCountryGuerillaTurnTick(state, playerIndex){
@@ -5654,28 +5875,30 @@ function reduceServerAction(room, msg, opts){
   const options = opts || {};
   const mode = String(options.mode || 'lineage').toLowerCase();
   const type = String(msg.type || '').toUpperCase();
+  if(type === 'ACTION_RESULT') return reduceActionResult(room, msg, options);
+  const intent = toAuthorityIntent(type, msg?.payload || null, room?.canonicalState);
   if(mode === 'lineage') return validateProposedTransition(room, msg, options);
-  if(room?.canonicalState?._serverPendingReaction && !['REACTION_CHOICE','FORFEIT','DISCONNECT_TIMEOUT'].includes(type)){
-    return {ok:false, reason:'pending reaction must resolve before the next action'};
+  const pendingBlock = pendingInteractionBlockReason(type, normalizedPendingInteraction(room?.canonicalState));
+  if(pendingBlock){
+    return {ok:false, reason:pendingBlock};
   }
-  if(type === 'STATE_SYNC') return reduceStateSync(room, msg, options);
-  if(type === 'CHOOSE_TURN') return reduceChooseTurn(room, msg, options);
-  if(type === 'END_TURN') return reduceEndTurn(room, msg, options);
-  if(type === 'START_CONSOLIDATE') return reduceStartConsolidate(room, msg, options);
-  if(type === 'HAND_ACTION') return reduceHandAction(room, msg, options);
-  if(type === 'BOARD_ACTION') return reduceBoardAction(room, msg, options);
-  if(type === 'CLICK_CELL') return reduceBasicClickCell(room, msg, options);
-  if(type === 'MODAL_ACTION') return reduceModalAction(room, msg, options);
-  if(type === 'PICK_CARDS_VISUAL') return reducePickCardsVisualAction(room, msg, options);
-  if(type === 'PICK_AFFILIATION') return reducePickAffiliationAction(room, msg, options);
-  if(type === 'PICK_LANDSCAPE_ZONE') return reducePickLandscapeZoneAction(room, msg, options);
-  if(type === 'PICK_ZONE') return reducePickZoneAction(room, msg, options);
-  if(type === 'REACTION_CHOICE') return reduceReactionChoice(room, msg, options);
-  if(type === 'EFFECT_CINEMATIC') return reduceVisualOnly(room, msg, options);
-  if(type === 'FORFEIT') return reduceForfeit(room, msg, options);
-  if(type === 'DISCONNECT_TIMEOUT') return reduceDisconnectTimeout(room, msg, options);
-  if(type === 'MATCH_RESULT') return reduceMatchResult(room, msg, options);
-  if(mode === 'strict') return {ok:false, reason:`server reducer is not implemented for ${type}`};
+  if(intent === 'STATE_SYNC') return reduceStateSync(room, msg, options);
+  if(intent === 'CHOOSE_TURN') return reduceChooseTurn(room, msg, options);
+  if(intent === 'END_TURN') return reduceEndTurn(room, msg, options);
+  if(intent === 'START_CONSOLIDATE') return reduceStartConsolidate(room, msg, options);
+  if(intent === 'HAND_ACTION') return reduceHandAction(room, msg, options);
+  if(intent === 'BOARD_ACTION') return reduceBoardAction(room, msg, options);
+  if(intent === 'PLACE_CARD' || intent === 'SELECT_CONSOLIDATION_TRIBUTE' || intent === 'SELECT_PENDING_MOVE_CELL' || intent === 'SELECT_BOARD_TARGET') return reduceBasicClickCell(room, msg, options);
+  if(intent === 'RESOLVE_MODAL') return reduceModalAction(room, msg, options);
+  if(intent === 'RESOLVE_CARD_PICK') return reducePickCardsVisualAction(room, msg, options);
+  if(intent === 'RESOLVE_AFFILIATION_PICK') return reducePickAffiliationAction(room, msg, options);
+  if(intent === 'RESOLVE_ZONE_PICK') return room?.canonicalState?._serverPendingZonePick ? reducePickZoneAction(room, msg, options) : reducePickLandscapeZoneAction(room, msg, options);
+  if(intent === 'REACTION_CHOICE') return reduceReactionChoice(room, msg, options);
+  if(intent === 'EFFECT_CINEMATIC') return reduceVisualOnly(room, msg, options);
+  if(intent === 'FORFEIT') return reduceForfeit(room, msg, options);
+  if(intent === 'DISCONNECT_TIMEOUT') return reduceDisconnectTimeout(room, msg, options);
+  if(intent === 'MATCH_RESULT') return reduceMatchResult(room, msg, options);
+  if(mode === 'strict') return {ok:false, reason:`server reducer is not implemented for ${intent || type}`};
   return validateProposedTransition(room, msg, options);
 }
 

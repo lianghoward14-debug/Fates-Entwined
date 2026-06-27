@@ -30,6 +30,7 @@
   function getUser(){ try{ return (FO().requireUser ? FO().requireUser() : null); }catch(e){ return null; } }
   function pName(p){ return FO().profileName ? FO().profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
   function pPhoto(p){ return FO().profilePhoto ? FO().profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
+  function pCrop(p, fallback='center 22%'){ return FO().profilePhotoCropStyle ? FO().profilePhotoCropStyle(p, fallback) : `width:100%;height:100%;object-fit:cover;object-position:${fallback};`; }
   function localStorageFlag(name){
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
@@ -411,7 +412,7 @@
       return {
         name: pName(prof) || fallbackName || 'Player',
         img: pPhoto(prof),
-        crop: 'object-fit:cover;object-position:center 22%;',
+        crop: pCrop(prof),
         elo: Number(prof?.challengerElo || prof?.elo || 600) || 600,
         wins: Number(prof?.wins || prof?.challengerWins || 0) || 0,
         losses: Number(prof?.losses || prof?.challengerLosses || 0) || 0,
@@ -533,7 +534,7 @@
       return {
         name: pName(prof) || fallbackName || 'Player',
         img: pPhoto(prof),
-        crop: 'object-fit:cover;object-position:center 22%;',
+        crop: pCrop(prof),
         elo: Number(prof?.challengerElo || prof?.elo || 600) || 600,
         wins: Number(prof?.wins || prof?.challengerWins || 0) || 0,
         losses: Number(prof?.losses || prof?.challengerLosses || 0) || 0,

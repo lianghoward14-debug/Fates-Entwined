@@ -881,6 +881,22 @@ function checkDailyLoginOnStartup() {
       });
     }, Number.isFinite(delay) ? delay : 450);
   };
+  const startupLoadingActive = !!(
+    !window.__fateStartupLoadingFinished &&
+    (window.__fateStartupLoadingActive || document.getElementById('fate-loading-screen'))
+  );
+  if(startupLoadingActive) {
+    let startupSettled = false;
+    const onStartupFinished = function(){
+      if(startupSettled) return;
+      startupSettled = true;
+      window.removeEventListener('fate-startup-loading-finished', onStartupFinished);
+      checkDailyLoginOnStartup();
+    };
+    window.addEventListener('fate-startup-loading-finished', onStartupFinished, {once:true});
+    setTimeout(onStartupFinished, 6500);
+    return;
+  }
   const cloudPending = !!(window.__fateCloudLoadingActive || (window._fateCloudUid && !window._fateCloudReady));
   if(!cloudPending) {
     openPrompt(1700);

@@ -279,7 +279,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   try{ localStorage.removeItem('fate_layout_scale_mode'); }catch(e){}
 
   // ONE-TIME RESET: Bump version key to force reset on update
-  if(!localStorage.getItem('fate_reset_v9_playerdata_done')){
+  const isAuthorityRenderSmoke = /[?&]fateAuthorityRenderSmoke=1(?:&|$)/.test(location.search || '');
+  if(!isAuthorityRenderSmoke && !localStorage.getItem('fate_reset_v9_playerdata_done')){
     const keysToRemove = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);

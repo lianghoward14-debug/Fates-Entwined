@@ -720,8 +720,9 @@ function highlightValidCells(card) {
       if(card.contestedOnly && r!==1) continue;
       if(!G.board[z][r]) continue;
       const baseCols = 3;
-      const extraP1 = r<3?(G.extraCells[z][r].p1||0):0;
-      const extraP2 = r<3?(G.extraCells[z][r].p2||0):0;
+      const extraRow = r<3 ? (G.extraCells?.[z]?.[r] || null) : null;
+      const extraP1 = extraRow?(extraRow.p1||0):0;
+      const extraP2 = extraRow?(extraRow.p2||0):0;
       const totalCols = baseCols + (cp===0?extraP1:extraP2);
       for(let c=0;c<totalCols;c++) {
         if(r>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,c,cp)) continue;

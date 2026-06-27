@@ -126,6 +126,76 @@ function startGame(vsAI=false) {
   });
 }
 
+function startOnlineServerBootstrappedGame(options) {
+  const opts = options || {};
+  if(typeof cleanupLeavingGameScreenArtifacts === 'function') cleanupLeavingGameScreenArtifacts();
+  if(typeof G !== 'undefined' && G && G._bootInitPromise) G._bootInitPromise = null;
+  if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+  if(typeof playSfx==='function') playSfx('startGame');
+  G._tutorialTurnLimit = null;
+  G.maxTurns = 20;
+  if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') CURRENT_MODE = 'free';
+  const passOverlay = document.getElementById('pt-overlay');
+  if(passOverlay) passOverlay.classList.remove('on');
+  if(typeof stopAllMusic==='function') stopAllMusic();
+  if(typeof _lastGameSong !== 'undefined') _lastGameSong = opts.song || G._onlineGameSong || null;
+  if(!G.p1Deck.length) buildDefaultDecks();
+  G.players[0].name = USER_PROFILE.username || 'Player 1';
+  G.players[1].name = 'Player 2';
+  G.aiEnabled = false;
+  G.aiPlayer = 1;
+  initGameState();
+  if(typeof applyGameBackground === 'function'){
+    _lastGameSong = applyGameBackground(opts.song || G._onlineGameSong || null);
+  }
+  try{
+    if(typeof initInGameChat === 'function') initInGameChat();
+    const entryVeilStarted = showMatchEntryLoadingVeil();
+    recordMatchEntryStep('online-server-bootstrap-start');
+    if(typeof opts.applyServerState === 'function') opts.applyServerState();
+    const pendingOnlineTurnChoice = !!(G._onlineRoomCode && String(G.phase || '') !== 'main');
+    if(!pendingOnlineTurnChoice) G.phase = 'main';
+    G._turnInputLockUntil = 0;
+    G._aiRunning = false;
+    G._aiAbort = false;
+    G._aiAborted = false;
+    G._aiTurnToken = 0;
+    if(pendingOnlineTurnChoice){
+      showScreen('s-coin');
+      recordMatchEntryStep('online-server-bootstrap-coin-choice');
+      log('sys','Online match coin flip begins.');
+      hideMatchEntryLoadingVeil(entryVeilStarted);
+      setTimeout(()=>doCoinFlip(), 60);
+      if(typeof opts.afterEnter === 'function') opts.afterEnter();
+      return;
+    }
+    showScreen('s-game');
+    recordMatchEntryStep('online-server-bootstrap-game-active');
+    const currentName = G.players[G.currentPlayer]?.name || `Player ${Number(G.currentPlayer || 0) + 1}`;
+    log('sys','Online match begins! '+currentName+' goes first.');
+    const renderStarted = performance.now ? performance.now() : Date.now();
+    if(typeof renderGameImmediate === 'function') {
+      if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+        renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
+      } else {
+        renderGameImmediate();
+      }
+    } else renderGame();
+    recordMatchEntryStep('online-server-bootstrap-render-called', {
+      ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
+    });
+    if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
+    recordMatchEntryStep('online-server-bootstrap-topbar-ready');
+    hideMatchEntryLoadingVeil(entryVeilStarted);
+    startTurnTimer();
+    if(typeof opts.afterEnter === 'function') opts.afterEnter();
+  } catch(err) {
+    console.error('Online server bootstrap entry failed', err);
+    if(typeof opts.onError === 'function') opts.onError(err);
+  }
+}
+window.startOnlineServerBootstrappedGame = startOnlineServerBootstrappedGame;
+
 function isHowardDevMode() {
   return !!(window.__fateHowardDevMode || (typeof G !== 'undefined' && G && G._howardDevMode));
 }
@@ -394,6 +464,11 @@ function showPreGameMatchup(vsAI, onContinue) {
   const safeOnlinePic = p => (p && (p.img || p.photoURL || p.profileImg)) || 'blank.png';
   const safeOnlineLevel = p => Number(p && p.level || 1) || 1;
   const safeOnlineElo = p => Number(p && p.elo || p.challengerElo || 600) || 600;
+  const safeOnlineCrop = (p, fallback='center 22%') => {
+    const profile = Object.assign({}, p || {}, {profileImg:(p && (p.profileImg || p.photoURL || p.img || p.pfp)) || null});
+    if(window.FateOnline?.profilePhotoCropStyle) return window.FateOnline.profilePhotoCropStyle(profile, fallback);
+    return `width:100%;height:100%;object-fit:cover;object-position:${fallback};`;
+  };
   const displayP1Pic = onlineMatch ? safeOnlinePic(op0) : p1Pic;
   const displayP1Name = onlineMatch ? safeOnlineName(op0) : (USER_PROFILE.username || 'Player');
   const displayP1Level = onlineMatch ? safeOnlineLevel(op0) : USER_PROFILE.level;
@@ -401,6 +476,8 @@ function showPreGameMatchup(vsAI, onContinue) {
   const displayP2Pic = onlineMatch ? safeOnlinePic(op1) : aiPic;
   const displayP2Name = onlineMatch ? safeOnlineName(op1) : (vsAI ? (G._selectedAI ? G._selectedAI.name : `AI - ${diffNames[d] || 'Apprentice'}`) : 'Player 2');
   const displayP2Elo = onlineMatch ? safeOnlineElo(op1) : oppElo;
+  const displayP1CropStyle = onlineMatch ? safeOnlineCrop(op0, 'center 22%') : `width:100%;height:100%;${cropStyle}`;
+  const displayP2CropStyle = onlineMatch ? safeOnlineCrop(op1, 'center 22%') : 'width:100%;height:100%;object-fit:cover;object-position:center 25%;';
   const displayP1PicFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP1Elo,'icon') : myPicFrame;
   const displayP2PicFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP2Elo,'icon') : oppPicFrame;
   const displayP1PanelFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP1Elo,'panel') : myPanelFrame;
@@ -410,7 +487,7 @@ function showPreGameMatchup(vsAI, onContinue) {
     <div class="match-overview" style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;align-items:stretch;padding:1rem 0;">
       <div style="flex:1;min-width:260px;max-width:380px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;${boxStyle}${displayP1PanelFrame}">
         <div style="width:108px;height:108px;border-radius:16px;overflow:hidden;background:#0a0a0f;margin:0 auto .8rem;display:flex;align-items:center;justify-content:center;${displayP1PicFrame}">
-          ${displayP1Pic?`<img src="${displayP1Pic}" style="width:100%;height:100%;${cropStyle}" onerror="this.onerror=null;this.src='blank.png';">`:'<span style="font-size:2.8rem;color:var(--dim);">P</span>'}
+          ${displayP1Pic?`<img src="${displayP1Pic}" style="${displayP1CropStyle}" onerror="this.onerror=null;this.src='blank.png';">`:'<span style="font-size:2.8rem;color:var(--dim);">P</span>'}
         </div>
         <div style="font-family:Cinzel,serif;color:var(--p1);font-size:1.34rem;font-weight:700;margin-bottom:.4rem;min-height:2.4rem;display:flex;align-items:center;justify-content:center;line-height:1.15;">${escapeHtml(displayP1Name)}</div>
         <div style="margin:.5rem auto;">${renderRankBadge(displayP1Elo,'lg')}</div>
@@ -419,7 +496,7 @@ function showPreGameMatchup(vsAI, onContinue) {
       <div style="display:flex;align-items:center;font-family:Cinzel,serif;font-size:2.8rem;color:var(--gold);text-shadow:0 0 24px rgba(201,168,76,.6);">VS</div>
       <div style="flex:1;min-width:260px;max-width:380px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;${boxStyle}${displayP2PanelFrame}">
         <div style="width:108px;height:108px;border-radius:16px;overflow:hidden;background:#0a0a0f;margin:0 auto .8rem;display:flex;align-items:center;justify-content:center;${displayP2PicFrame}">
-          ${displayP2Pic?`<img src="${displayP2Pic}" style="width:100%;height:100%;object-fit:cover;object-position:center 25%;" onerror="this.onerror=null;this.src='blank.png';">`:(vsAI?'<span style="font-size:2rem;">AI</span>':'<span style="font-size:2.8rem;color:var(--dim);">P</span>')}
+          ${displayP2Pic?`<img src="${displayP2Pic}" style="${displayP2CropStyle}" onerror="this.onerror=null;this.src='blank.png';">`:(vsAI?'<span style="font-size:2rem;">AI</span>':'<span style="font-size:2.8rem;color:var(--dim);">P</span>')}
         </div>
         <div style="font-family:Cinzel,serif;color:var(--p2);font-size:1.34rem;font-weight:700;margin-bottom:.4rem;min-height:2.4rem;display:flex;align-items:center;justify-content:center;line-height:1.15;">${escapeHtml(displayP2Name)}</div>
         <div style="margin:.5rem auto;">${renderRankBadge(displayP2Elo,'lg')}</div>
@@ -1489,9 +1566,13 @@ function doCoinFlip() {
   btns.style.display='none';
   if(G && G._onlineRoomCode){
     const seed = String(G._onlineSeed || G._onlineRoomCode || 'online');
-    let h = 2166136261;
-    for(let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
-    const heads = ((h >>> 0) % 2) === 0;
+    const existingWinner = Number(G._coinWinner);
+    let heads = Number.isInteger(existingWinner) && existingWinner >= 0 && existingWinner <= 1 ? existingWinner === 0 : null;
+    if(heads === null){
+      let h = 2166136261;
+      for(let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+      heads = ((h >>> 0) % 2) === 0;
+    }
     setTimeout(()=>{
       coin.classList.add('spin');
       if(typeof playSfx === 'function') playSfx('coinFlip');

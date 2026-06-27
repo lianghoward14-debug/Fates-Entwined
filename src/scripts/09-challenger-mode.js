@@ -3492,6 +3492,18 @@ function syncAIOpponentLeaderboardEntries() {
 }
 
 let _leaderboardPage = 0;
+function getLeaderboardRecordWins(entry){
+  return Math.max(Number(entry?.wins || 0) || 0, Number(entry?.challengerWins || 0) || 0);
+}
+function getLeaderboardRecordLosses(entry){
+  return Math.max(Number(entry?.losses || 0) || 0, Number(entry?.challengerLosses || 0) || 0);
+}
+function getProfileCropStyleForEntry(entry, fallback='center 22%'){
+  if(entry && entry.username === USER_PROFILE?.username && typeof getProfileCropStyle === 'function') return getProfileCropStyle();
+  const profile = Object.assign({}, entry || {}, {profileImg:entry?.profileImg || entry?.photoURL || entry?.img || null});
+  if(window.FateOnline?.profilePhotoCropStyle) return window.FateOnline.profilePhotoCropStyle(profile, fallback);
+  return `width:100%;height:100%;object-fit:cover;object-position:${fallback};`;
+}
 function getMergedChallengerLeaderboardEntries() {
   updateLeaderboardEntry();
   syncAIOpponentLeaderboardEntries();
@@ -3532,14 +3544,19 @@ function getMergedChallengerLeaderboardEntries() {
     const key = entry.isAI ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
     if(!key) return;
     const local = merged.get(key) || {};
+    const wins = Math.max(getLeaderboardRecordWins(entry), getLeaderboardRecordWins(local));
+    const losses = Math.max(getLeaderboardRecordLosses(entry), getLeaderboardRecordLosses(local));
     merged.set(key, {
       ...local,
       uid:entry.uid || local.uid || key,
       username:entry.name || entry.username || local.username || 'Player',
       aiId:entry.aiId || local.aiId || '',
       elo:Number(entry.elo ?? local.elo ?? 600),
-      wins:Number(entry.wins ?? local.wins ?? 0),
-      losses:Number(entry.losses ?? local.losses ?? 0),
+      wins,
+      losses,
+      challengerWins:wins,
+      challengerLosses:losses,
+      matchesPlayed:Math.max(Number(entry.matchesPlayed || local.matchesPlayed || 0) || 0, wins + losses),
       profileImg:entry.photoURL || entry.profileImg || local.profileImg || 'blank.png',
       baseCode:entry.baseCode || local.baseCode || '',
       isAI:!!(entry.isAI || local.isAI),
@@ -3610,18 +3627,19 @@ showLeaderboard = function(page=0) {
       const isMe = entry.username===USER_PROFILE.username;
       const rankSym = overallIndex===0?'🥇':overallIndex===1?'🥈':overallIndex===2?'🥉':`#${overallIndex+1}`;
       const imgSrc = resolveProfileImgSrc(entry.profileImg || entry.photoURL, 'square') || (typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png');
+      const imgCrop = getProfileCropStyleForEntry(entry, 'center center');
       const frameColor = getFrameColor(entry);
       html += `<div class="lb-row" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;border:1px solid var(--border);border-radius:10px;margin-bottom:0;background:${isMe?'rgba(201,168,76,.08)':'rgba(0,0,0,.35)'};">
         <div style="width:52px;text-align:center;font-weight:700;flex-shrink:0;font-size:1.15rem;">${rankSym}</div>
         <div style="width:78px;height:78px;border-radius:10px;overflow:hidden;background:#0a0a0f;flex-shrink:0;display:flex;align-items:center;justify-content:center;${typeof getRankFrameStyle === 'function' ? getRankFrameStyle(entry.elo,'icon') : `border:2px solid ${frameColor};box-shadow:0 0 18px ${frameColor}33;`}">
-          ${imgSrc?`<img src="${imgSrc}" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center center;">`:'<span style="font-size:1.8rem;color:var(--dim);">P</span>'}
+          ${imgSrc?`<img src="${imgSrc}" decoding="async" loading="eager" fetchpriority="high" style="${imgCrop}">`:'<span style="font-size:1.8rem;color:var(--dim);">P</span>'}
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Cinzel',serif;font-size:1rem;color:${isMe?'var(--gold)':'var(--text)'};font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(entry.username)}${isMe?' <span style="color:var(--gold);font-size:.72rem;">(YOU)</span>':''}</div>
           <div style="margin-top:.35rem;">${renderRankBadge(entry.elo,'md')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;font-family:'Cinzel',serif;">
-          <div style="font-size:.86rem;color:var(--dim);margin-bottom:.2rem;">${entry.wins||0}W / ${entry.losses||0}L</div>
+          <div style="font-size:.86rem;color:var(--dim);margin-bottom:.2rem;">${getLeaderboardRecordWins(entry)}W / ${getLeaderboardRecordLosses(entry)}L</div>
           <div style="font-size:1.15rem;color:${getRank(entry.elo).color};font-weight:700;">${entry.elo}</div>
         </div>
       </div>`;
@@ -3656,14 +3674,6 @@ function clearMatchmakingTimers() {
   if(_matchmakingBgTimer){ clearInterval(_matchmakingBgTimer); _matchmakingBgTimer = null; }
   if(_matchmakingMatchTimeout){ clearTimeout(_matchmakingMatchTimeout); _matchmakingMatchTimeout = null; }
   if(_matchmakingAutoStartTimeout){ clearTimeout(_matchmakingAutoStartTimeout); _matchmakingAutoStartTimeout = null; }
-}
-
-function getFallbackMatchmakingAI(targetElo) {
-  const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
-  if(Array.isArray(aiList) && aiList.length){
-    return [...aiList].sort((a,b)=>Math.abs((a.elo||1000) - targetElo) - Math.abs((b.elo||1000) - targetElo))[0];
-  }
-  return {name:'Practice Opponent', elo:1000, deckPool:'starter'};
 }
 
 function chStartMatchmaking() {
@@ -3702,35 +3712,50 @@ function setMatchmakingStatus(text) {
   if(el) el.textContent = text || 'Ranked Matchmaking';
 }
 
-function hasOnlineQueueTransport() {
-  if(window.FateOnline?.rtdb) return true;
-  try {
-    const status = typeof window.fateGetWebSocketAuthorityStatus === 'function'
-      ? window.fateGetWebSocketAuthorityStatus()
-      : null;
-    return !!(status && status.flyRooms);
-  } catch(e) {
-    return false;
+function queueFunctionForMode(queueMode) {
+  return queueMode === 'freeplay' ? window.fateStartFreePlayRandomQueue : window.fateStartChallengerRandomQueue;
+}
+
+async function getOnlineQueueFunction(queueMode, timeoutMs=20000) {
+  if(typeof window.FateOnlineReady === 'function') {
+    await window.FateOnlineReady().catch(()=>{});
   }
+  const started = Date.now();
+  while(Date.now() - started < Math.max(1500, Number(timeoutMs) || 20000)) {
+    const queueFn = queueFunctionForMode(queueMode);
+    if(window.FATE_ONLINE?.user && typeof queueFn === 'function') return queueFn;
+    await new Promise(resolve=>setTimeout(resolve, 120));
+  }
+  throw new Error('Online queue did not become ready');
+}
+
+function startHumanMatchmakingQueue(queueMode, queueFn) {
+  const deckChoice = window.FATE_ONLINE_PENDING_ROOM_DECK || null;
+  return queueFn(deckChoice, {
+    onStatus(detail){
+      if(detail?.message) setMatchmakingStatus(detail.message);
+    }
+  }).catch(e=>{
+    console.error('Random online queue failed', e);
+    setMatchmakingStatus('Queue failed. Try again.');
+    if(window.toast) toast('Random queue failed');
+  });
 }
 
 function showMatchmakingScreen(opts={}) {
   clearMatchmakingTimers();
   showScreen('s-matchmaking');
   const queueMode = opts.queueMode || (CURRENT_MODE === 'free' ? 'freeplay' : 'ranked');
-  const queueFn = queueMode === 'freeplay' ? window.fateStartFreePlayRandomQueue : window.fateStartChallengerRandomQueue;
-  const useOnlineQueue = !!(opts.onlineQueue && window.FATE_ONLINE?.user && hasOnlineQueueTransport() && typeof queueFn === 'function');
-  setMatchmakingStatus(useOnlineQueue ? (queueMode === 'freeplay' ? 'Free Play Human Queue' : 'Random Human Queue') : (CURRENT_MODE === 'free' ? 'Free Play Matchmaking' : 'Ranked Matchmaking'));
+  const wantsOnlineQueue = !!opts.onlineQueue;
+  setMatchmakingStatus(queueMode === 'freeplay' ? 'Free Play Human Queue' : 'Random Human Queue');
   _matchmakingBgIdx = 1;
   updateMatchmakingBg();
-  // Rotate backgrounds every 10 seconds
   _matchmakingBgTimer = setInterval(()=>{
     _matchmakingBgIdx++;
     if(_matchmakingBgIdx > 8) _matchmakingBgIdx = 1;
     updateMatchmakingBg();
   }, 10000);
 
-  // Update timer display
   let elapsed = 0;
   const timerEl = document.getElementById('mm-timer');
   if(timerEl) timerEl.textContent = '0:00';
@@ -3738,30 +3763,26 @@ function showMatchmakingScreen(opts={}) {
     elapsed++;
     const m = Math.floor(elapsed / 60);
     const s = elapsed % 60;
-    if(timerEl) timerEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    if(timerEl) timerEl.textContent = m + ':' + s.toString().padStart(2,'0');
   }, 1000);
 
-  if(useOnlineQueue){
-    const deckChoice = window.FATE_ONLINE_PENDING_ROOM_DECK || null;
-    queueFn(deckChoice, {
-      onStatus(detail){
-        if(detail?.message) setMatchmakingStatus(detail.message);
-      }
+  if(wantsOnlineQueue){
+    getOnlineQueueFunction(queueMode).then(queueFn => {
+      startHumanMatchmakingQueue(queueMode, queueFn);
     }).catch(e=>{
-      console.error('Random online queue failed', e);
+      console.error('Online queue startup failed', e);
+      clearMatchmakingTimers();
       setMatchmakingStatus('Queue failed. Try again.');
       if(window.toast) toast('Random queue failed');
     });
     return;
   }
 
-  // Simulate finding a match after 8-15 seconds
-  const matchDelay = 8000 + Math.random() * 7000;
-  _matchmakingMatchTimeout = setTimeout(()=>{
-    clearMatchmakingTimers();
-    showMatchFoundNotification();
-  }, matchDelay);
+  clearMatchmakingTimers();
+  setMatchmakingStatus('Queue failed. Try again.');
+  if(window.toast) toast('Random queue failed');
 }
+
 
 function updateMatchmakingBg() {
   const bgImg = document.querySelector('#s-matchmaking .screen-bg img');
@@ -3773,41 +3794,6 @@ function updateMatchmakingBg() {
       bgImg.style.opacity = '.5';
     }, 500);
   }
-}
-
-function showMatchFoundNotification() {
-  const queueElo = CURRENT_MODE === 'challenger' ? (USER_PROFILE.challengerElo || 600) : (USER_PROFILE.elo || 600);
-  const fallbackAi = getFallbackMatchmakingAI(queueElo);
-  const fallbackElo = fallbackAi?.elo || 1000;
-  const fallbackImg = typeof getAIProfileImg === 'function' ? getAIProfileImg(fallbackAi, 'circle') : (fallbackAi?.img || fallbackAi?.profileImg || null);
-  const rewardCopy = CURRENT_MODE === 'challenger'
-    ? 'This fallback match will award the normal AI rewards.'
-    : 'This match will proceed as a normal AI match.';
-
-  showModal('No Human Players Online',
-    `<div style="text-align:center;">
-      <div style="width:74px;height:74px;border-radius:16px;overflow:hidden;background:#09090e;border:1.5px solid var(--gold);box-shadow:0 0 18px rgba(201,168,76,.25);margin:0 auto .65rem;display:flex;align-items:center;justify-content:center;">
-        ${fallbackImg?`<img src="${fallbackImg}" style="width:100%;height:100%;object-fit:cover;object-position:center 25%;">`:'<span style="font-family:Cinzel,serif;font-size:1.1rem;color:var(--gold);">AI</span>'}
-      </div>
-      <div style="font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);margin-bottom:.35rem;">Queue Fallback Activated</div>
-      <div style="font-size:.86rem;color:var(--dim);line-height:1.5;max-width:340px;margin:0 auto .7rem;">No human players are online right now, so an AI opponent will match with you instead.</div>
-      <div style="font-family:'Cinzel',serif;font-size:1rem;color:var(--text);margin-bottom:.2rem;">${escapeHtml(fallbackAi.name || 'Practice Opponent')}</div>
-      <div style="margin:.4rem auto;">${renderRankBadge(fallbackElo,'lg')}</div>
-      <div style="font-size:.85rem;color:var(--dim);">${fallbackElo} ELO</div>
-      <div style="font-size:.78rem;color:var(--dim);margin-top:.6rem;">${rewardCopy}</div>
-    </div>`,
-    []);
-
-  // Auto-proceed to the vs screen after 3 seconds
-  _matchmakingAutoStartTimeout = setTimeout(()=>{
-    closeModal();
-    clearMatchmakingTimers();
-    G.aiEnabled = true;
-    G.aiPlayer = 1;
-    G._aiRewardMultiplier = 1;
-    selectAIOpponent(fallbackAi, {skipFollowup:true});
-    startGame(true);
-  }, 3000);
 }
 
 function cancelMatchmaking() {
@@ -4344,6 +4330,17 @@ function switchSocialTab(tab) {
   renderSocialPage();
 }
 
+function isInternalOnlinePlayerProfile(player){
+  const p = player || {};
+  const uid = String(p.uid || p.id || '').toLowerCase();
+  const name = String(p.username || p.name || p.displayName || p.chosenUsername || '').toLowerCase();
+  const baseCode = String(p.baseCode || '').toLowerCase();
+  if(/(^|[-_])(smoke|codex|test|diagnostic|client-resolved|authority)([-_]|$)/.test(uid)) return true;
+  if(/^(fly\s+smoke|smoke\s+|codex\b|test\s+)/.test(name)) return true;
+  if(/\b(smoke|codex|test)\b/.test(name)) return true;
+  if(/(smoke|codex|test)/.test(baseCode)) return true;
+  return false;
+}
 function renderSocialPage() {
   const content = document.getElementById('social-content');
   if(!content) return;
@@ -4355,7 +4352,7 @@ function renderSocialPage() {
   SIMULATED_ONLINE_PLAYERS.forEach(p => {
     if(Math.random() < 0.1) p.status = p.status === 'online' ? 'in-game' : 'online';
   });
-  const onlinePlayers = SIMULATED_ONLINE_PLAYERS.filter(p => p.status !== 'offline');
+  const onlinePlayers = SIMULATED_ONLINE_PLAYERS.filter(p => p.status !== 'offline' && !isInternalOnlinePlayerProfile(p));
 
   // Sort friends: online first
   const sortedFriends = [...friends].sort((a,b) => {
@@ -4739,16 +4736,19 @@ function sendWorldChat() {
 }
 
 function runAISimulations() {
-  const NUM_SIMS = 20;
   let simCount = 0;
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
   if(aiList.length < 2){ toast('Need at least 2 AI opponents'); return; }
+  const shuffled = aiList.slice();
+  for(let i=shuffled.length-1; i>0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const NUM_SIMS = Math.floor(shuffled.length / 2);
   toast('Running '+NUM_SIMS+' AI simulations...');
   for(let s=0; s<NUM_SIMS; s++){
-    const i1 = Math.floor(Math.random()*aiList.length);
-    let i2 = Math.floor(Math.random()*aiList.length);
-    while(i2===i1) i2 = Math.floor(Math.random()*aiList.length);
-    const a1 = aiList[i1], a2 = aiList[i2];
+    const a1 = shuffled[s * 2], a2 = shuffled[s * 2 + 1];
+    if(!a1 || !a2) continue;
     const expected = 1 / (1 + Math.pow(10, (a2.elo - a1.elo) / 400));
     const a1Wins = Math.random() < expected;
     const winner = a1Wins ? a1.name : a2.name;
@@ -5515,13 +5515,14 @@ function showDivisionPage(page, memberPage) {
       const isMe = entry.username === USER_PROFILE.username;
       const imgSrc = (typeof resolveProfileImgSrc === 'function' ? resolveProfileImgSrc(entry.profileImg || entry.photoURL, 'square') : null)
         || (entry.profileImg ? (typeof entry.profileImg==='string'?entry.profileImg:(entry.profileImg.dataUrl||entry.profileImg.cardImg)) : null);
-      const wins = entry.wins || 0;
-      const losses = entry.losses || 0;
+      const imgCrop = getProfileCropStyleForEntry(entry, 'center 22%');
+      const wins = getLeaderboardRecordWins(entry);
+      const losses = getLeaderboardRecordLosses(entry);
       const wr = wins + losses > 0 ? Math.round(wins * 100 / (wins + losses)) : 0;
       html += `<div class="division-pro-row ${isMe?'is-me':''}" style="display:flex;align-items:center;gap:.8rem;padding:.7rem .9rem;border:1.5px solid ${isMe?'var(--gold)':'var(--border)'};border-radius:10px;background:${isMe?'rgba(201,168,76,.08)':'rgba(0,0,0,.3)'};">
         <div style="width:24px;text-align:center;font-family:Cinzel,serif;font-size:.75rem;color:var(--dim);flex-shrink:0;">#${rowRank}</div>
         <div style="width:52px;height:52px;border-radius:10px;overflow:hidden;background:#0a0a0f;flex-shrink:0;display:flex;align-items:center;justify-content:center;${typeof getRankFrameStyle==='function'?getRankFrameStyle(entry.elo,'icon'):'border:1.5px solid '+rank.color+';'}">
-          ${imgSrc?`<img src="${imgSrc}" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">`:(entry.isAI?'<span style="font-size:1.3rem;">AI</span>':'<span style="font-size:1.2rem;color:var(--dim);">P</span>')}
+          ${imgSrc?`<img src="${imgSrc}" decoding="async" loading="eager" fetchpriority="high" style="${imgCrop}">`:(entry.isAI?'<span style="font-size:1.3rem;">AI</span>':'<span style="font-size:1.2rem;color:var(--dim);">P</span>')}
         </div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">

@@ -1163,11 +1163,17 @@
 
   function hideInitialLoadingScreen(){
     const overlay = document.getElementById('fate-loading-screen');
-    if(!overlay) return;
+    if(!overlay) {
+      window.__fateStartupLoadingFinished = true;
+      try{ window.dispatchEvent(new CustomEvent('fate-startup-loading-finished')); }catch(e){}
+      return;
+    }
     if(window.__fateCloudLoadingActive){
       overlay.classList.add('fate-loading-assets-done');
       return;
     }
+    window.__fateStartupLoadingFinished = true;
+    try{ window.dispatchEvent(new CustomEvent('fate-startup-loading-finished')); }catch(e){}
     overlay.classList.add('is-hiding');
     setTimeout(()=>overlay.remove(), 280);
   }

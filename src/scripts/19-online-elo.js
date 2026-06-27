@@ -68,6 +68,8 @@
         (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
           const uid = entry?.uid || entry?.username || entry?.name;
           if(!uid) return;
+          const wins = recordWins(entry);
+          const losses = recordLosses(entry);
           next[uid] = {
             uid:entry.uid || uid,
             name:entry.name || entry.username || 'Player',
@@ -76,8 +78,18 @@
             photoURL:entry.photoURL || entry.profileImg || 'blank.png',
             profileImg:entry.profileImg || entry.photoURL || 'blank.png',
             elo:Number(entry.challengerElo ?? entry.elo ?? 600) || 600,
-            wins:Number(entry.challengerWins ?? entry.wins ?? 0) || 0,
-            losses:Number(entry.challengerLosses ?? entry.losses ?? 0) || 0,
+            wins,
+            losses,
+            challengerWins:wins,
+            challengerLosses:losses,
+            matchesPlayed:Math.max(Number(entry.matchesPlayed || 0) || 0, wins + losses),
+            aiId:entry.aiId || '',
+            trueElo:Number(entry.trueElo || 0) || 0,
+            isAI:!!entry.isAI,
+            isMonthly:!!entry.isMonthly,
+            monthKey:entry.monthKey || '',
+            seededWinRate:Number(entry.seededWinRate || 0) || 0,
+            generationVersion:Number(entry.generationVersion || 0) || 0,
             updatedAt:Number(entry.updatedAt || Date.now()) || Date.now(),
             isOnline:true,
             source:'fly-authority'
@@ -101,6 +113,12 @@
     return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`;
   }
   function currentDayKey(){ return new Date().toISOString().slice(0,10); }
+  function recordWins(entry){
+    return Math.max(Number(entry?.wins || 0) || 0, Number(entry?.challengerWins || 0) || 0);
+  }
+  function recordLosses(entry){
+    return Math.max(Number(entry?.losses || 0) || 0, Number(entry?.challengerLosses || 0) || 0);
+  }
   function hashInt(s){
     let h = 2166136261;
     const str = String(s || '');
@@ -149,7 +167,7 @@
       const id = aiIdFor(ai);
       const name = ai?.name || ai?.username || '';
       const entry = (leaderboardArray() || []).find(e=>e && (e.aiId === id || e.username === name || e.name === name));
-      return { wins:Number(entry?.wins || 0) || 0, losses:Number(entry?.losses || 0) || 0 };
+      return { wins:recordWins(entry), losses:recordLosses(entry) };
     }catch(e){ return {wins:0, losses:0}; }
   }
   function aiPhoto(ai){
@@ -159,8 +177,8 @@
   function aiEntry(ai, extra={}){
     const id = extra.aiId || aiIdFor(ai);
     const rec = localAIRecord(ai);
-    const wins = Number(extra.wins ?? ai?.wins ?? rec.wins) || 0;
-    const losses = Number(extra.losses ?? ai?.losses ?? rec.losses) || 0;
+    const wins = Math.max(Number(extra.wins ?? 0) || 0, Number(extra.challengerWins ?? 0) || 0, Number(ai?.wins ?? 0) || 0, Number(ai?.challengerWins ?? 0) || 0, rec.wins);
+    const losses = Math.max(Number(extra.losses ?? 0) || 0, Number(extra.challengerLosses ?? 0) || 0, Number(ai?.losses ?? 0) || 0, Number(ai?.challengerLosses ?? 0) || 0, rec.losses);
     return {
       uid:id,
       aiId:id,
@@ -172,6 +190,9 @@
       trueElo:Math.max(100, Math.round(Number(extra.trueElo ?? ai?.trueElo ?? ((Number(ai?.elo)||600)+200)) || 800)),
       wins,
       losses,
+      challengerWins:wins,
+      challengerLosses:losses,
+      matchesPlayed:Math.max(Number(extra.matchesPlayed ?? ai?.matchesPlayed ?? 0) || 0, wins + losses),
       seededWinRate:Number(extra.seededWinRate ?? ai?.seededWinRate) || 0,
       generationVersion:Number(extra.generationVersion ?? ai?.generationVersion) || 0,
       isAI:true,
@@ -201,8 +222,13 @@
     entry.name = name;
     entry.elo = Math.max(100, Math.round(Number(rec.elo || 600)));
     entry.trueElo = Math.max(100, Math.round(Number(rec.trueElo || entry.trueElo || entry.elo + 200)));
-    entry.wins = Number(rec.wins || 0) || 0;
-    entry.losses = Number(rec.losses || 0) || 0;
+    const wins = recordWins(rec);
+    const losses = recordLosses(rec);
+    entry.wins = wins;
+    entry.losses = losses;
+    entry.challengerWins = wins;
+    entry.challengerLosses = losses;
+    entry.matchesPlayed = Math.max(Number(rec.matchesPlayed || entry.matchesPlayed || 0) || 0, wins + losses);
     entry.seededWinRate = Number(rec.seededWinRate || 0) || 0;
     entry.generationVersion = Number(rec.generationVersion || 0) || 0;
     entry.profileImg = rec.photoURL || rec.profileImg || entry.profileImg || 'blank.png';
@@ -432,7 +458,27 @@
     return tx?.committed && val.lastClaim?.id === claimId ? Number(val.lastClaim.count || 0) || 0 : 0;
   }
   async function runSharedAISimulations(){
-    if(flyLeaderboardEnabled()) return 0;
+    if(flyLeaderboardEnabled()){
+      if(!user()) return 0;
+      await seedFlySharedAIRoster();
+      const localCount = localAIList().length;
+      const rosterCount = Array.isArray(window.FATE_SHARED_AI_ROSTER) && window.FATE_SHARED_AI_ROSTER.length ? window.FATE_SHARED_AI_ROSTER.length : localCount;
+      const pairCount = Math.max(1, Math.floor(rosterCount / 2));
+      const data = await flyApiRequest('/api/challenger-ai/simulate', {
+        method:'POST',
+        body:{uid:user().uid, monthKey:currentMonthKey(), count:pairCount}
+      }).catch(e=>{
+        console.warn('Fly shared AI simulation failed', e);
+        return null;
+      });
+      const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+      if(records.length){
+        window.FATE_SHARED_AI_ROSTER = records;
+        try{ if(typeof window.saveLeaderboard === 'function') window.saveLeaderboard(); }catch(e){}
+      }
+      await fetchFlyLeaderboard().catch(()=>{});
+      return Number(data?.ran || 0) || 0;
+    }
     const u=user(); if(!u || !firebaseLeaderboardAllowed()) return 0;
     await ensureSharedAIRoster();
     if(await hasActiveOnlineMatches()) return 0;
@@ -467,6 +513,12 @@
       a.losses = Number(a.losses || 0) + (aWins ? 0 : 1);
       b.wins = Number(b.wins || 0) + (aWins ? 0 : 1);
       b.losses = Number(b.losses || 0) + (aWins ? 1 : 0);
+      a.challengerWins = a.wins;
+      a.challengerLosses = a.losses;
+      b.challengerWins = b.wins;
+      b.challengerLosses = b.losses;
+      a.matchesPlayed = Math.max(Number(a.matchesPlayed || 0) || 0, a.wins + a.losses);
+      b.matchesPlayed = Math.max(Number(b.matchesPlayed || 0) || 0, b.wins + b.losses);
       a.updatedAt = FO.serverTimestamp();
       b.updatedAt = FO.serverTimestamp();
       byId.set(id1, a);

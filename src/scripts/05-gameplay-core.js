@@ -1082,8 +1082,9 @@ function getValidPlacementOptionsForCard(card, player) {
       if(card.contestedOnly && r!==1) continue;
       if(!G.board[z][r]) continue;
       const baseCols = 3;
-      const extraP1 = r<3?(G.extraCells[z][r].p1||0):0;
-      const extraP2 = r<3?(G.extraCells[z][r].p2||0):0;
+      const extraRow = r<3 ? (G.extraCells?.[z]?.[r] || null) : null;
+      const extraP1 = extraRow?(extraRow.p1||0):0;
+      const extraP2 = extraRow?(extraRow.p2||0):0;
       const totalCols = baseCols + (cp===0?extraP1:extraP2);
       for(let c=0;c<totalCols;c++) {
         if(r>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,c,cp)) continue;
@@ -2030,7 +2031,7 @@ function doConsolidate(card, cost) {
   closeModal();
   G.selectedBoardCard = null;
   G._consolidating = {
-    card, cost:readyCost, baseCost, allPossible, chosenIdxs: [], phase: 'select_tributes',
+    card, handIndex:G.selectedHandCard, cardIid:card?.iid || null, cardId:card?.id || null, cost:readyCost, baseCost, allPossible, chosenIdxs: [], phase: 'select_tributes',
     colomboRestrictionZones // zones where Colombo Thug restricts cross-zone tribute usage
   };
   const gameScreen = document.getElementById('s-game');
@@ -2200,7 +2201,7 @@ function handleConsolidateClick(z,r,c) {
     const cancelBtn = document.getElementById('cancel-consolidate-btn');
     if(cancelBtn) cancelBtn.style.display = 'none';
     clearPlaceHighlights();
-    finalizeConsolidate(con.card, tributes, targetTributeIdx);
+    finalizeConsolidate(con.card, tributes, targetTributeIdx, con);
     setHint('Select a card to play');
     return true;
   }
@@ -2226,7 +2227,28 @@ function cancelConsolidation() {
   toast('Consolidation cancelled');
 }
 
-function finalizeConsolidate(card, tributes, targetIdx) {
+function resolveConsolidatingHandCard(player, con) {
+  if(!player || !Array.isArray(player.hand) || !con) return null;
+  const iid = con.cardIid || con.card?.iid || null;
+  if(iid) {
+    const byIid = player.hand.find(c => c && c.iid === iid);
+    if(byIid) return byIid;
+  }
+  const idx = Number(con.handIndex);
+  if(Number.isInteger(idx) && idx >= 0 && idx < player.hand.length) {
+    const candidate = player.hand[idx];
+    if(candidate && (!con.cardId || String(candidate.id) === String(con.cardId))) return candidate;
+  }
+  const id = con.cardId || con.card?.id || null;
+  const name = con.card?.name || '';
+  if(id) {
+    const byId = player.hand.find(c => c && String(c.id) === String(id) && (!name || c.name === name));
+    if(byId) return byId;
+  }
+  return null;
+}
+
+function finalizeConsolidate(card, tributes, targetIdx, conContext) {
   const cp = G.currentPlayer;
   const target = tributes[targetIdx];
   if(!card || !target) {
@@ -2242,11 +2264,13 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     if(finished) return;
     finished = true;
     const player = G.players[cp];
-    if(!player || !Array.isArray(player.hand) || !player.hand.includes(card)) {
+    const liveHandCard = resolveConsolidatingHandCard(player, conContext || G._consolidating || {card});
+    if(!liveHandCard) {
       toast('Consolidation cancelled - card is no longer in hand.');
       renderGame({board:true, hand:true, blocks:true, topbar:true});
       return;
     }
+    card = liveHandCard;
     const liveTributes = tributes.every(t=>{
       const live = G.board[t.z] && G.board[t.z][t.r] ? G.board[t.z][t.r][t.c] : null;
       return live && t.card && live.iid === t.card.iid;

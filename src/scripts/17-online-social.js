@@ -35,6 +35,17 @@
   function photoOf(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL || p?.profileImg || 'blank.png'); }
   function fallback(uid){ return { uid, chosenUsername:'Player', displayName:'Player', username:'Player', baseCode:FO.makeBaseCode?FO.makeBaseCode(uid):uid, photoURL:'blank.png', level:1, challengerElo:600, bio:'' }; }
   function profileOf(uid){ return profileMap.get(uid) || (FO.profileCache && FO.profileCache.get(uid)) || fallback(uid); }
+  function isInternalOnlineProfile(uid, profile){
+    const p = profile || {};
+    const id = String(uid || p.uid || '').toLowerCase();
+    const name = String(p.name || p.username || p.displayName || p.chosenUsername || '').toLowerCase();
+    const baseCode = String(p.baseCode || '').toLowerCase();
+    if(/(^|[-_])(smoke|codex|test|diagnostic|client-resolved|authority)([-_]|$)/.test(id)) return true;
+    if(/^(fly\s+smoke|smoke\s+|codex\b|test\s+)/.test(name)) return true;
+    if(/\b(smoke|codex|test)\b/.test(name)) return true;
+    if(/(smoke|codex|test)/.test(baseCode)) return true;
+    return false;
+  }
   function localStorageFlag(name){
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
@@ -96,6 +107,7 @@
       profileMap.set(uid, profile || fallback(uid));
       if(FO.profileCache && profile) FO.profileCache.set(uid, profile);
     });
+    onlineUids = onlineUids.filter(uid=>!isInternalOnlineProfile(uid, profiles[uid] || profileMap.get(uid)));
     const nextParty = state?.party || null;
     onlineParty = nextParty;
     activePartyId = nextParty?.partyId || '';
@@ -269,7 +281,7 @@
       onlinePage,
       Object.keys(friends || {}).sort().join(','),
       Object.keys(requests || {}).sort().join(','),
-      onlineUids.slice().sort().join(','),
+      onlineUids.filter(uid=>!isInternalOnlineProfile(uid, profileOf(uid))).slice().sort().join(','),
       activePartyId || '',
       partyMembers,
       Object.keys(partyInvites || {}).sort().join(',')
@@ -477,7 +489,7 @@
     });
     unsubPresence = FO.onValue(FO.query(FO.ref(FO.rtdb, 'presence'), FO.orderByChild('online'), FO.equalTo(true), FO.limitToFirst(40)), snap=>{
       const pres = snap.val() || {};
-      onlineUids = Object.keys(pres);
+      onlineUids = Object.keys(pres).filter(uid=>!isInternalOnlineProfile(uid, profileMap.get(uid)));
       const keep = new Set([u.uid, ...Object.keys(friends), ...Object.keys(requests), ...onlineUids]);
       keep.forEach(ensureProfileSub);
       cleanupProfileSubs(keep);
@@ -998,7 +1010,7 @@
 
   function shiftOnlinePlayersPage(delta){
     const u = window.FATE_ONLINE?.user;
-    const count = Array.from(new Set([u?.uid, ...onlineUids].filter(Boolean))).length;
+    const count = Array.from(new Set([u?.uid, ...onlineUids].filter(Boolean))).filter(uid=>uid === u?.uid || !isInternalOnlineProfile(uid, profileOf(uid))).length;
     const totalPages = Math.max(1, Math.ceil(count / ONLINE_PAGE_SIZE));
     onlinePage = Math.max(0, Math.min(totalPages - 1, onlinePage + delta));
     scheduleRender();
@@ -1023,9 +1035,11 @@
     const friendUids = Object.keys(friends || {});
     const reqUids = Object.keys(requests || {});
     syncTopPendingBadge();
-    friendUids.forEach(ensureProfileSub); reqUids.forEach(ensureProfileSub); onlineUids.forEach(ensureProfileSub);
+    const cleanOnlineUids = onlineUids.filter(uid=>!isInternalOnlineProfile(uid, profileOf(uid)));
+    friendUids.forEach(ensureProfileSub); reqUids.forEach(ensureProfileSub); cleanOnlineUids.forEach(ensureProfileSub);
     ensureProfileSub(u.uid);
-    const visibleOnlineUids = Array.from(new Set([u.uid, ...onlineUids].filter(Boolean)))
+    const visibleOnlineUids = Array.from(new Set([u.uid, ...cleanOnlineUids].filter(Boolean)))
+      .filter(uid=>uid === u.uid || !isInternalOnlineProfile(uid, profileOf(uid)))
       .sort((a,b)=>{
         if(a === u.uid) return -1;
         if(b === u.uid) return 1;

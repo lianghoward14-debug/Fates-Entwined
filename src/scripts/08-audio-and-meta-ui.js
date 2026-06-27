@@ -1599,6 +1599,14 @@ const CARD_SOUNDS = {
 };
 const GAME_SONGS = Array.from({length:16}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {};
+const AVAILABLE_CARD_SOUND_FILES = new Set([
+  '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
+  '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
+  '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
+  '66set','67set','77set','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
+  '../new voices/89set','../new voices/90set'
+]);
 const DEFAULT_AUDIO_SETTINGS = {
   music: 0.20,
   voice: 0.8,
@@ -1765,6 +1773,7 @@ window.transitionGameLandscape = transitionGameLandscape;
 function playCardSound(cardId) {
   const soundFile = CARD_SOUNDS[cardId];
   if(!soundFile) return;
+  if(AVAILABLE_CARD_SOUND_FILES && !AVAILABLE_CARD_SOUND_FILES.has(soundFile)) return;
   try {
     let src = SET_VOICELINE_PATH(soundFile);
     const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set']);

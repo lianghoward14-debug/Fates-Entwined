@@ -40,7 +40,9 @@ const requiredScripts = [
   'smoke:fly-config',
   'smoke:fly-local-runtime',
   'smoke:fly-store',
+  'smoke:fly-room',
   'smoke:fly-test-readiness',
+  'smoke:multiplayer-diagnostics',
   'smoke:rtdb-rules-lockdown',
   'smoke:rtdb-disconnect-static',
   'smoke:rtdb-appcheck-static',
@@ -58,7 +60,11 @@ requiredScripts.forEach(name=>{
 runNode('Fly config contract', 'server/fate-fly-config-smoke-test.js');
 runNode('Fly local runtime', 'server/fate-fly-local-runtime-smoke-test.js');
 runNode('Fly volume store', 'server/fate-fly-store-smoke-test.js');
+runNode('Fly room lifecycle/action path', 'server/fate-fly-room-lifecycle-smoke-test.js', {
+  env:{FATE_FLY_SMOKE_SPAWN_LOCAL:'1', FATE_WS_SMOKE_ALLOW_FAKE:'1'}
+});
 runNode('Fly browser test readiness', 'server/fate-fly-test-readiness-static-smoke-test.js');
+runNode('multiplayer diagnostics', 'server/fate-multiplayer-diagnostics-smoke-test.js');
 runNode('RTDB rules lockdown', 'server/fate-rtdb-rules-lockdown-smoke-test.js');
 runNode('RTDB disconnect static contract', 'server/fate-rtdb-disconnect-static-smoke-test.js');
 runNode('RTDB App Check static contract', 'server/fate-rtdb-appcheck-static-smoke-test.js');

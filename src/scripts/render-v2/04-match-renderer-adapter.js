@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 6;
+  const ADAPTER_VERSION = 7;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -96,6 +96,7 @@
   const DIRTY_HOVER = 1 << 7;
   const DIRTY_MOTION = 1 << 8;
   const DIRTY_PARTICLES = 1 << 9;
+  const DIRTY_UI = 1 << 10;
   const DIRTY_ALL = 0xffff;
   const DIRTY_VFX_ONLY = DIRTY_EFFECTS | DIRTY_PARTICLES;
 
@@ -286,6 +287,7 @@
     if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('activation-cinematic') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('pending-when-set') >= 0) return DIRTY_EFFECTS;
+    if(s.indexOf('chat-unread') >= 0 || s.indexOf('ui-only') >= 0) return DIRTY_UI;
     if(s === 'input' || s === 'viewport-input') return DIRTY_EFFECTS | DIRTY_HOVER;
     if(s.indexOf('resize') >= 0 || s.indexOf('screen-enter') >= 0 || s.indexOf('adaptive-render-scale') >= 0) return DIRTY_ALL | DIRTY_LAYOUT;
     if(s.indexOf('board-action-fast-path') >= 0) {
@@ -1662,11 +1664,21 @@
     }
   }
 
+  function shouldShowPendingWhenSetGlow(card){
+    if(!card || !(card._pendingWhenSetEffect || (card.flags && card.flags.pendingWhenSet))) return false;
+    const pending = card._pendingWhenSetEffect || {};
+    const owner = Number.isInteger(card.owner) ? card.owner : Number(pending.owner);
+    const viewer = typeof getPerspectivePlayerIndex === 'function'
+      ? getPerspectivePlayerIndex()
+      : (G && Number.isInteger(G.viewerPlayerIndex) ? G.viewerPlayerIndex : G.currentPlayer);
+    return Number.isInteger(owner) ? owner === viewer : true;
+  }
+
   function drawPendingWhenSetGlows(ctx){
     if(!ctx || !lastHitMap || !Array.isArray(lastHitMap.cards)) return;
     lastHitMap.cards.forEach(function(hit){
       if(!hit || !hit.card || !hit.rect) return;
-      if(!(hit.card._pendingWhenSetEffect || (hit.card.flags && hit.card.flags.pendingWhenSet))) return;
+      if(!shouldShowPendingWhenSetGlow(hit.card)) return;
       drawPendingWhenSetGlow(ctx, hit.rect, hit.card);
     });
   }
@@ -3477,7 +3489,7 @@
     syncHoverCanvas(canvas, cssW, cssH, dpr, scaleMetrics);
     const uiOnly = !!(lastReport && lastReport.available)
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_BOARD_CARDS | DIRTY_MOTION))
-      && !!(dirtyMask & (DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS));
+      && !!(dirtyMask & (DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_EFFECTS | DIRTY_UI));
     if(uiOnly){
       ensureInput(canvas);
       const uiLayer = layers.ui;
@@ -3635,7 +3647,7 @@
         || (name === 'background' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND)))
         || (name === 'effects' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_EFFECTS | DIRTY_MOTION)))
         || (name === 'particles' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_PARTICLES | DIRTY_EFFECTS | DIRTY_MOTION)))
-        || (name === 'ui' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES)));
+        || (name === 'ui' && !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_UI)));
       if(!shouldClear) return;
       if(layerCtx){
         layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -3652,7 +3664,7 @@
     const draw = drawScene(ctx, layout, snapshot, cssW, cssH, dpr);
     renderCounters.cardLayerRedraws++;
     const uiCtx = layers.ui && layers.ui.getContext ? layers.ui.getContext('2d', {alpha:true}) : null;
-    const shouldDrawUi = canvasResized || !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES));
+    const shouldDrawUi = canvasResized || !!(dirtyMask & (DIRTY_LAYOUT | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_UI));
     const uiHitMap = shouldDrawUi && uiCtx ? drawSceneUi(uiCtx, layout, snapshot, layers.ui.width / dpr, layers.ui.height / dpr) : {
       handCards:lastHitMap.handCards || [],
       handEffectIcons:lastHitMap.handEffectIcons || [],

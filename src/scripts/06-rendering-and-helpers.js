@@ -2276,7 +2276,8 @@ function renderBoard() {
       const cells=document.createElement('div');
       cells.className='rcells';
       const boardRow = G.board[z][r] || Array(3).fill(null);
-      const extraCols = r<3?(r===2?G.extraCells[z][r].p1:(r===0?G.extraCells[z][r].p2:0)):0;
+      const extraRow = r<3 ? (G.extraCells?.[z]?.[r] || null) : null;
+      const extraCols = extraRow?(r===2?extraRow.p1:(r===0?extraRow.p2:0)):0;
       const totalCols = 3+extraCols;
       for(let c=0;c<totalCols;c++){
         const cellEl=document.createElement('div');

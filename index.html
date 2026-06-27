@@ -27,6 +27,14 @@
   </div>
 </div>
 <script>
+  (function(){
+    var hostedFly = String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev';
+    if(hostedFly && navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      navigator.serviceWorker.getRegistrations().then(function(registrations){
+        registrations.forEach(function(registration){ registration.unregister(); });
+      }).catch(function(){});
+    }
+  })();
   window.__fateStartupLoadingStartedAt = Date.now();
   window.__fateStartupLoadingFallback = setTimeout(function(){
     var el = document.getElementById('fate-loading-screen');
@@ -522,10 +530,10 @@
 <script src="src/scripts/01-data-and-state.js?v=1781642101"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1780920818"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1780920810"></script>
-<script src="src/scripts/04-game-setup.js?v=1781642701"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1782031201"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=1782032901"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1782616800"></script>
+<script src="src/scripts/04-game-setup.js?v=1782616800"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1782615600"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1782601200"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
 <script src="src/scripts/render-v2/01-render-snapshot.js?v=1781543901"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1781542501"></script>
@@ -537,8 +545,8 @@
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1781644701"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1781643201"></script>
 <script src="src/scripts/render-v2/16-vfx-acceptance-report.js?v=1780910001"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1782032902"></script>
-<script src="src/scripts/render-v2/06-match-scene-input.js?v=1781543901"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1782616800"></script>
+<script src="src/scripts/render-v2/06-match-scene-input.js?v=1782051801"></script>
 <script src="src/scripts/render-v2/08-hand-pile-phase8-report.js?v=1780586201"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1782032402"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1781642403"></script>
@@ -548,8 +556,8 @@
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780925023"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai.js?v=1782031201"></script>
-<script src="src/scripts/08-audio-and-meta-ui.js?v=1781539101"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1782037301"></script>
+<script src="src/scripts/08-audio-and-meta-ui.js?v=1782601800"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1782616800"></script>
 <script src="src/scripts/11-tutorial.js?v=1782032901"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
 <script src="src/scripts/10-init.js?v=1782040001"></script>
@@ -562,12 +570,12 @@
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
   var modules = [
-    './src/scripts/15-online-auth.js?v=1782043001',
-    './src/scripts/16-online-core.js?v=1782040001',
-    './src/scripts/17-online-social.js?v=1782040001',
-    './src/scripts/18-online-rooms.js?v=1782044001',
-    './src/scripts/19-online-elo.js?v=1782042001',
-    './src/scripts/20-online-economy.js?v=1782040001'
+    './src/scripts/15-online-auth.js?v=1782051801',
+    './src/scripts/16-online-core.js?v=1782616800',
+    './src/scripts/17-online-social.js?v=1782616200',
+    './src/scripts/18-online-rooms.js?v=1782616800',
+    './src/scripts/19-online-elo.js?v=1782615600',
+    './src/scripts/20-online-economy.js?v=1782050401'
   ];
   var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');
   var promise = null;
@@ -623,8 +631,8 @@
   else scheduleLoad();
 })();
 </script>
-<script src="src/scripts/21-smoothness-core.js?v=1781539001"></script>
-<script src="src/scripts/22-spectator.js?v=1782040001"></script>
+<script src="src/scripts/21-smoothness-core.js?v=1782616800"></script>
+<script src="src/scripts/22-spectator.js?v=1782616800"></script>
 <script>
   (function(){
     const params = new URLSearchParams(location.search);

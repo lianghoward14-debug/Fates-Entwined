@@ -24,6 +24,7 @@
   let lastLagPauseReason = '';
   let activeRoomSilent = false;
   let randomQueueState = { active:false, roomCode:null, role:null, started:false, handlers:null };
+  const allowedOnlineMatchStarts = new Map();
   let randomQueueUnsub = null;
   let randomQueueSwitching = false;
   let partyQueueWaitTimer = null;
@@ -40,6 +41,7 @@
   let actionReplayBuffer = new Map();
   let actionReplayDrainScheduled = false;
   let pendingFlyResumeEvents = null;
+  const flyMatchStartActions = new Map();
   const optimisticAppliedActionIds = new Set();
   let onlineStateSyncTimer = null;
   let authorityWs = null;
@@ -65,9 +67,20 @@
   let authorityRejectedResyncSuccesses = 0;
   let authorityRejectedResyncFailures = 0;
   let authorityLastRejectedResyncReason = '';
+  let optimisticSendQueue = Promise.resolve();
+  let clientResolvedCommitInFlight = 0;
+  let clientResolvedLocalCommitPending = 0;
+  let clientResolvedAutoCommitTimer = null;
+  let lastClientResolvedAutoCommitHash = '';
+  let lobbyAuthorityPrejoinCode = '';
+  let lobbyAuthorityPrejoinAttempts = 0;
+  let lobbyAuthorityPrejoinNextAt = 0;
   const authorityInflight = new Map();
   const authorityPersistPromises = new Map();
   const authorityPersistRetries = new Map();
+  const AUTHORITY_OPEN_TIMEOUT_MS = 20000;
+  const AUTHORITY_HELLO_TIMEOUT_MS = 20000;
+  const AUTHORITY_ACTION_TIMEOUT_MS = 6500;
 
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -161,6 +174,49 @@
       ) : []
     ) : [];
   }
+  function replaceOnlineArrayContents(target, next){
+    const arr = Array.isArray(target) ? target : [];
+    const values = Array.isArray(next) ? next : [];
+    arr.length = values.length;
+    for(let i = 0; i < values.length; i++) arr[i] = values[i];
+    return arr;
+  }
+  function syncOnlineCardListInPlace(target, list){
+    return replaceOnlineArrayContents(target, expandOnlineCardList(list));
+  }
+  function syncOnlineBoardInPlace(target, board){
+    const next = expandOnlineBoard(board);
+    const out = Array.isArray(target) ? target : [];
+    out.length = next.length;
+    for(let z = 0; z < next.length; z++){
+      const nextZone = Array.isArray(next[z]) ? next[z] : [];
+      const zone = Array.isArray(out[z]) ? out[z] : [];
+      zone.length = nextZone.length;
+      for(let r = 0; r < nextZone.length; r++){
+        const nextRow = Array.isArray(nextZone[r]) ? nextZone[r] : [];
+        zone[r] = replaceOnlineArrayContents(zone[r], nextRow);
+      }
+      out[z] = zone;
+    }
+    return out;
+  }
+  function syncOnlinePlayersInPlace(target, players){
+    const source = Array.isArray(players) ? players : [];
+    const out = Array.isArray(target) ? target : [];
+    out.length = source.length;
+    for(let idx = 0; idx < source.length; idx++){
+      const p = source[idx] || {};
+      const player = out[idx] && typeof out[idx] === 'object' ? out[idx] : {};
+      player.name = p?.name || ('Player ' + (idx + 1));
+      player.color = p?.color || (idx === 0 ? 'var(--p1)' : 'var(--p2)');
+      player.deck = syncOnlineCardListInPlace(player.deck, p?.deck);
+      player.hand = syncOnlineCardListInPlace(player.hand, p?.hand);
+      player.discard = syncOnlineCardListInPlace(player.discard, p?.discard);
+      out[idx] = player;
+    }
+    while(out.length < 2) out.push({name:'Player '+(out.length+1), deck:[], hand:[], discard:[], color:out.length===0?'var(--p1)':'var(--p2)'});
+    return out;
+  }
   function captureOnlineCanonicalState(sourceG){
     const g = sourceG || gameState();
     if(!g || !Array.isArray(g.players)) return null;
@@ -234,8 +290,13 @@
       _riveraActiveEffects:cloneOnlinePlain(g._riveraActiveEffects),
       _skipImprovisorCheck:!!g._skipImprovisorCheck,
       _skipReactions:!!g._skipReactions,
+      pendingInteraction:cloneOnlinePlain(g.pendingInteraction),
       _serverReactionSeq:g._serverReactionSeq,
       _serverPendingReaction:cloneOnlinePlain(g._serverPendingReaction),
+      _serverPendingModalAction:cloneOnlinePlain(g._serverPendingModalAction),
+      _serverPendingZonePick:cloneOnlinePlain(g._serverPendingZonePick),
+      _serverPendingMove:cloneOnlinePlain(g._serverPendingMove),
+      _serverPendingCardPick:cloneOnlinePlain(g._serverPendingCardPick),
       _westCaribNext:cloneOnlinePlain(g._westCaribNext),
       _zimbabweUsedThisTurn:!!g._zimbabweUsedThisTurn,
       _consolidating:cloneOnlinePlain(g._consolidating),
@@ -254,6 +315,34 @@
   }
   function onlineCanonicalStateHash(state){
     return onlineStableHash(JSON.stringify(state || null));
+  }
+  function renderOnlineAuthoritativeState(reason){
+    const g = gameState();
+    const player = Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : Number(g?.currentPlayer || 0) || 0;
+    if(typeof window.renderBoardActionForPlayer === 'function'){
+      window.renderBoardActionForPlayer(player, {
+        bothHands:true,
+        oppHand:true,
+        piles:true,
+        scores:true,
+        effects:true
+      });
+      return;
+    }
+    if(window.FateMatchFrameScheduler && typeof window.FateMatchFrameScheduler.request === 'function'){
+      window.FateMatchFrameScheduler.request({
+        dirty:{board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true},
+        reason:'online-authoritative-state',
+        adapterSource:'board-action-fast-path:online-authoritative-state:board,hand,opphand,piles,scores,effects'
+      });
+      return;
+    }
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
+      window.FateMatchRendererAdapter.scheduleRender('board-action-fast-path:online-authoritative-state:board,hand,opphand,piles,scores,effects');
+      return;
+    }
+    if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true});
+    else if(typeof window.renderBoard === 'function') window.renderBoard();
   }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
@@ -285,17 +374,8 @@
       _onlineApplyingRemoteAction:g._onlineApplyingRemoteAction,
       _onlineRemoteActionPlayer:g._onlineRemoteActionPlayer
     };
-    g.players = (state.players || []).map(function(p, idx){
-      return {
-        name:p?.name || ('Player ' + (idx + 1)),
-        color:p?.color || (idx === 0 ? 'var(--p1)' : 'var(--p2)'),
-        deck:expandOnlineCardList(p?.deck),
-        hand:expandOnlineCardList(p?.hand),
-        discard:expandOnlineCardList(p?.discard)
-      };
-    });
-    while(g.players.length < 2) g.players.push({name:'Player '+(g.players.length+1), deck:[], hand:[], discard:[], color:g.players.length===0?'var(--p1)':'var(--p2)'});
-    g.board = expandOnlineBoard(state.board);
+    g.players = syncOnlinePlayersInPlace(g.players, state.players || []);
+    g.board = syncOnlineBoardInPlace(g.board, state.board);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
@@ -303,7 +383,8 @@
       'instanceCounter','damageDoneP','supportersSetP','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_polishUsedThisTurn',
-      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','_serverReactionSeq','_serverPendingReaction','_westCaribNext',
+      '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
+      '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting'
     ].forEach(function(k){
@@ -326,8 +407,7 @@
       }
     }
     if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
-    if(typeof window.renderGame === 'function') window.renderGame({force:true});
-    else if(typeof window.renderBoard === 'function') window.renderBoard();
+    renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     console.warn('Applied authoritative online state:', reason || 'state-sync');
     return true;
@@ -338,28 +418,61 @@
     const localState = captureOnlineCanonicalState();
     const localHash = onlineCanonicalStateHash(localState);
     if(localHash === payload.stateHash){
-      setTimeout(maybeShowServerReactionPrompt, 0);
+      setTimeout(maybeShowServerPendingPrompts, 0);
       return false;
     }
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
-    if(applied) setTimeout(maybeShowServerReactionPrompt, 0);
+    if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
+    return applied;
+  }
+
+  function localOnlineStateMatchesHash(hash){
+    if(!hash) return false;
+    const localState = captureOnlineCanonicalState();
+    return !!localState && onlineCanonicalStateHash(localState) === String(hash || '');
+  }
+
+  function shouldApplyServerStateDirectly(actionType, payload){
+    if(String(actionType || '').toUpperCase() === 'ACTION_RESULT'){
+      return clientResolvedGameplayEnabled() && !!payload && !!payload.postState && !!payload.stateHash;
+    }
+    return isStrictCompactAuthorityAction(actionType)
+      && !!payload
+      && !!payload.postState
+      && !!payload.stateHash
+      && !firebaseActionFallbackAllowed();
+  }
+
+  function applyAuthoritativePostState(action, reason){
+    const payload = action?.payload || {};
+    if(!payload.postState || !payload.stateHash) return false;
+    const hash = String(action?.serverStateHash || payload.stateHash || '');
+    if(hash) lastAuthorityStateHash = hash;
+    if(localOnlineStateMatchesHash(payload.stateHash)){
+      setTimeout(maybeShowServerPendingPrompts, 0);
+      return false;
+    }
+    const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
   }
 
   function acknowledgeAuthoritativeAction(action, reason){
     if(!action) return false;
+    const type = String(action.type || '').toUpperCase();
+    const payload = action.payload || {};
     const seq = Number(action.seq || 0) || 0;
     if(seq){
       lastActionSeq = Math.max(lastActionSeq, seq);
       const g = gameState();
       if(g) g._onlineActionSeq = lastActionSeq;
     }
-    const hash = String(action.serverStateHash || action.payload?.stateHash || '');
+    const hash = String(action.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
-    if(action.payload?.postState && action.payload?.stateHash){
-      reconcileOnlinePostState(action, reason || ('authoritative acknowledgement seq ' + (seq || '?')));
+    if(shouldApplyServerStateDirectly(type, payload)){
+      applyAuthoritativePostState(action, reason || ('authoritative acknowledgement seq ' + (seq || '?')));
     }else{
-      setTimeout(maybeShowServerReactionPrompt, 0);
+      setTimeout(maybeShowServerPendingPrompts, 0);
     }
     return true;
   }
@@ -448,7 +561,7 @@
         renderTitle(),
         `<div class="reaction-panel reaction-choice-panel">` +
           `<div class="reaction-choice-head">` +
-            `<div class="reaction-kicker">Server Reaction</div>` +
+            `<div class="reaction-kicker">Reaction</div>` +
             `<div class="reaction-prompt"><span>Opponent triggered</span><strong>${reactionEscapeHtml(sourceName)}</strong><span>Choose a response.</span></div>` +
           `</div>` +
           `<div class="reaction-choice-grid">${optionButtons}</div>` +
@@ -485,6 +598,118 @@
     } else {
       setTimeout(()=>finish('timeout'), Math.max(1000, Number(pending.timeoutMs || 15000)));
     }
+  }
+  function serverPendingCardMatchesFilters(card, pending){
+    if(!card || !pending) return false;
+    if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
+    if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
+    if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
+    return true;
+  }
+  function serverPendingBoardCardCandidates(g, pending, playerIndex){
+    const cards = [];
+    const sourceIid = String(pending?.sourceIid || '');
+    const board = Array.isArray(g?.board) ? g.board : [];
+    board.forEach(zone=>{
+      if(!Array.isArray(zone)) return;
+      zone.forEach(row=>{
+        if(!Array.isArray(row)) return;
+        row.forEach(card=>{
+          if(!card || Number(card.owner) !== Number(playerIndex)) return;
+          if(sourceIid && String(card.iid || '') === sourceIid) return;
+          if(!serverPendingCardMatchesFilters(card, pending)) return;
+          cards.push(card);
+        });
+      });
+    });
+    return cards;
+  }
+  function serverPendingCardPickCandidates(g, pending){
+    const playerIndex = Number(pending?.playerIndex);
+    const player = Number.isInteger(playerIndex) ? g?.players?.[playerIndex] : null;
+    if(!player) return [];
+    const kind = String(pending?.kind || '');
+    if(kind === 'handDiscard' || kind === 'handDiscardBoost'){
+      return (Array.isArray(player.hand) ? player.hand : []).filter(card=>serverPendingCardMatchesFilters(card, pending));
+    }
+    if(kind === 'vigilantesExpendSupporters'){
+      return serverPendingBoardCardCandidates(g, Object.assign({}, pending, {filterType:'Supporter'}), playerIndex);
+    }
+    const sources = String(pending?.source || 'deck').split('+').map(s=>s.trim()).filter(Boolean);
+    const cards = [];
+    sources.forEach(source=>{
+      const pile = source === 'discard' ? player.discard : player.deck;
+      if(!Array.isArray(pile)) return;
+      pile.forEach(card=>{
+        if(serverPendingCardMatchesFilters(card, pending)) cards.push(card);
+      });
+    });
+    return cards;
+  }
+  function serverPendingCardPickTitle(pending){
+    const reason = String(pending?.reason || pending?.kind || '');
+    if(reason === 'ibStudent') return 'Search deck for a Supporter:';
+    if(reason === 'crossroadsWorker') return 'Add a Supporter from discard to hand:';
+    if(reason === 'greatOakHighSchooler') return 'Home of the Wolfpack';
+    if(reason === 'handDiscard') return 'Discard cards';
+    if(reason === 'handDiscardBoost') return 'Choose cards';
+    if(reason === 'mailDelivery') return 'Mail Delivery';
+    if(String(pending?.kind || '') === 'linaFreeSet') return 'Choose a Reality card';
+    return 'Choose cards';
+  }
+  function serverPendingCardPickSubtitle(pending){
+    const source = String(pending?.source || '');
+    if(String(pending?.reason || '') === 'ibStudent'){
+      const maxCount = Math.max(1, Number(pending?.maxCount || 1) || 1);
+      const type = pending?.filterType || 'Supporter';
+      return `From your deck - up to ${maxCount} ${type}(s)`;
+    }
+    if(source) return source === 'deck+discard' ? 'Search deck and discard' : 'From your ' + source;
+    if(String(pending?.kind || '').startsWith('hand')) return 'From your hand';
+    return 'Choose cards';
+  }
+  function serverPendingCardPickConfirmLabel(pending){
+    const reason = String(pending?.reason || '');
+    const kind = String(pending?.kind || '');
+    if(reason === 'ibStudent' || reason === 'crossroadsWorker' || reason === 'greatOakHighSchooler') return 'Add to Hand';
+    if(kind === 'handDiscard') return 'Discard';
+    return 'Choose';
+  }
+  function maybeShowServerCardPickPrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingCardPick;
+    if(!pending || typeof pending !== 'object'){
+      g._onlineShownServerCardPickPromptId = '';
+      return;
+    }
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    if(Number(g.currentPlayer) !== localIndex) return;
+    if(typeof window.pickCardsVisual !== 'function') return;
+    const promptKey = String(pending.promptId || '') || [
+      pending.kind || 'cardPick',
+      pending.reason || '',
+      pending.sourceIid || '',
+      g.turn || 0,
+      localIndex
+    ].join(':');
+    if(g._onlineShownServerCardPickPromptId === promptKey) return;
+    const cards = serverPendingCardPickCandidates(g, pending);
+    const minCount = Math.max(0, Number(pending.minCount || 0) || 0);
+    const maxCount = Math.max(minCount, Number(pending.maxCount || minCount || 1) || 1);
+    g._onlineShownServerCardPickPromptId = promptKey;
+    window.pickCardsVisual(cards, {
+      title:serverPendingCardPickTitle(pending),
+      subtitle:serverPendingCardPickSubtitle(pending),
+      minCount,
+      maxCount,
+      confirmLabel:serverPendingCardPickConfirmLabel(pending)
+    }, function(){});
+  }
+  function maybeShowServerPendingPrompts(){
+    maybeShowServerReactionPrompt();
+    maybeShowServerCardPickPrompt();
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
@@ -551,6 +776,7 @@
   function onlineCellActionPending(g){
     return !!(g && (
       g.placing ||
+      (clientResolvedGameplayEnabled() && g.selectedHandCard !== null && g.selectedHandCard !== undefined) ||
       g._consolidating ||
       g._serverPendingReaction ||
       g._havanoDeploying ||
@@ -570,6 +796,19 @@
     if(Number.isInteger(maybeZ) && Number.isInteger(maybeR) && Number.isInteger(maybeC)){
       const card = g?.board?.[maybeZ]?.[maybeR]?.[maybeC] || args[0] || null;
       return { z:maybeZ, r:maybeR, c:maybeC, cardIid:card?.iid || '', cardId:card?.id || '' };
+    }
+    const argCard = args && args[0] && typeof args[0] === 'object' ? args[0] : null;
+    if(argCard && typeof window.findBoardPositionForCard === 'function'){
+      const found = window.findBoardPositionForCard(argCard);
+      if(found && Number.isInteger(found.z) && Number.isInteger(found.r) && Number.isInteger(found.c)){
+        const card = g?.board?.[found.z]?.[found.r]?.[found.c] || argCard;
+        return { z:found.z, r:found.r, c:found.c, cardIid:card?.iid || '', cardId:card?.id || '' };
+      }
+    }
+    const selected = g?.selectedBoardCard || null;
+    if(selected && Number.isInteger(selected.z) && Number.isInteger(selected.r) && Number.isInteger(selected.c)){
+      const card = g?.board?.[selected.z]?.[selected.r]?.[selected.c] || selected.card || argCard || null;
+      if(card) return { z:selected.z, r:selected.r, c:selected.c, cardIid:card?.iid || '', cardId:card?.id || '' };
     }
     return null;
   }
@@ -771,14 +1010,21 @@
     const type = typeof actionOrType === 'string'
       ? actionOrType
       : String(actionOrType?.type || '');
+    if(type === 'ACTION_RESULT'){
+      const actionKind = typeof actionOrType === 'string'
+        ? ''
+        : String(actionOrType?.payload?.actionKind || '');
+      return /^(END_TURN|CHOOSE_TURN|FORFEIT|MATCH_RESULT)$/i.test(actionKind);
+    }
     return /^(MATCH_START|CHOOSE_TURN|END_TURN|FORFEIT)$/i.test(type);
   }
   function noteTurnBoundaryAction(action){
     if(!isTurnBoundaryOnlineAction(action)) return;
     lastTurnBoundaryActionSeq = Math.max(lastTurnBoundaryActionSeq, Number(action?.seq || 0) || 0);
   }
-  function waitOnlineActionSettle(type){
-    const frames = /^(CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE)$/i.test(String(type || '')) ? 4 : 2;
+  function waitOnlineActionSettle(type, opts){
+    const fast = !!(opts && opts.fast);
+    const frames = fast ? 1 : (/^(CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE)$/i.test(String(type || '')) ? 4 : 2);
     return new Promise(resolve=>{
       if(typeof requestAnimationFrame !== 'function'){
         setTimeout(resolve, frames * 18);
@@ -796,51 +1042,216 @@
   function isStrictCompactAuthorityAction(type){
     if(String(authorityReducerMode || '').toLowerCase() !== 'strict') return false;
     if(firebaseActionFallbackAllowed()) return false;
-    return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|REACTION_CHOICE|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
+    return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
+  }
+  function strictCompactActionNeedsPostState(type, payload){
+    const actionType = String(type || '').toUpperCase();
+    return isStrictCompactAuthorityAction(type)
+      && (
+        /^(START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_LANDSCAPE_ZONE|PICK_AFFILIATION|REACTION_CHOICE)$/i.test(actionType)
+        || (actionType === 'CLICK_CELL' && !(payload && payload.placing))
+      );
+  }
+  function clientResolvedGameplayEnabled(){
+    return String(window.FATE_GAMEPLAY_AUTHORITY || '').toLowerCase() === 'client-resolved'
+      || localStorageFlag('fateClientResolvedGameplay');
+  }
+  function normalizedClientPendingInteraction(g){
+    if(!g) return null;
+    if(g.pendingInteraction && typeof g.pendingInteraction === 'object') return g.pendingInteraction;
+    if(g._serverPendingReaction) return {kind:'reaction', bucket:'reaction', playerIndex:g._serverPendingReaction.playerIndex, promptId:g._serverPendingReaction.promptId || ''};
+    if(g._serverPendingModalAction) return {kind:g._serverPendingModalAction.kind || 'modalAction', bucket:'modalAction', playerIndex:g._serverPendingModalAction.playerIndex, promptId:g._serverPendingModalAction.promptId || ''};
+    if(g._serverPendingZonePick) return {kind:g._serverPendingZonePick.kind || 'zonePick', bucket:'zonePick', playerIndex:g._serverPendingZonePick.playerIndex, promptId:g._serverPendingZonePick.promptId || ''};
+    if(g._serverPendingMove) return {kind:g._serverPendingMove.kind || 'move', bucket:'move', playerIndex:g._serverPendingMove.playerIndex, promptId:g._serverPendingMove.promptId || ''};
+    if(g._serverPendingCardPick) return {kind:g._serverPendingCardPick.kind || 'cardPick', bucket:'cardPick', playerIndex:g._serverPendingCardPick.playerIndex, promptId:g._serverPendingCardPick.promptId || ''};
+    if(g._consolidating) return {kind:g._consolidating.kind || 'consolidation', bucket:'consolidation', playerIndex:g._consolidating.playerIndex ?? g.currentPlayer, promptId:g._consolidating.promptId || ''};
+    return null;
+  }
+  function toAuthorityIntent(type, payload, g){
+    const actionType = String(type || '').toUpperCase();
+    if(/^(PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|CHOOSE_TURN|END_TURN|FORFEIT|MATCH_RESULT|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|REACTION_CHOICE)$/i.test(actionType)){
+      return actionType;
+    }
+    if(actionType === 'CLICK_CELL'){
+      const pending = normalizedClientPendingInteraction(g || gameState());
+      const bucket = String(pending?.bucket || pending?.kind || '');
+      if(bucket === 'consolidation' || bucket === 'consolidate') return 'SELECT_CONSOLIDATION_TRIBUTE';
+      if(bucket === 'move' || bucket === 'pickMove') return 'SELECT_PENDING_MOVE_CELL';
+      if(payload?.placing || payload?.selectedHand || Number.isInteger(Number(payload?.handIndex)) || g?.placing) return 'PLACE_CARD';
+      return 'SELECT_BOARD_TARGET';
+    }
+    if(actionType === 'MODAL_ACTION') return 'RESOLVE_MODAL';
+    if(actionType === 'PICK_CARDS_VISUAL') return 'RESOLVE_CARD_PICK';
+    if(actionType === 'PICK_ZONE' || actionType === 'PICK_LANDSCAPE_ZONE') return 'RESOLVE_ZONE_PICK';
+    if(actionType === 'PICK_AFFILIATION') return 'RESOLVE_AFFILIATION_PICK';
+    return actionType;
+  }
+  function strictAuthorityIntentForSend(type, payload, g){
+    const actionType = String(type || '').toUpperCase();
+    if(!isStrictCompactAuthorityAction(actionType)) return actionType;
+    return toAuthorityIntent(actionType, payload || null, g || gameState());
+  }
+  function actionMatchesPendingInteraction(type, pending){
+    const rawType = String(type || '').toUpperCase();
+    const bucket = String(pending?.bucket || pending?.kind || '');
+    let actionType = toAuthorityIntent(type, null, gameState());
+    if(rawType === 'CLICK_CELL'){
+      if(bucket === 'consolidation' || bucket === 'consolidate') actionType = 'SELECT_CONSOLIDATION_TRIBUTE';
+      else if(bucket === 'move' || bucket === 'pickMove') actionType = 'SELECT_PENDING_MOVE_CELL';
+      else actionType = 'PLACE_CARD';
+    }
+    if(!bucket) return true;
+    if(bucket === 'reaction' || bucket === 'reactionChoice') return actionType === 'REACTION_CHOICE';
+    if(bucket === 'modalAction' || bucket === 'modal') return actionType === 'RESOLVE_MODAL' || actionType === 'RESOLVE_AFFILIATION_PICK';
+    if(bucket === 'zonePick' || bucket === 'pickZone') return actionType === 'RESOLVE_ZONE_PICK';
+    if(bucket === 'move' || bucket === 'pickMove') return actionType === 'SELECT_PENDING_MOVE_CELL';
+    if(bucket === 'cardPick' || bucket === 'pickCards') return actionType === 'RESOLVE_CARD_PICK';
+    if(bucket === 'consolidation' || bucket === 'consolidate') return actionType === 'SELECT_CONSOLIDATION_TRIBUTE';
+    return false;
+  }
+  function pendingInteractionLabel(pending){
+    return String(pending?.message || pending?.kind || pending?.bucket || 'effect');
+  }
+  function runClientResolvedPlacementWithoutPresentation(fn){
+    const presenter = window.FateActionPresentation;
+    if(!clientResolvedGameplayEnabled() || !presenter || typeof presenter.beginSetCard !== 'function'){
+      return fn();
+    }
+    const originalBeginSetCard = presenter.beginSetCard;
+    presenter.beginSetCard = function(){
+      recordOnlineDiagnostic('client-resolved-placement-presentation-bypassed', {
+        reason:'commit-before-action-result-capture'
+      });
+      return false;
+    };
+    try{
+      return fn();
+    }finally{
+      presenter.beginSetCard = originalBeginSetCard;
+    }
   }
   function shouldRunForcedSyncForRoomSeq(roomSeq){
     const seq = Number(roomSeq || 0) || 0;
     if(seq <= 1) return true;
     return seq <= lastTurnBoundaryActionSeq;
   }
-  function needsAuthorityCatchupBeforeLocal(){
-    return !!(gameState()?._onlineRoomCode || activeRoom) && !!configuredAuthorityUrl() && !firebaseActionFallbackAllowed();
+  function isClientResolvedGameplayAction(type){
+    return /^(END_TURN|CLICK_CELL|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|REACTION_CHOICE)$/i.test(String(type || ''));
+  }
+  function hasPendingAuthorityReplay(){
+    const g = gameState();
+    const knownSeq = Math.max(Number(lastActionSeq || 0) || 0, Number(g?._onlineActionSeq || 0) || 0);
+    const appliedSeq = Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0);
+    return knownSeq > appliedSeq || actionReplayBuffer.size > 0;
+  }
+  function canCaptureClientResolvedBeforeLocalPromise(type, payload){
+    if(!clientResolvedGameplayEnabled()) return false;
+    const actionType = String(type || '').toUpperCase();
+    if(actionType === 'CLICK_CELL'){
+      return toAuthorityIntent(actionType, payload || null, gameState()) === 'PLACE_CARD';
+    }
+    return /^(END_TURN|CHOOSE_TURN|BOARD_ACTION|HAND_ACTION)$/i.test(actionType);
+  }
+  function needsAuthorityCatchupBeforeLocal(type){
+    return clientResolvedGameplayEnabled()
+      && isClientResolvedGameplayAction(type)
+      && !!authorityHttpBaseUrl()
+      && !firebaseActionFallbackAllowed()
+      && hasPendingAuthorityReplay();
   }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
-    if(!code || !needsAuthorityCatchupBeforeLocal()) return false;
+    if(!code || !needsAuthorityCatchupBeforeLocal(type)) return false;
     return await catchUpFlyAuthorityReplay(code, 'before local optimistic ' + String(type || '').toUpperCase());
+  }
+  function enqueueOptimisticSend(task){
+    const run = optimisticSendQueue.catch(()=>{}).then(task);
+    optimisticSendQueue = run.catch(()=>{});
+    return run;
+  }
+  function isClientResolvedStaleBaseError(err){
+    return !!(clientResolvedGameplayEnabled()
+      && err
+      && err.authorityRejected
+      && /stale baseStateHash/i.test(String(err.message || '')));
   }
   function sendOptimisticAction(type, payload, applyLocal){
     const clientActionId = makeOptimisticActionId(type);
     const outbound = Object.assign({}, payload || {}, { clientActionId });
-    const compactAuthorityPayload = isStrictCompactAuthorityAction(type);
+    const clientResolvedCommit = clientResolvedGameplayEnabled() && isClientResolvedGameplayAction(type);
+    const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
     let localResult;
     let localApplied = false;
+    let finishLocalCommit = null;
+    let staleBaseRetryCount = 0;
     function stampBaseStateHash(){
+      if(clientResolvedCommit){
+        const baseStateHash = lastAuthorityStateHash || '';
+        if(baseStateHash) outbound.baseStateHash = baseStateHash;
+        return;
+      }
+      if(outbound.baseStateHash) return;
       const baseState = captureOnlineCanonicalState();
       const baseStateHash = lastAuthorityStateHash || (baseState ? onlineCanonicalStateHash(baseState) : '');
       if(baseStateHash) outbound.baseStateHash = baseStateHash;
     }
+    function sendAuthorityNow(){
+      return enqueueOptimisticSend(()=>{
+        stampBaseStateHash();
+        const finish = clientResolvedCommit ? noteClientResolvedCommitStart() : null;
+        return Promise.resolve(sendAction(clientResolvedCommit ? 'ACTION_RESULT' : type, outbound))
+          .finally(()=>{ if(finish) finish(); });
+      }).catch(e=>{
+        if(clientResolvedCommit && isClientResolvedStaleBaseError(e) && staleBaseRetryCount < 2){
+          staleBaseRetryCount += 1;
+          const serverHash = String(e.serverStateHash || lastAuthorityStateHash || '');
+          if(serverHash) outbound.baseStateHash = serverHash;
+          try{
+            attachOnlinePostState(outbound);
+            recordOnlineDiagnostic('client-resolved-stale-base-retry', {
+              actionType:String(type || '').toUpperCase(),
+              retry:staleBaseRetryCount,
+              baseStateHash:String(outbound.baseStateHash || ''),
+              stateHash:String(outbound.stateHash || '')
+            });
+            return sendAuthorityNow();
+          }catch(retryErr){
+            console.warn('Client-resolved stale-base retry capture failed', retryErr);
+          }
+        }
+        console.error('Online optimistic action send failed', e, type, outbound);
+        if(localApplied) scheduleOptimisticCorrection(type);
+        if(window.toast) toast(e && e.message ? e.message : 'Action failed');
+      });
+    }
     async function sendAfterLocalApply(){
       try{
-        if(localResult && typeof localResult.then === 'function') await localResult;
-        await waitOnlineActionSettle(type);
-        if(!compactAuthorityPayload) attachOnlinePostState(outbound);
+        if(compactAuthorityPayload && !strictCompactActionNeedsPostState(type, outbound)) return sendAuthorityNow();
+        const fastClientResolvedCapture = clientResolvedCommit && canCaptureClientResolvedBeforeLocalPromise(type, outbound);
+        if(localResult && typeof localResult.then === 'function' && !fastClientResolvedCapture) await localResult;
+        await waitOnlineActionSettle(type, {fast:fastClientResolvedCapture});
+        if(clientResolvedCommit) outbound.actionKind = String(type || '').toUpperCase();
+        attachOnlinePostState(outbound);
+        if(finishLocalCommit){
+          finishLocalCommit();
+          finishLocalCommit = null;
+        }
       }catch(e){
+        if(finishLocalCommit){
+          finishLocalCommit();
+          finishLocalCommit = null;
+        }
         console.error('Optimistic local action failed before sync', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         else if(window.toast) toast('Action failed');
         return;
       }
-      return sendAction(type, outbound).catch(e=>{
-        console.error('Online optimistic action send failed', e, type, outbound);
-        if(localApplied) scheduleOptimisticCorrection(type);
-        else if(window.toast) toast('Action failed');
-      });
+      return sendAuthorityNow();
     }
     function scheduleFollowupStateSync(delayMs){
+      if(clientResolvedCommit) return;
       if(compactAuthorityPayload) return;
+      if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()) return;
       const g = gameState();
       if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return;
       if(!Number.isInteger(g._onlinePlayerIndex)) return;
@@ -862,23 +1273,28 @@
       }, delayMs);
     }
     function applyLocalAndSend(){
-      stampBaseStateHash();
+      if(compactAuthorityPayload) stampBaseStateHash();
+      finishLocalCommit = clientResolvedCommit ? noteClientResolvedLocalCommitStart() : null;
       if(typeof applyLocal === 'function'){
         try{
           rememberOptimisticAction(clientActionId);
           localApplied = true;
           localResult = applyLocal();
         }catch(e){
+          if(finishLocalCommit) finishLocalCommit();
           optimisticAppliedActionIds.delete(clientActionId);
           console.error('Optimistic local action threw', e, type, outbound);
           throw e;
         }
       }
-      sendAfterLocalApply();
+      Promise.resolve(sendAfterLocalApply()).finally(()=>{ if(finishLocalCommit) finishLocalCommit(); });
+      scheduleClientResolvedAutoCommit('post-local-' + String(type || '').toLowerCase(), clientResolvedCommit ? 90 : 700);
       scheduleFollowupStateSync(1250);
       return localResult;
     }
-    if(needsAuthorityCatchupBeforeLocal()){
+    const latestBeforeLocal = gameState();
+    if(isOnlineMatchState(latestBeforeLocal) && !canSendLocalAction(latestBeforeLocal, type)) return;
+    if(needsAuthorityCatchupBeforeLocal(type)){
       return preflightAuthorityCatchupBeforeLocal(type)
         .then(()=>applyLocalAndSend());
     }
@@ -899,24 +1315,145 @@
     sendAction('STATE_SYNC', syncPayload).catch(e=>console.warn('Bootstrap online state sync failed', e));
   }
 
-  function canSendLocalAction(g){
+  function recordOnlineDiagnostic(event, data){
+    try{
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      const timeline = perf.onlineDiagnosticsTimeline = Array.isArray(perf.onlineDiagnosticsTimeline) ? perf.onlineDiagnosticsTimeline : [];
+      timeline.push(Object.assign({at:Date.now(), event:String(event || '')}, data || {}));
+      if(timeline.length > 80) timeline.splice(0, timeline.length - 80);
+    }catch(e){}
+  }
+
+  function canSendLocalAction(g, type){
     if(!isOnlineMatchState(g)) return false;
     if(g._onlineApplyingRemoteAction) return false;
+    const actionType = String(type || '').toUpperCase();
     if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
       if(window.toast) toast('Spectators cannot take game actions.');
       return false;
     }
-    if(g._onlineLagPauseActive){
-      if(window.toast) toast('Match is syncing. Please wait.');
-      return false;
+    if(clientResolvedGameplayEnabled() && clientResolvedLocalCommitPending > 0){
+      recordOnlineDiagnostic('client-resolved-action-waiting-for-commit', {
+        actionType,
+        localPending:clientResolvedLocalCommitPending,
+        commitInFlight:clientResolvedCommitInFlight
+      });
     }
-    if(g.currentPlayer !== g._onlinePlayerIndex){
+    if(g._onlineLagPauseActive){
+      if(clientResolvedGameplayEnabled()){
+        g._onlineLagPauseActive = false;
+        setLagPause(false);
+        recordOnlineDiagnostic('client-resolved-cleared-lag-pause', {actionType});
+      }else{
+        if(window.toast) toast('Match is syncing. Please wait.');
+        return false;
+      }
+    }
+    if(g._onlineMatchPlayable === false){
+      g._onlineMatchPlayable = true;
+      setOnlinePlayableWaitVisible(false);
+      recordOnlineDiagnostic('playable-gate-auto-opened', {
+        roomCode:String(g._onlineRoomCode || activeRoom || '').toUpperCase(),
+        actionType
+      });
+    }
+    const pending = normalizedClientPendingInteraction(g);
+    if(pending){
+      const pendingPlayer = Number(pending.playerIndex);
+      if(Number.isInteger(pendingPlayer) && pendingPlayer !== Number(g._onlinePlayerIndex)){
+        return false;
+      }
+      if(actionType && !actionMatchesPendingInteraction(actionType, pending)){
+        const bucket = String(pending?.bucket || pending?.kind || '');
+        if(bucket === 'cardPick' || bucket === 'pickCards'){
+          g._onlineShownServerCardPickPromptId = '';
+          setTimeout(maybeShowServerCardPickPrompt, 0);
+        }
+        return false;
+      }
+    }
+    const turnAgnosticAction = /^(CHOOSE_TURN|REACTION_CHOICE)$/i.test(actionType);
+    if(!turnAgnosticAction && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)){
       onlineTurnError();
       return false;
     }
     return true;
   }
-  async function withRemoteAction(fn, playerIndex){
+
+  function noteClientResolvedCommitStart(){
+    clientResolvedCommitInFlight += 1;
+    let done = false;
+    return function finishClientResolvedCommit(){
+      if(done) return;
+      done = true;
+      clientResolvedCommitInFlight = Math.max(0, clientResolvedCommitInFlight - 1);
+    };
+  }
+
+  function noteClientResolvedLocalCommitStart(){
+    clientResolvedLocalCommitPending += 1;
+    let done = false;
+    return function finishClientResolvedLocalCommit(){
+      if(done) return;
+      done = true;
+      clientResolvedLocalCommitPending = Math.max(0, clientResolvedLocalCommitPending - 1);
+    };
+  }
+
+  function scheduleClientResolvedAutoCommit(reason, delayMs){
+    if(!clientResolvedGameplayEnabled()) return;
+    if(clientResolvedAutoCommitTimer) clearTimeout(clientResolvedAutoCommitTimer);
+    clientResolvedAutoCommitTimer = setTimeout(function(){
+      clientResolvedAutoCommitTimer = null;
+      sendClientResolvedAutoCommit(reason || 'local-state-watchdog').catch(e=>{
+        console.warn('Client-resolved auto state commit failed', e);
+      });
+    }, Math.max(40, Number(delayMs || 220) || 220));
+  }
+
+  async function sendClientResolvedAutoCommit(reason){
+    if(!clientResolvedGameplayEnabled()) return false;
+    if(clientResolvedCommitInFlight > 0){
+      scheduleClientResolvedAutoCommit(reason || 'commit-in-flight-retry', 70);
+      return false;
+    }
+    const g = gameState();
+    if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
+    if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)) return false;
+    if(g._onlineLagPauseActive) return false;
+    if(Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)) return false;
+    const state = captureOnlineCanonicalState();
+    const hash = onlineCanonicalStateHash(state);
+    if(!hash || hash === lastAuthorityStateHash || hash === lastClientResolvedAutoCommitHash) return false;
+    const payload = {
+      playerIndex:g._onlinePlayerIndex,
+      currentPlayer:g.currentPlayer,
+      turn:g.turn,
+      actionKind:'AUTO_CLIENT_STATE_COMMIT',
+      clientActionId:makeDirectAuthorityActionId('ACTION_RESULT'),
+      baseStateHash:lastAuthorityStateHash || '',
+      sourceReason:String(reason || 'local-state-watchdog')
+    };
+    attachOnlinePostState(payload);
+    if(!payload.postState || !payload.stateHash || payload.stateHash === lastAuthorityStateHash) return false;
+    lastClientResolvedAutoCommitHash = payload.stateHash;
+    const finish = noteClientResolvedCommitStart();
+    try{
+      recordOnlineDiagnostic('client-resolved-auto-commit', {
+        reason:String(reason || ''),
+        baseStateHash:String(payload.baseStateHash || ''),
+        stateHash:String(payload.stateHash || '')
+      });
+      await sendAction('ACTION_RESULT', payload);
+      return true;
+    }catch(e){
+      if(payload.stateHash === lastClientResolvedAutoCommitHash) lastClientResolvedAutoCommitHash = '';
+      throw e;
+    }finally{
+      finish();
+    }
+  }
+  async function withLegacyRemoteReplayAction(fn, playerIndex){
     const g = gameState();
     let prevRemoteActionPlayer = null;
     if(g){
@@ -1036,7 +1573,7 @@
       const choiceId = String(choice.clientActionId || uid + ':' + choice.clientAt || '');
       if(choiceId && appliedTurnChoiceFallbackIds.has(choiceId)) continue;
       if(choiceId) appliedTurnChoiceFallbackIds.add(choiceId);
-      withRemoteAction(async ()=>{
+      withLegacyRemoteReplayAction(async ()=>{
         if(isGameScreenActive()) return;
         if(typeof window.chooseTurn === 'function') window.chooseTurn(!!choice.goFirst);
         updateRoomTurn(gameState()?.currentPlayer);
@@ -1049,6 +1586,80 @@
   }
   function localUserUid(){
     return window.FATE_ONLINE?.user?.uid || '';
+  }
+  function normalizedRoomCode(code){
+    return String(code || '').trim().toUpperCase();
+  }
+  function allowOnlineMatchStart(code, reason, ttlMs=90000){
+    const roomCode = normalizedRoomCode(code);
+    if(!roomCode) return false;
+    allowedOnlineMatchStarts.set(roomCode, {
+      reason:String(reason || 'manual'),
+      expiresAt:Date.now() + Math.max(5000, Number(ttlMs) || 90000)
+    });
+    return true;
+  }
+  function hasOnlineMatchStartIntent(code, reason){
+    const roomCode = normalizedRoomCode(code);
+    if(!roomCode) return false;
+    const entry = allowedOnlineMatchStarts.get(roomCode);
+    if(!entry) return false;
+    if(entry.expiresAt < Date.now()){
+      allowedOnlineMatchStarts.delete(roomCode);
+      return false;
+    }
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineMatchStartIntent = {
+        at:Date.now(),
+        roomCode,
+        requestedBy:String(reason || ''),
+        allowedBy:entry.reason
+      };
+    } catch(e) {}
+    return true;
+  }
+  function shouldEnterStartedRoom(room, reason){
+    const roomCode = normalizedRoomCode(room?.roomCode || activeRoom);
+    if(!roomCode || !isStartedRoomStatus(room?.status)) return false;
+    const g = gameState();
+    const currentCode = normalizedRoomCode(g?._onlineRoomCode || g?._onlineStartedRoomCode || g?._onlineBootstrappingRoomCode);
+    if(currentCode === roomCode) return true;
+    if(randomQueueState.active && normalizedRoomCode(randomQueueState.roomCode) === roomCode) return true;
+    if(hasOnlineMatchStartIntent(roomCode, reason)) return true;
+    if(!activeRoomSilent && normalizedRoomCode(activeRoom) === roomCode) return true;
+    return false;
+  }
+  function noteBlockedOnlineMatchStart(room, reason){
+    const roomCode = normalizedRoomCode(room?.roomCode || activeRoom);
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.blockedOnlineAutoMatchStart = {
+        at:Date.now(),
+        roomCode,
+        status:String(room?.status || ''),
+        reason:String(reason || ''),
+        silent:!!activeRoomSilent,
+        activeRoom:normalizedRoomCode(activeRoom)
+      };
+    } catch(e) {}
+    console.warn('Blocked online match auto-start without entry intent', {
+      roomCode,
+      status:room?.status,
+      reason,
+      silent:!!activeRoomSilent
+    });
+  }
+  function maybeStartRoomGame(room, reason){
+    if(!isStartedRoomStatus(room?.status)) return false;
+    if(!shouldEnterStartedRoom(room, reason)){
+      noteBlockedOnlineMatchStart(room, reason);
+      return false;
+    }
+    startRoomGame(room).catch(function(err){
+      console.error('Online room handoff failed', err);
+    });
+    return true;
   }
   function currentMatchPreloadKey(room){
     const g = gameState();
@@ -1063,12 +1674,46 @@
     const entry = player && player.matchPreload;
     return !!(entry && entry.ready && (!key || String(entry.matchKey || '') === String(key || '')));
   }
+  function playableReadyEntry(player, key){
+    const entry = player && player.matchPreload;
+    return !!(entry && entry.playableReady && (!key || String(entry.matchKey || '') === String(key || '')));
+  }
   function preloadReadySnapshot(room, players, key){
     const r = room || lastLobbyRoom || {};
     const p = players || lastLobbyPlayers || {};
     const uids = [r.hostUid, r.guestUid].filter(Boolean);
     const readyCount = uids.filter(uid=>preloadReadyEntry(p[uid], key)).length;
     return {readyCount, total:uids.length || 2, key, uids};
+  }
+  function playableReadySnapshot(room, players, key){
+    const r = room || lastLobbyRoom || {};
+    const p = players || lastLobbyPlayers || {};
+    const uids = [r.hostUid, r.guestUid].filter(Boolean);
+    const readyCount = uids.filter(uid=>playableReadyEntry(p[uid], key)).length;
+    return {readyCount, total:uids.length || 2, key, uids};
+  }
+  function setOnlinePlayableWaitVisible(visible, detail){
+    try{
+      let veil = document.getElementById('online-playable-wait-veil');
+      if(!visible){
+        if(veil) veil.remove();
+        return;
+      }
+      if(!veil){
+        veil = document.createElement('div');
+        veil.id = 'online-playable-wait-veil';
+        veil.setAttribute('aria-live', 'polite');
+        veil.style.cssText = 'position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:rgba(5,8,16,.24);backdrop-filter:blur(1px);pointer-events:none;';
+        veil.innerHTML = '<div style="max-width:360px;margin:1rem;padding:1rem 1.2rem;border:1px solid rgba(245,214,120,.42);background:rgba(10,13,24,.92);box-shadow:0 18px 45px rgba(0,0,0,.35);color:#f4e7c0;font-family:Cinzel,serif;text-align:center;"><div style="font-size:1rem;font-weight:700;margin-bottom:.35rem;">Syncing Match</div><div id="online-playable-wait-copy" style="font-family:Inter,system-ui,sans-serif;font-size:.9rem;line-height:1.35;color:#ddd3b3;">Waiting for both players to finish loading.</div></div>';
+        document.body.appendChild(veil);
+      }
+      const copy = document.getElementById('online-playable-wait-copy');
+      if(copy){
+        const ready = Number(detail?.readyCount || 0);
+        const total = Math.max(2, Number(detail?.total || 2));
+        copy.textContent = ready > 0 ? `Waiting for both players to finish loading. ${ready}/${total} ready.` : 'Waiting for both players to finish loading.';
+      }
+    }catch(e){}
   }
   async function publishOnlineMatchPreload(report){
     const g = gameState();
@@ -1112,6 +1757,63 @@
     perf.onlineMatchPreload.published = true;
     perf.onlineMatchPreload.transport = 'rtdb';
     return true;
+  }
+  async function publishOnlineMatchPlayable(){
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
+    const u = window.FATE_ONLINE?.user;
+    if(!code || !u || !isOnlineMatchState(g)) return false;
+    const key = currentMatchPreloadKey(room);
+    const prior = lastLobbyPlayers?.[u.uid]?.matchPreload || {};
+    const payload = Object.assign({}, prior, {
+      ready:prior.ready !== false,
+      roomCode:code,
+      uid:u.uid,
+      matchKey:key,
+      playableReady:true,
+      playableClientAt:Date.now(),
+      clientAt:Number(prior.clientAt || 0) || Date.now()
+    });
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.onlineMatchPlayable = Object.assign({}, payload, {published:false});
+    if(roomUsesFly(room || code)){
+      const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/preload`, {
+        method:'POST',
+        body:{uid:u.uid, matchPreload:payload}
+      });
+      if(data?.room){
+        const nextRoom = normalizeFlyRoom(data.room);
+        lastLobbyRoom = nextRoom;
+        lastLobbyPlayers = nextRoom.players;
+      }
+      perf.onlineMatchPlayable.published = true;
+      perf.onlineMatchPlayable.transport = 'fly';
+      return true;
+    }
+    if(!FO.update || !FO.ref || !FO.rtdb) return false;
+    await FO.update(FO.ref(FO.rtdb), {
+      [`rooms/${code}/players/${u.uid}/matchPreload`]:Object.assign({}, payload, {updatedAt:FO.serverTimestamp()}),
+      [`rooms/${code}/updatedAt`]:FO.serverTimestamp()
+    });
+    perf.onlineMatchPlayable.published = true;
+    perf.onlineMatchPlayable.transport = 'rtdb';
+    return true;
+  }
+  async function publishOnlineMatchPlayableWithRetry(){
+    let lastErr = null;
+    for(let attempt = 0; attempt < 3; attempt += 1){
+      try{
+        const ok = await publishOnlineMatchPlayable();
+        if(ok) return true;
+      }catch(err){
+        lastErr = err;
+        console.warn('Online playable readiness publish failed', {attempt:attempt + 1, err});
+      }
+      await new Promise(resolve=>setTimeout(resolve, 450 + attempt * 650));
+    }
+    if(lastErr) throw lastErr;
+    return false;
   }
   function waitForOnlineMatchPreload(options){
     const opts = options || {};
@@ -1160,6 +1862,70 @@
               const snap = preloadReadySnapshot(nextRoom, nextRoom.players, key);
               onProgress(snap);
               if(snap.readyCount >= snap.total && snap.total >= 2) return done('both-ready', snap);
+            }
+          }catch(e){}
+          if(!settled) setTimeout(poll, 650);
+        };
+        poll();
+        return;
+      }
+      if(FO.onValue && FO.ref && FO.rtdb && code){
+        unsub = FO.onValue(FO.ref(FO.rtdb, `rooms/${code}/players`), function(snap){
+          const players = snap.val() || {};
+          lastLobbyPlayers = players;
+          check(players, lastLobbyRoom || room);
+        });
+      }
+    });
+  }
+  function waitForOnlineMatchPlayable(options){
+    const opts = options || {};
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
+    const key = currentMatchPreloadKey(room);
+    const timeoutMs = Math.max(3000, Math.min(10000, Number(opts.timeoutMs) || 10000));
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
+    const started = Date.now();
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    return new Promise(function(resolve){
+      let settled = false;
+      let unsub = null;
+      let timeout = 0;
+      const finish = function(reason, snap){
+        if(settled) return;
+        settled = true;
+        if(timeout) clearTimeout(timeout);
+        try{ if(unsub) unsub(); }catch(e){}
+        const result = Object.assign({reason, ms:Date.now() - started}, snap || playableReadySnapshot(room, lastLobbyPlayers, key));
+        perf.onlineMatchPlayableWait = result;
+        resolve(result);
+      };
+      const check = function(players, nextRoom){
+        const currentRoom = nextRoom || lastLobbyRoom || room;
+        const snap = playableReadySnapshot(currentRoom, players || lastLobbyPlayers, key);
+        onProgress(snap);
+        if(snap.readyCount >= snap.total && snap.total >= 2) finish('both-playable', snap);
+      };
+      check(lastLobbyPlayers, room);
+      timeout = setTimeout(function(){
+        finish('timeout', playableReadySnapshot(lastLobbyRoom || room, lastLobbyPlayers, key));
+      }, timeoutMs);
+      const done = function(reason, snap){
+        finish(reason, snap);
+      };
+      if(roomUsesFly(room || code)){
+        const poll = async function(){
+          if(settled) return;
+          try{
+            const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
+            if(data?.room){
+              const nextRoom = normalizeFlyRoom(data.room);
+              lastLobbyRoom = nextRoom;
+              lastLobbyPlayers = nextRoom.players;
+              const snap = playableReadySnapshot(nextRoom, nextRoom.players, key);
+              onProgress(snap);
+              if(snap.readyCount >= snap.total && snap.total >= 2) return done('both-playable', snap);
             }
           }catch(e){}
           if(!settled) setTimeout(poll, 650);
@@ -1240,6 +2006,10 @@
       if(lagPauseVisible) setLagPause(false);
       return;
     }
+    if(roomUsesFly(activeRoomCode() || room)){
+      if(lagPauseVisible || g._onlineLagPauseActive) setLagPause(false);
+      return;
+    }
     const roomSeq = Math.max(Number(room.lastActionSeq || 0) || 0, Number(lastActionSeq || 0) || 0);
     if(!shouldRunForcedSyncForRoomSeq(roomSeq)){
       if(lagPauseVisible) setLagPause(false);
@@ -1278,15 +2048,17 @@
     lastReportedActionSeq = reportSeq;
     lastReportedActionAt = now;
     if(roomUsesFly(code)){
+      const room = lastLobbyRoom || {};
+      const player = room.players && uid ? room.players[uid] : null;
+      if(player){
+        player.actionSeq = Math.max(Number(player.actionSeq || 0) || 0, reportSeq);
+        player.actionSeqClientAt = Date.now();
+      }
+      if(!opts.turnBoundary && safeSeq > 1) return;
       flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/progress`, {
         method:'POST',
+        timeoutMs:2500,
         body:{uid, actionSeq:reportSeq, clientAt:Date.now()}
-      }).then(data=>{
-        if(data?.room){
-          const nextRoom = normalizeFlyRoom(data.room);
-          lastLobbyRoom = nextRoom;
-          lastLobbyPlayers = nextRoom.players;
-        }
       }).catch(e=>console.warn('Fly action progress report failed', e));
       return;
     }
@@ -1568,6 +2340,9 @@
     lastActionSeq = 0;
     lastAppliedActionSeq = 0;
     lastAuthorityStateHash = '';
+    lobbyAuthorityPrejoinCode = '';
+    lobbyAuthorityPrejoinAttempts = 0;
+    lobbyAuthorityPrejoinNextAt = 0;
     actionReplayQueue = Promise.resolve();
     actionReplayBuffer.clear();
     actionReplayDrainScheduled = false;
@@ -2040,7 +2815,7 @@
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
       if(room.status !== 'lobby' && opts.allowStarted){
-        await resumeFlyRoom(room.roomCode, {silent:!!opts.silent, quiet});
+        await resumeFlyRoom(room.roomCode, {silent:!!opts.silent, quiet, allowEnter:true, reason:'explicit-resume'});
         if(!quiet && window.toast) toast('Rejoining online match...');
         return true;
       }
@@ -2069,9 +2844,10 @@
       lastSeq:Number(data.lastSeq || room.lastActionSeq || 0) || 0,
       events
     };
+    if(opts.allowEnter || opts.resume || opts.userInitiated) allowOnlineMatchStart(room.roomCode, opts.reason || 'explicit-resume');
     watchFlyRoom(room.roomCode, {silent:!!opts.silent});
     if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing' || room.status === 'ended'){
-      startRoomGame(room);
+      maybeStartRoomGame(room, opts.reason || 'resume');
     }
     return room;
   }
@@ -2193,6 +2969,7 @@
     if(room.status !== 'lobby'){
       const canResumeStartedRoom = !!opts.allowStarted && (room.hostUid === u.uid || room.guestUid === u.uid);
       if(canResumeStartedRoom){
+        allowOnlineMatchStart(code, opts.reason || 'explicit-resume');
         watchRoom(code, {silent:!!opts.silent});
         startConnectionHeartbeat(code, u.uid);
         setConnectedOnDisconnect(code, u.uid).catch(()=>{});
@@ -2260,6 +3037,33 @@
   }
   function joinFromInput(){ const inp=document.getElementById('online-room-code-input'); joinRoom(inp?.value||''); }
 
+  function isStartedRoomStatus(status){
+    return /^(matchup|starting|playing)$/i.test(String(status || ''));
+  }
+
+  function maybePrejoinLobbyAuthority(room){
+    if(!room || !room.roomCode || isStartedRoomStatus(room.status)) return;
+    if(!configuredAuthorityUrl() || typeof WebSocket === 'undefined') return;
+    const code = String(room.roomCode || '').trim().toUpperCase();
+    if(!code) return;
+    if(Date.now() < lobbyAuthorityPrejoinNextAt) return;
+    if(lobbyAuthorityPrejoinCode === code && authorityRoomCode === code && (authorityJoined || authorityJoinPromise)) return;
+    lobbyAuthorityPrejoinCode = code;
+    ensureAuthorityJoined(code).then(function(){
+      if(lobbyAuthorityPrejoinCode === code){
+        lobbyAuthorityPrejoinAttempts = 0;
+        lobbyAuthorityPrejoinNextAt = 0;
+      }
+    }).catch(function(err){
+      if(lobbyAuthorityPrejoinCode === code){
+        lobbyAuthorityPrejoinAttempts += 1;
+        lobbyAuthorityPrejoinNextAt = Date.now() + Math.min(15000, 2500 * lobbyAuthorityPrejoinAttempts);
+        lobbyAuthorityPrejoinCode = '';
+      }
+      console.warn('Fly lobby authority prejoin failed', err);
+    });
+  }
+
   function watchFlyRoom(code, opts={}){
     activeRoom = code;
     clearRoomWatchers();
@@ -2270,12 +3074,14 @@
     let timer = 0;
     let lastWarn = 0;
     let lastHeartbeatAt = 0;
+    let notFoundCount = 0;
     async function sendFlyHeartbeat(){
       const u = window.FATE_ONLINE?.user;
       if(!u || Date.now() - lastHeartbeatAt < 5000) return;
       lastHeartbeatAt = Date.now();
       await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/heartbeat`, {
         method:'POST',
+        timeoutMs:30000,
         body:{uid:u.uid}
       }).then(data=>{
         if(data?.room){
@@ -2284,6 +3090,7 @@
           lastLobbyPlayers = nextRoom.players;
         }
       }).catch(e=>{
+        if(e && e.status === 404) return;
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room heartbeat failed', e);
           lastWarn = Date.now();
@@ -2295,6 +3102,7 @@
       if(!room.roomCode) return;
       lastLobbyRoom = room;
       lastLobbyPlayers = room.players;
+      maybePrejoinLobbyAuthority(room);
       if(activeRoomSilent) {
         // Keep the cached room fresh without reopening the lobby modal.
       }else{
@@ -2304,22 +3112,44 @@
       syncRoomChatToInGame(room);
       maybeHandleOpponentDisconnect(room, room.players);
       maybeAutoStartQueuedRoom(room, room.players);
-      if(room.status === 'matchup' || room.status === 'starting' || room.status === 'playing') startRoomGame(room);
+      if(isStartedRoomStatus(room.status)) maybeStartRoomGame(room, 'fly-watch');
       if(room.status === 'ended') handleRoomEnded(room);
     }
     async function poll(){
       if(stopped) return;
       try{
-        const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
+        const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`, { timeoutMs:12000 });
         if(data?.room) handleFlyRoom(data.room);
         await sendFlyHeartbeat();
       }catch(e){
+        if(e && e.status === 404){
+          notFoundCount += 1;
+          recordOnlineDiagnostic('fly-room-not-found', {
+            roomCode:String(code || '').toUpperCase(),
+            count:notFoundCount,
+            reason:e.message || String(e)
+          });
+          if(notFoundCount >= 2){
+            stopped = true;
+            if(timer) clearTimeout(timer);
+            if(String(activeRoom || '').toUpperCase() === String(code || '').toUpperCase()) activeRoom = null;
+            if(lastLobbyRoom && String(lastLobbyRoom.roomCode || '').toUpperCase() === String(code || '').toUpperCase()) lastLobbyRoom = null;
+            lastLobbyPlayers = null;
+            if(!activeRoomSilent && window.toast) toast('That online room is no longer available.');
+          }
+          return;
+        }
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room watch failed', e);
           lastWarn = Date.now();
         }
       }finally{
-        if(!stopped) timer = setTimeout(poll, 900);
+        if(!stopped) {
+          const watchingQueuedRoom = randomQueueState.active
+            && String(randomQueueState.roomCode || '').toUpperCase() === String(code || '').toUpperCase();
+          const startingOrFreshRoom = watchingQueuedRoom || isStartedRoomStatus(lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom.status : '');
+          timer = setTimeout(poll, startingOrFreshRoom ? 300 : 900);
+        }
       }
     }
     roomUnsub = function(){
@@ -2362,7 +3192,7 @@
         evaluateLagPause();
         maybeHandleOpponentDisconnect(room, lastLobbyPlayers || {});
         maybeAutoStartQueuedRoom(room, lastLobbyPlayers || {});
-        if(room.status==='matchup' || room.status==='starting' || room.status==='playing') startRoomGame(room);
+        if(room.status==='matchup' || room.status==='starting' || room.status==='playing') maybeStartRoomGame(room, 'rtdb-watch');
         if(room.status==='ended') handleRoomEnded(room);
       }finally{
         handlingRoom = false;
@@ -2527,12 +3357,17 @@
         method:'POST',
         body:{uid:u.uid, seed, song, mode:normalizeRoomMode(room.mode)}
       });
-      if(data?.accepted) bufferOnlineAction(data.accepted.action);
+      if(data?.accepted){
+        rememberFlyStartAction(code, data.accepted.action);
+        bufferOnlineAction(data.accepted.action);
+      }
       if(data?.room){
         const nextRoom = normalizeFlyRoom(data.room);
+        nextRoom._startAction = cachedFlyStartAction(nextRoom.roomCode || code);
         lastLobbyRoom = nextRoom;
         lastLobbyPlayers = nextRoom.players;
-        startRoomGame(nextRoom);
+        allowOnlineMatchStart(nextRoom.roomCode || code, opts.queue ? 'queue-host-start' : 'host-start');
+        maybeStartRoomGame(nextRoom, opts.queue ? 'queue-host-start' : 'host-start');
       }
       return true;
     }catch(e){
@@ -2543,10 +3378,28 @@
   }
 
   async function fetchFlyStartAction(code){
-    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=300`);
+    const cached = cachedFlyStartAction(code);
+    if(cached) return cached;
+    const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=0&limit=300`, { timeoutMs:12000 });
     const events = Array.isArray(data?.events) ? data.events : [];
     const matchStart = events.find(item=>String(item?.action?.type || '').toUpperCase() === 'MATCH_START');
-    return matchStart?.action || null;
+    return rememberFlyStartAction(code, matchStart?.action) || null;
+  }
+
+  function rememberFlyStartAction(code, action){
+    const roomCode = String(code || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    if(!roomCode || String(action?.type || '').toUpperCase() !== 'MATCH_START' || !action.payload) return null;
+    flyMatchStartActions.set(roomCode, action);
+    if(flyMatchStartActions.size > 20){
+      const first = flyMatchStartActions.keys().next().value;
+      if(first) flyMatchStartActions.delete(first);
+    }
+    return action;
+  }
+
+  function cachedFlyStartAction(code){
+    const roomCode = String(code || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    return roomCode ? (flyMatchStartActions.get(roomCode) || null) : null;
   }
 
   async function hostStartRoom(code, opts={}){
@@ -2566,6 +3419,7 @@
       const hostProf = liveProfiles.get(room.hostUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.hostUid}`))).val() || {};
       const guestProf = liveProfiles.get(room.guestUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.guestUid}`))).val() || {};
       if(!isConnectedPlayer(hostNode) || !isConnectedPlayer(guest)){ if(window.toast) toast('Both players must be connected'); return; }
+      allowOnlineMatchStart(code, opts.queue ? 'queue-host-start' : 'host-start');
       await FO.update(FO.ref(FO.rtdb), {
         [`rooms/${code}/status`]: 'matchup',
         [`rooms/${code}/phase`]: 'matchup',
@@ -2615,7 +3469,7 @@
       let startAction = {};
       if(room._flyRoom){
         players = lastLobbyPlayers || room.players || {};
-        startAction = await fetchFlyStartAction(room.roomCode) || {};
+        startAction = room._startAction || cachedFlyStartAction(room.roomCode) || await fetchFlyStartAction(room.roomCode) || {};
         if(!startAction.payload) throw new Error('Fly MATCH_START event is not available yet');
       }else{
         players = (await FO.get(FO.ref(FO.rtdb, `rooms/${room.roomCode}/players`))).val() || {};
@@ -2686,8 +3540,28 @@
         randomQueueState = { active:false, roomCode:null, role:null, started:true, handlers:null };
       }
 
-      if(window.toast) toast(roomMode === 'ranked' ? 'Ranked Challenger match started.' : 'Online Free Play started: matchup/coin bootstrap active.');
+      if(window.toast) toast(roomMode === 'ranked' ? 'Challenger match ready.' : 'Online match ready.');
       subscribeActions(room.roomCode);
+      const latestPlayableState = gameState();
+      if(latestPlayableState && latestPlayableState._onlineRoomCode === room.roomCode){
+        latestPlayableState._onlineMatchPlayable = true;
+      }
+      setOnlinePlayableWaitVisible(false);
+      publishOnlineMatchPlayableWithRetry().catch(function(err){
+        console.warn('Could not publish online playable readiness', err);
+        return false;
+      });
+      waitForOnlineMatchPlayable({
+        timeoutMs:6000,
+        onProgress:function(snap){
+          setOnlinePlayableWaitVisible(false, snap);
+        }
+      }).then(function(){
+        setOnlinePlayableWaitVisible(false);
+      }).catch(function(err){
+        console.warn('Online playable background wait failed', err);
+        setOnlinePlayableWaitVisible(false);
+      });
       if(localIndex === 0 && !startPayload.serverBootstrapped) setTimeout(()=>sendBootstrapStateSync('match-start'), 220);
       // Spectator listings stay disabled until the deployed RTDB rules explicitly
       // allow /liveMatches writes; player match startup must not depend on them.
@@ -2853,7 +3727,13 @@
       }
     }
 
-    await withRemoteAction(async ()=>{
+    if(isStrictCompactAuthorityAction(type) && !shouldApplyServerStateDirectly(type, payload)){
+      console.warn('Strict Fly authority action is missing canonical server state; skipping local replay', action);
+      resyncRejectedOnlineAction('strict accepted action missing postState seq ' + (action.seq || '?')).catch(()=>{});
+      return;
+    }
+
+    await withLegacyRemoteReplayAction(async ()=>{
       if(type === 'END_TURN'){
         if(typeof window.endTurn === 'function') window.endTurn();
         updateRoomTurn(gameState()?.currentPlayer);
@@ -3125,20 +4005,34 @@
     if(token) headers.authorization = 'Bearer ' + token;
     const method = String(opts.method || 'GET').toUpperCase();
     const init = { method, headers };
+    const timeoutMs = Math.min(60000, Math.max(1000, Number(opts.timeoutMs) || 10000));
+    let timeoutTimer = 0;
+    let controller = null;
+    if(typeof AbortController !== 'undefined'){
+      controller = new AbortController();
+      init.signal = controller.signal;
+      timeoutTimer = setTimeout(()=>controller.abort(), timeoutMs);
+    }
     if(opts.body !== undefined){
       headers['content-type'] = 'application/json';
       init.body = JSON.stringify(opts.body || {});
     }
-    const res = await fetch(base + path, init);
-    if(!res.ok){
-      const text = await res.text().catch(()=>'');
-      throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+    try{
+      const res = await fetch(base + path, init);
+      if(!res.ok){
+        const text = await res.text().catch(()=>'');
+        const err = new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
+        err.status = res.status;
+        throw err;
+      }
+      return await res.json();
+    }finally{
+      if(timeoutTimer) clearTimeout(timeoutTimer);
     }
-    return await res.json();
   }
 
-  async function flyApiJson(path){
-    return flyApiRequest(path);
+  async function flyApiJson(path, opts){
+    return flyApiRequest(path, opts || {});
   }
 
   function flyDeckChoiceFromRoomDeck(deck){
@@ -3348,6 +4242,43 @@
     }
     if(msg.kind === 'accepted' || msg.kind === 'rejected' || msg.kind === 'error'){
       if(msg.kind === 'accepted') handleAuthorityAcceptedMessage(msg);
+      recordOnlineDiagnostic('authority-' + msg.kind, {
+        requestId:String(msg.requestId || ''),
+        actionType:String(msg.action?.type || ''),
+        seq:Number(msg.action?.seq || 0) || 0,
+        reason:String(msg.reason || ''),
+        serverSeq:Number(msg.serverSeq || 0) || 0,
+        serverStateHash:String(msg.serverStateHash || '')
+      });
+      const staleClientResolvedReject = msg.kind === 'rejected'
+        && clientResolvedGameplayEnabled()
+        && String(msg.action?.type || '').toUpperCase() === 'ACTION_RESULT'
+        && /stale baseStateHash/i.test(String(msg.reason || ''));
+      if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash && !staleClientResolvedReject){
+        lastAuthorityStateHash = String(msg.serverStateHash || '');
+        applyOnlineCanonicalState(msg.serverState, 'authority rejection resync');
+        const serverSeq = Number(msg.serverSeq || 0) || 0;
+        if(serverSeq){
+          lastActionSeq = Math.max(lastActionSeq, serverSeq);
+          lastAppliedActionSeq = Math.max(lastAppliedActionSeq, serverSeq);
+          discardBufferedActionsThrough(lastAppliedActionSeq);
+          const latest = gameState();
+          if(latest){
+            latest._onlineActionSeq = Math.max(Number(latest._onlineActionSeq || 0) || 0, lastActionSeq);
+            latest._onlineAppliedActionSeq = lastAppliedActionSeq;
+            latest._onlineLagPauseActive = false;
+          }
+          reportActionProgress(lastAppliedActionSeq, {force:true});
+          if(typeof evaluateLagPause === 'function') evaluateLagPause();
+        }
+      }else if(staleClientResolvedReject && msg.serverStateHash){
+        lastAuthorityStateHash = String(msg.serverStateHash || '');
+        recordOnlineDiagnostic('client-resolved-stale-base-kept-local', {
+          requestId:String(msg.requestId || ''),
+          serverSeq:Number(msg.serverSeq || 0) || 0,
+          serverStateHash:String(msg.serverStateHash || '')
+        });
+      }
       const requestId = String(msg.requestId || '');
       const pending = requestId ? authorityInflight.get(requestId) : null;
       if(pending){
@@ -3358,6 +4289,9 @@
           const err = new Error(msg.reason || 'WebSocket authority rejected action');
           err.authorityRejected = msg.kind === 'rejected';
           err.authorityKind = msg.kind;
+          err.serverSeq = Number(msg.serverSeq || 0) || 0;
+          err.serverStateHash = String(msg.serverStateHash || '');
+          err.serverState = msg.serverState || null;
           pending.reject(err);
         }
       }
@@ -3384,7 +4318,7 @@
   function waitForAuthorityOpen(ws){
     if(ws.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((resolve, reject)=>{
-      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), 2500);
+      const timer = setTimeout(()=>reject(new Error('WebSocket authority connection timed out')), AUTHORITY_OPEN_TIMEOUT_MS);
       ws.addEventListener('open', ()=>{ clearTimeout(timer); resolve(); }, {once:true});
       ws.addEventListener('error', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority connection failed')); }, {once:true});
       ws.addEventListener('close', ()=>{ clearTimeout(timer); reject(new Error('WebSocket authority closed before join')); }, {once:true});
@@ -3432,7 +4366,7 @@
         const started = Date.now();
         const timer = setInterval(()=>{
           if(authorityJoined){ clearInterval(timer); resolve(); }
-          else if(Date.now() - started > 2500){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
+          else if(Date.now() - started > AUTHORITY_HELLO_TIMEOUT_MS){ clearInterval(timer); reject(new Error('WebSocket authority join timed out')); }
         }, 40);
       });
       return true;
@@ -3468,7 +4402,7 @@
         const err = new Error('WebSocket authority did not accept action in time');
         err.authorityTimeout = true;
         reject(err);
-      }, 3500);
+      }, AUTHORITY_ACTION_TIMEOUT_MS);
       authorityInflight.set(requestId, {resolve, reject, timer});
       try{
         authorityWs.send(JSON.stringify(outbound));
@@ -3488,10 +4422,9 @@
     const maxAttempts = authorityRetryMaxAttempts();
     let lastErr = null;
     for(let attempt = 0; attempt < maxAttempts; attempt += 1){
-      try{
-        await ensureAuthorityJoined(code);
-        await catchUpFlyAuthorityReplay(code, 'before authority send ' + String(type || '').toUpperCase());
-        const accepted = await sendActionViaAuthorityOnce(code, type, payload, attempt);
+        try{
+          await ensureAuthorityJoined(code);
+          const accepted = await sendActionViaAuthorityOnce(code, type, payload, attempt);
         if(attempt > 0) authorityRetrySuccesses += 1;
         return accepted;
       }catch(e){
@@ -3572,12 +4505,99 @@
     return persistPromise;
   }
 
+  function handleLobbyMatchStartAccepted(accepted){
+    const action = accepted && accepted.action;
+    if(String(action?.type || '').toUpperCase() !== 'MATCH_START') return false;
+    const g = gameState();
+    if(isOnlineMatchState(g)) return false;
+    const code = String(accepted?.roomCode || activeRoom || lastLobbyRoom?.roomCode || '').trim().toUpperCase();
+    if(!code) return false;
+    if(activeRoom && String(activeRoom || '').trim().toUpperCase() !== code) return false;
+    const payload = action.payload || {};
+    rememberFlyStartAction(code, action);
+    const roomPatch = accepted.roomPatch || {};
+    const baseRoom = lastLobbyRoom || {};
+    const nextRoom = Object.assign({}, baseRoom, roomPatch, {
+      _flyRoom:true,
+      roomCode:code,
+      status:roomPatch.status || baseRoom.status || 'playing',
+      phase:roomPatch.phase || baseRoom.phase || 'playing',
+      hostUid:payload.hostUid || baseRoom.hostUid || '',
+      guestUid:payload.guestUid || baseRoom.guestUid || '',
+      seed:payload.seed || roomPatch.seed || baseRoom.seed || '',
+      song:payload.song || roomPatch.song || baseRoom.song || '',
+      lastActionSeq:Math.max(Number(baseRoom.lastActionSeq || 0) || 0, Number(action.seq || 0) || 0)
+    });
+    nextRoom._startAction = action;
+    if(!nextRoom.players || !Object.keys(nextRoom.players).length) nextRoom.players = lastLobbyPlayers || {};
+    lastLobbyRoom = nextRoom;
+    lastLobbyPlayers = nextRoom.players || lastLobbyPlayers || {};
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineLobbyMatchStartSignal = {
+        at:Date.now(),
+        roomCode:code,
+        seq:Number(action.seq || 0) || 0,
+        transport:'websocket-accepted'
+      };
+    } catch(e) {}
+    maybeStartRoomGame(nextRoom, 'websocket-match-start');
+    return true;
+  }
+
+  function applyAcceptedCanonicalActionNow(action, accepted){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return false;
+    const type = String(action?.type || '').toUpperCase();
+    const payload = action?.payload || {};
+    if(!shouldApplyServerStateDirectly(type, payload)) return false;
+    const seq = Number(action?.seq || 0) || 0;
+    const directAction = accepted?.serverStateHash
+      ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
+      : action;
+    if(seq){
+      lastActionSeq = Math.max(lastActionSeq, seq);
+      g._onlineActionSeq = lastActionSeq;
+    }
+    try{
+      applyAuthoritativePostState(directAction, 'accepted authoritative state seq ' + (seq || '?'));
+      if(seq){
+        lastAppliedActionSeq = Math.max(lastAppliedActionSeq, seq);
+        const latest = gameState();
+        if(latest){
+          latest._onlineActionSeq = Math.max(Number(latest._onlineActionSeq || 0) || 0, lastActionSeq);
+          latest._onlineAppliedActionSeq = lastAppliedActionSeq;
+        }
+        discardBufferedActionsThrough(lastAppliedActionSeq);
+        reportActionProgress(lastAppliedActionSeq, {
+          turnBoundary:isTurnBoundaryOnlineAction(directAction),
+          force:isTurnBoundaryOnlineAction(directAction)
+        });
+      }
+      evaluateLagPause();
+    }catch(e){
+      console.error('Immediate accepted authoritative state apply failed; falling back to replay buffer', e, directAction);
+      bufferOnlineAction(directAction);
+    }
+    return true;
+  }
+
   function handleAuthorityAcceptedMessage(accepted){
     const action = accepted && accepted.action;
     const code = String(accepted?.roomCode || gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
     if(!action || !code) return;
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
-    bufferOnlineAction(action);
+    if(handleLobbyMatchStartAccepted(accepted)) return;
+    if(applyAcceptedCanonicalActionNow(action, accepted)){
+      if(!shouldSkipAuthorityRtdbPersist(accepted)){
+        ensureAuthorityAcceptedActionPersisted(code, accepted).catch(()=>{});
+      }
+      return;
+    }
+    const bufferedAction = accepted.serverStateHash
+      ? Object.assign({}, action, {serverStateHash:String(accepted.serverStateHash || '')})
+      : action;
+    bufferOnlineAction(bufferedAction);
     if(!shouldSkipAuthorityRtdbPersist(accepted)){
       ensureAuthorityAcceptedActionPersisted(code, accepted).catch(()=>{});
     }
@@ -3591,8 +4611,11 @@
     payload = onlineFirebaseSafeValue(payload || {});
     const authorityEnabled = !!configuredAuthorityUrl();
     const allowFirebaseFallback = firebaseActionFallbackAllowed();
-    if(authorityEnabled && actionType !== 'STATE_SYNC' && actionType !== 'EFFECT_CINEMATIC' && !payload.clientActionId){
-      payload.clientActionId = makeDirectAuthorityActionId(actionType);
+    const authorityActionType = authorityEnabled && !allowFirebaseFallback
+      ? strictAuthorityIntentForSend(actionType, payload, gameState())
+      : actionType;
+    if(authorityEnabled && authorityActionType !== 'STATE_SYNC' && authorityActionType !== 'EFFECT_CINEMATIC' && !payload.clientActionId){
+      payload.clientActionId = makeDirectAuthorityActionId(authorityActionType);
     }
     let fallbackPublished = false;
     if(authorityOnlyMode() && !authorityEnabled){
@@ -3606,7 +4629,7 @@
     }
     try{
       try{
-        const accepted = await sendActionViaAuthority(actionType, payload);
+        const accepted = await sendActionViaAuthority(authorityActionType, payload);
         if(accepted){
           if(!shouldSkipAuthorityRtdbPersist(accepted)){
             await ensureAuthorityAcceptedActionPersisted(code, accepted);
@@ -3795,7 +4818,10 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.placeSelected.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'PLACE_CARD')) return;
+        if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()){
+          return originals.placeSelected.apply(this, arguments);
+        }
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {
           fn:'placeSelected',
@@ -3816,7 +4842,7 @@
         if(!onlineCellActionPending(g)){
           return originals.clickCell.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'CLICK_CELL')) return;
         const args = arguments;
         const pendingMove = g._serverPendingMove || null;
         const pendingConsolidation = g._consolidating || null;
@@ -3827,7 +4853,13 @@
           promptId:(pendingMove && pendingMove.promptId) || (pendingConsolidation && pendingConsolidation.promptId) || '',
           placing:!!g.placing,
           selectedHand:selectedHandSnapshot(g)
-        }, ()=>originals.clickCell.apply(this, args));
+        }, ()=>{
+          const latest = gameState();
+          const isPlacement = clientResolvedGameplayEnabled()
+            && toAuthorityIntent('CLICK_CELL', {placing:!!latest?.placing, selectedHand:selectedHandSnapshot(latest), z,r,c}, latest) === 'PLACE_CARD';
+          if(isPlacement) return runClientResolvedPlacementWithoutPresentation(()=>originals.clickCell.apply(this, args));
+          return originals.clickCell.apply(this, args);
+        });
       };
     }
 
@@ -4093,16 +5125,25 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals[fnName].apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'BOARD_ACTION')) return;
         const pos = onlineFunctionPositionPayload(g, arguments);
-        if(!pos) return originals[fnName].apply(this, arguments);
+        if(!pos) {
+          recordOnlineDiagnostic(clientResolvedGameplayEnabled() ? 'client-resolved-board-action-without-source' : 'blocked-unsynced-board-action', {
+            fn:fnName,
+            reason:'missing board source coordinates'
+          });
+          if(!clientResolvedGameplayEnabled()){
+            if(window.toast) toast('Could not sync that board effect. Select the card again.');
+            return;
+          }
+        }
         const args = arguments;
         const payload = Object.assign({
           fn:fnName,
           playerIndex:g.currentPlayer,
           turn:g.turn
-        }, pos);
-        if(fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect') {
+        }, pos || {});
+        if(pos && (fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect')) {
           payload.effectCinematic = boardEffectCinematicPayload(g, pos.z, pos.r, pos.c);
         }
         return sendOptimisticAction('BOARD_ACTION', payload, ()=>originals[fnName].apply(this, args));
@@ -4244,6 +5285,7 @@
     const prof = await profile();
     const data = await flyApiRequest('/api/matchmaking/enter', {
       method:'POST',
+      timeoutMs:45000,
       body:{
         uid:u.uid,
         mode,
@@ -4268,6 +5310,14 @@
       emitRandomQueueStatus('waiting', partyTargetUid ? 'Waiting for your party member...' : 'Waiting for a random player...');
     }
     return true;
+  }
+
+  function markFlyRandomQueueFailed(){
+    randomQueueState.active = false;
+    randomQueueState.roomCode = null;
+    randomQueueState.role = null;
+    randomQueueState.started = false;
+    clearRandomQueueWatcher();
   }
 
   async function createQueuedRoom(deckChoice, mode='ranked'){
@@ -4491,6 +5541,8 @@
         return await startFlyRandomQueue(mode, deck, handlers, partyTargetUid);
       }catch(e){
         console.error('Fly random queue failed', e);
+        markFlyRandomQueueFailed();
+        setTimeout(()=>removeOwnQueueEntry().catch(()=>{}), 1500);
         emitRandomQueueStatus('error', 'Could not enter Fly random queue. Try again.');
         return false;
       }
@@ -4583,6 +5635,138 @@
   window.fateSendRoomAction = sendAction;
   window.fatePublishOnlineMatchPreload = publishOnlineMatchPreload;
   window.fateWaitForOnlineMatchPreload = waitForOnlineMatchPreload;
+  window.fatePublishOnlineMatchPlayable = publishOnlineMatchPlayable;
+  window.fateWaitForOnlineMatchPlayable = waitForOnlineMatchPlayable;
+
+  function finiteAuthorityNumber(value){
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function countCanonicalBoardCards(g){
+    let count = 0;
+    (g?.board || []).forEach(function(zone){
+      (zone || []).forEach(function(row){
+        (row || []).forEach(function(card){
+          if(card) count += 1;
+        });
+      });
+    });
+    return count;
+  }
+  function onlinePendingInteractionKind(g){
+    const pending = normalizedClientPendingInteraction(g);
+    return String(pending?.kind || pending?.bucket || '');
+  }
+  function renderedAuthorityBoardReport(){
+    const info = {
+      count:0,
+      source:'none',
+      rendererAvailable:false,
+      rendererOwnsBoard:false,
+      rendererCards:null,
+      rendererExpectedCards:null,
+      renderSnapshotBoardCount:null,
+      domBoardCount:null,
+      lastRenderDirtyMask:null,
+      lastRenderDirtySource:''
+    };
+    function useCount(source, value){
+      if(info.source !== 'none') return;
+      if(value === null) return;
+      info.count = value;
+      info.source = source;
+    }
+    if(typeof window.fateMatchRendererV2Report === 'function'){
+      try{
+        const report = window.fateMatchRendererV2Report();
+        info.rendererAvailable = !!report?.available;
+        info.rendererOwnsBoard = !!report?.ownsBoard;
+        info.rendererCards = finiteAuthorityNumber(report?.cards);
+        info.rendererExpectedCards = finiteAuthorityNumber(report?.expectedCards);
+        info.lastRenderDirtyMask = finiteAuthorityNumber(report?.lastDirtyMask);
+        info.lastRenderDirtySource = String(report?.lastDirtySource || report?.source || '');
+        useCount('renderer-cards', info.rendererCards);
+        useCount('renderer-expectedCards', info.rendererExpectedCards);
+      }catch(e){}
+    }
+    if(typeof window.fateBuildRenderSnapshot === 'function'){
+      try{
+        const snapshot = window.fateBuildRenderSnapshot();
+        info.renderSnapshotBoardCount = finiteAuthorityNumber(snapshot?.counts?.boardCards);
+        useCount('render-snapshot', info.renderSnapshotBoardCount);
+      }catch(e){}
+    }
+    try{
+      info.domBoardCount = document.querySelectorAll('#board .cell.has-card, #board .bc').length;
+      useCount('dom-board', info.domBoardCount);
+    }catch(e){}
+    return info;
+  }
+  window.fateAuthorityRenderReport = function(){
+    const g = gameState();
+    const versionText = (function(){
+      try{ return document.getElementById('game-version')?.textContent || ''; }catch(e){ return ''; }
+    })();
+    const room = String(g?._onlineRoomCode || activeRoom || authorityRoomCode || '').trim().toUpperCase();
+    const canonicalBoardCount = countCanonicalBoardCards(g);
+    const rendered = renderedAuthorityBoardReport();
+    const hasRenderedBoardCount = rendered.source !== 'none';
+    const renderedBoardMatchesCanonical = hasRenderedBoardCount && rendered.count === canonicalBoardCount;
+    let renderMismatchReason = '';
+    if(!hasRenderedBoardCount) renderMismatchReason = 'no rendered board count available';
+    else if(!renderedBoardMatchesCanonical) renderMismatchReason = 'canonical board count ' + canonicalBoardCount + ' != ' + rendered.source + ' ' + rendered.count;
+    return {
+      build:window.FATE_BUILD || window.FATE_BUILD_ID || versionText || '',
+      room,
+      seq:Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(lastActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0, Number(g?._onlineActionSeq || 0) || 0),
+      stateHash:lastAuthorityStateHash || '',
+      canonicalBoardCount,
+      renderedBoardCount:rendered.count,
+      renderedBoardSource:rendered.source,
+      renderedBoardMatchesCanonical,
+      renderMismatchReason,
+      rendererAvailable:rendered.rendererAvailable,
+      rendererOwnsBoard:rendered.rendererOwnsBoard,
+      rendererCards:rendered.rendererCards,
+      rendererExpectedCards:rendered.rendererExpectedCards,
+      renderSnapshotBoardCount:rendered.renderSnapshotBoardCount,
+      domBoardCount:rendered.domBoardCount,
+      lastRenderDirtyMask:rendered.lastRenderDirtyMask,
+      lastRenderDirtySource:rendered.lastRenderDirtySource,
+      currentPlayer:Number.isInteger(Number(g?.currentPlayer)) ? Number(g.currentPlayer) : null,
+      phase:String(g?.phase || ''),
+      pendingInteractionKind:onlinePendingInteractionKind(g),
+      pendingInteractionPlayerIndex:Number.isInteger(Number(g?.pendingInteraction?.playerIndex)) ? Number(g.pendingInteraction.playerIndex) : null,
+      pendingInteractionPromptId:String(g?.pendingInteraction?.promptId || ''),
+      localPlayerIndex:Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : null
+    };
+  };
+  window.fateOnlineDiagnosticsReport = function(){
+    const g = gameState();
+    const perf = window.__fatePerf || {};
+    return {
+      roomCode:String(g?._onlineRoomCode || activeRoom || '').toUpperCase(),
+      authority:window.fateGetWebSocketAuthorityStatus ? window.fateGetWebSocketAuthorityStatus() : null,
+      render:window.fateAuthorityRenderReport(),
+      diagnosticsTimeline:Array.isArray(perf.onlineDiagnosticsTimeline) ? perf.onlineDiagnosticsTimeline.slice(-80) : [],
+      lastLobbyRoom:lastLobbyRoom ? {
+        roomCode:lastLobbyRoom.roomCode || '',
+        status:lastLobbyRoom.status || '',
+        phase:lastLobbyRoom.phase || '',
+        lastActionSeq:lastLobbyRoom.lastActionSeq || 0
+      } : null
+    };
+  };
+  window.fateSubmitOnlineDiagnostics = async function(){
+    const code = String(gameState()?._onlineRoomCode || activeRoom || '').toUpperCase();
+    const report = window.fateOnlineDiagnosticsReport();
+    if(!code || !authorityHttpBaseUrl()) return report;
+    await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/diagnostics/client`, {
+      method:'POST',
+      body:{diagnostics:report}
+    });
+    return report;
+  };
   window.fateSetWebSocketAuthorityUrl = function(url){
     const value = String(url || '').trim();
     try{
@@ -4722,6 +5906,16 @@
   };
   window.fateLeaveOnlineRoom = leaveRoom;
   installOnlineGameplayHooks();
+
+  if(!window.__fateClientResolvedAutoCommitListenersInstalled){
+    window.__fateClientResolvedAutoCommitListenersInstalled = true;
+    const watchLocalMutation = reason=>setTimeout(()=>scheduleClientResolvedAutoCommit(reason, 60), 0);
+    try{
+      document.addEventListener('pointerup', ()=>watchLocalMutation('pointerup'), true);
+      document.addEventListener('keyup', ()=>watchLocalMutation('keyup'), true);
+      document.addEventListener('change', ()=>watchLocalMutation('change'), true);
+    }catch(e){}
+  }
 
   (function installRenderThrottleReloadResume(){
     let attempts = 0;
