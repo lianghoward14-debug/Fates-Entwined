@@ -57,6 +57,7 @@ const sockets = new Set();
 const matchmaking = new Map();
 const flyPlayerStats = new Map();
 const flyMatchResults = new Map();
+const flyAIRecords = new Map();
 const flyParties = new Map();
 const flyPartyInvites = new Map();
 const flyWorldChat = [];
@@ -71,6 +72,7 @@ let flyWorldChatSeq = 0;
 let flyMarketplaceSeq = 0;
 let flyPublicDeckCommentSeq = 0;
 let flyPrivateMessageSeq = 0;
+let flyAISimSchedule = {};
 let certCache = { expiresAt: 0, certs: null };
 let serviceAccountCache = undefined;
 let adminTokenCache = { expiresAt: 0, accessToken: '' };
@@ -223,6 +225,8 @@ function flyRoomsSnapshotPayload(){
     matchmaking:[...matchmaking.values()].map(publicMatchmakingEntry).filter(Boolean),
     playerStats:[...flyPlayerStats.values()].filter(Boolean),
     matchResults:[...flyMatchResults.values()].filter(Boolean).slice(-5000),
+    aiRecords:[...flyAIRecords.values()].map(publicFlyAIRecord).filter(Boolean).slice(0, 80),
+    aiSimSchedule:Object.assign({}, flyAISimSchedule || {}),
     parties:[...flyParties.values()].map(publicFlyParty).filter(Boolean),
     partyInvites:[...flyPartyInvites.values()].map(publicFlyPartyInvite).filter(Boolean),
     worldChatSeq:flyWorldChatSeq,
@@ -309,6 +313,11 @@ function loadFlyRoomsSnapshot(){
     const result = publicFlyMatchResult(item);
     if(result?.matchId) flyMatchResults.set(result.matchId, result);
   });
+  (Array.isArray(parsed?.aiRecords) ? parsed.aiRecords : []).forEach(item=>{
+    const record = publicFlyAIRecord(item);
+    if(record?.aiId) flyAIRecords.set(record.aiId, record);
+  });
+  flyAISimSchedule = parsed?.aiSimSchedule && typeof parsed.aiSimSchedule === 'object' ? Object.assign({}, parsed.aiSimSchedule) : {};
   (Array.isArray(parsed?.parties) ? parsed.parties : []).forEach(item=>{
     const party = publicFlyParty(item);
     if(party?.partyId) flyParties.set(party.partyId, party);
@@ -1726,6 +1735,10 @@ function publicFlyProfile(value){
     baseCode:String(raw.baseCode || '').slice(0, 80),
     photoURL:String(raw.photoURL || raw.profileImg || 'blank.png').slice(0, 180),
     profileImg:String(raw.profileImg || raw.photoURL || 'blank.png').slice(0, 180),
+    profileCropFocusX:safeNullableNumber(raw.profileCropFocusX ?? raw.imgCrop?.cropFocusX, 0, 1),
+    profileCropFocusY:safeNullableNumber(raw.profileCropFocusY ?? raw.imgCrop?.cropFocusY, 0, 1),
+    profileCropY:safeNullableNumber(raw.profileCropY ?? raw.imgCrop?.cropY, 0, 100),
+    profileCropZoom:safeNullableNumber(raw.profileCropZoom ?? raw.imgCrop?.cropZoom, 1, 4),
     challengerElo:safeNonNegativeInteger(raw.challengerElo ?? raw.elo, 600),
     elo:safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600),
     challengerWins:safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0),
@@ -1738,6 +1751,110 @@ function publicFlyProfile(value){
     starlight:safeNonNegativeInteger(raw.starlight, 0),
     updatedAt:Number(raw.updatedAt || 0) || now(),
     source:'fly-authority'
+  };
+}
+
+function isFlyInternalProfile(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const uid = String(raw.uid || '').toLowerCase();
+  const name = String(raw.name || raw.username || raw.displayName || '').toLowerCase();
+  const baseCode = String(raw.baseCode || '').toLowerCase();
+  if(/(^|[-_])(smoke|codex|test|diagnostic|client-resolved|authority)([-_]|$)/.test(uid)) return true;
+  if(/^(fly\s+smoke|smoke\s+|codex\b|test\s+)/.test(name)) return true;
+  if(/\b(smoke|codex|test)\b/.test(name)) return true;
+  if(/(smoke|codex|test)/.test(baseCode)) return true;
+  return false;
+}
+
+function publicFlyAIRecord(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const aiId = String(raw.aiId || raw.uid || '').replace(/[.#$\/\[\]]/g, '_').slice(0, 128);
+  if(!aiId) return null;
+  const name = String(raw.name || raw.username || 'AI Opponent').slice(0, 48);
+  const elo = Math.max(100, Math.min(2600, safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600)));
+  const trueElo = Math.max(100, Math.min(3000, safeNonNegativeInteger(raw.trueElo, elo + 200)));
+  return {
+    uid:aiId,
+    aiId,
+    name,
+    username:name,
+    displayName:name,
+    photoURL:String(raw.photoURL || raw.profileImg || 'blank.png').slice(0, 180),
+    profileImg:String(raw.profileImg || raw.photoURL || 'blank.png').slice(0, 180),
+    challengerElo:elo,
+    elo,
+    trueElo,
+    challengerWins:Math.min(10000, safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0)),
+    challengerLosses:Math.min(10000, safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0)),
+    wins:Math.min(10000, safeNonNegativeInteger(raw.wins ?? raw.challengerWins, 0)),
+    losses:Math.min(10000, safeNonNegativeInteger(raw.losses ?? raw.challengerLosses, 0)),
+    matchesPlayed:Math.min(20000, safeNonNegativeInteger(raw.matchesPlayed, 0)),
+    seededWinRate:Math.max(0, Math.min(1, Number(raw.seededWinRate || 0) || 0)),
+    generationVersion:safeNonNegativeInteger(raw.generationVersion, 0),
+    isAI:true,
+    isMonthly:raw.isMonthly !== false,
+    monthKey:String(raw.monthKey || '').slice(0, 24),
+    updatedAt:Number(raw.updatedAt || 0) || now(),
+    source:'fly-authority'
+  };
+}
+
+function upsertFlyProfile(uid, profile){
+  const safeUid = String(uid || profile?.uid || '').slice(0, 128);
+  if(!safeUid) return null;
+  const existing = flyPlayerStats.get(safeUid) || {};
+  const incoming = publicFlyProfile(Object.assign({}, profile || {}, {uid:safeUid})) || {uid:safeUid};
+  const incomingMatches = safeNonNegativeInteger(incoming.matchesPlayed, 0);
+  const existingMatches = safeNonNegativeInteger(existing.matchesPlayed, 0);
+  const useIncomingRank = incomingMatches >= existingMatches;
+  const next = publicFlyProfile(Object.assign({}, existing, incoming, {
+    uid:safeUid,
+    name:incoming.name || existing.name || 'Player',
+    username:incoming.username || existing.username || incoming.name || 'Player',
+    displayName:incoming.displayName || incoming.name || existing.displayName || 'Player',
+    baseCode:incoming.baseCode || existing.baseCode || '',
+    photoURL:incoming.photoURL || existing.photoURL || 'blank.png',
+    profileImg:incoming.profileImg || incoming.photoURL || existing.profileImg || 'blank.png',
+    profileCropFocusX:incoming.profileCropFocusX ?? existing.profileCropFocusX ?? null,
+    profileCropFocusY:incoming.profileCropFocusY ?? existing.profileCropFocusY ?? null,
+    profileCropZoom:incoming.profileCropZoom ?? existing.profileCropZoom ?? null,
+    profileCropY:incoming.profileCropY ?? existing.profileCropY ?? null,
+    challengerElo:useIncomingRank ? incoming.challengerElo : (existing.challengerElo ?? incoming.challengerElo),
+    elo:useIncomingRank ? incoming.elo : (existing.elo ?? incoming.elo),
+    challengerWins:Math.max(safeNonNegativeInteger(existing.challengerWins, 0), safeNonNegativeInteger(incoming.challengerWins, 0)),
+    challengerLosses:Math.max(safeNonNegativeInteger(existing.challengerLosses, 0), safeNonNegativeInteger(incoming.challengerLosses, 0)),
+    wins:Math.max(safeNonNegativeInteger(existing.wins, 0), safeNonNegativeInteger(incoming.wins, 0)),
+    losses:Math.max(safeNonNegativeInteger(existing.losses, 0), safeNonNegativeInteger(incoming.losses, 0)),
+    humanWins:Math.max(safeNonNegativeInteger(existing.humanWins, 0), safeNonNegativeInteger(incoming.humanWins, 0)),
+    humanLosses:Math.max(safeNonNegativeInteger(existing.humanLosses, 0), safeNonNegativeInteger(incoming.humanLosses, 0)),
+    matchesPlayed:Math.max(existingMatches, incomingMatches),
+    starlight:Math.max(safeNonNegativeInteger(existing.starlight, 0), safeNonNegativeInteger(incoming.starlight, 0)),
+    updatedAt:now()
+  }));
+  if(next?.uid) flyPlayerStats.set(next.uid, next);
+  return next;
+}
+
+function publicFlyMatchResult(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const matchId = String(raw.matchId || '').slice(0, 220);
+  if(!matchId) return null;
+  return {
+    matchId,
+    uid:String(raw.uid || '').slice(0, 128),
+    opponentUid:String(raw.opponentUid || '').slice(0, 128),
+    roomCode:roomCode(raw.roomCode),
+    actionSeq:Number(raw.actionSeq || 0) || 0,
+    actionType:String(raw.actionType || '').slice(0, 40),
+    didWin:!!raw.didWin,
+    isDraw:!!raw.isDraw,
+    endReason:String(raw.endReason || '').slice(0, 80),
+    oldElo:Number(raw.oldElo || 0) || 0,
+    newElo:Number(raw.newElo || 0) || 0,
+    delta:Number(raw.delta || 0) || 0,
+    source:'fly-authority',
+    serverFinalized:raw.serverFinalized !== false,
+    createdAt:Number(raw.createdAt || 0) || now()
   };
 }
 
