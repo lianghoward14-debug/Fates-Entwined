@@ -1114,7 +1114,8 @@
     return clientResolvedGameplayEnabled()
       && isClientResolvedGameplayAction(type)
       && !!authorityHttpBaseUrl()
-      && !firebaseActionFallbackAllowed();
+      && !firebaseActionFallbackAllowed()
+      && hasPendingAuthorityReplay();
   }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
@@ -1128,7 +1129,13 @@
     const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
     let localResult;
     let localApplied = false;
+    let finishLocalCommit = null;
     function stampBaseStateHash(){
+      if(clientResolvedCommit){
+        const baseStateHash = lastAuthorityStateHash || '';
+        if(baseStateHash) outbound.baseStateHash = baseStateHash;
+        return;
+      }
       if(outbound.baseStateHash) return;
       const baseState = captureOnlineCanonicalState();
       const baseStateHash = lastAuthorityStateHash || (baseState ? onlineCanonicalStateHash(baseState) : '');
@@ -1153,7 +1160,15 @@
         await waitOnlineActionSettle(type);
         if(clientResolvedCommit) outbound.actionKind = String(type || '').toUpperCase();
         attachOnlinePostState(outbound);
+        if(finishLocalCommit){
+          finishLocalCommit();
+          finishLocalCommit = null;
+        }
       }catch(e){
+        if(finishLocalCommit){
+          finishLocalCommit();
+          finishLocalCommit = null;
+        }
         console.error('Optimistic local action failed before sync', e, type, outbound);
         if(localApplied) scheduleOptimisticCorrection(type);
         else if(window.toast) toast('Action failed');
@@ -1186,8 +1201,8 @@
       }, delayMs);
     }
     function applyLocalAndSend(){
-      if(compactAuthorityPayload || clientResolvedCommit) stampBaseStateHash();
-      const finishLocalCommit = clientResolvedCommit ? noteClientResolvedLocalCommitStart() : null;
+      if(compactAuthorityPayload) stampBaseStateHash();
+      finishLocalCommit = clientResolvedCommit ? noteClientResolvedLocalCommitStart() : null;
       if(typeof applyLocal === 'function'){
         try{
           rememberOptimisticAction(clientActionId);
@@ -1242,13 +1257,13 @@
       if(window.toast) toast('Spectators cannot take game actions.');
       return false;
     }
-    if(clientResolvedGameplayEnabled() && (clientResolvedLocalCommitPending > 0 || clientResolvedCommitInFlight > 0)){
+    if(clientResolvedGameplayEnabled() && clientResolvedLocalCommitPending > 0){
       recordOnlineDiagnostic('client-resolved-action-waiting-for-commit', {
         actionType,
         localPending:clientResolvedLocalCommitPending,
         commitInFlight:clientResolvedCommitInFlight
       });
-      if(window.toast) toast('Syncing previous action.');
+      if(window.toast) toast('Finishing previous action.');
       return false;
     }
     if(g._onlineLagPauseActive){

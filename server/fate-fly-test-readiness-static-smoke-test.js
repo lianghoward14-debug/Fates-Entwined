@@ -44,7 +44,7 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 
 assert.match(indexText, /05-gameplay-core\.js\?v=1782601200/, 'index must cache-bust gameplay placement fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782601200/, 'index must cache-bust renderer extra-cell fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1782610800/, 'index must cache-bust the online rooms script for client-resolved gameplay');
+assert.match(indexText, /18-online-rooms\.js\?v=1782611400/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782600600/, 'index must cache-bust the challenger matchmaking script');
 assert.match(indexText, /04-game-setup\.js\?v=1782603000/, 'index must cache-bust the match setup script for preload gate changes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782052601/, 'index must cache-bust the smoothness script for warmup policy changes');
@@ -95,7 +95,7 @@ assert.match(roomsText, /function flyApiJson\(path, opts\)[\s\S]*flyApiRequest\(
 assert.match(roomsText, /flyApiRequest\('\/api\/matchmaking\/enter'[\s\S]*timeoutMs:45000/, 'Fly random queue entry must not use the short generic API timeout');
 assert.match(roomsText, /function markFlyRandomQueueFailed\(\)[\s\S]*randomQueueState\.active = false[\s\S]*clearRandomQueueWatcher/, 'failed Fly random queue entry must clear the active queue state');
 assert.match(roomsText, /Fly random queue failed[\s\S]*markFlyRandomQueueFailed\(\)[\s\S]*removeOwnQueueEntry/, 'failed Fly random queue entry must attempt cleanup instead of leaving stale queue state');
-assert.match(roomsText, /function needsAuthorityCatchupBeforeLocal\(type\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*isClientResolvedGameplayAction\(type\)[\s\S]*authorityHttpBaseUrl/, 'client-resolved actions must catch up authority replay before local mutation');
+assert.match(roomsText, /function needsAuthorityCatchupBeforeLocal\(type\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*isClientResolvedGameplayAction\(type\)[\s\S]*authorityHttpBaseUrl[\s\S]*hasPendingAuthorityReplay\(\)/, 'client-resolved actions must catch up only when authority replay is pending');
 assert.match(roomsText, /function strictCompactActionNeedsPostState\(type, payload\)[\s\S]*START_CONSOLIDATE[\s\S]*BOARD_ACTION[\s\S]*HAND_ACTION[\s\S]*CLICK_CELL[\s\S]*payload\.placing/, 'strict Fly effects, pickers, and consolidation clicks must carry postState while normal placement stays immediate');
 assert.match(roomsText, /function sendAfterLocalApply\(\)[\s\S]*compactAuthorityPayload && !strictCompactActionNeedsPostState\(type, outbound\)[\s\S]*sendAuthorityNow\(\)/, 'strict Fly compact placement actions must still send without waiting for local animation settling');
 assert.match(roomsText, /function onlineFunctionPositionPayload\(g, args\)[\s\S]*findBoardPositionForCard[\s\S]*selectedBoardCard[\s\S]*return null/, 'online board effects must recover source coordinates before sync');
@@ -154,8 +154,9 @@ assert.match(roomsText, /function sendClientResolvedAutoCommit\(reason\)[\s\S]*a
 assert.match(roomsText, /const watchLocalMutation = reason=>setTimeout\(\(\)=>scheduleClientResolvedAutoCommit[\s\S]*document\.addEventListener\('pointerup'/, 'client-resolved mode must watch local UI mutations for post-action commits');
 assert.match(roomsText, /clientResolvedGameplayEnabled\(\)\s*\?\s*'client-resolved-board-action-without-source'[\s\S]*if\(!clientResolvedGameplayEnabled\(\)\)[\s\S]*Could not sync that board effect/, 'client-resolved board effects must run even when source coordinates are unavailable');
 assert.match(roomsText, /if\(g\._onlineLagPauseActive\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*setLagPause\(false\)[\s\S]*client-resolved-cleared-lag-pause/, 'client-resolved local actions must clear legacy lag pause instead of blocking');
-assert.match(roomsText, /function needsAuthorityCatchupBeforeLocal\(type\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*isClientResolvedGameplayAction\(type\)[\s\S]*authorityHttpBaseUrl/, 'client-resolved local actions must catch up authority replay before local mutation');
-assert.match(roomsText, /clientResolvedLocalCommitPending > 0 \|\| clientResolvedCommitInFlight > 0[\s\S]*client-resolved-action-waiting-for-commit/, 'client-resolved mode must serialize local commits until the previous authority hash lands');
+assert.match(roomsText, /function needsAuthorityCatchupBeforeLocal\(type\)[\s\S]*clientResolvedGameplayEnabled\(\)[\s\S]*isClientResolvedGameplayAction\(type\)[\s\S]*hasPendingAuthorityReplay\(\)/, 'client-resolved local actions must not wait for HTTP catch-up unless replay is pending');
+assert.match(roomsText, /clientResolvedLocalCommitPending > 0[\s\S]*client-resolved-action-waiting-for-commit/, 'client-resolved mode must serialize only local postState capture, not network commit round trips');
+assert.doesNotMatch(roomsText, /clientResolvedLocalCommitPending > 0 \|\| clientResolvedCommitInFlight > 0/, 'client-resolved input must not block on authority commit round trips');
 assert.match(read('server/fate-authority-reducer.js'), /function reduceActionResult[\s\S]*validateActionResultTransition[\s\S]*type === 'ACTION_RESULT'/, 'server reducer must keep ACTION_RESULT on a separate validation branch');
 assert.strictEqual(pkg.scripts['smoke:client-resolved-action-result'], 'node server/fate-client-resolved-action-result-smoke-test.js', 'package must expose the client-resolved ACTION_RESULT smoke');
 assert.strictEqual(pkg.scripts['smoke:client-resolved-ws'], 'node server/fate-client-resolved-ws-smoke-test.js', 'package must expose the two-client client-resolved WebSocket smoke');
