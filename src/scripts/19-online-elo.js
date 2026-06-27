@@ -9,6 +9,8 @@
   let sharedAISimulationTimer = null;
   let sharedAISyncTimer = null;
   let flyLeaderboardFetchInFlight = null;
+  let flyRosterSeedInFlight = null;
+  let flyRosterSeededAt = 0;
   const ONLINE_LEADERBOARD_LIMIT = 100;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -46,13 +48,19 @@
   function firebaseLeaderboardAllowed(){
     return !rtdbDisabledMode() && !!(FO.rtdb && FO.ref);
   }
-  async function flyApiRequest(path){
+  async function flyApiRequest(path, opts={}){
     const base = authorityHttpBaseUrl();
     if(!base) throw new Error('Fly authority API URL is not configured');
     const headers = {'accept':'application/json'};
     const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
     if(token) headers.authorization = 'Bearer ' + token;
-    const res = await fetch(base + path, {headers});
+    const method = String(opts.method || 'GET').toUpperCase();
+    const init = {method, headers};
+    if(opts.body !== undefined){
+      headers['content-type'] = 'application/json';
+      init.body = JSON.stringify(opts.body || {});
+    }
+    const res = await fetch(base + path, init);
     if(!res.ok){
       const text = await res.text().catch(()=> '');
       throw new Error('Fly authority API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
@@ -114,10 +122,12 @@
   }
   function currentDayKey(){ return new Date().toISOString().slice(0,10); }
   function recordWins(entry){
-    return Math.max(Number(entry?.wins || 0) || 0, Number(entry?.challengerWins || 0) || 0);
+    if(entry && entry.challengerWins !== undefined) return Math.max(0, Number(entry.challengerWins || 0) || 0);
+    return Math.max(0, Number(entry?.wins || 0) || 0);
   }
   function recordLosses(entry){
-    return Math.max(Number(entry?.losses || 0) || 0, Number(entry?.challengerLosses || 0) || 0);
+    if(entry && entry.challengerLosses !== undefined) return Math.max(0, Number(entry.challengerLosses || 0) || 0);
+    return Math.max(0, Number(entry?.losses || 0) || 0);
   }
   function hashInt(s){
     let h = 2166136261;
@@ -329,7 +339,7 @@
     });
   }
   async function ensureSharedAIRoster(){
-    if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
+    if(flyLeaderboardEnabled()) return seedFlySharedAIRoster();
     const u=user(); if(!u || !firebaseLeaderboardAllowed()) return [];
     const list = localAIList();
     if(!list.length) return [];
@@ -394,6 +404,27 @@
       window.FATE_SHARED_AI_ROSTER = records;
       try{ if(document.getElementById('ch-leaderboard-list') && typeof window.renderLeaderboard === 'function') window.renderLeaderboard(); }catch(e){}
     }, err=>console.warn('Shared AI watch failed', err));
+  }
+  async function seedFlySharedAIRoster(){
+    const records = buildLocalSharedAIRoster();
+    if(!user() || !flyLeaderboardEnabled()) return records;
+    if(flyRosterSeedInFlight) return flyRosterSeedInFlight;
+    if(flyRosterSeededAt && Date.now() - flyRosterSeededAt < 5 * 60 * 1000) return window.FATE_SHARED_AI_ROSTER || records;
+    flyRosterSeedInFlight = flyApiRequest('/api/challenger-ai/seed', {
+      method:'POST',
+      body:{uid:user().uid, monthKey:currentMonthKey(), roster:records}
+    }).catch(e=>{
+      console.warn('Fly shared AI roster seed failed', e);
+      return null;
+    }).finally(()=>{ flyRosterSeedInFlight = null; });
+    const data = await flyRosterSeedInFlight;
+    const roster = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+    if(roster.length){
+      window.FATE_SHARED_AI_ROSTER = roster;
+      flyRosterSeededAt = Date.now();
+    }
+    await fetchFlyLeaderboard().catch(()=>{});
+    return roster.length ? roster : records;
   }
   function isLiveOnlineRoom(room){
     if(!room || typeof room !== 'object') return false;
@@ -592,7 +623,6 @@
     }, 1400);
   }
   function startSharedAISimulationLoop(){
-    if(flyLeaderboardEnabled()) return;
     if(sharedAISimulationTimer) return;
     sharedAISimulationTimer = setInterval(()=>{
       if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
@@ -667,6 +697,8 @@
   if(FO.onAuth) FO.onAuth(s=>{
     if(s.user){
       syncMyLeaderboard().catch(()=>{});
+      scheduleSharedAISync();
+      startSharedAISimulationLoop();
     }else{
       if(lbUnsub){ try{ lbUnsub(); }catch(e){} lbUnsub = null; }
       if(sharedAIUnsub){ try{ sharedAIUnsub(); }catch(e){} sharedAIUnsub = null; }
@@ -683,7 +715,10 @@
     runSharedAISimulations,
     startSharedAISimulationLoop,
     ensureSharedAILeaderboard(){
-      if(flyLeaderboardEnabled()) return buildLocalSharedAIRoster();
+      if(flyLeaderboardEnabled()){
+        seedFlySharedAIRoster().catch(()=>{});
+        return window.FATE_SHARED_AI_ROSTER || buildLocalSharedAIRoster();
+      }
       scheduleSharedAISync();
       return window.FATE_SHARED_AI_ROSTER || [];
     },

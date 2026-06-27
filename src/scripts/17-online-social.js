@@ -32,7 +32,84 @@
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function getUser(){ try{return FO.requireUser();}catch(e){ return null; } }
   function nameOf(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername || p?.displayName || p?.username || p?.baseCode || 'Player'); }
-  function photoOf(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL || p?.profileImg || 'blank.png'); }
+  function brokenPhotoValue(value){
+    if(value == null) return true;
+    if(typeof value !== 'string') return false;
+    const raw = value.trim();
+    return !raw || raw === '[object Object]' || raw === 'null' || raw === 'undefined';
+  }
+  function normalizePhotoValue(value, shape='circle'){
+    if(brokenPhotoValue(value)) return '';
+    if(typeof window.resolveProfileImgSrc === 'function'){
+      try{
+        const resolved = window.resolveProfileImgSrc(value, shape);
+        if(!brokenPhotoValue(resolved)) return resolved;
+      }catch(e){}
+    }
+    if(typeof value === 'string') return value.trim();
+    if(value && typeof value === 'object'){
+      if(!brokenPhotoValue(value.dataUrl)) return value.dataUrl;
+      if(!brokenPhotoValue(value.src)) return value.src;
+      if(!brokenPhotoValue(value.cardImg)) return value.cardImg;
+      if(value.pfpId && typeof window.PFP_PATH === 'function'){
+        try{ return window.PFP_PATH(value.pfpId, shape); }catch(e){}
+      }
+      if(value.cardId && Array.isArray(window.CARDS)){
+        const card = window.CARDS.find(c=>String(c.id) === String(value.cardId));
+        if(card && !brokenPhotoValue(card.img)) return card.img;
+      }
+    }
+    return '';
+  }
+  function photoOf(p, shape='circle'){
+    const candidates = [];
+    const uid = String(p?.uid || '');
+    const currentUserUid = String(window.FATE_ONLINE?.user?.uid || '');
+    if(uid && uid === currentUserUid){
+      try{ candidates.push(window.getProfileImgSrc?.()); }catch(e){}
+      try{
+        const local = typeof window.getFateLocalProfile === 'function' ? window.getFateLocalProfile() : null;
+        candidates.push(local?.profileImg, local?.photoURL);
+      }catch(e){}
+      candidates.push(window.FATE_ONLINE?.profile?.profileImg, window.FATE_ONLINE?.profile?.photoURL);
+    }
+    if(FO.profilePhoto){
+      try{ candidates.push(FO.profilePhoto(p)); }catch(e){}
+    }
+    candidates.push(p?.photoURL, p?.profileImg, p?.pfp, p?.img, p?.avatarUrl, p?.avatar, p);
+    for(const candidate of candidates){
+      const src = normalizePhotoValue(candidate, shape);
+      if(src) return src;
+    }
+    return 'blank.png';
+  }
+  function photoStyleOf(p, fallback='center 22%'){
+    const base = 'width:100%;height:100%;object-fit:cover;';
+    const src = photoOf(p);
+    const match = String(src || '').match(/[?&]fc=([0-9]{1,4}),([0-9]{1,4}),([0-9]{2,4})/);
+    const imgCrop = p?.profileImg && typeof p.profileImg === 'object'
+      ? p.profileImg
+      : (p?.photoURL && typeof p.photoURL === 'object' ? p.photoURL : null);
+    const cropFocusX = p?.profileCropFocusX ?? imgCrop?.cropFocusX;
+    const cropFocusY = p?.profileCropFocusY ?? imgCrop?.cropFocusY;
+    const cropZoom = p?.profileCropZoom ?? imgCrop?.cropZoom;
+    const cropY = p?.profileCropY ?? imgCrop?.cropY;
+    if(!match && (cropFocusX !== undefined || cropFocusY !== undefined || cropZoom !== undefined)){
+      const fx = Math.max(0, Math.min(100, Number(cropFocusX ?? 0.5) * 100));
+      const fy = Math.max(0, Math.min(100, Number(cropFocusY ?? 0.5) * 100));
+      const zoom = Math.max(1, Math.min(4, Number(cropZoom || 1)));
+      return base + `object-position:${fx}% ${fy}%;transform:scale(${zoom});transform-origin:${fx}% ${fy}%;`;
+    }
+    if(!match && cropY !== undefined){
+      const y = Math.max(0, Math.min(100, Number(cropY) || 0));
+      return base + `object-position:center ${y}%;`;
+    }
+    if(!match) return base + `object-position:${fallback};`;
+    const fx = Math.max(0, Math.min(100, (Number(match[1]) || 500) / 10));
+    const fy = Math.max(0, Math.min(100, (Number(match[2]) || 500) / 10));
+    const zoom = Math.max(1, Math.min(4, (Number(match[3]) || 100) / 100));
+    return base + `object-position:${fx}% ${fy}%;transform:scale(${zoom});transform-origin:${fx}% ${fy}%;`;
+  }
   function fallback(uid){ return { uid, chosenUsername:'Player', displayName:'Player', username:'Player', baseCode:FO.makeBaseCode?FO.makeBaseCode(uid):uid, photoURL:'blank.png', level:1, challengerElo:600, bio:'' }; }
   function profileOf(uid){ return profileMap.get(uid) || (FO.profileCache && FO.profileCache.get(uid)) || fallback(uid); }
   function isInternalOnlineProfile(uid, profile){
@@ -163,7 +240,8 @@
     }
     const el = document.createElement('div');
     el.className = 'fate-online-notice';
-    el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(photo||'blank.png')}" onerror="this.onerror=null;this.src='blank.png';"></div><div class="fate-online-notice-copy"><div class="fate-online-notice-title">${esc(title)}</div><div class="fate-online-notice-text">${esc(text)}</div></div>`;
+    const noticePhoto = normalizePhotoValue(photo) || 'blank.png';
+    el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(noticePhoto)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='blank.png';"></div><div class="fate-online-notice-copy"><div class="fate-online-notice-title">${esc(title)}</div><div class="fate-online-notice-text">${esc(text)}</div></div>`;
     wrap.appendChild(el);
     requestAnimationFrame(()=>el.classList.add('show'));
     setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(), 350); }, 4200);
@@ -179,7 +257,7 @@
     }
     const el = document.createElement('div');
     el.className = 'fate-online-notice fate-party-invite-notice';
-    el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(photoOf(p)||'blank.png')}" onerror="this.onerror=null;this.src='blank.png';"></div>
+    el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(photoOf(p)||'blank.png')}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="fate-online-notice-copy">
         <div class="fate-online-notice-title">Party Request</div>
         <div class="fate-online-notice-text">${esc(nameOf(p))} invited you to a party.</div>
@@ -678,7 +756,7 @@
       <div class="profile-wrap title-profile-modal-v2 inspected-profile-stable">
         <div class="profile-left-col">
           <div class="profile-img-wrap" style="${rankFrame}">
-            <img src="${esc(photoOf(p))}" alt="" onerror="this.onerror=null;this.src='blank.png';">
+            <img src="${esc(photoOf(p))}" alt="" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';">
           </div>
         </div>
         <div class="profile-info">
@@ -708,14 +786,14 @@
     const elo = Number(p.challengerElo || 600) || 600;
     const frameStyle = typeof window.getRankFrameStyle === 'function' ? window.getRankFrameStyle(elo, 'icon') : '';
     return `<div class="social-friend-row" onclick="window.inspectOnlineProfile('${esc(uid)}')">
-      <div class="social-friend-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='blank.png';"></div>
+      <div class="social-friend-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="social-friend-info"><div class="social-friend-name">${esc(nameOf(p))}</div><div class="social-friend-meta">${Number(p.challengerElo||600)} ELO · ${esc(p.baseCode||'')}</div></div>
       <div class="social-friend-actions"><button class="btn sm online-dm-button" onclick="event.stopPropagation();window.openOnlineDirectMessage('${esc(uid)}');" title="Message">💬${unread>0?`<span class="online-dm-unread-dot">${unread>9?'9+':unread}</span>`:''}</button><button class="btn sm" onclick="event.stopPropagation();window.inviteOnlineParty('${esc(uid)}');" title="Invite to Party">🎮</button><button class="btn sm danger" onclick="event.stopPropagation();window.removeOnlineFriend('${esc(uid)}')">×</button></div>
     </div>`;
   }
   function requestRow(uid){
     const p = profileOf(uid);
-    return `<div class="social-online-row online-request-row"><div class="social-online-pic"><img src="${esc(photoOf(p))}" onerror="this.onerror=null;this.src='blank.png';"></div><div class="social-online-info"><div>${esc(nameOf(p))}</div><div>${esc(p.baseCode||'')}</div></div><button class="btn sm pri" onclick="event.stopPropagation();this.closest('.online-request-row')?.classList.add('is-resolving');window.acceptOnlineFriend('${esc(uid)}')">Accept</button><button class="btn sm" onclick="event.stopPropagation();this.closest('.online-request-row')?.classList.add('is-resolving');window.declineOnlineFriend('${esc(uid)}')">Decline</button></div>`;
+    return `<div class="social-online-row online-request-row"><div class="social-online-pic"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div><div class="social-online-info"><div>${esc(nameOf(p))}</div><div>${esc(p.baseCode||'')}</div></div><button class="btn sm pri" onclick="event.stopPropagation();this.closest('.online-request-row')?.classList.add('is-resolving');window.acceptOnlineFriend('${esc(uid)}')">Accept</button><button class="btn sm" onclick="event.stopPropagation();this.closest('.online-request-row')?.classList.add('is-resolving');window.declineOnlineFriend('${esc(uid)}')">Decline</button></div>`;
   }
   function onlineCard(uid){
     const p = profileOf(uid);
@@ -730,7 +808,7 @@
       ${isSelf
         ? `<div class="social-online-card-self">You</div>`
         : `<button class="social-online-card-add" onclick="event.stopPropagation();document.getElementById('social-add-input').value='${esc(p.baseCode||'')}';window.socialAddFriendFromInput();" title="Add Friend">+</button>`}
-      <div class="social-online-card-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" onerror="this.onerror=null;this.src='blank.png';"><span class="social-status-dot"></span></div>
+      <div class="social-online-card-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"><span class="social-status-dot"></span></div>
       <div class="social-online-card-title"><span class="social-online-card-name">${esc(nameOf(p))}</span></div>
       <div class="social-online-card-meta"><span>${elo} ELO</span><span>${esc(code)}</span></div>
       <div class="social-online-card-rank">${rankHtml}</div>
@@ -741,7 +819,7 @@
     const p = profileOf(uid);
     const leader = onlineParty && uid === onlineParty.leaderUid;
     return `<div class="party-member-clean">
-      <div class="party-member-avatar"><img src="${esc(photoOf(p))}" onerror="this.onerror=null;this.src='blank.png';"></div>
+      <div class="party-member-avatar"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="party-member-copy"><strong>${esc(nameOf(p))}</strong><span>${esc(status || (leader ? 'Leader' : 'Ready'))}</span></div>
       ${leader ? '<div class="party-member-tag">Leader</div>' : ''}
     </div>`;
@@ -749,7 +827,7 @@
   function partyInviteRow(uid){
     const p = profileOf(uid);
     return `<div class="social-online-row online-party-request">
-      <div class="social-online-pic"><img src="${esc(photoOf(p))}" onerror="this.onerror=null;this.src='blank.png';"></div>
+      <div class="social-online-pic"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="social-online-info"><div>${esc(nameOf(p))}</div><div>Party request</div></div>
       <button type="button" class="btn sm pri" onclick="event.stopPropagation();window.acceptOnlinePartyInvite('${esc(uid)}')">Accept</button>
       <button type="button" class="btn sm" onclick="event.stopPropagation();window.declineOnlinePartyInvite('${esc(uid)}')">Decline</button>
@@ -1303,7 +1381,7 @@
             from:m.from || m.name || 'Player',
             text:String(m.text || '').slice(0, 240),
             timestamp:timestampOf(m),
-            photoURL:m.photoURL || m.profileImg || null
+            photoURL:normalizePhotoValue(m.photoURL || m.profileImg) || null
           });
         });
         const arr = [...byId.values()].filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
@@ -1341,7 +1419,7 @@
         from: m.from || m.name || m.chosenUsername || 'Player',
         text: String(m.text || '').slice(0,240),
         timestamp: timestampOf(m),
-        photoURL: m.photoURL || m.profileImg || null
+        photoURL: normalizePhotoValue(m.photoURL || m.profileImg) || null
       })).filter(m=>m.text);
       arr.sort((a,b)=>a.timestamp-b.timestamp);
 
@@ -1350,7 +1428,7 @@
           if(seenWorldIds.has(m.id)) continue;
           seenWorldIds.add(m.id);
           if(false && m.uid && m.uid !== window.FATE_ONLINE?.user?.uid && !worldChatIsOpen()){
-            showOnlineNotice(`World Chat · ${m.from}`, m.text.slice(0,80), m.photoURL || 'blank.png');
+            showOnlineNotice(`World Chat · ${m.from}`, m.text.slice(0,80), normalizePhotoValue(m.photoURL) || 'blank.png');
             break;
           }
         }
@@ -1421,7 +1499,7 @@
           from:m.from || m.name || 'Player',
           text:String(m.text || '').slice(0, 240),
           timestamp:timestampOf(m),
-          photoURL:m.photoURL || m.profileImg || null
+          photoURL:normalizePhotoValue(m.photoURL || m.profileImg) || null
         })).filter(m=>m.text).sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-100);
         window.FATE_ONLINE_WORLD_CHAT = arr;
         flyWorldChatLastSeq = Math.max(Number(data.chatSeq || 0) || 0, ...arr.map(m=>Number(m.seq || 0) || 0), flyWorldChatLastSeq);
@@ -1452,9 +1530,9 @@
   function dmMessageHtml(m, peer){
     const isMe = m.uid === window.FATE_ONLINE?.user?.uid || m.fromUid === window.FATE_ONLINE?.user?.uid;
     const senderName = isMe ? currentName() : (m.from || nameOf(peer));
-    const senderPic = isMe ? currentPhoto() : (m.photoURL || photoOf(peer));
+    const senderPic = isMe ? currentPhoto() : (normalizePhotoValue(m.photoURL || m.profileImg) || photoOf(peer));
     return `<div class="social-dm ${isMe ? 'social-dm-me' : 'social-dm-them'}">
-      <div class="social-dm-avatar"><img src="${esc(senderPic || 'blank.png')}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='blank.png';"></div>
+      <div class="social-dm-avatar"><img src="${esc(senderPic || 'blank.png')}" style="${isMe ? photoStyleOf(currentProfile()) : photoStyleOf(peer)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="social-dm-bubble">
         <div class="social-dm-name">${esc(senderName)}</div>
         <div class="social-dm-text">${esc(m.text || '')}</div>
@@ -1477,7 +1555,10 @@
     const headerPic = document.querySelector('.social-dm-header-pic img');
     if(headerName) headerName.textContent = nameOf(peer);
     if(headerMeta) headerMeta.textContent = `${Number(peer.challengerElo || 600)} ELO · ${peer.baseCode || ''}`;
-    if(headerPic) headerPic.src = photoOf(peer);
+    if(headerPic){
+      headerPic.src = photoOf(peer);
+      headerPic.style.cssText = photoStyleOf(peer);
+    }
   }
 
   function renderDirectMessageModal(forceShell=false){
@@ -1495,7 +1576,7 @@
     if(!dmShellOpen || forceShell || !document.getElementById('dm-input')){
       bodyEl.innerHTML = `
         <div class="social-dm-header">
-          <div class="social-dm-header-pic" style="${typeof window.getRankFrameStyle==='function'?window.getRankFrameStyle(peerElo,'icon'):''}"><img src="${esc(peerPic)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='blank.png';"></div>
+          <div class="social-dm-header-pic" style="${typeof window.getRankFrameStyle==='function'?window.getRankFrameStyle(peerElo,'icon'):''}"><img src="${esc(peerPic)}" style="${photoStyleOf(peer)}" onerror="this.onerror=null;this.src='blank.png';"></div>
           <div class="social-dm-header-info">
             <div class="social-dm-header-name">${esc(peerName)}</div>
             <div class="social-dm-header-meta">${peerElo} ELO · ${peer.baseCode ? esc(peer.baseCode) : ''}</div>

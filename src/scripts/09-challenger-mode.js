@@ -3493,10 +3493,12 @@ function syncAIOpponentLeaderboardEntries() {
 
 let _leaderboardPage = 0;
 function getLeaderboardRecordWins(entry){
-  return Math.max(Number(entry?.wins || 0) || 0, Number(entry?.challengerWins || 0) || 0);
+  if(entry && entry.challengerWins !== undefined) return Math.max(0, Number(entry.challengerWins || 0) || 0);
+  return Math.max(0, Number(entry?.wins || 0) || 0);
 }
 function getLeaderboardRecordLosses(entry){
-  return Math.max(Number(entry?.losses || 0) || 0, Number(entry?.challengerLosses || 0) || 0);
+  if(entry && entry.challengerLosses !== undefined) return Math.max(0, Number(entry.challengerLosses || 0) || 0);
+  return Math.max(0, Number(entry?.losses || 0) || 0);
 }
 function getProfileCropStyleForEntry(entry, fallback='center 22%'){
   if(entry && entry.username === USER_PROFILE?.username && typeof getProfileCropStyle === 'function') return getProfileCropStyle();
@@ -5417,8 +5419,8 @@ function showMatchHistory(page) {
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;min-width:0;">'
         + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p1)+(p1Won?' ★':'')+'</span>'
-        + '<span style="font-size:.6rem;color:var(--dim);flex-shrink:0;">'+m.p1Elo+'</span>'
-        + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.9rem;line-height:1;color:'+p1EloColor+';font-weight:900;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p1Arrow+Math.abs(m.p1Change||0)+'</span>'
+        + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.72rem;line-height:1;color:'+p1EloColor+';font-weight:800;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p1Arrow+Math.abs(m.p1Change||0)+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:1.05rem;color:var(--text);font-weight:900;line-height:1;flex-shrink:0;">'+m.p1Elo+'</span>'
         + '</div>'
         + '</div>'
         // VS
@@ -5427,8 +5429,8 @@ function showMatchHistory(page) {
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;align-items:flex-end;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;flex-direction:row-reverse;min-width:0;">'
         + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(!p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(!p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p2)+(!p1Won?' ★':'')+'</span>'
-        + '<span style="font-size:.6rem;color:var(--dim);flex-shrink:0;">'+m.p2Elo+'</span>'
-        + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.9rem;line-height:1;color:'+p2EloColor+';font-weight:900;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p2Arrow+Math.abs(m.p2Change||0)+'</span>'
+        + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.72rem;line-height:1;color:'+p2EloColor+';font-weight:800;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p2Arrow+Math.abs(m.p2Change||0)+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:1.05rem;color:var(--text);font-weight:900;line-height:1;flex-shrink:0;">'+m.p2Elo+'</span>'
         + '</div>'
         + '</div>'
         + '<div style="width:46px;height:46px;border-radius:10px;overflow:hidden;background:#0a0a0f;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1.5px solid '+(!p1Won?'#7fffa050':'#ff6b6b40')+'">'

@@ -144,6 +144,17 @@ function safeNonNegativeInteger(value, fallback){
   return Math.max(0, Math.round(safeNumber(value, fallback)));
 }
 
+function sanitizeProfilePhotoValue(value, fallback = 'blank.png'){
+  let raw = value;
+  if(raw && typeof raw === 'object'){
+    raw = raw.dataUrl || raw.src || raw.cardImg || (raw.pfpId ? `pfp/pfp${Math.max(1, parseInt(raw.pfpId, 10) || 1)}.png` : '');
+  }
+  const text = String(raw || '').trim();
+  if(!text || text === '[object Object]' || text === 'null' || text === 'undefined') return fallback;
+  const maxLen = /^data:image\//i.test(text) ? 220000 : 2048;
+  return text.slice(0, maxLen);
+}
+
 function firebaseKeySegment(value){
   return String(value || '').replace(/[.#$\/\[\]]/g, '_').slice(0, 160);
 }
@@ -803,8 +814,8 @@ function sanitizeProfile(value){
     avatar:String(profile.avatar || profile.avatarId || '').slice(0, 80),
     title:String(profile.title || '').slice(0, 80),
     baseCode:String(profile.baseCode || '').slice(0, 80),
-    photoURL:String(profile.photoURL || profile.profileImg || profile.img || '').slice(0, 180),
-    profileImg:String(profile.profileImg || profile.photoURL || profile.img || '').slice(0, 180),
+    photoURL:sanitizeProfilePhotoValue(profile.photoURL || profile.profileImg || profile.img, ''),
+    profileImg:sanitizeProfilePhotoValue(profile.profileImg || profile.photoURL || profile.img, ''),
     profileCropFocusX:safeNullableNumber(profile.profileCropFocusX ?? profile.imgCrop?.cropFocusX, 0, 1),
     profileCropFocusY:safeNullableNumber(profile.profileCropFocusY ?? profile.imgCrop?.cropFocusY, 0, 1),
     profileCropY:safeNullableNumber(profile.profileCropY ?? profile.imgCrop?.cropY, 0, 100),
@@ -1729,24 +1740,26 @@ function publicFlyProfile(value){
   const raw = value && typeof value === 'object' ? value : {};
   const uid = String(raw.uid || '').slice(0, 128);
   if(!uid) return null;
+  const challengerWins = safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0);
+  const challengerLosses = safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0);
   return {
     uid,
     name:String(raw.name || raw.username || raw.displayName || 'Player').slice(0, 32),
     username:String(raw.username || raw.name || raw.displayName || 'Player').slice(0, 32),
     displayName:String(raw.displayName || raw.name || raw.username || 'Player').slice(0, 32),
     baseCode:String(raw.baseCode || '').slice(0, 80),
-    photoURL:String(raw.photoURL || raw.profileImg || 'blank.png').slice(0, 180),
-    profileImg:String(raw.profileImg || raw.photoURL || 'blank.png').slice(0, 180),
+    photoURL:sanitizeProfilePhotoValue(raw.photoURL || raw.profileImg, 'blank.png'),
+    profileImg:sanitizeProfilePhotoValue(raw.profileImg || raw.photoURL, 'blank.png'),
     profileCropFocusX:safeNullableNumber(raw.profileCropFocusX ?? raw.imgCrop?.cropFocusX, 0, 1),
     profileCropFocusY:safeNullableNumber(raw.profileCropFocusY ?? raw.imgCrop?.cropFocusY, 0, 1),
     profileCropY:safeNullableNumber(raw.profileCropY ?? raw.imgCrop?.cropY, 0, 100),
     profileCropZoom:safeNullableNumber(raw.profileCropZoom ?? raw.imgCrop?.cropZoom, 1, 4),
     challengerElo:safeNonNegativeInteger(raw.challengerElo ?? raw.elo, 600),
     elo:safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600),
-    challengerWins:safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0),
-    challengerLosses:safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0),
-    wins:safeNonNegativeInteger(raw.wins ?? raw.challengerWins, 0),
-    losses:safeNonNegativeInteger(raw.losses ?? raw.challengerLosses, 0),
+    challengerWins,
+    challengerLosses,
+    wins:challengerWins,
+    losses:challengerLosses,
     humanWins:safeNonNegativeInteger(raw.humanWins, 0),
     humanLosses:safeNonNegativeInteger(raw.humanLosses, 0),
     matchesPlayed:safeNonNegativeInteger(raw.matchesPlayed, 0),
@@ -1809,6 +1822,14 @@ function upsertFlyProfile(uid, profile){
   const incomingMatches = safeNonNegativeInteger(incoming.matchesPlayed, 0);
   const existingMatches = safeNonNegativeInteger(existing.matchesPlayed, 0);
   const useIncomingRank = incomingMatches >= existingMatches;
+  const hasExplicitChallengerWins = Object.prototype.hasOwnProperty.call(profile || {}, 'challengerWins');
+  const hasExplicitChallengerLosses = Object.prototype.hasOwnProperty.call(profile || {}, 'challengerLosses');
+  const mergedChallengerWins = hasExplicitChallengerWins
+    ? safeNonNegativeInteger(incoming.challengerWins, 0)
+    : Math.max(safeNonNegativeInteger(existing.challengerWins, 0), safeNonNegativeInteger(incoming.challengerWins, 0));
+  const mergedChallengerLosses = hasExplicitChallengerLosses
+    ? safeNonNegativeInteger(incoming.challengerLosses, 0)
+    : Math.max(safeNonNegativeInteger(existing.challengerLosses, 0), safeNonNegativeInteger(incoming.challengerLosses, 0));
   const next = publicFlyProfile(Object.assign({}, existing, incoming, {
     uid:safeUid,
     name:incoming.name || existing.name || 'Player',
@@ -1823,10 +1844,10 @@ function upsertFlyProfile(uid, profile){
     profileCropY:incoming.profileCropY ?? existing.profileCropY ?? null,
     challengerElo:useIncomingRank ? incoming.challengerElo : (existing.challengerElo ?? incoming.challengerElo),
     elo:useIncomingRank ? incoming.elo : (existing.elo ?? incoming.elo),
-    challengerWins:Math.max(safeNonNegativeInteger(existing.challengerWins, 0), safeNonNegativeInteger(incoming.challengerWins, 0)),
-    challengerLosses:Math.max(safeNonNegativeInteger(existing.challengerLosses, 0), safeNonNegativeInteger(incoming.challengerLosses, 0)),
-    wins:Math.max(safeNonNegativeInteger(existing.wins, 0), safeNonNegativeInteger(incoming.wins, 0)),
-    losses:Math.max(safeNonNegativeInteger(existing.losses, 0), safeNonNegativeInteger(incoming.losses, 0)),
+    challengerWins:mergedChallengerWins,
+    challengerLosses:mergedChallengerLosses,
+    wins:mergedChallengerWins,
+    losses:mergedChallengerLosses,
     humanWins:Math.max(safeNonNegativeInteger(existing.humanWins, 0), safeNonNegativeInteger(incoming.humanWins, 0)),
     humanLosses:Math.max(safeNonNegativeInteger(existing.humanLosses, 0), safeNonNegativeInteger(incoming.humanLosses, 0)),
     matchesPlayed:Math.max(existingMatches, incomingMatches),
@@ -3541,6 +3562,22 @@ async function handleApiRequest(req, res, url){
         ok:true,
         leaderboard:flyLeaderboard(limit)
       });
+      return true;
+    }
+    if(parts[1] === 'challenger-ai' && parts[2] === 'seed'){
+      if(req.method !== 'POST') throw new Error('challenger AI seed route requires POST');
+      const body = await readJsonBody(req);
+      await verifyRequestUser(req, body);
+      const roster = seedFlyAIRecords(body?.roster || [], body?.monthKey || '');
+      writeJson(res, 200, {ok:true, roster});
+      return true;
+    }
+    if(parts[1] === 'challenger-ai' && parts[2] === 'simulate'){
+      if(req.method !== 'POST') throw new Error('challenger AI simulate route requires POST');
+      const body = await readJsonBody(req);
+      await verifyRequestUser(req, body);
+      const result = runFlyAISimulationBatch(body?.monthKey || '', body?.count);
+      writeJson(res, 200, Object.assign({ok:true}, result));
       return true;
     }
     if(req.method === 'GET' && parts[1] === 'live-matches'){

@@ -328,6 +328,7 @@ async function syncPublicProfile(opts={}){
   const chosenUsername = getLocalUsername(user);
   const photoURL = getLocalPhoto(user);
   const localProfile = getLocalProfile();
+  const localProfileImg = localProfile && typeof localProfile.profileImg === 'object' ? localProfile.profileImg : {};
   if(localProfile && localProfile._fateAccountUid && localProfile._fateAccountUid !== uid){
     console.warn('Blocked public profile sync for mismatched local account profile');
     return null;
@@ -352,6 +353,10 @@ async function syncPublicProfile(opts={}){
     humanWins,
     humanLosses,
     matchesPlayed,
+    profileCropFocusX: localProfile.profileCropFocusX ?? localProfileImg.cropFocusX ?? null,
+    profileCropFocusY: localProfile.profileCropFocusY ?? localProfileImg.cropFocusY ?? null,
+    profileCropY: localProfile.profileCropY ?? localProfileImg.cropY ?? null,
+    profileCropZoom: localProfile.profileCropZoom ?? localProfileImg.cropZoom ?? null,
     rank: getLocalRankLabel(),
     bio: getLocalBio(),
     updatedAt: rtdbAvailable() ? serverTimestamp() : Date.now(),
