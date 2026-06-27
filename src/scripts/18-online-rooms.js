@@ -72,6 +72,7 @@
   let authorityLastRejectedResyncReason = '';
   let optimisticSendQueue = Promise.resolve();
   let clientResolvedCommitInFlight = 0;
+  let clientResolvedLocalCommitPending = 0;
   let clientResolvedAutoCommitTimer = null;
   let lastClientResolvedAutoCommitHash = '';
   let lobbyAuthorityPrejoinCode = '';
@@ -1109,12 +1110,15 @@
     const appliedSeq = Math.max(Number(lastAppliedActionSeq || 0) || 0, Number(g?._onlineAppliedActionSeq || 0) || 0);
     return knownSeq > appliedSeq || actionReplayBuffer.size > 0;
   }
-  function needsAuthorityCatchupBeforeLocal(){
-    return false;
+  function needsAuthorityCatchupBeforeLocal(type){
+    return clientResolvedGameplayEnabled()
+      && isClientResolvedGameplayAction(type)
+      && !!authorityHttpBaseUrl()
+      && !firebaseActionFallbackAllowed();
   }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
-    if(!code || !needsAuthorityCatchupBeforeLocal()) return false;
+    if(!code || !needsAuthorityCatchupBeforeLocal(type)) return false;
     return await catchUpFlyAuthorityReplay(code, 'before local optimistic ' + String(type || '').toUpperCase());
   }
   function sendOptimisticAction(type, payload, applyLocal){
@@ -1183,27 +1187,35 @@
     }
     function applyLocalAndSend(){
       if(compactAuthorityPayload || clientResolvedCommit) stampBaseStateHash();
+      const finishLocalCommit = clientResolvedCommit ? noteClientResolvedLocalCommitStart() : null;
       if(typeof applyLocal === 'function'){
         try{
           rememberOptimisticAction(clientActionId);
           localApplied = true;
           localResult = applyLocal();
         }catch(e){
+          if(finishLocalCommit) finishLocalCommit();
           optimisticAppliedActionIds.delete(clientActionId);
           console.error('Optimistic local action threw', e, type, outbound);
           throw e;
         }
       }
-      sendAfterLocalApply();
+      Promise.resolve(sendAfterLocalApply()).finally(()=>{ if(finishLocalCommit) finishLocalCommit(); });
       scheduleClientResolvedAutoCommit('post-local-' + String(type || '').toLowerCase(), 700);
       scheduleFollowupStateSync(1250);
       return localResult;
     }
     const latestBeforeLocal = gameState();
     if(isOnlineMatchState(latestBeforeLocal) && !canSendLocalAction(latestBeforeLocal, type)) return;
-    if(needsAuthorityCatchupBeforeLocal()){
+    if(needsAuthorityCatchupBeforeLocal(type)){
       return preflightAuthorityCatchupBeforeLocal(type)
-        .then(()=>applyLocalAndSend());
+        .then(ok=>{
+          if(ok === false){
+            if(window.toast) toast('Match is syncing. Please try again.');
+            return;
+          }
+          return applyLocalAndSend();
+        });
     }
     return applyLocalAndSend();
   }
@@ -1228,6 +1240,15 @@
     const actionType = String(type || '').toUpperCase();
     if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
       if(window.toast) toast('Spectators cannot take game actions.');
+      return false;
+    }
+    if(clientResolvedGameplayEnabled() && (clientResolvedLocalCommitPending > 0 || clientResolvedCommitInFlight > 0)){
+      recordOnlineDiagnostic('client-resolved-action-waiting-for-commit', {
+        actionType,
+        localPending:clientResolvedLocalCommitPending,
+        commitInFlight:clientResolvedCommitInFlight
+      });
+      if(window.toast) toast('Syncing previous action.');
       return false;
     }
     if(g._onlineLagPauseActive){
@@ -3908,6 +3929,16 @@
     };
   }
 
+  function noteClientResolvedLocalCommitStart(){
+    clientResolvedLocalCommitPending += 1;
+    let done = false;
+    return function finishClientResolvedLocalCommit(){
+      if(done) return;
+      done = true;
+      clientResolvedLocalCommitPending = Math.max(0, clientResolvedLocalCommitPending - 1);
+    };
+  }
+
   function scheduleClientResolvedAutoCommit(reason, delayMs){
     if(!clientResolvedGameplayEnabled()) return;
     if(clientResolvedAutoCommitTimer) clearTimeout(clientResolvedAutoCommitTimer);
@@ -4331,6 +4362,20 @@
       if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash){
         lastAuthorityStateHash = String(msg.serverStateHash || '');
         applyOnlineCanonicalState(msg.serverState, 'authority rejection resync');
+        const serverSeq = Number(msg.serverSeq || 0) || 0;
+        if(serverSeq){
+          lastActionSeq = Math.max(lastActionSeq, serverSeq);
+          lastAppliedActionSeq = Math.max(lastAppliedActionSeq, serverSeq);
+          discardBufferedActionsThrough(lastAppliedActionSeq);
+          const latest = gameState();
+          if(latest){
+            latest._onlineActionSeq = Math.max(Number(latest._onlineActionSeq || 0) || 0, lastActionSeq);
+            latest._onlineAppliedActionSeq = lastAppliedActionSeq;
+            latest._onlineLagPauseActive = false;
+          }
+          reportActionProgress(lastAppliedActionSeq, {force:true});
+          if(typeof evaluateLagPause === 'function') evaluateLagPause();
+        }
       }
       const requestId = String(msg.requestId || '');
       const pending = requestId ? authorityInflight.get(requestId) : null;
