@@ -387,6 +387,27 @@
     } catch(e) {}
     return true;
   }
+  function syncOnlineTurnTimerAfterAuthoritativeState(g, previous, reason){
+    if(!g || !isOnlineMatchState(g) || String(g.phase || '') !== 'main') return false;
+    if(!isGameScreenActive()) return false;
+    const key = [Number(g.turn || 0) || 0, Number(g.currentPlayer || 0) || 0].join(':');
+    const prevKey = previous ? [Number(previous.turn || 0) || 0, Number(previous.currentPlayer || 0) || 0].join(':') : '';
+    if(g._onlineLastTurnTimerKey === key && prevKey === key) return false;
+    g._onlineLastTurnTimerKey = key;
+    g._turnInputLockUntil = 0;
+    g._aiRunning = false;
+    g._aiAbort = false;
+    g._aiAborted = false;
+    try{
+      if(typeof window.startTurnTimer === 'function') window.startTurnTimer();
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.onlineAuthorityTurnTimerSync = {at:Date.now(), key, reason:String(reason || '')};
+      return true;
+    }catch(e){
+      console.warn('Online turn timer sync failed', e);
+      return false;
+    }
+  }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
@@ -399,6 +420,7 @@
     const g = gameState();
     if(!g || !state) return false;
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
+    const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase};
     const keep = {
       _onlineRoomCode:g._onlineRoomCode,
       _onlineRole:g._onlineRole,
@@ -451,6 +473,7 @@
     }
     if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
     enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
+    syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     console.warn('Applied authoritative online state:', reason || 'state-sync');
@@ -1928,7 +1951,7 @@
     const room = lastLobbyRoom || {};
     const code = g?._onlineRoomCode || activeRoom || room.roomCode || '';
     const key = currentMatchPreloadKey(room);
-    const timeoutMs = Math.max(3000, Math.min(10000, Number(opts.timeoutMs) || 10000));
+    const timeoutMs = Math.max(3000, Math.min(30000, Number(opts.timeoutMs) || 10000));
     const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
     const started = Date.now();
     const perf = window.__fatePerf = window.__fatePerf || {};
@@ -3541,6 +3564,8 @@
       g._onlineGameSong = song;
       g._onlineRng = makeSeededRng(seed);
       g._onlineActionLogMode = true;
+      g._onlineCoinPlayableGateStarted = false;
+      g._onlineCoinPlayableGateComplete = false;
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       applyOnlineRoomIdentity(room, players);
 
@@ -3556,6 +3581,8 @@
       g._onlineSeed = seed;
       g._onlineRoomMode = roomMode;
       g._onlineGameSong = song;
+      g._onlineCoinPlayableGateStarted = false;
+      g._onlineCoinPlayableGateComplete = false;
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       if(typeof window.applyGameBackground === 'function') window.applyGameBackground(song);
       if(typeof window._lastGameSong !== 'undefined') window._lastGameSong = song;
@@ -3586,26 +3613,7 @@
 
       if(window.toast) toast(roomMode === 'ranked' ? 'Challenger match ready.' : 'Online match ready.');
       subscribeActions(room.roomCode);
-      const latestPlayableState = gameState();
-      if(latestPlayableState && latestPlayableState._onlineRoomCode === room.roomCode){
-        latestPlayableState._onlineMatchPlayable = true;
-      }
       setOnlinePlayableWaitVisible(false);
-      publishOnlineMatchPlayableWithRetry().catch(function(err){
-        console.warn('Could not publish online playable readiness', err);
-        return false;
-      });
-      waitForOnlineMatchPlayable({
-        timeoutMs:6000,
-        onProgress:function(snap){
-          setOnlinePlayableWaitVisible(false, snap);
-        }
-      }).then(function(){
-        setOnlinePlayableWaitVisible(false);
-      }).catch(function(err){
-        console.warn('Online playable background wait failed', err);
-        setOnlinePlayableWaitVisible(false);
-      });
       if(localIndex === 0 && !startPayload.serverBootstrapped) setTimeout(()=>sendBootstrapStateSync('match-start'), 220);
       // Spectator listings stay disabled until the deployed RTDB rules explicitly
       // allow /liveMatches writes; player match startup must not depend on them.
@@ -4782,7 +4790,7 @@
         if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && g.currentPlayer !== g._onlinePlayerIndex) {
           return;
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'START_CONSOLIDATE')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
         }

@@ -1573,7 +1573,7 @@ function doCoinFlip() {
       for(let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
       heads = ((h >>> 0) % 2) === 0;
     }
-    setTimeout(()=>{
+    const startOnlineCoinAnimation = ()=>{
       coin.classList.add('spin');
       if(typeof playSfx === 'function') playSfx('coinFlip');
       setTimeout(()=>{
@@ -1589,7 +1589,39 @@ function doCoinFlip() {
           btns.style.display = 'none';
         }
       },1700);
-    },100);
+    };
+    if(!G._onlineCoinPlayableGateComplete && typeof window.fatePublishOnlineMatchPlayable === 'function' && typeof window.fateWaitForOnlineMatchPlayable === 'function'){
+      if(G._onlineCoinPlayableGateStarted) return;
+      G._onlineCoinPlayableGateStarted = true;
+      result.textContent = 'Waiting for both players to finish loading.';
+      winnerText.textContent = 'Syncing match before the coin flip.';
+      Promise.resolve()
+        .then(()=>window.fatePublishOnlineMatchPlayable())
+        .catch(err=>{
+          console.warn('Online coin playable publish failed', err);
+          return false;
+        })
+        .then(()=>window.fateWaitForOnlineMatchPlayable({
+          timeoutMs:30000,
+          onProgress:function(snap){
+            const ready = Number(snap && snap.readyCount || 0);
+            const total = Math.max(2, Number(snap && snap.total || 2));
+            result.textContent = `Waiting for both players to finish loading. ${ready}/${total} ready.`;
+          }
+        }))
+        .catch(err=>{
+          console.warn('Online coin playable wait failed', err);
+          return null;
+        })
+        .then(()=>{
+          G._onlineCoinPlayableGateComplete = true;
+          result.textContent = '';
+          winnerText.textContent = '';
+          setTimeout(startOnlineCoinAnimation, 100);
+        });
+      return;
+    }
+    setTimeout(startOnlineCoinAnimation,100);
     return;
   }
   setTimeout(()=>{
