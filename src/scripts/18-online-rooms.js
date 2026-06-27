@@ -184,21 +184,41 @@
   function syncOnlineCardListInPlace(target, list){
     return replaceOnlineArrayContents(target, expandOnlineCardList(list));
   }
-  function syncOnlineBoardInPlace(target, board){
+  function onlineExpectedBoardRows(state, z, nextZone){
+    const extraRows = Number(state?.extraRows?.[z] || 0) || 0;
+    return Math.max(3, Array.isArray(nextZone) ? nextZone.length : 0, 3 + Math.max(0, extraRows));
+  }
+  function onlineExpectedBoardCols(state, z, r, nextRow){
+    const baseCols = Array.isArray(nextRow) ? nextRow.length : 0;
+    const extra = r < 3 ? (state?.extraCells?.[z]?.[r] || null) : null;
+    const extraCols = extra ? Math.max(Number(extra.p1 || 0) || 0, Number(extra.p2 || 0) || 0) : 0;
+    return Math.max(3, baseCols, 3 + Math.max(0, extraCols));
+  }
+  function syncOnlineBoardInPlace(target, board, state){
     const next = expandOnlineBoard(board);
     const out = Array.isArray(target) ? target : [];
-    out.length = next.length;
-    for(let z = 0; z < next.length; z++){
+    const zoneCount = Math.max(3, next.length);
+    out.length = zoneCount;
+    for(let z = 0; z < zoneCount; z++){
       const nextZone = Array.isArray(next[z]) ? next[z] : [];
       const zone = Array.isArray(out[z]) ? out[z] : [];
-      zone.length = nextZone.length;
-      for(let r = 0; r < nextZone.length; r++){
+      const rowCount = onlineExpectedBoardRows(state, z, nextZone);
+      zone.length = rowCount;
+      for(let r = 0; r < rowCount; r++){
         const nextRow = Array.isArray(nextZone[r]) ? nextZone[r] : [];
-        zone[r] = replaceOnlineArrayContents(zone[r], nextRow);
+        const row = replaceOnlineArrayContents(zone[r], nextRow);
+        const colCount = onlineExpectedBoardCols(state, z, r, nextRow);
+        while(row.length < colCount) row.push(null);
+        zone[r] = row;
       }
       out[z] = zone;
     }
     return out;
+  }
+  function ensureOnlineBoardShape(g){
+    if(!g) return null;
+    g.board = syncOnlineBoardInPlace(g.board, g.board, g);
+    return g.board;
   }
   function syncOnlinePlayersInPlace(target, players){
     const source = Array.isArray(players) ? players : [];
@@ -375,7 +395,7 @@
       _onlineRemoteActionPlayer:g._onlineRemoteActionPlayer
     };
     g.players = syncOnlinePlayersInPlace(g.players, state.players || []);
-    g.board = syncOnlineBoardInPlace(g.board, state.board);
+    g.board = syncOnlineBoardInPlace(g.board, state.board, state);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
@@ -4842,6 +4862,7 @@
         if(!onlineCellActionPending(g)){
           return originals.clickCell.apply(this, arguments);
         }
+        ensureOnlineBoardShape(g);
         if(!canSendLocalAction(g, 'CLICK_CELL')) return;
         const args = arguments;
         const pendingMove = g._serverPendingMove || null;
