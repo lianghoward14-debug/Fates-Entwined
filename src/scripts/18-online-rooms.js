@@ -1204,6 +1204,24 @@
     }
     return /^(END_TURN|CHOOSE_TURN|BOARD_ACTION|HAND_ACTION)$/i.test(actionType);
   }
+  function runClientResolvedPlacementWithoutPresentation(fn){
+    const presenter = window.FateActionPresentation;
+    if(!clientResolvedGameplayEnabled() || !presenter || typeof presenter.beginSetCard !== 'function'){
+      return fn();
+    }
+    const originalBeginSetCard = presenter.beginSetCard;
+    presenter.beginSetCard = function(){
+      recordOnlineDiagnostic('client-resolved-placement-presentation-bypassed', {
+        reason:'commit-before-action-result-capture'
+      });
+      return false;
+    };
+    try{
+      return fn();
+    }finally{
+      presenter.beginSetCard = originalBeginSetCard;
+    }
+  }
   async function preflightAuthorityCatchupBeforeLocal(type){
     const code = gameState()?._onlineRoomCode || activeRoom;
     if(!code || !needsAuthorityCatchupBeforeLocal(type)) return false;
@@ -5099,7 +5117,13 @@
           promptId:(pendingMove && pendingMove.promptId) || (pendingConsolidation && pendingConsolidation.promptId) || '',
           placing:!!g.placing,
           selectedHand:selectedHandSnapshot(g)
-        }, ()=>originals.clickCell.apply(this, args));
+        }, ()=>{
+          const latest = gameState();
+          const isPlacement = clientResolvedGameplayEnabled()
+            && toAuthorityIntent('CLICK_CELL', {placing:!!latest?.placing, selectedHand:selectedHandSnapshot(latest), z,r,c}, latest) === 'PLACE_CARD';
+          if(isPlacement) return runClientResolvedPlacementWithoutPresentation(()=>originals.clickCell.apply(this, args));
+          return originals.clickCell.apply(this, args);
+        });
       };
     }
 

@@ -47,7 +47,7 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 assert.match(indexText, /05-gameplay-core\.js\?v=1782601200/, 'index must cache-bust gameplay placement fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782601200/, 'index must cache-bust renderer extra-cell fixes');
 assert.match(indexText, /03-profile-and-progression\.js\?v=1782613800/, 'index must cache-bust daily login startup prompt fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1782613800/, 'index must cache-bust the online rooms script for client-resolved gameplay');
+assert.match(indexText, /18-online-rooms\.js\?v=1782614400/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782600600/, 'index must cache-bust the challenger matchmaking script');
 assert.match(indexText, /04-game-setup\.js\?v=1782603000/, 'index must cache-bust the match setup script for preload gate changes');
 assert.match(indexText, /21-smoothness-core\.js\?v=1782613800/, 'index must cache-bust the smoothness script for warmup policy changes');
@@ -165,6 +165,7 @@ assert.match(roomsText, /function applyAuthoritativePostState\(action, reason\)[
 assert.match(roomsText, /function renderOnlineAuthoritativeState\(reason\)[\s\S]*board-action-fast-path:online-authoritative-state[\s\S]*renderOnlineAuthoritativeState\(reason \|\| 'online-authoritative-state'\)/, 'online authoritative state applies must use the targeted board-action fast render path');
 assert.match(roomsText, /function onlineCellActionPending\(g\)[\s\S]*clientResolvedGameplayEnabled\(\) && g\.selectedHandCard !== null/, 'client-resolved board clicks with a selected hand card must not escape the sync wrapper');
 assert.match(roomsText, /function canCaptureClientResolvedBeforeLocalPromise\(type, payload\)[\s\S]*PLACE_CARD[\s\S]*BOARD_ACTION\|HAND_ACTION[\s\S]*function sendOptimisticAction[\s\S]*fastClientResolvedCapture[\s\S]*waitOnlineActionSettle\(type, \{fast:fastClientResolvedCapture\}\)/, 'client-resolved placement and activate effects must publish postState without waiting for animation promises');
+assert.match(roomsText, /function runClientResolvedPlacementWithoutPresentation\(fn\)[\s\S]*presenter\.beginSetCard = function\(\)[\s\S]*return false[\s\S]*runClientResolvedPlacementWithoutPresentation\(\(\)=>originals\.clickCell\.apply\(this, args\)\)/, 'client-resolved placement must commit before ACTION_RESULT capture instead of waiting for set-card presentation');
 assert.match(roomsText, /function sendClientResolvedAutoCommit\(reason\)[\s\S]*actionKind:'AUTO_CLIENT_STATE_COMMIT'[\s\S]*sendAction\('ACTION_RESULT', payload\)/, 'client-resolved mode must auto-commit local state mutations that escape a wrapper');
 assert.match(roomsText, /clientResolvedCommitInFlight > 0[\s\S]*scheduleClientResolvedAutoCommit\(reason \|\| 'commit-in-flight-retry', 70\)/, 'client-resolved watchdog commits must retry while a network commit is in flight');
 assert.match(roomsText, /const watchLocalMutation = reason=>setTimeout\(\(\)=>scheduleClientResolvedAutoCommit\(reason, 60\)[\s\S]*document\.addEventListener\('pointerup'/, 'client-resolved mode must quickly watch local UI mutations for post-action commits');
