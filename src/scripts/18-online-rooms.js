@@ -922,6 +922,41 @@
   function onlineTurnError(){
     if(window.toast) toast('Waiting for opponent');
   }
+  function isRemoteOpponentReplay(g){
+    return !!(isOnlineMatchState(g)
+      && g._onlineApplyingRemoteAction
+      && Number.isInteger(g._onlineRemoteActionPlayer)
+      && Number.isInteger(g._onlinePlayerIndex)
+      && g._onlineRemoteActionPlayer !== g._onlinePlayerIndex);
+  }
+  function remoteOpponentPerspectiveText(message){
+    let text = String(message || '').trim();
+    if(!text) return text;
+    text = text.replace(/^Added\s+(.+?)\s+to hand$/i, 'Opponent added $1 to their hand');
+    text = text.replace(/^(.+?)\s+is ready to set immediately for free!?$/i, "Opponent's $1 is ready to set immediately for free!");
+    text = text.replace(/^The next character added to your hand/i, "Opponent's next character added to their hand");
+    text = text.replace(/\bfrom your deck\b/gi, "from opponent's deck");
+    text = text.replace(/\byour deck\b/gi, "opponent's deck");
+    text = text.replace(/\bfrom your hand\b/gi, "from opponent's hand");
+    text = text.replace(/\byour hand\b/gi, "opponent's hand");
+    text = text.replace(/\byour discard\b/gi, "opponent's discard");
+    text = text.replace(/\byour discard pile\b/gi, "opponent's discard pile");
+    text = text.replace(/\byou can set\b/gi, 'opponent can set');
+    text = text.replace(/\byou drew\b/gi, 'opponent drew');
+    text = text.replace(/\byou must\b/gi, 'opponent must');
+    return text;
+  }
+  function shouldSuppressRemoteOpponentModal(g, title, bodyHtml, actions, opts){
+    if(!isRemoteOpponentReplay(g)) return false;
+    if(g?._onlineLocalModalBypass || window.__fateOnlineLocalModalBypass) return false;
+    const titleText = String(title || '');
+    const bodyText = String(bodyHtml || '');
+    const actionLabels = Array.isArray(actions) ? actions.map(a=>String(a?.label || '')).join('|') : '';
+    const text = [titleText, bodyText, actionLabels].join(' ');
+    const hasPrivateChoiceCopy = /\b(search|choose|select|discard|add to hand|from your deck|from your hand|your deck|your hand|variable cost|tribute|rearrange|declare affiliation)\b/i.test(text);
+    const hasActionButtons = Array.isArray(actions) && actions.some(a=>a && !a.hidden && !/^close$/i.test(String(a.label || '')));
+    return hasPrivateChoiceCopy || hasActionButtons || !!(opts && opts.privateForActivePlayer);
+  }
   function makeOptimisticActionId(type){
     optimisticActionCounter = (optimisticActionCounter + 1) % 1000000;
     const uid = window.FATE_ONLINE?.user?.uid || 'local';
@@ -4147,6 +4182,8 @@
   function subscribeFlyActions(code){
     let stopped = false;
     let timer = 0;
+    let driftTimer = 0;
+    let driftRunning = false;
     let lastWarn = 0;
     if(configuredAuthorityUrl()){
       ensureAuthorityJoined(code).catch(e=>console.warn('Fly authority prejoin failed', e));
@@ -4171,26 +4208,62 @@
         if(!stopped) timer = setTimeout(poll, 650);
       }
     }
+    async function hashDriftCheck(){
+      if(stopped || driftRunning) return;
+      const g = gameState();
+      if(!isOnlineMatchState(g) || (g._onlineRoomCode || activeRoom) !== code) return;
+      if(typeof document !== 'undefined' && document.hidden) return;
+      driftRunning = true;
+      try{
+        await catchUpFlyAuthorityReplay(code, 'periodic hash check', {limit:50});
+        const localHash = onlineCanonicalStateHash(captureOnlineCanonicalState());
+        const serverHash = String(lastAuthorityStateHash || lastLobbyRoom?.canonicalHash || '');
+        if(serverHash && localHash && localHash !== serverHash){
+          await catchUpFlyAuthorityReplay(code, 'periodic hash drift repair', {includeState:true, limit:50});
+        }
+      }catch(e){
+        if(Date.now() - lastWarn > 5000){
+          console.warn('Fly authority hash drift check failed', e);
+          lastWarn = Date.now();
+        }
+      }finally{
+        driftRunning = false;
+      }
+    }
+    function scheduleHashDriftCheck(){
+      if(stopped) return;
+      driftTimer = setTimeout(async function(){
+        driftTimer = 0;
+        await hashDriftCheck();
+        scheduleHashDriftCheck();
+      }, 5000);
+    }
     actionUnsub = function(){
       stopped = true;
       if(timer) clearTimeout(timer);
+      if(driftTimer) clearTimeout(driftTimer);
     };
     poll();
+    scheduleHashDriftCheck();
   }
 
-  async function catchUpFlyAuthorityReplay(code, reason){
+  async function catchUpFlyAuthorityReplay(code, reason, opts){
     if(!code || !authorityHttpBaseUrl() || firebaseActionFallbackAllowed()) return false;
+    const options = opts || {};
     authorityCatchupAttempts += 1;
     authorityLastCatchupReason = String(reason || 'authority-send');
     try{
       const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
-      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=500`);
+      const includeState = options.includeState === true;
+      const limit = Math.max(1, Math.min(500, Number(options.limit || 500) || 500));
+      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=${limit}${includeState ? '&includeState=1' : ''}`);
       const room = normalizeFlyRoom(data.room);
       if(room.roomCode){
         lastLobbyRoom = room;
         lastLobbyPlayers = room.players;
       }
-      if(data.serverStateHash || data.canonicalHash) lastAuthorityStateHash = String(data.serverStateHash || data.canonicalHash || '');
+      const serverHash = String(data.serverStateHash || data.canonicalHash || room.canonicalHash || '');
+      if(serverHash) lastAuthorityStateHash = serverHash;
       const events = Array.isArray(data?.events) ? data.events : [];
       events.forEach(item=>{
         const action = item?.action || item?.accepted?.action || item;
@@ -4202,6 +4275,24 @@
       const g = gameState();
       if(g) g._onlineActionSeq = Math.max(g._onlineActionSeq || 0, lastActionSeq);
       if(events.length) await actionReplayQueue.catch(()=>{});
+      const localState = captureOnlineCanonicalState();
+      const localHash = onlineCanonicalStateHash(localState);
+      const canonicalState = data?.canonicalState || null;
+      if(includeState && canonicalState && serverHash && localHash && localHash !== serverHash){
+        applyOnlineCanonicalState(canonicalState, reason || 'authority hash drift repair');
+        const latest = gameState();
+        if(latest){
+          latest._onlineActionSeq = Math.max(Number(latest._onlineActionSeq || 0) || 0, lastActionSeq);
+          latest._onlineAppliedActionSeq = Math.max(Number(latest._onlineAppliedActionSeq || 0) || 0, lastAppliedActionSeq);
+          latest._onlineLagPauseActive = false;
+        }
+        recordOnlineDiagnostic('authority-hash-drift-repaired', {
+          reason:String(reason || ''),
+          localHash:String(localHash || ''),
+          serverHash:String(serverHash || ''),
+          lastSeq:serverSeq
+        });
+      }
       authorityCatchupSuccesses += 1;
       return true;
     }catch(e){
@@ -4210,6 +4301,30 @@
       console.warn('Fly authority catch-up before send failed', e);
       return false;
     }
+  }
+  let browserResumeCatchupTimer = 0;
+  let browserResumeCatchupRunning = false;
+  function scheduleBrowserResumeAuthorityCatchup(reason, delayMs){
+    if(browserResumeCatchupTimer) clearTimeout(browserResumeCatchupTimer);
+    browserResumeCatchupTimer = setTimeout(async function(){
+      browserResumeCatchupTimer = 0;
+      if(browserResumeCatchupRunning) return;
+      const g = gameState();
+      const code = g?._onlineRoomCode || activeRoom;
+      if(!isOnlineMatchState(g) || !code || !authorityHttpBaseUrl() || firebaseActionFallbackAllowed()) return;
+      if(typeof document !== 'undefined' && document.hidden) return;
+      browserResumeCatchupRunning = true;
+      try{
+        await ensureAuthorityJoined(code).catch(()=>false);
+        await catchUpFlyAuthorityReplay(code, reason || 'browser resume', {includeState:true, limit:100});
+        reportActionProgress(lastAppliedActionSeq || lastActionSeq || 0, {force:true});
+        if(typeof evaluateLagPause === 'function') evaluateLagPause();
+      }catch(e){
+        console.warn('Browser resume authority catch-up failed', e);
+      }finally{
+        browserResumeCatchupRunning = false;
+      }
+    }, Math.max(0, Number(delayMs || 0) || 0));
   }
 
   function subscribeActions(code){
@@ -4948,6 +5063,7 @@
         if(!isOnlineMatchState(g) || !Array.isArray(actions)){
           return originals.showModal.apply(this, arguments);
         }
+        if(shouldSuppressRemoteOpponentModal(g, title, bodyHtml, actions, opts)) return;
         if(actions.length === 0){
           return originals.showModal.apply(this, arguments);
         }
@@ -4983,6 +5099,7 @@
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.pickCardsVisual.apply(this, arguments);
         }
+        if(isRemoteOpponentReplay(g)) return;
         if(g._onlinePendingZonePicker){
           return originals.pickCardsVisual.apply(this, arguments);
         }
@@ -5012,6 +5129,7 @@
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.showZonePicker.apply(this, arguments);
         }
+        if(isRemoteOpponentReplay(g)) return;
         g._onlinePendingZonePicker = { entries:entries || [], onConfirm };
         const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
         if(!localCanChoose) return;
@@ -5038,6 +5156,7 @@
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.showBoardTargetPicker.apply(this, arguments);
         }
+        if(isRemoteOpponentReplay(g)) return;
         const entries = (opts && Array.isArray(opts.entries)) ? opts.entries : [];
         g._onlinePendingZonePicker = { entries, onConfirm };
         const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
@@ -5088,6 +5207,7 @@
         if(!isOnlineMatchState(g) || typeof callback !== 'function'){
           return originals.showAffiliationPickerVisual.apply(this, arguments);
         }
+        if(isRemoteOpponentReplay(g)) return;
         g._onlinePendingAffiliationPicker = { callback };
         const localCanChoose = g.currentPlayer === g._onlinePlayerIndex;
         if(!localCanChoose) return;
@@ -5151,9 +5271,12 @@
         const isRemoteOpponentPrompt = isOnlineMatchState(g)
           && g._onlineApplyingRemoteAction
           && Number.isInteger(g._onlineRemoteActionPlayer)
-          && g._onlineRemoteActionPlayer !== g._onlinePlayerIndex
-          && /^(click|choose|select|must|need|no valid|no open|no eligible)/i.test(text);
+            && g._onlineRemoteActionPlayer !== g._onlinePlayerIndex
+            && /^(click|choose|select|must|need|no valid|no open|no eligible)/i.test(text);
         if(isRemoteOpponentPrompt) return;
+        if(isRemoteOpponentReplay(g)){
+          return originals.toast.call(this, remoteOpponentPerspectiveText(text), arguments[1]);
+        }
         return originals.toast.apply(this, arguments);
       };
     }
@@ -5967,6 +6090,20 @@
       document.addEventListener('pointerup', ()=>watchLocalMutation('pointerup'), true);
       document.addEventListener('keyup', ()=>watchLocalMutation('keyup'), true);
       document.addEventListener('change', ()=>watchLocalMutation('change'), true);
+    }catch(e){}
+  }
+  if(!window.__fateOnlineBrowserResumeCatchupInstalled){
+    window.__fateOnlineBrowserResumeCatchupInstalled = true;
+    try{
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden) scheduleBrowserResumeAuthorityCatchup('visibility resume', 20);
+      });
+      window.addEventListener('focus', function(){
+        scheduleBrowserResumeAuthorityCatchup('window focus', 20);
+      });
+      window.addEventListener('pageshow', function(){
+        scheduleBrowserResumeAuthorityCatchup('page show', 20);
+      });
     }catch(e){}
   }
 

@@ -3219,6 +3219,21 @@ function formatStatusOverflowEffects(effects) {
   }).join('||');
 }
 
+function formatStatusEffectCopyForSide(text, side) {
+  let value = String(text || '');
+  if(side !== 'right') return value;
+  value = value.replace(/\bfrom your deck\b/gi, "from opponent's deck");
+  value = value.replace(/\byour deck\b/gi, "opponent's deck");
+  value = value.replace(/\bfrom your hand\b/gi, "from opponent's hand");
+  value = value.replace(/\byour hand\b/gi, "opponent's hand");
+  value = value.replace(/\byour discard pile\b/gi, "opponent's discard pile");
+  value = value.replace(/\byour discard\b/gi, "opponent's discard");
+  value = value.replace(/\byour opponent\b/gi, 'you');
+  value = value.replace(/\bopponent's next turn\b/gi, 'your next turn');
+  value = value.replace(/\bopponent draw-phase\b/gi, 'your draw-phase');
+  return value;
+}
+
 function compactTopbarStatusEffects(effects, side) {
   const list = Array.isArray(effects) ? effects : [];
   if(list.length <= TOPBAR_STATUS_VISIBLE_LIMIT) return list.slice();
@@ -3248,7 +3263,7 @@ function showStatusEffectOverflowModal(effects, side) {
     const icon = e && e.icon ? e.icon : getStatusOverflowIcon();
     const name = e && e.cardName ? e.cardName : (e && e.label ? e.label : 'Active Effect');
     const ability = e && e.cardAbility ? e.cardAbility : (e && e.label ? e.label : '');
-    const effect = e && e.cardEffect ? e.cardEffect : '';
+    const effect = e && e.cardEffect ? formatStatusEffectCopyForSide(e.cardEffect, side) : '';
     return '<button type="button" class="status-overflow-row">' +
       '<span class="status-overflow-row-icon">' + icon + '</span>' +
       '<span class="status-overflow-row-copy">' +
@@ -3278,6 +3293,7 @@ function syncEffectPills(container, effects, side) {
   var signatureParts = [];
   for(var i = 0; i < effects.length; i++) {
     var e = effects[i] || {};
+    var displayEffect = formatStatusEffectCopyForSide(e.cardEffect || '', side);
     var extraClass = e.extraClass ? ' ' + e.extraClass : '';
     var sig = [
       sideClass,
@@ -3286,7 +3302,7 @@ function syncEffectPills(container, effects, side) {
       e.label || '',
       e.cardName || '',
       e.cardAbility || '',
-      e.cardEffect || '',
+      displayEffect,
       e.isOverflow ? 'overflow' : '',
       e.overflowSig || ''
     ].join('|');
@@ -3341,7 +3357,7 @@ function syncEffectPills(container, effects, side) {
       abilityEl.textContent = e.cardAbility || '';
       abilityEl.style.display = e.cardAbility ? '' : 'none';
     }
-    if(effectEl) effectEl.textContent = e.cardEffect || '';
+    if(effectEl) effectEl.textContent = displayEffect;
     if(ownerEl) ownerEl.textContent = side === 'left' ? 'Your effect' : "Opponent's effect";
   }
   while(container.children.length > effects.length) {
