@@ -41,7 +41,7 @@ assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must r
 
 assert.match(indexText, /05-gameplay-core\.js\?v=1782647600/, 'index must cache-bust gameplay consolidation fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782647600/, 'index must cache-bust renderer extra-cell fixes');
-assert.match(indexText, /03-profile-and-progression\.js\?v=1782621000/, 'index must cache-bust daily login startup prompt fixes');
+assert.match(indexText, /03-profile-and-progression\.js\?v=1782659000/, 'index must cache-bust daily login startup prompt fixes');
 assert.match(indexText, /18-online-rooms\.js\?v=1782647600/, 'index must cache-bust the online rooms script for client-resolved gameplay');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782623300/, 'index must cache-bust the challenger leaderboard, simulation, social filtering, and profile crop script');
 assert.match(indexText, /17-online-social\.js\?v=1782620200/, 'index must cache-bust the online social script for internal-player filtering');

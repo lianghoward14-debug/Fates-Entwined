@@ -882,20 +882,27 @@ function handleFateChatCommand(text) {
 
 function checkDailyLoginOnStartup() {
   if(window.__fateDailyLoginPromptedThisSession) return;
-  const openPrompt = function(delay){
+  const openPrompt = function(delay, opts){
     if(window.__fateDailyLoginPromptedThisSession) return;
-    window.__fateDailyLoginPromptedThisSession = true;
+    const immediate = !!(opts && opts.immediate);
+    const run = function(){
+      const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
+      if(modalOpen) {
+        setTimeout(function(){ openPrompt(1200); }, 1200);
+        return;
+      }
+      normalizeDailyLoginProfileState();
+      if(typeof showDailyLoginPanel === 'function') {
+        window.__fateDailyLoginPromptedThisSession = true;
+        showDailyLoginPanel();
+      }
+    };
+    if(immediate) {
+      run();
+      return;
+    }
     setTimeout(function(){
-      requestAnimationFrame(function(){
-        const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
-        if(modalOpen) {
-          window.__fateDailyLoginPromptedThisSession = false;
-          openPrompt(1200);
-          return;
-        }
-        normalizeDailyLoginProfileState();
-        if(typeof showDailyLoginPanel === 'function') showDailyLoginPanel();
-      });
+      requestAnimationFrame(run);
     }, Number.isFinite(delay) ? delay : 450);
   };
   const startupLoadingActive = !!(
@@ -908,7 +915,7 @@ function checkDailyLoginOnStartup() {
       if(startupSettled) return;
       startupSettled = true;
       window.removeEventListener('fate-startup-loading-finished', onStartupFinished);
-      checkDailyLoginOnStartup();
+      openPrompt(0, {immediate:true});
     };
     window.addEventListener('fate-startup-loading-finished', onStartupFinished, {once:true});
     setTimeout(onStartupFinished, 6500);
@@ -916,7 +923,7 @@ function checkDailyLoginOnStartup() {
   }
   const cloudPending = !!(window.__fateCloudLoadingActive || (window._fateCloudUid && !window._fateCloudReady));
   if(!cloudPending) {
-    openPrompt(1700);
+    openPrompt(0, {immediate:true});
     return;
   }
   let settled = false;
@@ -928,14 +935,14 @@ function checkDailyLoginOnStartup() {
     openPrompt(delay);
   };
   const onCloudReady = function(){
-    settle(1100);
+    settle(0);
   };
   const onAuthReady = function(e){
-    if(e && e.detail && e.detail.ready && !e.detail.user) settle(850);
+    if(e && e.detail && e.detail.ready && !e.detail.user) settle(0);
   };
   window.addEventListener('fate-cloud-ready', onCloudReady);
   window.addEventListener('fate-online-auth', onAuthReady);
-  setTimeout(function(){ settle(850); }, 4300);
+  setTimeout(function(){ settle(0); }, 4300);
 }
 
 window.addEventListener('fate-cloud-ready', function(){
