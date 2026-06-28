@@ -743,6 +743,13 @@
     if(pending.characterOnly && String(card.type || '') === 'Supporter') return false;
     return true;
   }
+  function serverPendingCardPickCandidate(card, source, index){
+    if(!card) return null;
+    return Object.assign({}, card, {
+      _serverPickSource:String(source || ''),
+      _serverPickIndex:Number(index)
+    });
+  }
   function serverPendingBoardCardCandidates(g, pending, playerIndex){
     const cards = [];
     const sourceIid = String(pending?.sourceIid || '');
@@ -767,15 +774,18 @@
     if(!player) return [];
     const kind = String(pending?.kind || '');
     if(kind === 'handDiscard' || kind === 'handDiscardBoost'){
-      return (Array.isArray(player.hand) ? player.hand : []).filter(card=>serverPendingCardMatchesFilters(card, pending));
+      const hand = Array.isArray(player.hand) ? player.hand : [];
+      return hand
+        .map((card, index)=>serverPendingCardMatchesFilters(card, pending) ? serverPendingCardPickCandidate(card, 'hand', index) : null)
+        .filter(Boolean);
     }
     const sources = String(pending?.source || 'deck').split('+').map(s=>s.trim()).filter(Boolean);
     const cards = [];
     sources.forEach(source=>{
       const pile = source === 'discard' ? player.discard : player.deck;
       if(!Array.isArray(pile)) return;
-      pile.forEach(card=>{
-        if(serverPendingCardMatchesFilters(card, pending)) cards.push(card);
+      pile.forEach((card, index)=>{
+        if(serverPendingCardMatchesFilters(card, pending)) cards.push(serverPendingCardPickCandidate(card, source, index));
       });
     });
     return cards;
@@ -1255,7 +1265,11 @@
     return null;
   }
   function cardIdentity(card){
-    return card ? { iid:card.iid || '', id:card.id || '', name:card.name || '' } : null;
+    if(!card) return null;
+    const ident = { iid:card.iid || '', id:card.id || '', name:card.name || '' };
+    if(card._serverPickSource) ident.source = String(card._serverPickSource);
+    if(Number.isInteger(Number(card._serverPickIndex))) ident.index = Number(card._serverPickIndex);
+    return ident;
   }
   function cardMatchesIdentity(card, ident){
     if(!card || !ident) return false;

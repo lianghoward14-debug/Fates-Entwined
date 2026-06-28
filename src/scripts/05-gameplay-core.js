@@ -2798,7 +2798,10 @@ window.setFateWhenSetImmediateMode = function(enabled) {
 function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
   const id = String(card.id || '');
-  return WINDOWED_WHEN_SET_EFFECT_IDS.has(id) && (WHEN_SET_IDS.has(id) || (card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial));
+  if(!WINDOWED_WHEN_SET_EFFECT_IDS.has(id)) return false;
+  if(card.type === 'Supporter' && WHEN_SET_IDS.has(id)) return card.whenSetActivated !== true;
+  if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id)) return !card.effectUsedInitial;
+  return WHEN_SET_IDS.has(id) && card.effectUsedInitial !== true && card.whenSetActivated !== true;
 }
 
 function markCardSetTurn(card, player) {

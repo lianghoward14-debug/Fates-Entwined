@@ -215,7 +215,7 @@ const CARDS = [
     flavor:'"Everything that Rivera fights for is to ensure his daughter a bright future in West Caribbean"',img:'51.png'},
   {id:'52',name:'The Vigilantes',ability:'Marked for Death',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'Once per turn, select one opponent card in this zone. That card has 0 Reinforcement.',
+    effect:'When set and once per turn, select one opponent card in this zone. Its Reinforcement value becomes 0.',
     flavor:'"One with the Sea... One with the Sea..."',img:'52.png'},
   {id:'53',name:'Colombo Thug',ability:'Thieves and Bullies',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
