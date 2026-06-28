@@ -169,11 +169,73 @@ function validateActionResultTransition(room, msg, opts){
   return result;
 }
 
+function isPlacementActionResultPayload(payload){
+  const actionKind = String(payload?.actionKind || payload?.originalType || '').toUpperCase();
+  if(actionKind && actionKind !== 'CLICK_CELL' && actionKind !== 'PLACE_CARD') return false;
+  return !!(payload && (
+    payload.placing ||
+    payload.selectedHand ||
+    Number.isInteger(Number(payload.handIndex))
+  ));
+}
+
+function payloadPlacementTarget(payload){
+  const z = Number(payload?.z), r = Number(payload?.r), c = Number(payload?.c);
+  if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
+  return {z, r, c};
+}
+
+function canonicalAlreadyHasPlacement(room, payload){
+  const state = room?.canonicalState;
+  const target = payloadPlacementTarget(payload);
+  if(!state || !target) return null;
+  const playerIndex = Number(payload?.playerIndex);
+  if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return null;
+  const card = state.board?.[target.z]?.[target.r]?.[target.c] || null;
+  if(!card || Number(card.owner) !== playerIndex) return null;
+  const selected = payload?.selectedHand || {};
+  if(selected && (selected.iid || selected.id || selected.name) && !cardMatchesPayloadIdentity(card, selected)) return null;
+  const hand = state.players?.[playerIndex]?.hand || [];
+  if(selected?.iid && hand.some(item=>item && String(item.iid || '') === String(selected.iid))) return null;
+  return reducedResult(cloneState(state), {
+    baseStateHash:String(payload?.baseStateHash || payload?.preStateHash || ''),
+    placementRecovered:'already-applied'
+  });
+}
+
+function recoverStalePlacementActionResult(room, payload, options){
+  if(!isPlacementActionResultPayload(payload)) return null;
+  const already = canonicalAlreadyHasPlacement(room, payload);
+  if(already) return already;
+  const target = payloadPlacementTarget(payload);
+  if(!target) return null;
+  const replayPayload = Object.assign({}, payload, {
+    z:target.z,
+    r:target.r,
+    c:target.c,
+    placing:true,
+    baseStateHash:String(room?.canonicalHash || '')
+  });
+  delete replayPayload.postState;
+  delete replayPayload.stateHash;
+  delete replayPayload.actionKind;
+  delete replayPayload.originalType;
+  const replay = reduceBasicClickCell(room, {type:'CLICK_CELL', payload:replayPayload}, options);
+  if(replay && replay.ok) replay.placementRecovered = 'replayed';
+  return replay && replay.ok ? replay : null;
+}
+
 function reduceActionResult(room, msg, options){
   if(String(msg?.type || '').toUpperCase() !== 'ACTION_RESULT'){
     return {ok:false, reason:'reduceActionResult requires ACTION_RESULT'};
   }
-  return validateActionResultTransition(room, msg, options);
+  const result = validateActionResultTransition(room, msg, options);
+  if(result.ok) return result;
+  if(/stale baseStateHash/i.test(String(result.reason || ''))){
+    const recovered = recoverStalePlacementActionResult(room, msg.payload || {}, options);
+    if(recovered && recovered.ok) return recovered;
+  }
+  return result;
 }
 
 function cloneState(state){
@@ -3106,7 +3168,8 @@ function setPendingSameZoneWhenSetPick(state, inst, playerIndex, z, r, c){
     hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === opponent && String(card.type || '') === 'Supporter').length > 0;
   } else if(id === '31'){
     kind = 'hemorrhagingWound';
-    hasTarget = boardCardEntriesInZone(state, z).length > 0;
+    const opponent = playerIndex === 0 ? 1 : 0;
+    hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === opponent && !(card.immuneFlag === true || String(card.id || '') === '76')).length > 0;
   } else if(id === '03'){
     kind = 'howardFateDouble';
     hasTarget = boardCardEntriesInZone(state, z, card=>!(card.immuneFlag === true || String(card.id || '') === '76')).length > 0;
@@ -5425,6 +5488,24 @@ function reduceFateToValue(state, card, targetValue, sourceOwner, z){
   return {ok:true, changed:after !== before};
 }
 
+function reduceStoredFateByAmount(state, card, amount, sourceOwner, z){
+  if(!card || card.immuneFlag === true || String(card.id || '') === '76') return {ok:false, reason:'target is immune'};
+  const pos = findBoardCardPosition(state, card, z) || {z, r:null, c:null};
+  const before = effectiveFateForBoardCard(state, card, Number(pos.z ?? z), pos.r, pos.c);
+  const baseBefore = currentFate(card);
+  const baseNext = Math.max(0, baseBefore - Math.max(0, Number(amount) || 0));
+  if(baseNext < baseBefore && Array.isArray(state.shieldWallZones) && state.shieldWallZones.includes(Number(pos.z ?? z))){
+    return {ok:false, reason:'Shield Wall prevents Fate loss'};
+  }
+  card.currentFate = baseNext;
+  const after = effectiveFateForBoardCard(state, card, Number(pos.z ?? z), pos.r, pos.c);
+  if(after < before && (sourceOwner === 0 || sourceOwner === 1)){
+    if(!Array.isArray(state.damageDoneP)) state.damageDoneP = [0, 0];
+    state.damageDoneP[sourceOwner] = (Number(state.damageDoneP[sourceOwner] || 0) || 0) + 1;
+  }
+  return {ok:true, changed:after !== before};
+}
+
 function discardBoardCardForState(state, z, r, c){
   const card = state.board?.[z]?.[r]?.[c] || null;
   if(!card) return null;
@@ -5748,7 +5829,9 @@ function reducePickZoneAction(room, msg, options){
     if(sourceResult.error) return {ok:false, reason:sourceResult.error};
     const live = liveSelectedZoneTarget(state, selected, pending, 'Hemorrhaging Wound');
     if(live.error) return {ok:false, reason:live.error};
-    const reduced = reduceFateToValue(state, live.target, serverEffectiveFate(state, live.target, selected.z, selected.r, selected.c) - 3, playerIndex, selected.z);
+    const opponent = playerIndex === 0 ? 1 : 0;
+    if(Number(live.target.owner) !== opponent) return {ok:false, reason:'Hemorrhaging Wound target must be an opponent card'};
+    const reduced = reduceStoredFateByAmount(state, live.target, 3, playerIndex, selected.z);
     if(!reduced.ok) return {ok:false, reason:reduced.reason};
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});

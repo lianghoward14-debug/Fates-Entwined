@@ -1772,16 +1772,16 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         });
       } break;
     case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
-      pickCardInZone(z,'Select a card to lose 3 Fate:',(tgt)=>{
+      pickCardInZone(z,'Select an opponent card to lose 3 Fate:',(tgt)=>{
         const before = tgt.currentFate || tgt.fate || 0;
-        const changed = setCardFateValue(tgt, before - 3, cp);
+        const changed = reduceStoredCardFateBy(tgt, 3, cp);
         if(!changed && before > 0){
           showBlockedAnimation('Shield Wall prevents Fate loss');
           return;
         }
         log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderGame();
-      }); break;
+      }, function(cell){ return !!cell && cell.owner === opp && !cell.immuneFlag && cell.id !== '76'; }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}
@@ -2530,6 +2530,20 @@ function setCardFateValue(card, newValue, sourceOwner) {
   if(targetValue < before && G.shieldWallZones.length>0) {
     let inShield = false;
     forEachBoardCard((c,z)=>{ if(c.iid===card.iid && G.shieldWallZones.includes(z)) inShield=true; });
+    if(inShield) return false;
+  }
+  card.currentFate = targetValue;
+  recordFateReductionEvent(sourceOwner, before, targetValue);
+  return targetValue !== before;
+}
+
+function reduceStoredCardFateBy(card, amount, sourceOwner) {
+  if(!card || card.immuneFlag || card.id === '76') return false;
+  const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const targetValue = Math.max(0, before - Math.max(0, Number(amount) || 0));
+  if(targetValue < before && G.shieldWallZones.length > 0) {
+    let inShield = false;
+    forEachBoardCard((c,z)=>{ if(c.iid === card.iid && G.shieldWallZones.includes(z)) inShield = true; });
     if(inShield) return false;
   }
   card.currentFate = targetValue;

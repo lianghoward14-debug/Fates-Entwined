@@ -688,6 +688,31 @@ assert.strictEqual(canonicalPlacement.serverReduced, true);
 assert.strictEqual(canonicalPlacement.canonicalState.players[0].hand.length, 0);
 assert.strictEqual(canonicalPlacement.canonicalState.board[0][2][2].iid, 'h-place-101');
 assert.strictEqual(canonicalPlacement.canonicalState.pendingInteraction, null);
+const stalePlacementPostState = JSON.parse(JSON.stringify(canonicalPlacementBase));
+const stalePlacedCard = stalePlacementPostState.players[0].hand.splice(0, 1)[0];
+stalePlacedCard.owner = 0;
+stalePlacedCard.currentFate = 3;
+stalePlacementPostState.board[0][2][2] = stalePlacedCard;
+stalePlacementPostState.placing = false;
+stalePlacementPostState.selectedHandCard = null;
+const stalePlacementPostHash = canonicalStateHash(stalePlacementPostState);
+const stalePlacementRecovered = reduceServerAction({canonicalState:canonicalPlacementBase, canonicalHash:canonicalPlacementHash}, msg('ACTION_RESULT', {
+  actionKind:'CLICK_CELL',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'h-place-101', id:'101'},
+  baseStateHash:'stale-before-placement',
+  postState:stalePlacementPostState,
+  stateHash:stalePlacementPostHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:{byId:new Map([['101', {id:'101', type:'Character', cost:0, effect:'', aff:''}]])}});
+assert.strictEqual(stalePlacementRecovered.ok, true, stalePlacementRecovered.reason);
+assert.strictEqual(stalePlacementRecovered.placementRecovered, 'replayed');
+assert.strictEqual(stalePlacementRecovered.canonicalState.players[0].hand.length, 0);
+assert.strictEqual(stalePlacementRecovered.canonicalState.board[0][2][2].iid, 'h-place-101');
 const mismatchedIidPlacementBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[{id:'101', iid:'server-iid-101', name:'Plain Character', type:'Character', fate:3, cost:0}], discard:[]},
@@ -4088,6 +4113,51 @@ const woundPick = reduceServerAction({canonicalState:woundSet.canonicalState, ca
 assert.strictEqual(woundPick.ok, true, woundPick.reason);
 assert.strictEqual(woundPick.canonicalState.board[0][1][1].currentFate, 0);
 assert.strictEqual(woundPick.canonicalState.damageDoneP[0], 1);
+
+const woundAnneBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'31', iid:'s-31-anne-place', name:'Oathbound Noble Fighter', type:'Supporter', fate:1}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[
+    [null,{id:'11', iid:'anne-oath-target', name:'Anne Stone', type:'Coordinator', owner:1, fate:6, currentFate:12},null],
+    [null,{id:'10', iid:'pm-dylan-oath-aura', name:'Post-Modernist Dylan', type:'Coordinator', owner:0, fate:3, currentFate:3},null],
+    [null,null,null]
+  ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0],
+  damageDoneP:[0,0]
+});
+const woundAnneHash = canonicalStateHash(woundAnneBase);
+const woundAnneSet = reduceServerAction({canonicalState:woundAnneBase, canonicalHash:woundAnneHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-31-anne-place', id:'31'},
+  baseStateHash:woundAnneHash,
+  postState:woundAnneBase,
+  stateHash:woundAnneHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundAnneSet.ok, true, woundAnneSet.reason);
+const woundAnnePick = reduceServerAction({canonicalState:woundAnneSet.canonicalState, canonicalHash:woundAnneSet.canonicalHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  selectedEntries:[{z:0, r:0, c:1, card:{iid:'anne-oath-target', id:'11', name:'Anne Stone'}}],
+  baseStateHash:woundAnneSet.canonicalHash,
+  postState:woundAnneSet.canonicalState,
+  stateHash:woundAnneSet.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundAnnePick.ok, true, woundAnnePick.reason);
+assert.strictEqual(woundAnnePick.canonicalState.board[0][0][1].currentFate, 9);
+assert.strictEqual(woundAnnePick.canonicalState.damageDoneP[0], 1);
 
 const woundShieldBase = state(Object.assign({}, woundSetBase, {
   shieldWallZones:[0]

@@ -3184,17 +3184,17 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         });
       } break;
     case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
-      pickCardInZone(z,'Select a card to lose 3 Fate:',(tgt)=>{
+      pickCardInZone(z,'Select an opponent card to lose 3 Fate:',(tgt)=>{
         if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
         const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
-        const changed = setCardFateValue(tgt, before - 3, cp);
+        const changed = reduceStoredCardFateBy(tgt, 3, cp);
         if(!changed && before > 0){
           showBlockedAnimation('Shield Wall prevents Fate loss');
           return;
         }
         log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderEffectResolutionForPlayer(cp, {hand:false});
-      }); break;
+      }, function(cell){ return !!cell && cell.owner === opp && !(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(cell) : (cell.immuneFlag || cell.id==='76')); }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt === inst || (tgt.iid && inst.iid && tgt.iid === inst.iid)){toast('MINAE Death Squad cannot discard itself');return;}
@@ -4212,6 +4212,26 @@ function setCardFateValue(card, newValue, sourceOwner) {
   card.currentFate = baseNext;
   const overflowLoss = Math.max(0, baseBefore - targetValue);
   if(overflowLoss > 0) card._staticFatePenalty = (Number(card._staticFatePenalty || 0) || 0) + overflowLoss;
+  clampCardToLandscapeFateCap(card);
+  const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  recordFateReductionEvent(sourceOwner, before, after);
+  playFateChangeSound(card, before, after, sourceOwner);
+  return after !== before;
+}
+
+function reduceStoredCardFateBy(card, amount, sourceOwner) {
+  if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
+  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : (card.immuneFlag || card.id === '76'))) return false;
+  const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
+  const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const baseBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const baseNext = Math.max(0, baseBefore - Math.max(0, Number(amount) || 0));
+  if(baseNext < baseBefore && G.shieldWallZones.length > 0) {
+    let inShield = false;
+    forEachBoardCard((c,z)=>{ if(c.iid === card.iid && G.shieldWallZones.includes(z)) inShield = true; });
+    if(inShield) return false;
+  }
+  card.currentFate = baseNext;
   clampCardToLandscapeFateCap(card);
   const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   recordFateReductionEvent(sourceOwner, before, after);

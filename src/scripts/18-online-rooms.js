@@ -919,7 +919,7 @@
     if(kind === 'makennaImmune') return 'Choose friendly cards to make immune';
     if(kind === 'liberatorsFateGain') return 'Choose a card to gain 3 Fate';
     if(kind === 'howardFateDouble') return 'Choose a card to double its Fate';
-    if(kind === 'hemorrhagingWound') return 'Choose a card to lose 3 Fate';
+    if(kind === 'hemorrhagingWound') return 'Choose an opponent card to lose 3 Fate';
     if(kind === 'santiagoHalveFate') return 'Choose an opponent card in the contested row';
     if(kind === 'apparitionDiscardDraw') return 'Choose a friendly character to discard';
     return 'Choose a target';
@@ -933,7 +933,7 @@
     if(kind === 'makennaImmune') return Number(card.owner) === playerIndex;
     if(kind === 'liberatorsFateGain') return true;
     if(kind === 'howardFateDouble') return card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'hemorrhagingWound') return true;
+    if(kind === 'hemorrhagingWound') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
     if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && String(card.type || '') === 'Supporter';

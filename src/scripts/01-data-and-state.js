@@ -131,7 +131,7 @@ const CARDS = [
     flavor:'"The leader of the Cook Islands has quite a ferocious approach to his diplomacy"',img:'30.png'},
   {id:'31',name:'Oathbound Noble Fighter',ability:'Hemorrhaging Wound',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, select one card in this card\'s zone; it loses 3 Fate permanently.',
+    effect:'When set, select one opponent card in this card\'s zone; it loses 3 Fate permanently.',
     flavor:'"These mercenaries fight not for money, but for the thrill of battle"',img:'31.png'},
   {id:'32',name:'Temecula Resident',ability:'Wine Country Fanaticism',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
