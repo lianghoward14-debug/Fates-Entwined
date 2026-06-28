@@ -689,9 +689,11 @@
   }
   function startSharedAISimulationLoop(){
     if(sharedAISimulationTimer) return;
-    sharedAISimulationTimer = setInterval(()=>{
+    const tick = ()=>{
       if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
-    }, 10 * 60 * 1000);
+    };
+    setTimeout(tick, 2500);
+    sharedAISimulationTimer = setInterval(tick, 10 * 60 * 1000);
   }
   async function submitChallengerResult({didWin, opponentUid=null, opponentElo=1000, roomCode='', source='client', oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
     const u=user(); if(!u) return;

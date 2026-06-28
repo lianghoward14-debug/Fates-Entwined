@@ -833,24 +833,27 @@ function predictMatchOutcome(trueElo1, trueElo2, upsetFloor=0) {
   return Math.random() < winChance1;
 }
 
-// Legacy local AI simulation is disabled. AI ELO simulation now runs only through
-// the shared online simulation in 19-online-elo.js.
-function runAISimulation() {
-  return;
+// Local fallback AI simulation. Online/shared AI simulation is preferred when
+// the online layer is authenticated, but offline/local sessions still need AI
+// results to advance instead of appearing frozen.
+function runAISimulation(options={}) {
+  const forceLocal = !!(options && options.forceLocal);
+  if(!forceLocal && window.FATE_ONLINE?.user) return 0;
   const simKey = 'fate_ai_sim_cadence';
   let simData;
   try { simData = JSON.parse(localStorage.getItem(simKey) || '{}'); } catch(e){ simData = {}; }
   const now = Date.now();
-  const cadence = window.FATE_ONLINE?.user ? 10 * 60 * 1000 : 60 * 60 * 1000;
-  if(Number(simData.lastRunAt || 0) && now - Number(simData.lastRunAt || 0) < cadence) return;
+  const cadence = 10 * 60 * 1000;
+  if(Number(simData.lastRunAt || 0) && now - Number(simData.lastRunAt || 0) < cadence) return 0;
 
-  const matchesToRun = 1;
+  const aiSource = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
+  const pool = Array.isArray(aiSource) ? aiSource.filter(ai=>ai && ai.name) : [];
+  if(pool.length < 2) return 0;
+  const matchesToRun = Math.max(1, Math.min(5, Math.floor(pool.length / 2)));
   const results = [];
 
   for(let m = 0; m < matchesToRun; m++) {
     // Pick two random different AI opponents
-    const aiSource = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
-    const pool = [...aiSource];
     const i1 = Math.floor(Math.random() * pool.length);
     let i2 = Math.floor(Math.random() * pool.length);
     while(i2 === i1 && pool.length > 1) i2 = Math.floor(Math.random() * pool.length);
@@ -900,6 +903,7 @@ function runAISimulation() {
 
   // Save updated ELOs
   if(typeof saveLeaderboard === 'function') saveLeaderboard();
+  return matchesToRun;
 }
 
 function updateAILeaderboardEntry(ai, didWin) {
@@ -1161,6 +1165,11 @@ function getRandomMatchAIOpponents() {
 if(typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
     integrateMonthlyAI();
+    if(!window.__fateLocalAISimulationLoopStarted){
+      window.__fateLocalAISimulationLoopStarted = true;
+      setTimeout(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, 2200);
+      setInterval(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, 10 * 60 * 1000);
+    }
   });
 }
 
