@@ -3332,7 +3332,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     }
         case '68': { // Great Oak High Schooler: search deck for a Coordinator (non-star)
       const matches = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
-      pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand'},(picked)=>{
+      pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand',immediate:true},(picked)=>{
         if(picked.length===0) return;
         const chosen = picked[0];
         if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, chosen, 'deck', G.players[cp].hand.length);
@@ -3455,7 +3455,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         title:'Flower Picking',
         subtitle:'Choose an Expanded Worlds Character to set for free.',
         maxCount:1,
-        confirmLabel:'Set for Free'
+        confirmLabel:'Set for Free',
+        immediate:true
       }, (picked)=>{
         const found = picked && picked[0];
         if(!found) return;
@@ -3493,7 +3494,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         title:'Mail Delivery',
         subtitle:'Choose a Triangle card from your deck. It will arrive in four of your turns.',
         maxCount:1,
-        confirmLabel:'Schedule Delivery'
+        confirmLabel:'Schedule Delivery',
+        immediate:true
       }, (picked)=>{
         const found = picked && picked[0];
         if(!found) return;
@@ -3673,6 +3675,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   const isPassiveOnly = card.type==='Coordinator' && ['01','10','11','15','19','23','34','57'].includes(id);
   if(!opts.fromSet && !isPassiveOnly && typeof playEffectActivationCinematic === 'function') {
     await playEffectActivationCinematic(card, z, r, c, {source:'manual-character'});
+    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
   }
 
   // Initiators: fire ONCE (on placement). If already used, don't fire again.
@@ -3749,7 +3752,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         title:'Oblique Order',
         subtitle:'Choose up to 3 Supporters from your deck. They gain +4 Fate permanently.',
         maxCount:3,
-        confirmLabel:'Add to Hand'
+        confirmLabel:'Add to Hand',
+        immediate:true
       }, (chosen)=>{
         chosen.forEach(c=>{
           if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
@@ -3843,7 +3847,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           title:'Leader of the Free World',
           subtitle:'Choose up to 2 Third Great War cards to add to your hand',
           maxCount:2,
-          confirmLabel:'Add to Hand'
+          confirmLabel:'Add to Hand',
+          immediate:true
         }, (chosen)=>{
           chosen.forEach(c=>{
             const source = G.players[cp].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';

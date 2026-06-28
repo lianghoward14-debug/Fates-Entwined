@@ -2699,7 +2699,7 @@ function showLeaderboard() {
   updateLeaderboardEntry();
   AI_OPPONENTS.forEach(ai=>{
     if(!LEADERBOARD.find(e=>e.username===ai.name)){
-    LEADERBOARD.push({username:ai.name, elo:ai.elo, wins:Math.floor(ai.elo/30), losses:Math.floor(ai.elo/60), profileImg:ai.img||'blank.png', isAI:true});
+    LEADERBOARD.push({username:ai.name, elo:ai.elo, wins:0, losses:0, profileImg:ai.img||'blank.png', isAI:true});
     }
   });
   saveLeaderboard();

@@ -1931,7 +1931,9 @@ function renderOppHand() {
 
 // Show deck info (count + no content reveal — this is hidden info)
 function showDeckInfo(player) {
-  if(typeof isHowardDevMode === 'function' && isHowardDevMode() && isPerspectivePlayer(player)){
+  const perspectivePlayer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (G && typeof G.currentPlayer === 'number' ? G.currentPlayer : 0);
+  const isDevDeckOwner = isPerspectivePlayer(player) || Number(player) === Number(perspectivePlayer) || (typeof G !== 'undefined' && G && typeof G.localPlayerIndex === 'number' && Number(player) === Number(G.localPlayerIndex));
+  if(typeof isHowardDevMode === 'function' && isHowardDevMode() && isDevDeckOwner){
     showHowardDevDeckList(player);
     return;
   }
@@ -1988,7 +1990,8 @@ function showHowardDevDeckList(player) {
     maxCount: cards.length,
     minCount: 0,
     confirmLabel: 'Add to Hand',
-    viewerPlayerIndex: player
+    viewerPlayerIndex: player,
+    immediate: true
   }, function(chosen){
     if(!chosen || !chosen.length) return;
     let added = 0;
@@ -2449,7 +2452,7 @@ function getStatusEffectIcon(kind) {
     maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M9 37c4-9 10-13 16-13 8 0 10 8 16 8 4 0 8-2 14-9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 27c4 9 10 13 16 13 8 0 10-8 16-8 4 0 8 2 14 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 14v8M32 42v8" fill="none" stroke="currentColor" stroke-width="2.7" opacity=".45"/></svg>`,
     fort_calvin: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="27" cy="27" r="12"/><path d="M36 36l14 14"/><path d="M24 27h6M27 24v6" opacity=".7"/><path d="M12 50h14" stroke-width="2.8" opacity=".45"/></g></svg>`,
     berkeley_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 43h25l14-14" stroke-width="4"/><path d="M20 43l-5 9M34 43l5 9" stroke-width="3"/><rect x="42" y="16" width="12" height="12" rx="2" stroke-width="3.5"/><path d="M16 34h14" stroke-width="3.5"/></g></svg>`,
-    erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="19"/><path d="M32 19v14l9 5"/><path d="M21 15l-5-5M43 15l5-5"/><path d="M25 48h14" opacity=".45"/></g></svg>`,
+    erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M24 31c-6-6-6-15 0-21 6-6 16-6 22 0l4 4" stroke-width="4.2"/><path d="M40 33c6 6 6 15 0 21-6 6-16 6-22 0l-4-4" stroke-width="4.2"/><path d="M23 42L42 23" stroke-width="5"/><path d="M18 20l-5-5M46 49l5 5" stroke-width="2.8" opacity=".48"/></g></svg>`,
     selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 44c6-4 12-6 19-6s13 2 19 6" fill="none" stroke-width="4.5"/><path d="M14 51c6 2 12 2 18 0s12-2 18 0" fill="none" stroke-width="3" opacity=".55"/><path d="M32 15v28" fill="none" stroke-width="4"/><path d="M30 18c-7 3-12 9-15 18h15V18z" fill="currentColor" stroke="none"/><path d="M36 20c6 4 10 9 12 16H36V20z" fill="currentColor" stroke="none" opacity=".62"/><circle cx="48" cy="16" r="4" fill="currentColor" stroke="none" opacity=".75"/></g></svg>`,
     guerilla: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27h28l7 4-7 4H16z" stroke-width="2.8"/><path d="M16 28l-6-4v13l6-4" stroke-width="2.6"/><path d="M46 31h9" stroke-width="2.6"/><path d="M24 23h17" stroke-width="2.4"/><path d="M30 36h7l-2 10h-9z" stroke-width="2.6"/><path d="M40 36l7 8" stroke-width="2.6"/><circle cx="24" cy="31" r="1.8" stroke-width="2.4"/></g></svg>`,
     ballad: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M38 12v32" stroke-width="4"/><path d="M38 12l14 5v10l-14-5" stroke-width="4"/><ellipse cx="25" cy="46" rx="11" ry="7" stroke-width="4"/><path d="M14 20c4-4 8-4 12 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
@@ -4523,7 +4526,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       const setAct=document.createElement('button');
       setAct.className='btn sm pri';
       setAct.textContent='Activate Effect';
-      setAct.onclick=()=>{playEffectActivationButtonSound(); activatePendingWhenSetEffect(bc,z,r,c);};
+      setAct.onclick=()=>{playEffectActivationButtonSound(); closeModal(); activatePendingWhenSetEffect(bc,z,r,c);};
       acts.appendChild(setAct);
     }
     if(!canActivateDeferredSetEffect && canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
@@ -4537,7 +4540,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       } else {
         const act=document.createElement('button');
         act.className='btn sm pri';act.textContent='Activate Effect';
-        act.onclick=()=>{playEffectActivationButtonSound(); triggerCharacterEffect(bc,z,r,c);};
+        act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
     }
@@ -5104,6 +5107,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     wrap.appendChild(rowEl);
   }
 
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent = 'Zone '+(z+1)+' - Select Target';
@@ -5135,7 +5139,9 @@ function pickCardsFromHand(player, maxCount, prompt, callback) {
 
 // Image-based card picker with pagination
 function pickCardsVisual(cards, opts, onConfirm) {
-  const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
+  opts = opts || {};
+  const allowAfterEffectCinematic = typeof G !== 'undefined' && G && G._allowImmediateEffectPickerUntil && Date.now() < G._allowImmediateEffectPickerUntil;
+  const wait = (opts.immediate || allowAfterEffectCinematic) ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
     setTimeout(()=>pickCardsVisual(cards, opts, onConfirm), wait);
     return;
@@ -5157,8 +5163,8 @@ function pickCardsVisual(cards, opts, onConfirm) {
   function getPickerCardOwner(index) {
     const entry = positionEntries && positionEntries[index];
     const card = cards[index];
-    if(Number.isInteger(Number(entry && entry.owner))) return Number(entry.owner);
-    if(Number.isInteger(Number(card && card.owner))) return Number(card.owner);
+    if(entry && entry.owner !== undefined && Number.isInteger(Number(entry.owner))) return Number(entry.owner);
+    if(card && card.owner !== undefined && Number.isInteger(Number(card.owner))) return Number(card.owner);
     return null;
   }
 
@@ -5444,6 +5450,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     if(nextBtn) nextBtn.disabled = page >= totalPages - 1;
   }
 
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
   if(pickerCanvas) {
@@ -5524,7 +5531,7 @@ function queueSearchToHandMotion(player, card, source, handIndex) {
 
 function searchDeckForType(player, type, prompt, maxCount=1) {
   const matches=G.players[player].deck.filter(c=>c.type===type);
-  pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand'},
+  pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand', immediate:true},
     (chosen)=>{
       chosen.forEach(c=>{
         queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length);
@@ -5541,7 +5548,7 @@ function searchDeckForType(player, type, prompt, maxCount=1) {
 
 function searchDeckForCard(player, filter, prompt, callback) {
   const matches=G.players[player].deck.filter(filter);
-  pickCardsVisual(matches, {title:prompt, subtitle:'Search your deck', maxCount:1, confirmLabel:'Choose'},
+  pickCardsVisual(matches, {title:prompt, subtitle:'Search your deck', maxCount:1, confirmLabel:'Choose', immediate:true},
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
@@ -5556,7 +5563,7 @@ function searchDeckForCard(player, filter, prompt, callback) {
 function searchAnySource(player, filter, prompt, callback) {
   const recoverableDiscard = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, filter) : G.players[player].discard.filter(filter);
   const matches=[...G.players[player].deck.filter(filter),...recoverableDiscard];
-  pickCardsVisual(matches, {title:prompt, subtitle:'Search deck and discard', maxCount:1, confirmLabel:'Choose'},
+  pickCardsVisual(matches, {title:prompt, subtitle:'Search deck and discard', maxCount:1, confirmLabel:'Choose', immediate:true},
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
@@ -5573,7 +5580,7 @@ function pickFromDiscard(player, type, prompt, callback) {
   if(!matches.length && typeof isDiscardRecoveryBlockedByLandscape === 'function' && isDiscardRecoveryBlockedByLandscape()){
     toast('Zion Canyon prevents recovering discarded cards.');
   }
-  pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose'},
+  pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose', immediate:true},
     (chosen)=>{
       if(!chosen.length) return;
       if(callback) callback(chosen[0]);
@@ -5642,7 +5649,8 @@ function addAffFromDeckDiscard(player, aff) {
       title:'Cosmic GF - Discard Search',
       subtitle:`Choose one ${label} card from your discard pile`,
       maxCount:1,
-      confirmLabel:'Add to Hand'
+      confirmLabel:'Add to Hand',
+      immediate:true
     }, (picked)=>{
       if(picked.length) addChosen(picked[0], 'discard');
       finish();
@@ -5653,7 +5661,8 @@ function addAffFromDeckDiscard(player, aff) {
       title:'Cosmic GF - Deck Search',
       subtitle:`Choose one ${label} card from your deck`,
       maxCount:1,
-      confirmLabel:'Add to Hand'
+      confirmLabel:'Add to Hand',
+      immediate:true
     }, (picked)=>{
       if(picked.length) addChosen(picked[0], 'deck');
       chooseDiscard();

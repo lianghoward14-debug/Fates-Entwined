@@ -13,6 +13,7 @@
   let flyRosterSeedInFlight = null;
   let flyRosterSeededAt = 0;
   const ONLINE_LEADERBOARD_LIMIT = 100;
+  const SHARED_AI_RECORD_SCHEMA_VERSION = 5;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function user(){ return window.FATE_ONLINE?.user; }
@@ -79,8 +80,10 @@
         (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
           const uid = entry?.uid || entry?.username || entry?.name;
           if(!uid) return;
-          const wins = recordWins(entry);
-          const losses = recordLosses(entry);
+          const isAI = isAIRecord(entry) || !!(entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(String(uid || '')));
+          const stats = isAI ? normalizedAIRecordStats(entry) : {wins:recordWins(entry), losses:recordLosses(entry), matchesPlayed:Number(entry.matchesPlayed || 0) || 0};
+          const wins = stats.wins;
+          const losses = stats.losses;
           next[uid] = {
             uid:entry.uid || uid,
             name:entry.name || entry.username || 'Player',
@@ -93,14 +96,16 @@
             losses,
             challengerWins:wins,
             challengerLosses:losses,
-            matchesPlayed:Math.max(Number(entry.matchesPlayed || 0) || 0, wins + losses),
+            matchesPlayed:stats.matchesPlayed,
             aiId:entry.aiId || '',
             trueElo:Number(entry.trueElo || 0) || 0,
-            isAI:!!entry.isAI,
+            isAI,
             isMonthly:!!entry.isMonthly,
             monthKey:entry.monthKey || '',
             seededWinRate:Number(entry.seededWinRate || 0) || 0,
+            seededMatches:Number(entry.seededMatches || 0) || 0,
             generationVersion:Number(entry.generationVersion || 0) || 0,
+            recordSchemaVersion:Number(entry.recordSchemaVersion || 0) || 0,
             updatedAt:Number(entry.updatedAt || Date.now()) || Date.now(),
             isOnline:true,
             source:'fly-authority'
@@ -132,6 +137,34 @@
   function recordLosses(entry){
     if(entry && entry.challengerLosses !== undefined) return Math.max(0, Number(entry.challengerLosses || 0) || 0);
     return Math.max(0, Number(entry?.losses || 0) || 0);
+  }
+  function isAIRecord(entry){
+    const uid = String(entry?.uid || entry?.aiId || entry?.username || entry?.name || '');
+    return !!(entry && (entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(uid)));
+  }
+  function hasSeedMetadata(entry){
+    return !!(entry && (
+      entry.isMonthly ||
+      Number(entry.seededWinRate || 0) ||
+      Number(entry.seededMatches || 0) ||
+      Number(entry.generationVersion || 0) ||
+      Number(entry.recordSchemaVersion || 0)
+    ));
+  }
+  function hasStaleSeedRecord(entry){
+    if(!isAIRecord(entry) || !hasSeedMetadata(entry)) return false;
+    const wins = recordWins(entry);
+    const losses = recordLosses(entry);
+    const total = wins + losses;
+    const schema = Number(entry.recordSchemaVersion || 0) || 0;
+    const seededMatches = Number(entry.seededMatches || 0) || 0;
+    return schema < SHARED_AI_RECORD_SCHEMA_VERSION && !losses && total > 0 && total <= Math.max(6, seededMatches || 0);
+  }
+  function normalizedAIRecordStats(entry){
+    if(hasStaleSeedRecord(entry)) return {wins:0, losses:0, matchesPlayed:0};
+    const wins = recordWins(entry);
+    const losses = recordLosses(entry);
+    return {wins, losses, matchesPlayed:Math.max(Number(entry?.matchesPlayed || 0) || 0, wins + losses)};
   }
   function hashInt(s){
     let h = 2166136261;
@@ -181,7 +214,8 @@
       const id = aiIdFor(ai);
       const name = ai?.name || ai?.username || '';
       const entry = (leaderboardArray() || []).find(e=>e && (e.aiId === id || e.username === name || e.name === name));
-      return { wins:recordWins(entry), losses:recordLosses(entry) };
+      const stats = normalizedAIRecordStats(Object.assign({}, entry || {}, ai || {}, {aiId:id, isAI:true}));
+      return { wins:stats.wins, losses:stats.losses };
     }catch(e){ return {wins:0, losses:0}; }
   }
   function aiPhoto(ai){
@@ -191,8 +225,17 @@
   function aiEntry(ai, extra={}){
     const id = extra.aiId || aiIdFor(ai);
     const rec = localAIRecord(ai);
-    const wins = Math.max(Number(extra.wins ?? 0) || 0, Number(extra.challengerWins ?? 0) || 0, Number(ai?.wins ?? 0) || 0, Number(ai?.challengerWins ?? 0) || 0, rec.wins);
-    const losses = Math.max(Number(extra.losses ?? 0) || 0, Number(extra.challengerLosses ?? 0) || 0, Number(ai?.losses ?? 0) || 0, Number(ai?.challengerLosses ?? 0) || 0, rec.losses);
+    const hasExplicitWins = Object.prototype.hasOwnProperty.call(extra, 'wins') || Object.prototype.hasOwnProperty.call(extra, 'challengerWins');
+    const hasExplicitLosses = Object.prototype.hasOwnProperty.call(extra, 'losses') || Object.prototype.hasOwnProperty.call(extra, 'challengerLosses');
+    const isLocalMonthlySeed = !!(ai?.isMonthly && Number(ai?.seededWinRate || 0) && !hasExplicitWins && !hasExplicitLosses);
+    const rawExplicit = Object.assign({}, ai || {}, extra || {}, {aiId:id, isAI:true});
+    const explicitStats = normalizedAIRecordStats(rawExplicit);
+    const wins = hasExplicitWins
+      ? explicitStats.wins
+      : (isLocalMonthlySeed ? 0 : Math.max(Number(ai?.wins ?? 0) || 0, Number(ai?.challengerWins ?? 0) || 0, rec.wins));
+    const losses = hasExplicitLosses
+      ? explicitStats.losses
+      : (isLocalMonthlySeed ? 0 : Math.max(Number(ai?.losses ?? 0) || 0, Number(ai?.challengerLosses ?? 0) || 0, rec.losses));
     return {
       uid:id,
       aiId:id,
@@ -206,9 +249,11 @@
       losses,
       challengerWins:wins,
       challengerLosses:losses,
-      matchesPlayed:Math.max(Number(extra.matchesPlayed ?? ai?.matchesPlayed ?? 0) || 0, wins + losses),
+      matchesPlayed:hasStaleSeedRecord(rawExplicit) ? 0 : Math.max(Number(extra.matchesPlayed ?? ai?.matchesPlayed ?? 0) || 0, wins + losses),
       seededWinRate:Number(extra.seededWinRate ?? ai?.seededWinRate) || 0,
+      seededMatches:Number(extra.seededMatches ?? ai?.seededMatches) || 0,
       generationVersion:Number(extra.generationVersion ?? ai?.generationVersion) || 0,
+      recordSchemaVersion:Number(extra.recordSchemaVersion ?? ai?.recordSchemaVersion ?? SHARED_AI_RECORD_SCHEMA_VERSION) || SHARED_AI_RECORD_SCHEMA_VERSION,
       isAI:true,
       isMonthly:!!(extra.isMonthly ?? ai?.isMonthly),
       monthKey:extra.monthKey || ai?.monthKey || (ai?.isMonthly ? currentMonthKey() : ''),
@@ -236,15 +281,18 @@
     entry.name = name;
     entry.elo = Math.max(100, Math.round(Number(rec.elo || 600)));
     entry.trueElo = Math.max(100, Math.round(Number(rec.trueElo || entry.trueElo || entry.elo + 200)));
-    const wins = recordWins(rec);
-    const losses = recordLosses(rec);
+    const stats = normalizedAIRecordStats(rec);
+    const wins = stats.wins;
+    const losses = stats.losses;
     entry.wins = wins;
     entry.losses = losses;
     entry.challengerWins = wins;
     entry.challengerLosses = losses;
-    entry.matchesPlayed = Math.max(Number(rec.matchesPlayed || entry.matchesPlayed || 0) || 0, wins + losses);
+    entry.matchesPlayed = stats.matchesPlayed;
     entry.seededWinRate = Number(rec.seededWinRate || 0) || 0;
+    entry.seededMatches = Number(rec.seededMatches || 0) || 0;
     entry.generationVersion = Number(rec.generationVersion || 0) || 0;
+    entry.recordSchemaVersion = Number(rec.recordSchemaVersion || SHARED_AI_RECORD_SCHEMA_VERSION) || SHARED_AI_RECORD_SCHEMA_VERSION;
     entry.profileImg = rec.photoURL || rec.profileImg || entry.profileImg || 'blank.png';
     entry.photoURL = entry.profileImg;
     entry.isAI = true;
@@ -335,7 +383,9 @@
       wins:Number(rec.wins || 0),
       losses:Number(rec.losses || 0),
       seededWinRate:Number(rec.seededWinRate || 0) || 0,
+      seededMatches:Number(rec.seededMatches || 0) || 0,
       generationVersion:Number(rec.generationVersion || 0) || 0,
+      recordSchemaVersion:Number(rec.recordSchemaVersion || SHARED_AI_RECORD_SCHEMA_VERSION) || SHARED_AI_RECORD_SCHEMA_VERSION,
       isAI:true,
       isMonthly:!!rec.isMonthly,
       monthKey:rec.monthKey || '',
@@ -359,20 +409,31 @@
       const seeded = aiEntry(ai, {aiId:id});
       if(current){
         const currentTotal = Number(current.wins || 0) + Number(current.losses || 0);
-        const needsMonthlySpread = !!(seeded.isMonthly && seeded.generationVersion >= 2 && (Number(current.generationVersion || 0) < seeded.generationVersion || currentTotal < 8));
-        const merged = needsMonthlySpread ? {
+        const currentLooksStale = hasStaleSeedRecord({...current, aiId:id, isAI:true});
+        const needsMonthlySpread = !!(seeded.isMonthly && seeded.generationVersion >= 2 && (
+          Number(current.recordSchemaVersion || 0) < Number(seeded.recordSchemaVersion || SHARED_AI_RECORD_SCHEMA_VERSION)
+          || Number(current.generationVersion || 0) < seeded.generationVersion
+          || currentTotal < 8
+        ));
+        const needsSeedReset = needsMonthlySpread || currentLooksStale;
+        const merged = needsSeedReset ? {
           ...current,
           elo:seeded.elo,
           trueElo:seeded.trueElo,
           wins:seeded.wins,
           losses:seeded.losses,
+          challengerWins:seeded.wins,
+          challengerLosses:seeded.losses,
+          matchesPlayed:0,
           seededWinRate:seeded.seededWinRate,
+          seededMatches:seeded.seededMatches,
           generationVersion:seeded.generationVersion,
+          recordSchemaVersion:seeded.recordSchemaVersion,
           isMonthly:true,
           monthKey:seeded.monthKey,
           updatedAt:FO.serverTimestamp()
         } : current;
-        if(needsMonthlySpread){
+        if(needsSeedReset){
           updates[`${basePath}/ai/${id}`] = merged;
           updates[`leaderboards/challenger/${id}`] = {...merged, updatedAt:FO.serverTimestamp()};
         }

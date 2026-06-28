@@ -1937,7 +1937,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     }
         case '68': { // Great Oak High Schooler: search deck for a Coordinator (non-star)
       const matches = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
-      pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand'},(picked)=>{
+      pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand',immediate:true},(picked)=>{
         if(picked.length===0) return;
         const chosen = picked[0];
         if(typeof addCardToHand==='function') addCardToHand(cp, chosen);
@@ -2259,7 +2259,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         title:'Oblique Order',
         subtitle:'Choose up to 2 Supporters from your deck or discard pile',
         maxCount:2,
-        confirmLabel:'Add to Hand'
+        confirmLabel:'Add to Hand',
+        immediate:true
       }, (chosen)=>{
         chosen.forEach(c=>{
           if(typeof addCardToHand==='function') addCardToHand(cp, c);
@@ -2310,7 +2311,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           title:'Leader of the Free World',
           subtitle:'Choose up to 2 Third Great War cards to add to your hand',
           maxCount:2,
-          confirmLabel:'Add to Hand'
+          confirmLabel:'Add to Hand',
+          immediate:true
         }, (chosen)=>{
           chosen.forEach(c=>{
             if(typeof addCardToHand==='function') addCardToHand(cp, c);

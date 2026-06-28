@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260">
+  <rect width="900" height="260" fill="#080b0c"/>
+  <style>
+    .label{font:700 18px Georgia,serif;fill:#dff8cc;text-anchor:middle}
+    .sub{font:12px Georgia,serif;fill:#8fb48b;text-anchor:middle}
+    .badge{fill:#162514;stroke:#8fd46b;stroke-width:2}
+    .gun{fill:none;stroke:#b8ef83;stroke-linecap:round;stroke-linejoin:round}
+  </style>
+  <g transform="translate(90,46)"><circle class="badge" cx="0" cy="50" r="42"/><text class="label" x="0" y="128">Option 1</text><text class="sub" x="0" y="147">classic outline</text></g>
+  <g transform="translate(270,46)"><circle class="badge" cx="0" cy="50" r="42"/><text class="label" x="0" y="128">Option 2</text><text class="sub" x="0" y="147">short compact</text></g>
+  <g transform="translate(450,46)"><circle class="badge" cx="0" cy="50" r="42"/><text class="label" x="0" y="128">Option 3</text><text class="sub" x="0" y="147">angled AK</text></g>
+  <g transform="translate(630,46)"><circle class="badge" cx="0" cy="50" r="42"/><text class="label" x="0" y="128">Option 4</text><text class="sub" x="0" y="147">thin line</text></g>
+  <g transform="translate(810,46)"><circle class="badge" cx="0" cy="50" r="42"/><text class="label" x="0" y="128">Option 5</text><text class="sub" x="0" y="147">badge minimal</text></g>
+  <g class="gun" transform="translate(90,96) scale(.72) translate(-32,-32)" stroke-width="3.5">
+    <path d="M13 30h31l8 5-8 5H13z"/><path d="M14 31 7 27v12l7-4"/><path d="M46 34h10M56 33h3"/><path d="M22 26h20"/><path d="M29 41h9l-3 12H24z"/><path d="M41 41l8 10"/><path d="M18 41l-3 8"/>
+  </g>
+  <g class="gun" transform="translate(270,96) scale(.72) translate(-32,-32)" stroke-width="4">
+    <path d="M15 31h28l7 4-7 4H15z"/><path d="M15 32l-6-3v10l6-3"/><path d="M45 35h10"/><path d="M25 27h15"/><path d="M31 40l-4 10h8l2-10"/>
+  </g>
+  <g class="gun" transform="translate(450,96) scale(.72) translate(-32,-32) rotate(-8 32 32)" stroke-width="3.6">
+    <path d="M14 32h31l7 4-8 4H14z"/><path d="M15 33 9 29v12l6-4"/><path d="M46 35h11"/><path d="M24 28h18"/><path d="M30 42h8l-2 11H26z"/><path d="M41 42l7 9"/>
+  </g>
+  <g class="gun" transform="translate(630,96) scale(.72) translate(-32,-32)" stroke-width="2.7">
+    <path d="M13 31h32l7 4-7 4H13z"/><path d="M13 32 8 29v9l5-3"/><path d="M46 35h11"/><path d="M23 27h18"/><path d="M30 40h7l-2 11H25z"/><path d="M40 40l8 9"/><circle cx="23" cy="35" r="2"/>
+  </g>
+  <g class="gun" transform="translate(810,96) scale(.72) translate(-32,-32)" stroke-width="3.4">
+    <path d="M16 32h26l8 4-8 4H16z"/><path d="M16 33l-5-3v10l5-4"/><path d="M45 36h9"/><path d="M27 28h13"/><path d="M31 41l-3 9h7l2-9"/>
+  </g>
+</svg>

@@ -56,6 +56,7 @@ const WEBSITE_DIR = process.env.FATE_WEBSITE_DIR
 const DIST_DIR = path.join(APP_ROOT, 'dist');
 const INSTALLER_PUBLIC_PATH = '/installer/Fates-Entwined-Installer.exe';
 const STATIC_OVERRIDE_DIR = FLY_DATA_DIR ? path.join(FLY_DATA_DIR, 'static-overrides') : '';
+const SHARED_AI_RECORD_SCHEMA_VERSION = 5;
 
 const rooms = new Map();
 const sockets = new Set();
@@ -1787,6 +1788,28 @@ function isFlyInternalProfile(value){
   return false;
 }
 
+function flyAIRecordLooksStaleSeed(raw){
+  if(!raw || typeof raw !== 'object') return false;
+  const isAI = !!(raw.isAI || raw.aiId || /^monthly_|^preset_/i.test(String(raw.uid || raw.name || raw.username || '')));
+  if(!isAI) return false;
+  const hasSeedMeta = !!(
+    raw.isMonthly ||
+    Number(raw.seededWinRate || 0) ||
+    Number(raw.seededMatches || 0) ||
+    Number(raw.generationVersion || 0) ||
+    Number(raw.recordSchemaVersion || 0)
+  );
+  if(!hasSeedMeta) return false;
+  const wins = safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0);
+  const losses = safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0);
+  const total = wins + losses;
+  const seededMatches = safeNonNegativeInteger(raw.seededMatches, 0);
+  return Number(raw.recordSchemaVersion || 0) < SHARED_AI_RECORD_SCHEMA_VERSION
+    && !losses
+    && total > 0
+    && total <= Math.max(6, seededMatches || 0);
+}
+
 function publicFlyAIRecord(value){
   const raw = value && typeof value === 'object' ? value : {};
   const aiId = String(raw.aiId || raw.uid || '').replace(/[.#$\/\[\]]/g, '_').slice(0, 128);
@@ -1794,6 +1817,9 @@ function publicFlyAIRecord(value){
   const name = String(raw.name || raw.username || 'AI Opponent').slice(0, 48);
   const elo = Math.max(100, Math.min(2600, safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600)));
   const trueElo = Math.max(100, Math.min(3000, safeNonNegativeInteger(raw.trueElo, elo + 200)));
+  const staleSeed = flyAIRecordLooksStaleSeed(Object.assign({}, raw, {aiId, isAI:true}));
+  const challengerWins = staleSeed ? 0 : Math.min(10000, safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0));
+  const challengerLosses = staleSeed ? 0 : Math.min(10000, safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0));
   return {
     uid:aiId,
     aiId,
@@ -1805,13 +1831,15 @@ function publicFlyAIRecord(value){
     challengerElo:elo,
     elo,
     trueElo,
-    challengerWins:Math.min(10000, safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0)),
-    challengerLosses:Math.min(10000, safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0)),
-    wins:Math.min(10000, safeNonNegativeInteger(raw.wins ?? raw.challengerWins, 0)),
-    losses:Math.min(10000, safeNonNegativeInteger(raw.losses ?? raw.challengerLosses, 0)),
-    matchesPlayed:Math.min(20000, safeNonNegativeInteger(raw.matchesPlayed, 0)),
+    challengerWins,
+    challengerLosses,
+    wins:challengerWins,
+    losses:challengerLosses,
+    matchesPlayed:staleSeed ? 0 : Math.min(20000, safeNonNegativeInteger(raw.matchesPlayed, 0)),
     seededWinRate:Math.max(0, Math.min(1, Number(raw.seededWinRate || 0) || 0)),
+    seededMatches:Math.min(20000, safeNonNegativeInteger(raw.seededMatches, 0)),
     generationVersion:safeNonNegativeInteger(raw.generationVersion, 0),
+    recordSchemaVersion:raw.recordSchemaVersion === undefined ? 0 : safeNonNegativeInteger(raw.recordSchemaVersion, 0),
     isAI:true,
     isMonthly:raw.isMonthly !== false,
     monthKey:String(raw.monthKey || '').slice(0, 24),
@@ -1914,7 +1942,8 @@ function seedFlyAIRecords(roster, monthKey = ''){
     const existing = publicFlyAIRecord(flyAIRecords.get(record.aiId));
     const shouldReset = !existing
       || (record.isMonthly && existing.monthKey !== record.monthKey)
-      || Number(existing.generationVersion || 0) < Number(record.generationVersion || 0);
+      || Number(existing.generationVersion || 0) < Number(record.generationVersion || 0)
+      || Number(existing.recordSchemaVersion || 0) < Number(record.recordSchemaVersion || SHARED_AI_RECORD_SCHEMA_VERSION);
     if(shouldReset){
       flyAIRecords.set(record.aiId, record);
       return;
@@ -1927,7 +1956,9 @@ function seedFlyAIRecords(roster, monthKey = ''){
       profileImg:record.profileImg || existing.profileImg,
       trueElo:record.trueElo || existing.trueElo,
       seededWinRate:record.seededWinRate || existing.seededWinRate,
+      seededMatches:record.seededMatches || existing.seededMatches,
       generationVersion:Math.max(Number(existing.generationVersion || 0), Number(record.generationVersion || 0)),
+      recordSchemaVersion:Math.max(Number(existing.recordSchemaVersion || 0), Number(record.recordSchemaVersion || SHARED_AI_RECORD_SCHEMA_VERSION)),
       monthKey:record.monthKey || existing.monthKey,
       isMonthly:record.isMonthly !== false,
       updatedAt:now()

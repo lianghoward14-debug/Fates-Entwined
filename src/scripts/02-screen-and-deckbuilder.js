@@ -546,6 +546,7 @@ function renderDBCollection() {
       };
     });
     if(renderCanvasDeckCollection(col, entries, {
+      align:'left',
       virtualize:true,
       lowScroll:true,
       maxDpr:1,

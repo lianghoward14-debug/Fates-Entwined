@@ -900,7 +900,7 @@ const RANDOM_AI_PERSONALITIES = [
 ];
 const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
-const MONTHLY_AI_GENERATION_VERSION = 3;
+const MONTHLY_AI_GENERATION_VERSION = 4;
 const MONTHLY_AI_SKILL_BANDS = [
   {visible:680, trueBase:680, record:.29, matches:[14,24]},
   {visible:835, trueBase:835, record:.37, matches:[16,28]},
@@ -956,8 +956,13 @@ function monthlySeededRecord(monthKey, index, trueElo, band) {
   const baseline = Number(band && band.record) || (.25 + skill * .56);
   const wobble = ((hashStr(monthKey + ':record-wobble:' + index) % 101) - 50) / 1000;
   const winRate = Math.max(.16, Math.min(.88, baseline + wobble));
-  const wins = Math.max(0, Math.min(total, Math.round(total * winRate)));
-  return {wins, losses:Math.max(0, total - wins), seededWinRate:Math.round(winRate * 1000) / 1000};
+  return {
+    wins:0,
+    losses:0,
+    matchesPlayed:0,
+    seededMatches:total,
+    seededWinRate:Math.round(winRate * 1000) / 1000
+  };
 }
 
 function generateMonthlyAI() {
@@ -1044,6 +1049,8 @@ function generateMonthlyAI() {
       rank: rankNameForElo(visibleElo),
       wins: seededRecord.wins,
       losses: seededRecord.losses,
+      matchesPlayed: seededRecord.matchesPlayed || 0,
+      seededMatches: seededRecord.seededMatches || 0,
       seededWinRate: seededRecord.seededWinRate,
       deck: deck.length >= 40 ? deck.slice(0, 40) : [],
       isMonthly: true,

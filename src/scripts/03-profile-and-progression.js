@@ -476,6 +476,7 @@ let PUBLIC_DECKS = []; // [{id, username, name, description, ids, faceCardId, di
 
 function loadPresetsFromStorage() {
   let didForceRankReset = false;
+  let didResetAILeaderboard = false;
   try {
     const stored = localStorage.getItem(_fateStorageKey('fate_user_presets'));
     PRESET_DECKS = stored ? JSON.parse(stored) : {};
@@ -557,10 +558,26 @@ function loadPresetsFromStorage() {
     const lb = localStorage.getItem(_fateStorageKey('fate_leaderboard'));
     LEADERBOARD = lb ? JSON.parse(lb) : [];
   } catch(e){ LEADERBOARD = []; }
+  if(!USER_PROFILE.aiLeaderboardReset_20260628){
+    LEADERBOARD = Array.isArray(LEADERBOARD)
+      ? LEADERBOARD.filter(entry=>!(entry && (entry.isAI || entry.isSimPlayer || String(entry.username || '').startsWith('AI Bot -'))))
+      : [];
+    USER_PROFILE.aiLeaderboardReset_20260628 = true;
+    didResetAILeaderboard = true;
+    try {
+      for(let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if(k && k.startsWith('fate_monthly_ai_')) localStorage.removeItem(k);
+      }
+      localStorage.removeItem('fate_ai_sim_cadence');
+      localStorage.setItem(_fateStorageKey('fate_user_profile'), JSON.stringify(USER_PROFILE));
+    } catch(e){}
+  }
   if(didForceRankReset){
     updateLeaderboardEntry();
     saveLeaderboard();
   }
+  if(didResetAILeaderboard) saveLeaderboard();
   try {
     const pd = localStorage.getItem(_fateStorageKey('fate_public_decks'));
     PUBLIC_DECKS = pd ? JSON.parse(pd) : [];
@@ -1077,18 +1094,74 @@ function deckThemeFitClass(theme){
 
 function renderDeckThemeSelector(selectedTheme, inputId='deck-theme-inp'){
   const selected = normalizeDeckTheme(selectedTheme);
-  const options = getDeckThemeOptions().map(theme=>`<option value="${escapeHtml(theme)}" ${theme===selected?'selected':''}>${escapeHtml(theme)}</option>`).join('');
-  return `<label class="deck-theme-field">Deck Theme<select id="${escapeHtml(inputId)}" class="deck-theme-select">${options}</select></label>`;
+  const options = getDeckThemeOptions().map(theme=>{
+    const isSelected = theme === selected;
+    return `<button type="button" class="deck-theme-option${isSelected ? ' is-selected' : ''}" data-theme-value="${escapeHtml(theme)}" role="option" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(theme)}</button>`;
+  }).join('');
+  return `<label class="deck-theme-field"><span class="deck-theme-label-text">Deck Theme</span><span class="deck-theme-select-wrap"><input type="hidden" id="${escapeHtml(inputId)}" class="deck-theme-select" value="${escapeHtml(selected)}"><button type="button" class="deck-theme-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="deck-theme-value">${escapeHtml(selected)}</span><span class="deck-theme-arrow" aria-hidden="true">▾</span></button><span class="deck-theme-menu" role="listbox">${options}</span></span></label>`;
 }
 
-function renderDeckThemePill(theme){
-  const label = String(theme || '').trim() || 'Hybrid';
-  return `<span class="deck-theme-pill${deckThemeFitClass(label)}">${escapeHtml(label)}</span>`;
+if(typeof document !== 'undefined' && !window.__deckThemeDropdownBound) {
+  window.__deckThemeDropdownBound = true;
+  document.addEventListener('click', function(ev){
+    const trigger = ev.target && ev.target.closest ? ev.target.closest('.deck-theme-trigger') : null;
+    const option = ev.target && ev.target.closest ? ev.target.closest('.deck-theme-option') : null;
+    const closeOthers = function(except){
+      document.querySelectorAll('.deck-theme-select-wrap.is-open').forEach(function(wrap){
+        if(wrap !== except) {
+          wrap.classList.remove('is-open');
+          const btn = wrap.querySelector('.deck-theme-trigger');
+          if(btn) btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    };
+    if(trigger) {
+      ev.preventDefault();
+      const wrap = trigger.closest('.deck-theme-select-wrap');
+      if(!wrap) return;
+      const open = !wrap.classList.contains('is-open');
+      closeOthers(wrap);
+      wrap.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      return;
+    }
+    if(option) {
+      ev.preventDefault();
+      const wrap = option.closest('.deck-theme-select-wrap');
+      if(!wrap) return;
+      const value = option.getAttribute('data-theme-value') || option.textContent.trim();
+      const input = wrap.querySelector('.deck-theme-select');
+      const valueEl = wrap.querySelector('.deck-theme-value');
+      if(input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      if(valueEl) valueEl.textContent = value;
+      wrap.querySelectorAll('.deck-theme-option').forEach(function(btn){
+        const selected = btn === option;
+        btn.classList.toggle('is-selected', selected);
+        btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+      wrap.classList.remove('is-open');
+      const triggerBtn = wrap.querySelector('.deck-theme-trigger');
+      if(triggerBtn) triggerBtn.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    closeOthers(null);
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key !== 'Escape') return;
+    document.querySelectorAll('.deck-theme-select-wrap.is-open').forEach(function(wrap){
+      wrap.classList.remove('is-open');
+      const btn = wrap.querySelector('.deck-theme-trigger');
+      if(btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  });
 }
+
 window.getDeckThemeOptions = getDeckThemeOptions;
 window.normalizeDeckTheme = normalizeDeckTheme;
 window.renderDeckThemeSelector = renderDeckThemeSelector;
-window.renderDeckThemePill = renderDeckThemePill;
 
 // Save current deck as a new preset
 function saveCurrentDeckAsPreset() {
@@ -1452,7 +1525,7 @@ function renderPresetOrderEditor() {
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(preset.name)}</div>
-          <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">${escapeHtml(preset.theme || 'Custom')} • Position ${index + 1}</div>
+          <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">Position ${index + 1}</div>
         </div>`;
       const moveWrap = document.createElement('div');
       moveWrap.style.display = 'flex';
@@ -1638,7 +1711,6 @@ function viewPresetContents(pid, returnMode='browser') {
   body.innerHTML = `
     <div class="deck-inspect-topbar">
       <div>
-        <div class="deck-inspect-kicker">${escapeHtml(preset.theme || 'Custom')}</div>
         <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
       </div>
     </div>
@@ -1648,7 +1720,7 @@ function viewPresetContents(pid, returnMode='browser') {
         <div class="deck-inspect-metrics">
           <span><b>${activeIds.length}</b><em>Total Cards</em></span>
           <span><b>${entries.length}</b><em>Unique Cards</em></span>
-          <span class="deck-inspect-theme-metric"><b>${escapeHtml(preset.theme || 'Custom')}</b><em>Theme</em></span>
+          <span class="deck-inspect-theme-metric${deckThemeFitClass(preset.theme || 'Custom')}"><b>${escapeHtml(preset.theme || 'Custom')}</b><em>Theme</em></span>
         </div>
       </div>
       ${hero?.img ? `<div class="deck-inspect-hero"><img src="${hero.img}" alt="${escapeHtml(hero.name)}"></div>` : ''}

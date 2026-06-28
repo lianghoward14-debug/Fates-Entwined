@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760">
+  <defs>
+    <linearGradient id="bannerBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#171521"/>
+      <stop offset=".48" stop-color="#080912"/>
+      <stop offset="1" stop-color="#020308"/>
+    </linearGradient>
+    <linearGradient id="slotBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#221624"/>
+      <stop offset="1" stop-color="#070911"/>
+    </linearGradient>
+    <filter id="glowGold" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <style>
+      .page{fill:#05070d}
+      .title{font:700 24px Cinzel, Georgia, serif;fill:#f3d66a;letter-spacing:.09em;text-anchor:middle}
+      .note{font:14px Georgia, serif;fill:#9aa8bd;text-anchor:middle}
+      .banner{fill:url(#bannerBg);stroke:#dba64e;stroke-width:1.55}
+      .corner{stroke:#ffeeb0;stroke-width:1;opacity:.46;stroke-linecap:round}
+      .iconSlot{fill:url(#slotBg);stroke:#dba64e;stroke-width:1.2}
+      .mark{fill:none;stroke:#f2d66f;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;filter:url(#glowGold)}
+      .markThin{fill:none;stroke:#f2d66f;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .markFill{fill:#111720;stroke:#f2d66f;stroke-width:2.6;stroke-linejoin:round}
+      .accentFill{fill:#a9362d;stroke:#f2d66f;stroke-width:2.2;stroke-linejoin:round}
+      .copy{font:800 16px Cinzel, Georgia, serif;fill:#f2d66f;letter-spacing:.025em}
+      .sub{font:12px Georgia, serif;fill:#b8c3d4}
+      .num{font:700 11px Cinzel, Georgia, serif;fill:#8bd7ff;letter-spacing:.09em}
+    </style>
+  </defs>
+  <rect class="page" width="1180" height="760"/>
+  <text class="title" x="590" y="38">Hard Times, Strong Men - In-Game Banner Icon Options</text>
+  <text class="note" x="590" y="63">Mocked inside the status-pop shape so the icon reads at actual banner scale.</text>
+
+  <g transform="translate(70 95)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">01</text>
+    <g transform="translate(71 11) scale(.72)"><path class="markFill" d="M24 3 L43 10 L39 31 Q34 43 24 49 Q14 43 9 31 L5 10 Z"/><path class="mark" d="M24 7 L19 22 L28 25 L21 39"/></g>
+    <text class="copy" x="123" y="25">Cracked Shield</text><text class="sub" x="123" y="41">sturdy, literal, easiest read</text>
+  </g>
+
+  <g transform="translate(640 95)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">02</text>
+    <g transform="translate(70 12) scale(.7)"><path class="mark" d="M6 18 H42 L50 29 L35 34 H13 L-2 29 Z"/><path class="mark" d="M15 34 H33 L30 51 H18 Z"/><path class="markThin" d="M14 7 L10 0 M25 6 V-2 M37 7 L41 0"/></g>
+    <text class="copy" x="123" y="25">Anvil Under Strain</text><text class="sub" x="123" y="41">labor, pressure, endurance</text>
+  </g>
+
+  <g transform="translate(70 160)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">03</text>
+    <g transform="translate(74 11) scale(.68)"><path class="mark" d="M14 28 Q0 14 14 3 Q27 -8 39 4"/><path class="mark" d="M27 50 Q40 62 53 50 Q67 36 53 24"/><path class="mark" d="M13 52 L54 4"/></g>
+    <text class="copy" x="123" y="25">Reforged Chain</text><text class="sub" x="123" y="41">recovery after hardship</text>
+  </g>
+
+  <g transform="translate(640 160)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">04</text>
+    <g transform="translate(72 12) scale(.76)"><circle class="accentFill" cx="26" cy="13" r="10"/><path class="markFill" d="M0 51 L20 17 L29 34 L38 23 L58 51 Z"/></g>
+    <text class="copy" x="123" y="25">Burdened Peak</text><text class="sub" x="123" y="41">survival, harsh climb</text>
+  </g>
+
+  <g transform="translate(70 225)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">05</text>
+    <g transform="translate(72 11) scale(.72)"><path class="markFill" d="M12 23 Q12 7 25 8 Q30 -2 39 5 Q48 1 52 13 Q63 16 60 30 L56 50 Q53 61 33 61 Q11 61 10 48 Z"/><path class="markThin" d="M25 9 L24 31 M39 6 L37 31 M52 14 L49 32 M12 35 H57"/></g>
+    <text class="copy" x="123" y="25">Stone Fist</text><text class="sub" x="123" y="41">boldest, most aggressive</text>
+  </g>
+
+  <g transform="translate(640 225)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">06</text>
+    <g transform="translate(74 13) scale(.7)"><path class="mark" d="M4 5 L54 55 M54 5 L4 55"/><path class="markFill" d="M-3 0 L12 -6 L22 4 L5 19 Z"/><path class="markFill" d="M46 -6 L61 0 L62 19 L44 4 Z"/></g>
+    <text class="copy" x="123" y="25">Crossed Hammers</text><text class="sub" x="123" y="41">work, conflict, rebuilding</text>
+  </g>
+
+  <g transform="translate(70 290)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">07</text>
+    <g transform="translate(78 12) scale(.76)"><path class="markFill" d="M9 52 L18 0 H40 L49 52 Z"/><path class="mark" d="M17 39 L31 15 L43 27"/><path class="markThin" d="M31 15 V35"/></g>
+    <text class="copy" x="123" y="25">Carved Rise</text><text class="sub" x="123" y="41">abstract upward strength</text>
+  </g>
+
+  <g transform="translate(640 290)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">08</text>
+    <g transform="translate(75 12) scale(.72)"><path class="markFill" d="M4 53 V16 H14 V7 H26 V16 H42 V7 H54 V16 H64 V53 Z"/><rect class="accentFill" x="27" y="31" width="14" height="21" rx="2"/></g>
+    <text class="copy" x="123" y="25">Last Window</text><text class="sub" x="123" y="41">hope in a rough structure</text>
+  </g>
+
+  <g transform="translate(70 355)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">09</text>
+    <g transform="translate(75 12) scale(.72)"><path class="mark" d="M33 0 V57 M15 11 H51 M33 11 L14 42 M33 11 L57 35"/><path class="markThin" d="M3 42 H26 Q22 53 15 53 Q7 53 3 42 Z M45 35 H68 Q64 46 57 46 Q49 46 45 35 Z"/></g>
+    <text class="copy" x="123" y="25">Unbroken Scale</text><text class="sub" x="123" y="41">grim balance, discipline</text>
+  </g>
+
+  <g transform="translate(640 355)">
+    <rect class="banner" width="470" height="52" rx="7"/>
+    <path class="corner" d="M16 9 H58 M412 43 H454"/>
+    <rect class="iconSlot" x="14" y="8" width="36" height="36" rx="6"/>
+    <text class="num" x="32" y="31" text-anchor="middle">10</text>
+    <g transform="translate(76 13) scale(.7)"><path class="markFill" d="M32 0 L64 32 L32 66 L0 32 Z"/><path class="mark" d="M33 2 L23 25 L39 32 L27 64"/></g>
+    <text class="copy" x="123" y="25">Gold Fracture</text><text class="sub" x="123" y="41">cleanest abstract banner mark</text>
+  </g>
+
+  <text class="note" x="590" y="490">My picks for in-game: 10 Gold Fracture, 03 Reforged Chain, or 07 Carved Rise.</text>
+</svg>

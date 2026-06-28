@@ -771,7 +771,8 @@
       subtitle:serverPendingCardPickSubtitle(pending),
       minCount,
       maxCount,
-      confirmLabel:serverPendingCardPickConfirmLabel(pending)
+      confirmLabel:serverPendingCardPickConfirmLabel(pending),
+      immediate:true
     }, function(){});
   }
   function maybeShowServerPendingPrompts(){

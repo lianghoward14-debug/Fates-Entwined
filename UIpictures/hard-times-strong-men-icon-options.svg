@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="620" viewBox="0 0 1400 620">
+  <defs>
+    <radialGradient id="panelGlow" cx="50%" cy="42%" r="68%">
+      <stop offset="0%" stop-color="#1b2534"/>
+      <stop offset="70%" stop-color="#080b12"/>
+      <stop offset="100%" stop-color="#03050a"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff2a6"/>
+      <stop offset="45%" stop-color="#d2a835"/>
+      <stop offset="100%" stop-color="#7b5517"/>
+    </linearGradient>
+    <linearGradient id="redGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe38a"/>
+      <stop offset="55%" stop-color="#b23a29"/>
+      <stop offset="100%" stop-color="#3a1214"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .bg{fill:#05070d}
+      .tile{fill:url(#panelGlow);stroke:#c9a84c;stroke-width:2}
+      .iconStroke{fill:none;stroke:#f1d56f;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+      .iconThin{fill:none;stroke:#f1d56f;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+      .iconFill{fill:url(#gold);stroke:#f8df78;stroke-width:4;stroke-linejoin:round}
+      .darkFill{fill:#111720;stroke:#c9a84c;stroke-width:4;stroke-linejoin:round}
+      .redFill{fill:url(#redGold);stroke:#f1d56f;stroke-width:4;stroke-linejoin:round}
+      .label{font-family:Georgia,serif;font-size:22px;fill:#f7e6a2;text-anchor:middle;letter-spacing:.04em}
+      .num{font-family:Georgia,serif;font-size:18px;fill:#8bd7ff;text-anchor:middle;letter-spacing:.08em}
+    </style>
+  </defs>
+  <rect class="bg" width="1400" height="620"/>
+  <text x="700" y="38" class="label" style="font-size:28px">Hard Times, Strong Men - Status Banner Icon Options</text>
+
+  <!-- 1 Cracked shield -->
+  <g transform="translate(42 70)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">01</text>
+    <path class="darkFill" d="M120 62 L180 84 L169 150 Q153 190 120 205 Q87 190 71 150 L60 84 Z"/>
+    <path class="iconStroke" d="M120 71 L107 113 L132 122 L113 165 L126 146"/>
+    <path class="iconThin" d="M86 92 L105 101 M154 101 L174 92 M95 171 Q120 187 145 171"/>
+    <text class="label" x="120" y="222">Cracked Shield</text>
+  </g>
+
+  <!-- 2 Anvil pressure -->
+  <g transform="translate(314 70)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">02</text>
+    <path class="iconStroke" d="M76 86 H164 L181 109 L150 119 H92 L60 109 Z"/>
+    <path class="iconStroke" d="M95 119 H145 L138 171 H102 Z"/>
+    <path class="iconStroke" d="M74 178 H166"/>
+    <path class="iconThin" d="M82 64 L75 49 M120 61 V42 M158 64 L166 49"/>
+    <text class="label" x="120" y="222">Anvil Pressure</text>
+  </g>
+
+  <!-- 3 Reforged chain -->
+  <g transform="translate(586 70)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">03</text>
+    <path class="iconStroke" d="M85 116 Q61 92 85 69 Q106 49 128 70"/>
+    <path class="iconStroke" d="M112 159 Q135 181 157 160 Q181 136 156 113"/>
+    <path class="iconThin" d="M98 101 L142 127"/>
+    <path class="iconStroke" filter="url(#softGlow)" d="M82 166 L158 60"/>
+    <text class="label" x="120" y="222">Reforged Chain</text>
+  </g>
+
+  <!-- 4 Burdened peak -->
+  <g transform="translate(858 70)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">04</text>
+    <circle cx="120" cy="79" r="25" class="redFill"/>
+    <path class="iconFill" d="M51 184 L102 97 L124 138 L146 111 L194 184 Z"/>
+    <path class="iconThin" d="M102 97 L117 145 L124 138 L135 164 L146 111"/>
+    <text class="label" x="120" y="222">Burdened Peak</text>
+  </g>
+
+  <!-- 5 Stone fist -->
+  <g transform="translate(1130 70)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">05</text>
+    <path class="iconFill" d="M85 104 Q85 76 108 78 Q117 60 134 73 Q150 67 157 86 Q177 90 172 116 L164 170 Q161 190 120 190 Q82 190 80 166 Z"/>
+    <path class="iconThin" d="M107 81 L105 119 M132 75 L128 119 M155 89 L150 123 M84 126 H163 M95 153 H153"/>
+    <text class="label" x="120" y="222">Stone Fist</text>
+  </g>
+
+  <!-- 6 Hammer X -->
+  <g transform="translate(42 340)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">06</text>
+    <path class="iconStroke" d="M72 72 L168 168 M168 72 L72 168"/>
+    <path class="darkFill" d="M58 59 L83 48 L99 64 L72 87 Z"/>
+    <path class="darkFill" d="M142 48 L167 59 L168 88 L140 64 Z"/>
+    <path class="iconThin" d="M78 174 H162 M91 190 H149"/>
+    <text class="label" x="120" y="222">Hammer X</text>
+  </g>
+
+  <!-- 7 Carved rise -->
+  <g transform="translate(314 340)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">07</text>
+    <path class="darkFill" d="M73 183 L93 67 L147 67 L167 183 Z"/>
+    <path class="iconStroke" filter="url(#softGlow)" d="M93 151 L122 100 L145 125"/>
+    <path class="iconStroke" d="M122 100 L122 137"/>
+    <path class="iconThin" d="M88 183 H172"/>
+    <text class="label" x="120" y="222">Carved Rise</text>
+  </g>
+
+  <!-- 8 Last window -->
+  <g transform="translate(586 340)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">08</text>
+    <path class="darkFill" d="M65 176 V93 H84 V75 H105 V93 H135 V75 H156 V93 H175 V176 Z"/>
+    <rect x="108" y="124" width="24" height="38" rx="3" class="redFill"/>
+    <path class="iconThin" d="M75 176 H185 M85 108 H102 M138 108 H155"/>
+    <text class="label" x="120" y="222">Last Window</text>
+  </g>
+
+  <!-- 9 Unbroken scale -->
+  <g transform="translate(858 340)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">09</text>
+    <path class="iconStroke" d="M120 62 V173 M82 82 H158 M120 82 L84 143 M120 82 L166 130"/>
+    <path class="iconThin" d="M61 143 H107 Q100 164 84 164 Q68 164 61 143 Z"/>
+    <path class="iconThin" d="M143 130 H189 Q182 151 166 151 Q150 151 143 130 Z"/>
+    <path class="iconStroke" d="M94 181 H146"/>
+    <text class="label" x="120" y="222">Unbroken Scale</text>
+  </g>
+
+  <!-- 10 Gold fracture diamond -->
+  <g transform="translate(1130 340)">
+    <rect class="tile" width="240" height="230" rx="8"/>
+    <text class="num" x="120" y="34">10</text>
+    <path class="darkFill" d="M120 55 L184 119 L120 191 L56 119 Z"/>
+    <path class="iconStroke" filter="url(#softGlow)" d="M121 58 L101 106 L130 119 L109 187"/>
+    <path class="iconThin" d="M56 119 H184 M90 88 L150 150"/>
+    <text class="label" x="120" y="222">Gold Fracture</text>
+  </g>
+</svg>
