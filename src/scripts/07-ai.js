@@ -1430,25 +1430,26 @@ function pickAIOpponent(aiName) {
 function selectAIOpponent(opp, options={}) {
   if(!opp) return;
   const skipFollowup = !!options.skipFollowup;
-  G.aiDifficulty = opp.elo>=1400?'extreme':opp.elo>=1200?'hard':opp.elo>=800?'medium':'easy';
+  const currentOpp = typeof resolveCurrentAIOpponentState === 'function' ? resolveCurrentAIOpponentState(opp) : opp;
+  G.aiDifficulty = currentOpp.elo>=1400?'extreme':currentOpp.elo>=1200?'hard':currentOpp.elo>=800?'medium':'easy';
 
   // For AI with deckPool='starter', randomly pick one of the 4 starter decks each match
-  let resolvedOpp = opp;
-  if(opp.deckPool === 'starter') {
+  let resolvedOpp = currentOpp;
+  if(currentOpp.deckPool === 'starter') {
     const pool = typeof getAIDeckPoolForOpponent === 'function'
-      ? getAIDeckPoolForOpponent(opp)
+      ? getAIDeckPoolForOpponent(currentOpp)
       : (typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : []);
     if(pool.length > 0){
       const picked = pool[Math.floor(Math.random() * pool.length)];
-      resolvedOpp = {...opp, deck: [...picked.ids], _deckStrategy: picked.baseStrategy || picked.id};
+      resolvedOpp = {...currentOpp, deck: [...picked.ids], _deckStrategy: picked.baseStrategy || picked.id};
     }
   }
 
   const playableDeck = typeof getPlayableAIDeck === 'function' ? getPlayableAIDeck(resolvedOpp, G.aiDifficulty) : (Array.isArray(resolvedOpp.deck) ? resolvedOpp.deck.slice(0,40) : []);
   G._selectedAI = {...resolvedOpp, deck:[...playableDeck]};
   G.p2Deck = [...playableDeck];
-  G.players[1].name = opp.name;
-  G._aiOpponentElo = opp.elo;
+  G.players[1].name = currentOpp.name;
+  G._aiOpponentElo = currentOpp.elo;
   const diffOverlay = document.getElementById('s-difficulty-overlay');
   if(diffOverlay) diffOverlay.classList.remove('on');
   if(skipFollowup) return;

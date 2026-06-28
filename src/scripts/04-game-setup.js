@@ -56,8 +56,73 @@ const AI_RANK_FATE_MULTIPLIERS = {
 
 function getAIFateMultiplier(ai) {
   if(!ai) return 1;
-  const rank = ai.rank || '';
+  const state = getCurrentAIRankState(ai);
+  const rank = state.rankName || ai.rank || '';
   return AI_RANK_FATE_MULTIPLIERS[rank] || 1;
+}
+
+function getAIIdentityKeys(ai) {
+  const keys = new Set();
+  if(!ai) return keys;
+  ['aiId','uid','id','name','username'].forEach(k=>{
+    const value = ai[k];
+    if(value !== undefined && value !== null && String(value).trim()) keys.add(String(value).trim().toLowerCase());
+  });
+  return keys;
+}
+
+function isSameAIRecord(ai, entry) {
+  if(!ai || !entry) return false;
+  const aiKeys = getAIIdentityKeys(ai);
+  if(!aiKeys.size) return false;
+  return ['aiId','uid','id','name','username'].some(k=>{
+    const value = entry[k];
+    return value !== undefined && value !== null && aiKeys.has(String(value).trim().toLowerCase());
+  });
+}
+
+function findCurrentAILeaderboardRecord(ai) {
+  if(!ai) return null;
+  const candidates = [];
+  try { if(typeof LEADERBOARD !== 'undefined' && Array.isArray(LEADERBOARD)) candidates.push(...LEADERBOARD); } catch(e) {}
+  try {
+    const online = window.FATE_ONLINE_LEADERBOARD;
+    if(Array.isArray(online)) candidates.push(...online);
+    else if(online && typeof online === 'object') candidates.push(...Object.values(online));
+  } catch(e) {}
+  try {
+    const shared = window.FATE_SHARED_AI_ROSTER;
+    if(Array.isArray(shared)) candidates.push(...shared);
+  } catch(e) {}
+  return candidates.find(entry=>isSameAIRecord(ai, entry)) || null;
+}
+
+function getCurrentAIRankState(ai) {
+  if(!ai) return {elo:600, rankName:'Footman', rank:null, entry:null};
+  const entry = findCurrentAILeaderboardRecord(ai);
+  const selectedMatch = typeof G !== 'undefined' && G && G._selectedAI && isSameAIRecord(ai, G._selectedAI);
+  const liveElo = Number(entry && entry.elo);
+  const selectedElo = selectedMatch ? Number(G._aiOpponentElo) : NaN;
+  const aiElo = Number(ai.elo);
+  const elo = Math.max(100, Math.round(Number.isFinite(liveElo) && liveElo > 0 ? liveElo : (Number.isFinite(selectedElo) && selectedElo > 0 ? selectedElo : (Number.isFinite(aiElo) && aiElo > 0 ? aiElo : 600))));
+  let rank = null;
+  try { rank = typeof getRank === 'function' ? getRank(elo) : null; } catch(e) {}
+  const rankName = (rank && rank.name) || ai.rank || 'Footman';
+  return {elo, rankName, rank, entry};
+}
+
+function resolveCurrentAIOpponentState(ai) {
+  if(!ai) return ai;
+  const state = getCurrentAIRankState(ai);
+  const merged = Object.assign({}, ai);
+  if(state.entry) {
+    ['wins','losses','challengerWins','challengerLosses','matchesPlayed','seededWinRate','seededMatches','generationVersion','recordSchemaVersion','profileImg','photoURL','isMonthly','monthKey','aiId','uid'].forEach(k=>{
+      if(state.entry[k] !== undefined && state.entry[k] !== null) merged[k] = state.entry[k];
+    });
+  }
+  merged.elo = state.elo;
+  merged.rank = state.rankName;
+  return merged;
 }
 
 function getPlayerZoneFateMultiplier(player) {
@@ -98,12 +163,14 @@ function startGame(vsAI=false) {
   G.aiEnabled = vsAI;
   G.aiPlayer = 1; // AI is always player 2
   if(vsAI){
+    if(G._selectedAI) G._selectedAI = resolveCurrentAIOpponentState(G._selectedAI);
     if(!G.aiDifficulty) G.aiDifficulty = 'medium';
     const names = {easy:'AI - Rookie', medium:'AI - Apprentice', hard:'AI - Veteran', extreme:'AI - Master'};
     const selectedDeck = G._selectedAI ? getPlayableAIDeck(G._selectedAI, G.aiDifficulty) : [];
     if(G._selectedAI && selectedDeck.length===40){
       G.players[1].name = G._selectedAI.name;
       G.p2Deck = [...selectedDeck];
+      G._aiOpponentElo = G._selectedAI.elo || G._aiOpponentElo;
     } else {
       G.players[1].name = names[G.aiDifficulty] || 'AI';
       // Always use the hand-crafted deck for the AI — ensures good synergy
@@ -448,7 +515,8 @@ function showPreGameMatchup(vsAI, onContinue) {
   const myPicFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(myElo,'icon') : '';
   const oppPicFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(oppElo,'icon') : '';
   const aiMult = vsAI ? Number(G._aiFateMultiplier || getAIFateMultiplier(G._selectedAI) || 1) : 1;
-  const aiRank = vsAI && G._selectedAI && G._selectedAI.rank ? G._selectedAI.rank : '';
+  const aiRankState = vsAI ? getCurrentAIRankState(G._selectedAI) : null;
+  const aiRank = aiRankState && aiRankState.rankName ? aiRankState.rankName : '';
   const aiPic = vsAI && G._selectedAI ? getAIProfileImg(G._selectedAI, 'circle') : null;
   const aiMultiplierNotice = aiMult > 1 ? `
     <div class="match-rule-banner">
