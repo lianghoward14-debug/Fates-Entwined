@@ -828,8 +828,42 @@ function resetInteractionState() {
   }
 }
 
+function cleanupTransientGameTimers() {
+  if (typeof G === 'undefined' || !G) return;
+  if (G._handLimitDiscardTimer) {
+    try { clearTimeout(G._handLimitDiscardTimer); } catch (e) {}
+    G._handLimitDiscardTimer = null;
+  }
+  if (G._cardDetailModalDelayTimer) {
+    try { clearTimeout(G._cardDetailModalDelayTimer); } catch (e) {}
+    G._cardDetailModalDelayTimer = null;
+  }
+  if (Array.isArray(G._finalZoneRevealTimers)) {
+    G._finalZoneRevealTimers.forEach(function(timer){
+      try { clearTimeout(timer); } catch (e) {}
+    });
+    G._finalZoneRevealTimers = [];
+  }
+  if (typeof window !== 'undefined') {
+    if (window.__fateFloatingZoneBannerRaf) {
+      try { cancelAnimationFrame(window.__fateFloatingZoneBannerRaf); } catch (e) {}
+      window.__fateFloatingZoneBannerRaf = 0;
+    }
+    if (window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.teardownScene === 'function') {
+      try { window.FateMatchRendererAdapter.teardownScene('match-transient-cleanup'); } catch (e) {}
+    }
+    if (typeof window.clearConsolidationCinematicQueues === 'function') {
+      try { window.clearConsolidationCinematicQueues(); } catch (e) {}
+    }
+  }
+  G._handLimitDiscard = null;
+  G._cardDetailModalLockUntil = 0;
+  G._finalZoneCanvasFlash = null;
+}
+
 function resetMatchTransientState() {
   if (typeof G === 'undefined' || !G) return;
+  cleanupTransientGameTimers();
   G.board = createEmptyBoard();
   G.extraCells = createEmptyExtraCells();
   G.extraRows = [0, 0, 0];
@@ -852,6 +886,7 @@ function resetMatchTransientState() {
   G.gameLog = [];
   G.damageDoneP = [0, 0];
   G.supportersSetP = [0, 0];
+  G.supporterReinforcementSetP = [0, 0];
   G._supporterEffectsActivatedP = [0, 0];
   G._snowyVillageUses = [0, 0];
   G._landscapeChangeLocks = [0, 0];
@@ -927,6 +962,7 @@ function cleanupTutorialAndDialogueArtifacts(options = {}) {
 }
 
 function cleanupFloatingGameArtifacts() {
+  cleanupTransientGameTimers();
   removeMatchingNodes('.sparkle-effect, .placement-sparkle, .zone-flash, .draw-fly-card, .effect-flash-overlay, .discarding, .consolidate-visual');
   removeMatchingNodes('.card-preview-float, .hover-preview, .card-hover-preview');
   removeMatchingNodes('.placement-anim-ghost, .card-set-overlay, .consolidation-cinematic-overlay, .cc-overlay-v2, .effect-blocked-flash, .maria-discard-badge');

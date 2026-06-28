@@ -56,6 +56,10 @@ const AI_RANK_FATE_MULTIPLIERS = {
 
 function getAIFateMultiplier(ai) {
   if(!ai) return 1;
+  if(ai._useDefaultFateMultiplier){
+    const defaultRank = ai._defaultRank || ai.defaultRank || (typeof getRank === 'function' ? getRank(Number(ai._defaultElo || ai.defaultElo || ai.elo || 600)).name : '');
+    return AI_RANK_FATE_MULTIPLIERS[defaultRank] || 1;
+  }
   const state = getCurrentAIRankState(ai);
   const rank = state.rankName || ai.rank || '';
   return AI_RANK_FATE_MULTIPLIERS[rank] || 1;
@@ -546,6 +550,7 @@ function showPreGameMatchup(vsAI, onContinue) {
   const displayP1Elo = onlineMatch ? safeOnlineElo(op0) : myElo;
   const displayP2Pic = onlineMatch ? safeOnlinePic(op1) : aiPic;
   const displayP2Name = onlineMatch ? safeOnlineName(op1) : (vsAI ? (G._selectedAI ? G._selectedAI.name : `AI - ${diffNames[d] || 'Apprentice'}`) : 'Player 2');
+  const displayP2Level = onlineMatch ? safeOnlineLevel(op1) : null;
   const displayP2Elo = onlineMatch ? safeOnlineElo(op1) : oppElo;
   const displayP1CropStyle = onlineMatch ? safeOnlineCrop(op0, 'center 22%') : `width:100%;height:100%;${cropStyle}`;
   const displayP2CropStyle = onlineMatch ? safeOnlineCrop(op1, 'center 22%') : 'width:100%;height:100%;object-fit:cover;object-position:center 25%;';
@@ -553,6 +558,8 @@ function showPreGameMatchup(vsAI, onContinue) {
   const displayP2PicFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP2Elo,'icon') : oppPicFrame;
   const displayP1PanelFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP1Elo,'panel') : myPanelFrame;
   const displayP2PanelFrame = typeof getRankFrameStyle === 'function' ? getRankFrameStyle(displayP2Elo,'panel') : oppPanelFrame;
+  const displayP1Meta = `ELO ${displayP1Elo} - Level ${displayP1Level}`;
+  const displayP2Meta = `ELO ${displayP2Elo}${onlineMatch ? ` - Level ${displayP2Level}` : ''}`;
 
   const body = `
     <div class="match-overview" style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;align-items:stretch;padding:1rem 0;">
@@ -562,7 +569,7 @@ function showPreGameMatchup(vsAI, onContinue) {
         </div>
         <div style="font-family:Cinzel,serif;color:var(--p1);font-size:1.34rem;font-weight:700;margin-bottom:.4rem;min-height:2.4rem;display:flex;align-items:center;justify-content:center;line-height:1.15;">${escapeHtml(displayP1Name)}</div>
         <div style="margin:.5rem auto;">${renderRankBadge(displayP1Elo,'lg')}</div>
-        <div style="font-family:Cinzel,serif;font-size:.9rem;color:var(--dim);margin-top:.4rem;min-height:1.35rem;display:flex;align-items:center;justify-content:center;">ELO ${displayP1Elo} - Level ${displayP1Level}</div>
+        <div style="font-family:Cinzel,serif;font-size:.9rem;color:var(--dim);margin-top:.4rem;min-height:1.35rem;display:flex;align-items:center;justify-content:center;">${displayP1Meta}</div>
       </div>
       <div style="display:flex;align-items:center;font-family:Cinzel,serif;font-size:2.8rem;color:var(--gold);text-shadow:0 0 24px rgba(201,168,76,.6);">VS</div>
       <div style="flex:1;min-width:260px;max-width:380px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;${boxStyle}${displayP2PanelFrame}">
@@ -571,7 +578,7 @@ function showPreGameMatchup(vsAI, onContinue) {
         </div>
         <div style="font-family:Cinzel,serif;color:var(--p2);font-size:1.34rem;font-weight:700;margin-bottom:.4rem;min-height:2.4rem;display:flex;align-items:center;justify-content:center;line-height:1.15;">${escapeHtml(displayP2Name)}</div>
         <div style="margin:.5rem auto;">${renderRankBadge(displayP2Elo,'lg')}</div>
-        <div style="font-family:Cinzel,serif;font-size:.9rem;color:var(--dim);margin-top:.4rem;min-height:1.35rem;display:flex;align-items:center;justify-content:center;">ELO ${displayP2Elo}</div>
+        <div style="font-family:Cinzel,serif;font-size:.9rem;color:var(--dim);margin-top:.4rem;min-height:1.35rem;display:flex;align-items:center;justify-content:center;">${displayP2Meta}</div>
         ${aiMult > 1 ? `<div style="margin-top:.55rem;padding:.22rem .55rem;border:1px solid rgba(255,215,0,.34);border-radius:999px;color:#ffd76a;font-family:Cinzel,serif;font-size:.7rem;letter-spacing:.08em;background:rgba(255,215,0,.07);">${formatFateMultiplier(aiMult)} Zone Fate</div>` : ''}
       </div>
     </div>
@@ -685,6 +692,8 @@ const AI_OPPONENTS = [
 
 // Add trueElo to all AI opponents (base + 200 competence boost)
 AI_OPPONENTS.forEach(ai => {
+  if(ai.defaultElo === undefined) ai.defaultElo = ai.elo;
+  if(!ai.defaultRank) ai.defaultRank = ai.rank;
   if(!ai.trueElo) ai.trueElo = ai.elo + 200;
 });
 

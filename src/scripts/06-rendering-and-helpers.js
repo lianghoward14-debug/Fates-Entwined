@@ -4551,7 +4551,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
         const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
-        // Vigilantes (52): discard 4 supporters to remove a card (once per turn)
+        // Vigilantes (52): mark an opponent card in this zone as 0 Reinforcement (once per turn)
         if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
           const vigBtn=document.createElement('button');
           vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
@@ -4669,6 +4669,7 @@ function resetModalChrome() {
       'public-decks-modal',
       'public-deck-preview-modal',
       'public-deck-comments-modal',
+      'public-deck-import-choice-modal',
       'share-deck-modal',
       'online-profile-modal-v17',
       'online-profile-modal-v18',
@@ -5352,7 +5353,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.textBaseline = 'middle';
         pickerCtx.fillText(getAffIcon(visual.aff), x + cardW/2, y + cardH/2);
       }
-      if(pickerCardIsOpponent(i)) {
+      if(opts.showOpponentOverlay === true && pickerCardIsOpponent(i)) {
         pickerCtx.fillStyle = 'rgba(180,18,32,.28)';
         pickerCtx.fillRect(x, y, cardW, cardH);
         const grad = pickerCtx.createLinearGradient(x, y, x, y + cardH);
@@ -5877,16 +5878,13 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
   const previousSuppressPrompt = !!G._suppressEffectPrompt;
   const originalId = ledger.id;
   const originalWhenSetActivated = ledger.whenSetActivated;
-  const sourceZone = Number.isInteger(sourceSupporterInfo?.z) ? sourceSupporterInfo.z : ledgerZone;
-  const sourceRow = Number.isInteger(sourceSupporterInfo?.r) ? sourceSupporterInfo.r : ledgerRow;
-  const sourceCol = Number.isInteger(sourceSupporterInfo?.c) ? sourceSupporterInfo.c : ledgerCol;
 
   G.currentPlayer = player;
   G._suppressEffectPrompt = true;
   try {
     ledger.id = sourceSupporter.id;
     ledger.whenSetActivated = false;
-    runWhenSetEffect(ledger, sourceZone, sourceRow, sourceCol);
+    runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
   } finally {
     ledger.id = originalId;
     ledger.whenSetActivated = originalWhenSetActivated;
@@ -5907,6 +5905,7 @@ function pickBoardSupporterEffect(player, z) {
     title:'Ledger-keepers: Copy Effect',
     subtitle:'Choose a Supporter on the field to copy its effect',
     maxCount:1,
+    showOpponentOverlay:false,
     confirmLabel:'Copy Effect'
   }, (chosen)=>{
     if(!chosen.length) return;
@@ -6708,6 +6707,15 @@ function _hexToRgb(hex) {
 
 let _consolidationCinematicQueue = [];
 let _consolidationCinematicShowing = false;
+if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanupInstalled) {
+  const previousConsolidationQueueCleanup = window.clearConsolidationCinematicQueues;
+  window.clearConsolidationCinematicQueues = function(){
+    if(typeof previousConsolidationQueueCleanup === 'function') previousConsolidationQueueCleanup();
+    _consolidationCinematicQueue.length = 0;
+    _consolidationCinematicShowing = false;
+  };
+  window.__fateLegacyConsolidationQueueCleanupInstalled = true;
+}
 function showConsolidationCinematic(card, opts) {
   if(typeof G !== 'undefined' && G && G._aiAbort && !document.getElementById('s-game')?.classList.contains('active')) return false;
   if(!card) return false;

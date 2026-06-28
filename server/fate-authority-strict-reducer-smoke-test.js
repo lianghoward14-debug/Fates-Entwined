@@ -132,15 +132,17 @@ async function main(){
     const firstHash = startPayload.stateHash;
     assert(first, 'expected strict server MATCH_START postState');
     assert.strictEqual(canonicalStateHash(first), firstHash);
+    const activePlayer = Number(first.currentPlayer || 0) === 1 ? 1 : 0;
+    const activeUid = activePlayer === 0 ? 'host' : 'guest';
     ws = await wsOpen(`ws://127.0.0.1:${PORT}`);
     ws.send(JSON.stringify({
       kind:'hello',
       roomCode:code,
-      uid:'host',
+      uid:activeUid,
       idToken:'',
       lastSeq:1,
       stateHash:firstHash,
-      room:{hostUid:'host', guestUid:'guest', currentTurnUid:'host', lastActionSeq:1, playerOrder:{0:'host', 1:'guest'}}
+      room:{hostUid:'host', guestUid:'guest', currentTurnUid:activeUid, lastActionSeq:1, playerOrder:{0:'host', 1:'guest'}}
     }));
     const hello = await waitForKind(ws, 'hello-ok');
     assert.strictEqual(hello.serverStateHash, firstHash);
@@ -151,12 +153,12 @@ async function main(){
       requestId:'unsupported-click',
       roomCode:code,
       type:'CLICK_CELL',
-      payload:{playerIndex:0, turn:1, z:0, r:0, c:0, placing:false, baseStateHash:firstHash}
+      payload:{playerIndex:activePlayer, turn:1, z:0, r:0, c:0, placing:false, baseStateHash:firstHash}
     }));
     const rejected = await waitForKind(ws, 'rejected');
     assert.match(rejected.reason, /not implemented for non-placement CLICK_CELL/);
 
-    const firstHandCard = first.players?.[0]?.hand?.[0] || {};
+    const firstHandCard = first.players?.[activePlayer]?.hand?.[0] || {};
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'strict-place-selected-draw-phase',
@@ -164,7 +166,7 @@ async function main(){
       type:'HAND_ACTION',
       payload:{
         fn:'placeSelected',
-        playerIndex:0,
+        playerIndex:activePlayer,
         turn:1,
         selectedHand:{index:0, iid:firstHandCard.iid || '', id:firstHandCard.id || ''},
         baseStateHash:firstHash,
@@ -181,7 +183,7 @@ async function main(){
       roomCode:code,
       type:'START_CONSOLIDATE',
       payload:{
-        playerIndex:0,
+        playerIndex:activePlayer,
         turn:1,
         selectedHand:{index:0, iid:firstHandCard.iid || '', id:firstHandCard.id || ''},
         baseStateHash:firstHash,
@@ -192,24 +194,16 @@ async function main(){
     const startConsolidateRejected = await waitForKind(ws, 'rejected');
     assert.match(startConsolidateRejected.reason, /main phase|dedicated server reducer|character card/);
 
-    const second = JSON.parse(JSON.stringify(first));
-    second.currentPlayer = 1;
-    second.turn = 2;
-    second.selectedHandCard = null;
-    second.selectedBoardCard = null;
-    second.placing = false;
-    second.blockingCell = false;
-    second.pendingEffect = null;
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'strict-end',
       roomCode:code,
       type:'END_TURN',
-      payload:{playerIndex:0, turn:1, baseStateHash:firstHash}
+      payload:{playerIndex:activePlayer, turn:1, baseStateHash:firstHash}
     }));
     const accepted = await waitForKind(ws, 'accepted');
     assert.strictEqual(accepted.action.payload.serverReduced, true);
-    assert.strictEqual(accepted.serverStateHash, canonicalStateHash(second));
+    assert.strictEqual(accepted.serverStateHash, canonicalStateHash(accepted.action.payload.postState));
     console.log('fate-authority-strict-reducer smoke passed');
   }finally{
     if(ws) try{ ws.close(); }catch(e){}

@@ -1,7 +1,7 @@
 
 // FATES ENTWINED ONLINE ELO V1
-// Online leaderboard bridge. Fly is used in RTDB-disabled mode; RTDB remains the
-// legacy fallback path for non-Fly sessions.
+// Online leaderboard bridge. The authority API owns shared AI and leaderboard
+// state whenever it is configured; RTDB remains the legacy fallback path.
 (function(){
   const FO = window.FateOnline || {};
   let leaderboard = {};
@@ -17,6 +17,7 @@
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
   function user(){ return window.FATE_ONLINE?.user; }
+  function authUid(){ return String(user()?.uid || FO.auth?.currentUser?.uid || ''); }
   function profile(){ return window.FATE_ONLINE?.profile || {}; }
   function localProfile(){ try{ if(typeof window.getFateLocalProfile === 'function') return window.getFateLocalProfile() || {}; }catch(e){} return window.USER_PROFILE || {}; }
   function nameOf(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
@@ -33,16 +34,17 @@
     let wsUrl = '';
     try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
     if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) return '';
+    if(!wsUrl) {
+      const host = String(location.hostname || '').toLowerCase();
+      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+      const isElectron = /Electron/i.test(navigator.userAgent || '') || location.protocol === 'file:';
+      if(isElectron) return 'https://fates-entwined-main.fly.dev';
+      return '';
+    }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flyLeaderboardEnabled(){
-    return !!authorityHttpBaseUrl() && (
-      localStorageFlag('fateFlyRoomsEnabled') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
-    );
+    return !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -74,7 +76,7 @@
     const force = !!(opts && opts.force);
     if(!force && flyLeaderboardFetchedAt && Date.now() - flyLeaderboardFetchedAt < 30000) return leaderboard;
     if(flyLeaderboardFetchInFlight) return flyLeaderboardFetchInFlight;
-    flyLeaderboardFetchInFlight = flyApiRequest(`/api/leaderboards/challenger?limit=${ONLINE_LEADERBOARD_LIMIT}`)
+    flyLeaderboardFetchInFlight = flyApiRequest(`/api/leaderboards/challenger?limit=${ONLINE_LEADERBOARD_LIMIT}&monthKey=${encodeURIComponent(currentMonthKey())}`)
       .then(data=>{
         const next = {};
         (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
@@ -105,7 +107,7 @@
             seededWinRate:Number(entry.seededWinRate || 0) || 0,
             seededMatches:Number(entry.seededMatches || 0) || 0,
             generationVersion:Number(entry.generationVersion || 0) || 0,
-            recordSchemaVersion:Number(entry.recordSchemaVersion || 0) || 0,
+            recordSchemaVersion:isAI ? Math.max(SHARED_AI_RECORD_SCHEMA_VERSION, Number(entry.recordSchemaVersion || 0) || 0) : (Number(entry.recordSchemaVersion || 0) || 0),
             updatedAt:Number(entry.updatedAt || Date.now()) || Date.now(),
             isOnline:true,
             source:'fly-authority'
@@ -153,6 +155,7 @@
   }
   function hasStaleSeedRecord(entry){
     if(!isAIRecord(entry) || !hasSeedMetadata(entry)) return false;
+    if(entry?.source === 'fly-authority') return false;
     const wins = recordWins(entry);
     const losses = recordLosses(entry);
     const total = wins + losses;
@@ -227,7 +230,8 @@
     const rec = localAIRecord(ai);
     const hasExplicitWins = Object.prototype.hasOwnProperty.call(extra, 'wins') || Object.prototype.hasOwnProperty.call(extra, 'challengerWins');
     const hasExplicitLosses = Object.prototype.hasOwnProperty.call(extra, 'losses') || Object.prototype.hasOwnProperty.call(extra, 'challengerLosses');
-    const isLocalMonthlySeed = !!(ai?.isMonthly && Number(ai?.seededWinRate || 0) && !hasExplicitWins && !hasExplicitLosses);
+    const hasAIRecordStats = !!(Number(ai?.wins ?? ai?.challengerWins ?? 0) || Number(ai?.losses ?? ai?.challengerLosses ?? 0));
+    const isLocalMonthlySeed = !!(ai?.isMonthly && Number(ai?.seededWinRate || 0) && !hasExplicitWins && !hasExplicitLosses && !hasAIRecordStats);
     const rawExplicit = Object.assign({}, ai || {}, extra || {}, {aiId:id, isAI:true});
     const explicitStats = normalizedAIRecordStats(rawExplicit);
     const wins = hasExplicitWins
@@ -306,6 +310,15 @@
       local.aiId = rec.aiId;
       local.elo = rec.elo;
       local.trueElo = rec.trueElo;
+      local.wins = rec.wins;
+      local.losses = rec.losses;
+      local.challengerWins = rec.challengerWins;
+      local.challengerLosses = rec.challengerLosses;
+      local.matchesPlayed = rec.matchesPlayed;
+      local.recordSchemaVersion = rec.recordSchemaVersion;
+      local.generationVersion = rec.generationVersion;
+      local.seededMatches = rec.seededMatches;
+      local.seededWinRate = rec.seededWinRate;
       local.isMonthly = !!rec.isMonthly;
       if(rec.photoURL) local.profileImg = rec.photoURL;
     }
@@ -472,21 +485,38 @@
   }
   async function seedFlySharedAIRoster(){
     const records = buildLocalSharedAIRoster();
-    if(!user() || !flyLeaderboardEnabled()) return records;
+    const uid = authUid();
+    if(!uid || !flyLeaderboardEnabled()) return records;
     if(flyRosterSeedInFlight) return flyRosterSeedInFlight;
     if(flyRosterSeededAt && Date.now() - flyRosterSeededAt < 5 * 60 * 1000) return window.FATE_SHARED_AI_ROSTER || records;
     flyRosterSeedInFlight = flyApiRequest('/api/challenger-ai/seed', {
       method:'POST',
-      body:{uid:user().uid, monthKey:currentMonthKey(), roster:records}
+      body:{uid, monthKey:currentMonthKey(), roster:records}
     }).catch(e=>{
       console.warn('Fly shared AI roster seed failed', e);
       return null;
     }).finally(()=>{ flyRosterSeedInFlight = null; });
     const data = await flyRosterSeedInFlight;
-    const roster = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
+    let roster = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
     if(roster.length){
       window.FATE_SHARED_AI_ROSTER = roster;
       flyRosterSeededAt = Date.now();
+      const hasAnyMatches = roster.some(rec=>Number(rec?.wins || 0) || Number(rec?.losses || 0) || Number(rec?.matchesPlayed || 0));
+      if(!hasAnyMatches){
+        const pairCount = Math.max(1, Math.floor(roster.length / 2));
+        const simData = await flyApiRequest('/api/challenger-ai/simulate', {
+          method:'POST',
+          body:{uid, monthKey:currentMonthKey(), count:pairCount}
+        }).catch(e=>{
+          console.warn('Fly initial shared AI simulation failed', e);
+          return null;
+        });
+        const simulatedRoster = (Array.isArray(simData?.roster) ? simData.roster : []).map(applySharedAIRecord).filter(Boolean);
+        if(simulatedRoster.length){
+          roster = simulatedRoster;
+          window.FATE_SHARED_AI_ROSTER = roster;
+        }
+      }
     }
     await fetchFlyLeaderboard().catch(()=>{});
     return roster.length ? roster : records;
@@ -555,14 +585,15 @@
   }
   async function runSharedAISimulations(){
     if(flyLeaderboardEnabled()){
-      if(!user()) return 0;
+      const uid = authUid();
+      if(!uid) return 0;
       await seedFlySharedAIRoster();
       const localCount = localAIList().length;
       const rosterCount = Array.isArray(window.FATE_SHARED_AI_ROSTER) && window.FATE_SHARED_AI_ROSTER.length ? window.FATE_SHARED_AI_ROSTER.length : localCount;
       const pairCount = Math.max(1, Math.floor(rosterCount / 2));
       const data = await flyApiRequest('/api/challenger-ai/simulate', {
         method:'POST',
-        body:{uid:user().uid, monthKey:currentMonthKey(), count:pairCount}
+        body:{uid, monthKey:currentMonthKey(), count:pairCount}
       }).catch(e=>{
         console.warn('Fly shared AI simulation failed', e);
         return null;

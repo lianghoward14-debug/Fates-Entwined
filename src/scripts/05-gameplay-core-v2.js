@@ -535,7 +535,12 @@ function cleanupGame() {
 
 function startTurnTimer() {
   stopTurnTimer();
-  _turnTimerRemaining = getTurnTimeLimit();
+  const limit = getTurnTimeLimit();
+  _turnTimerRemaining = limit;
+  if(G && G._onlineRoomCode && Number.isFinite(Number(G._turnStartedAt))) {
+    const elapsed = Math.max(0, Math.floor((Date.now() - Number(G._turnStartedAt)) / 1000));
+    _turnTimerRemaining = Math.max(1, Math.min(limit, limit - elapsed));
+  }
   _lastTurnWarnSecond = null;
   updateTimerDisplay();
   _turnTimerInterval = setInterval(()=>{
@@ -2090,7 +2095,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       inst._greatOakBonus = true;
       break;
     case '52': { // Vigilantes: same-zone card-picker window
-      pickCardInZone(z,'Vigilantes: Select an opponent supporter in this zone:',(tgt)=>{
+      pickCardInZone(z,'Vigilantes: Select an opponent card in this zone to set its Reinforcement to 0:',(tgt)=>{
         tgt._markedForDeath = true;
         tgt._reinforcementOverride = 0;
         if(typeof playSfx==='function') playSfx('fateLose');
@@ -2099,7 +2104,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         inst.effectUsedInitial = true;
         renderGame();
         if(typeof updateTopBar === 'function') updateTopBar();
-      }, function(cell){ return cell && cell.owner===opp && cell.type==='Supporter' && cell.id!=='76' && !cell.immuneFlag; });
+      }, function(cell){ return cell && cell.owner===opp && cell.id!=='76' && !cell.immuneFlag; });
       break;
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
@@ -3062,51 +3067,23 @@ function checkWin() {
 //  SUPPORTER ACTIVE ABILITIES
 // ══════════════════════════════════════════════════════════════
 
-// Vigilantes (52): discard 3 own supporters from field to discard a card in this same zone
+// Vigilantes (52): set one opponent card in this same zone to 0 Reinforcement
 function activateVigilantes(card, z, r, c) {
   const cp = G.currentPlayer;
-  const availSups = [];
-  forEachBoardCard((bc, bz, br, bc2) => {
-    if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && bc.id!=='76'){
-      availSups.push({card:bc, z:bz, r:br, c:bc2});
-    }
-  });
-  if(availSups.length < 3){
-    toast('Need 3 supporters on the field to activate (have '+availSups.length+')');
-    return;
-  }
+  const opp = 1 - cp;
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardsVisual(availSups.map(s=>s.card), {
-    title:'Marked for Death — Select 3 Supporters to Expend',
-    subtitle:'These supporters will be discarded to remove one card in this same zone.',
-    maxCount:3, confirmLabel:'Expend'
-  }, (chosen)=>{
-    if(chosen.length < 3){toast('Must select exactly 3 supporters');return;}
-
-    const zoneTargets = [];
-    if(G.board[z]){
-      G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell) zoneTargets.push({card:cell,z:z,r:ri,c:ci});
-      }));
-    }
-    if(zoneTargets.length===0){toast('No cards in this zone');return;}
-
-    pickCardInZone(z,'Vigilantes: Select a card in this zone to destroy:',(tgt,locZ,locR,locC)=>{
-      if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation(tgt.name+' is IMMUNE');return;}
-      chosen.forEach(function(sc){
-        const src = availSups.find(function(s){return s.card.iid===sc.iid;});
-        if(src) discardBoardCard(src.card, src.z, src.r, src.c);
-      });
-      discardBoardCard(tgt, locZ, locR, locC);
-      card.vigilanteUsed = true;
-      toast('Vigilantes destroyed '+tgt.name+'!');
-      log(cp===0?'p1':'p2', 'Vigilantes expended 3 supporters to destroy '+tgt.name+' in Zone '+(locZ+1));
-      playSfx('effect');
-      renderGame();
-    }, function(cell){ return !!cell && cell.id!=='76' && !cell.immuneFlag; });
-  });
+  pickCardInZone(z,'Vigilantes: select an opponent card in this zone to set its Reinforcement to 0.',(tgt)=>{
+    if(tgt.owner !== opp){toast('Must select an opponent card');return;}
+    if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation(tgt.name+' is IMMUNE');return;}
+    tgt._markedForDeath = true;
+    tgt._reinforcementOverride = 0;
+    card.vigilanteUsed = true;
+    toast(tgt.name+' has 0 Reinforcement.');
+    log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
+    playSfx('effect');
+    renderGame();
+  }, function(cell){ return !!cell && cell.owner === opp && cell.id!=='76' && !cell.immuneFlag; });
 }
-
 
 function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   if(!cardToMove || !wolfCreekCard) return false;

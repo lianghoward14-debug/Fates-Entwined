@@ -271,6 +271,7 @@
       turnNumber:g.turnNumber,
       maxTurns:g.maxTurns,
       phase:g.phase,
+      _turnStartedAt:g._turnStartedAt,
       selectedHandCard:g.selectedHandCard,
       selectedBoardCard:g.selectedBoardCard,
       placing:!!g.placing,
@@ -282,6 +283,9 @@
       instanceCounter:g.instanceCounter,
       damageDoneP:cloneOnlinePlain(g.damageDoneP),
       supportersSetP:cloneOnlinePlain(g.supportersSetP),
+      supporterReinforcementSetP:cloneOnlinePlain(g.supporterReinforcementSetP),
+      _pendingSelvaSupportBoost:cloneOnlinePlain(g._pendingSelvaSupportBoost),
+      _selvaSupportBoosts:cloneOnlinePlain(g._selvaSupportBoosts),
       _supporterEffectsActivatedP:cloneOnlinePlain(g._supporterEffectsActivatedP),
       _snowyVillageUses:cloneOnlinePlain(g._snowyVillageUses),
       _landscapeChangeLocks:cloneOnlinePlain(g._landscapeChangeLocks),
@@ -304,6 +308,7 @@
       _continuousDamageSources:cloneOnlinePlain(g._continuousDamageSources),
       _fortCalvinActive:cloneOnlinePlain(g._fortCalvinActive),
       _linaFreeIids:cloneOnlinePlain(g._linaFreeIids),
+      _serverFreePlacement:cloneOnlinePlain(g._serverFreePlacement),
       _polishUsedThisTurn:!!g._polishUsedThisTurn,
       _revealedCards:cloneOnlinePlain(g._revealedCards),
       _riveraBuffs:cloneOnlinePlain(g._riveraBuffs),
@@ -364,6 +369,56 @@
     if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true});
     else if(typeof window.renderBoard === 'function') window.renderBoard();
   }
+  function collectOnlineBoardSnapshot(board){
+    const map = new Map();
+    if(!Array.isArray(board)) return map;
+    board.forEach(function(zone, z){
+      if(!Array.isArray(zone)) return;
+      zone.forEach(function(row, r){
+        if(!Array.isArray(row)) return;
+        row.forEach(function(card, c){
+          if(!card) return;
+          const key = card.iid != null ? String(card.iid) : `${card.id || 'card'}:${z}:${r}:${c}`;
+          map.set(key, {card, z, r, c});
+        });
+      });
+    });
+    return map;
+  }
+  function maybePlayOnlineFreePlacementCinematic(g, previousBoard, reason){
+    if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
+    const played = g._onlineFreePlacementCinematicsPlayed instanceof Set ? g._onlineFreePlacementCinematicsPlayed : new Set();
+    g._onlineFreePlacementCinematicsPlayed = played;
+    let scheduled = false;
+    collectOnlineBoardSnapshot(g.board).forEach(function(entry, key){
+      const card = entry.card;
+      const kind = String(card?._serverFreePlacementConsumed || '');
+      if(!kind || String(card.type || '') === 'Supporter') return;
+      const playKey = key + ':' + kind;
+      if(played.has(playKey)) return;
+      const prev = previousBoard && previousBoard.get(key);
+      if(prev && prev.z === entry.z && prev.r === entry.r && prev.c === entry.c && String(prev.card?._serverFreePlacementConsumed || '') === kind) return;
+      played.add(playKey);
+      scheduled = true;
+      try{
+        g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + 2440);
+      }catch(e){}
+      setTimeout(function(){
+        try{
+          window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+        }catch(e){
+          console.warn('Online free-placement cinematic failed', e);
+        }
+      }, 120);
+      recordOnlineDiagnostic('online-free-placement-cinematic', {
+        kind,
+        cardId:String(card.id || ''),
+        cardName:String(card.name || ''),
+        reason:String(reason || '')
+      });
+    });
+    return scheduled;
+  }
   function enterOnlineGameScreenFromAuthoritativeState(reason){
     const g = gameState();
     if(!g || !isOnlineMatchState(g)) return false;
@@ -390,8 +445,10 @@
   function syncOnlineTurnTimerAfterAuthoritativeState(g, previous, reason){
     if(!g || !isOnlineMatchState(g) || String(g.phase || '') !== 'main') return false;
     if(!isGameScreenActive()) return false;
-    const key = [Number(g.turn || 0) || 0, Number(g.currentPlayer || 0) || 0].join(':');
-    const prevKey = previous ? [Number(previous.turn || 0) || 0, Number(previous.currentPlayer || 0) || 0].join(':') : '';
+    const turnStartedAt = Number(g._turnStartedAt || 0) || 0;
+    const prevTurnStartedAt = previous ? (Number(previous._turnStartedAt || 0) || 0) : 0;
+    const key = [Number(g.turn || 0) || 0, Number(g.currentPlayer || 0) || 0, Math.floor(turnStartedAt / 1000)].join(':');
+    const prevKey = previous ? [Number(previous.turn || 0) || 0, Number(previous.currentPlayer || 0) || 0, Math.floor(prevTurnStartedAt / 1000)].join(':') : '';
     if(g._onlineLastTurnTimerKey === key && prevKey === key) return false;
     g._onlineLastTurnTimerKey = key;
     g._turnInputLockUntil = 0;
@@ -420,7 +477,8 @@
     const g = gameState();
     if(!g || !state) return false;
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
-    const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase};
+    const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase, _turnStartedAt:g._turnStartedAt};
+    const previousBoard = collectOnlineBoardSnapshot(g.board);
     const keep = {
       _onlineRoomCode:g._onlineRoomCode,
       _onlineRole:g._onlineRole,
@@ -444,10 +502,10 @@
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
-      'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect',
-      'instanceCounter','damageDoneP','supportersSetP','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
+      'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
+      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
-      '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_polishUsedThisTurn',
+      '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
@@ -457,6 +515,14 @@
     });
     g._continuousDamageSources = new Set(Array.isArray(state._continuousDamageSources) ? state._continuousDamageSources : []);
     if(Array.isArray(g._linaFreeIids)) g._linaFreeIids = new Set(g._linaFreeIids);
+    if(g._serverFreePlacement && String(g._serverFreePlacement.kind || '') === 'linaFreeSet'){
+      if(!g._linaFreeIids || typeof g._linaFreeIids.add !== 'function') g._linaFreeIids = new Set();
+      (Array.isArray(g.players) ? g.players : []).forEach(function(player){
+        (Array.isArray(player && player.hand) ? player.hand : []).forEach(function(card){
+          if(card && card._linaFree === true && card.iid !== undefined && card.iid !== null) g._linaFreeIids.add(card.iid);
+        });
+      });
+    }
     if(g._consolidating && Array.isArray(g._consolidating.colomboRestrictionZones)){
       g._consolidating.colomboRestrictionZones = new Set(g._consolidating.colomboRestrictionZones);
     }
@@ -475,6 +541,7 @@
     enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
     syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
+    maybePlayOnlineFreePlacementCinematic(g, previousBoard, reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     console.warn('Applied authoritative online state:', reason || 'state-sync');
     return true;
@@ -670,7 +737,10 @@
     if(!card || !pending) return false;
     if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
     if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
+    if(pending.filterRarity && String(card.rarity || '') !== String(pending.filterRarity)) return false;
     if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
+    if(pending.excludeId && String(card.id || '') === String(pending.excludeId)) return false;
+    if(pending.characterOnly && String(card.type || '') === 'Supporter') return false;
     return true;
   }
   function serverPendingBoardCardCandidates(g, pending, playerIndex){
@@ -699,9 +769,6 @@
     if(kind === 'handDiscard' || kind === 'handDiscardBoost'){
       return (Array.isArray(player.hand) ? player.hand : []).filter(card=>serverPendingCardMatchesFilters(card, pending));
     }
-    if(kind === 'vigilantesExpendSupporters'){
-      return serverPendingBoardCardCandidates(g, Object.assign({}, pending, {filterType:'Supporter'}), playerIndex);
-    }
     const sources = String(pending?.source || 'deck').split('+').map(s=>s.trim()).filter(Boolean);
     const cards = [];
     sources.forEach(source=>{
@@ -722,6 +789,7 @@
     if(reason === 'handDiscardBoost') return 'Choose cards';
     if(reason === 'mailDelivery') return 'Mail Delivery';
     if(String(pending?.kind || '') === 'linaFreeSet') return 'Choose a Reality card';
+    if(String(pending?.kind || '') === 'kvetkaFreeSet') return 'Flower Picking';
     return 'Choose cards';
   }
   function serverPendingCardPickSubtitle(pending){
@@ -731,6 +799,7 @@
       const type = pending?.filterType || 'Supporter';
       return `From your deck - up to ${maxCount} ${type}(s)`;
     }
+    if(String(pending?.kind || '') === 'kvetkaFreeSet') return 'Choose an Expanded Worlds Character to set for free';
     if(source) return source === 'deck+discard' ? 'Search deck and discard' : 'From your ' + source;
     if(String(pending?.kind || '').startsWith('hand')) return 'From your hand';
     return 'Choose cards';
@@ -739,8 +808,38 @@
     const reason = String(pending?.reason || '');
     const kind = String(pending?.kind || '');
     if(reason === 'ibStudent' || reason === 'crossroadsWorker' || reason === 'greatOakHighSchooler') return 'Add to Hand';
+    if(kind === 'kvetkaFreeSet') return 'Set for Free';
     if(kind === 'handDiscard') return 'Discard';
     return 'Choose';
+  }
+  function serverPromptId(pending, fallback){
+    return String(pending?.promptId || '') || String(fallback || '');
+  }
+  function withOnlinePromptBypass(g, fn){
+    if(!g || typeof fn !== 'function') return;
+    g._onlineServerPromptBypass = true;
+    window.__fateOnlineServerPromptBypass = true;
+    try{ return fn(); }
+    finally{
+      g._onlineServerPromptBypass = false;
+      window.__fateOnlineServerPromptBypass = false;
+    }
+  }
+  function sendServerPendingAction(type, pending, extra, label){
+    const latest = gameState();
+    const localIndex = onlineLocalPlayerIndex();
+    if(!latest || localIndex === null) return;
+    const payload = Object.assign({
+      playerIndex:localIndex,
+      turn:latest.turn || 0,
+      promptId:String(pending?.promptId || ''),
+      baseStateHash:onlineCanonicalStateHash(captureOnlineCanonicalState()),
+      clientActionId:String(type || 'SERVER_PROMPT') + ':' + (pending?.promptId || pending?.kind || 'pending') + ':' + Date.now()
+    }, extra || {});
+    sendAction(type, payload).catch(err=>{
+      console.warn((label || 'Server prompt') + ' failed', err);
+      if(window.toast) toast((label || 'Choice') + ' failed');
+    });
   }
   function maybeShowServerCardPickPrompt(){
     const g = gameState();
@@ -766,18 +865,292 @@
     const minCount = Math.max(0, Number(pending.minCount || 0) || 0);
     const maxCount = Math.max(minCount, Number(pending.maxCount || minCount || 1) || 1);
     g._onlineShownServerCardPickPromptId = promptKey;
-    window.pickCardsVisual(cards, {
-      title:serverPendingCardPickTitle(pending),
-      subtitle:serverPendingCardPickSubtitle(pending),
-      minCount,
-      maxCount,
-      confirmLabel:serverPendingCardPickConfirmLabel(pending),
-      immediate:true
-    }, function(){});
+    withOnlinePromptBypass(g, function(){
+      window.pickCardsVisual(cards, {
+        title:serverPendingCardPickTitle(pending),
+        subtitle:serverPendingCardPickSubtitle(pending),
+        minCount,
+        maxCount,
+        confirmLabel:serverPendingCardPickConfirmLabel(pending),
+        immediate:true
+      }, function(chosen){
+        sendServerPendingAction('PICK_CARDS_VISUAL', pending, {
+          selectedCards:(chosen || []).map(cardIdentity)
+        }, 'Card choice');
+      });
+    });
+  }
+  function serverZonePickTitle(pending){
+    const kind = String(pending?.kind || '');
+    if(kind === 'ledgerKeepersCopyWhenSet') return 'Ledger-keepers';
+    if(kind === 'frenchFusiliersCopyPassive') return 'French Fusiliers';
+    if(kind === 'mariaSongCopies') return 'Maria Song';
+    if(kind === 'vigilantesMark') return 'Vigilantes';
+    if(kind === 'wolfCreekSelectMoveTarget') return 'Wolf Creek';
+    if(kind === 'juanCarlosSelectMoveTarget') return 'Juan Carlos';
+    if(kind === 'breakfastBusserGrantMove' || kind === 'breakfastBusserSelectSupporter') return 'Breakfast Republic Busser';
+    if(kind === 'westCoastDreamingBonus') return 'West Coast Dreaming';
+    if(kind === 'minaeDiscardSupporter') return 'MINAE Death Squad';
+    if(kind === 'makennaImmune') return 'Makenna';
+    return 'Select Target';
+  }
+  function serverZonePickPrompt(pending){
+    const kind = String(pending?.kind || '');
+    if(kind === 'ledgerKeepersCopyWhenSet') return 'Choose a Supporter effect to copy';
+    if(kind === 'frenchFusiliersCopyPassive') return 'Choose a Supporter passive to copy';
+    if(kind === 'mariaSongCopies') return 'Choose an opponent card';
+    if(kind === 'vigilantesMark') return 'Choose an opponent card in this zone';
+    if(kind === 'wolfCreekSelectMoveTarget') return 'Choose a friendly character in this zone';
+    if(kind === 'juanCarlosSelectMoveTarget') return 'Choose an opponent card to move';
+    if(kind === 'breakfastBusserGrantMove') return 'Choose a friendly card to gain movement';
+    if(kind === 'breakfastBusserSelectSupporter') return 'Choose a friendly Supporter';
+    if(kind === 'westCoastDreamingBonus') return 'Choose a card to gain 3 Fate';
+    if(kind === 'minaeDiscardSupporter') return 'Choose an opponent Supporter';
+    if(kind === 'makennaImmune') return 'Choose friendly cards to make immune';
+    if(kind === 'liberatorsFateGain') return 'Choose a card to gain 3 Fate';
+    if(kind === 'howardFateDouble') return 'Choose a card to double its Fate';
+    if(kind === 'hemorrhagingWound') return 'Choose a card to lose 3 Fate';
+    if(kind === 'santiagoHalveFate') return 'Choose an opponent card in the contested row';
+    if(kind === 'apparitionDiscardDraw') return 'Choose a friendly character to discard';
+    return 'Choose a target';
+  }
+  function serverZoneEntryAllowed(g, pending, card, z, r, c){
+    if(!card) return false;
+    const kind = String(pending?.kind || '');
+    const playerIndex = Number(pending?.playerIndex);
+    const opponent = playerIndex === 0 ? 1 : 0;
+    const sourceIid = String(pending?.iid || pending?.sourceIid || '');
+    if(kind === 'makennaImmune') return Number(card.owner) === playerIndex;
+    if(kind === 'liberatorsFateGain') return true;
+    if(kind === 'howardFateDouble') return card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'hemorrhagingWound') return true;
+    if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && String(card.type || '') === 'Supporter';
+    if(kind === 'mariaSongCopies') return Number(card.owner) === opponent;
+    if(kind === 'vigilantesMark') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'wolfCreekSelectMoveTarget') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && card.cantBeMoved !== true && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'juanCarlosSelectMoveTarget') return Number(card.owner) === opponent && card.cantBeMoved !== true;
+    if(kind === 'breakfastBusserGrantMove') return Number(card.owner) === playerIndex && card.faceDown !== true && card.cantBeMoved !== true && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'breakfastBusserSelectSupporter') return Number(card.owner) === playerIndex && String(card.type || '') === 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
+    return true;
+  }
+  function serverZonePickEntries(g, pending){
+    const entries = [];
+    const seen = new Set();
+    const addEntry = (z, r, c)=>{
+      const zi = Number(z), ri = Number(r), ci = Number(c);
+      if(!Number.isInteger(zi) || !Number.isInteger(ri) || !Number.isInteger(ci)) return;
+      const card = g?.board?.[zi]?.[ri]?.[ci] || null;
+      if(!card) return;
+      const key = zi + ':' + ri + ':' + ci;
+      if(seen.has(key)) return;
+      if(!serverZoneEntryAllowed(g, pending, card, zi, ri, ci)) return;
+      seen.add(key);
+      entries.push({card, z:zi, r:ri, c:ci});
+    };
+    if(Array.isArray(pending?.options) && pending.options.length){
+      pending.options.forEach(option=>addEntry(option.z, option.r, option.c));
+      return entries;
+    }
+    const zoneOnly = Number(pending?.z);
+    const zones = Number.isInteger(zoneOnly) ? [zoneOnly] : [0, 1, 2];
+    zones.forEach(z=>{
+      const zone = g?.board?.[z] || [];
+      zone.forEach((row, r)=>Array.isArray(row) && row.forEach((card, c)=>{ if(card) addEntry(z, r, c); }));
+    });
+    return entries;
+  }
+  function maybeShowServerZonePickPrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingZonePick;
+    if(!pending || typeof pending !== 'object'){
+      g._onlineShownServerZonePickPromptId = '';
+      return;
+    }
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    if(Number(g.currentPlayer) !== localIndex) return;
+    if(typeof window.showBoardTargetPicker !== 'function') return;
+    const promptKey = serverPromptId(pending, [pending.kind || 'zonePick', pending.iid || '', pending.z ?? '', g.turn || 0, localIndex].join(':'));
+    if(g._onlineShownServerZonePickPromptId === promptKey) return;
+    const entries = serverZonePickEntries(g, pending);
+    if(!entries.length) return;
+    g._onlineShownServerZonePickPromptId = promptKey;
+    withOnlinePromptBypass(g, function(){
+      window.showBoardTargetPicker({
+        title:serverZonePickTitle(pending),
+        prompt:serverZonePickPrompt(pending),
+        entries,
+        zones:[...new Set(entries.map(entry=>entry.z))],
+        maxCount:Math.max(1, Number(pending.maxCount || 1) || 1),
+        confirmLabel:'Confirm',
+        showOpponentOverlay:true,
+        allowOptionalCancelServerAction:pending.optional === true,
+        onCancel:function(){
+          if(pending.optional === true){
+            sendServerPendingAction('PICK_ZONE', pending, {selectedEntries:[]}, 'Target choice');
+          }
+        }
+      }, function(chosen){
+        sendServerPendingAction('PICK_ZONE', pending, {
+          selectedEntries:(chosen || []).map(boardSelectionPayload)
+        }, 'Target choice');
+      });
+    });
+  }
+  function maybeShowServerModalActionPrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingModalAction;
+    if(!pending || typeof pending !== 'object'){
+      g._onlineShownServerModalPromptId = '';
+      return;
+    }
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    if(Number(g.currentPlayer) !== localIndex) return;
+    const kind = String(pending.kind || '');
+    const promptId = String(pending.promptId || '');
+    if(!promptId) return;
+    if(g._onlineShownServerModalPromptId === promptId) return;
+    if(kind === 'affiliationChoice' && typeof window.showAffiliationPickerVisual === 'function'){
+      g._onlineShownServerModalPromptId = promptId;
+      withOnlinePromptBypass(g, function(){
+        window.showAffiliationPickerVisual(function(aff){
+          sendServerPendingAction('PICK_AFFILIATION', pending, {aff:String(aff || '')}, 'Affiliation choice');
+        });
+      });
+      return;
+    }
+    if(kind === 'artilleryDistance' && typeof window.showModal === 'function'){
+      g._onlineShownServerModalPromptId = promptId;
+      window.showModal('Artillery Distance', '<p>Select a zone to lock for your opponent.</p>', [
+        {label:'Zone 1', action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:0}, 'Artillery Distance'); }},
+        {label:'Zone 2', action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:1}, 'Artillery Distance'); }},
+        {label:'Zone 3', action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:2}, 'Artillery Distance'); }}
+      ], {immediate:true});
+      return;
+    }
+    if(kind === 'christopherErbsDrawChoice' && typeof window.showModal === 'function'){
+      g._onlineShownServerModalPromptId = promptId;
+      window.showModal('Christopher Erbs', '<p>Use Christopher Erbs on this draw?</p>', [
+        {label:'Skip', action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:0, activate:false}, 'Christopher Erbs'); }},
+        {label:'Use', pri:true, action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:1, activate:true}, 'Christopher Erbs'); }}
+      ], {immediate:true});
+      return;
+    }
+    if(kind === 'chaparralSetMode' && typeof window.showModal === 'function'){
+      g._onlineShownServerModalPromptId = promptId;
+      window.showModal('Chaparral Ambusher', '<p>Set this card normally or face down?</p>', [
+        {label:'Normal', action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:0, faceDown:false}, 'Chaparral choice'); }},
+        {label:'Face Down', pri:true, action:function(){ if(window.closeModal) closeModal(); sendServerPendingAction('MODAL_ACTION', pending, {actionIndex:1, faceDown:true}, 'Chaparral choice'); }}
+      ], {immediate:true});
+      return;
+    }
+    if(kind !== 'landscapeChoice' || typeof window.showLandscapeChoiceModal !== 'function') return;
+    g._onlineShownServerModalPromptId = promptId;
+    g._onlineLocalModalBypass = true;
+    window.__fateOnlineLocalModalBypass = true;
+    try{
+      window.showLandscapeChoiceModal(0, function(song, landscape, bgNum){
+        const latest = gameState();
+        const n = Math.max(1, Math.min(16, Number(bgNum || String(song || '').replace('board', '')) || 0));
+        const payload = {
+          playerIndex:localIndex,
+          turn:latest?.turn || g.turn || 0,
+          promptId,
+          song:String(song || ('board' + n)),
+          bgNum:n,
+          landscapeId:'igb' + n,
+          baseStateHash:onlineCanonicalStateHash(captureOnlineCanonicalState()),
+          clientActionId:'modal:landscapeChoice:' + promptId + ':' + Date.now()
+        };
+        sendAction('MODAL_ACTION', payload).catch(err=>{
+          console.warn('Server landscape choice failed', err);
+          if(window.toast) toast('Landscape choice failed');
+        });
+      });
+    } finally {
+      g._onlineLocalModalBypass = false;
+      window.__fateOnlineLocalModalBypass = false;
+    }
+  }
+  function serverPendingMoveTitle(pending){
+    const kind = String(pending?.kind || '');
+    if(kind === 'markKemperSafeSquare') return 'Mark Kemper';
+    if(kind === 'zoeBlockSquare') return 'Zoe';
+    if(kind === 'carolynBlockCell') return 'Carolyn';
+    if(kind === 'berkeleyHomelessMove') return 'Berkeley Homeless';
+    if(kind === 'alpineExpeditionaryMove') return 'ALPINE Expeditionary';
+    if(kind === 'breakfastBusserMove' || kind === 'busserAdjacentMove') return 'Movement';
+    if(kind === 'landscapeEventideMove') return 'Panacea';
+    if(kind === 'juanCarlosMove') return 'Juan Carlos';
+    if(kind === 'wolfCreekMove') return 'Wolf Creek';
+    return 'Choose Square';
+  }
+  function serverPendingMovePrompt(pending){
+    const kind = String(pending?.kind || '');
+    if(kind === 'markKemperSafeSquare') return 'Choose a safe-square slot.';
+    if(kind === 'zoeBlockSquare') return 'Choose a square to block.';
+    if(kind === 'carolynBlockCell') return 'Choose an empty square to lock.';
+    return 'Choose a highlighted destination.';
+  }
+  function moveOptionLabel(option){
+    return 'Zone ' + (Number(option.z) + 1) + ', Row ' + (Number(option.r) + 1) + ', Col ' + (Number(option.c) + 1);
+  }
+  function maybeShowServerMovePrompt(){
+    const g = gameState();
+    if(!isOnlineMatchState(g)) return;
+    const pending = g._serverPendingMove;
+    if(!pending || typeof pending !== 'object'){
+      g._onlineShownServerMovePromptId = '';
+      return;
+    }
+    const localIndex = onlineLocalPlayerIndex();
+    if(localIndex === null || Number(pending.playerIndex) !== localIndex) return;
+    if(Number(g.currentPlayer) !== localIndex) return;
+    if(typeof window.showModal !== 'function') return;
+    const options = Array.isArray(pending.options) ? pending.options.filter(option =>
+      Number.isInteger(Number(option?.z)) &&
+      Number.isInteger(Number(option?.r)) &&
+      Number.isInteger(Number(option?.c))
+    ) : [];
+    if(!options.length) return;
+    const promptKey = serverPromptId(pending, [pending.kind || 'move', pending.movingIid || pending.sourceIid || '', g.turn || 0, localIndex].join(':'));
+    if(g._onlineShownServerMovePromptId === promptKey) return;
+    g._onlineShownServerMovePromptId = promptKey;
+    const buttons = options.slice(0, 36).map((option, idx)=>
+      '<button class="btn sm" type="button" data-server-move-option="' + idx + '">' + reactionEscapeHtml(moveOptionLabel(option)) + '</button>'
+    ).join('');
+    window.showModal(serverPendingMoveTitle(pending), '<p>' + reactionEscapeHtml(serverPendingMovePrompt(pending)) + '</p><div class="server-pending-move-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.45rem;">' + buttons + '</div>', [
+      {label:'Cancel', action:function(){ if(window.closeModal) closeModal(); g._onlineShownServerMovePromptId = ''; }}
+    ], {immediate:true});
+    setTimeout(function(){
+      document.querySelectorAll('#modal [data-server-move-option]').forEach(btn=>{
+        btn.addEventListener('click', function(){
+          const idx = Number(btn.getAttribute('data-server-move-option'));
+          const option = options[idx];
+          if(!option) return;
+          if(window.closeModal) closeModal();
+          sendServerPendingAction('CLICK_CELL', pending, {
+            z:Number(option.z),
+            r:Number(option.r),
+            c:Number(option.c),
+            placing:false,
+            selectedHand:selectedHandSnapshot(gameState())
+          }, 'Square choice');
+        });
+      });
+    }, 0);
   }
   function maybeShowServerPendingPrompts(){
     maybeShowServerReactionPrompt();
     maybeShowServerCardPickPrompt();
+    maybeShowServerZonePickPrompt();
+    maybeShowServerModalActionPrompt();
+    maybeShowServerMovePrompt();
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
@@ -847,6 +1220,7 @@
       (clientResolvedGameplayEnabled() && g.selectedHandCard !== null && g.selectedHandCard !== undefined) ||
       g._consolidating ||
       g._serverPendingReaction ||
+      g._serverPendingMove ||
       g._havanoDeploying ||
       g._boardTargeting ||
       g.blockingCell ||
@@ -1470,8 +1844,11 @@
         const bucket = String(pending?.bucket || pending?.kind || '');
         if(bucket === 'cardPick' || bucket === 'pickCards'){
           g._onlineShownServerCardPickPromptId = '';
-          setTimeout(maybeShowServerCardPickPrompt, 0);
         }
+        if(bucket === 'zonePick' || bucket === 'pickZone') g._onlineShownServerZonePickPromptId = '';
+        if(bucket === 'move' || bucket === 'pickMove') g._onlineShownServerMovePromptId = '';
+        if(bucket === 'modalAction' || bucket === 'modal') g._onlineShownServerModalPromptId = '';
+        setTimeout(maybeShowServerPendingPrompts, 0);
         return false;
       }
     }
@@ -3678,6 +4055,9 @@
       }
       return;
     }
+    if(type === 'ACTION_RESULT' && shouldApplyServerStateDirectly(type, payload)){
+      applyAuthoritativePostState(action, 'client-resolved authoritative state seq ' + (action.seq || '?'));
+    }
     const actionPlayer = onlineActionPlayer(action);
     const localUid = window.FATE_ONLINE?.user?.uid;
     const optimisticActionId = optimisticActionIdFor(action);
@@ -4922,7 +5302,7 @@
         if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && g.currentPlayer !== g._onlinePlayerIndex) {
           return;
         }
-        if(!canSendLocalAction(g, 'START_CONSOLIDATE')) return;
+        if(!canSendLocalAction(g, 'END_TURN')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
         }
@@ -5031,6 +5411,15 @@
         const args = arguments;
         const pendingMove = g._serverPendingMove || null;
         const pendingConsolidation = g._consolidating || null;
+        if(pendingMove){
+          return sendServerPendingAction('CLICK_CELL', pendingMove, {
+            z,
+            r,
+            c,
+            placing:false,
+            selectedHand:selectedHandSnapshot(g)
+          }, 'Square choice');
+        }
         return sendOptimisticAction('CLICK_CELL', {
           playerIndex:g.currentPlayer,
           turn:g.turn,
@@ -5113,6 +5502,7 @@
       originals.pickCardsVisual = window.pickCardsVisual;
       window.pickCardsVisual = function(cards, opts, onConfirm){
         const g = gameState();
+        if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.pickCardsVisual.apply(this, arguments);
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.pickCardsVisual.apply(this, arguments);
         }
@@ -5143,6 +5533,7 @@
       originals.showZonePicker = window.showZonePicker;
       window.showZonePicker = function(z, prompt, entries, maxCount, viewerP, onConfirm, filter){
         const g = gameState();
+        if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.showZonePicker.apply(this, arguments);
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.showZonePicker.apply(this, arguments);
         }
@@ -5170,6 +5561,7 @@
       originals.showBoardTargetPicker = window.showBoardTargetPicker;
       window.showBoardTargetPicker = function(opts, onConfirm){
         const g = gameState();
+        if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.showBoardTargetPicker.apply(this, arguments);
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.showBoardTargetPicker.apply(this, arguments);
         }
@@ -5220,7 +5612,7 @@
       originals.showAffiliationPickerVisual = window.showAffiliationPickerVisual;
       window.showAffiliationPickerVisual = function(callback){
         const g = gameState();
-        if(g?._onlineLocalModalBypass || window.__fateOnlineLocalModalBypass) return originals.showAffiliationPickerVisual.apply(this, arguments);
+        if(g?._onlineLocalModalBypass || window.__fateOnlineLocalModalBypass || g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.showAffiliationPickerVisual.apply(this, arguments);
         if(!isOnlineMatchState(g) || typeof callback !== 'function'){
           return originals.showAffiliationPickerVisual.apply(this, arguments);
         }

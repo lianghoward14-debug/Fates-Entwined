@@ -1296,6 +1296,7 @@ let _aiPickerPage = 0;
 const AI_DIVISIONS = ['Footman','Captain-Officer','Lieutenant at Arms','Sergeant of the Guard','Commander-General','High Marshall'];
 const _aiPickerHtmlCache = new Map();
 let _aiPickerWarmupPromise = null;
+let _aiPickerUseDefaultFateMultiplier = false;
 
 function getAIDivisionRankData(rankName) {
   const ranks = (typeof RANKS !== 'undefined' && Array.isArray(RANKS)) ? RANKS : [];
@@ -1311,11 +1312,26 @@ function getAIDivisionEloRange(rankName) {
   return next ? (min + '-' + (next.minElo - 1)) : (min + '+');
 }
 
+function aiPickerUsesDefaultValues(){
+  return !!_aiPickerUseDefaultFateMultiplier;
+}
+
+function aiPickerDisplayElo(ai){
+  if(aiPickerUsesDefaultValues()) return Math.max(100, Math.round(Number(ai?.defaultElo || ai?.elo || 600) || 600));
+  return Math.max(100, Math.round(Number(ai?.elo || ai?.defaultElo || 600) || 600));
+}
+
+function aiPickerDisplayRank(ai){
+  if(aiPickerUsesDefaultValues()) return ai?.defaultRank || ai?.rank || (typeof getRank === 'function' ? getRank(aiPickerDisplayElo(ai)).name : '');
+  return ai?.rank || ai?.defaultRank || (typeof getRank === 'function' ? getRank(aiPickerDisplayElo(ai)).name : '');
+}
+
 function buildAIDifficultyPickerHtml(page) {
   const targetPage = Math.max(0, Math.min(Number(page) || 0, AI_DIVISIONS.length-1));
-  if(_aiPickerHtmlCache.has(targetPage)) return _aiPickerHtmlCache.get(targetPage);
+  const cacheKey = targetPage + ':' + (aiPickerUsesDefaultValues() ? 'default' : 'live');
+  if(_aiPickerHtmlCache.has(cacheKey)) return _aiPickerHtmlCache.get(cacheKey);
   const rank = AI_DIVISIONS[targetPage];
-  const opponents = AI_OPPONENTS.filter(a=>a.rank===rank);
+  const opponents = AI_OPPONENTS.filter(a=>aiPickerDisplayRank(a)===rank);
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
       <div style="font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);">Choose Opponent</div>
@@ -1336,20 +1352,21 @@ function buildAIDifficultyPickerHtml(page) {
       </div>
       <div style="display:flex;flex-direction:column;gap:.55rem;max-height:68vh;overflow-y:auto;padding-right:.3rem;">`;
     opponents.forEach(opp=>{
+      const displayElo = aiPickerDisplayElo(opp);
       const aiIndex = AI_OPPONENTS.indexOf(opp);
       const avatar = opp.img
         ? '<div class="ai-avatar ai-avatar-lg"><img src="'+opp.img+'" alt="" loading="eager" decoding="async" draggable="false" onerror="this.style.display=&quot;none&quot;"></div>'
         : '<div class="ai-avatar ai-avatar-lg"><span style="font-size:1.25rem;opacity:.72;font-family:Cinzel,serif;">AI</span></div>';
       html += '<div class="ai-diff-option" data-ai-index="'+aiIndex+'" style="cursor:pointer;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:12px;background:rgba(0,0,0,.35);transition:all .18s;display:flex;align-items:center;gap:1rem;">'
         + avatar
-        + '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;"><span style="font-family:Cinzel,serif;font-size:1.02rem;color:var(--gold);font-weight:800;letter-spacing:.03em;">'+escapeHtml(opp.name)+'</span><span style="font-family:Cinzel,serif;font-size:.66rem;color:'+rankData.color+';background:'+rankData.bg+';padding:.14rem .45rem;border-radius:999px;border:1px solid '+rankData.color+'40;">'+opp.elo+' ELO</span></div><div style="font-size:.79rem;color:var(--text);font-style:italic;margin-top:.22rem;line-height:1.42;opacity:.92;">'+escapeHtml(opp.desc)+'</div></div>'
+        + '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;"><span style="font-family:Cinzel,serif;font-size:1.02rem;color:var(--gold);font-weight:800;letter-spacing:.03em;">'+escapeHtml(opp.name)+'</span><span style="font-family:Cinzel,serif;font-size:.66rem;color:'+rankData.color+';background:'+rankData.bg+';padding:.14rem .45rem;border-radius:999px;border:1px solid '+rankData.color+'40;">'+displayElo+' ELO</span></div><div style="font-size:.79rem;color:var(--text);font-style:italic;margin-top:.22rem;line-height:1.42;opacity:.92;">'+escapeHtml(opp.desc)+'</div></div>'
         + '<button class="btn sm pri ai-pick-btn" type="button" data-ai-index="'+aiIndex+'" style="flex-shrink:0;">Play</button></div>';
     });
     html += '</div>';
   } else {
     html += '<div style="text-align:center;color:var(--dim);padding:2rem 0;">No AI opponents found for this division.</div>';
   }
-  _aiPickerHtmlCache.set(targetPage, html);
+  _aiPickerHtmlCache.set(cacheKey, html);
   return html;
 }
 
@@ -1405,8 +1422,15 @@ try {
   window.fateWarmAIPickerAssets = warmAIDifficultyPickerAssets;
 } catch(e) {}
 
-function showAIDifficultyPicker(page=_aiPickerPage) {
+function showAIDifficultyPicker(page=_aiPickerPage, options={}) {
   if(!G.aiDifficulty) G.aiDifficulty = 'medium';
+  if(options && Object.prototype.hasOwnProperty.call(options, 'defaultFateMultiplier')) {
+    _aiPickerUseDefaultFateMultiplier = !!options.defaultFateMultiplier;
+  } else if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'free') {
+    _aiPickerUseDefaultFateMultiplier = true;
+  } else {
+    _aiPickerUseDefaultFateMultiplier = false;
+  }
   _aiPickerPage = Math.max(0, Math.min(page, AI_DIVISIONS.length-1));
   const panel = document.getElementById('difficulty-panel');
   panel.innerHTML = buildAIDifficultyPickerHtml(_aiPickerPage);
@@ -1418,20 +1442,23 @@ function showAIDifficultyPicker(page=_aiPickerPage) {
 function pickAIOpponentByIndex(aiIndex) {
   const opp = AI_OPPONENTS[aiIndex];
   if(!opp) return;
-  selectAIOpponent(opp);
+  selectAIOpponent(opp, {defaultFateMultiplier:_aiPickerUseDefaultFateMultiplier});
 }
 
 function pickAIOpponent(aiName) {
   const opp = AI_OPPONENTS.find(a=>a.name===aiName);
   if(!opp) return;
-  selectAIOpponent(opp);
+  selectAIOpponent(opp, {defaultFateMultiplier:_aiPickerUseDefaultFateMultiplier});
 }
 
 function selectAIOpponent(opp, options={}) {
   if(!opp) return;
   const skipFollowup = !!options.skipFollowup;
   const currentOpp = typeof resolveCurrentAIOpponentState === 'function' ? resolveCurrentAIOpponentState(opp) : opp;
-  G.aiDifficulty = currentOpp.elo>=1400?'extreme':currentOpp.elo>=1200?'hard':currentOpp.elo>=800?'medium':'easy';
+  const difficultyElo = options.defaultFateMultiplier
+    ? (Number(opp.defaultElo || currentOpp.defaultElo || opp.elo || currentOpp.elo || 600) || 600)
+    : (Number(currentOpp.elo || opp.elo || 600) || 600);
+  G.aiDifficulty = difficultyElo>=1400?'extreme':difficultyElo>=1200?'hard':difficultyElo>=800?'medium':'easy';
 
   // For AI with deckPool='starter', randomly pick one of the 4 starter decks each match
   let resolvedOpp = currentOpp;
@@ -1444,12 +1471,24 @@ function selectAIOpponent(opp, options={}) {
       resolvedOpp = {...currentOpp, deck: [...picked.ids], _deckStrategy: picked.baseStrategy || picked.id};
     }
   }
+  if(options.defaultFateMultiplier) {
+    const fixedElo = Number(opp.defaultElo || currentOpp.defaultElo || opp.elo || currentOpp.elo || 600) || 600;
+    const fixedRank = opp.defaultRank || opp.rank || currentOpp.defaultRank || currentOpp.rank || (typeof getRank === 'function' ? getRank(fixedElo).name : '');
+    resolvedOpp = {
+      ...resolvedOpp,
+      elo:fixedElo,
+      rank:fixedRank,
+      _useDefaultFateMultiplier:true,
+      _defaultRank:fixedRank,
+      _defaultElo:fixedElo
+    };
+  }
 
   const playableDeck = typeof getPlayableAIDeck === 'function' ? getPlayableAIDeck(resolvedOpp, G.aiDifficulty) : (Array.isArray(resolvedOpp.deck) ? resolvedOpp.deck.slice(0,40) : []);
   G._selectedAI = {...resolvedOpp, deck:[...playableDeck]};
   G.p2Deck = [...playableDeck];
-  G.players[1].name = currentOpp.name;
-  G._aiOpponentElo = currentOpp.elo;
+  G.players[1].name = resolvedOpp.name || currentOpp.name;
+  G._aiOpponentElo = resolvedOpp.elo;
   const diffOverlay = document.getElementById('s-difficulty-overlay');
   if(diffOverlay) diffOverlay.classList.remove('on');
   if(skipFollowup) return;
@@ -2437,25 +2476,16 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   const cp = G.aiPlayer;
   const opp = 1 - cp;
   if(card.id==='52' && !card.vigilanteUsed){
-    const sacrifices = [];
-    forEachBoardCard((bc,bz,br,bc2)=>{
-      if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && bc.id!=='76'){
-        sacrifices.push({card:bc,z:bz,r:br,c:bc2});
-      }
-    });
-    if(sacrifices.length < 3) return;
     const targets = [];
-    forEachBoardCard((bc,bz,br,bc2)=>{ if(bc.owner===opp && !bc.immuneFlag) targets.push({card:bc,z:bz,r:br,c:bc2}); });
+    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
     if(!targets.length) return;
-    sacrifices.sort((a,b)=>(a.card.currentFate||a.card.fate||0)-(b.card.currentFate||b.card.fate||0));
     targets.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
-    sacrifices.slice(0,3).forEach(s=>{ G.board[s.z][s.r][s.c]=null; fatePushDiscard(cp, s.card); });
     const target = targets[0];
-    G.board[target.z][target.r][target.c]=null;
-    fatePushDiscard(opp, target.card);
+    target.card._markedForDeath = true;
+    target.card._reinforcementOverride = 0;
     card.vigilanteUsed = true;
-    log('p2','AI: Vigilantes destroyed '+target.card.name);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:false, topbar:false, effects:false, hover:false});
+    log('p2','AI: Vigilantes marked '+target.card.name+' for death');
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:false, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
     return;
   }

@@ -100,6 +100,20 @@ function makePlayerState(deckIds, playerIndex, catalog, rng, instanceCounter){
   };
 }
 
+function queueOpeningHandSelvaBoosts(state){
+  if(!state || !Array.isArray(state.players)) return;
+  if(!Array.isArray(state._pendingSelvaSupportBoost)) state._pendingSelvaSupportBoost = [0, 0];
+  state.players.forEach((player, playerIndex)=>{
+    if(!player || !Array.isArray(player.hand)) return;
+    player.hand.forEach(card=>{
+      if(!card || String(card.id || '') !== '74') return;
+      if(card._selvaOpeningQueued) return;
+      card._selvaOpeningQueued = true;
+      state._pendingSelvaSupportBoost[playerIndex] = (Number(state._pendingSelvaSupportBoost[playerIndex] || 0) || 0) + 1;
+    });
+  });
+}
+
 function buildInitialAuthorityState(input){
   const catalog = input && input.catalog;
   const decks = input && input.decks || {};
@@ -114,6 +128,8 @@ function buildInitialAuthorityState(input){
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
+  const currentPlayer = Number(input && input.currentPlayer);
+  const firstPlayer = Number.isInteger(currentPlayer) && currentPlayer >= 0 && currentPlayer <= 1 ? currentPlayer : 0;
   const state = {
     v:2,
     players:[p0, p1],
@@ -131,7 +147,7 @@ function buildInitialAuthorityState(input){
     landscapeBgNum:null,
     _landscapeState:null,
     _landscapeDrawQueue:[],
-    currentPlayer:0,
+    currentPlayer:firstPlayer,
     turn:1,
     turnNumber:1,
     maxTurns:20,
@@ -143,10 +159,13 @@ function buildInitialAuthorityState(input){
     supportsPlacedThisTurn:0,
     maxSupportsPerTurn:2,
     extraSupportsThisTurn:0,
+    _pendingSelvaSupportBoost:[0, 0],
+    _selvaSupportBoosts:[null, null],
     pendingEffect:null,
     instanceCounter:counter.value,
     damageDoneP:[0, 0],
     supportersSetP:[0, 0],
+    supporterReinforcementSetP:[0, 0],
     _supporterEffectsActivatedP:[0, 0],
     _snowyVillageUses:[0, 0],
     _landscapeChangeLocks:[0, 0],
@@ -169,6 +188,7 @@ function buildInitialAuthorityState(input){
     _continuousDamageSources:[],
     _fortCalvinActive:[],
     _linaFreeIids:null,
+    _serverFreePlacement:null,
     _polishUsedThisTurn:false,
     _revealedCards:{},
     _riveraBuffs:[],
@@ -189,6 +209,7 @@ function buildInitialAuthorityState(input){
     _havanoDeploying:null,
     _boardTargeting:null
   };
+  queueOpeningHandSelvaBoosts(state);
   return {state, stateHash:canonicalStateHash(state)};
 }
 

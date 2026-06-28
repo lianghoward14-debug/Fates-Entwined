@@ -24,7 +24,7 @@ primary_region = 'lax'
   FATE_WS_REDUCER_MODE = 'strict'
   FATE_WS_MAX_ROOM_EVENTS = '360'
   FATE_WS_PERSIST_DEBOUNCE_MS = '750'
-  FATE_WS_APPEND_EVENT_LOG = '0'
+  FATE_WS_APPEND_EVENT_LOG = '1'
   FATE_WS_PING_MS = '45000'
 
 [[mounts]]

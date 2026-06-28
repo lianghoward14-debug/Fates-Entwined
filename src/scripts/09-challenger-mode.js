@@ -3535,9 +3535,11 @@ function syncAIOpponentLeaderboardEntries() {
   const history = getMatchHistory();
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
   aiList.forEach(ai=>{
-    const seededRecord = !!(ai.isMonthly || Number(ai.seededWinRate || 0) || Number(ai.seededMatches || 0) || Number(ai.generationVersion || 0) || Number(ai.recordSchemaVersion || 0));
-    let aiWins = seededRecord ? 0 : (Number(ai.wins || 0) || 0);
-    let aiLosses = seededRecord ? 0 : (Number(ai.losses || 0) || 0);
+    const rawWins = Math.max(0, Number(ai.challengerWins ?? ai.wins ?? 0) || 0);
+    const rawLosses = Math.max(0, Number(ai.challengerLosses ?? ai.losses ?? 0) || 0);
+    const seededRecord = isStaleSeededLeaderboardEntry(Object.assign({}, ai, {isAI:true}));
+    let aiWins = seededRecord ? 0 : rawWins;
+    let aiLosses = seededRecord ? 0 : rawLosses;
     history.forEach(m => {
       if(m && m.simulated) return;
       if(m.p1 === ai.name){ if(m.winner === ai.name) aiWins++; else aiLosses++; }
@@ -3556,6 +3558,7 @@ function syncAIOpponentLeaderboardEntries() {
       trueElo: ai.trueElo || ai.elo,
       seededWinRate: ai.seededWinRate,
       seededMatches: ai.seededMatches || 0,
+      generationVersion: ai.generationVersion || 0,
       recordSchemaVersion: ai.recordSchemaVersion || 5,
     });
   });
@@ -3565,6 +3568,7 @@ function syncAIOpponentLeaderboardEntries() {
 let _leaderboardPage = 0;
 function isStaleSeededLeaderboardEntry(entry){
   if(!entry || !(entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(String(entry.uid || entry.username || entry.name || '')))) return false;
+  if(entry.source === 'fly-authority') return false;
   const hasSeedMeta = !!(entry.isMonthly || Number(entry.seededWinRate || 0) || Number(entry.seededMatches || 0) || Number(entry.generationVersion || 0) || Number(entry.recordSchemaVersion || 0));
   if(!hasSeedMeta) return false;
   const wins = entry && entry.challengerWins !== undefined ? Math.max(0, Number(entry.challengerWins || 0) || 0) : Math.max(0, Number(entry?.wins || 0) || 0);
@@ -3671,9 +3675,8 @@ function getMergedChallengerLeaderboardEntries() {
 }
 showLeaderboard = async function(page=0, opts={}) {
   const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
-  if(modalAlreadyOpen && typeof playSfx === 'function') playSfx('uiClick');
   if(!(opts && opts.skipFresh) && !modalAlreadyOpen && typeof window.FateOnlineReady === 'function') {
-    try { await Promise.race([window.FateOnlineReady(), new Promise(resolve=>setTimeout(resolve, 1500))]); } catch(e) {}
+    try { await window.FateOnlineReady(); } catch(e) {}
   }
   if(!(opts && opts.skipFresh) && !modalAlreadyOpen && window.FateOnline && typeof window.FateOnline.syncSharedAIRoster === 'function') {
     try { await window.FateOnline.syncSharedAIRoster(); } catch(e) {}
@@ -5489,7 +5492,6 @@ function _fmtMatchTime(ts){
 }
 function showMatchHistory(page) {
   const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
-  if(modalAlreadyOpen && typeof playSfx === 'function') playSfx('uiClick');
   if(typeof page === 'number') _matchHistPage = page;
   const history = getMatchHistory().reverse();
   const PER_PAGE = 5;
@@ -5574,7 +5576,6 @@ let _divisionPageIdx = 0;
 let _divisionMemberPageIdx = 0;
 function showDivisionPage(page, memberPage) {
   const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
-  if(modalAlreadyOpen && typeof playSfx === 'function') playSfx('uiClick');
   if(typeof page === 'number'){
     if(page !== _divisionPageIdx) _divisionMemberPageIdx = 0;
     _divisionPageIdx = page;

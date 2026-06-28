@@ -19,6 +19,12 @@ const {
 } = require('./fate-authority-reducer');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {buildInitialAuthorityState} = require('./fate-authority-bootstrap');
+const {
+  publicRoomDiagnostics,
+  publicSystemDiagnostics,
+  recordClientReport,
+  recordRoomDiagnostic
+} = require('./fate-multiplayer-diagnostics');
 
 const PORT = Number(process.env.PORT || process.env.FATE_WS_PORT || 8787);
 const HOST = process.env.HOST || process.env.FATE_WS_HOST || '0.0.0.0';
@@ -40,7 +46,8 @@ const DISCONNECT_TIMEOUT_MS = Number(process.env.FATE_WS_DISCONNECT_TIMEOUT_MS |
 const REACTION_TIMEOUT_MS = Number(process.env.FATE_WS_REACTION_TIMEOUT_MS || 16000);
 const SHUTDOWN_GRACE_MS = Number(process.env.FATE_WS_SHUTDOWN_GRACE_MS || 4500);
 const FLY_PERSIST_DEBOUNCE_MS = Math.max(50, Number(process.env.FATE_WS_PERSIST_DEBOUNCE_MS || 750) || 750);
-const APPEND_FLY_EVENT_LOG = process.env.FATE_WS_APPEND_EVENT_LOG === '1';
+const APPEND_FLY_EVENT_LOG = process.env.FATE_WS_APPEND_EVENT_LOG === '1' ||
+  (process.env.FATE_WS_APPEND_EVENT_LOG !== '0' && process.env.FATE_WS_FLY_STORE === '1');
 const LOAD_FLY_EVENT_LOG = process.env.FATE_WS_LOAD_EVENT_LOG === '1' || APPEND_FLY_EVENT_LOG;
 const FLY_DATA_DIR = String(process.env.FATE_WS_DATA_DIR || '').trim();
 const FLY_STORE_ENABLED = process.env.FATE_WS_FLY_STORE !== '0' && !!FLY_DATA_DIR;
@@ -79,6 +86,8 @@ let flyMarketplaceSeq = 0;
 let flyPublicDeckCommentSeq = 0;
 let flyPrivateMessageSeq = 0;
 let flyAISimSchedule = {};
+let flyAISimulationInterval = 0;
+let flyAISimulationStartupTimer = 0;
 let certCache = { expiresAt: 0, certs: null };
 let serviceAccountCache = undefined;
 let adminTokenCache = { expiresAt: 0, accessToken: '' };
@@ -704,6 +713,9 @@ function send(ws, message){
 
 function closeSocket(ws, code, reason){
   if(!ws || ws.destroyed) return;
+  if(markSocketDisconnected(ws, {immediate:false})){
+    persistFlyRoomMutationNow('socket-close');
+  }
   const reasonBuffer = Buffer.from(String(reason || '').slice(0, 120));
   const payload = Buffer.alloc(2 + reasonBuffer.length);
   payload.writeUInt16BE(code || 1000, 0);
@@ -1790,6 +1802,7 @@ function isFlyInternalProfile(value){
 
 function flyAIRecordLooksStaleSeed(raw){
   if(!raw || typeof raw !== 'object') return false;
+  if(raw.source === 'fly-authority') return false;
   const isAI = !!(raw.isAI || raw.aiId || /^monthly_|^preset_/i.test(String(raw.uid || raw.name || raw.username || '')));
   if(!isAI) return false;
   const hasSeedMeta = !!(
@@ -1839,7 +1852,7 @@ function publicFlyAIRecord(value){
     seededWinRate:Math.max(0, Math.min(1, Number(raw.seededWinRate || 0) || 0)),
     seededMatches:Math.min(20000, safeNonNegativeInteger(raw.seededMatches, 0)),
     generationVersion:safeNonNegativeInteger(raw.generationVersion, 0),
-    recordSchemaVersion:raw.recordSchemaVersion === undefined ? 0 : safeNonNegativeInteger(raw.recordSchemaVersion, 0),
+    recordSchemaVersion:Math.max(SHARED_AI_RECORD_SCHEMA_VERSION, raw.recordSchemaVersion === undefined ? 0 : safeNonNegativeInteger(raw.recordSchemaVersion, 0)),
     isAI:true,
     isMonthly:raw.isMonthly !== false,
     monthKey:String(raw.monthKey || '').slice(0, 24),
@@ -2037,11 +2050,36 @@ function runFlyAISimulationBatch(monthKey = '', count = null){
   return {ran, skipped:'', roster:listFlyAIRecords(key)};
 }
 
-function flyLeaderboard(limit = 100){
-  return [...flyPlayerStats.values()]
+function runScheduledFlyAISimulation(reason = 'timer'){
+  if(shuttingDown || flyAIRecords.size < 2) return {ran:0, skipped:'empty-roster', roster:[]};
+  const key = String(flyAISimSchedule?.monthKey || '').slice(0, 24);
+  const result = runFlyAISimulationBatch(key, null);
+  if(Number(result?.ran || 0) > 0){
+    console.log(`Fly AI simulation ${reason}: ran ${result.ran} match(es)`);
+  }
+  return result;
+}
+
+function startFlyAISimulationCadence(){
+  if(flyAISimulationInterval) return;
+  flyAISimulationStartupTimer = setTimeout(()=>{
+    flyAISimulationStartupTimer = 0;
+    runScheduledFlyAISimulation('startup');
+  }, 15000);
+  flyAISimulationStartupTimer.unref?.();
+  flyAISimulationInterval = setInterval(()=>runScheduledFlyAISimulation('timer'), 10 * 60 * 1000);
+  flyAISimulationInterval.unref?.();
+}
+
+function flyLeaderboard(limit = 100, opts = {}){
+  const monthKey = String(opts.monthKey || '').slice(0, 24);
+  const players = [...flyPlayerStats.values()]
     .map(publicFlyProfile)
     .filter(Boolean)
-    .filter(entry=>Number(entry.challengerWins || 0) || Number(entry.challengerLosses || 0) || Number(entry.matchesPlayed || 0))
+    .filter(entry=>!isFlyInternalProfile(entry))
+    .filter(entry=>Number(entry.challengerWins || 0) || Number(entry.challengerLosses || 0) || Number(entry.matchesPlayed || 0));
+  const aiRecords = listFlyAIRecords(monthKey);
+  return players.concat(aiRecords)
     .sort((a,b)=>{
       const eloDelta = (Number(b.challengerElo || b.elo || 0) || 0) - (Number(a.challengerElo || a.elo || 0) || 0);
       if(eloDelta) return eloDelta;
@@ -2131,7 +2169,7 @@ function joinRoomSpectator(room, uid){
     lastSeen:now()
   });
   touch(room);
-  persistFlyRoomMutation();
+  persistFlyRoomMutationNow('spectator-join');
   return room.spectators[uid];
 }
 
@@ -2140,7 +2178,10 @@ function heartbeatRoomSpectator(room, uid){
   if(!room.spectators?.[uid]) throw new Error('user is not spectating this room');
   room.spectators[uid] = publicSpectator(Object.assign({}, room.spectators[uid], {lastSeen:now()}));
   touch(room);
-  persistFlyRoomMutation();
+  if(!room._lastHeartbeatPersistAt || now() - room._lastHeartbeatPersistAt > 30000){
+    room._lastHeartbeatPersistAt = now();
+    persistFlyRoomMutation();
+  }
   return room.spectators[uid];
 }
 
@@ -2149,7 +2190,7 @@ function leaveRoomSpectator(room, uid){
   const had = !!room.spectators?.[uid];
   if(had) delete room.spectators[uid];
   touch(room);
-  persistFlyRoomMutation();
+  persistFlyRoomMutationNow('spectator-leave');
   return had;
 }
 
@@ -2357,7 +2398,7 @@ function setRoomPlayerProgress(room, uid, progress){
   player.connected = true;
   clearDisconnectTimer(room, uid);
   touch(room);
-  persistFlyRoomMutation();
+  persistFlyRoomMutationNow('room-progress');
   return publicPlayer(player);
 }
 
@@ -2383,7 +2424,7 @@ function appendRoomChat(room, uid, text, profile){
   if(room.chat.length > 100) room.chat.splice(0, room.chat.length - 100);
   room.chatSeq = seq;
   touch(room);
-  persistFlyRoomMutation();
+  persistFlyRoomMutationNow('room-chat');
   broadcast(room, {kind:'room-chat', roomCode:room.code, message:publicChatMessage(msg), chatSeq:room.chatSeq});
   return publicChatMessage(msg);
 }
@@ -2905,6 +2946,7 @@ async function finalizeDisconnectTimeoutQueued(roomCodeValue, uid){
   applyRoomPatch(room, roomPatch);
   clearAllDisconnectTimers(room);
   appendRoomEvent(room, accepted);
+  persistFlyRoomMutationNow('disconnect-timeout');
   broadcast(room, accepted);
   return accepted;
 }
@@ -3078,6 +3120,15 @@ function persistFlyRoomMutation(){
     scheduleFlyRoomsSnapshotPersist();
   }catch(e){
     console.error('Fly durable room persist failed:', e.message || e);
+  }
+}
+
+function persistFlyRoomMutationNow(label){
+  try{
+    if(flyRoomsPersistTimer){ clearTimeout(flyRoomsPersistTimer); flyRoomsPersistTimer = 0; }
+    persistFlyRoomsSnapshot();
+  }catch(e){
+    console.error(`Fly durable room ${label || 'immediate'} persist failed:`, e.message || e);
   }
 }
 
@@ -3588,6 +3639,11 @@ async function handleApiRequest(req, res, url){
       });
       return true;
     }
+    if(req.method === 'GET' && parts[1] === 'diagnostics'){
+      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 40) || 40));
+      writeJson(res, 200, Object.assign({ok:true}, publicSystemDiagnostics(rooms, matchmaking, {limit})));
+      return true;
+    }
     if(parts[1] === 'static-overrides'){
       if(req.method !== 'POST') throw new Error('static override route requires POST');
       const body = await readJsonBody(req);
@@ -3597,9 +3653,10 @@ async function handleApiRequest(req, res, url){
     }
     if(req.method === 'GET' && parts[1] === 'leaderboards' && parts[2] === 'challenger'){
       const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
+      const monthKey = String(url.searchParams.get('monthKey') || '').slice(0, 24);
       writeJson(res, 200, {
         ok:true,
-        leaderboard:flyLeaderboard(limit)
+        leaderboard:flyLeaderboard(limit, {monthKey})
       });
       return true;
     }
@@ -3938,7 +3995,7 @@ async function handleApiRequest(req, res, url){
       const player = upsertRoomPlayer(room, uid, 'host', body.profile, body.deckChoice);
       if(player) player.connected = true;
       touch(room);
-      persistFlyRoomMutation();
+      persistFlyRoomMutationNow('create-room');
       writeJson(res, 200, {ok:true, room:publicRoom(room)});
       return true;
     }
@@ -3978,6 +4035,21 @@ async function handleApiRequest(req, res, url){
       const room = rooms.get(roomCode(parts[2]));
       if(!room){
         writeJson(res, 404, {ok:false, error:'room not found'});
+        return true;
+      }
+      if(req.method === 'GET' && parts[3] === 'diagnostics'){
+        await requireRoomViewerRequestUser(req, room);
+        const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
+        writeJson(res, 200, {ok:true, diagnostics:publicRoomDiagnostics(room, {limit})});
+        return true;
+      }
+      if(req.method === 'POST' && parts[3] === 'diagnostics' && parts[4] === 'client'){
+        const body = await readJsonBody(req);
+        const uid = await verifyRequestUser(req, body);
+        if(!roomViewerIndexForUid(room, uid)) throw new Error('user is not seated or spectating this room');
+        const report = recordClientReport(room, body.diagnostics || body.report || body, uid);
+        persistFlyRoomMutation();
+        writeJson(res, 200, {ok:true, report, diagnostics:publicRoomDiagnostics(room, {limit:20})});
         return true;
       }
       if(req.method === 'GET' && parts.length === 3){
@@ -4064,7 +4136,7 @@ async function handleApiRequest(req, res, url){
         const player = upsertRoomPlayer(room, uid, uid === room.hostUid ? 'host' : 'guest', body.profile, body.deckChoice);
         if(player) player.connected = true;
         touch(room);
-        persistFlyRoomMutation();
+        persistFlyRoomMutationNow('join-room');
         writeJson(res, 200, {ok:true, room:publicRoom(room)});
         return true;
       }
@@ -4089,7 +4161,7 @@ async function handleApiRequest(req, res, url){
         const player = upsertRoomPlayer(room, uid, uid === room.hostUid ? 'host' : 'guest', body.profile, body.deckChoice);
         if(player) player.connected = true;
         touch(room);
-        persistFlyRoomMutation();
+        persistFlyRoomMutationNow('room-player');
         writeJson(res, 200, {ok:true, room:publicRoom(room)});
         return true;
       }
@@ -4236,13 +4308,14 @@ server.on('upgrade', (req, socket)=>{
   sockets.add(socket);
   socket.on('data', chunk=>readFrames(socket, chunk));
   socket.on('close', ()=>cleanupSocket(socket));
+  socket.on('end', ()=>cleanupSocket(socket));
   socket.on('error', ()=>cleanupSocket(socket));
 });
 
 function cleanupSocket(ws){
   sockets.delete(ws);
-  if(markSocketDisconnected(ws)){
-    persistFlyRoomMutation();
+  if(markSocketDisconnected(ws, {immediate:!shuttingDown})){
+    persistFlyRoomMutationNow('socket-disconnect');
   }
 }
 
@@ -4296,6 +4369,8 @@ async function gracefulShutdown(signal){
   shuttingDown = true;
   shutdownStartedAt = now();
   console.log(`Fates authority shutting down from ${signal || 'signal'}; draining for up to ${SHUTDOWN_GRACE_MS}ms`);
+  if(flyAISimulationStartupTimer){ clearTimeout(flyAISimulationStartupTimer); flyAISimulationStartupTimer = 0; }
+  if(flyAISimulationInterval){ clearInterval(flyAISimulationInterval); flyAISimulationInterval = 0; }
   clearInterval(roomMaintenanceInterval);
   clearInterval(pingInterval);
   const queueResult = await waitForRoomActionQueues(Math.max(500, Math.floor(SHUTDOWN_GRACE_MS * 0.55)));
@@ -4303,7 +4378,8 @@ async function gracefulShutdown(signal){
   for(const socket of [...sockets]){
     markSocketDisconnected(socket);
   }
-  persistFlyRoomMutation();
+  if(flyRoomsPersistTimer){ clearTimeout(flyRoomsPersistTimer); flyRoomsPersistTimer = 0; }
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly durable room shutdown persist failed:', e.message || e); }
   for(const socket of [...sockets]){
     closeSocket(socket, 1001, 'server restarting');
   }
@@ -4314,7 +4390,7 @@ async function gracefulShutdown(signal){
   for(const socket of [...sockets]){
     try{ socket.destroy(); }catch(e){}
   }
-  persistFlyRoomMutation();
+  try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly durable room final persist failed:', e.message || e); }
   console.log(`Fates authority shutdown complete; queuesDrained=${!!queueResult.drained}; serverClosed=${!!closeResult.closed}`);
   process.exit(0);
 }
@@ -4327,6 +4403,7 @@ try{
   restoredEventCount = loadFlyEventsLog();
   if(restoredEventCount > 0) persistFlyRoomsSnapshot();
   const timers = rearmRestoredTimers();
+  startFlyAISimulationCadence();
   if(FLY_STORE_ENABLED){
     console.log(`Fly durable store: on (${FLY_DATA_DIR}); restored rooms=${restoredRooms}; restored events=${restoredEventCount}; restored timers=${timers}`);
   }else{

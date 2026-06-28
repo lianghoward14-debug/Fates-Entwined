@@ -13,6 +13,15 @@ function validDeck(){
     .map(card=>card.id);
 }
 
+function validDeckWithSelva(){
+  const deck = ['74'];
+  getCardCatalog().cards
+    .filter(card=>card && !card.retired && !card.temporarilyDisabled && String(card.id) !== '74')
+    .slice(0, 39)
+    .forEach(card=>deck.push(card.id));
+  return deck;
+}
+
 const catalog = getCardCatalog();
 const deck = validDeck();
 const boot = buildInitialAuthorityState({
@@ -41,6 +50,17 @@ const again = buildInitialAuthorityState({
   decks:{0:deck, 1:deck}
 });
 assert.strictEqual(again.stateHash, boot.stateHash, 'same seed/decks should bootstrap deterministically');
+
+const selvaDeck = validDeckWithSelva();
+const selvaBoot = buildInitialAuthorityState({
+  catalog,
+  seed:'selva-bootstrap-1',
+  decks:{0:selvaDeck, 1:deck}
+});
+assert(selvaBoot.state.players[0].hand.some(card=>String(card.id) === '74'), 'test seed should put Selva Islands Pirate in the opening hand');
+assert.strictEqual(selvaBoot.state._pendingSelvaSupportBoost[0], 1, 'opening-hand Selva should queue a supporter boost for its owner');
+assert.strictEqual(selvaBoot.state.players[0].hand.find(card=>String(card.id) === '74')._selvaOpeningQueued, true);
+assert.strictEqual(canonicalStateHash(selvaBoot.state), selvaBoot.stateHash);
 
 assert.throws(()=>buildInitialAuthorityState({
   catalog,

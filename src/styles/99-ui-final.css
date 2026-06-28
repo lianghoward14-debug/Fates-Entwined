@@ -11515,6 +11515,9 @@ html body #s-game .zone-title{
   grid-template-rows:150px minmax(142px,1fr) 46px!important;
   min-height:342px!important;
 }
+#modal .freeplay-mode-copy{
+  padding-top:1.45rem!important;
+}
 #modal .freeplay-mode-copy em{
   color:#e5eef1!important;
   font-family:'Crimson Pro',serif!important;
@@ -18664,6 +18667,19 @@ html.fate-match-renderer-v2-mode body #s-game .turn-hud-timer{
 
 html.fate-match-renderer-v2-mode body #s-game #board.fate-match-v2-owned-board{
   background:transparent!important;
+}
+
+html body #modal .modal.public-decks-modal{
+  width:min(1240px,96vw)!important;
+  max-width:min(1240px,96vw)!important;
+}
+html body #modal .modal.public-deck-preview-modal{
+  width:min(1160px,96vw)!important;
+  max-width:min(1160px,96vw)!important;
+}
+html body #modal .modal.public-decks-modal #modal-body{
+  overflow:hidden!important;
+  max-height:none!important;
 }
 
 @media (max-width:900px){

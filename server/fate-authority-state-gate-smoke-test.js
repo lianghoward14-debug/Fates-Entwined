@@ -84,6 +84,23 @@ function waitForKind(ws, kind){
   });
 }
 
+async function waitForAccepted(ws, requestId, type){
+  const msg = await new Promise((resolve, reject)=>{
+    const timer = setTimeout(()=>reject(new Error(`timed out waiting for ${type}`)), 3000);
+    function onMessage(event){
+      let item = null;
+      try{ item = JSON.parse(event.data || '{}'); }catch(e){}
+      if(!item || (item.kind !== 'accepted' && item.kind !== 'rejected') || String(item.requestId || '') !== requestId) return;
+      clearTimeout(timer);
+      ws.removeEventListener('message', onMessage);
+      resolve(item);
+    }
+    ws.addEventListener('message', onMessage);
+  });
+  if(msg.kind === 'rejected') throw new Error(`${type} rejected: ${msg.reason || msg.error || JSON.stringify(msg).slice(0, 400)}`);
+  return msg;
+}
+
 function stopChild(child){
   return new Promise(resolve=>{
     if(!child || child.killed || child.exitCode !== null) return resolve();
@@ -123,8 +140,8 @@ async function main(){
       deckChoice:{name:'Guest Deck', deckIds:deck, ready:true}
     });
     const started = await postJson(`http://127.0.0.1:${PORT}/api/rooms/${code}/start`, {uid:'host', seed:'gate-seed', song:'gate-song'});
-    const initialState = started.accepted.action.payload.postState;
-    const initialHash = started.accepted.action.payload.stateHash;
+    let initialState = started.accepted.action.payload.postState;
+    let initialHash = started.accepted.action.payload.stateHash;
     assert(initialState, 'expected server MATCH_START postState');
     assert.strictEqual(canonicalStateHash(initialState), initialHash);
 
@@ -141,27 +158,47 @@ async function main(){
     const hello = await waitForKind(ws, 'hello-ok');
     assert.strictEqual(hello.serverStateHash, initialHash);
 
-    const second = JSON.parse(JSON.stringify(initialState));
-    second.currentPlayer = 1;
-    second.turn = 2;
-    second.selectedHandCard = null;
-    second.selectedBoardCard = null;
-    second.placing = false;
-    second.blockingCell = false;
-    second.pendingEffect = null;
-    const secondHash = canonicalStateHash(second);
+    if(String(initialState.phase || '') === 'draw'){
+      const coinWinner = Number.isInteger(Number(initialState._coinWinner)) ? Number(initialState._coinWinner) : Number(initialState.currentPlayer || 0);
+      assert.strictEqual(coinWinner, 0, 'state gate smoke seed should make host the coin winner');
+      const chooseState = JSON.parse(JSON.stringify(initialState));
+      chooseState.currentPlayer = coinWinner;
+      chooseState.phase = 'main';
+      chooseState.turn = Number(chooseState.turn || 1) || 1;
+      chooseState.selectedHandCard = null;
+      chooseState.selectedBoardCard = null;
+      chooseState.placing = false;
+      chooseState.blockingCell = false;
+      chooseState.pendingEffect = null;
+      const chooseHash = canonicalStateHash(chooseState);
+      ws.send(JSON.stringify({
+        kind:'intent',
+        requestId:'choose-turn',
+        roomCode:code,
+        type:'CHOOSE_TURN',
+        payload:{playerIndex:coinWinner, goFirst:true, baseStateHash:initialHash, postState:chooseState, stateHash:chooseHash}
+      }));
+      const chosen = await waitForAccepted(ws, 'choose-turn', 'CHOOSE_TURN');
+      assert.strictEqual(chosen.action.type, 'CHOOSE_TURN');
+      initialState = chosen.action.payload.postState;
+      initialHash = chosen.action.payload.stateHash;
+      assert.strictEqual(initialState.phase, 'main');
+    }
+
+    const activePlayer = Number(initialState.currentPlayer || 0);
+    const nextPlayer = activePlayer === 0 ? 1 : 0;
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'legal-end',
       roomCode:code,
       type:'END_TURN',
-      payload:{playerIndex:0, turn:1, baseStateHash:initialHash, postState:initialState, stateHash:initialHash}
+      payload:{playerIndex:activePlayer, turn:initialState.turn, baseStateHash:initialHash, postState:initialState, stateHash:initialHash}
     }));
     const accepted = await waitForKind(ws, 'accepted');
-    assert.strictEqual(accepted.serverStateHash, secondHash);
+    assert.strictEqual(accepted.serverStateHash, canonicalStateHash(accepted.action.payload.postState));
     assert.strictEqual(accepted.action.payload.serverReduced, true);
     assert.strictEqual(accepted.action.payload.reducerMode, 'turns');
-    assert.strictEqual(accepted.action.payload.postState.currentPlayer, 1);
+    assert.strictEqual(accepted.action.payload.postState.currentPlayer, nextPlayer);
 
     const third = state({currentPlayer:0, turn:3});
     ws.send(JSON.stringify({

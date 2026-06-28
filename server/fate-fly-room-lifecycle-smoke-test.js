@@ -19,6 +19,9 @@ const ALLOW_FAKE_TOKENS = process.env.FATE_WS_SMOKE_ALLOW_FAKE === '1' || SPAWN_
 const USE_ANON_AUTH = !ALLOW_FAKE_TOKENS && (process.env.FATE_WS_SMOKE_USE_ANON === '1' || process.argv.includes('--anon') || (!HOST_TOKEN && !GUEST_TOKEN));
 const REQUEST_TIMEOUT_MS = Number(process.env.FATE_FLY_SMOKE_TIMEOUT_MS || 45000);
 const SUPPORTED_SUPPORTER_IDS = new Set(['05','09','16','18','20','24','25','26','28','31','32','33','37','42','44','47','49','50','52','53','54','58','59','60','62','63','64','65','68','69','70','71','72','73','74','75','76','78','79','80','91','94']);
+const SMOKE_PLAIN_SUPPORTER_IDS = new Set([
+  '09','18','20','24','26','28','32','33','44','47','49','53','59','63','64','65','71','73','76','78','79','91'
+]);
 const CATALOG_BY_ID = new Map(getCardCatalog().cards.map(card => [String(card.id || ''), card]));
 
 function base64urlDecode(input) {
@@ -148,22 +151,22 @@ async function startLocalAuthority() {
 }
 
 function validDeck() {
-  const cards = getCardCatalog().cards
-    .filter(card => card && !card.retired && !card.temporarilyDisabled)
-    .map(card => String(card.id || ''))
-    .filter(Boolean);
-  const plainSupporters = cards.filter(id => isPlainSupporter(CATALOG_BY_ID.get(id)));
-  const preferred = cards.filter(id => SUPPORTED_SUPPORTER_IDS.has(id) && !plainSupporters.includes(id));
-  const rest = cards.filter(id => !SUPPORTED_SUPPORTER_IDS.has(id));
-  return plainSupporters.concat(preferred, rest).slice(0, 40);
+  const safeSupporters = [...SMOKE_PLAIN_SUPPORTER_IDS].filter(id => CATALOG_BY_ID.has(id));
+  const deck = [];
+  for(let pass = 0; deck.length < 40 && pass < 2; pass += 1){
+    for(const id of safeSupporters){
+      if(deck.length >= 40) break;
+      deck.push(id);
+    }
+  }
+  return deck;
 }
 
 function isPlainSupporter(card) {
   if(!card || String(card.type || '') !== 'Supporter') return false;
   const id = String(card.id || '');
-  if(!SUPPORTED_SUPPORTER_IDS.has(id)) return false;
+  if(!SMOKE_PLAIN_SUPPORTER_IDS.has(id)) return false;
   const meta = CATALOG_BY_ID.get(id) || card;
-  if(new Set(['02','34','45','46','50','70','76']).has(id)) return false;
   return !(
     meta.contestedOnly || card.contestedOnly ||
     meta.whenSet || meta.onSet || meta.activated || meta.effectKey || meta.requiresTarget ||
@@ -298,6 +301,57 @@ async function expectAccepted(client, requestId, type) {
   return msg;
 }
 
+function cardMatchesPending(card, pending) {
+  if(!card) return false;
+  if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
+  if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
+  if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
+  return true;
+}
+
+function selectedCardsForPending(state, playerIndex, pending) {
+  const player = state?.players?.[playerIndex] || {};
+  const count = Math.max(0, Number(pending.minCount || pending.maxCount || 0) || 0);
+  if(count <= 0) return [];
+  if(String(pending.kind || '') === 'handDiscard' || String(pending.kind || '') === 'handDiscardBoost'){
+    const hand = Array.isArray(player.hand) ? player.hand : [];
+    return hand.slice(0, count).map((card, index)=>({index, iid:card?.iid || '', id:card?.id || '', name:card?.name || ''}));
+  }
+  const picked = [];
+  const sources = String(pending.source || 'deck').split('+').map(item=>item.trim()).filter(Boolean);
+  for(const source of sources){
+    const pile = source === 'discard' ? player.discard : player.deck;
+    if(!Array.isArray(pile)) continue;
+    for(let index = 0; index < pile.length && picked.length < count; index += 1){
+      const card = pile[index];
+      if(!cardMatchesPending(card, pending)) continue;
+      picked.push({source, index, iid:card?.iid || '', id:card?.id || '', name:card?.name || ''});
+    }
+    if(picked.length >= count) break;
+  }
+  return picked;
+}
+
+async function resolvePendingCardPicks(client, code, playerIndex, state, hash) {
+  let currentState = state;
+  let currentHash = hash;
+  for(let i = 0; i < 5; i += 1){
+    const pending = currentState?._serverPendingCardPick || null;
+    if(!pending) break;
+    const selectedCards = selectedCardsForPending(currentState, playerIndex, pending);
+    const requestId = sendIntent(client, code, 'PICK_CARDS_VISUAL', {
+      playerIndex,
+      promptId:pending.promptId || '',
+      selectedCards,
+      baseStateHash:currentHash
+    });
+    const accepted = await expectAccepted(client, requestId, 'PICK_CARDS_VISUAL');
+    currentState = accepted.action.payload.postState;
+    currentHash = accepted.action.payload.stateHash;
+  }
+  return {state:currentState, hash:currentHash};
+}
+
 async function run() {
   const localAuthority = await startLocalAuthority();
   const users = await authUsers();
@@ -340,14 +394,8 @@ async function run() {
   if(!resume.events?.some(item => String(item?.action?.type || '').toUpperCase() === 'MATCH_START')){
     throw new Error('resume is missing MATCH_START event');
   }
-  const canonicalState = resume.canonicalState || startState;
-  const playerIndex = Number(canonicalState.currentPlayer || 0);
-  const currentUid = playerIndex === 0 ? users.host.uid : users.guest.uid;
-  const actingUser = playerIndex === 0 ? users.host : users.guest;
-  const actingLabel = playerIndex === 0 ? 'host' : 'guest';
-  if(String(started.room?.currentTurnUid || '') !== currentUid){
-    throw new Error(`room currentTurnUid ${started.room?.currentTurnUid} did not match canonical currentPlayer ${playerIndex}`);
-  }
+  let canonicalState = resume.canonicalState || startState;
+  let canonicalHash = resume.canonicalHash || resume.serverStateHash || startHash;
 
   const roomForHello = Object.assign({}, started.room || {}, {
     roomCode:code,
@@ -357,6 +405,24 @@ async function run() {
   const hostClient = await connectClient(users.host, roomForHello);
   const guestClient = await connectClient(users.guest, roomForHello);
   clients.push(hostClient, guestClient);
+    if(String(canonicalState.phase || '') === 'draw'){
+      const coinWinner = Number.isInteger(Number(canonicalState._coinWinner)) ? Number(canonicalState._coinWinner) : Number(canonicalState.currentPlayer || 0);
+      const coinClient = coinWinner === 0 ? hostClient : guestClient;
+      const waitingClient = coinWinner === 0 ? guestClient : hostClient;
+      const chooseRequestId = sendIntent(coinClient, code, 'CHOOSE_TURN', {
+        playerIndex:coinWinner,
+        goFirst:true,
+        baseStateHash:canonicalHash
+      });
+      const chosen = await expectAccepted(coinClient, chooseRequestId, 'CHOOSE_TURN');
+      await waitForMessage(waitingClient, msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === Number(chosen.action?.seq || 0), 'observer receives CHOOSE_TURN');
+      canonicalState = chosen.action.payload.postState;
+      canonicalHash = chosen.action.payload.stateHash;
+    }
+    if(String(canonicalState.phase || '') !== 'main') throw new Error(`expected main phase after turn choice, got ${canonicalState.phase}`);
+    const playerIndex = Number(canonicalState.currentPlayer || 0);
+    const currentUid = playerIndex === 0 ? users.host.uid : users.guest.uid;
+    const actingLabel = playerIndex === 0 ? 'host' : 'guest';
     const actingClient = playerIndex === 0 ? hostClient : guestClient;
     const placement = selectPlacement(canonicalState, playerIndex);
     const placeRequestId = sendIntent(actingClient, code, 'PLACE_CARD', {
@@ -367,17 +433,22 @@ async function run() {
       c:placement.c,
       placing:true,
       selectedHand:placement.selectedHand,
-      baseStateHash:resume.canonicalHash || resume.serverStateHash || startHash
+      baseStateHash:canonicalHash
     });
     const placed = await expectAccepted(actingClient, placeRequestId, 'PLACE_CARD');
     const placedSeq = Number(placed.action.seq || 0);
     const observer = playerIndex === 0 ? guestClient : hostClient;
     await waitForMessage(observer, msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === placedSeq, `observer receives ${actingLabel} PLACE_CARD`);
+    let turnState = placed.action.payload.postState;
+    let turnHash = placed.action.payload.stateHash;
+    const resolvedPicks = await resolvePendingCardPicks(actingClient, code, playerIndex, turnState, turnHash);
+    turnState = resolvedPicks.state;
+    turnHash = resolvedPicks.hash;
 
     const endRequestId = sendIntent(actingClient, code, 'END_TURN', {
       playerIndex,
-      turn:placed.action.payload.postState.turn,
-      baseStateHash:placed.action.payload.stateHash
+      turn:turnState.turn,
+      baseStateHash:turnHash
     });
     const ended = await expectAccepted(actingClient, endRequestId, 'END_TURN');
     if(String(ended.roomPatch?.currentTurnUid || '') === currentUid){

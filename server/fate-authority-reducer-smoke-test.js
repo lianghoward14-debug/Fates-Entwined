@@ -135,6 +135,28 @@ assert.strictEqual(reducedChoose.ok, true, reducedChoose.reason);
 assert.strictEqual(reducedChoose.canonicalState.currentPlayer, 0);
 assert.strictEqual(reducedChoose.canonicalState.phase, 'main');
 
+const selvaChooseBase = state({
+  phase:'draw',
+  currentPlayer:0,
+  turn:1,
+  extraSupportsThisTurn:0,
+  _pendingSelvaSupportBoost:[1, 0],
+  _selvaSupportBoosts:[null, null]
+});
+const selvaChooseHash = canonicalStateHash(selvaChooseBase);
+const selvaChoose = reduceServerAction({canonicalState:selvaChooseBase, canonicalHash:selvaChooseHash}, msg('CHOOSE_TURN', {
+  playerIndex:0,
+  goFirst:true,
+  turn:1,
+  baseStateHash:selvaChooseHash
+}), {mode:'turns', requireBaseHash:true});
+assert.strictEqual(selvaChoose.ok, true, selvaChoose.reason);
+assert.strictEqual(selvaChoose.canonicalState.currentPlayer, 0);
+assert.strictEqual(selvaChoose.canonicalState.phase, 'main');
+assert.strictEqual(selvaChoose.canonicalState.extraSupportsThisTurn, 1);
+assert.deepStrictEqual(selvaChoose.canonicalState._pendingSelvaSupportBoost, [0, 0]);
+assert.strictEqual(selvaChoose.canonicalState._selvaSupportBoosts[0].extraSupports, 1);
+
 const forfeitBase = state({
   currentPlayer:1,
   _serverPendingModalAction:{kind:'christopherErbsDrawChoice', playerIndex:1},
@@ -564,9 +586,8 @@ const boardFallbackAccepted = reduceServerAction({canonicalState:boardFallbackBa
   postState:boardFallbackPost,
   stateHash:boardFallbackPostHash
 }), {mode:'strict', requireBaseHash:true});
-assert.strictEqual(boardFallbackAccepted.ok, true, boardFallbackAccepted.reason);
-assert.strictEqual(boardFallbackAccepted.clientProposedFallback, true);
-assert.strictEqual(boardFallbackAccepted.canonicalState.board[0][0][0].effectUsedInitial, true);
+assert.strictEqual(boardFallbackAccepted.ok, false);
+assert.match(boardFallbackAccepted.reason, /not implemented/);
 
 const placementBase = state({
   players:[
@@ -3050,7 +3071,7 @@ const realSupporterCatalog = {byId:new Map([
   ['51', {id:'51', type:'Initiator', cost:0, effect:'Declare affiliation; matching characters you set gain 3 Fate for 3 turns.', aff:'eventide'}],
   ['55', {id:'55', type:'Dauntless', cost:0, effect:'Gains Fate if same-zone friendly cards share affiliation.', aff:'expanded_worlds'}],
   ['53', {id:'53', type:'Supporter', effect:'Opponent consolidations in this zone cannot use outside cards.', aff:'eventide'}],
-  ['52', {id:'52', type:'Supporter', effect:'When set, select an opponent supporter in this zone.', aff:'eventide'}],
+  ['52', {id:'52', type:'Supporter', effect:'Once per turn, select one opponent card in this zone. That card has 0 Reinforcement.', aff:'eventide'}],
   ['54', {id:'54', type:'Supporter', effect:'When set, move a friendly character in this zone.', aff:'eventide'}],
   ['56', {id:'56', type:'Improvisor', effect:'Whenever your opponent would activate a Supporter effect, you can negate it.', aff:'expanded_worlds'}],
   ['57', {id:'57', type:'Coordinator', cost:0, effect:'Friendly Coordinator auras in this zone gain potency.', aff:'expanded_worlds'}],
@@ -3520,13 +3541,13 @@ const vigilantesManualBase = state({
     {name:'Guest', color:'', deck:[], hand:[], discard:[]}
   ],
   board:[
-    [[null,null,null],[null,{id:'38', iid:'vigilantes-destroy-target', name:'Destroy Target', type:'Dauntless', owner:1, fate:4, currentFate:4},null],[
+    [[null,null,null],[null,{id:'38', iid:'vigilantes-mark-target', name:'Mark Target', type:'Dauntless', owner:1, fate:4, currentFate:4},null],[
       {id:'52', iid:'vigilantes-manual-source', name:'The Vigilantes', type:'Supporter', owner:0, fate:1, currentFate:1},
-      {id:'05', iid:'vigilantes-expend-a', name:'Expend A', type:'Supporter', owner:0, fate:1, currentFate:1},
+      {id:'05', iid:'vigilantes-friendly-supporter', name:'Friendly Supporter', type:'Supporter', owner:0, fate:1, currentFate:1},
       null
     ]],
-    [[null,null,null],[null,null,null],[{id:'31', iid:'vigilantes-expend-b', name:'Expend B', type:'Supporter', owner:0, fate:1, currentFate:1},null,null]],
-    [[null,null,null],[null,null,null],[{id:'42', iid:'vigilantes-expend-c', name:'Expend C', type:'Supporter', owner:0, fate:1, currentFate:1},null,null]]
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
   ],
   phase:'main',
   currentPlayer:0,
@@ -3534,24 +3555,8 @@ const vigilantesManualBase = state({
   placing:false
 });
 const vigilantesManualHash = canonicalStateHash(vigilantesManualBase);
-const vigilantesSuppressedBase = state({
-  players:[
-    {name:'Host', color:'', deck:[], hand:[], discard:[]},
-    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
-  ],
-  board:[
-    [[null,null,null],[null,{id:'38', iid:'vigilantes-suppressed-target', name:'Destroy Target', type:'Dauntless', owner:1, fate:4, currentFate:4},null],[
-      {id:'52', iid:'vigilantes-suppressed-source', name:'The Vigilantes', type:'Supporter', owner:0, fate:1, currentFate:1, _lydiaSuppressed:true},
-      {id:'05', iid:'vigilantes-suppressed-a', name:'Expend A', type:'Supporter', owner:0, fate:1, currentFate:1},
-      null
-    ]],
-    [[null,null,null],[null,null,null],[{id:'31', iid:'vigilantes-suppressed-b', name:'Expend B', type:'Supporter', owner:0, fate:1, currentFate:1},null,null]],
-    [[null,null,null],[null,null,null],[{id:'42', iid:'vigilantes-suppressed-c', name:'Expend C', type:'Supporter', owner:0, fate:1, currentFate:1},null,null]]
-  ],
-  phase:'main',
-  currentPlayer:0,
-  turn:1
-});
+const vigilantesSuppressedBase = state(JSON.parse(JSON.stringify(vigilantesManualBase)));
+vigilantesSuppressedBase.board[0][2][0]._lydiaSuppressed = true;
 const vigilantesSuppressedHash = canonicalStateHash(vigilantesSuppressedBase);
 const vigilantesSuppressedRejected = reduceServerAction({canonicalState:vigilantesSuppressedBase, canonicalHash:vigilantesSuppressedHash}, msg('BOARD_ACTION', {
   fn:'activateVigilantes',
@@ -3593,65 +3598,20 @@ const vigilantesManualArmed = reduceServerAction({canonicalState:vigilantesManua
   stateHash:vigilantesManualHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(vigilantesManualArmed.ok, true, vigilantesManualArmed.reason);
-assert.strictEqual(vigilantesManualArmed.canonicalState._serverPendingCardPick.kind, 'vigilantesExpendSupporters');
-const vigilantesManualMissingPromptRejected = reduceServerAction({canonicalState:vigilantesManualArmed.canonicalState, canonicalHash:vigilantesManualArmed.canonicalHash}, msg('RESOLVE_CARD_PICK', {
+assert.strictEqual(vigilantesManualArmed.canonicalState._serverPendingZonePick.kind, 'vigilantesMark');
+const vigilantesManualMarked = reduceServerAction({canonicalState:vigilantesManualArmed.canonicalState, canonicalHash:vigilantesManualArmed.canonicalHash}, msg('RESOLVE_ZONE_PICK', {
   playerIndex:0,
   turn:1,
-  omitPromptIdForTest:true,
-  selectedCards:[
-    {z:0, r:2, c:1, id:'05', name:'Expend A'},
-    {z:1, r:2, c:0, id:'31', name:'Expend B'},
-    {z:2, r:2, c:0, id:'42', name:'Expend C'}
-  ],
+  selectedEntries:[{z:0, r:1, c:1, card:{iid:'vigilantes-mark-target', id:'38'}}],
   baseStateHash:vigilantesManualArmed.canonicalHash,
   postState:vigilantesManualArmed.canonicalState,
   stateHash:vigilantesManualArmed.canonicalHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(vigilantesManualMissingPromptRejected.ok, false);
-assert.match(vigilantesManualMissingPromptRejected.reason, /promptId is required/);
-const vigilantesBoardIdOnlyRejected = reduceServerAction({canonicalState:vigilantesManualArmed.canonicalState, canonicalHash:vigilantesManualArmed.canonicalHash}, msg('RESOLVE_CARD_PICK', {
-  playerIndex:0,
-  turn:1,
-  selectedCards:[
-    {id:'05'},
-    {id:'31'},
-    {id:'42'}
-  ],
-  baseStateHash:vigilantesManualArmed.canonicalHash,
-  postState:vigilantesManualArmed.canonicalState,
-  stateHash:vigilantesManualArmed.canonicalHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(vigilantesBoardIdOnlyRejected.ok, false);
-assert.match(vigilantesBoardIdOnlyRejected.reason, /selected board card must include iid or z\/r\/c/);
-const vigilantesCanonicalExpend = reduceServerAction({canonicalState:vigilantesManualArmed.canonicalState, canonicalHash:vigilantesManualArmed.canonicalHash}, msg('RESOLVE_CARD_PICK', {
-  playerIndex:0,
-  turn:1,
-  selectedCards:[
-    {z:0, r:2, c:1, id:'05', name:'Expend A'},
-    {z:1, r:2, c:0, id:'31', name:'Expend B'},
-    {z:2, r:2, c:0, id:'42', name:'Expend C'}
-  ],
-  baseStateHash:vigilantesManualArmed.canonicalHash,
-  postState:vigilantesManualArmed.canonicalState,
-  stateHash:vigilantesManualArmed.canonicalHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(vigilantesCanonicalExpend.ok, true, vigilantesCanonicalExpend.reason);
-assert.strictEqual(vigilantesCanonicalExpend.canonicalState._serverPendingCardPick, null);
-assert.strictEqual(vigilantesCanonicalExpend.canonicalState._serverPendingZonePick.kind, 'vigilantesDestroyTarget');
-const vigilantesCanonicalDestroy = reduceServerAction({canonicalState:vigilantesCanonicalExpend.canonicalState, canonicalHash:vigilantesCanonicalExpend.canonicalHash}, msg('RESOLVE_ZONE_PICK', {
-  playerIndex:0,
-  turn:1,
-  selectedEntries:[{z:0, r:1, c:1, card:{iid:'vigilantes-destroy-target', id:'38'}}],
-  baseStateHash:vigilantesCanonicalExpend.canonicalHash,
-  postState:vigilantesCanonicalExpend.canonicalState,
-  stateHash:vigilantesCanonicalExpend.canonicalHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(vigilantesCanonicalDestroy.ok, true, vigilantesCanonicalDestroy.reason);
-assert.strictEqual(vigilantesCanonicalDestroy.canonicalState.board[0][1][1], null);
-assert.strictEqual(vigilantesCanonicalDestroy.canonicalState.board[0][2][1], null);
-assert.strictEqual(vigilantesCanonicalDestroy.canonicalState.board[1][2][0], null);
-assert.strictEqual(vigilantesCanonicalDestroy.canonicalState.board[2][2][0], null);
-assert.strictEqual(vigilantesCanonicalDestroy.canonicalState.board[0][2][0].vigilanteUsed, true);
+assert.strictEqual(vigilantesManualMarked.ok, true, vigilantesManualMarked.reason);
+assert.strictEqual(vigilantesManualMarked.canonicalState.board[0][1][1]._markedForDeath, true);
+assert.strictEqual(vigilantesManualMarked.canonicalState.board[0][1][1]._reinforcementOverride, 0);
+assert.strictEqual(vigilantesManualMarked.canonicalState.board[0][2][0].vigilanteUsed, true);
+assert.strictEqual(vigilantesManualMarked.canonicalState.board[0][2][1].iid, 'vigilantes-friendly-supporter');
 const vigilantesOffZone = reduceServerAction({canonicalState:vigilantesSet.canonicalState, canonicalHash:vigilantesSet.canonicalHash}, msg('PICK_ZONE', {
   playerIndex:0,
   turn:1,
@@ -3662,7 +3622,6 @@ const vigilantesOffZone = reduceServerAction({canonicalState:vigilantesSet.canon
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(vigilantesOffZone.ok, false);
 assert.match(vigilantesOffZone.reason, /same zone/);
-
 const wolfCreekSetBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[{id:'54', iid:'s-54-place', name:'Wolf Creek', type:'Supporter', fate:1}], discard:[]},
@@ -7393,8 +7352,8 @@ const anickaFollowup = reduceServerAction({canonicalState:anickaFollowupBase, ca
   stateHash:anickaFollowupHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:anickaCatalog});
 assert.strictEqual(anickaFollowup.ok, true, anickaFollowup.reason);
-assert.strictEqual(anickaFollowup.canonicalState.board[0][3][0].currentFate, 7);
-assert.strictEqual(anickaFollowup.canonicalState.board[0][3][0]._starlitPathBonus, 5);
+assert.strictEqual(anickaFollowup.canonicalState.board[0][3][0].currentFate, 5);
+assert.strictEqual(anickaFollowup.canonicalState.board[0][3][0]._starlitPathBonus, 3);
 
 const zimbabweBase = state({
   players:[

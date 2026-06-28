@@ -19,10 +19,54 @@
   const PUBLIC_DECK_FEED_LIMIT = 40;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
-  function user(){ return window.FATE_ONLINE?.user || null; }
+  function authUser(){ return FO.auth?.currentUser || window.FATE_ONLINE?.user || null; }
+  function user(){ return authUser(); }
+  function authUid(){ return String(authUser()?.uid || window.FATE_ONLINE?.user?.uid || ''); }
+  async function waitForAuthUser(timeoutMs=1800){
+    const existing = authUser();
+    if(existing) return existing;
+    return await new Promise(resolve=>{
+      let done = false;
+      let unsub = null;
+      const finish = value=>{
+        if(done) return;
+        done = true;
+        try{ if(unsub) unsub(); }catch(e){}
+        resolve(value || authUser() || null);
+      };
+      const timer = setTimeout(()=>finish(null), timeoutMs);
+      const finishWithTimer = value=>{
+        clearTimeout(timer);
+        finish(value);
+      };
+      if(FO.onAuth){
+        try{
+          unsub = FO.onAuth(state=>{
+            if(state?.user) finishWithTimer(state.user);
+            else if(state?.ready) finishWithTimer(null);
+          });
+        }catch(e){ finishWithTimer(null); }
+      }else{
+        finishWithTimer(null);
+      }
+    });
+  }
   function profile(){ return window.FATE_ONLINE?.profile || {}; }
   function starlightIcon(){ return typeof STARLIGHT_ICON !== 'undefined' ? STARLIGHT_ICON : '<span style="color:#ffd700;">*</span>'; }
   function cardById(id){ return (typeof CARDS !== 'undefined' ? CARDS : []).find(c=>c.id===id); }
+  function applyPublicDeckModalChrome(...classes){
+    const modalBox = document.querySelector('#modal .modal');
+    if(!modalBox) return;
+    modalBox.classList.add('public-decks-modal', ...classes.filter(Boolean));
+    const width = classes.includes('public-deck-preview-modal') ? 'min(1160px,96vw)' : 'min(1240px,96vw)';
+    modalBox.style.width = width;
+    modalBox.style.maxWidth = width;
+    const body = document.getElementById('modal-body');
+    if(body){
+      body.style.overflow = 'hidden';
+      body.style.maxHeight = '';
+    }
+  }
   function rarityLabel(rarity){
     const raw = String(rarity || 'card').trim();
     return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Card';
@@ -143,7 +187,13 @@
     let wsUrl = '';
     try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
     if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) return '';
+    if(!wsUrl) {
+      const host = String(location.hostname || '').toLowerCase();
+      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+      const isElectron = /Electron/i.test(navigator.userAgent || '') || location.protocol === 'file:';
+      if(isElectron) return 'https://fates-entwined-main.fly.dev';
+      return '';
+    }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flyEconomyEnabled(){
@@ -153,6 +203,9 @@
       window.FATE_FLY_ROOMS_ENABLED === true ||
       window.FATE_RTDB_DISABLED === true
     );
+  }
+  function publicDeckApiEnabled(){
+    return !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -192,7 +245,7 @@
     return data;
   }
   async function refreshFlyPublicDecks(){
-    if(!flyEconomyEnabled()) return null;
+    if(!publicDeckApiEnabled()) return null;
     const data = await flyApiRequest(`/api/public-decks?limit=${PUBLIC_DECK_FEED_LIMIT}`);
     publicDecksLoaded = true;
     publicDecks = (Array.isArray(data?.decks) ? data.decks : []).map(normalizePublicDeck);
@@ -235,7 +288,7 @@
     }, err=>console.warn('Marketplace subscription failed', err));
   }
   function watchPublicDecks(){
-    if(flyEconomyEnabled()){
+    if(publicDeckApiEnabled()){
       if(!publicDecksLoaded) refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks refresh failed', e));
       return;
     }
@@ -273,18 +326,20 @@
   }
 
   async function publishDeck(deck){
-    const u = user();
+    const u = await waitForAuthUser();
     if(!u){ if(window.toast) toast('Sign in first'); return null; }
-    if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return null; }
+    const uid = authUid() || String(u.uid || '');
+    if(!uid){ if(window.toast) toast('Sign in first'); return null; }
+    if(!publicDeckApiEnabled() && !canUseFirebase()){ if(window.toast) toast('Online economy is not ready'); return null; }
     const p = await FO.syncPublicProfile().catch(()=>profile());
-    const id = deck.id || deck.deckId || `${u.uid}_${Date.now()}`;
+    const id = deck.id || deck.deckId || `${uid}_${Date.now()}`;
     const ids = Array.isArray(deck.ids) ? deck.ids.slice(0, 80) : [];
     const uniqueIds = Array.from(new Set(ids));
     const displayCardIds = (Array.isArray(deck.displayCardIds) && deck.displayCardIds.length ? deck.displayCardIds : uniqueIds).slice(0,4);
     const base = {
       id,
       deckId:id,
-      ownerUid:u.uid,
+      ownerUid:uid,
       username:p.chosenUsername || p.displayName || profileName(),
       ownerName:p.chosenUsername || p.displayName || profileName(),
       ownerPhotoURL:profilePhoto(),
@@ -311,10 +366,10 @@
       totalCards:ids.length,
       uniqueCards:uniqueIds.length
     };
-    if(flyEconomyEnabled()){
+    if(publicDeckApiEnabled()){
       const data = await flyApiRequest('/api/public-decks', {
         method:'POST',
-        body:{uid:u.uid, profile:publicDeckProfilePayload(p), deck:detail}
+        body:{uid, profile:publicDeckProfilePayload(p), deck:detail}
       });
       const saved = normalizePublicDeck(data.deck || detail);
       publicDeckDetailCache.set(saved.deckId || saved.id, saved);
@@ -324,6 +379,7 @@
       if(window.toast) toast('Deck published');
       return saved.deckId || saved.id;
     }
+    if(!FO.auth?.currentUser?.uid) throw new Error('Firebase auth is not ready for public deck publish');
     await FO.update(FO.ref(FO.rtdb), {
       [`publicDeckSummaries/${id}`]:summary,
       [`publicDeckDetails/${id}`]:detail
@@ -761,7 +817,7 @@
   }
   async function loadPublicDeckDetail(id){
     const key = String(id || '');
-    if(key && flyEconomyEnabled()){
+    if(key && publicDeckApiEnabled()){
       const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(key)}`);
       const full = normalizePublicDeck(data.deck || {});
       if(full.deckId || full.id) publicDeckDetailCache.set(full.deckId || full.id, full);
@@ -807,6 +863,7 @@
   window.showPublicDecks = function showPublicDecks(page=publicDecksPage){
     ensureWatchers('publicDecks');
     if(typeof resetModalChrome === 'function') resetModalChrome();
+    applyPublicDeckModalChrome();
     const sorted = [...publicDecks].sort((a,b)=>(avgRating(b) - avgRating(a)) || ((b.timestamp || 0) - (a.timestamp || 0)));
     const pageSize = 4;
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
@@ -828,7 +885,7 @@
           <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
         </div>
       </section>`;
-    if((flyEconomyEnabled() || canUseFirebase()) && !publicDecksLoaded){
+    if((publicDeckApiEnabled() || canUseFirebase()) && !publicDecksLoaded){
       html += `<div class="pd-empty-state">
         <div class="pd-empty-title">Loading public decks...</div>
         <p>Fetching the latest shared builds.</p>
@@ -877,8 +934,7 @@
     close.textContent = 'Close';
     close.onclick = closeModal;
     document.getElementById('modal-acts').appendChild(close);
-    const modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('public-decks-modal');
+    applyPublicDeckModalChrome();
     document.getElementById('modal').classList.add('on');
   };
 
@@ -887,12 +943,14 @@
     if(!d) return;
     if(!Array.isArray(d.ids) || !d.ids.length){
       if(typeof resetModalChrome === 'function') resetModalChrome();
+      applyPublicDeckModalChrome('public-deck-preview-modal');
       document.getElementById('modal-body').innerHTML = '<div class="pd-empty-state"><div class="pd-empty-title">Loading deck...</div><p>Opening the deck details.</p></div>';
       document.getElementById('modal-title').textContent = '';
       document.getElementById('modal-acts').innerHTML = '';
     }
     d = await loadPublicDeckDetail(id).catch(()=>d) || d;
     if(typeof resetModalChrome === 'function') resetModalChrome();
+    applyPublicDeckModalChrome('public-deck-preview-modal');
     const counts = {};
     (d.ids || []).forEach(cardId=>{ counts[cardId] = (counts[cardId] || 0) + 1; });
     const uniqueCards = Object.entries(counts).map(([cardId,count])=>({card:cardById(cardId), count})).filter(x=>x.card);
@@ -978,8 +1036,7 @@
     back.textContent = 'Back';
     back.onclick = function(){ showPublicDecks(publicDecksPage); };
     acts.appendChild(back);
-    const modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-preview-modal');
+    applyPublicDeckModalChrome('public-deck-preview-modal');
     document.querySelectorAll('#modal-body .pd-card-click[data-card-id]').forEach(el=>{
       el.addEventListener('click', e=>{
         e.preventDefault();
@@ -995,16 +1052,16 @@
       if(window.toast) toast('You can only remove your own public decks');
       return;
     }
-    if(!flyEconomyEnabled() && !canUseFirebase()){
+    if(!publicDeckApiEnabled() && !canUseFirebase()){
       if(window.toast) toast('Online economy is not ready');
       return;
     }
     let removed = true;
     const deckId = d.deckId || d.id;
-    if(flyEconomyEnabled()){
+    if(publicDeckApiEnabled()){
       await flyApiRequest(`/api/public-decks/${encodeURIComponent(deckId)}/delete`, {
         method:'POST',
-        body:{uid:user()?.uid || ''}
+        body:{uid:authUid()}
       }).catch(e=>{
         console.error('Remove Fly public deck failed', e);
         if(window.toast) toast('Could not remove deck');
@@ -1093,8 +1150,7 @@
     back.className = 'btn sm'; back.textContent = 'Back to Deck';
     back.onclick = function(){ viewPublicDeck(id); };
     document.getElementById('modal-acts').appendChild(back);
-    const modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-comments-modal');
+    applyPublicDeckModalChrome('public-deck-comments-modal');
   };
 
   function publicDeckImportIcon(kind){
@@ -1105,6 +1161,7 @@
   function showPublicDeckImportChoice(id, d){
     if(!d) return;
     if(typeof resetModalChrome === 'function') resetModalChrome();
+    applyPublicDeckModalChrome('public-deck-import-choice-modal');
     const total = Array.isArray(d.ids) ? d.ids.length : 0;
     const unique = new Set(d.ids || []).size;
     const body = document.getElementById('modal-body');
@@ -1150,8 +1207,7 @@
       if(typeof window.importIdsToTitleDeckBuilder !== 'function'){ if(window.toast) toast('Deck Builder is not ready'); return; }
       window.importIdsToTitleDeckBuilder(d.ids || [], meta);
     };
-    const modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('public-decks-modal','public-deck-import-choice-modal');
+    applyPublicDeckModalChrome('public-deck-import-choice-modal');
     document.getElementById('modal').classList.add('on');
   }
 
@@ -1167,10 +1223,10 @@
   window.submitRating = async function submitRating(id, stars){
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
-    if(flyEconomyEnabled()){
+    if(publicDeckApiEnabled()){
       const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(id)}/rating`, {
         method:'POST',
-        body:{uid:u.uid, username:profileName(), stars:Number(stars)}
+        body:{uid:authUid() || u.uid, username:profileName(), stars:Number(stars)}
       }).catch(e=>{
         console.warn('Fly rating failed', e);
         if(window.toast) toast('Rating failed');
@@ -1199,10 +1255,10 @@
     if(!text){ if(window.toast) toast('Comment cannot be empty'); return; }
     const u = user();
     if(!u){ if(window.toast) toast('Sign in first'); return; }
-    if(flyEconomyEnabled()){
+    if(publicDeckApiEnabled()){
       const data = await flyApiRequest(`/api/public-decks/${encodeURIComponent(id)}/comments`, {
         method:'POST',
-        body:{uid:u.uid, username:profileName(), text:text.slice(0,240)}
+        body:{uid:authUid() || u.uid, username:profileName(), text:text.slice(0,240)}
       }).catch(e=>{
         console.warn('Fly comment failed', e);
         if(window.toast) toast('Comment failed');
@@ -1238,6 +1294,7 @@
     shareDeckPage = Math.max(0, Math.min(Number(page) || 0, totalPages - 1));
     var pageKeys = keys.slice(shareDeckPage * pageSize, shareDeckPage * pageSize + pageSize);
     if(typeof resetModalChrome === 'function') resetModalChrome();
+    applyPublicDeckModalChrome('share-deck-modal');
     var container = document.createElement('div');
     container.className = 'sd-flow';
     var topbar = document.createElement('div');
@@ -1300,8 +1357,7 @@
     document.getElementById('modal-body').appendChild(container);
     document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
-    var modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('public-decks-modal','share-deck-modal');
+    applyPublicDeckModalChrome('share-deck-modal');
     document.getElementById('modal').classList.add('on');
   };
   window.shareDeck = async function shareDeck(pid, trigger){

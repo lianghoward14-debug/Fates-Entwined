@@ -438,7 +438,7 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       if(card.type === 'Supporter') {
         const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
         if(!suppressed) {
-          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Expendable Justice', z);
+          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Marked for Death', z);
           if(card.id === '54' && !card.wolfCreekUsed) pushEndTurnEffectWarning(pending, card, 'Elusive Movements', z);
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
           if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Move to Adjacent Zone', z);
@@ -1224,18 +1224,18 @@ function beginBoardCardTargetSelection(opts) {
 
 // Vigilantes (52) — pick opponent card in zone, set reinforcement to 0
 function vigilantePickTarget(targetZ, cp, opp, inst) {
-  return false;
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
     if(cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
   if(oppCards.length===0){toast('No opponent cards in Zone '+(targetZ+1));return;}
-  pickCardInZone(targetZ,'Obsolete Vigilantes effect is disabled.',(tgt)=>{
+  pickCardInZone(targetZ,'Marked for Death: select one opponent card in this zone.',(tgt)=>{
     if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
-    return;
-    return;
-    toast('Obsolete Vigilantes effect is disabled.');
-    log(cp===0?'p1':'p2','Obsolete Vigilantes effect skipped');
+    tgt._markedForDeath = true;
+    tgt._reinforcementOverride = 0;
+    if(inst) inst.vigilanteUsed = true;
+    toast(tgt.name+' has 0 Reinforcement.');
+    log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
     renderGame({board:true, scores:true, topbar:true});
   }, cell=>cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
 }
@@ -1689,9 +1689,13 @@ async function clickCell(z,r,c) {
   markCommit('hooks');
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
   if(card.type==='Supporter') {
+    const setReinforcementValue = Math.max(0, Number(typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1) || 1);
     if(!isLinaFree) G.supportsPlacedThisTurn++;
     if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
     G.supportersSetP[G.currentPlayer] = (Number(G.supportersSetP[G.currentPlayer]) || 0) + 1;
+    if(!Array.isArray(G.supporterReinforcementSetP)) G.supporterReinforcementSetP = [0,0];
+    G.supporterReinforcementSetP[G.currentPlayer] = (Number(G.supporterReinforcementSetP[G.currentPlayer]) || 0) + setReinforcementValue;
+    inst._setReinforcementValue = setReinforcementValue;
     inst._supporterSetCounted = true;
     inst._wasSetAsSupporter = true;
     inst._hasBeenOnBoard = true;
@@ -2631,6 +2635,28 @@ function getSupportersSetCountForPlayer(player) {
 }
 window.getSupportersSetCountForPlayer = getSupportersSetCountForPlayer;
 
+function getSupporterReinforcementSetTotalForPlayer(player) {
+  const p = Number(player);
+  if(p !== 0 && p !== 1) return 0;
+  const tracked = Math.max(0, Number(Array.isArray(G.supporterReinforcementSetP) ? G.supporterReinforcementSetP[p] : 0) || 0);
+  let instanceFloor = 0;
+  const seen = new Set();
+  const note = function(card){
+    if(!card || card.owner !== p || card.type !== 'Supporter') return;
+    if(!(card._supporterSetCounted || card._wasSetAsSupporter || card._hasBeenOnBoard)) return;
+    const key = card.iid || (card.id + ':' + card.name + ':' + seen.size);
+    if(seen.has(key)) return;
+    seen.add(key);
+    const value = Number(card._setReinforcementValue ?? (typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(card) : 1)) || 1;
+    instanceFloor += Math.max(0, value);
+  };
+  if(typeof forEachBoardCard === 'function') forEachBoardCard(note);
+  const discard = G.players && G.players[p] && Array.isArray(G.players[p].discard) ? G.players[p].discard : [];
+  discard.forEach(note);
+  return Math.max(tracked, instanceFloor, getSupportersSetCountForPlayer(p));
+}
+window.getSupporterReinforcementSetTotalForPlayer = getSupporterReinforcementSetTotalForPlayer;
+
 function isPersistentSupporterEffectOnSet(card) {
   if(!card || card.type !== 'Supporter') return false;
   if(WHEN_SET_IDS.has(String(card.id))) return false;
@@ -3157,7 +3183,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
       pickCardInZone(z,'Select a card to lose 3 Fate:',(tgt)=>{
         if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
-        const before = tgt.currentFate || tgt.fate || 0;
+        const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
         const changed = setCardFateValue(tgt, before - 3, cp);
         if(!changed && before > 0){
           showBlockedAnimation('Shield Wall prevents Fate loss');
@@ -3168,6 +3194,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
+        if(tgt === inst || (tgt.iid && inst.iid && tgt.iid === inst.iid)){toast('MINAE Death Squad cannot discard itself');return;}
         if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`MINAE Death Squad: discarded ${tgt.name}`);
@@ -3564,19 +3591,6 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case '52': {
       if(typeof activateVigilantes === 'function') activateVigilantes(inst, z, r, c);
-      break;
-    }
-    case '52_legacy_disabled': { // Obsolete Vigilantes path.
-      pickCardInZone(z,'Vigilantes: Select an opponent supporter in this zone:',(tgt)=>{
-        if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
-        return;
-        if(typeof playSfx==='function') playSfx('fateLose');
-        toast('Obsolete Vigilantes effect is disabled.');
-        log(cp===0?'p1':'p2','Obsolete Vigilantes effect skipped');
-        inst.effectUsedInitial = true;
-        renderEffectResolutionForPlayer(cp, {hand:false});
-        if(typeof updateTopBar === 'function') updateTopBar();
-      }, function(cell){ return cell && cell.owner===opp && cell.type==='Supporter' && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
       break;
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
@@ -4182,16 +4196,21 @@ function recordFateReductionEvent(owner, beforeValue, afterValue) {
 function setCardFateValue(card, newValue, sourceOwner) {
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
   if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : card.immuneFlag)) return false;
-  const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
+  const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const baseBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const targetValue = Math.max(0, Number(newValue) || 0);
   if(targetValue < before && G.shieldWallZones.length>0) {
     let inShield = false;
     forEachBoardCard((c,z)=>{ if(c.iid===card.iid && G.shieldWallZones.includes(z)) inShield=true; });
     if(inShield) return false;
   }
-  card.currentFate = targetValue;
+  const baseNext = Math.max(0, Math.min(baseBefore, targetValue));
+  card.currentFate = baseNext;
+  const overflowLoss = Math.max(0, baseBefore - targetValue);
+  if(overflowLoss > 0) card._staticFatePenalty = (Number(card._staticFatePenalty || 0) || 0) + overflowLoss;
   clampCardToLandscapeFateCap(card);
-  const after = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   recordFateReductionEvent(sourceOwner, before, after);
   playFateChangeSound(card, before, after, sourceOwner);
   return after !== before;
@@ -4275,8 +4294,9 @@ function getEffectiveFate(card, z) {
   if(isFaceDownCard(card)) return 0;
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
   // ALPINE Infantry: no bonus applies, invisible to other effects
-  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card)) return capEffectiveFateForLandscape(card.currentFate, z);
-  if(card.noBonus) return capEffectiveFateForLandscape(card.currentFate, z);
+  const staticPenalty = Math.max(0, Number(card._staticFatePenalty || 0) || 0);
+  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card)) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty), z);
+  if(card.noBonus) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty), z);
   // Helper: ALPINE (76) is invisible — should not be counted by any other card's effect
   const isInvisible = (c) => c && ((typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) || isFaceDownCard(c));
   // Jimmy 41: fate = 2x total damage done this game by owner
@@ -4288,16 +4308,16 @@ function getEffectiveFate(card, z) {
     });
     return count;
   };
-  if(card.id==='41') return capEffectiveFateForLandscape((G.damageDoneP[card.owner] + getContinuousDamageCount(card.owner)) * 2 + (Number(card._landscapeStaticFateBonus) || 0), z);
+  if(card.id==='41') return capEffectiveFateForLandscape(Math.max(0, (G.damageDoneP[card.owner] + getContinuousDamageCount(card.owner)) * 2 + (Number(card._landscapeStaticFateBonus) || 0) - staticPenalty), z);
   // Alexander 35: fate was snapshotted on set (see runWhenSetEffect case '35')
   // No dynamic recalculation — uses currentFate set at placement time
   let bonus = 0;
 
   if(card.id==='85') {
     const opponent = 1 - card.owner;
-    bonus += typeof getSupportersSetCountForPlayer === 'function'
-      ? getSupportersSetCountForPlayer(opponent)
-      : (Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[opponent] : 0) || 0);
+    bonus += typeof getSupporterReinforcementSetTotalForPlayer === 'function'
+      ? getSupporterReinforcementSetTotalForPlayer(opponent)
+      : (Number(Array.isArray(G.supporterReinforcementSetP) ? G.supporterReinforcementSetP[opponent] : 0) || Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[opponent] : 0) || 0);
   }
   if(card.id==='88') {
     let charCount = 0;
@@ -4418,7 +4438,7 @@ function getEffectiveFate(card, z) {
     if(allSameAff && ownAff && ownCount >= 3) bonus += 5;
   }
 
-  return capEffectiveFateForLandscape(card.currentFate + bonus, z);
+  return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) + bonus - staticPenalty), z);
 }
 
 function countCoordinators(z, owner) {
@@ -4770,7 +4790,7 @@ function checkWin() {
 //  SUPPORTER ACTIVE ABILITIES
 // ══════════════════════════════════════════════════════════════
 
-// Vigilantes (52): discard 3 own supporters from field to discard a card in this same zone
+// Vigilantes (52): set one opponent card in this same zone to 0 Reinforcement
 async function activateVigilantes(card, z, r, c) {
   const cp = G.currentPlayer;
   const opp = 1 - cp;
@@ -4780,46 +4800,18 @@ async function activateVigilantes(card, z, r, c) {
     renderGame({board:true, scores:true, topbar:true});
     return;
   }
-  const availSups = [];
-  forEachBoardCard((bc, bz, br, bc2) => {
-    if(bc.owner===cp && bc.type==='Supporter' && bc.iid!==card.iid && !bc.noConsolidate && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(bc))){
-      availSups.push({card:bc, z:bz, r:br, c:bc2});
-    }
-  });
-  if(availSups.length < 3){
-    toast('Need 3 supporters on the field to activate (have '+availSups.length+')');
-    return;
-  }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardsVisual(availSups.map(s=>s.card), {
-    title:'Expendable Justice - Select 3 Supporters to Expend',
-    subtitle:'These supporters will be discarded to remove one card in this same zone.',
-    maxCount:3, confirmLabel:'Expend'
-  }, (chosen)=>{
-    if(chosen.length < 3){toast('Must select exactly 3 supporters');return;}
-
-    const zoneTargets = [];
-    if(G.board[z]){
-      G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell) zoneTargets.push({card:cell,z:z,r:ri,c:ci});
-      }));
-    }
-    if(zoneTargets.length===0){toast('No cards in this zone');return;}
-
-    pickCardInZone(z,'Vigilantes: Select a card in this zone to destroy:',(tgt,locZ,locR,locC)=>{
-      if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
-      chosen.forEach(function(sc){
-        const src = availSups.find(function(s){return s.card.iid===sc.iid;});
-        if(src) discardBoardCard(src.card, src.z, src.r, src.c);
-      });
-      discardBoardCard(tgt, locZ, locR, locC);
-      card.vigilanteUsed = true;
-      toast('Vigilantes destroyed '+tgt.name+'!');
-      log(cp===0?'p1':'p2', 'Vigilantes expended 3 supporters to destroy '+tgt.name+' in Zone '+(locZ+1));
-      playSfx('effect');
-      renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-    }, function(cell){ return !!cell && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
-  });
+  pickCardInZone(z,'Vigilantes: select an opponent card in this zone to set its Reinforcement to 0.',(tgt)=>{
+    if(tgt.owner !== opp){toast('Must select an opponent card');return;}
+    if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
+    tgt._markedForDeath = true;
+    tgt._reinforcementOverride = 0;
+    card.vigilanteUsed = true;
+    toast(tgt.name+' has 0 Reinforcement.');
+    log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
+    playSfx('effect');
+    renderEffectResolutionForPlayer(cp, {hand:false});
+  }, function(cell){ return !!cell && cell.owner === opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
 }
 
 
