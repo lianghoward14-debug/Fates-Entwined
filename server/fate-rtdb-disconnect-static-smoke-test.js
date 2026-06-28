@@ -97,7 +97,10 @@ assertNotContains('Dockerfile',
   /solo-static-server|electron/i,
   'Fly image must not launch desktop/static-server tooling');
 assertContains('.dockerignore',
-  /^\*[\s\S]*^!server\/\*\*[\s\S]*^!src\/scripts\/01-data-and-state\.js[\s\S]*^!fates-entwined-website\/\*\*/m,
-  'Docker build context must remain authority-runtime allowlisted');
+  /^\*[\s\S]*^!server\/\*\*[\s\S]*^!src\/\*\*[\s\S]*^!optimized\/\*\*[\s\S]*^!fates-entwined-website\/installer\/\*\*/m,
+  'Docker build context must remain hosted game/runtime allowlisted');
+assertNotContains('.dockerignore',
+  /^!.*(?:node_modules|dist|out|electron|project-backups)/mi,
+  'Docker build context must not include desktop/build backup paths');
 
 console.log('fate-rtdb-disconnect-static smoke passed');

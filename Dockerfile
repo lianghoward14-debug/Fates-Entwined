@@ -5,10 +5,23 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=8787
+ENV FATE_WEBSITE_DIR=/app
 
 COPY server ./server
-COPY src/scripts/01-data-and-state.js ./src/scripts/01-data-and-state.js
-COPY fates-entwined-website ./fates-entwined-website
+COPY index.html manifest.json pwa-icon.svg blank.png back.png deck.png sw.js voicelines.txt ./
+COPY src ./src
+COPY optimized ./optimized
+COPY titlscreenbackgrounds ./titlscreenbackgrounds
+COPY ingamebackgrouds ./ingamebackgrouds
+COPY setvoicelines ./setvoicelines
+COPY ["new voices", "./new voices"]
+COPY soundeffects ./soundeffects
+COPY afficon ./afficon
+COPY aiicons ./aiicons
+COPY rankicons ./rankicons
+COPY pfp ./pfp
+COPY UIpictures ./UIpictures
+COPY fates-entwined-website/installer ./installer
 
 EXPOSE 8787
 

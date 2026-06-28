@@ -80,20 +80,27 @@ assert.strictEqual(pkg.scripts['predeploy:fly-authority'], 'npm run smoke:fly-cu
 assert.strictEqual(pkg.scripts['deploy:fly-authority'], 'fly deploy --config fly.toml');
 assert.match(dockerfileText, /FROM\s+node:22-alpine/, 'Dockerfile should use a small Node runtime image');
 assert.match(dockerfileText, /COPY\s+server\s+\.\/server/, 'Dockerfile should copy server runtime files');
-assert.match(dockerfileText, /COPY\s+src\/scripts\/01-data-and-state\.js\s+\.\/src\/scripts\/01-data-and-state\.js/, 'Dockerfile should copy card catalog source data');
-assert.match(dockerfileText, /COPY\s+fates-entwined-website\s+\.\/fates-entwined-website/, 'Dockerfile should copy hosted website assets');
+assert.match(dockerfileText, /ENV\s+FATE_WEBSITE_DIR=\/app/, 'Dockerfile should serve the actual game app as the hosted root');
+assert.match(dockerfileText, /COPY\s+index\.html[\s\S]+\.\/\n/, 'Dockerfile should copy the game entrypoint');
+assert.match(dockerfileText, /COPY\s+src\s+\.\/src/, 'Dockerfile should copy the full game source and card catalog data');
+assert.match(dockerfileText, /COPY\s+optimized\s+\.\/optimized/, 'Dockerfile should copy optimized game art assets');
+assert.match(dockerfileText, /COPY\s+fates-entwined-website\/installer\s+\.\/installer/, 'Dockerfile should keep the hosted installer available');
 assert.match(dockerfileText, /CMD\s+\["node",\s*"server\/fate-ws-authority\.js"\]/, 'Dockerfile should start the authority server');
 assert.doesNotMatch(dockerfileText, /npm\s+install|npm\s+ci|electron|solo-static-server/i, 'Dockerfile should not install or launch desktop/static-server tooling');
 
 assert.strictEqual(dockerignoreLines[0], '*', '.dockerignore should default-deny the build context');
 dockerignoreHas('!Dockerfile', 'allow the Fly authority Dockerfile');
+dockerignoreHas('!index.html', 'allow the hosted game entrypoint');
 dockerignoreHas('!server/', 'allow the server runtime directory');
+dockerignoreHas('!src/**', 'allow the full game source directory');
+dockerignoreHas('!optimized/**', 'allow optimized game art assets');
 dockerignoreHas('!server/**', 'allow server runtime files');
-dockerignoreHas('!src/', 'allow only the source tree needed for card data');
-dockerignoreHas('!src/scripts/', 'allow only the script directory needed for card data');
-dockerignoreHas('!src/scripts/01-data-and-state.js', 'allow the card catalog source file');
+dockerignoreHas('!src/', 'allow the source tree needed for the hosted game');
+dockerignoreHas('!titlscreenbackgrounds/**', 'allow title screen backgrounds');
+dockerignoreHas('!ingamebackgrouds/**', 'allow in-game backgrounds');
+dockerignoreHas('!soundeffects/**', 'allow game sound effects');
 dockerignoreHas('!fates-entwined-website/', 'allow hosted website assets');
-dockerignoreHas('!fates-entwined-website/**', 'allow hosted website asset files');
-assert.doesNotMatch(dockerignoreText, /^!.*(?:node_modules|dist|out|electron|optimized|soundeffects|project-backups|\.png|\.mp3|\.wav|\.ogg)/mi, '.dockerignore should not re-include desktop/build/media bulk paths');
+dockerignoreHas('!fates-entwined-website/installer/**', 'allow hosted installer files');
+assert.doesNotMatch(dockerignoreText, /^!.*(?:node_modules|dist|out|electron|project-backups)/mi, '.dockerignore should not re-include desktop/build backup paths');
 
 console.log('fate-fly-config smoke passed');
