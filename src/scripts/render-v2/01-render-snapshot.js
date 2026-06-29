@@ -80,6 +80,12 @@
     return !!(g && g._revealedCards && card.iid != null && g._revealedCards[card.iid]);
   }
 
+  function runtimeCardImageSrc(src, role){
+    if(!src) return '';
+    if(typeof window.getRuntimeCardImageSrc === 'function') return window.getRuntimeCardImageSrc(src, role || 'board');
+    return String(src || '');
+  }
+
   function fallbackVisual(card, hidden){
     if(hidden) {
       return {
@@ -92,14 +98,15 @@
         runtimeImg:'back.png'
       };
     }
+    const runtimeImg = runtimeCardImageSrc(card && (card.runtimeImg || card.img), 'board');
     return card ? {
       isHidden:false,
       name:card.name || '',
       type:card.type || '',
       aff:card.aff || '',
       displayFate:card.currentFate != null ? card.currentFate : card.fate,
-      img:card.img || '',
-      runtimeImg:card.img || ''
+      img:runtimeImg,
+      runtimeImg:runtimeImg
     } : null;
   }
 
@@ -121,8 +128,8 @@
             displayFate:visual.displayFate,
             currentFate:visual.currentFate,
             fate:visual.fate,
-            img:visual.img || '',
-            runtimeImg:visual.runtimeImg || visual.img || '',
+            img:runtimeCardImageSrc(visual.img || visual.runtimeImg || '', 'board'),
+            runtimeImg:runtimeCardImageSrc(visual.runtimeImg || visual.img || '', 'board'),
             cost:visual.cost,
             xCost:!!visual.xCost
           };
@@ -150,8 +157,8 @@
     base.type = card.type || '';
     base.aff = card.aff || '';
     base.rarity = card.rarity || '';
-    base.img = card.img || (visual && visual.img) || '';
-    base.runtimeImg = card.runtimeImg || (visual && visual.runtimeImg) || base.img;
+    base.img = runtimeCardImageSrc((visual && (visual.img || visual.runtimeImg)) || card.runtimeImg || card.img || '', 'board');
+    base.runtimeImg = runtimeCardImageSrc((visual && (visual.runtimeImg || visual.img)) || card.runtimeImg || base.img, 'board');
     base.fate = card.fate;
     base.currentFate = card.currentFate;
     base.cost = card.cost;

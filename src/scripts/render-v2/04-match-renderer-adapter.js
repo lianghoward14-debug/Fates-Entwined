@@ -802,13 +802,19 @@
     ctx.fillText(aff, r.x + r.w / 2, r.y + r.h / 2);
   }
 
+  function runtimeArtSource(src){
+    if(!src) return '';
+    if(typeof window.getRuntimeCardImageSrc === 'function') return window.getRuntimeCardImageSrc(src, 'board');
+    return String(src || '');
+  }
+
   function fullArtSource(card, visual){
-    if(card && card.img) return card.img;
-    if(visual && visual.img) return visual.img;
-    if(card && card.visual && card.visual.img) return card.visual.img;
-    if(card && card.runtimeImg) return card.runtimeImg;
-    if(visual && visual.runtimeImg) return visual.runtimeImg;
-    if(card && card.visual && card.visual.runtimeImg) return card.visual.runtimeImg;
+    if(visual && visual.runtimeImg) return runtimeArtSource(visual.runtimeImg);
+    if(card && card.runtimeImg) return runtimeArtSource(card.runtimeImg);
+    if(card && card.visual && card.visual.runtimeImg) return runtimeArtSource(card.visual.runtimeImg);
+    if(visual && visual.img) return runtimeArtSource(visual.img);
+    if(card && card.visual && card.visual.img) return runtimeArtSource(card.visual.img);
+    if(card && card.img) return runtimeArtSource(card.img);
     return '';
   }
 

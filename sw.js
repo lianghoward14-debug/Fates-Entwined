@@ -1,5 +1,5 @@
 // Minimal service worker for Chrome PWA installability
-const CACHE_NAME = 'fates-entwined-v4-bg-refresh';
+const CACHE_NAME = 'fates-entwined-v5-browser-card-art';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
