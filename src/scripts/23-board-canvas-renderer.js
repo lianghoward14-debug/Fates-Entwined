@@ -160,9 +160,12 @@
     const img = new Image();
     rec = { img, loaded:false, failed:false, fallbackTried:false };
     imageCache.set(key, rec);
-    const fallbackSrc = (typeof window.getFullCardImageFallbackSrc === 'function')
+    let fallbackSrc = (typeof window.getFullCardImageFallbackSrc === 'function')
       ? window.getFullCardImageFallbackSrc(key)
       : key.replace(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/, '$1.png');
+    try {
+      if(typeof window.getFullCardImageFallbackSrc !== 'function' && location.protocol !== 'file:' && !/Electron/i.test(navigator.userAgent || '')) fallbackSrc = key;
+    } catch(e) {}
     const tryFallback = function(){
       if(rec.loaded || rec.fallbackTried || !fallbackSrc || fallbackSrc === key) return;
       rec.fallbackTried = true;

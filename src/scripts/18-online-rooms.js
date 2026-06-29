@@ -1671,6 +1671,7 @@
     const outbound = Object.assign({}, payload || {}, { clientActionId });
     const clientResolvedCommit = clientResolvedGameplayEnabled() && isClientResolvedGameplayAction(type);
     const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
+    const authorityFirstPlacement = compactAuthorityPayload && toAuthorityIntent(type, outbound, gameState()) === 'PLACE_CARD';
     let localResult;
     let localApplied = false;
     let finishLocalCommit = null;
@@ -1764,7 +1765,18 @@
       }, delayMs);
     }
     function applyLocalAndSend(){
-      if(compactAuthorityPayload) stampBaseStateHash();
+      if(compactAuthorityPayload && !authorityFirstPlacement) stampBaseStateHash();
+      if(authorityFirstPlacement){
+        const pendingState = gameState();
+        if(pendingState && isOnlineMatchState(pendingState)){
+          pendingState.placing = false;
+          pendingState.selectedHandCard = null;
+          if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
+          if(typeof renderHand === 'function') renderHand();
+        }
+        stampBaseStateHash();
+        return sendAuthorityNow();
+      }
       finishLocalCommit = clientResolvedCommit ? noteClientResolvedLocalCommitStart() : null;
       if(typeof applyLocal === 'function'){
         try{

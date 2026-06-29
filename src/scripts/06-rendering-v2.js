@@ -48,11 +48,19 @@ function replaceElementChildren(el, childOrFrag) {
     if(childOrFrag) el.appendChild(childOrFrag);
   }
 }
+function isElectronCardImageRuntime() {
+  try {
+    return location.protocol === 'file:' || /Electron/i.test(navigator.userAgent || '') || /\belectron=1\b/i.test(location.search || '');
+  } catch(e) {
+    return false;
+  }
+}
 function getRuntimeCardImageSrc(src, role) {
-  if(!src || role === 'detail') return src;
+  if(!src) return src;
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png$/);
   if(!m) return raw;
+  if(isElectronCardImageRuntime() && (role === 'hand' || role === 'detail' || role === 'full')) return raw;
   return 'optimized/card-thumbs/' + m[1] + '.jpg';
 }
 function beginRenderCalculationFrame() {
@@ -779,8 +787,8 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       fate: card.fate,
       currentFate: liveFate,
       displayFate: boardPos ? getCachedEffectiveFate(card, boardPos.z) : liveFate,
-    img: card.img,
-    runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
+      img: getRuntimeCardImageSrc(card.img, 'detail'),
+      runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
       cost: handCost,
       xCost: card.xCost
     };
@@ -1017,7 +1025,7 @@ function renderHand() {
     if(isNew){ el.addEventListener('animationend',function(){el.classList.remove('hc-entering');},{once:true}); }
     const fate = getLiveCardFate(card);
     el.innerHTML=`
-      <div class="bc-art">${card.img?`<img src="${getRuntimeCardImageSrc(card.img, 'hand')}" alt="${card.name}" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${card.img}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
+      <div class="bc-art">${card.img?`<img src="${getRuntimeCardImageSrc(card.img, 'hand')}" alt="${card.name}" decoding="async" loading="eager" onerror="this.onerror=null;this.src=this.getAttribute('src');">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
       <div class="bc-fate">${fate}</div>
       <div class="bc-name">${card.name}</div>`;
     frag.appendChild(el);

@@ -452,21 +452,26 @@ function replaceElementChildren(el, childOrFrag) {
     if(childOrFrag) el.appendChild(childOrFrag);
   }
 }
+function isElectronCardImageRuntime() {
+  try {
+    return location.protocol === 'file:' || /Electron/i.test(navigator.userAgent || '') || /\belectron=1\b/i.test(location.search || '');
+  } catch(e) {
+    return false;
+  }
+}
 function getRuntimeCardImageSrc(src, role) {
-  if(!src || role === 'detail') return src;
-  // In-game hand cards are few and user-facing; prefer the original PNG so the
-  // player never sees a black shell while a generated thumbnail stalls.
-  if(role === 'hand') return src;
+  if(!src) return src;
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png$/);
   if(!m) return raw;
+  if(isElectronCardImageRuntime() && (role === 'hand' || role === 'detail' || role === 'full')) return raw;
   return 'optimized/card-thumbs/' + m[1] + '.jpg';
 }
 function getFullCardImageFallbackSrc(src) {
   if(!src) return '';
   const raw = String(src);
   const m = raw.match(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/);
-  return m ? (m[1] + '.png') : raw;
+  return (m && isElectronCardImageRuntime()) ? (m[1] + '.png') : raw;
 }
 window.getFullCardImageFallbackSrc = getFullCardImageFallbackSrc;
 function shouldUseCanvasBoardVisuals() {
@@ -2396,8 +2401,8 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       fate: typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate),
       currentFate: liveFate,
       displayFate: boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate),
-    img: card.img,
-    runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
+      img: getRuntimeCardImageSrc(card.img, 'detail'),
+      runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
       cost: handCost,
       xCost: card.xCost
     };
@@ -2760,13 +2765,13 @@ function renderHand() {
     if(el.__fateHandVisualSig !== visualSig){
       el.__fateHandVisualSig = visualSig;
       el.innerHTML=`
-        <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" fetchpriority="high" data-full-src="${card.img}" onerror="this.onerror=null;this.src=this.dataset.fullSrc||'${card.img}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
+        <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" fetchpriority="high" data-full-src="${getFullCardImageFallbackSrc(runtimeImg)}" onerror="this.onerror=null;this.src=this.dataset.fullSrc||'${runtimeImg}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
         <div class="bc-fate">${fate}</div>
         <div class="bc-name">${escapePlacementAnimHtml(card.name)}</div>
         ${buildHandEffectMarkerHTML(card)}`;
       const img = el.querySelector('.bc-art img');
       if(img && card.img) {
-        const fallbackSrc = card.img;
+        const fallbackSrc = getFullCardImageFallbackSrc(runtimeImg);
         setTimeout(function(){
           if(!img.isConnected || img.src.endsWith('/' + fallbackSrc) || img.getAttribute('src') === fallbackSrc) return;
           if(!img.complete || !img.naturalWidth) img.src = fallbackSrc;

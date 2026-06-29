@@ -51,6 +51,9 @@
     try {
       if(typeof window.getFullCardImageFallbackSrc === 'function') return window.getFullCardImageFallbackSrc(key) || '';
     } catch(e) {}
+    try {
+      if(location.protocol !== 'file:' && !/Electron/i.test(navigator.userAgent || '')) return key;
+    } catch(e) {}
     return key.replace(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/, '$1.png');
   }
 
