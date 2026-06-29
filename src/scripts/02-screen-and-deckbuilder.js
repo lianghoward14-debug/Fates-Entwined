@@ -239,6 +239,8 @@ function fateHandleEscapeBack(event) {
     's-deck': 's-title',
     's-preset': 's-title',
     's-coin': 's-preset',
+    's-campaign-intro': 's-challenger',
+    's-campaign-level': 's-challenger',
     's-challenger': 's-title',
     's-starter-pick': 's-title',
     's-social': 's-title',

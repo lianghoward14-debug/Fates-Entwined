@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1782623300">
   <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1782662300">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1782032601">
+<link rel="stylesheet" href="src/styles/campaign-intro.css?v=1782663600">
+<link rel="stylesheet" href="src/styles/challenger-lore.css?v=1782664800">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -144,6 +146,41 @@
   </div>
 </div>
 
+<!-- CAMPAIGN CHARACTER INTRO (isolated first-pass campaign shell) -->
+<div class="screen" id="s-campaign-intro">
+  <div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg4.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="campaign-intro-shell">
+    <div class="campaign-intro-topbar">
+      <button class="btn sm" onclick="returnToChallengerFromCampaign()">Back</button>
+      <div class="campaign-intro-title">
+        <span>Campaign</span>
+        <b>Choose Your Lead</b>
+      </div>
+      <button class="btn sm pri" id="campaign-confirm-btn" onclick="confirmCampaignCharacter()">Confirm</button>
+    </div>
+    <div class="campaign-intro-layout">
+      <section class="campaign-character-grid" id="campaign-character-grid" data-campaign-character-grid aria-label="Campaign starter characters"></section>
+      <aside class="campaign-character-detail" id="campaign-character-detail" data-campaign-character-detail></aside>
+    </div>
+  </div>
+</div>
+
+<!-- CAMPAIGN CHAPTER TRIAL (isolated visual-novel chapter shell) -->
+<div class="screen" id="s-campaign-level">
+  <div class="screen-bg"><img src="optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="campaign-level-shell">
+    <div class="campaign-level-topbar">
+      <button class="btn sm" onclick="returnToCampaignHub()">Back</button>
+      <div class="campaign-level-title">
+        <span>Chapter 1</span>
+        <b>Snow on the Carpathians</b>
+      </div>
+      <button class="btn sm pri" onclick="startSnowCarpathiansBattle()">Begin Battle</button>
+    </div>
+    <div id="campaign-level-scene" class="campaign-level-scene"></div>
+  </div>
+</div>
+
 <!-- CHALLENGER HUB (main screen for challenger mode) -->
 <div class="screen" id="s-challenger">
 <div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg2.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
@@ -170,9 +207,11 @@
   </div>
   <div class="ch-tabs">
     <button class="ch-tab active" data-tab="play" onclick="switchChTab('play')">Play</button>
+    <button class="ch-tab" data-tab="campaign" onclick="switchChTab('campaign')" hidden>Campaign</button>
     <button class="ch-tab" data-tab="store" onclick="switchChTab('store')">Store</button>
     <button class="ch-tab" data-tab="collection" onclick="switchChTab('collection')">Collection</button>
     <button class="ch-tab" data-tab="deckbuilder" onclick="switchChTab('deckbuilder')">Deck Builder</button>
+    <button class="ch-tab" data-tab="lore" onclick="switchChTab('lore')">Lore</button>
   </div>
   <div class="ch-content" id="ch-content">
     <!-- populated by switchChTab -->
@@ -558,6 +597,8 @@
   <script src="src/scripts/07-ai.js?v=1782622600"></script>
 <script src="src/scripts/08-audio-and-meta-ui.js?v=1782621000"></script>
 <script src="src/scripts/09-challenger-mode.js?v=1782623300"></script>
+<script src="src/scripts/09-challenger-lore.js?v=1782664800"></script>
+<script src="src/scripts/campaign/01-campaign-intro.js?v=1782663600"></script>
 <script src="src/scripts/11-tutorial.js?v=1782032901"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
 <script src="src/scripts/10-init.js?v=1782040001"></script>

@@ -519,6 +519,8 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
   onChildAdded,
   onAuth, syncPublicProfile, makeBaseCode, normalizeUsername,
   getPublicProfile: getPublicProfileOnline,
+  flyApiRequest,
+  authorityHttpBaseUrl,
   flyProfilesEnabled,
   rtdbDisabledMode,
   rtdbAvailable,

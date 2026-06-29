@@ -1055,6 +1055,8 @@ function getChTabPane(tab, create=true) {
 function getChRendererForTab(tab) {
   return {
     play:renderChPlayTab,
+    campaign:window.renderChCampaignTab,
+    lore:window.renderChLoreTab,
     store:renderChStoreTab,
     collection:renderChCollectionTab,
     deckbuilder:renderChDeckBuilderTab
@@ -1154,7 +1156,7 @@ function switchChTab(tab, opts) {
   // Set tab-specific background
   const bgEl = document.querySelector('#s-challenger .screen-bg img');
   if(bgEl){
-  const tabBg = {play:TITLE_BG_PATH(2), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
+  const tabBg = {play:TITLE_BG_PATH(2), campaign:TITLE_BG_PATH(4), lore:INGAME_BG_PATH(15), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
   bgEl.src = tabBg[tab] || TITLE_BG_PATH(2);
   }
   const content = document.getElementById('ch-content');

@@ -76,6 +76,7 @@ const flyPartyInvites = new Map();
 const flyWorldChat = [];
 const flyMarketplaceListings = new Map();
 const flyPublicDecks = new Map();
+const flyLorePages = new Map();
 const flyPlayerSaves = new Map();
 const flyFriends = new Map();
 const flyFriendRequests = new Map();
@@ -261,6 +262,7 @@ function flyRoomsSnapshotPayload(){
     marketplaceListings:[...flyMarketplaceListings.values()].map(publicFlyMarketplaceListing).filter(Boolean).slice(-500),
     publicDeckCommentSeq:flyPublicDeckCommentSeq,
     publicDecks:[...flyPublicDecks.values()].map(publicFlyPublicDeck).filter(Boolean).slice(-500),
+    lorePages:[...flyLorePages.values()].map(publicFlyLorePage).filter(Boolean).slice(0, 500),
     playerSaves:[...flyPlayerSaves.values()].map(publicFlyPlayerSave).filter(Boolean),
     friends:[...flyFriends.entries()].map(([uid, friends])=>({uid, friends:[...friends]})),
     friendRequests:[...flyFriendRequests.values()].map(publicFlyFriendRequest).filter(Boolean),
@@ -381,6 +383,10 @@ function loadFlyRoomsSnapshot(){
         if(seqMatch) flyPublicDeckCommentSeq = Math.max(flyPublicDeckCommentSeq, Number(seqMatch[1]) || 0);
       });
     }
+  });
+  (Array.isArray(parsed?.lorePages) ? parsed.lorePages : []).forEach(item=>{
+    const page = publicFlyLorePage(item);
+    if(page?.id) flyLorePages.set(page.id, page);
   });
   (Array.isArray(parsed?.playerSaves) ? parsed.playerSaves : []).forEach(item=>{
     const save = publicFlyPlayerSave(item);
@@ -1406,6 +1412,110 @@ function publicFlyPublicDeckSummary(deck){
     ratings:[],
     comments:[]
   });
+}
+
+function sanitizeLoreText(value, maxLen){
+  return String(value == null ? '' : value).replace(/\r\n/g, '\n').replace(/\r/g, '\n').slice(0, maxLen);
+}
+
+function sanitizeLoreSlug(value){
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function publicFlyLorePage(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const section = sanitizeLoreSlug(raw.section);
+  const type = sanitizeLoreSlug(raw.type);
+  const slug = sanitizeLoreSlug(raw.slug || raw.id);
+  if(!section || !type || !slug) return null;
+  const id = `${section}:${type}:${slug}`;
+  const facts = raw.facts && typeof raw.facts === 'object' ? raw.facts : {};
+  const cleanFacts = {};
+  Object.keys(facts).slice(0, 18).forEach(key=>{
+    const cleanKey = String(key || '').replace(/[^\w\s-]/g, '').trim().slice(0, 32);
+    if(!cleanKey) return;
+    cleanFacts[cleanKey] = sanitizeLoreText(facts[key], 180);
+  });
+  const gallery = (Array.isArray(raw.gallery) ? raw.gallery : [])
+    .map(src=>sanitizeProfilePhotoValue(src, ''))
+    .filter(Boolean)
+    .slice(0, 6);
+  const heroImage = sanitizeProfilePhotoValue(raw.heroImage || raw.image || gallery[0], '');
+  const pfpId = String(raw.pfpId || facts.PFP || facts.Pfp || '').replace(/[^\d]/g, '').slice(0, 3);
+  return {
+    id,
+    section,
+    type,
+    slug,
+    title:String(raw.title || slug.replace(/-/g, ' ') || 'Lore Page').trim().slice(0, 90),
+    subtitle:String(raw.subtitle || '').trim().slice(0, 140),
+    pfpId,
+    heroImage,
+    gallery,
+    summary:sanitizeLoreText(raw.summary, 900),
+    body:sanitizeLoreText(raw.body, 8000),
+    facts:cleanFacts,
+    tags:(Array.isArray(raw.tags) ? raw.tags : String(raw.tags || '').split(','))
+      .map(tag=>String(tag || '').trim().slice(0, 32))
+      .filter(Boolean)
+      .slice(0, 10),
+    createdBy:String(raw.createdBy || '').slice(0, 128),
+    createdByName:String(raw.createdByName || raw.username || 'Player').slice(0, 32),
+    updatedBy:String(raw.updatedBy || raw.createdBy || '').slice(0, 128),
+    updatedByName:String(raw.updatedByName || raw.createdByName || raw.username || 'Player').slice(0, 32),
+    createdAt:Number(raw.createdAt || 0) || now(),
+    updatedAt:Number(raw.updatedAt || raw.createdAt || 0) || now(),
+    source:'fly-authority'
+  };
+}
+
+function listFlyLorePages(){
+  return [...flyLorePages.values()]
+    .map(publicFlyLorePage)
+    .filter(Boolean)
+    .sort((a,b)=>String(a.title || '').localeCompare(String(b.title || '')));
+}
+
+function upsertFlyLorePage(uid, body){
+  const safeUid = String(uid || '').slice(0, 128);
+  if(!safeUid) throw new Error('missing uid');
+  const incoming = body?.page || body || {};
+  const section = sanitizeLoreSlug(incoming.section);
+  const type = sanitizeLoreSlug(incoming.type);
+  let slug = sanitizeLoreSlug(incoming.slug);
+  if(!slug) slug = sanitizeLoreSlug(incoming.title);
+  if(!section || !type || !slug) throw new Error('missing lore section, type, or title');
+  const id = `${section}:${type}:${slug}`;
+  const existing = flyLorePages.get(id) || {};
+  const profile = publicFlyProfile(Object.assign({}, body?.profile || body || {}, {uid:safeUid})) || {name:'Player'};
+  const page = publicFlyLorePage(Object.assign({}, existing, incoming, {
+    id,
+    section,
+    type,
+    slug,
+    createdBy:existing.createdBy || safeUid,
+    createdByName:existing.createdByName || profile.name || profile.displayName || 'Player',
+    updatedBy:safeUid,
+    updatedByName:profile.name || profile.displayName || 'Player',
+    createdAt:existing.createdAt || now(),
+    updatedAt:now()
+  }));
+  flyLorePages.set(id, page);
+  return page;
+}
+
+function deleteFlyLorePage(uid, pageId){
+  const safeUid = String(uid || '').slice(0, 128);
+  if(!safeUid) throw new Error('missing uid');
+  const id = String(pageId || '').slice(0, 260);
+  const page = publicFlyLorePage(flyLorePages.get(id));
+  if(!page) throw new Error('lore page not found');
+  flyLorePages.delete(id);
+  return page;
 }
 
 function upsertFlyPublicDeck(uid, body){
@@ -3659,6 +3769,29 @@ async function handleApiRequest(req, res, url){
         leaderboard:flyLeaderboard(limit, {monthKey})
       });
       return true;
+    }
+    if(parts[1] === 'lore'){
+      if(req.method === 'GET'){
+        writeJson(res, 200, {ok:true, pages:listFlyLorePages()});
+        return true;
+      }
+      if(req.method === 'POST' && !parts[2]){
+        const body = await readJsonBody(req);
+        const uid = await verifyRequestUser(req, body);
+        if(body.profile) upsertFlyProfile(uid, body.profile);
+        const page = upsertFlyLorePage(uid, body);
+        persistFlyRoomMutation();
+        writeJson(res, 200, {ok:true, page, pages:listFlyLorePages()});
+        return true;
+      }
+      if(req.method === 'POST' && parts[2] && parts[3] === 'delete'){
+        const body = await readJsonBody(req);
+        const uid = await verifyRequestUser(req, body);
+        const page = deleteFlyLorePage(uid, decodeURIComponent(parts[2]));
+        persistFlyRoomMutation();
+        writeJson(res, 200, {ok:true, deleted:page, pages:listFlyLorePages()});
+        return true;
+      }
     }
     if(parts[1] === 'challenger-ai' && parts[2] === 'seed'){
       if(req.method !== 'POST') throw new Error('challenger AI seed route requires POST');
