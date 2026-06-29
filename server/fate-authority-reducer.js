@@ -2686,9 +2686,9 @@ function applyServerRiveraBuffToPlacedCard(state, inst, owner){
     if(!inst._riveraAppliedBuffs || typeof inst._riveraAppliedBuffs !== 'object') inst._riveraAppliedBuffs = {};
     const key = String(buff.sourceIid || buff.aff || 'rivera');
     if(inst._riveraAppliedBuffs[key]) return;
-    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 3);
+    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 4);
     inst._riveraAppliedBuffs[key] = true;
-    inst._riveraFateBonus = (Number(inst._riveraFateBonus || 0) || 0) + 3;
+    inst._riveraFateBonus = (Number(inst._riveraFateBonus || 0) || 0) + 4;
     applied = true;
   });
   return applied;

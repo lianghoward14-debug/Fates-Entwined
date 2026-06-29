@@ -3093,7 +3093,7 @@ const realSupporterCatalog = {byId:new Map([
   ['48', {id:'48', type:'Initiator', cost:1, effect:'Add Expanded Worlds from deck, then discard.', aff:'expanded_worlds'}],
   ['49', {id:'49', type:'Supporter', effect:'Characters in this zone can be used for consolidation.', aff:'reality'}],
   ['50', {id:'50', type:'Supporter', effect:'When set, select any zone to lock for your opponent.', aff:'reality'}],
-  ['51', {id:'51', type:'Initiator', cost:0, effect:'Declare affiliation; matching characters you set gain 3 Fate for 3 turns.', aff:'eventide'}],
+  ['51', {id:'51', type:'Initiator', cost:0, effect:'Declare affiliation; matching characters you set gain 4 Fate for 3 turns.', aff:'eventide'}],
   ['55', {id:'55', type:'Dauntless', cost:0, effect:'Gains Fate if same-zone friendly cards share affiliation.', aff:'expanded_worlds'}],
   ['53', {id:'53', type:'Supporter', effect:'Opponent consolidations in this zone cannot use outside cards.', aff:'eventide'}],
   ['52', {id:'52', type:'Supporter', effect:'Once per turn, select one opponent card in this zone. That card has 0 Reinforcement.', aff:'eventide'}],
@@ -6316,8 +6316,8 @@ const riveraFollowup = reduceServerAction({canonicalState:riveraFollowupBase, ca
   stateHash:riveraFollowupHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(riveraFollowup.ok, true, riveraFollowup.reason);
-assert.strictEqual(riveraFollowup.canonicalState.board[0][2][1].currentFate, 5);
-assert.strictEqual(riveraFollowup.canonicalState.board[0][2][1]._riveraFateBonus, 3);
+assert.strictEqual(riveraFollowup.canonicalState.board[0][2][1].currentFate, 6);
+assert.strictEqual(riveraFollowup.canonicalState.board[0][2][1]._riveraFateBonus, 4);
 
 const markMenzBase = state({
   players:[

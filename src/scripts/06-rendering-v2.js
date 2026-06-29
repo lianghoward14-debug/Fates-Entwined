@@ -1345,7 +1345,7 @@ function renderTopbarEffects() {
         const affLabel = AFF_LABEL[eff.aff] || eff.aff;
         allEffects.push({
           icon: getStatusEffectIcon('affiliation_buff'),
-          label: 'Rivera: ' + affLabel + ' chars +3',
+          label: 'Rivera: ' + affLabel + ' chars +4',
           cardName: card ? card.name : 'Rivera',
           cardAbility: card ? card.ability : 'Jorge\'s Right Hand Man',
           cardEffect: 'Character cards you set with ' + affLabel + ' gain 3 Fate. ' + eff.turnsLeft + ' of your turns remaining.',

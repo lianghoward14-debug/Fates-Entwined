@@ -211,7 +211,7 @@ const CARDS = [
     flavor:'"Berkeley hoodie? Check. Boba addiction? Check. Anime fan? Check. Bonus section: virgin and leetcode? Check."',img:'50.png'},
   {id:'51',name:'Rivera',ability:'Jorge\'s Right Hand Man',type:'Initiator',aff:'eventide',
     fate:3,cost:2,rarity:'square',
-    effect:'Declare any affiliation; for the next three of your turns, any character you set with that affiliation gains 3 Fate, including characters that would have their affiliation changed to the declared affiliation.',
+    effect:'Declare any affiliation; for the next three of your turns, any character you set with that affiliation gains 4 Fate, including characters that would have their affiliation changed to the declared affiliation.',
     flavor:'"Everything that Rivera fights for is to ensure his daughter a bright future in West Caribbean"',img:'51.png'},
   {id:'52',name:'The Vigilantes',ability:'Marked for Death',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',

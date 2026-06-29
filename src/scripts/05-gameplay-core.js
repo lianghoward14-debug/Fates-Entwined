@@ -287,14 +287,14 @@ function applyRiveraBuffToPlacedCard(inst, owner) {
     const key = String(buff.sourceIid || buff.aff || 'rivera');
     if(inst._riveraAppliedBuffs[key]) return;
     const before = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
-    inst.currentFate = Math.max(0, before + 3);
+    inst.currentFate = Math.max(0, before + 4);
     inst._riveraAppliedBuffs[key] = true;
-    inst._riveraFateBonus = (Number(inst._riveraFateBonus) || 0) + 3;
+    inst._riveraFateBonus = (Number(inst._riveraFateBonus) || 0) + 4;
     applied = true;
   });
 
   if(applied) {
-    toast(inst.name + ' gains 3 Fate from Rivera!');
+    toast(inst.name + ' gains 4 Fate from Rivera!');
     if(typeof playSfx === 'function') playSfx('fateGain');
     if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
     if(typeof updateTopBar === 'function') updateTopBar();
@@ -3921,11 +3921,11 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     }
     case '48': // Cosmic GF: add Expanded Worlds from deck, then discard
       addAffFromDeckDiscard(cp,'expanded_worlds'); break;
-    case '51': { // Rivera: declare affiliation, +3 Fate to matching characters for 3 of your turns
+    case '51': { // Rivera: declare affiliation, +4 Fate to matching characters for 3 of your turns
       showAffiliationPickerVisual((aff)=>{
         const riveraCard = card;
         startRiveraBuff(riveraCard, aff, riveraCard.owner != null ? riveraCard.owner : cp);
-        toast('Rivera declared '+(AFF_LABEL[aff]||aff)+'! Character cards you set with that affiliation gain 3 Fate for 3 of your turns.');
+        toast('Rivera declared '+(AFF_LABEL[aff]||aff)+'! Character cards you set with that affiliation gain 4 Fate for 3 of your turns.');
         log(cp===0?'p1':'p2','Rivera declared '+(AFF_LABEL[aff]||aff)+' for matching characters for 3 of their turns');
         riveraCard.effectUsedInitial = true;
         renderEffectResolutionForPlayer(cp, {hand:false});

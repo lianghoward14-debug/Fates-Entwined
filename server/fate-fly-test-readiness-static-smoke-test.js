@@ -39,8 +39,8 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /01-data-and-state\.js\?v=1782663900/, 'index must cache-bust Vigilantes, Oathbound, and Lydia text fixes');
-assert.match(indexText, /05-gameplay-core\.js\?v=1782661900/, 'index must cache-bust gameplay consolidation, Oathbound, and end-turn warning fixes');
+assert.match(indexText, /01-data-and-state\.js\?v=1782664000/, 'index must cache-bust Vigilantes, Oathbound, Lydia, and Rivera text fixes');
+assert.match(indexText, /05-gameplay-core\.js\?v=1782664000/, 'index must cache-bust gameplay consolidation, Oathbound, end-turn warning, and Rivera buff fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782647600/, 'index must cache-bust renderer extra-cell fixes');
 assert.match(indexText, /03-profile-and-progression\.js\?v=1782659000/, 'index must cache-bust daily login startup prompt fixes');
 assert.match(indexText, /18-online-rooms\.js\?v=1782661900/, 'index must cache-bust the online rooms script for server card picker identity and Oathbound targeting fixes');

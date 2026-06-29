@@ -2154,7 +2154,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       applyArtilleryLock(bestZone, cp);
       break;
     }
-    case '51': { // Rivera: declare an affiliation for the +3 Fate buff
+    case '51': { // Rivera: declare an affiliation for the +4 Fate buff
       const pool = [...G.players[cp].hand, ...G.players[cp].deck].filter(c => {
         if(!c || !c.aff || c.id === '51') return false;
         return typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(Object.assign({owner:cp}, c), cp) : c.type !== 'Supporter';
