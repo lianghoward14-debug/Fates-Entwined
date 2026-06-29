@@ -12528,7 +12528,7 @@ html body #s-challenger .ch-play-panel .ch-v5-elo{
 }
 
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo{
-  font-size:2.42rem!important;
+  font-size:clamp(2.65rem,3.15vw,3.85rem)!important;
 }
 
 html body.modal-open .cinematic-subtitle-live{
