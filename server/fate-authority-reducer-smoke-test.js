@@ -4159,6 +4159,46 @@ assert.strictEqual(woundAnnePick.ok, true, woundAnnePick.reason);
 assert.strictEqual(woundAnnePick.canonicalState.board[0][0][1].currentFate, 9);
 assert.strictEqual(woundAnnePick.canonicalState.damageDoneP[0], 1);
 
+const woundOwnBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'31', iid:'s-31-own-place', name:'Oathbound Noble Fighter', type:'Supporter', fate:1}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,{id:'301', iid:'wound-own-target', name:'Own Wound Target', type:'Character', owner:0, fate:5, currentFate:5},null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0],
+  damageDoneP:[0,0]
+});
+const woundOwnHash = canonicalStateHash(woundOwnBase);
+const woundOwnSet = reduceServerAction({canonicalState:woundOwnBase, canonicalHash:woundOwnHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-31-own-place', id:'31'},
+  baseStateHash:woundOwnHash,
+  postState:woundOwnBase,
+  stateHash:woundOwnHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundOwnSet.ok, true, woundOwnSet.reason);
+const woundOwnPick = reduceServerAction({canonicalState:woundOwnSet.canonicalState, canonicalHash:woundOwnSet.canonicalHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  selectedEntries:[{z:0, r:1, c:1, card:{iid:'wound-own-target', id:'301', name:'Own Wound Target'}}],
+  baseStateHash:woundOwnSet.canonicalHash,
+  postState:woundOwnSet.canonicalState,
+  stateHash:woundOwnSet.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundOwnPick.ok, true, woundOwnPick.reason);
+assert.strictEqual(woundOwnPick.canonicalState.board[0][1][1].currentFate, 2);
+
 const woundShieldBase = state(Object.assign({}, woundSetBase, {
   shieldWallZones:[0]
 }));

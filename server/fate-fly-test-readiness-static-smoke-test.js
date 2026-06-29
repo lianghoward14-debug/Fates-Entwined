@@ -39,11 +39,11 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /01-data-and-state\.js\?v=1782664000/, 'index must cache-bust Vigilantes, Oathbound, Lydia, and Rivera text fixes');
-assert.match(indexText, /05-gameplay-core\.js\?v=1782664000/, 'index must cache-bust gameplay consolidation, Oathbound, end-turn warning, and Rivera buff fixes');
+assert.match(indexText, /01-data-and-state\.js\?v=1782744100/, 'index must cache-bust Vigilantes, Oathbound, Lydia, and Rivera text fixes');
+assert.match(indexText, /05-gameplay-core\.js\?v=1782744100/, 'index must cache-bust gameplay consolidation, Oathbound, end-turn warning, timer sync, and Rivera buff fixes');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1782647600/, 'index must cache-bust renderer extra-cell fixes');
 assert.match(indexText, /03-profile-and-progression\.js\?v=1782659000/, 'index must cache-bust daily login startup prompt fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1782661900/, 'index must cache-bust the online rooms script for server card picker identity and Oathbound targeting fixes');
+assert.match(indexText, /18-online-rooms\.js\?v=1782744100/, 'index must cache-bust the online rooms script for server card picker identity, Oathbound targeting, and authority timer sync fixes');
 assert.match(indexText, /09-challenger-mode\.js\?v=1782663700/, 'index must cache-bust the challenger leaderboard, simulation, social filtering, profile crop, and browser deck art script');
 assert.match(indexText, /17-online-social\.js\?v=1782620200/, 'index must cache-bust the online social script for internal-player filtering');
 assert.match(indexText, /04-game-setup\.js\?v=1782646900/, 'index must cache-bust the match setup script for multiplayer coin flip, draw animation, and profile crop fixes');

@@ -52,6 +52,8 @@
   let authorityRequestCounter = 0;
   let lastAuthorityStateHash = '';
   let authorityReducerMode = '';
+  let authorityServerTimeOffsetMs = 0;
+  let authorityServerTimeSyncedAt = 0;
   const blockedRtdbRoomWarnings = new Set();
   let authorityRetryAttempts = 0;
   let authorityRetrySuccesses = 0;
@@ -136,6 +138,21 @@
   function cloneOnlinePlain(value){
     return onlineFirebaseSafeValue(value);
   }
+  function syncAuthorityServerClock(serverTime){
+    const numeric = Number(serverTime);
+    if(!Number.isFinite(numeric) || numeric <= 0) return false;
+    authorityServerTimeOffsetMs = numeric - Date.now();
+    authorityServerTimeSyncedAt = Date.now();
+    try{
+      window.__fateAuthorityServerTimeOffsetMs = authorityServerTimeOffsetMs;
+      window.__fateAuthorityServerTimeSyncedAt = authorityServerTimeSyncedAt;
+    }catch(e){}
+    return true;
+  }
+  function authorityServerNow(){
+    return Date.now() + (Number(authorityServerTimeOffsetMs || 0) || 0);
+  }
+  window.fateAuthorityServerNow = authorityServerNow;
   function compactOnlineCard(card){
     if(!card) return null;
     const out = {};
@@ -583,6 +600,7 @@
     const hash = String(action?.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
     if(localOnlineStateMatchesHash(payload.stateHash)){
+      renderOnlineAuthoritativeState(reason || ('authoritative postState seq ' + (action?.seq || '?')));
       setTimeout(maybeShowServerPendingPrompts, 0);
       return false;
     }
@@ -919,7 +937,7 @@
     if(kind === 'makennaImmune') return 'Choose friendly cards to make immune';
     if(kind === 'liberatorsFateGain') return 'Choose a card to gain 3 Fate';
     if(kind === 'howardFateDouble') return 'Choose a card to double its Fate';
-    if(kind === 'hemorrhagingWound') return 'Choose an opponent card to lose 3 Fate';
+    if(kind === 'hemorrhagingWound') return 'Choose any card to lose 3 Fate';
     if(kind === 'santiagoHalveFate') return 'Choose an opponent card in the contested row';
     if(kind === 'apparitionDiscardDraw') return 'Choose a friendly character to discard';
     return 'Choose a target';
@@ -933,7 +951,7 @@
     if(kind === 'makennaImmune') return Number(card.owner) === playerIndex;
     if(kind === 'liberatorsFateGain') return true;
     if(kind === 'howardFateDouble') return card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'hemorrhagingWound') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'hemorrhagingWound') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
     if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && String(card.type || '') === 'Supporter';
@@ -1851,6 +1869,13 @@
         if(window.toast) toast('Match is syncing. Please wait.');
         return false;
       }
+    }
+    if(!clientResolvedGameplayEnabled() && hasPendingAuthorityReplay()){
+      recordOnlineDiagnostic('blocked-action-pending-authority-replay', {actionType});
+      reportActionProgress(lastAppliedActionSeq, {force:true});
+      if(typeof evaluateLagPause === 'function') evaluateLagPause();
+      if(window.toast) toast('Match is syncing. Please wait.');
+      return false;
     }
     if(g._onlineMatchPlayable === false){
       g._onlineMatchPlayable = true;
@@ -4807,8 +4832,13 @@
     if(!msg || typeof msg !== 'object') return;
     if(msg.kind === 'hello-ok'){
       authorityJoined = true;
+      syncAuthorityServerClock(msg.serverTime);
       if(msg.serverStateHash) lastAuthorityStateHash = String(msg.serverStateHash || '');
       if(msg.reducerMode) authorityReducerMode = String(msg.reducerMode || '').toLowerCase();
+      return;
+    }
+    if(msg.kind === 'ping'){
+      syncAuthorityServerClock(msg.serverTime);
       return;
     }
     if(msg.kind === 'room-chat'){
@@ -5176,6 +5206,7 @@
     const action = accepted && accepted.action;
     const code = String(accepted?.roomCode || gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
     if(!action || !code) return;
+    syncAuthorityServerClock(accepted.serverTime || action.authorityTime);
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
     if(handleLobbyMatchStartAccepted(accepted)) return;
     if(applyAcceptedCanonicalActionNow(action, accepted)){

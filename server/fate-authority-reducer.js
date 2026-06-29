@@ -3168,8 +3168,7 @@ function setPendingSameZoneWhenSetPick(state, inst, playerIndex, z, r, c){
     hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === opponent && String(card.type || '') === 'Supporter').length > 0;
   } else if(id === '31'){
     kind = 'hemorrhagingWound';
-    const opponent = playerIndex === 0 ? 1 : 0;
-    hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === opponent && !(card.immuneFlag === true || String(card.id || '') === '76')).length > 0;
+    hasTarget = boardCardEntriesInZone(state, z, card=>!(card.immuneFlag === true || String(card.id || '') === '76')).length > 0;
   } else if(id === '03'){
     kind = 'howardFateDouble';
     hasTarget = boardCardEntriesInZone(state, z, card=>!(card.immuneFlag === true || String(card.id || '') === '76')).length > 0;
@@ -5829,8 +5828,6 @@ function reducePickZoneAction(room, msg, options){
     if(sourceResult.error) return {ok:false, reason:sourceResult.error};
     const live = liveSelectedZoneTarget(state, selected, pending, 'Hemorrhaging Wound');
     if(live.error) return {ok:false, reason:live.error};
-    const opponent = playerIndex === 0 ? 1 : 0;
-    if(Number(live.target.owner) !== opponent) return {ok:false, reason:'Hemorrhaging Wound target must be an opponent card'};
     const reduced = reduceStoredFateByAmount(state, live.target, 3, playerIndex, selected.z);
     if(!reduced.ok) return {ok:false, reason:reduced.reason};
     state._serverPendingZonePick = null;

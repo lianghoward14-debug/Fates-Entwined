@@ -466,7 +466,10 @@ function isOnlineRemoteTurnTimer() {
 
 function getOnlineSyncedTurnRemaining(limit) {
   if(!G || !G._onlineRoomCode || !Number.isFinite(Number(G._turnStartedAt))) return null;
-  const elapsed = Math.floor((Date.now() - Number(G._turnStartedAt)) / 1000);
+  const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
+    ? window.fateAuthorityServerNow()
+    : Date.now();
+  const elapsed = Math.floor((now - Number(G._turnStartedAt)) / 1000);
   if(elapsed < 0) return null;
   return Math.max(0, Math.min(limit, limit - elapsed));
 }
@@ -1788,8 +1791,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           renderHand();
         });
       } break;
-    case '31': // Hemorrhaging Wound: card in zone loses 3 Fate
-      pickCardInZone(z,'Select an opponent card to lose 3 Fate:',(tgt)=>{
+    case '31': // Hemorrhaging Wound: any card in zone loses 3 Fate
+      pickCardInZone(z,'Select any card to lose 3 Fate:',(tgt)=>{
         const before = tgt.currentFate || tgt.fate || 0;
         const changed = reduceStoredCardFateBy(tgt, 3, cp);
         if(!changed && before > 0){
@@ -1798,7 +1801,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         }
         log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderGame();
-      }, function(cell){ return !!cell && cell.owner === opp && !cell.immuneFlag && cell.id !== '76'; }); break;
+      }, function(cell){ return !!cell && !cell.immuneFlag && cell.id !== '76'; }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}

@@ -3567,7 +3567,7 @@ async function handleIntentQueued(ws, msg){
   }
   const roomPatch = roomPatchForAction(room, action);
   attachResultLedger(room, action, roomPatch);
-  const accepted = { kind:'accepted', requestId:msg.requestId || '', roomCode:code, action, roomPatch, durableWrite:false, flyEventLog:true };
+  const accepted = { kind:'accepted', requestId:msg.requestId || '', roomCode:code, action, roomPatch, durableWrite:false, flyEventLog:true, serverTime:now() };
   persistAcceptedActionInBackground(code, accepted);
   room.lastSeq = nextSeq;
   room.canonicalState = gateResult.canonicalState;
