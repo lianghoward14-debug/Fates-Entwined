@@ -457,6 +457,20 @@ function getTurnTimeLimit() {
   return _tutorialActive ? 300 : TURN_TIME_LIMIT;
 }
 
+function isOnlineRemoteTurnTimer() {
+  if(!G || !G._onlineRoomCode) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return true;
+  if(G._onlinePlayerIndex === null || G._onlinePlayerIndex === undefined) return true;
+  return Number(G.currentPlayer) !== Number(G._onlinePlayerIndex);
+}
+
+function getOnlineSyncedTurnRemaining(limit) {
+  if(!G || !G._onlineRoomCode || !Number.isFinite(Number(G._turnStartedAt))) return null;
+  const elapsed = Math.floor((Date.now() - Number(G._turnStartedAt)) / 1000);
+  if(elapsed < 0) return null;
+  return Math.max(0, Math.min(limit, limit - elapsed));
+}
+
 function formatTurnClock(seconds) {
   const safeSeconds = Math.max(0, Number(seconds) || 0);
   const m = Math.floor(safeSeconds / 60);
@@ -537,17 +551,20 @@ function startTurnTimer() {
   stopTurnTimer();
   const limit = getTurnTimeLimit();
   _turnTimerRemaining = limit;
-  if(G && G._onlineRoomCode && Number.isFinite(Number(G._turnStartedAt))) {
-    const elapsed = Math.max(0, Math.floor((Date.now() - Number(G._turnStartedAt)) / 1000));
-    _turnTimerRemaining = Math.max(1, Math.min(limit, limit - elapsed));
-  }
+  const syncedRemaining = getOnlineSyncedTurnRemaining(limit);
+  if(syncedRemaining !== null) _turnTimerRemaining = Math.max(1, syncedRemaining);
   _lastTurnWarnSecond = null;
   updateTimerDisplay();
   _turnTimerInterval = setInterval(()=>{
-    _turnTimerRemaining--;
+    const liveSyncedRemaining = getOnlineSyncedTurnRemaining(limit);
+    _turnTimerRemaining = liveSyncedRemaining !== null ? liveSyncedRemaining : (_turnTimerRemaining - 1);
     updateTimerDisplay();
     if(_turnTimerRemaining <= 0){
       stopTurnTimer();
+      if(isOnlineRemoteTurnTimer()) {
+        updateTimerDisplay();
+        return;
+      }
       toast("Time's up! Turn auto-ended.");
       endTurn();
     }
@@ -597,7 +614,7 @@ function updateTimerDisplay() {
     setTimerState('urgent');
     if(_lastTurnWarnSecond !== _turnTimerRemaining){
       _lastTurnWarnSecond = _turnTimerRemaining;
-      if(typeof playSfx === 'function') playSfx('timerWarn');
+      if(!isOnlineRemoteTurnTimer() && typeof playSfx === 'function') playSfx('timerWarn');
       showTurnTimerWarning(_turnTimerRemaining);
     }
   } else if(_turnTimerRemaining <= 30){

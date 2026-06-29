@@ -9,6 +9,7 @@ ENV FATE_WEBSITE_DIR=/app
 
 COPY server ./server
 COPY index.html manifest.json pwa-icon.svg blank.png back.png deck.png sw.js voicelines.txt ./
+COPY *.png ./
 COPY src ./src
 COPY optimized ./optimized
 COPY titlscreenbackgrounds ./titlscreenbackgrounds

@@ -2482,7 +2482,7 @@
     if(el) el.classList.remove('on');
     lagPauseVisible = false;
     lastLagPauseReason = '';
-    if(g && g.phase === 'main' && g.currentPlayer === g._onlinePlayerIndex){
+    if(g && g.phase === 'main' && isOnlineMatchState(g) && !g._isSpectator && g._onlineRole !== 'spectator'){
       try{ if(typeof window.startTurnTimer === 'function') window.startTurnTimer(); }catch(e){}
     }
   }

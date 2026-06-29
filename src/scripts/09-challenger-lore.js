@@ -5,7 +5,7 @@
     {id:'expanded-worlds', title:'Expanded Worlds', img:'afficon/expanded_worlds.png', color:'#67e08f'},
     {id:'reality', title:'Reality', img:'afficon/reality.png', color:'#f2d34f'}
   ];
-  const DEFAULT_FACT_KEYS = ['Affiliation', 'Date of birth', 'Story', 'Titles', 'Relationships'];
+  const DEFAULT_FACT_KEYS = ['Affiliation', 'Date of birth', 'Place of Birth', 'Story', 'Titles', 'Relationships'];
   const LS_KEY = 'fateChallengerLorePagesV2';
   const ENTRY_TYPE = 'characters';
   const BASE_CHARACTER_PAGES = [
@@ -14,7 +14,7 @@
       subtitle:'The Queen who never wanted to be a queen.',
       summary:'Raised in Wodny Potok under the shadow of Sebastyen Janowicz, Felicyta was prepared from childhood to become a political heir and eventually the queen of a reformed Poland-Lithuania.',
       body:'Felicyta grew up in the wistful peaks of the Carpathian Mountains, in a small village called Wodny Potok (2008-2026). Her father, Sebastyen Janowicz, was the most controversial European politician of his time, establishing Visegrad and separating Poland, Czechia, Slovakia, and Hungary from the rest of the European Union.\n\nFrom an early age, Felicyta and her adopted siblings, Kvetka Svoboda, Rozsi Szocs, and Zsofia Szocs, were groomed to become brilliant politicians and leaders for each of their respective countries, each receiving a world class education from tutors all over the world.\n\nFor college, Felicyta attended Jagiellonian University (2026-2029), where she met her lifelong friend Maja Kaminska. In college she began to stray from her charted course, finding joy in a simpler life with friends away from her controlling father. After three years, Sebastyen reeled her back in and spent the next decade preparing her to ascend to the throne.\n\nFelicyta was crowned Queen of Poland under the royal name Jadwiga II in 2038. She ruled Poland into the beginning of the Third Great War in 2052, becoming known for the relocation of Polish industry and the army abroad.',
-      facts:{Affiliation:'Poland-Lithuania', Era:'2008-2052+', Origin:'Wodny Potok, Carpathian Mountains', Role:'Queen of Poland, Jadwiga II', Status:'Ruling monarch', 'Notable For':'Relocating Polish industry and army abroad'},
+      facts:{Affiliation:'Poland-Lithuania', 'Date of birth':'December 12, 2008', 'Place of Birth':'Wodny Potok, Poland', Story:'Snow on the Carpathians; The Third Great War and Events Preceding', Titles:'The Queen of Poland, Jadwiga II, The White Eagle', Relationships:'Rozsi Szocs, Zsofia Szocs, Sebastyen Janowicz, Kvetka Svoboda', Era:'2008-2052+', Origin:'Wodny Potok, Carpathian Mountains', Role:'Queen of Poland, Jadwiga II', Status:'Ruling monarch', 'Notable For':'Relocating Polish industry and army abroad'},
       tags:['Jadwiga II', 'Visegrad', 'Third Great War']
     },
     {
@@ -22,7 +22,7 @@
       subtitle:'A lonely farmer pulled into the conflicts of Pacifica.',
       summary:'Anicka lives in Colombo five hundred years after the Great Calamity. After Kazumi is taken into the Western Seas, she enters Pacifica and becomes tied to pirates, warlords, warships, and floating cities.',
       body:'Anicka Konvicka lives in the struggling land of Colombo five hundred years after the Great Calamity, in an abandoned stretch of land near the Western Sea. As an orphan who lost her mother to illness at a young age and her father in a sailing accident, she lives an independent and lonely life, tending crops and hunting to make ends meet.\n\nOne day she meets another orphan named Kazumi, and the two become exceptionally close. They dream of journeying to Caribbea, a prosperous land, to start a new life.\n\nOn a fateful evening, Kazumi is captured and taken into the Western Seas by an unknown assailant. Anicka resolves to bring her back. She travels into the Western Seas and discovers Pacifica, a civilization of pirates, warlords, warships, and floating cities.\n\nAlongside her newfound friend Maria Song, Anicka journeys into the Great Sea and finds herself embroiled within the conflicts of Pacifica.',
-      facts:{Affiliation:'Eventide', Era:'500 years after the Great Calamity', Origin:'Colombo', Role:'Voyager and farmer', Status:'Searching for Kazumi', 'Notable For':'Entering Pacifica from the Western Seas'},
+      facts:{Affiliation:'Eventide', 'Date of birth':'December 12, 2008', 'Place of Birth':'Colombo', Story:'To Eventide', Relationships:'Kazumi, Maria Song', Era:'500 years after the Great Calamity', Origin:'Colombo', Role:'Voyager and farmer', Status:'Searching for Kazumi', 'Notable For':'Entering Pacifica from the Western Seas'},
       tags:['Pacifica', 'Kazumi', 'Maria Song']
     },
     {
@@ -30,7 +30,7 @@
       subtitle:'Temecula-born card game menace.',
       summary:'Howard grew up in Southern California, survived high school, Berkeley, Moffitt whiteboards, and now works in Japan while making kids play his card games.',
       body:'Howard grew up in Temecula, in the superior land of Southern California. He spent much of childhood drawing on desks and doodling on worksheets in class.\n\nHoward attended Great Oak High School, where he continued to harass his teachers and get really sleepy in fifth period. During COVID, Howard made a million dollars working at Ralphs and Breakfast Republic, then transferred to UC Berkeley to get really sleepy during classes again.\n\nAfter a brief affair with the Berkeley Police, Howard resorted to drawing on whiteboards in Moffitt, aura farming in MLK, and eating at Crossroads for the rest of his academic career.\n\nHoward is now working in Japan, forcing kids to play his obnoxious card games instead of following the lesson plan.',
-      facts:{Affiliation:'Reality', Era:'Modern', Origin:'Temecula, Southern California', Role:'Creator and teacher', Status:'Working in Japan', 'Notable For':'Moffitt whiteboards and card game evangelism'},
+      facts:{Affiliation:'Reality', 'Date of birth':'April 25, 2002', 'Place of Birth':'Monterey Park, CA', Story:'None', Titles:'Howa, Moffitt Man, Piano Man', Era:'Modern', Origin:'Temecula, Southern California', Role:'Creator and teacher', Status:'Working in Japan', 'Notable For':'Moffitt whiteboards and card game evangelism'},
       tags:['UC Berkeley', 'Japan', 'Moffitt']
     },
     {
@@ -38,7 +38,7 @@
       subtitle:'Resident Evil loyalist and cinematic humanities scholar.',
       summary:'Zoe Inzer is a UC Berkeley student known for loving Resident Evil, film, and refusing to play Minecraft.',
       body:'Zoe Inzer is a junior year student at UC Berkeley notable for her exceptional adoration for the Resident Evil franchise and for being a cinephile.\n\nHailing from the wretched land of Connecticut, she moved to Southern California at a young age and went to school in Redondo Beach.\n\nAt Berkeley she is currently majoring in the Humanities, believed to be Scandinavian Studies if memory serves. Besides all of the characteristics mentioned above, she is also Wasian and refuses to play Minecraft with Howard.',
-      facts:{Affiliation:'Reality', Era:'Modern', Origin:'Connecticut and Redondo Beach', Role:'UC Berkeley student', Status:'Junior year', 'Notable For':'Resident Evil, cinema, and anti-Minecraft principles'},
+      facts:{Affiliation:'Reality', 'Place of Birth':'Connecticut', Era:'Modern', Origin:'Connecticut and Redondo Beach', Role:'UC Berkeley student', Status:'Junior year', 'Notable For':'Resident Evil, cinema, and anti-Minecraft principles'},
       tags:['UC Berkeley', 'Resident Evil', 'Cinema']
     },
     {
@@ -46,7 +46,7 @@
       subtitle:'',
       summary:'A British regiment that gained fame through constant combat during the Botswana Campaign.',
       body:'Landing in Angola, the 17th Regiment of Africa was an unassuming unit of soldiers who gained fame for their hard fought victories during the Botswana Campaign from 2052 to 2054.\n\nFar from being known for amazing offensive breakthroughs or stalwart defense, the 17th Regiment was simply known for sheer experience given how frequently they found themselves engaged in combat.\n\nNotably, they participated in the Battle of Maun, the Battle of Bulawayo, and the Battle of Kgalagadi.\n\nAfter 2054, the 17th Regiment became redesignated as the 6th Guard Regiment of The King, redeploying to Europe to participate in the East German Campaign.',
-      facts:{Affiliation:'British Army', Story:'Veteran soldiers of the Botswana Campaign.', Titles:'6th Guard Regiment of The King'},
+      facts:{Affiliation:'British Army', 'Place of Birth':'Angola campaign front', Story:'Veteran soldiers of the Botswana Campaign.', Titles:'6th Guard Regiment of The King'},
       tags:['Botswana Campaign', 'Angola', 'East German Campaign']
     },
     {
@@ -54,7 +54,7 @@
       subtitle:'The man behind the Pina and the rise of Caribbea.',
       summary:'Born in West Caribbea in 470 AC, Jorge discovered the Pina, built a trading empire, overthrew the Old Elite, and transformed Caribbea through his Treasure Ports.',
       body:'Born in 470 AC in West Caribbea to a family of simple farmers, much of Jorge Alvarez\'s life was uninteresting until he discovered an all new fruit while foraging for seeds, later calling it the Pina.\n\nSensing the potential of this new crop, he relocated to Havano, the capital of Caribbea, and founded the West Caribbea Fruits Company. The Pina became wildly popular, and Jorge quickly became a wealthy merchant. His enterprise expanded into the West Caribbea Trading Company.\n\nAfter rising through Caribbea society, Jorge became exposed to the injustices of Caribbea and resolved to bring down the Old Elite. When members of the Old Elite discovered the plot, they forced him to flee to West Caribbea, intending permanent banishment.\n\nThere he met lifelong friends Anne Stone and Rivera, who helped him undergo El Viaje De Hombre Pina and gather support from all segments of the populace. Jorge eventually stood at the head of a popular revolution that overthrew the Old Elite.\n\nUnder the West Caribbea Trading Company, Jorge effectively seized control over all of Caribbea, initiating massive development projects over 16 years and creating a prosperous society anchored by his famous Treasure Ports. Because of Jorge, the sun never sets in Caribbea.',
-      facts:{Affiliation:'Caribbea', Era:'470 AC onward', Origin:'West Caribbea', Role:'Merchant revolutionary', Status:'Leader of Caribbea', 'Notable For':'The Pina, Treasure Ports, and the West Caribbea Trading Company'},
+      facts:{Affiliation:'Caribbea', 'Date of birth':'470 AC', 'Place of Birth':'West Caribbea', Story:'To Eventide', Era:'470 AC onward', Origin:'West Caribbea', Role:'Merchant revolutionary', Status:'Leader of Caribbea', 'Notable For':'The Pina, Treasure Ports, and the West Caribbea Trading Company'},
       tags:['Caribbea', 'Pina', 'Treasure Ports']
     },
     {
@@ -62,7 +62,7 @@
       subtitle:'The undefeated commander of the United Nations 5th Army.',
       summary:'Studied by West Point, Sandhurst, and Saint-Cyr scholars after the Third Great War, Maja Kaminska is remembered as a once-in-history general who never suffered a tactical defeat across 56 battles.',
       body:'In a study conducted by war scholars from West Point, Sandhurst, and Saint-Cyr after the Third Great War in 2065, it was unanimously concluded that Maja Kaminska is the greatest general in human history.\n\nHailing from Poland, Kaminska studied at Jagiellonian University before transferring to West Point. She first served as a Brigadier Commander for the United Nations Army during UN intervention in the Mexican Civil War in 2029, where her unit became known for unconventional tactics and highly creative maneuvers.\n\nHer greatest feat in Mexico came during the Battle of Oaxaca de Juarez, where her separated unit of 500 soldiers inflicted massive casualties on a Falangist force numbering 4000 men.\n\nAfter the Mexican Civil War, Maja was promoted to Third Marshall and redeployed to Qingdao during the Chinese Civil War. She served as an advisor, but drew controversy when it was learned she personally commanded the Nationalist Army during the decisive victory at Hangzhou.\n\nShe was soon relocated to Persia to lead a small UN force in Iran, where she accumulated further success. For the next 12 years, Maja was constantly deployed to conflict zones around the world and eventually granted the rank of High Marshall, the highest rank in the United Nations Army.\n\nAt the outbreak of the Third Great War, Maja was given command of the United Nations 5th Army, a diversified and mobile force suited to her strengths. She led it to countless victories, including the famous Battle of Bremen, and never suffered a tactical defeat over 56 battles.',
-      facts:{Affiliation:'United Nations 5th Army', Era:'2029-2065', Origin:'Poland', Role:'High Marshall', Status:'Legendary commander', 'Notable For':'56 battles without a tactical defeat'},
+      facts:{Affiliation:'United Nations 5th Army', 'Place of Birth':'Poland', Story:'The Third Great War and Events Preceding', Titles:'High Marshall', Era:'2029-2065', Origin:'Poland', Role:'High Marshall', Status:'Legendary commander', 'Notable For':'56 battles without a tactical defeat'},
       tags:['United Nations', 'Battle of Bremen', 'High Marshall']
     },
     {
@@ -70,7 +70,7 @@
       subtitle:'Former manga loyalist, current digital media appreciator.',
       summary:'Lina moved past an undersocialized, chronically online era, graduated from UC Berkeley in a biology-adjacent major, and now works a respectable job while dabbling in photography and Soulslike games.',
       body:'While Autistic Femcel Rizz is likely an over exaggeration on all fronts, Lina\'s unconventional past left her, in her words, undersocialized and chronically online.\n\nShe has since risen past that awkward phase of life and graduated from UC Berkeley in some kind of biology-adjacent major. She is now working a respectable job.\n\nOnce an ardent manga fan, she has transitioned into an appreciation of digital media through photography and dabbles in the world of Soulslike games.\n\nIt remains completely unclear why she takes several days to weeks to answer texts, but at least she bought Howard McDonald\'s a few times, so he can somewhat look past it.',
-      facts:{Affiliation:'Reality', Era:'Modern', Origin:'UC Berkeley', Role:'Biology-adjacent graduate', Status:'Respectably employed', 'Notable For':'Photography, Soulslikes, and delayed text replies'},
+      facts:{Affiliation:'Reality', 'Place of Birth':'UC Berkeley orbit', Era:'Modern', Origin:'UC Berkeley', Role:'Biology-adjacent graduate', Status:'Respectably employed', 'Notable For':'Photography, Soulslikes, and delayed text replies'},
       tags:['UC Berkeley', 'Photography', 'Soulslike']
     },
     {
@@ -78,7 +78,7 @@
       subtitle:'',
       summary:'The most decorated and experienced army in the United Nations Army, led by Maja Kaminska.',
       body:'The United Nations 5th Army is the most decorated and experienced army in the entire United Nations Army, led under the famous general Maja Kaminska.\n\nThe 5th Army is noteworthy for being a highly diversified and experienced force, capable of pivoting to different combat styles. Over half of its units are consolidated from Kaminska\'s many foreign campaigns, such as the 12th and 15th Iranian Engineers, the 3rd, 34th, 87th, 13th and 68th Mexican Light Infantry, the 3rd and 5th Chinese Jian Guard, the 8th, 12th, and 2nd Brazilian Rifles, and the 32nd, 28th, and 4th Indian Motorized Division, amongst many others.\n\nThroughout the Third Great War, the 5th Army fought in over 50 battles across 5 different campaigns, winning brilliant battles like the Battle of Bremen, the Battle of Poznan, and the Battle of Belgorod.',
-      facts:{Affiliation:'United Nations Army', Story:'A diversified veteran army commanded by Maja Kaminska.', Titles:'United Nations 5th Army', Relationships:'Maja Kaminska'},
+      facts:{Affiliation:'United Nations Army', 'Place of Birth':'United Nations Army foreign campaigns', Story:'A diversified veteran army commanded by Maja Kaminska.', Titles:'United Nations 5th Army', Relationships:'Maja Kaminska'},
       tags:['United Nations', 'Maja Kaminska', 'Battle of Bremen']
     }
   ];
@@ -273,6 +273,7 @@
     return {
       Affiliation:firstFact(facts, ['Affiliation']) || aff.title,
       'Date of birth':firstFact(facts, ['Date of birth', 'Date of Birth', 'Born']) || (page.slug === 'jorge-alvarez' ? '470 AC' : ''),
+      'Place of Birth':firstFact(facts, ['Place of Birth', 'Place of birth', 'Place birth', 'Place ofbirth', 'Origin']),
       Story:firstFact(facts, ['Story']) || page.subtitle || '',
       Titles:firstFact(facts, ['Titles', 'Title']) || (page.slug === 'felicyta-janowicz' ? 'Jadwiga II' : (page.slug === 'maja-kaminska' ? 'High Marshall' : '')),
       Relationships:firstFact(facts, ['Relationships', 'Related To', 'Related'])
