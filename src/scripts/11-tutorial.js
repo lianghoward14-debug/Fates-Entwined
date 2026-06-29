@@ -27,10 +27,11 @@ const TUTORIAL_AI_DECK = TUTORIAL_AI_OPENING_HAND.concat(TUTORIAL_AI_DRAW_ORDER,
 const TUTORIAL_TURN_PLANS = [
   {
     title: 'Turn 1: Build A Lane',
-    text: '<p>Your goal is to win more zones than your opponent. Each zone is scored by adding the Fate on the cards there.</p><p>Start by building Zone 2. Supporters are free to set, and they also become Reinforcement for stronger Character cards later.</p>',
-    hint: 'Set Czechoslovak Maroon Knights in Zone 2, center safe row.',
+    text: '<p>Your goal is to win more zones than your opponent. Each zone is scored by adding the Fate on the cards there.</p><p>Each zone has your safe row, the opponent safe row, and the contested row between them. This lesson starts on your safe row so you can learn the card flow first.</p><p>Before setting a card, open one card information window and read its structure: name, Fate number, type, affiliation, and rules text.</p>',
+    hint: 'Open Czechoslovak Maroon Knights to inspect its card information.',
     actions: [
-      {kind:'place', id:'59', z:1, r:2, c:1, hint:'Set 6th French Fusiliers in Zone 2, left safe row.'},
+      {kind:'inspect', id:'59', hint:'Open Czechoslovak Maroon Knights so the tutorial can point out name, Fate, type, and rules text.'},
+      {kind:'place', id:'59', z:1, r:2, c:1, hint:'Set Czechoslovak Maroon Knights in Zone 2, center safe row.'},
       {kind:'place', id:'37', z:1, r:2, c:0, hint:'Great. End your turn and watch the scripted opponent answer.'}
     ]
   },
@@ -169,6 +170,22 @@ function applyTutorialScriptedCards() {
   G.players[1].deck = tutorialCards(TUTORIAL_AI_DRAW_ORDER.concat(tutorialRemoveIdsOnce(TUTORIAL_AI_DECK, p2Removed)), 1);
 }
 
+function tutorialRestorePlayerDrawOrder() {
+  if(!_tutorialActive || !G || !G.players || !G.players[0]) return;
+  const deck = G.players[0].deck || [];
+  const ordered = [];
+  TUTORIAL_PLAYER_DRAW_ORDER.forEach(id => {
+    const idx = deck.findIndex(c => String(c.id) === String(id));
+    if(idx >= 0) ordered.push(deck.splice(idx, 1)[0]);
+  });
+  G.players[0].deck = ordered.concat(deck);
+}
+
+function tutorialAfterDeckSearch(playerIdx) {
+  if(!_tutorialActive || Number(playerIdx) !== 0) return;
+  tutorialRestorePlayerDrawOrder();
+}
+
 function tutorialTurnNumber() {
   if(!G || typeof G.turn !== 'number') return 1;
   return Math.max(1, Math.min(8, Math.ceil(G.turn / 2)));
@@ -189,6 +206,7 @@ function tutorialActionLabel(action) {
   if(!action) return 'the scripted tutorial action';
   const card = CARDS.find(c => String(c.id) === String(action.id));
   const name = card ? card.name : ('card ' + action.id);
+  if(action.kind === 'inspect') return 'open ' + name + '\'s card information';
   if(action.kind === 'activate') return 'activate ' + name + '\'s effect';
   if(action.kind === 'consolidate') return 'consolidate ' + name;
   return 'set ' + name;
@@ -226,7 +244,7 @@ function tutorialActionComplete(payload) {
   tutorialRefreshHandVisualState();
   showTutorialTaskBanner(action, payload);
   const next = tutorialCurrentAction();
-  if(next) showTutorialHint(action.hint || next.hint || ('Next: ' + tutorialActionLabel(next)));
+  if(next) showTutorialHint(next.hint || action.hint || ('Next: ' + tutorialActionLabel(next)));
   else showTutorialHint(action.hint || 'Turn script complete. Click End Turn.');
 }
 
@@ -234,6 +252,7 @@ function tutorialActionCompletionText(action) {
   if(!action) return 'Task complete.';
   const card = CARDS.find(c => String(c.id) === String(action.id));
   const name = card ? card.name : ('Card ' + action.id);
+  if(action.kind === 'inspect') return 'Inspected: ' + name + '.';
   if(action.kind === 'activate') return 'Effect resolved: ' + name + '.';
   if(action.kind === 'consolidate') return 'Consolidated: ' + name + '.';
   return 'Set complete: ' + name + '.';
@@ -426,7 +445,7 @@ function startTutorial() {
   setTimeout(() => {
     showTutorialDialogue({
       title:'Free World Training',
-      text:'<p>Win by controlling more zones than your opponent. A zone is controlled by the player with more Fate there.</p><p>Your basic turn is simple: set Supporters, use them as Reinforcement for Characters, and activate effects when a card offers one.</p><p>Read cards in this order: name, Fate number, type, then rules text. This lesson is scripted so you can learn the flow without guessing the next move.</p>'
+      text:'<p>Win by controlling more zones than your opponent. A zone is controlled by the player with more Fate there.</p><p>Each zone has three important rows: your safe row, the opponent safe row, and the contested row in the middle. Most early tutorial plays stay safe; later cards and effects can fight over contested spaces.</p><p>Your basic turn is simple: set Supporters, use them as Reinforcement for Characters, and activate effects when a card offers one.</p>'
     }, function(){
       tutorialOnTurnStart(0);
     });
@@ -453,6 +472,42 @@ function injectTutorialCSS() {
     #tutorial-dialogue.tutorial-scripted-dialogue .tutorial-dialogue-title{letter-spacing:.08em;}
     #tutorial-dialogue.tutorial-scripted-dialogue .tutorial-dialogue-text b{color:#ffe28a;}
     #tutorial-hint-bar.tutorial-hint-bar{max-width:min(760px, calc(100vw - 48px));}
+    #tutorial-card-structure-callouts{
+      position:absolute;
+      inset:0;
+      z-index:9;
+      pointer-events:none;
+    }
+    .tutorial-card-callout{
+      position:absolute;
+      padding:.28rem .48rem;
+      border:1px solid rgba(255,226,138,.72);
+      border-radius:4px;
+      background:rgba(5,7,12,.94);
+      color:#ffe28a;
+      font-family:'Cinzel',serif;
+      font-size:.62rem;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      box-shadow:0 0 16px rgba(255,226,138,.18);
+    }
+    .tutorial-card-callout::after{
+      content:"";
+      position:absolute;
+      width:48px;
+      height:1px;
+      background:linear-gradient(90deg,rgba(255,226,138,.9),transparent);
+      transform-origin:left center;
+    }
+    .tutorial-card-callout.name{left:28px;top:26px;}
+    .tutorial-card-callout.name::after{left:100%;top:50%;transform:rotate(6deg);}
+    .tutorial-card-callout.fate{left:24px;top:188px;}
+    .tutorial-card-callout.fate::after{left:100%;top:50%;transform:rotate(-10deg);}
+    .tutorial-card-callout.type{left:292px;top:116px;}
+    .tutorial-card-callout.type::after{right:100%;top:50%;transform:rotate(180deg);}
+    .tutorial-card-callout.rules{left:292px;top:246px;}
+    .tutorial-card-callout.rules::after{right:100%;top:50%;transform:rotate(180deg);}
     #tutorial-task-banner.tutorial-task-banner{
       position:fixed;
       right:1.05rem;
@@ -540,6 +595,7 @@ function tutorialEvent(event, payload) {
   }
   if(event === 'endTurn') {
     removeTutorialHint();
+    tutorialClearCardStructureCallouts();
     return;
   }
 
@@ -548,6 +604,7 @@ function tutorialEvent(event, payload) {
   const id = payload && payload.card ? String(payload.card.id) : String(payload && payload.id || '');
   if((event === 'placeSupporter' || event === 'placeCharacter') && String(expected.id) === id) {
     tutorialActionComplete(payload);
+    tutorialClearCardStructureCallouts();
   } else if(event === 'activateEffect' && expected.kind === 'activate' && String(expected.id) === id) {
     tutorialActionComplete(payload);
   }
@@ -567,7 +624,7 @@ function tutorialCanSelectHandCard(card) {
 function tutorialCanPlayHandCardNow(card) {
   if(!_tutorialActive || !card || !G || G.currentPlayer !== 0) return true;
   const action = tutorialCurrentAction();
-  if(!action || action.kind === 'activate') return false;
+  if(!action || action.kind === 'activate' || action.kind === 'inspect') return false;
   return String(card.id) === String(action.id);
 }
 
@@ -592,6 +649,37 @@ function tutorialCanStartHandAction(card, kind) {
     return false;
   }
   return true;
+}
+
+function tutorialClearCardStructureCallouts() {
+  const old = document.getElementById('tutorial-card-structure-callouts');
+  if(old) old.remove();
+}
+
+function tutorialShowCardStructureCallouts(card) {
+  if(!_tutorialActive || !card || typeof document === 'undefined') return;
+  tutorialClearCardStructureCallouts();
+  const modalBox = document.querySelector('#modal .modal.card-detail-modal, #modal .modal');
+  const img = document.querySelector('#modal .cd-img');
+  if(!modalBox || !img) return;
+  const callouts = document.createElement('div');
+  callouts.id = 'tutorial-card-structure-callouts';
+  callouts.innerHTML = [
+    '<span class="tutorial-card-callout name">Name</span>',
+    '<span class="tutorial-card-callout fate">Fate value</span>',
+    '<span class="tutorial-card-callout type">Type / affiliation</span>',
+    '<span class="tutorial-card-callout rules">Rules text</span>'
+  ].join('');
+  modalBox.appendChild(callouts);
+}
+
+function tutorialOnCardDetailOpened(card) {
+  if(!_tutorialActive || !card || !G || G.currentPlayer !== 0) return;
+  const action = tutorialCurrentAction();
+  if(!action || action.kind !== 'inspect' || String(action.id) !== String(card.id)) return;
+  tutorialShowCardStructureCallouts(card);
+  showTutorialHint('This window shows the same structure as the card: name at the top, Fate value, type, affiliation, then rules text.');
+  tutorialActionComplete({card});
 }
 
 function tutorialCanPlaceCardAt(card, z, r, c) {
@@ -699,7 +787,18 @@ async function tutorialSleep(ms) {
 }
 
 async function tutorialForcePlaceCard(playerIdx, action) {
-  const source = tutorialTakeCard(playerIdx, action.id);
+  const player = G.players[playerIdx];
+  if(!player) return;
+  const sid = String(action.id);
+  let sourceList = player.hand;
+  let sourceIdx = sourceList.findIndex(c => String(c.id) === sid);
+  let sourceName = 'hand';
+  if(sourceIdx < 0) {
+    sourceList = player.deck;
+    sourceIdx = sourceList.findIndex(c => String(c.id) === sid);
+    sourceName = 'deck';
+  }
+  const source = sourceIdx >= 0 ? sourceList[sourceIdx] : tutorialCard(sid, playerIdx);
   if(!source) return;
   const pos = tutorialFindOpenCell(playerIdx, action);
   const inst = newInstance(source);
@@ -707,13 +806,31 @@ async function tutorialForcePlaceCard(playerIdx, action) {
   inst.currentFate = typeof getPlacedCardFate === 'function' ? getPlacedCardFate(source, {bonusFate:0}) : (source.currentFate || source.fate || 0);
   if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, playerIdx);
   if(typeof consumePendingPlacementFlags === 'function') consumePendingPlacementFlags(source, inst);
-  G.board[pos.z][pos.r][pos.c] = inst;
-  if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, pos.z, pos.r, pos.c);
-  if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-  if(typeof log === 'function') log(playerIdx === 0 ? 'p1' : 'p2', G.players[playerIdx].name + ' set ' + inst.name + ' in Zone ' + (pos.z + 1) + '.');
-  if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
-  renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
-  await tutorialSleep(520);
+  const commitPlacement = function(){
+    if(sourceIdx >= 0) sourceList.splice(sourceIdx, 1);
+    G.board[pos.z][pos.r][pos.c] = inst;
+    if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, pos.z, pos.r, pos.c);
+    if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
+    if(typeof log === 'function') log(playerIdx === 0 ? 'p1' : 'p2', G.players[playerIdx].name + ' set ' + inst.name + ' in Zone ' + (pos.z + 1) + '.');
+    if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(playerIdx, {hand:true, piles:sourceName === 'deck', blocks:false, topbar:false, effects:false, hover:false});
+    else renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
+  };
+  if(typeof aiRunBoardPlacementPresentation === 'function') {
+    await aiRunBoardPlacementPresentation({
+      sourceCard: source,
+      inst,
+      owner: playerIdx,
+      source: sourceName,
+      recipe: sourceName === 'deck' ? 'DECK_TO_BOARD' : 'PLAY_CARD',
+      target: {z:pos.z, r:pos.r, c:pos.c},
+      commit: commitPlacement
+    });
+  } else {
+    commitPlacement();
+  }
+  if(typeof resolveSetCardAfterPlacement === 'function') await resolveSetCardAfterPlacement(inst, pos.z, pos.r, pos.c);
+  await tutorialSleep(typeof AI_VISUAL_PAUSE_PLACE !== 'undefined' ? AI_VISUAL_PAUSE_PLACE : 1650);
 }
 
 async function tutorialForceConsolidateCard(playerIdx, action) {
@@ -741,7 +858,7 @@ async function tutorialForceConsolidateCard(playerIdx, action) {
   if(typeof log === 'function') log(playerIdx === 0 ? 'p1' : 'p2', G.players[playerIdx].name + ' consolidated ' + inst.name + ' in Zone ' + (action.z + 1) + '.');
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
   renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
-  await tutorialSleep(720);
+  await tutorialSleep(typeof AI_VISUAL_PAUSE_CONSOLIDATE !== 'undefined' ? AI_VISUAL_PAUSE_CONSOLIDATE : 3100);
 }
 
 async function runTutorialAITurn() {
@@ -770,6 +887,7 @@ function dismissTutorial() {
   if(document.body) document.body.classList.remove('tutorial-active');
   removeTutorialHint();
   clearTutorialHighlights();
+  tutorialClearCardStructureCallouts();
   if(_tutorialBannerTimer) {
     clearTimeout(_tutorialBannerTimer);
     _tutorialBannerTimer = null;
@@ -794,5 +912,7 @@ window.tutorialCanPlaceConsolidationAt = tutorialCanPlaceConsolidationAt;
 window.tutorialCanActivateBoardEffect = tutorialCanActivateBoardEffect;
 window.tutorialCanEndTurn = tutorialCanEndTurn;
 window.tutorialFilterCardPickerOptions = tutorialFilterCardPickerOptions;
+window.tutorialAfterDeckSearch = tutorialAfterDeckSearch;
+window.tutorialOnCardDetailOpened = tutorialOnCardDetailOpened;
 window.tutorialCurrentTargetSquare = tutorialCurrentTargetSquare;
 window.runTutorialAITurn = runTutorialAITurn;

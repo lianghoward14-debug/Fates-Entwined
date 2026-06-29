@@ -4612,6 +4612,9 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     }
   }
   document.getElementById('modal').classList.add('on');
+  if(typeof tutorialOnCardDetailOpened === 'function') {
+    setTimeout(function(){ tutorialOnCardDetailOpened(card); }, 0);
+  }
 }
 
 function openCardDetailFromDeckPreview(card, returnToPreview) {
@@ -5541,6 +5544,7 @@ function searchDeckForType(player, type, prompt, maxCount=1) {
         G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       });
       shuffle(G.players[player].deck);
+      if(typeof tutorialAfterDeckSearch === 'function') tutorialAfterDeckSearch(player, chosen);
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
       if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);

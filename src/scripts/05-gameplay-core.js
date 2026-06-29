@@ -3013,7 +3013,7 @@ async function runWhenSetEffect(inst, z, r, c) {
 
   // Reaction check: opponent Supporter effects that target the opponent can be negated
   // by Lydia (56) or Havano Citizen (79)
-  // Lydia can react to ANY supporter when-set effect (not just select few)
+  // Lydia can react to opponent card effect activations; set-triggered effects also have their while-on-field effects suppressed.
   if(inst.type==='Supporter' && isPersistentSupporterEffectOnSet(inst) && !G._suppressEffectPrompt){
     const proceed = await checkReactions('supporter_effect', {
       card:inst,
@@ -3604,7 +3604,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, function(cell){ return cell && cell.owner===cp && cell.type!=='Supporter' && cell.iid!==inst.iid && !cell.cantBeMoved; });
       break;
     }
-    case '56': // Lydia: negate opponent supporter effects (5 uses)
+    case '56': // Lydia: negate opponent card effect activations (5 uses)
       inst.usesLeft = 5; break;
     case '40': // Christopher Erbs: initialize 2 uses
       inst.usesLeft = 2; break;

@@ -1656,7 +1656,7 @@ async function runWhenSetEffect(inst, z, r, c) {
 
   // Reaction check: opponent Supporter effects that target the opponent can be negated
   // by Lydia (56) or Havano Citizen (79)
-  // Lydia can react to ANY supporter when-set effect (not just select few)
+  // Lydia can react to opponent card effect activations; set-triggered effects also have their while-on-field effects suppressed.
   if(inst.type==='Supporter' && WHEN_SET_IDS.has(inst.id) && inst.id!=='56' && !G._suppressEffectPrompt){
     const proceed = await checkReactions('supporter_effect', {
       card:inst,
@@ -2115,7 +2115,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, function(cell){ return cell && cell.owner===cp && cell.type!=='Supporter' && cell.iid!==inst.iid && !cell.cantBeMoved; });
       break;
     }
-    case '56': // Lydia: negate opponent supporter effects (5 uses)
+    case '56': // Lydia: negate opponent card effect activations (5 uses)
       inst.usesLeft = 5; break;
     case '40': // Christopher Erbs: initialize 2 uses
       inst.usesLeft = 2; break;
@@ -3241,7 +3241,7 @@ function checkReactions(actionType, actionData) {
 
     var reactions = [];
 
-    // Lydia (56): negate opponent Supporter when-set effects
+    // Lydia (56): negate opponent card effect activations; set-triggered effects also have while-on-field effects suppressed.
     if(actionType === 'supporter_effect'){
       forEachBoardCard(function(card2, z2, r2, c2) {
         if(card2.id==='56' && (card2.usesLeft === null || card2.usesLeft === undefined)) card2.usesLeft = 5;
@@ -3271,7 +3271,7 @@ function checkReactions(actionType, actionData) {
     var cardName = actionData.card ? actionData.card.name : 'an effect';
     var reactorName = reaction.card.name;
     var reactorImg = reaction.card.img ? '<img src="'+reaction.card.img+'" alt="'+escapeHtml(reactorName)+'">' : '';
-    var lydiaInfo = reaction.type==='lydia' ? '<div class="reaction-uses">'+reaction.card.usesLeft+' uses remaining - costs 1 Fate</div>' : '';
+    var lydiaInfo = reaction.type==='lydia' ? '<div class="reaction-uses">'+reaction.card.usesLeft+' uses remaining</div>' : '';
 
     // 15-second timer for reaction decision
     var _reactionTimer = null;

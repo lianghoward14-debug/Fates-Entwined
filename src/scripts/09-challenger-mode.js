@@ -1491,7 +1491,8 @@ function renderChallengerDeckPickModal(page=0) {
     tile.style.animationDelay = '0s';
     tile.style.opacity = ok ? '1' : '.5';
     const useCanvasPreview = false;
-    const heroArt = hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
+    const heroSrc = hero?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'thumb') : hero.img) : '';
+    const heroArt = heroSrc ? `<img src="${heroSrc}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
     tile.innerHTML = `
       <div class="preset-card-art">
         ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
@@ -1568,7 +1569,8 @@ function renderFreePlayTitlePresetDeckPickModal(page=0) {
     el.className = 'preset-card freeplay-title-preset-card';
     el.style.animationDelay = '0s';
     const useCanvasPreview = false;
-    const heroArt = hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
+    const heroSrc = hero?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'thumb') : hero.img) : '';
+    const heroArt = heroSrc ? `<img src="${heroSrc}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
     el.innerHTML = `
       <div class="preset-card-art">
         ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
