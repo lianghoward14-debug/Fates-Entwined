@@ -1214,7 +1214,11 @@
     ctx.fillStyle = 'rgb(6,8,13)';
     ctx.fill();
     ctx.clip();
-    drawCard(ctx, dragPreview.card, cardRect, {textureDpr:1.5, textureSize:{x:0, y:0, w:132, h:184}, readyOnly:true});
+    drawCard(ctx, dragPreview.card, cardRect, {
+      textureDpr:1.5,
+      textureSize:{x:0, y:0, w:132, h:184},
+      readyOnly:!dragPreview.tutorialDragPreview
+    });
     ctx.restore();
     ctx.restore();
     return true;

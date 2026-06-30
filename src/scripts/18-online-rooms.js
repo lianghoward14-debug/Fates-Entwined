@@ -436,6 +436,14 @@
     });
     return scheduled;
   }
+  function maybePlayMatchingHashFreePlacementCinematic(reason){
+    const g = gameState();
+    renderOnlineAuthoritativeState(reason || 'authoritative matching state');
+    setTimeout(function(){
+      maybePlayOnlineFreePlacementCinematic(g || gameState(), null, (reason || 'authoritative matching state') + ':matching-hash');
+      maybeShowServerPendingPrompts();
+    }, 0);
+  }
   function enterOnlineGameScreenFromAuthoritativeState(reason){
     const g = gameState();
     if(!g || !isOnlineMatchState(g)) return false;
@@ -569,7 +577,7 @@
     const localState = captureOnlineCanonicalState();
     const localHash = onlineCanonicalStateHash(localState);
     if(localHash === payload.stateHash){
-      setTimeout(maybeShowServerPendingPrompts, 0);
+      maybePlayMatchingHashFreePlacementCinematic(reason || ('matching postState seq ' + (action?.seq || '?')));
       return false;
     }
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
@@ -600,8 +608,7 @@
     const hash = String(action?.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
     if(localOnlineStateMatchesHash(payload.stateHash)){
-      renderOnlineAuthoritativeState(reason || ('authoritative postState seq ' + (action?.seq || '?')));
-      setTimeout(maybeShowServerPendingPrompts, 0);
+      maybePlayMatchingHashFreePlacementCinematic(reason || ('authoritative postState seq ' + (action?.seq || '?')));
       return false;
     }
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));

@@ -1142,6 +1142,19 @@ function restoreChTabScroll(tab, pane) {
 
 function switchChTab(tab, opts) {
   const options = opts || {};
+  const previousTab = _currentChTab;
+  if(typeof window.closeLoreWindow === 'function') window.closeLoreWindow();
+  if(typeof window.dismissCardInfoOverlay === 'function') window.dismissCardInfoOverlay();
+  if(!options.warmup) {
+    if(typeof window.closeModal === 'function') window.closeModal();
+    else document.getElementById('modal')?.classList.remove('on');
+  }
+  const forceLoreArchive = tab === 'lore';
+  if(typeof window.fateResetChallengerLoreState === 'function' && (forceLoreArchive || previousTab === 'lore')) {
+    window.fateResetChallengerLoreState({render:false});
+  } else if(previousTab === 'lore') {
+    document.getElementById('s-challenger')?.classList.remove('ch-lore-reading');
+  }
   const sameTab = _currentChTab === tab;
   _currentChTab = tab;
   document.querySelectorAll('.ch-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
@@ -1168,7 +1181,7 @@ function switchChTab(tab, opts) {
   const renderTab = function(){
     setChTabPaneVisibility(content, pane);
     const render = getChRendererForTab(tab);
-    const shouldRender = options.force === true || sameTab || pane.dataset.mounted !== '1' || pane.childElementCount === 0;
+    const shouldRender = options.force === true || forceLoreArchive || sameTab || pane.dataset.mounted !== '1' || pane.childElementCount === 0;
     if(window.FateMenuViews) {
       window.FateMenuViews.render('challenger:' + tab, {force:shouldRender});
       pane.dataset.mounted = '1';

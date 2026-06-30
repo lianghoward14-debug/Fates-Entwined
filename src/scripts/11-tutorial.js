@@ -27,10 +27,9 @@ const TUTORIAL_AI_DECK = TUTORIAL_AI_OPENING_HAND.concat(TUTORIAL_AI_DRAW_ORDER,
 const TUTORIAL_TURN_PLANS = [
   {
     title: 'Turn 1: Build A Lane',
-    text: '<p>Your goal is to win more zones than your opponent. Each zone is scored by adding the Fate on the cards there.</p><p>Each zone has your safe row, the opponent safe row, and the contested row between them. This lesson starts on your safe row so you can learn the card flow first.</p><p>Before setting a card, open one card information window and read its structure: name, Fate number, type, affiliation, and rules text.</p>',
-    hint: 'Open Czechoslovak Maroon Knights to inspect its card information.',
+    text: '<p>Your goal is to win more zones than your opponent. Each zone is scored by adding the Fate on the cards there.</p><p>Each zone has your safe row, the opponent safe row, and the contested row between them. This lesson starts on your safe row so you can learn the card flow first.</p><p>Set your first Supporter in Zone 2. The glowing square shows exactly where the tutorial wants the card.</p>',
+    hint: 'Set Czechoslovak Maroon Knights in Zone 2, center safe row.',
     actions: [
-      {kind:'inspect', id:'59', hint:'Open Czechoslovak Maroon Knights so the tutorial can point out name, Fate, type, and rules text.'},
       {kind:'place', id:'59', z:1, r:2, c:1, hint:'Set Czechoslovak Maroon Knights in Zone 2, center safe row.'},
       {kind:'place', id:'37', z:1, r:2, c:0, hint:'Great. End your turn and watch the scripted opponent answer.'}
     ]
@@ -259,23 +258,12 @@ function tutorialActionCompletionText(action) {
 }
 
 function showTutorialTaskBanner(action, payload) {
-  if(!_tutorialActive || typeof document === 'undefined') return;
   const old = document.getElementById('tutorial-task-banner');
   if(old) old.remove();
   if(_tutorialBannerTimer) {
     clearTimeout(_tutorialBannerTimer);
     _tutorialBannerTimer = null;
   }
-  const next = tutorialCurrentAction();
-  const banner = document.createElement('div');
-  banner.id = 'tutorial-task-banner';
-  banner.className = 'tutorial-task-banner';
-  banner.innerHTML = '<span class="tutorial-task-check">OK</span><span><b>' + tutorialActionCompletionText(action) + '</b><small>' + (next ? 'Next: ' + tutorialActionLabel(next) : 'Turn task complete. End your turn.') + '</small></span>';
-  document.body.appendChild(banner);
-  _tutorialBannerTimer = setTimeout(function(){
-    if(banner && banner.parentNode) banner.remove();
-    _tutorialBannerTimer = null;
-  }, 3200);
 }
 
 function tutorialCurrentTargetSquare() {

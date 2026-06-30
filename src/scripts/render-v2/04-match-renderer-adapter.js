@@ -1114,6 +1114,10 @@
     try {
       if(typeof G === 'undefined' || !G || !G._consolidating || !entry) return '';
       const con = G._consolidating;
+      const viewer = typeof getPerspectivePlayerIndex === 'function'
+        ? Number(getPerspectivePlayerIndex())
+        : (G && Number.isInteger(G.viewerPlayerIndex) ? Number(G.viewerPlayerIndex) : Number(G.currentPlayer || 0));
+      if(entry.card && Number(entry.card.owner) !== viewer) return '';
       const all = Array.isArray(con.allPossible) ? con.allPossible : [];
       const entryZ = Number(entry.z);
       const entryR = Number(entry.r);
@@ -3889,17 +3893,26 @@
 
   function viewportHoverKey(hit){
     if(!hit) return '';
-    if(hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'opponent-hand-card') return [hit.kind, hit.iid || '', hit.index || 0].join(':');
-    if(hit.kind === 'pile') return [hit.kind, hit.playerIndex, hit.pile || ''].join(':');
-    if(hit.kind === 'ui-command') return [hit.kind, hit.command || ''].join(':');
+    const r = hit.rect || hit.iconRect || hit.cardRect || {};
+    const rectKey = [
+      Math.round(Number(r.x) || 0),
+      Math.round(Number(r.y) || 0),
+      Math.round(Number(r.w) || 0),
+      Math.round(Number(r.h) || 0)
+    ].join(',');
+    if(hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'opponent-hand-card') return [hit.kind, hit.iid || '', hit.index || 0, rectKey].join(':');
+    if(hit.kind === 'pile') return [hit.kind, hit.playerIndex, hit.pile || '', rectKey].join(':');
+    if(hit.kind === 'ui-command') return [hit.kind, hit.command || '', rectKey].join(':');
     return hit.kind || '';
   }
 
   function setViewportHoverHit(hit){
     const next = hit && (hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'pile') ? hit : null;
-    if(viewportHoverKey(viewportHoverHit) === viewportHoverKey(next)) return;
+    const prev = viewportHoverHit;
+    if(viewportHoverKey(prev) === viewportHoverKey(next)) return;
     viewportHoverHit = next;
-    scheduleRender(next && next.kind === 'pile' ? 'pile-hover' : 'hand-hover');
+    if((prev && prev.kind === 'hand-card') || (next && next.kind === 'hand-card')) scheduleRender('hand-hover');
+    else scheduleHoverDraw();
   }
 
   function scrollZoneAtClient(clientX, clientY, deltaY){

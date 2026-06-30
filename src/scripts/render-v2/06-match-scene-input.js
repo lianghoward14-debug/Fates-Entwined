@@ -174,11 +174,6 @@
       const scene = this.scene || window.FateMatchRendererAdapter;
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
       if(!hitMap) return null;
-      const point = this.pointFromClient(clientX, clientY);
-      const candidates = [
-        {x:clientX, y:clientY, space:'viewport'},
-        {x:point.x, y:point.y, space:'board'}
-      ];
       const groups = [
         {items:Array.isArray(hitMap.uiCommands) ? hitMap.uiCommands : [], kind:'ui-command'},
         {items:Array.isArray(hitMap.handEffectIcons) ? hitMap.handEffectIcons : [], kind:'hand-effect-icon'},
@@ -192,11 +187,8 @@
           const hit = group.items[i];
           const r = hit && hit.rect;
           if(!r) continue;
-          for(let c = 0; c < candidates.length; c++){
-            const p = candidates[c];
-            if(p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
-              return Object.assign({kind:group.kind, clientX, clientY, x:p.x, y:p.y, hitSpace:p.space}, hit);
-            }
+          if(clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h) {
+            return Object.assign({kind:group.kind, clientX, clientY, x:clientX, y:clientY, hitSpace:'viewport'}, hit);
           }
         }
       }

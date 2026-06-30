@@ -1137,7 +1137,7 @@ function updateTopBar() {
   const hudTurn = document.getElementById('turn-hud-turn');
   if(hudTurn) hudTurn.textContent = 'Turn '+G.turn+'/'+G.maxTurns;
   const hudPlayer = document.getElementById('turn-hud-player');
-  if(hudPlayer) hudPlayer.textContent = G.players[cp].name+"'s Turn";
+  if(hudPlayer) hudPlayer.textContent = isOwnTurn ? "It's Your Turn!" : "Opponent's Turn";
   const phaseEl = document.getElementById('tp-phase');
   if(phaseEl) phaseEl.textContent='';
   const endBtn = document.getElementById('btn-end-turn');
@@ -1750,6 +1750,19 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   acts.innerHTML='';
   const close=document.createElement('button');
   close.className='btn sm';close.textContent='Close';close.onclick=closeModal;
+  if(!hideCard && typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card) && typeof window.openCardLoreFromInfo === 'function'){
+    const lore=document.createElement('button');
+    lore.className='btn sm';
+    lore.textContent='Lore';
+    lore.onclick=(ev)=>{
+      if(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      window.openCardLoreFromInfo(card);
+    };
+    acts.appendChild(lore);
+  }
   acts.appendChild(close);
   if(hideCard){
     document.getElementById('modal').classList.add('on');
@@ -3026,6 +3039,9 @@ function showCardInfoOverlay(card) {
   var voiceButton = (visual.type !== 'Supporter')
     ? '<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound===\'function\') playCardSound(\''+escapeHtml(card.id)+'\');">&#9835;</button>'
     : '';
+  var loreButton = (typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card))
+    ? '<button type="button" class="btn sm card-info-overlay-lore">Lore</button>'
+    : '';
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
   overlay.innerHTML =
@@ -3045,10 +3061,17 @@ function showCardInfoOverlay(card) {
           (card.flavor?'<div class="cd-flavor">'+card.flavor+'</div>':'')+
         '</div>'+
       '</div>'+
-      '<button type="button" class="btn sm card-info-overlay-close">Close</button>'+
+      '<div class="cio-acts">'+loreButton+'<button type="button" class="btn sm card-info-overlay-close">Close</button></div>'+
     '</div>';
   overlay.querySelector('.card-info-overlay-backdrop').onclick = dismissCardInfoOverlay;
   overlay.querySelector('.card-info-overlay-close').onclick = dismissCardInfoOverlay;
+  overlay.querySelectorAll('.card-info-overlay-lore').forEach(function(btn){
+    btn.onclick = function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(typeof window.openCardLoreFromInfo === 'function') window.openCardLoreFromInfo(card);
+    };
+  });
   overlay.querySelector('.card-info-overlay-panel').onclick = function(ev){ ev.stopPropagation(); };
   document.body.appendChild(overlay);
   requestAnimationFrame(function(){ overlay.classList.add('on'); });
@@ -3221,7 +3244,7 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
   el.setAttribute('aria-live', 'polite');
   el.textContent = '“' + line + '”';
   // Inline visibility is intentional: older patches hide cinematic text elements.
-  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:8.25vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;';
+  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;';
   document.body.appendChild(el);
   try {
     const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
@@ -3291,7 +3314,18 @@ function showConsolidationCinematic(card, opts) {
       cinematicImg.replaceWith(fallback);
     };
   }
-  if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){ showCinematicSubtitle(subtitle, 2850, rarity); }, 360);
+  if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){
+    var subEl = showCinematicSubtitle(subtitle, 2850, rarity);
+    if(subEl && overlay && overlay.isConnected){
+      overlay.appendChild(subEl);
+      subEl.classList.add('inside-consolidation-cinematic');
+      subEl.style.setProperty('position', 'absolute', 'important');
+      subEl.style.setProperty('left', '50%', 'important');
+      subEl.style.setProperty('bottom', '27vh', 'important');
+      subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
+      subEl.style.setProperty('z-index', '6', 'important');
+    }
+  }, 360);
   document.body.classList.add('cinematic-lock');
   if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 2350);
 

@@ -1,9 +1,13 @@
 #s-challenger .ch-lore-shell{max-width:1540px;margin:0 auto;padding:.55rem 1rem;display:flex;flex-direction:column;gap:1.1rem;}
 #s-challenger .ch-lore-command,#s-challenger .ch-lore-page-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:linear-gradient(135deg,rgba(11,14,24,.94),rgba(14,18,31,.86));border:1px solid rgba(232,196,82,.28);border-radius:7px;padding:1.25rem 1.35rem;box-shadow:0 18px 48px rgba(0,0,0,.35);}
+#s-challenger .ch-lore-page-top{display:grid;grid-template-columns:minmax(86px,1fr) auto minmax(86px,1fr);text-align:center;}
+#s-challenger .ch-lore-page-top > .btn{justify-self:start;}
+#s-challenger .ch-lore-page-top > div:not(.ch-lore-page-actions){justify-self:center;}
 #s-challenger .ch-lore-command{position:relative;overflow:hidden;}
 #s-challenger .ch-lore-command::after{content:'';position:absolute;right:-80px;top:-120px;width:360px;height:360px;background:radial-gradient(circle,rgba(232,196,82,.16),transparent 62%);pointer-events:none;}
 #s-challenger .ch-lore-command>*{position:relative;z-index:1;}
 #s-challenger .ch-lore-command-actions,#s-challenger .ch-lore-page-actions{display:flex;gap:.55rem;flex-wrap:wrap;justify-content:flex-end;}
+#s-challenger .ch-lore-page-actions{justify-self:end;}
 #s-challenger .ch-lore-kicker{font-family:'Cinzel',serif;color:#e8c452;text-transform:uppercase;font-size:.68rem;letter-spacing:.12em;}
 #s-challenger .ch-lore-command h2,#s-challenger .ch-lore-page-top h2{font-family:'Cinzel',serif;color:#fff;margin:.12rem 0 0;font-size:2rem;letter-spacing:0;}
 #s-challenger .ch-lore-command p{margin:.35rem 0 0;color:var(--dim);font-size:1rem;line-height:1.45;}
@@ -22,14 +26,19 @@
 #s-challenger .ch-lore-card-aff{display:inline-flex;align-items:center;gap:.45rem;color:var(--lore-accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;}
 #s-challenger .ch-lore-card-aff img{width:20px;height:20px;object-fit:cover;border-radius:50%;}
 #s-challenger .ch-lore-card-copy b{font-family:'Cinzel',serif;color:#fff;font-size:1.42rem;letter-spacing:0;line-height:1.15;}
-#s-challenger .ch-lore-card-copy small{color:#b3b6ff;font-size:.9rem;font-weight:650;line-height:1.48;letter-spacing:0;text-shadow:0 1px 8px rgba(72,86,255,.28);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-left:.72rem;border-left:2px solid color-mix(in srgb,var(--lore-accent) 46%,#7f86ff 54%);}
+#s-challenger .ch-lore-card-copy small{position:relative;color:#d9dcff;font-family:Georgia,'Times New Roman',serif;font-size:.92rem;font-weight:400;font-style:italic;line-height:1.52;letter-spacing:.006em;text-shadow:0 1px 10px rgba(72,86,255,.22);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding:.05rem 0 .05rem .86rem;border-left:1px solid color-mix(in srgb,var(--lore-accent) 62%,rgba(255,255,255,.14));}
+#s-challenger .ch-lore-archive-shell{height:calc(100vh - 205px);overflow:hidden;}
+#s-challenger .ch-lore-archive-shell .ch-lore-character-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(190px,1fr);gap:1.05rem;overflow:hidden;}
+#s-challenger .ch-lore-pager{display:flex;align-items:center;justify-content:flex-end;gap:.55rem;font-family:'Cinzel',serif;color:#e8c452;text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;}
+#s-challenger .ch-lore-pager .btn[disabled]{opacity:.36;pointer-events:none;}
 #s-challenger .ch-lore-empty{background:rgba(0,0,0,.46);border:1px dashed rgba(232,196,82,.3);border-radius:7px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;color:var(--dim);}
 #s-challenger .ch-lore-empty b{font-family:'Cinzel',serif;color:#ffd700;font-size:1.2rem;}
 #s-challenger .ch-lore-dossier{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:1rem;align-items:start;}
-#s-challenger .ch-lore-infobox,#s-challenger .ch-lore-article{background:rgba(7,10,16,.88);border:1px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));border-radius:7px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.28);}
+#s-challenger .ch-lore-infobox{box-sizing:border-box;background:rgba(7,10,16,.88);border:3px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));border-radius:7px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.28);}
+#s-challenger .ch-lore-article{background:rgba(7,10,16,.88);border:1px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));border-radius:7px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.28);}
 #s-challenger .ch-lore-info-img{height:312px;background:#04060a;}
 #s-challenger .ch-lore-info-img img{width:100%;height:100%;object-fit:cover;display:block;}
-#s-challenger .ch-lore-info-title{display:grid;grid-template-columns:42px 1fr;gap:.7rem;align-items:center;padding:.9rem 1rem;border-top:3px solid var(--lore-accent);background:rgba(255,255,255,.035);}
+#s-challenger .ch-lore-info-title{display:grid;grid-template-columns:42px 1fr;gap:.7rem;align-items:center;padding:.9rem 1rem;border-top:3px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));background:rgba(255,255,255,.035);}
 #s-challenger .ch-lore-info-title img{width:42px;height:42px;border-radius:50%;object-fit:cover;box-shadow:0 0 16px color-mix(in srgb,var(--lore-accent) 40%,transparent);}
 #s-challenger .ch-lore-info-title h3{font-family:'Cinzel',serif;color:#fff;margin:0;font-size:1.05rem;letter-spacing:0;}
 #s-challenger .ch-lore-info-title p{margin:.12rem 0 0;color:var(--dim);font-size:.78rem;line-height:1.35;}
@@ -38,7 +47,53 @@
 #s-challenger .ch-lore-infobox dd{margin:0;color:#d8e1f0;line-height:1.35;}
 #s-challenger .ch-lore-article{padding:1.15rem 1.25rem;min-height:420px;}
 #s-challenger .ch-lore-article p{margin:0 0 1rem;color:#dfe8f4;line-height:1.7;font-size:.94rem;}
-#s-challenger .ch-lore-summary{font-size:1.02rem!important;color:#fff!important;border-left:3px solid var(--lore-accent);padding-left:.9rem;}
+#s-challenger .ch-lore-summary,#fate-lore-window-overlay .ch-lore-summary{margin:0 0 1.05rem!important;padding:.86rem 1rem!important;border-left:0!important;border-radius:6px!important;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.025))!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--lore-accent) 28%,rgba(255,255,255,.08))!important;color:#f4f0df!important;font-family:Georgia,'Times New Roman',serif!important;font-size:.98rem!important;line-height:1.62!important;font-weight:400!important;font-style:italic!important;letter-spacing:.004em!important;}
+#s-challenger.active.ch-lore-reading{z-index:30000!important;isolation:isolate;}
+body:has(#s-challenger.active.ch-lore-reading) :is(#world-chat-widget,.ingame-chat-widget,#fate-corner-dock,.screen-debug-overlay){z-index:20!important;}
+body:has(#modal.on) #s-challenger.active.ch-lore-reading{z-index:900!important;}
+#fate-lore-window-overlay{position:fixed;inset:0;z-index:65000;display:flex;align-items:center;justify-content:center;padding:3.5vh 3vw;background:rgba(0,0,0,.58);backdrop-filter:blur(3px);--dim:#aab4c6;}
+#fate-lore-window-overlay .fate-lore-window-backdrop{position:absolute;inset:0;}
+#fate-lore-window-overlay .fate-lore-window{position:relative;z-index:1;width:min(1560px,96vw);max-height:92vh;overflow:auto;border:3px solid rgba(168,143,82,.78);border-radius:8px;background:linear-gradient(145deg,rgba(6,9,16,.98),rgba(11,15,26,.96));box-shadow:0 28px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.08);}
+#fate-lore-window-overlay .ch-lore-shell{max-width:1540px;margin:0 auto;padding:1rem;display:flex;flex-direction:column;gap:1.1rem;}
+#fate-lore-window-overlay .ch-lore-command,#fate-lore-window-overlay .ch-lore-page-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:linear-gradient(135deg,rgba(11,14,24,.94),rgba(14,18,31,.86));border:1px solid rgba(232,196,82,.28);border-radius:7px;padding:1.25rem 1.35rem;box-shadow:0 18px 48px rgba(0,0,0,.35);}
+#fate-lore-window-overlay .ch-lore-page-top{display:grid;grid-template-columns:minmax(86px,1fr) auto minmax(86px,1fr);text-align:center;}
+#fate-lore-window-overlay .ch-lore-page-top > .btn,#fate-lore-window-overlay .ch-lore-page-top > .ch-lore-window-spacer{justify-self:start;}
+#fate-lore-window-overlay .ch-lore-page-top > div:not(.ch-lore-page-actions){justify-self:center;}
+#fate-lore-window-overlay .ch-lore-kicker{font-family:'Cinzel',serif;color:#e8c452;text-transform:uppercase;font-size:.68rem;letter-spacing:.12em;}
+#fate-lore-window-overlay .ch-lore-command h2,#fate-lore-window-overlay .ch-lore-page-top h2{font-family:'Cinzel',serif;color:#fff;margin:.12rem 0 0;font-size:2rem;letter-spacing:0;}
+#fate-lore-window-overlay .ch-lore-command p{margin:.35rem 0 0;color:var(--dim);font-size:1rem;line-height:1.45;}
+#fate-lore-window-overlay .ch-lore-command-actions,#fate-lore-window-overlay .ch-lore-page-actions{display:flex;gap:.55rem;flex-wrap:wrap;justify-content:flex-end;}
+#fate-lore-window-overlay .ch-lore-page-actions{justify-self:end;}
+#fate-lore-window-overlay .ch-lore-character-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1.05rem;}
+#fate-lore-window-overlay .ch-lore-character-card{position:relative;display:grid;grid-template-columns:146px 1fr;gap:1.15rem;min-height:190px;width:100%;padding:1rem;background:linear-gradient(145deg,rgba(18,23,36,.94),rgba(5,8,14,.94));border:1px solid color-mix(in srgb,var(--lore-accent) 32%,rgba(255,255,255,.05));border-radius:7px;color:inherit;text-align:left;cursor:pointer;overflow:hidden;box-shadow:0 16px 34px rgba(0,0,0,.28);}
+#fate-lore-window-overlay .ch-lore-card-portrait{width:146px;height:170px;align-self:center;border-radius:7px;overflow:hidden;background:#03050a;border:1px solid rgba(255,255,255,.12);}
+#fate-lore-window-overlay .ch-lore-card-portrait img,#fate-lore-window-overlay .ch-lore-info-img img{width:100%;height:100%;object-fit:cover;display:block;}
+#fate-lore-window-overlay .ch-lore-card-copy{min-width:0;display:flex;flex-direction:column;gap:.5rem;justify-content:center;}
+#fate-lore-window-overlay .ch-lore-card-aff{display:inline-flex;align-items:center;gap:.45rem;color:var(--lore-accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;}
+#fate-lore-window-overlay .ch-lore-card-aff img{width:20px;height:20px;object-fit:cover;border-radius:50%;}
+#fate-lore-window-overlay .ch-lore-card-copy b{font-family:'Cinzel',serif;color:#fff;font-size:1.42rem;letter-spacing:0;line-height:1.15;}
+#fate-lore-window-overlay .ch-lore-card-copy small{position:relative;color:#d9dcff;font-family:Georgia,'Times New Roman',serif;font-size:.92rem;font-weight:400;font-style:italic;line-height:1.52;letter-spacing:.006em;text-shadow:0 1px 10px rgba(72,86,255,.22);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding:.05rem 0 .05rem .86rem;border-left:1px solid color-mix(in srgb,var(--lore-accent) 62%,rgba(255,255,255,.14));}
+#fate-lore-window-overlay .ch-lore-archive-shell{height:min(82vh,780px);overflow:hidden;}
+#fate-lore-window-overlay .ch-lore-archive-shell .ch-lore-character-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(190px,1fr);gap:1.05rem;overflow:hidden;}
+#fate-lore-window-overlay .ch-lore-pager{display:flex;align-items:center;justify-content:flex-end;gap:.55rem;font-family:'Cinzel',serif;color:#e8c452;text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;}
+#fate-lore-window-overlay .ch-lore-pager .btn[disabled]{opacity:.36;pointer-events:none;}
+#fate-lore-window-overlay .ch-lore-window-spacer{display:block;width:62px;min-width:62px;}
+#fate-lore-window-overlay .ch-lore-dossier{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:1rem;align-items:start;}
+#fate-lore-window-overlay .ch-lore-infobox{box-sizing:border-box;background:rgba(7,10,16,.88);border:3px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));border-radius:7px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.28);}
+#fate-lore-window-overlay .ch-lore-article{background:rgba(7,10,16,.88);border:1px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));border-radius:7px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.28);}
+#fate-lore-window-overlay .ch-lore-info-img{height:312px;background:#04060a;}
+#fate-lore-window-overlay .ch-lore-info-title{display:grid;grid-template-columns:42px 1fr;gap:.7rem;align-items:center;padding:.9rem 1rem;border-top:3px solid color-mix(in srgb,var(--lore-accent) 34%,rgba(255,255,255,.08));background:rgba(255,255,255,.035);}
+#fate-lore-window-overlay .ch-lore-info-title img{width:42px;height:42px;border-radius:50%;object-fit:cover;}
+#fate-lore-window-overlay .ch-lore-info-title h3{font-family:'Cinzel',serif;color:#fff;margin:0;font-size:1.05rem;letter-spacing:0;}
+#fate-lore-window-overlay .ch-lore-info-title p{margin:.12rem 0 0;color:var(--dim);font-size:.78rem;line-height:1.35;}
+#fate-lore-window-overlay .ch-lore-infobox dl{margin:0;padding:.8rem 1rem 1rem;display:grid;grid-template-columns:42% 1fr;gap:.42rem .65rem;font-size:.78rem;}
+#fate-lore-window-overlay .ch-lore-infobox dt{color:var(--lore-accent);font-weight:800;}
+#fate-lore-window-overlay .ch-lore-infobox dd{margin:0;color:#d8e1f0;line-height:1.35;}
+#fate-lore-window-overlay .ch-lore-article{padding:1.15rem 1.25rem;min-height:420px;}
+#fate-lore-window-overlay .ch-lore-article p{margin:0 0 1rem;color:#dfe8f4;line-height:1.7;font-size:.94rem;}
+#fate-lore-window-overlay .ch-lore-updated{color:var(--dim)!important;font-style:italic;font-size:.8rem!important;margin-top:1.2rem!important;}
+#fate-lore-window-overlay .ch-lore-tags{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:1rem;}
+#fate-lore-window-overlay .ch-lore-tags span{border:1px solid color-mix(in srgb,var(--lore-accent) 42%,transparent);border-radius:999px;padding:.25rem .55rem;color:var(--lore-accent);background:rgba(255,255,255,.05);font-size:.72rem;}
 #s-challenger .ch-lore-updated{color:var(--dim)!important;font-style:italic;font-size:.8rem!important;margin-top:1.2rem!important;}
 #s-challenger .ch-lore-tags{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:1rem;}
 #s-challenger .ch-lore-tags span{border:1px solid color-mix(in srgb,var(--lore-accent) 42%,transparent);border-radius:999px;padding:.25rem .55rem;color:var(--lore-accent);background:rgba(255,255,255,.05);font-size:.72rem;}
@@ -54,7 +109,10 @@
 }
 @media (max-width:620px){
   #s-challenger .ch-lore-command,#s-challenger .ch-lore-page-top{align-items:flex-start;flex-direction:column;}
+  #s-challenger .ch-lore-page-top,#fate-lore-window-overlay .ch-lore-page-top{display:flex;text-align:left;}
   #s-challenger .ch-lore-aff-row,#s-challenger .ch-lore-character-grid{grid-template-columns:1fr;}
+  #s-challenger .ch-lore-archive-shell,#fate-lore-window-overlay .ch-lore-archive-shell{height:auto;overflow:visible;}
+  #s-challenger .ch-lore-archive-shell .ch-lore-character-grid,#fate-lore-window-overlay .ch-lore-archive-shell .ch-lore-character-grid{grid-template-columns:1fr;grid-template-rows:none;overflow:visible;}
   #s-challenger .ch-lore-character-card{grid-template-columns:88px 1fr;min-height:142px;}
   #s-challenger .ch-lore-card-portrait{width:88px;height:118px;}
 }

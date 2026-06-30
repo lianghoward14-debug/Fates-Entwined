@@ -3015,7 +3015,7 @@ function updateTopBar() {
   const displayName = isOwnTurn ? 'Your' : 'Opponent';
   const turnText = "Turn "+G.turn+"/"+G.maxTurns+" - "+displayName+" Turn";
   const hudTurnText = 'Turn '+G.turn+'/'+G.maxTurns;
-  const hudPlayerText = isOwnTurn ? 'Your Turn' : "Opponent's Turn";
+  const hudPlayerText = isOwnTurn ? "It's Your Turn!" : "Opponent's Turn";
   const shellSig = [
     cp, G.turn, G.maxTurns, G.phase || '',
     isAITurn ? 1 : 0, isOwnTurn ? 1 : 0,
@@ -4431,6 +4431,19 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   acts.innerHTML='';
   const close=document.createElement('button');
   close.className='btn sm';close.textContent='Close';close.onclick=closeModal;
+  if(!hideCard && typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card) && typeof window.openCardLoreFromInfo === 'function'){
+    const lore=document.createElement('button');
+    lore.className='btn sm';
+    lore.textContent='Lore';
+    lore.onclick=(ev)=>{
+      if(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      window.openCardLoreFromInfo(card);
+    };
+    acts.appendChild(lore);
+  }
   acts.appendChild(close);
   if(hideCard){
     document.getElementById('modal').classList.add('on');
@@ -6415,6 +6428,9 @@ function showCardInfoOverlay(card) {
   var voiceButton = (visual.type !== 'Supporter')
     ? '<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound===\'function\') playCardSound(\''+escapeHtml(card.id)+'\');">&#9835;</button>'
     : '';
+  var loreButton = (typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card))
+    ? '<button type="button" class="btn sm cio-lore">Lore</button>'
+    : '';
   var affLabel = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[visual.aff]) ? AFF_LABEL[visual.aff] : visual.aff;
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
@@ -6436,10 +6452,17 @@ function showCardInfoOverlay(card) {
           (card.flavor ? '<div class="cd-flavor">'+card.flavor+'</div>' : '')+
         '</div>'+
       '</div>'+
-      '<div class="cio-acts"><button type="button" class="btn sm cio-close">Close</button></div>'+
+      '<div class="cio-acts">'+loreButton+'<button type="button" class="btn sm cio-close">Close</button></div>'+
     '</div>';
   overlay.querySelector('.card-info-overlay-backdrop').onclick = dismissCardInfoOverlay;
   overlay.querySelectorAll('.cio-close').forEach(function(btn){ btn.onclick = dismissCardInfoOverlay; });
+  overlay.querySelectorAll('.cio-lore').forEach(function(btn){
+    btn.onclick = function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(typeof window.openCardLoreFromInfo === 'function') window.openCardLoreFromInfo(card);
+    };
+  });
   overlay.querySelector('.cio-modal').onclick = function(ev){ ev.stopPropagation(); };
   document.body.appendChild(overlay);
   if(useCanvasArt) {
@@ -6778,7 +6801,7 @@ function showConsolidationCinematic(card, opts) {
   sigil.className = 'cc-sigil-v2 rarity-' + rarity;
   if(useStarSvg){
     // 5-pointed star outline centered
-    sigil.innerHTML = '<svg viewBox="0 0 200 190" style="width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 14px rgba(255,230,70,.58));" xmlns="http://www.w3.org/2000/svg"><polygon points="100,5 123,68 190,68 135,110 155,175 100,138 45,175 65,110 10,68 77,68" fill="none" stroke="'+color+'" stroke-width="6" stroke-linejoin="round"/></svg>';
+    sigil.innerHTML = '<svg viewBox="0 0 200 190" style="width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 10px rgba(255,230,70,.42));" xmlns="http://www.w3.org/2000/svg"><polygon points="100,5 123,68 190,68 135,110 155,175 100,138 45,175 65,110 10,68 77,68" fill="none" stroke="'+color+'" stroke-width="3" stroke-linejoin="round"/></svg>';
     sigil.setAttribute('style',
       'position:absolute;left:50%;top:50%;width:min(74vmin,720px);height:min(71vmin,690px);' +
       'transform:translate(-50%,-50%) scale(.3) rotate(-18deg);opacity:0;' +
@@ -6856,7 +6879,18 @@ function showConsolidationCinematic(card, opts) {
   //             subtitle duration = 2800 - 140 = 2660ms
   //   perfLite: subtitle at 80ms, fade-out at 1900ms (.45s), remove at 2400ms
   //             subtitle duration = 2400 - 80 = 2320ms
-  if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){ showCinematicSubtitle(subtitle, perfLite ? 2600 : 2740, rarity); }, perfLite ? 80 : 140);
+  if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){
+    var subEl = showCinematicSubtitle(subtitle, perfLite ? 2600 : 2740, rarity);
+    if(subEl && overlay && overlay.isConnected){
+      overlay.appendChild(subEl);
+      subEl.classList.add('inside-consolidation-cinematic');
+      subEl.style.setProperty('position', 'absolute', 'important');
+      subEl.style.setProperty('left', '50%', 'important');
+      subEl.style.setProperty('bottom', perfLite ? '24vh' : '27vh', 'important');
+      subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
+      subEl.style.setProperty('z-index', '6', 'important');
+    }
+  }, perfLite ? 80 : 140);
   document.body.classList.add('cinematic-lock');
   if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + (perfLite ? 2920 : 3180));
 

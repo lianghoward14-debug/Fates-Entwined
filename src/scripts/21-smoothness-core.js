@@ -1489,6 +1489,7 @@
       play:window.renderChPlayTab,
       store:window.renderChStoreTab,
       collection:window.renderChCollectionTab,
+      lore:window.renderChLoreTab,
       deckbuilder:window.renderChDeckBuilderTab
     };
     const render = renderers[tab];
@@ -1699,6 +1700,9 @@
       });
       await runNonVisualPrep('Preparing Challenger Collection ' + passLabel, 'Prebuilding Challenger collection tab.', function(){
         return warmChallengerTab('collection');
+      });
+      await runNonVisualPrep('Preparing Challenger Lore ' + passLabel, 'Prebuilding Challenger lore tab.', function(){
+        return warmChallengerTab('lore');
       });
       await runNonVisualPrep('Preparing Challenger Deck Builder ' + passLabel, 'Prebuilding Challenger deck builder tab.', function(){
         return warmChallengerTab('deckbuilder');
@@ -3762,6 +3766,7 @@
       await warmChallengerTab('play');
       await warmChallengerTab('store');
       await warmChallengerTab('collection');
+      await warmChallengerTab('lore');
       await warmChallengerTab('deckbuilder');
       if(typeof window.showScreen === 'function' && getActiveScreenId() !== originalScreen) {
         window.showScreen(originalScreen && originalScreen !== 's-game' ? originalScreen : 's-title');

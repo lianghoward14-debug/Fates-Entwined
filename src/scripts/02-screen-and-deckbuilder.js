@@ -658,6 +658,17 @@ function openDeckBuilderCardDetail(card) {
   document.getElementById('modal-title').textContent = card.name;
   const acts = document.getElementById('modal-acts');
   acts.innerHTML = '';
+  if(typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card) && typeof window.openCardLoreFromInfo === 'function'){
+    const lore = document.createElement('button');
+    lore.className = 'btn sm';
+    lore.textContent = 'Lore';
+    lore.onclick = (ev)=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      window.openCardLoreFromInfo(card);
+    };
+    acts.appendChild(lore);
+  }
   const close = document.createElement('button');
   close.className='btn sm';close.textContent='Close';close.onclick=closeModal;
   const remove = document.createElement('button');

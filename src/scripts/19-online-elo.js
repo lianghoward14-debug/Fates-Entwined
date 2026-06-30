@@ -565,7 +565,7 @@
     if(flyLeaderboardEnabled()) return 0;
     const u=user(); if(!u || !firebaseLeaderboardAllowed() || !FO.runTransaction) return 0;
     const claimId = `${u.uid}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-    const cadenceMs = 10 * 60 * 1000;
+    const cadenceMs = 60 * 60 * 1000;
     const count = Math.max(0, Math.min(200, Math.round(Number(targetCount) || 0)));
     if(count <= 0) return 0;
     const tx = await FO.runTransaction(FO.ref(FO.rtdb, `${seasonPath()}/simSchedule`), cur=>{
@@ -724,7 +724,7 @@
       if(user()) runSharedAISimulations().catch(e=>console.warn('Shared AI simulation failed', e));
     };
     setTimeout(tick, 2500);
-    sharedAISimulationTimer = setInterval(tick, 10 * 60 * 1000);
+    sharedAISimulationTimer = setInterval(tick, 60 * 60 * 1000);
   }
   async function submitChallengerResult({didWin, opponentUid=null, opponentElo=1000, roomCode='', source='client', oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
     const u=user(); if(!u) return;

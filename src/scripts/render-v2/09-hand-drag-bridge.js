@@ -592,7 +592,8 @@
       state.ghostH = ghostH;
     }
     if(window.FateVfxDirector && typeof window.FateVfxDirector.setDragPreview === 'function'){
-      window.FateVfxDirector.setDragPreview({card:state && state.card, rect:r ? {x:r.x, y:r.y, w:ghostW, h:ghostH} : r, invalid:false, scale:1});
+      const tutorialDragPreview = !!(document.body && document.body.classList && document.body.classList.contains('tutorial-active'));
+      window.FateVfxDirector.setDragPreview({card:state && state.card, rect:r ? {x:r.x, y:r.y, w:ghostW, h:ghostH} : r, invalid:false, scale:1, tutorialDragPreview});
     }
     moveGhost(ghost, ev.clientX, ev.clientY, 0);
     return ghost;

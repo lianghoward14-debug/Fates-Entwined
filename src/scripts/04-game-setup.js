@@ -845,6 +845,7 @@ function predictMatchOutcome(trueElo1, trueElo2, upsetFloor=0) {
 // Local fallback AI simulation. Online/shared AI simulation is preferred when
 // the online layer is authenticated, but offline/local sessions still need AI
 // results to advance instead of appearing frozen.
+const LOCAL_AI_SIMULATION_CADENCE_MS = 60 * 60 * 1000;
 function runAISimulation(options={}) {
   const forceLocal = !!(options && options.forceLocal);
   if(!forceLocal && window.FATE_ONLINE?.user) return 0;
@@ -852,7 +853,7 @@ function runAISimulation(options={}) {
   let simData;
   try { simData = JSON.parse(localStorage.getItem(simKey) || '{}'); } catch(e){ simData = {}; }
   const now = Date.now();
-  const cadence = 10 * 60 * 1000;
+  const cadence = LOCAL_AI_SIMULATION_CADENCE_MS;
   if(Number(simData.lastRunAt || 0) && now - Number(simData.lastRunAt || 0) < cadence) return 0;
 
   const aiSource = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
@@ -1177,7 +1178,7 @@ if(typeof document !== 'undefined') {
     if(!window.__fateLocalAISimulationLoopStarted){
       window.__fateLocalAISimulationLoopStarted = true;
       setTimeout(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, 2200);
-      setInterval(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, 10 * 60 * 1000);
+      setInterval(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, LOCAL_AI_SIMULATION_CADENCE_MS);
     }
   });
 }

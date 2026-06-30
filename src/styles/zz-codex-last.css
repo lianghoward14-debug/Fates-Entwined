@@ -5322,12 +5322,27 @@ html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.i
   pointer-events:none!important;
   border-radius:3px!important;
   background:
-    linear-gradient(180deg,rgba(255,60,74,.20),rgba(136,10,24,.30)),
-    radial-gradient(circle at 50% 18%,rgba(255,126,126,.14),transparent 46%)!important;
-  box-shadow:inset 0 0 0 1px rgba(255,82,92,.34),inset 0 0 18px rgba(180,20,32,.28)!important;
-  mix-blend-mode:screen!important;
-  opacity:.78!important;
+    linear-gradient(180deg,rgba(255,44,62,.42),rgba(126,0,18,.58)),
+    radial-gradient(circle at 50% 18%,rgba(255,144,144,.24),transparent 48%)!important;
+  box-shadow:inset 0 0 22px rgba(210,18,34,.42)!important;
+  mix-blend-mode:normal!important;
+  opacity:.92!important;
   z-index:2!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card{
+  border-color:rgba(238,205,105,.18)!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card.is-targetable:hover{
+  border-color:rgba(238,205,105,.18)!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card.is-selected{
+  border-color:var(--gold)!important;
+  box-shadow:inset 0 0 0 2px rgba(238,205,105,.85),0 0 14px rgba(238,205,105,.18)!important;
 }
 
 html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-fate{
@@ -14427,4 +14442,21 @@ html body #s-game #opp-hand.opp-hand-ten-plus{
   grid-template-columns:repeat(5, var(--opp-hand-card-w))!important;
   gap:.32rem .4rem!important;
   max-height:218px!important;
+}
+
+/* Codex 2026-06-30: tiny HUD alignment nudge without moving the topbar frame. */
+html body #s-game .tp-mid #tp-cur{
+  position:relative!important;
+  left:-18px!important;
+  transform:none!important;
+  justify-self:start!important;
+  text-align:left!important;
+}
+
+html body #s-game .tp-mid #tp-timer{
+  position:relative!important;
+  left:-42px!important;
+  transform:none!important;
+  justify-self:start!important;
+  text-align:center!important;
 }

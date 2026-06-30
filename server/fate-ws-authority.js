@@ -89,6 +89,7 @@ let flyPrivateMessageSeq = 0;
 let flyAISimSchedule = {};
 let flyAISimulationInterval = 0;
 let flyAISimulationStartupTimer = 0;
+const FLY_AI_SIMULATION_CADENCE_MS = 60 * 60 * 1000;
 let certCache = { expiresAt: 0, certs: null };
 let serviceAccountCache = undefined;
 let adminTokenCache = { expiresAt: 0, accessToken: '' };
@@ -2118,7 +2119,7 @@ function flyAIPairs(records, rng){
 
 function runFlyAISimulationBatch(monthKey = '', count = null){
   const key = String(monthKey || '').slice(0, 24);
-  const cadenceMs = 10 * 60 * 1000;
+  const cadenceMs = FLY_AI_SIMULATION_CADENCE_MS;
   const lastRunAt = Number(flyAISimSchedule?.lastRunAt || 0) || 0;
   if(lastRunAt && now() - lastRunAt < cadenceMs) return {ran:0, skipped:'cadence', roster:listFlyAIRecords(key)};
   if(listFlyLiveMatches(1).length) return {ran:0, skipped:'live-match-active', roster:listFlyAIRecords(key)};
@@ -2177,7 +2178,7 @@ function startFlyAISimulationCadence(){
     runScheduledFlyAISimulation('startup');
   }, 15000);
   flyAISimulationStartupTimer.unref?.();
-  flyAISimulationInterval = setInterval(()=>runScheduledFlyAISimulation('timer'), 10 * 60 * 1000);
+  flyAISimulationInterval = setInterval(()=>runScheduledFlyAISimulation('timer'), FLY_AI_SIMULATION_CADENCE_MS);
   flyAISimulationInterval.unref?.();
 }
 

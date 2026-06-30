@@ -1030,7 +1030,7 @@ function placeSelected() {
   if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'place')) return;
 
   // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
-  const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
+  const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)));
 
   if(!isLinaFree && card.type==='Supporter') {
     const totalSupports = G.supportsPlacedThisTurn;
@@ -1606,7 +1606,7 @@ async function clickCell(z,r,c) {
   }
 
   // Supporter limit re-check (skip for Lina free-set cards)
-  const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
+  const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)));
   if(card.type === 'Supporter' && card.id !== '76' && isBlockedByAlondra(z, r, c, cp)) {
     playSfx('blocked');
     toast('Alondra blocks Supporters adjacent to her.');
@@ -1724,6 +1724,7 @@ async function clickCell(z,r,c) {
   }
   // Clear Lina free flag after use
   if(isLinaFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
+  if(isLinaFree) delete card._linaFree;
   markCommit('supporterTracking');
   
   log(G.currentPlayer===0?'p1':'p2', `${player.name} placed ${card.name} in Zone ${z+1}`);
@@ -1849,12 +1850,25 @@ function deterministicOnlineRandomIndex(length, reason, playerIndex){
   return Math.floor(clientSeededRandom(seed) * max);
 }
 
+function resolveImmediateFreePlacementHandCard(player, card) {
+  const hand = G && G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
+  if(!card) return null;
+  if(card.iid !== undefined && card.iid !== null) {
+    const byIid = hand.find(h => h && h.iid === card.iid);
+    if(byIid) return byIid;
+  }
+  return hand.find(h => h === card) || card;
+}
+
 function beginImmediateFreePlacement(player, card, message, effectInfo) {
+  if(!card) return;
+  card = resolveImmediateFreePlacementHandCard(player, card);
   if(!card) return;
   card.effectUsedInitial = false;
   card._effectTurnLocked = false;
   card._effectNegatedByReaction = false;
   card.whenSetActivated = false;
+  card._linaFree = true;
   if(!G._linaFreeIids) G._linaFreeIids = new Set();
   G._linaFreeIids.add(card.iid);
   if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card))) {
