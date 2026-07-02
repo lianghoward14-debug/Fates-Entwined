@@ -825,6 +825,22 @@ function isOnlineRemoteTurnTimer() {
   return Number(G.currentPlayer) !== Number(G._onlinePlayerIndex);
 }
 
+function isLocalPlayerActionTurn() {
+  if(!G) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return false;
+  if(G._onlineRoomCode) {
+    if(G._onlinePlayerIndex === null || G._onlinePlayerIndex === undefined) return false;
+    return Number(G.currentPlayer) === Number(G._onlinePlayerIndex);
+  }
+  if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return false;
+  const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+  return !Number.isInteger(viewer) || Number(viewer) === Number(G.currentPlayer);
+}
+
+function isLocalConsolidationActive() {
+  return !!(G && G._consolidating && isLocalPlayerActionTurn());
+}
+
 function getOnlineSyncedTurnRemaining(limit) {
   if(!G || !G._onlineRoomCode || !Number.isFinite(Number(G._turnStartedAt))) return null;
   const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
@@ -1583,9 +1599,18 @@ async function clickCell(z,r,c) {
     return;
   }
   if(G._expMoving) {
-    if(G.board[z][r][c]!==null){toast('Cell is occupied');return;}
     const mv = G._expMoving;
     const cp = typeof mv.card.owner === 'number' ? mv.card.owner : G.currentPlayer;
+    if(cp !== G.currentPlayer){
+      G._expMoving = null;
+      G.placing = false;
+      clearPlaceHighlights();
+      if(typeof window.FateMatchRendererAdapter?.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+      toast('ALPINE Expeditionary movement cancelled - it is not your card.');
+      renderGame({board:true, blocks:true, topbar:true});
+      return;
+    }
+    if(G.board[z][r][c]!==null){toast('Cell is occupied');return;}
     if(!isContestedOrOwnSafeSquare(z, r, c, cp)){
       toast('ALPINE Expeditionary can only move to contested row or your safe row');
       playSfx('blocked');
@@ -4993,6 +5018,8 @@ async function activateExpeditionaryMove(card, z, r, c) {
   }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   toast('Click any open square on your side to move ALPINE Expeditionary');
+  clearBoardTargetSelection();
+  clearPlaceHighlights();
   G._expMoving = {card:card, fromZ:z, fromR:r, fromC:c};
   for(var zz=0;zz<3;zz++){
     G.board[zz].forEach(function(row,rr){row.forEach(function(cell,cc){

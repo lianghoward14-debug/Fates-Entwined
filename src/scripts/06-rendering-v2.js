@@ -231,13 +231,14 @@ function performGameRender(parts) {
     }
   }
   if(dirty.hand) renderHand();
+  const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!G._consolidating;
   // Show/hide the cancel consolidation button
   const cancelBtn = document.getElementById('cancel-consolidate-btn');
-  if(cancelBtn) cancelBtn.style.display = G._consolidating ? '' : 'none';
+  if(cancelBtn) cancelBtn.style.display = localConsolidationActive ? '' : 'none';
   if(dirty.scores) renderZoneScores();
   if(dirty.piles) renderPiles();
   if(dirty.oppHand) renderOppHand();
-  if(G._consolidating) highlightTributeCards();
+  if(localConsolidationActive) highlightTributeCards();
   if(dirty.blocks && typeof refreshBlockOverlays === 'function') refreshBlockOverlays();
   if(dirty.topbar && typeof updateTopBar === 'function') updateTopBar();
   restoreBoardViewportLockSoon();

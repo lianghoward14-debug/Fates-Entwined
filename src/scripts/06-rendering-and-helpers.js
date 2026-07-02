@@ -711,7 +711,8 @@ function performGameRender(parts) {
   try{
     beginRenderCalculationFrame();
     const gameScreen = document.getElementById('s-game');
-    if(gameScreen) gameScreen.classList.toggle('is-consolidating', !!G._consolidating);
+    const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!G._consolidating;
+    if(gameScreen) gameScreen.classList.toggle('is-consolidating', localConsolidationActive);
     const boardOwnedByRendererV2 = dirty.board && rendererV2OwnsBoardScene();
     const boardScrollSnap = dirty.board && !boardOwnedByRendererV2 ? timed('boardScrollSnap', getBoardScrollSnapshot) : null;
     if(dirty.board) {
@@ -743,12 +744,12 @@ function performGameRender(parts) {
     if(dirty.hand) timed('renderHand', renderHand);
     // Toggle cancel-consolidation button visibility
     var cancelBtn = document.getElementById('cancel-consolidate-btn');
-    if(cancelBtn) cancelBtn.style.display = G._consolidating ? '' : 'none';
+    if(cancelBtn) cancelBtn.style.display = localConsolidationActive ? '' : 'none';
     if(dirty.scores) timed('renderZoneScores', renderZoneScores);
     if(dirty.piles) timed('renderPiles', renderPiles);
     if((dirty.landscape || dirty.scores) && typeof renderLandscapePanel === 'function') timed('renderLandscapePanel', renderLandscapePanel);
     if(dirty.oppHand) timed('renderOppHand', renderOppHand);
-    if(G._consolidating) timed('highlightTributeCards', highlightTributeCards);
+    if(localConsolidationActive) timed('highlightTributeCards', highlightTributeCards);
     if(dirty.blocks && typeof refreshBlockOverlays === 'function') timed('refreshBlockOverlays', refreshBlockOverlays);
     if(dirty.topbar && typeof updateTopBar === 'function') timed('updateTopBar', updateTopBar);
     timed('restoreViewportLock', restoreBoardViewportLockSoon);

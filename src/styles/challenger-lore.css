@@ -48,7 +48,8 @@
 #s-challenger .ch-lore-article{padding:1.15rem 1.25rem;min-height:420px;}
 #s-challenger .ch-lore-article p{margin:0 0 1rem;color:#dfe8f4;line-height:1.7;font-size:.94rem;}
 #s-challenger .ch-lore-reading-shell .ch-lore-article,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article{display:flex;flex-direction:column;min-height:420px;max-height:none;}
-#s-challenger .ch-lore-reading-shell .ch-lore-article-scroll,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll{max-height:min(52vh,520px);overflow-y:auto;overflow-x:hidden;padding-right:.5rem;scrollbar-width:thin;}
+#s-challenger .ch-lore-reading-shell .ch-lore-article-scroll,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll{max-height:min(52vh,520px);overflow-y:auto;overflow-x:hidden;padding-right:.5rem;scrollbar-width:none;-ms-overflow-style:none;}
+#s-challenger .ch-lore-reading-shell .ch-lore-article-scroll::-webkit-scrollbar,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll::-webkit-scrollbar{display:none;width:0;height:0;}
 #s-challenger .ch-lore-reading-shell .ch-lore-article-scroll p:last-child,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll p:last-child{margin-bottom:0;}
 #s-challenger .ch-lore-summary,#fate-lore-window-overlay .ch-lore-summary{margin:0 0 1.05rem!important;padding:.86rem 1rem!important;border-left:0!important;border-radius:6px!important;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.025))!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--lore-accent) 28%,rgba(255,255,255,.08))!important;color:#f4f0df!important;font-family:Georgia,'Times New Roman',serif!important;font-size:.98rem!important;line-height:1.62!important;font-weight:400!important;font-style:italic!important;letter-spacing:.004em!important;}
 #s-challenger.active.ch-lore-reading{z-index:30000!important;isolation:isolate;}
@@ -56,7 +57,8 @@ body:has(#s-challenger.active.ch-lore-reading) :is(#world-chat-widget,.ingame-ch
 body:has(#modal.on) #s-challenger.active.ch-lore-reading{z-index:900!important;}
 #fate-lore-window-overlay{position:fixed;inset:0;z-index:65000;display:flex;align-items:center;justify-content:center;padding:3.5vh 3vw;background:rgba(0,0,0,.58);backdrop-filter:blur(3px);--dim:#aab4c6;}
 #fate-lore-window-overlay .fate-lore-window-backdrop{position:absolute;inset:0;}
-#fate-lore-window-overlay .fate-lore-window{position:relative;z-index:1;width:min(1560px,96vw);max-height:92vh;overflow:auto;border:3px solid rgba(168,143,82,.78);border-radius:8px;background:linear-gradient(145deg,rgba(6,9,16,.98),rgba(11,15,26,.96));box-shadow:0 28px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.08);}
+#fate-lore-window-overlay .fate-lore-window{position:relative;z-index:1;width:min(1560px,96vw);max-height:92vh;overflow:auto;border:3px solid rgba(168,143,82,.78);border-radius:8px;background:linear-gradient(145deg,rgba(6,9,16,.98),rgba(11,15,26,.96));box-shadow:0 28px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.08);scrollbar-width:none;-ms-overflow-style:none;}
+#fate-lore-window-overlay .fate-lore-window::-webkit-scrollbar{display:none;width:0;height:0;}
 #fate-lore-window-overlay .ch-lore-shell{max-width:1540px;margin:0 auto;padding:1rem;display:flex;flex-direction:column;gap:1.1rem;}
 #fate-lore-window-overlay .ch-lore-command,#fate-lore-window-overlay .ch-lore-page-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:linear-gradient(135deg,rgba(11,14,24,.94),rgba(14,18,31,.86));border:1px solid rgba(232,196,82,.28);border-radius:7px;padding:1.25rem 1.35rem;box-shadow:0 18px 48px rgba(0,0,0,.35);}
 #fate-lore-window-overlay .ch-lore-page-top{display:grid;grid-template-columns:minmax(86px,1fr) auto minmax(86px,1fr);text-align:center;}

@@ -582,6 +582,40 @@
     }
     g.landscape = g.landscapeId && typeof LANDSCAPES !== 'undefined' ? LANDSCAPES[g.landscapeId] : null;
     Object.assign(g, keep);
+    if(isOnlineMatchState(g) && Number.isInteger(g._onlinePlayerIndex) && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)){
+      const hadLocalTransient = !!(
+        g._consolidating ||
+        g._wolfCreekMoving ||
+        g._expMoving ||
+        g._berkeleyMoving ||
+        g._bh01Moving ||
+        g._landscapeMoving ||
+        g._busserMoving ||
+        g._busserMovingCard ||
+        g._boardTargeting ||
+        g._markSelecting ||
+        g._havanoDeploying ||
+        g.placing ||
+        g.selectedHandCard !== null ||
+        g.selectedBoardCard !== null
+      );
+      g._consolidating = null;
+      g._wolfCreekMoving = null;
+      g._expMoving = null;
+      g._berkeleyMoving = null;
+      g._bh01Moving = null;
+      g._landscapeMoving = null;
+      g._busserMoving = null;
+      g._busserMovingCard = null;
+      g._boardTargeting = null;
+      g._markSelecting = null;
+      g._havanoDeploying = null;
+      g.placing = false;
+      g.selectedHandCard = null;
+      g.selectedBoardCard = null;
+      g.blockingCell = false;
+      if(hadLocalTransient && typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
+    }
     if(g.landscapeBgNum && typeof window.applyGameBackground === 'function') {
       const song = 'board' + g.landscapeBgNum;
       g._onlineGameSong = song;
