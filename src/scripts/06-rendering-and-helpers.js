@@ -1360,6 +1360,10 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
   let handIndex = hand.findIndex(function(c){ return c && card.iid && c.iid === card.iid; });
   if(handIndex < 0) handIndex = hand.findIndex(function(c){ return c && c.id === card.id; });
   if(handIndex < 0) return false;
+  if(card.id==='70' && card.guerilla_transferred){
+    toast('Wine Country Guerilla cannot be discarded while infiltrating.');
+    return false;
+  }
   const target = targetPayload && typeof targetPayload.z === 'number'
     ? { z:targetPayload.z, r:targetPayload.r, c:targetPayload.c, card:G.board?.[targetPayload.z]?.[targetPayload.r]?.[targetPayload.c] || null }
     : null;
@@ -1373,10 +1377,10 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
   }
   const discarded = hand.splice(handIndex, 1)[0];
   fatePushDiscard(player, discarded);
-  modifyFate(target.card, 2, 'permanent');
+  modifyFate(target.card, 3, 'permanent');
   G.selectedHandCard = null;
   if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Santa Anna: Prosperity of a Treasure Port', 'minor');
-  toast('Santa Anna: ' + discarded.name + ' was discarded. ' + target.card.name + ' gains 2 Fate.');
+  toast('Santa Anna: ' + discarded.name + ' was discarded. ' + target.card.name + ' gains 3 Fate.');
   renderGame({board:true, hand:true, scores:true, piles:true, landscape:true, topbar:true});
   return true;
 }
@@ -1406,8 +1410,8 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
   closeModal();
   showBoardTargetPicker({
     title:'Prosperity of a Treasure Port',
-    prompt:'Select one card you control to gain 2 Fate.',
-    confirmLabel:'+2 Fate',
+    prompt:'Select one card you control to gain 3 Fate.',
+    confirmLabel:'+3 Fate',
     maxCount:1,
     viewerPlayerIndex:player,
     zones:[0,1,2],
@@ -2920,6 +2924,7 @@ window.enforceHandLimit = enforceHandLimit;
 
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
+  if(card && card.id==='70' && card.guerilla_transferred) return false;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
   if(card.type==='Supporter') {
@@ -3074,6 +3079,24 @@ function showRiveraStatusBanner(aff, turnsLeft, owner) {
 
 function showBerkeleyStatusBanner(zone, owner) {
   // No floating popup; Berkeley is represented by the existing topbar status pill.
+}
+
+function showBusserStatusBanner(card, moves, owner) {
+  const turns = Math.max(0, Number(moves) || 0);
+  const effectCard = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.find(c => c.id === '69') : null;
+  const name = card && card.name ? card.name : 'Selected card';
+  if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+  if(typeof toast === 'function') toast(name + ' can move to adjacent zones' + (turns ? ' (' + turns + ' moves)' : '') + '.');
+  try {
+    window.__fateLastBusserStatusBanner = {
+      cardName:name,
+      cardId:String(card && card.id || ''),
+      sourceName:effectCard ? effectCard.name : 'Breakfast Republic Busser',
+      moves:turns,
+      owner:coerceStatusOwner(owner, typeof G !== 'undefined' && G ? G.currentPlayer : 0),
+      at:Date.now()
+    };
+  } catch(e) {}
 }
 
 function coerceStatusOwner(value, fallback) {
@@ -3836,6 +3859,32 @@ function renderTopbarEffects() {
     });
   }
 
+  const busserMovesByOwner = {0:0, 1:0};
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(c){
+      if(!c || isFaceDownCard(c) || c.cantBeMoved || c.immuneFlag || String(c.id || '') === '76') return;
+      const moves = Math.max(0, Number(c._busserMoves || 0) || 0);
+      if(moves <= 0) return;
+      const owner = coerceStatusOwner(c._busserOwner == null ? c.owner : c._busserOwner, c.owner);
+      busserMovesByOwner[owner] = (Number(busserMovesByOwner[owner]) || 0) + moves;
+    });
+  }
+  const busserCard = CARDS.find(c => c.id === '69');
+  [0,1].forEach(function(owner){
+    const moves = Math.max(0, Number(busserMovesByOwner[owner]) || 0);
+    if(!moves) return;
+    allEffects.push({
+      icon: getStatusEffectIcon('movement'),
+      label: busserCard ? busserCard.ability : 'Corner! Behind!',
+      cardName: busserCard ? busserCard.name : 'Breakfast Republic Busser',
+      cardAbility: busserCard ? busserCard.ability : 'Corner! Behind!',
+      cardEffect: 'Friendly cards have ' + moves + ' Busser movement ' + (moves === 1 ? 'use' : 'uses') + ' remaining.',
+      owner: owner,
+      extraClass: 'effect-pill-busser',
+      turnsLeft: moves
+    });
+  });
+
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
@@ -4457,6 +4506,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const canUseSantaAnnaLandscape = Number.isInteger(handActionPlayer)
     && handActionIndex > -1
     && !fromBoard
+    && !(card.id==='70' && card.guerilla_transferred)
     && !G._isSpectator
     && G._onlineRole !== 'spectator'
     && typeof isLandscapeActive === 'function'
@@ -4464,7 +4514,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   if((fromHand||G.selectedHandCard!==null) && canUseSantaAnnaLandscape){
     const santa=document.createElement('button');
     santa.className='btn sm pri';
-    santa.textContent='Prosperity +2 Fate';
+    santa.textContent='Prosperity +3 Fate';
     santa.onclick=()=>{playEffectActivationButtonSound(); activateSantaAnnaProsperityFromHand(card);};
     acts.appendChild(santa);
   }
@@ -4544,7 +4594,13 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       const setAct=document.createElement('button');
       setAct.className='btn sm pri';
       setAct.textContent='Activate Effect';
-      setAct.onclick=()=>{playEffectActivationButtonSound(); closeModal(); activatePendingWhenSetEffect(bc,z,r,c);};
+      setAct.onclick=()=>{
+        setAct.disabled = true;
+        setAct.textContent = 'Resolving...';
+        playEffectActivationButtonSound();
+        closeModal();
+        activatePendingWhenSetEffect(bc,z,r,c);
+      };
       acts.appendChild(setAct);
     }
     if(!canActivateDeferredSetEffect && canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
@@ -4566,9 +4622,15 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     // Supporters can still be spent by consolidation and card effects, but are
     // no longer freely removable from their card info window.
     if(canUseBoardCard && bc.id!=='76'){
+      const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
+      if(!supporterActionsSuppressed && !isFaceDownCard(bc) && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
+        const busBtn=document.createElement('button');
+        busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
+        busBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateBusserMove(bc,z,r,c);};
+        acts.appendChild(busBtn);
+      }
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
-        const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
         // Vigilantes (52): mark an opponent card in this zone as 0 Reinforcement (once per turn)
         if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
           const vigBtn=document.createElement('button');
@@ -4589,13 +4651,6 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           expBtn.className='btn sm pri';expBtn.textContent='Move (once/turn)';
           expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
-        }
-        // Busser movement: any card with _busserMoves can move to adjacent zone
-        if(!supporterActionsSuppressed && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
-          const busBtn=document.createElement('button');
-          busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
-          busBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateBusserMove(bc,z,r,c);};
-          acts.appendChild(busBtn);
         }
         if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
           const snowBtn=document.createElement('button');
@@ -5375,11 +5430,11 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.fillText(getAffIcon(visual.aff), x + cardW/2, y + cardH/2);
       }
       if(opts.showOpponentOverlay === true && pickerCardIsOpponent(i)) {
-        pickerCtx.fillStyle = 'rgba(180,18,32,.28)';
+        pickerCtx.fillStyle = 'rgba(180,18,32,.22)';
         pickerCtx.fillRect(x, y, cardW, cardH);
         const grad = pickerCtx.createLinearGradient(x, y, x, y + cardH);
-        grad.addColorStop(0, 'rgba(255,80,92,.22)');
-        grad.addColorStop(1, 'rgba(92,0,18,.34)');
+        grad.addColorStop(0, 'rgba(255,80,92,.17)');
+        grad.addColorStop(1, 'rgba(92,0,18,.27)');
         pickerCtx.fillStyle = grad;
         pickerCtx.fillRect(x, y, cardW, cardH);
       }

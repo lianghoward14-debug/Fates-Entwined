@@ -242,6 +242,44 @@ function cloneState(state){
   return state ? JSON.parse(JSON.stringify(state)) : null;
 }
 
+function hydrateCardMetadataFromCatalog(state, options){
+  if(!state || !options?.cardCatalog) return state;
+  const fillCard = card=>{
+    if(!card || typeof card !== 'object') return;
+    const meta = catalogCardFor(card, options);
+    if(!meta) return;
+    ['name','type','aff','cost','fate','rarity','ability','effect'].forEach(key=>{
+      if(card[key] === undefined || card[key] === null || card[key] === ''){
+        card[key] = cloneState(meta[key]);
+      }
+    });
+  };
+  const fillPile = pile=>{
+    if(Array.isArray(pile)) pile.forEach(fillCard);
+  };
+  if(Array.isArray(state.players)){
+    state.players.forEach(player=>{
+      if(!player) return;
+      fillPile(player.deck);
+      fillPile(player.hand);
+      fillPile(player.discard);
+    });
+  }
+  if(Array.isArray(state.board)){
+    state.board.forEach(zone=>{
+      if(!Array.isArray(zone)) return;
+      zone.forEach(row=>{
+        if(Array.isArray(row)) row.forEach(fillCard);
+      });
+    });
+  }
+  return state;
+}
+
+function cloneCanonicalState(room, options){
+  return hydrateCardMetadataFromCatalog(cloneState(room?.canonicalState), options);
+}
+
 function numericFate(card){
   return Math.max(0, Number(card?.currentFate ?? card?.fate ?? 0) || 0);
 }
@@ -263,7 +301,7 @@ function supporterReinforcementSetTotalForState(state, playerIndex){
     const key = card.iid || `${card.id || 'card'}:${card.name || ''}:${seen.size}`;
     if(seen.has(key)) return;
     seen.add(key);
-    const value = Number(card._setReinforcementValue ?? tributeReinforcementValue(card, state, 0, 0, 0, p)) || 1;
+    const value = Number(card._setReinforcementValue ?? tributeReinforcementValue(card, state, 0, 0, 0, p)) || 0;
     instanceFloor += Math.max(0, value);
   };
   if(Array.isArray(state?.board)){
@@ -712,6 +750,16 @@ function clearFinalizedInteractionState(state){
   state._serverPendingMove = null;
   state._serverPendingCardPick = null;
   state._consolidating = null;
+  state._busserMoving = null;
+  state._busserMovingCard = null;
+  state._wolfCreekMoving = null;
+  state._expMoving = null;
+  state._berkeleyMoving = null;
+  state._bh01Moving = null;
+  state._landscapeMoving = null;
+  state._boardTargeting = null;
+  state._markSelecting = null;
+  state._havanoDeploying = null;
   state.placing = false;
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
@@ -953,7 +1001,7 @@ function reduceChooseTurn(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state){
     if(options.allowClientBootstrap) return validateProposedTransition(room, msg, options);
     return {ok:false, reason:'server canonical state is not initialized'};
@@ -976,7 +1024,7 @@ function reduceEndTurn(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state){
     if(options.allowClientBootstrap) return validateProposedTransition(room, msg, options);
     return {ok:false, reason:'server canonical state is not initialized'};
@@ -995,6 +1043,7 @@ function reduceEndTurn(room, msg, options){
   applyServerLandscapeLockTurnTick(state);
   state.currentPlayer = playerIndex === 0 ? 1 : 0;
   state.turn = Math.max(Number(state.turn || 0) + 1, Number(payload.turn || 0) + 1, 1);
+  clearFinalizedInteractionState(state);
   state.supportsPlacedThisTurn = 0;
   state.extraSupportsThisTurn = 0;
   if(Array.isArray(state._selvaSupportBoosts)) state._selvaSupportBoosts[state.currentPlayer] = null;
@@ -1028,11 +1077,6 @@ function reduceEndTurn(room, msg, options){
   applyWineCountryGuerillaTurnTick(state, Number(state.currentPlayer));
   applyPendingSelvaSupportBoostForState(state, Number(state.currentPlayer));
   state._turnStartedAt = Date.now();
-  state.selectedHandCard = null;
-  state.selectedBoardCard = null;
-  state.placing = false;
-  state.blockingCell = false;
-  state.pendingEffect = null;
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -1607,8 +1651,8 @@ function isBasicPlacementCard(card, options){
 
 function isSupportedSupporterPlacementCard(card, options){
   if(isBasicPlacementCard(card, options)) return true;
-  if(!card || String(card.type || '') !== 'Supporter') return false;
   const meta = catalogCardFor(card, options);
+  if(!card || String((meta || card).type || '') !== 'Supporter') return false;
   if(options?.requireCatalogForCards && !meta) return false;
   const id = String((meta || card).id || card.id || '');
   return ['05','09','16','18','20','24','25','26','28','31','32','33','37','42','44','47','49','50','52','53','54','58','59','60','62','63','64','65','68','69','70','71','72','73','74','75','76','78','79','80','91','94'].includes(id);
@@ -1616,8 +1660,8 @@ function isSupportedSupporterPlacementCard(card, options){
 
 function isSupportedNonSupporterPlacementCard(card, options){
   if(isBasicPlacementCard(card, options)) return true;
-  if(!card || String(card.type || '') === 'Supporter') return false;
   const meta = catalogCardFor(card, options);
+  if(!card || String((meta || card).type || '') === 'Supporter') return false;
   if(options?.requireCatalogForCards && !meta) return false;
   const id = String((meta || card).id || '');
   const effectiveCost = Math.max(0, (Number(card.cost ?? (meta || {}).cost ?? 0) || 0) + (Number(card._handCostDelta || 0) || 0));
@@ -1800,7 +1844,7 @@ function armWestCoastDreamingBonus(state, playerIndex, drawnCard, afterDraw){
 
 function cardMatchesPendingFilter(card, pending){
   if(!card) return false;
-  if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
+  if(pending.filterType && cardType(card) !== String(pending.filterType)) return false;
   if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
   if(pending.filterRarity && String(card.rarity || '') !== String(pending.filterRarity)) return false;
   if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
@@ -2386,6 +2430,7 @@ function collectBusserAdjacentMoveOptions(state, playerIndex, fromZ){
   const rows = [1, playerIndex === 0 ? 2 : 0];
   zones.forEach(z=>{
     rows.forEach(r=>{
+      ensureBoardCell(state, z, r, 2);
       const row = state?.board?.[z]?.[r] || [];
       for(let c = 0; c < row.length; c += 1){
         if(isBusserAdjacentMoveTargetForState(state, playerIndex, Number(fromZ), z, r, c)) options.push({z, r, c});
@@ -2402,6 +2447,7 @@ function setPendingBreakfastBusserPick(state, inst, playerIndex, z, r, c){
   state._serverPendingZonePick = {
     kind:'breakfastBusserGrantMove',
     playerIndex,
+    maxCount:1,
     z,
     r,
     c,
@@ -2874,6 +2920,13 @@ function suppressSupportedWhenSetForState(state, inst){
   return true;
 }
 
+function markServerWhenSetSourceResolved(source){
+  if(!source || typeof source !== 'object') return;
+  source.effectUsedInitial = true;
+  if(String(source.type || '') === 'Supporter') source.whenSetActivated = true;
+  delete source._pendingWhenSetEffect;
+}
+
 function applySupportedWhenSetState(state, inst, playerIndex, z, r, c){
   const id = String(inst?.id || '');
   if(suppressSupportedWhenSetForState(state, inst)) return {ok:true, suppressed:true};
@@ -3190,6 +3243,7 @@ function setPendingSameZoneWhenSetPick(state, inst, playerIndex, z, r, c){
     iid:inst.iid || null,
     maxCount
   };
+  markServerWhenSetSourceResolved(inst);
 }
 
 function isVigilantesTarget(card, playerIndex){
@@ -3534,6 +3588,10 @@ function isArtilleryLockedConsolidationZone(state, z, playerIndex){
 
 function tributeReinforcementValue(card, state, z, r, c, owner){
   if(!card) return 0;
+  if(card._markedForDeath || card._reinforcementOverride === 0 || card._reinforcementOverride === '0') return 0;
+  if(card._reinforcementOverride !== undefined && card._reinforcementOverride !== null && Number.isFinite(Number(card._reinforcementOverride))){
+    return Math.max(0, Number(card._reinforcementOverride)) + countFriendlyRalphAdjacencyForState(state, z, r, c, owner);
+  }
   let value = 1;
   if(String(card.id || '') === '86') value = 3;
   if(String(card.id || '') === '09' && (card.usesLeft === null || card.usesLeft === undefined || Number(card.usesLeft) > 0)) value = 2;
@@ -3630,7 +3688,7 @@ function reducePlaceSelected(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'HAND_ACTION has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -3657,7 +3715,7 @@ function reduceStartConsolidate(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'START_CONSOLIDATE has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -3667,6 +3725,7 @@ function reduceStartConsolidate(room, msg, options){
   const selected = selectedHandCardForState(state, payload, playerIndex);
   if(selected.error) return {ok:false, reason:selected.error};
   const card = selected.card;
+  if(String(card.id || '') === '70' && card.guerilla_transferred) return {ok:false, reason:'Wine Country Guerilla cannot be set from hand'};
   if(String(card.type || '') === 'Supporter') return {ok:false, reason:'START_CONSOLIDATE requires a character card'};
   if(card.xCost || (card.xFate && String(card.id || '') !== '35')) return {ok:false, reason:'START_CONSOLIDATE variable-cost cards require a dedicated server reducer'};
   if(!isSupportedConsolidatingCard(card, options)) return {ok:false, reason:'START_CONSOLIDATE card requires a dedicated server reducer'};
@@ -3898,7 +3957,7 @@ function reduceConsolidationClick(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const con = state._consolidating;
   if(!con || typeof con !== 'object') return {ok:false, reason:'CLICK_CELL consolidation state is not initialized'};
@@ -3947,7 +4006,7 @@ function reduceBasicClickCell(room, msg, options){
   }
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'CLICK_CELL has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -3964,6 +4023,7 @@ function reduceBasicClickCell(room, msg, options){
   const hand = selected.hand;
   const handIndex = selected.handIndex;
   const card = selected.card;
+  if(String(card.id || '') === '70' && card.guerilla_transferred) return {ok:false, reason:'Wine Country Guerilla cannot be set from hand'};
   const freePlacementKind = serverFreePlacementKindForCard(state, card, playerIndex);
   const freePlacement = !!freePlacementKind;
   if(String(card.type || '') === 'Supporter'){
@@ -3996,7 +4056,7 @@ function reduceBasicClickCell(room, msg, options){
   hand.splice(handIndex, 1);
   if(String(inst.type || '') === 'Supporter'){
     noteServerBalladSupporterSet(state, playerIndex);
-    const setReinforcementValue = Math.max(0, Number(tributeReinforcementValue(inst, state, z, r, c, playerIndex)) || 1);
+    const setReinforcementValue = Math.max(0, Number(tributeReinforcementValue(inst, state, z, r, c, playerIndex)) || 0);
     if(!freePlacement) state.supportsPlacedThisTurn = (Number(state.supportsPlacedThisTurn || 0) || 0) + 1;
     if(!Array.isArray(state.supportersSetP)) state.supportersSetP = [0, 0];
     state.supportersSetP[playerIndex] = (Number(state.supportersSetP[playerIndex] || 0) || 0) + 1;
@@ -4010,6 +4070,7 @@ function reduceBasicClickCell(room, msg, options){
   }
   if(freePlacement){
     consumeServerFreePlacementForCard(state, card, inst, playerIndex);
+    if(String(inst.type || '') !== 'Supporter') inst._serverFreePlacementConsumed = freePlacementKind;
   }
   const suppressedWhenSet = suppressSupportedWhenSetForState(state, inst);
   if(!suppressedWhenSet && armServerReactionWindowForWhenSet(state, inst, playerIndex, z, r, c)){
@@ -4021,6 +4082,10 @@ function reduceBasicClickCell(room, msg, options){
     const whenSet = applySupportedWhenSetState(state, inst, playerIndex, z, r, c);
     if(whenSet && whenSet.ok === false) return whenSet;
     armPostWhenSetInteractionHooks(state, inst, playerIndex, z, r, c);
+    if(String(inst.type || '') === 'Supporter') {
+      inst.effectUsedInitial = true;
+      inst.whenSetActivated = true;
+    }
   }
   if(!state._serverFreePlacement){
     state.placing = false;
@@ -4034,7 +4099,7 @@ function reducePendingMoveClick(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingMove;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'CLICK_CELL has no server pending move'};
@@ -4222,7 +4287,7 @@ function reducePendingMoveClick(room, msg, options){
     }
     if(pending.sourceIid && source.iid !== pending.sourceIid) return {ok:false, reason:'Breakfast Republic Busser source mismatch'};
     const moving = state.board?.[pending.fromZ]?.[pending.fromR]?.[pending.fromC] || null;
-    if(!moving || Number(moving.owner) !== playerIndex || String(moving.type || '') !== 'Supporter'){
+    if(!moving || Number(moving.owner) !== playerIndex || cardType(moving) !== 'Supporter'){
       return {ok:false, reason:'Breakfast Republic Busser moving Supporter is no longer valid'};
     }
     if(pending.movingIid && moving.iid !== pending.movingIid) return {ok:false, reason:'Breakfast Republic Busser moving Supporter mismatch'};
@@ -4370,7 +4435,7 @@ function reduceMatchResult(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'MATCH_RESULT has an unresolved server interaction'};
@@ -4449,7 +4514,7 @@ function reduceTriggerCharacterEffect(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Character effect has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4514,7 +4579,7 @@ function reduceActivatePendingWhenSetEffect(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Pending when-set effect has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4537,7 +4602,7 @@ function reduceActivatePendingWhenSetEffect(room, msg, options){
   }
   const id = String(src.source.id || '');
   if(!SERVER_DEFERRED_WHEN_SET_IDS.has(id)) return {ok:false, reason:`server reducer is not implemented for deferred when-set ${id || '(unknown)'}`};
-  delete src.source._pendingWhenSetEffect;
+  markServerWhenSetSourceResolved(src.source);
   src.source._effectNegatedByReaction = false;
   if(suppressSupportedWhenSetForState(state, src.source)){
     state.selectedBoardCard = null;
@@ -4602,7 +4667,7 @@ function reduceDiscardBoardCardAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Discard board card has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4626,7 +4691,7 @@ function reduceFlipFaceDownBoardCardAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Flip face-down card has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4653,7 +4718,7 @@ function reduceActivateVigilantes(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'Vigilantes has an unresolved server interaction'};
@@ -4691,7 +4756,7 @@ function reduceActivateExpeditionaryMove(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'ALPINE Expeditionary has an unresolved server interaction'};
@@ -4737,7 +4802,7 @@ function reduceActivateBusserMove(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'Busser movement has an unresolved server interaction'};
@@ -4767,13 +4832,8 @@ function reduceActivateBusserMove(room, msg, options){
     movingIid:source.iid || null,
     options:moveOptions
   };
-  state._busserMovingCard = {
-    card:cloneState(source),
-    fromZ:src.z,
-    fromR:src.r,
-    fromC:src.c,
-    options:moveOptions
-  };
+  delete state._busserMoving;
+  delete state._busserMovingCard;
   state.placing = false;
   state.selectedHandCard = null;
   state.selectedBoardCard = {z:src.z, r:src.r, c:src.c, card:cloneState(source)};
@@ -4784,7 +4844,7 @@ function reduceActivateLandscapeEventideMove(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'Panacea movement has an unresolved server interaction'};
@@ -4828,7 +4888,7 @@ function reduceActivateWolfCreek(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'Wolf Creek has an unresolved server interaction'};
@@ -4864,7 +4924,7 @@ function reduceActivateWineCountryGuerillaFromHand(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Wine Country Guerilla has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4895,7 +4955,7 @@ function reduceActivateSelvaIslandsPirateFromHand(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Selva Islands Pirate has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4922,7 +4982,7 @@ function reduceActivateSantaAnnaProsperityFromHand(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(isComplexClickState(state)) return {ok:false, reason:'Santa Anna has an unsupported pending interaction'};
   const playerIndex = Number(payload.playerIndex);
@@ -4932,6 +4992,9 @@ function reduceActivateSantaAnnaProsperityFromHand(room, msg, options){
   if(!isLandscapeActiveForState(state, 'igb16')) return {ok:false, reason:'Santa Anna landscape is not active'};
   const selected = selectedHandCardForState(state, payload, playerIndex);
   if(selected.error) return {ok:false, reason:selected.error};
+  if(String(selected.card?.id || '') === '70' && selected.card.guerilla_transferred){
+    return {ok:false, reason:'Wine Country Guerilla cannot be discarded while infiltrating'};
+  }
   const targetPayload = payload.target || {};
   const z = Number(targetPayload.z);
   const r = Number(targetPayload.r);
@@ -4949,7 +5012,7 @@ function reduceActivateSantaAnnaProsperityFromHand(room, msg, options){
   if(!discarded) return {ok:false, reason:'Santa Anna discard card was not found'};
   if(!Array.isArray(state.players?.[playerIndex]?.discard)) state.players[playerIndex].discard = [];
   state.players[playerIndex].discard.push(discarded);
-  target.currentFate = numericFate(target) + 2;
+  target.currentFate = numericFate(target) + 3;
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
   state.placing = false;
@@ -4997,7 +5060,7 @@ function reduceModalAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingModalAction;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'MODAL_ACTION has no server pending modal'};
@@ -5103,7 +5166,7 @@ function reducePickAffiliationAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingModalAction;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'PICK_AFFILIATION has no server pending modal'};
@@ -5124,7 +5187,7 @@ function reducePickLandscapeZoneAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick) || hasTruthy(state._serverPendingReaction)){
     return {ok:false, reason:'PICK_LANDSCAPE_ZONE has an unresolved server interaction'};
@@ -5520,7 +5583,7 @@ function reducePickCardsVisualAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingCardPick;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'PICK_CARDS_VISUAL has no server pending card picker'};
@@ -5723,7 +5786,7 @@ function reducePickZoneAction(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingZonePick;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'PICK_ZONE has no server pending picker'};
@@ -5830,6 +5893,7 @@ function reducePickZoneAction(room, msg, options){
     if(live.error) return {ok:false, reason:live.error};
     const reduced = reduceStoredFateByAmount(state, live.target, 3, playerIndex, selected.z);
     if(!reduced.ok) return {ok:false, reason:reduced.reason};
+    markServerWhenSetSourceResolved(sourceResult.source);
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
@@ -5904,7 +5968,7 @@ function reducePickZoneAction(room, msg, options){
     const target = state.board?.[selected.z]?.[selected.r]?.[selected.c] || null;
     if(!target) return {ok:false, reason:'Breakfast Republic Busser target is no longer on board'};
     if(!cardMatchesPayloadIdentity(target, selected.card)) return {ok:false, reason:'Breakfast Republic Busser target identity mismatch'};
-    if(Number(target.owner) !== playerIndex || String(target.type || '') !== 'Supporter' || String(target.iid || '') === String(source.iid || '')){
+    if(Number(target.owner) !== playerIndex || cardType(target) !== 'Supporter' || String(target.iid || '') === String(source.iid || '')){
       return {ok:false, reason:'Breakfast Republic Busser target must be another friendly Supporter'};
     }
     if(!isSupportedSupporterPlacementCard(target, options)){
@@ -6085,7 +6149,7 @@ function reduceReactionChoice(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
   if(!base.ok) return base;
-  const state = cloneState(room.canonicalState);
+  const state = cloneCanonicalState(room, options);
   if(!state) return {ok:false, reason:'server canonical state is not initialized'};
   const pending = state._serverPendingReaction;
   if(!pending || typeof pending !== 'object') return {ok:false, reason:'REACTION_CHOICE has no server pending reaction'};

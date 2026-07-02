@@ -5132,6 +5132,19 @@ html body #modal .board-target-card{
   border-radius:4px!important;
 }
 
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-card::after{
+  content:''!important;
+  position:absolute!important;
+  inset:2px!important;
+  border-radius:4px!important;
+  pointer-events:none!important;
+  background:
+    linear-gradient(180deg,rgba(220,54,64,.16),rgba(110,8,22,.22)),
+    radial-gradient(circle at 50% 44%,rgba(255,82,92,.08),transparent 68%)!important;
+  box-shadow:inset 0 0 0 1px rgba(220,54,64,.34),inset 0 0 12px rgba(220,54,64,.14)!important;
+  opacity:.68!important;
+}
+
 html body #modal .board-target-card img{
   display:block!important;
   width:auto!important;
@@ -5322,11 +5335,11 @@ html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.i
   pointer-events:none!important;
   border-radius:3px!important;
   background:
-    linear-gradient(180deg,rgba(255,44,62,.42),rgba(126,0,18,.58)),
-    radial-gradient(circle at 50% 18%,rgba(255,144,144,.24),transparent 48%)!important;
-  box-shadow:inset 0 0 22px rgba(210,18,34,.42)!important;
+    linear-gradient(180deg,rgba(255,44,62,.16),rgba(126,0,18,.22)),
+    radial-gradient(circle at 50% 18%,rgba(255,144,144,.08),transparent 48%)!important;
+  box-shadow:inset 0 0 12px rgba(210,18,34,.14)!important;
   mix-blend-mode:normal!important;
-  opacity:.92!important;
+  opacity:.62!important;
   z-index:2!important;
 }
 

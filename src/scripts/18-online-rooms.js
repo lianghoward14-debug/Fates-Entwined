@@ -347,8 +347,6 @@
       _berkeleyMoving:cloneOnlinePlain(g._berkeleyMoving),
       _bh01Moving:cloneOnlinePlain(g._bh01Moving),
       _landscapeMoving:cloneOnlinePlain(g._landscapeMoving),
-      _busserMoving:cloneOnlinePlain(g._busserMoving),
-      _busserMovingCard:cloneOnlinePlain(g._busserMovingCard),
       _markSelecting:cloneOnlinePlain(g._markSelecting),
       _havanoDeploying:cloneOnlinePlain(g._havanoDeploying),
       _boardTargeting:cloneOnlinePlain(g._boardTargeting)
@@ -402,6 +400,14 @@
     });
     return map;
   }
+  function onlineCardCatalogMatch(card){
+    if(!card || typeof card !== 'object' || typeof CARDS === 'undefined' || !Array.isArray(CARDS)) return null;
+    const id = String(card.id || '');
+    return id ? CARDS.find(base=>String(base.id || '') === id) || null : null;
+  }
+  function onlineCardType(card){
+    return String(card?.type || onlineCardCatalogMatch(card)?.type || '');
+  }
   function maybePlayOnlineFreePlacementCinematic(g, previousBoard, reason){
     if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
     const played = g._onlineFreePlacementCinematicsPlayed instanceof Set ? g._onlineFreePlacementCinematicsPlayed : new Set();
@@ -410,7 +416,7 @@
     collectOnlineBoardSnapshot(g.board).forEach(function(entry, key){
       const card = entry.card;
       const kind = String(card?._serverFreePlacementConsumed || '');
-      if(!kind || String(card.type || '') === 'Supporter') return;
+      if(!kind || onlineCardType(card) === 'Supporter') return;
       const playKey = key + ':' + kind;
       if(played.has(playKey)) return;
       const prev = previousBoard && previousBoard.get(key);
@@ -534,10 +540,15 @@
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
-      '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting'
+      '_landscapeMoving','_markSelecting','_havanoDeploying','_boardTargeting'
     ].forEach(function(k){
       if(Object.prototype.hasOwnProperty.call(state, k)) g[k] = cloneOnlinePlain(state[k]);
     });
+    if(g._busserMoving || g._busserMovingCard){
+      g._busserMoving = null;
+      g._busserMovingCard = null;
+      if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
+    }
     g._continuousDamageSources = new Set(Array.isArray(state._continuousDamageSources) ? state._continuousDamageSources : []);
     if(Array.isArray(g._linaFreeIids)) g._linaFreeIids = new Set(g._linaFreeIids);
     if(g._serverFreePlacement && String(g._serverFreePlacement.kind || '') === 'linaFreeSet'){
@@ -550,6 +561,24 @@
     }
     if(g._consolidating && Array.isArray(g._consolidating.colomboRestrictionZones)){
       g._consolidating.colomboRestrictionZones = new Set(g._consolidating.colomboRestrictionZones);
+    }
+    if(previousTurnState && (Number(previousTurnState.turn) !== Number(g.turn) || Number(previousTurnState.currentPlayer) !== Number(g.currentPlayer))){
+      g._consolidating = null;
+      g._busserMoving = null;
+      g._busserMovingCard = null;
+      g._serverPendingMove = null;
+      g._serverPendingZonePick = null;
+      g._serverPendingCardPick = null;
+      g._serverPendingModalAction = null;
+      g._boardTargeting = null;
+      g._markSelecting = null;
+      g._havanoDeploying = null;
+      g._landscapeMoving = null;
+      g.placing = false;
+      g.selectedHandCard = null;
+      g.selectedBoardCard = null;
+      g.blockingCell = false;
+      if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
     }
     g.landscape = g.landscapeId && typeof LANDSCAPES !== 'undefined' ? LANDSCAPES[g.landscapeId] : null;
     Object.assign(g, keep);
@@ -592,6 +621,7 @@
   }
 
   function shouldApplyServerStateDirectly(actionType, payload){
+    if(payload && payload.postState && payload.stateHash) return true;
     if(String(actionType || '').toUpperCase() === 'ACTION_RESULT'){
       return clientResolvedGameplayEnabled() && !!payload && !!payload.postState && !!payload.stateHash;
     }
@@ -605,6 +635,18 @@
   function applyAuthoritativePostState(action, reason){
     const payload = action?.payload || {};
     if(!payload.postState || !payload.stateHash) return false;
+    const seq = Number(action?.seq || 0) || 0;
+    if(seq && seq <= lastAppliedActionSeq){
+      if(typeof recordOnlineDiagnostic === 'function') {
+        recordOnlineDiagnostic('stale-authoritative-poststate-ignored', {
+          seq,
+          lastAppliedActionSeq,
+          reason:String(reason || ''),
+          stateHash:String(payload.stateHash || action?.serverStateHash || '')
+        });
+      }
+      return false;
+    }
     const hash = String(action?.serverStateHash || payload.stateHash || '');
     if(hash) lastAuthorityStateHash = hash;
     if(localOnlineStateMatchesHash(payload.stateHash)){
@@ -760,12 +802,12 @@
   }
   function serverPendingCardMatchesFilters(card, pending){
     if(!card || !pending) return false;
-    if(pending.filterType && String(card.type || '') !== String(pending.filterType)) return false;
+    if(pending.filterType && onlineCardType(card) !== String(pending.filterType)) return false;
     if(pending.filterAff && String(card.aff || '') !== String(pending.filterAff)) return false;
     if(pending.filterRarity && String(card.rarity || '') !== String(pending.filterRarity)) return false;
     if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
     if(pending.excludeId && String(card.id || '') === String(pending.excludeId)) return false;
-    if(pending.characterOnly && String(card.type || '') === 'Supporter') return false;
+    if(pending.characterOnly && onlineCardType(card) === 'Supporter') return false;
     return true;
   }
   function serverPendingCardPickCandidate(card, source, index){
@@ -960,14 +1002,14 @@
     if(kind === 'howardFateDouble') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'hemorrhagingWound') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
-    if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && String(card.type || '') === 'Supporter';
+    if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter';
     if(kind === 'mariaSongCopies') return Number(card.owner) === opponent;
     if(kind === 'vigilantesMark') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'wolfCreekSelectMoveTarget') return Number(card.owner) === playerIndex && String(card.type || '') !== 'Supporter' && card.cantBeMoved !== true && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'wolfCreekSelectMoveTarget') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && card.cantBeMoved !== true && (!sourceIid || String(card.iid || '') !== sourceIid);
     if(kind === 'juanCarlosSelectMoveTarget') return Number(card.owner) === opponent && card.cantBeMoved !== true;
     if(kind === 'breakfastBusserGrantMove') return Number(card.owner) === playerIndex && card.faceDown !== true && card.cantBeMoved !== true && card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'breakfastBusserSelectSupporter') return Number(card.owner) === playerIndex && String(card.type || '') === 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'breakfastBusserSelectSupporter') return Number(card.owner) === playerIndex && onlineCardType(card) === 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
     return true;
   }
   function serverZonePickEntries(g, pending){
@@ -1012,6 +1054,8 @@
     if(g._onlineShownServerZonePickPromptId === promptKey) return;
     const entries = serverZonePickEntries(g, pending);
     if(!entries.length) return;
+    const forcedSingle = /^(breakfastBusserGrantMove|breakfastBusserSelectSupporter)$/i.test(String(pending.kind || ''));
+    const maxCount = forcedSingle ? 1 : Math.max(1, Number(pending.maxCount || 1) || 1);
     g._onlineShownServerZonePickPromptId = promptKey;
     withOnlinePromptBypass(g, function(){
       window.showBoardTargetPicker({
@@ -1019,7 +1063,7 @@
         prompt:serverZonePickPrompt(pending),
         entries,
         zones:[...new Set(entries.map(entry=>entry.z))],
-        maxCount:Math.max(1, Number(pending.maxCount || 1) || 1),
+        maxCount,
         confirmLabel:'Confirm',
         showOpponentOverlay:true,
         allowOptionalCancelServerAction:pending.optional === true,
@@ -1030,7 +1074,7 @@
         }
       }, function(chosen){
         sendServerPendingAction('PICK_ZONE', pending, {
-          selectedEntries:(chosen || []).map(boardSelectionPayload)
+          selectedEntries:(chosen || []).slice(0, maxCount).map(boardSelectionPayload)
         }, 'Target choice');
       });
     });
@@ -4113,8 +4157,9 @@
       }
       return;
     }
-    if(type === 'ACTION_RESULT' && shouldApplyServerStateDirectly(type, payload)){
+    if(shouldApplyServerStateDirectly(type, payload)){
       applyAuthoritativePostState(action, 'client-resolved authoritative state seq ' + (action.seq || '?'));
+      return;
     }
     const actionPlayer = onlineActionPlayer(action);
     const localUid = window.FATE_ONLINE?.user?.uid;
@@ -5366,6 +5411,19 @@
         if(g._onlineSilentEndTurnUntil && Date.now() < g._onlineSilentEndTurnUntil && g.currentPlayer !== g._onlinePlayerIndex) {
           return;
         }
+        if(g._consolidating || g._busserMoving || g._busserMovingCard || g._wolfCreekMoving || g._expMoving || g._berkeleyMoving || g._bh01Moving || g._landscapeMoving || g._boardTargeting || g.placing || g.selectedHandCard !== null || g.selectedBoardCard !== null) {
+          if(typeof window.resetInteractionState === 'function') window.resetInteractionState();
+          else {
+            g._consolidating = null;
+            g._busserMoving = null;
+            g._busserMovingCard = null;
+            g.placing = false;
+            g.selectedHandCard = null;
+            g.selectedBoardCard = null;
+          }
+          if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
+          if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, blocks:true, topbar:true});
+        }
         if(!canSendLocalAction(g, 'END_TURN')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
@@ -5493,6 +5551,21 @@
           selectedHand:selectedHandSnapshot(g)
         }, ()=>{
           const latest = gameState();
+          if(pendingConsolidation){
+            const activeCon = latest && latest._consolidating;
+            const expectedPromptId = String(pendingConsolidation.promptId || '');
+            const activePromptId = String(activeCon?.promptId || '');
+            if(!activeCon || (expectedPromptId && activePromptId && expectedPromptId !== activePromptId)){
+              recordOnlineDiagnostic('stale-consolidation-callback-suppressed', {
+                expectedPromptId,
+                activePromptId,
+                z,
+                r,
+                c
+              });
+              return;
+            }
+          }
           const isPlacement = clientResolvedGameplayEnabled()
             && toAuthorityIntent('CLICK_CELL', {placing:!!latest?.placing, selectedHand:selectedHandSnapshot(latest), z,r,c}, latest) === 'PLACE_CARD';
           if(isPlacement) return runClientResolvedPlacementWithoutPresentation(()=>originals.clickCell.apply(this, args));

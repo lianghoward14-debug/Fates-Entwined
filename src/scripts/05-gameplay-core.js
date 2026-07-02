@@ -408,6 +408,7 @@ function getCurrentActionPlayerForEndTurnWarning() {
 
 function pushEndTurnEffectWarning(list, card, label, zone) {
   if(!card || !label) return;
+  if(String(card.id || '') === '70' && card.guerilla_transferred === true) return;
   const key = (card.iid || card.id || card.name || list.length) + ':' + label;
   if(list.some(entry => entry.key === key)) return;
   list.push({
@@ -451,7 +452,8 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
         && isLandscapeActive('igb7')
         && card.aff === 'eventide'
         && card._landscapeEventideMovedTurn !== G.turn
-        && !card.cantBeMoved) {
+        && !card.cantBeMoved
+        && !(G._landscapeMoving && G._landscapeMoving.card === card)) {
         pushEndTurnEffectWarning(pending, card, 'Landscape Move', z);
       }
     });
@@ -519,11 +521,18 @@ function endTurn(opts) {
   if(G._aiRunning) return;
   const hadPendingInteraction = !!(
     G._consolidating ||
+    G._serverPendingMove ||
+    G._serverPendingZonePick ||
+    G._serverPendingCardPick ||
+    G._serverPendingModalAction ||
     G._wolfCreekMoving ||
     G._expMoving ||
     G._berkeleyMoving ||
     G._bh01Moving ||
     G._landscapeMoving ||
+    G._busserMoving ||
+    G._busserMovingCard ||
+    G._boardTargeting ||
     G.placing ||
     G.selectedHandCard !== null ||
     G.selectedBoardCard !== null
@@ -614,6 +623,17 @@ async function nextPlayerTurn() {
   G._turnInputLockUntil = Date.now() + 200;
   G.phase = 'main';
   G.supportsPlacedThisTurn = 0;
+  G._consolidating = null;
+  G._busserMoving = null;
+  G._busserMovingCard = null;
+  G._serverPendingMove = null;
+  G._serverPendingZonePick = null;
+  G._serverPendingCardPick = null;
+  G._serverPendingModalAction = null;
+  G._boardTargeting = null;
+  G.placing = false;
+  G.selectedHandCard = null;
+  G.selectedBoardCard = null;
   // Lock initiator effects that were activated this turn
   G.board.forEach(function(zone){ zone.forEach(function(row){ if(row) row.forEach(function(cell){
     if(cell && cell.effectUsedInitial && !cell._effectTurnLocked) cell._effectTurnLocked = true;
@@ -1032,6 +1052,12 @@ function placeSelected() {
   // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)));
 
+  if(card.id==='70' && card.guerilla_transferred){
+    toast(card.name + ' cannot be set - it is debuffing this hand.');
+    G.placing = false;
+    return;
+  }
+
   if(!isLinaFree && card.type==='Supporter') {
     const totalSupports = G.supportsPlacedThisTurn;
     const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
@@ -1184,10 +1210,10 @@ function isBlockedByAlondra(z,r,c,player) {
 }
 
 function clearPlaceHighlights() {
-  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
-  document.querySelectorAll('#board .cell.placeable').forEach(el=>el.classList.remove('placeable'));
+  document.querySelectorAll('#board .cell.placeable,#board .cell.move-target,#board .cell.landscape-move-target').forEach(el=>el.classList.remove('placeable','move-target','landscape-move-target'));
   document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
+  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
   document.querySelectorAll('#board .bc.tribute-available,#board .bc.tribute-selected,#board .bc.tribute-ready').forEach(el=>{
     el.classList.remove('tribute-available','tribute-selected','tribute-ready');
   });
@@ -1583,6 +1609,14 @@ async function clickCell(z,r,c) {
   const card = player.hand[G.selectedHandCard];
   if(!card) return;
   if(typeof tutorialCanPlaceCardAt === 'function' && !tutorialCanPlaceCardAt(card, z, r, c)) return;
+  if(card.id==='70' && card.guerilla_transferred){
+    playSfx('blocked');
+    toast(card.name + ' cannot be set - it is debuffing this hand.');
+    G.placing = false;
+    clearPlaceHighlights();
+    renderHand();
+    return;
+  }
 
   // Check validity again
   if(G.board[z][r][c]!==null){playSfx('blocked');toast('Cell is occupied');return;}
@@ -1661,6 +1695,7 @@ async function clickCell(z,r,c) {
 
   // Show consolidation cinematic for Lina free-set character cards (they bypass the consolidation flow)
   if(isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function'){
+    inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || 'linaFreeSet');
     G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
     setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, 90);
   }
@@ -1709,7 +1744,8 @@ async function clickCell(z,r,c) {
   markCommit('hooks');
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
   if(card.type==='Supporter') {
-    const setReinforcementValue = Math.max(0, Number(typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1) || 1);
+    const rawSetReinforcementValue = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1;
+    const setReinforcementValue = Math.max(0, Number(rawSetReinforcementValue) || 0);
     if(!isLinaFree) G.supportsPlacedThisTurn++;
     if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
     G.supportersSetP[G.currentPlayer] = (Number(G.supportersSetP[G.currentPlayer]) || 0) + 1;
@@ -2090,7 +2126,8 @@ function doConsolidate(card, cost) {
   }
 
   const allPossible = [...supports, ...charSupports];
-  const totalReinforcement = allPossible.reduce((s,t)=>s+(t.reinforcement||1),0);
+  const reinforcementValue = item => item ? Math.max(0, Number(item.reinforcement) || 0) : 0;
+  const totalReinforcement = allPossible.reduce((s,t)=>s+reinforcementValue(t),0);
 
   if(totalReinforcement < readyCost) {
     toast(`Need ${readyCost} reinforcement on the field (have ${totalReinforcement})`); return;
@@ -2132,7 +2169,7 @@ function highlightTributeCards() {
   const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
   const running = con.chosenIdxs.reduce((s,i)=>{
     const item = con.allPossible[i];
-    return s + (item ? (item.reinforcement || 1) : 0);
+    return s + (item ? Math.max(0, Number(item.reinforcement) || 0) : 0);
   },0);
   const requirementsMet = con.phase === 'select_placement' || (running >= con.cost && con.phase === 'select_tributes');
   con.allPossible.forEach((s,i)=>{
@@ -2187,7 +2224,7 @@ function handleConsolidateClick(z,r,c) {
     if(typeof tutorialCanSelectConsolidationTribute === 'function' && !tutorialCanSelectConsolidationTribute(con, z, r, c)) return true;
     const running = con.chosenIdxs.reduce((s,i)=>{
       const item = con.allPossible[i];
-      return s + (item ? (item.reinforcement || 1) : 0);
+      return s + (item ? Math.max(0, Number(item.reinforcement) || 0) : 0);
     },0);
     const wasReady = running >= con.cost;
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -2213,7 +2250,7 @@ function handleConsolidateClick(z,r,c) {
 
     const newRunning = con.chosenIdxs.reduce((s,i)=>{
       const item = con.allPossible[i];
-      return s + (item ? (item.reinforcement || 1) : 0);
+      return s + (item ? Math.max(0, Number(item.reinforcement) || 0) : 0);
     },0);
 
     if(newRunning >= con.cost){
@@ -2248,7 +2285,7 @@ function handleConsolidateClick(z,r,c) {
       if(typeof playSfx === 'function') playSfx('blocked');
       return true;
     }
-    const selectedReinforcement = con.chosenIdxs.reduce((s,i)=>s+(con.allPossible[i].reinforcement||1),0);
+    const selectedReinforcement = con.chosenIdxs.reduce((s,i)=>s+Math.max(0, Number(con.allPossible[i]?.reinforcement) || 0),0);
     const zoneCost = getConsolidationCostForZone(con.card, z, G.currentPlayer, con.baseCost ?? con.cost);
     if(selectedReinforcement < zoneCost) {
       toast(`Need ${zoneCost} reinforcement to consolidate in this zone.`);
@@ -2681,7 +2718,7 @@ function getSupporterReinforcementSetTotalForPlayer(player) {
     const key = card.iid || (card.id + ':' + card.name + ':' + seen.size);
     if(seen.has(key)) return;
     seen.add(key);
-    const value = Number(card._setReinforcementValue ?? (typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(card) : 1)) || 1;
+    const value = Number(card._setReinforcementValue ?? (typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(card) : 1)) || 0;
     instanceFloor += Math.max(0, value);
   };
   if(typeof forEachBoardCard === 'function') forEachBoardCard(note);
@@ -2806,7 +2843,7 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','21','22','27','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','21','22','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
 const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
   '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','bh25'
 ]);
@@ -2831,6 +2868,7 @@ window.setFateWhenSetImmediateMode = function(enabled) {
 
 function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
+  if(card._pendingWhenSetActivationInFlight) return false;
   const id = String(card.id || '');
   if(!WINDOWED_WHEN_SET_EFFECT_IDS.has(id)) return false;
   if(card.type === 'Supporter' && WHEN_SET_IDS.has(id)) return card.whenSetActivated !== true;
@@ -2879,6 +2917,7 @@ function queueDeferredWhenSetEffect(card, z, r, c) {
 
 function canActivatePendingWhenSetEffect(card, z, r, c, player = G.currentPlayer) {
   if(!card || !card._pendingWhenSetEffect || isFaceDownCard(card)) return false;
+  if(card._pendingWhenSetActivationInFlight) return false;
   if(expireStalePendingWhenSetEffect(card)) return false;
   if(card.owner !== player || G.currentPlayer !== player) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
@@ -2916,6 +2955,7 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     toast('This effect can only be activated during its owner\'s turn.');
     return;
   }
+  if(card._pendingWhenSetActivationInFlight) return;
   if(typeof tutorialCanActivateBoardEffect === 'function' && !tutorialCanActivateBoardEffect(card, z, r, c)) return;
   const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : {z,r,c};
   const az = pos && typeof pos.z === 'number' ? pos.z : z;
@@ -2926,13 +2966,19 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Snow on the Carpathians', 'major');
     return;
   }
+  card._pendingWhenSetActivationInFlight = true;
   delete card._pendingWhenSetEffect;
+  if(card.type === 'Supporter') card.whenSetActivated = true;
   if(typeof closeModal === 'function') closeModal();
-  if(typeof playEffectActivationCinematic === 'function') {
-    await playEffectActivationCinematic(card, az, ar, ac, {source:'pending-when-set'});
+  try {
+    if(typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, az, ar, ac, {source:'pending-when-set'});
+    }
+    await triggerWhenSet(card, az, ar, ac, { forceImmediate:true, manualActivation:true, skipActivationCinematic:true });
+    if(typeof tutorialEvent === 'function' && _tutorialActive) tutorialEvent('activateEffect', {card, id:card.id, z:az, r:ar, c:ac});
+  } finally {
+    delete card._pendingWhenSetActivationInFlight;
   }
-  await triggerWhenSet(card, az, ar, ac, { forceImmediate:true, manualActivation:true, skipActivationCinematic:true });
-  if(typeof tutorialEvent === 'function' && _tutorialActive) tutorialEvent('activateEffect', {card, id:card.id, z:az, r:ar, c:ac});
   renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
 }
 
@@ -3042,8 +3088,12 @@ async function runWhenSetEffect(inst, z, r, c) {
     return;
   }
 
-  // Mark supporter as having used its when-set effect after suppression/landscape limits pass.
-  if(inst.type==='Supporter') inst.whenSetActivated = true;
+  // Mark when-set effects as spent before any target picker opens; stale card
+  // panels should not be able to fire the same source again while it resolves.
+  if(inst.type==='Supporter') {
+    inst.whenSetActivated = true;
+    inst.effectUsedInitial = true;
+  }
 
   // Reaction check: opponent Supporter effects that target the opponent can be negated
   // by Lydia (56) or Havano Citizen (79)
@@ -3191,6 +3241,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       renderOppHand();
       break;
     }
+    case '27': // Kazumi: automatic draw on set
+      await drawCard(cp,3);
+      toast('Kazumi: drew 3 cards');
+      renderEffectResolutionForPlayer(cp, {hand:true});
+      break;
     case '32': // Temecula Resident: draw 1
       await drawCard(cp,1);
       toast('Drew 1 card');
@@ -3430,6 +3485,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         inst.effectUsedInitial = true;
         inst.whenSetActivated = true;
         toast(target.name + ' can move to adjacent zones.');
+        if(typeof showBusserStatusBanner === 'function') showBusserStatusBanner(target, 3, cp);
+        if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+        else if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
         renderEffectResolutionForPlayer(cp, {hand:false});
       }, cell=>cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76');
       break;
@@ -4157,6 +4215,7 @@ function shouldShowManualCharacterEffectButton(card) {
   if(card.type === 'Improvisor') return false;
   if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial) return isSameTurnAsCardSet(card);
   if(card.type === 'Initiator' && card.effectUsedInitial) return canRetryInitialSetEffect(card);
+  if(card.effectUsedInitial) return false;
   return true;
 }
 
@@ -5008,25 +5067,34 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
   var adjZones = [];
   if(fromZ > 0) adjZones.push(fromZ - 1);
   if(fromZ < 2) adjZones.push(fromZ + 1);
-  toast('Click an open square in an adjacent zone to move ' + card.name);
-  G._busserMovingCard = {card:card, fromZ:fromZ, fromR:fromR, fromC:fromC};
-  var found = false;
+  var options = [];
   adjZones.forEach(function(zz){
-    G.board[zz].forEach(function(row,rr){row.forEach(function(cell,cc){
-      // Only contested row (1) or owner's safe row, NOT opponent's safe row
-      if(rr !== 1 && rr !== ownerSafeRow) return;
-      if(!cell && !isBlocked(zz,rr,cc)){
-        var el = document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
-        if(el){ el.classList.add('placeable','move-target'); found = true; }
+    [1, ownerSafeRow].forEach(function(rr){
+      if(!G.board[zz]) G.board[zz] = [];
+      if(!Array.isArray(G.board[zz][rr])) G.board[zz][rr] = [null, null, null];
+      var rowCapacity = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(zz, rr) : Math.max(3, G.board[zz][rr].length || 0);
+      while(G.board[zz][rr].length < rowCapacity) G.board[zz][rr].push(null);
+      for(var cc = 0; cc < rowCapacity; cc++){
+        var cell = G.board[zz][rr][cc] || null;
+        if(!cell && !isBlocked(zz,rr,cc)){
+          options.push({z:zz,r:rr,c:cc});
+          var el = document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
+          if(el) el.classList.add('placeable','move-target');
+        }
       }
-    });});
+    });
   });
-  if(!found){
+  if(!options.length){
     toast('No open squares in adjacent zones!');
     G._busserMovingCard = null;
-  } else if(typeof showEffectActivationGlow === 'function') {
-    showEffectActivationGlow(fromZ, fromR, fromC, card);
+    return;
   }
+  toast('Click an open square in an adjacent zone to move ' + card.name);
+  G._busserMovingCard = {card:card, fromZ:fromZ, fromR:fromR, fromC:fromC, options:options};
+  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(fromZ, fromR, fromC, card);
+  if(typeof showBusserStatusBanner === 'function') showBusserStatusBanner(card, Number(card._busserMoves || 0) || 0, cp);
+  if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  else if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
 }
 
 // ══════════════════════════════════════════════════════════════

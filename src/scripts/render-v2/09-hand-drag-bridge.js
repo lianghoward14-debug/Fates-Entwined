@@ -87,6 +87,10 @@
     return Number(card.cost) || 0;
   }
 
+  function isBlockedHandSetCard(card){
+    return !!(card && String(card.id || '') === '70' && card.guerilla_transferred);
+  }
+
   function availableReinforcementFor(card){
     if(!card || card.type === 'Supporter' || typeof G === 'undefined' || !G || !G.board) return Infinity;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return Infinity;
@@ -129,6 +133,10 @@
     const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
     if(cp !== G.currentPlayer) return false;
     if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return false;
+    if(isBlockedHandSetCard(card)) {
+      if(typeof toast === 'function') toast((card.name || 'Wine Country Guerilla') + ' cannot be set - it is debuffing this hand.');
+      return false;
+    }
     if(G._boardTargeting || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._busserMoving || G._busserMovingCard || G._markSelecting) return false;
     return idx >= 0 && !!card;
   }
@@ -430,6 +438,7 @@
 
   function canPlaceCardOnCell(card, hit){
     if(!card || !hit || hit.kind !== 'cell') return false;
+    if(isBlockedHandSetCard(card)) return false;
     if(boardCardAt(hit)) return false;
     if(typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))) return false;
     const cp = typeof G !== 'undefined' && G ? G.currentPlayer : 0;
@@ -441,6 +450,7 @@
 
   function hitDropState(card, hit){
     if(!card || !hit) return 'invalid';
+    if(isBlockedHandSetCard(card)) return 'invalid';
     const boardCard = boardCardAt(hit);
     if(isFreeSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
     if(card.type === 'Supporter') return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
@@ -719,6 +729,11 @@
 
   function beginDrag(ev){
     if(!state || state.dragging) return;
+    if(isBlockedHandSetCard(state.card)) {
+      if(typeof toast === 'function') toast((state.card.name || 'Wine Country Guerilla') + ' cannot be set - it is debuffing this hand.');
+      cleanup({clearPlacement:true});
+      return;
+    }
     state.dragging = true;
     const cache = buildDragCache();
     state.boardCache = cache;
@@ -771,6 +786,11 @@
   }
 
   function finishSupporterDrop(hit){
+    if(isBlockedHandSetCard(state && state.card)) {
+      if(typeof toast === 'function') toast((state.card.name || 'Wine Country Guerilla') + ' cannot be set - it is debuffing this hand.');
+      cleanup({clearPlacement:true});
+      return;
+    }
     const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
     try { window.__fateNextSetFromRect = from ? Object.assign({}, from) : null; } catch(e) {}
@@ -782,6 +802,11 @@
   }
 
   function finishConsolidationDrop(hit){
+    if(isBlockedHandSetCard(state && state.card)) {
+      if(typeof toast === 'function') toast((state.card.name || 'Wine Country Guerilla') + ' cannot be set - it is debuffing this hand.');
+      cleanup({clearPlacement:true});
+      return;
+    }
     const target = boardCardAt(hit);
     const idx = state.idx;
     cleanup({clearPlacement:false});

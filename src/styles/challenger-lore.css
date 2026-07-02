@@ -18,7 +18,7 @@
 #s-challenger .ch-lore-aff-chip span{color:var(--dim);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #s-challenger .ch-lore-character-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1.05rem;}
 #s-challenger .ch-lore-character-card{position:relative;display:grid;grid-template-columns:146px 1fr;gap:1.15rem;min-height:190px;width:100%;padding:1rem;background:linear-gradient(145deg,rgba(18,23,36,.94),rgba(5,8,14,.94));border:1px solid color-mix(in srgb,var(--lore-accent) 32%,rgba(255,255,255,.05));border-radius:7px;color:inherit;text-align:left;cursor:pointer;overflow:hidden;box-shadow:0 16px 34px rgba(0,0,0,.28);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;}
-#s-challenger .ch-lore-character-card::before{content:'';position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--lore-accent),transparent);}
+#s-challenger .ch-lore-character-card::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--lore-accent);}
 #s-challenger .ch-lore-character-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--lore-accent) 78%,white 8%);box-shadow:0 22px 46px rgba(0,0,0,.36);}
 #s-challenger .ch-lore-card-portrait{width:146px;height:170px;align-self:center;border-radius:7px;overflow:hidden;background:#03050a;border:1px solid rgba(255,255,255,.12);box-shadow:0 0 22px color-mix(in srgb,var(--lore-accent) 24%,transparent);}
 #s-challenger .ch-lore-card-portrait img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -47,6 +47,9 @@
 #s-challenger .ch-lore-infobox dd{margin:0;color:#d8e1f0;line-height:1.35;}
 #s-challenger .ch-lore-article{padding:1.15rem 1.25rem;min-height:420px;}
 #s-challenger .ch-lore-article p{margin:0 0 1rem;color:#dfe8f4;line-height:1.7;font-size:.94rem;}
+#s-challenger .ch-lore-reading-shell .ch-lore-article,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article{display:flex;flex-direction:column;min-height:420px;max-height:none;}
+#s-challenger .ch-lore-reading-shell .ch-lore-article-scroll,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll{max-height:min(52vh,520px);overflow-y:auto;overflow-x:hidden;padding-right:.5rem;scrollbar-width:thin;}
+#s-challenger .ch-lore-reading-shell .ch-lore-article-scroll p:last-child,#fate-lore-window-overlay .ch-lore-reading-shell .ch-lore-article-scroll p:last-child{margin-bottom:0;}
 #s-challenger .ch-lore-summary,#fate-lore-window-overlay .ch-lore-summary{margin:0 0 1.05rem!important;padding:.86rem 1rem!important;border-left:0!important;border-radius:6px!important;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.025))!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--lore-accent) 28%,rgba(255,255,255,.08))!important;color:#f4f0df!important;font-family:Georgia,'Times New Roman',serif!important;font-size:.98rem!important;line-height:1.62!important;font-weight:400!important;font-style:italic!important;letter-spacing:.004em!important;}
 #s-challenger.active.ch-lore-reading{z-index:30000!important;isolation:isolate;}
 body:has(#s-challenger.active.ch-lore-reading) :is(#world-chat-widget,.ingame-chat-widget,#fate-corner-dock,.screen-debug-overlay){z-index:20!important;}
@@ -72,7 +75,7 @@ body:has(#modal.on) #s-challenger.active.ch-lore-reading{z-index:900!important;}
 #fate-lore-window-overlay .ch-lore-card-aff{display:inline-flex;align-items:center;gap:.45rem;color:var(--lore-accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;}
 #fate-lore-window-overlay .ch-lore-card-aff img{width:20px;height:20px;object-fit:cover;border-radius:50%;}
 #fate-lore-window-overlay .ch-lore-card-copy b{font-family:'Cinzel',serif;color:#fff;font-size:1.42rem;letter-spacing:0;line-height:1.15;}
-#fate-lore-window-overlay .ch-lore-card-copy small{position:relative;color:#d9dcff;font-family:Georgia,'Times New Roman',serif;font-size:.92rem;font-weight:400;font-style:italic;line-height:1.52;letter-spacing:.006em;text-shadow:0 1px 10px rgba(72,86,255,.22);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding:.05rem 0 .05rem .86rem;border-left:1px solid color-mix(in srgb,var(--lore-accent) 62%,rgba(255,255,255,.14));}
+#fate-lore-window-overlay .ch-lore-card-copy small{position:relative;color:#d9dcff;font-family:Georgia,'Times New Roman',serif;font-size:.92rem;font-weight:400;font-style:italic;line-height:1.52;letter-spacing:.006em;text-shadow:0 1px 10px rgba(72,86,255,.22);display:block;overflow:hidden;padding:.05rem 0 .05rem .86rem;border-left:1px solid color-mix(in srgb,var(--lore-accent) 62%,rgba(255,255,255,.14));}
 #fate-lore-window-overlay .ch-lore-archive-shell{height:min(82vh,780px);overflow:hidden;}
 #fate-lore-window-overlay .ch-lore-archive-shell .ch-lore-character-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(190px,1fr);gap:1.05rem;overflow:hidden;}
 #fate-lore-window-overlay .ch-lore-pager{display:flex;align-items:center;justify-content:flex-end;gap:.55rem;font-family:'Cinzel',serif;color:#e8c452;text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;}

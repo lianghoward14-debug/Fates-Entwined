@@ -123,6 +123,25 @@ assert.strictEqual(reducedEnd.serverReduced, true);
 assert.strictEqual(reducedEnd.canonicalState.currentPlayer, 1);
 assert.strictEqual(reducedEnd.canonicalState.turn, 2);
 
+const staleInteractionEndBase = state({
+  currentPlayer:0,
+  turn:1,
+  _busserMovingCard:{fromZ:0, fromR:2, fromC:0},
+  placing:true,
+  selectedHandCard:0,
+  selectedBoardCard:{z:0, r:2, c:0}
+});
+const staleInteractionEndHash = canonicalStateHash(staleInteractionEndBase);
+const staleInteractionCleared = reduceServerAction({canonicalState:staleInteractionEndBase, canonicalHash:staleInteractionEndHash}, msg('END_TURN', {
+  playerIndex:0,
+  turn:1,
+  baseStateHash:staleInteractionEndHash
+}), {mode:'turns', requireBaseHash:true});
+assert.strictEqual(staleInteractionCleared.ok, true, staleInteractionCleared.reason);
+assert.strictEqual(staleInteractionCleared.canonicalState._busserMovingCard, null);
+assert.strictEqual(staleInteractionCleared.canonicalState.placing, false);
+assert.strictEqual(staleInteractionCleared.canonicalState.selectedHandCard, null);
+
 const chooseBase = state({phase:'draw', currentPlayer:0, turn:1});
 const chooseHash = canonicalStateHash(chooseBase);
 const reducedChoose = reduceServerAction({canonicalState:chooseBase, canonicalHash:chooseHash}, msg('CHOOSE_TURN', {
@@ -2816,7 +2835,7 @@ const santaAnnaNestedTarget = reduceServerAction({canonicalState:santaAnnaBase, 
   stateHash:santaAnnaHash
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(santaAnnaNestedTarget.ok, true, santaAnnaNestedTarget.reason);
-assert.strictEqual(santaAnnaNestedTarget.canonicalState.board[0][0][0].currentFate, 5);
+assert.strictEqual(santaAnnaNestedTarget.canonicalState.board[0][0][0].currentFate, 6);
 const santaAnnaTargetMismatch = reduceServerAction({canonicalState:santaAnnaBase, canonicalHash:santaAnnaHash}, msg('HAND_ACTION', {
   fn:'activateSantaAnnaProsperityFromHand',
   playerIndex:0,
@@ -2842,7 +2861,7 @@ const santaAnnaActivated = reduceServerAction({canonicalState:santaAnnaBase, can
 assert.strictEqual(santaAnnaActivated.ok, true, santaAnnaActivated.reason);
 assert.strictEqual(santaAnnaActivated.canonicalState.players[0].hand.length, 0);
 assert.strictEqual(santaAnnaActivated.canonicalState.players[0].discard[0].iid, 'santa-discard');
-assert.strictEqual(santaAnnaActivated.canonicalState.board[0][0][0].currentFate, 5);
+assert.strictEqual(santaAnnaActivated.canonicalState.board[0][0][0].currentFate, 6);
 const santaAnnaEnemyRejected = reduceServerAction({canonicalState:santaAnnaBase, canonicalHash:santaAnnaHash}, msg('HAND_ACTION', {
   fn:'activateSantaAnnaProsperityFromHand',
   playerIndex:0,
@@ -4113,6 +4132,22 @@ const woundPick = reduceServerAction({canonicalState:woundSet.canonicalState, ca
 assert.strictEqual(woundPick.ok, true, woundPick.reason);
 assert.strictEqual(woundPick.canonicalState.board[0][1][1].currentFate, 0);
 assert.strictEqual(woundPick.canonicalState.damageDoneP[0], 1);
+assert.strictEqual(woundPick.canonicalState.board[0][2][2].effectUsedInitial, true);
+assert.strictEqual(woundPick.canonicalState.board[0][2][2].whenSetActivated, true);
+const woundRepeatRejected = reduceServerAction({canonicalState:woundPick.canonicalState, canonicalHash:woundPick.canonicalHash}, msg('BOARD_ACTION', {
+  fn:'activatePendingWhenSetEffect',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  card:{iid:'s-31-place', id:'31', name:'Oathbound Noble Fighter'},
+  baseStateHash:woundPick.canonicalHash,
+  postState:woundPick.canonicalState,
+  stateHash:woundPick.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundRepeatRejected.ok, false);
+assert.match(woundRepeatRejected.reason, /no pending effect|already activated/);
 
 const woundAnneBase = state({
   players:[
@@ -5906,6 +5941,7 @@ const busserArmedMove = reduceServerAction({canonicalState:busserPick.canonicalS
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(busserArmedMove.ok, true, busserArmedMove.reason);
 assert.strictEqual(busserArmedMove.canonicalState._serverPendingMove.kind, 'busserAdjacentMove');
+assert.strictEqual(busserArmedMove.canonicalState._busserMovingCard, undefined, 'Busser move targeting must stay private to the acting client');
 const busserMove = reduceServerAction({canonicalState:busserArmedMove.canonicalState, canonicalHash:busserArmedMove.canonicalHash}, msg('CLICK_CELL', {
   playerIndex:0,
   turn:1,

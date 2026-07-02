@@ -1043,6 +1043,7 @@ function renderHand() {
 
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
+  if(card && card.id==='70' && card.guerilla_transferred) return false;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
   if(card.type==='Supporter') {
@@ -1160,6 +1161,24 @@ function showRiveraStatusBanner(aff, turnsLeft, owner) {
 
 function showBerkeleyStatusBanner(zone, owner) {
   // No floating popup; Berkeley is represented by the existing topbar status pill.
+}
+
+function showBusserStatusBanner(card, moves, owner) {
+  const turns = Math.max(0, Number(moves) || 0);
+  const effectCard = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.find(c => c.id === '69') : null;
+  const name = card && card.name ? card.name : 'Selected card';
+  if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+  if(typeof toast === 'function') toast(name + ' can move to adjacent zones' + (turns ? ' (' + turns + ' moves)' : '') + '.');
+  try {
+    window.__fateLastBusserStatusBanner = {
+      cardName:name,
+      cardId:String(card && card.id || ''),
+      sourceName:effectCard ? effectCard.name : 'Breakfast Republic Busser',
+      moves:turns,
+      owner:coerceStatusOwner(owner, typeof G !== 'undefined' && G ? G.currentPlayer : 0),
+      at:Date.now()
+    };
+  } catch(e) {}
 }
 
 function coerceStatusOwner(value, fallback) {
@@ -1364,6 +1383,32 @@ function renderTopbarEffects() {
       }
     });
   }
+
+  const busserMovesByOwner = {0:0, 1:0};
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(c){
+      if(!c || isFaceDownCard(c) || c.cantBeMoved || c.immuneFlag || String(c.id || '') === '76') return;
+      const moves = Math.max(0, Number(c._busserMoves || 0) || 0);
+      if(moves <= 0) return;
+      const owner = coerceStatusOwner(c._busserOwner == null ? c.owner : c._busserOwner, c.owner);
+      busserMovesByOwner[owner] = (Number(busserMovesByOwner[owner]) || 0) + moves;
+    });
+  }
+  const busserCard = CARDS.find(c => c.id === '69');
+  [0,1].forEach(function(owner){
+    const moves = Math.max(0, Number(busserMovesByOwner[owner]) || 0);
+    if(!moves) return;
+    allEffects.push({
+      icon: getStatusEffectIcon('movement'),
+      label: busserCard ? busserCard.ability : 'Corner! Behind!',
+      cardName: busserCard ? busserCard.name : 'Breakfast Republic Busser',
+      cardAbility: busserCard ? busserCard.ability : 'Corner! Behind!',
+      cardEffect: 'Friendly cards have ' + moves + ' Busser movement ' + (moves === 1 ? 'use' : 'uses') + ' remaining.',
+      owner: owner,
+      extraClass: 'effect-pill-busser',
+      turnsLeft: moves
+    });
+  });
 
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);

@@ -352,6 +352,28 @@ async function resolvePendingCardPicks(client, code, playerIndex, state, hash) {
   return {state:currentState, hash:currentHash};
 }
 
+async function resolvePendingReactions(clientsByPlayer, code, state, hash) {
+  let currentState = state;
+  let currentHash = hash;
+  for(let i = 0; i < 5; i += 1){
+    const pending = currentState?._serverPendingReaction || null;
+    if(!pending) break;
+    const reactionPlayer = Number(pending.playerIndex);
+    const reactionClient = clientsByPlayer[reactionPlayer];
+    if(!reactionClient) throw new Error(`pending reaction has invalid playerIndex ${pending.playerIndex}`);
+    const requestId = sendIntent(reactionClient, code, 'REACTION_CHOICE', {
+      playerIndex:reactionPlayer,
+      promptId:pending.promptId || '',
+      choice:'decline',
+      baseStateHash:currentHash
+    });
+    const accepted = await expectAccepted(reactionClient, requestId, 'REACTION_CHOICE');
+    currentState = accepted.action.payload.postState;
+    currentHash = accepted.action.payload.stateHash;
+  }
+  return {state:currentState, hash:currentHash};
+}
+
 async function run() {
   const localAuthority = await startLocalAuthority();
   const users = await authUsers();
@@ -444,6 +466,12 @@ async function run() {
     const resolvedPicks = await resolvePendingCardPicks(actingClient, code, playerIndex, turnState, turnHash);
     turnState = resolvedPicks.state;
     turnHash = resolvedPicks.hash;
+    const resolvedReactions = await resolvePendingReactions([hostClient, guestClient], code, turnState, turnHash);
+    turnState = resolvedReactions.state;
+    turnHash = resolvedReactions.hash;
+    const resolvedFollowupPicks = await resolvePendingCardPicks(actingClient, code, playerIndex, turnState, turnHash);
+    turnState = resolvedFollowupPicks.state;
+    turnHash = resolvedFollowupPicks.hash;
 
     const endRequestId = sendIntent(actingClient, code, 'END_TURN', {
       playerIndex,
