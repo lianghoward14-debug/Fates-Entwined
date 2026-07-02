@@ -5431,11 +5431,11 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.fillText(getAffIcon(visual.aff), x + cardW/2, y + cardH/2);
       }
       if(opts.showOpponentOverlay === true && pickerCardIsOpponent(i)) {
-        pickerCtx.fillStyle = 'rgba(180,18,32,.22)';
+        pickerCtx.fillStyle = 'rgba(190,12,30,.34)';
         pickerCtx.fillRect(x, y, cardW, cardH);
         const grad = pickerCtx.createLinearGradient(x, y, x, y + cardH);
-        grad.addColorStop(0, 'rgba(255,80,92,.17)');
-        grad.addColorStop(1, 'rgba(92,0,18,.27)');
+        grad.addColorStop(0, 'rgba(255,76,92,.28)');
+        grad.addColorStop(1, 'rgba(110,0,18,.42)');
         pickerCtx.fillStyle = grad;
         pickerCtx.fillRect(x, y, cardW, cardH);
       }

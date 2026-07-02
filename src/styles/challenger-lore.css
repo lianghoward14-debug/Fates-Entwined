@@ -108,6 +108,8 @@ body:has(#modal.on) #s-challenger.active.ch-lore-reading{z-index:900!important;}
 #modal .ch-lore-editor textarea{min-height:86px;resize:vertical;}
 #modal #lore-body{min-height:210px;}
 #modal .ch-lore-fact-grid{display:grid;grid-template-columns:minmax(120px,.45fr) 1fr;gap:.45rem;}
+#s-challenger.ch-lore-reading,#s-challenger.ch-lore-reading .ch-content,#s-challenger .ch-tab-pane[data-tab="lore"],#s-challenger .ch-lore-shell,#s-challenger .ch-lore-article,#s-challenger .ch-lore-article-scroll,#fate-lore-window-overlay,#fate-lore-window-overlay .fate-lore-window,#fate-lore-window-overlay .fate-lore-window-content,#fate-lore-window-overlay .ch-lore-shell,#fate-lore-window-overlay .ch-lore-article,#fate-lore-window-overlay .ch-lore-article-scroll{scrollbar-width:none!important;-ms-overflow-style:none!important;}
+#s-challenger.ch-lore-reading::-webkit-scrollbar,#s-challenger.ch-lore-reading .ch-content::-webkit-scrollbar,#s-challenger .ch-tab-pane[data-tab="lore"]::-webkit-scrollbar,#s-challenger .ch-lore-shell::-webkit-scrollbar,#s-challenger .ch-lore-article::-webkit-scrollbar,#s-challenger .ch-lore-article-scroll::-webkit-scrollbar,#fate-lore-window-overlay::-webkit-scrollbar,#fate-lore-window-overlay .fate-lore-window::-webkit-scrollbar,#fate-lore-window-overlay .fate-lore-window-content::-webkit-scrollbar,#fate-lore-window-overlay .ch-lore-shell::-webkit-scrollbar,#fate-lore-window-overlay .ch-lore-article::-webkit-scrollbar,#fate-lore-window-overlay .ch-lore-article-scroll::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
 @media (max-width:900px){
   #s-challenger .ch-lore-aff-row{grid-template-columns:repeat(2,minmax(0,1fr));}
   #s-challenger .ch-lore-dossier{grid-template-columns:1fr;}

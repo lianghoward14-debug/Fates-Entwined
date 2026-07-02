@@ -1113,6 +1113,7 @@
   function getTributeState(entry){
     try {
       if(typeof G === 'undefined' || !G || !G._consolidating || !entry) return '';
+      if(typeof isLocalConsolidationActive === 'function' && !isLocalConsolidationActive()) return '';
       const con = G._consolidating;
       const viewer = typeof getPerspectivePlayerIndex === 'function'
         ? Number(getPerspectivePlayerIndex())
@@ -1313,9 +1314,10 @@
       const mv = optionStates[i];
       if(mv && squareMatchesOption(mv.options, z, r, c)) return isOpenSquareTarget(z, r, c);
     }
-    if(G._expMoving) {
+    if(G._expMoving && (typeof isLocalPlayerActionTurn !== 'function' || isLocalPlayerActionTurn())) {
       const card = G._expMoving.card || null;
       const owner = card && typeof card.owner === 'number' ? card.owner : G.currentPlayer;
+      if(Number(owner) !== Number(G.currentPlayer)) return false;
       if(typeof isContestedOrOwnSafeSquare === 'function') {
         try { if(!isContestedOrOwnSafeSquare(z, r, c, owner)) return false; } catch(e) {}
       }

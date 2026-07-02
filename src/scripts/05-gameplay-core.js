@@ -2048,6 +2048,10 @@ function tickWintertideForCurrentPlayer() {
 }
 
 function initiateConsolidate() {
+  if(typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()){
+    if(G && G._onlineRoomCode) toast('Wait for your turn to consolidate.');
+    return;
+  }
   if(G.selectedHandCard===null){toast('Select a character card from your hand first');return;}
   const card = G.players[G.currentPlayer].hand[G.selectedHandCard];
   if(!card||card.type==='Supporter'){toast('Select a character card (not a Supporter)');return;}
@@ -2167,13 +2171,14 @@ function doConsolidate(card, cost) {
     card, handIndex:G.selectedHandCard, cardIid:card?.iid || null, cardId:card?.id || null, cost:readyCost, baseCost, allPossible, chosenIdxs: [], phase: 'select_tributes',
     colomboRestrictionZones // zones where Colombo Thug restricts cross-zone tribute usage
   };
+  const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : true;
   const gameScreen = document.getElementById('s-game');
-  if(gameScreen) gameScreen.classList.add('is-consolidating');
+  if(gameScreen) gameScreen.classList.toggle('is-consolidating', localConsolidationActive);
   const cancelBtn = document.getElementById('cancel-consolidate-btn');
-  if(cancelBtn) cancelBtn.style.display = '';
+  if(cancelBtn) cancelBtn.style.display = localConsolidationActive ? '' : 'none';
 
   // Add CSS class to tributeable cards (no renderGame — board is already current)
-  highlightTributeCards();
+  if(localConsolidationActive) highlightTributeCards();
   refreshConsolidationCanvasState();
   setHint(`Select ${tributeLabel} to consolidate ${card.name} (0/${readyCost} reinforcement).`);
 }
@@ -5009,6 +5014,14 @@ async function activateWolfCreek(card, z, r, c) {
 
 // ALPINE Expeditionary (73): move once per turn to open square on your side
 async function activateExpeditionaryMove(card, z, r, c) {
+  if(typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()){
+    clearBoardTargetSelection();
+    clearPlaceHighlights();
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
+    }
+    return;
+  }
   var cp = G.currentPlayer;
   const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [cp]);
   if(!allowed) {

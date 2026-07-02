@@ -309,7 +309,7 @@
       placing:!!g.placing,
       selectedHandCard:g.selectedHandCard,
       selectedBoardIid:g.selectedBoardCard && g.selectedBoardCard.card ? String(g.selectedBoardCard.card.iid || '') : '',
-      consolidating:!!(g._consolidating || g.consolidating),
+      consolidating: typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!(g._consolidating || g.consolidating),
       supportsPlacedThisTurn:supportsPlaced,
       maxSupportsThisTurn:maxSupports,
       majaEffectThisTurn:majaActive,
@@ -319,7 +319,7 @@
         : [],
       markSelecting:g._markSelecting ? clonePlain(g._markSelecting) : null,
       boardTargeting:g._boardTargeting ? clonePlain(g._boardTargeting) : null,
-      moving:['_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving'].some(function(k){ return !!g[k]; })
+      moving:(typeof isLocalPlayerActionTurn !== 'function' || isLocalPlayerActionTurn()) && ['_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving'].some(function(k){ return !!g[k]; })
     };
   }
 

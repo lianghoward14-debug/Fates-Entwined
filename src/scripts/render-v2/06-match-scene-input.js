@@ -375,7 +375,9 @@
       const r = Number(hit.r);
       const c = Number(hit.c);
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
-      const isCellActionMode = !!(G._consolidating || G.blockingCell || G._boardTargeting || G.placing);
+      const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!G._consolidating;
+      const localActionTurn = typeof isLocalPlayerActionTurn === 'function' ? isLocalPlayerActionTurn() : true;
+      const isCellActionMode = !!(localActionTurn && (localConsolidationActive || G.blockingCell || G._boardTargeting || G.placing));
       try {
         if(G._isSpectator) {
           if(boardCard && typeof openCardDetail === 'function') openCardDetail(boardCard, false, true);
@@ -437,10 +439,11 @@
           if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
         } else if(hit.kind === 'ui-command') {
           if(hit.disabled) return;
+          const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!(typeof G !== 'undefined' && G && G._consolidating);
           if(hit.command === 'end-turn' && typeof endTurn === 'function') {
             endTurn();
           } else if(hit.command === 'consolidate') {
-            if(typeof G !== 'undefined' && G && G._consolidating && typeof cancelConsolidation === 'function') cancelConsolidation();
+            if(localConsolidationActive && typeof cancelConsolidation === 'function') cancelConsolidation();
             else if(typeof initiateConsolidate === 'function') initiateConsolidate();
             if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
               window.FateMatchRendererAdapter.scheduleRender('consolidation-state');
