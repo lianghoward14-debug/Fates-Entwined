@@ -442,6 +442,55 @@
     });
     return scheduled;
   }
+  function boardSnapshotEntryAt(snapshot, z, r, c){
+    if(!snapshot || typeof snapshot.forEach !== 'function') return null;
+    let found = null;
+    snapshot.forEach(function(entry){
+      if(found || !entry) return;
+      if(Number(entry.z) === Number(z) && Number(entry.r) === Number(r) && Number(entry.c) === Number(c)) found = entry;
+    });
+    return found;
+  }
+  function maybePlayOnlineConsolidationCinematic(g, previousBoard, action, reason){
+    if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
+    const type = String(action?.type || '').toUpperCase();
+    if(type !== 'SELECT_CONSOLIDATION_TRIBUTE' && type !== 'CLICK_CELL') return false;
+    const payload = action?.payload || {};
+    if(type === 'CLICK_CELL' && payload.placing) return false;
+    const localUid = window.FATE_ONLINE?.user?.uid || '';
+    if(localUid && action?.uid === localUid) return false;
+    const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
+    if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
+    const card = g.board?.[z]?.[r]?.[c] || null;
+    if(!card || card.faceDown || onlineCardType(card) === 'Supporter') return false;
+    if(Number.isInteger(Number(payload.playerIndex)) && Number(card.owner) !== Number(payload.playerIndex)) return false;
+    const prior = boardSnapshotEntryAt(previousBoard, z, r, c);
+    if(prior && prior.card && String(prior.card.iid || '') === String(card.iid || '')) return false;
+    const played = g._onlineConsolidationCinematicsPlayed instanceof Set ? g._onlineConsolidationCinematicsPlayed : new Set();
+    g._onlineConsolidationCinematicsPlayed = played;
+    const key = [action?.seq || payload.clientActionId || reason || 'consolidation', card.iid || card.id || card.name || '', z, r, c].join(':');
+    if(played.has(key)) return false;
+    played.add(key);
+    try{
+      g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + 2440);
+    }catch(e){}
+    setTimeout(function(){
+      try{
+        window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+      }catch(e){
+        console.warn('Online consolidation cinematic failed', e);
+      }
+    }, 120);
+    recordOnlineDiagnostic('online-remote-consolidation-cinematic', {
+      actionType:type,
+      seq:Number(action?.seq || 0) || 0,
+      cardId:String(card.id || ''),
+      cardName:String(card.name || ''),
+      z,r,c,
+      reason:String(reason || '')
+    });
+    return true;
+  }
   function maybePlayMatchingHashFreePlacementCinematic(reason){
     const g = gameState();
     renderOnlineAuthoritativeState(reason || 'authoritative matching state');
@@ -687,7 +736,9 @@
       maybePlayMatchingHashFreePlacementCinematic(reason || ('authoritative postState seq ' + (action?.seq || '?')));
       return false;
     }
+    const previousBoard = collectOnlineBoardSnapshot(gameState()?.board);
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied) maybePlayOnlineConsolidationCinematic(gameState(), previousBoard, action, reason || ('authoritative postState seq ' + (action?.seq || '?')));
     if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
   }
@@ -4720,10 +4771,7 @@
     }
     async function poll(){
       if(stopped) return;
-      if(authoritySocketReady()){
-        timer = setTimeout(poll, 5000);
-        return;
-      }
+      const socketReady = authoritySocketReady();
       try{
         const after = Math.max(0, lastAppliedActionSeq || 0);
         const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=80`);
@@ -4739,7 +4787,7 @@
           lastWarn = Date.now();
         }
       }finally{
-        if(!stopped) timer = setTimeout(poll, (typeof document !== 'undefined' && document.hidden) ? 5000 : 1500);
+        if(!stopped) timer = setTimeout(poll, (typeof document !== 'undefined' && document.hidden) ? 5000 : (socketReady ? 1200 : 1500));
       }
     }
     async function hashDriftCheck(){

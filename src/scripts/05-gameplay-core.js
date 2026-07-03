@@ -2048,7 +2048,7 @@ function tickWintertideForCurrentPlayer() {
 }
 
 function initiateConsolidate() {
-  if(typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()){
+  if(!(G && G._onlineApplyingRemoteAction) && typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()){
     if(G && G._onlineRoomCode) toast('Wait for your turn to consolidate.');
     return;
   }

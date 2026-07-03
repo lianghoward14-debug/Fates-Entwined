@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'codex/**'
   pull_request:
     branches:
       - main
@@ -39,6 +40,12 @@ jobs:
         run: npm ci
       - name: Build Windows installer
         run: npm run dist -- --publish never
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fates-Entwined-Windows-Installer
+          path: dist/*.exe
+          if-no-files-found: error
       - name: Upload Windows exe to release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
