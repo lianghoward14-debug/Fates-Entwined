@@ -48,17 +48,17 @@ const statusIndex = roomsText.indexOf('window.fateGetWebSocketAuthorityStatus = 
 const applyIndex = roomsText.indexOf('window.fateApplyFlyAuthorityTestParams();');
 assert.ok(statusIndex >= 0 && applyIndex > statusIndex, 'URL-param helper must run after status diagnostics are registered');
 
-assert.match(indexText, /01-data-and-state\.js\?v=1782744100/, 'index must cache-bust Vigilantes, Oathbound, Lydia, and Rivera text fixes');
-assert.match(indexText, /00-structural-helpers\.js\?v=1782940000/, 'index must cache-bust shared interaction reset cleanup');
-assert.match(indexText, /05-gameplay-core\.js\?v=1783060000/, 'index must cache-bust turn-boundary cleanup, Busser, Vigilantes, consolidation, Panacea cleanup, Kazumi automatic draw, Lina free-placement fixes, and deferred effect activation guards');
-assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783050000/, 'index must cache-bust renderer extra-cell, card-info lore, cinematic subtitle layer, picker overlay, Busser status fixes, and Santa Anna +3 Fate text');
-assert.match(indexText, /03-profile-and-progression\.js\?v=1782659000/, 'index must cache-bust daily login startup prompt fixes');
-assert.match(indexText, /18-online-rooms\.js\?v=1783060000/, 'index must cache-bust the online rooms script for authoritative post-state desync hardening, Busser private move-state cleanup, and Panacea turn cleanup');
-assert.match(indexText, /09-challenger-mode\.js\?v=1782865000/, 'index must cache-bust the challenger leaderboard, simulation, social filtering, profile crop, browser deck art script, and lore overlay cleanup');
+assert.match(indexText, /01-data-and-state\.js\?v=1783140000/, 'index must cache-bust Vigilantes, Oathbound, Lydia, Rivera, and card text/stat fixes');
+assert.match(indexText, /00-structural-helpers\.js\?v=1783140000/, 'index must cache-bust shared interaction reset cleanup');
+assert.match(indexText, /05-gameplay-core\.js\?v=1783150000/, 'index must cache-bust gameplay stat, fate, Maja free-placement, multiplayer cinematic, and desync fixes');
+assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783150000/, 'index must cache-bust renderer extra-cell, card-info lore, cinematic subtitle layer, picker overlay, Busser status fixes, Santa Anna text, and Maja deck-set text');
+assert.match(indexText, /03-profile-and-progression\.js\?v=1783150000/, 'index must cache-bust profile, preset, and daily login startup prompt fixes');
+assert.match(indexText, /18-online-rooms\.js\?v=1783150000/, 'index must cache-bust the online rooms script for authoritative post-state desync hardening, remote cinematic, sound, Maja, and Panacea turn cleanup');
+assert.match(indexText, /09-challenger-mode\.js\?v=1783150000/, 'index must cache-bust the challenger leaderboard, simulation, social filtering, profile crop, browser deck art script, preset, and lore overlay cleanup');
 assert.match(indexText, /zz-codex-last\.css\?v=1782940000/, 'index must cache-bust HUD timer nudge, match hover polish CSS, and zone picker overlay tuning');
 assert.match(indexText, /challenger-lore\.css\?v=1783060000/, 'index must cache-bust centered lore entry headers, paged lore archive layout, internal article scrolling, and uniform lore card accent bars');
 assert.match(indexText, /17-online-social\.js\?v=1782620200/, 'index must cache-bust the online social script for internal-player filtering');
-assert.match(indexText, /04-game-setup\.js\?v=1782867000/, 'index must cache-bust the match setup script for multiplayer coin flip, draw animation, profile crop fixes, and hourly local AI simulation');
+assert.match(indexText, /04-game-setup\.js\?v=1783140000/, 'index must cache-bust the match setup script for multiplayer coin flip, draw animation, profile crop fixes, and hourly local AI simulation');
 assert.match(indexText, /16-online-core\.js\?v=1782617500/, 'index must cache-bust the shared online profile crop helper');
 assert.match(indexText, /22-spectator\.js\?v=1782616800/, 'index must cache-bust spectator profile crop fixes');
 assert.match(indexText, /render-v2\/04-match-renderer-adapter\.js\?v=1782868000/, 'index must cache-bust render-v2 pending effect visibility, consolidation cue, and stable hover fixes');

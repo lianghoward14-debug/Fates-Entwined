@@ -1307,14 +1307,14 @@ async function drawCard(player, count=1, options = {}) {
       const erbs = findReadyChristopherErbs(player);
       if(erbs){
         const activate = await chooseOptionalImprovisorActivation(player, erbs, {
-          triggerText: 'You are about to draw a card. Activate Christopher Erbs so the drawn card gains 4 Fate?',
+          triggerText: 'Activate Christopher Erbs so the next card you draw gains 4 Fate?',
           costText: erbs.usesLeft + ' use' + (erbs.usesLeft===1?'':'s') + ' remaining'
         });
         if(activate){
           if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
           G.erbsActive[player] = true;
           erbs.usesLeft--;
-          toast('Christopher Erbs empowered the draw. ('+erbs.usesLeft+' uses left)');
+          if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast('Christopher Erbs empowered the draw. ('+erbs.usesLeft+' uses left)');
           log(player===0?'p1':'p2', 'Christopher Erbs armed the next drawn card');
         } else {
           log(player===0?'p1':'p2', 'Christopher Erbs declined');
@@ -1352,12 +1352,12 @@ async function drawCard(player, count=1, options = {}) {
         if(typeof recordHandCardEffectModifier === 'function') {
           recordHandCardEffectModifier(card, {
             key:'christopher-erbs',
-            name:'Christopher Erbs',
-            text:'Hard Times, Strong Men: this drawn card gained +4 Fate.',
+            name:'Card Empowered',
+            text:'Hard Times, Strong Men: this card gained +4 Fate.',
             fateDelta:4
           });
         }
-        toast(`${card.name} gained 4 Fate from Hard Times, Strong Men!`);
+        if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast(`${card.name} gained 4 Fate from Hard Times, Strong Men!`);
         log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +4 Fate`);
       }
       if(Array.isArray(G.erbsActive)) G.erbsActive[player] = false;

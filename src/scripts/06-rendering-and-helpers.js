@@ -2051,7 +2051,13 @@ window.setMajaFromDeck = function() {
   if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
   else G.players[cp].hand.push(card);
   if(typeof beginImmediateFreePlacement==='function') {
-    beginImmediateFreePlacement(cp, card, 'Place Maja Kaminska for free from your deck.');
+    beginImmediateFreePlacement(cp, card, 'Place Maja Kaminska for free from your deck.', {
+      key:'maja-deck-set',
+      name:'Maja Kaminska',
+      ability:'Oblique Order',
+      text:'Set directly from your deck at no cost.',
+      freePlacementKind:'majaDeckSet'
+    });
   }
   closeModal();
   toast('Maja Kaminska is ready to set immediately for free!');

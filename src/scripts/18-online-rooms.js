@@ -400,6 +400,80 @@
     });
     return map;
   }
+  function onlineBoardCardKey(card, z, r, c){
+    if(!card) return '';
+    const iid = card.iid != null && card.iid !== '' ? String(card.iid) : '';
+    if(iid) return 'iid:' + iid;
+    return ['slot', card.id || 'card', card.name || '', card.owner ?? '', z, r, c].join(':');
+  }
+  function onlineBoardCardEntries(board){
+    const entries = [];
+    if(!Array.isArray(board)) return entries;
+    board.forEach(function(zone, z){
+      if(!Array.isArray(zone)) return;
+      zone.forEach(function(row, r){
+        if(!Array.isArray(row)) return;
+        row.forEach(function(card, c){
+          if(!card) return;
+          entries.push({key:onlineBoardCardKey(card, z, r, c), card, z, r, c});
+        });
+      });
+    });
+    return entries;
+  }
+  function removeOnlineCardFromPlayerPiles(state, card){
+    if(!state || !card || !Array.isArray(state.players)) return;
+    const key = onlineBoardCardKey(card, -1, -1, -1);
+    if(!key) return;
+    state.players.forEach(function(player){
+      if(!player) return;
+      ['hand','deck','discard'].forEach(function(pileName){
+        const pile = player[pileName];
+        if(!Array.isArray(pile)) return;
+        for(let i = pile.length - 1; i >= 0; i--){
+          if(onlineBoardCardKey(pile[i], -1, -1, -1) === key) pile.splice(i, 1);
+        }
+      });
+    });
+  }
+  function ensureOnlineStateBoardCell(state, z, r, c){
+    if(!state) return null;
+    if(!Array.isArray(state.board)) state.board = [];
+    while(state.board.length <= z) state.board.push([]);
+    if(!Array.isArray(state.board[z])) state.board[z] = [];
+    while(state.board[z].length <= r) state.board[z].push([]);
+    if(!Array.isArray(state.board[z][r])) state.board[z][r] = [];
+    while(state.board[z][r].length <= c) state.board[z][r].push(null);
+    return state.board[z][r];
+  }
+  function preferMoreOnlineBoardCards(incomingState, localBoard, reason){
+    if(!incomingState || !Array.isArray(localBoard)) return incomingState;
+    const localEntries = onlineBoardCardEntries(localBoard);
+    const incomingEntries = onlineBoardCardEntries(incomingState.board);
+    if(localEntries.length <= incomingEntries.length) return incomingState;
+    const incomingKeys = new Set(incomingEntries.map(entry=>entry.key));
+    let repaired = null;
+    let restored = 0;
+    localEntries.forEach(function(entry){
+      if(!entry.key || incomingKeys.has(entry.key)) return;
+      if(!repaired) repaired = cloneOnlinePlain(incomingState);
+      const row = ensureOnlineStateBoardCell(repaired, entry.z, entry.r, entry.c);
+      if(!row || row[entry.c]) return;
+      const card = compactOnlineCard(entry.card);
+      row[entry.c] = card;
+      removeOnlineCardFromPlayerPiles(repaired, card);
+      incomingKeys.add(entry.key);
+      restored += 1;
+    });
+    if(!repaired || !restored) return incomingState;
+    recordOnlineDiagnostic('online-more-board-cards-repaired-client-state', {
+      localBoardCards:localEntries.length,
+      incomingBoardCards:incomingEntries.length,
+      restored,
+      reason:String(reason || '')
+    });
+    return repaired;
+  }
   function onlineCardCatalogMatch(card){
     if(!card || typeof card !== 'object' || typeof CARDS === 'undefined' || !Array.isArray(CARDS)) return null;
     const id = String(card.id || '');
@@ -451,6 +525,30 @@
     });
     return found;
   }
+  function boardSnapshotHasCard(snapshot, card){
+    if(!snapshot || typeof snapshot.forEach !== 'function' || !card) return false;
+    const iid = String(card.iid || '');
+    let found = false;
+    snapshot.forEach(function(entry){
+      if(found || !entry || !entry.card) return;
+      if(iid && String(entry.card.iid || '') === iid) found = true;
+    });
+    return found;
+  }
+  function findNewOnlineCharacterEntry(g, previousBoard, playerIndex){
+    if(!g || !g.board) return null;
+    const owner = Number(playerIndex);
+    let found = null;
+    collectOnlineBoardSnapshot(g.board).forEach(function(entry){
+      if(found || !entry || !entry.card) return;
+      const card = entry.card;
+      if(card.faceDown || onlineCardType(card) === 'Supporter') return;
+      if(Number.isInteger(owner) && Number(card.owner) !== owner) return;
+      if(boardSnapshotHasCard(previousBoard, card)) return;
+      found = entry;
+    });
+    return found;
+  }
   function maybePlayOnlineConsolidationCinematic(g, previousBoard, action, reason){
     if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
     const type = String(action?.type || '').toUpperCase();
@@ -460,15 +558,22 @@
     const localUid = window.FATE_ONLINE?.user?.uid || '';
     if(localUid && action?.uid === localUid) return false;
     const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
-    if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
-    const card = g.board?.[z]?.[r]?.[c] || null;
-    if(!card || card.faceDown || onlineCardType(card) === 'Supporter') return false;
-    if(Number.isInteger(Number(payload.playerIndex)) && Number(card.owner) !== Number(payload.playerIndex)) return false;
-    const prior = boardSnapshotEntryAt(previousBoard, z, r, c);
-    if(prior && prior.card && String(prior.card.iid || '') === String(card.iid || '')) return false;
+    let entry = null;
+    if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) {
+      const cardAtTarget = g.board?.[z]?.[r]?.[c] || null;
+      const ownerMatches = !Number.isInteger(Number(payload.playerIndex)) || Number(cardAtTarget?.owner) === Number(payload.playerIndex);
+      const prior = boardSnapshotEntryAt(previousBoard, z, r, c);
+      const isSamePriorCard = prior && prior.card && String(prior.card.iid || '') === String(cardAtTarget?.iid || '');
+      if(cardAtTarget && !cardAtTarget.faceDown && onlineCardType(cardAtTarget) !== 'Supporter' && ownerMatches && !isSamePriorCard) {
+        entry = {z, r, c, card:cardAtTarget};
+      }
+    }
+    if(!entry) entry = findNewOnlineCharacterEntry(g, previousBoard, payload.playerIndex);
+    if(!entry || !entry.card) return false;
+    const card = entry.card;
     const played = g._onlineConsolidationCinematicsPlayed instanceof Set ? g._onlineConsolidationCinematicsPlayed : new Set();
     g._onlineConsolidationCinematicsPlayed = played;
-    const key = [action?.seq || payload.clientActionId || reason || 'consolidation', card.iid || card.id || card.name || '', z, r, c].join(':');
+    const key = [action?.seq || payload.clientActionId || reason || 'consolidation', card.iid || card.id || card.name || '', entry.z, entry.r, entry.c].join(':');
     if(played.has(key)) return false;
     played.add(key);
     try{
@@ -486,7 +591,9 @@
       seq:Number(action?.seq || 0) || 0,
       cardId:String(card.id || ''),
       cardName:String(card.name || ''),
-      z,r,c,
+      z:entry.z,
+      r:entry.r,
+      c:entry.c,
       reason:String(reason || '')
     });
     return true;
@@ -556,6 +663,7 @@
   function applyOnlineCanonicalState(state, reason){
     const g = gameState();
     if(!g || !state) return false;
+    state = preferMoreOnlineBoardCards(state, g.board, reason || 'online-authoritative-state');
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
     const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase, _turnStartedAt:g._turnStartedAt};
     const previousBoard = collectOnlineBoardSnapshot(g.board);
@@ -4373,7 +4481,7 @@
       const remoteEffectActivation =
         (type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
         (type === 'MODAL_ACTION' && !!payload?.effectCinematic) ||
-        (type === 'HAND_ACTION' && /^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName));
+        (type === 'HAND_ACTION' && (/^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName) || /^setMajaFromDeck$/i.test(fnName)));
       if(remoteEffectActivation && typeof window.playEffectActivationClickSfx === 'function') {
         window.playEffectActivationClickSfx({remote:true});
       } else if(remoteEffectActivation) {
@@ -5994,6 +6102,22 @@
       sendAction('EFFECT_CINEMATIC', payload).catch(e=>console.warn('Effect cinematic broadcast failed', e));
       return true;
     };
+
+    if(typeof window.setMajaFromDeck === 'function' && !originals.setMajaFromDeck){
+      originals.setMajaFromDeck = window.setMajaFromDeck;
+      window.setMajaFromDeck = function(){
+        const g = gameState();
+        if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
+          return originals.setMajaFromDeck.apply(this, arguments);
+        }
+        if(!canSendLocalAction(g)) return;
+        return sendOptimisticAction('HAND_ACTION', {
+          fn:'setMajaFromDeck',
+          playerIndex:g.currentPlayer,
+          turn:g.turn
+        }, ()=>originals.setMajaFromDeck.apply(this, arguments));
+      };
+    }
 
     const handFns = ['activateWineCountryGuerillaFromHand', 'activateSelvaIslandsPirateFromHand'];
     handFns.forEach(fnName=>{

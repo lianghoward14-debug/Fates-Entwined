@@ -231,13 +231,14 @@ function titleScreenActive(){
 function updateAuthPanelVisibility(){
   const el = document.getElementById('fate-online-account');
   if(!el) return;
+  const shouldShow = titleScreenActive() || !document.getElementById('s-game')?.classList.contains('active');
   const signature = [
     titleScreenActive() ? 'title' : 'other',
     document.getElementById('s-game')?.classList.contains('active') ? 'game' : 'nogame',
     el.parentElement?.id || el.parentElement?.className || 'none',
-    el.classList.contains('is-hidden') ? 'hidden' : 'shown'
+    shouldShow ? 'shown' : 'hidden'
   ].join('|');
-  el.classList.add('is-hidden');
+  el.classList.toggle('is-hidden', !shouldShow);
   if(signature !== lastAuthPanelVisibilitySignature && window.scheduleFateCornerDock) {
     lastAuthPanelVisibilitySignature = signature;
     setTimeout(()=>window.scheduleFateCornerDock(), 0);

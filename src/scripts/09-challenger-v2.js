@@ -1720,10 +1720,18 @@ function listPfpForSale(pfpId){
     </div>`,
   [{label:'List',pri:true,action:()=>{
     const price=parseInt(document.getElementById('sell-price')?.value)||50;
-    removeOwnedPfp(pfpId);
+    if(!removeOwnedPfp(pfpId)){
+      toast('You no longer own that profile picture');
+      closeModal();
+      switchChTab('store');
+      return;
+    }
     const mp=getMarketplace();
     mp.listings.push({type:'pfp', pfpId, seller:USER_PROFILE.username, price, timestamp:Date.now()});
-    saveProfile(); toast(`Profile picture ${pfpId} listed for ${price} Starlight`); closeModal(); switchChTab('store');
+    saveProfile();
+    toast(`Profile picture ${pfpId} listed for ${price} Starlight`);
+    closeModal();
+    switchChTab('store');
   }},{label:'Cancel',action:closeModal}]);
   const modalBox=document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('sell-card-modal');
@@ -1808,7 +1816,7 @@ function renderChStoreTab(content) {
                 <div class="booster-contents">8 cards - 4 Triangles, 1+ Squares, 3 Supporters, 5% chance at a Star</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} ${PACK_COST_STARLIGHT}</div>
-                  <button class="btn-buy" onclick="buyPack()" ${canBuy?'':'disabled'}>${canBuy?'Buy Pack':'Need '+PACK_COST_STARLIGHT}</button>
+                  <button class="btn-buy" onclick="buyPack()" aria-disabled="${canBuy?'false':'true'}">${canBuy?'Buy Pack':'Need '+PACK_COST_STARLIGHT}</button>
                 </div>
               </div>
             </div>
@@ -1823,7 +1831,7 @@ function renderChStoreTab(content) {
                 <div class="booster-contents">5 cards - 2 Triangles, 3 Squares, ~33% chance at a Star</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} 500</div>
-                  <button class="btn-buy" onclick="buyFavoredPack()" ${canBuyFavored?'':'disabled'}>${canBuyFavored?'Buy Pack':'Need 500'}</button>
+                  <button class="btn-buy" onclick="buyFavoredPack()" aria-disabled="${canBuyFavored?'false':'true'}">${canBuyFavored?'Buy Pack':'Need 500'}</button>
                 </div>
               </div>
             </div>
@@ -1838,7 +1846,7 @@ function renderChStoreTab(content) {
                 <div class="booster-contents">2 profile pictures - guaranteed no duplicates - selling removes them from your collection</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} 50</div>
-                  <button class="btn-buy" onclick="buyProfilePack()" ${canBuyProfile?'':'disabled'}>${canBuyProfile?'Buy Pack':'Need 50'}</button>
+                  <button class="btn-buy" onclick="buyProfilePack()" aria-disabled="${canBuyProfile?'false':'true'}">${canBuyProfile?'Buy Pack':'Need 50'}</button>
                 </div>
               </div>
             </div>

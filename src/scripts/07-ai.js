@@ -1714,10 +1714,10 @@ async function aiDoPlace(choice) {
       if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
       G.polishArmyUses[cp] = (G.polishArmyUses[cp] || 0) + 1;
     }
-    // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 3 Fate.
+    // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 4 Fate.
     G.board[choice.z].forEach(row=>row.forEach(cell=>{
       if(cell && cell.id==='02' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-        modifyFate(inst,3,'permanent');
+        modifyFate(inst,4,'permanent');
       }
     }));
     if(!majaDeckCinematic) {
@@ -2928,7 +2928,7 @@ async function aiRunEffect(card, z, r, c) {
       card._henryAiUsed = true;
       break;
     }
-    case '38': { // Jake: discard a supporter once per turn for +3 Fate
+    case '38': { // Jake: discard a supporter once per turn for +5 Fate
       if(card.effectUsedThisTurn) break;
       const supporters = G.players[cp].hand.filter(c=>c.type==='Supporter');
       if(!supporters.length) break;
@@ -2936,9 +2936,9 @@ async function aiRunEffect(card, z, r, c) {
       const spent = supporters[0];
       G.players[cp].hand = G.players[cp].hand.filter(c=>c.iid!==spent.iid);
       fatePushDiscard(cp, spent);
-      card.currentFate += 3;
+      card.currentFate += 5;
       card.effectUsedThisTurn = true;
-      log('p2','AI: Jake discarded '+spent.name+' and gained 3 Fate');
+      log('p2','AI: Jake discarded '+spent.name+' and gained 5 Fate');
       break;
     }
     case '40': { // Christopher Erbs: arm the next draw for +4 Fate

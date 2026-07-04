@@ -860,13 +860,13 @@ function vigilantePickTarget(targetZ, cp, opp, inst) {
   }, cell=>cell && cell.owner===opp);
 }
 
-// Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +2 Fate (not setting)
+// Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
 function triggerRozsiPassive(card, destZ) {
   forEachBoardCard((c, cz, cr, cc) => {
     if(c.id === '34' && cz === destZ && c.owner === card.owner && !isSupporterAuraSuppressed(c)) {
-      if(typeof modifyFate === 'function') modifyFate(card, 2, 'permanent');
-      else card.currentFate = (card.currentFate || card.fate || 0) + 2;
-      toast(card.name + ' gains 2 Fate from Hungarian Dance!');
+      if(typeof modifyFate === 'function') modifyFate(card, 3, 'permanent');
+      else card.currentFate = (card.currentFate || card.fate || 0) + 3;
+      if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(card.owner)) toast(card.name + ' gains 3 Fate from Hungarian Dance!');
       if(typeof playSfx === 'function') playSfx('fateGain');
     }
   });
@@ -1048,7 +1048,7 @@ async function clickCell(z,r,c) {
     G._wolfCreekMoving = null;
     G.placing = false;
     clearPlaceHighlights();
-    triggerRozsiPassive(mv.card, z); // Rozsi: +2 fate on move into zone
+    triggerRozsiPassive(mv.card, z); // Rozsi: +3 fate on move into zone
     toast(mv.card.name+' moved!');
     playSfx('effect');
     if(typeof playSfx === 'function') playSfx('effectActivate');
@@ -1084,7 +1084,7 @@ async function clickCell(z,r,c) {
     G._busserMovingCard = null;
     G.placing = false;
     clearPlaceHighlights();
-    triggerRozsiPassive(mv.card, z); // Rozsi: +2 fate on move into zone
+    triggerRozsiPassive(mv.card, z); // Rozsi: +3 fate on move into zone
     toast(mv.card.name + ' moved to Zone ' + (z+1) + '!');
     playSfx('effect');
     log(cp===0?'p1':'p2', mv.card.name + ' moved via Busser to Zone ' + (z+1));
@@ -1100,7 +1100,7 @@ async function clickCell(z,r,c) {
     G._expMoving = null;
     G.placing = false;
     clearPlaceHighlights();
-    triggerRozsiPassive(mv.card, z); // Rozsi: +2 fate on move into zone
+    triggerRozsiPassive(mv.card, z); // Rozsi: +3 fate on move into zone
     toast('ALPINE Expeditionary moved!');
     playSfx('effect');
     renderGame();
@@ -1153,11 +1153,11 @@ async function clickCell(z,r,c) {
   triggerPlacementAnimation(inst, z, r, c);
   player.hand.splice(G.selectedHandCard, 1);
 
-  // Anicka Konvicka (02) Starlit Path: ANY card placed in this zone gains 3 Fate (owner-independent? No, only for her controller)
+  // Anicka Konvicka (02) Starlit Path: ANY card placed in this zone gains 4 Fate (owner-independent? No, only for her controller)
   // Per card text: "Any card placed in this zone gains 3 Fate"
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(cell && cell.id==='02' && cell.owner===G.currentPlayer && cell.iid!==inst.iid && !isFaceDownCard(cell)){
-      modifyFate(inst,3,'permanent');
+      modifyFate(inst,4,'permanent');
     }
   }));
 
@@ -1558,9 +1558,9 @@ function finalizeConsolidate(card, tributes, targetIdx) {
         if(!row) return;
         row.forEach((cell, mc)=>{
           if(cell&&cell.id==='36'&&cell.owner!==cp){
-            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 3.');
-            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
-            toast('Deterrance activated: Zone '+(tz+1)+' loses 3 Fate.');
+            log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 4.');
+            G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 4;
+            if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(cell.owner)) toast('Deterrance activated: Zone '+(tz+1)+' loses 4 Fate.');
             if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(tz, mr, mc, cell);
             if(typeof playSfx === 'function') playSfx('debuff');
           }
@@ -2135,8 +2135,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, function(cell){ return cell && cell.owner===cp && cell.type!=='Supporter' && cell.iid!==inst.iid && !cell.cantBeMoved; });
       break;
     }
-    case '56': // Lydia: negate opponent card effect activations (5 uses)
-      inst.usesLeft = 5; break;
+    case '56': // Lydia: negate opponent card effect activations (3 uses)
+      inst.usesLeft = 3; break;
     case '40': // Christopher Erbs: initialize 2 uses
       inst.usesLeft = 2; break;
     case '14': // Alondra Hopkins: discard adjacent OR diagonal opponent supporters when set
@@ -2434,7 +2434,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       toast('Cardigan Onslaught is passive — applies while Cathy is on the field.');
       break;
     case '34': // Rozsi Szocs: passive - cards moved into zone gain 2 Fate
-      toast('Hungarian Dance is passive — cards moved into this zone by effects gain 2 Fate automatically.');
+      toast('Hungarian Dance is passive — cards moved into this zone by effects gain 3 Fate automatically.');
       break;
     case '01': // Felicyta: passive (handled in getEffectiveFate)
       toast('Felicyta\'s buff is already active automatically.');
@@ -2454,15 +2454,15 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast(`Henry Dong gained ${cards.length*3} Fate!`);
         renderGame();
       }); break;
-    case '38': // Jake: discard supporter, +3 Fate (once per turn)
+    case '38': // Jake: discard supporter, +5 Fate (once per turn)
       if(card.effectUsedThisTurn){toast('Jake can only use this effect once per turn');break;}
-      pickCardsFromHand(cp,1,'Discard a Supporter for +3 Fate:',(cards)=>{
+      pickCardsFromHand(cp,1,'Discard a Supporter for +5 Fate:',(cards)=>{
         if(!cards[0]||cards[0].type!=='Supporter'){toast('Must be a Supporter');return;}
         G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==cards[0].iid);
         G.players[cp].discard.push(cards[0]);
-        card.currentFate+=3;
+        card.currentFate+=5;
         card.effectUsedThisTurn=true;
-        toast('Jake gained 3 Fate!');
+        toast('Jake gained 5 Fate!');
         renderGame();
       }); break;
     case 'bh25': // Jimmy Viltrumite: discard any card on field
@@ -3264,7 +3264,7 @@ function checkReactions(actionType, actionData) {
     // Lydia (56): negate opponent card effect activations; set-triggered effects also have while-on-field effects suppressed.
     if(actionType === 'supporter_effect'){
       forEachBoardCard(function(card2, z2, r2, c2) {
-        if(card2.id==='56' && (card2.usesLeft === null || card2.usesLeft === undefined)) card2.usesLeft = 5;
+        if(card2.id==='56' && (card2.usesLeft === null || card2.usesLeft === undefined)) card2.usesLeft = 3;
         if(card2.id==='56' && card2.owner===opp && card2.usesLeft > 0 && !card2.immuneFlag && !isFaceDownCard(card2)){
           reactions.push({type:'lydia', card:card2, z:z2, r:r2, c:c2});
         }

@@ -1207,7 +1207,6 @@ function openTitlePresetSaveDialog(deck) {
         <label>Deck Name<input id="preset-name-inp" maxlength="36" value="${escapeHtml(defaultName)}" placeholder="My Eagle Rush"></label>
         <label>Description<textarea id="preset-desc-inp" maxlength="120" placeholder="Fast aggressive supporters">${escapeHtml(defaultDesc)}</textarea></label>
         ${renderDeckThemeSelector(defaultTheme, 'preset-theme-inp')}
-        <div class="cdb-save-note">Choose one face card and up to seven display cards before saving.</div>
       </div>
     </div>
     <div class="cdb-save-section">

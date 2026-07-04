@@ -30,6 +30,14 @@ function isPerspectivePlayer(player) {
   return getPerspectivePlayerIndex() === player;
 }
 
+function shouldShowPlayerEffectFeedback(player) {
+  if (typeof G === 'undefined' || !G) return true;
+  if (!G._onlineApplyingRemoteAction) return true;
+  if (!Number.isInteger(G._onlinePlayerIndex) || !Number.isInteger(G._onlineRemoteActionPlayer)) return true;
+  if (Number(G._onlineRemoteActionPlayer) !== Number(player)) return true;
+  return Number(player) === Number(G._onlinePlayerIndex);
+}
+
 function getBoardRowCapacity(z, r) {
   if (typeof G === 'undefined' || !G || !G.board || !G.board[z] || !G.board[z][r]) {
     return 3;

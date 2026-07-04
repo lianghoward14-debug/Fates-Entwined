@@ -565,14 +565,14 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1782940000"></script>
-  <script src="src/scripts/01-data-and-state.js?v=1782744100"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1783140000"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1783140000"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1782864000"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1782659000"></script>
-<script src="src/scripts/04-game-setup.js?v=1782867000"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1783060000"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=1783050000"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1783150000"></script>
+<script src="src/scripts/04-game-setup.js?v=1783140000"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1783150000"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1783150000"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
 <script src="src/scripts/render-v2/01-render-snapshot.js?v=1782620100"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1782620100"></script>
@@ -594,9 +594,9 @@
   <script src="src/scripts/render-v2/11-acceptance-report.js?v=1780597201"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780925023"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
-  <script src="src/scripts/07-ai.js?v=1782664000"></script>
+  <script src="src/scripts/07-ai.js?v=1783140000"></script>
 <script src="src/scripts/08-audio-and-meta-ui.js?v=1782621000"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1782865000"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1783150000"></script>
 <script src="src/scripts/09-challenger-lore.js?v=1783060000"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1782663600"></script>
 <script src="src/scripts/11-tutorial.js?v=1782869000"></script>
@@ -611,12 +611,12 @@
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
   var modules = [
-    './src/scripts/15-online-auth.js?v=1782617400',
+    './src/scripts/15-online-auth.js?v=1783150000',
     './src/scripts/16-online-core.js?v=1782617500',
     './src/scripts/17-online-social.js?v=1782620200',
-    './src/scripts/18-online-rooms.js?v=1783060000',
+    './src/scripts/18-online-rooms.js?v=1783150000',
     './src/scripts/19-online-elo.js?v=1782867000',
-    './src/scripts/20-online-economy.js?v=1782623300'
+    './src/scripts/20-online-economy.js?v=1783150000'
   ];
   var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');
   var promise = null;
@@ -662,11 +662,7 @@
   }
   function scheduleLoad(){
     var idle = window.requestIdleCallback || function(fn){ return setTimeout(function(){ fn({timeRemaining:function(){return 0;}}); }, 1); };
-    if(isElectron) {
-      setTimeout(function(){ idle(function(){ loadOnlineModules('electron-idle-delay'); }); }, 6500);
-    } else {
-      idle(function(){ loadOnlineModules('browser-idle'); });
-    }
+    idle(function(){ loadOnlineModules(isElectron ? 'electron-startup' : 'browser-idle'); });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleLoad, {once:true});
   else scheduleLoad();

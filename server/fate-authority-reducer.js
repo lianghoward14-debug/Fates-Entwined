@@ -105,6 +105,78 @@ function validateCanonicalState(state){
   return '';
 }
 
+function boardCardKey(card, z, r, c){
+  if(!card) return '';
+  const iid = card.iid != null && card.iid !== '' ? String(card.iid) : '';
+  if(iid) return `iid:${iid}`;
+  return ['slot', card.id || 'card', card.name || '', card.owner ?? '', z, r, c].join(':');
+}
+
+function boardCardEntries(board){
+  const entries = [];
+  if(!Array.isArray(board)) return entries;
+  board.forEach((zone, z)=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach((row, r)=>{
+      if(!Array.isArray(row)) return;
+      row.forEach((card, c)=>{
+        if(card) entries.push({key:boardCardKey(card, z, r, c), card, z, r, c});
+      });
+    });
+  });
+  return entries;
+}
+
+function ensureStateBoardCell(state, z, r, c){
+  if(!state) return null;
+  if(!Array.isArray(state.board)) state.board = [];
+  while(state.board.length <= z) state.board.push([]);
+  if(!Array.isArray(state.board[z])) state.board[z] = [];
+  while(state.board[z].length <= r) state.board[z].push([]);
+  if(!Array.isArray(state.board[z][r])) state.board[z][r] = [];
+  while(state.board[z][r].length <= c) state.board[z][r].push(null);
+  return state.board[z][r];
+}
+
+function removeCardFromPlayerPiles(state, card){
+  if(!state || !card || !Array.isArray(state.players)) return;
+  const key = boardCardKey(card, -1, -1, -1);
+  if(!key) return;
+  state.players.forEach(player=>{
+    if(!player) return;
+    ['hand','deck','discard'].forEach(pileName=>{
+      const pile = player[pileName];
+      if(!Array.isArray(pile)) return;
+      for(let i = pile.length - 1; i >= 0; i -= 1){
+        if(boardCardKey(pile[i], -1, -1, -1) === key) pile.splice(i, 1);
+      }
+    });
+  });
+}
+
+function preferMoreBoardCards(currentState, proposedState){
+  if(!currentState || !proposedState) return {state:proposedState, repaired:false, restored:0};
+  const currentEntries = boardCardEntries(currentState.board);
+  const proposedEntries = boardCardEntries(proposedState.board);
+  if(currentEntries.length <= proposedEntries.length) return {state:proposedState, repaired:false, restored:0};
+  const proposedKeys = new Set(proposedEntries.map(entry=>entry.key));
+  const repaired = cloneState(proposedState);
+  let restored = 0;
+  currentEntries.forEach(entry=>{
+    if(!entry.key || proposedKeys.has(entry.key)) return;
+    const row = ensureStateBoardCell(repaired, entry.z, entry.r, entry.c);
+    if(!row || row[entry.c]) return;
+    const card = cloneState(entry.card);
+    row[entry.c] = card;
+    removeCardFromPlayerPiles(repaired, card);
+    proposedKeys.add(entry.key);
+    restored += 1;
+  });
+  return restored > 0
+    ? {state:repaired, repaired:true, restored}
+    : {state:proposedState, repaired:false, restored:0};
+}
+
 function validateActionSpecificTransition(type, payload, postState){
   const playerIndex = Number(payload.playerIndex);
   const postCurrent = Number(postState.currentPlayer);
@@ -135,14 +207,16 @@ function validateProposedTransition(room, msg, opts){
   const type = String(msg.type || '').toUpperCase();
   const payload = msg.payload || {};
   if(type === 'FORFEIT') return {ok:true, canonicalState:room.canonicalState || null, canonicalHash:room.canonicalHash || ''};
-  const postState = payload.postState;
+  let postState = payload.postState;
   if(!postState) return {ok:false, reason:'accepted actions must include postState'};
+  const boardPreference = preferMoreBoardCards(room?.canonicalState, postState);
+  postState = boardPreference.state;
   const stateErr = validateCanonicalState(postState);
   if(stateErr) return {ok:false, reason:stateErr};
   const claimedHash = String(payload.stateHash || '');
   const computedHash = canonicalStateHash(postState);
   if(!claimedHash) return {ok:false, reason:'missing stateHash'};
-  if(claimedHash !== computedHash) return {ok:false, reason:'stateHash does not match postState'};
+  if(claimedHash !== computedHash && !boardPreference.repaired) return {ok:false, reason:'stateHash does not match postState'};
   const baseHash = String(payload.baseStateHash || payload.preStateHash || '');
   const currentHash = String(room.canonicalHash || '');
   if(currentHash){
@@ -151,7 +225,15 @@ function validateProposedTransition(room, msg, opts){
   }
   const actionErr = validateActionSpecificTransition(type, payload, postState);
   if(actionErr) return {ok:false, reason:actionErr};
-  return {ok:true, canonicalState:postState, canonicalHash:computedHash, baseStateHash:baseHash};
+  return {
+    ok:true,
+    canonicalState:postState,
+    canonicalHash:computedHash,
+    baseStateHash:baseHash,
+    serverReduced:!!boardPreference.repaired,
+    boardPreferenceRepaired:boardPreference.repaired,
+    boardCardsRestored:boardPreference.restored
+  };
 }
 
 function validateActionResultTransition(room, msg, opts){
@@ -1443,7 +1525,7 @@ function collectServerReactionOptions(state, sourceCard, sourceOwner, family, so
         const card = row[c];
         if(!card || Number(card.owner) !== reactor || isFaceDownServerCard(card) || card.immuneFlag === true) continue;
         if(String(card.id || '') === '56'){
-          if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 5;
+          if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 3;
           if(Number(card.usesLeft || 0) > 0) options.push(serverReactionOptionForBoardCard('lydia', card, z, r, c));
         }
         if((isSupporterWhenSet || isInitiatorWhenSet) && String(card.id || '') === '67'){
@@ -1551,7 +1633,7 @@ function selectedReactionOption(state, pending, payload){
   if(!cardMatchesPayloadIdentity(card, candidate.card)) return {error:'REACTION_CHOICE source identity mismatch'};
   if(Number(card.owner) !== Number(pending.playerIndex)) return {error:'REACTION_CHOICE source owner mismatch'};
   if(String(card.id || '') === '56' && String(candidate.kind || '') === 'lydia'){
-    if(Number(card.usesLeft ?? 5) <= 0) return {error:'Lydia has no uses remaining'};
+    if(Number(card.usesLeft ?? 3) <= 0) return {error:'Lydia has no uses remaining'};
     return {option:candidate, card, z, r, c};
   }
   if(String(card.id || '') === '67' && String(candidate.kind || '') === 'secules'){
@@ -2131,8 +2213,8 @@ function applyAnickaStarlitPathPlacementBonus(state, inst, playerIndex, z){
     String(card.iid || '') !== String(inst.iid || '') &&
     !card.faceDown
   ).forEach(entry=>{
-    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 3);
-    inst._starlitPathBonus = (Number(inst._starlitPathBonus || 0) || 0) + 3;
+    inst.currentFate = Math.max(0, (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + 4);
+    inst._starlitPathBonus = (Number(inst._starlitPathBonus || 0) || 0) + 4;
     inst._lastStarlitPathSource = entry.card.iid || null;
     applied += 1;
   });
@@ -3067,7 +3149,7 @@ function applySupportedWhenSetState(state, inst, playerIndex, z, r, c){
       minCount:1,
       maxCount:1,
       filterType:'Supporter',
-      fatePerCard:3,
+      fatePerCard:5,
       oncePerTurn:true
     });
     if(pending && pending.ok === false) return pending;
@@ -3140,7 +3222,7 @@ function applySupportedWhenSetState(state, inst, playerIndex, z, r, c){
   if(id === '43') setPendingMarkKemperSafeSquare(state, inst, playerIndex, z, r, c);
   if(id === '28' && !inst._plUsesLeft) inst._plUsesLeft = 2;
   if(id === '47') inst._greatOakBonus = true;
-  if(id === '56') inst.usesLeft = 5;
+  if(id === '56') inst.usesLeft = 3;
   if(id === '67' && (inst.usesLeft === null || inst.usesLeft === undefined)) inst.usesLeft = inst._seculesUsed ? 0 : 1;
   if(id === '76'){
     inst.currentFate = 5;
@@ -3350,7 +3432,7 @@ function applyRozsiPassiveForMove(state, movedCard, destZ){
     if(!Array.isArray(row)) return;
     row.forEach(cell=>{
       if(cell && String(cell.id || '') === '34' && Number(cell.owner) === Number(movedCard.owner) && !isSupporterEffectSuppressedForState(state, cell)){
-        bonus += 2;
+        bonus += 3;
       }
     });
   });
@@ -3802,7 +3884,7 @@ function applyDeterranceForTributeZones(state, chosenTributes, playerIndex, targ
         if(cell && String(cell.id || '') === '36' && Number(cell.owner) !== playerIndex){
           if(!state.fateModifiers || typeof state.fateModifiers !== 'object') state.fateModifiers = {};
           const key = `deterrance_z${z}`;
-          state.fateModifiers[key] = (Number(state.fateModifiers[key] || 0) || 0) - 3;
+          state.fateModifiers[key] = (Number(state.fateModifiers[key] || 0) || 0) - 4;
         }
       });
     });
@@ -4473,6 +4555,7 @@ function reduceHandAction(room, msg, options){
   const payload = msg.payload || {};
   const fn = String(payload.fn || '');
   if(fn === 'placeSelected') return reducePlaceSelected(room, msg, options);
+  if(fn === 'setMajaFromDeck') return reduceSetMajaFromDeck(room, msg, options);
   if(fn === 'activateWineCountryGuerillaFromHand') return reduceActivateWineCountryGuerillaFromHand(room, msg, options);
   if(fn === 'activateSelvaIslandsPirateFromHand') return reduceActivateSelvaIslandsPirateFromHand(room, msg, options);
   if(fn === 'activateSantaAnnaProsperityFromHand') return reduceActivateSantaAnnaProsperityFromHand(room, msg, options);
@@ -4494,6 +4577,37 @@ function reduceBoardAction(room, msg, options){
   if(fn === 'activateLandscapeEventideMove') return reduceActivateLandscapeEventideMove(room, msg, options);
   if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for BOARD_ACTION ${fn || '(unknown)'}`};
   return validateProposedTransition(room, msg, options);
+}
+
+function reduceSetMajaFromDeck(room, msg, options){
+  const payload = msg.payload || {};
+  const base = verifyBaseHash(room, payload, options);
+  if(!base.ok) return base;
+  const state = cloneCanonicalState(room, options);
+  if(!state) return {ok:false, reason:'server canonical state is not initialized'};
+  if(isComplexClickState(state)) return {ok:false, reason:'Maja has an unsupported pending interaction'};
+  const playerIndex = Number(payload.playerIndex);
+  if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
+  if(Number(state.currentPlayer) !== playerIndex) return {ok:false, reason:'Maja player does not have priority'};
+  if(String(state.phase || '') !== 'main') return {ok:false, reason:'Maja requires main phase'};
+  const player = state.players?.[playerIndex];
+  if(!player || !Array.isArray(player.deck) || !Array.isArray(player.hand)) return {ok:false, reason:'player deck or hand state is invalid'};
+  const deckIndex = player.deck.findIndex(card=>String(card?.id || '') === '07');
+  if(deckIndex < 0) return {ok:false, reason:'No Maja Kaminska in deck'};
+  const [card] = player.deck.splice(deckIndex, 1);
+  if(!card) return {ok:false, reason:'Maja deck card was not found'};
+  card.effectUsedInitial = false;
+  card._effectTurnLocked = false;
+  card._effectNegatedByReaction = false;
+  card.whenSetActivated = false;
+  card._linaFree = true;
+  card._freePlacementCinematicKind = 'majaDeckSet';
+  player.hand.push(card);
+  state.selectedHandCard = null;
+  state.selectedBoardCard = null;
+  state.placing = false;
+  state.blockingCell = false;
+  return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
 function boardActionSourceForState(state, payload, playerIndex, label){
@@ -4561,7 +4675,7 @@ function reduceTriggerCharacterEffect(room, msg, options){
       minCount:1,
       maxCount:1,
       filterType:'Supporter',
-      fatePerCard:3,
+      fatePerCard:5,
       oncePerTurn:true
     });
     if(pending && pending.ok === false) return pending;
@@ -6179,7 +6293,7 @@ function reduceReactionChoice(room, msg, options){
     if(String(source.card.type || '') === 'Supporter') source.card._reactionSuppressed = true;
     source.card._effectNegatedByReaction = true;
   } else if(String(selected.option.kind || '') === 'lydia'){
-    selected.card.usesLeft = Math.max(0, (Number(selected.card.usesLeft ?? 5) || 0) - 1);
+    selected.card.usesLeft = Math.max(0, (Number(selected.card.usesLeft ?? 3) || 0) - 1);
     source.card._lydiaSuppressed = true;
     source.card._effectNegatedByReaction = true;
   } else if(String(selected.option.kind || '') === 'secules'){

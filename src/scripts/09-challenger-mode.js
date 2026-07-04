@@ -3366,7 +3366,6 @@ function openCdbSaveAsNewDialog() {
         <label>Deck Name<input id="cdb-save-name" maxlength="36" value="${escapeHtml(defaultName)}"></label>
         <label>Description<textarea id="cdb-save-desc" maxlength="120">${escapeHtml(_cdbCurrentDesc || '')}</textarea></label>
         ${renderDeckThemeSelector(_cdbCurrentTheme || 'Hybrid', 'cdb-save-theme')}
-        <div class="cdb-save-note">Choose one face card and up to seven display cards before saving.</div>
       </div>
     </div>
     <div class="cdb-save-section">
