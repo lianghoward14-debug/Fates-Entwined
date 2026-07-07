@@ -692,8 +692,7 @@
     payload.stateHash = onlineCanonicalStateHash(safeState);
     return payload;
   }
-  function applyOnlineCanonicalState(state, reason){
-    const action = arguments[2];
+  function applyOnlineCanonicalState(state, reason, action){
     const g = gameState();
     if(!g || !state) return false;
     state = preferMoreOnlineBoardCards(state, g.board, reason || 'online-authoritative-state', action);
@@ -833,7 +832,7 @@
         window.applyGameBackground(song);
       }
     }
-    if(typeof invalidateFateRenderCaches === 'function') invalidateFateRenderCaches();
+    if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
     enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
     syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');

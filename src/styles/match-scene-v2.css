@@ -168,9 +168,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip {
   background: transparent !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
-  overflow: hidden !important;
-  contain: layout paint style !important;
-  scrollbar-width: none !important;
+  overflow: visible !important;
   pointer-events: none !important;
   z-index: 72 !important;
 }
@@ -434,9 +432,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards {
   background: transparent !important;
   box-shadow: none !important;
   pointer-events: none !important;
-  overflow: hidden !important;
-  contain: layout paint style !important;
-  scrollbar-width: none !important;
+  overflow: visible !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards .hc {
@@ -501,26 +497,25 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-
   box-sizing: border-box !important;
   outline: 0 !important;
   box-shadow: none !important;
-  transition: none !important;
-  contain: layout paint style !important;
+  transition: transform .12s ease, box-shadow .12s ease !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-slot:hover,
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-slot:focus-visible {
   transform: none !important;
   border-color: rgba(255,226,100,.72) !important;
-  outline: 0 !important;
+  outline: 1px solid rgba(255,226,100,.48) !important;
   outline-offset: -3px !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 1px rgba(255,246,184,.24) inset, 0 0 8px rgba(255,216,92,.22) !important;
   filter: none !important;
 }
 
 html.fate-animations-off.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-slot:hover,
 html.fate-animations-off.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-slot:focus-visible {
   border-color: rgba(255,226,100,.72) !important;
-  outline: 0 !important;
+  outline: 1px solid rgba(255,226,100,.48) !important;
   outline-offset: -3px !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 1px rgba(255,246,184,.24) inset, 0 0 8px rgba(255,216,92,.22) !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .pile-slot .pile-cards {

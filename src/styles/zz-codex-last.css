@@ -9225,6 +9225,121 @@ html body #modal .modal.daily-login-modal .dlr-reward.is-booster span{
   line-height:1!important;
 }
 
+/* Daily login rewards use a banner image strip, with rewards below on the modal panel. */
+html body #modal .modal.daily-login-modal{
+  width:min(860px,calc(100vw - 32px))!important;
+  max-width:860px!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(620px,92vh)!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(7,10,17,.99),rgba(3,5,10,.99))!important;
+  box-shadow:0 24px 72px rgba(0,0,0,.76),0 0 0 1px rgba(126,213,255,.08) inset!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-title,
+html body #modal .modal.daily-login-modal #modal-body,
+html body #modal .modal.daily-login-modal #modal-acts{
+  flex:0 0 auto!important;
+  min-height:0!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-body,
+html body #modal .modal.daily-login-modal .modal-body{
+  display:block!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+
+html body #modal .modal.daily-login-modal #modal-acts,
+html body #modal .modal.daily-login-modal .modal-acts{
+  margin-top:.72rem!important;
+  padding-top:0!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell{
+  position:relative!important;
+  isolation:isolate!important;
+  display:grid!important;
+  grid-template-rows:142px auto auto!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:.72rem!important;
+  padding:.78rem!important;
+  border:1px solid rgba(245,211,112,.28)!important;
+  border-radius:8px!important;
+  background:#080b12!important;
+  overflow:hidden!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-bg-img{
+  display:block!important;
+  position:relative!important;
+  grid-row:1!important;
+  grid-column:1!important;
+  inset:auto!important;
+  z-index:0!important;
+  width:100%!important;
+  height:142px!important;
+  min-height:142px!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+  border-radius:8px!important;
+  object-fit:cover!important;
+  object-position:center 42%!important;
+  opacity:1!important;
+  filter:saturate(1.08) contrast(1.04) brightness(.98)!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell::before{
+  content:none!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:1!important;
+  display:none!important;
+  background:none!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell::after{
+  content:none!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:2!important;
+  display:none!important;
+  background:none!important;
+  pointer-events:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-shell > *:not(.daily-login-bg-img){
+  position:relative!important;
+  z-index:1!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-hero{
+  grid-row:1!important;
+  grid-column:1!important;
+  align-self:stretch!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 104px!important;
+  align-items:center!important;
+  gap:.9rem!important;
+  margin:0!important;
+  padding:.88rem .95rem!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+  border-radius:8px!important;
+  background:linear-gradient(90deg,rgba(5,8,14,.9),rgba(8,11,18,.48) 48%,rgba(4,6,12,.72))!important;
+  box-shadow:none!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-grid{
+  grid-row:2!important;
+}
+
+html body #modal .modal.daily-login-modal .daily-login-note{
+  grid-row:3!important;
+}
+
 html body #modal .modal.daily-login-modal .daily-login-meter span,
 html body #modal .modal.daily-login-modal .daily-login-meter small{
   color:#fff1a8!important;
