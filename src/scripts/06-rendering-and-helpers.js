@@ -462,10 +462,10 @@ function isElectronCardImageRuntime() {
 function getRuntimeCardImageSrc(src, role) {
   if(!src) return src;
   const raw = String(src);
-  const m = raw.match(/^([A-Za-z0-9_-]+)\.png$/);
+  const m = raw.match(/^([A-Za-z0-9_-]+)\.png([?#].*)?$/);
   if(!m) return raw;
   if(isElectronCardImageRuntime() && (role === 'hand' || role === 'detail' || role === 'full')) return raw;
-  return 'optimized/card-thumbs/' + m[1] + '.jpg';
+  return 'optimized/card-thumbs/' + m[1] + '.jpg' + (m[2] || '');
 }
 function getFullCardImageFallbackSrc(src) {
   if(!src) return '';

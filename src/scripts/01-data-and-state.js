@@ -28,7 +28,7 @@ const CARDS = [
   {id:'05',name:'17th British Regiment of Africa',ability:'Liberators of Rwanda',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, select one card in this card\'s zone; it gains 3 Fate permanently.',
-    flavor:'"The first into Rwanda, and the last out"',img:'5.png'},
+    flavor:'"The first into Rwanda, and the last out"',img:'5.png?v=card5-0f83ee2'},
   {id:'06',name:'Jorge Alvarez',ability:'The West Caribbea Trading Company',type:'Initiator',aff:'eventide',
     fate:1,cost:1,rarity:'square',
     effect:'Search the deck for a card and add it to your hand. You cannot add Star cards.',
