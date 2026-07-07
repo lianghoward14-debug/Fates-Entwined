@@ -446,7 +446,17 @@
     while(state.board[z][r].length <= c) state.board[z][r].push(null);
     return state.board[z][r];
   }
-  function preferMoreOnlineBoardCards(incomingState, localBoard, reason){
+  function shouldPreferMoreOnlineBoardCardsForAction(action){
+    const type = String(action?.type || '').toUpperCase();
+    const payload = action?.payload || {};
+    const actionKind = String(payload.actionKind || payload.originalType || '').toUpperCase();
+    const effectiveType = type === 'ACTION_RESULT' && actionKind ? actionKind : type;
+    if(effectiveType === 'PLACE_CARD') return true;
+    if(effectiveType === 'CLICK_CELL') return !!payload.placing;
+    return false;
+  }
+  function preferMoreOnlineBoardCards(incomingState, localBoard, reason, action){
+    if(!shouldPreferMoreOnlineBoardCardsForAction(action)) return incomingState;
     if(!incomingState || !Array.isArray(localBoard)) return incomingState;
     const localEntries = onlineBoardCardEntries(localBoard);
     const incomingEntries = onlineBoardCardEntries(incomingState.board);
@@ -652,6 +662,28 @@
       return false;
     }
   }
+  function clearOnlinePendingPromptUi(g, reason){
+    if(!g) return;
+    const hadPendingUi = !!(
+      g._onlinePendingModalActions ||
+      g._onlinePendingPickCardsVisual ||
+      g._onlinePendingZonePicker ||
+      g._onlinePendingAffiliationPicker ||
+      g._onlinePendingLandscapeZonePicker
+    );
+    g._onlinePendingModalActions = null;
+    g._onlinePendingPickCardsVisual = null;
+    g._onlinePendingZonePicker = null;
+    g._onlinePendingAffiliationPicker = null;
+    g._onlinePendingLandscapeZonePicker = null;
+    if(hadPendingUi) {
+      g._onlineShownServerCardPickPromptId = '';
+      g._onlineShownServerZonePickPromptId = '';
+      g._onlineShownServerMovePromptId = '';
+      g._onlineShownServerModalPromptId = '';
+      recordOnlineDiagnostic('online-pending-ui-cleared', {reason:String(reason || '')});
+    }
+  }
   function attachOnlinePostState(payload){
     const state = captureOnlineCanonicalState();
     if(!state) return payload;
@@ -661,12 +693,22 @@
     return payload;
   }
   function applyOnlineCanonicalState(state, reason){
+    const action = arguments[2];
     const g = gameState();
     if(!g || !state) return false;
-    state = preferMoreOnlineBoardCards(state, g.board, reason || 'online-authoritative-state');
+    state = preferMoreOnlineBoardCards(state, g.board, reason || 'online-authoritative-state', action);
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
     const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase, _turnStartedAt:g._turnStartedAt};
     const previousBoard = collectOnlineBoardSnapshot(g.board);
+    const authoritativeHasServerPending = !!(
+      state.pendingInteraction ||
+      state._serverPendingReaction ||
+      state._serverPendingModalAction ||
+      state._serverPendingZonePick ||
+      state._serverPendingMove ||
+      state._serverPendingCardPick ||
+      state._consolidating
+    );
     const keep = {
       _onlineRoomCode:g._onlineRoomCode,
       _onlineRole:g._onlineRole,
@@ -720,13 +762,17 @@
       g._consolidating.colomboRestrictionZones = new Set(g._consolidating.colomboRestrictionZones);
     }
     if(previousTurnState && (Number(previousTurnState.turn) !== Number(g.turn) || Number(previousTurnState.currentPlayer) !== Number(g.currentPlayer))){
-      g._consolidating = null;
+      if(!authoritativeHasServerPending) g._consolidating = null;
       g._busserMoving = null;
       g._busserMovingCard = null;
-      g._serverPendingMove = null;
-      g._serverPendingZonePick = null;
-      g._serverPendingCardPick = null;
-      g._serverPendingModalAction = null;
+      if(!authoritativeHasServerPending){
+        g._serverPendingMove = null;
+        g._serverPendingZonePick = null;
+        g._serverPendingCardPick = null;
+        g._serverPendingModalAction = null;
+        g._serverPendingReaction = null;
+        g.pendingInteraction = null;
+      }
       g._boardTargeting = null;
       g._markSelecting = null;
       g._havanoDeploying = null;
@@ -741,7 +787,7 @@
     Object.assign(g, keep);
     if(isOnlineMatchState(g) && Number.isInteger(g._onlinePlayerIndex) && Number(g.currentPlayer) !== Number(g._onlinePlayerIndex)){
       const hadLocalTransient = !!(
-        g._consolidating ||
+        (!authoritativeHasServerPending && g._consolidating) ||
         g._wolfCreekMoving ||
         g._expMoving ||
         g._berkeleyMoving ||
@@ -756,7 +802,7 @@
         g.selectedHandCard !== null ||
         g.selectedBoardCard !== null
       );
-      g._consolidating = null;
+      if(!authoritativeHasServerPending) g._consolidating = null;
       g._wolfCreekMoving = null;
       g._expMoving = null;
       g._berkeleyMoving = null;
@@ -773,6 +819,11 @@
       g.blockingCell = false;
       if(hadLocalTransient && typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
     }
+    const localIndex = Number.isInteger(g._onlinePlayerIndex) ? Number(g._onlinePlayerIndex) : null;
+    const pendingPlayer = Number(g.pendingInteraction?.playerIndex);
+    if(localIndex !== null && (!authoritativeHasServerPending || (Number.isInteger(pendingPlayer) && pendingPlayer !== localIndex))){
+      clearOnlinePendingPromptUi(g, authoritativeHasServerPending ? 'pending belongs to opponent' : 'no authoritative pending prompt');
+    }
     if(g.landscapeBgNum && typeof window.applyGameBackground === 'function') {
       const song = 'board' + g.landscapeBgNum;
       g._onlineGameSong = song;
@@ -782,7 +833,7 @@
         window.applyGameBackground(song);
       }
     }
-    if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+    if(typeof invalidateFateRenderCaches === 'function') invalidateFateRenderCaches();
     enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
     syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
@@ -800,7 +851,7 @@
       maybePlayMatchingHashFreePlacementCinematic(reason || ('matching postState seq ' + (action?.seq || '?')));
       return false;
     }
-    const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')));
+    const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')), action);
     if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
   }
@@ -845,7 +896,7 @@
       return false;
     }
     const previousBoard = collectOnlineBoardSnapshot(gameState()?.board);
-    const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')), action);
     if(applied) maybePlayOnlineConsolidationCinematic(gameState(), previousBoard, action, reason || ('authoritative postState seq ' + (action?.seq || '?')));
     if(applied) setTimeout(maybeShowServerPendingPrompts, 0);
     return applied;
@@ -1196,7 +1247,7 @@
     if(kind === 'hemorrhagingWound') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
-    if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter';
+    if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, playerIndex));
     if(kind === 'mariaSongCopies') return Number(card.owner) === opponent;
     if(kind === 'vigilantesMark') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'wolfCreekSelectMoveTarget') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && card.cantBeMoved !== true && (!sourceIid || String(card.iid || '') !== sourceIid);
@@ -1559,6 +1610,23 @@
     if(!card) return false;
     await window.showEffectActivationCinematic(card, {remote:true, source:source || 'online-payload-effect-cinematic'});
     return true;
+  }
+  function playOnlineRemoteActionSound(type, payload, action){
+    const localUid = window.FATE_ONLINE?.user?.uid;
+    if(!action || action.uid === localUid || typeof window.playSfx !== 'function') return;
+    const actionType = String(type || action.type || '').toUpperCase();
+    const fnName = String(payload?.fn || '');
+    const remoteEffectActivation =
+      (actionType === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
+      (actionType === 'MODAL_ACTION' && !!payload?.effectCinematic) ||
+      (actionType === 'HAND_ACTION' && (/^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName) || /^setMajaFromDeck$/i.test(fnName)));
+    if(remoteEffectActivation && typeof window.playEffectActivationClickSfx === 'function') {
+      window.playEffectActivationClickSfx({remote:true});
+    } else if(remoteEffectActivation) {
+      window.playSfx('effectActivate');
+    } else {
+      window.playSfx('onlineRemote');
+    }
   }
   function findBoardEntryForPayload(entries, payload){
     if(!payload) return null;
@@ -2103,6 +2171,8 @@
         localPending:clientResolvedLocalCommitPending,
         commitInFlight:clientResolvedCommitInFlight
       });
+      if(window.toast) toast('Resolving effect. Please wait.');
+      return false;
     }
     if(g._onlineLagPauseActive){
       if(clientResolvedGameplayEnabled()){
@@ -3155,7 +3225,7 @@
           name:deck.name || key,
           description:deck.description || deck.desc || 'Custom deck',
           faceCardId:deck.faceCardId || '',
-          displayCardIds:Array.isArray(deck.displayCardIds) ? deck.displayCardIds.slice(0,7) : [],
+          displayCardIds:Array.isArray(deck.displayCardIds) ? deck.displayCardIds.slice(0,5) : [],
           ids
         });
       }
@@ -3210,8 +3280,8 @@
           ? sampleCards.find(c=>c.id === opt.faceCardId) || sampleCards[0]
           : (sampleCards.slice().sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
         const displayCards = opt.displayCardIds && opt.displayCardIds.length
-          ? opt.displayCardIds.map(id=>sampleCards.find(c=>c.id === id)).filter(c=>c&&c.img).slice(0,7)
-          : sampleCards.filter(c=>c.img).slice(0,7);
+          ? opt.displayCardIds.map(id=>sampleCards.find(c=>c.id === id)).filter(c=>c&&c.img).slice(0,5)
+          : sampleCards.filter(c=>c.img).slice(0,5);
         const tile = document.createElement('div');
         tile.className = 'preset-browse-tile fixed-deck-tile';
         tile.style.height = '480px';
@@ -3582,6 +3652,9 @@
         }
       });
       const room = normalizeFlyRoom(data.room);
+      if(room.hostUid === u.uid && !room.guestUid && !opts.allowStarted){
+        if(!quiet && window.toast) toast('This session is already the host. Use a separate Electron guest session or another account to join.');
+      }
       if(room.status !== 'lobby' && !opts.allowStarted){
         if(!quiet && window.toast) toast('Room already started');
         return false;
@@ -3755,7 +3828,12 @@
       if(!quiet && window.toast) toast('Room already started');
       return false;
     }
-    if(room.hostUid === u.uid){ watchRoom(code, {silent:!!opts.silent}); startConnectionHeartbeat(code, u.uid); return true; }
+    if(room.hostUid === u.uid){
+      if(!quiet && window.toast) toast('This session is already the host. Use a separate Electron guest session or another account to join.');
+      watchRoom(code, {silent:!!opts.silent});
+      startConnectionHeartbeat(code, u.uid);
+      return true;
+    }
     let staleGuestUid = null;
     if(room.guestUid && room.guestUid !== u.uid){
       const guest = (await FO.get(FO.ref(FO.rtdb, `rooms/${code}/players/${room.guestUid}`))).val();
@@ -4350,12 +4428,20 @@
       }
       return;
     }
+    const localUid = window.FATE_ONLINE?.user?.uid;
     if(shouldApplyServerStateDirectly(type, payload)){
+      if(action.uid !== localUid) {
+        if(type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || ''))) {
+          await showPayloadEffectCinematic(g, payload, 'online-direct-board-effect-cinematic');
+        } else if(type === 'MODAL_ACTION' && payload.effectCinematic) {
+          await showPayloadEffectCinematic(g, payload, 'online-direct-modal-effect-cinematic');
+        }
+      }
+      playOnlineRemoteActionSound(type, payload, action);
       applyAuthoritativePostState(action, 'client-resolved authoritative state seq ' + (action.seq || '?'));
       return;
     }
     const actionPlayer = onlineActionPlayer(action);
-    const localUid = window.FATE_ONLINE?.user?.uid;
     const optimisticActionId = optimisticActionIdFor(action);
     if(action.uid === localUid && optimisticActionId && optimisticAppliedActionIds.has(optimisticActionId)){
       acknowledgeAuthoritativeAction(action, 'local optimistic acknowledgement seq ' + (action.seq || '?'));
@@ -4476,20 +4562,7 @@
     g._placementUiLockUntil = 0;
     g._reactionPending = false;
 
-    if(action.uid !== localUid && typeof window.playSfx === 'function') {
-      const fnName = String(payload?.fn || '');
-      const remoteEffectActivation =
-        (type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
-        (type === 'MODAL_ACTION' && !!payload?.effectCinematic) ||
-        (type === 'HAND_ACTION' && (/^activate(WineCountryGuerilla|SelvaIslandsPirate|SantaAnnaProsperity)FromHand$/i.test(fnName) || /^setMajaFromDeck$/i.test(fnName)));
-      if(remoteEffectActivation && typeof window.playEffectActivationClickSfx === 'function') {
-        window.playEffectActivationClickSfx({remote:true});
-      } else if(remoteEffectActivation) {
-        window.playSfx('effectActivate');
-      } else {
-        window.playSfx('onlineRemote');
-      }
-    }
+    playOnlineRemoteActionSound(type, payload, action);
 
     if(shouldApplyServerStateDirectly(type, payload)){
       applyAuthoritativePostState(action, 'buffered authoritative state seq ' + (action.seq || '?'));
@@ -5677,7 +5750,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.initiateConsolidate.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'START_CONSOLIDATE')) return;
         const args = arguments;
         return sendOptimisticAction('START_CONSOLIDATE', {
           playerIndex:g.currentPlayer,
@@ -5812,6 +5885,7 @@
         const wrappedActions = actions.map((action, actionIndex)=>Object.assign({}, action, {
           action:()=>{
             const pendingModal = gameState()?._serverPendingModalAction || null;
+            if(!canSendLocalAction(gameState(), 'MODAL_ACTION')) return;
             return sendOptimisticAction('MODAL_ACTION', {
               playerIndex:g.currentPlayer,
               turn:g.turn,
@@ -5843,7 +5917,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_CARDS_VISUAL')) return;
           const pendingPick = latest?._serverPendingCardPick || null;
           return sendOptimisticAction('PICK_CARDS_VISUAL', {
             playerIndex:latest.currentPlayer,
@@ -5871,7 +5945,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
@@ -5901,7 +5975,7 @@
         const wrappedConfirm = (chosen)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
           return sendOptimisticAction('PICK_ZONE', {
             playerIndex:latest.currentPlayer,
@@ -5918,7 +5992,7 @@
               if(typeof originalCancel === 'function') return originalCancel();
               return onConfirm([]);
             }
-            if(!canSendLocalAction(latest)) return;
+            if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
             const pendingPick = latest?._serverPendingZonePick || null;
             return sendOptimisticAction('PICK_ZONE', {
               playerIndex:latest.currentPlayer,
@@ -5950,7 +6024,7 @@
         const wrappedCallback = (aff)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return callback(aff);
-          if(!canSendLocalAction(latest)) return;
+          if(!canSendLocalAction(latest, 'PICK_AFFILIATION')) return;
           const pendingModal = latest?._serverPendingModalAction || null;
           return sendOptimisticAction('PICK_AFFILIATION', {
             playerIndex:latest.currentPlayer,
@@ -6087,7 +6161,7 @@
 
     window.__fateSendEffectActivationCinematic = function(card, z, r, c, opts){
       const g = gameState();
-      if(!canSendLocalAction(g)) return false;
+      if(!canSendLocalAction(g, 'EFFECT_CINEMATIC')) return false;
       if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
       const boardCard = g.board?.[z]?.[r]?.[c] || card || null;
       const payload = {
@@ -6110,7 +6184,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.setMajaFromDeck.apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'HAND_ACTION')) return;
         return sendOptimisticAction('HAND_ACTION', {
           fn:'setMajaFromDeck',
           playerIndex:g.currentPlayer,
@@ -6128,7 +6202,7 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals[fnName].apply(this, arguments);
         }
-        if(!canSendLocalAction(g)) return;
+        if(!canSendLocalAction(g, 'HAND_ACTION')) return;
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {
           fn:fnName,

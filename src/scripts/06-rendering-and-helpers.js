@@ -980,6 +980,13 @@ function applyOpponentHandDensity(container, count) {
   container.classList.toggle('opp-hand-compact', handCount >= 8);
   container.classList.toggle('opp-hand-nine-plus', handCount >= 9);
   container.classList.toggle('opp-hand-ten-plus', handCount >= 10);
+  if(handCount === 9) {
+    container.style.setProperty('--opp-hand-card-w', '68px');
+    container.style.setProperty('--opp-hand-card-h', '95px');
+  } else {
+    container.style.removeProperty('--opp-hand-card-w');
+    container.style.removeProperty('--opp-hand-card-h');
+  }
 }
 
 var _pointerDown = false;
@@ -3574,36 +3581,18 @@ function renderTopbarEffects() {
   const marieCard = CARDS.find(c => c.id === '36');
   forEachBoardCard((c, z) => {
     if(c && c.id === '36' && !isFaceDownCard(c)) {
-      const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + z] || 0)) / 2));
+      const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + z] || 0)) / 4));
       allEffects.push({
         icon: getStatusEffectIcon('marie_deterrence'),
         label: marieCard ? marieCard.ability : 'Deterrance',
         cardName: marieCard ? marieCard.name : "Marie L'amboure",
         cardAbility: marieCard ? marieCard.ability : 'Deterrance',
-        cardEffect: marieCard ? marieCard.effect : "Opponent consolidations in this zone reduce that zone's total Fate by 2.",
+        cardEffect: marieCard ? marieCard.effect : "Opponent consolidations in this zone reduce that zone's total Fate by 4.",
         owner: c.owner,
         extraClass: 'effect-pill-marie'
       });
     }
   });
-
-  const shieldWallOwnerCounts = {};
-  forEachBoardCard(c => {
-    if(c.id === '20' && !isFaceDownCard(c)) shieldWallOwnerCounts[c.owner] = (shieldWallOwnerCounts[c.owner] || 0) + 1;
-  });
-  if(Object.keys(shieldWallOwnerCounts).length){
-    const swCard = CARDS.find(c => c.id === '20');
-    Object.entries(shieldWallOwnerCounts).forEach(([owner, count]) => {
-      allEffects.push({
-        icon: getStatusEffectIcon('shield_wall'),
-        label: swCard ? swCard.ability : 'Shield Wall',
-        cardName: swCard ? swCard.name : 'South Wind Spearman',
-        cardAbility: swCard ? swCard.ability : 'Shield Wall',
-        cardEffect: swCard ? swCard.effect : 'Cards in this zone cannot have their Fate reduced and cannot be moved while this card remains on the field.',
-        owner: Number(owner)
-      });
-    });
-  }
 
   // Maja unlimited supporters
   if(G.majaEffectThisTurn) {
@@ -4361,10 +4350,10 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   } else if(card.id === '36') {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {
-      const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + pos.z] || 0)) / 2));
+      const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + pos.z] || 0)) / 4));
       label = 'Deterrance Reductions:';
       value = String(reductions);
-      sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 2) + ' total Fate';
+      sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 4) + ' total Fate';
     }
   } else if(card.id === '09') {
     const counts = Array.isArray(G.un5thUses) ? G.un5thUses : [0,0];
@@ -4382,7 +4371,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
     label = 'Hard Times Uses';
     value = (2 - uses) + ' / 2';
-    sub = uses + ' empowerment' + (uses === 1 ? '' : 's') + ' remaining';
+    sub = uses + ' Empowerment' + (uses === 1 ? '' : 's') + ' Remaining';
   } else if(card.id === '56') {
     const uses = Math.max(0, Number(card.usesLeft == null ? 5 : card.usesLeft) || 0);
     label = 'Berknomaly Uses';
@@ -4738,6 +4727,7 @@ function resetModalChrome() {
       'choose-deck-canonical-modal',
       'choose-deck-runtime-modal',
       'challenger-my-decks-modal',
+      'deck-slate-modal',
       'cdb-save-modal',
       'deck-inspect-compact-modal',
       'deck-art-editor-modal',
@@ -6069,7 +6059,7 @@ window.showMoveGridCardInfo = function(ev, idx){
 window.doMove=function(i){
   const dest=window._moveDests[i];const from=window._moveFrom;
   if(window._moveCard && (window._moveCard.id === '76' || window._moveCard.immuneFlag)){toast('this card is immune');closeModal();return;}
-  if(window._moveCard.cantBeMoved){toast('This card cannot be moved (Shield Wall)');closeModal();return;}
+  if(window._moveCard.cantBeMoved){toast('This card cannot be moved');closeModal();return;}
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;
   if(window._moveSourceCard && typeof markInitialEffectResolved === 'function') markInitialEffectResolved(window._moveSourceCard);
@@ -6698,7 +6688,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "2": "To the ends of the world",
   "3": "This reminds me of that one time we played the card game",
   "4": "You\u2019re very concerning",
-  "6": "In caribbea, the sun never sets",
+  "6": "In Caribbea, the sun never sets",
   "7": "Hey look over there, your divisions are encircled",
   "8": "I got fired from my job over Chinese lesbians",
   "10": "Eternity draws ever closer to nothingness",

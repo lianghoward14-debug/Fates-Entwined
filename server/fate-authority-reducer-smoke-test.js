@@ -437,6 +437,22 @@ const coordinatorAuraScore = scoreResultForBoard([
 ]);
 assert.strictEqual(coordinatorAuraScore.zones[0].s0, 7);
 
+const zsofiaStackScore = scoreResultForBoard([
+  [
+    [{id:'908z', iid:'zsofia-opp', owner:1, type:'Dauntless', currentFate:1}],
+    [],
+    [
+      {id:'15', iid:'zsofia-a', owner:0, type:'Coordinator', currentFate:1},
+      {id:'15', iid:'zsofia-b', owner:0, type:'Coordinator', currentFate:1},
+      {id:'57', iid:'zsofia-jeremiah', owner:0, type:'Coordinator', currentFate:1},
+      {id:'910z', iid:'zsofia-buffed-supporter', owner:0, type:'Supporter', currentFate:1}
+    ]
+  ],
+  [[{id:'911z', iid:'zsofia-z1-p1', owner:1, type:'Character', currentFate:1}], [], [{id:'912z', iid:'zsofia-z1-p0', owner:0, type:'Character', currentFate:2}]],
+  [[{id:'913z', iid:'zsofia-z2-p1', owner:1, type:'Character', currentFate:1}], [], [{id:'914z', iid:'zsofia-z2-p0', owner:0, type:'Character', currentFate:2}]]
+]);
+assert.strictEqual(zsofiaStackScore.zones[0].s0, 28);
+
 const seculesSuppressionScore = scoreResultForBoard([
   [
     [],
@@ -1295,6 +1311,28 @@ const suppressedRalphRejected = reduceServerAction({canonicalState:suppressedRal
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:ralphCatalog});
 assert.strictEqual(suppressedRalphRejected.ok, false);
 assert.match(suppressedRalphRejected.reason, /Need 3 reinforcement/);
+
+const diagonalRalphBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'106', iid:'h-106d', name:'Ralph Target', type:'Character', fate:6, cost:3}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[{id:'201', iid:'plain-diagonal-ralph', name:'Plain Supporter', type:'Supporter', fate:1, owner:0},null,null],[null,{id:'24', iid:'ralph-diagonal', name:"Ralph's Courtesy Clerk", type:'Supporter', fate:1, owner:0},null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:false,
+  selectedHandCard:0
+});
+const diagonalRalphHash = canonicalStateHash(diagonalRalphBase);
+const diagonalRalphRejected = reduceServerAction({canonicalState:diagonalRalphBase, canonicalHash:diagonalRalphHash}, msg('START_CONSOLIDATE', {
+  playerIndex:0,
+  turn:1,
+  selectedHand:{index:0, iid:'h-106d', id:'106'},
+  baseStateHash:diagonalRalphHash,
+  postState:diagonalRalphBase,
+  stateHash:diagonalRalphHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:ralphCatalog});
+assert.strictEqual(diagonalRalphRejected.ok, false);
+assert.match(diagonalRalphRejected.reason, /Need 3 reinforcement/);
 
 const artilleryCatalog = {byId:new Map([
   ['107', {id:'107', type:'Character', cost:1, effect:'', aff:''}],
@@ -4091,6 +4129,46 @@ assert.strictEqual(minaePick.canonicalState.board[0][1][1], null);
 assert.strictEqual(minaePick.canonicalState.players[1].discard.length, 1);
 assert.strictEqual(minaePick.canonicalState.players[1].discard[0].iid, 'minae-supporter');
 
+const minaeSouthWindBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'16', iid:'s-16-south-wind-place', name:'MINAE Death Squad', type:'Supporter', fate:1}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,{id:'20', iid:'minae-south-wind-target', name:'South Wind Spearman', type:'Supporter', owner:1, fate:1, currentFate:1},null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0]
+});
+const minaeSouthWindHash = canonicalStateHash(minaeSouthWindBase);
+const minaeSouthWindSet = reduceServerAction({canonicalState:minaeSouthWindBase, canonicalHash:minaeSouthWindHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-16-south-wind-place', id:'16'},
+  baseStateHash:minaeSouthWindHash,
+  postState:minaeSouthWindBase,
+  stateHash:minaeSouthWindHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(minaeSouthWindSet.ok, true, minaeSouthWindSet.reason);
+assert.strictEqual(minaeSouthWindSet.canonicalState._serverPendingZonePick.kind, 'minaeDiscardSupporter');
+const minaeSouthWindRejected = reduceServerAction({canonicalState:minaeSouthWindSet.canonicalState, canonicalHash:minaeSouthWindSet.canonicalHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  selectedEntries:[{z:0, r:1, c:1, card:{iid:'minae-south-wind-target', id:'20', name:'South Wind Spearman'}}],
+  baseStateHash:minaeSouthWindSet.canonicalHash,
+  postState:minaeSouthWindSet.canonicalState,
+  stateHash:minaeSouthWindSet.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(minaeSouthWindRejected.ok, false);
+assert.match(minaeSouthWindRejected.reason, /immune/);
+
 const woundSetBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[{id:'31', iid:'s-31-place', name:'Oathbound Noble Fighter', type:'Supporter', fate:1}], discard:[]},
@@ -4235,6 +4313,11 @@ assert.strictEqual(woundOwnPick.ok, true, woundOwnPick.reason);
 assert.strictEqual(woundOwnPick.canonicalState.board[0][1][1].currentFate, 2);
 
 const woundShieldBase = state(Object.assign({}, woundSetBase, {
+  board:[[
+    [null,null,null],
+    [null,{id:'301', iid:'wound-target', name:'Wound Target', type:'Character', owner:1, fate:3, currentFate:3},null],
+    [{id:'20', iid:'shield-wall-smoke', name:'South Wind Spearman', type:'Supporter', owner:0, fate:1, currentFate:1},null,null]
+  ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
   shieldWallZones:[0]
 }));
 const woundShieldHash = canonicalStateHash(woundShieldBase);
@@ -4251,7 +4334,7 @@ const woundShieldSet = reduceServerAction({canonicalState:woundShieldBase, canon
   stateHash:woundShieldHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(woundShieldSet.ok, true, woundShieldSet.reason);
-const woundShieldRejected = reduceServerAction({canonicalState:woundShieldSet.canonicalState, canonicalHash:woundShieldSet.canonicalHash}, msg('PICK_ZONE', {
+const woundShieldAllowed = reduceServerAction({canonicalState:woundShieldSet.canonicalState, canonicalHash:woundShieldSet.canonicalHash}, msg('PICK_ZONE', {
   playerIndex:0,
   turn:1,
   selectedEntries:[{z:0, r:1, c:1, card:{iid:'wound-target', id:'301', name:'Wound Target'}}],
@@ -4259,8 +4342,41 @@ const woundShieldRejected = reduceServerAction({canonicalState:woundShieldSet.ca
   postState:woundShieldSet.canonicalState,
   stateHash:woundShieldSet.canonicalHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(woundShieldRejected.ok, false);
-assert.match(woundShieldRejected.reason, /Shield Wall/);
+assert.strictEqual(woundShieldAllowed.ok, true, woundShieldAllowed.reason);
+assert.strictEqual(woundShieldAllowed.canonicalState.board[0][1][1].currentFate, 0);
+
+const southWindImmuneBase = state(Object.assign({}, woundSetBase, {
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'31', iid:'s-31-opp-place', name:'Oathbound Noble Fighter', type:'Supporter', fate:1}], discard:[]}
+  ],
+  currentPlayer:1,
+  board:[[ [null,null,null], [null,null,null], [{id:'20', iid:'south-wind-target', name:'South Wind Spearman', type:'Supporter', owner:0, fate:1, currentFate:1},null,null] ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]]
+}));
+const southWindImmuneHash = canonicalStateHash(southWindImmuneBase);
+const southWindWoundSet = reduceServerAction({canonicalState:southWindImmuneBase, canonicalHash:southWindImmuneHash}, msg('CLICK_CELL', {
+  playerIndex:1,
+  turn:1,
+  z:0,
+  r:0,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-31-opp-place', id:'31'},
+  baseStateHash:southWindImmuneHash,
+  postState:southWindImmuneBase,
+  stateHash:southWindImmuneHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(southWindWoundSet.ok, true, southWindWoundSet.reason);
+const southWindWoundRejected = reduceServerAction({canonicalState:southWindWoundSet.canonicalState, canonicalHash:southWindWoundSet.canonicalHash}, msg('PICK_ZONE', {
+  playerIndex:1,
+  turn:1,
+  selectedEntries:[{z:0, r:2, c:0, card:{iid:'south-wind-target', id:'20', name:'South Wind Spearman'}}],
+  baseStateHash:southWindWoundSet.canonicalHash,
+  postState:southWindWoundSet.canonicalState,
+  stateHash:southWindWoundSet.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(southWindWoundRejected.ok, false);
+assert.match(southWindWoundRejected.reason, /immune/);
 
 const suppressSetBase = state({
   players:[
@@ -4341,9 +4457,43 @@ const shieldWallSet = reduceServerAction({canonicalState:shieldWallBase, canonic
   stateHash:shieldWallHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(shieldWallSet.ok, true, shieldWallSet.reason);
-assert.deepStrictEqual(shieldWallSet.canonicalState.shieldWallZones, [0]);
-assert.strictEqual(shieldWallSet.canonicalState.board[0][2][0].cantBeMoved, true);
-assert.strictEqual(shieldWallSet.canonicalState.board[0][2][2].cantBeMoved, true);
+assert.deepStrictEqual(shieldWallSet.canonicalState.shieldWallZones, []);
+assert.notStrictEqual(shieldWallSet.canonicalState.board[0][2][0].cantBeMoved, true);
+assert.notStrictEqual(shieldWallSet.canonicalState.board[0][2][2].cantBeMoved, true);
+
+const southWindIgnoresLocksBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'20', iid:'s-20-through-locks', name:'South Wind Spearman', type:'Supporter', fate:1}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,null,{id:'14', iid:'opp-alondra-lock', name:'Alondra Hopkins', type:'Dauntless', owner:1, fate:12, currentFate:12}],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  blockedCells:[{z:0,r:2,c:2,type:'carolyn',owner:1,blockedPlayer:null}],
+  _artilleryLockedZone:0,
+  _artilleryLockOwner:0,
+  _artilleryLockTurnsLeft:2,
+  phase:'main',
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0]
+});
+const southWindIgnoresLocksHash = canonicalStateHash(southWindIgnoresLocksBase);
+const southWindIgnoresLocksSet = reduceServerAction({canonicalState:southWindIgnoresLocksBase, canonicalHash:southWindIgnoresLocksHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-20-through-locks', id:'20'},
+  baseStateHash:southWindIgnoresLocksHash,
+  postState:southWindIgnoresLocksBase,
+  stateHash:southWindIgnoresLocksHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(southWindIgnoresLocksSet.ok, true, southWindIgnoresLocksSet.reason);
+assert.strictEqual(southWindIgnoresLocksSet.canonicalState.board[0][2][2].id, '20');
 
 const revealSetBase = state({
   players:[
@@ -8161,5 +8311,40 @@ assert.strictEqual(westCoastCanceled.canonicalState._serverPendingZonePick, null
 assert.strictEqual(westCoastCanceled.canonicalState._serverPendingCardPick.kind, 'handDiscard');
 assert.strictEqual(westCoastCanceled.canonicalState._serverPendingCardPick.reason, 'westGermanSoldier');
 assert.deepStrictEqual(westCoastCanceled.canonicalState.players[0].hand.map(card=>card.iid), ['west-german-draw-a', 'west-german-draw-b']);
+
+const actionResultDiscardBase = state({
+  board:[
+    [[{id:'201', iid:'discard-me-board', name:'Manual Discard', type:'Supporter', owner:0, fate:1, currentFate:1}]]
+  ],
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  currentPlayer:0,
+  turn:1
+});
+const actionResultDiscardPost = state({
+  board:[[[null]]],
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[{id:'201', iid:'discard-me-board', name:'Manual Discard', type:'Supporter', owner:0, fate:1, currentFate:1}]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  currentPlayer:0,
+  turn:1
+});
+const actionResultDiscardHash = canonicalStateHash(actionResultDiscardBase);
+const actionResultDiscardPostHash = canonicalStateHash(actionResultDiscardPost);
+const actionResultDiscard = reduceServerAction({canonicalState:actionResultDiscardBase, canonicalHash:actionResultDiscardHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'BOARD_ACTION',
+  fn:'discardBoardCard',
+  baseStateHash:actionResultDiscardHash,
+  postState:actionResultDiscardPost,
+  stateHash:actionResultDiscardPostHash
+}), {mode:'strict'});
+assert.strictEqual(actionResultDiscard.ok, true, actionResultDiscard.reason);
+assert.strictEqual(actionResultDiscard.canonicalState.board[0][0][0], null);
+assert.strictEqual(actionResultDiscard.canonicalState.players[0].discard[0].iid, 'discard-me-board');
 
 console.log('fate-authority-reducer smoke passed');

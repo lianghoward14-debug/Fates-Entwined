@@ -5,6 +5,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const APP_NAME = 'Fates Entwined';
+const DEFAULT_FLY_AUTHORITY_API_URL = 'https://fates-entwined-main.fly.dev';
+const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -33,6 +35,38 @@ let staticServer;
 let mainWindow = null;
 const diagnosticsDir = path.join(ROOT, 'diagnostics');
 const allowMultipleInstances = process.argv.includes('--allow-multiple-instances');
+
+function argValue(name) {
+  const prefix = `--${name}=`;
+  const found = process.argv.find(a => String(a || '').startsWith(prefix));
+  return found ? found.slice(prefix.length) : '';
+}
+
+function electronAuthorityConfig() {
+  const mode = String(argValue('authority') || 'fly').trim().toLowerCase();
+  if (mode === 'off' || mode === 'none' || mode === 'legacy') return null;
+  if (mode === 'local') {
+    const apiUrl = String(argValue('authority-api') || 'http://127.0.0.1:8787').replace(/\/+$/, '');
+    const wsUrl = String(argValue('authority-ws') || apiUrl.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:')).replace(/\/+$/, '');
+    return { mode: 'local', apiUrl, wsUrl };
+  }
+  const apiUrl = String(argValue('authority-api') || DEFAULT_FLY_AUTHORITY_API_URL).replace(/\/+$/, '');
+  const wsUrl = String(argValue('authority-ws') || DEFAULT_FLY_AUTHORITY_WS_URL).replace(/\/+$/, '');
+  return { mode: 'fly', apiUrl, wsUrl };
+}
+
+function withElectronLaunchParams(rawUrl, sessionName) {
+  const url = new URL(rawUrl);
+  url.searchParams.set('electron', '1');
+  if (sessionName) url.searchParams.set('electronSession', sessionName);
+  const authority = electronAuthorityConfig();
+  if (authority) {
+    url.searchParams.set('fateAuthority', authority.mode);
+    url.searchParams.set('flyWs', authority.wsUrl);
+    url.searchParams.set('flyApi', authority.apiUrl);
+  }
+  return url.toString();
+}
 
 function sanitizeDiagnosticSessionId(value) {
   const clean = String(value || '').replace(/[^a-zA-Z0-9_.-]/g, '-').slice(0, 80);
@@ -403,7 +437,7 @@ async function createWindow() {
   } catch (err) {
     console.warn('Failed to clear local Electron web cache', err);
   }
-  await win.loadURL(startUrl);
+  await win.loadURL(withElectronLaunchParams(startUrl, sessionName));
 }
 
 applyPerformanceSwitches();

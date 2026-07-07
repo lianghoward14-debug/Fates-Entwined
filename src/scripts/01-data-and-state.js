@@ -32,7 +32,7 @@ const CARDS = [
   {id:'06',name:'Jorge Alvarez',ability:'The West Caribbea Trading Company',type:'Initiator',aff:'eventide',
     fate:1,cost:1,rarity:'square',
     effect:'Search the deck for a card and add it to your hand. You cannot add Star cards.',
-    flavor:'"He overthrew the old elite. He wrote a new constitution. He built the Treasure ports. Thanks to him, the Sun Never Sets in Caribbea"',img:'6.png'},
+    flavor:'"In Caribbea, the sun never sets"',img:'6.png'},
   {id:'07',name:'Maja Kaminska',ability:'Oblique Order',type:'Initiator',aff:'third_great_war',
     fate:3,cost:1,rarity:'star',
     effect:'This card can also be set from the deck at no cost. When set, you can add up to 3 Supporters from the deck to the hand; they permanently gain 4 Fate. For this turn only, you can set 2 more Supporters.',
@@ -87,7 +87,7 @@ const CARDS = [
     flavor:'"The Queen of Czechoslovakia, once a Street Urchin in Prague"',img:'19.png'},
   {id:'20',name:'South Wind Spearman',ability:'Shield Wall',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'While this card is on the field, any card in this card\'s zone can no longer have their Fate reduced, but also cannot be moved.',
+    effect:'This card is immune to all of your opponent\'s effects.',
     flavor:'"In Pacifica, the South Wind Spearmen are the textbook definition of a disciplined and well organized army"',img:'20.png'},
   {id:'21',name:'Henry Dong',ability:'The Last Revolution',type:'Dauntless',aff:'third_great_war',
     fate:5,cost:2,rarity:'triangle',
@@ -537,7 +537,7 @@ const LANDSCAPES = {
     id:'igb16',
     name:'Santa Anna: Prosperity of a Treasure Port',
     shortName:'Prosperity of a Treasure Port',
-    description:'At any time, you may discard a card in your hand to increase Fate of any card on your side of the field by 2.'
+    description:'At any time, you may discard a card in your hand to increase Fate of any card on your side of the field by 3.'
   }
 };
 window.LANDSCAPES = LANDSCAPES;

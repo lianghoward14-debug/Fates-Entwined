@@ -154,7 +154,17 @@ function removeCardFromPlayerPiles(state, card){
   });
 }
 
-function preferMoreBoardCards(currentState, proposedState){
+function shouldPreferMoreBoardCardsForAction(type, payload){
+  const actionType = String(type || '').toUpperCase();
+  const actionKind = String(payload?.actionKind || payload?.originalType || '').toUpperCase();
+  const effectiveType = actionType === 'ACTION_RESULT' && actionKind ? actionKind : actionType;
+  if(effectiveType === 'PLACE_CARD') return true;
+  if(effectiveType === 'CLICK_CELL') return !!payload?.placing;
+  return false;
+}
+
+function preferMoreBoardCards(currentState, proposedState, type, payload){
+  if(!shouldPreferMoreBoardCardsForAction(type, payload)) return {state:proposedState, repaired:false, restored:0};
   if(!currentState || !proposedState) return {state:proposedState, repaired:false, restored:0};
   const currentEntries = boardCardEntries(currentState.board);
   const proposedEntries = boardCardEntries(proposedState.board);
@@ -209,7 +219,7 @@ function validateProposedTransition(room, msg, opts){
   if(type === 'FORFEIT') return {ok:true, canonicalState:room.canonicalState || null, canonicalHash:room.canonicalHash || ''};
   let postState = payload.postState;
   if(!postState) return {ok:false, reason:'accepted actions must include postState'};
-  const boardPreference = preferMoreBoardCards(room?.canonicalState, postState);
+  const boardPreference = preferMoreBoardCards(room?.canonicalState, postState, type, payload);
   postState = boardPreference.state;
   const stateErr = validateCanonicalState(postState);
   if(stateErr) return {ok:false, reason:stateErr};
@@ -480,6 +490,24 @@ function countServerCoordinators(state, z, owner){
   return count;
 }
 
+function serverZsofiaZoneBonus(state, z, owner){
+  const zone = state?.board?.[z];
+  if(!Array.isArray(zone)) return 0;
+  let zsofiaCount = 0;
+  let jeremiahBoost = 0;
+  zone.forEach((row, r)=>{
+    if(!Array.isArray(row)) return;
+    row.forEach((cell, c)=>{
+      if(!cell || Number(cell.owner) !== Number(owner) || isInvisibleScoreCard(cell)) return;
+      const id = String(cell.id || '');
+      if(id === '15' && !isCoordinatorSuppressedAtServer(state, z, r, c)) zsofiaCount += 1;
+      if(id === '57' && !isCoordinatorSuppressedAtServer(state, z, r, c)) jeremiahBoost += 1;
+    });
+  });
+  if(zsofiaCount <= 0) return 0;
+  return zsofiaCount * Math.min(3, countServerCoordinators(state, z, owner) + jeremiahBoost);
+}
+
 function isCoordinatorSuppressedAtServer(state, z, r, c){
   const card = state?.board?.[z]?.[r]?.[c] || null;
   if(!card || cardType(card) !== 'Coordinator' || isFaceDownServerCard(card)) return false;
@@ -688,14 +716,7 @@ function serverEffectiveFate(state, card, z, r, c){
     });
   });
 
-  let zsofiaCount = 0;
-  zone.forEach((row, rr)=>{
-    if(!Array.isArray(row)) return;
-    row.forEach((cell, cc)=>{
-      if(cell && String(cell.id || '') === '15' && Number(cell.owner) === owner && !isCoordinatorSuppressedAtServer(state, z, rr, cc)) zsofiaCount += 1;
-    });
-  });
-  if(zsofiaCount > 0) bonus += Math.min(3, zsofiaCount * (countServerCoordinators(state, z, owner) + jeremiahBoost));
+  bonus += serverZsofiaZoneBonus(state, z, owner);
 
   if(cardType(card) === 'Dauntless' && id !== '76'){
     zone.forEach((row, rr)=>{
@@ -1063,7 +1084,22 @@ function pendingInteractionBlockReason(type, pending){
   return `${intent} blocked by pendingInteraction=${kind}${promptId ? ' promptId=' + promptId : ''}`;
 }
 
+function recomputeShieldWallState(state){
+  if(!state || !Array.isArray(state.board)) return;
+  state.shieldWallZones = [];
+  state.board.forEach((zone, z)=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach(row=>{
+      if(!Array.isArray(row)) return;
+      row.forEach(cell=>{
+        if(cell && cell.cantBeMoved) cell.cantBeMoved = false;
+      });
+    });
+  });
+}
+
 function reducedResult(state, extra){
+  recomputeShieldWallState(state);
   stampServerPendingPromptIds(state);
   refreshPendingInteraction(state);
   const canonicalState = cloneState(state);
@@ -1358,6 +1394,20 @@ function isBlockedCell(state, z, r, c){
   );
 }
 
+function isSouthWindSpearmanServerCard(card){
+  return !!(card && (String(card.id || '') === '20' || serverCopiedFrenchPassiveId(card) === '20'));
+}
+
+function ignoresOpponentPlacementLocksForServer(card){
+  return isSouthWindSpearmanServerCard(card);
+}
+
+function isTargetImmuneToServerEffectOwner(card, effectOwner){
+  if(!card || isFaceDownServerCard(card)) return false;
+  if(card.immuneFlag === true || String(card.id || '') === '76' || card.opponentEffectImmune === true) return true;
+  return isSouthWindSpearmanServerCard(card) && typeof effectOwner === 'number' && Number(card.owner) !== Number(effectOwner);
+}
+
 function isBlockedForConsolidate(state, z, r, c, playerIndex){
   const blocked = Array.isArray(state.blockedCells) ? state.blockedCells : [];
   return blocked.some(item =>
@@ -1391,7 +1441,7 @@ function isBlockedByAlondra(state, z, r, c, playerIndex){
 }
 
 function isEffectImmuneSource(card){
-  return !!(card && !card.faceDown && (String(card.id || '') === '76' || card.immuneFlag === true || card.opponentEffectImmune === true));
+  return !!(card && !card.faceDown && (String(card.id || '') === '76' || String(card.id || '') === '20' || card.immuneFlag === true || card.opponentEffectImmune === true));
 }
 
 function isPlayerSupporterEffectsSuppressed(state, playerIndex){
@@ -2457,7 +2507,7 @@ function setPendingJuanCarlosPick(state, inst, playerIndex, z, r, c){
   if(String(inst?.id || '') !== '39') return;
   const opponent = playerIndex === 0 ? 1 : 0;
   const hasTarget = Array.isArray(state?.board) && state.board.some(zone=>Array.isArray(zone) && zone.some(row=>Array.isArray(row) && row.some(cell=>
-    cell && Number(cell.owner) === opponent && cell.cantBeMoved !== true
+    cell && Number(cell.owner) === opponent && cell.cantBeMoved !== true && !isTargetImmuneToServerEffectOwner(cell, playerIndex)
   )));
   if(!hasTarget) return;
   state._serverPendingZonePick = {
@@ -2661,18 +2711,6 @@ function setPendingCarolynBlockCell(state, inst, playerIndex, z, r, c){
     sourceIid:inst.iid || null,
     options
   };
-}
-
-function applyShieldWallForZone(state, z){
-  if(!Array.isArray(state.shieldWallZones)) state.shieldWallZones = [];
-  if(!state.shieldWallZones.includes(z)) state.shieldWallZones.push(z);
-  const zone = state?.board?.[z] || [];
-  zone.forEach(row=>{
-    if(!Array.isArray(row)) return;
-    row.forEach(cell=>{
-      if(cell) cell.cantBeMoved = true;
-    });
-  });
 }
 
 function adjacentAndDiagonalEntries(state, z, r, c){
@@ -2920,7 +2958,7 @@ function applyAlondraWhenSet(state, inst, playerIndex, z, r, c){
   adjacentAndDiagonalEntries(state, z, r, c).forEach(entry=>{
     const card = entry.card;
     if(!card || Number(card.owner) !== opponent || String(card.type || '') !== 'Supporter') return;
-    if(String(card.id || '') === '76' || card.immuneFlag === true) return;
+    if(isTargetImmuneToServerEffectOwner(card, playerIndex)) return;
     if(!Array.isArray(state.players?.[opponent]?.discard)) state.players[opponent].discard = [];
     state.players[opponent].discard.push(cloneState(card));
     state.board[entry.z][entry.r][entry.c] = null;
@@ -3072,7 +3110,6 @@ function applySupportedWhenSetState(state, inst, playerIndex, z, r, c){
   }
   if(id === '04') setPendingZoeBlockSquare(state, inst, playerIndex, z, r, c);
   if(id === '17') setPendingCarolynBlockCell(state, inst, playerIndex, z, r, c);
-  if(id === '20') applyShieldWallForZone(state, z);
   if(id === '21'){
     const pending = armPendingHandDiscardBoost(state, playerIndex, inst, {
       reason:'henryDong',
@@ -3332,8 +3369,7 @@ function isVigilantesTarget(card, playerIndex){
   if(!card || typeof card !== 'object') return false;
   const opponent = playerIndex === 0 ? 1 : 0;
   return Number(card.owner) === opponent &&
-    String(card.id || '') !== '76' &&
-    card.immuneFlag !== true;
+    !isTargetImmuneToServerEffectOwner(card, playerIndex);
 }
 
 function setPendingVigilantesPick(state, inst, playerIndex, z, r, c){
@@ -3498,7 +3534,7 @@ function validateSupporterPlacement(state, card, playerIndex, z, r, c){
   if(!state.majaEffectThisTurn && placed >= Math.max(0, maxSupports || 0)){
     return 'Supporter limit reached';
   }
-  if(String(card.id || '') !== '76' && isBlockedByAlondra(state, z, r, c, playerIndex)){
+  if(String(card.id || '') !== '76' && !ignoresOpponentPlacementLocksForServer(card) && isBlockedByAlondra(state, z, r, c, playerIndex)){
     return 'Supporter placement is blocked by Alondra';
   }
   return '';
@@ -3543,6 +3579,7 @@ function consumeServerFreePlacementForCard(state, sourceCard, placedCard, player
 }
 
 function hasBasicPlacementTarget(state, card, playerIndex){
+  const ignoresOpponentPlacementLocks = ignoresOpponentPlacementLocksForServer(card);
   for(let z = 0; z < 3; z += 1){
     const zone = state.board?.[z] || [];
     for(let r = 0; r < Math.min(zone.length, 9); r += 1){
@@ -3551,8 +3588,8 @@ function hasBasicPlacementTarget(state, card, playerIndex){
       if(rowOwner !== -1 && rowOwner !== playerIndex) continue;
       for(let c = 0; c < Math.min(row.length, 9); c += 1){
         if(row[c] !== null) continue;
-        if(isBlockedCell(state, z, r, c)) continue;
-        if(isArtilleryLockedConsolidationZone(state, z, playerIndex)) continue;
+        if(isBlockedCell(state, z, r, c) && !ignoresOpponentPlacementLocks) continue;
+        if(isArtilleryLockedConsolidationZone(state, z, playerIndex) && !ignoresOpponentPlacementLocks) continue;
         if(card.contestedOnly && r !== 1) continue;
         if(chingachlookPlacementBlockReason(state, card, z, playerIndex)) continue;
         if(validateSupporterPlacement(state, card, playerIndex, z, r, c)) continue;
@@ -3599,7 +3636,7 @@ function countFriendlyRalphAdjacencyForState(state, z, r, c, owner){
       if(!cell || String(cell.id || '') !== '24' || Number(cell.owner) !== owner || cell.faceDown || isSupporterEffectSuppressedForState(state, cell)) return;
       const dr = Math.abs(Number(rr) - Number(r));
       const dc = Math.abs(Number(cc) - Number(c));
-      if(dr <= 1 && dc <= 1 && (dr + dc) > 0) count += 1;
+      if(dr + dc === 1) count += 1;
     });
   });
   return count;
@@ -4118,8 +4155,9 @@ function reduceBasicClickCell(room, msg, options){
   if(z < 0 || z > 2 || r < 0 || r > 8 || c < 0 || c > 8) return {ok:false, reason:'CLICK_CELL target out of range'};
   ensureBoardCell(state, z, r, c);
   if(state.board[z][r][c] !== null) return {ok:false, reason:'CLICK_CELL target is occupied'};
-  if(isBlockedCell(state, z, r, c)) return {ok:false, reason:'CLICK_CELL target is blocked'};
-  if(isArtilleryLockedConsolidationZone(state, z, playerIndex)) return {ok:false, reason:'Artillery Distance locks this zone'};
+  const ignoresOpponentPlacementLocks = ignoresOpponentPlacementLocksForServer(card);
+  if(isBlockedCell(state, z, r, c) && !ignoresOpponentPlacementLocks) return {ok:false, reason:'CLICK_CELL target is blocked'};
+  if(isArtilleryLockedConsolidationZone(state, z, playerIndex) && !ignoresOpponentPlacementLocks) return {ok:false, reason:'Artillery Distance locks this zone'};
   if(card.contestedOnly && r !== 1) return {ok:false, reason:'CLICK_CELL contested-only card must be placed in a contested row'};
   const rowOwner = rowOwnerForState(state, z, r);
   if(rowOwner !== -1 && rowOwner !== playerIndex) return {ok:false, reason:'CLICK_CELL target row is not playable by this player'};
@@ -4818,7 +4856,6 @@ function reduceFlipFaceDownBoardCardAction(room, msg, options){
   src.source.faceDown = false;
   src.source.isFaceDown = false;
   src.source._faceDown = false;
-  if(Array.isArray(state.shieldWallZones) && state.shieldWallZones.includes(src.z)) src.source.cantBeMoved = true;
   const whenSet = applySupportedWhenSetState(state, src.source, playerIndex, src.z, src.r, src.c);
   if(whenSet && whenSet.ok === false) return whenSet;
   armPostWhenSetInteractionHooks(state, src.source, playerIndex, src.z, src.r, src.c);
@@ -5644,14 +5681,11 @@ function addFate(card, amount){
 }
 
 function reduceFateToValue(state, card, targetValue, sourceOwner, z){
-  if(!card || card.immuneFlag === true || String(card.id || '') === '76') return {ok:false, reason:'target is immune'};
+  if(!card || isTargetImmuneToServerEffectOwner(card, sourceOwner)) return {ok:false, reason:'target is immune'};
   const pos = findBoardCardPosition(state, card, z) || {z, r:null, c:null};
   const before = effectiveFateForBoardCard(state, card, Number(pos.z ?? z), pos.r, pos.c);
   const baseBefore = currentFate(card);
   const next = Math.max(0, Number(targetValue) || 0);
-  if(next < before && Array.isArray(state.shieldWallZones) && state.shieldWallZones.includes(z)){
-    return {ok:false, reason:'Shield Wall prevents Fate loss'};
-  }
   const baseNext = Math.max(0, Math.min(baseBefore, next));
   card.currentFate = baseNext;
   const overflowLoss = Math.max(0, baseBefore - next);
@@ -5665,14 +5699,11 @@ function reduceFateToValue(state, card, targetValue, sourceOwner, z){
 }
 
 function reduceStoredFateByAmount(state, card, amount, sourceOwner, z){
-  if(!card || card.immuneFlag === true || String(card.id || '') === '76') return {ok:false, reason:'target is immune'};
+  if(!card || isTargetImmuneToServerEffectOwner(card, sourceOwner)) return {ok:false, reason:'target is immune'};
   const pos = findBoardCardPosition(state, card, z) || {z, r:null, c:null};
   const before = effectiveFateForBoardCard(state, card, Number(pos.z ?? z), pos.r, pos.c);
   const baseBefore = currentFate(card);
   const baseNext = Math.max(0, baseBefore - Math.max(0, Number(amount) || 0));
-  if(baseNext < baseBefore && Array.isArray(state.shieldWallZones) && state.shieldWallZones.includes(Number(pos.z ?? z))){
-    return {ok:false, reason:'Shield Wall prevents Fate loss'};
-  }
   card.currentFate = baseNext;
   const after = effectiveFateForBoardCard(state, card, Number(pos.z ?? z), pos.r, pos.c);
   if(after < before && (sourceOwner === 0 || sourceOwner === 1)){
@@ -6018,7 +6049,7 @@ function reducePickZoneAction(room, msg, options){
     if(live.error) return {ok:false, reason:live.error};
     const opponent = playerIndex === 0 ? 1 : 0;
     if(Number(live.target.owner) !== opponent) return {ok:false, reason:'Santiago target must be an opponent card'};
-    if(live.target.immuneFlag === true || String(live.target.id || '') === '76') return {ok:false, reason:'Santiago target is immune'};
+    if(isTargetImmuneToServerEffectOwner(live.target, playerIndex)) return {ok:false, reason:'Santiago target is immune'};
     const reduced = reduceFateToValue(state, live.target, Math.floor(serverEffectiveFate(state, live.target, selected.z, selected.r, selected.c) / 2), playerIndex, selected.z);
     if(!reduced.ok) return {ok:false, reason:reduced.reason};
     state._serverPendingZonePick = null;
@@ -6131,7 +6162,6 @@ function reducePickZoneAction(room, msg, options){
     source.copiedPassiveId = source._copiedPassiveId;
     source.copiedPassiveName = source._copiedPassiveName;
     source.effectUsedInitial = true;
-    if(source._copiedPassiveId === '20') applyShieldWallForZone(state, pending.z);
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
@@ -6145,7 +6175,7 @@ function reducePickZoneAction(room, msg, options){
     if(!target) return {ok:false, reason:'Juan Carlos target is no longer on board'};
     if(!cardMatchesPayloadIdentity(target, selected.card)) return {ok:false, reason:'Juan Carlos target identity mismatch'};
     const opponent = playerIndex === 0 ? 1 : 0;
-    if(Number(target.owner) !== opponent || target.cantBeMoved === true) return {ok:false, reason:'Juan Carlos target is invalid'};
+    if(Number(target.owner) !== opponent || target.cantBeMoved === true || isTargetImmuneToServerEffectOwner(target, playerIndex)) return {ok:false, reason:'Juan Carlos target is invalid'};
     const moveOptions = collectJuanCarlosMoveOptions(state, playerIndex, pending.z);
     if(!moveOptions.length) return {ok:false, reason:'No open squares available for Juan Carlos'};
     state._serverPendingZonePick = null;
@@ -6196,6 +6226,9 @@ function reducePickZoneAction(room, msg, options){
     }
     if(live.target === sourceResult.source || (live.target.iid && sourceResult.source.iid && live.target.iid === sourceResult.source.iid)){
       return {ok:false, reason:'MINAE Death Squad cannot discard itself'};
+    }
+    if(isTargetImmuneToServerEffectOwner(live.target, playerIndex)){
+      return {ok:false, reason:'MINAE Death Squad target is immune'};
     }
     discardBoardCardForState(state, selected.z, selected.r, selected.c);
     state._serverPendingZonePick = null;

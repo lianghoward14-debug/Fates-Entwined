@@ -1,9 +1,9 @@
-﻿// â”€â”€â”€ USER-SAVED PRESETS (localStorage) â”€â”€â”€
+// ─── USER-SAVED PRESETS (localStorage) ───
 // Users save their custom decks; no hardcoded presets.
 let PRESET_DECKS = {};
 
-// â”€â”€â”€ PROFILE SYSTEM â”€â”€â”€
-// Structure designed to be multiplayer-ready â€” all data is plain JSON that could
+// ─── PROFILE SYSTEM ───
+// Structure designed to be multiplayer-ready — all data is plain JSON that could
 // be synced to a backend later. Multiple profiles supported; active profile tracked.
 let USER_PROFILE = {
   username: 'Player',
@@ -17,10 +17,10 @@ let USER_PROFILE = {
   totalXp: 0,             // Lifetime XP (not used for level calc, just stats)
   featuredPresets: [],    // preset IDs to show on profile
   createdAt: Date.now(),
-  // â”€â”€â”€ CHALLENGER MODE â”€â”€â”€
+  // ─── CHALLENGER MODE ───
   // Challenger is a progression mode where you earn cards via packs.
   starterChosen: false,   // has the player picked a starter deck?
-  ownedCards: {},         // {cardId: count} â€” owned cards in Challenger mode
+  ownedCards: {},         // {cardId: count} — owned cards in Challenger mode
   ownedPfps: [],          // [pfpId]
   starlight: 0,           // currency used to buy packs
   unopenedPacks: 0,       // packs not yet opened
@@ -32,7 +32,7 @@ let USER_PROFILE = {
   humanWins: 0,
   humanLosses: 0,
   matchesPlayed: 0,
-  challengerPresets: {},  // {pid: {name, description, ids}} â€” decks built in challenger mode
+  challengerPresets: {},  // {pid: {name, description, ids}} — decks built in challenger mode
   lastFreePackClaim: 0,   // timestamp
   dailyLoginLastClaimDate: '',
   dailyLoginStreak: 0,
@@ -44,9 +44,9 @@ function createDefaultUserProfile() {
   return profile;
 }
 
-// Current game mode â€” 'free' (has all cards, no ELO) or 'challenger' (owned cards only, ranked)
+// Current game mode — 'free' (has all cards, no ELO) or 'challenger' (owned cards only, ranked)
 let CURRENT_MODE = 'free';
-// ─── PER-ACCOUNT LOCAL STORAGE ───
+// --- PER-ACCOUNT LOCAL STORAGE ---
 // When a Google account is signed in, localStorage keys are suffixed with the UID
 // so each account gets its own isolated save data on the same browser.
 let _fateActiveUid = null;
@@ -97,6 +97,20 @@ function _fateReadJsonStorage(key) {
   } catch(e) {
     return null;
   }
+}
+
+function isStaleHumanLeaderboardName(name) {
+  const normalized = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+}
+
+function sanitizeLocalLeaderboardEntries(entries) {
+  return Array.isArray(entries)
+    ? entries.filter(entry=>{
+      const name = entry && (entry.username || entry.name);
+      return !isStaleHumanLeaderboardName(name);
+    })
+    : [];
 }
 
 // Save current profile under a specific UID key (used during account switches)
@@ -157,7 +171,7 @@ function FATE_BACKGROUND_URL(path){
 }
 window.FATE_BACKGROUND_URL = FATE_BACKGROUND_URL;
 const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreenbackgrounds_bg${n}.jpg`);
-const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`);
+const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`);
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
   return `pfp/pfp${id}.png`;
@@ -227,12 +241,16 @@ function grantProfilePictures(pfpIds) {
 }
 
 function removeOwnedPfp(pfpId) {
+  pfpId = parseInt(pfpId, 10);
+  if(!pfpId) return false;
   const owned = normalizeOwnedPfps();
   const idx = owned.indexOf(pfpId);
-  if(idx >= 0) owned.splice(idx,1);
-  if(USER_PROFILE.profileImg && typeof USER_PROFILE.profileImg === 'object' && USER_PROFILE.profileImg.pfpId === pfpId){
+  if(idx < 0) return false;
+  owned.splice(idx,1);
+  if(USER_PROFILE.profileImg && typeof USER_PROFILE.profileImg === 'object' && Number(USER_PROFILE.profileImg.pfpId) === pfpId){
     USER_PROFILE.profileImg = getDefaultProfileImgSrc();
   }
+  return true;
 }
 
 function generateProfilePack() {
@@ -246,7 +264,7 @@ function generateProfilePack() {
   return picks;
 }
 
-// â”€â”€â”€ LEVEL SYSTEM â”€â”€â”€
+// ─── LEVEL SYSTEM ───
 // 25 levels total; XP curve grows gradually
 const MAX_LEVEL = 25;
 function getXpForLevel(lvl){
@@ -259,7 +277,7 @@ function makeLevelBadgeIcon(svg){
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
-// Badges â€” every 5 levels unlocks a new tier
+// Badges — every 5 levels unlocks a new tier
 const BADGES = [
   {range:[1,5],   name:'Novice', color:'#7fffa0', glow:'rgba(127,255,160,.5)',
     image:makeLevelBadgeIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#dfffdc"/><stop offset="100%" stop-color="#57c66d"/></linearGradient></defs><path d="M32 9c11 5 17 15 17 26 0 12-7 21-17 24C22 56 15 47 15 35 15 24 21 14 32 9Z" fill="url(#g)" stroke="#1d6a38" stroke-width="3"/><path d="M32 17v31" stroke="#effff1" stroke-width="3" stroke-linecap="round"/><path d="M32 26c-6 1-10 5-12 10" stroke="#effff1" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M32 33c5 1 8 4 10 8" stroke="#effff1" stroke-width="3" stroke-linecap="round" fill="none"/></svg>')},
@@ -273,7 +291,7 @@ const BADGES = [
     image:makeLevelBadgeIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff7c7"/><stop offset="100%" stop-color="#f3b600"/></linearGradient></defs><path d="M14 46h36l-3 8H17Z" fill="#915e00"/><path d="M18 46V20l8 8 6-14 6 14 8-8v26Z" fill="url(#g)" stroke="#996d00" stroke-width="3"/><circle cx="32" cy="16" r="5" fill="#fff4b0" stroke="#996d00" stroke-width="2"/></svg>')}
 ];
 
-// â”€â”€â”€ ELO RANK SYSTEM â”€â”€â”€
+// ─── ELO RANK SYSTEM ───
 // Each rank has a custom SVG icon, color, and ELO threshold.
 const RANKS = [
   {minElo:0,    name:'Footman',    color:'#cd7f32', bg:'rgba(205,127,50,.15)',
@@ -450,7 +468,7 @@ function awardXp(amount){
   }
   // At max level, XP doesn't accumulate toward next
   if(USER_PROFILE.level >= MAX_LEVEL) USER_PROFILE.xp = 0;
-  // NOTE: caller is responsible for calling saveProfile() — removing the
+  // NOTE: caller is responsible for calling saveProfile() � removing the
   // save here prevents double-save cascades (recordGameResult calls awardXp
   // then saveProfile, which previously triggered 2x leaderboard + 2x cloud saves).
   return {xpGained:amount, levelsGained, newLevel:USER_PROFILE.level};
@@ -469,7 +487,7 @@ function calculateXpReward(didWin, opponentElo){
   return Math.max(10, xp);
 }
 
-// Leaderboard & public decks â€” local-only for now; when backend is added,
+// Leaderboard & public decks — local-only for now; when backend is added,
 // these will sync with the server instead of localStorage.
 let LEADERBOARD = [];  // [{username, elo, wins, losses, profileImg}]
 let PUBLIC_DECKS = []; // [{id, username, name, description, ids, faceCardId, displayCardIds, ratings:[], comments:[]}]
@@ -556,7 +574,7 @@ function loadPresetsFromStorage() {
   }
   try {
     const lb = localStorage.getItem(_fateStorageKey('fate_leaderboard'));
-    LEADERBOARD = lb ? JSON.parse(lb) : [];
+    LEADERBOARD = sanitizeLocalLeaderboardEntries(lb ? JSON.parse(lb) : []);
   } catch(e){ LEADERBOARD = []; }
   if(!USER_PROFILE.aiLeaderboardReset_20260628){
     LEADERBOARD = Array.isArray(LEADERBOARD)
@@ -754,6 +772,10 @@ function dailyLoginBackgroundForDate(dateKey) {
   let seed = 0;
   for(let i = 0; i < key.length; i++) seed = ((seed * 31) + key.charCodeAt(i)) >>> 0;
   const bgIndex = (seed % 16) + 1;
+  if(bgIndex === 1) {
+    const png = 'ingamebackgrouds/igb1.png?v=bg20260705';
+    return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(png) : png;
+  }
   const optimized = `optimized/backgrounds/ingamebackgrouds_igb${bgIndex}.jpg`;
   return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(optimized) : optimized;
 }
@@ -776,7 +798,7 @@ function renderDailyLoginPanelHtml(stateOverride) {
       ? STARLIGHT_ICON
       : '<span class="dlr-starlight-fallback">*</span>';
     const rewardHtml = starlight
-      ? `<div class="dlr-reward is-starlight"><span class="dlr-starlight-icon">${starlightIconHtml}</span><b>${starlight}</b><span>Starlight</span></div>`
+      ? `<div class="dlr-reward is-starlight ${starlight >= 100 ? 'is-grand-starlight' : ''}"><b>${starlight}</b><span>Starlight</span></div>`
       : `<div class="dlr-reward is-booster"><b>Profile</b><span>Booster</span></div>`;
     const bonus = boosters && starlight ? '<span class="dlr-bonus">Profile Booster</span>' : '';
     return `
@@ -814,7 +836,13 @@ function renderDailyLoginPanelHtml(stateOverride) {
     </div>`;
 }
 
+function dailyLoginPanelVisible() {
+  const modal = document.getElementById('modal');
+  return !!(modal && modal.classList && modal.classList.contains('on') && document.querySelector('#modal .modal.daily-login-modal'));
+}
+
 function showDailyLoginPanel() {
+  if(typeof showModal !== 'function') return false;
   const state = normalizeDailyLoginProfileState();
   if(typeof resetModalChrome === 'function') resetModalChrome();
   showModal('Daily Login Rewards', renderDailyLoginPanelHtml(state), []);
@@ -824,7 +852,7 @@ function showDailyLoginPanel() {
     modalBox.style.setProperty('--daily-login-bg', `url('${dailyLoginBackgroundForDate(state.today)}')`);
   }
   const acts = document.getElementById('modal-acts');
-  if(!acts) return;
+  if(!acts) return dailyLoginPanelVisible();
   acts.innerHTML = '';
   const close = document.createElement('button');
   close.className = 'btn sm';
@@ -849,6 +877,7 @@ function showDailyLoginPanel() {
   }
   acts.appendChild(close);
   document.getElementById('modal')?.classList.add('on');
+  return dailyLoginPanelVisible();
 }
 
 function refreshDailyLoginPanelIfOpen() {
@@ -880,22 +909,53 @@ function handleFateChatCommand(text) {
   return false;
 }
 
-function checkDailyLoginOnStartup() {
-  if(window.__fateDailyLoginPromptedThisSession) return;
+function checkDailyLoginOnStartup(options) {
+  options = options || {};
+  const forcePrompt = !!options.force;
+  if(window.__fateDailyLoginPromptedThisSession && !forcePrompt) return;
+  const startupOverlayActive = function(){
+    if(window.__fateStartupLoadingFinished) return false;
+    if(window.__fateStartupLoadingActive) return true;
+    const overlay = document.getElementById('fate-loading-screen');
+    return !!(overlay && !overlay.classList.contains('is-hiding') && !overlay.classList.contains('fate-loading-assets-done'));
+  };
   const openPrompt = function(delay, opts){
-    if(window.__fateDailyLoginPromptedThisSession) return;
+    if(window.__fateDailyLoginPromptedThisSession && !forcePrompt) return;
     const immediate = !!(opts && opts.immediate);
+    const attempt = Math.max(0, Number(opts && opts.attempt) || 0);
+    const retry = function(nextDelay){
+      if((window.__fateDailyLoginPromptedThisSession && !forcePrompt) || attempt >= 48) return;
+      setTimeout(function(){ openPrompt(0, {immediate:true, attempt:attempt + 1}); }, nextDelay);
+    };
     const run = function(){
-      const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
-      if(modalOpen) {
-        setTimeout(function(){ openPrompt(1200); }, 1200);
+      const modal = document.getElementById('modal');
+      const modalReady = !!(modal && document.getElementById('modal-acts') && typeof showModal === 'function');
+      if(document.readyState === 'loading' || !modalReady) {
+        retry(250);
         return;
       }
-      normalizeDailyLoginProfileState();
-      if(typeof showDailyLoginPanel === 'function') {
-        window.__fateDailyLoginPromptedThisSession = true;
-        showDailyLoginPanel();
+      if(startupOverlayActive()) {
+        retry(350);
+        return;
       }
+      const modalOpen = !!(modal && modal.classList && modal.classList.contains('on'));
+      if(modalOpen && !dailyLoginPanelVisible()) {
+        retry(1200);
+        return;
+      }
+      try {
+        normalizeDailyLoginProfileState();
+      } catch(e) {}
+      try {
+        const opened = (typeof showDailyLoginPanel === 'function') && showDailyLoginPanel() !== false && dailyLoginPanelVisible();
+        if(opened) {
+          window.__fateDailyLoginPromptedThisSession = true;
+          return;
+        }
+      } catch(e) {
+        if(window.console && typeof console.warn === 'function') console.warn('[Fate] Daily login prompt failed; retrying.', e);
+      }
+      retry(350);
     };
     if(immediate) {
       run();
@@ -905,10 +965,7 @@ function checkDailyLoginOnStartup() {
       requestAnimationFrame(run);
     }, Number.isFinite(delay) ? delay : 450);
   };
-  const startupLoadingActive = !!(
-    !window.__fateStartupLoadingFinished &&
-    (window.__fateStartupLoadingActive || document.getElementById('fate-loading-screen'))
-  );
+  const startupLoadingActive = startupOverlayActive();
   if(startupLoadingActive) {
     let startupSettled = false;
     const onStartupFinished = function(){
@@ -952,6 +1009,36 @@ window.addEventListener('fate-cloud-ready', function(){
   } catch(e) {}
 });
 
+let _dailyLoginLastPromptedAuthUid = '';
+window.addEventListener('fate-online-auth', function(e){
+  const user = e && e.detail && e.detail.user;
+  const uid = user && user.uid ? String(user.uid) : '';
+  if(!uid) {
+    _dailyLoginLastPromptedAuthUid = '';
+    return;
+  }
+  if(_dailyLoginLastPromptedAuthUid === uid) return;
+  _dailyLoginLastPromptedAuthUid = uid;
+  window.__fateDailyLoginPromptedThisSession = false;
+  const promptAfterLogin = function(){
+    if(typeof checkDailyLoginOnStartup === 'function') checkDailyLoginOnStartup({force:true, source:'auth-login'});
+  };
+  const cloudPending = !!(window.__fateCloudLoadingActive || (window._fateCloudUid && !window._fateCloudReady));
+  if(cloudPending) {
+    let settled = false;
+    const settle = function(){
+      if(settled) return;
+      settled = true;
+      window.removeEventListener('fate-cloud-ready', settle);
+      promptAfterLogin();
+    };
+    window.addEventListener('fate-cloud-ready', settle, {once:true});
+    setTimeout(settle, 5000);
+    return;
+  }
+  setTimeout(promptAfterLogin, 250);
+});
+
 window.addEventListener('storage', function(e){
   if(!e || !e.key || e.key.indexOf('fate_daily_login_claim_') < 0) return;
   refreshDailyLoginPanelIfOpen();
@@ -982,6 +1069,7 @@ window.requestFateOnlineProfileSync = function(){
 };
 
 function saveLeaderboard() {
+  LEADERBOARD = sanitizeLocalLeaderboardEntries(LEADERBOARD);
   const didWrite = _fateSetJsonStorageIfChanged(_fateStorageKey('fate_leaderboard'), LEADERBOARD);
   if(didWrite && window.FateCloudSave) window.FateCloudSave.saveLeaderboard();
 }
@@ -1006,7 +1094,7 @@ function updateLeaderboardEntry() {
   saveLeaderboard();
 }
 
-// â”€â”€â”€ ELO SYSTEM â”€â”€â”€
+// ─── ELO SYSTEM ───
 // Standard ELO formula. K-factor of 32 for reasonable movement.
 function applyMinimumEloDelta(rawChange, didWin) {
   let change = Math.round(Number(rawChange) || 0);
@@ -1105,7 +1193,7 @@ function renderDeckThemeSelector(selectedTheme, inputId='deck-theme-inp'){
     const isSelected = theme === selected;
     return `<button type="button" class="deck-theme-option${isSelected ? ' is-selected' : ''}" data-theme-value="${escapeHtml(theme)}" role="option" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(theme)}</button>`;
   }).join('');
-  return `<label class="deck-theme-field"><span class="deck-theme-label-text">Deck Theme</span><span class="deck-theme-select-wrap"><input type="hidden" id="${escapeHtml(inputId)}" class="deck-theme-select" value="${escapeHtml(selected)}"><button type="button" class="deck-theme-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="deck-theme-value">${escapeHtml(selected)}</span><span class="deck-theme-arrow" aria-hidden="true">▾</span></button><span class="deck-theme-menu" role="listbox">${options}</span></span></label>`;
+  return `<label class="deck-theme-field"><span class="deck-theme-label-text">Deck Theme</span><span class="deck-theme-select-wrap"><input type="hidden" id="${escapeHtml(inputId)}" class="deck-theme-select" value="${escapeHtml(selected)}"><button type="button" class="deck-theme-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="deck-theme-value">${escapeHtml(selected)}</span><span class="deck-theme-arrow" aria-hidden="true">?</span></button><span class="deck-theme-menu" role="listbox">${options}</span></span></label>`;
 }
 
 if(typeof document !== 'undefined' && !window.__deckThemeDropdownBound) {
@@ -1187,8 +1275,8 @@ function openTitlePresetSaveDialog(deck) {
   let currentFace = defaultFace?.id || deckCards[0]?.id;
   let currentDisplay = (loaded?.displayCardIds?.length
     ? loaded.displayCardIds.map(id=>deckCards.find(c=>c.id===id)).filter(Boolean).map(c=>c.id)
-    : deckCards.filter(c=>c.img).slice(0,7).map(c=>c.id)
-  ).slice(0,7);
+    : deckCards.filter(c=>c.img).slice(0,5).map(c=>c.id)
+  ).slice(0,5);
   const defaultName = loaded?.name || '';
   const defaultDesc = loaded?.description || '';
   const defaultTheme = normalizeDeckTheme(loaded?.theme || 'Hybrid');
@@ -1214,7 +1302,7 @@ function openTitlePresetSaveDialog(deck) {
       <div class="face-picker-grid cdb-save-picker" id="title-save-face-picker"></div>
     </div>
     <div class="cdb-save-section">
-      <div class="cdb-save-section-title">Display Cards <span id="title-save-display-count">${currentDisplay.length}/7</span></div>
+      <div class="cdb-save-section-title">Display Cards <span id="title-save-display-count">${currentDisplay.length}/5</span></div>
       <div class="face-picker-grid cdb-save-picker" id="title-save-display-picker"></div>
     </div>`;
   const modalBody = document.getElementById('modal-body');
@@ -1233,7 +1321,7 @@ function openTitlePresetSaveDialog(deck) {
       }
     }
     const count = body.querySelector('#title-save-display-count');
-    if(count) count.textContent = `${currentDisplay.length}/7`;
+    if(count) count.textContent = `${currentDisplay.length}/5`;
   };
   const renderPickers = () => {
     const faceGrid = body.querySelector('#title-save-face-picker');
@@ -1286,7 +1374,7 @@ function openTitlePresetSaveDialog(deck) {
         const idx = currentDisplay.indexOf(c.id);
         if(idx >= 0) currentDisplay.splice(idx, 1);
         else {
-          if(currentDisplay.length >= 7){ toast('Max 7 display cards'); return; }
+          if(currentDisplay.length >= 5){ toast('Max 5 display cards'); return; }
           currentDisplay.push(c.id);
         }
         refreshPickerSelections();
@@ -1316,7 +1404,7 @@ function openTitlePresetSaveDialog(deck) {
       theme,
       ids:[...deck],
       faceCardId: currentFace,
-      displayCardIds: currentDisplay.slice(0,7)
+      displayCardIds: currentDisplay.slice(0,5)
     };
     G._loadedPresetId = key;
     savePresetsToStorage();
@@ -1442,7 +1530,7 @@ function showStarterDeckWarningBanner() {
   const banner = document.createElement('div');
   banner.id = 'starter-deck-warning';
   banner.style.cssText = 'background:linear-gradient(90deg,rgba(201,168,76,.18),rgba(201,168,76,.08));border:1px solid rgba(201,168,76,.35);border-radius:6px;padding:.45rem .7rem;margin:0 0 .5rem;font-size:.62rem;color:#e8c84a;text-align:center;letter-spacing:.04em;font-family:"Cinzel",serif;';
-  banner.textContent = 'This is a default starter deck. Changes will not be saved to this preset — use "Save As New" to create an editable copy.';
+  banner.textContent = 'This is a default starter deck. Changes will not be saved to this preset � use "Save As New" to create an editable copy.';
   deckPanel.insertBefore(banner, deckPanel.firstChild);
 }
 
@@ -1577,10 +1665,33 @@ function renderPresetOrderEditor() {
   document.getElementById('modal').classList.add('on');
 }
 
-// Visual preset browser â€” called from deck builder
+// Visual preset browser — called from deck builder
 function browsePresets(page=0) {
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const keys = getOrderedPresetKeys();
+  if(typeof window.renderDeckLibraryModal === 'function'){
+    window.renderDeckLibraryModal(page, {
+      source:'title',
+      title:'My Presets',
+      modeLabel:'Title Presets',
+      subcopy:'Choose a preset to load into the title Deck Builder or customize its art.',
+      emptyText:'No decks saved yet. Build a 40-card deck in the Deck Builder, then save it as a preset.',
+      presets:PRESET_DECKS,
+      keys,
+      extraClasses:['title-my-decks-modal'],
+      loadRequiresComplete:true,
+      onLoad:(pid)=>{
+        loadPreset(pid);
+        closeModal();
+      },
+      onEditArt:(pid)=>{
+        if(typeof editPreset === 'function') editPreset(pid);
+      },
+      onOrder:()=>editPresetOrder(),
+      onRowClick:(pid)=>viewPresetContents(pid)
+    });
+    return;
+  }
   const body = document.createElement('div');
   const pageSize = 3;
   const totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
@@ -1624,7 +1735,7 @@ function browsePresets(page=0) {
     const displayCards = (p.displayCardIds && p.displayCardIds.length
       ? p.displayCardIds.filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id))).map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img)
       : sampleCards.filter(c=>c.img)
-    ).slice(0,7);
+    ).slice(0,5);
     const tile = document.createElement('div');
     tile.className = 'preset-browse-tile fixed-deck-tile';
     tile.style.height = '480px';
@@ -1680,8 +1791,7 @@ function browsePresets(page=0) {
       <button class="btn sm" onclick="browsePresets(${_presetBrowsePage-1})" ${_presetBrowsePage<=0?'disabled':''}>Prev</button>
       <button class="btn sm" onclick="editPresetOrder()" ${keys.length<=1?'disabled':''}>Edit Order</button>
       <button class="btn sm" onclick="browsePresets(${_presetBrowsePage+1})" ${_presetBrowsePage>=totalPages-1?'disabled':''}>Next</button>
-    </div>
-    <div style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.08em;">Page ${_presetBrowsePage+1} / ${totalPages}</div>`;
+    </div>`;
   body.appendChild(footer);
 
   document.getElementById('modal-body').innerHTML='';
@@ -1715,11 +1825,6 @@ function viewPresetContents(pid, returnMode='browser') {
   const body = document.createElement('div');
   body.className = 'deck-inspect-view title-deck-inspect-view';
   body.innerHTML = `
-    <div class="deck-inspect-topbar">
-      <div>
-        <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
-      </div>
-    </div>
     <div class="deck-inspect-summary">
       <div class="deck-inspect-brief">
         <p>${escapeHtml(preset.description || 'No description.')}</p>
@@ -1785,7 +1890,7 @@ function viewPresetContents(pid, returnMode='browser') {
   document.getElementById('modal').classList.add('on');
 }
 
-// Used from the title screen â€” loads a preset for both players (or vs AI)
+// Used from the title screen — loads a preset for both players (or vs AI)
 function loadPresetAndStart(presetId, vsAI) {
   const preset = PRESET_DECKS[presetId];
   if(!preset) return;
@@ -1844,4 +1949,4 @@ function saveDeckAndBack() {
   showScreen('s-title');
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════

@@ -416,7 +416,7 @@ function renderTitlePresetPicker(vsAI, sig) {
       const hero = p.faceCardId ? CARDS.find(c=>c.id===p.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
       // Use saved display cards if set
       const previews = (p.displayCardIds && p.displayCardIds.length>0)
-        ? p.displayCardIds.filter(id=>!isRetiredCardForBuilder(id)).map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img).slice(0,7)
+        ? p.displayCardIds.filter(id=>!isRetiredCardForBuilder(id)).map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img).slice(0,5)
         : sampleCards.filter(c=>c.img).slice(0,5);
       const el = document.createElement('div');
       el.className = 'preset-card';

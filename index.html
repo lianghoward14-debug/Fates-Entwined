@@ -10,10 +10,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-  <link rel="stylesheet" href="src/styles/game.css?v=1780925014">
-<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1782623300">
-  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1782940000">
-<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1782032601">
+  <link rel="stylesheet" href="src/styles/game.css?v=1783214000">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1783218003">
+  <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1783221204">
+<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1783221300">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1782663600">
 <link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
@@ -342,7 +342,7 @@
       <div class="mission-grid mission-window-grid">
         <section class="mission-panel mission-daily-panel">
           <div class="mission-panel-header">
-            <span class="mission-panel-icon">M</span>
+            <span class="mission-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M8 5h8"/><path d="M7 6H5v15h14V6h-2"/><path d="m8 13 2 2 5-5"/></svg></span>
             <span class="mission-panel-label">Daily Missions</span>
           </div>
           <div id="mission-window-daily-container"></div>
@@ -364,7 +364,7 @@
 <!-- COIN FLIP -->
 <!-- MATCHMAKING -->
 <div class="screen" id="s-matchmaking">
-<div class="screen-bg"><img src="optimized/backgrounds/ingamebackgrouds_igb1.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'" style="transition:opacity 1s ease;"></div>
+<div class="screen-bg"><img src="ingamebackgrouds/igb1.png?v=bg20260705" alt="" onerror="this.style.display='none'" style="transition:opacity 1s ease;"></div>
   <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:2rem;">
     <div class="mm-spinner"></div>
     <div style="font-family:'Cinzel',serif;font-size:1.8rem;color:var(--gold);letter-spacing:.12em;margin-bottom:.5rem;text-shadow:0 0 24px rgba(255,215,0,.4);">SEARCHING FOR OPPONENT</div>
@@ -565,17 +565,17 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1783140000"></script>
-  <script src="src/scripts/01-data-and-state.js?v=1783140000"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1783170000"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1783221100"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1782864000"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1783150000"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1783220603"></script>
 <script src="src/scripts/04-game-setup.js?v=1783140000"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1783150000"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=1783150000"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1783221500"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1783221101"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
 <script src="src/scripts/render-v2/01-render-snapshot.js?v=1782620100"></script>
-<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1782620100"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1783221200"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=1781643501"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1781642401"></script>
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
@@ -584,19 +584,19 @@
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1781644701"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1782869000"></script>
 <script src="src/scripts/render-v2/16-vfx-acceptance-report.js?v=1780910001"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1782868000"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1783221300"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1782868000"></script>
 <script src="src/scripts/render-v2/08-hand-pile-phase8-report.js?v=1780586201"></script>
-<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1782930000"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1783221500"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1781642403"></script>
 <script src="src/scripts/render-v2/17-action-presentation.js?v=1782620100"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1781643503"></script>
   <script src="src/scripts/render-v2/11-acceptance-report.js?v=1780597201"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1780925023"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
-  <script src="src/scripts/07-ai.js?v=1783140000"></script>
+  <script src="src/scripts/07-ai.js?v=1783221100"></script>
 <script src="src/scripts/08-audio-and-meta-ui.js?v=1782621000"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1783150000"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1783220902"></script>
 <script src="src/scripts/09-challenger-lore.js?v=1783060000"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1782663600"></script>
 <script src="src/scripts/11-tutorial.js?v=1782869000"></script>
@@ -613,10 +613,10 @@
   var modules = [
     './src/scripts/15-online-auth.js?v=1783150000',
     './src/scripts/16-online-core.js?v=1782617500',
-    './src/scripts/17-online-social.js?v=1782620200',
-    './src/scripts/18-online-rooms.js?v=1783150000',
-    './src/scripts/19-online-elo.js?v=1782867000',
-    './src/scripts/20-online-economy.js?v=1783150000'
+    './src/scripts/17-online-social.js?v=1783190000',
+    './src/scripts/18-online-rooms.js?v=1783221500',
+    './src/scripts/19-online-elo.js?v=1783220604',
+    './src/scripts/20-online-economy.js?v=1783190000'
   ];
   var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');
   var promise = null;

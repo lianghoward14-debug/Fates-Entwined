@@ -86,6 +86,7 @@
     lastDirtyMask:0,
     lastDirtySource:''
   };
+
   const DIRTY_LAYOUT = 1 << 0;
   const DIRTY_BACKGROUND = 1 << 1;
   const DIRTY_BOARD_CARDS = 1 << 2;
@@ -281,7 +282,7 @@
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
     if(s.indexOf('pile-hover') >= 0) return DIRTY_HOVER;
-    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HAND | DIRTY_HOVER;
+    if(s.indexOf('hand-hover') >= 0 || s.indexOf('viewport-hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('zone-scroll') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER;
     if(s.indexOf('hover') >= 0) return DIRTY_HOVER;
     if(s.indexOf('activation-flash') >= 0) return DIRTY_EFFECTS | DIRTY_HOVER;
@@ -534,6 +535,12 @@
       else canvas.setAttribute('aria-hidden', 'true');
     }
     canvas.classList.add('fate-match-v2-layer-canvas');
+    canvas.style.position = (id === uiCanvasId || id === hoverCanvasId) ? 'fixed' : 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = '0';
+    canvas.style.display = 'block';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.contain = 'strict';
     return canvas;
   }
 
@@ -559,6 +566,8 @@
     const particleCanvas = makeLayerCanvas(particleCanvasId);
     const uiCanvas = makeLayerCanvas(uiCanvasId);
     const hoverCanvas = makeLayerCanvas(hoverCanvasId);
+    const viewportW = Math.max(1, window.innerWidth || 1280);
+    const viewportH = Math.max(1, window.innerHeight || 720);
     const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas];
     Array.from(board.children).forEach(function(child){
       if(boardLayers.indexOf(child) < 0) child.remove();
@@ -566,6 +575,26 @@
     boardLayers.forEach(function(layer){
       if(layer.parentNode !== board) board.appendChild(layer);
     });
+    uiCanvas.style.setProperty('position', 'fixed', 'important');
+    uiCanvas.style.setProperty('left', '0', 'important');
+    uiCanvas.style.setProperty('top', '0', 'important');
+    uiCanvas.style.setProperty('right', 'auto', 'important');
+    uiCanvas.style.setProperty('bottom', 'auto', 'important');
+    uiCanvas.style.setProperty('width', viewportW + 'px', 'important');
+    uiCanvas.style.setProperty('height', viewportH + 'px', 'important');
+    uiCanvas.style.setProperty('display', 'block', 'important');
+    uiCanvas.style.pointerEvents = 'none';
+    uiCanvas.style.zIndex = '410';
+    hoverCanvas.style.setProperty('position', 'fixed', 'important');
+    hoverCanvas.style.setProperty('left', '0', 'important');
+    hoverCanvas.style.setProperty('top', '0', 'important');
+    hoverCanvas.style.setProperty('right', 'auto', 'important');
+    hoverCanvas.style.setProperty('bottom', 'auto', 'important');
+    hoverCanvas.style.setProperty('width', viewportW + 'px', 'important');
+    hoverCanvas.style.setProperty('height', viewportH + 'px', 'important');
+    hoverCanvas.style.setProperty('display', 'block', 'important');
+    hoverCanvas.style.pointerEvents = 'none';
+    hoverCanvas.style.zIndex = '420';
     if(document.body && uiCanvas.parentNode !== document.body) document.body.appendChild(uiCanvas);
     if(document.body && hoverCanvas.parentNode !== document.body) document.body.appendChild(hoverCanvas);
 
@@ -611,26 +640,6 @@
     particleCanvas.style.display = 'block';
     particleCanvas.style.pointerEvents = 'none';
     particleCanvas.style.zIndex = '3';
-    uiCanvas.style.position = 'absolute';
-    uiCanvas.style.left = '0';
-    uiCanvas.style.top = '0';
-    uiCanvas.style.width = '100%';
-    uiCanvas.style.height = '100%';
-    uiCanvas.style.display = 'block';
-    uiCanvas.style.pointerEvents = 'none';
-    uiCanvas.style.zIndex = '3';
-    uiCanvas.style.position = 'fixed';
-    uiCanvas.style.right = 'auto';
-    uiCanvas.style.bottom = 'auto';
-    uiCanvas.style.zIndex = '410';
-    hoverCanvas.style.setProperty('position', 'fixed', 'important');
-    hoverCanvas.style.setProperty('left', '0', 'important');
-    hoverCanvas.style.setProperty('top', '0', 'important');
-    hoverCanvas.style.width = canvas.style.width;
-    hoverCanvas.style.height = canvas.style.height;
-    hoverCanvas.style.display = 'block';
-    hoverCanvas.style.pointerEvents = 'none';
-    hoverCanvas.style.zIndex = '420';
     canvas.__fateLayers = {
       background:backgroundCanvas,
       cards:canvas,
@@ -654,15 +663,19 @@
       width:Math.max(1, Number(fallback.width) || (board && board.clientWidth) || winW),
       height:Math.max(1, Number(fallback.height) || (board && board.clientHeight) || winH)
     };
-    if(stableBoardViewport && stableBoardViewport.key === key) {
+    if(stableBoardViewport) {
+      const dWinW = Math.abs(winW - (stableBoardViewport.winW || winW));
+      const dWinH = Math.abs(winH - (stableBoardViewport.winH || winH));
       const dx = Math.abs(measured.left - stableBoardViewport.left);
       const dy = Math.abs(measured.top - stableBoardViewport.top);
       const dw = Math.abs(measured.width - stableBoardViewport.width);
       const dh = Math.abs(measured.height - stableBoardViewport.height);
-      if(dx < 36 && dy < 36 && dw < 72 && dh < 72) return stableBoardViewport;
+      if(dWinW <= 2 && dWinH <= 2 && dx < 36 && dy < 36 && dw < 72 && dh < 72) return stableBoardViewport;
     }
     stableBoardViewport = {
       key:measured.key,
+      winW,
+      winH,
       left:measured.left,
       top:measured.top,
       width:measured.width,
@@ -806,6 +819,11 @@
     if(!src) return '';
     if(typeof window.getRuntimeCardImageSrc === 'function') return window.getRuntimeCardImageSrc(src, 'board');
     return String(src || '');
+  }
+
+  function isHandCardDragging(){
+    return !!window.__fateV2DraggingCard ||
+      !!(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'));
   }
 
   function fullArtSource(card, visual){
@@ -2270,12 +2288,60 @@
     return !tutorialCanPlayHandCardNow(card);
   }
 
-  function isViewportHoveredHandItem(item){
-    if(!item || !viewportHoverHit || viewportHoverHit.kind !== 'hand-card') return false;
-    const hoverIid = viewportHoverHit.iid ? String(viewportHoverHit.iid) : '';
-    const itemIid = String(item.iid || (item.card && item.card.iid) || '');
-    if(hoverIid && itemIid && hoverIid === itemIid) return true;
-    return Number(item.index) === Number(viewportHoverHit.index);
+  function handHoverEase(){
+    return viewportHoverHit && viewportHoverHit.kind === 'hand-card' ? 1 : 0;
+  }
+
+  function hoverHandRect(item){
+    if(!item || !item.rect) return null;
+    const base = item.rect;
+    const eased = handHoverEase();
+    const scale = 1 + .18 * eased;
+    const lift = Math.max(18, Math.min(34, base.h * .22)) * eased;
+    const r = {
+      x:base.x + base.w / 2 - (base.w * scale) / 2,
+      y:base.y - lift,
+      w:base.w * scale,
+      h:base.h * scale
+    };
+    const cssW = Math.max(1, Number(window.innerWidth) || 1280);
+    const cssH = Math.max(1, Number(window.innerHeight) || 720);
+    r.x = Math.max(8, Math.min(r.x, cssW - r.w - 8));
+    r.y = Math.max(8, Math.min(r.y, cssH - r.h - 8));
+    return r;
+  }
+
+  function coverHandCardSlot(ctx, item){
+    if(!ctx || !item || !item.rect) return;
+    const r = item.rect;
+    ctx.save();
+    const pad = Math.max(3, r.w * .04);
+    roundedPath(ctx, r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2, Math.max(5, r.w * .06));
+    ctx.fillStyle = 'rgba(3,5,10,.94)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(218,185,82,.10)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawHoveredHandCard(ctx, item, snapshot){
+    if(!ctx || !item || !item.card || !item.rect) return null;
+    if(isHandCardDragging() || (item.card.flags && item.card.flags.presentationDeparting)) return null;
+    if(isSupporterLimitDisabled(item, snapshot) || isTutorialHandCardDisabled(item, snapshot)) return null;
+    const r = hoverHandRect(item);
+    if(!r) return null;
+    const entry = {card:item.card, c:item.index, r:0, z:0};
+    const visual = item.card.visual || item.card;
+    const onChange = function(){ scheduleTextureRender('hand-hover-texture-ready'); };
+    ctx.save();
+    coverHandCardSlot(ctx, item);
+    ctx.shadowColor = 'rgba(0,0,0,.46)';
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetY = 12;
+    drawCardVisual(ctx, entry, visual, r, onChange, {pulse:false, tilt:0, lift:.65, hideFateBadge:true});
+    ctx.restore();
+    return r;
   }
 
   function drawDisabledCardOverlay(ctx, r, label){
@@ -2299,24 +2365,6 @@
     ctx.restore();
   }
 
-  function drawHoveredHandCard(ctx, entry, visual, r, onChange, disabled){
-    const scale = 1.28;
-    const lift = Math.max(22, r.h * .22);
-    const cx = r.x + r.w / 2;
-    const cy = r.y + r.h / 2;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.46)';
-    ctx.shadowBlur = 22;
-    ctx.shadowOffsetY = 12;
-    ctx.translate(cx, cy - lift);
-    ctx.scale(scale, scale);
-    ctx.translate(-cx, -cy);
-    drawCardVisual(ctx, entry, visual, r, onChange, {pulse:false, tilt:0, lift:1, hideFateBadge:true, noShadow:true, readyTextureOnly:true});
-    drawHandEffectIcon(ctx, entry && entry.card, r);
-    if(disabled) drawDisabledCardOverlay(ctx, r);
-    ctx.restore();
-  }
-
   function drawViewportHoverOverlay(ctx){
     if(!ctx || !viewportHoverHit || !lastLayout || !lastSnapshot) return;
     if(viewportHoverHit.kind === 'hand-effect-icon') {
@@ -2329,12 +2377,10 @@
         return candidate && viewportHoverHit.iid && String(candidate.iid || (candidate.card && candidate.card.iid) || '') === String(viewportHoverHit.iid);
       }) || handCards.find(function(candidate){ return candidate && Number(candidate.index) === Number(viewportHoverHit.index); });
       if(!item || !item.card || !item.rect) return;
-      const isDraggingCard = !!(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'));
-      if(isDraggingCard || (item.card.flags && item.card.flags.presentationDeparting)) return;
+      if(isHandCardDragging() || (item.card.flags && item.card.flags.presentationDeparting)) return;
       const disabled = isSupporterLimitDisabled(item, lastSnapshot) || isTutorialHandCardDisabled(item, lastSnapshot);
       if(disabled) return;
-      const hoverRect = viewportHoverHit.rect || item.rect;
-      drawHoveredHandCard(ctx, {card:item.card, c:item.index, r:0, z:0}, item.card.visual || item.card, hoverRect, function(){}, false);
+      const hoverRect = drawHoveredHandCard(ctx, item, lastSnapshot) || hoverHandRect(item) || viewportHoverHit.rect || item.rect;
       const effects = handEffectRows(item.card);
       if(effects.length) {
         drawHandEffectTooltip(ctx, {kind:'hand-card', rect:hoverRect, iconRect:handEffectIconRect(hoverRect), cardRect:hoverRect, card:item.card, effects});
@@ -2705,7 +2751,6 @@
       const visual = item.card.visual || item.card;
       const disabled = isSupporterLimitDisabled(item, snapshot) || isTutorialHandCardDisabled(item, snapshot);
       hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled});
-      if(isViewportHoveredHandItem(item) && !disabled) return;
       const entry = {card:item.card, c:item.index, r:0, z:0};
       const onChange = function(){ scheduleTextureRender('hand-texture-ready'); };
       drawCardVisual(ctx, entry, visual, item.rect, onChange, {pulse:false, tilt:0, lift:0, hideFateBadge:true, noShadow:true});
@@ -2973,8 +3018,13 @@
       if(uiLayer.height !== uiPxH) uiLayer.height = uiPxH;
       uiLayer.__fateCssW = uiW;
       uiLayer.__fateCssH = uiH;
-      uiLayer.style.width = uiW + 'px';
-      uiLayer.style.height = uiH + 'px';
+      uiLayer.style.setProperty('position', 'fixed', 'important');
+      uiLayer.style.setProperty('left', '0', 'important');
+      uiLayer.style.setProperty('top', '0', 'important');
+      uiLayer.style.setProperty('right', 'auto', 'important');
+      uiLayer.style.setProperty('bottom', 'auto', 'important');
+      uiLayer.style.setProperty('width', uiW + 'px', 'important');
+      uiLayer.style.setProperty('height', uiH + 'px', 'important');
     }
     const hoverCanvas = layers.hover || document.getElementById(hoverCanvasId);
     if(!hoverCanvas || !canvas) return null;
@@ -2990,6 +3040,8 @@
     hoverCanvas.style.setProperty('position', 'fixed', 'important');
     hoverCanvas.style.setProperty('left', '0', 'important');
     hoverCanvas.style.setProperty('top', '0', 'important');
+    hoverCanvas.style.setProperty('right', 'auto', 'important');
+    hoverCanvas.style.setProperty('bottom', 'auto', 'important');
     hoverCanvas.style.setProperty('width', hoverW + 'px', 'important');
     hoverCanvas.style.setProperty('height', hoverH + 'px', 'important');
     lastCanvasMetrics = Object.assign({cssW, cssH, dpr}, scaleMetrics || {});
@@ -3913,8 +3965,7 @@
     const prev = viewportHoverHit;
     if(viewportHoverKey(prev) === viewportHoverKey(next)) return;
     viewportHoverHit = next;
-    if((prev && prev.kind === 'hand-card') || (next && next.kind === 'hand-card')) scheduleRender('hand-hover');
-    else scheduleHoverDraw();
+    scheduleHoverDraw();
   }
 
   function scrollZoneAtClient(clientX, clientY, deltaY){

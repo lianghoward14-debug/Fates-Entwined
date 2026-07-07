@@ -1,6 +1,7 @@
-//  INIT
+﻿//  INIT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 var _titleProfileSig = '';
+
 function getTitleProfileSig(){
   var p = {};
   try { p = (typeof USER_PROFILE !== 'undefined' && USER_PROFILE) ? USER_PROFILE : (window.USER_PROFILE || {}); } catch(e) { p = window.USER_PROFILE || {}; }
@@ -492,7 +493,7 @@ function warmFirstInteractionUi() {
         [
           'optimized/backgrounds/ingamebackgrouds_igb9.jpg',
           'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
-          'optimized/backgrounds/ingamebackgrouds_igb1.jpg'
+          'ingamebackgrouds/igb1.png?v=bg20260705'
         ].forEach(function(src){
           const img = new Image();
           img.decoding = 'async';
@@ -1052,7 +1053,7 @@ function initSidePanel(){
     '</div>' +
     '<div class="sp-wc-messages" id="sp-wc-messages"></div>' +
     '<div class="sp-wc-input-row">' +
-      '<button class="social-emoji-toggle" id="sp-wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()">😀</button>' +
+      '<button class="social-emoji-toggle" id="sp-wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>' +
       '<input type="text" id="sp-wc-input" placeholder="Speak to the realm..." maxlength="200" autocomplete="off" onkeydown="if(event.key===\'Enter\')sendWorldChat()">' +
       '<button class="btn sm pri" onclick="sendWorldChat()">Send</button>' +
     '</div>' +
@@ -1256,7 +1257,7 @@ function renderMissionDaily(){
     var pct = Math.round((cur / def.target) * 100);
     var done = ch.completed;
     html += '<div class="dc-item' + (done ? ' dc-done' : '') + '">'
-      + '<div class="dc-item-icon-wrap"><span class="dc-icon">' + def.icon + '</span></div>'
+      + '<div class="dc-item-icon-wrap"><span class="dc-icon">' + (typeof renderDailyChallengeIcon === 'function' ? renderDailyChallengeIcon(def) : String(def.icon || 'M')) + '</span></div>'
       + '<div class="dc-item-center">'
       + '<div class="dc-item-label">' + def.label + '</div>'
       + '<div class="dc-item-desc">' + def.desc + '</div>'
@@ -1267,14 +1268,17 @@ function renderMissionDaily(){
   });
   var allDone = doneCount >= 3;
   var bonusClaimed = !!localStorage.getItem('fate_daily_bonus_' + today);
-  html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '" style="border-color:rgba(255,215,0,.2)!important;background:linear-gradient(135deg,rgba(255,215,0,.04),rgba(255,215,0,.01))!important;margin-top:.15rem;">'
-    + '<div class="dc-item-icon-wrap" style="background:rgba(255,215,0,.1)!important;border-color:rgba(255,215,0,.25)!important;"><span class="dc-icon">🏆</span></div>'
+  var allMissionsIcon = '<svg class="dc-all-missions-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path d="M12 3.4l2.4 5 5.5.8-4 3.9.9 5.5-4.8-2.6-4.8 2.6.9-5.5-4-3.9 5.5-.8L12 3.4Z" />'
+    + '</svg>';
+  html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '" style="border-color:rgba(199,168,91,.18)!important;background:linear-gradient(135deg,rgba(130,200,239,.045),rgba(199,168,91,.025))!important;margin-top:.15rem;">'
+    + '<div class="dc-item-icon-wrap" style="background:rgba(130,200,239,.075)!important;border-color:rgba(130,200,239,.26)!important;"><span class="dc-icon">' + allMissionsIcon + '</span></div>'
     + '<div class="dc-item-center">'
-    + '<div class="dc-item-label" style="color:#ffd700!important;">Complete All Missions</div>'
+    + '<div class="dc-item-label" style="color:#eee7d8!important;">Complete All Missions</div>'
     + '<div class="dc-item-desc">Finish all 3 daily missions for a bonus</div>'
-    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;background:linear-gradient(90deg,rgba(255,215,0,.7),rgba(255,215,0,.4))!important;"></div><span class="dc-bar-text">' + (bonusClaimed ? '✓ Claimed' : doneCount + '/3') + '</span></div>'
+    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;background:linear-gradient(90deg,rgba(130,200,239,.74),rgba(236,216,123,.58))!important;"></div><span class="dc-bar-text">' + (bonusClaimed ? '✓ Claimed' : doneCount + '/3') + '</span></div>'
     + '</div>'
-    + '<div class="dc-reward-badge" style="color:#ffd700!important;border-color:rgba(255,215,0,.3)!important;">+50 ★</div>'
+    + '<div class="dc-reward-badge" style="color:#dbc981!important;border-color:rgba(199,168,91,.24)!important;">+50 ★</div>'
     + '</div>';
   html += '</div>';
   var sig = today + '|' + doneCount + '|' + totalReward + '|' + totalBonuses + '|' + daily.challenges.map(function(ch){

@@ -8,6 +8,8 @@
   "scripts": {
     "start": "electron .",
     "electron": "electron .",
+    "electron:host": "electron . --allow-multiple-instances --session=host",
+    "electron:guest": "electron . --allow-multiple-instances --session=guest",
     "dev:web": "node tools/solo-static-server.js --port 8126",
     "server:ws": "node server/fate-ws-authority.js",
     "server:fly-local": "node server/fate-fly-authority-local.js",

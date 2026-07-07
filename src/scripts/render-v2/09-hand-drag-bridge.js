@@ -15,6 +15,10 @@
   const DROP_PREVIEW_MIN_DELTA = 12;
   let handOrganizer = null;
 
+  function setDraggingFlag(active){
+    window.__fateV2DraggingCard = !!active;
+  }
+
   function adapter(){
     return window.FateMatchRendererAdapter || null;
   }
@@ -440,11 +444,12 @@
     if(!card || !hit || hit.kind !== 'cell') return false;
     if(isBlockedHandSetCard(card)) return false;
     if(boardCardAt(hit)) return false;
-    if(typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))) return false;
+    const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
+    if(!ignoresOpponentPlacementLocks && typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))) return false;
     const cp = typeof G !== 'undefined' && G ? G.currentPlayer : 0;
     if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
     if(card.contestedOnly && Number(hit.r) !== 1) return false;
-    if(card.type === 'Supporter' && card.id !== '76' && typeof isBlockedByAlondra === 'function' && isBlockedByAlondra(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
+    if(!ignoresOpponentPlacementLocks && card.type === 'Supporter' && card.id !== '76' && typeof isBlockedByAlondra === 'function' && isBlockedByAlondra(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
     return true;
   }
 
@@ -457,6 +462,23 @@
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
     return boardCard && boardCard.owner === G.currentPlayer && boardCard.type === 'Supporter' && !boardCard.noConsolidate ? 'valid' : 'invalid';
+  }
+
+  function supporterDropBlockReason(card, hit){
+    if(!card || card.type !== 'Supporter' || !hit || hit.kind !== 'cell') return '';
+    const cp = typeof G !== 'undefined' && G ? G.currentPlayer : 0;
+    const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
+    if(!ignoresOpponentPlacementLocks && card.id !== '76' && typeof isBlockedByAlondra === 'function' && isBlockedByAlondra(Number(hit.z), Number(hit.r), Number(hit.c), cp)){
+      return 'Alondra Hopkins blocks Supporters adjacent to her.';
+    }
+    if(boardCardAt(hit)) return 'Drop on an empty cell.';
+    if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(Number(hit.z), Number(hit.r), Number(hit.c), cp)){
+      return Number(hit.r) === 1 ? 'Cannot place there.' : 'Cannot place on opponent\'s safe row.';
+    }
+    if(!ignoresOpponentPlacementLocks && typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))){
+      return 'Cell is blocked.';
+    }
+    return '';
   }
 
   function setSceneHover(hit, dragState){
@@ -670,6 +692,7 @@
     }
     pendingHover = null;
     setSceneHover(null);
+    setDraggingFlag(false);
     document.body.classList.remove('fate-v2-dragging-card');
     if(opts.clearPlacement && typeof G !== 'undefined' && G){
       G.selectedHandCard = null;
@@ -741,11 +764,10 @@
     state.canPayReinforcement = state.card && state.card.type !== 'Supporter' ? hasEnoughReinforcement(state.card) : true;
     state.ghost = makeGhost(state.el, ev);
     if(state.el) state.el.classList.add('fate-v2-drag-source');
-    document.body.classList.add('fate-v2-dragging-card');
+    setDraggingFlag(true);
+    const scene = adapter();
+    if(scene && typeof scene.setViewportHoverHit === 'function') scene.setViewportHoverHit(null);
     if(typeof playSfx === 'function') playSfx('dragStart');
-    G.selectedHandCard = state.idx;
-    G.placing = true;
-    if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
   }
 
   function onPointerDown(ev){
@@ -835,7 +857,7 @@
         if(state.card && state.card.type !== 'Supporter' && !hasEnoughReinforcement(state.card)){
           toast('Not enough reinforcement to consolidate ' + (state.card.name || 'that card') + '.');
         } else {
-          toast(state.card && state.card.type === 'Supporter' ? 'Drop on an empty cell.' : 'Drop on one of your Supporters to consolidate.');
+          toast(state.card && state.card.type === 'Supporter' ? (supporterDropBlockReason(state.card, hit) || 'Drop on an empty cell.') : 'Drop on one of your Supporters to consolidate.');
         }
       }
       cleanup({clearPlacement:true});

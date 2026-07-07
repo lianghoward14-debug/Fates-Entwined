@@ -371,12 +371,12 @@ const STARTER_DECKS = [
     description: 'Consolidate for Alondra Hopkins, then stack Fate on her with recycled buff supporters.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','06','27','76','44','65','20'],
+    displayCardIds: ['14','06','27','76','44','65','64'],
     ids: [
       '14','14','14','06','06','27','27','13','13','13',
       '47','47','47','05','05','05','58','58','58','60','60','60',
       '75','75','75','32','32','32','44','44','44','76','76','76',
-      '65','65','65','20','20','20'
+      '65','65','65','64','64','64'
     ]
   },
   {
@@ -431,11 +431,11 @@ const AI_ONLY_RANDOM_DECKS = [
     description: 'A sharper Maelstrom shell with stronger supporter recursion, movement pressure and consolidation ambushes.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','06','27','69','54','44','20'],
+    displayCardIds: ['14','06','27','69','54','44','64'],
     ids: [
       '14','14','14','06','06','06','27','27','27','13','13','13',
       '47','47','47','05','05','05','58','58','58','75','75','75',
-      '69','69','69','20','20','20','44','44','44','54','54','54',
+      '69','69','69','64','64','64','44','44','44','54','54','54',
       '65','65','76','76'
     ]
   },
@@ -553,7 +553,7 @@ const AI_ONLY_RANDOM_DECKS = [
     faceCardId: '03',
     displayCardIds: ['03','45','46','56','17','67','76'],
     ids: [
-      '03','03','63','63','63','76','76','76','45','45',
+      '03','79','63','63','63','76','76','76','45','45',
       '45','56','56','17','17','08','08','08','46','46',
       '46','67','67','06','06','06','60','60','68','68',
       '24','24','32','32','58','58','75','75','05','05'
@@ -570,7 +570,7 @@ const AI_ONLY_RANDOM_DECKS = [
     ids: [
       '46','46','46','08','08','08','06','06','06','47',
       '47','47','05','05','05','58','58','58','75','75',
-      '75','69','69','69','03','03','76','76','76','65',
+      '75','69','69','69','03','13','76','76','76','65',
       '65','65','60','60','60','32','32','32','13','13'
     ]
   },
@@ -1395,7 +1395,7 @@ function generateFavoredPack() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  MARKETPLACE � Multiplayer-ready auction/buyout system
+//  MARKETPLACE � Multiplayer-ready auction/buyout system
 // ═══════════════════════════════════════════════════════
 function getMarketplace(){
   if(!USER_PROFILE.marketplace) USER_PROFILE.marketplace={listings:[]};
@@ -1468,7 +1468,7 @@ function listCardForSale(cardId){
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;font-size:.95rem;color:var(--gold);margin-bottom:.3rem;">${escapeHtml(c.name)}</div>
-        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} � <span style="color:${rarCol}">${c.rarity}</span></div>
+        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} � <span style="color:${rarCol}">${c.rarity}</span></div>
         <div style="font-size:.68rem;color:var(--dim);opacity:.7;">${escapeHtml(c.ability||'')}</div>
       </div>
     </div>
@@ -1662,7 +1662,7 @@ function listCardForSale(cardId){
         <div class="market-list-card-copy">
           <div class="market-list-kicker">Marketplace Listing</div>
           <div class="market-list-name">${escapeHtml(c.name)}</div>
-          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` � Cost ${c.xCost?'X':c.cost}`:''} � ${affLabel} � ${rarity}</div>
+          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` � Cost ${c.xCost?'X':c.cost}`:''} � ${affLabel} � ${rarity}</div>
           <div class="market-list-note">Set a Starlight price. The card leaves your collection while listed and returns if you cancel the listing.</div>
         </div>
       </div>
@@ -2523,7 +2523,7 @@ function renderCdbCollection() {
     el.appendChild(ownedBadge);
     el.onclick = ()=>openCardDetail(c);
     el.oncontextmenu = (e)=>{e.preventDefault();cdbAdd(c.id);};
-    el.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
+    el.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
     col.appendChild(el);
   });
 }
@@ -3326,18 +3326,129 @@ function findLiveAIPlayer(username) {
 
 // --- EMOJI SUPPORT ---
 const EMOJI_LIST = [
-  '??','??','??','??','??','??','??','??','??','???',
-  '??','??','?','??','??','??','??','??','??','??',
-  '??','??','??','??','??','??','??','?','??','???',
-  '??','??','??','??','??','??','??','??','??','??',
-  '??','??','??','??','???','??','??','??','??','??',
-  '??','??','??','??','??','??','??','??','??','??',
-  '??','??','??','??','??','??','??','??','??','??',
-  '??','??','??','??','??','??','??','??','??','??',
-  '??','???','??','??','??','??','??','??','??','??',
-  '?','??','??','???','??','??','??','??','??','??',
-  '??','??','??','???','??','?','??','??','??','??',
-  '??','??','??','??','??','??','??','??','??','??'
+  '😀',
+  '😃',
+  '😄',
+  '😁',
+  '😆',
+  '😅',
+  '🤣',
+  '😂',
+  '🙂',
+  '🙃',
+  '🫠',
+  '😉',
+  '😊',
+  '😇',
+  '🥰',
+  '😍',
+  '🤩',
+  '😘',
+  '😗',
+  '☺️',
+  '😚',
+  '😙',
+  '🥲',
+  '😋',
+  '😛',
+  '😜',
+  '🤪',
+  '😝',
+  '🤑',
+  '🤗',
+  '🤭',
+  '🫢',
+  '🫣',
+  '🤫',
+  '🤔',
+  '🫡',
+  '🤐',
+  '🤨',
+  '😐',
+  '😑',
+  '😶',
+  '🫥',
+  '😶‍🌫️',
+  '😏',
+  '😒',
+  '🙄',
+  '😬',
+  '😮‍💨',
+  '🤥',
+  '🫨',
+  '😌',
+  '😔',
+  '😪',
+  '🤤',
+  '😴',
+  '😷',
+  '🤒',
+  '🤕',
+  '🤢',
+  '🤮',
+  '🤧',
+  '🥵',
+  '🥶',
+  '🥴',
+  '😵',
+  '😵‍💫',
+  '🤯',
+  '🤠',
+  '🥳',
+  '🥸',
+  '😎',
+  '🤓',
+  '🧐',
+  '😕',
+  '🫤',
+  '😟',
+  '🙁',
+  '☹️',
+  '😮',
+  '😯',
+  '😲',
+  '😳',
+  '🥺',
+  '🥹',
+  '😦',
+  '😧',
+  '😨',
+  '😰',
+  '😥',
+  '😢',
+  '😭',
+  '😱',
+  '😖',
+  '😣',
+  '😞',
+  '😓',
+  '😩',
+  '😫',
+  '🥱',
+  '😤',
+  '😡',
+  '😠',
+  '🤬',
+  '😈',
+  '👿',
+  '💀',
+  '💩',
+  '🤡',
+  '👹',
+  '👺',
+  '👻',
+  '👽',
+  '👾',
+  '🤖',
+  '😺',
+  '😸',
+  '😹',
+  '😻',
+  '😼',
+  '😽',
+  '🙀',
+  '😿',
+  '😾'
 ];
 
 function renderEmojiPicker(onSelect) {
@@ -3526,14 +3637,14 @@ function openDirectMessage(username) {
         <div class="social-dm-header-pic" style="${typeof getRankFrameStyle==='function'?getRankFrameStyle(friendElo,'icon'):''}">${headerPic}</div>
         <div class="social-dm-header-info">
           <div class="social-dm-header-name">${escapeHtml(username)}</div>
-          <div class="social-dm-header-meta">${friendElo} ELO � ${renderRankBadge(friendElo,'sm')}</div>
+          <div class="social-dm-header-meta">${friendElo} ELO � ${renderRankBadge(friendElo,'sm')}</div>
         </div>
       </div>
       <div class="social-chat-box" id="social-dm-box">
         ${chatHtml || '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No messages yet. Say hello!</div>'}
       </div>
       <div class="social-chat-input-row">
-        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji">??</button>
+        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji"><span class="emoji-face-icon" aria-hidden="true"></span></button>
         <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
         <button class="btn sm pri" onclick='sendDirectMessage(${jsString(username)})'>Send</button>
       </div>
@@ -3764,7 +3875,7 @@ function renderSocialPage() {
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">?</span>':''}</div>
-        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO � <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
+        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO � <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
       </div>
     </div>`;
   }).join('') : '';
@@ -3791,7 +3902,7 @@ function renderSocialPage() {
               </div>
               <div class="social-friend-info">
                 <div class="social-friend-name">${escapeHtml(f.username)}</div>
-                <div class="social-friend-meta">${f.elo} ELO � <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
+                <div class="social-friend-meta">${f.elo} ELO � <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
               </div>
               <div class="social-friend-actions">
                 <button class="btn sm" onclick='event.stopPropagation();openDirectMessage(${jsString(f.username)})' title="Message">??</button>
@@ -3799,9 +3910,9 @@ function renderSocialPage() {
               </div>
             </div>`).join('')}</div>
             ${totalFriendPages > 1 ? `<div style="display:flex;justify-content:center;align-items:center;gap:.6rem;margin-top:.5rem;">
-              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>� Prev</button>
+              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>� Prev</button>
               <span style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.06em;">Page ${window._socialFriendPage+1} / ${totalFriendPages}</span>
-              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next �</button>
+              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next �</button>
             </div>` : ''}`}
       </div>
 
@@ -3942,18 +4053,18 @@ function initWorldChat() {
   widget.className = 'world-chat-widget';
   widget.innerHTML = `
     <div class="world-chat-toggle" id="world-chat-toggle">
-      <span class="world-chat-icon" aria-hidden="true">??</span>
+      <span class="world-chat-icon" aria-hidden="true">💬</span>
       <span class="world-chat-label">World Chat</span>
       <span class="world-chat-badge" id="world-chat-badge" style="display:none;">0</span>
     </div>
     <div class="world-chat-panel" id="world-chat-panel" style="display:none;">
       <div class="world-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);letter-spacing:.08em;">WORLD CHAT</span>
-        <button class="world-chat-close" onclick="toggleWorldChat()">?</button>
+        <button class="world-chat-close" onclick="toggleWorldChat()">&times;</button>
       </div>
       <div class="world-chat-messages" id="world-chat-messages"></div>
       <div class="world-chat-input-row">
-        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()">??</button>
+        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()"><span class="emoji-face-icon" aria-hidden="true"></span></button>
         <input type="text" class="social-chat-input" id="wc-input" placeholder="Say something..." maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter')sendWorldChat()">
         <button class="btn sm pri" onclick="sendWorldChat()">Send</button>
       </div>
@@ -4210,7 +4321,7 @@ function initInGameChat() {
     <div class="ingame-chat-panel" id="ingame-chat-panel" style="display:none;">
       <div class="ingame-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.76rem;color:var(--gold);letter-spacing:.06em;">MATCH LOBBY</span>
-        <button class="world-chat-close" onclick="toggleInGameChat()">?</button>
+        <button class="world-chat-close" onclick="toggleInGameChat()">&times;</button>
       </div>
       <div class="ingame-chat-matchup">
         <div class="ingame-chat-player-card">
@@ -4612,8 +4723,8 @@ function showMatchHistory(page) {
       const p1Won = m.winner === m.p1;
       const p1NameColor = p1Won ? '#7fffa0' : '#ff6b6b';
       const p2NameColor = !p1Won ? '#7fffa0' : '#ff6b6b';
-      const p1Arrow = m.p1Change > 0 ? '?' : m.p1Change < 0 ? '?' : '�';
-      const p2Arrow = m.p2Change > 0 ? '?' : m.p2Change < 0 ? '?' : '�';
+      const p1Arrow = m.p1Change > 0 ? '?' : m.p1Change < 0 ? '?' : '�';
+      const p2Arrow = m.p2Change > 0 ? '?' : m.p2Change < 0 ? '?' : '�';
       const p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       const p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
       const p1Img = m.p1Img || null;
@@ -4701,7 +4812,7 @@ function showDivisionPage(page, memberPage) {
         <span style="font-family:Cinzel,serif;font-size:1rem;color:${rank.color};font-weight:700;">${rank.name}</span>
         ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">? YOU</span>':''}
       </div>
-      <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO � ${members.length} player${members.length!==1?'s':''}</div>
+      <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO � ${members.length} player${members.length!==1?'s':''}</div>
     </div>
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx+1})" ${_divisionPageIdx>=reversedRanks.length-1?'disabled':''}>Next</button>
   </div>`;

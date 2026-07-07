@@ -428,8 +428,22 @@ function isAlpineInfantryCard(card) {
   return !!(card && String(card.id || '') === '76');
 }
 
+function isSouthWindSpearmanCard(card) {
+  return !!(card && (String(card.id || '') === '20' || (typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '20'))));
+}
+
 function isCardEffectImmutable(card) {
   return isAlpineInfantryCard(card);
+}
+
+function isOpponentEffectOnlyImmuneCard(card) {
+  return isSouthWindSpearmanCard(card);
+}
+
+function isTargetImmuneToEffectOwner(card, effectOwner) {
+  if (!card || isFaceDownCard(card)) return false;
+  if (isCardEffectImmutable(card) || card.immuneFlag === true || card.opponentEffectImmune === true) return true;
+  return isOpponentEffectOnlyImmuneCard(card) && typeof effectOwner === 'number' && Number(card.owner) !== Number(effectOwner);
 }
 
 function isFullyEffectImmuneCard(card) {
@@ -674,7 +688,10 @@ function consumePendingPlacementFlags(sourceCard, placedCard) {
 
 if (typeof window !== 'undefined') {
   window.isAlpineInfantryCard = isAlpineInfantryCard;
+  window.isSouthWindSpearmanCard = isSouthWindSpearmanCard;
   window.isCardEffectImmutable = isCardEffectImmutable;
+  window.isOpponentEffectOnlyImmuneCard = isOpponentEffectOnlyImmuneCard;
+  window.isTargetImmuneToEffectOwner = isTargetImmuneToEffectOwner;
   window.isFullyEffectImmuneCard = isFullyEffectImmuneCard;
   window.applyPermanentEffectImmunity = applyPermanentEffectImmunity;
   window.recordHandCardEffectModifier = recordHandCardEffectModifier;

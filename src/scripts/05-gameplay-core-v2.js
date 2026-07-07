@@ -1805,10 +1805,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}
+        if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(tgt, cp)){showBlockedAnimation('this card is immune');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`MINAE Death Squad: discarded ${tgt.name}`);
         renderGame();
-      },c=>c.owner===opp&&c.type==='Supporter'); break;
+      },c=>c.owner===opp&&c.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(c, cp))); break;
     case '18': // 1st US Marines: suppress opponent's supporter effects next turn
       G.oppSuppressedNextTurn = true;
       G.suppressTarget = opp;

@@ -685,7 +685,7 @@
     }
 
     if(minisCanvas) {
-      const miniW = 46, miniH = 64, gap = 4;
+      const miniW = 56, miniH = 78, gap = 6;
       const count = Math.max(1, Math.min(7, minis.length || 1));
       const cssW = count * miniW + Math.max(0, count - 1) * gap;
       const cssH = miniH;

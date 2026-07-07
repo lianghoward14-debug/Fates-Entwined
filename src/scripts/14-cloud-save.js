@@ -338,7 +338,20 @@
     });
   }
 
+  function _cloudNormalizeUsername(name){
+    return String(name == null ? '' : name).trim().toLowerCase().replace(/\\s+/g, ' ');
+  }
+  function _cloudIsLegacyStaleUsername(name){
+    var normalized = _cloudNormalizeUsername(name);
+    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+  }
+  function _cloudRepairLegacyUsername(name, fallback){
+    if(_cloudIsLegacyStaleUsername(name)) return fallback || 'Sic Kemper Tyrannus';
+    return name;
+  }
+
   function _applyCloudData(data, uid){
+    var previousUsername = (typeof USER_PROFILE !== 'undefined' && USER_PROFILE && !_cloudIsLegacyStaleUsername(USER_PROFILE.username)) ? USER_PROFILE.username : 'Sic Kemper Tyrannus';
     if(typeof USER_PROFILE !== 'undefined') USER_PROFILE = createDefaultUserProfile();
     if(typeof PRESET_DECKS !== 'undefined') PRESET_DECKS = {};
     if(typeof LEADERBOARD !== 'undefined') LEADERBOARD = [];
@@ -357,6 +370,8 @@
       };
       if(typeof USER_PROFILE !== 'undefined'){
         USER_PROFILE = Object.assign({}, defaults, data.profile, {_fateAccountUid:uid});
+        USER_PROFILE.username = _cloudRepairLegacyUsername(USER_PROFILE.username || USER_PROFILE.displayName, previousUsername);
+        if(USER_PROFILE.displayName) USER_PROFILE.displayName = _cloudRepairLegacyUsername(USER_PROFILE.displayName, USER_PROFILE.username);
       }
       try {
         var storageKey = uid ? 'fate_user_profile_' + uid : 'fate_user_profile';

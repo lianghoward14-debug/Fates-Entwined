@@ -451,7 +451,7 @@ function aiGenerateAllMoves() {
           for(let c=0;c<3;c++){
             if(G.board[z][r][c]!==null) continue;
             if(isBlocked(z,r,c)) continue;
-            if(sup.id!=='76' && isBlockedByAlondra(z,r,c,cp)) continue;
+            if(sup.id!=='76' && sup.id!=='20' && isBlockedByAlondra(z,r,c,cp)) continue;
             moves.push({type:'place', card:sup, z, r, c, contested:r===1, fromDeck:candidate.fromDeck});
           }
         }
@@ -1333,23 +1333,26 @@ function buildAIDifficultyPickerHtml(page) {
   const rank = AI_DIVISIONS[targetPage];
   const opponents = AI_OPPONENTS.filter(a=>aiPickerDisplayRank(a)===rank);
   let html = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);">
-      <div style="font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);">Choose Opponent</div>
-      <button class="btn sm" onclick="closeAllOverlays()">Back</button>
-    </div>
-    <p style="color:var(--dim);font-style:italic;font-size:.82rem;margin-bottom:1rem;text-align:center;">Page through the divisions and pick the AI you want to face.</p>`;
+    <div class="ai-picker-header">
+      <div class="ai-picker-title-row">
+        <div class="ai-picker-title">Choose Opponent</div>
+        <button class="btn sm ai-picker-back" onclick="closeAllOverlays()">Back</button>
+      </div>
+    </div>`;
   if(opponents.length){
     const rankData = getAIDivisionRankData(rank);
     html += `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:1rem;">
-        <button class="btn sm" onclick="showAIDifficultyPicker(${targetPage-1})" ${targetPage<=0?'disabled':''}>Prev</button>
-        <div class="ai-division-rank-card" style="flex:0 0 auto;text-align:center;margin:0 auto;display:flex;align-items:center;justify-content:center;background:transparent;border:0;padding:0;">
-          <div class="ai-division-rank-badge" style="display:flex;align-items:center;justify-content:center;gap:.55rem;margin-bottom:0;">
+      <div class="ai-division-hero" style="--ai-rank-color:${rankData.color};--ai-rank-bg:${rankData.bg};">
+        <button class="btn sm ai-division-nav ai-division-prev" onclick="showAIDifficultyPicker(${targetPage-1})" ${targetPage<=0?'disabled':''}>Prev</button>
+        <div class="ai-division-rank-card">
+          <div class="ai-division-rank-badge">
             <span style="line-height:0;">${renderRankBadge(rankData.minElo || opponents[0].elo,'lg')}</span>
           </div>
+          <div class="ai-division-meta">${getAIDivisionEloRange(rank)} ELO · ${opponents.length} opponent${opponents.length!==1?'s':''}</div>
         </div>
-        <button class="btn sm" onclick="showAIDifficultyPicker(${targetPage+1})" ${targetPage>=AI_DIVISIONS.length-1?'disabled':''}>Next</button>
+        <button class="btn sm ai-division-nav ai-division-next" onclick="showAIDifficultyPicker(${targetPage+1})" ${targetPage>=AI_DIVISIONS.length-1?'disabled':''}>Next</button>
       </div>
+      <p class="ai-picker-subcopy">Page through the rank banners and pick the AI you want to face.</p>
       <div style="display:flex;flex-direction:column;gap:.55rem;max-height:68vh;overflow-y:auto;padding-right:.3rem;">`;
     opponents.forEach(opp=>{
       const displayElo = aiPickerDisplayElo(opp);
@@ -1499,13 +1502,7 @@ function selectAIOpponent(opp, options={}) {
     return;
   }
 
-  // If deck is already set (e.g. from free play with pre-selected deck), start immediately
-  if(G.p1Deck && G.p1Deck.length === 40 && G._pickDeckAfterAi) {
-    G._pickDeckAfterAi = false;
-    setTimeout(()=>startGame(true), 180);
-    return;
-  }
-
+  // AI matches always pass through the deck picker, even if a previous deck is still loaded.
   G._pickDeckAfterAi = true;
   setTimeout(()=>renderChallengerDeckPickModal(0), 180);
 }
@@ -1921,6 +1918,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     return;
   }
 
+  if(inst.type==='Supporter' && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id)){
+    inst.whenSetActivated = true;
+    inst.effectUsedInitial = true;
+  }
+
   if(inst.type==='Supporter' && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id) && !G._suppressEffectPrompt){
     const affectedOwners = typeof getSupporterEffectAffectedOwners === 'function'
       ? getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp)
@@ -2078,7 +2080,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '16': { // MINAE: discard opp supporter in zone
       const opps=[];
       G.board[z].forEach((row,rr)=>row.forEach((cell,cc)=>{
-        if(cell&&cell.owner===opp&&cell.type==='Supporter') opps.push({card:cell,r:rr,c:cc});
+        if(cell&&cell.owner===opp&&cell.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) opps.push({card:cell,r:rr,c:cc});
       }));
       if(opps.length){
         opps.sort((a,b)=>b.card.currentFate - a.card.currentFate);

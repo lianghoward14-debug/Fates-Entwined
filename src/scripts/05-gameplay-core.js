@@ -778,15 +778,10 @@ async function nextPlayerTurn() {
 }
 
 function applyContinuousEffects() {
-  // Rebuild Shield Wall zones from board state (so removal cleans up)
+  // South Wind no longer creates a zone-wide Shield Wall aura.
   G.shieldWallZones = [];
   forEachBoardCard((card, z)=>{
-    if(cardActsAsPassive(card, '20') && !isSupporterEffectSuppressed(card) && !G.shieldWallZones.includes(z)) G.shieldWallZones.push(z);
-  });
-  // Update cantBeMoved flags based on current shield wall zones
-  forEachBoardCard((card, z)=>{
-    if(G.shieldWallZones.includes(z)) card.cantBeMoved = true;
-    else if(card.cantBeMoved) card.cantBeMoved = false;
+    if(card.cantBeMoved) card.cantBeMoved = false;
   });
 
   if(typeof getLandscapeFateCapForZone === 'function') {
@@ -941,14 +936,24 @@ function startTurnTimer() {
     _turnTimerRemaining = liveSyncedRemaining !== null ? liveSyncedRemaining : (_turnTimerRemaining - 1);
     updateTimerDisplay();
     if(_turnTimerRemaining <= 0){
-      stopTurnTimer();
       if(isOnlineRemoteTurnTimer()) {
+        stopTurnTimer();
         updateTimerDisplay();
         return;
       }
       toast("Time's up! Turn auto-ended.");
       const closedEndTurnWarning = closeEndTurnWarningModalForTimeout();
-      endTurn({skipEffectWarning:true, skipModalDeferral:closedEndTurnWarning});
+      const result = endTurn({skipEffectWarning:true, skipModalDeferral:closedEndTurnWarning});
+      if(result === false && G && G._deferredEndTurn){
+        if(_turnTimerInterval){
+          clearInterval(_turnTimerInterval);
+          _turnTimerInterval = null;
+        }
+        _turnTimerRemaining = 0;
+        updateTimerDisplay();
+      } else if(result !== true && !(G && G._deferredEndTurn)) {
+        stopTurnTimer();
+      }
     }
   }, 1000);
 }
@@ -1128,9 +1133,10 @@ function getChingachlookPlacementBlockReason(card, z, owner, excludeIids) {
 function getValidPlacementOptionsForCard(card, player) {
   const options = [];
   if(!card || typeof player !== 'number') return options;
+  const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
   for(let z=0;z<3;z++) {
     // Artillery Distance (50): zone locked for this player
-    if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===player && G._artilleryLockTurnsLeft>0) continue;
+    if(!ignoresOpponentPlacementLocks && typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===player && G._artilleryLockTurnsLeft>0) continue;
     const totalRows = 3 + ((G.extraRows && G.extraRows[z]) || 0);
     if(getChingachlookPlacementBlockReason(card, z, player)) continue;
     for(let r=0;r<totalRows;r++) {
@@ -1157,9 +1163,9 @@ function getValidPlacementOptionsForCard(card, player) {
       const totalCols = baseCols + (cp===0?extraP1:extraP2);
       for(let c=0;c<totalCols;c++) {
         if(r>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,c,cp)) continue;
-        if(isBlocked(z,r,c)) continue;
+        if(isBlocked(z,r,c) && !ignoresOpponentPlacementLocks) continue;
         if(G.board[z][r][c]!==null) continue;
-        if(card.type==='Supporter' && card.id!=='76' && isBlockedByAlondra(z,r,c,cp)) continue;
+        if(card.type==='Supporter' && card.id!=='76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z,r,c,cp)) continue;
         options.push({z,r,c});
       }
     }
@@ -1288,18 +1294,18 @@ function beginBoardCardTargetSelection(opts) {
 function vigilantePickTarget(targetZ, cp, opp, inst) {
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
+    if(cell && cell.owner===opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
   if(oppCards.length===0){toast('No opponent cards in Zone '+(targetZ+1));return;}
   pickCardInZone(targetZ,'Marked for Death: select one opponent card in this zone.',(tgt)=>{
-    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt)){showBlockedAnimation('this card is immune');return;}
+    if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt))){showBlockedAnimation('this card is immune');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     if(inst) inst.vigilanteUsed = true;
     toast(tgt.name+' has 0 Reinforcement.');
     log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
     renderGame({board:true, scores:true, topbar:true});
-  }, cell=>cell && cell.owner===opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
+  }, cell=>cell && cell.owner===opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))));
 }
 
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
@@ -1645,13 +1651,14 @@ async function clickCell(z,r,c) {
 
   // Check validity again
   if(G.board[z][r][c]!==null){playSfx('blocked');toast('Cell is occupied');return;}
-  if(isBlocked(z,r,c)){playSfx('blocked');toast('Cell is blocked');return;}
+  const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
+  if(isBlocked(z,r,c) && !ignoresOpponentPlacementLocks){playSfx('blocked');toast('Cell is blocked');return;}
   // Enforce safe row ownership — P1 can only place on row 2+, P2 on row 0
   const cp = G.currentPlayer;
   if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, cp)){
     playSfx('blocked');toast(r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row');return;
   }
-  if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0){
+  if(!ignoresOpponentPlacementLocks && typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0){
     playSfx('blocked');toast('Artillery Distance locks this zone - cannot set cards here.');return;
   }
   // Enforce contested-only placement
@@ -1666,7 +1673,7 @@ async function clickCell(z,r,c) {
 
   // Supporter limit re-check (skip for Lina free-set cards)
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)));
-  if(card.type === 'Supporter' && card.id !== '76' && isBlockedByAlondra(z, r, c, cp)) {
+  if(card.type === 'Supporter' && card.id !== '76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z, r, c, cp)) {
     playSfx('blocked');
     toast('Alondra blocks Supporters adjacent to her.');
     return;
@@ -1722,7 +1729,7 @@ async function clickCell(z,r,c) {
   if(isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function'){
     inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || card._freePlacementCinematicKind || 'linaFreeSet');
     G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
-    setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, 90);
+    setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, 90);
   }
   markCommit('freePlacementCinematic');
 
@@ -1883,7 +1890,7 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
     row.forEach((cell, cc)=>{
       if(!cell || cell.id!=='24' || cell.owner!==owner || isFaceDownCard(cell) || isSupporterEffectSuppressed(cell)) return;
       const dr = Math.abs(rr-r), dc = Math.abs(cc-c);
-      if(dr<=1 && dc<=1 && (dr+dc)>0) count++;
+      if(dr + dc === 1) count++;
     });
   });
   return count;
@@ -1965,7 +1972,6 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
 
 async function resolveSetCardAfterPlacement(inst, z, r, c) {
   if(!inst || isFaceDownCard(inst)) return;
-  if(Array.isArray(G.shieldWallZones) && G.shieldWallZones.includes(z)) inst.cantBeMoved = true;
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
     await aiTriggerWhenSet(inst, z, r, c);
     return;
@@ -2845,14 +2851,14 @@ async function activateWodnyPotokYouth(card, z, r, c) {
       toast('Select an opponent card.');
       return;
     }
-    if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id === '76')) {
+    if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id === '76'))) {
       showBlockedAnimation('this card is immune');
       return;
     }
     const before = Math.max(0, Number(tgt.currentFate ?? tgt.fate) || 0);
     const changed = setCardFateValue(tgt, before - 1, cp);
     if(!changed && before > 0) {
-      showBlockedAnimation('Shield Wall prevents Fate loss');
+      showBlockedAnimation('this card is immune');
       return;
     }
     card.effectUsedThisTurn = true;
@@ -3308,24 +3314,25 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       } break;
     case '31': // Hemorrhaging Wound: any card in zone loses 3 Fate
       pickCardInZone(z,'Select any card to lose 3 Fate:',(tgt)=>{
-        if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
+        if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
         const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
         const changed = reduceStoredCardFateBy(tgt, 3, cp);
         if(!changed && before > 0){
-          showBlockedAnimation('Shield Wall prevents Fate loss');
+          showBlockedAnimation('this card is immune');
           return;
         }
         log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
         renderEffectResolutionForPlayer(cp, {hand:false});
-      }, function(cell){ return !!cell && !(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(cell) : (cell.immuneFlag || cell.id==='76')); }); break;
+      }, function(cell){ return !!cell && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(cell) : (cell.immuneFlag || cell.id==='76'))); }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt === inst || (tgt.iid && inst.iid && tgt.iid === inst.iid)){toast('MINAE Death Squad cannot discard itself');return;}
         if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}
+        if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(tgt, cp)){showBlockedAnimation('this card is immune');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`MINAE Death Squad: discarded ${tgt.name}`);
         renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-      },c=>c.owner===opp&&c.type==='Supporter'); break;
+      },c=>c.owner===opp&&c.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(c, cp))); break;
     case '18': // 1st US Marines: suppress opponent's supporter effects next turn
       G.oppSuppressedNextTurn = true;
       G.suppressTarget = opp;
@@ -3664,13 +3671,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '20': // Shield Wall: continuous, protect zone from fate reduction + no movement
-      if(!G.shieldWallZones.includes(z)) G.shieldWallZones.push(z);
-      G.board[z].forEach(row=>row.forEach(cell=>{
-        if(cell) cell.cantBeMoved = true;
-      }));
-      renderEffectResolutionForPlayer(cp, {hand:false, blocks:true});
-      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+    case '20': // Shield Wall: South Wind is immune to opponent effects.
+      renderEffectResolutionForPlayer(cp, {hand:false, blocks:false});
       break;
     case '25': // Zimbabwean Honor Guard: set another copy from hand/deck for free
       {
@@ -3739,7 +3741,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const adjCards = getAdjacentAndDiagonalCards(z,r,c);
         let gained = 0;
         adjCards.forEach(({card:ac,z:az,r:ar,c:ac2})=>{
-          if(ac.owner===opp && ac.type==='Supporter' && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac))){
+          if(ac.owner===opp && ac.type==='Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(ac, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac)))){
             G.board[az][ar][ac2]=null;
             fatePushDiscard(opp, ac);
             gained++;
@@ -3860,12 +3862,15 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       return;
     }
   }
+  if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !RETRYABLE_INITIAL_SET_EFFECT_IDS.has(id)) {
+    markInitialEffectResolved(card);
+  }
 
   switch(id) {
     // Initiators
     case '03': // Howard: double Fate of card in zone, then +5
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
-        if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
+        if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
         const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
         tgt.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
         log(cp===0?'p1':'p2',`Moffitt Inspiration: ${tgt.name} Fate became ${tgt.currentFate}`);
@@ -4015,10 +4020,11 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         log(cp===0?'p1':'p2',`El Matador del Mares: discarded ${tgt.name}`);
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-      },(c,tz,tr)=>c.owner===opp && tr===1 && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(c))); break;
+      },(c,tz,tr)=>c.owner===opp && tr===1 && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(c, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(c)))); break;
     case '39': // Juan Carlos: move opponent's card from ANY zone to open spot
       pickCardFromAnyZone('Select opponent\'s card to move:',(tgt,tz,tr,tc)=>{
         if(tgt.owner===cp){toast('Select opponent card');return;}
+        if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
         showMoveTarget(tgt,tz,tr,tc,z,{
           title:'Juan Carlos',
           prompt:`Move ${tgt.name} into Juan Carlos' current zone`,
@@ -4026,7 +4032,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           disallowRows:[cp===0 ? 2 : 0],
           sourceCard:card
         });
-      },c=>c.owner===opp); break;
+      },c=>c.owner===opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(c, cp) : (c.immuneFlag || c.id==='76'))); break;
     case '43': { // Mark Kemper: choose one extra safe cell in this zone
       closeModal();
       const markStartSnap = {
@@ -4227,6 +4233,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const MANUAL_EFFECT_BLOCKED_CARD_IDS = new Set([
   '14',
+  '27',
   '35',
   '41',
   '45',
@@ -4284,13 +4291,8 @@ function capEffectiveFateForLandscape(value, z) {
 
 function modifyFate(card, amount, type) {
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
-  if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : card.immuneFlag) return;
-  if(amount<0 && G.shieldWallZones.length>0) {
-    // Check if card is in a shieldwall zone
-    let inShield = false;
-    forEachBoardCard((c,z)=>{ if(c.iid===card.iid && G.shieldWallZones.includes(z)) inShield=true; });
-    if(inShield) return;
-  }
+  const sourceOwner = (arguments.length >= 4 && (arguments[3] === 0 || arguments[3] === 1)) ? arguments[3] : G.currentPlayer;
+  if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(card, sourceOwner) : (card && card.immuneFlag)) return;
   const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   card.currentFate = Math.max(0, before + amount);
   clampCardToLandscapeFateCap(card);
@@ -4325,16 +4327,11 @@ function recordFateReductionEvent(owner, beforeValue, afterValue) {
 
 function setCardFateValue(card, newValue, sourceOwner) {
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
-  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : card.immuneFlag)) return false;
+  if(!card || (typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(card, sourceOwner) : card.immuneFlag)) return false;
   const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
   const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const baseBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const targetValue = Math.max(0, Number(newValue) || 0);
-  if(targetValue < before && G.shieldWallZones.length>0) {
-    let inShield = false;
-    forEachBoardCard((c,z)=>{ if(c.iid===card.iid && G.shieldWallZones.includes(z)) inShield=true; });
-    if(inShield) return false;
-  }
   const baseNext = Math.max(0, Math.min(baseBefore, targetValue));
   card.currentFate = baseNext;
   const overflowLoss = Math.max(0, baseBefore - targetValue);
@@ -4348,16 +4345,11 @@ function setCardFateValue(card, newValue, sourceOwner) {
 
 function reduceStoredCardFateBy(card, amount, sourceOwner) {
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
-  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : (card.immuneFlag || card.id === '76'))) return false;
+  if(!card || (typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(card, sourceOwner) : (card.immuneFlag || card.id === '76'))) return false;
   const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
   const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const baseBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const baseNext = Math.max(0, baseBefore - Math.max(0, Number(amount) || 0));
-  if(baseNext < baseBefore && G.shieldWallZones.length > 0) {
-    let inShield = false;
-    forEachBoardCard((c,z)=>{ if(c.iid === card.iid && G.shieldWallZones.includes(z)) inShield = true; });
-    if(inShield) return false;
-  }
   card.currentFate = baseNext;
   clampCardToLandscapeFateCap(card);
   const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
@@ -4434,6 +4426,7 @@ function isSupporterEffectSuppressed(card) {
 
 function isEffectImmuneSource(card) {
   if(!card || isFaceDownCard(card)) return false;
+  if(typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card)) return true;
   return typeof isFullyEffectImmuneCard === 'function'
     ? isFullyEffectImmuneCard(card)
     : (String(card.id || '') === '76' || card.immuneFlag === true || card.opponentEffectImmune === true);
@@ -4563,7 +4556,7 @@ function getEffectiveFate(card, z) {
   }));
   if(zsofiaCount > 0) {
     const coordCount = countCoordinators(z, card.owner);
-    bonus += Math.min(3, zsofiaCount * (coordCount + jeremiahBoost));
+    bonus += zsofiaCount * Math.min(3, coordCount + jeremiahBoost);
   }
   if(card.type==='Dauntless' && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
@@ -4593,7 +4586,9 @@ function getEffectiveFate(card, z) {
 
 function countCoordinators(z, owner) {
   let n=0;
-  G.board[z].forEach(row=>row.forEach(cell=>{if(cell&&cell.type==='Coordinator'&&cell.owner===owner && !isFaceDownCard(cell)) n++;}));
+  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
+    if(cell && cell.type==='Coordinator' && cell.owner===owner && !isFaceDownCard(cell) && !isCoordinatorSuppressedAt(z, r, c)) n++;
+  }));
   return n;
 }
 
@@ -4953,7 +4948,7 @@ async function activateVigilantes(card, z, r, c) {
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardInZone(z,'Vigilantes: select an opponent card in this zone to set its Reinforcement to 0.',(tgt)=>{
     if(tgt.owner !== opp){toast('Must select an opponent card');return;}
-    if(typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76')){showBlockedAnimation('this card is immune');return;}
+    if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     card.vigilanteUsed = true;
@@ -4961,7 +4956,7 @@ async function activateVigilantes(card, z, r, c) {
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
     renderEffectResolutionForPlayer(cp, {hand:false});
-  }, function(cell){ return !!cell && cell.owner === opp && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)); });
+  }, function(cell){ return !!cell && cell.owner === opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))); });
 }
 
 

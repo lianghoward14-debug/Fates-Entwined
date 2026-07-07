@@ -174,6 +174,26 @@
     if(USER_PROFILE.ownedCards[cardId] <= 0) delete USER_PROFILE.ownedCards[cardId];
     return true;
   }
+  function ownedPfps(){
+    if(typeof normalizeOwnedPfps === 'function') return normalizeOwnedPfps();
+    return Array.isArray(USER_PROFILE?.ownedPfps) ? USER_PROFILE.ownedPfps : [];
+  }
+  function addOwnedPfp(pfpId){
+    pfpId = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+    if(!pfpId) return [];
+    if(typeof grantProfilePictures === 'function') return grantProfilePictures([pfpId]);
+    if(!Array.isArray(USER_PROFILE.ownedPfps)) USER_PROFILE.ownedPfps = [];
+    if(!USER_PROFILE.ownedPfps.some(id=>Number(id) === pfpId)) USER_PROFILE.ownedPfps.push(pfpId);
+    return [pfpId];
+  }
+  function takeOwnedPfp(pfpId){
+    pfpId = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+    if(!pfpId) return false;
+    if(typeof removeOwnedPfp === 'function') return removeOwnedPfp(pfpId) === true;
+    if(!Array.isArray(USER_PROFILE.ownedPfps) || !USER_PROFILE.ownedPfps.some(id=>Number(id) === pfpId)) return false;
+    USER_PROFILE.ownedPfps = USER_PROFILE.ownedPfps.filter(id=>Number(id) !== pfpId);
+    return true;
+  }
   function localStorageFlag(name){
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
@@ -446,6 +466,64 @@
     return listing.key;
   }
 
+  async function listMarketplacePfp(pfpId, price){
+    const u = user();
+    const id = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+    if(!u){ if(window.toast) toast('Sign in first'); return null; }
+    if(!id){ if(window.toast) toast('Profile picture not found'); return null; }
+    if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online marketplace is not ready'); return null; }
+    if(!takeOwnedPfp(id)){ if(window.toast) toast('You no longer own that profile picture'); return null; }
+    const sellerProfile = await FO.syncPublicProfile().catch(()=>profile());
+    if(flyEconomyEnabled()){
+      try{
+        const data = await flyApiRequest('/api/marketplace/listings', {
+          method:'POST',
+          body:{uid:u.uid, profile:sellerProfile, type:'pfp', pfpId:id, price:Math.max(10, Number(price || 100) || 100)}
+        });
+        const localListing = data.listing;
+        marketplaceListings = [localListing, ...marketplaceListings.filter(l=>l.listingId !== localListing.listingId)];
+        marketplaceLoaded = true;
+        window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+        if(typeof saveProfile === 'function') saveProfile();
+        if(window.toast) toast(`Profile picture ${id} listed for ${localListing.price} Starlight`);
+        try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){}
+        updateMarketplaceRedeemButton();
+        return localListing.listingId;
+      }catch(err){
+        addOwnedPfp(id);
+        if(typeof saveProfile === 'function') saveProfile();
+        throw err;
+      }
+    }
+    const listing = FO.push(FO.ref(FO.rtdb, 'marketplace/listings'));
+    const payload = {
+      listingId:listing.key,
+      type:'pfp',
+      sellerUid:u.uid,
+      seller:sellerProfile.chosenUsername || sellerProfile.displayName || profileName(),
+      sellerPhotoURL:sellerProfile.photoURL || sellerProfile.profileImg || profilePhoto(),
+      pfpId:id,
+      price:Math.max(10, Number(price || 100) || 100),
+      status:'active',
+      createdAt:FO.serverTimestamp()
+    };
+    try{
+      await FO.set(listing, payload);
+    }catch(err){
+      addOwnedPfp(id);
+      if(typeof saveProfile === 'function') saveProfile();
+      throw err;
+    }
+    const localListing = { ...payload, listingId:listing.key, createdAt:Date.now() };
+    marketplaceListings = [localListing, ...marketplaceListings.filter(l=>l.listingId !== listing.key)];
+    window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
+    if(typeof saveProfile === 'function') saveProfile();
+    if(window.toast) toast(`Profile picture ${id} listed for ${payload.price} Starlight`);
+    try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){}
+    updateMarketplaceRedeemButton();
+    return listing.key;
+  }
+
   window.renderMarketplaceListings = function renderMarketplaceListings(){
     ensureWatchers('marketplace');
     const el = document.getElementById('marketplace-listings');
@@ -462,15 +540,17 @@
     }
     const u = user();
     el.innerHTML = listings.map((l,i)=>{
-      const c = cardById(l.cardId);
-      if(!c) return '';
+      const isPfp = String(l.type || '') === 'pfp';
+      const c = isPfp ? null : cardById(l.cardId);
+      if(!isPfp && !c) return '';
       const own = !!(u && l.sellerUid === u.uid) || l.seller === USER_PROFILE?.username;
-      const rarityColor = (typeof RARITY_COLOR !== 'undefined' && RARITY_COLOR[c.rarity]) || 'var(--border)';
-      return `<div class="market-listing online-market-listing" data-listing-id="${esc(l.listingId || i)}">
-        <div class="market-listing-thumb" style="border-color:${rarityColor};">${c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : ''}</div>
+      const rarityColor = isPfp ? 'rgba(232,196,82,.7)' : ((typeof RARITY_COLOR !== 'undefined' && RARITY_COLOR[c.rarity]) || 'var(--border)');
+      const pfpSrc = isPfp ? (typeof PFP_PATH === 'function' ? PFP_PATH(l.pfpId, 'square') : `pfp/pfp${Number(l.pfpId || 1)}.png`) : '';
+      return `<div class="market-listing online-market-listing${isPfp ? ' pfp-market-listing' : ''}" data-listing-id="${esc(l.listingId || i)}">
+        <div class="market-listing-thumb${isPfp ? ' pfp-listing-thumb' : ''}" style="border-color:${rarityColor};">${isPfp ? `<span class="pfp-listing-frame"><img src="${esc(pfpSrc)}" alt="Profile picture ${Number(l.pfpId || 0)}"></span>` : (c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : '')}</div>
         <div class="market-listing-copy">
-          <div class="market-listing-name">${esc(c.name)}</div>
-          <div class="market-listing-meta">${esc(rarityLabel(c.rarity))} - ${esc(l.seller || 'Player')}</div>
+          <div class="market-listing-name">${isPfp ? `Profile Picture ${Number(l.pfpId || 0)}` : esc(c.name)}</div>
+          <div class="market-listing-meta">${isPfp ? 'Profile Picture' : esc(rarityLabel(c.rarity))} - ${esc(l.seller || 'Player')}</div>
         </div>
         <div class="market-listing-actions">
           <div class="market-listing-price">${starlightIcon()} ${Number(l.price || 0)}</div>
@@ -574,16 +654,87 @@
     if(modalBox) modalBox.classList.add('sell-card-modal','market-list-modal');
   };
 
+  window.openSellPfpModal = function openSellPfpModal(){
+    const pfps = ownedPfps();
+    if(!pfps.length){ if(window.toast) toast('No profile pictures to sell'); return; }
+    const html = `<div class="sell-card-shell">
+      <div class="sell-card-intro">
+        <div class="sell-card-kicker">Marketplace Listing</div>
+        <div class="sell-card-heading">Choose a Profile Picture to Sell</div>
+        <div class="sell-card-note">Pick one unlocked profile picture. It leaves your collection while listed and returns if you cancel before it sells.</div>
+      </div>
+      <button class="btn sm sell-card-close" type="button" onclick="closeModal()">Close</button>
+      <div class="sell-card-grid">${pfps.map(pfpId=>{
+        const src = typeof PFP_PATH === 'function' ? PFP_PATH(pfpId, 'square') : `pfp/pfp${Number(pfpId)}.png`;
+        return `<button class="sell-card-pick" type="button" onclick="listPfpForSale(${Number(pfpId)})" style="--rarity-color:rgba(232,196,82,.7);">
+          <div class="sell-card-thumb" style="border-color:rgba(232,196,82,.7);"><img src="${esc(src)}" alt="Profile picture ${Number(pfpId)}"></div>
+          <div class="sell-card-pick-name">Profile Picture ${Number(pfpId)}</div>
+          <div class="sell-card-pick-meta">Profile Picture</div>
+        </button>`;
+      }).join('')}</div>
+    </div>`;
+    showModal('Sell a Profile Picture', html, []);
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('sell-card-modal','sell-card-picker-modal');
+  };
+
+  window.listPfpForSale = function listPfpForSale(pfpId){
+    const id = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+    if(!id) return;
+    const src = typeof PFP_PATH === 'function' ? PFP_PATH(id, 'square') : `pfp/pfp${id}.png`;
+    showModal('List Profile Picture', `
+      <div class="market-list-card-modal">
+        <div class="market-list-card-preview" style="--rarity-color:rgba(232,196,82,.7);">
+          <div class="market-list-card-art"><img src="${esc(src)}" alt="Profile picture ${id}"></div>
+          <div class="market-list-card-copy">
+            <div class="market-list-kicker">Marketplace Listing</div>
+            <div class="market-list-name">Profile Picture ${id}</div>
+            <div class="market-list-meta">Profile Picture</div>
+            <div class="market-list-note">Set a Starlight price. The profile picture leaves your collection while listed and returns if you cancel.</div>
+          </div>
+        </div>
+        <label class="market-price-row" for="sell-price">
+          <span>Price</span>
+          <div class="market-price-input-wrap"><input type="number" id="sell-price" min="10" max="10000" step="5" value="100"><span>Starlight</span></div>
+        </label>
+      </div>`,
+      [{label:'List', pri:true, action:async(e)=>{
+        const price = parseInt(document.getElementById('sell-price')?.value, 10) || 100;
+        const btn = e && e.currentTarget;
+        if(btn){ btn.disabled = true; btn.textContent = 'Listing...'; }
+        const listingId = await listMarketplacePfp(id, price).catch(err=>{
+          console.error('List profile picture failed', err);
+          if(window.toast) toast('Could not list profile picture');
+          return null;
+        });
+        if(!listingId){
+          if(btn){ btn.disabled = false; btn.textContent = 'List'; }
+          return;
+        }
+        if(btn) btn.textContent = 'Listed!';
+        setTimeout(function(){
+          closeModal();
+          if(typeof switchChTab === 'function') switchChTab('store');
+        }, 900);
+      }},{label:'Cancel', action:closeModal}]
+    );
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('sell-card-modal','market-list-modal');
+  };
+
   window.buyListing = async function buyListing(i){
     const l = marketplaceListings[i] || USER_PROFILE?.marketplace?.listings?.[i];
     if(!l) return;
     const price = Number(l.price || 0);
     if((USER_PROFILE.starlight || 0) < price){ if(window.toast) toast('Not enough Starlight'); return; }
-    const c = cardById(l.cardId);
-    if(!c) return;
+    const isPfp = String(l.type || '') === 'pfp';
+    const c = isPfp ? null : cardById(l.cardId);
+    if(!isPfp && !c) return;
+    if(isPfp && ownedPfps().includes(Number(l.pfpId || 0))){ if(window.toast) toast('You already own that profile picture'); return; }
     if(flyEconomyEnabled() && l.listingId){
       USER_PROFILE.starlight -= price;
-      addOwned(l.cardId, 1);
+      if(isPfp) addOwnedPfp(Number(l.pfpId || 0));
+      else addOwned(l.cardId, 1);
       try{
         const data = await flyApiRequest(`/api/marketplace/listings/${encodeURIComponent(l.listingId)}/buy`, {
           method:'POST',
@@ -595,7 +746,8 @@
         window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
       }catch(e){
         USER_PROFILE.starlight += price;
-        removeOwned(l.cardId, 1);
+        if(isPfp) takeOwnedPfp(Number(l.pfpId || 0));
+        else removeOwned(l.cardId, 1);
         console.warn('Fly marketplace buy failed', e);
         if(window.toast) toast('Marketplace purchase failed');
         return;
@@ -603,11 +755,12 @@
       if(typeof saveProfile === 'function') saveProfile();
       if(typeof playSfx === 'function') playSfx('starPlace');
       if(typeof switchChTab === 'function') switchChTab('store');
-      setTimeout(()=>showMarketplacePurchaseNotice(c, price), 120);
+      setTimeout(()=>isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price), 120);
       return;
     }
     USER_PROFILE.starlight -= price;
-    addOwned(l.cardId, 1);
+    if(isPfp) addOwnedPfp(Number(l.pfpId || 0));
+    else addOwned(l.cardId, 1);
     if(canUseFirebase() && l.listingId){
       await FO.update(FO.ref(FO.rtdb, `marketplace/listings/${l.listingId}`), {
         ...l,
@@ -622,8 +775,26 @@
     if(typeof saveProfile === 'function') saveProfile();
     if(typeof playSfx === 'function') playSfx('starPlace');
     if(typeof switchChTab === 'function') switchChTab('store');
-    setTimeout(()=>showMarketplacePurchaseNotice(c, price), 120);
+    setTimeout(()=>isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price), 120);
   };
+
+  function showMarketplacePfpPurchaseNotice(pfpId, price){
+    const src = typeof PFP_PATH === 'function' ? PFP_PATH(pfpId, 'square') : `pfp/pfp${Number(pfpId || 1)}.png`;
+    showModal('Purchase Complete', `
+      <div class="market-purchase-notice" style="--rarity-color:rgba(232,196,82,.7);">
+        <div class="market-purchase-card"><img src="${esc(src)}" alt="Profile picture ${Number(pfpId || 0)}"></div>
+        <div class="market-purchase-copy">
+          <div class="market-purchase-kicker">Marketplace Acquisition</div>
+          <div class="market-purchase-name">Profile Picture ${Number(pfpId || 0)}</div>
+          <div class="market-purchase-meta">Profile Picture &middot; ${starlightIcon()} ${Number(price || 0)} Starlight</div>
+          <div class="market-purchase-note">The profile picture has been added to your collection.</div>
+        </div>
+      </div>`,
+      [{label:'Back to Store', pri:true, action:()=>{ closeModal(); if(typeof switchChTab === 'function') switchChTab('store'); }}]
+    );
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('market-purchase-modal');
+  }
 
   function showMarketplacePurchaseNotice(card, price){
     const rarityColor = (typeof RARITY_COLOR !== 'undefined' && RARITY_COLOR[card.rarity]) || 'rgba(232,196,82,.55)';
@@ -705,13 +876,15 @@
     const body = document.createElement('div');
     body.className = 'market-history-modal-body';
     const rows = pageItems.map(l=>{
-      const c = cardById(l.cardId);
+      const isPfp = String(l.type || '') === 'pfp';
+      const c = isPfp ? null : cardById(l.cardId);
+      const pfpSrc = isPfp ? (typeof PFP_PATH === 'function' ? PFP_PATH(l.pfpId, 'square') : `pfp/pfp${Number(l.pfpId || 1)}.png`) : '';
       const when = l.soldAt || l.updatedAt || l.createdAt || l.timestamp || Date.now();
       const date = new Date(Number(when) || Date.now()).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
       return `<div class="market-history-row">
-        <div class="market-history-card">${c?.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : ''}</div>
+        <div class="market-history-card">${isPfp ? `<img src="${esc(pfpSrc)}" alt="Profile picture ${Number(l.pfpId || 0)}">` : (c?.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : '')}</div>
         <div class="market-history-copy">
-          <div class="market-history-name">${esc(c?.name || 'Unknown Card')}</div>
+          <div class="market-history-name">${isPfp ? `Profile Picture ${Number(l.pfpId || 0)}` : esc(c?.name || 'Unknown Card')}</div>
           <div class="market-history-meta">
             <span>${esc(l.seller || 'Seller')}</span>
             <span class="market-history-arrow">to</span>
@@ -774,7 +947,8 @@
         updatedAt:FO.serverTimestamp()
       }).catch(e=>console.warn('Marketplace cancel failed', e));
     }
-    if(l.cardId) addOwned(l.cardId, 1);
+    if(String(l.type || '') === 'pfp' && l.pfpId) addOwnedPfp(Number(l.pfpId || 0));
+    else if(l.cardId) addOwned(l.cardId, 1);
     if(typeof saveProfile === 'function') saveProfile();
     if(window.toast) toast('Listing cancelled');
     if(typeof switchChTab === 'function') switchChTab('store');
@@ -1397,6 +1571,7 @@
   window.FateOnline = Object.assign(window.FateOnline || {}, {
     publishDeck,
     listMarketplaceCard,
+    listMarketplacePfp,
     ensureMarketplaceFeed:()=>ensureWatchers('marketplace'),
     ensurePublicDeckFeed:()=>ensureWatchers('publicDecks'),
     getMarketplaceListings:()=>marketplaceListings,

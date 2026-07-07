@@ -3081,7 +3081,7 @@ window.editPreset = function(pid){
 
   // Current face/display from preset (or defaults)
   let currentFace = p.faceCardId || deckCards[0]?.id;
-  let currentDisplay = [...(p.displayCardIds || deckCards.slice(0,7).map(c=>c.id))];
+  let currentDisplay = [...(p.displayCardIds || deckCards.slice(0,5).map(c=>c.id))].slice(0,5);
 
   const renderEditor = ()=>{
     const body = document.createElement('div');
@@ -3099,7 +3099,7 @@ window.editPreset = function(pid){
           <div class="face-picker-grid" id="face-picker"></div>
         </section>
         <section class="deck-art-editor-section">
-          <div class="deck-art-editor-title">Display Cards (up to 7 mini thumbnails) - <span id="display-count">${currentDisplay.length}/7</span></div>
+          <div class="deck-art-editor-title">Display Cards (up to 5 mini thumbnails) - <span id="display-count">${currentDisplay.length}/5</span></div>
           <div class="face-picker-grid" id="display-picker"></div>
         </section>
         </div>
@@ -3141,11 +3141,11 @@ window.editPreset = function(pid){
             const idx=currentDisplay.indexOf(c.id);
             if(idx>=0) currentDisplay.splice(idx,1);
             else {
-              if(currentDisplay.length>=7){toast('Max 7 display cards');return;}
+              if(currentDisplay.length>=5){toast('Max 5 display cards');return;}
               currentDisplay.push(c.id);
             }
             const countEl = document.getElementById('display-count');
-            if(countEl) countEl.textContent=currentDisplay.length+'/7';
+            if(countEl) countEl.textContent=currentDisplay.length+'/5';
             renderPickers();
           }
         });
@@ -3178,7 +3178,7 @@ window.editPreset = function(pid){
           setBadge(el, selected ? '#' + (idx + 1) : '', true);
         });
         const countEl = document.getElementById('display-count');
-        if(countEl) countEl.textContent = currentDisplay.length + '/7';
+        if(countEl) countEl.textContent = currentDisplay.length + '/5';
         renderPreview();
       };
       if(faceGrid.childElementCount || displayGrid.childElementCount){
@@ -3204,7 +3204,7 @@ window.editPreset = function(pid){
           const idx=currentDisplay.indexOf(c.id);
           if(idx>=0) currentDisplay.splice(idx,1);
           else {
-            if(currentDisplay.length>=7){toast('Max 7 display cards');return;}
+            if(currentDisplay.length>=5){toast('Max 5 display cards');return;}
               currentDisplay.push(c.id);
             }
           syncPickerState();
@@ -3221,7 +3221,7 @@ window.editPreset = function(pid){
     const save=document.createElement('button');save.className='btn sm pri';save.textContent='Save';
     save.onclick=()=>{
       p.faceCardId = currentFace;
-      p.displayCardIds = currentDisplay;
+  p.displayCardIds = currentDisplay.slice(0,5);
       savePresetsToStorage();
       toast('Deck art updated');
       browsePresets(_presetBrowsePage || 0);

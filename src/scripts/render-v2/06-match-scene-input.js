@@ -294,7 +294,7 @@
         scene.setViewportHoverHit(null);
         return;
       }
-      if(document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card')) {
+      if(window.__fateV2DraggingCard || (document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'))) {
         scene.setViewportHoverHit(null);
         return;
       }

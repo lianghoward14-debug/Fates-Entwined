@@ -119,7 +119,9 @@
       const el = document.querySelector(selector);
       if(el && el.getBoundingClientRect) {
         const r = el.getBoundingClientRect();
-        if(r.width > 1 && r.height > 1) return rect(r.left, r.top, r.width, r.height);
+        if(r.width > 1 && r.height > 1) {
+          return rect(r.left, r.top, r.width, r.height);
+        }
       }
     } catch(e) {}
     return fallback;
@@ -171,11 +173,11 @@
     const oppCols = Math.min(4, Math.max(1, oppCount || 1));
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
     const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
-    const denseOppCardMaxW = denseOppHand ? (oppCount >= 9 ? 42 : 50) : 54;
-    const denseOppCardMinW = denseOppHand ? (oppCount >= 9 ? 30 : 32) : 34;
+    const denseOppCardMaxW = denseOppHand ? (oppCount === 9 ? 52 : 46) : 54;
+    const denseOppCardMinW = denseOppHand ? (oppCount === 9 ? 38 : 32) : 34;
     const baseOppCardW = hasRevealedOppCards && !denseOppHand
       ? clamp(winW * 0.038, 56, 66)
-      : clamp(winW * (denseOppHand ? 0.027 : 0.034), denseOppCardMinW, denseOppCardMaxW);
+      : clamp(winW * (denseOppHand ? (oppCount === 9 ? 0.032 : 0.027) : 0.034), denseOppCardMinW, denseOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;

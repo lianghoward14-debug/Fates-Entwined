@@ -189,13 +189,22 @@ function hashCode(str){
 }
 function makeBaseCode(uid){ return 'FATE-' + hashCode(uid || 'guest'); }
 function normalizeUsername(name){ return safe(name).trim().toLowerCase().replace(/\s+/g,' '); }
+function isLegacyStaleUsername(name){
+  const normalized = normalizeUsername(name);
+  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+}
+function repairedLegacyUsername(name){
+  return isLegacyStaleUsername(name) ? 'Sic Kemper Tyrannus' : name;
+}
 function getLocalProfile(){
   try{ if(typeof window.getFateLocalProfile === 'function') return window.getFateLocalProfile() || {}; }catch(e){}
   return window.USER_PROFILE || {};
 }
 function getLocalUsername(user){
   const p = getLocalProfile();
-  return safe(p.username || p.displayName || user?.displayName || 'Player').trim().slice(0,24) || 'Player';
+  const candidates = [p.username, p.displayName, user?.displayName].map(repairedLegacyUsername);
+  const picked = candidates.find(name=>safe(name).trim() && !isLegacyStaleUsername(name)) || 'Sic Kemper Tyrannus';
+  return safe(picked).trim().slice(0,24) || 'Sic Kemper Tyrannus';
 }
 function getLocalBio(){
   const p = getLocalProfile();
@@ -370,7 +379,7 @@ async function syncPublicProfile(opts={}){
         method:'POST',
         body:{uid, profile:flyPayload}
       });
-      state.profile = Object.assign({}, flyPayload, data?.profile || {});
+      state.profile = Object.assign({}, data?.profile || {}, flyPayload);
       state.baseCode = baseCode;
       renderAuthPanel();
       emit();
@@ -397,6 +406,21 @@ async function syncPublicProfile(opts={}){
   }
   const multiPathUpdate = {};
   Object.keys(payload).forEach(k => { multiPathUpdate[`publicProfiles/${uid}/${k}`] = payload[k]; });
+  multiPathUpdate[`leaderboards/challenger/${uid}`] = {
+    uid,
+    name:chosenUsername,
+    username:chosenUsername,
+    baseCode,
+    photoURL,
+    profileImg:photoURL,
+    elo:payload.challengerElo,
+    wins:payload.challengerWins,
+    losses:payload.challengerLosses,
+    challengerWins:payload.challengerWins,
+    challengerLosses:payload.challengerLosses,
+    matchesPlayed:payload.matchesPlayed,
+    updatedAt:serverTimestamp()
+  };
   multiPathUpdate[`friendInviteCodes/${baseCode}`] = uid;
   if(payload.usernameLower) multiPathUpdate[`usernames/${payload.usernameLower}/${uid}`] = true;
   await update(ref(rtdb), multiPathUpdate);

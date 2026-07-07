@@ -1,5 +1,5 @@
-﻿//  BUILT-IN STARTER PRESET DECKS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  BUILT-IN STARTER PRESET DECKS
+// ═══════════════════════════════════════════════════════
 const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh01','bh25']);
 
 function isRetiredChallengerCard(cardOrId) {
@@ -87,7 +87,7 @@ function syncStarterPresetMetadata() {
   if(changed) saveProfile();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 //  CHALLENGER MODE
 //
 //  Self-contained progression system. All state lives on USER_PROFILE
@@ -95,11 +95,11 @@ function syncStarterPresetMetadata() {
 //
 //  Pure functions (no DOM mutations) are kept separate from UI functions
 //  so they can be called server-side once multiplayer lands.
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════
 
 const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="display:inline-block;vertical-align:-3px;filter:drop-shadow(0 0 4px rgba(255,215,0,.8));"><defs><linearGradient id="sl-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff8c4"/><stop offset="50%" stop-color="#ffd700"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient></defs><path d="M12 2 L14 9 L21 10 L15.5 14.5 L17 21 L12 17.5 L7 21 L8.5 14.5 L3 10 L10 9 Z" fill="url(#sl-grad)" stroke="#fff8c4" stroke-width=".3"/></svg>';
 
-// â”€â”€â”€ PACK GENERATION (pure, multiplayer-safe) â”€â”€â”€
+// ─── PACK GENERATION (pure, multiplayer-safe) ───
 // Pack uses card IDs 1-80. Not all IDs exist in the CARDS array (some are reserved for expansion).
 // We filter to existing cards only.
 function getPackCardPool() {
@@ -162,7 +162,7 @@ function generatePack() {
     const c = pickRandom(byRarity.circle);
     if(c) pick.push(c.id); else break;
   }
-  // Sort rarest last: circle → triangle → square → star
+  // Sort rarest last: circle ? triangle ? square ? star
   const rarityRank = {circle:0, triangle:1, square:2, star:3};
   pick.sort((a,b)=>{
     const ca = CARDS.find(c=>c.id===a);
@@ -186,7 +186,7 @@ function grantCardsToProfile(cardIds) {
   return results;
 }
 
-// â”€â”€â”€ STARLIGHT ECONOMY â”€â”€â”€
+// ─── STARLIGHT ECONOMY ───
 // Pack cost and reward tuning.
 const PACK_COST_STARLIGHT = 100;
 
@@ -257,7 +257,7 @@ window.clearDropBar = function(){
   if(el) el.remove();
 };
 
-// â”€â”€â”€ MATCH RESULT RECORDING (mode-aware) â”€â”€â”€
+// ─── MATCH RESULT RECORDING (mode-aware) ───
 function normalizeResultOptions(opts){
   return opts && typeof opts === 'object' ? opts : {};
 }
@@ -396,7 +396,7 @@ awardXp = function(amount){
   return result;
 };
 
-// â”€â”€â”€ STARTER DECKS (no Star cards) â”€â”€â”€
+// ─── STARTER DECKS (no Star cards) ───
 // Each uses 40 cards. Multiplayer-safe: ids only, resolved via CARDS array at runtime.
 const STARTER_DECKS = [
   {
@@ -405,12 +405,12 @@ const STARTER_DECKS = [
     description: 'Consolidate for Alondra Hopkins, then stack Fate on her with recycled buff supporters.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','06','27','76','44','65','20'],
+    displayCardIds: ['14','06','27','76','44','65','64'],
     ids: [
       '14','14','14','06','06','27','27','13','13','13',
       '47','47','47','05','05','05','58','58','58','60','60','60',
       '75','75','75','32','32','32','44','44','44','76','76','76',
-      '65','65','65','20','20','20'
+      '65','65','65','64','64','64'
     ]
   },
   {
@@ -465,11 +465,11 @@ const AI_ONLY_RANDOM_DECKS = [
     description: 'A sharper Maelstrom shell with stronger supporter recursion, movement pressure and consolidation ambushes.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','06','27','69','54','44','20'],
+    displayCardIds: ['14','06','27','69','54','44','64'],
     ids: [
       '14','14','14','06','06','06','27','27','27','13','13','13',
       '47','47','47','05','05','05','58','58','58','75','75','75',
-      '69','69','69','20','20','20','44','44','44','54','54','54',
+      '69','69','69','64','64','64','44','44','44','54','54','54',
       '65','65','76','76'
     ]
   },
@@ -587,7 +587,7 @@ const AI_ONLY_RANDOM_DECKS = [
     faceCardId: '03',
     displayCardIds: ['03','45','46','56','17','67','76'],
     ids: [
-      '03','03','63','63','63','76','76','76','45','45',
+      '03','79','63','63','63','76','76','76','45','45',
       '45','56','56','17','17','08','08','08','46','46',
       '46','67','67','06','06','06','60','60','68','68',
       '24','24','32','32','58','58','75','75','05','05'
@@ -604,7 +604,7 @@ const AI_ONLY_RANDOM_DECKS = [
     ids: [
       '46','46','46','08','08','08','06','06','06','47',
       '47','47','05','05','05','58','58','58','75','75',
-      '75','69','69','69','03','03','76','76','76','65',
+      '75','69','69','69','03','13','76','76','76','65',
       '65','65','60','60','60','32','32','32','13','13'
     ]
   },
@@ -693,7 +693,7 @@ function preloadChallengerAssets() {
     'pfpbooster.png',
     'booster1.png',
     'blank.png',
-    'optimized/backgrounds/ingamebackgrouds_igb1.jpg',
+    'ingamebackgrouds/igb1.png?v=bg20260705',
     'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
     'optimized/backgrounds/ingamebackgrouds_igb9.jpg'
   ]);
@@ -734,7 +734,7 @@ try {
   window.fateWarmChallengerMenuAssets = preloadChallengerAssets;
 } catch(e) {}
 
-// â”€â”€â”€ TITLE SCREEN ENTRY POINTS â”€â”€â”€
+// ─── TITLE SCREEN ENTRY POINTS ───
 let _freePlayMenuOpeningAt = 0;
 let _freePlayMenuHtmlCache = '';
 let _freePlayWarmupPromise = null;
@@ -752,8 +752,8 @@ const FREE_PLAY_MENU_IMAGES = [
   },
   {
     key:'human',
-    src:'optimized/backgrounds/ingamebackgrouds_igb1.jpg',
-    fallback:'ingamebackgrouds/igb1.png?v=bg20260510d'
+    src:'ingamebackgrouds/igb1.png?v=bg20260705',
+    fallback:'ingamebackgrouds/igb1.png?v=bg20260705'
   }
 ];
 
@@ -851,6 +851,8 @@ function openFreePlayMenu(options) {
   if(!opts.force && now - _freePlayMenuOpeningAt < 220) return;
   _freePlayMenuOpeningAt = now;
   CURRENT_MODE = 'free';
+  G._pickDeckAfterAi = false;
+  G._selectedAI = null;
   closeAllOverlays();
   seedBuiltInPresets();
   syncStarterPresetMetadata();
@@ -866,7 +868,7 @@ function openFreePlayMenu(options) {
 }
 
 
-// ─── OPPONENT FOUND OVERLAY (standalone, no modal) ───
+// --- OPPONENT FOUND OVERLAY (standalone, no modal) ---
 function showOpponentFound(ai, aiWins, aiLosses, onContinue) {
   playSfx('starPlace');
   removeOpponentFound(); // clean up any existing
@@ -909,6 +911,8 @@ window.startRandomAiFreePlay = function(){
     return;
   }
   CURRENT_MODE = 'free';
+  G._pickDeckAfterAi = false;
+  G._selectedAI = null;
   const ai = aiList[Math.floor(Math.random() * aiList.length)];
   const lbEntry = LEADERBOARD.find(e=>e.username===ai.name);
   const aiWins = lbEntry?.wins || 0;
@@ -951,7 +955,7 @@ function openChallengerMenu() {
   }
 }
 
-// â”€â”€â”€ STARTER PICK â”€â”€â”€
+// ─── STARTER PICK ───
 function showStarterPick() {
   showScreen('s-starter-pick');
   const grid = document.getElementById('starter-deck-grid');
@@ -961,6 +965,9 @@ function showStarterPick() {
     const useCanvasPreview = false;
     const el = document.createElement('div');
     el.className = 'starter-deck-card';
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `Preview ${deck.name}`);
     el.innerHTML = `
       <div class="starter-deck-art">${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : (face?.img ? `<img src="${face.img}" alt="" onerror="this.style.display='none'">` : '')}</div>
       <div class="starter-deck-body">
@@ -968,9 +975,45 @@ function showStarterPick() {
         <div class="starter-deck-desc">${escapeHtml(deck.description)}</div>
         <button class="btn pri starter-deck-pick-btn">Choose This Deck</button>
       </div>`;
-    el.querySelector('button').onclick = ()=>pickStarterDeck(deck.id);
+    el.addEventListener('click', ()=>previewStarterDeck(deck.id));
+    el.addEventListener('keydown', e=>{
+      if(e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      previewStarterDeck(deck.id);
+    });
+    el.querySelector('button').onclick = e=>{
+      e.stopPropagation();
+      pickStarterDeck(deck.id);
+    };
     grid.appendChild(el);
     if(useCanvasPreview) scheduleCanvasDeckPreviewTile(el, {hero: face, minis: []});
+  });
+}
+
+function getStarterDeckPreviewPreset(starterId) {
+  const deck = STARTER_DECKS.find(d=>d.id===starterId);
+  if(!deck) return null;
+  return {
+    name: deck.name,
+    description: deck.description,
+    theme: deck.theme,
+    ids: [...deck.ids],
+    faceCardId: deck.faceCardId,
+    displayCardIds: deck.displayCardIds,
+    starter: true,
+    lockedStarter: true,
+    starterId: deck.id
+  };
+}
+
+function previewStarterDeck(starterId) {
+  const preset = getStarterDeckPreviewPreset(starterId);
+  if(!preset) return;
+  if(typeof playMenuSfx === 'function') playMenuSfx();
+  viewChallengerDeckContents(`starter_preview_${starterId}`, {
+    preset,
+    plainHeroImage: true,
+    onBack: ()=>closeModal()
   });
 }
 
@@ -1009,7 +1052,7 @@ function pickStarterDeck(starterId) {
   },700);
 }
 
-// â”€â”€â”€ CHALLENGER HUB UI â”€â”€â”€
+// ─── CHALLENGER HUB UI ───
 let _currentChTab = 'play';
 const _chTabDomState = {};
 
@@ -1218,7 +1261,7 @@ function updateChTopbar() {
   if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
 }
 
-// â”€â”€â”€ CHALLENGER PLAY TAB â”€â”€â”€
+// ─── CHALLENGER PLAY TAB ───
 function renderChPlayTab(content) {
   content = resolveChRenderTarget(content, 'play');
   if(!content) return;
@@ -1416,20 +1459,10 @@ function renderChallengerDeckOrderEditor() {
   document.getElementById('modal-title').textContent = 'Edit Challenger Deck Order';
   const acts = document.getElementById('modal-acts');
   acts.innerHTML = '';
-  const back = document.createElement('button');
-  back.className = 'btn sm';
-  back.textContent = 'Back';
-  back.onclick = window.returnFromChallengerDeckOrderEditor;
-  const close = document.createElement('button');
-  close.className = 'btn sm';
-  close.textContent = 'Close';
-  close.onclick = closeModal;
   const done = document.createElement('button');
   done.className = 'btn sm pri';
   done.textContent = 'Done';
   done.onclick = window.returnFromChallengerDeckOrderEditor;
-  acts.appendChild(back);
-  acts.appendChild(close);
   acts.appendChild(done);
   document.getElementById('modal').classList.add('on');
 }
@@ -1476,157 +1509,169 @@ function openDeckPickModalChrome(title, actions, extraClasses) {
   if(typeof playSfx === 'function') playSfx('menuOpen');
 }
 
-function renderChallengerDeckPickModal(page=0) {
-  if(CURRENT_MODE === 'free') return renderFreePlayTitlePresetDeckPickModal(page);
-  const presets = getDeckPickPresetsForCurrentMode();
-  const keys = getOrderedDeckPickKeysForCurrentMode();
-  const pageSize = 3;
-  const totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
-  _challengerDeckPickPage = Math.max(0, Math.min(page, totalPages - 1));
-  const pageKeys = keys.slice(_challengerDeckPickPage * pageSize, _challengerDeckPickPage * pageSize + pageSize);
-  const body = document.createElement('div');
-  body.className = 'freeplay-title-preset-body challenger-runtime-title-preset-body';
-  body.innerHTML = `<p class="choose-deck-canonical-subtitle">Playing Challenger - pick a preset deck</p>`;
-  const grid = document.createElement('div');
-  grid.className = 'freeplay-title-preset-grid challenger-runtime-title-preset-grid';
-  pageKeys.forEach(pid=>{
-    const p = presets[pid];
-    const ok = p.ids.length===40;
-    const sampleIds = [...new Set(p.ids)];
-    const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
-    const hero = p.faceCardId ? CARDS.find(c=>c.id===p.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
-    const displayCards = (p.displayCardIds && p.displayCardIds.length
-      ? p.displayCardIds.map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img)
-      : sampleCards.filter(c=>c.img)
-    ).slice(0,7);
-    const tile = document.createElement('div');
-    tile.className = 'preset-card freeplay-title-preset-card challenger-runtime-title-preset-card';
-    tile.style.animationDelay = '0s';
-    tile.style.opacity = ok ? '1' : '.5';
-    const useCanvasPreview = false;
-    const heroSrc = hero?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'thumb') : hero.img) : '';
-    const heroArt = heroSrc ? `<img src="${heroSrc}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
-    tile.innerHTML = `
-      <div class="preset-card-art">
-        ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
-        <div class="preset-card-overlay"></div>
-      </div>
-      <div class="preset-card-body">
-        <div class="preset-name">${escapeHtml(p.name)}</div>
-        <div class="preset-desc">${escapeHtml(p.description||'')}</div>
-        <div class="preset-minis">
-          ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : displayCards.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
-        </div>
-        <div class="preset-action-row">
-          <button class="btn sm" type="button">Preview</button>
-          <button class="btn sm pri" type="button" ${ok?'':`disabled`}>Play</button>
-        </div>
-      </div>`;
-    if(useCanvasPreview) scheduleCanvasDeckPreviewTile(tile, {hero, minis:displayCards});
-    const [previewBtn, playBtn] = tile.querySelectorAll('.preset-action-row .btn');
-    if(previewBtn) previewBtn.onclick = (e)=>{ e.stopPropagation(); viewChallengerDeckContents(pid); };
-    if(playBtn) playBtn.onclick = (e)=>{ e.stopPropagation(); if(ok) chPickDeckAndStart(pid); };
-    if(ok) tile.onclick = ()=>viewChallengerDeckContents(pid);
-    grid.appendChild(tile);
+function getChooseDeckPresentation(pid, preset, options) {
+  const ids = Array.isArray(preset?.ids) ? preset.ids : [];
+  const usableIds = ids.filter(id=>!(options.freeMode && typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id)));
+  const sampleCards = [...new Set(usableIds)].map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
+  const hero = preset?.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
+  const displayIds = Array.isArray(preset?.displayCardIds) ? preset.displayCardIds : [];
+  const miniIds = [];
+  displayIds.forEach(id=>{
+    if(options.freeMode && typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id)) return;
+    if(!miniIds.includes(id)) miniIds.push(id);
   });
-  body.appendChild(grid);
-  markPresetTitleLineClasses(grid);
-  const footer = document.createElement('div');
-  footer.className = 'freeplay-title-preset-footer challenger-runtime-title-preset-footer';
-  footer.innerHTML = `
-    <div class="freeplay-title-preset-nav">
-      <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage-1})" ${_challengerDeckPickPage<=0?'disabled':''}>Prev</button>
-      <button class="btn sm" onclick="renderChallengerDeckOrderEditor()" ${(keys.length<=1 || CURRENT_MODE === 'free')?'disabled':''}>Edit Order</button>
-      <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage+1})" ${_challengerDeckPickPage>=totalPages-1?'disabled':''}>Next</button>
-      ${CURRENT_MODE === 'free' ? `<button class="btn sm" onclick="closeModal()">Close</button>` : ''}
+  sampleCards.filter(c=>c.img).forEach(c=>{
+    if(miniIds.length >= 5) return;
+    if(!miniIds.includes(c.id)) miniIds.push(c.id);
+  });
+  const minis = miniIds.map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img).slice(0,5);
+  const ok = ids.length === 40;
+  const heroSrc = hero?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'thumb') : hero.img) : '';
+  return {ids, usableIds, sampleCards, hero, minis, ok, heroSrc};
+}
+
+function miniDeckStripHtml(minis) {
+  return (Array.isArray(minis) ? minis : []).map(c=>{
+    const src = c?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img) : '';
+    return `<span>${src ? `<img src="${src}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">` : ''}</span>`;
+  }).join('');
+}
+
+function buildDeckSlateRow(pid, preset, presentation, index, options={}) {
+  const libraryMode = !!options.libraryMode;
+  const loadDisabled = !!options.loadRequiresComplete && !presentation.ok;
+  const row = document.createElement('article');
+  row.className = 'deck-slate-row' + (presentation.ok ? '' : ' is-disabled');
+  row.dataset.deckKey = pid;
+  const heroName = presentation.hero?.name || preset?.name || 'Deck';
+  const actionHtml = libraryMode
+    ? `<button class="btn sm pri" type="button" data-load ${loadDisabled ? 'disabled' : ''}>Load</button>
+       <button class="btn sm" type="button" data-edit-art>Edit Art</button>`
+    : `<button class="btn sm" type="button" data-preview>Preview</button>
+       <button class="btn sm pri" type="button" data-play ${presentation.ok ? '' : 'disabled'}>Play</button>`;
+  row.innerHTML = `
+    <div class="deck-slate-portrait ${presentation.heroSrc ? '' : 'is-empty'}">
+      ${presentation.heroSrc ? `<img src="${presentation.heroSrc}" alt="${escapeHtml(heroName)}" loading="lazy" decoding="async" draggable="false">` : ''}
     </div>
-    <span>Page ${_challengerDeckPickPage+1} / ${totalPages}</span>`;
-  body.appendChild(footer);
-  const isRandomCommitted = G._aiRewardMultiplier === 1.5 && G._pickDeckAfterAi;
-  const modalTitle = isRandomCommitted ? 'Choose Your Deck - Random Opponent Locked In' : 'Choose Your Deck';
-  const modalActions = (isRandomCommitted || CURRENT_MODE === 'free') ? [] : [{label:'Cancel', action:closeModal}];
-  openDeckPickModalChrome(modalTitle, modalActions, ['freeplay-title-preset-modal', 'challenger-runtime-title-preset-modal']);
+    <div class="deck-slate-copy">
+      <h3>${escapeHtml(preset?.name || 'Untitled Deck')}</h3>
+      <p>${escapeHtml(preset?.description || 'No description saved.')}</p>
+      <div class="deck-slate-strip">${miniDeckStripHtml(presentation.minis)}</div>
+    </div>
+    <div class="deck-slate-status">
+      <strong>${presentation.ids.length}/40</strong>
+      <span>${presentation.ok ? 'Ready' : 'Incomplete'}</span>
+    </div>
+    <div class="deck-slate-actions">${actionHtml}</div>`;
+  if(libraryMode){
+    row.querySelector('[data-load]')?.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(!loadDisabled && typeof options.onLoad === 'function') options.onLoad(pid, preset, presentation);
+    });
+    row.querySelector('[data-edit-art]')?.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(typeof options.onEditArt === 'function') options.onEditArt(pid, preset, presentation);
+    });
+  } else {
+    row.querySelector('[data-preview]')?.addEventListener('click', e=>{ e.stopPropagation(); viewChallengerDeckContents(pid); });
+    row.querySelector('[data-play]')?.addEventListener('click', e=>{ e.stopPropagation(); if(presentation.ok) chPickDeckAndStart(pid); });
+  }
+  row.addEventListener('click', ()=>{
+    if(typeof options.onRowClick === 'function') return options.onRowClick(pid, preset, presentation);
+    viewChallengerDeckContents(pid);
+  });
+  return row;
+}
+
+function renderUnifiedChooseDeckModal(page=0, options={}) {
+  const freeMode = !!options.freeMode;
+  const libraryMode = !!options.libraryMode;
+  const librarySource = options.source || (freeMode ? 'title' : 'challenger');
+  const presets = options.presets || (freeMode ? ((typeof PRESET_DECKS !== 'undefined' && PRESET_DECKS) ? PRESET_DECKS : {}) : getDeckPickPresetsForCurrentMode());
+  const keys = Array.isArray(options.keys) ? options.keys : (freeMode
+    ? Object.keys(presets).sort((a,b)=>String(presets[a]?.name || a).localeCompare(String(presets[b]?.name || b)))
+    : getOrderedDeckPickKeysForCurrentMode());
+  const pageSize = options.pageSize || 3;
+  const totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
+  const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+  const titlePresetMode = freeMode || librarySource === 'title';
+  if(libraryMode && librarySource === 'title' && typeof _presetBrowsePage !== 'undefined') _presetBrowsePage = currentPage;
+  else if(libraryMode && librarySource === 'challenger') _challengerDeckBrowsePage = currentPage;
+  else _challengerDeckPickPage = currentPage;
+  const pageKeys = keys.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
+  const isRandomCommitted = !libraryMode && !freeMode && G._aiRewardMultiplier === 1.5 && G._pickDeckAfterAi;
+  const modalTitle = options.title || (isRandomCommitted ? 'Choose Your Deck - Random Opponent Locked In' : 'Choose Your Deck');
+  const modeLabel = options.modeLabel || (freeMode ? 'Free Play' : (G._pickDeckAfterMatchmaking ? 'Challenger Matchmaking' : 'Challenger'));
+  const subcopy = options.subcopy || (freeMode ? 'Pick a title-screen preset for this match.' : 'Pick a Challenger preset for this path.');
+  const actions = [];
+  openDeckPickModalChrome(modalTitle, actions, ['deck-slate-modal', titlePresetMode ? 'deck-slate-free' : 'deck-slate-challenger', ...(options.extraClasses || [])]);
   const modalEl = document.getElementById('modal');
   if(modalEl) {
     if(isRandomCommitted) modalEl.dataset.escapeLocked = '1';
     else delete modalEl.dataset.escapeLocked;
   }
-  document.getElementById('modal-body').appendChild(body);
+  const bodyHost = document.getElementById('modal-body');
+  if(!bodyHost) return;
+  bodyHost.innerHTML = '';
+  const shell = document.createElement('div');
+  shell.className = 'deck-slate-shell';
+  shell.innerHTML = `
+    <header class="deck-slate-head">
+      <div>
+        <span>${escapeHtml(modeLabel)}</span>
+        <p>${escapeHtml(subcopy)}</p>
+      </div>
+      <strong>${keys.length} deck${keys.length === 1 ? '' : 's'}</strong>
+    </header>
+    <section class="deck-slate-list"></section>
+    <footer class="deck-slate-footer">
+      <div class="deck-slate-nav">
+        <button class="btn sm" type="button" data-deck-prev ${currentPage<=0?'disabled':''}>Prev</button>
+        <button class="btn sm" type="button" data-deck-next ${currentPage>=totalPages-1?'disabled':''}>Next</button>
+      </div>
+      <div class="deck-slate-footer-actions">
+        ${(freeMode && !libraryMode) ? '' : `<button class="btn sm" type="button" data-deck-order ${keys.length<=1?'disabled':''}>Edit Order</button>`}
+        ${(freeMode || libraryMode) ? `<button class="btn sm" type="button" data-deck-close>Close</button>` : ''}
+        ${(!freeMode && !libraryMode && !isRandomCommitted) ? `<button class="btn sm" type="button" data-deck-close>Cancel</button>` : ''}
+      </div>
+    </footer>`;
+  const list = shell.querySelector('.deck-slate-list');
+  if(!keys.length){
+    list.innerHTML = `<div class="deck-slate-empty">${escapeHtml(options.emptyText || 'No saved presets. Go to the Deck Builder to create one.')}</div>`;
+  } else {
+    pageKeys.forEach((pid, idx)=>{
+      const presentation = getChooseDeckPresentation(pid, presets[pid], {freeMode:titlePresetMode});
+      list.appendChild(buildDeckSlateRow(pid, presets[pid], presentation, currentPage * pageSize + idx, options));
+    });
+  }
+  const nextOptions = {...options, freeMode, libraryMode, source:librarySource, presets, keys};
+  shell.querySelector('[data-deck-prev]')?.addEventListener('click', ()=>renderUnifiedChooseDeckModal(currentPage - 1, nextOptions));
+  shell.querySelector('[data-deck-next]')?.addEventListener('click', ()=>renderUnifiedChooseDeckModal(currentPage + 1, nextOptions));
+  shell.querySelector('[data-deck-order]')?.addEventListener('click', ()=>{
+    if(typeof options.onOrder === 'function') return options.onOrder();
+    renderChallengerDeckOrderEditor();
+  });
+  shell.querySelector('[data-deck-close]')?.addEventListener('click', closeModal);
+  bodyHost.appendChild(shell);
+}
+
+window.renderDeckLibraryModal = function(page=0, options={}) {
+  return renderUnifiedChooseDeckModal(page, {...options, libraryMode:true});
+};
+
+function renderChallengerDeckPickModal(page=0) {
+  if(CURRENT_MODE === 'free') return renderUnifiedChooseDeckModal(page, {freeMode:true});
+  return renderUnifiedChooseDeckModal(page, {freeMode:false});
 }
 
 function renderFreePlayTitlePresetDeckPickModal(page=0) {
-  const presets = (typeof PRESET_DECKS !== 'undefined' && PRESET_DECKS) ? PRESET_DECKS : {};
-  const keys = Object.keys(presets).sort((a,b)=>String(presets[a]?.name || a).localeCompare(String(presets[b]?.name || b)));
-  const pageSize = 3;
-  const totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
-  _challengerDeckPickPage = Math.max(0, Math.min(page, totalPages - 1));
-  const pageKeys = keys.slice(_challengerDeckPickPage * pageSize, _challengerDeckPickPage * pageSize + pageSize);
-  const body = document.createElement('div');
-  body.className = 'freeplay-title-preset-body';
-  body.innerHTML = `<p class="choose-deck-canonical-subtitle">Playing Free Play Human - pick a title deck preset</p>`;
-  const grid = document.createElement('div');
-  grid.className = 'freeplay-title-preset-grid';
-  if(!keys.length){
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No saved presets. Go to the title Deck Builder to create one.</div>`;
-  }
-  pageKeys.forEach((pid,i)=>{
-    const p = presets[pid];
-    const sampleIds = [...new Set((p.ids || []).filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id))))];
-    const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
-    const hero = p.faceCardId ? CARDS.find(c=>c.id===p.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
-    const previews = (p.displayCardIds && p.displayCardIds.length>0)
-      ? p.displayCardIds.filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id))).map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img).slice(0,7)
-      : sampleCards.filter(c=>c.img).slice(0,5);
-    const ok = Array.isArray(p.ids) && p.ids.length === 40;
-    const el = document.createElement('div');
-    el.className = 'preset-card freeplay-title-preset-card';
-    el.style.animationDelay = '0s';
-    const useCanvasPreview = false;
-    const heroSrc = hero?.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'thumb') : hero.img) : '';
-    const heroArt = heroSrc ? `<img src="${heroSrc}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
-    el.innerHTML = `
-      <div class="preset-card-art">
-        ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
-        <div class="preset-card-overlay"></div>
-      </div>
-      <div class="preset-card-body">
-        <div class="preset-name">${escapeHtml(p.name)}</div>
-        <div class="preset-desc">${escapeHtml(p.description||'')}</div>
-        <div class="preset-minis">
-          ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : previews.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
-        </div>
-        <div class="preset-action-row">
-          <button class="btn sm" type="button">Preview</button>
-          <button class="btn sm pri" type="button" ${ok?'':`disabled`}>Play</button>
-        </div>
-      </div>`;
-    if(useCanvasPreview) scheduleCanvasDeckPreviewTile(el, {hero, minis:previews});
-    const [previewBtn, playBtn] = el.querySelectorAll('.preset-action-row .btn');
-    if(previewBtn) previewBtn.onclick = (e)=>{ e.stopPropagation(); viewChallengerDeckContents(pid); };
-    if(playBtn) playBtn.onclick = (e)=>{ e.stopPropagation(); if(ok) chPickDeckAndStart(pid); };
-    if(ok) el.onclick = ()=>viewChallengerDeckContents(pid);
-    grid.appendChild(el);
-  });
-  body.appendChild(grid);
-  markPresetTitleLineClasses(grid);
-  const footer = document.createElement('div');
-  footer.className = 'freeplay-title-preset-footer';
-  footer.innerHTML = `
-    <div class="freeplay-title-preset-nav">
-      <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage-1})" ${_challengerDeckPickPage<=0?'disabled':''}>Prev</button>
-      <button class="btn sm" onclick="renderChallengerDeckPickModal(${_challengerDeckPickPage+1})" ${_challengerDeckPickPage>=totalPages-1?'disabled':''}>Next</button>
-    </div>
-    <span>Page ${_challengerDeckPickPage+1} / ${totalPages}</span>
-    <button class="btn sm" onclick="closeModal()">Close</button>`;
-  body.appendChild(footer);
-  openDeckPickModalChrome('Choose Your Deck', CURRENT_MODE === 'free' ? [] : [{label:'Cancel', action:closeModal}], ['freeplay-title-preset-modal']);
-  const modalEl = document.getElementById('modal');
-  if(modalEl) delete modalEl.dataset.escapeLocked;
-  document.getElementById('modal-body').appendChild(body);
+  return renderUnifiedChooseDeckModal(page, {freeMode:true});
 }
 
 function chStartVsAI() {
   CURRENT_MODE = 'challenger';
+  G._pickDeckAfterAi = false;
+  G._selectedAI = null;
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = Object.keys(presets);
   if(keys.length === 0){
@@ -1689,7 +1734,7 @@ function chStartWithDeck(pid) {
   showAIDifficultyPicker();
 }
 
-// â”€â”€â”€ CHALLENGER STORE TAB â”€â”€â”€
+// ─── CHALLENGER STORE TAB ───
 function renderChStoreTab(content) {
   content = resolveChRenderTarget(content, 'store');
   if(!content) return;
@@ -1811,9 +1856,9 @@ function generateFavoredPack() {
   return cards;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  MARKETPLACE — Multiplayer-ready auction/buyout system
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
+//  MARKETPLACE � Multiplayer-ready auction/buyout system
+// ═══════════════════════════════════════════════════════
 function getMarketplace(){
   if(!USER_PROFILE.marketplace) USER_PROFILE.marketplace={listings:[]};
   return USER_PROFILE.marketplace;
@@ -1827,6 +1872,24 @@ function renderMarketplaceListings(){
     return;
   }
   el.innerHTML=mp.listings.map((l,i)=>{
+    const isPfp = String(l.type || '') === 'pfp';
+    if(isPfp){
+      const pfpId = Number(l.pfpId || 0);
+      const pfpSrc = typeof PFP_PATH === 'function' ? PFP_PATH(pfpId, 'square') : `pfp/pfp${pfpId || 1}.png`;
+      return `<div class="market-listing online-market-listing pfp-market-listing" data-listing-id="${escapeHtml(String(l.listingId || i))}">
+        <div class="market-listing-thumb pfp-listing-thumb" style="border-color:rgba(232,196,82,.7);"><span class="pfp-listing-frame"><img src="${escapeHtml(pfpSrc)}" alt="Profile picture ${pfpId}"></span></div>
+        <div class="market-listing-copy">
+          <div class="market-listing-name">Profile Picture ${pfpId}</div>
+          <div class="market-listing-meta">Profile Picture - ${escapeHtml(l.seller||'You')}</div>
+        </div>
+        <div class="market-listing-actions">
+          <div class="market-listing-price">${STARLIGHT_ICON} ${l.price}</div>
+          ${l.seller===USER_PROFILE.username
+            ?`<button class="btn sm danger" onclick="cancelListing(${i})">Cancel</button>`
+            :`<button class="btn sm pri" onclick="buyListing(${i})">Buy</button>`}
+        </div>
+      </div>`;
+    }
     const c=CARDS.find(x=>x.id===l.cardId);
     if(!c) return '';
     return `<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem;border:1px solid var(--border);border-radius:4px;margin-bottom:.3rem;background:rgba(0,0,0,.3);">
@@ -1885,14 +1948,14 @@ function listCardForSale(cardId){
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Cinzel',serif;font-size:.95rem;color:var(--gold);margin-bottom:.3rem;">${escapeHtml(c.name)}</div>
-        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} · <span style="color:${rarCol}">${c.rarity}</span></div>
+        <div style="font-size:.72rem;color:var(--dim);margin-bottom:.15rem;">${escapeHtml(c.type)} � <span style="color:${rarCol}">${c.rarity}</span></div>
         <div style="font-size:.68rem;color:var(--dim);opacity:.7;">${escapeHtml(c.ability||'')}</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:.6rem;justify-content:center;">
       <label style="font-size:.8rem;color:var(--dim);">Price:</label>
       <div style="display:flex;align-items:center;gap:.35rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:.35rem .6rem;">
-        <span style="font-size:.7rem;color:var(--gold);">✦</span>
+        <span style="font-size:.7rem;color:var(--gold);">?</span>
         <input type="number" id="sell-price" min="10" max="10000" value="100" style="padding:.2rem;background:transparent;border:none;color:var(--text);font-size:.9rem;width:80px;outline:none;font-family:inherit;">
       </div>
       <span style="font-size:.7rem;color:var(--dim);">Starlight</span>
@@ -2073,7 +2136,7 @@ function listCardForSale(cardId){
         <div class="market-list-card-copy">
           <div class="market-list-kicker">Marketplace Listing</div>
           <div class="market-list-name">${escapeHtml(c.name)}</div>
-          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` • Cost ${c.xCost?'X':c.cost}`:''} • ${affLabel} • ${rarity}</div>
+          <div class="market-list-meta">${escapeHtml(c.type)}${c.cost>0?` � Cost ${c.xCost?'X':c.cost}`:''} � ${affLabel} � ${rarity}</div>
           <div class="market-list-note">Set a Starlight price. The card leaves your collection while listed and returns if you cancel the listing.</div>
         </div>
       </div>
@@ -2114,6 +2177,8 @@ function openSellPfpModal(){
 }
 
 function listPfpForSale(pfpId){
+  pfpId = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+  if(!pfpId) return;
   closeModal();
   showModal('Set Price',`
     <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.7rem;">
@@ -2131,7 +2196,10 @@ function listPfpForSale(pfpId){
     </div>`,
   [{label:'List',pri:true,action:()=>{
     const price=parseInt(document.getElementById('sell-price')?.value)||50;
-    removeOwnedPfp(pfpId);
+    if(typeof removeOwnedPfp === 'function' && removeOwnedPfp(pfpId) !== true){
+      toast('You no longer own that profile picture');
+      return;
+    }
     const mp=getMarketplace();
     mp.listings.push({type:'pfp', pfpId, seller:USER_PROFILE.username, price, timestamp:Date.now()});
     saveProfile(); toast(`Profile picture ${pfpId} listed for ${price} Starlight`); closeModal(); switchChTab('store');
@@ -2293,7 +2361,7 @@ function _openNextPack() {
   showPackOpening(results);
 }
 
-// â”€â”€â”€ PACK OPENING ANIMATION â”€â”€â”€
+// ─── PACK OPENING ANIMATION ───
 function showPackOpening(results, packType) {
   const overlay = document.getElementById('pack-opening-overlay');
   const stage = document.getElementById('pack-stage-content');
@@ -2443,7 +2511,7 @@ function closePackOpening() {
   }
 }
 
-// â”€â”€â”€ CHALLENGER COLLECTION TAB â”€â”€â”€
+// ─── CHALLENGER COLLECTION TAB ───
 let _collFilter = 'all';
 function renderChCollectionTab(content) {
   content = resolveChRenderTarget(content, 'collection');
@@ -2519,7 +2587,7 @@ function setCollFilter(f) {
   renderChCollectionTab(document.getElementById('ch-content'));
 }
 
-// â”€â”€â”€ CHALLENGER DECK BUILDER TAB â”€â”€â”€
+// ─── CHALLENGER DECK BUILDER TAB ───
 let _cdbFilter = 'all';
 let _cdbSearch = '';
 let _cdbCurrentDeckId = null; // null = building a new deck
@@ -2574,22 +2642,6 @@ function renderChDeckBuilderTab(content) {
   const currentIsStarter = isChallengerStarterPreset(currentPreset, _cdbCurrentDeckId);
 
   content.innerHTML = `
-    <div class="cdb-command-panel">
-      <div class="cdb-command-search">
-        <input type="text" id="cdb-search" class="db-search cdb-search-inline" value="${escapeHtml(_cdbSearch)}" maxlength="40" placeholder="Search names or card text..." oninput="setCdbSearch(this.value)">
-      </div>
-      <div class="cdb-command-title">
-        <h3>YOUR DECKS (${presetKeys.length})</h3>
-      </div>
-      <div class="cdb-command-actions">
-        <button class="btn sm" onclick="browseChallengerDecks()">My Decks</button>
-        <button class="btn sm pri" onclick="cdbSaveDeck()">Save as new</button>
-        ${_cdbCurrentDeckId ? (currentIsStarter
-          ? `<button class="btn sm cdb-starter-locked-btn" style="border-color:rgba(232,196,82,.46);color:#e8c452;" onclick="showChallengerStarterDeckWarning(${jsString(currentPreset?.name || 'Starter deck')})">Starter Locked</button>`
-          : `<button class="btn sm" style="border-color:var(--gold);color:var(--gold);" onclick="cdbOverwriteDeck()">Overwrite Current</button>`) : ''}
-        ${_cdbCurrentDeckId ? `<button class="btn sm danger" onclick="cdbDeleteDeck()">Delete</button>` : ''}
-      </div>
-    </div>
     <div class="ch-filter-bar">
       <button class="db-filter ${_cdbFilter==='all'?'active':''}" onclick="setCdbFilter('all')">All Owned</button>
       <button class="db-filter ${_cdbFilter==='Supporter'?'active':''}" onclick="setCdbFilter('Supporter')">Supporters</button>
@@ -2607,6 +2659,7 @@ function renderChDeckBuilderTab(content) {
       <button class="db-filter ${_cdbFilter==='square'?'active':''}" style="color:#b36ce0;border-color:rgba(160,100,220,.4);" onclick="setCdbFilter('square')">Square</button>
       <button class="db-filter ${_cdbFilter==='triangle'?'active':''}" style="color:#d48a4a;border-color:rgba(212,138,74,.4);" onclick="setCdbFilter('triangle')">Triangle</button>
       <button class="db-filter ${_cdbFilter==='circle'?'active':''}" style="color:#4a8ad4;border-color:rgba(74,138,212,.4);" onclick="setCdbFilter('circle')">Circle</button>
+      <input type="text" id="cdb-search" class="db-search cdb-search-inline" value="${escapeHtml(_cdbSearch)}" maxlength="40" placeholder="Search names or card text..." oninput="setCdbSearch(this.value)">
     </div>
     <div class="cdb-wrap">
       <div class="cdb-left">
@@ -2614,13 +2667,22 @@ function renderChDeckBuilderTab(content) {
       </div>
       <div class="cdb-right">
         ${currentIsStarter ? `<div class="cdb-starter-warning">This is a starter deck. It cannot be overwritten; use Save as new to create an editable copy.</div>` : ''}
-        <div style="font-family:'Cinzel',serif;font-size:.85rem;color:#ffd700;letter-spacing:.08em;padding:.3rem 0 .5rem;border-bottom:1px solid var(--border);">
-          CURRENT DECK (<span id="cdb-count">${_cdbCurrentDeckIds.length}</span>/40)
-        </div>
-        <div class="cdb-decklist" id="cdb-decklist"></div>
-        <div style="display:flex;gap:.3rem;margin-top:.5rem;">
+        <div class="db-deck-header cdb-deck-header">
+          <div class="db-deck-titleline cdb-deck-titleline">
+            <span class="cdb-deck-label">Current Deck</span>
+            <span class="db-count cdb-count"><span id="cdb-count">${_cdbCurrentDeckIds.length}</span> / 40 cards</span>
+          </div>
           <button class="btn sm danger" onclick="cdbClear()">Clear</button>
         </div>
+        <div class="db-actions cdb-actions">
+          <button class="btn sm" onclick="cdbDeleteDeck()">Delete Preset</button>
+          <button class="btn sm" onclick="browseChallengerDecks()">My Decks</button>
+          ${currentIsStarter
+            ? `<button class="btn sm cdb-starter-locked-btn btn-overwrite-preset" style="border-color:rgba(232,196,82,.46);color:#e8c452;" onclick="showChallengerStarterDeckWarning(${jsString(currentPreset?.name || 'Starter deck')})"><span>Starter</span><span>Locked</span></button>`
+            : `<button class="btn sm btn-overwrite-preset" style="border-color:var(--gold);color:var(--gold);" onclick="cdbOverwriteDeck()"><span>Overwrite</span><span>Preset</span></button>`}
+          <button class="btn sm pri" onclick="cdbSaveDeck()">Save as New</button>
+        </div>
+        <div class="cdb-decklist" id="cdb-decklist"></div>
       </div>
     </div>`;
   renderCdbCollection();
@@ -2636,6 +2698,25 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = Object.keys(presets);
+  if(typeof window.renderDeckLibraryModal === 'function'){
+    let targetPage = page;
+    if(selectedPid && keys.includes(selectedPid)) targetPage = Math.floor(keys.indexOf(selectedPid) / 3);
+    window.renderDeckLibraryModal(targetPage, {
+      source:'challenger',
+      title:'My Decks',
+      modeLabel:'Challenger Decks',
+      subcopy:'Choose a deck to load into the Challenger builder or customize its art.',
+      emptyText:'No Challenger decks yet. Build one in the Deck Builder tab.',
+      presets,
+      keys,
+      extraClasses:['challenger-my-decks-modal'],
+      onLoad:(pid)=>{ cdbEditDeck(pid); closeModal(); },
+      onEditArt:(pid)=>cdbEditAppearance(pid),
+      onOrder:()=>renderChallengerDeckOrderEditor(),
+      onRowClick:(pid)=>viewChallengerDeckContents(pid)
+    });
+    return;
+  }
   const pageSize = 3;
   const body = document.createElement('div');
   if(!keys.length){
@@ -2673,7 +2754,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
     const displayCards = (preset.displayCardIds && preset.displayCardIds.length
       ? preset.displayCardIds.map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img)
       : sampleCards.filter(c=>c.img)
-    ).slice(0,7);
+    ).slice(0,5);
     const tile = document.createElement('div');
     tile.className = 'preset-browse-tile fixed-deck-tile';
     tile.style.height = '480px';
@@ -2724,8 +2805,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
       <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage-1})" ${_challengerDeckBrowsePage<=0?'disabled':''}>Prev</button>
       <button class="btn sm" onclick="renderChallengerDeckOrderEditor()" ${keys.length<=1?'disabled':''}>Edit Order</button>
       <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage+1})" ${_challengerDeckBrowsePage>=totalPages-1?'disabled':''}>Next</button>
-    </div>
-    <div style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.08em;">Page ${_challengerDeckBrowsePage+1} / ${totalPages}</div>`;
+    </div>`;
   body.appendChild(footer);
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
@@ -2744,8 +2824,8 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
   document.getElementById('modal').classList.add('on');
 }
 
-function viewChallengerDeckContents(pid) {
-  const preset = getDeckPickPresetsForCurrentMode()?.[pid] || USER_PROFILE.challengerPresets?.[pid];
+function viewChallengerDeckContents(pid, options={}) {
+  const preset = options.preset || getDeckPickPresetsForCurrentMode()?.[pid] || USER_PROFILE.challengerPresets?.[pid];
   if(!preset) return;
   const cameFromDeckPick = !!document.querySelector('#modal .modal[data-choose-deck-modal="1"], #modal .choose-deck-canonical-modal') ||
     !!(typeof G !== 'undefined' && G && (G._pickDeckAfterMatchmaking || G._pickDeckAfterAi)) ||
@@ -2762,11 +2842,6 @@ function viewChallengerDeckContents(pid) {
   const totalCards = (preset.ids || []).length;
   const theme = preset.theme || 'Challenger';
   body.innerHTML = `
-    <div class="deck-inspect-topbar">
-      <div>
-        <div class="deck-inspect-name">${escapeHtml(preset.name)}</div>
-      </div>
-    </div>
     <div class="deck-inspect-summary">
       <div class="deck-inspect-brief">
         <p>${escapeHtml(preset.description||'')}</p>
@@ -2783,11 +2858,13 @@ function viewChallengerDeckContents(pid) {
       <div class="preset-view-grid"></div>
     </section>`;
   const goBack = ()=>{
+    if(typeof options.onBack === 'function') return options.onBack();
     if(CURRENT_MODE === 'free') return renderFreePlayTitlePresetDeckPickModal(_challengerDeckPickPage || 0);
     return cameFromDeckPick
       ? renderChallengerDeckPickModal(_challengerDeckPickPage || 0)
       : browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
   };
+  const reopenPreview = ()=>viewChallengerDeckContents(pid, options);
   const inlineBack = body.querySelector('.deck-inspect-back-inline');
   if(inlineBack) inlineBack.onclick = goBack;
   const grid = body.querySelector('.preset-view-grid');
@@ -2795,7 +2872,7 @@ function viewChallengerDeckContents(pid) {
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
   const heroBox = body.querySelector('.deck-inspect-hero');
-  if(heroBox && hero?.img && typeof window.renderCanvasImage === 'function') {
+  if(heroBox && hero?.img && !options.plainHeroImage && typeof window.renderCanvasImage === 'function') {
     heroBox.textContent = '';
     const canvas = document.createElement('canvas');
     canvas.className = 'deck-inspect-hero-canvas';
@@ -2813,7 +2890,7 @@ function viewChallengerDeckContents(pid) {
       title: c.name,
       ariaLabel: c.name
     })), {
-      onClick: (card)=>openCardDetailFromDeckPreview(card, ()=>viewChallengerDeckContents(pid)),
+      onClick: (card)=>openCardDetailFromDeckPreview(card, reopenPreview),
       onContextMenu: (card)=>showCardInfoOverlay(card)
     });
   } else if(grid) {
@@ -2825,8 +2902,8 @@ function viewChallengerDeckContents(pid) {
       el.innerHTML = `
         <div class="mc-art">${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
         <div class="visual-name">${escapeHtml(c.name)}</div>
-        ${count>1?`<div class="preset-card-count">×${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">×1</div>`}`;
-      el.onclick = ()=>openCardDetailFromDeckPreview(c, ()=>viewChallengerDeckContents(pid));
+        ${count>1?`<div class="preset-card-count">x${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">x1</div>`}`;
+      el.onclick = ()=>openCardDetailFromDeckPreview(c, reopenPreview);
       grid.appendChild(el);
     });
   }
@@ -2861,7 +2938,7 @@ function cdbEditAppearance(pid=null){
   const uniqueIds = [...new Set(p.ids)];
   const deckCards = uniqueIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
   let currentFace = p.faceCardId || deckCards[0]?.id;
-  let currentDisplay = [...(p.displayCardIds || deckCards.slice(0,7).map(c=>c.id))];
+  let currentDisplay = [...(p.displayCardIds || deckCards.slice(0,5).map(c=>c.id))].slice(0,5);
 
   const renderEditor = ()=>{
     const body = document.createElement('div');
@@ -2879,7 +2956,7 @@ function cdbEditAppearance(pid=null){
           <div class="face-picker-grid" id="ch-face-picker"></div>
         </section>
         <section class="deck-art-editor-section">
-          <div class="deck-art-editor-title">Display Cards (up to 7) - <span id="ch-display-count">${currentDisplay.length}/7</span></div>
+          <div class="deck-art-editor-title">Display Cards (up to 5) - <span id="ch-display-count">${currentDisplay.length}/5</span></div>
           <div class="face-picker-grid" id="ch-display-picker"></div>
         </section>
         </div>
@@ -2918,11 +2995,11 @@ function cdbEditAppearance(pid=null){
             const idx = currentDisplay.indexOf(c.id);
             if(idx>=0) currentDisplay.splice(idx,1);
             else {
-              if(currentDisplay.length>=7){ toast('Max 7 display cards'); return; }
+              if(currentDisplay.length>=5){ toast('Max 5 display cards'); return; }
               currentDisplay.push(c.id);
             }
             const countEl = document.getElementById('ch-display-count');
-            if(countEl) countEl.textContent = currentDisplay.length+'/7';
+            if(countEl) countEl.textContent = currentDisplay.length+'/5';
             renderPickers();
           }
         });
@@ -2955,7 +3032,7 @@ function cdbEditAppearance(pid=null){
           setBadge(el, selected ? '#' + (idx + 1) : '', true);
         });
         const countEl = document.getElementById('ch-display-count');
-        if(countEl) countEl.textContent = currentDisplay.length + '/7';
+        if(countEl) countEl.textContent = currentDisplay.length + '/5';
         renderPreview();
       };
       if(faceGrid.childElementCount || displayGrid.childElementCount){
@@ -2981,7 +3058,7 @@ function cdbEditAppearance(pid=null){
           const idx = currentDisplay.indexOf(c.id);
           if(idx>=0) currentDisplay.splice(idx,1);
           else {
-            if(currentDisplay.length>=7){ toast('Max 7 display cards'); return; }
+            if(currentDisplay.length>=5){ toast('Max 5 display cards'); return; }
             currentDisplay.push(c.id);
           }
           syncPickerState();
@@ -3003,7 +3080,7 @@ function cdbEditAppearance(pid=null){
     save.textContent='Save';
     save.onclick = ()=>{
       p.faceCardId = currentFace;
-      p.displayCardIds = currentDisplay;
+  p.displayCardIds = currentDisplay.slice(0,5);
       saveProfile();
       if(targetId===_cdbCurrentDeckId) renderChDeckBuilderTab(document.getElementById('ch-content'));
       toast('Challenger deck art updated');
@@ -3049,7 +3126,7 @@ function renderCdbCollection() {
         card:c,
         count:inDeck,
         ownedText:`${avail}/${owned_n}`,
-        title:`Owned: ${owned_n} • In deck: ${inDeck} • Right-click to add`,
+        title:`Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`,
         ariaLabel:c.name
       };
     });
@@ -3079,7 +3156,7 @@ function renderCdbCollection() {
     el.appendChild(ownedBadge);
     el.onclick = ()=>openCardDetail(c);
     el.oncontextmenu = (e)=>{e.preventDefault();cdbAdd(c.id);};
-    el.title = `Owned: ${owned_n} • In deck: ${inDeck} • Right-click to add`;
+    el.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
     col.appendChild(el);
   });
 }
@@ -3092,7 +3169,7 @@ function refreshCdbCollectionCounts() {
     const inDeck = _cdbCurrentDeckIds.filter(x=>x===id).length;
     entry.count = inDeck;
     entry.ownedText = `${owned_n - inDeck}/${owned_n}`;
-    entry.title = `Owned: ${owned_n} • In deck: ${inDeck} • Right-click to add`;
+    entry.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
   })) return;
   document.querySelectorAll('#cdb-collection .db-mc[data-card-id]').forEach(el=>{
     const id = el.dataset.cardId;
@@ -3347,7 +3424,7 @@ function openCdbSaveAsNewDialog() {
   if(!deckCards.length){ toast('Add cards before saving'); return; }
   const defaultFace = deckCards.filter(c=>c.type!=='Supporter').sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || deckCards[0];
   let currentFace = defaultFace?.id || deckCards[0]?.id;
-  let currentDisplay = deckCards.filter(c=>c.img).slice(0,7).map(c=>c.id);
+  let currentDisplay = deckCards.filter(c=>c.img).slice(0,5).map(c=>c.id);
   const defaultName = (_cdbCurrentName && !/^new deck$/i.test(_cdbCurrentName) && !/^unsaved deck$/i.test(_cdbCurrentName))
     ? `${_cdbCurrentName} Copy`
     : `Challenger Deck ${Object.keys(USER_PROFILE.challengerPresets || {}).length + 1}`;
@@ -3373,7 +3450,7 @@ function openCdbSaveAsNewDialog() {
       <div class="face-picker-grid cdb-save-picker" id="cdb-save-face-picker"></div>
     </div>
     <div class="cdb-save-section">
-      <div class="cdb-save-section-title">Display Cards <span id="cdb-save-display-count">${currentDisplay.length}/7</span></div>
+      <div class="cdb-save-section-title">Display Cards <span id="cdb-save-display-count">${currentDisplay.length}/5</span></div>
       <div class="face-picker-grid cdb-save-picker" id="cdb-save-display-picker"></div>
     </div>`;
   const modalBody = document.getElementById('modal-body');
@@ -3392,7 +3469,7 @@ function openCdbSaveAsNewDialog() {
       }
     }
     const count = body.querySelector('#cdb-save-display-count');
-    if(count) count.textContent = `${currentDisplay.length}/7`;
+    if(count) count.textContent = `${currentDisplay.length}/5`;
   };
   const renderPickers = () => {
     const faceGrid = body.querySelector('#cdb-save-face-picker');
@@ -3445,7 +3522,7 @@ function openCdbSaveAsNewDialog() {
         const idx = currentDisplay.indexOf(c.id);
         if(idx >= 0) currentDisplay.splice(idx, 1);
         else {
-          if(currentDisplay.length >= 7){ toast('Max 7 display cards'); return; }
+          if(currentDisplay.length >= 5){ toast('Max 5 display cards'); return; }
           currentDisplay.push(c.id);
         }
         refreshPickerSelections();
@@ -3479,7 +3556,7 @@ function openCdbSaveAsNewDialog() {
       theme,
       ids: [..._cdbCurrentDeckIds],
       faceCardId: currentFace,
-      displayCardIds: currentDisplay.slice(0,7)
+      displayCardIds: currentDisplay.slice(0,5)
     };
     _cdbCurrentDeckId = pid;
     _cdbCurrentName = name;
@@ -3514,7 +3591,7 @@ function cdbOverwriteDeck() {
     || deckCards.filter(c=>c.type!=='Supporter').sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || deckCards[0];
   const display = (existing.displayCardIds && existing.displayCardIds.length
     ? existing.displayCardIds.map(id=>deckCards.find(c=>c.id===id)).filter(Boolean)
-    : deckCards.filter(c=>c.img).slice(0,7)).slice(0,7);
+    : deckCards.filter(c=>c.img).slice(0,5)).slice(0,5);
   USER_PROFILE.challengerPresets[_cdbCurrentDeckId] = {
     name, description: desc || 'Custom challenger deck', theme,
       ids: [..._cdbCurrentDeckIds], faceCardId: face?.id, displayCardIds: display.map(c=>c.id)
@@ -3530,10 +3607,10 @@ function cdbOverwriteDeck() {
 window.cdbOverwriteDeck = cdbOverwriteDeck;
 
 function cdbDeleteDeck() {
-  if(!_cdbCurrentDeckId) return;
+  if(!_cdbCurrentDeckId){ toast('No loaded Challenger preset to delete'); return; }
   const presets = USER_PROFILE.challengerPresets || {};
   const p = presets[_cdbCurrentDeckId];
-  if(!p) return;
+  if(!p){ toast('No loaded Challenger preset to delete'); return; }
   showModal('Delete Deck?',
     `Delete "${escapeHtml(p.name)}"? This cannot be undone.`,
     [{label:'Cancel',action:closeModal},
@@ -3623,6 +3700,18 @@ function getMergedChallengerLeaderboardEntries() {
   const currentAICycleKey = typeof getMonthKey === 'function' ? getMonthKey() : '';
   const isRetiredMonthlyEntry = entry => !!(entry && entry.isMonthly && currentAICycleKey && entry.monthKey !== currentAICycleKey);
   const entryIsAI = entry => !!(entry && (entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(String(entry.uid || ''))));
+  const isStaleHumanName = entry => {
+    if(entryIsAI(entry)) return false;
+    const normalized = String(entry?.username || entry?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+  };
+  const isCurrentUserEntry = entry => {
+    const rawName = entry?.username || entry?.name || '';
+    return !!currentUid && (
+      entry?.uid === currentUid ||
+      (currentBaseCode && entry?.baseCode === currentBaseCode)
+    );
+  };
   const aiMergeKey = entry => {
     const rawName = entry?.username || entry?.name || '';
     if(rawName) return 'ai:name:' + String(rawName).trim().toLowerCase();
@@ -3638,18 +3727,16 @@ function getMergedChallengerLeaderboardEntries() {
   LEADERBOARD.forEach(entry=>{
     if(isRetiredMonthlyEntry(entry)) return;
     if(hasAuthoritativeAI && entryIsAI(entry)) return;
+    if(isStaleHumanName(entry)) return;
     const rawName = entry.username || entry.name || '';
-    const isCurrentUserEntry = !!currentUid && (
-      entry.uid === currentUid ||
-      (currentBaseCode && entry.baseCode === currentBaseCode) ||
-      currentNames.has(String(rawName).trim().toLowerCase())
-    );
-    const key = entryIsAI(entry) ? aiMergeKey(entry) : (isCurrentUserEntry ? currentUid : (entry.uid || rawName || Math.random().toString(36)));
+    const isCurrent = isCurrentUserEntry(entry);
+    const key = entryIsAI(entry) ? aiMergeKey(entry) : (isCurrent ? currentUid : (entry.uid || rawName || Math.random().toString(36)));
     const prev = merged.get(key) || {};
-    merged.set(key, {...prev, ...entry, uid:isCurrentUserEntry ? currentUid : (entry.uid || prev.uid), username:rawName || prev.username || 'Player'});
+    merged.set(key, {...prev, ...entry, uid:isCurrent ? currentUid : (entry.uid || prev.uid), username:rawName || prev.username || 'Player'});
   });
   onlineEntries.forEach(entry=>{
     if(isRetiredMonthlyEntry(entry)) return;
+    if(isStaleHumanName(entry)) return;
     const key = entryIsAI(entry) ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
     if(!key) return;
     const local = merged.get(key) || {};
@@ -3722,12 +3809,7 @@ showLeaderboard = async function(page=0, opts={}) {
   if(sorted.length===0){
     body.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">Leaderboard is empty.</div>`;
   } else {
-    let html = `<div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap;">
-      <button class="btn sm pri" onclick="showLeaderboard()">Rankings</button>
-      <button class="btn sm" onclick="showMatchHistory()">Recent Matches</button>
-      <button class="btn sm" onclick="showDivisionPage()">Divisions</button>
-    </div>`;
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.8rem;">
+    let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.8rem;">
       <button class="btn sm" ${_leaderboardPage<=0?'disabled':''} onclick="showLeaderboard(${_leaderboardPage-1})">Prev</button>
       <div style="text-align:center;color:var(--dim);font-size:.82rem;font-style:italic;">Page ${_leaderboardPage+1} / ${totalPages}</div>
       <button class="btn sm" ${_leaderboardPage>=totalPages-1?'disabled':''} onclick="showLeaderboard(${_leaderboardPage+1})">Next</button>
@@ -3748,12 +3830,13 @@ showLeaderboard = async function(page=0, opts={}) {
         continue;
       }
       const isMe = entry.username===USER_PROFILE.username;
-      const rankSym = overallIndex===0?'🥇':overallIndex===1?'🥈':overallIndex===2?'🥉':`#${overallIndex+1}`;
+      const rankSym = overallIndex===0?'&#129351;':overallIndex===1?'&#129352;':overallIndex===2?'&#129353;':`#${overallIndex+1}`;
+      const rankCls = overallIndex===0?' top1':overallIndex===1?' top2':overallIndex===2?' top3':'';
       const imgSrc = resolveProfileImgSrc(entry.profileImg || entry.photoURL, 'square') || (typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png');
       const imgCrop = getProfileCropStyleForEntry(entry, 'center center');
       const frameColor = getFrameColor(entry);
       html += `<div class="lb-row" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;border:1px solid var(--border);border-radius:10px;margin-bottom:0;background:${isMe?'rgba(201,168,76,.08)':'rgba(0,0,0,.35)'};">
-        <div style="width:52px;text-align:center;font-weight:700;flex-shrink:0;font-size:1.15rem;">${rankSym}</div>
+        <div class="lb-rank${rankCls}" style="width:52px;text-align:center;font-weight:700;flex-shrink:0;font-size:1.15rem;">${rankSym}</div>
         <div style="width:78px;height:78px;border-radius:10px;overflow:hidden;background:#0a0a0f;flex-shrink:0;display:flex;align-items:center;justify-content:center;${typeof getRankFrameStyle === 'function' ? getRankFrameStyle(entry.elo,'icon') : `border:2px solid ${frameColor};box-shadow:0 0 18px ${frameColor}33;`}">
           ${imgSrc?`<img src="${imgSrc}" decoding="async" loading="eager" fetchpriority="high" style="${imgCrop}">`:'<span style="font-size:1.8rem;color:var(--dim);">P</span>'}
         </div>
@@ -3768,24 +3851,30 @@ showLeaderboard = async function(page=0, opts={}) {
       </div>`;
     }
     html += '</div>';
+    html += '<div class="leaderboard-inline-footer"><button class="btn sm leaderboard-close-btn" onclick="closeModal()">Close</button></div>';
     body.innerHTML = html;
   }
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent = 'Global Leaderboard';
-  document.getElementById('modal-acts').innerHTML='';
-  const close=document.createElement('button');
-  close.className='btn sm';
-  close.textContent='Close';
-  close.onclick=closeModal;
-  document.getElementById('modal-acts').appendChild(close);
+  const leaderboardActs = document.getElementById('modal-acts');
+  leaderboardActs.innerHTML='';
+  leaderboardActs.style.setProperty('display', 'none', 'important');
+  leaderboardActs.style.setProperty('height', '0', 'important');
+  leaderboardActs.style.setProperty('min-height', '0', 'important');
+  leaderboardActs.style.setProperty('padding', '0', 'important');
+  leaderboardActs.style.setProperty('margin', '0', 'important');
+  leaderboardActs.style.setProperty('box-sizing', 'border-box', 'important');
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('leaderboard-modal');
+  if(modalBox) {
+    modalBox.classList.add('leaderboard-modal');
+    modalBox.style.setProperty('padding-bottom', '1.85rem', 'important');
+  }
   document.getElementById('modal').classList.add('on');
 };
 
 
-// ─── MATCHMAKING WAITING SCREEN ───
+// --- MATCHMAKING WAITING SCREEN ---
 let _matchmakingTimer = null;
 let _matchmakingBgTimer = null;
 let _matchmakingBgIdx = 1;
@@ -3933,13 +4022,13 @@ function cancelMatchmaking() {
 }
 window.cancelMatchmaking = cancelMatchmaking;
 window.showMatchmakingScreen = showMatchmakingScreen;
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  SOCIAL SYSTEM
 //  Friends, chat, online players, parties, emoji, world chat
 //  All data stored in localStorage for now; designed for backend sync.
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 
-// ─── DATA ───
+// --- DATA ---
 let SOCIAL = {
   friends: [],           // [{username, profileImg, elo, status:'online'|'offline'|'in-game', addedAt}]
   friendRequests: [],    // [{from, profileImg, elo, sentAt}]
@@ -3998,21 +4087,131 @@ function findLiveAIPlayer(username) {
   return (Array.isArray(aiList) ? aiList : []).find(ai=>ai && ai.name === username) || null;
 }
 
-// ─── EMOJI SUPPORT ───
+// --- EMOJI SUPPORT ---
 const EMOJI_LIST = [
-  '😀','😂','😎','🤔','😤','🔥','💀','👑','⚔️','🛡️',
-  '🃏','🎴','✨','💫','🌟','❤️','💔','👊','🤝','👋',
-  '🎉','🏆','💪','😈','🙏','👀','💯','⭐','🎯','🗡️',
-  '🙂','😁','😅','🤣','😊','😇','😉','😍','😘','😜',
-  '🤪','😐','😑','🙄','😬','😮','😱','😭','😡','🤯',
-  '🫡','🫠','🥲','🥹','😴','🤓','🥳','🤩','😏','😵',
-  '🥶','🥵','🤫','🤭','🤗','😶','😶‍🌫️','🫥','😔','😞',
-  '😢','😿','😾','😼','😺','😸','😹','😻','😽','🙀',
-  '👏','🙌','🫶','🤲','🤌','🤙','🤟','✌️','🤞','🫰',
-  '👍','👎','✊','🤜','🤛','💅','🧠','🫀','🦾','🦿',
-  '🩷','🧡','💛','💚','💙','💜','🤎','🖤','🤍','❤️‍🔥',
-  '💥','💢','💨','💦','💤','🕳️','💣','🧨','🪦','🧿',
-  '🔮','🪄','🧪','🧬','🧲','⚙️','🧭','🗺️','🏰','🏯'
+  '😀',
+  '😃',
+  '😄',
+  '😁',
+  '😆',
+  '😅',
+  '🤣',
+  '😂',
+  '🙂',
+  '🙃',
+  '🫠',
+  '😉',
+  '😊',
+  '😇',
+  '🥰',
+  '😍',
+  '🤩',
+  '😘',
+  '😗',
+  '☺️',
+  '😚',
+  '😙',
+  '🥲',
+  '😋',
+  '😛',
+  '😜',
+  '🤪',
+  '😝',
+  '🤑',
+  '🤗',
+  '🤭',
+  '🫢',
+  '🫣',
+  '🤫',
+  '🤔',
+  '🫡',
+  '🤐',
+  '🤨',
+  '😐',
+  '😑',
+  '😶',
+  '🫥',
+  '😶‍🌫️',
+  '😏',
+  '😒',
+  '🙄',
+  '😬',
+  '😮‍💨',
+  '🤥',
+  '🫨',
+  '😌',
+  '😔',
+  '😪',
+  '🤤',
+  '😴',
+  '😷',
+  '🤒',
+  '🤕',
+  '🤢',
+  '🤮',
+  '🤧',
+  '🥵',
+  '🥶',
+  '🥴',
+  '😵',
+  '😵‍💫',
+  '🤯',
+  '🤠',
+  '🥳',
+  '🥸',
+  '😎',
+  '🤓',
+  '🧐',
+  '😕',
+  '🫤',
+  '😟',
+  '🙁',
+  '☹️',
+  '😮',
+  '😯',
+  '😲',
+  '😳',
+  '🥺',
+  '🥹',
+  '😦',
+  '😧',
+  '😨',
+  '😰',
+  '😥',
+  '😢',
+  '😭',
+  '😱',
+  '😖',
+  '😣',
+  '😞',
+  '😓',
+  '😩',
+  '😫',
+  '🥱',
+  '😤',
+  '😡',
+  '😠',
+  '🤬',
+  '😈',
+  '👿',
+  '💀',
+  '💩',
+  '🤡',
+  '👹',
+  '👺',
+  '👻',
+  '👽',
+  '👾',
+  '🤖',
+  '😺',
+  '😸',
+  '😹',
+  '😻',
+  '😼',
+  '😽',
+  '🙀',
+  '😿',
+  '😾'
 ];
 
 function renderEmojiPicker(onSelect) {
@@ -4028,7 +4227,7 @@ function renderEmojiPicker(onSelect) {
   return wrap;
 }
 
-// ─── FRIEND SYSTEM ───
+// --- FRIEND SYSTEM ---
 function addFriend(username) {
   if(username === USER_PROFILE.username) { toast('Cannot add yourself'); return; }
   if(SOCIAL.blocked.includes(username)) { toast('This user is blocked'); return; }
@@ -4093,6 +4292,7 @@ function removeFriend(username) {
   SOCIAL.friends = SOCIAL.friends.filter(f => f.username !== username);
   saveSocial();
   toast(`${username} removed from friends`);
+  if(typeof renderSocialPage === 'function') renderSocialPage();
 }
 
 function blockUser(username) {
@@ -4108,7 +4308,7 @@ function unblockUser(username) {
   toast(`${username} unblocked`);
 }
 
-// ─── INSPECT PROFILE ───
+// --- INSPECT PROFILE ---
 function inspectProfile(username) {
   const friend = SOCIAL.friends.find(f => f.username === username);
   const online = SIMULATED_ONLINE_PLAYERS.find(p => p.username === username);
@@ -4190,7 +4390,7 @@ function inspectProfile(username) {
   saveSocial();
 }
 
-// ─── DIRECT MESSAGES ───
+// --- DIRECT MESSAGES ---
 function openDirectMessage(username) {
   if(!SOCIAL.conversations[username]) SOCIAL.conversations[username] = [];
   const msgs = SOCIAL.conversations[username];
@@ -4223,14 +4423,14 @@ function openDirectMessage(username) {
         <div class="social-dm-header-pic" style="${typeof getRankFrameStyle==='function'?getRankFrameStyle(friendElo,'icon'):''}">${headerPic}</div>
         <div class="social-dm-header-info">
           <div class="social-dm-header-name">${escapeHtml(username)}</div>
-          <div class="social-dm-header-meta">${friendElo} ELO · ${renderRankBadge(friendElo,'sm')}</div>
+          <div class="social-dm-header-meta">${friendElo} ELO � ${renderRankBadge(friendElo,'sm')}</div>
         </div>
       </div>
       <div class="social-chat-box" id="social-dm-box">
         ${chatHtml || '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No messages yet. Say hello!</div>'}
       </div>
       <div class="social-chat-input-row">
-        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji">😀</button>
+        <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
         <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
         <button class="btn sm pri" onclick='sendDirectMessage(${jsString(username)})'>Send</button>
       </div>
@@ -4300,8 +4500,8 @@ function sendDirectMessage(username) {
   // Simulate a reply after a short delay
   setTimeout(() => {
     const replies = [
-      'GG!', 'Nice deck!', 'Want to play?', 'Good luck!', '😎',
-      'Let\'s go!', 'Ready when you are', 'Cool!', '👊', 'Interesting strategy...'
+      'GG!', 'Nice deck!', 'Want to play?', 'Good luck!', '??',
+      'Let\'s go!', 'Ready when you are', 'Cool!', '??', 'Interesting strategy...'
     ];
     SOCIAL.conversations[username].push({
       from: username,
@@ -4316,7 +4516,7 @@ function sendDirectMessage(username) {
   playSfx('uiClick');
 }
 
-// ─── PARTY SYSTEM ───
+// --- PARTY SYSTEM ---
 function createParty() {
   SOCIAL.party = {
     id: 'party_' + Date.now(),
@@ -4376,7 +4576,7 @@ function showPartyPanel() {
         ${m.profileImg ? `<img src="${m.profileImg}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1.2rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-family:'Cinzel',serif;font-size:.9rem;color:${isLeader?'var(--gold)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.6rem;color:var(--gold);">★ LEADER</span>':''}</div>
+        <div style="font-family:'Cinzel',serif;font-size:.9rem;color:${isLeader?'var(--gold)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.6rem;color:var(--gold);">? LEADER</span>':''}</div>
         <div style="font-size:.7rem;color:var(--dim);">${m.elo} ELO</div>
       </div>
       <span style="width:10px;height:10px;border-radius:50%;background:${readyColor};flex-shrink:0;" title="${m.ready?'Ready':'Not Ready'}"></span>
@@ -4399,7 +4599,7 @@ function showPartyPanel() {
   showModal('Party', body, actions);
 }
 
-// ─── SOCIAL SCREEN (merged single page) ───
+// --- SOCIAL SCREEN (merged single page) ---
 let _socialTab = 'friends';
 let _socialMenuWarmupPromise = null;
 
@@ -4500,8 +4700,8 @@ function renderSocialPage() {
         ${m.profileImg ? `<img src="${m.profileImg}" loading="eager" decoding="async" draggable="false" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:1rem;color:var(--dim);">${m.username.charAt(0).toUpperCase()}</span>`}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">★</span>':''}</div>
-        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO · <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
+        <div style="font-family:'Cinzel',serif;font-size:.82rem;color:${isLeader?'var(--gold)':'var(--text)'};">${escapeHtml(m.username)} ${isLeader?'<span style="font-size:.55rem;color:var(--gold);">?</span>':''}</div>
+        <div style="font-size:.65rem;color:var(--dim);">${m.elo} ELO � <span style="color:${readyColor};">${m.ready?'Ready':'Waiting'}</span></div>
       </div>
     </div>`;
   }).join('') : '';
@@ -4510,12 +4710,12 @@ function renderSocialPage() {
 
   content.innerHTML = `
     <div class="social-live-matches-banner" onclick="if(typeof fateOpenLiveMatches==='function')fateOpenLiveMatches();else if(typeof toast==='function')toast('Online not ready');">
-      <div class="slm-icon" aria-hidden="true">👁</div>
+      <div class="slm-icon" aria-hidden="true">LIVE</div>
       <div class="slm-copy">
         <div class="slm-label">LIVE MATCHES</div>
         <div class="slm-desc">Watch ongoing human vs human games in real-time</div>
       </div>
-      <div class="slm-arrow" aria-hidden="true">›</div>
+      <div class="slm-arrow" aria-hidden="true">�</div>
     </div>
     <div class="social-merged-layout">
       <!-- LEFT: Main area (add friend + friend list) -->
@@ -4536,17 +4736,17 @@ function renderSocialPage() {
               </div>
               <div class="social-friend-info">
                 <div class="social-friend-name">${escapeHtml(f.username)}</div>
-                <div class="social-friend-meta">${f.elo} ELO · <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
+                <div class="social-friend-meta">${f.elo} ELO � <span style="color:${statusColors[f.status]||'#888'};text-transform:capitalize;">${f.status||'offline'}</span></div>
               </div>
               <div class="social-friend-actions">
-                <button class="btn sm" onclick='event.stopPropagation();openDirectMessage(${jsString(f.username)})' title="Message">💬</button>
-                <button class="btn sm" onclick='event.stopPropagation();inviteToParty(${jsString(f.username)})' title="Invite to Party">🎮</button>
+                <button class="btn sm" onclick='event.stopPropagation();openDirectMessage(${jsString(f.username)})' title="Message">??</button>
+                <button class="btn sm" onclick='event.stopPropagation();inviteToParty(${jsString(f.username)})' title="Invite to Party">??</button>
               </div>
             </div>`).join('')}</div>
             ${totalFriendPages > 1 ? `<div style="display:flex;justify-content:center;align-items:center;gap:.6rem;margin-top:.5rem;">
-              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>‹ Prev</button>
+              <button class="btn sm" onclick="window._socialFriendPage--;renderSocialPage();" ${window._socialFriendPage<=0?'disabled':''}>� Prev</button>
               <span style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--dim);letter-spacing:.06em;">Page ${window._socialFriendPage+1} / ${totalFriendPages}</span>
-              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next ›</button>
+              <button class="btn sm" onclick="window._socialFriendPage++;renderSocialPage();" ${window._socialFriendPage>=totalFriendPages-1?'disabled':''}>Next �</button>
             </div>` : ''}`}
       </div>
 
@@ -4571,7 +4771,7 @@ function renderSocialPage() {
                   <div style="font-size:.6rem;color:var(--dim);">${p.elo} ELO</div>
                 </div>
                 ${isFriend
-                  ? '<span style="font-size:.6rem;color:var(--gold);">★</span>'
+                  ? '<span style="font-size:.6rem;color:var(--gold);">?</span>'
                   : `<button class="btn sm" style="font-size:.6rem;padding:.2rem .4rem;" onclick='event.stopPropagation();addFriend(${jsString(p.username)});renderSocialPage();'>+</button>`}
               </div>`;
             }).join('')}
@@ -4609,12 +4809,12 @@ function socialAddFriendFromInput() {
   renderSocialPage();
 }
 
-// ─── WORLD CHAT (bottom-right of title screen) ───
+// --- WORLD CHAT (bottom-right of title screen) ---
 let _worldChatOpen = false;
 let _worldChatUnread = 0;
 
 function installFateCornerDock(){
-  // FPS fix: bail early when side panel is active — chat lives in panel, dock is irrelevant
+  // FPS fix: bail early when side panel is active � chat lives in panel, dock is irrelevant
   const sidePanelActive = !!document.getElementById('s-title')?.classList.contains('fate-side-panel');
   const inGameActive = document.body.classList.contains('in-game') || !!document.getElementById('s-game')?.classList.contains('active');
   if(sidePanelActive && !inGameActive){
@@ -4695,8 +4895,8 @@ function initWorldChat() {
   // Seed some initial messages
   if(false && SOCIAL.worldChat.length === 0) {
     const msgs = [
-      {from:'CardMaster99', text:'Anyone want to duel? 🔥', timestamp:Date.now()-120000},
-      {from:'AceOfFates', text:'Just pulled a Star card from a pack!!! ✨', timestamp:Date.now()-90000},
+      {from:'CardMaster99', text:'Anyone want to duel? ??', timestamp:Date.now()-120000},
+      {from:'AceOfFates', text:'Just pulled a Star card from a pack!!! ?', timestamp:Date.now()-90000},
       {from:'ZoneControl', text:'GG everyone', timestamp:Date.now()-60000},
       {from:'FateStar', text:'New player here, any tips?', timestamp:Date.now()-30000},
       {from:'DeckSlinger', text:'Shield Wall decks are OP lol', timestamp:Date.now()-15000},
@@ -4718,11 +4918,11 @@ function initWorldChat() {
     <div class="world-chat-panel" id="world-chat-panel" style="display:none;">
       <div class="world-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);letter-spacing:.08em;">WORLD CHAT</span>
-        <button class="world-chat-close" onclick="toggleWorldChat()">✕</button>
+        <button class="world-chat-close" onclick="toggleWorldChat()">&times;</button>
       </div>
       <div class="world-chat-messages" id="world-chat-messages"></div>
       <div class="world-chat-input-row">
-        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()">😀</button>
+        <button class="social-emoji-toggle" id="wc-emoji-toggle" title="Emoji" onclick="toggleWorldChatEmoji()"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
         <input type="text" class="social-chat-input" id="wc-input" placeholder="Say something..." maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter')sendWorldChat()">
         <button class="btn sm pri" onclick="sendWorldChat()">Send</button>
       </div>
@@ -4815,7 +5015,7 @@ function getWorldChatMessagesHtml() {
 }
 
 function sendWorldChat() {
-  // Check side panel input first — copy its value to the main input
+  // Check side panel input first � copy its value to the main input
   const spInput = document.getElementById('sp-wc-input');
   const mainInput = document.getElementById('wc-input');
   if(spInput && spInput.value.trim()){
@@ -4910,11 +5110,11 @@ function simulateWorldChatMessage() {
   if(senders.length === 0) return;
   const sender = senders[Math.floor(Math.random() * senders.length)];
   const messages = [
-    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! 🎉', 'Shield Wall is so strong',
-    'Need tips for Eventide decks', 'Looking for a challenge ⚔️', 'Hello everyone 👋',
+    'Anyone up for a game?', 'GG!', 'Just hit Captain-Officer rank! ??', 'Shield Wall is so strong',
+    'Need tips for Eventide decks', 'Looking for a challenge ??', 'Hello everyone ??',
     'That was a close match!', 'Love the new cards', 'Trading cards anyone?',
-    'Just opened a Star card! 🌟', 'Best Coordinator?', 'Third Great War decks are fire 🔥',
-    'Any new players need help?', 'Party up?', 'Let\'s gooo 💪', '😎', 'Wow', 'Nice!',
+    'Just opened a Star card! ??', 'Best Coordinator?', 'Third Great War decks are fire ??',
+    'Any new players need help?', 'Party up?', 'Let\'s gooo ??', '??', 'Wow', 'Nice!',
   ];
   SOCIAL.worldChat.push({
     from: sender.username,
@@ -4944,7 +5144,7 @@ function updateWorldChatBadge() {
   if(document.body.classList.contains('in-game') && typeof updateInGameChatBadge === 'function') updateInGameChatBadge();
 }
 
-// ─── EXPOSE GLOBALS ───
+// --- EXPOSE GLOBALS ---
 window.showSocial = showSocial;
 window.switchSocialTab = switchSocialTab;
 window.inspectProfile = inspectProfile;
@@ -4965,7 +5165,7 @@ window.installFateCornerDock = installFateCornerDock;
 window.scheduleFateCornerDock = scheduleFateCornerDock;
 window.renderSocialPage = renderSocialPage;
 
-// ─── IN-GAME CHAT (popup during matches) ───
+// --- IN-GAME CHAT (popup during matches) ---
 let _inGameChatOpen = false;
 let _inGameChatTab = 'lobby';
 let _inGameMessages = [];
@@ -5002,14 +5202,14 @@ function initInGameChat() {
 
   widget.innerHTML = `
     <div class="ingame-chat-toggle">
-      <span class="ingame-chat-icon" aria-hidden="true">💬</span>
+      <span class="ingame-chat-icon" aria-hidden="true">??</span>
       <span class="ingame-chat-label">Chat</span>
       <span class="ingame-chat-badge" id="ingame-chat-badge" style="display:none;">0</span>
     </div>
     <div class="ingame-chat-panel" id="ingame-chat-panel" style="display:none;">
       <div class="ingame-chat-header">
         <span style="font-family:'Cinzel',serif;font-size:.76rem;color:var(--gold);letter-spacing:.06em;">MATCH CHAT</span>
-        <button class="world-chat-close" onclick="toggleInGameChat()">✕</button>
+        <button class="world-chat-close" onclick="toggleInGameChat()">&times;</button>
       </div>
       <div class="ingame-chat-switch" role="tablist" aria-label="Chat channel">
         <button id="ig-chat-tab-lobby" class="active" type="button" onclick="switchInGameChatTab('lobby')" role="tab" aria-selected="true">${G._isSpectator ? 'Spectator' : 'Lobby'}</button>
@@ -5033,7 +5233,7 @@ function initInGameChat() {
         </div>
         <div class="ingame-chat-messages" id="ingame-chat-messages"></div>
         <div class="world-chat-input-row ingame-chat-input-row">
-          <button class="social-emoji-toggle ingame-emoji-toggle" onclick="toggleInGameEmoji()" title="Emoji"><span class="emoji-face-icon" aria-hidden="true"></span></button>
+          <button class="social-emoji-toggle ingame-emoji-toggle" onclick="toggleInGameEmoji()" title="Emoji"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
           <input type="text" class="social-chat-input" id="igc-input" placeholder="${G._isSpectator ? 'Chat as spectator...' : 'Chat...'}" maxlength="150" autocomplete="off" onkeydown="if(event.key==='Enter')sendInGameChat()">
           <button class="btn sm pri ingame-chat-send" onclick="sendInGameChat()">SEND</button>
         </div>
@@ -5246,7 +5446,7 @@ function sendInGameChat() {
   // AI auto-reply if playing vs AI
   if(G.aiEnabled) {
     setTimeout(() => {
-      const aiReplies = ['GG','Nice move!','Hmm...','🤔','Interesting...','👊','Good luck!','😎','Well played'];
+      const aiReplies = ['GG','Nice move!','Hmm...','??','Interesting...','??','Good luck!','??','Well played'];
       _inGameMessages.push({
         from: G.players[G.aiPlayer]?.name || 'AI',
         player: G.aiPlayer,
@@ -5282,7 +5482,7 @@ window.toggleInGameEmoji = toggleInGameEmoji;
 window.initInGameChat = initInGameChat;
 window.removeInGameChat = removeInGameChat;
 
-// ─── NOTIFICATION POPUP SYSTEM (top-left) ───
+// --- NOTIFICATION POPUP SYSTEM (top-left) ---
 let _notifQueue = [];
 let _notifShowing = false;
 
@@ -5339,13 +5539,13 @@ function fateOnlineLayerLoaded(){
 }
 function simulateIncomingFriendRequests() {
   if(_fateSimFriendReqInterval) return;
-  // Skip entirely if the online layer is loaded — these simulations are pure
+  // Skip entirely if the online layer is loaded � these simulations are pure
   // overhead for online users and were leaking forever even though the inner
   // body early-returns when signed in.
   if(fateOnlineLayerLoaded()) return;
   _fateSimFriendReqInterval = setInterval(() => {
     if(fateOnlineLayerLoaded() || window.FATE_ONLINE?.user){
-      // User came online after sim started — shut it down for good
+      // User came online after sim started � shut it down for good
       window._fateStopOfflineSimulations();
       return;
     }
@@ -5465,7 +5665,7 @@ if(typeof document !== 'undefined') {
   });
 }
 
-// ─── MATCH HISTORY ───
+// --- MATCH HISTORY ---
 function getMatchHistory() {
   try { return JSON.parse(localStorage.getItem('fate_match_history') || '[]'); } catch(e){ return []; }
 }
@@ -5515,19 +5715,18 @@ function showMatchHistory(page) {
   _matchHistPage = Math.max(0, Math.min(_matchHistPage, totalPages - 1));
   const pageItems = history.slice(_matchHistPage * PER_PAGE, (_matchHistPage + 1) * PER_PAGE);
 
-  let html = `<div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap;">
-    <button class="btn sm" onclick="showLeaderboard()">Rankings</button>
-    <button class="btn sm pri" onclick="showMatchHistory()">Recent Matches</button>
-    <button class="btn sm" onclick="showDivisionPage()">Divisions</button>
-  </div>`;
+  let html = '';
   if(history.length === 0) {
     html += '<div style="text-align:center;padding:2rem;color:var(--dim);">No matches recorded yet.</div>';
+    html += `<div class="recent-matches-inline-footer is-empty">
+      <button class="btn sm recent-matches-close" onclick="closeModal()">Close</button>
+    </div>`;
   } else {
     html += '<div style="display:flex;flex-direction:column;gap:.55rem;">';
     pageItems.forEach(function(m){
       var p1Won = m.winner === m.p1;
-      var p1Arrow = m.p1Change > 0 ? '▲' : m.p1Change < 0 ? '▼' : '–';
-      var p2Arrow = m.p2Change > 0 ? '▲' : m.p2Change < 0 ? '▼' : '–';
+      var p1Arrow = m.p1Change > 0 ? '+' : m.p1Change < 0 ? '-' : '';
+      var p2Arrow = m.p2Change > 0 ? '+' : m.p2Change < 0 ? '-' : '';
       var p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p1Img = m.p1Img || null;
@@ -5540,7 +5739,7 @@ function showMatchHistory(page) {
         + '</div>'
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;min-width:0;">'
-        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p1)+(p1Won?' ★':'')+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p1)+'</span>'
         + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.72rem;line-height:1;color:'+p1EloColor+';font-weight:800;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p1Arrow+Math.abs(m.p1Change||0)+'</span>'
         + '<span style="font-family:Cinzel,serif;font-size:1.05rem;color:#5fb5ff;font-weight:900;line-height:1;flex-shrink:0;margin-left:.42rem;">'+m.p1Elo+'</span>'
         + '</div>'
@@ -5550,7 +5749,7 @@ function showMatchHistory(page) {
         // P2
         + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem;align-items:flex-end;">'
         + '<div style="display:flex;align-items:baseline;gap:.35rem;flex-direction:row-reverse;min-width:0;">'
-        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(!p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(!p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p2)+(!p1Won?' ★':'')+'</span>'
+        + '<span style="font-family:Cinzel,serif;font-size:.92rem;color:'+(!p1Won?'#7fffa0':'#ff6b6b')+';font-weight:'+(!p1Won?'700':'600')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:clamp(80px,12vw,180px);">'+escapeHtml(m.p2)+'</span>'
         + '<span class="match-history-elo-change" style="font-family:Cinzel,serif;font-size:.72rem;line-height:1;color:'+p2EloColor+';font-weight:800;flex-shrink:0;text-shadow:0 0 8px rgba(0,0,0,.6);">'+p2Arrow+Math.abs(m.p2Change||0)+'</span>'
         + '<span style="font-family:Cinzel,serif;font-size:1.05rem;color:#5fb5ff;font-weight:900;line-height:1;flex-shrink:0;margin-right:.42rem;">'+m.p2Elo+'</span>'
         + '</div>'
@@ -5566,19 +5765,22 @@ function showMatchHistory(page) {
         + '</div>';
     });
     html += '</div>';
-    html += `<div style="display:flex;justify-content:center;align-items:center;gap:.8rem;margin-top:.8rem;">
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>◀ Prev</button>
+    html += `<div class="recent-matches-inline-footer">
+      <div class="recent-matches-pager">
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage-1})" ${_matchHistPage<=0?'disabled':''}>Prev</button>
       <span style="font-family:Cinzel,serif;font-size:.7rem;color:var(--dim);">Page ${_matchHistPage+1} / ${totalPages}</span>
-      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next ▶</button>
+      <button class="btn sm" onclick="showMatchHistory(${_matchHistPage+1})" ${_matchHistPage>=totalPages-1?'disabled':''}>Next</button>
+      </div>
+      <button class="btn sm recent-matches-close" onclick="closeModal()">Close</button>
     </div>`;
   }
-  showModal('Recent Matches', html, [{label:'Close', action:closeModal}], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
+  showModal('Recent Matches', html, [], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
   const matchModal = document.querySelector('#modal .modal');
   if(matchModal) matchModal.classList.add('recent-matches-modal');
 }
 window.showMatchHistory = showMatchHistory;
 
-// ─── DIVISION PAGE ───
+// --- DIVISION PAGE ---
 const DIVISION_DESCRIPTIONS = {
   'Footman': 'New recruits learning the basics of fate and strategy. Every journey begins here.',
   'Captain-Officer': 'Competent strategists who understand zone control and supporter placement.',
@@ -5621,9 +5823,9 @@ function showDivisionPage(page, memberPage) {
       <div style="display:flex;align-items:center;justify-content:center;gap:.4rem;">
         ${rankIconId ? `<img src="rankicons/${rankIconId}.png" style="width:24px;height:24px;object-fit:contain;" onerror="this.style.display='none'">` : `<div style="width:22px;height:22px;">${rank.icon}</div>`}
         <span class="division-pro-rank-name" style="font-family:Cinzel,serif;font-size:1rem;color:${rank.color};font-weight:700;">${rank.name}</span>
-        ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">★ YOU</span>':''}
+        ${isMyDiv?'<span style="font-size:.55rem;color:var(--gold);">? YOU</span>':''}
       </div>
-      <div style="font-size:.62rem;color:var(--dim);margin-top:.05rem;">${rank.minElo}+ ELO · ${members.length} player${members.length!==1?'s':''}</div>
+      <div class="division-pro-rank-meta">${rank.minElo}+ ELO - ${members.length} player${members.length!==1?'s':''}</div>
     </div>
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx+1})" ${_divisionPageIdx>=reversedRanks.length-1?'disabled':''}>Next</button>
   </div>`;
@@ -5685,24 +5887,17 @@ function showDivisionPage(page, memberPage) {
   html += `<div class="division-member-footer" style="display:flex;align-items:center;justify-content:flex-start;gap:.55rem;margin-top:.65rem;">
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx}, ${_divisionMemberPageIdx-1})" ${_divisionMemberPageIdx<=0?'disabled':''}>Prev Members</button>
     <button class="btn sm" onclick="showDivisionPage(${_divisionPageIdx}, ${_divisionMemberPageIdx+1})" ${_divisionMemberPageIdx>=memberPages-1?'disabled':''}>Next Members</button>
-    <div class="division-member-page-copy" style="font-family:Cinzel,serif;color:var(--dim);font-size:.68rem;letter-spacing:.08em;margin-left:.25rem;">Members ${members.length ? memberStart + 1 : 0}-${Math.min(memberStart + memberPageSize, members.length)} / ${members.length} · Page ${_divisionMemberPageIdx + 1} / ${memberPages}</div>
+    <button class="btn sm division-member-close" onclick="closeModal()">Close</button>
   </div>`;
 
-  const titleHtml = `<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-    <span>ELO Divisions</span>
-    <div style="display:flex;gap:.35rem;">
-      <button class="btn sm" onclick="showLeaderboard()" style="font-size:.6rem;padding:.2rem .5rem;">Rankings</button>
-      <button class="btn sm" onclick="showMatchHistory()" style="font-size:.6rem;padding:.2rem .5rem;">Matches</button>
-      <button class="btn sm pri" onclick="showDivisionPage()" style="font-size:.6rem;padding:.2rem .5rem;">Divisions</button>
-    </div>
-  </div>`;
-  showModal(titleHtml, `<div class="division-pro-shell">${html}</div>`, [{label:'Close', action:closeModal}], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
+  const titleHtml = 'ELO Divisions';
+  showModal(titleHtml, `<div class="division-pro-shell">${html}</div>`, [], {silentOpen:!!document.getElementById('modal')?.classList.contains('on')});
   const divisionModal = document.querySelector('#modal .modal');
   if(divisionModal) divisionModal.classList.add('division-pro-modal');
 }
 window.showDivisionPage = showDivisionPage;
 
-// ─── DIVISION REWARDS (first-time achievement) ───
+// --- DIVISION REWARDS (first-time achievement) ---
 function checkDivisionReward(elo) {
   const rank = getRank(elo);
   if(!USER_PROFILE._achievedDivisions) USER_PROFILE._achievedDivisions = [];
@@ -5718,56 +5913,134 @@ function checkDivisionReward(elo) {
 window.checkDivisionReward = checkDivisionReward;
 
 
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  DAILY CHALLENGES
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 const DAILY_CHALLENGE_POOL = [
-  { id:'win_any',       label:'First Victory',         desc:'Win any match.',                          target:1,  key:'wins',       reward:{starlight:25},  icon:'⚔️' },
-  { id:'win_3',         label:'Hat Trick',             desc:'Win 3 matches.',                          target:3,  key:'wins',       reward:{starlight:60}, icon:'🎯' },
-  { id:'win_5',         label:'Warpath',               desc:'Win 5 matches.',                          target:5,  key:'wins',       reward:{starlight:100}, icon:'🗡️' },
-  { id:'place_10',      label:'Field Commander',       desc:'Place 10 cards in one match.',            target:10, key:'cardsPlaced',reward:{starlight:30},  icon:'🃏' },
-  { id:'place_20',      label:'Full Deployment',       desc:'Place 20 cards total.',                   target:20, key:'cardsPlaced',reward:{starlight:45},  icon:'📋' },
-  { id:'consolidate_1', label:'Power Play',            desc:'Consolidate once.',                       target:1,  key:'consolidations',reward:{starlight:20},icon:'⚡' },
-  { id:'consolidate_3', label:'Chain Reaction',        desc:'Consolidate 3 times.',                    target:3,  key:'consolidations',reward:{starlight:50},icon:'🔗' },
-  { id:'zone_sweep',    label:'Domination',            desc:'Win all 3 zones in one match.',           target:3,  key:'zonesWon',   reward:{starlight:75}, icon:'🏆' },
-  { id:'use_effect_1',  label:'Spark',                 desc:'Activate a card effect.',                 target:1,  key:'effects',    reward:{starlight:15},  icon:'✨' },
-  { id:'use_effect_5',  label:'Tactician',             desc:'Activate 5 effects.',                     target:5,  key:'effects',    reward:{starlight:40},  icon:'🔮' },
-  { id:'use_effect_10', label:'Mastermind',            desc:'Activate 10 effects.',                    target:10, key:'effects',    reward:{starlight:70}, icon:'🧠' },
-  { id:'play_match',    label:'Ready for Duty',        desc:'Complete a match.',                       target:1,  key:'matches',    reward:{starlight:15},  icon:'🎮' },
-  { id:'play_3',        label:'Marathon',              desc:'Complete 3 matches.',                     target:3,  key:'matches',    reward:{starlight:35},  icon:'🏃' },
-  { id:'play_5',        label:'Iron Will',             desc:'Complete 5 matches.',                     target:5,  key:'matches',    reward:{starlight:55}, icon:'💎' },
-  { id:'supporter_5',   label:'Supply Line',           desc:'Place 5 supporters.',                     target:5,  key:'supporters', reward:{starlight:25},  icon:'🛡️' },
-  { id:'supporter_10',  label:'Army Builder',          desc:'Place 10 supporters.',                    target:10, key:'supporters', reward:{starlight:45},  icon:'🏰' },
-  { id:'char_3',        label:'Summon the Heroes',     desc:'Place 3 characters.',                     target:3,  key:'characters', reward:{starlight:35},  icon:'👑' },
-  { id:'char_5',        label:'Council of War',        desc:'Place 5 characters.',                     target:5,  key:'characters', reward:{starlight:55}, icon:'⭐' },
-  { id:'star_place',    label:'Star Power',            desc:'Place a star-rarity card.',                target:1,  key:'starPlaced', reward:{starlight:40},  icon:'🌟' },
-  { id:'square_place',  label:'Rare Find',             desc:'Place 2 square-rarity cards.',             target:2,  key:'squarePlaced',reward:{starlight:30}, icon:'🟪' },
-  { id:'open_pack',     label:'Collector',             desc:'Open a booster pack.',                     target:1,  key:'packsOpened',reward:{starlight:20},  icon:'🎁' },
-  { id:'open_3_packs',  label:'Unboxing Spree',        desc:'Open 3 booster packs.',                   target:3,  key:'packsOpened',reward:{starlight:50}, icon:'📦' },
-  { id:'zone_control_2',label:'Strategist',            desc:'Control 2 zones at once.',                 target:2,  key:'zonesControlled',reward:{starlight:30},icon:'🗺️' },
-  { id:'first_blood',   label:'First Blood',           desc:'Win the first zone scored.',               target:1,  key:'firstZone',  reward:{starlight:22},  icon:'🩸' },
-  { id:'play_eventide', label:'Eventide Rising',       desc:'Place 3 Eventide cards.',                  target:3,  key:'affEventide',reward:{starlight:27},  icon:'🌙' },
-  { id:'play_war',      label:'To Arms!',              desc:'Place 3 Third Great War cards.',            target:3,  key:'affWar',     reward:{starlight:27},  icon:'⚔️' },
-  { id:'play_expanded', label:'New Horizons',          desc:'Place 3 Expanded Worlds cards.',            target:3,  key:'affExpanded',reward:{starlight:27},  icon:'🌍' },
-  { id:'play_reality',  label:'Face the Truth',        desc:'Place 3 Reality cards.',                    target:3,  key:'affReality', reward:{starlight:27},  icon:'👁️' },
-  { id:'earn_xp',       label:'Growth Spurt',          desc:'Earn 50 XP.',                              target:50, key:'xpEarned',   reward:{starlight:30},  icon:'📈' },
-  { id:'earn_100xp',    label:'Level Grind',           desc:'Earn 100 XP.',                             target:100,key:'xpEarned',   reward:{starlight:55}, icon:'📊' },
-  { id:'earn_starlight',label:'Shining Bright',        desc:'Earn 100 Starlight total.',                 target:100,key:'starlightEarned',reward:{starlight:25},icon:'💰' },
-  { id:'deck_build',    label:'Architect',             desc:'Save a deck in the deck builder.',          target:1,  key:'decksSaved', reward:{starlight:20},  icon:'🔧' },
-  { id:'close_zone',    label:'Nail Biter',            desc:'Win a zone by 2 or fewer fate.',            target:1,  key:'closeZone',  reward:{starlight:35},  icon:'😰' },
-  { id:'win_fast',      label:'Blitz',                 desc:'Win a match in 6 turns or fewer.',          target:1,  key:'fastWin',    reward:{starlight:60}, icon:'⏱️' },
-  { id:'play_variety',  label:'Diverse Arsenal',       desc:'Place cards from 3 different affiliations.', target:3, key:'affVariety', reward:{starlight:32},  icon:'🎨' },
-  { id:'triad_advance', label:'Triangle Advance',      desc:'Place 5 triangle-rarity cards.',            target:5,  key:'trianglePlaced',reward:{starlight:36},icon:'△' },
-  { id:'circle_line',   label:'Circle Line',           desc:'Place 6 circle-rarity cards.',              target:6,  key:'circlePlaced',reward:{starlight:30}, icon:'○' },
-  { id:'hold_safe_row', label:'Hold the Line',          desc:'Place 5 cards in your safe rows.',          target:5,  key:'safePlaced', reward:{starlight:34},  icon:'▣' },
-  { id:'contest_mid',   label:'Contest the Center',     desc:'Place 3 cards in contested rows.',          target:3,  key:'contestedPlaced',reward:{starlight:34},icon:'◇' },
-  { id:'heavy_hitters', label:'Heavy Hitters',          desc:'Place 3 cards with 7 or more Fate.',        target:3,  key:'highFatePlaced',reward:{starlight:42},icon:'◆' },
+  { id:'win_any',       label:'First Victory',         desc:'Win any match.',                          target:1,  key:'wins',       reward:{starlight:25},  icon:'??' },
+  { id:'win_3',         label:'Hat Trick',             desc:'Win 3 matches.',                          target:3,  key:'wins',       reward:{starlight:60}, icon:'??' },
+  { id:'win_5',         label:'Warpath',               desc:'Win 5 matches.',                          target:5,  key:'wins',       reward:{starlight:100}, icon:'???' },
+  { id:'place_10',      label:'Field Commander',       desc:'Place 10 cards in one match.',            target:10, key:'cardsPlaced',reward:{starlight:30},  icon:'??' },
+  { id:'place_20',      label:'Full Deployment',       desc:'Place 20 cards total.',                   target:20, key:'cardsPlaced',reward:{starlight:45},  icon:'??' },
+  { id:'consolidate_1', label:'Power Play',            desc:'Consolidate once.',                       target:1,  key:'consolidations',reward:{starlight:20},icon:'?' },
+  { id:'consolidate_3', label:'Chain Reaction',        desc:'Consolidate 3 times.',                    target:3,  key:'consolidations',reward:{starlight:50},icon:'??' },
+  { id:'zone_sweep',    label:'Domination',            desc:'Win all 3 zones in one match.',           target:3,  key:'zonesWon',   reward:{starlight:75}, icon:'??' },
+  { id:'use_effect_1',  label:'Spark',                 desc:'Activate a card effect.',                 target:1,  key:'effects',    reward:{starlight:15},  icon:'?' },
+  { id:'use_effect_5',  label:'Tactician',             desc:'Activate 5 effects.',                     target:5,  key:'effects',    reward:{starlight:40},  icon:'??' },
+  { id:'use_effect_10', label:'Mastermind',            desc:'Activate 10 effects.',                    target:10, key:'effects',    reward:{starlight:70}, icon:'??' },
+  { id:'play_match',    label:'Ready for Duty',        desc:'Complete a match.',                       target:1,  key:'matches',    reward:{starlight:15},  icon:'??' },
+  { id:'play_3',        label:'Marathon',              desc:'Complete 3 matches.',                     target:3,  key:'matches',    reward:{starlight:35},  icon:'??' },
+  { id:'play_5',        label:'Iron Will',             desc:'Complete 5 matches.',                     target:5,  key:'matches',    reward:{starlight:55}, icon:'??' },
+  { id:'supporter_5',   label:'Supply Line',           desc:'Place 5 supporters.',                     target:5,  key:'supporters', reward:{starlight:25},  icon:'???' },
+  { id:'supporter_10',  label:'Army Builder',          desc:'Place 10 supporters.',                    target:10, key:'supporters', reward:{starlight:45},  icon:'??' },
+  { id:'char_3',        label:'Summon the Heroes',     desc:'Place 3 characters.',                     target:3,  key:'characters', reward:{starlight:35},  icon:'??' },
+  { id:'char_5',        label:'Council of War',        desc:'Place 5 characters.',                     target:5,  key:'characters', reward:{starlight:55}, icon:'?' },
+  { id:'star_place',    label:'Star Power',            desc:'Place a star-rarity card.',                target:1,  key:'starPlaced', reward:{starlight:40},  icon:'??' },
+  { id:'square_place',  label:'Rare Find',             desc:'Place 2 square-rarity cards.',             target:2,  key:'squarePlaced',reward:{starlight:30}, icon:'??' },
+  { id:'open_pack',     label:'Collector',             desc:'Open a booster pack.',                     target:1,  key:'packsOpened',reward:{starlight:20},  icon:'??' },
+  { id:'open_3_packs',  label:'Unboxing Spree',        desc:'Open 3 booster packs.',                   target:3,  key:'packsOpened',reward:{starlight:50}, icon:'??' },
+  { id:'zone_control_2',label:'Strategist',            desc:'Control 2 zones at once.',                 target:2,  key:'zonesControlled',reward:{starlight:30},icon:'???' },
+  { id:'first_blood',   label:'First Blood',           desc:'Win the first zone scored.',               target:1,  key:'firstZone',  reward:{starlight:22},  icon:'??' },
+  { id:'play_eventide', label:'Eventide Rising',       desc:'Place 3 Eventide cards.',                  target:3,  key:'affEventide',reward:{starlight:27},  icon:'??' },
+  { id:'play_war',      label:'To Arms!',              desc:'Place 3 Third Great War cards.',            target:3,  key:'affWar',     reward:{starlight:27},  icon:'??' },
+  { id:'play_expanded', label:'New Horizons',          desc:'Place 3 Expanded Worlds cards.',            target:3,  key:'affExpanded',reward:{starlight:27},  icon:'??' },
+  { id:'play_reality',  label:'Face the Truth',        desc:'Place 3 Reality cards.',                    target:3,  key:'affReality', reward:{starlight:27},  icon:'???' },
+  { id:'earn_xp',       label:'Growth Spurt',          desc:'Earn 50 XP.',                              target:50, key:'xpEarned',   reward:{starlight:30},  icon:'??' },
+  { id:'earn_100xp',    label:'Level Grind',           desc:'Earn 100 XP.',                             target:100,key:'xpEarned',   reward:{starlight:55}, icon:'??' },
+  { id:'earn_starlight',label:'Shining Bright',        desc:'Earn 100 Starlight total.',                 target:100,key:'starlightEarned',reward:{starlight:25},icon:'??' },
+  { id:'deck_build',    label:'Architect',             desc:'Save a deck in the deck builder.',          target:1,  key:'decksSaved', reward:{starlight:20},  icon:'??' },
+  { id:'close_zone',    label:'Nail Biter',            desc:'Win a zone by 2 or fewer fate.',            target:1,  key:'closeZone',  reward:{starlight:35},  icon:'??' },
+  { id:'win_fast',      label:'Blitz',                 desc:'Win a match in 6 turns or fewer.',          target:1,  key:'fastWin',    reward:{starlight:60}, icon:'??' },
+  { id:'play_variety',  label:'Diverse Arsenal',       desc:'Place cards from 3 different affiliations.', target:3, key:'affVariety', reward:{starlight:32},  icon:'??' },
+  { id:'triad_advance', label:'Triangle Advance',      desc:'Place 5 triangle-rarity cards.',            target:5,  key:'trianglePlaced',reward:{starlight:36},icon:'?' },
+  { id:'circle_line',   label:'Circle Line',           desc:'Place 6 circle-rarity cards.',              target:6,  key:'circlePlaced',reward:{starlight:30}, icon:'?' },
+  { id:'hold_safe_row', label:'Hold the Line',          desc:'Place 5 cards in your safe rows.',          target:5,  key:'safePlaced', reward:{starlight:34},  icon:'?' },
+  { id:'contest_mid',   label:'Contest the Center',     desc:'Place 3 cards in contested rows.',          target:3,  key:'contestedPlaced',reward:{starlight:34},icon:'?' },
+  { id:'heavy_hitters', label:'Heavy Hitters',          desc:'Place 3 cards with 7 or more Fate.',        target:3,  key:'highFatePlaced',reward:{starlight:42},icon:'?' },
   { id:'cheap_orders',  label:'Efficient Orders',       desc:'Place 4 cards that cost 1 or less.',        target:4,  key:'lowCostPlaced',reward:{starlight:32},icon:'1' },
   { id:'effect_support',label:'Support Network',        desc:'Activate 2 supporter effects.',             target:2,  key:'supporterEffects',reward:{starlight:38},icon:'S' },
   { id:'zone_pair_win', label:'Two-Front Victory',      desc:'Win exactly 2 zones in a match.',           target:1,  key:'twoZoneWins',reward:{starlight:40}, icon:'2' },
   { id:'fate_total_25', label:'Fate Overflow',          desc:'Finish a match with 25 total Fate.',        target:25, key:'totalFateBest',reward:{starlight:45},icon:'25' },
-  { id:'open_favored',  label:'Favored Reveal',         desc:'Open a Favored pack.',                      target:1,  key:'favoredPacksOpened',reward:{starlight:35},icon:'★' },
+  { id:'open_favored',  label:'Favored Reveal',         desc:'Open a Favored pack.',                      target:1,  key:'favoredPacksOpened',reward:{starlight:35},icon:'?' },
 ];
+
+const DAILY_CHALLENGE_ICON_LABELS = {
+  win_any:'WIN', win_3:'3W', win_5:'5W',
+  place_10:'10', place_20:'20',
+  consolidate_1:'C1', consolidate_3:'C3',
+  zone_sweep:'Z3', zone_control_2:'Z2', zone_pair_win:'Z2',
+  use_effect_1:'FX', use_effect_5:'FX', use_effect_10:'FX', effect_support:'SUP',
+  play_match:'GO', play_3:'3M', play_5:'5M',
+  supporter_5:'S5', supporter_10:'S10',
+  char_3:'CH', char_5:'WAR',
+  star_place:'ST', square_place:'SQ', triad_advance:'TR', circle_line:'CI',
+  open_pack:'PK', open_3_packs:'3P', open_favored:'FP',
+  first_blood:'FB', close_zone:'CZ', win_fast:'FAST',
+  play_eventide:'EV', play_war:'WAR', play_expanded:'EW', play_reality:'RL', play_variety:'VAR',
+  earn_xp:'XP', earn_100xp:'XP', earn_starlight:'SL',
+  deck_build:'DB', hold_safe_row:'ROW', contest_mid:'MID',
+  heavy_hitters:'7+', cheap_orders:'1', fate_total_25:'25',
+  ALL:'ALL'
+};
+
+function getDailyChallengeIconLabel(defOrIcon) {
+  if(defOrIcon && typeof defOrIcon === 'object') return DAILY_CHALLENGE_ICON_LABELS[defOrIcon.id] || 'M';
+  var raw = String(defOrIcon || '').trim();
+  if(DAILY_CHALLENGE_ICON_LABELS[raw]) return DAILY_CHALLENGE_ICON_LABELS[raw];
+  if(/^[A-Za-z0-9+]{1,4}$/.test(raw)) return raw;
+  return 'M';
+}
+
+function getDailyChallengeIconKind(defOrIcon) {
+  var id = defOrIcon && typeof defOrIcon === 'object' ? defOrIcon.id : String(defOrIcon || '').trim();
+  if(id === 'ALL') return 'all';
+  if(id === 'win_any') return 'laurel';
+  if(id === 'win_3') return 'triple';
+  if(id === 'win_5') return 'warpath';
+  if(id === 'first_blood') return 'drop';
+  if(id === 'close_zone') return 'needle';
+  if(id === 'win_fast') return 'bolt';
+  if(id === 'zone_pair_win') return 'dual';
+  if(id === 'place_10' || id === 'place_20') return 'deploy';
+  if(id === 'supporter_5' || id === 'supporter_10') return 'support';
+  if(id === 'char_3' || id === 'char_5') return 'council';
+  if(id === 'consolidate_1') return 'merge';
+  if(id === 'consolidate_3') return 'chain';
+  if(id === 'use_effect_1') return 'spark';
+  if(id === 'use_effect_5') return 'wand';
+  if(id === 'use_effect_10') return 'mind';
+  if(id === 'effect_support') return 'network';
+  if(id === 'zone_sweep') return 'crown';
+  if(id === 'zone_control_2') return 'zone';
+  if(id === 'hold_safe_row') return 'shield';
+  if(id === 'contest_mid') return 'crosshair';
+  if(id === 'play_match') return 'flag';
+  if(id === 'play_3') return 'road';
+  if(id === 'play_5') return 'anchor';
+  if(id === 'heavy_hitters') return 'hammer';
+  if(id === 'cheap_orders') return 'coin';
+  if(id === 'fate_total_25') return 'fate';
+  if(id === 'open_favored') return 'gem';
+  if(/pack|collector|unboxing/.test(id)) return 'pack';
+  if(/star|starlight|shining/.test(id)) return 'star';
+  if(/deck|architect/.test(id)) return 'deck';
+  if(id === 'play_eventide') return 'moon';
+  if(id === 'play_war') return 'banner';
+  if(id === 'play_expanded') return 'horizon';
+  if(id === 'play_reality') return 'eye';
+  if(id === 'play_variety') return 'mosaic';
+  if(/xp|growth|level/.test(id)) return 'xp';
+  if(/circle/.test(id)) return 'circle';
+  if(/triad|triangle/.test(id)) return 'triangle';
+  if(/square/.test(id)) return 'square';
+  return 'mission';
+}
+
+function renderDailyChallengeIcon(defOrIcon, extraClass) {
+  var label = getDailyChallengeIconLabel(defOrIcon);
+  var kind = getDailyChallengeIconKind(defOrIcon);
+  return '<span class="dc-icon-mark dc-icon-' + kind + (extraClass ? ' ' + extraClass : '') + '" data-icon-label="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '"></span>';
+}
 
 function getDailyChallengeDate() {
   var d = new Date();
@@ -5827,13 +6100,13 @@ function updateDailyChallengeProgress(key, value, mode) {
         }
         if(typeof saveProfile === 'function') saveProfile();
         if(typeof playSfx === 'function') playSfx('starPlace');
-        showDailyChallengeNotification(def.label, def.reward.starlight, def.icon);
+        showDailyChallengeNotification(def.label, def.reward.starlight, def);
       }
     }
   });
   if(changed){
     try { localStorage.setItem('fate_daily_challenges', JSON.stringify(daily)); } catch(e){}
-    // Check if ALL 3 challenges are now complete — award bonus
+    // Check if ALL 3 challenges are now complete � award bonus
     var allDone = daily.challenges.every(function(ch){ return ch.completed; });
     var bonusKey = 'fate_daily_bonus_' + today;
     if(allDone && !localStorage.getItem(bonusKey)){
@@ -5845,7 +6118,7 @@ function updateDailyChallengeProgress(key, value, mode) {
       try { localStorage.setItem('fate_daily_progress_' + today, JSON.stringify(prog)); } catch(e){}
       if(typeof saveProfile === 'function') saveProfile();
       setTimeout(function(){
-        showDailyChallengeNotification('All Missions Complete!', 50, '🏆');
+        showDailyChallengeNotification('All Missions Complete!', 50, 'ALL');
         if(typeof playSfx === 'function') playSfx('starPlace');
       }, 1800);
     }
@@ -5903,11 +6176,11 @@ window.trackDailyCardPlacement = trackDailyCardPlacement;
 function showDailyChallengeNotification(label, starlight, icon) {
   var note = document.createElement('div');
   note.className = 'dc-completion-notify';
-  note.innerHTML = '<div class="dc-cn-icon">'+(icon||'⭐')+'</div>'
+  note.innerHTML = '<div class="dc-cn-icon">'+renderDailyChallengeIcon(icon, 'dc-cn-icon-mark')+'</div>'
     + '<div class="dc-cn-body">'
     + '<div class="dc-cn-title">Mission Complete</div>'
     + '<div class="dc-cn-label">'+String(label)+'</div>'
-    + '<div class="dc-cn-reward">+'+starlight+' Starlight ★</div>'
+    + '<div class="dc-cn-reward">+'+starlight+' Starlight</div>'
     + '</div>';
   document.body.appendChild(note);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ note.classList.add('dc-cn-show'); }); });
@@ -5933,26 +6206,26 @@ function renderDailyChallengesPanel() {
     var pct = Math.round((cur / def.target) * 100);
     var done = ch.completed;
     html += '<div class="dc-item' + (done ? ' dc-done' : '') + '">'
-      + '<div class="dc-item-icon-wrap"><span class="dc-icon">' + def.icon + '</span></div>'
+      + '<div class="dc-item-icon-wrap"><span class="dc-icon">' + renderDailyChallengeIcon(def) + '</span></div>'
       + '<div class="dc-item-center">'
       + '<div class="dc-item-label">' + def.label + '</div>'
       + '<div class="dc-item-desc">' + def.desc + '</div>'
-      + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + pct + '%"></div><span class="dc-bar-text">' + (done ? '✓ Complete' : cur + '/' + def.target) + '</span></div>'
+      + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + pct + '%"></div><span class="dc-bar-text">' + (done ? 'Complete' : cur + '/' + def.target) + '</span></div>'
       + '</div>'
-      + '<div class="dc-reward-badge">+' + def.reward.starlight + ' ★</div>'
+      + '<div class="dc-reward-badge">+' + def.reward.starlight + ' SL</div>'
       + '</div>';
   });
   // All-missions bonus row
   var allDone = doneCount >= 3;
   var bonusClaimed = !!localStorage.getItem('fate_daily_bonus_' + today);
   html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '" style="border-color:rgba(255,215,0,.2)!important;background:linear-gradient(135deg,rgba(255,215,0,.04),rgba(255,215,0,.01))!important;margin-top:.15rem;">'
-    + '<div class="dc-item-icon-wrap" style="background:rgba(255,215,0,.1)!important;border-color:rgba(255,215,0,.25)!important;"><span class="dc-icon">🏆</span></div>'
+    + '<div class="dc-item-icon-wrap" style="background:rgba(255,215,0,.1)!important;border-color:rgba(255,215,0,.25)!important;"><span class="dc-icon">' + renderDailyChallengeIcon('ALL') + '</span></div>'
     + '<div class="dc-item-center">'
     + '<div class="dc-item-label" style="color:#ffd700!important;">Complete All Missions</div>'
     + '<div class="dc-item-desc">Finish all 3 daily missions for a bonus</div>'
-    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;background:linear-gradient(90deg,rgba(255,215,0,.7),rgba(255,215,0,.4))!important;"></div><span class="dc-bar-text">' + (bonusClaimed ? '✓ Claimed' : doneCount + '/3') + '</span></div>'
+    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;background:linear-gradient(90deg,rgba(255,215,0,.7),rgba(255,215,0,.4))!important;"></div><span class="dc-bar-text">' + (bonusClaimed ? 'Claimed' : doneCount + '/3') + '</span></div>'
     + '</div>'
-    + '<div class="dc-reward-badge" style="color:#ffd700!important;border-color:rgba(255,215,0,.3)!important;">+50 ★</div>'
+    + '<div class="dc-reward-badge" style="color:#ffd700!important;border-color:rgba(255,215,0,.3)!important;">+50 SL</div>'
     + '</div>';
   html += '</div>';
   el.innerHTML = html;
@@ -5963,6 +6236,6 @@ window.updateDailyChallengeProgress = updateDailyChallengeProgress;
 window.renderDailyChallengesPanel = renderDailyChallengesPanel;
 
 
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------
 //  MATCH SUMMARY
-// ═══════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------

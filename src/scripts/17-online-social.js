@@ -717,12 +717,23 @@
   }
   async function removeFriend(friendUid){
     const u = getUser(); if(!u) return;
-    if(flySocialEnabled()){
+    const useFly = flySocialEnabled();
+    const useFirebase = !useFly && firebaseSocialAllowed() && FO.update;
+    if(!useFly && !useFirebase){ if(window.toast) toast('Social service is not ready'); return; }
+    const previousFriend = friends[friendUid] ? {...friends[friendUid]} : null;
+    const wasFriend = Object.prototype.hasOwnProperty.call(friends || {}, friendUid);
+    if(wasFriend){
+      delete friends[friendUid];
+      forceSocialRender();
+    }
+    if(useFly){
       const data = await flyApiRequest('/api/friends/remove', {
         method:'POST',
         body:{uid:u.uid, friendUid}
       }).catch(e=>{
         console.warn('Fly friend remove failed', e);
+        if(wasFriend && previousFriend) friends[friendUid] = previousFriend;
+        forceSocialRender();
         if(window.toast) toast('Could not remove friend');
         return null;
       });
@@ -732,8 +743,12 @@
       if(window.toast) toast('Friend removed');
       return;
     }
-    if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Social service is not ready'); return; }
-    await FO.update(FO.ref(FO.rtdb), { [`friends/${u.uid}/${friendUid}`]: null, [`friends/${friendUid}/${u.uid}`]: null });
+    await FO.update(FO.ref(FO.rtdb), { [`friends/${u.uid}/${friendUid}`]: null, [`friends/${friendUid}/${u.uid}`]: null }).catch(e=>{
+      if(wasFriend && previousFriend) friends[friendUid] = previousFriend;
+      forceSocialRender();
+      if(window.toast) toast('Could not remove friend');
+      throw e;
+    });
     if(window.toast) toast('Friend removed');
   }
 
@@ -1585,7 +1600,7 @@
         </div>
         <div class="social-chat-box" id="social-dm-box"></div>
         <div class="social-chat-input-row">
-          <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji">😀</button>
+          <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
           <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
           <button class="btn sm pri" id="dm-send-btn" type="button">Send</button>
         </div>

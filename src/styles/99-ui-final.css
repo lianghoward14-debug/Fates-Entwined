@@ -5619,6 +5619,51 @@ html body #modal .modal.card-detail-modal .modal-title{
   font-size:.78rem!important;
   white-space:nowrap!important;
 }
+.online-market-listing.pfp-market-listing,
+.market-listing.pfp-market-listing{
+  grid-template-columns:64px minmax(0,1fr) auto!important;
+  min-height:76px!important;
+  padding:.74rem .72rem!important;
+}
+.pfp-market-listing .market-listing-thumb,
+.market-listing-thumb.pfp-listing-thumb{
+  width:58px!important;
+  height:58px!important;
+  border-radius:13px!important;
+  padding:3px!important;
+  overflow:visible!important;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,232,145,.24), transparent 55%),
+    linear-gradient(145deg, rgba(232,196,82,.22), rgba(75,115,168,.18)),
+    rgba(6,8,14,.92)!important;
+  box-shadow:
+    0 0 0 1px rgba(255,232,145,.18),
+    0 8px 18px rgba(0,0,0,.42),
+    inset 0 0 0 1px rgba(255,255,255,.06)!important;
+}
+.pfp-listing-frame{
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+  overflow:hidden!important;
+  border-radius:10px!important;
+  background:#05070d!important;
+}
+.pfp-market-listing .market-listing-thumb img,
+.market-listing-thumb.pfp-listing-thumb img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center center!important;
+  display:block!important;
+  border-radius:10px!important;
+}
+.pfp-market-listing .market-listing-name{
+  font-size:.84rem!important;
+}
+.pfp-market-listing .market-listing-meta{
+  color:#bdb5df!important;
+}
 
 /* Codex 2026-05-07 smoothness pass 2: reduce static paint cost, keep placement and cinematic animations intact. */
 .fate-smooth-runtime #s-game :is(.bc,.hc,.cell,.opp-card-back,.pile,.player-banner,.turn-hud){
@@ -5817,7 +5862,7 @@ html body #modal .modal.card-detail-modal .modal-title{
   filter:drop-shadow(0 18px 24px rgba(0,0,0,.58)) drop-shadow(0 0 13px rgba(201,168,76,.32))!important;
 }
 #s-game .hc.dim:hover{
-  transform:translate3d(0,-6px,0) scale(1.04)!important;
+  transform:none!important;
 }
 #s-game #hand-cards,
 #s-game .hand-cards{
@@ -6937,7 +6982,7 @@ html body #modal .modal.card-detail-modal .modal-title{
 #s-game .hand-cards::-webkit-scrollbar-track{background:transparent;}
 #s-game .hand-cards::-webkit-scrollbar-thumb{background:rgba(218,185,82,.35);border-radius:4px;}
 #s-game .hand-strip{overflow:visible!important;}
-#s-game .hc:hover{transform:translateY(-28px) scale(1.35) rotate(-1deg)!important;z-index:100!important;position:relative!important;}
+#s-game .hc:hover{transform:none!important;z-index:100!important;position:relative!important;}
 #s-game .hc.sel{z-index:100!important;position:relative!important;}
 #s-game .hand-strip::before{
   content:''!important;display:block!important;position:absolute!important;
@@ -12231,8 +12276,8 @@ html body #s-game .hc{
   background:#05070d!important;
 }
 html body #s-game .hc:hover{
-  transform:translateY(-30px) scale(1.28) rotate(-.8deg)!important;
-  box-shadow:0 20px 32px rgba(0,0,0,.58),0 0 22px rgba(232,196,82,.26)!important;
+  transform:none!important;
+  box-shadow:0 12px 22px rgba(0,0,0,.42),0 0 14px rgba(232,196,82,.16)!important;
 }
 
 #modal .modal.division-pro-modal{
@@ -13397,28 +13442,24 @@ html body #s-game .hc{
 /* Codex 2026-05-09 social renovation and fixed-size ladder modals. */
 #modal .modal.leaderboard-modal,
 #modal .modal.division-pro-modal{
-  height:min(760px,88vh)!important;
-  min-height:min(760px,88vh)!important;
-  display:flex!important;
-  flex-direction:column!important;
+  height:auto!important;
+  min-height:0!important;
 }
 #modal .modal.leaderboard-modal #modal-body,
 #modal .modal.division-pro-modal #modal-body{
-  flex:1 1 auto!important;
+  flex:0 0 auto!important;
   min-height:0!important;
-  display:flex!important;
-  flex-direction:column!important;
 }
 #modal .modal.leaderboard-modal #modal-body > div,
 #modal .modal.division-pro-modal .division-pro-shell{
-  flex:1 1 auto!important;
+  flex:0 0 auto!important;
   min-height:0!important;
 }
 #modal .leaderboard-modal .lb-list{
-  min-height:520px!important;
+  min-height:0!important;
 }
 #modal .division-pro-list{
-  min-height:420px!important;
+  min-height:0!important;
   align-content:start!important;
 }
 
@@ -13840,8 +13881,9 @@ html body #s-game .hc{
 
 /* Codex 2026-05-09 scoped repair: division paging, stable inspected profile, clean party panel. */
 #modal .modal.division-pro-modal{
-  height:min(840px,92vh)!important;
-  min-height:min(780px,92vh)!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(760px,88vh)!important;
 }
 #modal .modal.division-pro-modal #modal-body{
   overflow:hidden!important;
@@ -14047,30 +14089,40 @@ html body #s-game .hc{
 
 /* Codex 2026-05-09 leaderboard/profile/social repair plus low-cost zone renovation. */
 #modal .modal.leaderboard-modal{
-  height:auto!important;
+  height:min(700px,92vh)!important;
   min-height:0!important;
+  width:min(900px,94vw)!important;
+  max-height:min(700px,92vh)!important;
+  overflow:hidden!important;
 }
 #modal .modal.leaderboard-modal #modal-body,
 #modal .modal.leaderboard-modal #modal-body > div{
   flex:0 0 auto!important;
   min-height:0!important;
+  overflow:hidden!important;
+}
+#modal .modal.leaderboard-modal #modal-body > div{
+  display:block!important;
 }
 #modal .leaderboard-modal .lb-list{
-  grid-auto-rows:78px!important;
+  grid-template-rows:repeat(5,64px)!important;
+  grid-auto-rows:64px!important;
+  height:338px!important;
   min-height:0!important;
-  gap:.42rem!important;
+  gap:.35rem!important;
   padding-bottom:0!important;
+  overflow:hidden!important;
 }
 #modal .leaderboard-modal .lb-list > div,
 #modal .leaderboard-modal .lb-list > div:first-child{
-  height:78px!important;
-  min-height:78px!important;
-  padding:.42rem .86rem!important;
+  height:64px!important;
+  min-height:64px!important;
+  padding:.28rem .72rem!important;
   margin:0!important;
 }
 #modal .leaderboard-modal .lb-row > div:nth-child(2){
-  width:56px!important;
-  height:56px!important;
+  width:46px!important;
+  height:46px!important;
 }
 #modal .leaderboard-modal .lb-row-empty{
   opacity:.5!important;
@@ -14081,8 +14133,14 @@ html body #s-game .hc{
 }
 #modal .leaderboard-modal .modal-acts,
 #modal .leaderboard-modal #modal-acts{
-  margin-top:.78rem!important;
-  padding-top:.55rem!important;
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  flex:0 0 auto!important;
+  min-height:32px!important;
+  justify-content:flex-end!important;
+  margin-top:.35rem!important;
+  padding-top:.32rem!important;
   border-top:1px solid rgba(218,185,82,.18)!important;
 }
 
@@ -18693,8 +18751,394 @@ html body #modal .modal.public-decks-modal #modal-body{
     width:38px!important;
     height:38px!important;
   }
-  html body #s-game .turn-hud-timer{
-    min-width:68px!important;
-    font-size:.7rem!important;
+html body #s-game .turn-hud-timer{
+  min-width:68px!important;
+  font-size:.7rem!important;
   }
+}
+
+/* Codex 2026-07-05: shared three-card Choose Your Deck showcase. */
+html body #modal .modal.deck-slate-modal{
+  width:min(1040px,94vw)!important;
+  max-width:min(1040px,94vw)!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:min(800px,92vh)!important;
+  padding:1rem!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(7,9,16,.99),rgba(3,5,10,.985))!important;
+}
+html body #modal .modal.deck-slate-modal #modal-title,
+html body #modal .modal.deck-slate-modal .modal-title{
+  font-size:clamp(1.16rem,1.7vw,1.46rem)!important;
+  line-height:1.08!important;
+  letter-spacing:.18em!important;
+}
+html body #modal .modal.deck-slate-modal #modal-body{
+  max-height:none!important;
+  overflow:hidden!important;
+}
+html body #modal .deck-slate-shell{
+  display:grid!important;
+  grid-template-rows:auto auto auto!important;
+  gap:.76rem!important;
+  min-height:0!important;
+}
+html body #modal .deck-slate-head,
+html body #modal .deck-slate-footer,
+html body #modal .deck-slate-nav{
+  display:flex!important;
+  align-items:center!important;
+}
+html body #modal .deck-slate-head{
+  justify-content:space-between!important;
+  gap:1rem!important;
+  padding:.58rem .78rem!important;
+  border:1px solid rgba(232,196,82,.34)!important;
+  background:linear-gradient(90deg,rgba(18,13,28,.94),rgba(9,24,34,.82),rgba(33,27,9,.78))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)!important;
+}
+html body #modal .deck-slate-head span,
+html body #modal .deck-slate-head strong,
+html body #modal .deck-slate-footer{
+  color:#e8c866!important;
+  font-family:Cinzel,serif!important;
+  font-size:.67rem!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .deck-slate-head p{
+  margin:.16rem 0 0!important;
+  color:#d4e3ec!important;
+  font-size:.75rem!important;
+  font-style:italic!important;
+}
+html body #modal .deck-slate-list{
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:.82rem!important;
+  overflow:hidden!important;
+  scrollbar-width:none!important;
+}
+html body #modal .deck-slate-list::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+}
+html body #modal .deck-slate-row{
+  position:relative!important;
+  min-height:480px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.68rem!important;
+  padding:.68rem!important;
+  border:1px solid rgba(232,196,82,.38)!important;
+  background:
+    linear-gradient(180deg,rgba(13,18,30,.98),rgba(6,7,14,.98)),
+    radial-gradient(circle at 18% 8%,rgba(126,213,255,.16),transparent 34%)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.045),0 18px 34px rgba(0,0,0,.38)!important;
+  cursor:pointer!important;
+  overflow:hidden!important;
+}
+html body #modal .deck-slate-row:hover{
+  border-color:rgba(255,225,124,.72)!important;
+  background:
+    linear-gradient(180deg,rgba(18,24,38,.99),rgba(8,9,18,.99)),
+    radial-gradient(circle at 82% 8%,rgba(232,196,82,.18),transparent 35%)!important;
+}
+html body #modal .deck-slate-row.is-disabled{
+  opacity:.55!important;
+}
+html body #modal .deck-slate-index{
+  display:none!important;
+}
+html body #modal .deck-slate-portrait{
+  width:100%!important;
+  height:190px!important;
+  min-width:0!important;
+  border:1px solid rgba(255,232,145,.38)!important;
+  background:#070910!important;
+  overflow:hidden!important;
+}
+html body #modal .deck-slate-portrait img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center 22%!important;
+  display:block!important;
+}
+html body #modal .deck-slate-copy{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+html body #modal .deck-slate-copy h3{
+  margin:0!important;
+  color:#f4d86d!important;
+  font-family:Cinzel,serif!important;
+  font-size:1.02rem!important;
+  line-height:1.12!important;
+}
+html body #modal .deck-slate-copy p{
+  margin:.32rem 0 .62rem!important;
+  color:#dcd6ef!important;
+  font-size:.72rem!important;
+  line-height:1.34!important;
+  font-style:italic!important;
+  min-height:2.7em!important;
+}
+html body #modal .deck-slate-strip{
+  display:flex!important;
+  gap:.5rem!important;
+  min-width:0!important;
+  margin-top:auto!important;
+  flex-wrap:nowrap!important;
+}
+html body #modal .deck-slate-strip span{
+  width:54px!important;
+  height:76px!important;
+  flex:0 0 54px!important;
+  border:1px solid rgba(255,255,255,.18)!important;
+  background:rgba(255,255,255,.045)!important;
+  overflow:hidden!important;
+}
+html body #modal .deck-slate-strip img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  display:block!important;
+}
+html body #modal .deck-slate-status{
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+  gap:.5rem!important;
+  padding:.42rem .52rem!important;
+  border:1px solid rgba(126,213,255,.18)!important;
+  background:rgba(6,12,20,.74)!important;
+}
+html body #modal .deck-slate-status strong{
+  display:block!important;
+  color:#fff0a8!important;
+  font-family:Cinzel,serif!important;
+  font-size:.82rem!important;
+}
+html body #modal .deck-slate-status span{
+  color:#8fd4e7!important;
+  font-size:.56rem!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+}
+html body #modal .deck-slate-actions{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:.48rem!important;
+  flex:0 0 auto!important;
+}
+html body #modal .deck-slate-actions .btn{
+  width:100%!important;
+  min-width:0!important;
+}
+html body #modal .deck-slate-footer{
+  min-height:36px!important;
+  justify-content:space-between!important;
+}
+html body #modal .deck-slate-nav{
+  gap:.5rem!important;
+}
+html body #modal .deck-slate-footer-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:.5rem!important;
+  margin-left:auto!important;
+}
+html body #modal .deck-slate-empty{
+  grid-column:1 / -1!important;
+  display:grid!important;
+  place-items:center!important;
+  min-height:260px!important;
+  color:var(--dim)!important;
+}
+
+@media (max-width:900px){
+  html body #modal .deck-slate-list{
+    grid-template-columns:1fr!important;
+    overflow-y:auto!important;
+    max-height:58vh!important;
+  }
+  html body #modal .deck-slate-row{
+    min-height:340px!important;
+  }
+}
+
+html body #modal .modal.division-pro-modal{
+  width:min(900px,92vw)!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:88vh!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.division-pro-modal #modal-body{
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.division-pro-modal .division-pro-shell{
+  height:auto!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  gap:.55rem!important;
+}
+html body #modal .modal.division-pro-modal .division-pro-head{
+  margin-bottom:0!important;
+  padding:.46rem!important;
+}
+html body #modal .modal.division-pro-modal .division-pro-desc{
+  margin-bottom:0!important;
+  padding:.56rem .85rem!important;
+}
+html body #modal .modal.division-pro-modal .division-pro-list{
+  max-height:min(420px,48vh)!important;
+  min-height:0!important;
+  overflow-y:auto!important;
+  padding:0 .36rem .25rem 0!important;
+  gap:.42rem!important;
+}
+html body #modal .modal.division-pro-modal .division-pro-row{
+  min-height:64px!important;
+  padding:.48rem .72rem!important;
+}
+html body #modal .modal.division-pro-modal .division-member-footer{
+  margin-top:0!important;
+  min-height:34px!important;
+  align-items:center!important;
+}
+html body #modal .modal.division-pro-modal #modal-acts,
+html body #modal .modal.division-pro-modal .modal-acts{
+  flex:0 0 auto!important;
+}
+
+html body #s-game .opp-hand.opp-hand-nine-plus .opp-card-back{
+  width:var(--opp-hand-card-w,68px)!important;
+  height:var(--opp-hand-card-h,95px)!important;
+}
+
+/* Codex 2026-07-05: reversible Challenger deck builder layout match to title deck builder. */
+html body #s-challenger .ch-cdb-content > .ch-filter-bar{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  gap:.4rem!important;
+}
+
+html body #s-challenger .ch-cdb-content > .ch-filter-bar .cdb-search-inline{
+  flex:1 1 260px!important;
+  width:min(360px,100%)!important;
+  min-width:220px!important;
+  max-width:420px!important;
+  margin-left:auto!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-right{
+  border:1px solid var(--border)!important;
+  border-left:1px solid var(--border)!important;
+  border-radius:8px!important;
+  padding:.8rem!important;
+  gap:0!important;
+  background:rgba(0,0,0,.28)!important;
+  box-shadow:0 16px 34px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.04)!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-deck-header{
+  order:0!important;
+  display:grid!important;
+  grid-template-columns:1fr auto 1fr!important;
+  align-items:center!important;
+  gap:.5rem!important;
+  padding:.52rem .6rem .58rem!important;
+  border-bottom:1px solid var(--border)!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-deck-titleline{
+  grid-column:2!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:0!important;
+  gap:.16rem!important;
+  text-align:center!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-deck-label{
+  display:block!important;
+  font-family:'Cinzel',serif!important;
+  color:var(--gold)!important;
+  font-size:.9rem!important;
+  line-height:1.05!important;
+  text-transform:uppercase!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-count{
+  display:block!important;
+  color:#f1e0a4!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.78rem!important;
+  line-height:1.1!important;
+  letter-spacing:.08em!important;
+  text-shadow:0 0 10px rgba(201,168,76,.28)!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-deck-header .btn{
+  grid-column:3!important;
+  justify-self:end!important;
+  float:none!important;
+  margin:0!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-actions{
+  order:1!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:.45rem!important;
+  padding:.55rem 0!important;
+  border-bottom:1px solid var(--border)!important;
+  align-items:stretch!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-actions .btn{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  min-height:38px!important;
+  margin:0!important;
+  padding:.48rem .5rem!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1.08!important;
+  text-align:center!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-actions .btn-overwrite-preset{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-decklist{
+  order:2!important;
+  padding:.7rem 0!important;
+}
+
+html body #s-challenger .ch-cdb-content .cdb-starter-warning{
+  order:-1!important;
+  margin-bottom:.55rem!important;
 }

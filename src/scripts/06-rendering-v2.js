@@ -1287,24 +1287,6 @@ function renderTopbarEffects() {
     });
   }
 
-  const shieldWallOwnerCounts = {};
-  forEachBoardCard(c => {
-    if(c.id === '20' && !isFaceDownCard(c)) shieldWallOwnerCounts[c.owner] = (shieldWallOwnerCounts[c.owner] || 0) + 1;
-  });
-  if(Object.keys(shieldWallOwnerCounts).length){
-    const swCard = CARDS.find(c => c.id === '20');
-    Object.entries(shieldWallOwnerCounts).forEach(([owner, count]) => {
-      allEffects.push({
-        icon: getStatusEffectIcon('protection'),
-        label: count + ' Shield Wall',
-        cardName: swCard ? swCard.name : 'South Wind Spearman',
-        cardAbility: swCard ? swCard.ability : 'Shield Wall',
-        cardEffect: swCard ? swCard.effect : 'Cards in this zone cannot have their Fate reduced and cannot be moved while this card remains on the field.',
-        owner: Number(owner)
-      });
-    });
-  }
-
   // Maja unlimited supporters
   if(G.majaEffectThisTurn) {
     let majaOwner = myP;
@@ -1982,8 +1964,12 @@ function resetModalChrome() {
       'sell-card-modal',
       'online-room-deck-picker-modal',
       'choose-deck-canonical-modal',
+      'choose-deck-runtime-modal',
       'challenger-my-decks-modal',
+      'deck-slate-modal',
       'deck-inspect-compact-modal',
+      'division-pro-modal',
+      'recent-matches-modal',
       'market-history-modal',
       'market-list-modal',
       'market-purchase-modal',
@@ -2739,7 +2725,7 @@ function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
 }
 window.doMove=function(i){
   const dest=window._moveDests[i];const from=window._moveFrom;
-  if(window._moveCard.cantBeMoved){toast('This card cannot be moved (Shield Wall)');closeModal();return;}
+  if(window._moveCard.cantBeMoved){toast('This card cannot be moved');closeModal();return;}
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;
   closeModal();toast('Card moved');renderGame();
@@ -3224,7 +3210,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "2": "To the ends of the world",
   "3": "This reminds me of that one time we played the card game",
   "4": "You\u2019re very concerning",
-  "6": "In caribbea, the sun never sets",
+  "6": "In Caribbea, the sun never sets",
   "7": "Hey look over there, your divisions are encircled",
   "8": "I got fired from my job over Chinese lesbians",
   "10": "Eternity draws ever closer to nothingless",

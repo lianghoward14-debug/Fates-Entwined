@@ -331,6 +331,55 @@
     try{ if(typeof window.saveLeaderboard === 'function') window.saveLeaderboard(); }catch(e){}
     return rec;
   }
+  function flySimulationMatchKey(match){
+    if(!match) return '';
+    if(match.matchId) return String(match.matchId);
+    return [match.timestamp || match.createdAt || '', match.p1 || '', match.p2 || '', match.winner || ''].join('|');
+  }
+  function normalizeFlySimulationMatch(match){
+    if(!match || typeof match !== 'object') return null;
+    const p1 = String(match.p1 || match.p1Name || '').trim();
+    const p2 = String(match.p2 || match.p2Name || '').trim();
+    const winner = String(match.winner || match.winnerName || '').trim();
+    if(!p1 || !p2 || !winner) return null;
+    const timestamp = Number(match.timestamp || match.createdAt || Date.now()) || Date.now();
+    return {
+      matchId:String(match.matchId || flySimulationMatchKey({...match, p1, p2, winner, timestamp})),
+      p1,
+      p2,
+      winner,
+      p1Change:Number(match.p1Change || 0) || 0,
+      p2Change:Number(match.p2Change || 0) || 0,
+      p1Elo:Number(match.p1Elo || 0) || 0,
+      p2Elo:Number(match.p2Elo || 0) || 0,
+      p1Img:match.p1Img || match.p1PhotoURL || match.p1ProfileImg || null,
+      p2Img:match.p2Img || match.p2PhotoURL || match.p2ProfileImg || null,
+      simulated:true,
+      timestamp
+    };
+  }
+  function appendFlySimulationMatches(matches){
+    const rows = (Array.isArray(matches) ? matches : [])
+      .map(normalizeFlySimulationMatch)
+      .filter(Boolean);
+    if(!rows.length) return 0;
+    let history = [];
+    try{ history = JSON.parse(localStorage.getItem('fate_match_history') || '[]'); }catch(e){ history = []; }
+    if(!Array.isArray(history)) history = [];
+    const seen = new Set(history.map(flySimulationMatchKey).filter(Boolean));
+    let added = 0;
+    rows.forEach(row=>{
+      const key = flySimulationMatchKey(row);
+      if(!key || seen.has(key)) return;
+      seen.add(key);
+      history.push(row);
+      added++;
+    });
+    if(!added) return 0;
+    try{ localStorage.setItem('fate_match_history', JSON.stringify(history.slice(-75))); }catch(e){}
+    try{ if(window.FateCloudSave) window.FateCloudSave.saveMatchHistory(); }catch(e){}
+    return added;
+  }
   function dailyTrueEloFor(rec, day=currentDayKey()){
     const base = Math.max(100, Number(rec.trueElo || rec.elo + 200) || 800);
     const variation = (hashInt(`${rec.name || rec.aiId}:${day}`) % 301) - 150;
@@ -511,6 +560,7 @@
           console.warn('Fly initial shared AI simulation failed', e);
           return null;
         });
+        appendFlySimulationMatches(simData?.matches);
         const simulatedRoster = (Array.isArray(simData?.roster) ? simData.roster : []).map(applySharedAIRecord).filter(Boolean);
         if(simulatedRoster.length){
           roster = simulatedRoster;
@@ -598,6 +648,7 @@
         console.warn('Fly shared AI simulation failed', e);
         return null;
       });
+      appendFlySimulationMatches(data?.matches);
       const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
       if(records.length){
         window.FATE_SHARED_AI_ROSTER = records;
