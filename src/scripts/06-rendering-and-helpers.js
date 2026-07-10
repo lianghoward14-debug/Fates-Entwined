@@ -1028,7 +1028,7 @@ function positionHandEffectTooltip(ev) {
   const gap = 24;
   let x = rect.left - width - gap;
   if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
-  let y = rect.top + Math.min(12, rect.height * .12);
+  let y = rect.top + Math.min(12, rect.height * .12) + 67;
   const estimatedHeight = Math.min(170, Math.max(96, _handEffectTooltipPortal.offsetHeight || 118));
   if(y + estimatedHeight > window.innerHeight - 12) y = window.innerHeight - estimatedHeight - 12;
   if(y < 12) y = 12;
@@ -1072,6 +1072,23 @@ function removeRenderV2LegacyLiveVisuals() {
   return removed;
 }
 
+function cleanupStaleEffectActivationDomVisuals() {
+  if(typeof document === 'undefined') return 0;
+  let removed = 0;
+  try {
+    document.querySelectorAll('.effect-activation-aura').forEach(function(el){
+      if(el && el.parentNode) {
+        el.remove();
+        removed++;
+      }
+    });
+    document.querySelectorAll('.effect-activate-onfield,.effect-activate-star,.effect-activate-square,.effect-activate-triangle,.effect-activate-circle').forEach(function(el){
+      el.classList.remove('effect-activate-onfield','effect-activate-star','effect-activate-square','effect-activate-triangle','effect-activate-circle');
+    });
+  } catch(e) {}
+  return removed;
+}
+
 function _flushDeferredRender(){
   if(!_renderDeferredByPointer) return;
   _renderDeferredByPointer = false;
@@ -1089,6 +1106,7 @@ document.addEventListener('pointerup', function(){ _pointerDown = false; setTime
 document.addEventListener('pointercancel', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
 
 function renderGame(parts) {
+  cleanupStaleEffectActivationDomVisuals();
   if(!isGameRenderScreenActive()){
     _renderGameScheduled = false;
     _renderGameDirty = null;
@@ -1105,6 +1123,7 @@ function renderGameImmediate(parts) {
   _renderGameScheduled = false;
   _renderGameDirty = null;
   FateMatchFrameScheduler.reset('renderGameImmediate');
+  cleanupStaleEffectActivationDomVisuals();
   if(!isGameRenderScreenActive()){
     noteSuppressedOffscreenGameRender('renderGameImmediate');
     return;
@@ -1690,11 +1709,11 @@ function showCanvasCardGalleryModal(title, cards, opts) {
   }
   cards = Array.isArray(cards) ? cards : [];
   if(!cards.length) {
-    showModal(title, '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No cards to show</div>', [{label:'Close', action:closeModal}], {immediate:true});
+    showModal(title, '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No cards to show</div>', [{label:'Close', action:closeModal}], {immediate:true, silentOpen:!!opts.silentOpen});
     return;
   }
 
-  showModal(title, '', [{label:'Close', action:closeModal}], {immediate:true});
+  showModal(title, '', [{label:'Close', action:closeModal}], {immediate:true, silentOpen:!!opts.silentOpen});
   const body = document.createElement('div');
   body.className = 'canvas-card-gallery visual-picker-v2';
   body.innerHTML =
@@ -1948,6 +1967,8 @@ function renderOppHand() {
 
 // Show deck info (count + no content reveal — this is hidden info)
 function showDeckInfo(player) {
+  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
+  else if(typeof playSfx === 'function') playSfx('uiClick');
   const perspectivePlayer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (G && typeof G.currentPlayer === 'number' ? G.currentPlayer : 0);
   const isDevDeckOwner = isPerspectivePlayer(player) || Number(player) === Number(perspectivePlayer) || (typeof G !== 'undefined' && G && typeof G.localPlayerIndex === 'number' && Number(player) === Number(G.localPlayerIndex));
   if(typeof isHowardDevMode === 'function' && isHowardDevMode() && isDevDeckOwner){
@@ -1989,7 +2010,7 @@ function showDeckInfo(player) {
     + polishHtml
     + majaHtml
     + '</div>',
-    [{label:'Close',action:closeModal}], {immediate:true});
+    [{label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
 }
 
 function showHowardDevDeckList(player) {
@@ -2073,16 +2094,18 @@ window.setMajaFromDeck = function() {
 
 // Show discard pile as a grid of card images
 function showDiscard(player) {
+  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
+  else if(typeof playSfx === 'function') playSfx('uiClick');
   const disc = G.players[player].discard;
   const isOwn = isPerspectivePlayer(player);
   const title = (isOwn ? 'Your' : G.players[player].name+"'s") + ' Discard Pile';
   if(disc.length===0){
     showModal(title,
       '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">Discard pile is empty</div>',
-      [{label:'Close',action:closeModal}], {immediate:true});
+      [{label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
     return;
   }
-  showCanvasCardGalleryModal(title, disc, { viewerPlayerIndex:getPerspectivePlayerIndex(), immediate:true });
+  showCanvasCardGalleryModal(title, disc, { viewerPlayerIndex:getPerspectivePlayerIndex(), immediate:true, silentOpen:true });
 }
 
 window.showCardFromDiscard = function(player, idx) {
@@ -2145,7 +2168,7 @@ function installBoardClickDelegation(board) {
       if(window._lastBcClickAt && performance.now() - window._lastBcClickAt < 300) return;
       var boardCard = (typeof G!=='undefined'&&G&&G.board&&G.board[pending.z]&&G.board[pending.z][pending.r])?G.board[pending.z][pending.r][pending.c]:null;
       captureBoardViewportLock();
-      const isCellActionMode = !!(G._consolidating || G.blockingCell || G._boardTargeting || G.placing);
+      const isCellActionMode = !!(G._consolidating || G.blockingCell || G._boardTargeting || G.placing || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._landscapeMoving || G._busserMoving || G._busserMovingCard || G._markSelecting);
       if(G._isSpectator){
       if(boardCard) openCardDetail(boardCard, false, true);
       } else if(isCellActionMode) {
@@ -2167,7 +2190,7 @@ function installBoardClickDelegation(board) {
       cell = board.querySelector('.cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
       if(!cell) return;
     }
-    var isCellTargetingMode = (typeof G !== 'undefined' && G && (G.blockingCell || G._boardTargeting || G._consolidating));
+    var isCellTargetingMode = (typeof G !== 'undefined' && G && (G.blockingCell || G._boardTargeting || G._consolidating || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._landscapeMoving || G._busserMoving || G._busserMovingCard || G._markSelecting));
     var clickedBc = e.target.closest && e.target.closest('.bc');
     if(!isCellTargetingMode && clickedBc && !orphaned) return;
     if(!isCellTargetingMode && clickedBc && orphaned){
@@ -2513,90 +2536,25 @@ function escapePlacementAnimHtml(value) {
 }
 
 function ensurePlacementAnimationLayer() {
-  let layer = document.getElementById('placement-anim-layer');
-  if(layer) return layer;
-  const center = document.querySelector('#s-game .game-center');
-  if(!center) return null;
-  layer = document.createElement('div');
-  layer.id = 'placement-anim-layer';
-  center.appendChild(layer);
-  return layer;
+  const layer = document.getElementById('placement-anim-layer');
+  if(layer) layer.textContent = '';
+  return null;
 }
 
 function playPlacementAnimation(card, z, r, c) {
   if(!card || z == null || r == null || c == null) return 0;
-  if(rendererV2OwnsBoardScene()){
-    try {
-      if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
-        window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
-          source:'playPlacementAnimation',
-          iid:card && card.iid,
-          z, r, c
-        });
-      }
-    } catch(e) {}
-    return 0;
-  }
-  const enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
-  if(document.documentElement.classList.contains('fate-performance-mode') && !enhancedFx) return 0;
-  const layer = ensurePlacementAnimationLayer();
-  if(!layer) return 0;
-
-  const rarity = card.rarity || 'circle';
-  const ms = typeof getPlacementAnimationDurationMs === 'function' ? getPlacementAnimationDurationMs(card) : 560;
-  const maxAttempts = 10;
-
-  function draw(attempt) {
-    if(!document.body.contains(layer)) return;
-    const cellEl = document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
-    if(!cellEl || !cellEl.isConnected) {
-      if(attempt < maxAttempts) requestAnimationFrame(function(){ draw(attempt + 1); });
-      return;
+  const legacyLayer = document.getElementById('placement-anim-layer');
+  if(legacyLayer) legacyLayer.textContent = '';
+  try {
+    if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
+      window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
+        source:'playPlacementAnimation',
+        iid:card && card.iid,
+        z, r, c
+      });
     }
-
-    const cellRect = cellEl.getBoundingClientRect();
-    const layerRect = layer.getBoundingClientRect();
-    if(cellRect.width <= 0 || cellRect.height <= 0 || layerRect.width <= 0 || layerRect.height <= 0) {
-      if(attempt < maxAttempts) requestAnimationFrame(function(){ draw(attempt + 1); });
-      return;
-    }
-
-    const viewerP = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
-    const visual = typeof getCardVisualData === 'function'
-      ? getCardVisualData(card, viewerP, {forceBoardHidden:true, boardPos:{z,r,c}})
-      : null;
-    const name = escapePlacementAnimHtml((visual && visual.name) || card.name || '');
-    const fate = escapePlacementAnimHtml((visual && visual.displayFate != null) ? visual.displayFate : (card.currentFate || card.fate || ''));
-    const aff = visual && visual.aff ? visual.aff : card.aff;
-    const icon = typeof getAffIcon === 'function' ? getAffIcon(aff) : '';
-    const img = visual && (visual.runtimeImg || visual.img) ? escapePlacementAnimHtml(visual.runtimeImg || visual.img) : '';
-
-    const ghost = document.createElement('div');
-    ghost.className = 'placement-anim-ghost place-anim-' + rarity + ' own-' + (card.owner === 0 ? 'p1' : 'p2') + (enhancedFx ? ' fx-enhanced-set' : '');
-    ghost.dataset.iid = String(card.iid || '');
-    ghost.style.left = (cellRect.left - layerRect.left) + 'px';
-    ghost.style.top = (cellRect.top - layerRect.top) + 'px';
-    ghost.style.width = cellRect.width + 'px';
-    ghost.style.height = cellRect.height + 'px';
-    ghost.innerHTML = (enhancedFx ? '<div class="fx-set-rift"></div>' : '') +
-      '<div class="placement-anim-card rarity-' + rarity + '">' +
-      '<div class="placement-anim-art">' +
-        (img ? '<img src="' + img + '" alt="">' : '<span class="placement-anim-icon">' + icon + '</span>') +
-      '</div>' +
-      '<div class="placement-anim-fate">' + fate + '</div>' +
-      '<div class="placement-anim-name">' + name + '</div>' +
-    '</div>';
-
-    layer.appendChild(ghost);
-    const removeGhost = function(){ if(ghost.parentNode) ghost.remove(); };
-    ghost.addEventListener('animationend', removeGhost, {once:true});
-    setTimeout(removeGhost, ms + 220);
-  }
-
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){ draw(0); });
-  });
-  return ms;
+  } catch(e) {}
+  return 0;
 }
 
 function createBoardCardEl(card, z, r, c, reuseMap) {
@@ -2698,11 +2656,13 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     }
     if(G._isSpectator){
       if(typeof playSfx === 'function') playSfx('boardCardClick');
+      window.__fateSuppressNextCardInfoSfxUntil = Date.now() + 180;
       openCardDetail(card, false, true);
       restoreBoardViewportLockSoon();
       return;
     }
     if(typeof playSfx === 'function') playSfx('boardCardClick');
+    window.__fateSuppressNextCardInfoSfxUntil = Date.now() + 180;
     activateBoardCard(card,z,r,c);
     restoreBoardViewportLockSoon();
   };
@@ -2799,6 +2759,10 @@ function renderHand() {
     if(canInspectHand) {
       el.onpointerenter = function(){ preloadCardDetailImage(card); };
       el.onclick=()=>{
+      if(canSelectForDetailAction) {
+        if(typeof playSfx === 'function') playSfx('cardSelect');
+      } else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
+      else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
       // Keep card-info modal placement available: clicking a playable hand card
       // selects it before opening the detail modal, so Place on Board can appear.
       if(canSelectForDetailAction) {
@@ -3594,6 +3558,21 @@ function renderTopbarEffects() {
     }
   });
 
+  const chaparralCard = CARDS.find(c => c.id === '78');
+  forEachBoardCard(function(c, z){
+    if(!c || String(c.id || '') !== '78' || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
+    if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(c)) return;
+    allEffects.push({
+      icon:getStatusEffectIcon('chaparral'),
+      label:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
+      cardName:chaparralCard ? chaparralCard.name : 'Chaparral Hoplite',
+      cardAbility:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
+      cardEffect:(chaparralCard ? chaparralCard.effect : 'The next consolidation in this zone may be set face down.') + ' Ready in Zone ' + (z + 1) + '.',
+      owner:c.owner,
+      extraClass:'effect-pill-chaparral'
+    });
+  });
+
   // Maja unlimited supporters
   if(G.majaEffectThisTurn) {
     let majaOwner = myP;
@@ -4381,7 +4360,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
     label = 'Negation Uses';
     value = (1 - uses) + ' / 1';
-    sub = uses ? 'ready to negate' : 'Effect Expended';
+    sub = uses ? 'Ready to Negate' : 'Effect Expended';
   } else if(card.id === '91') {
     const counts = Array.isArray(G._snowyVillageUses) ? G._snowyVillageUses : [0,0];
     const used = Math.max(0, Number(counts[owner]) || 0);
@@ -4396,6 +4375,16 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     '<span class="cd-live-tracker-label">' + escapeHtml(label) + '</span>' +
     '<span class="cd-live-tracker-value">' + escapeHtml(value) + '</span>' +
     (sub ? '<span class="cd-live-tracker-sub">' + escapeHtml(sub) + '</span>' : '') +
+  '</div>';
+}
+
+function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) {
+  if(!copiedPassiveName) return '';
+  return '<div class="cd-live-tracker french-fusiliers-copy-banner">' +
+    '<span class="cd-live-tracker-kicker">Copied Effect</span>' +
+    '<span class="cd-live-tracker-label">' + escapeHtml(copiedPassiveName) + '</span>' +
+    '<span class="cd-live-tracker-value">Active</span>' +
+    (copiedPassiveEffect ? '<span class="cd-live-tracker-sub">' + escapeHtml(copiedPassiveEffect) + '</span>' : '') +
   '</div>';
 }
 
@@ -4446,6 +4435,9 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     ? `<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound==='function') playCardSound('${escapeHtml(card.id)}');">♪</button>`
     : '';
   const trackerHtml = buildCardDetailTrackerHTML(card, viewerP, hideCard);
+  const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
+  const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
+  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
   body.innerHTML=`
     <div class="cd-wrap">
       <div class="cd-img">
@@ -4463,6 +4455,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           <span class="pill">${AFF_LABEL[visual.aff]||visual.aff}</span>
         </div>
         ${trackerHtml}
+        ${copiedPassiveBanner}
         <div class="cd-eff">${visual.effect}</div>
         ${!hideCard && card.flavor?`<div class="cd-flavor">${card.flavor}</div>`:''}
       </div>
@@ -4510,7 +4503,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   if((fromHand||G.selectedHandCard!==null) && canUseSantaAnnaLandscape){
     const santa=document.createElement('button');
     santa.className='btn sm pri';
-    santa.textContent='Prosperity +3 Fate';
+    santa.textContent='Activate Effect';
     santa.onclick=()=>{playEffectActivationButtonSound(); activateSantaAnnaProsperityFromHand(card);};
     acts.appendChild(santa);
   }
@@ -4521,10 +4514,10 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       return;
     }
     if(card.type==='Supporter'){
-      // Selva Islands Pirate (74): discard from hand to set 3 supporters this turn
+      // Selva Islands Pirate (74) triggers on hand arrival; no manual action button.
       if(false && card.id==='74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))){
         const selva=document.createElement('button');
-        selva.className='btn sm pri';selva.textContent='Discard — Set 3 Supporters';
+        selva.className='btn sm pri';selva.textContent='Activate Effect';
         selva.onclick=()=>{
           if(G._onlineRoomCode && typeof activateSelvaIslandsPirateFromHand === 'function'){
             activateSelvaIslandsPirateFromHand(card);
@@ -4621,44 +4614,37 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
       if(!supporterActionsSuppressed && !isFaceDownCard(bc) && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
         const busBtn=document.createElement('button');
-        busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
+        busBtn.className='btn sm pri';busBtn.textContent='Bussing';
         busBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateBusserMove(bc,z,r,c);};
         acts.appendChild(busBtn);
       }
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
         // Vigilantes (52): mark an opponent card in this zone as 0 Reinforcement (once per turn)
-        if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
+        if(!supporterActionsSuppressed && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : (bc.id==='52' && !bc.vigilanteUsed && bc.whenSetActivated !== true))){
           const vigBtn=document.createElement('button');
-          vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
+          vigBtn.className='btn sm pri';vigBtn.textContent='Activate Effect';
           vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
           acts.appendChild(vigBtn);
-        }
-        // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
-        if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
-          const wcBtn=document.createElement('button');
-          wcBtn.className='btn sm pri';wcBtn.textContent='Elusive Movements';
-          wcBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWolfCreek(bc,z,r,c);};
-          acts.appendChild(wcBtn);
         }
         // ALPINE Expeditionary (73): move once per turn
         if(!supporterActionsSuppressed && bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
-          expBtn.className='btn sm pri';expBtn.textContent='Move (once/turn)';
+          expBtn.className='btn sm pri';expBtn.textContent='Activate Effect';
           expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
         }
         if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
           const snowBtn=document.createElement('button');
-          snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
+          snowBtn.className='btn sm pri';snowBtn.textContent='Activate Effect';
           snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
           acts.appendChild(snowBtn);
         }
       }
-      if(canUseBoardCard && typeof isLandscapeActive === 'function' && isLandscapeActive('igb7') && bc.aff === 'eventide' && bc._landscapeEventideMovedTurn !== G.turn && !bc.cantBeMoved){
+      if(canUseBoardCard && typeof isLandscapeActive === 'function' && isLandscapeActive('igb7') && typeof canUsePanaceaLandscapeMoveCard === 'function' && canUsePanaceaLandscapeMoveCard(bc) && bc._landscapeEventideMovedTurn !== G.turn && !bc.cantBeMoved){
         const landMove=document.createElement('button');
         landMove.className='btn sm pri';
-        landMove.textContent='Landscape Move';
+        landMove.textContent='Panacea Sailors';
         landMove.onclick=()=>{playEffectActivationButtonSound();closeModal();activateLandscapeEventideMove(bc,z,r,c);};
         acts.appendChild(landMove);
       }
@@ -6211,26 +6197,46 @@ function log(type, msg) {
   }, 0);
 }
 
+function fatePlayNextToast() {
+  if(window.__fateToastActive) return;
+  const queue = window.__fateToastQueue || [];
+  const next = queue.shift();
+  if(!next) return;
+  const el=document.getElementById('toast');
+  if(!el) {
+    window.__fateToastQueue = queue;
+    return;
+  }
+  window.__fateToastActive = true;
+  window.__fateToastQueue = queue;
+  el.textContent=next.text;
+  el.classList.toggle('toast-effect-alert', next.isEffectAlert);
+  el.classList.add('on');
+  clearTimeout(window._toast);
+  window._toast=setTimeout(()=>{
+    el.classList.remove('on');
+    el.classList.remove('toast-effect-alert');
+    window._toast=setTimeout(()=>{
+      window.__fateToastActive = false;
+      fatePlayNextToast();
+    }, 180);
+  }, next.holdMs);
+}
+
 function toast(msg, durationMs) {
   if(G._aiAbort) return;
-  const el=document.getElementById('toast');
-  if(!el) return;
   const text = String(msg || '');
   const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
   const effectAlertMs = 2000;
+  const holdMs = Math.max(isEffectAlert ? effectAlertMs : 900, Number(durationMs) || (isEffectAlert ? effectAlertMs : 4500));
   try {
     const perf = window.__fatePerf = window.__fatePerf || {};
     perf.lastToast = {at:Math.round(performance.now ? performance.now() : Date.now()), text, isEffectAlert};
   } catch(e) {}
-  el.textContent=text;
-  el.classList.toggle('toast-effect-alert', isEffectAlert);
-  el.classList.add('on');
-  clearTimeout(window._toast);
-  const holdMs = Math.max(isEffectAlert ? effectAlertMs : 900, Number(durationMs) || (isEffectAlert ? effectAlertMs : 4500));
-  window._toast=setTimeout(()=>{
-    el.classList.remove('on');
-    el.classList.remove('toast-effect-alert');
-  }, holdMs);
+  const queue = window.__fateToastQueue = window.__fateToastQueue || [];
+  queue.push({text, isEffectAlert, holdMs});
+  while(queue.length > 12) queue.shift();
+  fatePlayNextToast();
 }
 
 function toggleLog() {
@@ -6379,7 +6385,8 @@ function discardBoardCard(card, z, r, c) {
     card.guerilla_owner = originalOwner;
     if(typeof addCardToHand === 'function') addCardToHand(holder, card, { announce:false, animate:false, forceHandOwner:holder });
     else G.players[holder].hand.push(card);
-    toast('Wine Country Guerilla infiltrated opponent\'s hand for 5 turns!');
+    if(typeof showWineCountryGuerillaSentBanner === 'function') showWineCountryGuerillaSentBanner();
+    else toast('Wine Country Guerilla was sent to opponent\'s hand.');
     log(originalOwner===0?'p1':'p2', 'Wine Country Guerilla moved to opponent hand from discard');
     if(typeof renderHand === 'function') renderHand();
   } else if(false && card.id==='37' && !card._returnUsed){
@@ -6484,6 +6491,9 @@ function showCardInfoOverlay(card) {
     ? '<button type="button" class="btn sm cio-lore">Lore</button>'
     : '';
   var affLabel = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[visual.aff]) ? AFF_LABEL[visual.aff] : visual.aff;
+  var copiedPassiveName = (String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
+  var copiedPassiveEffect = (String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
+  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
   overlay.innerHTML =
@@ -6500,6 +6510,7 @@ function showCardInfoOverlay(card) {
             '<span class="pill fate">'+visual.fate+' Fate</span>'+
             '<span class="pill">'+affLabel+'</span>'+
           '</div>'+
+          copiedPassiveBanner+
           '<div class="cd-eff">'+visual.effect+'</div>'+
           (card.flavor ? '<div class="cd-flavor">'+card.flavor+'</div>' : '')+
         '</div>'+

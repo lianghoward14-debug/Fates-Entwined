@@ -722,6 +722,13 @@ function markCardPlacementAnimation(card) {
 function triggerPlacementAnimation(card, z, r, c) {
   if (card && (card._suppressPlacementAnimation || card._suppressCinematicSubtitle)) return 0;
   const ms = markCardPlacementAnimation(card);
+  const renderV2OwnsBoard = typeof window !== 'undefined'
+    && window.FateMatchRendererAdapter
+    && typeof window.FateMatchRendererAdapter.ownsBoard === 'function'
+    && window.FateMatchRendererAdapter.ownsBoard();
+  if (renderV2OwnsBoard && typeof window !== 'undefined' && window.FateActionPresentation && !(card && card._allowLegacyPlacementAnimation)) {
+    return ms;
+  }
   if (typeof playPlacementAnimation === 'function') {
     playPlacementAnimation(card, z, r, c);
   }
@@ -775,15 +782,36 @@ function playDiscardSfx() {
   if(typeof playSfx === 'function') playSfx('discard');
 }
 
+function showWineCountryGuerillaSentBanner(options = {}) {
+  const message = 'Wine Country Guerilla was sent to opponent\'s hand.';
+  if(typeof toast === 'function') toast(message, options.durationMs || 3600);
+  return message;
+}
+
 function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[playerIndex]) return false;
   const cards = Array.isArray(cardOrCards) ? cardOrCards.filter(Boolean) : (cardOrCards ? [cardOrCards] : []);
   if(!cards.length) return false;
   if(!Array.isArray(G.players[playerIndex].discard)) G.players[playerIndex].discard = [];
-  G.players[playerIndex].discard.push(...cards);
+  const discarded = [];
+  cards.forEach(function(card){
+    if(card && String(card.id || '') === '70' && card.guerilla_transferred !== true && options.wineCountryReturn !== true){
+      const holder = Number(playerIndex) === 0 ? 1 : 0;
+      if(G.players[holder] && Array.isArray(G.players[holder].hand)){
+        card.guerilla_transferred = true;
+        card.guerilla_turnsLeft = 5;
+        card.guerilla_owner = Number(playerIndex);
+        G.players[holder].hand.push(card);
+        showWineCountryGuerillaSentBanner();
+        return;
+      }
+    }
+    G.players[playerIndex].discard.push(card);
+    discarded.push(card);
+  });
   try {
     if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.prewarmAssetImages === 'function') {
-      const srcs = cards.map(function(card){
+      const srcs = discarded.map(function(card){
         const visual = card && card.visual;
         return (card && card.img) || (visual && visual.img) || (card && card.runtimeImg) || (visual && visual.runtimeImg) || '';
       }).filter(Boolean);
@@ -800,6 +828,7 @@ window.syncEnhancedVisualFxControls = syncEnhancedVisualFxControls;
 window.setEnhancedVisualFxEnabled = setEnhancedVisualFxEnabled;
 window.toggleEnhancedVisualFx = toggleEnhancedVisualFx;
 window.playDiscardSfx = playDiscardSfx;
+window.showWineCountryGuerillaSentBanner = showWineCountryGuerillaSentBanner;
 window.fatePushDiscard = fatePushDiscard;
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyEnhancedVisualFxState);
 else applyEnhancedVisualFxState();

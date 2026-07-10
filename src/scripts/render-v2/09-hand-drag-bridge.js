@@ -473,7 +473,7 @@
     }
     if(boardCardAt(hit)) return 'Drop on an empty cell.';
     if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(Number(hit.z), Number(hit.r), Number(hit.c), cp)){
-      return Number(hit.r) === 1 ? 'Cannot place there.' : 'Cannot place on opponent\'s safe row.';
+      return Number(hit.r) >= 3 ? 'That square is not available.' : (Number(hit.r) === 1 ? 'Cannot place there.' : 'Cannot place on opponent\'s safe row.');
     }
     if(!ignoresOpponentPlacementLocks && typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))){
       return 'Cell is blocked.';
@@ -815,10 +815,19 @@
     }
     const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
+    const card = state.card;
     try { window.__fateNextSetFromRect = from ? Object.assign({}, from) : null; } catch(e) {}
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;
     G.placing = true;
+    try {
+      window.__fateOnlinePlacementIntent = {
+        playerIndex:Number(G.currentPlayer),
+        turn:Number(G.turn || 0) || 0,
+        selectedHand:{index:idx, iid:card ? card.iid || '' : '', id:card ? card.id || '' : ''},
+        at:Date.now()
+      };
+    } catch(e) {}
     if(typeof playSfx === 'function') playSfx('dragDrop');
     if(typeof clickCell === 'function') clickCell(Number(hit.z), Number(hit.r), Number(hit.c));
   }
@@ -831,6 +840,22 @@
     }
     const target = boardCardAt(hit);
     const idx = state.idx;
+    const card = state.card;
+    const onlineDrop = !!(typeof window.fateOnlineQueueConsolidationDrop === 'function'
+      && typeof G !== 'undefined'
+      && G
+      && G._onlineRoomCode
+      && !G._onlineApplyingRemoteAction
+      && window.fateOnlineQueueConsolidationDrop({
+        z:Number(hit.z),
+        r:Number(hit.r),
+        c:Number(hit.c),
+        selectedHand:{index:idx, iid:card ? card.iid || '' : '', id:card ? card.id || '' : ''}
+      }));
+    if(onlineDrop){
+      cleanup({clearPlacement:false});
+      return;
+    }
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;
     G.placing = false;

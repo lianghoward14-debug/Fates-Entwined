@@ -3016,8 +3016,14 @@ function applyFlyResultLedger(code, accepted){
 function roomPatchForAction(room, action){
   const payload = action.payload || {};
   const patch = {};
+  const pendingReactionPlayer = Number(payload.postState?._serverPendingReaction?.playerIndex);
+  if(Number.isInteger(pendingReactionPlayer) && room.playerOrder[pendingReactionPlayer]){
+    patch.currentTurnUid = room.playerOrder[pendingReactionPlayer];
+    patch.pendingReactionPromptId = String(payload.postState._serverPendingReaction.promptId || '');
+    patch.pendingReactionPlayerIndex = pendingReactionPlayer;
+  }
   const nextPlayer = Number(payload.postState?.currentPlayer);
-  if(Number.isInteger(nextPlayer) && room.playerOrder[nextPlayer]){
+  if(!patch.currentTurnUid && Number.isInteger(nextPlayer) && room.playerOrder[nextPlayer]){
     patch.currentTurnUid = room.playerOrder[nextPlayer];
   }
   if(action.type === 'FORFEIT'){
@@ -3264,6 +3270,12 @@ function scheduleReactionTimer(room){
 function applyRoomPatch(room, patch){
   if(!room || !patch) return;
   if(patch.currentTurnUid) room.currentTurnUid = String(patch.currentTurnUid);
+  if(patch.pendingReactionPromptId !== undefined) room.pendingReactionPromptId = String(patch.pendingReactionPromptId || '');
+  if(patch.pendingReactionPlayerIndex !== undefined) room.pendingReactionPlayerIndex = resultIndexOrNull(patch.pendingReactionPlayerIndex);
+  if(patch.pendingReactionPromptId === '' || !room.canonicalState?._serverPendingReaction){
+    room.pendingReactionPromptId = '';
+    room.pendingReactionPlayerIndex = null;
+  }
   if(patch.status) room.status = String(patch.status).slice(0, 32);
   if(patch.phase) room.phase = String(patch.phase).slice(0, 32);
   if(room.status === 'ended'){
@@ -3657,6 +3669,11 @@ async function handleIntentQueued(ws, msg){
       stateHash:gateResult.canonicalHash,
       serverReduced:true,
       reducerMode:REDUCER_MODE
+    });
+  }
+  if(Array.isArray(gateResult.presentationEvents) && gateResult.presentationEvents.length){
+    action.payload = Object.assign({}, action.payload || {}, {
+      presentationEvents:gateResult.presentationEvents
     });
   }
   const roomPatch = roomPatchForAction(room, action);

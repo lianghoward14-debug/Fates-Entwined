@@ -235,6 +235,24 @@ function ensureRiveraActiveEffectsState() {
 
 //
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function canActivateVigilantesWindow(card) {
+  if(!card || String(card.id || '') !== '52' || isFaceDownCard(card)) return false;
+  if(card.vigilanteUsed === true || card.whenSetActivated === true) return false;
+  if(card._pendingWhenSetEffect) return true;
+  return Number(card._setTurn) === Number(G.turn);
+}
+
+function expireSkippedVigilantesWindowsForPlayer(player) {
+  if((player !== 0 && player !== 1) || typeof forEachBoardCard !== 'function') return;
+  forEachBoardCard((card)=>{
+    if(!card || card.owner !== player || String(card.id || '') !== '52') return;
+    if(card.vigilanteUsed === true || card.whenSetActivated === true) return;
+    if(card._pendingWhenSetEffect) delete card._pendingWhenSetEffect;
+    card.whenSetActivated = true;
+    card.effectUsedInitial = true;
+  });
+}
+
 function endTurn() {
   if(G._turnInputLockUntil && Date.now() < G._turnInputLockUntil) return;
   G._turnInputLockUntil = Date.now() + 350;
@@ -260,6 +278,7 @@ function endTurn() {
   }
 
   const cp = G.currentPlayer;
+  expireSkippedVigilantesWindowsForPlayer(cp);
   G._skipImprovisorCheck = false;
 
   // Check win condition at end of turn 10
@@ -332,7 +351,6 @@ async function nextPlayerTurn() {
     if(card.owner===G.currentPlayer) {
       card.effectUsedThisTurn = false;
       if(card.id==='52') card.vigilanteUsed = false;
-      if(card.id==='54') card.wolfCreekUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
       if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
@@ -347,20 +365,20 @@ async function nextPlayerTurn() {
   const holderHand = G.players[currentPlayer].hand;
   const guerillaCards = holderHand.filter(c=>c.id==='70' && c.guerilla_transferred && c.guerilla_turnsLeft>0);
   guerillaCards.forEach(gc=>{
-    // Pick a random non-guerilla card in this hand and reduce its fate by 1
+    // Pick a random non-guerilla card in this hand and reduce its fate by 2.
     const candidates = holderHand.filter(c=>c.iid!==gc.iid && c.id!=='70');
     if(candidates.length>0){
       const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
       const target = candidates[Math.floor(rng()*candidates.length)];
       const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
-      target.currentFate = Math.max(0, before - 1);
+      target.currentFate = Math.max(0, before - 2);
       if(target.currentFate < before){
         if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
         const sourceOwner = (gc.guerilla_owner===0 || gc.guerilla_owner===1) ? gc.guerilla_owner : (1-currentPlayer);
         G._continuousDamageSources.add(sourceOwner+':70:'+gc.iid);
       }
-      toast(`Wine Country Guerilla reduces ${target.name}'s Fate by 1!`);
-      log(currentPlayer===0?'p1':'p2', `Wine Country Guerilla debuffed ${target.name} (-1 Fate)`);
+      toast(`Wine Country Guerilla reduces ${target.name}'s Fate by 2!`);
+      log(currentPlayer===0?'p1':'p2', `Wine Country Guerilla debuffed ${target.name} (-2 Fate)`);
       playSfx('debuff');
     }
     gc.guerilla_turnsLeft--;
@@ -1039,11 +1057,20 @@ async function clickCell(z,r,c) {
       renderGame();
       return;
     }
-    const valid = !mv.options || mv.options.some(o=>o.z===z && o.r===r && o.c===c);
+    const option = mv.options && mv.options.find(o=>o.z===z && o.r===r && o.c===c);
+    const valid = !mv.options || !!option;
     if(!valid){toast('Choose one of the highlighted Wolf Creek squares');return;}
-    if(G.board[z][r][c]!==null || isBlocked(z,r,c)){toast('Cell is occupied');return;}
-    G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
-    G.board[z][r][c] = mv.card;
+    const target = G.board[z][r][c];
+    if(option && option.kind === 'swap'){
+      const movingOwner = typeof mv.card.owner === 'number' ? mv.card.owner : (mv.wolfCreekCard && typeof mv.wolfCreekCard.owner === 'number' ? mv.wolfCreekCard.owner : G.currentPlayer);
+      if(!target || Number(target.owner) !== Number(movingOwner) || target.iid === mv.card.iid || target.cantBeMoved){ toast('Choose a card you control to swap with'); return; }
+      G.board[mv.fromZ][mv.fromR][mv.fromC] = target;
+      G.board[z][r][c] = mv.card;
+    }else{
+      if(target !== null || isBlocked(z, r, c)){toast('Choose an open square on your side of the field');return;}
+      G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
+      G.board[z][r][c] = mv.card;
+    }
     if(mv.wolfCreekCard) mv.wolfCreekCard.wolfCreekUsed = true;
     G._wolfCreekMoving = null;
     G.placing = false;
@@ -1238,7 +1265,8 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
   G.board[z].forEach((row, rr)=>{
     if(!row) return;
     row.forEach((cell, cc)=>{
-      if(!cell || cell.id!=='24' || cell.owner!==owner || isFaceDownCard(cell)) return;
+      const actsAsRalph = (typeof cardActsAsPassive === 'function') ? cardActsAsPassive(cell, '24') : String(cell.id || '') === '24';
+      if(!cell || !actsAsRalph || cell.owner!==owner || isFaceDownCard(cell) || (typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(cell))) return;
       const dr = Math.abs(rr-r), dc = Math.abs(cc-c);
       if(dr<=1 && dc<=1 && (dr+dc)>0) count++;
     });
@@ -1277,10 +1305,9 @@ function flipFaceDownBoardCard(card, z, r, c) {
   if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
     window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
   }
-  const placementDelay = triggerPlacementAnimation(card, z, r, c);
   renderGame();
   requestAnimationFrame(() => resolveSetCardAfterPlacement(card, z, r, c));
-  return placementDelay;
+  return 0;
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1950,6 +1977,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           toast('No cards changed');
         }
         log(cp===0?'p1':'p2','Mark Menz declared '+(AFF_LABEL[aff]||aff)+', changed '+changed+' cards');
+        inst.vigilanteUsed = true;
+        inst.whenSetActivated = true;
         inst.effectUsedInitial = true;
         renderGame();
         // Add overlays AFTER renderGame rebuilds the DOM
@@ -2130,10 +2159,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
       break;
-    case '54': { // Wolf Creek: same-zone card-picker window
-      pickCardInZone(z,'Wolf Creek: Select a friendly character in this zone to move:',(tgt,tz,tr,tc)=>{
+    case '54': { // Wolf Creek: same-zone friendly card picker
+      pickWolfCreekMoveCandidate(inst, 'Wolf Creek: Select a highlighted friendly card in this zone to move:', (tgt,tz,tr,tc)=>{
         startWolfCreekMove(tgt, tz, tr, tc, inst);
-      }, function(cell){ return cell && cell.owner===cp && cell.type!=='Supporter' && cell.iid!==inst.iid && !cell.cantBeMoved; });
+      }, z);
       break;
     }
     case '56': // Lydia: negate opponent card effect activations (3 uses)
@@ -3113,6 +3142,8 @@ function activateVigilantes(card, z, r, c) {
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     card.vigilanteUsed = true;
+    card.whenSetActivated = true;
+    card.effectUsedInitial = true;
     toast(tgt.name+' has 0 Reinforcement.');
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
@@ -3128,42 +3159,101 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   const options = [];
   for(let zz=0; zz<(G.board ? G.board.length : 3); zz++){
     G.board[zz].forEach((row,rr)=>row.forEach((cell,cc)=>{
-      if(cell || isBlocked(zz,rr,cc)) return;
-      const rowOwner = rr===0 ? 1 : rr===1 ? -1 : rr===2 ? 0 : cp;
-      if(rowOwner===cp || rowOwner===-1){
-        options.push({z:zz,r:rr,c:cc});
+      if(cell){
+        if(cell.owner === cp && cell.iid !== cardToMove.iid && !cell.cantBeMoved){
+          options.push({z:zz,r:rr,c:cc,kind:'swap'});
+          const el=document.querySelector('[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
+          if(el) el.classList.add('placeable','move-target','wolf-creek-swap-target');
+        }
+        return;
+      }
+      if(isWolfCreekSideOpenSquare(zz, rr, cc, cp)){
+        options.push({z:zz,r:rr,c:cc,kind:'move'});
         const el=document.querySelector('[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
         if(el) el.classList.add('placeable','move-target');
       }
     }));
   }
-  if(!options.length){ toast('No open squares available for Wolf Creek'); return false; }
+  if(!options.length){ toast('No Wolf Creek move or swap targets available'); return false; }
   G._wolfCreekMoving = { card:cardToMove, fromZ:fromZ, fromR:fromR, fromC:fromC, wolfCreekCard:wolfCreekCard, options:options };
   G.placing = false;
   G.selectedHandCard = null;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
     window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
   }
-  toast('Click a highlighted open square to move '+cardToMove.name);
-  if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square to move '+cardToMove.name+' — press Escape to cancel');
+  toast('Click a highlighted square or card to move '+cardToMove.name);
+  if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square or friendly card to move '+cardToMove.name+' - press Escape to cancel');
   return true;
 }
 
-// Wolf Creek Light Infantry (54): move a character you control in this zone to an open square
-function activateWolfCreek(card, z, r, c) {
-  const cp = G.currentPlayer;
-  const myCards = [];
-  if(!G.board[z]){ toast('No zone found'); return; }
-  G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===cp && cell.iid!==card.iid && cell.type!=='Supporter' && !cell.cantBeMoved){
-      myCards.push({card:cell, z:z, r:ri, c:ci});
-    }
-  }));
-  if(myCards.length===0){toast('No characters to move in this zone');return;}
-  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardInZone(z,'Wolf Creek: Select a friendly character in this zone to move:',(target, srcZ, srcR, srcC)=>{
-    startWolfCreekMove(target, srcZ, srcR, srcC, card);
-  }, function(cell){ return cell && cell.owner===cp && cell.iid!==card.iid && cell.type!=='Supporter' && !cell.cantBeMoved; });
+function isWolfCreekMoveCandidateCard(cell, owner, sourceIid) {
+  return !!(cell && cell.owner === owner && cell.iid !== sourceIid && !cell.cantBeMoved);
+}
+
+function isWolfCreekSideOpenSquare(z, r, c, owner) {
+  if(!G || !Array.isArray(G.board) || !G.board[z] || !G.board[z][r]) return false;
+  if(G.board[z][r][c] !== null) return false;
+  if(isBlocked(z, r, c)) return false;
+  if(typeof isContestedOrOwnSafeSquare === 'function') return isContestedOrOwnSafeSquare(z, r, c, owner);
+  const rowOwner = typeof getSquareRowOwner === 'function' ? getSquareRowOwner(z, r) : (r === 1 ? -1 : (r === 0 ? 1 : 0));
+  return rowOwner === -1 || rowOwner === owner;
+}
+
+function collectWolfCreekMoveCandidates(owner, sourceIid, sourceZone) {
+  const entries = [];
+  if(!G || !Array.isArray(G.board)) return entries;
+  const z = Number.isInteger(Number(sourceZone)) ? Number(sourceZone) : -1;
+  const zone = G.board[z];
+  if(!Array.isArray(zone)) return entries;
+  zone.forEach(function(row, r){
+      if(!Array.isArray(row)) return;
+      row.forEach(function(cell, c){
+        if(!isWolfCreekMoveCandidateCard(cell, owner, sourceIid)) return;
+        entries.push({card:cell, z, r, c});
+      });
+  });
+  return entries;
+}
+
+function clearWolfCreekCandidateHighlights() {
+  document.querySelectorAll('.wolf-creek-card-target').forEach(function(el){ el.classList.remove('wolf-creek-card-target'); });
+}
+
+function showWolfCreekCandidateHighlights(entries) {
+  clearWolfCreekCandidateHighlights();
+  (entries || []).forEach(function(entry){
+    const cell = document.querySelector('#board .cell[data-z="'+entry.z+'"][data-r="'+entry.r+'"][data-c="'+entry.c+'"]');
+    if(cell) cell.classList.add('wolf-creek-card-target');
+    const bc = cell && cell.querySelector ? cell.querySelector('.bc') : null;
+    if(bc) bc.classList.add('wolf-creek-card-target');
+  });
+}
+
+function pickWolfCreekMoveCandidate(wolfCreekCard, prompt, callback, fallbackZone) {
+  const owner = typeof wolfCreekCard.owner === 'number' ? wolfCreekCard.owner : G.currentPlayer;
+  const entries = collectWolfCreekMoveCandidates(owner, wolfCreekCard.iid, fallbackZone);
+  if(!entries.length){ toast('No cards in this zone to move'); return; }
+  showWolfCreekCandidateHighlights(entries);
+  const done = function(card, z, r, c){
+    clearWolfCreekCandidateHighlights();
+    if(callback) callback(card, z, r, c);
+  };
+  if(typeof showBoardTargetPicker === 'function') {
+    showBoardTargetPicker({
+      title:'Wolf Creek',
+      prompt:prompt || 'Select a friendly card in this zone to move.',
+      entries,
+      zones:[...new Set(entries.map(function(entry){ return entry.z; }))],
+      maxCount:1,
+      confirmLabel:'Move',
+      showOpponentOverlay:true
+    }, function(chosen){
+      const picked = chosen && chosen[0];
+      if(picked) done(picked.card, picked.z, picked.r, picked.c);
+    });
+    return;
+  }
+  pickCardInZone(fallbackZone, prompt, done, function(cell){ return isWolfCreekMoveCandidateCard(cell, owner, wolfCreekCard.iid); });
 }
 
 // ALPINE Expeditionary (73): move once per turn to open square on your side
@@ -3392,14 +3482,29 @@ function beginHavanoDeployment(reaction, owner) {
     }
     if(G.aiEnabled && owner === G.aiPlayer) {
       const o = options[0];
-      G.board[o.z][o.r][o.c] = inst;
-      triggerPlacementAnimation(inst, o.z, o.r, o.c);
-      toast('Havano Citizen negated the effect and deployed to Zone '+(o.z+1)+'!');
-      renderGame();
-      resolve();
+      const commit = function(){
+        G.board[o.z][o.r][o.c] = inst;
+        toast('Havano Citizen negated the effect and deployed to Zone '+(o.z+1)+'!');
+        renderGame();
+        resolve();
+      };
+      const presenter = window.FateActionPresentation;
+      if(presenter && typeof presenter.beginBoardPlacement === 'function'){
+        const started = presenter.beginBoardPlacement({
+          sourceCard:reaction.card,
+          inst,
+          owner,
+          source:'effect',
+          placementStyle:'local-square',
+          target:{z:o.z, r:o.r, c:o.c},
+          commit
+        });
+        if(started) return;
+      }
+      commit();
       return;
     }
-    G._havanoDeploying = { inst, owner, options, resolve };
+    G._havanoDeploying = { inst, owner, sourceCard:reaction.card, options, resolve };
     G.placing = true;
     renderGame();
     showHavanoDeploymentOptions(options);
@@ -3414,16 +3519,31 @@ function handleHavanoDeployClick(z,r,c) {
   const valid = dep.options.some(function(o){ return o.z===z && o.r===r && o.c===c; });
   if(!valid){ toast('Choose one of the highlighted Havano squares'); return; }
   if(G.board[z][r][c]!==null || isBlocked(z,r,c)){ toast('Cell is not open'); return; }
-  G.board[z][r][c] = dep.inst;
-  triggerPlacementAnimation(dep.inst, z, r, c);
-  G._havanoDeploying = null;
-  G.placing = false;
-  clearPlaceHighlights();
-  toast('Havano Citizen deployed to Zone '+(z+1)+'!');
-  playSfx('zoneBlock');
-  showBlockedAnimation('NEGATED by Havano Citizen!');
-  renderGame();
-  dep.resolve();
+  const commit = function(){
+    G.board[z][r][c] = dep.inst;
+    G._havanoDeploying = null;
+    G.placing = false;
+    clearPlaceHighlights();
+    toast('Havano Citizen deployed to Zone '+(z+1)+'!');
+    playSfx('zoneBlock');
+    showBlockedAnimation('NEGATED by Havano Citizen!');
+    renderGame();
+    dep.resolve();
+  };
+  const presenter = window.FateActionPresentation;
+  if(presenter && typeof presenter.beginBoardPlacement === 'function'){
+    const started = presenter.beginBoardPlacement({
+      inst:dep.inst,
+      sourceCard:dep.sourceCard,
+      owner:dep.owner,
+      source:'effect',
+      placementStyle:'local-square',
+      target:{z, r, c},
+      commit
+    });
+    if(started) return;
+  }
+  commit();
 }
 
 function executeReaction(reaction, actionData) {

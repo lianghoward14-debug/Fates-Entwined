@@ -16,7 +16,7 @@ function coercePlayerIndex(value, fallback) {
   return fallback;
 }
 
-const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['20','49','53','59','64','65','92','93']);
+const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['20','24','49','53','59','64','65','92','93']);
 
 function getFrenchFusiliersCopiedPassiveId(card) {
   if(!card || String(card.id) !== '37') return '';
@@ -66,6 +66,7 @@ function chooseFrenchFusiliersPassive(inst, z) {
     inst._copiedPassiveEffect = entry.card.effect || '';
     inst.copiedPassiveId = inst._copiedPassiveId;
     inst.copiedPassiveName = inst._copiedPassiveName;
+    inst.copiedPassiveEffect = inst._copiedPassiveEffect;
     toast('6th French Fusiliers copied ' + inst._copiedPassiveName + '.');
     applyContinuousEffects();
     renderGame({board:true, scores:true, topbar:true});
@@ -439,34 +440,36 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       if(card.type === 'Supporter') {
         const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
         if(!suppressed) {
-          if(card.id === '52' && !card.vigilanteUsed) pushEndTurnEffectWarning(pending, card, 'Marked for Death', z);
-          if(card.id === '54' && !card.wolfCreekUsed) pushEndTurnEffectWarning(pending, card, 'Elusive Movements', z);
+          if(canActivateVigilantesWindow(card)) pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
-          if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Move to Adjacent Zone', z);
+          if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Bussing', z);
           if((card.id === '93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '93'))) && !card.effectUsedThisTurn) {
-            pushEndTurnEffectWarning(pending, card, 'Snowball Fight', z);
+            pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
           }
         }
       }
-      if(typeof isLandscapeActive === 'function'
-        && isLandscapeActive('igb7')
-        && card.aff === 'eventide'
-        && card._landscapeEventideMovedTurn !== G.turn
-        && !card.cantBeMoved
-        && !(G._landscapeMoving && G._landscapeMoving.card === card)) {
-        pushEndTurnEffectWarning(pending, card, 'Landscape Move', z);
-      }
     });
   }
-  const hand = G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
-  hand.forEach(function(card) {
-    if(!card) return;
-    if(card.id === '70' && !card.guerilla_transferred) pushEndTurnEffectWarning(pending, card, 'Activate Effect', null);
-    if(card.id === '74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))) {
-      pushEndTurnEffectWarning(pending, card, 'Discard - Set 3 Supporters', null);
-    }
-  });
   return pending;
+}
+
+function canActivateVigilantesWindow(card) {
+  if(!card || String(card.id || '') !== '52' || isFaceDownCard(card)) return false;
+  if(card.vigilanteUsed === true || card.whenSetActivated === true) return false;
+  if(card._pendingWhenSetEffect) return !expireStalePendingWhenSetEffect(card);
+  return isSameTurnAsCardSet(card);
+}
+
+function expireSkippedVigilantesWindowsForPlayer(player) {
+  if(player !== 0 && player !== 1 || typeof forEachBoardCard !== 'function') return;
+  forEachBoardCard((card)=>{
+    if(!card || card.owner !== player || String(card.id || '') !== '52') return;
+    if(card.vigilanteUsed === true) return;
+    if(card.whenSetActivated === true) return;
+    delete card._pendingWhenSetEffect;
+    card.whenSetActivated = true;
+    card.effectUsedInitial = true;
+  });
 }
 
 function escapeEndTurnWarningText(value) {
@@ -545,6 +548,7 @@ function endTurn(opts) {
   }
 
   const cp = G.currentPlayer;
+  expireSkippedVigilantesWindowsForPlayer(cp);
   clearPendingWhenSetEffectsForPlayer(cp);
   G._skipImprovisorCheck = false;
   if(typeof resolveBalladEndOfTurn === 'function') resolveBalladEndOfTurn(cp);
@@ -573,6 +577,8 @@ function endTurn(opts) {
       }
     });
   }
+  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('turnChange', 'turn-change-end-click', 350);
+  else if(typeof playSfx === 'function') playSfx('turnChange');
   // Online rooms are not a same-device handoff, so pass directly to the
   // replayed next turn instead of showing the local pass-turn overlay.
   if(G._onlineRoomCode){
@@ -610,6 +616,8 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('turnChange', 'turn-change-new-owner', 650);
+  else if(typeof playSfx === 'function') playSfx('turnChange');
   clearStalePendingWhenSetEffects();
   if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
     window.FateVfxEventBridge.onAcceptedGameEvent({
@@ -660,7 +668,6 @@ async function nextPlayerTurn() {
     if(card.owner===G.currentPlayer) {
       card.effectUsedThisTurn = false;
       if(card.id==='52') card.vigilanteUsed = false;
-      if(card.id==='54') card.wolfCreekUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
       if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
@@ -1439,13 +1446,13 @@ async function clickCell(z,r,c) {
       return;
     }
     if(typeof sel.zone === 'number' && z !== sel.zone){
-      toast('Choose a highlighted safe-square slot in Zone ' + (sel.zone + 1));
+      toast('That square is not available');
       return;
     }
     const expectedMarkRow = typeof getNextExtraRowIndex === 'function' ? getNextExtraRowIndex(z) : 3;
     const markRowCapacity = G.board && G.board[z] && G.board[z][expectedMarkRow] ? G.board[z][expectedMarkRow].length : 3;
     if(r !== expectedMarkRow || c < 0 || c >= markRowCapacity){
-      toast('Choose one of the highlighted safe-square slots');
+      toast('That square is not available');
       return;
     }
     if(typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z,r,c)){
@@ -1547,17 +1554,20 @@ async function clickCell(z,r,c) {
       renderGame({board:true, blocks:true, topbar:true});
       return;
     }
-    const valid = !mv.options || mv.options.some(o=>o.z===z && o.r===r && o.c===c);
+    const option = mv.options && mv.options.find(o=>o.z===z && o.r===r && o.c===c);
+    const valid = !mv.options || !!option;
     if(!valid){toast('Choose one of the highlighted Wolf Creek squares');return;}
-    if(G.board[z][r][c]!==null || isBlocked(z,r,c)){toast('Cell is occupied');return;}
-    const wcOwner = mv.wolfCreekCard && typeof mv.wolfCreekCard.owner === 'number' ? mv.wolfCreekCard.owner : (mv.card && typeof mv.card.owner === 'number' ? mv.card.owner : G.currentPlayer);
-    if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, wcOwner)){
-      toast('Wolf Creek can only move into contested rows or your own safe squares');
-      playSfx('blocked');
-      return;
+    const target = G.board[z][r][c];
+    if(option && option.kind === 'swap'){
+      const movingOwner = typeof mv.card.owner === 'number' ? mv.card.owner : (mv.wolfCreekCard && typeof mv.wolfCreekCard.owner === 'number' ? mv.wolfCreekCard.owner : G.currentPlayer);
+      if(!target || Number(target.owner) !== Number(movingOwner) || target.iid === mv.card.iid || target.cantBeMoved){ toast('Choose a card you control to swap with'); return; }
+      G.board[mv.fromZ][mv.fromR][mv.fromC] = target;
+      G.board[z][r][c] = mv.card;
+    }else{
+      if(target !== null || isBlocked(z, r, c)){toast('Choose an open square on your side of the field');return;}
+      G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
+      G.board[z][r][c] = mv.card;
     }
-    G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
-    G.board[z][r][c] = mv.card;
     if(mv.wolfCreekCard) mv.wolfCreekCard.wolfCreekUsed = true;
     G._wolfCreekMoving = null;
     G.placing = false;
@@ -1656,7 +1666,7 @@ async function clickCell(z,r,c) {
   // Enforce safe row ownership — P1 can only place on row 2+, P2 on row 0
   const cp = G.currentPlayer;
   if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, cp)){
-    playSfx('blocked');toast(r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row');return;
+    playSfx('blocked');toast(r >= 3 ? 'That square is not available' : (r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row'));return;
   }
   if(!ignoresOpponentPlacementLocks && typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0){
     playSfx('blocked');toast('Artillery Distance locks this zone - cannot set cards here.');return;
@@ -1744,12 +1754,20 @@ async function clickCell(z,r,c) {
   // Play card placement sound (rarity-based) — skip if cinematic already handles audio
   var _cinematicHandlesAudio = isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
   if(!_cinematicHandlesAudio){
-    if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
-    else setTimeout(function(){ playCardSound(card.id); }, 0);
-    if(typeof playSfx === 'function') {
-      const setSfxType = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
-      if(typeof playSfxDeferred === 'function') playSfxDeferred(setSfxType, 0);
-      else setTimeout(function(){ playSfx(setSfxType); }, 0);
+    if(typeof playCardSetAudio === 'function') playCardSetAudio(card);
+    else {
+      if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
+      else setTimeout(function(){ playCardSound(card.id); }, 0);
+      if(typeof playSfx === 'function') {
+        const setSfxType = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
+        if(typeof playSfxDeferred === 'function') playSfxDeferred(setSfxType, 0);
+        else setTimeout(function(){ playSfx(setSfxType); }, 0);
+      }
+      if(inst.aff) {
+        const affSfx = 'affPlace_' + inst.aff;
+        if(typeof playSfxDeferred === 'function') playSfxDeferred(affSfx, 24);
+        else setTimeout(function(){ playSfx(affSfx); }, 24);
+      }
     }
   }
   markCommit('audioSchedule');
@@ -1766,12 +1784,6 @@ async function clickCell(z,r,c) {
       ? (inst.type==='Supporter' ? 'opponentPlacedSupporter' : 'opponentPlacedCharacter')
       : 'aiPlacedCard';
     deferSetCommitHook(function(){ triggerAIDialogue(dialogueEvent); });
-  }
-  // Affiliation-specific placement layer
-  if(inst.aff) {
-    const affSfx = 'affPlace_' + inst.aff;
-    if(typeof playSfxDeferred === 'function') playSfxDeferred(affSfx, 24);
-    else setTimeout(function(){ playSfx(affSfx); }, 24);
   }
   markCommit('hooks');
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
@@ -1888,7 +1900,7 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
   G.board[z].forEach((row, rr)=>{
     if(!row) return;
     row.forEach((cell, cc)=>{
-      if(!cell || cell.id!=='24' || cell.owner!==owner || isFaceDownCard(cell) || isSupporterEffectSuppressed(cell)) return;
+      if(!cell || !cardActsAsPassive(cell, '24') || cell.owner!==owner || isFaceDownCard(cell) || isSupporterEffectSuppressed(cell)) return;
       const dr = Math.abs(rr-r), dc = Math.abs(cc-c);
       if(dr + dc === 1) count++;
     });
@@ -1982,16 +1994,17 @@ async function resolveSetCardAfterPlacement(inst, z, r, c) {
 function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
+  let animated = false;
   if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
-    window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
+    animated = !!window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
   }
-  if(typeof playSfx === 'function') playSfx('cardFlip');
-  const placementDelay = triggerPlacementAnimation(card, z, r, c);
-  if(card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function') {
-    const cinematicDelay = Math.max(0, placementDelay || 0) + 90;
-    G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + cinematicDelay + 2350);
-    setTimeout(function(){ showConsolidationCinematic(card, {playVoice:true, playSfx:true}); }, cinematicDelay);
+  if(!animated && typeof playSfx === 'function') playSfx('cardFlip');
+  if(typeof showConsolidationCinematic === 'function' && card.type !== 'Supporter') {
+    setTimeout(function(){
+      showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+    }, animated ? 650 : 90);
   }
+  const placementDelay = 0;
   renderGame({board:true, scores:true, blocks:true, topbar:true});
   requestAnimationFrame(() => resolveSetCardAfterPlacement(card, z, r, c));
   return placementDelay;
@@ -2885,7 +2898,7 @@ function tickCarpathianSpecters() {
 
 const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','21','22','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
 const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
-  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','bh25'
+  '03','04','05','06','07','08','12','13','16','17','21','22','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -2988,6 +3001,12 @@ function clearStalePendingWhenSetEffects() {
     if(expireStalePendingWhenSetEffect(card)) cleared = true;
   });
   return cleared;
+}
+
+function canUsePanaceaLandscapeMoveCard(card) {
+  if(!card || isFaceDownCard(card)) return false;
+  if(card.aff !== 'eventide') return false;
+  return !(typeof isSouthWindSpearmanCard === 'function' && isSouthWindSpearmanCard(card));
 }
 
 async function activatePendingWhenSetEffect(card, z, r, c) {
@@ -3726,10 +3745,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
       break;
-    case '54': { // Wolf Creek: same-zone card-picker window
-      pickCardInZone(z,'Wolf Creek: Select a friendly character in this zone to move:',(tgt,tz,tr,tc)=>{
+    case '54': { // Wolf Creek: same-zone friendly card picker
+      pickWolfCreekMoveCandidate(inst, 'Wolf Creek: Select a highlighted friendly card in this zone to move:', (tgt,tz,tr,tc)=>{
         startWolfCreekMove(tgt, tz, tr, tc, inst);
-      }, function(cell){ return cell && cell.owner===cp && cell.type!=='Supporter' && cell.iid!==inst.iid && !cell.cantBeMoved; });
+      }, z);
       break;
     }
     case '56': // Lydia: negate opponent card effect activations (3 uses)
@@ -4251,13 +4270,14 @@ function shouldShowManualCharacterEffectButton(card) {
   const id = String(card.id || '');
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
   if(id === '40') return Number(card.usesLeft || 0) > 0;
+  if(id === '38') return card.effectUsedThisTurn !== true;
+  if(id === 'bh01') return card.bh01MovedThisTurn !== true;
   if(id === '21' && card.effectUsedInitial) return false;
   if(card.type === 'Coordinator') return false;
   if(card.type === 'Improvisor') return false;
   if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial) return isSameTurnAsCardSet(card);
   if(card.type === 'Initiator' && card.effectUsedInitial) return canRetryInitialSetEffect(card);
-  if(card.effectUsedInitial) return false;
-  return true;
+  return false;
 }
 
 //  FATE HELPERS
@@ -4942,6 +4962,8 @@ async function activateVigilantes(card, z, r, c) {
   const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [opp]);
   if(!allowed) {
     card.vigilanteUsed = true;
+    card.whenSetActivated = true;
+    card.effectUsedInitial = true;
     renderGame({board:true, scores:true, topbar:true});
     return;
   }
@@ -4952,6 +4974,8 @@ async function activateVigilantes(card, z, r, c) {
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     card.vigilanteUsed = true;
+    card.whenSetActivated = true;
+    card.effectUsedInitial = true;
     toast(tgt.name+' has 0 Reinforcement.');
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
@@ -4968,47 +4992,101 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   const options = [];
   for(let zz=0; zz<(G.board ? G.board.length : 3); zz++){
     G.board[zz].forEach((row,rr)=>row.forEach((cell,cc)=>{
-      if(cell || isBlocked(zz,rr,cc)) return;
-      if(isContestedOrOwnSafeSquare(zz, rr, cc, cp)){
-        options.push({z:zz,r:rr,c:cc});
+      if(cell){
+        if(cell.owner === cp && cell.iid !== cardToMove.iid && !cell.cantBeMoved){
+          options.push({z:zz,r:rr,c:cc,kind:'swap'});
+          const el=document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
+          if(el) el.classList.add('placeable','move-target','wolf-creek-swap-target');
+        }
+        return;
+      }
+      if(isWolfCreekSideOpenSquare(zz, rr, cc, cp)){
+        options.push({z:zz,r:rr,c:cc,kind:'move'});
         const el=document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
         if(el) el.classList.add('placeable','move-target');
       }
     }));
   }
-  if(!options.length){ toast('No open squares available for Wolf Creek'); return false; }
+  if(!options.length){ toast('No Wolf Creek move or swap targets available'); return false; }
   G._wolfCreekMoving = { card:cardToMove, fromZ:fromZ, fromR:fromR, fromC:fromC, wolfCreekCard:wolfCreekCard, options:options };
   G.placing = false;
   G.selectedHandCard = null;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
     window.FateMatchRendererAdapter.scheduleRender('square-selection-state');
   }
-  toast('Click a highlighted open square to move '+cardToMove.name);
-  if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square to move '+cardToMove.name+' — press Escape to cancel');
+  toast('Click a highlighted square or card to move '+cardToMove.name);
+  if(typeof setHint === 'function') setHint('Wolf Creek: click a highlighted open square or friendly card to move '+cardToMove.name+' - press Escape to cancel');
   return true;
 }
 
-// Wolf Creek Light Infantry (54): move a character you control in this zone to an open square
-async function activateWolfCreek(card, z, r, c) {
-  const cp = G.currentPlayer;
-  const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [cp]);
-  if(!allowed) {
-    card.wolfCreekUsed = true;
-    renderGame({board:true, scores:true, topbar:true});
+function isWolfCreekMoveCandidateCard(cell, owner, sourceIid) {
+  return !!(cell && cell.owner === owner && cell.iid !== sourceIid && !cell.cantBeMoved);
+}
+
+function isWolfCreekSideOpenSquare(z, r, c, owner) {
+  if(!G || !Array.isArray(G.board) || !G.board[z] || !G.board[z][r]) return false;
+  if(G.board[z][r][c] !== null) return false;
+  if(isBlocked(z, r, c)) return false;
+  if(typeof isContestedOrOwnSafeSquare === 'function') return isContestedOrOwnSafeSquare(z, r, c, owner);
+  const rowOwner = typeof getSquareRowOwner === 'function' ? getSquareRowOwner(z, r) : (r === 1 ? -1 : (r === 0 ? 1 : 0));
+  return rowOwner === -1 || rowOwner === owner;
+}
+
+function collectWolfCreekMoveCandidates(owner, sourceIid, sourceZone) {
+  const entries = [];
+  if(!G || !Array.isArray(G.board)) return entries;
+  const z = Number.isInteger(Number(sourceZone)) ? Number(sourceZone) : -1;
+  const zone = G.board[z];
+  if(!Array.isArray(zone)) return entries;
+  zone.forEach(function(row, r){
+      if(!Array.isArray(row)) return;
+      row.forEach(function(cell, c){
+        if(!isWolfCreekMoveCandidateCard(cell, owner, sourceIid)) return;
+        entries.push({card:cell, z, r, c});
+      });
+  });
+  return entries;
+}
+
+function clearWolfCreekCandidateHighlights() {
+  document.querySelectorAll('.wolf-creek-card-target').forEach(function(el){ el.classList.remove('wolf-creek-card-target'); });
+}
+
+function showWolfCreekCandidateHighlights(entries) {
+  clearWolfCreekCandidateHighlights();
+  (entries || []).forEach(function(entry){
+    const cell = document.querySelector('#board .cell[data-z="'+entry.z+'"][data-r="'+entry.r+'"][data-c="'+entry.c+'"]');
+    if(cell) cell.classList.add('wolf-creek-card-target');
+    const bc = cell && cell.querySelector ? cell.querySelector('.bc') : null;
+    if(bc) bc.classList.add('wolf-creek-card-target');
+  });
+}
+
+function pickWolfCreekMoveCandidate(wolfCreekCard, prompt, callback, fallbackZone) {
+  const owner = typeof wolfCreekCard.owner === 'number' ? wolfCreekCard.owner : G.currentPlayer;
+  const entries = collectWolfCreekMoveCandidates(owner, wolfCreekCard.iid, fallbackZone);
+  if(!entries.length){ toast('No cards in this zone to move'); return; }
+  showWolfCreekCandidateHighlights(entries);
+  const done = function(card, z, r, c){
+    clearWolfCreekCandidateHighlights();
+    if(callback) callback(card, z, r, c);
+  };
+  if(typeof showBoardTargetPicker === 'function') {
+    showBoardTargetPicker({
+      title:'Wolf Creek',
+      prompt:prompt || 'Select a friendly card in this zone to move.',
+      entries,
+      zones:[...new Set(entries.map(function(entry){ return entry.z; }))],
+      maxCount:1,
+      confirmLabel:'Move',
+      showOpponentOverlay:true
+    }, function(chosen){
+      const picked = chosen && chosen[0];
+      if(picked) done(picked.card, picked.z, picked.r, picked.c);
+    });
     return;
   }
-  const myCards = [];
-  if(!G.board[z]){ toast('No zone found'); return; }
-  G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===cp && cell.iid!==card.iid && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && !cell.cantBeMoved){
-      myCards.push({card:cell, z:z, r:ri, c:ci});
-    }
-  }));
-  if(myCards.length===0){toast('No characters to move in this zone');return;}
-  if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardInZone(z,'Wolf Creek: Select a friendly character in this zone to move:',(target, srcZ, srcR, srcC)=>{
-    startWolfCreekMove(target, srcZ, srcR, srcC, card);
-  }, function(cell){ return cell && cell.owner===cp && cell.iid!==card.iid && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && !cell.cantBeMoved; });
+  pickCardInZone(fallbackZone, prompt, done, function(cell){ return isWolfCreekMoveCandidateCard(cell, owner, wolfCreekCard.iid); });
 }
 
 // ALPINE Expeditionary (73): move once per turn to open square on your side
@@ -5050,7 +5128,7 @@ async function activateExpeditionaryMove(card, z, r, c) {
 
 function activateLandscapeEventideMove(card, z, r, c) {
   if(!card || !(typeof isLandscapeActive === 'function' && isLandscapeActive('igb7'))) return;
-  if(card.aff !== 'eventide'){ toast('Only Eventide cards can use this landscape.'); return; }
+  if(!canUsePanaceaLandscapeMoveCard(card)){ toast('Only eligible Eventide cards can use this landscape.'); return; }
   if(card._landscapeEventideMovedTurn === G.turn){ toast('This card already moved by landscape this turn.'); return; }
   if(card.cantBeMoved){ toast('This card cannot be moved.'); return; }
   const cp = G.currentPlayer;
@@ -5459,7 +5537,8 @@ function beginHavanoDeployment(reaction, owner) {
           sourceCard:reaction.card,
           inst,
           owner,
-          source:'hand',
+          source:'effect',
+          placementStyle:'local-square',
           target:{z:o.z, r:o.r, c:o.c},
           commit
         });
@@ -5501,7 +5580,8 @@ function handleHavanoDeployClick(z,r,c) {
       inst:dep.inst,
       sourceCard:dep.sourceCard,
       owner:dep.owner,
-      source:'hand',
+      source:'effect',
+      placementStyle:'local-square',
       target:{z, r, c},
       commit
     });

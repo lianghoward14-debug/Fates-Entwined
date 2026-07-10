@@ -12486,6 +12486,13 @@ html body #s-game .hc:hover{
   width:132px!important;
   height:132px!important;
 }
+#s-coin .coin.coin-pending{
+  font-size:5.85rem!important;
+  font-weight:950!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  text-shadow:0 0 18px rgba(255,232,150,.46),0 2px 10px rgba(0,0,0,.86)!important;
+}
 #s-coin .coin-face-icon{
   width:84px!important;
   height:84px!important;

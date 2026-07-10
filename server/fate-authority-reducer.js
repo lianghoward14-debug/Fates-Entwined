@@ -127,6 +127,50 @@ function boardCardEntries(board){
   return entries;
 }
 
+function boardCardIdentitySetSignature(entries){
+  return (entries || [])
+    .map(entry=>String(entry && entry.key || ''))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+}
+
+function boardCardLayoutSignature(entries){
+  return (entries || [])
+    .map(entry=>[String(entry && entry.key || ''), Number(entry && entry.z), Number(entry && entry.r), Number(entry && entry.c)].join('@'))
+    .sort()
+    .join('|');
+}
+
+function boardAgreementForState(state){
+  const entries = boardCardEntries(state && state.board);
+  return {
+    count:entries.length,
+    identity:boardCardIdentitySetSignature(entries),
+    layout:boardCardLayoutSignature(entries)
+  };
+}
+
+function verifyBoardAgreementPayload(state, payload, actionName){
+  const agreement = payload && payload.boardAgreement;
+  if(!agreement || typeof agreement !== 'object') return {ok:true};
+  const current = boardAgreementForState(state);
+  const expectedCount = Number(agreement.count);
+  const expectedIdentity = String(agreement.identity || '');
+  const expectedLayout = String(agreement.layout || '');
+  if(
+    expectedCount !== current.count ||
+    expectedIdentity !== current.identity ||
+    expectedLayout !== current.layout
+  ){
+    return {
+      ok:false,
+      reason:`${actionName || 'turn boundary'} board agreement mismatch`
+    };
+  }
+  return {ok:true};
+}
+
 function ensureStateBoardCell(state, z, r, c){
   if(!state) return null;
   if(!Array.isArray(state.board)) state.board = [];
@@ -159,7 +203,13 @@ function shouldPreferMoreBoardCardsForAction(type, payload){
   const actionKind = String(payload?.actionKind || payload?.originalType || '').toUpperCase();
   const effectiveType = actionType === 'ACTION_RESULT' && actionKind ? actionKind : actionType;
   if(effectiveType === 'PLACE_CARD') return true;
-  if(effectiveType === 'CLICK_CELL') return !!payload?.placing;
+  if(effectiveType === 'CLICK_CELL') return !!(
+    payload?.placing ||
+    payload?.selectedHandCard !== undefined ||
+    payload?.handIndex !== undefined ||
+    payload?.card ||
+    payload?.cardId
+  );
   return false;
 }
 
@@ -168,12 +218,12 @@ function preferMoreBoardCards(currentState, proposedState, type, payload){
   if(!currentState || !proposedState) return {state:proposedState, repaired:false, restored:0};
   const currentEntries = boardCardEntries(currentState.board);
   const proposedEntries = boardCardEntries(proposedState.board);
-  if(currentEntries.length <= proposedEntries.length) return {state:proposedState, repaired:false, restored:0};
   const proposedKeys = new Set(proposedEntries.map(entry=>entry.key));
-  const repaired = cloneState(proposedState);
+  let repaired = null;
   let restored = 0;
   currentEntries.forEach(entry=>{
     if(!entry.key || proposedKeys.has(entry.key)) return;
+    if(!repaired) repaired = cloneState(proposedState);
     const row = ensureStateBoardCell(repaired, entry.z, entry.r, entry.c);
     if(!row || row[entry.c]) return;
     const card = cloneState(entry.card);
@@ -182,7 +232,7 @@ function preferMoreBoardCards(currentState, proposedState, type, payload){
     proposedKeys.add(entry.key);
     restored += 1;
   });
-  return restored > 0
+  return repaired && restored > 0
     ? {state:repaired, repaired:true, restored}
     : {state:proposedState, repaired:false, restored:0};
 }
@@ -518,13 +568,13 @@ function isCoordinatorSuppressedAtServer(state, z, r, c){
   });
 }
 
-const FRENCH_FUSILIERS_SERVER_COPYABLE_PASSIVE_IDS = new Set(['20','49','53','59','64']);
+const FRENCH_FUSILIERS_SERVER_COPYABLE_PASSIVE_IDS = new Set(['20','24','49','53','59','64']);
 const LEDGER_KEEPERS_SERVER_COPYABLE_WHEN_SET_IDS = new Set([
   '05','16','18','25','26','31','32','33','42','50','58','60','68','69','71','72','73','76','80'
 ]);
 const SERVER_DEFERRED_WHEN_SET_IDS = new Set([
-  '03','04','05','06','07','08','12','13','14','16','17','21','22','26','29','30','31','39','42','43','48',
-  '50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','87','90','94'
+  '03','04','05','06','07','08','12','13','16','17','21','22','26','29','30','31','39','42','43','48',
+  '50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94'
 ]);
 
 function serverCopiedFrenchPassiveId(card){
@@ -1102,15 +1152,37 @@ function reducedResult(state, extra){
   recomputeShieldWallState(state);
   stampServerPendingPromptIds(state);
   refreshPendingInteraction(state);
+  const statePresentationEvents = Array.isArray(state._presentationEvents) ? state._presentationEvents.slice() : [];
+  delete state._presentationEvents;
   const canonicalState = cloneState(state);
   const canonicalHash = canonicalStateHash(canonicalState);
-  return Object.assign({ok:true, canonicalState, canonicalHash, serverReduced:true}, extra || {});
+  const result = Object.assign({ok:true, canonicalState, canonicalHash, serverReduced:true}, extra || {});
+  if(statePresentationEvents.length || Array.isArray(result.presentationEvents)){
+    result.presentationEvents = statePresentationEvents.concat(Array.isArray(result.presentationEvents) ? result.presentationEvents : []);
+  }
+  return result;
 }
 
 function reduceStateSync(room, msg, options){
   const payload = msg.payload || {};
   if(room.canonicalHash && options.allowStateSyncAfterBootstrap === false){
-    return {ok:false, reason:'STATE_SYNC is only allowed before server canonical state is initialized'};
+    const sourceType = String(payload.sourceType || payload.actionKind || '').toUpperCase();
+    const currentEntries = boardCardEntries(room?.canonicalState?.board);
+    const proposedEntries = boardCardEntries(payload?.postState?.board);
+    const currentBoardCards = currentEntries.length;
+    const proposedBoardCards = proposedEntries.length;
+    const moreBoardCardsRepair = sourceType === 'MORE_BOARD_CARDS_REPAIR' && proposedBoardCards > currentBoardCards;
+    const sameCountBoardRepair = sourceType === 'MORE_BOARD_CARDS_REPAIR'
+      && proposedBoardCards === currentBoardCards
+      && boardCardLayoutSignature(proposedEntries) !== boardCardLayoutSignature(currentEntries);
+    const movedBoardCardsRepair = sourceType === 'MORE_BOARD_CARDS_REPAIR'
+      && proposedBoardCards === currentBoardCards
+      && /mov/i.test(String(payload.sourceReason || ''))
+      && boardCardIdentitySetSignature(proposedEntries) === boardCardIdentitySetSignature(currentEntries)
+      && boardCardLayoutSignature(proposedEntries) !== boardCardLayoutSignature(currentEntries);
+    if(!moreBoardCardsRepair && !movedBoardCardsRepair && !sameCountBoardRepair){
+      return {ok:false, reason:'STATE_SYNC is only allowed before server canonical state is initialized'};
+    }
   }
   return validateProposedTransition(room, msg, options);
 }
@@ -1150,6 +1222,8 @@ function reduceEndTurn(room, msg, options){
   const playerIndex = Number(payload.playerIndex);
   if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
   if(Number(state.currentPlayer) !== playerIndex) return {ok:false, reason:'END_TURN player does not have priority'};
+  const boardAgreement = verifyBoardAgreementPayload(state, payload, 'END_TURN');
+  if(!boardAgreement.ok) return boardAgreement;
   if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
     return {ok:false, reason:'END_TURN has an unresolved server interaction'};
   }
@@ -1157,6 +1231,7 @@ function reduceEndTurn(room, msg, options){
     state.oppSuppressedNextTurn = false;
     state.suppressTarget = null;
   }
+  expireSkippedServerVigilantesWindowsForPlayer(state, playerIndex);
   resolveServerBalladEndOfTurn(state, playerIndex);
   applyServerLandscapeLockTurnTick(state);
   state.currentPlayer = playerIndex === 0 ? 1 : 0;
@@ -1176,7 +1251,6 @@ function reduceEndTurn(room, msg, options){
           if(card && Number(card.owner) === Number(state.currentPlayer)){
             card.effectUsedThisTurn = false;
             if(String(card.id || '') === '52') card.vigilanteUsed = false;
-            if(String(card.id || '') === '54') card.wolfCreekUsed = false;
             if(String(card.id || '') === '73') card._expMoved = false;
             if(Number(card._busserMoves || 0) > 0) card._busserMovedThisTurn = false;
             card._landscapeEventideMovedTurn = null;
@@ -1317,7 +1391,7 @@ function applyWineCountryGuerillaTurnTick(state, playerIndex){
       const pick = serverRandomIndex(state, playerIndex, candidates.length, `wineCountryGuerilla:${gc.iid || gc.id || 'source'}`);
       const target = candidates[pick] || candidates[0];
       const before = Math.max(0, Number(target.currentFate ?? target.fate ?? 0) || 0);
-      target.currentFate = Math.max(0, before - 1);
+      target.currentFate = Math.max(0, before - 2);
       if(target.currentFate < before){
         const sourceOwner = (Number(gc.guerilla_owner) === 0 || Number(gc.guerilla_owner) === 1) ? Number(gc.guerilla_owner) : (playerIndex === 0 ? 1 : 0);
         markContinuousDamageSourceForState(state, sourceOwner, '70', gc.iid || gc.id || 'source');
@@ -1394,12 +1468,73 @@ function isBlockedCell(state, z, r, c){
   );
 }
 
+function wineCountryGuerillaSentPresentationEvent(playerIndex, opponentIndex){
+  return {
+    type:'WINE_COUNTRY_GUERILLA_SENT',
+    playerIndex,
+    opponentIndex,
+    cardId:'70',
+    message:'Wine Country Guerilla was sent to opponent\'s hand.'
+  };
+}
+
+function consolidationCompletedPresentationEvent(playerIndex, resultCard, target, tributes){
+  return {
+    type:'CONSOLIDATION_COMPLETED',
+    playerIndex,
+    resultCard:cloneState(resultCard),
+    target:{
+      z:Number(target?.z),
+      r:Number(target?.r),
+      c:Number(target?.c)
+    },
+    tributes:(Array.isArray(tributes) ? tributes : []).map((tribute, index)=>({
+      z:Number(tribute?.z),
+      r:Number(tribute?.r),
+      c:Number(tribute?.c),
+      index,
+      card:cloneState(tribute?.card || null)
+    }))
+  };
+}
+
+function notePresentationEventForState(state, event){
+  if(!state || !event) return;
+  if(!Array.isArray(state._presentationEvents)) state._presentationEvents = [];
+  state._presentationEvents.push(event);
+}
+
+function sendDiscardedCardForState(state, owner, card, reason){
+  if(!card) return {ok:true, moved:false};
+  const ownerIndex = Number(owner);
+  if(!Number.isInteger(ownerIndex) || ownerIndex < 0 || ownerIndex > 1) return {ok:false, reason:'discard owner is invalid'};
+  if(String(card.id || '') === '70' && card.guerilla_transferred !== true && String(reason || '') !== 'wineCountryReturn'){
+    const holder = ownerIndex === 0 ? 1 : 0;
+    if(!Array.isArray(state.players?.[holder]?.hand)) return {ok:false, reason:'Wine Country Guerilla holder hand is invalid'};
+    card.guerilla_transferred = true;
+    card.guerilla_turnsLeft = 5;
+    card.guerilla_owner = ownerIndex;
+    state.players[holder].hand.push(card);
+    notePresentationEventForState(state, wineCountryGuerillaSentPresentationEvent(ownerIndex, holder));
+    return {ok:true, moved:true, infiltrated:true};
+  }
+  if(!Array.isArray(state.players?.[ownerIndex]?.discard)) state.players[ownerIndex].discard = [];
+  state.players[ownerIndex].discard.push(card);
+  return {ok:true, moved:true};
+}
+
 function isSouthWindSpearmanServerCard(card){
   return !!(card && (String(card.id || '') === '20' || serverCopiedFrenchPassiveId(card) === '20'));
 }
 
 function ignoresOpponentPlacementLocksForServer(card){
   return isSouthWindSpearmanServerCard(card);
+}
+
+function canUsePanaceaLandscapeMoveServerCard(card){
+  if(!card || isFaceDownServerCard(card)) return false;
+  if(String(card.aff || '') !== 'eventide') return false;
+  return !isSouthWindSpearmanServerCard(card);
 }
 
 function isTargetImmuneToServerEffectOwner(card, effectOwner){
@@ -1480,60 +1615,66 @@ function serverReactionOptionForHandCard(kind, card, handIndex, deploymentOption
   };
 }
 
-const SERVER_REACTIONABLE_SUPPORTER_WHEN_SET_IDS = new Set([
-  '05','06','07','08','09','13','16','18','20','22','25','26','28','31','32','33',
-  '37','42','47','50','52','54','58','60','62','65','68','69','71','72','73','75',
-  '76','80','91','94'
+function pushUniqueServerReactionOption(options, seen, option){
+  if(!option || typeof option !== 'object') return;
+  const card = option.card || {};
+  const key = [
+    option.kind || '',
+    card.iid || '',
+    card.id || '',
+    option.z ?? '',
+    option.r ?? '',
+    option.c ?? '',
+    option.handIndex ?? ''
+  ].join('|');
+  if(seen.has(key)) return;
+  seen.add(key);
+  options.push(option);
+}
+
+function serverCardEffectText(card){
+  return String(card?.effect || card?.abilityText || card?.text || '');
+}
+
+function serverCardHasWhenSetEffect(card){
+  const effect = serverCardEffectText(card);
+  return /\bwhen\s+(?:this\s+card\s+is\s+)?set\b/i.test(effect)
+    || /\bwhen\s+played\b/i.test(effect)
+    || card?.whenSet === true
+    || card?.onSet === true
+    || !!card?._pendingWhenSetEffect;
+}
+
+const SERVER_SUPPORTED_WHEN_SET_IDS = new Set([
+  '02','03','04','05','06','07','08','09','12','13','14','16','17','18','21','22',
+  '25','26','27','28','29','30','31','32','33','37','38','39','40','42','43','46',
+  '47','48','51','52','56','58','60','61','62','65','66','67','68','69','71','72',
+  '73','75','76','77','80','82','83','84','87','90','91','94'
 ]);
 
-const SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS = new Set([
-  '02','03','04','06','07','08','13','17','22','27','29','30','39','43','48','51',
-  '66','82','87','90'
-]);
-
-const SERVER_REACTIONABLE_ANY_WHEN_SET_IDS = new Set([
-  ...SERVER_REACTIONABLE_SUPPORTER_WHEN_SET_IDS,
-  ...SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS,
-  '12','14','21','34','38','40','45','46','55','56','61','77','83','84','87','90'
-]);
-
-const SERVER_SUPPORTER_EFFECT_AFFECTS_OPPONENT_IDS = new Set([
-  '16','26','31','50','53','61','62','71','72','73','75','76','77','80','91'
-]);
-
-const SERVER_INITIATOR_EFFECT_AFFECTS_OPPONENT_IDS = new Set([
-  '03','04','17','30','39'
-]);
-
-function serverWhenSetEffectAffectsPlayer(state, sourceCard, sourceOwner, targetPlayer, z, family){
-  if(!sourceCard || sourceOwner === targetPlayer) return false;
-  const id = String(sourceCard.id || '');
-  if(String(family || '') === 'supporterWhenSet'){
-    if(SERVER_SUPPORTER_EFFECT_AFFECTS_OPPONENT_IDS.has(id)) return true;
-    if(id === '18') return true;
-    if(id === '20'){
-      return boardCardEntriesInZone(state, z, card=>Number(card.owner) === targetPlayer).length > 0;
-    }
-    return false;
-  }
-  if(String(family || '') === 'initiatorWhenSet'){
-    if(SERVER_INITIATOR_EFFECT_AFFECTS_OPPONENT_IDS.has(id)) return true;
-    return false;
-  }
-  return false;
+function serverWhenSetReactionFamily(card){
+  if(!card || isEffectImmuneSource(card)) return '';
+  const sourceType = String(card.type || '');
+  const id = String(card.id || '');
+  const hasWhenSet = serverCardHasWhenSetEffect(card) || SERVER_DEFERRED_WHEN_SET_IDS.has(id) || SERVER_SUPPORTED_WHEN_SET_IDS.has(id);
+  if(sourceType === 'Supporter' && hasWhenSet) return 'supporterWhenSet';
+  if(sourceType === 'Initiator' && (hasWhenSet || serverCardEffectText(card).trim())) return 'initiatorWhenSet';
+  if(hasWhenSet) return 'whenSetEffect';
+  return '';
 }
 
 function collectHavanoDeploymentOptions(state, playerIndex, card){
   const options = [];
   if(!state || !card || String(card.id || '') !== '79') return options;
   for(let z = 0; z < 3; z += 1){
-    const zone = state.board?.[z] || [];
-    for(let r = 0; r < Math.min(zone.length, 9); r += 1){
-      const row = zone[r] || [];
+    const totalRows = Math.min(9, 3 + (Number(state.extraRows?.[z] || 0) || 0));
+    for(let r = 0; r < totalRows; r += 1){
       const rowOwner = rowOwnerForState(state, z, r);
       if(rowOwner !== -1 && rowOwner !== playerIndex) continue;
-      for(let c = 0; c < Math.min(row.length, 9); c += 1){
-        if(row[c] !== null) continue;
+      const extraRow = r < 3 ? (state.extraCells?.[z]?.[r] || null) : null;
+      const totalCols = Math.min(9, 3 + (playerIndex === 0 ? Number(extraRow?.p1 || 0) : Number(extraRow?.p2 || 0)));
+      for(let c = 0; c < totalCols; c += 1){
+        if(state.board?.[z]?.[r]?.[c] !== null && state.board?.[z]?.[r]?.[c] !== undefined) continue;
         if(isBlockedCell(state, z, r, c)) continue;
         if(isArtilleryLockedConsolidationZone(state, z, playerIndex)) continue;
         if(isBlockedByAlondra(state, z, r, c, playerIndex)) continue;
@@ -1544,29 +1685,57 @@ function collectHavanoDeploymentOptions(state, playerIndex, card){
   return options;
 }
 
-function collectHavanoReactionOptions(state, sourceCard, sourceOwner, family, z){
-  const reactor = sourceOwner === 0 ? 1 : 0;
-  if(!serverWhenSetEffectAffectsPlayer(state, sourceCard, sourceOwner, reactor, z, family)) return [];
-  const hand = state.players?.[reactor]?.hand || [];
-  const options = [];
-  hand.forEach((card, handIndex)=>{
-    if(!card || String(card.id || '') !== '79') return;
-    if(isSupporterEffectSuppressedForState(state, card)) return;
-    const deploymentOptions = collectHavanoDeploymentOptions(state, reactor, card);
-    if(deploymentOptions.length) options.push(serverReactionOptionForHandCard('havano', card, handIndex, deploymentOptions));
-  });
-  return options;
+function collectServerReactionOptions(state, sourceCard, sourceOwner, family, sourceZ){
+  return collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, family, {sourceZ});
 }
 
-function collectServerReactionOptions(state, sourceCard, sourceOwner, family, sourceZ){
-  const options = [];
-  if(!state || !sourceCard || isEffectImmuneSource(sourceCard)) return options;
-  const reactor = sourceOwner === 0 ? 1 : 0;
+function armServerReactionWindowForWhenSet(state, inst, playerIndex, z, r, c){
+  if(!state || !inst) return false;
+  const kind = serverWhenSetReactionFamily(inst);
+  if(!kind) return false;
+  if(isSupporterEffectSuppressedForState(state, inst)) return false;
+  return armMultiplayerImprovisorReactionWindow(state, inst, playerIndex, {z, r, c}, kind, {
+    sourceZ:z,
+    promptPrefix:'rx'
+  });
+}
+
+function multiplayerImprovisorEffectFamily(family){
+  const name = String(family || '').trim();
+  if(/^(supporterWhenSet|initiatorWhenSet|whenSetEffect|pendingWhenSetEffect|manualEffect|manualCharacterEffect|effectActivation)$/i.test(name)) return name;
+  return '';
+}
+
+function multiplayerImprovisorLydiaEligible(sourceCard, family){
+  if(!sourceCard) return false;
+  return !!multiplayerImprovisorEffectFamily(family);
+}
+
+function multiplayerImprovisorSeculesEligible(sourceCard, family){
+  if(!sourceCard) return false;
   const sourceType = String(sourceCard.type || '');
-  const isSupporterWhenSet = String(family || '') === 'supporterWhenSet' && sourceType === 'Supporter';
-  const isInitiatorWhenSet = String(family || '') === 'initiatorWhenSet' && sourceType === 'Initiator';
-  const isAnyWhenSet = String(family || '') === 'whenSetEffect';
-  if(!isSupporterWhenSet && !isInitiatorWhenSet && !isAnyWhenSet) return options;
+  const familyName = multiplayerImprovisorEffectFamily(family);
+  if(!familyName) return false;
+  if(sourceType === 'Initiator') return true;
+  return sourceType === 'Supporter' && /^(supporterWhenSet|whenSetEffect|pendingWhenSetEffect)$/i.test(familyName);
+}
+
+function multiplayerImprovisorHavanoEligible(state, sourceCard, sourceOwner, family, sourceZ, postState){
+  if(!sourceCard) return false;
+  return !!multiplayerImprovisorEffectFamily(family);
+}
+
+function collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, family, context){
+  const options = [];
+  const seen = new Set();
+  const triggerOwner = Number(sourceOwner);
+  if(!state || !sourceCard || !Number.isInteger(triggerOwner) || triggerOwner < 0 || triggerOwner > 1) return options;
+  if(isEffectImmuneSource(sourceCard)) return options;
+  const familyName = multiplayerImprovisorEffectFamily(family);
+  if(!familyName) return options;
+  const reactor = triggerOwner === 0 ? 1 : 0;
+  const postState = context?.postState || null;
+  const sourceZ = Number.isInteger(Number(context?.sourceZ)) ? Number(context.sourceZ) : null;
   for(let z = 0; z < 3; z += 1){
     const zone = state.board?.[z] || [];
     for(let r = 0; r < zone.length; r += 1){
@@ -1574,55 +1743,286 @@ function collectServerReactionOptions(state, sourceCard, sourceOwner, family, so
       for(let c = 0; c < row.length; c += 1){
         const card = row[c];
         if(!card || Number(card.owner) !== reactor || isFaceDownServerCard(card) || card.immuneFlag === true) continue;
-        if(String(card.id || '') === '56'){
+        const id = String(card.id || '');
+        if(id === '56' && multiplayerImprovisorLydiaEligible(sourceCard, familyName)){
           if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 3;
-          if(Number(card.usesLeft || 0) > 0) options.push(serverReactionOptionForBoardCard('lydia', card, z, r, c));
+          if(Number(card.usesLeft || 0) > 0){
+            pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('lydia', card, z, r, c));
+          }
         }
-        if((isSupporterWhenSet || isInitiatorWhenSet) && String(card.id || '') === '67'){
+        if(id === '67' && multiplayerImprovisorSeculesEligible(sourceCard, familyName)){
           if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = card._seculesUsed ? 0 : 1;
-          if(Number(card.usesLeft || 0) > 0) options.push(serverReactionOptionForBoardCard('secules', card, z, r, c));
+          if(Number(card.usesLeft || 0) > 0){
+            pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('secules', card, z, r, c));
+          }
         }
       }
     }
   }
-  collectHavanoReactionOptions(state, sourceCard, sourceOwner, family, Number(sourceZ)).forEach(option=>options.push(option));
+  if(multiplayerImprovisorHavanoEligible(state, sourceCard, triggerOwner, familyName, sourceZ, postState)){
+    const hand = state.players?.[reactor]?.hand || [];
+    hand.forEach((card, handIndex)=>{
+      if(!card || String(card.id || '') !== '79') return;
+      if(isSupporterEffectSuppressedForState(state, card)) return;
+      const deploymentOptions = collectHavanoDeploymentOptions(state, reactor, card);
+      pushUniqueServerReactionOption(options, seen, serverReactionOptionForHandCard('havano', card, handIndex, deploymentOptions));
+    });
+  }
   return options;
 }
 
-function armServerReactionWindowForWhenSet(state, inst, playerIndex, z, r, c){
-  if(!state || !inst) return false;
-  const sourceType = String(inst.type || '');
-  const id = String(inst.id || '');
-  let kind = '';
-  if(sourceType === 'Supporter' && SERVER_REACTIONABLE_SUPPORTER_WHEN_SET_IDS.has(id)) kind = 'supporterWhenSet';
-  if(sourceType === 'Initiator' && SERVER_REACTIONABLE_INITIATOR_WHEN_SET_IDS.has(id)) kind = 'initiatorWhenSet';
-  if(!kind && SERVER_REACTIONABLE_ANY_WHEN_SET_IDS.has(id)) kind = 'whenSetEffect';
+function armMultiplayerImprovisorReactionWindow(state, sourceCard, sourceOwner, sourcePosition, family, reactionOptions){
+  if(!state || !sourceCard) return false;
+  const kind = multiplayerImprovisorEffectFamily(family);
   if(!kind) return false;
-  if(isSupporterEffectSuppressedForState(state, inst)) return false;
-  const options = collectServerReactionOptions(state, inst, playerIndex, kind, z);
+  const options = collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, kind, reactionOptions || {});
   if(!options.length) return false;
+  const triggerOwner = Number(sourceOwner);
+  const z = Number(sourcePosition?.z), r = Number(sourcePosition?.r), c = Number(sourcePosition?.c);
   const seq = (Number(state._serverReactionSeq || 0) || 0) + 1;
   state._serverReactionSeq = seq;
-  state._serverPendingReaction = {
+  const promptPrefix = String(reactionOptions?.promptPrefix || 'rx');
+  const pending = {
     kind,
-    promptId:`rx:${Number(state.turn || 0) || 0}:${playerIndex}:${inst.iid || inst.id || 'card'}:${z}:${r}:${c}:${seq}`,
-    playerIndex:playerIndex === 0 ? 1 : 0,
-    triggerPlayerIndex:playerIndex,
+    promptId:`${promptPrefix}:${Number(state.turn || 0) || 0}:${triggerOwner}:${sourceCard.iid || sourceCard.id || 'card'}:${Number.isInteger(z) ? z : 'x'}:${Number.isInteger(r) ? r : 'x'}:${Number.isInteger(c) ? c : 'x'}:${seq}`,
+    playerIndex:triggerOwner === 0 ? 1 : 0,
+    triggerPlayerIndex:triggerOwner,
     source:{
       z,
       r,
       c,
-      card:serverReactionCardIdentity(inst)
+      card:serverReactionCardIdentity(sourceCard)
     },
-    sourceType:String(inst.type || ''),
-    sourceName:inst.name || 'Supporter',
+    sourceType:String(sourceCard.type || ''),
+    sourceName:sourceCard.name || 'Effect',
     options,
     timeoutMs:15000
   };
+  if(reactionOptions?.resolution) pending.resolution = cloneState(reactionOptions.resolution);
+  state._serverPendingReaction = pending;
   state.selectedBoardCard = null;
   state.placing = false;
   state.blockingCell = false;
   return true;
+}
+
+function armServerReactionWindowForResolvedState(state, source, playerIndex, z, r, c, resolvedState, family){
+  if(!state || !source || !resolvedState) return false;
+  const postState = cloneState(resolvedState);
+  delete postState._serverPendingReaction;
+  return armMultiplayerImprovisorReactionWindow(state, source, playerIndex, {z, r, c}, family || 'effectActivation', {
+    postState,
+    promptPrefix:'rxs',
+    resolution:{
+      kind:'authoritativePostState',
+      postState,
+      stateHash:canonicalStateHash(postState)
+    }
+  });
+}
+
+function armServerReactionWindowForAuthoritativePostState(state, source, playerIndex, z, r, c, payload, family){
+  if(!state || !source || !payload || !payload.postState || !payload.stateHash) return false;
+  return armMultiplayerImprovisorReactionWindow(state, source, playerIndex, {z, r, c}, family || 'effectActivation', {
+    postState:payload.postState,
+    promptPrefix:'rxp',
+    resolution:{
+      kind:'authoritativePostState',
+      postState:cloneState(payload.postState),
+      stateHash:String(payload.stateHash || '')
+    }
+  });
+}
+
+function armServerReactionWindowForManualEffect(state, source, playerIndex, z, r, c){
+  if(!state || !source) return false;
+  return armMultiplayerImprovisorReactionWindow(state, source, playerIndex, {z, r, c}, 'manualCharacterEffect', {
+    promptPrefix:'rxm',
+    resolution:{kind:'manualCharacterEffect'}
+  });
+}
+
+function universalImprovisorFallbackIntent(intent){
+  return /^(PLACE_CARD|BOARD_ACTION|HAND_ACTION|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET)$/i.test(String(intent || ''));
+}
+
+function pendingEffectSourceLocation(pending){
+  if(!pending || typeof pending !== 'object') return null;
+  const z = pending.sourceZ !== undefined ? Number(pending.sourceZ) : Number(pending.z);
+  const r = pending.sourceR !== undefined ? Number(pending.sourceR) : Number(pending.r);
+  const c = pending.sourceC !== undefined ? Number(pending.sourceC) : Number(pending.c);
+  if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) return {z, r, c};
+  return null;
+}
+
+function universalImprovisorFamilyForSource(source, pending, intent, payload){
+  const kind = String(pending?.kind || payload?.fn || intent || '');
+  const type = String(source?.type || '');
+  const whenSetFamily = serverWhenSetReactionFamily(source);
+  if(pending && whenSetFamily) return whenSetFamily;
+  if(/whenSet|WhenSet|set/i.test(kind)){
+    if(type === 'Supporter') return 'supporterWhenSet';
+    if(type === 'Initiator') return 'initiatorWhenSet';
+    return 'whenSetEffect';
+  }
+  if(type === 'Initiator') return 'manualCharacterEffect';
+  return 'manualEffect';
+}
+
+function universalImprovisorSourceForAction(preState, msg, intent){
+  if(!preState || !msg) return null;
+  const payload = msg.payload || {};
+  const pending = preState._serverPendingZonePick || preState._serverPendingMove || preState._serverPendingCardPick || preState._serverPendingModalAction || null;
+  let loc = pendingEffectSourceLocation(pending);
+  if(!loc && /^(BOARD_ACTION|HAND_ACTION|RESOLVE_MODAL|RESOLVE_ZONE_PICK|RESOLVE_CARD_PICK|RESOLVE_AFFILIATION_PICK|SELECT_BOARD_TARGET|SELECT_PENDING_MOVE_CELL)$/i.test(String(intent || ''))){
+    const candidates = [payload, payload.source, payload.effectCinematic, payload.boardSource, payload.selectedBoardCard];
+    for(const candidate of candidates){
+      const z = Number(candidate?.z), r = Number(candidate?.r), c = Number(candidate?.c);
+      if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
+        loc = {z, r, c};
+        break;
+      }
+    }
+  }
+  if(!loc) return null;
+  const source = preState.board?.[loc.z]?.[loc.r]?.[loc.c] || null;
+  if(!source || isFaceDownServerCard(source)) return null;
+  if(pending?.sourceIid && String(source.iid || '') !== String(pending.sourceIid || '')) return null;
+  if(pending?.iid && String(source.iid || '') !== String(pending.iid || '')) return null;
+  const identityPayload = payload.card || payload.source?.card || payload.effectCinematic?.card || payload.boardSource?.card || null;
+  if(identityPayload && !cardMatchesPayloadIdentity(source, identityPayload)) return null;
+  return {
+    z:loc.z,
+    r:loc.r,
+    c:loc.c,
+    source,
+    family:universalImprovisorFamilyForSource(source, pending, intent, payload)
+  };
+}
+
+function clearConsumedPendingForUniversalReaction(state, intent){
+  const action = String(intent || '').toUpperCase();
+  if(action === 'RESOLVE_ZONE_PICK') state._serverPendingZonePick = null;
+  else if(action === 'SELECT_PENDING_MOVE_CELL') state._serverPendingMove = null;
+  else if(action === 'RESOLVE_CARD_PICK') state._serverPendingCardPick = null;
+  else if(action === 'RESOLVE_MODAL' || action === 'RESOLVE_AFFILIATION_PICK') state._serverPendingModalAction = null;
+}
+
+function removePlacedHandCardForReactionBase(state, playerIndex, payload, placedCard){
+  const hand = state?.players?.[playerIndex]?.hand;
+  if(!Array.isArray(hand)) return;
+  const selected = payload?.selectedHand || {};
+  let idx = -1;
+  if(selected && (selected.iid || selected.id || selected.name)){
+    idx = hand.findIndex(card=>cardMatchesPayloadIdentity(card, selected));
+  }
+  if(idx < 0 && placedCard) idx = hand.findIndex(card=>cardMatchesPayloadIdentity(card, placedCard));
+  const selectedIndex = Number(selected.index ?? payload?.handIndex);
+  if(idx < 0 && Number.isInteger(selectedIndex) && selectedIndex >= 0 && selectedIndex < hand.length) idx = selectedIndex;
+  if(idx >= 0) hand.splice(idx, 1);
+}
+
+function actionResultPlacementReactionBase(room, msg, intent, result){
+  const preState = room?.canonicalState;
+  const postState = result?.canonicalState;
+  const payload = msg?.payload || {};
+  const action = String(intent || '').toUpperCase();
+  if(action !== 'PLACE_CARD') return null;
+  if(!preState || !postState) return null;
+  const playerIndex = Number(payload.playerIndex);
+  if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return null;
+  const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
+  if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
+  const placed = postState.board?.[z]?.[r]?.[c] || null;
+  if(!placed || Number(placed.owner) !== playerIndex || isFaceDownServerCard(placed)) return null;
+  const family = serverWhenSetReactionFamily(placed);
+  if(!family) return null;
+  const selected = payload.selectedHand || {};
+  if(selected && (selected.iid || selected.id || selected.name)){
+    const preHand = preState.players?.[playerIndex]?.hand || [];
+    if(!preHand.some(card=>cardMatchesPayloadIdentity(card, selected))) return null;
+    if(!cardMatchesPayloadIdentity(placed, selected)) return null;
+  }
+  const reactionBase = cloneState(preState);
+  if(!Array.isArray(reactionBase.board)) reactionBase.board = [];
+  ensureBoardCell(reactionBase, z, r, c);
+  if(reactionBase.board[z][r][c]) return null;
+  removePlacedHandCardForReactionBase(reactionBase, playerIndex, payload, placed);
+  reactionBase.board[z][r][c] = cloneState(placed);
+  [
+    'supportsPlacedThisTurn',
+    'maxSupportsPerTurn',
+    'extraSupportsThisTurn',
+    'supportersSetP',
+    'supporterReinforcementSetP',
+    'placing',
+    'selectedHandCard',
+    'selectedBoardCard',
+    'blockingCell'
+  ].forEach(key=>{
+    if(postState[key] !== undefined) reactionBase[key] = cloneState(postState[key]);
+  });
+  reactionBase.placing = false;
+  reactionBase.selectedHandCard = null;
+  reactionBase.selectedBoardCard = null;
+  reactionBase.blockingCell = false;
+  return {
+    reactionBase,
+    source:reactionBase.board?.[z]?.[r]?.[c] || cloneState(placed),
+    z,
+    r,
+    c,
+    family
+  };
+}
+
+function maybeArmUniversalImprovisorReaction(room, msg, intent, result, options){
+  if(!result || result.ok === false || !result.canonicalState || !result.canonicalHash) return result;
+  if(!universalImprovisorFallbackIntent(intent)) return result;
+  const preState = room?.canonicalState;
+  if(!preState || preState._serverPendingReaction || result.canonicalState._serverPendingReaction) return result;
+  if(String(result.canonicalHash || '') === String(room?.canonicalHash || '')) return result;
+  const placementInfo = actionResultPlacementReactionBase(room, msg, intent, result);
+  if(placementInfo){
+    const resolvedState = cloneState(result.canonicalState);
+    if(!armServerReactionWindowForResolvedState(placementInfo.reactionBase, placementInfo.source, Number(msg?.payload?.playerIndex), placementInfo.z, placementInfo.r, placementInfo.c, resolvedState, placementInfo.family)){
+      return result;
+    }
+    placementInfo.reactionBase._serverUniversalImprovisorFallback = {
+      intent:String(intent || ''),
+      originalStateHash:String(result.canonicalHash || ''),
+      family:placementInfo.family,
+      sourceIid:placementInfo.source?.iid || null,
+      placement:true
+    };
+    const next = reducedResult(placementInfo.reactionBase, {
+      baseStateHash:result.baseStateHash,
+      presentationEvents:result.presentationEvents
+    });
+    next.universalImprovisorFallback = true;
+    return next;
+  }
+  const sourceInfo = universalImprovisorSourceForAction(preState, msg, intent);
+  if(!sourceInfo) return result;
+  const reactionBase = cloneState(preState);
+  clearConsumedPendingForUniversalReaction(reactionBase, intent);
+  const reactionSource = reactionBase.board?.[sourceInfo.z]?.[sourceInfo.r]?.[sourceInfo.c] || cloneState(sourceInfo.source);
+  const resolvedState = cloneState(result.canonicalState);
+  if(!armServerReactionWindowForResolvedState(reactionBase, reactionSource, Number(msg?.payload?.playerIndex), sourceInfo.z, sourceInfo.r, sourceInfo.c, resolvedState, sourceInfo.family)){
+    return result;
+  }
+  reactionBase._serverUniversalImprovisorFallback = {
+    intent:String(intent || ''),
+    originalStateHash:String(result.canonicalHash || ''),
+    family:sourceInfo.family,
+    sourceIid:reactionSource?.iid || null
+  };
+  const next = reducedResult(reactionBase, {
+    baseStateHash:result.baseStateHash,
+    presentationEvents:result.presentationEvents
+  });
+  next.universalImprovisorFallback = true;
+  return next;
 }
 
 function pendingReactionSource(state, pending){
@@ -1641,6 +2041,18 @@ function completePendingReactionOriginalEffect(state, pending, options){
   const owner = Number(source.card.owner);
   if(owner !== Number(pending.triggerPlayerIndex)) return {ok:false, reason:'pending reaction source owner mismatch'};
   state._serverPendingReaction = null;
+  if(String(pending?.resolution?.kind || '') === 'authoritativePostState'){
+    const next = cloneState(pending.resolution.postState || null);
+    if(!next) return {ok:false, reason:'pending reaction postState is missing'};
+    next._serverPendingReaction = null;
+    next.selectedBoardCard = null;
+    next.placing = false;
+    next.blockingCell = false;
+    return {ok:true, state:next};
+  }
+  if(String(pending?.resolution?.kind || pending?.kind || '') === 'manualCharacterEffect'){
+    return applySupportedManualCharacterEffectState(state, source.card, owner);
+  }
   const whenSet = applySupportedWhenSetState(state, source.card, owner, source.z, source.r, source.c);
   if(whenSet && whenSet.ok === false) return whenSet;
   armPostWhenSetInteractionHooks(state, source.card, owner, source.z, source.r, source.c);
@@ -1701,9 +2113,13 @@ function selectedHavanoDeploymentPayload(payload){
 }
 
 function deployHavanoReaction(state, selected, payload, playerIndex){
+  const deploymentOptions = Array.isArray(selected?.option?.deploymentOptions) ? selected.option.deploymentOptions : [];
+  if(!deploymentOptions.length){
+    return {ok:true, skippedDeployment:true};
+  }
   const deployment = selectedHavanoDeploymentPayload(payload);
   if(deployment.error) return {ok:false, reason:deployment.error};
-  const allowed = Array.isArray(selected.option.deploymentOptions) && selected.option.deploymentOptions.some(option =>
+  const allowed = deploymentOptions.some(option =>
     Number(option.z) === deployment.z &&
     Number(option.r) === deployment.r &&
     Number(option.c) === deployment.c
@@ -1756,6 +2172,22 @@ function rowOwnerForState(state, z, r){
   const key = `${z}:${r}`;
   const owner = owners[key] ?? owners[z]?.[r - 3] ?? owners[z]?.[r];
   return Number.isInteger(Number(owner)) ? Number(owner) : 0;
+}
+
+function zoneControllerForState(state, z){
+  const s0 = serverZoneScore(state, z, 0);
+  const s1 = serverZoneScore(state, z, 1);
+  return s0 > s1 ? 0 : (s1 > s0 ? 1 : -1);
+}
+
+function isWolfCreekSideOpenSquareForState(state, z, r, c, playerIndex){
+  const zone = state?.board?.[z];
+  const row = zone?.[r];
+  if(!Array.isArray(row)) return false;
+  if(row[c] !== null) return false;
+  if(isBlockedCell(state, z, r, c)) return false;
+  const rowOwner = rowOwnerForState(state, z, r);
+  return rowOwner === -1 || rowOwner === playerIndex;
 }
 
 function catalogCardFor(card, options){
@@ -2099,6 +2531,9 @@ function drawCardsForState(state, playerIndex, count, options){
     if(!westCoast.ok) return westCoast;
     if(westCoast.armed) return {ok:true, drawn, pending:true};
   }
+  const handLimit = armPendingHandLimitDiscardIfNeeded(state, playerIndex);
+  if(!handLimit.ok) return handLimit;
+  if(handLimit.armed) return {ok:true, drawn, pending:true};
   return {ok:true, drawn};
 }
 
@@ -2189,6 +2624,15 @@ function armPendingLinaFreeSet(state, playerIndex, source){
   state._serverPendingCardPick = pending;
   if(source) source.effectUsedInitial = true;
   return {ok:true, armed:true};
+}
+
+function armPendingHandLimitDiscardIfNeeded(state, playerIndex){
+  if(state?._serverPendingCardPick || state?._serverPendingZonePick || state?._serverPendingMove || state?._serverPendingModalAction) return {ok:true, armed:false};
+  const player = state?.players?.[playerIndex];
+  if(!player || !Array.isArray(player.hand)) return {ok:false, reason:'hand limit state is invalid'};
+  const excess = player.hand.length - 9;
+  if(excess <= 0) return {ok:true, armed:false};
+  return armPendingHandDiscard(state, playerIndex, null, excess, 'handLimit');
 }
 
 function armPendingKvetkaFreeSet(state, playerIndex, source){
@@ -2432,9 +2876,8 @@ function applyAlpineExpeditionaryWhenSet(state, inst, playerIndex, z){
       totalFate += currentFate(cell);
     });
   });
-  if(!Array.isArray(state.players?.[playerIndex]?.discard)) state.players[playerIndex].discard = [];
   toDiscard.forEach(item=>{
-    state.players[playerIndex].discard.push(cloneState(item.card));
+    sendDiscardedCardForState(state, playerIndex, cloneState(item.card), 'alpineDiscard');
     if(state.board?.[z]?.[item.r]) state.board[z][item.r][item.c] = null;
   });
   if(totalFate > 0) inst.currentFate = (Number(inst.currentFate ?? inst.fate ?? 0) || 0) + totalFate;
@@ -2474,7 +2917,7 @@ function isPlayableExtraSafeCellForState(state, z, r, c, playerIndex){
 
 function isLandscapeEventideMoveTargetForState(state, card, playerIndex, fromZ, fromR, fromC, z, r, c){
   if(Number(z) === Number(fromZ) && Number(r) === Number(fromR) && Number(c) === Number(fromC)) return false;
-  if(!card || String(card.aff || '') !== 'eventide') return false;
+  if(!canUsePanaceaLandscapeMoveServerCard(card)) return false;
   if(card.contestedOnly && Number(r) !== 1) return false;
   if(Number(r) >= 3){
     if(!isPlayableExtraSafeCellForState(state, z, r, c, playerIndex)) return false;
@@ -2959,8 +3402,7 @@ function applyAlondraWhenSet(state, inst, playerIndex, z, r, c){
     const card = entry.card;
     if(!card || Number(card.owner) !== opponent || String(card.type || '') !== 'Supporter') return;
     if(isTargetImmuneToServerEffectOwner(card, playerIndex)) return;
-    if(!Array.isArray(state.players?.[opponent]?.discard)) state.players[opponent].discard = [];
-    state.players[opponent].discard.push(cloneState(card));
+    sendDiscardedCardForState(state, opponent, cloneState(card), 'alondraDiscard');
     state.board[entry.z][entry.r][entry.c] = null;
     gained += 1;
   });
@@ -3095,18 +3537,6 @@ function applySupportedWhenSetState(state, inst, playerIndex, z, r, c){
   if(id === '18'){
     state.oppSuppressedNextTurn = true;
     state.suppressTarget = playerIndex === 0 ? 1 : 0;
-  }
-  if(id === '22'){
-    const adjacent = orthogonalAdjacentEntries(state, z, r, c).filter(entry=>entry.card && entry.card.iid !== inst.iid).length;
-    if(adjacent > 0){
-      state.extraSupportsThisTurn = (Number(state.extraSupportsThisTurn || 0) || 0) + adjacent;
-      state._isaacPerezExtraSupports = {
-        owner:playerIndex,
-        turn:Number(state.turn || 0) || 0,
-        sourceIid:inst.iid || null,
-        extraSupports:adjacent
-      };
-    }
   }
   if(id === '04') setPendingZoeBlockSquare(state, inst, playerIndex, z, r, c);
   if(id === '17') setPendingCarolynBlockCell(state, inst, playerIndex, z, r, c);
@@ -3334,6 +3764,10 @@ function setPendingSameZoneWhenSetPick(state, inst, playerIndex, z, r, c){
     kind = 'makennaImmune';
     maxCount = 2;
     hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === playerIndex).length > 0;
+  } else if(id === '22'){
+    kind = 'isaacPerezFateBoost';
+    maxCount = 2;
+    hasTarget = boardCardEntriesInZone(state, z, card=>Number(card.owner) === playerIndex && !isFaceDownServerCard(card)).length > 0;
   } else if(id === '16'){
     kind = 'minaeDiscardSupporter';
     const opponent = playerIndex === 0 ? 1 : 0;
@@ -3372,6 +3806,36 @@ function isVigilantesTarget(card, playerIndex){
     !isTargetImmuneToServerEffectOwner(card, playerIndex);
 }
 
+function serverCanActivateVigilantesWindow(state, source){
+  if(!state || !source || String(source.id || '') !== '52' || isFaceDownServerCard(source)) return false;
+  if(source.vigilanteUsed === true || source.whenSetActivated === true) return false;
+  const currentTurn = Number(state.turn || 0) || 0;
+  const pending = source._pendingWhenSetEffect;
+  if(pending && typeof pending === 'object') {
+    const pendingTurn = Number(pending.turnQueued);
+    return !Number.isFinite(pendingTurn) || pendingTurn === currentTurn;
+  }
+  const setTurn = Number(source._setTurn);
+  return Number.isFinite(setTurn) && setTurn === currentTurn;
+}
+
+function expireSkippedServerVigilantesWindowsForPlayer(state, playerIndex){
+  if(!state || !Array.isArray(state.board)) return;
+  state.board.forEach(zone=>{
+    if(!Array.isArray(zone)) return;
+    zone.forEach(row=>{
+      if(!Array.isArray(row)) return;
+      row.forEach(card=>{
+        if(!card || Number(card.owner) !== Number(playerIndex) || String(card.id || '') !== '52') return;
+        if(card.vigilanteUsed === true || card.whenSetActivated === true) return;
+        delete card._pendingWhenSetEffect;
+        card.whenSetActivated = true;
+        card.effectUsedInitial = true;
+      });
+    });
+  });
+}
+
 function setPendingVigilantesPick(state, inst, playerIndex, z, r, c){
   if(String(inst?.id || '') !== '52') return;
   const zone = state?.board?.[z] || [];
@@ -3400,17 +3864,11 @@ function setPendingVigilantesPick(state, inst, playerIndex, z, r, c){
 function isWolfCreekMoveCandidate(card, playerIndex, sourceIid){
   if(!card || typeof card !== 'object') return false;
   return Number(card.owner) === playerIndex &&
-    String(card.type || '') !== 'Supporter' &&
     (!sourceIid || card.iid !== sourceIid) &&
     card.cantBeMoved !== true;
 }
 
-function isContestedOrOwnSafeSquareForState(state, z, r, playerIndex){
-  const owner = rowOwnerForState(state, z, r);
-  return owner === -1 || owner === playerIndex;
-}
-
-function collectWolfCreekMoveOptions(state, playerIndex){
+function collectWolfCreekMoveOptions(state, playerIndex, movingIid){
   const options = [];
   const zones = Array.isArray(state?.board) ? state.board : [];
   for(let z = 0; z < zones.length; z += 1){
@@ -3418,10 +3876,15 @@ function collectWolfCreekMoveOptions(state, playerIndex){
     for(let r = 0; r < zone.length; r += 1){
       const row = zone[r] || [];
       for(let c = 0; c < row.length; c += 1){
-        if(row[c] !== null) continue;
-        if(isBlockedCell(state, z, r, c)) continue;
-        if(!isContestedOrOwnSafeSquareForState(state, z, r, playerIndex)) continue;
-        options.push({z, r, c});
+        const cell = row[c];
+        if(cell){
+          if(String(cell.iid || '') !== String(movingIid || '') && isWolfCreekMoveCandidate(cell, playerIndex, movingIid || null)){
+            options.push({z, r, c, kind:'swap'});
+          }
+          continue;
+        }
+        if(!isWolfCreekSideOpenSquareForState(state, z, r, c, playerIndex)) continue;
+        options.push({z, r, c, kind:'move'});
       }
     }
   }
@@ -3439,13 +3902,30 @@ function hasWolfCreekMoveCandidateInZone(state, playerIndex, z, sourceIid){
   return false;
 }
 
+function collectWolfCreekMoveCandidateEntries(state, playerIndex, sourceIid, sourceZ){
+  const entries = [];
+  const z = Number.isInteger(Number(sourceZ)) ? Number(sourceZ) : null;
+  if(z === null) return entries;
+  const zone = state?.board?.[z] || [];
+  for(let r = 0; r < zone.length; r += 1){
+    const row = zone[r] || [];
+    for(let c = 0; c < row.length; c += 1){
+      if(!isWolfCreekMoveCandidate(row[c], playerIndex, sourceIid)) continue;
+      entries.push({z, r, c});
+    }
+  }
+  return entries;
+}
+
 function setPendingWolfCreekPick(state, inst, playerIndex, z, r, c){
   if(String(inst?.id || '') !== '54') return;
-  if(!hasWolfCreekMoveCandidateInZone(state, playerIndex, z, inst.iid || null)) return;
+  const options = collectWolfCreekMoveCandidateEntries(state, playerIndex, inst.iid || null, z);
+  if(!options.length) return;
   if(!collectWolfCreekMoveOptions(state, playerIndex).length) return;
   state._serverPendingZonePick = {
     kind:'wolfCreekSelectMoveTarget',
     playerIndex,
+    options,
     z,
     r,
     c,
@@ -3633,7 +4113,7 @@ function countFriendlyRalphAdjacencyForState(state, z, r, c, owner){
   zone.forEach((row, rr)=>{
     if(!Array.isArray(row)) return;
     row.forEach((cell, cc)=>{
-      if(!cell || String(cell.id || '') !== '24' || Number(cell.owner) !== owner || cell.faceDown || isSupporterEffectSuppressedForState(state, cell)) return;
+      if(!cell || !serverCardActsAsPassive(cell, '24', state) || Number(cell.owner) !== owner || cell.faceDown || isSupporterEffectSuppressedForState(state, cell)) return;
       const dr = Math.abs(Number(rr) - Number(r));
       const dc = Math.abs(Number(cc) - Number(c));
       if(dr + dc === 1) count += 1;
@@ -3859,6 +4339,8 @@ function reduceStartConsolidate(room, msg, options){
     state.placing = false;
     state.blockingCell = false;
     state._consolidating = {
+      kind:'consolidation',
+      playerIndex,
       card:cloneState(card),
       cost,
       baseCost:cost,
@@ -4020,21 +4502,28 @@ function finalizeBasicConsolidation(state, con, targetIdx, playerIndex, options,
   if(!isSupportedConsolidatingCard(card, options)) return {ok:false, reason:'consolidating card requires a dedicated server reducer'};
   const inst = cloneState(card);
   inst.owner = playerIndex;
+  inst._setTurn = Number(state.turn || 0) || 0;
   let bonusFate = 0;
   const chosenTributes = chosenIdxs.map(idx=>allPossible[idx]).filter(Boolean);
+  const presentationTributes = [];
   applyDeterranceForTributeZones(state, chosenTributes, playerIndex, target.z);
   chosenIdxs.forEach(idx=>{
     const tribute = allPossible[idx];
     const live = state.board?.[tribute.z]?.[tribute.r]?.[tribute.c] || tribute.card;
     const spent = cloneState(live);
+    presentationTributes.push({
+      z:tribute.z,
+      r:tribute.r,
+      c:tribute.c,
+      card:cloneState(spent)
+    });
     bonusFate += tributeBonusFate(spent);
     if(String(spent.id || '') === '09' && Number(spent.usesLeft) > 0){
       spent.usesLeft = Math.max(0, Number(spent.usesLeft) - 1);
       if(!Array.isArray(state.un5thUses)) state.un5thUses = [0, 0];
       state.un5thUses[playerIndex] = (Number(state.un5thUses[playerIndex] || 0) || 0) + 1;
     }
-    if(!Array.isArray(state.players[playerIndex].discard)) state.players[playerIndex].discard = [];
-    state.players[playerIndex].discard.push(spent);
+    sendDiscardedCardForState(state, playerIndex, spent, 'consolidationTribute');
     if(state.board?.[tribute.z]?.[tribute.r]) state.board[tribute.z][tribute.r][tribute.c] = null;
   });
   if(String(inst.id || '') === '35') inst.currentFate = alexanderFateForState(state, target.z, playerIndex);
@@ -4050,6 +4539,7 @@ function finalizeBasicConsolidation(state, con, targetIdx, playerIndex, options,
     chaparral.card._chaparralAmbushUsed = true;
   }
   hand.splice(handIndex, 1);
+  notePresentationEventForState(state, consolidationCompletedPresentationEvent(playerIndex, inst, target, presentationTributes));
   if(!inst.faceDown){
     const suppressedWhenSet = suppressSupportedWhenSetForState(state, inst);
     if(!suppressedWhenSet && armServerReactionWindowForWhenSet(state, inst, playerIndex, target.z, target.r, target.c)){
@@ -4069,6 +4559,40 @@ function finalizeBasicConsolidation(state, con, targetIdx, playerIndex, options,
   state.blockingCell = false;
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
+  return {ok:true};
+}
+
+function applyPayloadConsolidationTributeSelection(state, con, payload, playerIndex, options){
+  if(!con || !payload) return {ok:true};
+  const allPossible = Array.isArray(con.allPossible) ? con.allPossible : [];
+  const rawIdxs = Array.isArray(payload.chosenIdxs) ? payload.chosenIdxs : [];
+  const rawTributes = Array.isArray(payload.chosenTributes) ? payload.chosenTributes : [];
+  if(!rawIdxs.length && !rawTributes.length) return {ok:true};
+  const selected = [];
+  function addIdx(idx){
+    const n = Number(idx);
+    if(!Number.isInteger(n) || n < 0 || n >= allPossible.length) return false;
+    if(selected.includes(n)) return true;
+    const tribute = allPossible[n];
+    if(!liveTributeMatches(state, tribute, playerIndex, options)) return false;
+    selected.push(n);
+    return true;
+  }
+  for(const idx of rawIdxs){
+    if(!addIdx(idx)) return {ok:false, reason:'payload selected tribute is invalid'};
+  }
+  for(const tribute of rawTributes){
+    const z = Number(tribute?.z), r = Number(tribute?.r), c = Number(tribute?.c);
+    const iid = String(tribute?.iid || '');
+    const idx = allPossible.findIndex(item=>{
+      if(!item || Number(item.z) !== z || Number(item.r) !== r || Number(item.c) !== c) return false;
+      if(iid && String(item.card?.iid || '') !== iid) return false;
+      return true;
+    });
+    if(!addIdx(idx)) return {ok:false, reason:'payload selected tribute is invalid'};
+  }
+  con.chosenIdxs = selected;
+  con.phase = 'select_tributes';
   return {ok:true};
 }
 
@@ -4094,6 +4618,8 @@ function reduceConsolidationClick(room, msg, options){
     return {ok:false, reason:'CLICK_CELL tribute no longer matches board state'};
   }
   if(!Array.isArray(con.chosenIdxs)) con.chosenIdxs = [];
+  const payloadSelection = applyPayloadConsolidationTributeSelection(state, con, payload, playerIndex, options);
+  if(!payloadSelection.ok) return payloadSelection;
   const phase = String(con.phase || 'select_tributes');
   if(phase === 'select_placement'){
     const done = finalizeBasicConsolidation(state, con, idx, playerIndex, options);
@@ -4117,7 +4643,9 @@ function reduceConsolidationClick(room, msg, options){
 
 function reduceBasicClickCell(room, msg, options){
   const payload = msg.payload || {};
-  if(!payload.placing){
+  const actionType = String(msg.type || payload.actionKind || payload.originalType || '').toUpperCase();
+  const placementIntent = !!payload.placing || actionType === 'PLACE_CARD';
+  if(!placementIntent){
     if(room.canonicalState && room.canonicalState._serverPendingMove) return reducePendingMoveClick(room, msg, options);
     if(room.canonicalState && room.canonicalState._consolidating) return reduceConsolidationClick(room, msg, options);
     if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:'server reducer is not implemented for non-placement CLICK_CELL'};
@@ -4132,7 +4660,7 @@ function reduceBasicClickCell(room, msg, options){
   if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
   if(Number(state.currentPlayer) !== playerIndex) return {ok:false, reason:'CLICK_CELL player does not have priority'};
   if(String(state.phase || 'main') !== 'main') return {ok:false, reason:'CLICK_CELL placement requires main phase'};
-  if(!state.placing && (payload.selectedHand || Number.isInteger(Number(payload.handIndex)))){
+  if(!state.placing && (placementIntent || payload.selectedHand || Number.isInteger(Number(payload.handIndex)))){
     state.placing = true;
     state.selectedBoardCard = null;
   }
@@ -4167,6 +4695,7 @@ function reduceBasicClickCell(room, msg, options){
   if(supporterErr) return {ok:false, reason:supporterErr};
   const inst = cloneState(card);
   inst.owner = playerIndex;
+  inst._setTurn = Number(state.turn || 0) || 0;
   inst.currentFate = serverPlacedCardFate(card);
   if(!inst.iid) inst.iid = `${String(inst.id || 'card')}:server:${Date.now()}`;
   consumeServerHandPlacementModifiers(card, inst);
@@ -4422,6 +4951,11 @@ function reducePendingMoveClick(room, msg, options){
     state.placing = false;
     state.selectedHandCard = null;
     state.selectedBoardCard = null;
+    const suppressedWhenSet = suppressSupportedWhenSetForState(state, moving);
+    if(!suppressedWhenSet && armServerReactionWindowForWhenSet(state, moving, playerIndex, z, r, c)){
+      return reducedResult(state, {baseStateHash:base.baseStateHash});
+    }
+    if(suppressedWhenSet) return reducedResult(state, {baseStateHash:base.baseStateHash});
     const whenSet = applySupportedWhenSetState(state, moving, playerIndex, z, r, c);
     if(whenSet && whenSet.ok === false) return whenSet;
     armPostWhenSetInteractionHooks(state, moving, playerIndex, z, r, c);
@@ -4498,11 +5032,6 @@ function reducePendingMoveClick(room, msg, options){
   if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return {ok:false, reason:'CLICK_CELL target must be numeric'};
   if(z < 0 || z > 2 || r < 0 || r > 8 || c < 0 || c > 8) return {ok:false, reason:'CLICK_CELL target out of range'};
   ensureBoardCell(state, z, r, c);
-  if(state.board[z][r][c] !== null) return {ok:false, reason:'Wolf Creek target cell is occupied'};
-  if(isBlockedCell(state, z, r, c)) return {ok:false, reason:'Wolf Creek target cell is blocked'};
-  if(!isContestedOrOwnSafeSquareForState(state, z, r, playerIndex)){
-    return {ok:false, reason:'Wolf Creek can only move into contested rows or own safe squares'};
-  }
   const source = state.board?.[pending.sourceZ]?.[pending.sourceR]?.[pending.sourceC] || null;
   if(!source || String(source.id || '') !== '54' || Number(source.owner) !== playerIndex){
     return {ok:false, reason:'Wolf Creek source is no longer on board'};
@@ -4513,8 +5042,20 @@ function reducePendingMoveClick(room, msg, options){
     return {ok:false, reason:'Wolf Creek moving card is no longer valid'};
   }
   if(pending.movingIid && moving.iid !== pending.movingIid) return {ok:false, reason:'Wolf Creek moving card mismatch'};
-  state.board[pending.fromZ][pending.fromR][pending.fromC] = null;
-  state.board[z][r][c] = moving;
+  const moveOptions = collectWolfCreekMoveOptions(state, playerIndex, moving.iid || null);
+  const option = moveOptions.find(item=>Number(item.z) === z && Number(item.r) === r && Number(item.c) === c);
+  if(!option) return {ok:false, reason:'Wolf Creek target is not allowed'};
+  const target = state.board[z][r][c] || null;
+  if(String(option.kind || 'move') === 'swap'){
+    if(!target || !isWolfCreekMoveCandidate(target, playerIndex, moving.iid || null)) return {ok:false, reason:'Wolf Creek swap target is invalid'};
+    state.board[pending.fromZ][pending.fromR][pending.fromC] = target;
+    state.board[z][r][c] = moving;
+  }else{
+    if(target !== null) return {ok:false, reason:'Wolf Creek target cell is occupied'};
+    if(isBlockedCell(state, z, r, c)) return {ok:false, reason:'Wolf Creek target cell is blocked'};
+    state.board[pending.fromZ][pending.fromR][pending.fromC] = null;
+    state.board[z][r][c] = moving;
+  }
   source.wolfCreekUsed = true;
   applyRozsiPassiveForMove(state, moving, z);
   state._serverPendingMove = null;
@@ -4566,6 +5107,8 @@ function reduceMatchResult(room, msg, options){
   const playerIndex = Number(payload.playerIndex);
   if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
   if(Number(state.currentPlayer) !== playerIndex) return {ok:false, reason:'MATCH_RESULT player does not have priority'};
+  const boardAgreement = verifyBoardAgreementPayload(state, payload, 'MATCH_RESULT');
+  if(!boardAgreement.ok) return boardAgreement;
   const maxTurns = Math.max(1, Number(state.maxTurns || 20) || 20);
   const turn = Math.max(0, Number(state.turn || 0) || 0);
   if(turn < maxTurns) return {ok:false, reason:'MATCH_RESULT is not available before maxTurns'};
@@ -4609,7 +5152,6 @@ function reduceBoardAction(room, msg, options){
   if(fn === 'discardBoardCard') return reduceDiscardBoardCardAction(room, msg, options);
   if(fn === 'flipFaceDownBoardCard') return reduceFlipFaceDownBoardCardAction(room, msg, options);
   if(fn === 'activateVigilantes') return reduceActivateVigilantes(room, msg, options);
-  if(fn === 'activateWolfCreek') return reduceActivateWolfCreek(room, msg, options);
   if(fn === 'activateExpeditionaryMove') return reduceActivateExpeditionaryMove(room, msg, options);
   if(fn === 'activateBusserMove') return reduceActivateBusserMove(room, msg, options);
   if(fn === 'activateLandscapeEventideMove') return reduceActivateLandscapeEventideMove(room, msg, options);
@@ -4662,6 +5204,47 @@ function boardActionSourceForState(state, payload, playerIndex, label){
   return {source, z, r, c};
 }
 
+function applySupportedManualCharacterEffectState(state, source, playerIndex){
+  const id = String(source?.id || '');
+  if(id === '40'){
+    if(Number(source.usesLeft || 0) <= 0) return {ok:false, reason:'Christopher Erbs has no uses remaining'};
+    if(erbsActiveForState(state, playerIndex)) return {ok:false, reason:'Christopher Erbs is already armed'};
+    if(!Array.isArray(state.erbsActive)) state.erbsActive = [false, false];
+    source.usesLeft = Math.max(0, (Number(source.usesLeft || 0) || 0) - 1);
+    source.effectUsedInitial = true;
+    setErbsActiveForState(state, playerIndex, true);
+  } else if(id === '21'){
+    if(source.effectUsedInitial) return {ok:false, reason:'Henry Dong already activated'};
+    const handCount = state.players?.[playerIndex]?.hand?.length || 0;
+    const pending = armPendingHandDiscardBoost(state, playerIndex, source, {
+      reason:'henryDong',
+      minCount:0,
+      maxCount:handCount,
+      fatePerCard:3
+    });
+    if(pending && pending.ok === false) return pending;
+    if(!pending.armed) return {ok:false, reason:'Henry Dong needs cards in hand'};
+  } else if(id === '38'){
+    if(source.effectUsedThisTurn) return {ok:false, reason:'Jake already activated this turn'};
+    const pending = armPendingHandDiscardBoost(state, playerIndex, source, {
+      reason:'jakeSupporterDiscard',
+      minCount:1,
+      maxCount:1,
+      filterType:'Supporter',
+      fatePerCard:5,
+      oncePerTurn:true
+    });
+    if(pending && pending.ok === false) return pending;
+    if(!pending.armed) return {ok:false, reason:'Jake needs a Supporter in hand'};
+  } else {
+    return {ok:false, reason:`server reducer is not implemented for triggerCharacterEffect ${id || '(unknown)'}`};
+  }
+  state.selectedBoardCard = null;
+  state.placing = false;
+  state.blockingCell = false;
+  return {ok:true};
+}
+
 function reduceTriggerCharacterEffect(room, msg, options){
   const payload = msg.payload || {};
   const base = verifyBaseHash(room, payload, options);
@@ -4678,49 +5261,16 @@ function reduceTriggerCharacterEffect(room, msg, options){
   const source = src.source;
   if(isFaceDownServerCard(source)) return {ok:false, reason:'Character effect source must be face up'};
   const id = String(source.id || '');
-  if(id === '40'){
-    if(Number(source.usesLeft || 0) <= 0) return {ok:false, reason:'Christopher Erbs has no uses remaining'};
-    if(erbsActiveForState(state, playerIndex)) return {ok:false, reason:'Christopher Erbs is already armed'};
-    if(!Array.isArray(state.erbsActive)) state.erbsActive = [false, false];
-    source.usesLeft = Math.max(0, (Number(source.usesLeft || 0) || 0) - 1);
-    source.effectUsedInitial = true;
-    setErbsActiveForState(state, playerIndex, true);
-    state.selectedBoardCard = null;
-    state.placing = false;
-    state.blockingCell = false;
+  if(id === '40' || id === '21' || id === '38'){
+    if(armServerReactionWindowForManualEffect(state, source, playerIndex, src.z, src.r, src.c)){
+      return reducedResult(state, {baseStateHash:base.baseStateHash});
+    }
+    const applied = applySupportedManualCharacterEffectState(state, source, playerIndex);
+    if(!applied.ok) return applied;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
-  if(id === '21'){
-    if(source.effectUsedInitial) return {ok:false, reason:'Henry Dong already activated'};
-    const handCount = state.players?.[playerIndex]?.hand?.length || 0;
-    const pending = armPendingHandDiscardBoost(state, playerIndex, source, {
-      reason:'henryDong',
-      minCount:0,
-      maxCount:handCount,
-      fatePerCard:3
-    });
-    if(pending && pending.ok === false) return pending;
-    if(!pending.armed) return {ok:false, reason:'Henry Dong needs cards in hand'};
-    state.selectedBoardCard = null;
-    state.placing = false;
-    state.blockingCell = false;
-    return reducedResult(state, {baseStateHash:base.baseStateHash});
-  }
-  if(id === '38'){
-    if(source.effectUsedThisTurn) return {ok:false, reason:'Jake already activated this turn'};
-    const pending = armPendingHandDiscardBoost(state, playerIndex, source, {
-      reason:'jakeSupporterDiscard',
-      minCount:1,
-      maxCount:1,
-      filterType:'Supporter',
-      fatePerCard:5,
-      oncePerTurn:true
-    });
-    if(pending && pending.ok === false) return pending;
-    if(!pending.armed) return {ok:false, reason:'Jake needs a Supporter in hand'};
-    state.selectedBoardCard = null;
-    state.placing = false;
-    state.blockingCell = false;
+  if(String(options.mode || '').toLowerCase() === 'strict'
+    && armServerReactionWindowForAuthoritativePostState(state, source, playerIndex, src.z, src.r, src.c, payload, 'manualEffect')){
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
   if(String(options.mode || '').toLowerCase() === 'strict') return {ok:false, reason:`server reducer is not implemented for triggerCharacterEffect ${id || '(unknown)'}`};
@@ -4753,6 +5303,11 @@ function reduceActivatePendingWhenSetEffect(room, msg, options){
     return {ok:false, reason:'Pending when-set effect source location mismatch'};
   }
   const id = String(src.source.id || '');
+  if(!SERVER_DEFERRED_WHEN_SET_IDS.has(id)
+    && String(options.mode || '').toLowerCase() === 'strict'
+    && armServerReactionWindowForAuthoritativePostState(state, src.source, playerIndex, src.z, src.r, src.c, payload, 'pendingWhenSetEffect')){
+    return reducedResult(state, {baseStateHash:base.baseStateHash});
+  }
   if(!SERVER_DEFERRED_WHEN_SET_IDS.has(id)) return {ok:false, reason:`server reducer is not implemented for deferred when-set ${id || '(unknown)'}`};
   markServerWhenSetSourceResolved(src.source);
   src.source._effectNegatedByReaction = false;
@@ -4794,14 +5349,7 @@ function manuallyDiscardBoardCardForState(state, playerIndex, z, r, c){
       });
     });
   }
-  if(String(card.id || '') === '70' && card.guerilla_transferred !== true){
-    const holder = owner === 0 ? 1 : 0;
-    if(!Array.isArray(state.players?.[holder]?.hand)) return {ok:false, reason:'Wine Country Guerilla holder hand is invalid'};
-    card.guerilla_transferred = true;
-    card.guerilla_turnsLeft = 5;
-    card.guerilla_owner = owner;
-    state.players[holder].hand.push(card);
-  }else if(card._stolenByRobo){
+  if(card._stolenByRobo){
     const originalOwner = Number(card._roboOrigOwner);
     if(!Number.isInteger(originalOwner) || originalOwner < 0 || originalOwner > 1) return {ok:false, reason:'Robo stolen card original owner is invalid'};
     if(!Array.isArray(state.players?.[originalOwner]?.deck)) return {ok:false, reason:'Robo stolen card original deck is invalid'};
@@ -4809,8 +5357,8 @@ function manuallyDiscardBoardCardForState(state, playerIndex, z, r, c){
     state.players[originalOwner].deck.push(card);
     serverShufflePlayerDeck(state, originalOwner, `manualDiscardRobo:${card.iid || card.id || 'card'}`);
   }else{
-    if(!Array.isArray(state.players?.[owner]?.discard)) return {ok:false, reason:'Discard owner pile is invalid'};
-    state.players[owner].discard.push(card);
+    const sent = sendDiscardedCardForState(state, owner, card, 'boardDiscard');
+    if(!sent.ok) return sent;
   }
   return {ok:true, card};
 }
@@ -4856,6 +5404,16 @@ function reduceFlipFaceDownBoardCardAction(room, msg, options){
   src.source.faceDown = false;
   src.source.isFaceDown = false;
   src.source._faceDown = false;
+  const suppressedWhenSet = suppressSupportedWhenSetForState(state, src.source);
+  if(!suppressedWhenSet && armServerReactionWindowForWhenSet(state, src.source, playerIndex, src.z, src.r, src.c)){
+    return reducedResult(state, {baseStateHash:base.baseStateHash});
+  }
+  if(suppressedWhenSet){
+    state.selectedBoardCard = null;
+    state.placing = false;
+    state.blockingCell = false;
+    return reducedResult(state, {baseStateHash:base.baseStateHash});
+  }
   const whenSet = applySupportedWhenSetState(state, src.source, playerIndex, src.z, src.r, src.c);
   if(whenSet && whenSet.ok === false) return whenSet;
   armPostWhenSetInteractionHooks(state, src.source, playerIndex, src.z, src.r, src.c);
@@ -4887,8 +5445,11 @@ function reduceActivateVigilantes(room, msg, options){
   }
   if(isSupporterEffectSuppressedForState(state, source)) return {ok:false, reason:'Vigilantes source is suppressed'};
   if(source.vigilanteUsed === true) return {ok:false, reason:'Vigilantes already activated this turn'};
+  if(!serverCanActivateVigilantesWindow(state, source)) return {ok:false, reason:'Vigilantes activation window has expired'};
   const hasTarget = boardCardEntriesInZone(state, z, card=>isVigilantesTarget(card, playerIndex)).length > 0;
   if(!hasTarget) return {ok:false, reason:'Vigilantes has no valid same-zone target'};
+  const reactionBase = cloneState(state);
+  const reactionSource = reactionBase.board?.[z]?.[r]?.[c] || cloneState(source);
   state._serverPendingZonePick = {
     kind:'vigilantesMark',
     playerIndex,
@@ -4900,6 +5461,9 @@ function reduceActivateVigilantes(room, msg, options){
   };
   state.selectedBoardCard = null;
   state.placing = false;
+  if(armServerReactionWindowForResolvedState(reactionBase, reactionSource, playerIndex, z, r, c, state, 'manualEffect')){
+    return reducedResult(reactionBase, {baseStateHash:base.baseStateHash});
+  }
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -4928,6 +5492,8 @@ function reduceActivateExpeditionaryMove(room, msg, options){
   if(source._expMoved === true) return {ok:false, reason:'ALPINE Expeditionary already moved this turn'};
   const moveOptions = collectAlpineExpeditionaryMoveOptions(state, playerIndex);
   if(!moveOptions.length) return {ok:false, reason:'No open squares available for ALPINE Expeditionary'};
+  const reactionBase = cloneState(state);
+  const reactionSource = reactionBase.board?.[z]?.[r]?.[c] || cloneState(source);
   state._serverPendingMove = {
     kind:'alpineExpeditionaryMove',
     playerIndex,
@@ -4946,6 +5512,9 @@ function reduceActivateExpeditionaryMove(room, msg, options){
   };
   state.selectedBoardCard = null;
   state.placing = false;
+  if(armServerReactionWindowForResolvedState(reactionBase, reactionSource, playerIndex, z, r, c, state, 'manualEffect')){
+    return reducedResult(reactionBase, {baseStateHash:base.baseStateHash});
+  }
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -4974,6 +5543,8 @@ function reduceActivateBusserMove(room, msg, options){
   if(source._busserMovedThisTurn === true) return {ok:false, reason:'Busser movement source already moved this turn'};
   const moveOptions = collectBusserAdjacentMoveOptions(state, playerIndex, src.z);
   if(!moveOptions.length) return {ok:false, reason:'No adjacent Busser movement squares available'};
+  const reactionBase = cloneState(state);
+  const reactionSource = reactionBase.board?.[src.z]?.[src.r]?.[src.c] || cloneState(source);
   state._serverPendingMove = {
     kind:'busserAdjacentMove',
     playerIndex,
@@ -4988,6 +5559,9 @@ function reduceActivateBusserMove(room, msg, options){
   state.placing = false;
   state.selectedHandCard = null;
   state.selectedBoardCard = {z:src.z, r:src.r, c:src.c, card:cloneState(source)};
+  if(armServerReactionWindowForResolvedState(reactionBase, reactionSource, playerIndex, src.z, src.r, src.c, state, 'manualEffect')){
+    return reducedResult(reactionBase, {baseStateHash:base.baseStateHash});
+  }
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -5009,11 +5583,13 @@ function reduceActivateLandscapeEventideMove(room, msg, options){
   if(src.error) return {ok:false, reason:src.error};
   const source = src.source;
   if(isFaceDownServerCard(source)) return {ok:false, reason:'Panacea movement source must be face up'};
-  if(String(source.aff || '') !== 'eventide') return {ok:false, reason:'Panacea movement source must be Eventide'};
+  if(!canUsePanaceaLandscapeMoveServerCard(source)) return {ok:false, reason:'Panacea movement source must be an eligible Eventide card'};
   if(source.cantBeMoved === true) return {ok:false, reason:'Panacea movement source cannot be moved'};
   if(Number(source._landscapeEventideMovedTurn) === Number(state.turn || 0)) return {ok:false, reason:'Panacea movement already used this turn'};
   const moveOptions = collectLandscapeEventideMoveOptions(state, source, playerIndex, src.z, src.r, src.c);
   if(!moveOptions.length) return {ok:false, reason:'No open squares available for Panacea movement'};
+  const reactionBase = cloneState(state);
+  const reactionSource = reactionBase.board?.[src.z]?.[src.r]?.[src.c] || cloneState(source);
   state._serverPendingMove = {
     kind:'landscapeEventideMove',
     playerIndex,
@@ -5032,42 +5608,9 @@ function reduceActivateLandscapeEventideMove(room, msg, options){
   };
   state.selectedBoardCard = null;
   state.placing = false;
-  return reducedResult(state, {baseStateHash:base.baseStateHash});
-}
-
-function reduceActivateWolfCreek(room, msg, options){
-  const payload = msg.payload || {};
-  const base = verifyBaseHash(room, payload, options);
-  if(!base.ok) return base;
-  const state = cloneCanonicalState(room, options);
-  if(!state) return {ok:false, reason:'server canonical state is not initialized'};
-  if(hasTruthy(state._serverPendingModalAction) || hasTruthy(state._serverPendingZonePick) || hasTruthy(state._serverPendingMove) || hasTruthy(state._serverPendingCardPick)){
-    return {ok:false, reason:'Wolf Creek has an unresolved server interaction'};
+  if(armServerReactionWindowForResolvedState(reactionBase, reactionSource, playerIndex, src.z, src.r, src.c, state, 'manualEffect')){
+    return reducedResult(reactionBase, {baseStateHash:base.baseStateHash});
   }
-  const playerIndex = Number(payload.playerIndex);
-  if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'payload.playerIndex must be 0 or 1'};
-  if(Number(state.currentPlayer) !== playerIndex) return {ok:false, reason:'Wolf Creek player does not have priority'};
-  if(String(state.phase || '') !== 'main') return {ok:false, reason:'Wolf Creek requires main phase'};
-  const src = boardActionSourceForState(state, payload, playerIndex, 'Wolf Creek');
-  if(src.error) return {ok:false, reason:src.error};
-  const source = src.source;
-  const z = src.z, r = src.r, c = src.c;
-  if(String(source.id || '') !== '54' || isFaceDownServerCard(source)){
-    return {ok:false, reason:'Wolf Creek source is no longer on board'};
-  }
-  if(isSupporterEffectSuppressedForState(state, source)) return {ok:false, reason:'Wolf Creek source is suppressed'};
-  if(source.wolfCreekUsed === true) return {ok:false, reason:'Wolf Creek already moved a card this turn'};
-  if(!hasWolfCreekMoveCandidateInZone(state, playerIndex, z, source.iid || null)){
-    return {ok:false, reason:'Wolf Creek has no friendly character to move in this zone'};
-  }
-  const moveOptions = collectWolfCreekMoveOptions(state, playerIndex);
-  if(!moveOptions.length) return {ok:false, reason:'No open squares available for Wolf Creek'};
-  setPendingWolfCreekPick(state, source, playerIndex, z, r, c);
-  if(!state._serverPendingZonePick || String(state._serverPendingZonePick.kind || '') !== 'wolfCreekSelectMoveTarget'){
-    return {ok:false, reason:'Wolf Creek could not arm movement picker'};
-  }
-  state.selectedBoardCard = null;
-  state.placing = false;
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
 
@@ -5099,7 +5642,10 @@ function reduceActivateWineCountryGuerillaFromHand(room, msg, options){
   state.selectedBoardCard = null;
   state.placing = false;
   state.blockingCell = false;
-  return reducedResult(state, {baseStateHash:base.baseStateHash});
+  return reducedResult(state, {
+    baseStateHash:base.baseStateHash,
+    presentationEvents:[wineCountryGuerillaSentPresentationEvent(playerIndex, opponent)]
+  });
 }
 
 function reduceActivateSelvaIslandsPirateFromHand(room, msg, options){
@@ -5119,8 +5665,8 @@ function reduceActivateSelvaIslandsPirateFromHand(room, msg, options){
   if(String(card.id || '') !== '74') return {ok:false, reason:'HAND_ACTION selected card is not Selva Islands Pirate'};
   const [discarded] = selected.hand.splice(selected.handIndex, 1);
   if(!discarded) return {ok:false, reason:'Selva Islands Pirate discard card was not found'};
-  if(!Array.isArray(state.players?.[playerIndex]?.discard)) state.players[playerIndex].discard = [];
-  state.players[playerIndex].discard.push(discarded);
+  const selvaDiscard = sendDiscardedCardForState(state, playerIndex, discarded, 'selvaDiscard');
+  if(!selvaDiscard.ok) return selvaDiscard;
   state.maxSupportsPerTurn = Math.max(3, Number(state.maxSupportsPerTurn || 0) || 0);
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
@@ -5161,8 +5707,8 @@ function reduceActivateSantaAnnaProsperityFromHand(room, msg, options){
   if(isFaceDownServerCard(target)) return {ok:false, reason:'Santa Anna target must be face up'};
   const [discarded] = selected.hand.splice(selected.handIndex, 1);
   if(!discarded) return {ok:false, reason:'Santa Anna discard card was not found'};
-  if(!Array.isArray(state.players?.[playerIndex]?.discard)) state.players[playerIndex].discard = [];
-  state.players[playerIndex].discard.push(discarded);
+  const santaDiscard = sendDiscardedCardForState(state, playerIndex, discarded, 'santaAnnaDiscard');
+  if(!santaDiscard.ok) return santaDiscard;
   target.currentFate = numericFate(target) + 3;
   state.selectedHandCard = null;
   state.selectedBoardCard = null;
@@ -5495,6 +6041,8 @@ function runLedgerKeepersCopiedWhenSet(state, ledger, playerIndex, ledgerPos, ta
   if(!canLedgerKeepersCopyWhenSetForState(target, ledger?.iid || null, state)){
     return {ok:false, reason:'Ledger-keepers target is not a supported server when-set Supporter'};
   }
+  const reactionBase = cloneState(state);
+  const reactionSource = reactionBase.board?.[ledgerPos.z]?.[ledgerPos.r]?.[ledgerPos.c] || cloneState(ledger);
   const original = {
     id:ledger.id,
     name:ledger.name,
@@ -5522,6 +6070,9 @@ function runLedgerKeepersCopiedWhenSet(state, ledger, playerIndex, ledgerPos, ta
     ledger.effect = original.effect;
     ledger.aff = original.aff;
     ledger.type = original.type;
+  }
+  if(armServerReactionWindowForResolvedState(reactionBase, reactionSource, playerIndex, ledgerPos.z, ledgerPos.r, ledgerPos.c, state, 'supporterWhenSet')){
+    return {ok:true, state:reactionBase};
   }
   return {ok:true};
 }
@@ -5757,10 +6308,15 @@ function reducePickCardsVisualAction(room, msg, options){
         const discarded = player.hand.splice(item.idx, 1)[0];
         if(discarded) discardedByIndex.set(item.idx, cloneState(discarded));
       });
+    let discardError = null;
     selected.picked.forEach(item=>{
       const discarded = discardedByIndex.get(item.idx);
-      if(discarded) player.discard.push(discarded);
+      if(discarded) {
+        const sent = sendDiscardedCardForState(state, playerIndex, discarded, pending.reason || 'handDiscard');
+        if(!sent.ok) discardError = sent;
+      }
     });
+    if(discardError) return discardError;
   }else if(kind === 'handDiscardBoost'){
     if(!player || !Array.isArray(player.hand)) return {ok:false, reason:'PICK_CARDS_VISUAL hand state is invalid'};
     if(!Array.isArray(player.discard)) player.discard = [];
@@ -5783,10 +6339,15 @@ function reducePickCardsVisualAction(room, msg, options){
         const discarded = player.hand.splice(item.idx, 1)[0];
         if(discarded) discardedByIndex.set(item.idx, cloneState(discarded));
       });
+    let discardBoostError = null;
     selected.picked.forEach(item=>{
       const discarded = discardedByIndex.get(item.idx);
-      if(discarded) player.discard.push(discarded);
+      if(discarded) {
+        const sent = sendDiscardedCardForState(state, playerIndex, discarded, pending.reason || 'handDiscardBoost');
+        if(!sent.ok) discardBoostError = sent;
+      }
     });
+    if(discardBoostError) return discardBoostError;
     const gained = selected.picked.length * (Math.max(0, Number(pending.fatePerCard || 0) || 0));
     source.effectUsedInitial = true;
     if(gained > 0){
@@ -5853,7 +6414,7 @@ function reducePickCardsVisualAction(room, msg, options){
       source:pick.source,
       sourceIid:source.iid || null
     };
-    source.effectUsedInitial = true;
+    if(String(source.id || '') !== '38') source.effectUsedInitial = true;
   }else if(kind === 'kvetkaFreeSet'){
     if(!player || !Array.isArray(player.hand) || !Array.isArray(player.deck)) return {ok:false, reason:'PICK_CARDS_VISUAL Kvetka deck state is invalid'};
     const source = findBoardCardByIid(state, pending.sourceIid);
@@ -5923,6 +6484,10 @@ function reducePickCardsVisualAction(room, msg, options){
     const continued = completeAfterPickContinuation(state, playerIndex, afterPick);
     if(!continued.ok) return continued;
   }
+  if(kind !== 'handDiscard'){
+    const handLimit = armPendingHandLimitDiscardIfNeeded(state, playerIndex);
+    if(!handLimit.ok) return handLimit;
+  }
   if(!state._serverFreePlacement) state.selectedHandCard = null;
   return reducedResult(state, {baseStateHash:base.baseStateHash});
 }
@@ -5955,6 +6520,23 @@ function reducePickZoneAction(room, msg, options){
     }
     selectedMany.entries.forEach(selected=>{
       state.board[selected.z][selected.r][selected.c].immuneFlag = true;
+    });
+    state._serverPendingZonePick = null;
+    return reducedResult(state, {baseStateHash:base.baseStateHash});
+  }
+  if(kind === 'isaacPerezFateBoost'){
+    const sourceResult = validatePendingSource(state, pending, playerIndex, '22', 'Isaac Perez');
+    if(sourceResult.error) return {ok:false, reason:sourceResult.error};
+    const selectedMany = selectedZoneEntriesPayload(payload, 1, 2);
+    if(selectedMany.error) return {ok:false, reason:selectedMany.error};
+    for(const selected of selectedMany.entries){
+      const live = liveSelectedZoneTarget(state, selected, pending, 'Isaac Perez');
+      if(live.error) return {ok:false, reason:live.error};
+      if(Number(live.target.owner) !== playerIndex) return {ok:false, reason:'Isaac Perez target must be friendly'};
+      if(isFaceDownServerCard(live.target)) return {ok:false, reason:'Isaac Perez target must be face up'};
+    }
+    selectedMany.entries.forEach(selected=>{
+      addFate(state.board[selected.z][selected.r][selected.c], 3);
     });
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
@@ -6010,6 +6592,7 @@ function reducePickZoneAction(room, msg, options){
     state._serverPendingZonePick = null;
     const copied = runLedgerKeepersCopiedWhenSet(state, source, playerIndex, {z:pending.z, r:pending.r, c:pending.c}, {z:selected.z, r:selected.r, c:selected.c, card:target});
     if(!copied.ok) return copied;
+    if(copied.state) return reducedResult(copied.state, {baseStateHash:base.baseStateHash});
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
   if(kind === 'liberatorsFateGain'){
@@ -6161,6 +6744,7 @@ function reducePickZoneAction(room, msg, options){
     source._copiedPassiveEffect = target.effect || '';
     source.copiedPassiveId = source._copiedPassiveId;
     source.copiedPassiveName = source._copiedPassiveName;
+    source.copiedPassiveEffect = source._copiedPassiveEffect;
     source.effectUsedInitial = true;
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
@@ -6250,6 +6834,8 @@ function reducePickZoneAction(room, msg, options){
     target._reinforcementOverride = 0;
     source.vigilanteUsed = true;
     source.effectUsedInitial = true;
+    source.whenSetActivated = true;
+    delete source._pendingWhenSetEffect;
     state._serverPendingZonePick = null;
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
@@ -6259,12 +6845,12 @@ function reducePickZoneAction(room, msg, options){
       return {ok:false, reason:'Wolf Creek source is no longer on board'};
     }
     if(pending.iid && source.iid !== pending.iid) return {ok:false, reason:'Wolf Creek source mismatch'};
-    if(selected.z !== Number(pending.z)) return {ok:false, reason:'Wolf Creek target must be in the same zone'};
     const target = state.board?.[selected.z]?.[selected.r]?.[selected.c] || null;
     if(!target) return {ok:false, reason:'Wolf Creek target is no longer on board'};
     if(!cardMatchesPayloadIdentity(target, selected.card)) return {ok:false, reason:'Wolf Creek target identity mismatch'};
+    if(Number(selected.z) !== Number(pending.z)) return {ok:false, reason:'Wolf Creek target must be in this zone'};
     if(!isWolfCreekMoveCandidate(target, playerIndex, source.iid || null)) return {ok:false, reason:'Wolf Creek target is invalid'};
-    const moveOptions = collectWolfCreekMoveOptions(state, playerIndex);
+    const moveOptions = collectWolfCreekMoveOptions(state, playerIndex, target.iid || null);
     if(!moveOptions.length) return {ok:false, reason:'No open squares available for Wolf Creek'};
     state._serverPendingZonePick = null;
     state._serverPendingMove = {
@@ -6277,7 +6863,8 @@ function reducePickZoneAction(room, msg, options){
       fromZ:selected.z,
       fromR:selected.r,
       fromC:selected.c,
-      movingIid:target.iid || null
+      movingIid:target.iid || null,
+      options:moveOptions
     };
     state._wolfCreekMoving = {
       card:cloneState(target),
@@ -6310,6 +6897,7 @@ function reduceReactionChoice(room, msg, options){
   if(choice === 'decline' || choice === 'allow' || choice === 'pass' || choice === 'timeout' || choice === 'skip'){
     const applied = completePendingReactionOriginalEffect(state, pending, options);
     if(!applied.ok) return applied;
+    if(applied.state) return reducedResult(applied.state, {baseStateHash:base.baseStateHash});
     return reducedResult(state, {baseStateHash:base.baseStateHash});
   }
   if(choice !== 'negate' && choice !== 'accept' && choice !== 'use'){
@@ -6348,29 +6936,36 @@ function reduceServerAction(room, msg, opts){
   const options = opts || {};
   const mode = String(options.mode || 'lineage').toLowerCase();
   const type = String(msg.type || '').toUpperCase();
-  if(type === 'ACTION_RESULT') return reduceActionResult(room, msg, options);
   const intent = toAuthorityIntent(type, msg?.payload || null, room?.canonicalState);
+  if(type === 'ACTION_RESULT'){
+    const result = reduceActionResult(room, msg, options);
+    const actionKind = String(msg?.payload?.actionKind || msg?.payload?.originalType || '').toUpperCase();
+    const actionIntent = actionKind ? toAuthorityIntent(actionKind, msg?.payload || null, room?.canonicalState) : intent;
+    return maybeArmUniversalImprovisorReaction(room, msg, actionIntent, result, options);
+  }
   if(mode === 'lineage') return validateProposedTransition(room, msg, options);
   const pendingBlock = pendingInteractionBlockReason(type, normalizedPendingInteraction(room?.canonicalState));
   if(pendingBlock){
     return {ok:false, reason:pendingBlock};
   }
-  if(intent === 'STATE_SYNC') return reduceStateSync(room, msg, options);
-  if(intent === 'CHOOSE_TURN') return reduceChooseTurn(room, msg, options);
-  if(intent === 'END_TURN') return reduceEndTurn(room, msg, options);
-  if(intent === 'START_CONSOLIDATE') return reduceStartConsolidate(room, msg, options);
-  if(intent === 'HAND_ACTION') return reduceHandAction(room, msg, options);
-  if(intent === 'BOARD_ACTION') return reduceBoardAction(room, msg, options);
-  if(intent === 'PLACE_CARD' || intent === 'SELECT_CONSOLIDATION_TRIBUTE' || intent === 'SELECT_PENDING_MOVE_CELL' || intent === 'SELECT_BOARD_TARGET') return reduceBasicClickCell(room, msg, options);
-  if(intent === 'RESOLVE_MODAL') return reduceModalAction(room, msg, options);
-  if(intent === 'RESOLVE_CARD_PICK') return reducePickCardsVisualAction(room, msg, options);
-  if(intent === 'RESOLVE_AFFILIATION_PICK') return reducePickAffiliationAction(room, msg, options);
-  if(intent === 'RESOLVE_ZONE_PICK') return room?.canonicalState?._serverPendingZonePick ? reducePickZoneAction(room, msg, options) : reducePickLandscapeZoneAction(room, msg, options);
-  if(intent === 'REACTION_CHOICE') return reduceReactionChoice(room, msg, options);
-  if(intent === 'EFFECT_CINEMATIC') return reduceVisualOnly(room, msg, options);
-  if(intent === 'FORFEIT') return reduceForfeit(room, msg, options);
-  if(intent === 'DISCONNECT_TIMEOUT') return reduceDisconnectTimeout(room, msg, options);
-  if(intent === 'MATCH_RESULT') return reduceMatchResult(room, msg, options);
+  let result = null;
+  if(intent === 'STATE_SYNC') result = reduceStateSync(room, msg, options);
+  else if(intent === 'CHOOSE_TURN') result = reduceChooseTurn(room, msg, options);
+  else if(intent === 'END_TURN') result = reduceEndTurn(room, msg, options);
+  else if(intent === 'START_CONSOLIDATE') result = reduceStartConsolidate(room, msg, options);
+  else if(intent === 'HAND_ACTION') result = reduceHandAction(room, msg, options);
+  else if(intent === 'BOARD_ACTION') result = reduceBoardAction(room, msg, options);
+  else if(intent === 'PLACE_CARD' || intent === 'SELECT_CONSOLIDATION_TRIBUTE' || intent === 'SELECT_PENDING_MOVE_CELL' || intent === 'SELECT_BOARD_TARGET') result = reduceBasicClickCell(room, msg, options);
+  else if(intent === 'RESOLVE_MODAL') result = reduceModalAction(room, msg, options);
+  else if(intent === 'RESOLVE_CARD_PICK') result = reducePickCardsVisualAction(room, msg, options);
+  else if(intent === 'RESOLVE_AFFILIATION_PICK') result = reducePickAffiliationAction(room, msg, options);
+  else if(intent === 'RESOLVE_ZONE_PICK') result = room?.canonicalState?._serverPendingZonePick ? reducePickZoneAction(room, msg, options) : reducePickLandscapeZoneAction(room, msg, options);
+  else if(intent === 'REACTION_CHOICE') result = reduceReactionChoice(room, msg, options);
+  else if(intent === 'EFFECT_CINEMATIC') result = reduceVisualOnly(room, msg, options);
+  else if(intent === 'FORFEIT') result = reduceForfeit(room, msg, options);
+  else if(intent === 'DISCONNECT_TIMEOUT') result = reduceDisconnectTimeout(room, msg, options);
+  else if(intent === 'MATCH_RESULT') result = reduceMatchResult(room, msg, options);
+  if(result) return maybeArmUniversalImprovisorReaction(room, msg, intent, result, options);
   if(mode === 'strict') return {ok:false, reason:`server reducer is not implemented for ${intent || type}`};
   return validateProposedTransition(room, msg, options);
 }

@@ -57,12 +57,8 @@ function getCachedSfxNoiseBuffer(ctx, dur, decay, gainVal, variant){
   for(let i=0;i<d.length;i++) {
     const t = i / d.length;
     let sample;
-    if(variant === 'drawSwoosh') {
-      sample = (Math.random()*2-1) * Math.sin(Math.PI*t) * 0.4 * (1-t*0.5);
-    } else {
-      sample = (Math.random()*2-1) * Math.pow(1-t, decay) * gainVal;
-      if(variant === 'sine') sample *= Math.sin(Math.PI * t);
-    }
+    sample = (Math.random()*2-1) * Math.pow(1-t, decay) * gainVal;
+    if(variant === 'sine') sample *= Math.sin(Math.PI * t);
     d[i] = sample;
   }
   cache.set(key, buf);
@@ -71,11 +67,10 @@ function getCachedSfxNoiseBuffer(ctx, dur, decay, gainVal, variant){
 window.getCachedFateSfxNoiseBuffer = getCachedSfxNoiseBuffer;
 
 function warmFateSyntheticSfx(types) {
-  const list = Array.isArray(types) && types.length ? types : ['draw','place','consolidate','discard'];
+  const list = Array.isArray(types) && types.length ? types : ['place','consolidate','discard'];
   try {
     const ctx = getAudioCtx();
     getSfxBus(ctx);
-    if(list.includes('draw')) getCachedSfxNoiseBuffer(ctx, 0.15, 0.5, 0.4, 'drawSwoosh');
     if(list.includes('place')) getCachedSfxNoiseBuffer(ctx, 0.06, 2.2, 0.5);
     if(list.includes('consolidate')) getCachedSfxNoiseBuffer(ctx, 0.04, 2.5, 0.3);
     if(list.includes('discard')) getCachedSfxNoiseBuffer(ctx, 0.35, 1.2, 0.35);
@@ -207,8 +202,38 @@ function playFateLossTone(effectiveVol) {
   } catch(e) {}
 }
 
+function shouldPlayTurnChangeSfx() {
+  const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const last = Number(window.__fateLastTurnChangeSfxAt || 0) || 0;
+  if(nowMs - last < 1200) {
+    try {
+      const perf = window.__fatePerf = window.__fatePerf || {};
+      perf.turnChangeSfxSuppressed = (Number(perf.turnChangeSfxSuppressed || 0) || 0) + 1;
+      perf.lastTurnChangeSfxSuppressedAt = Date.now();
+    } catch(e) {}
+    return false;
+  }
+  window.__fateLastTurnChangeSfxAt = nowMs;
+  return true;
+}
+window.shouldPlayTurnChangeSfx = shouldPlayTurnChangeSfx;
+
+function playFateSfxOnce(type, key, minGapMs) {
+  if(typeof playSfx !== 'function') return false;
+  const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const storeKey = '__fateLastSfxOnce_' + String(key || type || 'default');
+  const minGap = Math.max(0, Number(minGapMs) || 140);
+  const last = Number(window[storeKey] || 0) || 0;
+  if(nowMs - last < minGap) return false;
+  window[storeKey] = nowMs;
+  playSfx(type);
+  return true;
+}
+window.playFateSfxOnce = playFateSfxOnce;
+
 function playSfx(type) {
   if(_masterVol<=0) return;
+  const isTurnChangeSound = type === 'turnChange';
   const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition'].includes(type);
   if(isMenuSound) {
     const startupOverlay = typeof document !== 'undefined' ? document.getElementById('fate-loading-screen') : null;
@@ -217,6 +242,7 @@ function playSfx(type) {
   }
   const effectiveVol = isMenuSound ? _menuVol : _sfxVol;
   if(effectiveVol<=0) return;
+  if(isTurnChangeSound && !shouldPlayTurnChangeSfx()) return;
   if(type === 'fateLose') playFateLossTone(effectiveVol);
   if(playFateSampleSfx(type, isMenuSound, effectiveVol)) return;
   try {
@@ -251,7 +277,31 @@ function playSfx(type) {
       return ws;
     }
 
-    if(type==='place'){
+    if(type==='draw'){
+      const slide = ctx.createOscillator();
+      slide.type = 'triangle';
+      slide.frequency.setValueAtTime(860, now);
+      slide.frequency.exponentialRampToValueAtTime(360, now + 0.16);
+      const slideGain = ctx.createGain();
+      slideGain.gain.setValueAtTime(0.16, now);
+      slideGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      slide.connect(slideGain);
+      slideGain.connect(vol);
+      slide.start(now);
+      slide.stop(now + 0.22);
+      const tick = ctx.createOscillator();
+      tick.type = 'square';
+      tick.frequency.setValueAtTime(1500, now + 0.018);
+      const tickGain = ctx.createGain();
+      tickGain.gain.setValueAtTime(0.055, now + 0.018);
+      tickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+      tick.connect(tickGain);
+      tickGain.connect(vol);
+      tick.start(now + 0.018);
+      tick.stop(now + 0.07);
+    }
+
+    else if(type==='place'){
       // HEAVY card slam: sub-bass thud + saturated mid punch + metallic ring + noise crack
       // Sub thud
       const sub = ctx.createOscillator(); sub.type='sine';
@@ -321,28 +371,6 @@ function playSfx(type) {
         ping.connect(g); g.connect(vol);
         ping.start(now + 0.055 + i*0.035); ping.stop(now + 0.25 + i*0.035);
       });
-    }
-
-    else if(type==='draw'){
-      // Slick card slide: filtered swoosh + snappy transient + tonal pop
-      // Swoosh noise
-      const buf = getCachedSfxNoiseBuffer(ctx, 0.15, 0.5, 0.4, 'drawSwoosh');
-      const src = ctx.createBufferSource(); src.buffer = buf;
-      const bp = ctx.createBiquadFilter(); bp.type='bandpass';
-      bp.frequency.setValueAtTime(1200,now); bp.frequency.exponentialRampToValueAtTime(4000,now+0.12);
-      bp.Q.value = 2.5;
-      src.connect(bp); bp.connect(vol); src.start(now);
-      // Snap transient
-      const snap = ctx.createOscillator(); snap.type='square';
-      snap.frequency.setValueAtTime(3000,now); snap.frequency.exponentialRampToValueAtTime(800,now+0.03);
-      const snapG = ctx.createGain(); snapG.gain.setValueAtTime(0.1,now); snapG.gain.exponentialRampToValueAtTime(0.001,now+0.04);
-      snap.connect(snapG); snapG.connect(vol); snap.start(now); snap.stop(now+0.05);
-      // Tonal pop
-      const pop = ctx.createOscillator(); pop.type='triangle';
-      pop.frequency.setValueAtTime(500,now+0.02); pop.frequency.exponentialRampToValueAtTime(1200,now+0.1);
-      const popG = ctx.createGain(); popG.gain.setValueAtTime(0.12,now+0.02);
-      popG.gain.exponentialRampToValueAtTime(0.001,now+0.12);
-      pop.connect(popG); popG.connect(vol); pop.start(now+0.02); pop.stop(now+0.14);
     }
 
     else if(type==='turnChange'){
@@ -1800,10 +1828,34 @@ function deferMatchAudio(fn, delayMs) {
 function playCardSoundDeferred(cardId, delayMs) {
   deferMatchAudio(function(){ playCardSound(cardId); }, delayMs);
 }
+window.playCardSoundDeferred = playCardSoundDeferred;
 
 function playSfxDeferred(type, delayMs) {
   deferMatchAudio(function(){ playSfx(type); }, delayMs);
 }
+window.playSfxDeferred = playSfxDeferred;
+
+function playCardSetAudio(card, options) {
+  if(!card) return false;
+  const opts = options || {};
+  const delay = Math.max(0, Number(opts.delayMs) || 0);
+  if(opts.voice !== false) {
+    if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, delay);
+    else deferMatchAudio(function(){ playCardSound(card.id); }, delay);
+  }
+  if(opts.sfx !== false) {
+    const setSfxType = card.type === 'Supporter' ? 'supporterSet' : getCharacterSetSfxType(card);
+    if(typeof playSfxDeferred === 'function') playSfxDeferred(setSfxType, delay);
+    else deferMatchAudio(function(){ playSfx(setSfxType); }, delay);
+    if(card.aff) {
+      const affDelay = delay + Math.max(0, Number(opts.affDelayMs) || 24);
+      if(typeof playSfxDeferred === 'function') playSfxDeferred('affPlace_' + card.aff, affDelay);
+      else deferMatchAudio(function(){ playSfx('affPlace_' + card.aff); }, affDelay);
+    }
+  }
+  return true;
+}
+window.playCardSetAudio = playCardSetAudio;
 
 function applyAudioVolumes() {
   if(_bgMusic) _bgMusic.volume = _musicVol * _masterVol;
@@ -1943,6 +1995,9 @@ function fateAudioReport() {
     screen: _currentScreen,
     enabled: _musicEnabled,
     musicVolume: _musicVol,
+    sfxVolume: _sfxVol,
+    voiceVolume: _voiceVol,
+    menuVolume: _menuVol,
     masterVolume: _masterVol,
     bg: _bgMusic ? { src: _bgMusic.currentSrc || _bgMusic.src, paused: _bgMusic.paused, readyState: _bgMusic.readyState, error: _bgMusic.error && _bgMusic.error.code } : null,
     game: _gameMusic ? { src: _gameMusic.currentSrc || _gameMusic.src, paused: _gameMusic.paused, readyState: _gameMusic.readyState, error: _gameMusic.error && _gameMusic.error.code } : null,

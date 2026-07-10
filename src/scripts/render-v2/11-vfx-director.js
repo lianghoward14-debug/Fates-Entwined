@@ -37,6 +37,7 @@
     'pilePulse',
     'handFanPulse'
   ]);
+  const BOARD_PLACEMENT_RECIPES = new Set(['PLAY_CARD', 'DECK_TO_BOARD', 'SET_CONFIRM', 'SET_DRAG_LAND']);
   const BRIDGE_CARD_ACTION_RECIPES = new Set([
     'PLAY_CARD',
     'DRAW_CARD',
@@ -239,6 +240,7 @@
   }
 
   function actionRecipeAllowedWhileAnimationsOff(recipeType, options){
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return false;
     if(BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
     if(ANIMATIONS_OFF_ALLOWED_RECIPES.has(recipeType)) return true;
     return false;
@@ -464,6 +466,7 @@
 
   function play(type, payload, options){
     const recipeType = String(type || '').toUpperCase();
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return null;
     if(animationsOff() && !actionRecipeAllowedWhileAnimationsOff(recipeType, options || {})) return null;
     const recipes = window.FateVfxRecipes;
     if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
@@ -1142,7 +1145,7 @@
       if(p.fadeOutLate) alpha *= raw < .58 ? 1 : Math.max(0, 1 - ((raw - .58) / .42));
       else if(p.kind === 'cardDissolve' || p.fadeOut) alpha *= Math.max(0, 1 - raw);
       ctx.globalAlpha = alpha;
-      if(p.kind === 'cardMove') drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
+      if(p.kind === 'cardMove' && !p.noShadow) drawCardMotionShadow(ctx, rr, raw, Math.sin(Math.PI * raw));
       ctx.translate(rr.x + rr.w / 2, rr.y + rr.h / 2);
       ctx.rotate(rotation);
       if(skewX || skewY) ctx.transform(1, skewY, skewX, 1, 0, 0);
@@ -1154,14 +1157,27 @@
     if(p.kind === 'cardFlip' || p.kind === 'cardSummon'){
       const r = rect(p.rect || p.toRect || p.fromRect);
       if(!r) return;
-      const sx = p.kind === 'cardFlip' ? Math.max(.05, Math.abs(Math.cos(Math.PI * p.progress))) : (.82 + Math.sin(Math.PI * p.progress) * .24);
+      const raw = clamp(Number(p.progress) || 0, 0, 1);
+      const turn = p.kind === 'cardFlip' ? ease(p.easing || 'in-out-cubic', raw) : raw;
+      const pulse = Math.sin(Math.PI * raw);
+      const sx = p.kind === 'cardFlip' ? Math.max(.035, Math.abs(Math.cos(Math.PI * turn))) : (.82 + pulse * .24);
+      const scalePulse = p.kind === 'cardFlip' ? (Number(p.scalePulse) || .028) : 0;
+      const lift = p.kind === 'cardFlip' ? pulse * (Number(p.lift) || .032) * Math.max(16, r.h * .34) : 0;
+      const rotation = p.kind === 'cardFlip' ? Math.sin(Math.PI * 2 * raw) * (Number(p.rotate) || 0) * Math.PI / 180 : 0;
+      const flipEndsFaceDown = !!(p.faceDownEnd || p.endFaceDown);
+      const revealAt = Math.max(.5, Math.min(.86, Number(p.revealAt) || .68));
       ctx.save();
-      ctx.globalAlpha = p.kind === 'cardSummon' ? Math.sin(Math.PI * Math.min(1, p.progress + .18)) : 1;
-      ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
-      ctx.scale(sx, .98 + Math.sin(Math.PI * p.progress) * .04);
-      drawCard(ctx, p.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {faceDown:p.kind === 'cardFlip' && p.progress < .5});
+      ctx.globalAlpha = p.kind === 'cardSummon' ? Math.sin(Math.PI * Math.min(1, raw + .18)) : 1;
+      if(p.kind === 'cardFlip') drawCardMotionShadow(ctx, {x:r.x, y:r.y - lift, w:r.w, h:r.h}, raw, pulse * .42);
+      ctx.translate(r.x + r.w / 2, r.y + r.h / 2 - lift);
+      ctx.rotate(rotation);
+      ctx.scale(sx * (1 + scalePulse * pulse), (.985 + pulse * .025) * (1 + scalePulse * .36 * pulse));
+      drawCard(ctx, p.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {
+        faceDown:p.kind === 'cardFlip' && (flipEndsFaceDown ? turn >= (1 - revealAt) : turn < revealAt),
+        textureSize:p.textureSize || stableMotionTextureSize(p, r)
+      });
       ctx.restore();
-      if(!p.noGlow) drawGlowRect(ctx, r, p.color || 'rgba(255,232,150,.82)', Math.sin(Math.PI * p.progress) * .8);
+      if(!p.noGlow) drawGlowRect(ctx, r, p.color || 'rgba(255,232,150,.82)', pulse * .8);
       return;
     }
     if(p.kind === 'cardImpact'){
@@ -1454,6 +1470,7 @@
 
   function suppressAcceptedBridgeMotion(type, options){
     const recipeType = String(type || '').toUpperCase();
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return true;
     if(!BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
     const opts = options || {};
     if(opts.forceBridgeVfx || opts.allowBridgeVfx) return false;

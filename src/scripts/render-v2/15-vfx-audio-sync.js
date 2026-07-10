@@ -32,21 +32,44 @@
       skipped++;
       return false;
     }
+    if(cue === 'turn_start' || cue === 'turn_end') {
+      skipped++;
+      return false;
+    }
+    const resolvedCue = ({
+      card_play_land:'cardSet',
+      draw_card:'draw',
+      discard_card:'discard',
+      destroy_card:'discard',
+      fate_gain:'fateGain',
+      fate_loss:'fateLose',
+      card_move:'cardMove',
+      search_found:'searchFound',
+      consolidate_charge:'consolidate',
+      consolidate_impact:'characterSet',
+      card_flip:'cardFlip',
+      card_reveal:'cardPreview',
+      supporter_activate:'effectActivate',
+      landscape_trigger:'landscapePulse',
+      invalid_action:'blocked',
+      return_to_hand:'cardMove',
+      discard_to_hand:'searchFound'
+    })[cue] || cue;
     try {
       if(typeof playSfx === 'function'){
         const started = nowMs();
-        playSfx(cue);
+        playSfx(resolvedCue);
         const elapsed = nowMs() - started;
         lastPlayMs = Math.round(elapsed * 10) / 10;
         maxPlayMs = Math.max(maxPlayMs, lastPlayMs);
-        lastCue = cue;
+        lastCue = resolvedCue;
         if(elapsed >= 8) longPlayCount++;
         played++;
         return true;
       }
-      missing[cue] = (missing[cue] || 0) + 1;
+      missing[resolvedCue] = (missing[resolvedCue] || 0) + 1;
     } catch(e) {
-      missing[cue] = (missing[cue] || 0) + 1;
+      missing[resolvedCue] = (missing[resolvedCue] || 0) + 1;
     }
     return false;
   }

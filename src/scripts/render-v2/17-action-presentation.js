@@ -7,7 +7,8 @@
   const VERSION = 24;
   const MATCH_ACTION_MOTION_DISABLED = false;
   const SIMPLE_SET_CARD_MOTION_ENABLED = false;
-  const SET_CARD_MOTION_MODE = 'local-square'; // Revert to 'source-flight' to restore hand-to-board set flights.
+  const SET_CARD_MOTION_MODE = 'disabled';
+  const BOARD_PLACEMENT_RECIPES = new Set(['PLAY_CARD', 'DECK_TO_BOARD', 'SET_CONFIRM', 'SET_DRAG_LAND']);
   const ACTION_MOTION_FRAME_GAP_LIMIT_MS = 34;
   const AUTO_DISABLE_ON_FRAME_GAP = false;
   const recent = [];
@@ -74,8 +75,6 @@
   }
 
   function normalSetCardMotionEnabled(){
-    if(window.FATE_ENABLE_NORMAL_SET_ANIMATION === true) return true;
-    try { return localStorage.getItem('fateEnableNormalSetAnimation') === '1'; } catch(e) {}
     return false;
   }
 
@@ -667,11 +666,12 @@
       return 700 + Math.min(5, count - 1) * 84;
     }
     if(type === 'SEARCH_TO_HAND') return 1100;
-    if(type === 'MOVE_CARD' || type === 'SWAP_CARDS' || type === 'RETURN_TO_HAND') return 520;
+    if(type === 'MOVE_CARD' || type === 'SWAP_CARDS') return 240;
+    if(type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
     if(type === 'DESTROY_CARD') return 520;
     if(type === 'FATE_GAIN' || type === 'FATE_LOSS') return 260;
-    if(type === 'CARD_FLIP') return 540;
+    if(type === 'CARD_FLIP') return 700;
     if(type === 'CARD_REVEAL') return 660;
     if(type === 'SUPPORTER_ACTIVATE') return 560;
     if(type === 'LANDSCAPE_TRIGGER' || type === 'ZONE_SHIFT' || type === 'ZONE_SCORE' || type === 'ZONE_WIN_FLIP') return 220;
@@ -681,85 +681,10 @@
 
   function buildSetMotion(opts){
     if(opts) {
-      opts._motionSkipReason = '';
+      opts._motionSkipReason = 'board-placement-motion-disabled';
       opts._motionBuildDetails = null;
     }
-    const fx = motionFx();
-    if(!fx || typeof fx.playRecipe !== 'function') {
-      if(opts) opts._motionSkipReason = 'motion-facade-unavailable';
-      return null;
-    }
-    const targetRect = targetRectForBoardTarget(opts.target);
-    const owner = actionSourceOwner(opts);
-    const opponentSource = Number(owner) !== Number(currentViewer());
-    if(SET_CARD_MOTION_MODE === 'local-square') {
-      if(!targetRect) {
-        if(opts) {
-          opts._motionSkipReason = 'motion-rect-unavailable';
-          opts._motionBuildDetails = {hasTargetRect:false, localSquare:true};
-        }
-        return null;
-      }
-      const localDuration = Math.max(300, Math.min(420, Number(opts.durationMs) || 340));
-      const payload = {
-        iid:opts.inst && opts.inst.iid,
-        card:opts.sourceCard || opts.inst || null,
-        faceDown:!!(opts.inst && opts.inst.faceDown),
-        fromRect:targetRect,
-        toRect:targetRect,
-        targetRect,
-        duration:localDuration,
-        placementStyle:'local-square',
-        suppressMotionAudio:true
-      };
-      const duration = estimateDuration('PLAY_CARD', payload);
-      return {
-        recipe:'PLAY_CARD',
-        payload,
-        duration,
-        commitDelayMs:Math.max(150, localDuration - 54),
-        visibleMs:duration,
-        motionMode:SET_CARD_MOTION_MODE
-      };
-    }
-    const fromRect = opponentSource
-      ? (topScreenSetOrigin(targetRect) || opts.fromRect)
-      : (opts.fromRect || (typeof fx.handRectForCard === 'function' ? fx.handRectForCard(opts.sourceCard) : null));
-    const resolvedFromRect = fromRect || sourceRectForBoardPlacement(Object.assign({source:'hand'}, opts), targetRect);
-    if(!targetRect || !resolvedFromRect) {
-      if(opts) {
-        opts._motionSkipReason = 'motion-rect-unavailable';
-        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!resolvedFromRect};
-      }
-      return null;
-    }
-    const travel = Math.max(372, Math.min(460, Number(opts.durationMs) || 392));
-    const handoffHoldMs = 150;
-    const payload = {
-      iid:opts.inst && opts.inst.iid,
-      card:opts.sourceCard || opts.inst || null,
-      faceDown:!!(opts.inst && opts.inst.faceDown),
-      fromRect:resolvedFromRect,
-      toRect:targetRect,
-      targetRect,
-      duration:travel,
-      handoffHoldMs,
-      arc:opponentSource ? .10 : .28,
-      lift:opponentSource ? .12 : .30,
-      suppressMotionAudio:true,
-      sideArc:opponentSource ? 0 : ((opts.inst && opts.inst.owner === 1) ? -.42 : .42),
-      rotate:opponentSource ? -4.5 : ((opts.inst && opts.inst.owner === 1) ? -13.0 : 13.0),
-      bank:opponentSource ? -2.2 : ((opts.inst && opts.inst.owner === 1) ? -10.0 : 10.0)
-    };
-    const visibleMs = Math.max(560, Math.min(760, travel));
-    const totalVisibleMs = visibleMs + handoffHoldMs;
-    return {
-      recipe:'PLAY_CARD',
-      payload,
-      duration:estimateDuration('PLAY_CARD', payload),
-      commitDelayMs:Math.max(120, visibleMs - 40),
-      visibleMs:totalVisibleMs
-    };
+    return null;
   }
 
   function buildSimpleSetMotion(opts){
@@ -946,40 +871,10 @@
 
   function buildBoardPlacementMotion(opts){
     if(opts) {
-      opts._motionSkipReason = '';
+      opts._motionSkipReason = 'board-placement-motion-disabled';
       opts._motionBuildDetails = null;
     }
-    const fx = motionFx();
-    if(!fx || typeof fx.playRecipe !== 'function') {
-      if(opts) opts._motionSkipReason = 'motion-facade-unavailable';
-      return null;
-    }
-    const targetRect = typeof fx.targetRectForBoardTarget === 'function' ? fx.targetRectForBoardTarget(opts.target) : null;
-    const fromRect = sourceRectForBoardPlacement(opts, targetRect);
-    if(!targetRect || !fromRect) {
-      if(opts) {
-        opts._motionSkipReason = 'motion-rect-unavailable';
-        opts._motionBuildDetails = {hasTargetRect:!!targetRect, hasFromRect:!!fromRect};
-      }
-      return null;
-    }
-    const travel = Math.max(540, Math.min(740, Number(opts.durationMs) || 640));
-    const recipe = String(opts.recipe || opts.motionType || '').toUpperCase() || (String(opts.source || '').toLowerCase() === 'deck' ? 'DECK_TO_BOARD' : 'PLAY_CARD');
-    const payload = {
-      iid:opts.inst && opts.inst.iid,
-      card:opts.sourceCard || opts.inst || null,
-      faceDown:!!(opts.inst && opts.inst.faceDown),
-      fromRect,
-      toRect:targetRect,
-      targetRect,
-      duration:travel,
-      path:opts.path || 'showcase',
-      arc:Number(opts.arc == null ? .30 : opts.arc),
-      lift:Number(opts.lift == null ? .34 : opts.lift),
-      overshoot:Number(opts.overshoot == null ? .12 : opts.overshoot),
-      source:opts.source || opts.sourceKind || 'effect'
-    };
-    return {recipe, payload, duration:estimateDuration(recipe, payload)};
+    return null;
   }
 
   function buildConsolidationPayload(opts){
@@ -1078,52 +973,15 @@
 
   function beginSetCard(options){
     const opts = options || {};
-    if(!normalSetCardMotionEnabled()) return false;
-    if(active) return false;
     if(typeof opts.commit !== 'function') return false;
-    const tx = createTransaction('set-card', {
-      lockMs:760,
-      renderHint:'compositor set-card motion; board-entry fallback suppressed'
-    });
-    tx.cardName = opts.card && opts.card.name || opts.inst && opts.inst.name || '';
-    tx.target = opts.target || null;
-    if(SIMPLE_SET_CARD_MOTION_ENABLED) {
-      const simpleMotion = buildSimpleSetMotion(opts);
-      runSetOrPlacement(tx, simpleMotion, opts, opts.commit, opts.rollback, {hand:true, preflightTimeoutMs:320});
-      return true;
-    }
-    const disabledReason = matchActionMotionDisableReason();
-    if(disabledReason) {
-      commitWithoutPresentation(tx, opts.commit, disabledReason);
-      return true;
-    }
-    const motion = buildSetMotion(opts);
-    runSetOrPlacement(tx, motion, opts, opts.commit, opts.rollback, {hand:true, preflightTimeoutMs:420});
+    opts.commit(null);
     return true;
   }
 
   function beginBoardPlacement(options){
     const opts = options || {};
-    if(active) return false;
     if(typeof opts.commit !== 'function') return false;
-    const tx = createTransaction('board-placement', {
-      lockMs:760,
-      renderHint:'compositor placement motion; board-entry fallback suppressed'
-    });
-    tx.cardName = opts.sourceCard && opts.sourceCard.name || opts.inst && opts.inst.name || '';
-    tx.target = opts.target || null;
-    tx.source = opts.source || opts.sourceKind || 'effect';
-    const motion = buildBoardPlacementMotion(opts);
-    const disabledReason = matchActionMotionDisableReason();
-    if(disabledReason) {
-      commitWithoutPresentation(tx, opts.commit, disabledReason);
-      return true;
-    }
-    runSetOrPlacement(tx, motion, opts, opts.commit, opts.rollback, {
-      hand:!!opts.sourceCard,
-      piles:String(opts.source || opts.sourceKind || '').toLowerCase() !== 'hand',
-      preflightTimeoutMs:360
-    });
+    opts.commit(null);
     return true;
   }
 
@@ -1165,11 +1023,12 @@
         }
         tx.presentMs = round(delay);
         const adapter = window.FateMatchRendererAdapter;
+        const hideResultMs = Math.max(220, delay + 260);
         if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
-          adapter.suppressInitialPlacementMotion(payload.resultCardIid, Math.max(220, delay + 120));
+          adapter.suppressInitialPlacementMotion(payload.resultCardIid, hideResultMs);
         }
-        if(payload.resultCardIid && !payload.faceDown && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
-          adapter.hideBoardCardForVfx(payload.resultCardIid, Math.max(220, delay + 120));
+        if(payload.resultCardIid && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
+          adapter.hideBoardCardForVfx(payload.resultCardIid, hideResultMs);
         }
       } else {
         tx.degraded = true;
@@ -1192,6 +1051,7 @@
     const recipe = String(type || '').toUpperCase();
     const opts = options || {};
     if(!recipe) return null;
+    if(BOARD_PLACEMENT_RECIPES.has(recipe)) return null;
     const allowedWhenAnimationsOff = false;
     if(matchActionMotionDisabled() && !(recipe === 'CONSOLIDATE' && consolidationMotionAllowed())) return null;
     if(animationsOff() && !allowedWhenAnimationsOff) return null;

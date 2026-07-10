@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 'use strict';
 
 const assert = require('assert');
@@ -18,7 +18,7 @@ function delay(ms){ return new Promise(resolve=>setTimeout(resolve, ms)); }
 function writeSmokeCardData(){
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fate-authority-cards-'));
   const file = path.join(dir, 'cards.js');
-  const cards = Array.from({length:14}, (_, index)=>({
+  const cards = Array.from({length:20}, (_, index)=>({
     id:String(101 + index),
     name:`Smoke Plain Character ${index + 1}`,
     type:'Character',
@@ -35,10 +35,10 @@ function writeSmokeCardData(){
 }
 
 function smokeDeck(){
-  const ids = Array.from({length:14}, (_, index)=>String(101 + index));
+  const ids = Array.from({length:20}, (_, index)=>String(101 + index));
   const deck = [];
   ids.forEach(id=>{
-    for(let i = 0; i < 3; i += 1) deck.push(id);
+    for(let i = 0; i < 2; i += 1) deck.push(id);
   });
   return deck.slice(0, 40);
 }
@@ -46,8 +46,8 @@ function smokeDeck(){
 function assertClientDirectApplyContract(){
   const roomsText = fs.readFileSync(path.join(ROOT, 'src', 'scripts', '18-online-rooms.js'), 'utf8');
   assert.match(roomsText, /function shouldApplyServerStateDirectly\(actionType, payload\)/);
-  assert.match(roomsText, /if\(shouldApplyServerStateDirectly\(type, payload\)\)\{[\s\S]*?applyAuthoritativePostState\(action,[\s\S]*?return;/);
-  assert.match(roomsText, /Strict Fly authority action is missing canonical server state; skipping local replay/);
+  assert.match(roomsText, /if\(shouldApplyServerStateDirectly\(type, payload\)\)\{[\s\S]*?applyAuthoritativePostState\(action,[\s\S]*?return true;/);
+  assert.match(roomsText, /Strict Fly authority action is missing canonical server state; skipping local replay[\s\S]*?return false;/);
   assert.match(roomsText, /async function withLegacyRemoteReplayAction\(fn, playerIndex\)/);
   assert.doesNotMatch(roomsText, /withRemoteAction/);
   assert.match(roomsText, /window\.fateAuthorityRenderReport/);
@@ -267,22 +267,27 @@ async function main(){
     await waitForMessage(host, msg=>msg.kind === 'accepted' && Number(msg.action?.seq || 0) === startSeq && msg.action?.type === 'MATCH_START', 'host match start');
     await waitForMessage(guest, msg=>msg.kind === 'accepted' && Number(msg.action?.seq || 0) === startSeq && msg.action?.type === 'MATCH_START', 'guest match start');
     assert.strictEqual(host.stateHash, guest.stateHash, 'match start state hash mismatch');
-    assert.strictEqual(host.canonicalState.phase, 'draw');
-    assert.ok(Number(host.canonicalState._coinWinner) === 0 || Number(host.canonicalState._coinWinner) === 1, 'MATCH_START must select a coin winner');
-
-    const coinWinner = Number(host.canonicalState._coinWinner);
-    const coinClient = coinWinner === 0 ? host : guest;
-    const waitingClient = coinWinner === 0 ? guest : host;
-    const chooseId = sendIntent(coinClient, 'CHOOSE_TURN', {
-      playerIndex:coinWinner,
-      goFirst:true,
-      baseStateHash:coinClient.stateHash
-    });
-    await expectAcceptedOnBoth(coinClient, waitingClient, 'CHOOSE_TURN', chooseId, 'coin turn choice');
-    assert.strictEqual(host.canonicalState.phase, 'main');
-    assert.strictEqual(host.stateHash, guest.stateHash, 'turn choice state hash mismatch');
-
-    const firstPlayer = Number(host.canonicalState.currentPlayer);
+    let firstPlayer = Number(host.canonicalState.currentPlayer);
+    if(String(host.canonicalState.phase || '') === 'draw'){
+      const payloadWinner = Number(started.accepted?.action?.payload?.coinWinner);
+      const storedWinner = Number(host.canonicalState._coinWinner);
+      const coinWinner = storedWinner === 0 || storedWinner === 1 ? storedWinner : payloadWinner;
+      assert.ok(coinWinner === 0 || coinWinner === 1, 'MATCH_START must select a coin winner');
+      const coinClient = coinWinner === 0 ? host : guest;
+      const waitingClient = coinWinner === 0 ? guest : host;
+      const chooseId = sendIntent(coinClient, 'CHOOSE_TURN', {
+        playerIndex:coinWinner,
+        goFirst:true,
+        baseStateHash:coinClient.stateHash
+      });
+      await expectAcceptedOnBoth(coinClient, waitingClient, 'CHOOSE_TURN', chooseId, 'coin turn choice');
+      assert.strictEqual(host.canonicalState.phase, 'main');
+      assert.strictEqual(host.stateHash, guest.stateHash, 'turn choice state hash mismatch');
+      firstPlayer = Number(host.canonicalState.currentPlayer);
+    }else{
+      assert.strictEqual(host.canonicalState.phase, 'main');
+      assert.ok(firstPlayer === 0 || firstPlayer === 1, 'MATCH_START must enter main with a current player');
+    }
     const firstClient = firstPlayer === 0 ? host : guest;
     const secondClient = firstPlayer === 0 ? guest : host;
     const firstRow = firstPlayer === 0 ? 2 : 0;

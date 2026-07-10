@@ -6,8 +6,8 @@
 
   const VERSION = 7;
   window.FateV2CardMotionFxUsesDomGhosts = false;
+  const BOARD_PLACEMENT_RECIPES = new Set(['PLAY_CARD', 'DECK_TO_BOARD', 'SET_CONFIRM', 'SET_DRAG_LAND']);
   const CARD_ACTION_RECIPES = new Set([
-    'PLAY_CARD',
     'DRAW_CARD',
     'DISCARD_CARD',
     'DESTROY_CARD',
@@ -15,7 +15,6 @@
     'SWAP_CARDS',
     'RETURN_TO_HAND',
     'HAND_DISCARD',
-    'DECK_TO_BOARD',
     'DECK_TO_HAND',
     'DISCARD_TO_HAND',
     'SEARCH_TO_HAND',
@@ -164,6 +163,7 @@
   function play(type, payload){
     if(animationsOff()) return false;
     const recipe = String(type || '').toUpperCase();
+    if(BOARD_PLACEMENT_RECIPES.has(recipe)) return false;
     const presenter = window.FateActionPresentation;
     if(presenter && typeof presenter.beginMotionOnly === 'function' &&
       !(typeof presenter.isActive === 'function' && presenter.isActive())) {
@@ -188,7 +188,7 @@
     if(kind === 'draw') return play('DRAW_CARD', {card, fromRect, toRect, layer:'effects'});
     if(kind === 'discard') return play('DISCARD_CARD', {card, iid:card && card.iid, fromRect, toRect});
     if(kind === 'destroy') return play('DESTROY_CARD', {card, iid:card && card.iid, fromRect, toRect});
-    return play('PLAY_CARD', {card, iid:card && card.iid, fromRect, toRect});
+    return false;
   }
 
   function flyBoardCard(card, z, r, c, kind){
@@ -203,7 +203,12 @@
   function flipBoardCard(card, z, r, c){
     if(animationsOff()) return false;
     const rect = boardCardRect(z, r, c);
-    return play('CARD_FLIP', {card, iid:card && card.iid, rect});
+    const iid = card && card.iid;
+    const adapter = scene();
+    if(adapter && typeof adapter.hideBoardCardForVfx === 'function') {
+      adapter.hideBoardCardForVfx(iid, 820);
+    }
+    return play('CARD_FLIP', {card, iid, rect, duration:620, revealAt:.68});
   }
 
   function boardNotice(card, z, r, c, text, opts){
@@ -298,10 +303,7 @@
   }
 
   function sendDeckCardToBoard(card, owner, z, r, c, opts){
-    const fromRect = pileRect(owner, 'deck') || pileRect(null, 'deck');
-    const toRect = rectForBoardTarget(z, r, c);
-    if(!fromRect || !toRect) return false;
-    return play('DECK_TO_BOARD', Object.assign({iid:card && card.iid, card, fromRect, toRect}, opts || {}));
+    return false;
   }
 
   function sendDeckCardToHand(card, owner, handIndex, opts){
@@ -415,31 +417,11 @@
   }
 
   function queuePlacementFromHand(sourceCard, placedCard){
-    if(animationsOff()) return false;
-    const adapter = scene();
-    if(!adapter || typeof adapter.queuePlacementMotion !== 'function') return false;
-    if(!adapter.ownsBoard || !adapter.ownsBoard()) return false;
-    const sourceIid = sourceCard && sourceCard.iid;
-    const placedIid = placedCard && placedCard.iid;
-    const owner = placedCard && placedCard.owner != null ? placedCard.owner : sourceCard && sourceCard.owner;
-    const placedRect = boardCardRectByIid(placedIid);
-    const fromRect = anyHandRectByIid(sourceIid)
-      || (Number(owner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, owner))
-      || fallbackHandRect(owner, placedRect);
-    if(!fromRect || placedIid == null) return false;
-    return !!adapter.queuePlacementMotion(placedIid, fromRect);
+    return false;
   }
 
   function setCardFromHand(sourceCard, placedCard, target){
-    if(animationsOff()) return 0;
-    const adapter = scene();
-    if(!adapter || !adapter.ownsBoard || !adapter.ownsBoard()) return 0;
-    const placedIid = placedCard && placedCard.iid;
-    const targetRect = target && target.x != null ? target : rectForBoardTarget(target && target.z, target && target.r, target && target.c);
-    if(!targetRect || placedIid == null) return 0;
-    const duration = 84;
-    if(typeof adapter.suppressInitialPlacementMotion === 'function') adapter.suppressInitialPlacementMotion(placedIid, duration + 140);
-    return duration;
+    return 0;
   }
 
   function handRectForCard(card){
@@ -480,7 +462,7 @@
     };
     const animatedTributes = Math.min(10, payload.tributes.length);
     const revealDelay = animatedTributes > 1
-      ? 94 + Math.max(0, animatedTributes - 1) * (246 + 92) + 246 + 470
+      ? 90 + Math.max(0, animatedTributes - 1) * 390 + 760 + 620 + 210 + 180
       : 1180;
     const adapter = scene();
     if(payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
@@ -496,6 +478,7 @@
         seen.add(key);
         adapter.hideBoardCardForVfx(key, revealDelay + 260);
       });
+      if(payload.resultCardIid) adapter.hideBoardCardForVfx(payload.resultCardIid, revealDelay + 260);
       if(typeof adapter.scheduleRender === 'function') adapter.scheduleRender('consolidation-hide-tributes-fallback');
     }
     play('CONSOLIDATE', payload);

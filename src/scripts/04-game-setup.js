@@ -1297,6 +1297,7 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
 async function drawCard(player, count=1, options = {}) {
   const myP = getPerspectivePlayerIndex();
   let outsideDrawLandscapeCard = null;
+  if(!options.drawPhase && !options.suppressDrawSfx && count > 0) playSfx('draw');
   for(let i=0;i<count;i++){
     if(G.players[player].deck.length===0){
       log('sys','P'+(player+1)+' deck is empty!');
@@ -1363,7 +1364,6 @@ async function drawCard(player, count=1, options = {}) {
       if(Array.isArray(G.erbsActive)) G.erbsActive[player] = false;
       else G.erbsActive = false;
     }
-    playSfx('draw');
     // Animate only local draws; opponent draws update hand state without a face-down flight.
     if(document.getElementById('s-game')?.classList.contains('active')){
       let v2DrawQueued = false;
@@ -1372,7 +1372,8 @@ async function drawCard(player, count=1, options = {}) {
           card,
           faceDown:false,
           drawIndex:i,
-          drawCount:count
+          drawCount:count,
+          suppressMotionAudio:!!options.drawPhase || !!options.suppressDrawSfx
         });
       }
       if(!v2DrawQueued && player===myP) animateDrawCard(i);
@@ -1395,7 +1396,7 @@ function addCardToHand(player, card, options = {}) {
     G._forceHandEnterIids.add(card.iid);
   }
 
-  // Wine Country Guerilla (70) only infiltrates after being discarded from its own zone.
+  // Wine Country Guerilla (70) infiltrates after being discarded by any method.
 
   const isCharacterCard = card.type !== 'Supporter';
   const westCaribOwner = typeof G._westCaribNext === 'object' ? G._westCaribNext.owner : (G._westCaribNext ? player : null);
@@ -1580,7 +1581,8 @@ function transferGuerillaToOpponent(player, card) {
     }
   }
   G.players[opp].hand.push(moving);
-  toast('Wine Country Guerilla infiltrated opponent\'s hand for 5 turns!');
+  if(typeof showWineCountryGuerillaSentBanner === 'function') showWineCountryGuerillaSentBanner();
+  else toast('Wine Country Guerilla was sent to opponent\'s hand.');
   log(player===0?'p1':'p2', 'Wine Country Guerilla given to opponent');
   playSfx('debuff');
   if(typeof renderHand === 'function') renderHand();
@@ -1659,7 +1661,7 @@ function doCoinFlip() {
   const result = document.getElementById('coin-result');
   const btns = document.getElementById('coin-btns');
   const winnerText = document.getElementById('coin-winner-text');
-  coin.className='coin';
+  coin.className='coin coin-pending';
   coin.innerHTML='?';
   result.textContent='';
   btns.style.display='none';
@@ -1676,6 +1678,7 @@ function doCoinFlip() {
       coin.classList.add('spin');
       if(typeof playSfx === 'function') playSfx('coinFlip');
       setTimeout(()=>{
+        coin.classList.remove('coin-pending');
         coin.innerHTML = renderCoinFace(heads);
         G._coinWinner = heads ? 0 : 1;
         const winner = G.players[G._coinWinner]?.name || `Player ${G._coinWinner + 1}`;
@@ -1728,6 +1731,7 @@ function doCoinFlip() {
     playSfx('coinFlip');
     setTimeout(()=>{
       const heads = (typeof G._onlineRng === 'function' ? G._onlineRng() : Math.random())<.5;
+      coin.classList.remove('coin-pending');
       coin.innerHTML = renderCoinFace(heads);
       const winner = heads?G.players[0].name:G.players[1].name;
       result.textContent=`${heads ? 'Heads' : 'Tails'}. ${winner} wins the flip!`;

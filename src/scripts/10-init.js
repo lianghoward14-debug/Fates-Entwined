@@ -609,7 +609,14 @@ window.cdbRemove = cdbRemove;
   window.__FATES_CARD_INFO_SOUND_INSTALLED = true;
   var orig = window.openCardDetail || (typeof openCardDetail==='function'?openCardDetail:null);
   if(!orig) return;
-  window.openCardDetail = function(c,fh,fb){ playSfx('cardInfoOpen'); return orig(c,fh,fb); };
+  window.openCardDetail = function(c,fh,fb){
+    var now = Date.now();
+    if(!(window.__fateSuppressNextCardInfoSfxUntil && now < window.__fateSuppressNextCardInfoSfxUntil)) {
+      if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
+      else playSfx('cardInfoOpen');
+    }
+    return orig(c,fh,fb);
+  };
 })();
 
 // Drag-to-place is intentionally disabled. The multiplayer UI uses click/detail
@@ -855,20 +862,8 @@ window.__FATES_HAND_DRAG_INSTALLED = false;
     return '<div class="cine-core"></div><div class="cine-ring cine-ring-1"></div><div class="cine-halo"></div>';
   }
   window.playPlacementAnimation=function(card,z,r,c){
-    var ms=0;if(orig)ms=orig(card,z,r,c);
-    var rarity=card?(card.rarity||'circle'):'circle';
-    requestAnimationFrame(function(){requestAnimationFrame(function(){
-      var cellEl=document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
-      if(!cellEl)return;var rect=cellEl.getBoundingClientRect();
-      var dur={star:1200,square:980,triangle:860,circle:700}[rarity]||780;
-      var ov=document.createElement('div');ov.className='cinematic-overlay cinematic-'+rarity;
-      ov.style.cssText='position:fixed;left:'+(rect.left+rect.width/2)+'px;top:'+(rect.top+rect.height/2)+'px;transform:translate(-50%,-50%);z-index:9500;pointer-events:none;';
-      ov.innerHTML=buildOverlayMarkup(rarity);
-      document.body.appendChild(ov);
-      if(typeof showCinematicSubtitle==='function') setTimeout(function(){ showCinematicSubtitle(card,Math.max(1300,dur+900),rarity); }, 380);
-      setTimeout(function(){if(ov.parentNode)ov.remove();},dur);
-    });});
-    return Math.max(ms, {star:900,square:760,triangle:680,circle:560}[rarity]||560);
+    if(orig) return orig(card,z,r,c) || 0;
+    return 0;
   };
 })();
 

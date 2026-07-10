@@ -6173,19 +6173,36 @@ function trackDailyCardPlacement(inst, z, r, c) {
 
 window.trackDailyCardPlacement = trackDailyCardPlacement;
 
-function showDailyChallengeNotification(label, starlight, icon) {
+var dailyChallengeNotificationQueue = [];
+var dailyChallengeNotificationActive = false;
+
+function playNextDailyChallengeNotification() {
+  if(dailyChallengeNotificationActive) return;
+  var next = dailyChallengeNotificationQueue.shift();
+  if(!next) return;
+  dailyChallengeNotificationActive = true;
   var note = document.createElement('div');
   note.className = 'dc-completion-notify';
-  note.innerHTML = '<div class="dc-cn-icon">'+renderDailyChallengeIcon(icon, 'dc-cn-icon-mark')+'</div>'
+  note.innerHTML = '<div class="dc-cn-icon">'+renderDailyChallengeIcon(next.icon, 'dc-cn-icon-mark')+'</div>'
     + '<div class="dc-cn-body">'
     + '<div class="dc-cn-title">Mission Complete</div>'
-    + '<div class="dc-cn-label">'+String(label)+'</div>'
-    + '<div class="dc-cn-reward">+'+starlight+' Starlight</div>'
+    + '<div class="dc-cn-label">'+String(next.label)+'</div>'
+    + '<div class="dc-cn-reward">+'+next.starlight+' Starlight</div>'
     + '</div>';
   document.body.appendChild(note);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ note.classList.add('dc-cn-show'); }); });
   setTimeout(function(){ note.classList.remove('dc-cn-show'); note.classList.add('dc-cn-hide'); }, 4200);
-  setTimeout(function(){ note.remove(); }, 4900);
+  setTimeout(function(){
+    note.remove();
+    dailyChallengeNotificationActive = false;
+    setTimeout(playNextDailyChallengeNotification, 160);
+  }, 4900);
+}
+
+function showDailyChallengeNotification(label, starlight, icon) {
+  dailyChallengeNotificationQueue.push({label:label, starlight:starlight, icon:icon});
+  while(dailyChallengeNotificationQueue.length > 8) dailyChallengeNotificationQueue.shift();
+  playNextDailyChallengeNotification();
 }
 
 function renderDailyChallengesPanel() {

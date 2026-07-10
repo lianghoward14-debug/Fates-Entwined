@@ -594,7 +594,7 @@ function installBoardClickDelegation(board) {
     if(!cell || !board.contains(cell)) return;
     // Allow board-card clicks to pass through to clickCell when in cell-targeting modes
     // (Zoe blocking, Carolyn locking, board targeting), so occupied cells can be targeted.
-    const isCellTargetingMode = (typeof G !== 'undefined' && G && (G.blockingCell || G._boardTargeting || G._consolidating));
+    const isCellTargetingMode = (typeof G !== 'undefined' && G && (G.blockingCell || G._boardTargeting || G._consolidating || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._busserMoving || G._busserMovingCard || G._markSelecting));
     if(!isCellTargetingMode && e.target.closest && e.target.closest('.bc')) return;
     captureBoardViewportLock();
     clickCell(Number(cell.dataset.z), Number(cell.dataset.r), Number(cell.dataset.c));
@@ -772,7 +772,7 @@ function getBoardCardPosition(card) {
 function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options = {}) {
   if(!card) return null;
   const boardPos = options.boardPos || getBoardCardPosition(card);
-  const hiddenOnBoard = !!(boardPos && isFaceDownCard(card) && (options.forceBoardHidden || card.owner !== viewerP));
+  const hiddenOnBoard = !!(boardPos && isFaceDownCard(card));
   if(!hiddenOnBoard){
     const handCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : card.cost;
     const handBonusFate = card._wciBonus ? 2 : 0;
@@ -859,75 +859,16 @@ function escapePlacementAnimHtml(value) {
 }
 
 function ensurePlacementAnimationLayer() {
-  let layer = document.getElementById('placement-anim-layer');
-  if(layer) return layer;
-  const center = document.querySelector('#s-game .game-center');
-  if(!center) return null;
-  layer = document.createElement('div');
-  layer.id = 'placement-anim-layer';
-  center.appendChild(layer);
-  return layer;
+  const layer = document.getElementById('placement-anim-layer');
+  if(layer) layer.textContent = '';
+  return null;
 }
 
 function playPlacementAnimation(card, z, r, c) {
   if(!card || z == null || r == null || c == null) return 0;
-  const layer = ensurePlacementAnimationLayer();
-  if(!layer) return 0;
-
-  const rarity = card.rarity || 'circle';
-  const ms = typeof getPlacementAnimationDurationMs === 'function' ? getPlacementAnimationDurationMs(card) : 560;
-  const maxAttempts = 10;
-
-  function draw(attempt) {
-    if(!document.body.contains(layer)) return;
-    const cellEl = document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
-    if(!cellEl || !cellEl.isConnected) {
-      if(attempt < maxAttempts) requestAnimationFrame(function(){ draw(attempt + 1); });
-      return;
-    }
-
-    const cellRect = cellEl.getBoundingClientRect();
-    const layerRect = layer.getBoundingClientRect();
-    if(cellRect.width <= 0 || cellRect.height <= 0 || layerRect.width <= 0 || layerRect.height <= 0) {
-      if(attempt < maxAttempts) requestAnimationFrame(function(){ draw(attempt + 1); });
-      return;
-    }
-
-    const viewerP = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
-    const visual = typeof getCardVisualData === 'function'
-      ? getCardVisualData(card, viewerP, {forceBoardHidden:true, boardPos:{z,r,c}})
-      : null;
-    const name = escapePlacementAnimHtml((visual && visual.name) || card.name || '');
-    const fate = escapePlacementAnimHtml((visual && visual.displayFate != null) ? visual.displayFate : (card.currentFate || card.fate || ''));
-    const aff = visual && visual.aff ? visual.aff : card.aff;
-    const icon = typeof getAffIcon === 'function' ? getAffIcon(aff) : '';
-    const img = visual && (visual.runtimeImg || visual.img) ? escapePlacementAnimHtml(visual.runtimeImg || visual.img) : '';
-
-    const ghost = document.createElement('div');
-    ghost.className = 'placement-anim-ghost place-anim-' + rarity + ' own-' + (card.owner === 0 ? 'p1' : 'p2');
-    ghost.dataset.iid = String(card.iid || '');
-    ghost.style.left = (cellRect.left - layerRect.left) + 'px';
-    ghost.style.top = (cellRect.top - layerRect.top) + 'px';
-    ghost.style.width = cellRect.width + 'px';
-    ghost.style.height = cellRect.height + 'px';
-    ghost.innerHTML = '<div class="placement-anim-card rarity-' + rarity + '">' +
-      '<div class="placement-anim-art">' +
-        (img ? '<img src="' + img + '" alt="">' : '<span class="placement-anim-icon">' + icon + '</span>') +
-      '</div>' +
-      '<div class="placement-anim-fate">' + fate + '</div>' +
-      '<div class="placement-anim-name">' + name + '</div>' +
-    '</div>';
-
-    layer.appendChild(ghost);
-    const removeGhost = function(){ if(ghost.parentNode) ghost.remove(); };
-    ghost.addEventListener('animationend', removeGhost, {once:true});
-    setTimeout(removeGhost, ms + 220);
-  }
-
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){ draw(0); });
-  });
-  return ms;
+  const legacyLayer = document.getElementById('placement-anim-layer');
+  if(legacyLayer) legacyLayer.textContent = '';
+  return 0;
 }
 
 function createBoardCardEl(card, z, r, c) {
@@ -1300,6 +1241,21 @@ function renderTopbarEffects() {
       owner: majaOwner
     });
   }
+
+  const chaparralCard = CARDS.find(c => c.id === '78');
+  forEachBoardCard(function(c, z){
+    if(!c || String(c.id || '') !== '78' || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
+    if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(c)) return;
+    allEffects.push({
+      icon:getStatusEffectIcon('chaparral'),
+      label:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
+      cardName:chaparralCard ? chaparralCard.name : 'Chaparral Hoplite',
+      cardAbility:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
+      cardEffect:(chaparralCard ? chaparralCard.effect : 'The next consolidation in this zone may be set face down.') + ' Ready in Zone ' + (z + 1) + '.',
+      owner:c.owner,
+      extraClass:'effect-pill-chaparral'
+    });
+  });
 
   // Fort Calvin Watcher — reveals opponent's next draws
   if(G._fortCalvinActive && G._fortCalvinActive.length > 0) {
@@ -1735,6 +1691,16 @@ function playEffectActivationButtonSound() {
   return true;
 }
 
+function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) {
+  if(!copiedPassiveName) return '';
+  return '<div class="cd-live-tracker french-fusiliers-copy-banner">' +
+    '<span class="cd-live-tracker-kicker">Copied Effect</span>' +
+    '<span class="cd-live-tracker-label">' + escapeHtml(copiedPassiveName) + '</span>' +
+    '<span class="cd-live-tracker-value">Active</span>' +
+    (copiedPassiveEffect ? '<span class="cd-live-tracker-sub">' + escapeHtml(copiedPassiveEffect) + '</span>' : '') +
+  '</div>';
+}
+
 function openCardDetail(card, fromHand=false, fromBoard=false) {
   if(!card){
     if(G.selectedHandCard!==null) card=G.players[G.currentPlayer].hand[G.selectedHandCard];
@@ -1753,6 +1719,9 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const voiceButton = (!hideCard && visual.type !== 'Supporter')
     ? `<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound==='function') playCardSound('${escapeHtml(card.id)}');">♪</button>`
     : '';
+  const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
+  const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
+  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
   body.innerHTML=`
     <div class="cd-wrap">
       <div class="cd-img">
@@ -1769,6 +1738,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           <span class="pill fate">${visual.fate} Fate</span>
           <span class="pill">${AFF_LABEL[visual.aff]||visual.aff}</span>
         </div>
+        ${copiedPassiveBanner}
         <div class="cd-eff">${visual.effect}</div>
         ${!hideCard && card.flavor?`<div class="cd-flavor">${card.flavor}</div>`:''}
       </div>
@@ -1811,10 +1781,10 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       return;
     }
     if(card.type==='Supporter'){
-      // Selva Islands Pirate (74): discard from hand to set 3 supporters this turn
-      if(card.id==='74'){
+      // Selva Islands Pirate (74) triggers on hand arrival; no manual action button.
+      if(false && card.id==='74'){
         const selva=document.createElement('button');
-        selva.className='btn sm pri';selva.textContent='Discard — Set 3 Supporters';
+        selva.className='btn sm pri';selva.textContent='Activate Effect';
         selva.onclick=()=>{
           if(G._onlineRoomCode && typeof activateSelvaIslandsPirateFromHand === 'function'){
             activateSelvaIslandsPirateFromHand(card);
@@ -1909,28 +1879,21 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         // Vigilantes (52): mark an opponent card in this zone as 0 Reinforcement (once per turn)
         if(!supporterActionsSuppressed && bc.id==='52' && !bc.vigilanteUsed){
           const vigBtn=document.createElement('button');
-          vigBtn.className='btn sm pri';vigBtn.textContent='Marked for Death';
+          vigBtn.className='btn sm pri';vigBtn.textContent='Activate Effect';
           vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
           acts.appendChild(vigBtn);
-        }
-        // Wolf Creek (54): move a card you control to any open square or swap (once per turn)
-        if(!supporterActionsSuppressed && bc.id==='54' && !bc.wolfCreekUsed){
-          const wcBtn=document.createElement('button');
-          wcBtn.className='btn sm pri';wcBtn.textContent='Elusive Movements';
-          wcBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWolfCreek(bc,z,r,c);};
-          acts.appendChild(wcBtn);
         }
         // ALPINE Expeditionary (73): move once per turn
         if(!supporterActionsSuppressed && bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
-          expBtn.className='btn sm pri';expBtn.textContent='Move (once/turn)';
+          expBtn.className='btn sm pri';expBtn.textContent='Activate Effect';
           expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
         }
         // Busser movement: any card with _busserMoves can move to adjacent zone
         if(!supporterActionsSuppressed && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
           const busBtn=document.createElement('button');
-          busBtn.className='btn sm pri';busBtn.textContent='Move to Adjacent Zone ('+bc._busserMoves+' left)';
+          busBtn.className='btn sm pri';busBtn.textContent='Bussing';
           busBtn.onclick=()=>{closeModal();activateBusserMove(bc,z,r,c);};
           acts.appendChild(busBtn);
         }
@@ -2867,13 +2830,42 @@ function log(type, msg) {
   panel.scrollTop=panel.scrollHeight;
 }
 
-function toast(msg) {
-  if(G._aiAbort) return;
+function fatePlayNextToast() {
+  if(window.__fateToastActive) return;
+  const queue = window.__fateToastQueue || [];
+  const next = queue.shift();
+  if(!next) return;
   const el=document.getElementById('toast');
-  if(!el) return;
-  el.textContent=msg;el.classList.add('on');
+  if(!el) {
+    window.__fateToastQueue = queue;
+    return;
+  }
+  window.__fateToastActive = true;
+  window.__fateToastQueue = queue;
+  el.textContent=next.text;
+  el.classList.toggle('toast-effect-alert', !!next.isEffectAlert);
+  el.classList.add('on');
   clearTimeout(window._toast);
-  window._toast=setTimeout(()=>el.classList.remove('on'),2500);
+  window._toast=setTimeout(()=>{
+    el.classList.remove('on');
+    el.classList.remove('toast-effect-alert');
+    window._toast=setTimeout(()=>{
+      window.__fateToastActive = false;
+      fatePlayNextToast();
+    }, 180);
+  }, next.holdMs || 2500);
+}
+
+function toast(msg, durationMs) {
+  if(G._aiAbort) return;
+  const text = String(msg || '');
+  const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
+  const effectAlertMs = 2000;
+  const holdMs = Math.max(isEffectAlert ? effectAlertMs : 900, Number(durationMs) || (isEffectAlert ? effectAlertMs : 2500));
+  const queue = window.__fateToastQueue = window.__fateToastQueue || [];
+  queue.push({text, isEffectAlert, holdMs});
+  while(queue.length > 12) queue.shift();
+  fatePlayNextToast();
 }
 
 function toggleLog() {
@@ -3074,6 +3066,9 @@ function showCardInfoOverlay(card) {
   var loreButton = (typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card))
     ? '<button type="button" class="btn sm card-info-overlay-lore">Lore</button>'
     : '';
+  var copiedPassiveName = (String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
+  var copiedPassiveEffect = (String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
+  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
   overlay.innerHTML =
@@ -3089,6 +3084,7 @@ function showCardInfoOverlay(card) {
             '<span class="pill fate">'+visual.fate+' Fate</span>'+
             '<span class="pill">'+(AFF_LABEL[visual.aff]||visual.aff)+'</span>'+
           '</div>'+
+          copiedPassiveBanner+
           '<div class="cd-eff">'+visual.effect+'</div>'+
           (card.flavor?'<div class="cd-flavor">'+card.flavor+'</div>':'')+
         '</div>'+

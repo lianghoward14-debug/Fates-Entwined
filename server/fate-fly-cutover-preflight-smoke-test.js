@@ -51,6 +51,7 @@ const requiredScripts = [
   'smoke:authority-reducer',
   'smoke:authority-state-gate',
   'smoke:authority-strict-reducer',
+  'smoke:authority-two-client-placement',
   'smoke:card-catalog'
 ];
 requiredScripts.forEach(name=>{
@@ -75,6 +76,7 @@ runNode('authority bootstrap', 'server/fate-authority-bootstrap-smoke-test.js');
 runNode('authority reducer', 'server/fate-authority-reducer-smoke-test.js');
 runNode('authority state gate', 'server/fate-authority-state-gate-smoke-test.js');
 runNode('authority strict reducer', 'server/fate-authority-strict-reducer-smoke-test.js');
+runNode('authority two-client placement', 'server/fate-authority-two-client-placement-smoke-test.js');
 runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
 
 console.log('fate-fly-cutover-preflight smoke passed');

@@ -858,6 +858,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-hei
   box-shadow:0 0 0 3px rgba(100,160,255,.55),0 0 22px rgba(80,140,255,.35)!important;cursor:pointer;
   animation:tribute-ready-pulse 1.4s ease-in-out infinite;}
 .cell.tribute-cell-ready{border-color:rgba(100,160,255,.5)!important;background:rgba(60,120,255,.06)!important;}
+.cell.wolf-creek-card-target .bc,
+.bc.wolf-creek-card-target{
+  outline:2px solid var(--gold);
+  outline-offset:2px;
+  box-shadow:0 0 0 1px rgba(255,232,154,.5),0 0 18px rgba(201,168,76,.48)!important;
+  will-change:filter;
+}
+.french-fusiliers-copy-banner:not(.cd-live-tracker){
+  margin:5px 0 0;
+  padding:8px 10px;
+  border:1px solid rgba(226,183,85,.75);
+  border-radius:8px;
+  background:linear-gradient(180deg,rgba(226,183,85,.18),rgba(226,183,85,.08));
+  color:#ffe6a6;
+  font-size:.86rem;
+  line-height:1.25;
+}
+.french-fusiliers-copy-banner:not(.cd-live-tracker) strong{color:#fff2c4;}
+.french-fusiliers-copy-banner:not(.cd-live-tracker) > span{
+  display:block;
+  margin-top:4px;
+  color:rgba(255,248,224,.86);
+}
 @keyframes tribute-pulse{
   0%,100%{outline-color:rgba(201,168,76,.3);}
   50%{outline-color:rgba(201,168,76,1);}

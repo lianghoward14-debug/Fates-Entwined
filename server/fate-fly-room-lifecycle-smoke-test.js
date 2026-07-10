@@ -2,6 +2,7 @@
 'use strict';
 
 const {getCardCatalog} = require('./fate-card-catalog');
+const {buildInitialAuthorityState, makeSeededRng} = require('./fate-authority-bootstrap');
 const {spawn} = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -162,6 +163,39 @@ function validDeck() {
   return deck;
 }
 
+function reactionSmokeDeck() {
+  const deck = ['32','32','79','79','79'];
+  const filler = [...SMOKE_PLAIN_SUPPORTER_IDS].filter(id => CATALOG_BY_ID.has(id) && id !== '32' && id !== '79');
+  for(let pass = 0; deck.length < 40 && pass < 3; pass += 1){
+    for(const id of filler){
+      if(deck.length >= 40) break;
+      deck.push(id);
+    }
+  }
+  return deck;
+}
+
+function coinWinnerForSeed(seed) {
+  const rng = makeSeededRng(String(seed || '') + ':first-player');
+  return Math.floor(rng() * 2) === 1 ? 1 : 0;
+}
+
+function handHasCard(state, playerIndex, id) {
+  return (state?.players?.[playerIndex]?.hand || []).some(card => String(card?.id || '') === String(id));
+}
+
+function pickReactionSmokeSeed(deck) {
+  const catalog = getCardCatalog();
+  for(let i = 0; i < 20000; i += 1){
+    const seed = `fly-smoke-reaction-${i}`;
+    const firstPlayer = coinWinnerForSeed(seed);
+    const initial = buildInitialAuthorityState({catalog, seed, decks:{0:deck, 1:deck}, currentPlayer:firstPlayer});
+    const reactor = firstPlayer === 0 ? 1 : 0;
+    if(handHasCard(initial.state, firstPlayer, '32') && handHasCard(initial.state, reactor, '79')) return seed;
+  }
+  throw new Error('could not find deterministic reaction smoke seed');
+}
+
 function isPlainSupporter(card) {
   if(!card || String(card.type || '') !== 'Supporter') return false;
   const id = String(card.id || '');
@@ -180,6 +214,10 @@ function profile(username) {
 
 function deckChoice(name) {
   return {ready:true, name, deckIds:validDeck()};
+}
+
+function reactionDeckChoice(name, deckIds) {
+  return {ready:true, name, deckIds:[...deckIds]};
 }
 
 function waitForMessage(client, predicate, label, timeoutMs = 12000) {
@@ -273,6 +311,25 @@ function selectPlacement(state, playerIndex) {
   throw new Error(`no legal-looking empty placement cell for player ${playerIndex}`);
 }
 
+function selectReactionTriggerPlacement(state, playerIndex) {
+  const hand = state?.players?.[playerIndex]?.hand || [];
+  const handIndex = hand.findIndex(card => card && String(card.id || '') === '32');
+  if(handIndex < 0) throw new Error(`no Temecula Resident in player ${playerIndex} hand`);
+  const card = hand[handIndex];
+  for(let z = 0; z < 3; z += 1){
+    for(let r = 0; r < 3; r += 1){
+      if(rowOwner(r) !== playerIndex) continue;
+      for(let c = 0; c < 3; c += 1){
+        const cell = state.board?.[z]?.[r]?.[c];
+        if(cell === null || cell === undefined){
+          return {z, r, c, card, selectedHand:{index:handIndex, iid:card.iid || '', id:card.id || '', name:card.name || ''}};
+        }
+      }
+    }
+  }
+  throw new Error(`no legal-looking reaction trigger placement cell for player ${playerIndex}`);
+}
+
 function sendIntent(client, roomCode, type, payload) {
   const requestId = `${client.user.label}:${type}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   client.ws.send(JSON.stringify({
@@ -355,6 +412,7 @@ async function resolvePendingCardPicks(client, code, playerIndex, state, hash) {
 async function resolvePendingReactions(clientsByPlayer, code, state, hash) {
   let currentState = state;
   let currentHash = hash;
+  const acceptedReactions = [];
   for(let i = 0; i < 5; i += 1){
     const pending = currentState?._serverPendingReaction || null;
     if(!pending) break;
@@ -368,10 +426,11 @@ async function resolvePendingReactions(clientsByPlayer, code, state, hash) {
       baseStateHash:currentHash
     });
     const accepted = await expectAccepted(reactionClient, requestId, 'REACTION_CHOICE');
+    acceptedReactions.push(accepted);
     currentState = accepted.action.payload.postState;
     currentHash = accepted.action.payload.stateHash;
   }
-  return {state:currentState, hash:currentHash};
+  return {state:currentState, hash:currentHash, acceptedReactions};
 }
 
 async function run() {
@@ -384,11 +443,13 @@ async function run() {
   const health = await fetchJson('/health', {timeoutMs:60000});
   if(health.reducerMode !== 'strict') throw new Error(`expected strict reducer, got ${health.reducerMode}`);
   if(health.firebaseRtdbDisabled !== true) throw new Error('expected Firebase RTDB gameplay disabled on Fly');
+  const smokeDeck = reactionSmokeDeck();
+  const smokeSeed = pickReactionSmokeSeed(smokeDeck);
 
   const created = await fetchJson('/api/rooms', {
     method:'POST',
     idToken:users.host.idToken,
-    body:{uid:users.host.uid, mode:'freeplay', profile:profile('Fly Smoke Host'), deckChoice:deckChoice('Fly Smoke Host Deck')}
+    body:{uid:users.host.uid, mode:'freeplay', profile:profile('Fly Smoke Host'), deckChoice:reactionDeckChoice('Fly Smoke Host Deck', smokeDeck)}
   });
   const code = String(created.room?.roomCode || created.room?.code || '');
   if(!/^[A-Z0-9]{6}$/.test(code)) throw new Error(`created room has invalid code: ${code}`);
@@ -396,14 +457,14 @@ async function run() {
   const joined = await fetchJson(`/api/rooms/${encodeURIComponent(code)}/join`, {
     method:'POST',
     idToken:users.guest.idToken,
-    body:{uid:users.guest.uid, profile:profile('Fly Smoke Guest'), deckChoice:deckChoice('Fly Smoke Guest Deck')}
+    body:{uid:users.guest.uid, profile:profile('Fly Smoke Guest'), deckChoice:reactionDeckChoice('Fly Smoke Guest Deck', smokeDeck)}
   });
   if(joined.room?.guestUid !== users.guest.uid) throw new Error('guest did not join Fly room');
 
   const started = await fetchJson(`/api/rooms/${encodeURIComponent(code)}/start`, {
     method:'POST',
     idToken:users.host.idToken,
-    body:{uid:users.host.uid, seed:`fly-smoke-${Date.now()}`, song:'board1', mode:'freeplay'}
+    body:{uid:users.host.uid, seed:smokeSeed, song:'board1', mode:'freeplay'}
   });
   if(String(started.accepted?.action?.type || '') !== 'MATCH_START') throw new Error('Fly start did not return MATCH_START');
   const startState = started.accepted?.action?.payload?.postState;
@@ -446,7 +507,7 @@ async function run() {
     const currentUid = playerIndex === 0 ? users.host.uid : users.guest.uid;
     const actingLabel = playerIndex === 0 ? 'host' : 'guest';
     const actingClient = playerIndex === 0 ? hostClient : guestClient;
-    const placement = selectPlacement(canonicalState, playerIndex);
+    const placement = selectReactionTriggerPlacement(canonicalState, playerIndex);
     const placeRequestId = sendIntent(actingClient, code, 'PLACE_CARD', {
       playerIndex,
       turn:canonicalState.turn,
@@ -463,12 +524,36 @@ async function run() {
     await waitForMessage(observer, msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === placedSeq, `observer receives ${actingLabel} PLACE_CARD`);
     let turnState = placed.action.payload.postState;
     let turnHash = placed.action.payload.stateHash;
+    const reactionPlayer = playerIndex === 0 ? 1 : 0;
+    const reactionUid = reactionPlayer === 0 ? users.host.uid : users.guest.uid;
+    const pendingReaction = turnState?._serverPendingReaction || null;
+    if(!pendingReaction) throw new Error('reaction smoke PLACE_CARD did not arm _serverPendingReaction');
+    if(Number(pendingReaction.playerIndex) !== reactionPlayer) {
+      throw new Error(`reaction smoke pending player ${pendingReaction.playerIndex} did not match reactor ${reactionPlayer}`);
+    }
+    if(!Array.isArray(pendingReaction.options) || !pendingReaction.options.some(option => String(option?.kind || '') === 'havano')){
+      throw new Error('reaction smoke pending window did not include Havano');
+    }
+    if(String(placed.roomPatch?.currentTurnUid || '') !== reactionUid){
+      throw new Error('reaction smoke PLACE_CARD did not move currentTurnUid to reacting player');
+    }
+    if(String(placed.roomPatch?.pendingReactionPromptId || '') !== String(pendingReaction.promptId || '')){
+      throw new Error('reaction smoke room patch did not carry pendingReactionPromptId');
+    }
     const resolvedPicks = await resolvePendingCardPicks(actingClient, code, playerIndex, turnState, turnHash);
     turnState = resolvedPicks.state;
     turnHash = resolvedPicks.hash;
     const resolvedReactions = await resolvePendingReactions([hostClient, guestClient], code, turnState, turnHash);
     turnState = resolvedReactions.state;
     turnHash = resolvedReactions.hash;
+    if(!resolvedReactions.acceptedReactions.length) throw new Error('reaction smoke did not resolve a pending reaction');
+    const firstReactionAccepted = resolvedReactions.acceptedReactions[0];
+    if(String(firstReactionAccepted.roomPatch?.currentTurnUid || '') !== currentUid){
+      throw new Error('reaction smoke REACTION_CHOICE did not return priority to the original actor');
+    }
+    if(turnState?._serverPendingReaction){
+      throw new Error('reaction smoke pending reaction remained after REACTION_CHOICE');
+    }
     const resolvedFollowupPicks = await resolvePendingCardPicks(actingClient, code, playerIndex, turnState, turnHash);
     turnState = resolvedFollowupPicks.state;
     turnHash = resolvedFollowupPicks.hash;
@@ -497,7 +582,8 @@ async function run() {
       authMode:users.mode,
       roomCode:code,
       firstPlayer:playerIndex,
-      accepted:['MATCH_START via /api/rooms/start', `${actingLabel} PLACE_CARD via WebSocket`, `${actingLabel} END_TURN via WebSocket`],
+      reactionSeed:smokeSeed,
+      accepted:['MATCH_START via /api/rooms/start', `${actingLabel} PLACE_CARD via WebSocket`, 'REACTION_CHOICE via WebSocket', `${actingLabel} END_TURN via WebSocket`],
       health:{rooms:health.rooms, reducerMode:health.reducerMode, firebaseRtdbDisabled:health.firebaseRtdbDisabled}
     }, null, 2));
   } finally {

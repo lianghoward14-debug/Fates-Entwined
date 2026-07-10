@@ -104,12 +104,88 @@ const badEndTurn = validateProposedTransition(room, msg('END_TURN', {
 assert.strictEqual(badEndTurn.ok, false);
 assert.match(badEndTurn.reason, /END_TURN/);
 
+const boardAgreementState = state({
+  board:[
+    [
+      [{id:'201', iid:'board-a', owner:0, type:'Supporter'}],
+      [],
+      []
+    ],
+    [],
+    []
+  ],
+  currentPlayer:0,
+  turn:1
+});
+const boardAgreementHash = canonicalStateHash(boardAgreementState);
+const staleBoardAgreementEnd = reduceServerAction({canonicalState:boardAgreementState, canonicalHash:boardAgreementHash}, msg('END_TURN', {
+  playerIndex:0,
+  turn:1,
+  baseStateHash:boardAgreementHash,
+  boardAgreement:{count:0, identity:'', layout:''}
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(staleBoardAgreementEnd.ok, false);
+assert.match(staleBoardAgreementEnd.reason, /END_TURN board agreement mismatch/);
+
 const noPriorHash = validateProposedTransition({canonicalState:null, canonicalHash:''}, msg('STATE_SYNC', {
   currentPlayer:0,
   postState:initial,
   stateHash:initialHash
 }));
 assert.strictEqual(noPriorHash.ok, true, noPriorHash.reason);
+
+const strictSyncRejectedAfterBootstrap = reduceServerAction(room, msg('STATE_SYNC', {
+  playerIndex:0,
+  currentPlayer:0,
+  turn:1,
+  sourceType:'NORMAL_STATE_SYNC',
+  baseStateHash:initialHash,
+  postState:initial,
+  stateHash:initialHash
+}), {mode:'strict', requireBaseHash:true, allowStateSyncAfterBootstrap:false});
+assert.strictEqual(strictSyncRejectedAfterBootstrap.ok, false);
+assert.match(strictSyncRejectedAfterBootstrap.reason, /STATE_SYNC is only allowed/);
+
+const boardWithOneCard = state({
+  board:[[[{id:'alpha', iid:'card-alpha', owner:0, name:'Alpha'}]]],
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ]
+});
+const boardWithOneCardHash = canonicalStateHash(boardWithOneCard);
+const boardWithTwoCards = JSON.parse(JSON.stringify(boardWithOneCard));
+boardWithTwoCards.board[0][0][1] = {id:'beta', iid:'card-beta', owner:0, name:'Beta'};
+const boardWithTwoCardsHash = canonicalStateHash(boardWithTwoCards);
+const strictMoreBoardCardsRepair = reduceServerAction({canonicalState:boardWithOneCard, canonicalHash:boardWithOneCardHash}, msg('STATE_SYNC', {
+  playerIndex:0,
+  currentPlayer:0,
+  turn:1,
+  sourceType:'MORE_BOARD_CARDS_REPAIR',
+  baseStateHash:boardWithOneCardHash,
+  postState:boardWithTwoCards,
+  stateHash:boardWithTwoCardsHash
+}), {mode:'strict', requireBaseHash:true, allowStateSyncAfterBootstrap:false});
+assert.strictEqual(strictMoreBoardCardsRepair.ok, true, strictMoreBoardCardsRepair.reason);
+assert.strictEqual(strictMoreBoardCardsRepair.canonicalState.board[0][0][1].iid, 'card-beta');
+
+const boardWithMovedCard = JSON.parse(JSON.stringify(boardWithOneCard));
+boardWithMovedCard.board[0][0][0] = null;
+boardWithMovedCard.board[0][1] = boardWithMovedCard.board[0][1] || [];
+boardWithMovedCard.board[0][1][0] = {id:'alpha', iid:'card-alpha', owner:0, name:'Alpha'};
+const boardWithMovedCardHash = canonicalStateHash(boardWithMovedCard);
+const strictMovedBoardCardsRepair = reduceServerAction({canonicalState:boardWithOneCard, canonicalHash:boardWithOneCardHash}, msg('STATE_SYNC', {
+  playerIndex:0,
+  currentPlayer:0,
+  turn:1,
+  sourceType:'MORE_BOARD_CARDS_REPAIR',
+  sourceReason:'client-resolved-stale-base-kept-local-moved-board-cards',
+  baseStateHash:boardWithOneCardHash,
+  postState:boardWithMovedCard,
+  stateHash:boardWithMovedCardHash
+}), {mode:'strict', requireBaseHash:true, allowStateSyncAfterBootstrap:false});
+assert.strictEqual(strictMovedBoardCardsRepair.ok, true, strictMovedBoardCardsRepair.reason);
+assert.strictEqual(strictMovedBoardCardsRepair.canonicalState.board[0][1][0].iid, 'card-alpha');
 
 const reducedEnd = reduceServerAction(room, msg('END_TURN', {
   playerIndex:0,
@@ -723,6 +799,34 @@ assert.strictEqual(canonicalPlacement.serverReduced, true);
 assert.strictEqual(canonicalPlacement.canonicalState.players[0].hand.length, 0);
 assert.strictEqual(canonicalPlacement.canonicalState.board[0][2][2].iid, 'h-place-101');
 assert.strictEqual(canonicalPlacement.canonicalState.pendingInteraction, null);
+const falseFlagPlacementBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'101', iid:'h-place-false-flag', name:'Plain Character', type:'Character', fate:3, cost:0}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:false,
+  selectedHandCard:null
+});
+const falseFlagPlacementHash = canonicalStateHash(falseFlagPlacementBase);
+const falseFlagPlacement = reduceServerAction({canonicalState:falseFlagPlacementBase, canonicalHash:falseFlagPlacementHash}, msg('PLACE_CARD', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  placing:false,
+  selectedHand:{index:0, iid:'h-place-false-flag', id:'101'},
+  baseStateHash:falseFlagPlacementHash,
+  postState:falseFlagPlacementBase,
+  stateHash:falseFlagPlacementHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:{byId:new Map([['101', {id:'101', type:'Character', cost:0, effect:'', aff:''}]])}});
+assert.strictEqual(falseFlagPlacement.ok, true, falseFlagPlacement.reason);
+assert.strictEqual(falseFlagPlacement.serverReduced, true);
+assert.strictEqual(falseFlagPlacement.canonicalState.players[0].hand.length, 0);
+assert.strictEqual(falseFlagPlacement.canonicalState.board[0][2][0].iid, 'h-place-false-flag');
+assert.strictEqual(falseFlagPlacement.canonicalState.placing, false);
 const stalePlacementPostState = JSON.parse(JSON.stringify(canonicalPlacementBase));
 const stalePlacedCard = stalePlacementPostState.players[0].hand.splice(0, 1)[0];
 stalePlacedCard.owner = 0;
@@ -808,6 +912,61 @@ assert.strictEqual(canonicalSupporterPlacement.canonicalState.players[0].hand.le
 assert.strictEqual(canonicalSupporterPlacement.canonicalState.board[0][2][1].iid, 'h-supporter-201');
 assert.strictEqual(canonicalSupporterPlacement.canonicalState.supportsPlacedThisTurn, 1);
 assert.strictEqual(canonicalSupporterPlacement.canonicalState.supportersSetP[0], 1);
+const improvisorPlacementCatalog = {byId:new Map([
+  ['71', {id:'71', name:'Fort Calvin Watcher', type:'Supporter', cost:0, fate:1, aff:'Fort Calvin', effect:'When set: target your opponent with a watcher effect.'}],
+  ['56', {id:'56', name:'Lydia', type:'Character', cost:0, fate:1, aff:'Berkeley', effect:''}],
+  ['67', {id:'67', name:'Mr. Secules', type:'Coordinator', cost:0, fate:1, aff:'Berkeley', effect:''}],
+  ['79', {id:'79', name:'Havano Citizen', type:'Supporter', cost:0, fate:1, aff:'Havano', effect:''}]
+])};
+const improvisorPlacementBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'71', iid:'h-watch-71'}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'79', iid:'h-havano-79', owner:1}], discard:[]}
+  ],
+  board:[
+    [
+      [
+        {id:'56', iid:'b-lydia-56', owner:1, type:'Character', currentFate:1, usesLeft:3},
+        {id:'67', iid:'b-secules-67', owner:1, type:'Coordinator', currentFate:1, usesLeft:1},
+        null
+      ],
+      [null,null,null],
+      [null,null,null]
+    ],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  placing:false,
+  selectedHandCard:null,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0]
+});
+const improvisorPlacementHash = canonicalStateHash(improvisorPlacementBase);
+const improvisorPlacement = reduceServerAction({canonicalState:improvisorPlacementBase, canonicalHash:improvisorPlacementHash}, msg('PLACE_CARD', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:1,
+  placing:true,
+  selectedHand:{index:0, iid:'h-watch-71', id:'71'},
+  baseStateHash:improvisorPlacementHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:improvisorPlacementCatalog});
+assert.strictEqual(improvisorPlacement.ok, true, improvisorPlacement.reason);
+assert.strictEqual(improvisorPlacement.serverReduced, true);
+assert.strictEqual(improvisorPlacement.canonicalState.board[0][2][1].iid, 'h-watch-71');
+assert.strictEqual(improvisorPlacement.canonicalState.players[0].hand.length, 0);
+assert(improvisorPlacement.canonicalState._serverPendingReaction, 'when-set placement did not arm a server improvisor reaction window');
+assert.strictEqual(improvisorPlacement.canonicalState._serverPendingReaction.playerIndex, 1);
+assert.strictEqual(improvisorPlacement.canonicalState.pendingInteraction?.bucket, 'reaction');
+assert.strictEqual(improvisorPlacement.canonicalState.pendingInteraction?.playerIndex, 1);
+assert.deepStrictEqual(
+  improvisorPlacement.canonicalState._serverPendingReaction.options.map(option=>option.kind).sort(),
+  ['havano','lydia','secules']
+);
 const secondSupporterBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[{id:'201', iid:'h-supporter-202', name:'Second Plain Supporter', type:'Supporter', fate:1, cost:0}], discard:[]},
@@ -1058,6 +1217,109 @@ assert.strictEqual(paidFinalized.canonicalState.players[0].discard.length, 1);
 assert.strictEqual(paidFinalized.canonicalState.players[0].discard[0].iid, 's-201');
 assert.strictEqual(paidFinalized.canonicalState.board[0][2][0].iid, 'h-102');
 assert.strictEqual(paidFinalized.canonicalState.board[0][2][0].owner, 0);
+assert.strictEqual(Array.isArray(paidFinalized.presentationEvents), true);
+assert.strictEqual(paidFinalized.presentationEvents[0].type, 'CONSOLIDATION_COMPLETED');
+assert.strictEqual(paidFinalized.presentationEvents[0].playerIndex, 0);
+assert.strictEqual(paidFinalized.presentationEvents[0].resultCard.iid, 'h-102');
+assert.strictEqual(paidFinalized.presentationEvents[0].tributes[0].card.iid, 's-201');
+
+const multiPaidBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'103', iid:'h-103-multi', name:'Cost 2 Character', type:'Character', fate:5, cost:2}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,null,null],[{id:'201', iid:'s-201-a', name:'Support A', type:'Supporter', fate:1, reinforcement:1, owner:0},{id:'201', iid:'s-201-b', name:'Support B', type:'Supporter', fate:1, reinforcement:1, owner:0},null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:false,
+  selectedHandCard:0
+});
+const multiPaidOpts = {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:{byId:new Map([
+  ['103', {id:'103', type:'Character', cost:2, effect:'', aff:''}],
+  ['201', {id:'201', type:'Supporter', effect:'', aff:''}]
+])}};
+const multiPaidHash = canonicalStateHash(multiPaidBase);
+const multiPaidReady = reduceServerAction({canonicalState:multiPaidBase, canonicalHash:multiPaidHash}, msg('START_CONSOLIDATE', {
+  playerIndex:0,
+  turn:1,
+  selectedHand:{index:0, iid:'h-103-multi', id:'103'},
+  baseStateHash:multiPaidHash,
+  postState:multiPaidBase,
+  stateHash:multiPaidHash
+}), multiPaidOpts);
+assert.strictEqual(multiPaidReady.ok, true, multiPaidReady.reason);
+assert.strictEqual(multiPaidReady.canonicalState._consolidating.cost, 2);
+const multiFirstHash = multiPaidReady.canonicalHash;
+const multiFirstSelected = reduceServerAction({canonicalState:multiPaidReady.canonicalState, canonicalHash:multiFirstHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  placing:false,
+  selectedHand:{index:0, iid:'h-103-multi', id:'103'},
+  baseStateHash:multiFirstHash,
+  postState:multiPaidReady.canonicalState,
+  stateHash:multiFirstHash
+}), multiPaidOpts);
+assert.strictEqual(multiFirstSelected.ok, true, multiFirstSelected.reason);
+const multiSecondHash = multiFirstSelected.canonicalHash;
+const multiSecondSelected = reduceServerAction({canonicalState:multiFirstSelected.canonicalState, canonicalHash:multiSecondHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:1,
+  placing:false,
+  selectedHand:{index:0, iid:'h-103-multi', id:'103'},
+  baseStateHash:multiSecondHash,
+  postState:multiFirstSelected.canonicalState,
+  stateHash:multiSecondHash
+}), multiPaidOpts);
+assert.strictEqual(multiSecondSelected.ok, true, multiSecondSelected.reason);
+assert.deepStrictEqual(multiSecondSelected.canonicalState._consolidating.chosenIdxs, [0, 1]);
+const multiFinalizeHash = multiSecondSelected.canonicalHash;
+const multiFinalized = reduceServerAction({canonicalState:multiSecondSelected.canonicalState, canonicalHash:multiFinalizeHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:1,
+  placing:false,
+  selectedHand:{index:0, iid:'h-103-multi', id:'103'},
+  baseStateHash:multiFinalizeHash,
+  postState:multiSecondSelected.canonicalState,
+  stateHash:multiFinalizeHash
+}), multiPaidOpts);
+assert.strictEqual(multiFinalized.ok, true, multiFinalized.reason);
+assert.strictEqual(multiFinalized.canonicalState._consolidating, null);
+assert.strictEqual(multiFinalized.canonicalState.board[0][2][0], null);
+assert.strictEqual(multiFinalized.canonicalState.board[0][2][1].iid, 'h-103-multi');
+assert.deepStrictEqual(multiFinalized.canonicalState.players[0].discard.map(card=>card.iid).sort(), ['s-201-a', 's-201-b']);
+assert.deepStrictEqual(multiFinalized.presentationEvents[0].tributes.map(tribute=>tribute.card.iid).sort(), ['s-201-a', 's-201-b']);
+
+const multiAtomicHash = multiPaidReady.canonicalHash;
+const multiAtomicFinalized = reduceServerAction({canonicalState:multiPaidReady.canonicalState, canonicalHash:multiAtomicHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:1,
+  placing:false,
+  promptId:multiPaidReady.canonicalState._consolidating.promptId,
+  chosenIdxs:[0, 1],
+  chosenTributes:[
+    {idx:0, z:0, r:2, c:0, iid:'s-201-a', id:'201'},
+    {idx:1, z:0, r:2, c:1, iid:'s-201-b', id:'201'}
+  ],
+  baseStateHash:multiAtomicHash,
+  postState:multiPaidReady.canonicalState,
+  stateHash:multiAtomicHash
+}), multiPaidOpts);
+assert.strictEqual(multiAtomicFinalized.ok, true, multiAtomicFinalized.reason);
+assert.strictEqual(multiAtomicFinalized.canonicalState._consolidating, null);
+assert.strictEqual(multiAtomicFinalized.canonicalState.board[0][2][0], null);
+assert.strictEqual(multiAtomicFinalized.canonicalState.board[0][2][1].iid, 'h-103-multi');
+assert.deepStrictEqual(multiAtomicFinalized.canonicalState.players[0].discard.map(card=>card.iid).sort(), ['s-201-a', 's-201-b']);
 
 const un5thBase = state({
   players:[
@@ -1235,7 +1497,7 @@ assert.strictEqual(boleslawFinalized.canonicalState.players[0].discard[0].iid, '
 const ralphCatalog = {byId:new Map([
   ['106', {id:'106', type:'Character', cost:2, effect:'', aff:''}],
   ['201', {id:'201', type:'Supporter', effect:'', aff:''}],
-  ['24', {id:'24', type:'Supporter', effect:'Adjacent consolidation costs 1 less reinforcement.', aff:'reality'}]
+  ['24', {id:'24', type:'Supporter', effect:'While this card is on the field, when you Consolidate onto a card in a square adjacent to this card, that Consolidation costs 1 less reinforcement.', aff:'reality'}]
 ])};
 const ralphBase = state({
   players:[
@@ -1333,6 +1595,35 @@ const diagonalRalphRejected = reduceServerAction({canonicalState:diagonalRalphBa
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:ralphCatalog});
 assert.strictEqual(diagonalRalphRejected.ok, false);
 assert.match(diagonalRalphRejected.reason, /Need 3 reinforcement/);
+
+const frenchCopiedRalphCatalog = {byId:new Map([
+  ['24', {id:'24', type:'Supporter', effect:'While this card is on the field, when you Consolidate onto a card in a square adjacent to this card, that Consolidation costs 1 less reinforcement.', aff:'reality'}],
+  ['37', {id:'37', type:'Supporter', effect:'When set, copy a while-on-field Supporter passive.', aff:'third_great_war'}],
+  ['106', {id:'106', type:'Character', cost:2, effect:'', aff:''}],
+  ['201', {id:'201', type:'Supporter', effect:'', aff:''}]
+])};
+const frenchCopiedRalphBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'106', iid:'h-106-fr-ralph', name:'Ralph Target', type:'Character', fate:6, cost:2}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[null,null,null],[null,null,null],[{id:'201', iid:'plain-near-french-ralph', name:'Plain Supporter', type:'Supporter', fate:1, owner:0},{id:'37', iid:'french-copy-ralph', name:'6th French Fusiliers', type:'Supporter', fate:1, owner:0, _copiedPassiveId:'24'},null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:false,
+  selectedHandCard:0
+});
+const frenchCopiedRalphHash = canonicalStateHash(frenchCopiedRalphBase);
+const frenchCopiedRalphReady = reduceServerAction({canonicalState:frenchCopiedRalphBase, canonicalHash:frenchCopiedRalphHash}, msg('START_CONSOLIDATE', {
+  playerIndex:0,
+  turn:1,
+  selectedHand:{index:0, iid:'h-106-fr-ralph', id:'106'},
+  baseStateHash:frenchCopiedRalphHash,
+  postState:frenchCopiedRalphBase,
+  stateHash:frenchCopiedRalphHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:frenchCopiedRalphCatalog});
+assert.strictEqual(frenchCopiedRalphReady.ok, true, frenchCopiedRalphReady.reason);
+assert.strictEqual(frenchCopiedRalphReady.canonicalState._consolidating.allPossible[0].card.iid, 'plain-near-french-ralph');
+assert.strictEqual(frenchCopiedRalphReady.canonicalState._consolidating.allPossible[0].reinforcement, 2);
 
 const artilleryCatalog = {byId:new Map([
   ['107', {id:'107', type:'Character', cost:1, effect:'', aff:''}],
@@ -2127,6 +2418,8 @@ assert.strictEqual(wineCountryActivated.canonicalState.players[1].hand[1].iid, '
 assert.strictEqual(wineCountryActivated.canonicalState.players[1].hand[1].guerilla_transferred, true);
 assert.strictEqual(wineCountryActivated.canonicalState.players[1].hand[1].guerilla_turnsLeft, 5);
 assert.strictEqual(wineCountryActivated.canonicalState.players[1].hand[1].guerilla_owner, 0);
+assert.strictEqual(wineCountryActivated.presentationEvents[0].type, 'WINE_COUNTRY_GUERILLA_SENT');
+assert.strictEqual(wineCountryActivated.presentationEvents[0].message, 'Wine Country Guerilla was sent to opponent\'s hand.');
 
 const selvaHandBase = state({
   players:[
@@ -2182,7 +2475,7 @@ const wineCountryTicked = reduceServerAction({canonicalState:wineCountryActivate
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(wineCountryTicked.ok, true, wineCountryTicked.reason);
 assert.strictEqual(wineCountryTicked.canonicalState.currentPlayer, 1);
-assert.strictEqual(wineCountryTicked.canonicalState.players[1].hand.find(card=>card.iid === 'guest-target').currentFate, 3);
+assert.strictEqual(wineCountryTicked.canonicalState.players[1].hand.find(card=>card.iid === 'guest-target').currentFate, 2);
 assert.strictEqual(wineCountryTicked.canonicalState.players[1].hand.find(card=>card.iid === 's-70-hand').guerilla_turnsLeft, 4);
 assert.strictEqual(wineCountryTicked.canonicalState._continuousDamageSources['0:70:s-70-hand'], true);
 
@@ -2202,7 +2495,7 @@ const wineCountryPlacementBase = state({
   supportersSetP:[0, 0]
 });
 const wineCountryCatalog = {byId:new Map([
-  ['70', {id:'70', type:'Supporter', effect:'When discarded from its own zone, infiltrate the opponent hand for five turns.', aff:'expanded_worlds'}],
+  ['70', {id:'70', type:'Supporter', effect:'When this card is discarded in any method, infiltrate the opponent hand for five turns.', aff:'expanded_worlds'}],
   ['301', {id:'301', type:'Character', fate:4}]
 ])};
 const wineCountryPlacementHash = canonicalStateHash(wineCountryPlacementBase);
@@ -2240,6 +2533,8 @@ assert.strictEqual(wineCountryBoardDiscarded.canonicalState.players[1].hand[1].i
 assert.strictEqual(wineCountryBoardDiscarded.canonicalState.players[1].hand[1].guerilla_transferred, true);
 assert.strictEqual(wineCountryBoardDiscarded.canonicalState.players[1].hand[1].guerilla_turnsLeft, 5);
 assert.strictEqual(wineCountryBoardDiscarded.canonicalState.players[1].hand[1].guerilla_owner, 0);
+assert.strictEqual(wineCountryBoardDiscarded.presentationEvents[0].type, 'WINE_COUNTRY_GUERILLA_SENT');
+assert.strictEqual(wineCountryBoardDiscarded.canonicalState._presentationEvents, undefined);
 const wineCountryBoardTicked = reduceServerAction({canonicalState:wineCountryBoardDiscarded.canonicalState, canonicalHash:wineCountryBoardDiscarded.canonicalHash}, msg('END_TURN', {
   playerIndex:0,
   turn:1,
@@ -2248,7 +2543,7 @@ const wineCountryBoardTicked = reduceServerAction({canonicalState:wineCountryBoa
   stateHash:wineCountryBoardDiscarded.canonicalHash
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(wineCountryBoardTicked.ok, true, wineCountryBoardTicked.reason);
-assert.strictEqual(wineCountryBoardTicked.canonicalState.players[1].hand.find(card=>card.iid === 'guest-board-discard-target').currentFate, 3);
+assert.strictEqual(wineCountryBoardTicked.canonicalState.players[1].hand.find(card=>card.iid === 'guest-board-discard-target').currentFate, 2);
 assert.strictEqual(wineCountryBoardTicked.canonicalState.players[1].hand.find(card=>card.iid === 's-70-place').guerilla_turnsLeft, 4);
 
 const havanoPlacementBase = state({
@@ -2573,7 +2868,7 @@ const globallySuppressedDeferredBase = state({
     {name:'Host', color:'', deck:[], hand:[], discard:[]},
     {name:'Guest', color:'', deck:[], hand:[{id:'301', iid:'deferred-hidden-card', name:'Hidden Card', type:'Character', fate:1}], discard:[]}
   ],
-  board:[[[null,null,null],[null,null,null],[{id:'26', iid:'deferred-suppressed-supporter', name:'UCPD', type:'Supporter', fate:1, currentFate:1, owner:0, _pendingWhenSetEffect:{owner:0, z:0, r:2, c:0, turnQueued:1}}]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  board:[[[null,null,null],[null,null,null],[{id:'60', iid:'deferred-suppressed-supporter', name:'IB Student', type:'Supporter', fate:1, currentFate:1, owner:0, _pendingWhenSetEffect:{owner:0, z:0, r:2, c:0, turnQueued:1}}]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
   phase:'main',
   currentPlayer:0,
   turn:1,
@@ -2588,7 +2883,7 @@ const globallySuppressedDeferredActivated = reduceServerAction({canonicalState:g
   z:0,
   r:2,
   c:0,
-  card:{id:'26', iid:'deferred-suppressed-supporter'},
+  card:{id:'60', iid:'deferred-suppressed-supporter'},
   baseStateHash:globallySuppressedDeferredHash,
   postState:globallySuppressedDeferredBase,
   stateHash:globallySuppressedDeferredHash
@@ -2954,6 +3249,7 @@ assert.strictEqual(wineCountryReturned.canonicalState.players[0].discard[0].iid,
 
 const frenchFusiliersCatalog = {byId:new Map([
   ['37', {id:'37', type:'Supporter', effect:'When set, copy a while-on-field Supporter passive.', aff:'third_great_war'}],
+  ['24', {id:'24', type:'Supporter', effect:'While this card is on the field, when you Consolidate onto a card in a square adjacent to this card, that Consolidation costs 1 less reinforcement.', aff:'reality'}],
   ['59', {id:'59', type:'Supporter', effect:'While this card is on the field, all Supporters you control in this card zone gain 1 Fate.', aff:'third_great_war'}],
   ['201', {id:'201', type:'Supporter', effect:'', aff:''}]
 ])};
@@ -2965,7 +3261,7 @@ const frenchFusiliersBase = state({
   board:[
     [[null,null,null],[null,null,null],[
       {id:'59', iid:'french-maroon-source', name:'Maroon Knights', type:'Supporter', fate:1, currentFate:1, owner:0, aff:'third_great_war'},
-      {id:'201', iid:'french-friendly-supporter', name:'Plain Supporter', type:'Supporter', fate:1, currentFate:1, owner:0},
+      {id:'24', iid:'french-ralph-source', name:"Ralph's Courtesy Clerk", type:'Supporter', fate:1, currentFate:1, owner:0, aff:'reality'},
       null
     ]],
     [[null,null,null],[null,null,null],[null,null,null]],
@@ -2995,6 +3291,7 @@ const frenchFusiliersSet = reduceServerAction({canonicalState:frenchFusiliersBas
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:frenchFusiliersCatalog});
 assert.strictEqual(frenchFusiliersSet.ok, true, frenchFusiliersSet.reason);
 assert.strictEqual(frenchFusiliersSet.canonicalState._serverPendingZonePick.kind, 'frenchFusiliersCopyPassive');
+assert.ok(frenchFusiliersSet.canonicalState._serverPendingZonePick.options.some(option=>option.card && option.card.iid === 'french-ralph-source'));
 const frenchFusiliersCopied = reduceServerAction({canonicalState:frenchFusiliersSet.canonicalState, canonicalHash:frenchFusiliersSet.canonicalHash}, msg('PICK_ZONE', {
   playerIndex:0,
   turn:1,
@@ -3017,7 +3314,7 @@ assert.strictEqual(frenchFusiliersResult.matchResult.zones[0].s0, 9);
 
 const specialPlacementBase = state({
   players:[
-    {name:'Host', color:'', deck:[], hand:[{id:'45', iid:'h-45', name:'Chingachlook', type:'Character', fate:3}], discard:[]},
+    {name:'Host', color:'', deck:[], hand:[{id:'999', iid:'h-999', name:'Unsupported Special', type:'Character', fate:3}], discard:[]},
     {name:'Guest', color:'', deck:[], hand:[], discard:[]}
   ],
   board:[[[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
@@ -3033,11 +3330,11 @@ const specialRejected = reduceServerAction({canonicalState:specialPlacementBase,
   r:2,
   c:0,
   placing:true,
-  selectedHand:{index:0, iid:'h-45', id:'45'},
+  selectedHand:{index:0, iid:'h-999', id:'999'},
   baseStateHash:specialHash,
   postState:specialPlacementBase,
   stateHash:specialHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:{byId:new Map([['45', {id:'45', type:'Dauntless', effect:'Special', aff:'eventide'}]])}});
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:{byId:new Map([['999', {id:'999', type:'Dauntless', effect:'Special', aff:'eventide'}]])}});
 assert.strictEqual(specialRejected.ok, false);
 assert.match(specialRejected.reason, /dedicated server reducer/);
 
@@ -3169,7 +3466,7 @@ const realSupporterCatalog = {byId:new Map([
   ['67', {id:'67', type:'Improvisor', cost:1, effect:'Once, when your opponent would activate a character Initiator effect or a Supporter when-set effect, negate it.', aff:'reality'}],
   ['68', {id:'68', type:'Supporter', effect:'When set, add a non-Star Coordinator from deck to hand.', aff:'reality'}],
   ['69', {id:'69', type:'Supporter', effect:'When set, select any card you control in this zone; for next three turns, that card can move once a turn to any zone one zone away.', aff:'reality'}],
-  ['70', {id:'70', type:'Supporter', effect:'When discarded from its own zone, infiltrate the opponent hand for five turns.', aff:'expanded_worlds'}],
+  ['70', {id:'70', type:'Supporter', effect:'When this card is discarded in any method, infiltrate the opponent hand for five turns.', aff:'expanded_worlds'}],
   ['71', {id:'71', type:'Supporter', effect:'When set, reveal the next three opponent draw-phase draws.', aff:'expanded_worlds'}],
   ['72', {id:'72', type:'Supporter', effect:'When set, steal a random card from opponent hand.', aff:'expanded_worlds'}],
   ['73', {id:'73', type:'Supporter', effect:'When set, discard friendly Initiators/Improvisors in this zone and gain Fate.', aff:'expanded_worlds'}],
@@ -3242,6 +3539,56 @@ assert.strictEqual(ledgerImmediateCopied.canonicalState.board[0][2][0].id, '75')
 assert.strictEqual(ledgerImmediateCopied.canonicalState.board[0][2][0]._ledgerCopiedWhenSetId, '32');
 assert.deepStrictEqual(ledgerImmediateCopied.canonicalState.players[0].hand.map(card=>card.iid), ['ledger-draw-card']);
 assert.strictEqual(ledgerImmediateCopied.canonicalState._serverPendingZonePick, null);
+
+const ledgerCopyReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'ledger-rx-draw-card', name:'Ledger Reaction Draw', type:'Character', fate:1}], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[null,null,null],[null,null,null],[{id:'75', iid:'ledger-rx-source', name:'Ledger-keepers', type:'Supporter', fate:1, currentFate:1, owner:0},null,null]],
+    [[null,null,null],[null,null,null],[{id:'32', iid:'ledger-rx-copy-32', name:'Draw Source', type:'Supporter', fate:1, currentFate:1, owner:0},null,null]],
+    [[{id:'56', iid:'ledger-rx-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  _serverPendingZonePick:{
+    kind:'ledgerKeepersCopyWhenSet',
+    playerIndex:0,
+    z:0,
+    r:2,
+    c:0,
+    iid:'ledger-rx-source',
+    options:[{z:1, r:2, c:0, copiedWhenSetId:'32', card:{iid:'ledger-rx-copy-32', id:'32'}}]
+  }
+});
+const ledgerCopyReactionHash = canonicalStateHash(ledgerCopyReactionBase);
+const ledgerCopyReactionPending = reduceServerAction({canonicalState:ledgerCopyReactionBase, canonicalHash:ledgerCopyReactionHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  selectedEntries:[{z:1, r:2, c:0, card:{iid:'ledger-rx-copy-32', id:'32'}}],
+  baseStateHash:ledgerCopyReactionHash,
+  postState:ledgerCopyReactionBase,
+  stateHash:ledgerCopyReactionHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(ledgerCopyReactionPending.ok, true, ledgerCopyReactionPending.reason);
+assert.strictEqual(ledgerCopyReactionPending.canonicalState._serverPendingZonePick, null);
+assert.strictEqual(ledgerCopyReactionPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.ok(ledgerCopyReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'Ledger copied when-set must arm Lydia before resolving');
+assert.strictEqual(ledgerCopyReactionPending.canonicalState.players[0].deck.length, 1);
+assert.strictEqual(ledgerCopyReactionPending.canonicalState.players[0].hand.length, 0);
+const ledgerCopyReactionDeclined = reduceServerAction({canonicalState:ledgerCopyReactionPending.canonicalState, canonicalHash:ledgerCopyReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:ledgerCopyReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:ledgerCopyReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(ledgerCopyReactionDeclined.ok, true, ledgerCopyReactionDeclined.reason);
+assert.strictEqual(ledgerCopyReactionDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(ledgerCopyReactionDeclined.canonicalState.board[0][2][0].id, '75');
+assert.strictEqual(ledgerCopyReactionDeclined.canonicalState.board[0][2][0]._ledgerCopiedWhenSetId, '32');
+assert.strictEqual(ledgerCopyReactionDeclined.canonicalState.players[0].hand[0].iid, 'ledger-rx-draw-card');
 
 const ledgerPendingBase = state({
   players:[
@@ -3624,7 +3971,7 @@ const vigilantesManualBase = state({
   ],
   board:[
     [[null,null,null],[null,{id:'38', iid:'vigilantes-mark-target', name:'Mark Target', type:'Dauntless', owner:1, fate:4, currentFate:4},null],[
-      {id:'52', iid:'vigilantes-manual-source', name:'The Vigilantes', type:'Supporter', owner:0, fate:1, currentFate:1},
+      {id:'52', iid:'vigilantes-manual-source', name:'The Vigilantes', type:'Supporter', owner:0, fate:1, currentFate:1, _setTurn:1, whenSetActivated:false},
       {id:'05', iid:'vigilantes-friendly-supporter', name:'Friendly Supporter', type:'Supporter', owner:0, fate:1, currentFate:1},
       null
     ]],
@@ -3653,7 +4000,9 @@ const vigilantesSuppressedRejected = reduceServerAction({canonicalState:vigilant
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(vigilantesSuppressedRejected.ok, false);
 assert.match(vigilantesSuppressedRejected.reason, /suppressed/);
-const vigilantesWrongIidRejected = reduceServerAction({canonicalState:vigilantesManualBase, canonicalHash:vigilantesManualHash}, msg('BOARD_ACTION', {
+const vigilantesWrongIidBase = state(JSON.parse(JSON.stringify(vigilantesManualBase)));
+const vigilantesWrongIidHash = canonicalStateHash(vigilantesWrongIidBase);
+const vigilantesWrongIidRejected = reduceServerAction({canonicalState:vigilantesWrongIidBase, canonicalHash:vigilantesWrongIidHash}, msg('BOARD_ACTION', {
   fn:'activateVigilantes',
   playerIndex:0,
   turn:1,
@@ -3662,22 +4011,51 @@ const vigilantesWrongIidRejected = reduceServerAction({canonicalState:vigilantes
   c:0,
   cardIid:'not-the-vigilantes-source',
   cardId:'52',
-  baseStateHash:vigilantesManualHash,
-  postState:vigilantesManualBase,
-  stateHash:vigilantesManualHash
+  baseStateHash:vigilantesWrongIidHash,
+  postState:vigilantesWrongIidBase,
+  stateHash:vigilantesWrongIidHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(vigilantesWrongIidRejected.ok, false);
 assert.match(vigilantesWrongIidRejected.reason, /source identity mismatch/);
-const vigilantesManualArmed = reduceServerAction({canonicalState:vigilantesManualBase, canonicalHash:vigilantesManualHash}, msg('BOARD_ACTION', {
+const vigilantesExpiredBase = state(JSON.parse(JSON.stringify(vigilantesManualBase)));
+vigilantesExpiredBase.turn = 3;
+const vigilantesExpiredHash = canonicalStateHash(vigilantesExpiredBase);
+const vigilantesExpiredRejected = reduceServerAction({canonicalState:vigilantesExpiredBase, canonicalHash:vigilantesExpiredHash}, msg('BOARD_ACTION', {
+  fn:'activateVigilantes',
+  playerIndex:0,
+  turn:3,
+  z:0,
+  r:2,
+  c:0,
+  baseStateHash:vigilantesExpiredHash,
+  postState:vigilantesExpiredBase,
+  stateHash:vigilantesExpiredHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(vigilantesExpiredRejected.ok, false);
+assert.match(vigilantesExpiredRejected.reason, /activation window has expired/);
+const vigilantesSkipBase = state(JSON.parse(JSON.stringify(vigilantesManualBase)));
+const vigilantesSkipHash = canonicalStateHash(vigilantesSkipBase);
+const vigilantesSkipEndTurn = reduceServerAction({canonicalState:vigilantesSkipBase, canonicalHash:vigilantesSkipHash}, msg('END_TURN', {
+  playerIndex:0,
+  turn:1,
+  baseStateHash:vigilantesSkipHash,
+  postState:vigilantesSkipBase,
+  stateHash:vigilantesSkipHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(vigilantesSkipEndTurn.ok, true, vigilantesSkipEndTurn.reason);
+assert.strictEqual(vigilantesSkipEndTurn.canonicalState.board[0][2][0].whenSetActivated, true);
+const vigilantesArmBase = state(JSON.parse(JSON.stringify(vigilantesManualBase)));
+const vigilantesArmHash = canonicalStateHash(vigilantesArmBase);
+const vigilantesManualArmed = reduceServerAction({canonicalState:vigilantesArmBase, canonicalHash:vigilantesArmHash}, msg('BOARD_ACTION', {
   fn:'activateVigilantes',
   playerIndex:0,
   turn:1,
   z:0,
   r:2,
   c:0,
-  baseStateHash:vigilantesManualHash,
-  postState:vigilantesManualBase,
-  stateHash:vigilantesManualHash
+  baseStateHash:vigilantesArmHash,
+  postState:vigilantesArmBase,
+  stateHash:vigilantesArmHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(vigilantesManualArmed.ok, true, vigilantesManualArmed.reason);
 assert.strictEqual(vigilantesManualArmed.canonicalState._serverPendingZonePick.kind, 'vigilantesMark');
@@ -3738,6 +4116,14 @@ const wolfCreekSet = reduceServerAction({canonicalState:wolfCreekSetBase, canoni
 assert.strictEqual(wolfCreekSet.ok, true, wolfCreekSet.reason);
 assert.strictEqual(wolfCreekSet.canonicalState.board[0][2][2].iid, 's-54-place');
 assert.strictEqual(wolfCreekSet.canonicalState._serverPendingZonePick.kind, 'wolfCreekSelectMoveTarget');
+assert.ok(
+  wolfCreekSet.canonicalState._serverPendingZonePick.options.some(option=>option.z === 0 && option.r === 2 && option.c === 0),
+  'Wolf Creek multiplayer picker must include controlled cards in the source zone'
+);
+assert.ok(
+  !wolfCreekSet.canonicalState._serverPendingZonePick.options.some(option=>option.z === 1 && option.r === 2 && option.c === 0),
+  'Wolf Creek multiplayer picker must not include cards outside the source zone'
+);
 const wolfCreekPick = reduceServerAction({canonicalState:wolfCreekSet.canonicalState, canonicalHash:wolfCreekSet.canonicalHash}, msg('PICK_ZONE', {
   playerIndex:0,
   turn:1,
@@ -3750,6 +4136,22 @@ assert.strictEqual(wolfCreekPick.ok, true, wolfCreekPick.reason);
 assert.strictEqual(wolfCreekPick.canonicalState._serverPendingZonePick, null);
 assert.strictEqual(wolfCreekPick.canonicalState._serverPendingMove.kind, 'wolfCreekMove');
 assert.strictEqual(wolfCreekPick.canonicalState._wolfCreekMoving.fromZ, 0);
+assert.ok(
+  wolfCreekPick.canonicalState._serverPendingMove.options.some(option=>option.z === 1 && option.r === 2 && option.c === 1 && option.kind === 'move'),
+  'Wolf Creek move options must include open own-side safe-row squares'
+);
+assert.ok(
+  wolfCreekPick.canonicalState._serverPendingMove.options.some(option=>option.z === 1 && option.r === 2 && option.c === 0 && option.kind === 'swap'),
+  'Wolf Creek move options must include friendly-card swaps anywhere on the field'
+);
+assert.ok(
+  wolfCreekPick.canonicalState._serverPendingMove.options.some(option=>option.z === 2 && option.r === 1 && option.c === 1 && option.kind === 'move'),
+  'Wolf Creek move options must include open contested squares outside controlled zones'
+);
+assert.ok(
+  !wolfCreekPick.canonicalState._serverPendingMove.options.some(option=>option.z === 1 && option.r === 0 && option.c === 0),
+  'Wolf Creek move options must not include opponent safe-row squares'
+);
 const wolfCreekMoveEndRejected = reduceServerAction({canonicalState:wolfCreekPick.canonicalState, canonicalHash:wolfCreekPick.canonicalHash}, msg('END_TURN', {
   playerIndex:0,
   turn:1,
@@ -3787,6 +4189,47 @@ const wolfCreekMoveWrongPromptRejected = reduceServerAction({canonicalState:wolf
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(wolfCreekMoveWrongPromptRejected.ok, false);
 assert.match(wolfCreekMoveWrongPromptRejected.reason, /prompt mismatch/);
+const wolfCreekOpponentSafeRejected = reduceServerAction({canonicalState:wolfCreekPick.canonicalState, canonicalHash:wolfCreekPick.canonicalHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:1,
+  r:0,
+  c:0,
+  placing:false,
+  baseStateHash:wolfCreekPick.canonicalHash,
+  postState:wolfCreekPick.canonicalState,
+  stateHash:wolfCreekPick.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(wolfCreekOpponentSafeRejected.ok, false);
+assert.match(wolfCreekOpponentSafeRejected.reason, /target is not allowed/);
+const wolfCreekAnyOpenSideMove = reduceServerAction({canonicalState:wolfCreekPick.canonicalState, canonicalHash:wolfCreekPick.canonicalHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:2,
+  r:1,
+  c:1,
+  placing:false,
+  baseStateHash:wolfCreekPick.canonicalHash,
+  postState:wolfCreekPick.canonicalState,
+  stateHash:wolfCreekPick.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(wolfCreekAnyOpenSideMove.ok, true, wolfCreekAnyOpenSideMove.reason);
+assert.strictEqual(wolfCreekAnyOpenSideMove.canonicalState.board[0][2][0], null);
+assert.strictEqual(wolfCreekAnyOpenSideMove.canonicalState.board[2][1][1].iid, 'friendly-move-target');
+const wolfCreekSwap = reduceServerAction({canonicalState:wolfCreekPick.canonicalState, canonicalHash:wolfCreekPick.canonicalHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:1,
+  r:2,
+  c:0,
+  placing:false,
+  baseStateHash:wolfCreekPick.canonicalHash,
+  postState:wolfCreekPick.canonicalState,
+  stateHash:wolfCreekPick.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(wolfCreekSwap.ok, true, wolfCreekSwap.reason);
+assert.strictEqual(wolfCreekSwap.canonicalState.board[0][2][0].iid, 'rozsi-dest');
+assert.strictEqual(wolfCreekSwap.canonicalState.board[1][2][0].iid, 'friendly-move-target');
 const wolfCreekCanonicalMove = reduceServerAction({canonicalState:wolfCreekPick.canonicalState, canonicalHash:wolfCreekPick.canonicalHash}, msg('SELECT_PENDING_MOVE_CELL', {
   playerIndex:0,
   turn:1,
@@ -3832,116 +4275,7 @@ const wolfCreekManualUsedRejected = reduceServerAction({canonicalState:wolfCreek
   stateHash:wolfCreekMove.canonicalHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(wolfCreekManualUsedRejected.ok, false);
-assert.match(wolfCreekManualUsedRejected.reason, /already moved/);
-
-const wolfCreekManualBase = state({
-  players:[
-    {name:'Host', color:'', deck:[], hand:[], discard:[]},
-    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
-  ],
-  board:[
-    [[null,null,null],[null,null,null],[
-      {id:'54', iid:'wolf-manual-source', name:'Wolf Creek', type:'Supporter', owner:0, fate:1, currentFate:1},
-      {id:'302', iid:'wolf-manual-target', name:'Manual Character', type:'Character', owner:0, fate:2, currentFate:2},
-      null
-    ]],
-    [[null,null,null],[null,null,null],[{id:'34', iid:'wolf-manual-rozsi', name:'Rozsi Szocs', type:'Coordinator', owner:0, fate:2, currentFate:2},null,null]],
-    [[null,null,null],[null,null,null],[null,null,null]]
-  ],
-  phase:'main',
-  currentPlayer:0,
-  turn:1,
-  placing:false,
-  selectedBoardCard:null
-});
-const wolfCreekManualHash = canonicalStateHash(wolfCreekManualBase);
-const wolfCreekSuppressedBase = state({
-  players:[
-    {name:'Host', color:'', deck:[], hand:[], discard:[]},
-    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
-  ],
-  board:[
-    [[null,null,null],[null,null,null],[
-      {id:'54', iid:'wolf-suppressed-source', name:'Wolf Creek', type:'Supporter', owner:0, fate:1, currentFate:1, _reactionSuppressed:true},
-      {id:'302', iid:'wolf-suppressed-target', name:'Manual Character', type:'Character', owner:0, fate:2, currentFate:2},
-      null
-    ]],
-    [[null,null,null],[null,null,null],[null,null,null]],
-    [[null,null,null],[null,null,null],[null,null,null]]
-  ],
-  phase:'main',
-  currentPlayer:0,
-  turn:1
-});
-const wolfCreekSuppressedHash = canonicalStateHash(wolfCreekSuppressedBase);
-const wolfCreekSuppressedRejected = reduceServerAction({canonicalState:wolfCreekSuppressedBase, canonicalHash:wolfCreekSuppressedHash}, msg('BOARD_ACTION', {
-  fn:'activateWolfCreek',
-  playerIndex:0,
-  turn:1,
-  z:0,
-  r:2,
-  c:0,
-  baseStateHash:wolfCreekSuppressedHash,
-  postState:wolfCreekSuppressedBase,
-  stateHash:wolfCreekSuppressedHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(wolfCreekSuppressedRejected.ok, false);
-assert.match(wolfCreekSuppressedRejected.reason, /suppressed/);
-const wolfCreekWrongIidRejected = reduceServerAction({canonicalState:wolfCreekManualBase, canonicalHash:wolfCreekManualHash}, msg('BOARD_ACTION', {
-  fn:'activateWolfCreek',
-  playerIndex:0,
-  turn:1,
-  z:0,
-  r:2,
-  c:0,
-  cardIid:'not-the-wolf-source',
-  cardId:'54',
-  baseStateHash:wolfCreekManualHash,
-  postState:wolfCreekManualBase,
-  stateHash:wolfCreekManualHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(wolfCreekWrongIidRejected.ok, false);
-assert.match(wolfCreekWrongIidRejected.reason, /source identity mismatch/);
-const wolfCreekManualArmed = reduceServerAction({canonicalState:wolfCreekManualBase, canonicalHash:wolfCreekManualHash}, msg('BOARD_ACTION', {
-  fn:'activateWolfCreek',
-  playerIndex:0,
-  turn:1,
-  z:0,
-  r:2,
-  c:0,
-  baseStateHash:wolfCreekManualHash,
-  postState:wolfCreekManualBase,
-  stateHash:wolfCreekManualHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(wolfCreekManualArmed.ok, true, wolfCreekManualArmed.reason);
-assert.strictEqual(wolfCreekManualArmed.canonicalState._serverPendingZonePick.kind, 'wolfCreekSelectMoveTarget');
-const wolfCreekManualPick = reduceServerAction({canonicalState:wolfCreekManualArmed.canonicalState, canonicalHash:wolfCreekManualArmed.canonicalHash}, msg('PICK_ZONE', {
-  playerIndex:0,
-  turn:1,
-  selectedEntries:[{z:0, r:2, c:1, card:{iid:'wolf-manual-target', id:'302', name:'Manual Character'}}],
-  baseStateHash:wolfCreekManualArmed.canonicalHash,
-  postState:wolfCreekManualArmed.canonicalState,
-  stateHash:wolfCreekManualArmed.canonicalHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(wolfCreekManualPick.ok, true, wolfCreekManualPick.reason);
-assert.strictEqual(wolfCreekManualPick.canonicalState._serverPendingMove.kind, 'wolfCreekMove');
-const wolfCreekManualMove = reduceServerAction({canonicalState:wolfCreekManualPick.canonicalState, canonicalHash:wolfCreekManualPick.canonicalHash}, msg('CLICK_CELL', {
-  playerIndex:0,
-  turn:1,
-  z:1,
-  r:2,
-  c:1,
-  placing:false,
-  baseStateHash:wolfCreekManualPick.canonicalHash,
-  postState:wolfCreekManualPick.canonicalState,
-  stateHash:wolfCreekManualPick.canonicalHash
-}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
-assert.strictEqual(wolfCreekManualMove.ok, true, wolfCreekManualMove.reason);
-assert.strictEqual(wolfCreekManualMove.canonicalState.board[0][2][1], null);
-assert.strictEqual(wolfCreekManualMove.canonicalState.board[1][2][1].iid, 'wolf-manual-target');
-assert.strictEqual(wolfCreekManualMove.canonicalState.board[1][2][1].currentFate, 5);
-assert.strictEqual(wolfCreekManualMove.canonicalState.board[0][2][0].wolfCreekUsed, true);
-assert.strictEqual(wolfCreekManualMove.canonicalState._serverPendingMove, null);
+assert.match(wolfCreekManualUsedRejected.reason, /not implemented for BOARD_ACTION activateWolfCreek/);
 
 const liberatorsSetBase = state({
   players:[
@@ -4199,6 +4533,51 @@ const woundSet = reduceServerAction({canonicalState:woundSetBase, canonicalHash:
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(woundSet.ok, true, woundSet.reason);
 assert.strictEqual(woundSet.canonicalState._serverPendingZonePick.kind, 'hemorrhagingWound');
+const woundHavanoBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'31', iid:'s-31-havano-place', name:'Oathbound Noble Fighter', type:'Supporter', fate:1}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'79', iid:'oathbound-havano-reactor', name:'Havano Citizen', type:'Supporter', fate:1}], discard:[]}
+  ],
+  board:[[[null,null,null],[null,{id:'301', iid:'wound-havano-target', name:'Wound Target', type:'Character', owner:1, fate:3, currentFate:3},null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  extraSupportsThisTurn:0,
+  supportersSetP:[0,0],
+  damageDoneP:[0,0]
+});
+const woundHavanoHash = canonicalStateHash(woundHavanoBase);
+const woundHavanoPending = reduceServerAction({canonicalState:woundHavanoBase, canonicalHash:woundHavanoHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:2,
+  placing:true,
+  selectedHand:{index:0, iid:'s-31-havano-place', id:'31'},
+  baseStateHash:woundHavanoHash,
+  postState:woundHavanoBase,
+  stateHash:woundHavanoHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundHavanoPending.ok, true, woundHavanoPending.reason);
+assert.strictEqual(woundHavanoPending.canonicalState._serverPendingZonePick, undefined);
+assert.strictEqual(woundHavanoPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.strictEqual(woundHavanoPending.canonicalState._serverPendingReaction.playerIndex, 1);
+const oathboundHavanoOption = woundHavanoPending.canonicalState._serverPendingReaction.options.find(option=>option.kind === 'havano');
+assert.ok(oathboundHavanoOption, 'Oathbound Noble Fighter must guarantee a Havano reaction option');
+assert.strictEqual(oathboundHavanoOption.card.iid, 'oathbound-havano-reactor');
+assert.ok(oathboundHavanoOption.deploymentOptions.length > 0, 'Oathbound Havano reaction must include deployment options');
+const woundHavanoDeclined = reduceServerAction({canonicalState:woundHavanoPending.canonicalState, canonicalHash:woundHavanoPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:woundHavanoPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:woundHavanoPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(woundHavanoDeclined.ok, true, woundHavanoDeclined.reason);
+assert.strictEqual(woundHavanoDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(woundHavanoDeclined.canonicalState._serverPendingZonePick.kind, 'hemorrhagingWound');
 const woundPick = reduceServerAction({canonicalState:woundSet.canonicalState, canonicalHash:woundSet.canonicalHash}, msg('PICK_ZONE', {
   playerIndex:0,
   turn:1,
@@ -6110,6 +6489,66 @@ assert.strictEqual(busserMove.canonicalState.board[1][2][1]._busserMoves, 2);
 assert.strictEqual(busserMove.canonicalState.board[1][2][1]._busserMovedThisTurn, true);
 assert.strictEqual(busserMove.canonicalState.board[1][2][1].currentFate, 4);
 assert.strictEqual(busserMove.canonicalState._serverPendingMove, null);
+const busserMoveReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'busser-rx-drawn-card', name:'Busser Reaction Drawn Card', type:'Character', fate:1}], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[null,null,null],[null,null,null],[
+      {id:'69', iid:'busser-rx-source', name:'Breakfast Republic Busser', type:'Supporter', owner:0, fate:1, currentFate:1},
+      {id:'32', iid:'busser-rx-moving-32', name:'Temecula Resident', type:'Supporter', owner:0, fate:1, currentFate:1, aff:'reality'},
+      null
+    ]],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[{id:'56', iid:'busser-rx-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  _serverPendingMove:{
+    kind:'breakfastBusserMove',
+    playerIndex:0,
+    sourceZ:0,
+    sourceR:2,
+    sourceC:0,
+    sourceIid:'busser-rx-source',
+    fromZ:0,
+    fromR:2,
+    fromC:1,
+    movingIid:'busser-rx-moving-32',
+    options:[{z:1, r:2, c:1}]
+  }
+});
+const busserMoveReactionHash = canonicalStateHash(busserMoveReactionBase);
+const busserMoveReactionPending = reduceServerAction({canonicalState:busserMoveReactionBase, canonicalHash:busserMoveReactionHash}, msg('CLICK_CELL', {
+  playerIndex:0,
+  turn:1,
+  z:1,
+  r:2,
+  c:1,
+  placing:false,
+  baseStateHash:busserMoveReactionHash,
+  postState:busserMoveReactionBase,
+  stateHash:busserMoveReactionHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(busserMoveReactionPending.ok, true, busserMoveReactionPending.reason);
+assert.strictEqual(busserMoveReactionPending.canonicalState.board[0][2][1], null);
+assert.strictEqual(busserMoveReactionPending.canonicalState.board[1][2][1].iid, 'busser-rx-moving-32');
+assert.strictEqual(busserMoveReactionPending.canonicalState._serverPendingMove, null);
+assert.strictEqual(busserMoveReactionPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.ok(busserMoveReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'move-triggered supporter when-set must arm Lydia before resolving');
+assert.strictEqual(busserMoveReactionPending.canonicalState.players[0].deck.length, 1);
+assert.strictEqual(busserMoveReactionPending.canonicalState.players[0].hand.length, 0);
+const busserMoveReactionDeclined = reduceServerAction({canonicalState:busserMoveReactionPending.canonicalState, canonicalHash:busserMoveReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:busserMoveReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:busserMoveReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(busserMoveReactionDeclined.ok, true, busserMoveReactionDeclined.reason);
+assert.strictEqual(busserMoveReactionDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(busserMoveReactionDeclined.canonicalState.players[0].hand[0].iid, 'busser-rx-drawn-card');
 const busserRepeatRejected = reduceServerAction({canonicalState:busserMove.canonicalState, canonicalHash:busserMove.canonicalHash}, msg('BOARD_ACTION', {
   fn:'activateBusserMove',
   playerIndex:0,
@@ -6235,8 +6674,53 @@ const isaacSet = reduceServerAction({canonicalState:isaacBase, canonicalHash:isa
   stateHash:isaacHash
 }), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
 assert.strictEqual(isaacSet.ok, true, isaacSet.reason);
-assert.strictEqual(isaacSet.canonicalState.extraSupportsThisTurn, 2);
-assert.strictEqual(isaacSet.canonicalState._isaacPerezExtraSupports.extraSupports, 2);
+assert.strictEqual(isaacSet.canonicalState.extraSupportsThisTurn, 0);
+assert.strictEqual(isaacSet.canonicalState._isaacPerezExtraSupports, undefined);
+
+const isaacPendingBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[
+    [null,null,null],
+    [null,{id:'301', iid:'isaac-buff-a', name:'A', type:'Dauntless', owner:0, fate:1, currentFate:1},null],
+    [{id:'302', iid:'isaac-buff-b', name:'B', type:'Supporter', owner:0, fate:1, currentFate:1},{id:'22', iid:'isaac-pending', name:'Isaac Perez', type:'Initiator', owner:0, fate:1, currentFate:1, _pendingWhenSetEffect:{z:0, r:2, c:1, owner:0, turnQueued:1}},null]
+  ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  currentPlayer:0,
+  turn:1
+});
+const isaacPendingHash = canonicalStateHash(isaacPendingBase);
+const isaacPendingActivated = reduceServerAction({canonicalState:isaacPendingBase, canonicalHash:isaacPendingHash}, msg('BOARD_ACTION', {
+  fn:'activatePendingWhenSetEffect',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:1,
+  card:{iid:'isaac-pending', id:'22'},
+  baseStateHash:isaacPendingHash,
+  postState:isaacPendingBase,
+  stateHash:isaacPendingHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(isaacPendingActivated.ok, true, isaacPendingActivated.reason);
+assert.strictEqual(isaacPendingActivated.canonicalState._serverPendingZonePick.kind, 'isaacPerezFateBoost');
+const isaacPendingPick = reduceServerAction({canonicalState:isaacPendingActivated.canonicalState, canonicalHash:isaacPendingActivated.canonicalHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  promptId:isaacPendingActivated.canonicalState._serverPendingZonePick.promptId,
+  selectedEntries:[
+    {z:0, r:1, c:1, card:{iid:'isaac-buff-a', id:'301'}},
+    {z:0, r:2, c:0, card:{iid:'isaac-buff-b', id:'302'}}
+  ],
+  baseStateHash:isaacPendingActivated.canonicalHash,
+  postState:isaacPendingActivated.canonicalState,
+  stateHash:isaacPendingActivated.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(isaacPendingPick.ok, true, isaacPendingPick.reason);
+assert.strictEqual(isaacPendingPick.canonicalState.board[0][1][1].currentFate, 4);
+assert.strictEqual(isaacPendingPick.canonicalState.board[0][2][0].currentFate, 4);
 
 const santiagoBase = state({
   players:[
@@ -6953,6 +7437,209 @@ const erbsManualRepeat = reduceServerAction({canonicalState:erbsManualArmed.cano
 assert.strictEqual(erbsManualRepeat.ok, false);
 assert.match(erbsManualRepeat.reason, /already armed/);
 
+const unsupportedManualReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[[
+    {id:'56', iid:'unsupported-manual-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},
+    null,
+    null
+  ], [null,null,null], [
+    {id:'999', iid:'unsupported-manual-source', name:'Unsupported Initiator', type:'Initiator', owner:0, fate:3, currentFate:3},
+    null,
+    null
+  ]], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  currentPlayer:0,
+  turn:1
+});
+const unsupportedManualReactionPost = JSON.parse(JSON.stringify(unsupportedManualReactionBase));
+unsupportedManualReactionPost.board[0][2][0].currentFate = 9;
+unsupportedManualReactionPost.board[0][2][0].effectUsedInitial = true;
+const unsupportedManualReactionHash = canonicalStateHash(unsupportedManualReactionBase);
+const unsupportedManualReactionPending = reduceServerAction({canonicalState:unsupportedManualReactionBase, canonicalHash:unsupportedManualReactionHash}, msg('BOARD_ACTION', {
+  fn:'triggerCharacterEffect',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'unsupported-manual-source', id:'999'},
+  baseStateHash:unsupportedManualReactionHash,
+  postState:unsupportedManualReactionPost,
+  stateHash:canonicalStateHash(unsupportedManualReactionPost)
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(unsupportedManualReactionPending.ok, true, unsupportedManualReactionPending.reason);
+assert.strictEqual(unsupportedManualReactionPending.canonicalState._serverPendingReaction.kind, 'manualEffect');
+assert.strictEqual(unsupportedManualReactionPending.canonicalState._serverPendingReaction.options[0].kind, 'lydia');
+assert.strictEqual(unsupportedManualReactionPending.canonicalState.board[0][2][0].currentFate, 3);
+const unsupportedManualReactionDeclined = reduceServerAction({canonicalState:unsupportedManualReactionPending.canonicalState, canonicalHash:unsupportedManualReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:unsupportedManualReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:unsupportedManualReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(unsupportedManualReactionDeclined.ok, true, unsupportedManualReactionDeclined.reason);
+assert.strictEqual(unsupportedManualReactionDeclined.canonicalState.board[0][2][0].currentFate, 9);
+assert.strictEqual(unsupportedManualReactionDeclined.canonicalState.board[0][2][0].effectUsedInitial, true);
+const unsupportedManualReactionNegated = reduceServerAction({canonicalState:unsupportedManualReactionPending.canonicalState, canonicalHash:unsupportedManualReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:unsupportedManualReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'negate',
+  reaction:{kind:'lydia', z:0, r:0, c:0, card:{iid:'unsupported-manual-lydia', id:'56'}},
+  baseStateHash:unsupportedManualReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(unsupportedManualReactionNegated.ok, true, unsupportedManualReactionNegated.reason);
+assert.strictEqual(unsupportedManualReactionNegated.canonicalState.board[0][2][0].currentFate, 3);
+assert.strictEqual(unsupportedManualReactionNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true);
+assert.strictEqual(unsupportedManualReactionNegated.canonicalState.board[0][0][0].usesLeft, 2);
+
+const supportedBoardEffectReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'79', iid:'supported-board-havano', name:'Havano Citizen', type:'Supporter', fate:1}], discard:[]}
+  ],
+  board:[[
+    [{id:'56', iid:'supported-board-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],
+    [null,null,null],
+    [
+      {id:'52', iid:'supported-board-vigilantes', name:'Vigilantes', type:'Supporter', owner:0, fate:1, currentFate:1, _setTurn:1, whenSetActivated:false},
+      {id:'301', iid:'supported-board-target', name:'Opponent Target', type:'Character', owner:1, fate:3, currentFate:3},
+      null
+    ]
+  ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  currentPlayer:0,
+  turn:1
+});
+const supportedBoardEffectReactionHash = canonicalStateHash(supportedBoardEffectReactionBase);
+const supportedBoardEffectReactionPending = reduceServerAction({canonicalState:supportedBoardEffectReactionBase, canonicalHash:supportedBoardEffectReactionHash}, msg('BOARD_ACTION', {
+  fn:'activateVigilantes',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'supported-board-vigilantes', id:'52'},
+  baseStateHash:supportedBoardEffectReactionHash,
+  postState:supportedBoardEffectReactionBase,
+  stateHash:supportedBoardEffectReactionHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(supportedBoardEffectReactionPending.ok, true, supportedBoardEffectReactionPending.reason);
+assert.strictEqual(supportedBoardEffectReactionPending.canonicalState._serverPendingReaction.kind, 'manualEffect');
+assert.strictEqual(supportedBoardEffectReactionPending.canonicalState._serverPendingZonePick, undefined);
+assert.ok(supportedBoardEffectReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'expected Lydia reaction option for supported board effect');
+assert.ok(supportedBoardEffectReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'havano'), 'expected Havano reaction option for supported board effect targeting opponent cards');
+const supportedBoardEffectReactionDeclined = reduceServerAction({canonicalState:supportedBoardEffectReactionPending.canonicalState, canonicalHash:supportedBoardEffectReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:supportedBoardEffectReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:supportedBoardEffectReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(supportedBoardEffectReactionDeclined.ok, true, supportedBoardEffectReactionDeclined.reason);
+assert.strictEqual(supportedBoardEffectReactionDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(supportedBoardEffectReactionDeclined.canonicalState._serverPendingZonePick.kind, 'vigilantesMark');
+const supportedBoardEffectReactionNegated = reduceServerAction({canonicalState:supportedBoardEffectReactionPending.canonicalState, canonicalHash:supportedBoardEffectReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:supportedBoardEffectReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'negate',
+  reaction:{kind:'lydia', z:0, r:0, c:0, card:{iid:'supported-board-lydia', id:'56'}},
+  baseStateHash:supportedBoardEffectReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(supportedBoardEffectReactionNegated.ok, true, supportedBoardEffectReactionNegated.reason);
+assert.strictEqual(supportedBoardEffectReactionNegated.canonicalState._serverPendingZonePick, undefined);
+assert.strictEqual(supportedBoardEffectReactionNegated.canonicalState.board[0][0][0].usesLeft, 2);
+assert.strictEqual(supportedBoardEffectReactionNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true);
+
+const erbsManualLydiaBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'erbs-lydia-draw', name:'Draw Later', type:'Character', fate:1}], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[[
+    [{id:'56', iid:'erbs-lydia-reactor', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],
+    [null,null,null],
+    [{id:'40', iid:'erbs-lydia-source', name:'Christopher Erbs', type:'Improvisor', owner:0, fate:4, currentFate:4, usesLeft:2},null,null]
+  ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  erbsActive:[false,false]
+});
+const erbsManualLydiaHash = canonicalStateHash(erbsManualLydiaBase);
+const erbsManualLydiaPending = reduceServerAction({canonicalState:erbsManualLydiaBase, canonicalHash:erbsManualLydiaHash}, msg('BOARD_ACTION', {
+  fn:'triggerCharacterEffect',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'erbs-lydia-source', id:'40'},
+  baseStateHash:erbsManualLydiaHash,
+  postState:erbsManualLydiaBase,
+  stateHash:erbsManualLydiaHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(erbsManualLydiaPending.ok, true, erbsManualLydiaPending.reason);
+assert.strictEqual(erbsManualLydiaPending.canonicalState._serverPendingReaction.kind, 'manualCharacterEffect');
+assert.strictEqual(erbsManualLydiaPending.canonicalState._serverPendingReaction.options[0].kind, 'lydia');
+assert.strictEqual(erbsManualLydiaPending.canonicalState.board[0][2][0].usesLeft, 2);
+assert.strictEqual(erbsManualLydiaPending.canonicalState.erbsActive[0], false);
+const erbsManualLydiaDeclined = reduceServerAction({canonicalState:erbsManualLydiaPending.canonicalState, canonicalHash:erbsManualLydiaPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:erbsManualLydiaPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:erbsManualLydiaPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(erbsManualLydiaDeclined.ok, true, erbsManualLydiaDeclined.reason);
+assert.strictEqual(erbsManualLydiaDeclined.canonicalState.board[0][2][0].usesLeft, 1);
+assert.strictEqual(erbsManualLydiaDeclined.canonicalState.erbsActive[0], true);
+const erbsManualLydiaNegated = reduceServerAction({canonicalState:erbsManualLydiaPending.canonicalState, canonicalHash:erbsManualLydiaPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:erbsManualLydiaPending.canonicalState._serverPendingReaction.promptId,
+  choice:'negate',
+  reaction:{kind:'lydia', z:0, r:0, c:0, card:{iid:'erbs-lydia-reactor', id:'56'}},
+  baseStateHash:erbsManualLydiaPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(erbsManualLydiaNegated.ok, true, erbsManualLydiaNegated.reason);
+assert.strictEqual(erbsManualLydiaNegated.canonicalState.board[0][0][0].usesLeft, 2);
+assert.strictEqual(erbsManualLydiaNegated.canonicalState.board[0][2][0].usesLeft, 2);
+assert.strictEqual(erbsManualLydiaNegated.canonicalState.erbsActive[0], false);
+assert.strictEqual(erbsManualLydiaNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true);
+
+const erbsManualHavanoBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'erbs-havano-draw', name:'Draw Later', type:'Character', fate:1}], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'79', iid:'erbs-havano-reactor', name:'Havano Citizen', type:'Supporter', fate:1}], discard:[]}
+  ],
+  board:[[ [null,null,null], [null,null,null], [{id:'40', iid:'erbs-havano-source', name:'Christopher Erbs', type:'Improvisor', owner:0, fate:4, currentFate:4, usesLeft:2},null,null] ], [[null,null,null],[null,null,null],[null,null,null]], [[null,null,null],[null,null,null],[null,null,null]]],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  erbsActive:[false,false]
+});
+const erbsManualHavanoHash = canonicalStateHash(erbsManualHavanoBase);
+const erbsManualHavanoPending = reduceServerAction({canonicalState:erbsManualHavanoBase, canonicalHash:erbsManualHavanoHash}, msg('BOARD_ACTION', {
+  fn:'triggerCharacterEffect',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'erbs-havano-source', id:'40'},
+  baseStateHash:erbsManualHavanoHash,
+  postState:erbsManualHavanoBase,
+  stateHash:erbsManualHavanoHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(erbsManualHavanoPending.ok, true, erbsManualHavanoPending.reason);
+assert.strictEqual(erbsManualHavanoPending.canonicalState._serverPendingReaction.kind, 'manualCharacterEffect');
+const erbsHavanoOptionIndex = erbsManualHavanoPending.canonicalState._serverPendingReaction.options.findIndex(option=>option.kind === 'havano');
+assert.ok(erbsHavanoOptionIndex >= 0, 'expected Havano manual reaction option for Erbs');
+const erbsHavanoOption = erbsManualHavanoPending.canonicalState._serverPendingReaction.options[erbsHavanoOptionIndex];
+assert.strictEqual(erbsHavanoOption.card.iid, 'erbs-havano-reactor');
+assert.ok(erbsHavanoOption.deploymentOptions.length > 0, 'expected Havano manual deployment options');
+
 const manualDiscardBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[], discard:[]},
@@ -7157,6 +7844,50 @@ const faceDownFlipAgain = reduceServerAction({canonicalState:faceDownFlipped.can
 assert.strictEqual(faceDownFlipAgain.ok, false);
 assert.match(faceDownFlipAgain.reason, /already face up/);
 
+const faceDownFlipReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'flip-rx-drawn-card', name:'Flip Reaction Drawn Card', type:'Character', fate:1}], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[{id:'56', iid:'flip-rx-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[{id:'32', iid:'flip-rx-temecula', name:'Temecula Resident', type:'Supporter', owner:0, fate:1, currentFate:1, faceDown:true},null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1
+});
+const faceDownFlipReactionHash = canonicalStateHash(faceDownFlipReactionBase);
+const faceDownFlipReactionPending = reduceServerAction({canonicalState:faceDownFlipReactionBase, canonicalHash:faceDownFlipReactionHash}, msg('BOARD_ACTION', {
+  fn:'flipFaceDownBoardCard',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'flip-rx-temecula', id:'32'},
+  baseStateHash:faceDownFlipReactionHash,
+  postState:faceDownFlipReactionBase,
+  stateHash:faceDownFlipReactionHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:serverReactionCatalog});
+assert.strictEqual(faceDownFlipReactionPending.ok, true, faceDownFlipReactionPending.reason);
+assert.strictEqual(!!faceDownFlipReactionPending.canonicalState.board[0][2][0].faceDown, false);
+assert.strictEqual(faceDownFlipReactionPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.strictEqual(faceDownFlipReactionPending.canonicalState._serverPendingReaction.playerIndex, 1);
+assert.ok(faceDownFlipReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'face-down reveal must arm Lydia before resolving when-set');
+assert.strictEqual(faceDownFlipReactionPending.canonicalState.players[0].deck.length, 1);
+assert.strictEqual(faceDownFlipReactionPending.canonicalState.players[0].hand.length, 0);
+const faceDownFlipReactionDeclined = reduceServerAction({canonicalState:faceDownFlipReactionPending.canonicalState, canonicalHash:faceDownFlipReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:faceDownFlipReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:faceDownFlipReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:serverReactionCatalog});
+assert.strictEqual(faceDownFlipReactionDeclined.ok, true, faceDownFlipReactionDeclined.reason);
+assert.strictEqual(faceDownFlipReactionDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(faceDownFlipReactionDeclined.canonicalState.players[0].hand[0].iid, 'flip-rx-drawn-card');
+
 const pendingWhenSetBase = state({
   players:[
     {name:'Host', color:'', deck:[], hand:[], discard:[]},
@@ -7191,6 +7922,251 @@ const pendingWhenSetActivated = reduceServerAction({canonicalState:pendingWhenSe
 assert.strictEqual(pendingWhenSetActivated.ok, true, pendingWhenSetActivated.reason);
 assert.strictEqual(pendingWhenSetActivated.canonicalState.board[0][2][0]._pendingWhenSetEffect, undefined);
 assert.strictEqual(pendingWhenSetActivated.canonicalState._serverPendingZonePick.kind, 'liberatorsFateGain');
+const universalReactionFallbackBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[{id:'56', iid:'fallback-lydia-reactor', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[
+      {id:'05', iid:'fallback-liberators', name:'17th British Regiment', type:'Supporter', owner:0, fate:1, currentFate:1},
+      {id:'301', iid:'fallback-target', name:'Fallback Target', type:'Character', owner:0, fate:2, currentFate:2},
+      null
+    ]],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  _serverPendingZonePick:{
+    kind:'liberatorsFateGain',
+    playerIndex:0,
+    z:0,
+    r:2,
+    c:0,
+    iid:'fallback-liberators',
+    maxCount:1,
+    options:[{z:0, r:2, c:1, card:{iid:'fallback-target', id:'301'}}]
+  }
+});
+const universalReactionFallbackHash = canonicalStateHash(universalReactionFallbackBase);
+const universalReactionFallbackPending = reduceServerAction({canonicalState:universalReactionFallbackBase, canonicalHash:universalReactionFallbackHash}, msg('PICK_ZONE', {
+  playerIndex:0,
+  turn:1,
+  selectedEntries:[{z:0, r:2, c:1, card:{iid:'fallback-target', id:'301'}}],
+  baseStateHash:universalReactionFallbackHash,
+  postState:universalReactionFallbackBase,
+  stateHash:universalReactionFallbackHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(universalReactionFallbackPending.ok, true, universalReactionFallbackPending.reason);
+assert.strictEqual(universalReactionFallbackPending.universalImprovisorFallback, true);
+assert.strictEqual(universalReactionFallbackPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.strictEqual(universalReactionFallbackPending.canonicalState._serverPendingReaction.playerIndex, 1);
+assert.ok(universalReactionFallbackPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'universal reducer fallback must arm Lydia for missed server effect paths');
+assert.strictEqual(universalReactionFallbackPending.canonicalState._serverPendingZonePick, null);
+assert.strictEqual(universalReactionFallbackPending.canonicalState.board[0][2][1].currentFate, 2);
+const universalReactionFallbackDeclined = reduceServerAction({canonicalState:universalReactionFallbackPending.canonicalState, canonicalHash:universalReactionFallbackPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:universalReactionFallbackPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:universalReactionFallbackPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(universalReactionFallbackDeclined.ok, true, universalReactionFallbackDeclined.reason);
+assert.strictEqual(universalReactionFallbackDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(universalReactionFallbackDeclined.canonicalState._serverPendingZonePick, null);
+assert.strictEqual(universalReactionFallbackDeclined.canonicalState.board[0][2][1].currentFate, 5);
+const actionResultReactionFallbackBase = JSON.parse(JSON.stringify(universalReactionFallbackBase));
+actionResultReactionFallbackBase.board[0][2][0].iid = 'action-result-fallback-liberators';
+actionResultReactionFallbackBase.board[0][2][1].iid = 'action-result-fallback-target';
+actionResultReactionFallbackBase.board[0][0][0].iid = 'action-result-fallback-lydia';
+actionResultReactionFallbackBase._serverPendingZonePick.iid = 'action-result-fallback-liberators';
+actionResultReactionFallbackBase._serverPendingZonePick.options[0].card.iid = 'action-result-fallback-target';
+const actionResultReactionFallbackPost = JSON.parse(JSON.stringify(actionResultReactionFallbackBase));
+actionResultReactionFallbackPost.board[0][2][1].currentFate = 5;
+actionResultReactionFallbackPost._serverPendingZonePick = null;
+const actionResultReactionFallbackHash = canonicalStateHash(actionResultReactionFallbackBase);
+const actionResultReactionFallbackPostHash = canonicalStateHash(actionResultReactionFallbackPost);
+const actionResultReactionFallbackPending = reduceServerAction({canonicalState:actionResultReactionFallbackBase, canonicalHash:actionResultReactionFallbackHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'PICK_ZONE',
+  selectedEntries:[{z:0, r:2, c:1, card:{iid:'action-result-fallback-target', id:'301'}}],
+  baseStateHash:actionResultReactionFallbackHash,
+  postState:actionResultReactionFallbackPost,
+  stateHash:actionResultReactionFallbackPostHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(actionResultReactionFallbackPending.ok, true, actionResultReactionFallbackPending.reason);
+assert.strictEqual(actionResultReactionFallbackPending.universalImprovisorFallback, true);
+assert.strictEqual(actionResultReactionFallbackPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.strictEqual(actionResultReactionFallbackPending.canonicalState._serverPendingReaction.playerIndex, 1);
+assert.ok(actionResultReactionFallbackPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'ACTION_RESULT fallback must arm Lydia for client-resolved missed effect paths');
+assert.strictEqual(actionResultReactionFallbackPending.canonicalState._serverPendingZonePick, null);
+assert.strictEqual(actionResultReactionFallbackPending.canonicalState.board[0][2][1].currentFate, 2);
+const actionResultReactionFallbackDeclined = reduceServerAction({canonicalState:actionResultReactionFallbackPending.canonicalState, canonicalHash:actionResultReactionFallbackPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:actionResultReactionFallbackPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:actionResultReactionFallbackPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(actionResultReactionFallbackDeclined.ok, true, actionResultReactionFallbackDeclined.reason);
+assert.strictEqual(actionResultReactionFallbackDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(actionResultReactionFallbackDeclined.canonicalState.board[0][2][1].currentFate, 5);
+const actionResultSetReactionBase = state({
+  players:[
+    {name:'Host', color:'', deck:[{id:'301', iid:'action-result-set-draw', name:'Set Draw', type:'Character', fate:1}], hand:[{id:'32', iid:'action-result-set-supporter', name:'Drawing Supporter', type:'Supporter', fate:1, aff:'reality'}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[{id:'56', iid:'action-result-set-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  supportersSetP:[0, 0]
+});
+const actionResultSetReactionPost = JSON.parse(JSON.stringify(actionResultSetReactionBase));
+const actionResultSetPlaced = actionResultSetReactionPost.players[0].hand.shift();
+actionResultSetPlaced.owner = 0;
+actionResultSetPlaced.currentFate = 1;
+actionResultSetReactionPost.board[0][2][0] = actionResultSetPlaced;
+actionResultSetReactionPost.players[0].hand.push(actionResultSetReactionPost.players[0].deck.shift());
+actionResultSetReactionPost.placing = false;
+actionResultSetReactionPost.selectedHandCard = null;
+actionResultSetReactionPost.supportsPlacedThisTurn = 1;
+actionResultSetReactionPost.supportersSetP = [1, 0];
+const actionResultSetReactionHash = canonicalStateHash(actionResultSetReactionBase);
+const actionResultSetReactionPostHash = canonicalStateHash(actionResultSetReactionPost);
+const actionResultSetReactionPending = reduceServerAction({canonicalState:actionResultSetReactionBase, canonicalHash:actionResultSetReactionHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'CLICK_CELL',
+  z:0,
+  r:2,
+  c:0,
+  placing:true,
+  selectedHand:{index:0, iid:'action-result-set-supporter', id:'32'},
+  baseStateHash:actionResultSetReactionHash,
+  postState:actionResultSetReactionPost,
+  stateHash:actionResultSetReactionPostHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:serverReactionCatalog});
+assert.strictEqual(actionResultSetReactionPending.ok, true, actionResultSetReactionPending.reason);
+assert.strictEqual(actionResultSetReactionPending.universalImprovisorFallback, true);
+assert.strictEqual(actionResultSetReactionPending.canonicalState._serverPendingReaction.kind, 'supporterWhenSet');
+assert.ok(actionResultSetReactionPending.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'ACTION_RESULT normal set fallback must arm Lydia before accepting client-resolved when-set effects');
+assert.strictEqual(actionResultSetReactionPending.canonicalState.board[0][2][0].iid, 'action-result-set-supporter');
+assert.strictEqual(actionResultSetReactionPending.canonicalState.players[0].deck.length, 1);
+assert.strictEqual(actionResultSetReactionPending.canonicalState.players[0].hand.length, 0);
+const actionResultSetReactionDeclined = reduceServerAction({canonicalState:actionResultSetReactionPending.canonicalState, canonicalHash:actionResultSetReactionPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:actionResultSetReactionPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:actionResultSetReactionPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:serverReactionCatalog});
+assert.strictEqual(actionResultSetReactionDeclined.ok, true, actionResultSetReactionDeclined.reason);
+assert.strictEqual(actionResultSetReactionDeclined.canonicalState._serverPendingReaction, null);
+assert.strictEqual(actionResultSetReactionDeclined.canonicalState.players[0].hand[0].iid, 'action-result-set-draw');
+const actionResultSetBroadImprovisorsBase = state(JSON.parse(JSON.stringify(actionResultSetReactionBase)));
+actionResultSetBroadImprovisorsBase.players[1].hand.push({id:'79', iid:'action-result-set-broad-havano', name:'Havano Citizen', type:'Supporter', owner:1, fate:1, aff:'eventide'});
+actionResultSetBroadImprovisorsBase.board[0][0][1] = {id:'67', iid:'action-result-set-broad-secules', name:'Mr. Secules', type:'Improvisor', owner:1, fate:4, currentFate:4, usesLeft:1};
+const actionResultSetBroadImprovisorsPost = JSON.parse(JSON.stringify(actionResultSetBroadImprovisorsBase));
+const actionResultSetBroadPlaced = actionResultSetBroadImprovisorsPost.players[0].hand.shift();
+actionResultSetBroadPlaced.owner = 0;
+actionResultSetBroadPlaced.currentFate = 1;
+actionResultSetBroadImprovisorsPost.board[0][2][0] = actionResultSetBroadPlaced;
+actionResultSetBroadImprovisorsPost.players[0].hand.push(actionResultSetBroadImprovisorsPost.players[0].deck.shift());
+actionResultSetBroadImprovisorsPost.placing = false;
+actionResultSetBroadImprovisorsPost.selectedHandCard = null;
+actionResultSetBroadImprovisorsPost.supportsPlacedThisTurn = 1;
+actionResultSetBroadImprovisorsPost.supportersSetP = [1, 0];
+const actionResultSetBroadImprovisorsHash = canonicalStateHash(actionResultSetBroadImprovisorsBase);
+const actionResultSetBroadImprovisorsPostHash = canonicalStateHash(actionResultSetBroadImprovisorsPost);
+const actionResultSetBroadImprovisorsPending = reduceServerAction({canonicalState:actionResultSetBroadImprovisorsBase, canonicalHash:actionResultSetBroadImprovisorsHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'CLICK_CELL',
+  z:0,
+  r:2,
+  c:0,
+  placing:true,
+  selectedHand:{index:0, iid:'action-result-set-supporter', id:'32'},
+  baseStateHash:actionResultSetBroadImprovisorsHash,
+  postState:actionResultSetBroadImprovisorsPost,
+  stateHash:actionResultSetBroadImprovisorsPostHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:serverReactionCatalog});
+assert.strictEqual(actionResultSetBroadImprovisorsPending.ok, true, actionResultSetBroadImprovisorsPending.reason);
+assert.deepStrictEqual(
+  actionResultSetBroadImprovisorsPending.canonicalState._serverPendingReaction.options.map(option=>option.kind).sort(),
+  ['havano', 'lydia', 'secules']
+);
+const actionResultSetAllImprovisorsBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[{id:'31', iid:'action-result-all-set-supporter', name:'New York Socialite', type:'Supporter', fate:1, aff:'eventide'}], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[{id:'79', iid:'action-result-all-havano', name:'Havano Citizen', type:'Supporter', owner:1, fate:1, aff:'havano'}], discard:[]}
+  ],
+  board:[
+    [
+      [{id:'56', iid:'action-result-all-lydia', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3}, {id:'67', iid:'action-result-all-secules', name:'Mr. Secules', type:'Improvisor', owner:1, fate:4, currentFate:4, usesLeft:1}, null],
+      [null, {id:'301', iid:'action-result-all-target', name:'Opponent Target', type:'Character', owner:1, fate:5, currentFate:5}, null],
+      [null,null,null]
+    ],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  phase:'main',
+  currentPlayer:0,
+  turn:1,
+  placing:true,
+  selectedHandCard:0,
+  supportsPlacedThisTurn:0,
+  maxSupportsPerTurn:2,
+  supportersSetP:[0, 0]
+});
+const actionResultSetAllImprovisorsPost = JSON.parse(JSON.stringify(actionResultSetAllImprovisorsBase));
+const actionResultSetAllPlaced = actionResultSetAllImprovisorsPost.players[0].hand.shift();
+actionResultSetAllPlaced.owner = 0;
+actionResultSetAllPlaced.currentFate = 1;
+actionResultSetAllImprovisorsPost.board[0][2][0] = actionResultSetAllPlaced;
+actionResultSetAllImprovisorsPost.board[0][1][1].currentFate = 2;
+actionResultSetAllImprovisorsPost.placing = false;
+actionResultSetAllImprovisorsPost.selectedHandCard = null;
+actionResultSetAllImprovisorsPost.supportsPlacedThisTurn = 1;
+actionResultSetAllImprovisorsPost.supportersSetP = [1, 0];
+const actionResultSetAllImprovisorsHash = canonicalStateHash(actionResultSetAllImprovisorsBase);
+const actionResultSetAllImprovisorsPostHash = canonicalStateHash(actionResultSetAllImprovisorsPost);
+const actionResultSetAllImprovisorsPending = reduceServerAction({canonicalState:actionResultSetAllImprovisorsBase, canonicalHash:actionResultSetAllImprovisorsHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'CLICK_CELL',
+  z:0,
+  r:2,
+  c:0,
+  placing:true,
+  selectedHand:{index:0, iid:'action-result-all-set-supporter', id:'31'},
+  baseStateHash:actionResultSetAllImprovisorsHash,
+  postState:actionResultSetAllImprovisorsPost,
+  stateHash:actionResultSetAllImprovisorsPostHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(actionResultSetAllImprovisorsPending.ok, true, actionResultSetAllImprovisorsPending.reason);
+assert.strictEqual(actionResultSetAllImprovisorsPending.universalImprovisorFallback, true);
+assert.deepStrictEqual(
+  actionResultSetAllImprovisorsPending.canonicalState._serverPendingReaction.options.map(option=>option.kind).sort(),
+  ['havano', 'lydia', 'secules']
+);
+const actionResultSetAllImprovisorsDeclined = reduceServerAction({canonicalState:actionResultSetAllImprovisorsPending.canonicalState, canonicalHash:actionResultSetAllImprovisorsPending.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:actionResultSetAllImprovisorsPending.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:actionResultSetAllImprovisorsPending.canonicalHash
+}), {mode:'strict', requireBaseHash:true, requireCatalogForCards:true, cardCatalog:realSupporterCatalog});
+assert.strictEqual(actionResultSetAllImprovisorsDeclined.ok, true, actionResultSetAllImprovisorsDeclined.reason);
+assert.strictEqual(actionResultSetAllImprovisorsDeclined.canonicalState.board[0][1][1].currentFate, 2);
 const expiredPendingWhenSetBase = state(Object.assign({}, pendingWhenSetBase, {turn:2}));
 const expiredPendingWhenSetHash = canonicalStateHash(expiredPendingWhenSetBase);
 const expiredPendingWhenSetRejected = reduceServerAction({canonicalState:expiredPendingWhenSetBase, canonicalHash:expiredPendingWhenSetHash}, msg('BOARD_ACTION', {
@@ -7214,7 +8190,7 @@ const panaceaMoveBase = state({
     {name:'Guest', color:'', deck:[], hand:[], discard:[]}
   ],
   board:[
-    [[null,null,null],[null,null,null],[{id:'301', iid:'panacea-mover', name:'Eventide Mover', type:'Character', aff:'eventide', owner:0, fate:2, currentFate:2},null,null]],
+    [[{id:'56', iid:'panacea-lydia-reactor', name:'Lydia', type:'Improvisor', owner:1, fate:7, currentFate:7, usesLeft:3},null,null],[null,null,null],[{id:'301', iid:'panacea-mover', name:'Eventide Mover', type:'Character', aff:'eventide', owner:0, fate:2, currentFate:2},null,null]],
     [[null,null,null],[null,null,null],[null,{id:'34', iid:'panacea-rozsi', name:'Rozsi Szocs', type:'Coordinator', owner:0, fate:1, currentFate:1},null]],
     [[null,null,null],[null,null,null],[null,null,null]]
   ],
@@ -7237,17 +8213,29 @@ const panaceaMoveArmed = reduceServerAction({canonicalState:panaceaMoveBase, can
   stateHash:panaceaMoveHash
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(panaceaMoveArmed.ok, true, panaceaMoveArmed.reason);
-assert.strictEqual(panaceaMoveArmed.canonicalState._serverPendingMove.kind, 'landscapeEventideMove');
-assert(panaceaMoveArmed.canonicalState._serverPendingMove.options.some(item=>item.z === 1 && item.r === 1 && item.c === 0));
-const panaceaMoved = reduceServerAction({canonicalState:panaceaMoveArmed.canonicalState, canonicalHash:panaceaMoveArmed.canonicalHash}, msg('CLICK_CELL', {
+assert.strictEqual(panaceaMoveArmed.canonicalState._serverPendingReaction.kind, 'manualEffect');
+assert.strictEqual(panaceaMoveArmed.canonicalState._serverPendingReaction.playerIndex, 1);
+assert.ok(panaceaMoveArmed.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'lydia'), 'expected Lydia reaction option for landscape movement effect');
+assert.strictEqual(panaceaMoveArmed.canonicalState._serverPendingMove, undefined);
+const panaceaMoveReady = reduceServerAction({canonicalState:panaceaMoveArmed.canonicalState, canonicalHash:panaceaMoveArmed.canonicalHash}, msg('REACTION_CHOICE', {
+  playerIndex:1,
+  promptId:panaceaMoveArmed.canonicalState._serverPendingReaction.promptId,
+  choice:'decline',
+  baseStateHash:panaceaMoveArmed.canonicalHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(panaceaMoveReady.ok, true, panaceaMoveReady.reason);
+assert.strictEqual(panaceaMoveReady.canonicalState._serverPendingReaction, null);
+assert.strictEqual(panaceaMoveReady.canonicalState._serverPendingMove.kind, 'landscapeEventideMove');
+assert(panaceaMoveReady.canonicalState._serverPendingMove.options.some(item=>item.z === 1 && item.r === 1 && item.c === 0));
+const panaceaMoved = reduceServerAction({canonicalState:panaceaMoveReady.canonicalState, canonicalHash:panaceaMoveReady.canonicalHash}, msg('CLICK_CELL', {
   playerIndex:0,
   turn:1,
   z:1,
   r:1,
   c:0,
-  baseStateHash:panaceaMoveArmed.canonicalHash,
-  postState:panaceaMoveArmed.canonicalState,
-  stateHash:panaceaMoveArmed.canonicalHash
+  baseStateHash:panaceaMoveReady.canonicalHash,
+  postState:panaceaMoveReady.canonicalState,
+  stateHash:panaceaMoveReady.canonicalHash
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(panaceaMoved.ok, true, panaceaMoved.reason);
 assert.strictEqual(panaceaMoved.canonicalState.board[0][2][0], null);
@@ -7301,6 +8289,36 @@ const panaceaInactiveRejected = reduceServerAction({canonicalState:panaceaInacti
 }), {mode:'strict', requireBaseHash:true});
 assert.strictEqual(panaceaInactiveRejected.ok, false);
 assert.match(panaceaInactiveRejected.reason, /landscape is not active/);
+const panaceaSouthWindBase = state({
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  board:[
+    [[null,null,null],[null,null,null],[{id:'20', iid:'panacea-south-wind', name:'South Wind Spearman', type:'Supporter', aff:'eventide', owner:0, fate:1, currentFate:1},null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]],
+    [[null,null,null],[null,null,null],[null,null,null]]
+  ],
+  landscapeId:'igb7',
+  phase:'main',
+  currentPlayer:0,
+  turn:1
+});
+const panaceaSouthWindHash = canonicalStateHash(panaceaSouthWindBase);
+const panaceaSouthWindRejected = reduceServerAction({canonicalState:panaceaSouthWindBase, canonicalHash:panaceaSouthWindHash}, msg('BOARD_ACTION', {
+  fn:'activateLandscapeEventideMove',
+  playerIndex:0,
+  turn:1,
+  z:0,
+  r:2,
+  c:0,
+  card:{iid:'panacea-south-wind', id:'20'},
+  baseStateHash:panaceaSouthWindHash,
+  postState:panaceaSouthWindBase,
+  stateHash:panaceaSouthWindHash
+}), {mode:'strict', requireBaseHash:true});
+assert.strictEqual(panaceaSouthWindRejected.ok, false);
+assert.match(panaceaSouthWindRejected.reason, /eligible Eventide/);
 
 const kazumiBase = state({
   players:[
@@ -8311,6 +9329,49 @@ assert.strictEqual(westCoastCanceled.canonicalState._serverPendingZonePick, null
 assert.strictEqual(westCoastCanceled.canonicalState._serverPendingCardPick.kind, 'handDiscard');
 assert.strictEqual(westCoastCanceled.canonicalState._serverPendingCardPick.reason, 'westGermanSoldier');
 assert.deepStrictEqual(westCoastCanceled.canonicalState.players[0].hand.map(card=>card.iid), ['west-german-draw-a', 'west-german-draw-b']);
+
+const placementEqualCountRepairBase = state({
+  board:[
+    [[{id:'301', iid:'must-keep-placement-card', name:'Already Set', type:'Supporter', owner:0, fate:1, currentFate:1}, null]],
+    [[null, null]],
+    [[null, null]]
+  ],
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  currentPlayer:0,
+  turn:1
+});
+const placementEqualCountRepairPost = state({
+  board:[
+    [[null, {id:'302', iid:'same-count-stale-other-card', name:'Stale Other', type:'Supporter', owner:0, fate:1, currentFate:1}]],
+    [[null, null]],
+    [[null, null]]
+  ],
+  players:[
+    {name:'Host', color:'', deck:[], hand:[], discard:[]},
+    {name:'Guest', color:'', deck:[], hand:[], discard:[]}
+  ],
+  currentPlayer:0,
+  turn:1
+});
+const placementEqualCountRepairHash = canonicalStateHash(placementEqualCountRepairBase);
+const placementEqualCountRepairPostHash = canonicalStateHash(placementEqualCountRepairPost);
+const placementEqualCountRepair = reduceServerAction({canonicalState:placementEqualCountRepairBase, canonicalHash:placementEqualCountRepairHash}, msg('ACTION_RESULT', {
+  playerIndex:0,
+  turn:1,
+  actionKind:'PLACE_CARD',
+  z:0,
+  r:0,
+  c:1,
+  baseStateHash:placementEqualCountRepairHash,
+  postState:placementEqualCountRepairPost,
+  stateHash:placementEqualCountRepairPostHash
+}), {mode:'strict'});
+assert.strictEqual(placementEqualCountRepair.ok, true, placementEqualCountRepair.reason);
+assert.strictEqual(placementEqualCountRepair.canonicalState.board[0][0][0].iid, 'must-keep-placement-card');
+assert.strictEqual(placementEqualCountRepair.canonicalState.board[0][0][1].iid, 'same-count-stale-other-card');
 
 const actionResultDiscardBase = state({
   board:[

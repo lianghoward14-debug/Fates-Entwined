@@ -20,7 +20,9 @@
   let lastCardRectByIid = new Map();
   let pendingPlacementRectByIid = new Map();
   let vfxHiddenBoardCardUntilByIid = new Map();
+  let vfxHiddenBoardCellUntilByKey = new Map();
   let suppressedInitialPlacementUntilByIid = new Map();
+  let quarantinedBoardMotionIids = new Set();
   let assetImageCache = new Map();
   let lastMoveSnapshotSignature = '';
   let input = null;
@@ -39,6 +41,9 @@
   let postActionSources = [];
   let postActionRenderTimer = 0;
   let tutorialTargetPulseTimer = 0;
+  let selectionTargetPulseTimer = 0;
+  let selectionOptionCacheState = null;
+  let selectionOptionCache = null;
   let lastResizeKey = '';
   const pendingTextureTimers = {};
   let lastCanvasMetrics = null;
@@ -1018,6 +1023,61 @@
     return card && card.iid != null ? String(card.iid) : '';
   }
 
+  function boardCardIidCounts(entries){
+    const counts = new Map();
+    const list = Array.isArray(entries) ? entries : [];
+    list.forEach(function(entry){
+      const iid = getCardIid(entry && entry.card);
+      if(!iid) return;
+      counts.set(iid, (counts.get(iid) || 0) + 1);
+    });
+    return counts;
+  }
+
+  function clearBoardMotionStateForIid(iid){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return;
+    lastCardRectByIid.delete(key);
+    pendingPlacementRectByIid.delete(key);
+    suppressedInitialPlacementUntilByIid.delete(key);
+    vfxHiddenBoardCardUntilByIid.delete(key);
+    const timeline = getTimeline();
+    if(timeline && typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(key, 'card-move');
+    else if(timeline && typeof timeline.clearForCard === 'function') timeline.clearForCard(key, 'card-move');
+    try {
+      if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.cancelForCard === 'function') {
+        window.FateVfxEventBridge.cancelForCard(key);
+      }
+      if(window.FateVfxDirector && typeof window.FateVfxDirector.cancelForCard === 'function') {
+        window.FateVfxDirector.cancelForCard(key);
+      }
+    } catch(e) {}
+  }
+
+  function refreshBoardMotionIdentityQuarantine(iidCounts){
+    const next = new Set();
+    if(iidCounts && typeof iidCounts.forEach === 'function'){
+      iidCounts.forEach(function(count, iid){
+        if(Number(count) > 1){
+          next.add(String(iid));
+          clearBoardMotionStateForIid(iid);
+        }
+      });
+    }
+    quarantinedBoardMotionIids.forEach(function(iid){
+      if(!next.has(iid)) clearBoardMotionStateForIid(iid);
+    });
+    quarantinedBoardMotionIids = next;
+  }
+
+  function canTrackBoardMotionIid(iid, iidCounts){
+    const key = String(iid == null ? '' : iid);
+    if(!key) return false;
+    if(quarantinedBoardMotionIids.has(key)) return false;
+    if(!iidCounts || typeof iidCounts.get !== 'function') return true;
+    return Number(iidCounts.get(key) || 0) === 1;
+  }
+
   function getCardFateValue(card, visual){
     if(visual && visual.displayFate != null) return String(visual.displayFate);
     if(card && card.currentFate != null) return String(card.currentFate);
@@ -1295,6 +1355,19 @@
     return !getBoardCell(z, r, c) && !isCellBlockedForTarget(z, r, c);
   }
 
+  function selectionOptionForCell(mv, z, r, c){
+    if(!mv || !Array.isArray(mv.options)) return null;
+    if(selectionOptionCacheState !== mv){
+      selectionOptionCacheState = mv;
+      selectionOptionCache = new Map();
+      mv.options.forEach(function(option){
+        if(!option) return;
+        selectionOptionCache.set(Number(option.z) + ':' + Number(option.r) + ':' + Number(option.c), option);
+      });
+    }
+    return selectionOptionCache ? selectionOptionCache.get(Number(z) + ':' + Number(r) + ':' + Number(c)) || null : null;
+  }
+
   function isSelectionTargetCell(cell){
     if(!cell || typeof G === 'undefined' || !G) return false;
     const z = Number(cell.z);
@@ -1330,7 +1403,13 @@
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
     for(let i = 0; i < optionStates.length; i++){
       const mv = optionStates[i];
-      if(mv && squareMatchesOption(mv.options, z, r, c)) return isOpenSquareTarget(z, r, c);
+      if(mv){
+        const option = selectionOptionForCell(mv, z, r, c);
+        if(option) {
+          if(mv === G._wolfCreekMoving) return true;
+          return String(option.kind || 'move') === 'swap' ? !!getBoardCell(z, r, c) : isOpenSquareTarget(z, r, c);
+        }
+      }
     }
     if(G._expMoving && (typeof isLocalPlayerActionTurn !== 'function' || isLocalPlayerActionTurn())) {
       const card = G._expMoving.card || null;
@@ -1352,6 +1431,23 @@
     return false;
   }
 
+  function getSelectionTargetKind(cell){
+    if(!isSelectionTargetCell(cell)) return '';
+    const z = Number(cell.z);
+    const r = Number(cell.r);
+    const c = Number(cell.c);
+    const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
+    for(let i = 0; i < optionStates.length; i++){
+      const mv = optionStates[i];
+      const option = selectionOptionForCell(mv, z, r, c);
+      if(option) {
+        const kind = String(option.kind || 'move');
+        return mv === G._wolfCreekMoving && kind !== 'swap' ? 'wolf-creek-move' : kind;
+      }
+    }
+    return getBoardCell(z, r, c) ? 'card' : 'move';
+  }
+
   function isTutorialTargetCell(cell){
     if(!cell || typeof window.tutorialCurrentTargetSquare !== 'function') return false;
     let target = null;
@@ -1370,13 +1466,47 @@
     }, 90);
   }
 
-  function drawSquareSelectionCue(ctx, r){
+  function requestSelectionTargetPulseFrame(){
+    if(selectionTargetPulseTimer || animationsOff()) return;
+    selectionTargetPulseTimer = setTimeout(function(){
+      selectionTargetPulseTimer = 0;
+      scheduleRender('selection-target-pulse');
+    }, 90);
+  }
+
+  function drawWolfCreekOpenSquareCue(ctx, r){
     ctx.save();
-    roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 5);
-    ctx.lineWidth = 1.35;
-    ctx.strokeStyle = 'rgba(255,235,132,.92)';
+    roundedPath(ctx, r.x + 1, r.y + 1, Math.max(0, r.w - 2), Math.max(0, r.h - 2), 5);
+    ctx.fillStyle = 'rgba(201,168,76,.16)';
+    ctx.fill();
+    ctx.lineWidth = 1.45;
+    ctx.strokeStyle = 'rgba(255,222,104,.72)';
     ctx.stroke();
     ctx.restore();
+  }
+
+  function drawSquareSelectionCue(ctx, r, kind){
+    if(String(kind || '') === 'wolf-creek-move') {
+      drawWolfCreekOpenSquareCue(ctx, r);
+      return;
+    }
+    const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 210) + 1) / 2);
+    const isSwap = String(kind || '') === 'swap' || String(kind || '') === 'card';
+    ctx.save();
+    roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 6);
+    if(!isSwap) {
+      ctx.fillStyle = 'rgba(255,216,96,' + (.07 + t * .04).toFixed(3) + ')';
+      ctx.fill();
+    }
+    ctx.lineWidth = isSwap ? 1.35 : (2.2 + t * 1.05);
+    ctx.strokeStyle = isSwap
+      ? 'rgba(255,222,104,' + (.88 + t * .08).toFixed(3) + ')'
+      : 'rgba(255,232,118,' + (.78 + t * .18).toFixed(3) + ')';
+    ctx.shadowColor = 'rgba(255,211,74,' + (isSwap ? (.18 + t * .10) : (.32 + t * .25)).toFixed(3) + ')';
+    ctx.shadowBlur = isSwap ? 5 + t * 3 : 12 + t * 10;
+    ctx.stroke();
+    ctx.restore();
+    if(!isSwap) requestSelectionTargetPulseFrame();
   }
 
   function drawTutorialTargetCue(ctx, r){
@@ -1429,10 +1559,7 @@
   }
 
   function queuePlacementMotion(iid, fromRect){
-    const key = String(iid == null ? '' : iid);
-    if(!key || !fromRect) return false;
-    pendingPlacementRectByIid.set(key, cloneRect(fromRect));
-    return true;
+    return false;
   }
 
   function fallbackBoardEntrySourceRect(card, targetRect){
@@ -1473,6 +1600,23 @@
     }, ms + 24);
   }
 
+  function boardCellVfxKey(z, r, c){
+    const zi = Number(z), ri = Number(r), ci = Number(c);
+    if(!Number.isInteger(zi) || !Number.isInteger(ri) || !Number.isInteger(ci)) return '';
+    return zi + ':' + ri + ':' + ci;
+  }
+
+  function hideBoardCellForVfx(z, r, c, duration){
+    const key = boardCellVfxKey(z, r, c);
+    if(!key) return;
+    const ms = Math.max(120, Number(duration) || 460);
+    vfxHiddenBoardCellUntilByKey.set(key, nowMs() + ms);
+    setTimeout(function(){
+      vfxHiddenBoardCellUntilByKey.delete(key);
+      scheduleRender('board-commit');
+    }, ms + 24);
+  }
+
   function suppressInitialPlacementMotion(iid, duration){
     const key = String(iid == null ? '' : iid);
     if(!key) return;
@@ -1507,10 +1651,26 @@
     return true;
   }
 
-  function observeCardForMove(card, r, snapshotChanged){
+  function isBoardCellHiddenForVfx(z, r, c){
+    const key = boardCellVfxKey(z, r, c);
+    if(!key) return false;
+    const until = Number(vfxHiddenBoardCellUntilByKey.get(key)) || 0;
+    if(!until) return false;
+    if(nowMs() > until){
+      vfxHiddenBoardCellUntilByKey.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  function observeCardForMove(card, r, snapshotChanged, boardIidCounts){
     const timeline = getTimeline();
     const iid = getCardIid(card);
     if(!timeline || !iid || !r) return null;
+    if(!canTrackBoardMotionIid(iid, boardIidCounts)){
+      clearBoardMotionStateForIid(iid);
+      return null;
+    }
     const nextRect = cloneRect(r);
     const prevRect = lastCardRectByIid.get(iid);
     lastCardRectByIid.set(iid, nextRect);
@@ -1546,16 +1706,22 @@
           fromRect:prevRect,
           toRect:nextRect,
           targetRect:nextRect,
-          duration:430,
-          path:'arc',
-          arc:.16,
-          lift:.12,
-          rotate:2.8,
-          overshoot:.018,
-          settleMs:96
+          duration:170,
+          path:'direct',
+          arc:0,
+          lift:0,
+          sideArc:0,
+          rotate:0,
+          bank:0,
+          scale:1,
+          textureScale:1,
+          overshoot:0,
+          settleMs:0,
+          noShadow:true,
+          fastBoardMove:true
         }
       });
-      if(vfxId) hideBoardCardForVfx(iid, 430);
+      if(vfxId) hideBoardCardForVfx(iid, 190);
       return null;
     }
     if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
@@ -1564,16 +1730,25 @@
       kind:'card-move',
       iid,
       start:nowMs(),
-      duration:380,
-      easing:'in-out-cubic',
+      duration:170,
+      easing:'out-cubic',
       fromRect:prevRect,
       toRect:nextRect,
-      flight:false
+      flight:false,
+      profile:'board-fast'
     });
+  }
+
+  function isRenderFaceDownCard(card, visual){
+    return !!((card && (card.faceDown || (card.flags && card.flags.faceDown))) || (visual && visual.isHidden));
   }
 
   function drawCardContent(ctx, entry, visual, r, onChange, options){
     const opts = options || {};
+    if(isRenderFaceDownCard(entry && entry.card, visual)){
+      drawCardBack(ctx, r, '', 'back.png');
+      return;
+    }
     const texture = getTexture(entry.card, visual, r, onChange, {readyOnly:!!opts.readyTextureOnly});
     if(texture && texture.loaded && !texture.failed && texture.canvas) {
       ctx.drawImage(texture.canvas, r.x, r.y, r.w, r.h);
@@ -1774,7 +1949,7 @@
 
   function handEffectIconRect(cardRect) {
     const size = Math.max(13, Math.min(18, cardRect.w * .17));
-    return {x:cardRect.x + Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055), w:size, h:size};
+    return {x:cardRect.x + cardRect.w - size - Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055), w:size, h:size};
   }
 
   function drawHandEffectIcon(ctx, card, cardRect) {
@@ -1821,7 +1996,7 @@
     const cardAnchor = hit && hit.cardRect ? hit.cardRect : (hit && hit.kind === 'hand-card' ? hit.rect : anchor);
     const hoverLiftClearance = cardAnchor ? Math.max(30, cardAnchor.h * .38) : 0;
     let x = cardAnchor.x + cardAnchor.w / 2 - panelW / 2;
-    let y = cardAnchor.y - hoverLiftClearance - panelH - 24;
+    let y = cardAnchor.y - hoverLiftClearance - panelH + 43;
     x = Math.max(10, Math.min(x, cssW - panelW - 10));
     y = Math.max(10, y);
     if(y + panelH > cssH - 10) y = Math.max(10, cssH - panelH - 10);
@@ -1870,6 +2045,12 @@
     ctx.translate(-cx, -cy);
     const markedForDeath = !!(entry && entry.card && (entry.card._markedForDeath || (entry.card.flags && entry.card.flags.markedForDeath)));
     if(markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'grayscale(1) saturate(0) brightness(.78) contrast(.94)';
+    if(isRenderFaceDownCard(entry && entry.card, visual)){
+      drawCardBack(ctx, r, '', 'back.png');
+      drawCardPlaneGleam(ctx, r, tilt);
+      ctx.restore();
+      return;
+    }
     const contentOpts = opts.hideFateBadge ? opts : Object.assign({}, opts, {hideFateBadge:true});
     drawCardContent(ctx, entry, visual, r, onChange, contentOpts);
     if(opts.opponent) drawOpponentTint(ctx, r);
@@ -2906,7 +3087,8 @@
           if(cell.blocked){
             drawBlockOverlay(ctx, cr, cell.blocked);
           }
-          if(isSelectionTargetCell(cell)) drawSquareSelectionCue(ctx, cr);
+          const cellSelectionKind = getSelectionTargetKind(cell);
+          if(cellSelectionKind) drawSquareSelectionCue(ctx, cr, cellSelectionKind);
           if(isTutorialTargetCell(cell)) drawTutorialTargetCue(ctx, cr);
         });
       });
@@ -2930,6 +3112,8 @@
       br.y -= getZoneScroll(bz);
       return (ar.y + ar.h) - (br.y + br.h);
     });
+    const boardIidCountsForMotion = boardCardIidCounts(layout.cardRects || []);
+    refreshBoardMotionIdentityQuarantine(boardIidCountsForMotion);
     depthSortedCards.forEach(function(entry){
       if(!entry || !entry.card) return;
       const zone = zoneById[String(entry.z)];
@@ -2947,18 +3131,20 @@
       });
       const visual = entry.card.visual || null;
       const iid = getCardIid(entry.card);
-      if(isBoardCardHiddenForVfx(iid)){
+      if(isBoardCardHiddenForVfx(iid) || isBoardCellHiddenForVfx(entry.z, entry.r, entry.c)){
         cards++;
         return;
       }
       observeCardForAnimations(entry.card, visual, r);
       const tributeState = getTributeState(entry);
-      const move = observeCardForMove(entry.card, r, snapshotChangedForMove);
+      const move = observeCardForMove(entry.card, r, snapshotChangedForMove, boardIidCountsForMotion);
       if(move && move.kind === 'card-move' && !move.done){
         movingCards.push({entry, visual, rect:r, move, tributeState});
       } else {
         if(rowClip){ ctx.save(); roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5); ctx.clip(); }
         drawCardVisual(ctx, entry, visual, r, onChange, {tributeState, boardH:boardRect.h, opponent:entry.card && entry.card.owner !== snapshot.viewer});
+        const cardSelectionKind = getSelectionTargetKind(entry);
+        if(cardSelectionKind) drawSquareSelectionCue(ctx, r, cardSelectionKind);
         if(rowClip) ctx.restore();
       }
       cards++;
@@ -2969,12 +3155,15 @@
       const r = rectFromMove(item.move, item.rect);
       const raw = Number(item.move && item.move.progress) || 0;
       const arc = Math.sin(Math.PI * Math.max(0, Math.min(1, raw)));
-      const lift = item.move && item.move.flight ? (.36 + arc * .9) : (.22 + arc * .36);
-      const rotate = item.move && item.move.profile === 'tcg-set'
+      const fastBoardMove = item.move && item.move.profile === 'board-fast';
+      const lift = fastBoardMove ? 0 : (item.move && item.move.flight ? (.36 + arc * .9) : (.22 + arc * .36));
+      const rotate = !fastBoardMove && item.move && item.move.profile === 'tcg-set'
         ? Math.sin(Math.PI * Math.max(0, Math.min(1, raw))) * (Number(item.move.rotatePeak) || 4) * Math.PI / 180
         : 0;
       if(rowClip){ ctx.save(); roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5); ctx.clip(); }
       drawCardVisual(ctx, item.entry, item.visual, r, onChange, {tributeState:item.tributeState, boardH:boardRect.h, lift, tilt:rotate, opponent:item.entry.card && item.entry.card.owner !== snapshot.viewer});
+      const movingSelectionKind = getSelectionTargetKind(item.entry);
+      if(movingSelectionKind) drawSquareSelectionCue(ctx, r, movingSelectionKind);
       if(rowClip) ctx.restore();
     });
     depthSortedCards.forEach(function(entry){
@@ -2982,7 +3171,7 @@
       const tributeState = getTributeState(entry);
       if(!tributeState) return;
       const iid = getCardIid(entry.card);
-      if(isBoardCardHiddenForVfx(iid)) return;
+      if(isBoardCardHiddenForVfx(iid) || isBoardCellHiddenForVfx(entry.z, entry.r, entry.c)) return;
       const zone = zoneById[String(entry.z)];
       const rowClip = zone ? rect(zone.rowsRect, originX, originY) : null;
       const r = rect(entry.cardRect || entry.rect, originX, originY);
@@ -4054,6 +4243,7 @@
     queuePlacementMotion,
     suppressInitialPlacementMotion,
     hideBoardCardForVfx,
+    hideBoardCellForVfx,
     teardownScene,
     resetPerformanceSamples,
     report,

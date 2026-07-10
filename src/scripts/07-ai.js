@@ -1718,11 +1718,14 @@ async function aiDoPlace(choice) {
       }
     }));
     if(!majaDeckCinematic) {
-      if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
-      else setTimeout(function(){ playCardSound(card.id); }, 0);
-      const aiSetSfx = card.rarity === 'star' ? 'starPlace' : 'place';
-      if(typeof playSfxDeferred === 'function') playSfxDeferred(aiSetSfx, 0);
-      else setTimeout(function(){ playSfx(aiSetSfx); }, 0);
+      if(typeof playCardSetAudio === 'function') playCardSetAudio(card);
+      else {
+        if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
+        else setTimeout(function(){ playCardSound(card.id); }, 0);
+        const aiSetSfx = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
+        if(typeof playSfxDeferred === 'function') playSfxDeferred(aiSetSfx, 0);
+        else setTimeout(function(){ playSfx(aiSetSfx); }, 0);
+      }
     }
     log('p2', `AI placed ${card.name} in Zone ${choice.z+1}`);
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
@@ -2489,35 +2492,6 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     log('p2','AI: Vigilantes marked '+target.card.name+' for death');
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:false, blocks:false, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
-    return;
-  }
-  if(card.id==='54' && !card.wolfCreekUsed){
-    const movable = [];
-    G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-      if(cell && cell.owner===cp && cell.iid!==card.iid && !cell.cantBeMoved) movable.push({card:cell,z,r:ri,c:ci});
-    }));
-    if(!movable.length) return;
-    const open = [];
-    const safeRow = getSafeRowForPlayer(cp);
-    for(let zi=0; zi<3; zi++){
-      [1, safeRow].forEach(ri=>{
-        const row = G.board[zi]?.[ri];
-        if(!row) return;
-        for(let ci=0; ci<getBoardRowCapacity(zi,ri); ci++){
-          if(!row[ci] && !isBlocked(zi,ri,ci)) open.push({z:zi,r:ri,c:ci});
-        }
-      });
-    }
-    if(!open.length) return;
-    movable.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
-    open.sort((a,b)=>(getZoneScore(a.z,opp)-getZoneScore(a.z,cp))-(getZoneScore(b.z,opp)-getZoneScore(b.z,cp)));
-    const src = movable[0], dest = open[open.length-1];
-    G.board[src.z][src.r][src.c] = null;
-    G.board[dest.z][dest.r][dest.c] = src.card;
-    card.wolfCreekUsed = true;
-    log('p2','AI: Wolf Creek moved '+src.card.name);
-    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
-    else renderGame({board:true, scores:true, blocks:true, topbar:true});
     return;
   }
   if(card.id==='73' && card._canMoveOncePerTurn && !card._expMoved && !card.cantBeMoved){

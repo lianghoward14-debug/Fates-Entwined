@@ -135,11 +135,11 @@
     const players = Array.isArray(snap.players) ? snap.players : [];
     const own = players[viewer] || {hand:[], handCount:0};
     const opp = players[opponent] || {hand:[], handCount:0};
-    const handCards = Array.isArray(own.hand) ? own.hand.slice(0, 9) : [];
+    const handCards = Array.isArray(own.hand) ? own.hand : [];
     const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
-    const cardW = clamp(winW * 0.047, 76, 100);
-    const cardH = Math.round(cardW * 1.4);
     const handCount = handCards.length;
+    const cardW = handCount >= 9 ? clamp(winW * 0.043, 68, 92) : clamp(winW * 0.047, 76, 100);
+    const cardH = Math.round(cardW * 1.4);
     const handFallbackW = Math.min(1040, Math.max(600, winW - 800));
     const desiredHandRect = rect((winW - handFallbackW) / 2, winH - cardH - 74, handFallbackW, cardH + 48);
     const handRect = desiredHandRect;

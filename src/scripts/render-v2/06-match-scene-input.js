@@ -377,13 +377,22 @@
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
       const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!G._consolidating;
       const localActionTurn = typeof isLocalPlayerActionTurn === 'function' ? isLocalPlayerActionTurn() : true;
-      const isCellActionMode = !!(localActionTurn && (localConsolidationActive || G.blockingCell || G._boardTargeting || G.placing));
+      const isMovementTargeting = !!(G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._landscapeMoving || G._busserMoving || G._busserMovingCard || G._markSelecting);
+      const isCellActionMode = !!(localActionTurn && (localConsolidationActive || G.blockingCell || G._boardTargeting || G.placing || isMovementTargeting));
       try {
         if(G._isSpectator) {
-          if(boardCard && typeof openCardDetail === 'function') openCardDetail(boardCard, false, true);
+          if(boardCard) {
+            if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('boardCardClick', 'board-card-click', 120);
+            else if(typeof playSfx === 'function') playSfx('boardCardClick');
+            window.__fateSuppressNextCardInfoSfxUntil = Date.now() + 180;
+            if(typeof openCardDetail === 'function') openCardDetail(boardCard, false, true);
+          }
         } else if(isCellActionMode) {
           if(typeof clickCell === 'function') clickCell(z, r, c);
         } else if(boardCard && hit.kind === 'card') {
+          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('boardCardClick', 'board-card-click', 120);
+          else if(typeof playSfx === 'function') playSfx('boardCardClick');
+          window.__fateSuppressNextCardInfoSfxUntil = Date.now() + 180;
           if(typeof activateBoardCard === 'function') activateBoardCard(boardCard, z, r, c);
         } else if(!boardCard) {
           if(typeof clickCell === 'function') clickCell(z, r, c);
@@ -415,10 +424,19 @@
           try {
             selectable = canActFromHand && ((typeof canPlayCard === 'function' && canPlayCard(card)) || (typeof isSupporterLimitReachedForCard === 'function' && isSupporterLimitReachedForCard(card)));
           } catch(e) {}
+          if(selectable && typeof selectHandCard === 'function') {
+            selectHandCard(Number(hit.index));
+            return;
+          }
           if(selectable) {
             G.selectedHandCard = Number(hit.index);
             G.placing = false;
+            if(typeof playSfx === 'function') playSfx('cardSelect');
+            if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
+            return;
           }
+          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
+          else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
           if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
         } else if(hit.kind === 'opponent-hand-card') {
           const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (Number(G.currentPlayer) || 0);
@@ -431,8 +449,10 @@
           const byIndex = hand[Number(hit.index)] || null;
           const byIid = hit.iid ? hand.find(function(c){ return c && String(c.iid) === String(hit.iid); }) : null;
           const fullCard = byIid || byIndex || null;
+          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
+          else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
           if(fullCard && typeof openCardDetail === 'function') openCardDetail(fullCard, false, false);
-          else if(hit.card && !hit.card.hidden && typeof openCardDetail === 'function') openCardDetail(hit.card, false, false);
+          else if(hit.card && typeof openCardDetail === 'function') openCardDetail(hit.card, false, true);
           else if(typeof showRevealedHandWindow === 'function') showRevealedHandWindow(playerIndex);
         } else if(hit.kind === 'pile') {
           if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
