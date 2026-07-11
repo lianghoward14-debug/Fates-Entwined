@@ -21,7 +21,7 @@ assert.match(indexText, /window\.__fateClientBuildStamp = 'leaderboard-reset-202
 assert.match(indexText, /window\.FATE_GAMEPLAY_AUTHORITY = window\.FATE_GAMEPLAY_AUTHORITY \|\| 'client-resolved'/, 'browser and Electron must default gameplay to client-resolved');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783778701/, 'renderer cache bust must include the live card-detail overlay parity build');
 assert.match(indexText, /05-gameplay-core\.js\?v=1783783201/, 'gameplay core cache bust must include the effect activation guard build');
-assert.match(indexText, /18-online-rooms\.js\?v=1783783301&sync=1783783301/, 'online rooms cache bust must include the nonblocking effect cinematic build');
+assert.match(indexText, /18-online-rooms\.js\?v=1783783401&sync=1783783401/, 'online rooms cache bust must include the narrow resolving-effect gate build');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
 assert.match(indexText, /fateMultiplayerClientReport/, 'client must expose multiplayer parity diagnostics');
 
@@ -39,6 +39,9 @@ assert.match(roomsText, /function isServerAuthoritativeBoardIntent\(type, payloa
 assert.match(roomsText, /window\.__fateSendEffectActivationCinematic = function[\s\S]*resolveOnlineLocalPlayerIndex\('effect-cinematic'\)[\s\S]*sendAction\('EFFECT_CINEMATIC'/, 'effect activation cinematic broadcasts must remain best-effort local visual sends');
 assert.doesNotMatch(roomsText, /__fateSendEffectActivationCinematic[\s\S]{0,220}canSendLocalAction\(g, 'EFFECT_CINEMATIC'\)/, 'effect activation cinematic broadcasts must not use the gameplay action gate');
 assert.match(roomsText, /k === '_effectActivationInFlight' \|\| k === '_pendingWhenSetActivationInFlight'/, 'online card snapshots must omit transient effect activation locks');
+assert.match(roomsText, /function resolvingEffectGateProtectsAction\(type\)[\s\S]*END_TURN\|CLICK_CELL\|PLACE_CARD\|SELECT_PENDING_MOVE_CELL\|SELECT_CONSOLIDATION_TRIBUTE/, 'resolving-effect gate must only protect board and turn commits');
+assert.match(roomsText, /resolvingEffectGateProtectsAction\(actionType\) && clientResolvedGameplayEnabled\(\) && clientResolvedLocalCommitPending > 0/, 'pending local commits must not block effect picker continuations');
+assert.match(roomsText, /if\(!resolvingEffectGateProtectsAction\(type\)\) return function noopOnlineLocalActionGate/, 'non-board effect actions must not open the resolving-effect action gate');
 assert.match(roomsText, /const finalConsolidationClick = pendingConsolidation && isOnlineFinalConsolidationClick/, 'final consolidation clicks must be identified before routing');
 assert.match(roomsText, /if\(pendingConsolidation && !finalConsolidationClick\)/, 'final consolidation clicks must avoid the old local-only tribute toggle path');
 assert.doesNotMatch(roomsText, /strict server-first board effect/i, 'online rooms must not describe board effects as strict server-first');

@@ -4205,7 +4205,7 @@
       if(window.toast) toast('Spectators cannot take game actions.');
       return false;
     }
-    if(clientResolvedGameplayEnabled() && clientResolvedLocalCommitPending > 0){
+    if(resolvingEffectGateProtectsAction(actionType) && clientResolvedGameplayEnabled() && clientResolvedLocalCommitPending > 0){
       recordOnlineDiagnostic('client-resolved-action-waiting-for-commit', {
         actionType,
         localPending:clientResolvedLocalCommitPending,
@@ -4214,7 +4214,7 @@
       if(window.toast) toast('Resolving effect. Please wait.');
       return false;
     }
-    if(onlineLocalActionGate && onlineLocalActionGate.until > Date.now()){
+    if(resolvingEffectGateProtectsAction(actionType) && onlineLocalActionGate && onlineLocalActionGate.until > Date.now()){
       recordOnlineDiagnostic('online-local-action-gate-blocked', {
         actionType,
         gateType:String(onlineLocalActionGate.type || ''),
@@ -4290,8 +4290,13 @@
       || (isStrictGameplayAction(actionType) && /^(START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE)$/i.test(actionType));
   }
 
+  function resolvingEffectGateProtectsAction(type){
+    return /^(END_TURN|CLICK_CELL|PLACE_CARD|SELECT_PENDING_MOVE_CELL|SELECT_CONSOLIDATION_TRIBUTE)$/i.test(String(type || '').toUpperCase());
+  }
+
   function noteOnlineLocalActionGate(type){
     if(!shouldGateOnlineLocalAction(type)) return function noopOnlineLocalActionGate(){};
+    if(!resolvingEffectGateProtectsAction(type)) return function noopOnlineLocalActionGate(){};
     const now = Date.now();
     if(onlineLocalActionGate && onlineLocalActionGate.until > now) return null;
     const token = {
