@@ -535,8 +535,8 @@
     const selected = state === 'selected';
     const placement = state === 'placement';
     const ready = state === 'ready';
-    const color = ready ? 'rgba(105,190,255,.96)' : selected ? 'rgba(255,225,96,.96)' : placement ? 'rgba(255,215,86,.9)' : 'rgba(255,215,0,.68)';
-    const fill = ready ? 'rgba(80,170,255,.06)' : selected ? 'rgba(255,215,0,.055)' : placement ? 'rgba(255,215,0,.035)' : 'rgba(255,215,0,.018)';
+    const color = ready ? 'rgba(255,230,96,.96)' : selected ? 'rgba(255,225,96,.96)' : placement ? 'rgba(255,215,86,.9)' : 'rgba(255,215,0,.68)';
+    const fill = ready ? 'rgba(255,215,0,.065)' : selected ? 'rgba(255,215,0,.055)' : placement ? 'rgba(255,215,0,.035)' : 'rgba(255,215,0,.018)';
     const radius = Math.max(5, Math.min(10, w * .06));
     ctx.save();
     const outerPad = (selected || ready) ? 2.5 : 1.5;
@@ -546,7 +546,7 @@
     ctx.lineWidth = ready ? 2.45 : (selected ? 2.35 : (placement ? 1.75 : 1.25));
     ctx.setLineDash([]);
     ctx.strokeStyle = color;
-    ctx.shadowColor = ready ? 'rgba(80,170,255,.42)' : 'rgba(255,215,0,.34)';
+    ctx.shadowColor = ready ? 'rgba(255,215,0,.42)' : 'rgba(255,215,0,.34)';
     ctx.shadowBlur = ready ? 7 : (selected ? 6 : (placement ? 4 : 2));
     ctx.stroke();
     ctx.restore();

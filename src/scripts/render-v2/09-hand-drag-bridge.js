@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchHandDragBridge) return;
 
-  const BRIDGE_VERSION = 2;
+  const BRIDGE_VERSION = 3;
   const DRAG_THRESHOLD = 10;
   let state = null;
   let blockClickUntil = 0;
@@ -46,6 +46,15 @@
 
   function nowMs(){
     return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
+  function isOnlineCharacterConsolidationDrag(card){
+    return !!(card
+      && card.type !== 'Supporter'
+      && typeof G !== 'undefined'
+      && G
+      && G._onlineRoomCode
+      && !G._onlineApplyingRemoteAction);
   }
 
   function handIndex(el){
@@ -767,7 +776,7 @@
     setDraggingFlag(true);
     const scene = adapter();
     if(scene && typeof scene.setViewportHoverHit === 'function') scene.setViewportHoverHit(null);
-    if(typeof playSfx === 'function') playSfx('dragStart');
+    if(!isOnlineCharacterConsolidationDrag(state.card) && typeof playSfx === 'function') playSfx('dragStart');
   }
 
   function onPointerDown(ev){
@@ -851,8 +860,9 @@
         r:Number(hit.r),
         c:Number(hit.c),
         selectedHand:{index:idx, iid:card ? card.iid || '' : '', id:card ? card.id || '' : ''}
-      }));
+    }));
     if(onlineDrop){
+      blockClickUntil = Math.max(blockClickUntil, Date.now() + 700);
       cleanup({clearPlacement:false});
       return;
     }

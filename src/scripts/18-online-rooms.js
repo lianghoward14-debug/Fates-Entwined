@@ -79,8 +79,10 @@
   let lastMoreBoardRepairSyncHash = '';
   let onlineMoreBoardPreference = {until:0, kind:'', reason:''};
   let onlineMovementBoardPreference = {until:0, reason:''};
+  let onlineProtectedBoardPreference = null;
   let lastAuthorityBoardSnapshot = {layout:'', identity:'', count:null, stateHash:''};
   let onlineTurnBoundaryAgreementPromise = null;
+  let onlinePendingEndTurnAfterAgreementPromise = null;
   let localConsolidationSelection = null;
   let queuedFinalConsolidationClick = null;
   let lastClientResolvedAutoCommitHash = '';
@@ -470,6 +472,69 @@
       ms
     });
   }
+  function activeOnlineProtectedBoardPreference(){
+    if(!onlineProtectedBoardPreference) return null;
+    if(Date.now() > Number(onlineProtectedBoardPreference.until || 0)){
+      onlineProtectedBoardPreference = null;
+      return null;
+    }
+    if(String(onlineProtectedBoardPreference.kind || '').toLowerCase() === 'consolidation') return null;
+    if(!Array.isArray(onlineProtectedBoardPreference.board) || !(Number(onlineProtectedBoardPreference.count) > 0)) return null;
+    return onlineProtectedBoardPreference;
+  }
+  function hasOnlineProtectedBoardPreference(){
+    return !!activeOnlineProtectedBoardPreference();
+  }
+  function protectOnlineMoreBoardSnapshot(kind, reason, durationMs, sourceBoard){
+    const k = String(kind || '').toLowerCase();
+    if(k === 'consolidation') return false;
+    const g = gameState();
+    const board = cloneOnlinePlain(sourceBoard || (g && g.board) || null);
+    const entries = onlineBoardCardEntries(board);
+    if(!entries.length) return false;
+    const ms = k === 'movement'
+      ? Math.max(60000, Number(durationMs) || 60000)
+      : Math.max(30000, Number(durationMs) || 30000);
+    noteOnlineMoreBoardPreference(k || 'board', reason, ms);
+    onlineProtectedBoardPreference = {
+      until:Date.now() + ms,
+      kind:k || 'board',
+      reason:String(reason || ''),
+      board,
+      count:entries.length,
+      identity:onlineBoardIdentitySetSignature(board),
+      layout:onlineBoardLayoutSignature(board)
+    };
+    recordOnlineDiagnostic('online-protected-board-snapshot', {
+      kind:onlineProtectedBoardPreference.kind,
+      reason:onlineProtectedBoardPreference.reason,
+      boardCards:onlineProtectedBoardPreference.count,
+      ms
+    });
+    return true;
+  }
+  function protectOnlineBoardIfChanged(kind, reason, beforeBoard, sourceBoard){
+    const k = String(kind || '').toLowerCase();
+    if(k === 'consolidation') return false;
+    const g = gameState();
+    const afterBoard = sourceBoard || (g && g.board);
+    const beforeEntries = onlineBoardCardEntries(beforeBoard);
+    const afterEntries = onlineBoardCardEntries(afterBoard);
+    if(!afterEntries.length) return false;
+    const beforeCount = beforeEntries.length;
+    const afterCount = afterEntries.length;
+    const beforeIdentity = onlineBoardIdentitySetSignature(beforeBoard);
+    const afterIdentity = onlineBoardIdentitySetSignature(afterBoard);
+    const beforeLayout = onlineBoardLayoutSignature(beforeBoard);
+    const afterLayout = onlineBoardLayoutSignature(afterBoard);
+    const placementGainedBoardCard = k === 'placement' && afterCount > beforeCount;
+    const movementChangedBoard = k === 'movement' && (
+      afterCount > beforeCount ||
+      (afterCount === beforeCount && afterIdentity && beforeIdentity === afterIdentity && beforeLayout !== afterLayout)
+    );
+    if(!placementGainedBoardCard && !movementChangedBoard) return false;
+    return protectOnlineMoreBoardSnapshot(k, reason, k === 'movement' ? 60000 : 30000, afterBoard);
+  }
   function hasOnlineMoreBoardPreference(){
     if(!onlineMoreBoardPreference || Date.now() > Number(onlineMoreBoardPreference.until || 0)){
       onlineMoreBoardPreference = {until:0, kind:'', reason:''};
@@ -485,6 +550,7 @@
   function clearOnlineMoreBoardPreference(reason){
     onlineMoreBoardPreference = {until:0, kind:'', reason:String(reason || '')};
     onlineMovementBoardPreference = {until:0, reason:String(reason || '')};
+    onlineProtectedBoardPreference = null;
   }
   function isMoreBoardMovementAction(action){
     const type = String(action?.type || '').toUpperCase();
@@ -505,9 +571,10 @@
       || payload.consolidationPresentation) {
       return false;
     }
-    if(hasOnlineMoreBoardPreference()) return true;
     if(isMoreBoardMovementAction(action)) return true;
     if(effectiveType === 'SELECT_CONSOLIDATION_TRIBUTE') return false;
+    if(effectiveType === 'START_CONSOLIDATE') return false;
+    if(hasOnlineMoreBoardPreference()) return true;
     if(effectiveType === 'PLACE_CARD') return true;
     if(effectiveType === 'CLICK_CELL') return !!(
       payload.placing ||
@@ -519,24 +586,32 @@
     return false;
   }
   function preferMoreOnlineBoardCards(incomingState, localBoard, reason, action){
-    if(!incomingState || !Array.isArray(localBoard)) return incomingState;
+    if(!incomingState) return incomingState;
     const localEntries = onlineBoardCardEntries(localBoard);
     const incomingEntries = onlineBoardCardEntries(incomingState.board);
-    if(incomingEntries.length > localEntries.length){
+    const protectedPreference = activeOnlineProtectedBoardPreference();
+    const protectedEntries = protectedPreference ? onlineBoardCardEntries(protectedPreference.board) : [];
+    const richestCandidate = [
+      {source:'local', board:localBoard, entries:localEntries, protected:false},
+      {source:'protected', board:protectedPreference && protectedPreference.board, entries:protectedEntries, protected:!!protectedPreference}
+    ].filter(candidate=>Array.isArray(candidate.board) && candidate.entries.length > incomingEntries.length)
+      .sort((a, b)=>b.entries.length - a.entries.length || (b.protected ? 1 : 0) - (a.protected ? 1 : 0))[0] || null;
+    const richestLocalCount = Math.max(localEntries.length, protectedEntries.length);
+    if(incomingEntries.length > richestLocalCount){
       recordOnlineDiagnostic('online-more-board-cards-kept-incoming-state', {
         localBoardCards:localEntries.length,
+        protectedBoardCards:protectedEntries.length,
         incomingBoardCards:incomingEntries.length,
         reason:String(reason || '')
       });
       return incomingState;
     }
-    const localHasMoreBoardCards = localEntries.length > incomingEntries.length;
-    const allowMoreCardRepair = localHasMoreBoardCards && shouldPreferMoreOnlineBoardCardsForAction(action);
+    const allowMoreCardRepair = !!richestCandidate && (richestCandidate.protected || shouldPreferMoreOnlineBoardCardsForAction(action));
     if(!allowMoreCardRepair) return incomingState;
     const incomingKeys = new Set(incomingEntries.map(entry=>entry.key));
     let repaired = null;
     let restored = 0;
-    localEntries.forEach(function(entry){
+    richestCandidate.entries.forEach(function(entry){
       if(!entry.key || incomingKeys.has(entry.key)) return;
       if(!repaired) repaired = cloneOnlinePlain(incomingState);
       const row = ensureOnlineStateBoardCell(repaired, entry.z, entry.r, entry.c);
@@ -550,11 +625,41 @@
     if(!repaired || !restored) return incomingState;
     recordOnlineDiagnostic('online-more-board-cards-repaired-client-state', {
       localBoardCards:localEntries.length,
+      protectedBoardCards:protectedEntries.length,
       incomingBoardCards:incomingEntries.length,
+      source:richestCandidate.source,
       restored,
       reason:String(reason || '')
     });
     return repaired;
+  }
+  function applyProtectedMoreBoardSnapshotToState(state, reason){
+    const protectedPreference = activeOnlineProtectedBoardPreference();
+    if(!protectedPreference || !state) return false;
+    const protectedBoard = protectedPreference.board;
+    const stateCount = onlineStateBoardCardCount(state);
+    const protectedCount = Number(protectedPreference.count || 0);
+    const stateIdentity = onlineBoardIdentitySetSignature(state.board);
+    const stateLayout = onlineStateBoardLayoutSignature(state);
+    const protectedHasMoreCards = protectedCount > stateCount;
+    const protectedMovedSameCards = String(protectedPreference.kind || '') === 'movement'
+      && protectedCount === stateCount
+      && protectedPreference.identity
+      && String(protectedPreference.identity || '') === stateIdentity
+      && String(protectedPreference.layout || '') !== stateLayout;
+    if(!protectedHasMoreCards && !protectedMovedSameCards) return false;
+    state.board = cloneOnlinePlain(protectedBoard);
+    onlineBoardCardEntries(state.board).forEach(function(entry){
+      removeOnlineCardFromPlayerPiles(state, entry.card);
+    });
+    recordOnlineDiagnostic('online-protected-board-snapshot-applied-to-sync', {
+      reason:String(reason || ''),
+      kind:String(protectedPreference.kind || ''),
+      stateBoardCards:stateCount,
+      protectedBoardCards:protectedCount,
+      movedSameCards:protectedMovedSameCards
+    });
+    return true;
   }
   function onlineStateBoardCardCount(state){
     return onlineBoardCardEntries(state && state.board).length;
@@ -619,11 +724,12 @@
     const latest = gameState();
     if(!isOnlineMatchState(latest) || latest._onlineApplyingRemoteAction || !Number.isInteger(latest._onlinePlayerIndex)) return Promise.resolve(false);
     if(latest._isSpectator || latest._onlineRole === 'spectator') return Promise.resolve(false);
-    if(!hasOnlineMoreBoardPreference() && !hasOnlineMovementBoardPreference()) return Promise.resolve(false);
+    const protectedPreference = activeOnlineProtectedBoardPreference();
+    if(!hasOnlineMoreBoardPreference() && !hasOnlineMovementBoardPreference() && !protectedPreference) return Promise.resolve(false);
     const baseStateHash = String(lastAuthorityStateHash || '');
     if(!baseStateHash) return Promise.resolve(false);
     const requestedReason = String(reason || 'more-board-cards-authoritative-merge');
-    const sourceReason = hasOnlineMovementBoardPreference() && !/mov/i.test(requestedReason)
+    const sourceReason = (hasOnlineMovementBoardPreference() || String(protectedPreference?.kind || '') === 'movement') && !/mov/i.test(requestedReason)
       ? requestedReason + ':movement'
       : requestedReason;
     const payload = {
@@ -637,6 +743,9 @@
     };
     try{ attachOnlinePostState(payload); }catch(e){ console.warn('Could not capture more-board-cards repair sync', e); return Promise.resolve(false); }
     if(!payload.postState || !payload.stateHash) return Promise.resolve(false);
+    if(applyProtectedMoreBoardSnapshotToState(payload.postState, sourceReason)){
+      payload.stateHash = onlineCanonicalStateHash(payload.postState);
+    }
     if(payload.stateHash === baseStateHash){
       rememberOnlineAuthorityBoardSnapshot(payload.postState, payload.stateHash);
       return Promise.resolve(localOnlineBoardMatchesAuthority());
@@ -688,16 +797,37 @@
     if(latest._isSpectator || latest._onlineRole === 'spectator') return true;
     const code = latest._onlineRoomCode || activeRoom;
     const repairReason = String(reason || 'turn-boundary-board-agreement-repair');
+    recordOnlineDiagnostic('online-turn-boundary-board-agreement-start', {
+      reason:repairReason,
+      localBoardCards:localOnlineBoardCardCount(),
+      authorityBoardCards:lastAuthorityBoardSnapshot && lastAuthorityBoardSnapshot.count,
+      hasMoreBoardPreference:hasOnlineMoreBoardPreference(),
+      hasMovementPreference:hasOnlineMovementBoardPreference(),
+      hasProtectedPreference:hasOnlineProtectedBoardPreference()
+    });
+    if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference() || hasOnlineProtectedBoardPreference()){
+      await sendMoreBoardCardsAuthoritySyncNow(repairReason + ':immediate-repair');
+      await actionReplayQueue.catch(()=>{});
+      if(localOnlineBoardMatchesAuthority()){
+        recordOnlineDiagnostic('online-turn-boundary-board-agreement', {
+          reason:repairReason,
+          attempt:0,
+          source:'immediate-repair-sync'
+        });
+        return true;
+      }
+    }
     if(code && authorityHttpBaseUrl() && !firebaseActionFallbackAllowed()){
       await catchUpFlyAuthorityReplay(code, repairReason + ' initial board agreement refresh', {
         includeState:true,
-        limit:120
+        limit:60,
+        timeoutMs:2500
       });
       await actionReplayQueue.catch(()=>{});
     }
     if(localOnlineBoardMatchesAuthority()) return true;
-    for(let attempt = 1; attempt <= 8; attempt += 1){
-      if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference()){
+    for(let attempt = 1; attempt <= 2; attempt += 1){
+      if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference() || hasOnlineProtectedBoardPreference()){
         await sendMoreBoardCardsAuthoritySyncNow(repairReason + ':attempt-' + attempt);
       }
       await actionReplayQueue.catch(()=>{});
@@ -712,7 +842,8 @@
       if(code && authorityHttpBaseUrl() && !firebaseActionFallbackAllowed()){
         await catchUpFlyAuthorityReplay(code, repairReason + ' board agreement attempt ' + attempt, {
           includeState:true,
-          limit:120
+          limit:60,
+          timeoutMs:2500
         });
         await actionReplayQueue.catch(()=>{});
         if(localOnlineBoardMatchesAuthority()){
@@ -724,7 +855,7 @@
           return true;
         }
       }
-      if(attempt >= 2) await new Promise(resolve=>setTimeout(resolve, 35 + attempt * 20));
+      if(attempt === 1) await new Promise(resolve=>setTimeout(resolve, 40));
     }
     recordOnlineDiagnostic('online-turn-boundary-board-agreement-blocked', {
       reason:repairReason,
@@ -734,12 +865,24 @@
       authorityLayout:lastAuthorityBoardSnapshot && lastAuthorityBoardSnapshot.layout,
       authorityHash:String(lastAuthorityStateHash || '')
     });
-    if(window.toast) toast('Still syncing board. End Turn will continue once the board catches up.');
+    if(window.toast) toast('Board is still mismatched. Try End Turn again after the sync indicator clears.');
     return false;
     })();
     return onlineTurnBoundaryAgreementPromise.finally(function(){
       onlineTurnBoundaryAgreementPromise = null;
     });
+  }
+  function runOnlineTurnBoundaryAfterBoardAgreement(repairReason, finish){
+    if(onlinePendingEndTurnAfterAgreementPromise){
+      if(window.toast) toast('Syncing board before ending turn...');
+      return onlinePendingEndTurnAfterAgreementPromise;
+    }
+    onlinePendingEndTurnAfterAgreementPromise = waitForOnlineBoardAgreementBeforeTurnAdvance(repairReason)
+      .then((agreed)=>agreed && typeof finish === 'function' ? Promise.resolve().then(finish) : false)
+      .finally(function(){
+        onlinePendingEndTurnAfterAgreementPromise = null;
+      });
+    return onlinePendingEndTurnAfterAgreementPromise;
   }
   function onlineCardCatalogMatch(card){
     if(!card || typeof card !== 'object' || typeof CARDS === 'undefined' || !Array.isArray(CARDS)) return null;
@@ -1066,13 +1209,33 @@
       && String(actionPayload.sourceType || '').toUpperCase() === 'MORE_BOARD_CARDS_REPAIR'
       && /mov/i.test(String(actionPayload.sourceReason || ''));
     const movementProtectionAction = isMoreBoardMovementAction(action) || movementRepairStateSync;
+    const protectedPreference = activeOnlineProtectedBoardPreference();
+    const protectedMovementBoard = protectedPreference && String(protectedPreference.kind || '') === 'movement'
+      ? protectedPreference.board
+      : null;
+    const protectedMovementBoardCards = protectedMovementBoard ? Number(protectedPreference.count || 0) : 0;
+    const protectedMovementLayout = protectedMovementBoard ? String(protectedPreference.layout || '') : '';
+    const protectedMovementIdentity = protectedMovementBoard ? String(protectedPreference.identity || '') : '';
+    const incomingBoardIdentity = onlineBoardIdentitySetSignature(state.board);
+    const incomingBoardLayout = onlineBoardLayoutSignature(state.board);
     const protectedLocalMovementLayout = !!(
-      hasOnlineMovementBoardPreference() &&
+      (hasOnlineMovementBoardPreference() || protectedMovementBoard) &&
       movementProtectionAction &&
-      localBoardCardsBeforeApply === incomingBoardCardsBeforeApply &&
-      onlineBoardIdentitySetSignature(g.board) &&
-      onlineBoardIdentitySetSignature(g.board) === onlineBoardIdentitySetSignature(state.board) &&
-      onlineBoardLayoutSignature(g.board) !== onlineBoardLayoutSignature(state.board)
+      (
+        (
+          localBoardCardsBeforeApply === incomingBoardCardsBeforeApply &&
+          onlineBoardIdentitySetSignature(g.board) &&
+          onlineBoardIdentitySetSignature(g.board) === incomingBoardIdentity &&
+          onlineBoardLayoutSignature(g.board) !== incomingBoardLayout
+        ) ||
+        (
+          protectedMovementBoardCards === incomingBoardCardsBeforeApply &&
+          protectedMovementIdentity &&
+          protectedMovementIdentity === incomingBoardIdentity &&
+          protectedMovementLayout &&
+          protectedMovementLayout !== incomingBoardLayout
+        )
+      )
     );
     if(protectedLocalMovementLayout){
       recordOnlineDiagnostic('online-protected-local-movement-state-kept', {
@@ -1580,10 +1743,13 @@
       applyingRemote:!!g._onlineApplyingRemoteAction,
       optionKinds:(Array.isArray(pending.options) ? pending.options : []).map(option=>String(option?.kind || '')).filter(Boolean)
     });
-    if(!promptId || localIndex === null || pendingIndex === null) return false;
+    if(!promptId || pendingIndex === null) return false;
     if(g._onlineApplyingRemoteAction){
       setTimeout(()=>syncOnlineImprovisorReactionUi('remote apply finished retry'), 40);
       return false;
+    }
+    if(localIndex === null){
+      return showOnlineImprovisorWaitingWindow(g, pending, null, reason);
     }
     return pendingIndex === localIndex
       ? showOnlineImprovisorChoiceWindow(g, pending, localIndex, reason)
@@ -2450,13 +2616,13 @@
     }, 0);
     const cost = Math.max(0, Number(con.cost) || 0);
     try{
+      if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, blocks:true, topbar:true});
       if(typeof window.highlightTributeCards === 'function') window.highlightTributeCards();
       if(typeof window.refreshConsolidationCanvasState === 'function') window.refreshConsolidationCanvasState();
       if(typeof window.setHint === 'function') {
         if(running >= cost) window.setHint(`Ready: click a selected tribute to place ${con.card?.name || 'this card'}.`);
         else window.setHint(`Select ${typeof getConsolidationTributeLabel === 'function' ? getConsolidationTributeLabel(con.card) : 'supporters'} to consolidate ${con.card?.name || 'this card'} (${running}/${cost} reinforcement).`);
       }
-      if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, blocks:true, topbar:true});
     }catch(e){
       console.warn('Online drag consolidation local selection mirror failed', e);
     }
@@ -2600,6 +2766,65 @@
     const card = g.board?.[z]?.[r]?.[c] || null;
     if(!card) return null;
     return {z, r, c, card:cardIdentity(card)};
+  }
+  function onlineReactionActionTypeForSource(card, fnName){
+    const fn = String(fnName || '');
+    if(fn === 'activatePendingWhenSetEffect') return 'when_set_effect';
+    if(fn === 'triggerCharacterEffect'){
+      if(String(card?.type || '') === 'Initiator') return 'initiator_effect';
+      if(String(card?.type || '') === 'Supporter') return 'supporter_effect';
+      return 'targeting_effect';
+    }
+    if(/^(activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fn)){
+      return 'targeting_effect';
+    }
+    if(String(card?.type || '') === 'Supporter') return 'supporter_effect';
+    if(String(card?.type || '') === 'Initiator') return 'initiator_effect';
+    return '';
+  }
+  function attachOnlineReactionActionType(payload, g, fnName){
+    if(!payload || payload.reactionActionType) return payload;
+    const fx = payload.effectCinematic || payload.source || null;
+    const z = Number(fx?.z), r = Number(fx?.r), c = Number(fx?.c);
+    const card = Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
+      ? g?.board?.[z]?.[r]?.[c] || null
+      : null;
+    const reactionActionType = onlineReactionActionTypeForSource(card, fnName || payload.fn || '');
+    if(reactionActionType) payload.reactionActionType = reactionActionType;
+    if(payload.effectCinematic && reactionActionType) payload.effectCinematic.reactionActionType = reactionActionType;
+    return payload;
+  }
+  function attachOnlinePendingEffectSource(payload, g, pending){
+    if(!payload || !pending || typeof pending !== 'object') return payload;
+    const nested = [pending, pending.source, pending.boardSource, pending.effectCinematic, pending.origin, pending.sourcePosition];
+    let loc = null;
+    for(const candidate of nested){
+      if(!candidate || typeof candidate !== 'object') continue;
+      const z = candidate.sourceZ !== undefined ? Number(candidate.sourceZ) : Number(candidate.z);
+      const r = candidate.sourceR !== undefined ? Number(candidate.sourceR) : Number(candidate.r);
+      const c = candidate.sourceC !== undefined ? Number(candidate.sourceC) : Number(candidate.c);
+      if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
+        loc = {z, r, c};
+        break;
+      }
+    }
+    if(!loc){
+      const sourceIid = String(pending.sourceIid || pending.iid || pending.movingIid || pending.source?.card?.iid || '');
+      if(sourceIid && Array.isArray(g?.board)){
+        g.board.some((zone, z)=>Array.isArray(zone) && zone.some((row, r)=>Array.isArray(row) && row.some((card, c)=>{
+          if(String(card?.iid || '') !== sourceIid) return false;
+          loc = {z, r, c};
+          return true;
+        })));
+      }
+    }
+    if(!loc) return payload;
+    payload.pendingSource = boardEffectCinematicPayload(g, loc.z, loc.r, loc.c) || loc;
+    if(!payload.reactionActionType){
+      const card = g?.board?.[loc.z]?.[loc.r]?.[loc.c] || null;
+      payload.reactionActionType = onlineReactionActionTypeForSource(card, '');
+    }
+    return payload;
   }
   function selectedBoardEffectCinematicPayload(g){
     const sel = g && g.selectedBoardCard ? g.selectedBoardCard : null;
@@ -3505,7 +3730,11 @@
   }
   function strictCompactActionNeedsPostState(type, payload){
     const actionType = String(type || '').toUpperCase();
-    if(actionType === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(payload)) return false;
+    if(actionType === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(payload)){
+      const fn = String(payload?.fn || '');
+      const id = String(payload?.cardId || payload?.card?.id || payload?.source?.card?.id || '');
+      return fn === 'triggerCharacterEffect' && !/^(21|38|40)$/.test(id);
+    }
     return isStrictCompactAuthorityAction(type)
       && (
         /^(START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_LANDSCAPE_ZONE|PICK_AFFILIATION|REACTION_CHOICE)$/i.test(actionType)
@@ -3517,10 +3746,7 @@
     if(firebaseActionFallbackAllowed()) return false;
     const fn = String(payload?.fn || '');
     if(/^(activatePendingWhenSetEffect|discardBoardCard|flipFaceDownBoardCard|activateVigilantes|activateExpeditionaryMove|activateBusserMove|activateLandscapeEventideMove)$/i.test(fn)) return true;
-    if(fn === 'triggerCharacterEffect'){
-      const id = String(payload?.cardId || payload?.card?.id || payload?.source?.card?.id || '');
-      return /^(21|38|40)$/.test(id);
-    }
+    if(fn === 'triggerCharacterEffect') return true;
     return false;
   }
   function clientResolvedGameplayEnabled(){
@@ -6775,7 +7001,9 @@
       const after = Math.max(0, Number(lastAppliedActionSeq || 0) || 0);
       const includeState = options.includeState === true;
       const limit = Math.max(1, Math.min(240, Number(options.limit || 120) || 120));
-      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=${limit}${includeState ? '&includeState=1' : ''}`);
+      const requestOptions = {};
+      if(Number(options.timeoutMs) > 0) requestOptions.timeoutMs = Number(options.timeoutMs);
+      const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/resume?after=${after}&limit=${limit}${includeState ? '&includeState=1' : ''}`, requestOptions);
       const room = normalizeFlyRoom(data.room);
       if(room.roomCode){
         lastLobbyRoom = room;
@@ -6967,17 +7195,21 @@
         lastAuthorityStateHash = String(msg.serverStateHash || '');
         const localBoardCards = localOnlineBoardCardCount();
         const serverBoardCards = msg.serverState ? onlineStateBoardCardCount(msg.serverState) : null;
+        const protectedPreference = activeOnlineProtectedBoardPreference();
+        const protectedBoardCards = protectedPreference ? Number(protectedPreference.count || 0) : 0;
+        const richestLocalBoardCards = Math.max(localBoardCards, protectedBoardCards);
         const localBoardLayout = localOnlineBoardLayoutSignature();
+        const protectedBoardLayout = protectedPreference ? String(protectedPreference.layout || '') : '';
         const serverBoardLayout = msg.serverState ? onlineStateBoardLayoutSignature(msg.serverState) : '';
         const protectedMovementLayout = !!(
           msg.serverState &&
-          localBoardCards === serverBoardCards &&
-          localBoardLayout &&
+          (localBoardCards === serverBoardCards || protectedBoardCards === serverBoardCards) &&
+          (localBoardLayout || protectedBoardLayout) &&
           serverBoardLayout &&
-          localBoardLayout !== serverBoardLayout &&
-          (isMoreBoardMovementAction(msg.action) || hasOnlineMovementBoardPreference())
+          (localBoardLayout !== serverBoardLayout || protectedBoardLayout !== serverBoardLayout) &&
+          (isMoreBoardMovementAction(msg.action) || hasOnlineMovementBoardPreference() || String(protectedPreference?.kind || '') === 'movement')
         );
-        if(msg.serverState && serverBoardCards > localBoardCards){
+        if(msg.serverState && serverBoardCards > richestLocalBoardCards){
           applyOnlineCanonicalState(msg.serverState, 'client-resolved stale-base server has more board cards');
           const serverSeq = Number(msg.serverSeq || 0) || 0;
           if(serverSeq){
@@ -6997,10 +7229,11 @@
             requestId:String(msg.requestId || ''),
             serverSeq,
             localBoardCards,
+            protectedBoardCards,
             serverBoardCards,
             serverStateHash:String(msg.serverStateHash || '')
           });
-        }else if(msg.serverState && localBoardCards > serverBoardCards && shouldPreferMoreOnlineBoardCardsForAction(msg.action)){
+        }else if(msg.serverState && richestLocalBoardCards > serverBoardCards && (shouldPreferMoreOnlineBoardCardsForAction(msg.action) || protectedPreference)){
           const serverSeq = Number(msg.serverSeq || 0) || 0;
           if(serverSeq) markOnlineActionSeqApplied(serverSeq, 'client-resolved stale-base kept local more board cards');
           scheduleMoreBoardCardsAuthoritySync('client-resolved-stale-base-kept-local-more-board-cards', 40);
@@ -7008,6 +7241,7 @@
             requestId:String(msg.requestId || ''),
             serverSeq,
             localBoardCards,
+            protectedBoardCards,
             serverBoardCards,
             serverStateHash:String(msg.serverStateHash || '')
           });
@@ -7526,6 +7760,9 @@
           if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
           if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, blocks:true, topbar:true});
         }
+        if(onlinePendingEndTurnAfterAgreementPromise){
+          return runOnlineTurnBoundaryAfterBoardAgreement('', null);
+        }
         if(!canSendLocalAction(g, 'END_TURN')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
@@ -7534,9 +7771,7 @@
           const repairReason = hasOnlineMovementBoardPreference()
             ? 'end-turn-current-turn-moved-board-cards-repair'
             : 'end-turn-current-turn-more-board-cards-repair';
-          return waitForOnlineBoardAgreementBeforeTurnAdvance(repairReason)
-            .then((agreed)=>{
-              if(!agreed) return false;
+          return runOnlineTurnBoundaryAfterBoardAgreement(repairReason, ()=>{
               const latest = gameState() || g;
               return sendAction('MATCH_RESULT', {
                 playerIndex:latest.currentPlayer,
@@ -7566,8 +7801,7 @@
         const repairReason = hasOnlineMovementBoardPreference()
           ? 'end-turn-current-turn-moved-board-cards-repair'
           : 'end-turn-current-turn-more-board-cards-repair';
-        return waitForOnlineBoardAgreementBeforeTurnAdvance(repairReason)
-          .then((agreed)=>agreed ? finishEndTurn() : false);
+        return runOnlineTurnBoundaryAfterBoardAgreement(repairReason, finishEndTurn);
       };
     }
 
@@ -7633,39 +7867,28 @@
       if(!canSendLocalAction(g, 'START_CONSOLIDATE')) return true;
       const selected = drop.selectedHand || selectedHandSnapshot(g);
       if(!selected) return false;
-      const finishGate = noteOnlineLocalActionGate('START_CONSOLIDATE');
-      if(!finishGate) return true;
       clearLocalConsolidationSelection('new drag consolidation started');
       g.selectedHandCard = Number(selected.index);
       g.placing = false;
       if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
       let localPreviewSelected = false;
       try{
-        if(originals.initiateConsolidate){
-          originals.initiateConsolidate.apply(window, []);
+        if(typeof window.initiateConsolidate === 'function'){
+          window.initiateConsolidate();
           const latest = gameState();
           const con = latest && latest._consolidating;
-          localPreviewSelected = !!(con && mirrorOnlineConsolidationTributeSelection(
-            latest,
-            con,
-            Number(drop.z),
-            Number(drop.r),
-            Number(drop.c),
-            'drag-drop-local-preview'
-          ));
+          if(con && typeof window.clickCell === 'function'){
+            window.clickCell(Number(drop.z), Number(drop.r), Number(drop.c));
+            const afterClick = gameState();
+            const afterCon = afterClick && afterClick._consolidating;
+            localPreviewSelected = !!(afterCon && Array.isArray(afterCon.chosenIdxs) && afterCon.chosenIdxs.length);
+            if(localPreviewSelected) rememberLocalConsolidationSelection(afterClick, afterCon, 'drag-drop-button-path-click-preview');
+          }
         }
       }catch(e){
         console.warn('Online drag consolidation local preview failed', e);
       }
-      const payload = {
-        playerIndex:g.currentPlayer,
-        turn:g.turn,
-        selectedHand:selected,
-        source:'drag-drop-consolidation',
-        baseStateHash:lastAuthorityStateHash || '',
-        clientActionId:makeDirectAuthorityActionId('START_CONSOLIDATE')
-      };
-      recordOnlineDiagnostic('online-drag-consolidation-start-server-first', {
+      recordOnlineDiagnostic('online-drag-consolidation-button-path', {
         z:Number(drop.z),
         r:Number(drop.r),
         c:Number(drop.c),
@@ -7673,47 +7896,6 @@
         selectedId:String(selected.id || ''),
         localPreviewSelected
       });
-      let staleBaseRetryCount = 0;
-      const sendStartConsolidation = function(){
-        payload.baseStateHash = lastAuthorityStateHash || payload.baseStateHash || '';
-        return sendAction('START_CONSOLIDATE', payload).catch(function(err){
-          if(isClientResolvedStaleBaseError(err) && staleBaseRetryCount < 2){
-            staleBaseRetryCount += 1;
-            const serverHash = String(err.serverStateHash || lastAuthorityStateHash || '');
-            const code = gameState()?._onlineRoomCode || activeRoom;
-            return (code && authorityHttpBaseUrl()
-              ? catchUpFlyAuthorityReplay(code, 'stale base retry before drag START_CONSOLIDATE').catch(()=>false)
-              : Promise.resolve(false)
-            ).then(function(){
-              if(serverHash) lastAuthorityStateHash = serverHash;
-              payload.baseStateHash = lastAuthorityStateHash || serverHash || '';
-              recordOnlineDiagnostic('online-drag-consolidation-start-stale-base-retry', {
-                retry:staleBaseRetryCount,
-                baseStateHash:String(payload.baseStateHash || '')
-              });
-              return sendStartConsolidation();
-            });
-          }
-          throw err;
-        });
-      };
-      sendStartConsolidation()
-        .then(function(){
-          finishGate();
-          flushQueuedFinalConsolidationClick('drag start action resolved');
-          recordOnlineDiagnostic('online-drag-consolidation-start-local-selection-only', {
-            z:Number(drop.z),
-            r:Number(drop.r),
-            c:Number(drop.c)
-          });
-        })
-        .catch(function(err){
-          finishGate();
-          clearLocalConsolidationSelection('drag consolidation start rejected');
-          console.error('Server drag consolidation start failed', err);
-          if(window.toast) toast(err && err.message ? err.message : 'Could not start consolidation.');
-          scheduleOptimisticCorrection('START_CONSOLIDATE');
-        });
       return true;
     };
 
@@ -7810,6 +7992,7 @@
           consolidationPresentation
         }, ()=>{
           const latest = gameState();
+          const beforeBoard = cloneOnlinePlain(latest && latest.board);
           if(pendingConsolidation){
             const activeCon = latest && latest._consolidating;
             const expectedPromptId = String(pendingConsolidation.promptId || '');
@@ -7827,8 +8010,17 @@
           }
           const isPlacement = clientResolvedGameplayEnabled()
             && toAuthorityIntent('CLICK_CELL', {placing:!!latest?.placing, selectedHand:selectedHandSnapshot(latest), z,r,c}, latest) === 'PLACE_CARD';
-          if(isPlacement) return runClientResolvedPlacementWithoutPresentation(()=>originals.clickCell.apply(this, args));
-          return originals.clickCell.apply(this, args);
+          const localResult = isPlacement
+            ? runClientResolvedPlacementWithoutPresentation(()=>originals.clickCell.apply(this, args))
+            : originals.clickCell.apply(this, args);
+          const protectAfterLocal = ()=>{
+            if(hasPlacementIntent) protectOnlineBoardIfChanged('placement', 'post-placement-click', beforeBoard);
+          };
+          if(localResult && typeof localResult.then === 'function'){
+            return localResult.then(value=>{ protectAfterLocal(); return value; });
+          }
+          protectAfterLocal();
+          return localResult;
         });
       };
     }
@@ -7882,13 +8074,13 @@
           action:()=>{
             const pendingModal = gameState()?._serverPendingModalAction || null;
             if(!canSendLocalAction(gameState(), 'MODAL_ACTION')) return;
-            return sendOptimisticAction('MODAL_ACTION', {
+            return sendOptimisticAction('MODAL_ACTION', attachOnlineReactionActionType(attachOnlinePendingEffectSource({
               playerIndex:g.currentPlayer,
               turn:g.turn,
               promptId:pendingModal && pendingModal.promptId || '',
               actionIndex,
               effectCinematic:selectedBoardEffectCinematicPayload(g)
-            }, ()=>action.action());
+            }, g, pendingModal), g), ()=>action.action());
           }
         }));
         return originals.showModal.call(this, title, bodyHtml, wrappedActions);
@@ -7915,12 +8107,12 @@
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest, 'PICK_CARDS_VISUAL')) return;
           const pendingPick = latest?._serverPendingCardPick || null;
-          return sendOptimisticAction('PICK_CARDS_VISUAL', {
+          return sendOptimisticAction('PICK_CARDS_VISUAL', attachOnlinePendingEffectSource({
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
             promptId:pendingPick && pendingPick.promptId || '',
             selectedCards:(chosen || []).map(cardIdentity)
-          }, ()=>onConfirm(chosen));
+          }, latest, pendingPick), ()=>onConfirm(chosen));
         };
         return originals.pickCardsVisual.call(this, cards, opts, wrappedConfirm);
       };
@@ -7943,12 +8135,12 @@
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
-          return sendOptimisticAction('PICK_ZONE', {
+          return sendOptimisticAction('PICK_ZONE', attachOnlinePendingEffectSource({
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
             promptId:pendingPick && pendingPick.promptId || '',
             selectedEntries:(chosen || []).map(boardSelectionPayload)
-          }, ()=>onConfirm(chosen));
+          }, latest, pendingPick), ()=>onConfirm(chosen));
         };
         return originals.showZonePicker.call(this, z, prompt, entries, maxCount, viewerP, wrappedConfirm, filter);
       };
@@ -7973,12 +8165,12 @@
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
           const pendingPick = latest?._serverPendingZonePick || null;
-          return sendOptimisticAction('PICK_ZONE', {
+          return sendOptimisticAction('PICK_ZONE', attachOnlinePendingEffectSource({
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
             promptId:pendingPick && pendingPick.promptId || '',
             selectedEntries:(chosen || []).map(boardSelectionPayload)
-          }, ()=>onConfirm(chosen));
+          }, latest, pendingPick), ()=>onConfirm(chosen));
         };
         if(wrappedOpts.allowOptionalCancelServerAction === true){
           const originalCancel = wrappedOpts.onCancel;
@@ -7990,12 +8182,12 @@
             }
             if(!canSendLocalAction(latest, 'PICK_ZONE')) return;
             const pendingPick = latest?._serverPendingZonePick || null;
-            return sendOptimisticAction('PICK_ZONE', {
+            return sendOptimisticAction('PICK_ZONE', attachOnlinePendingEffectSource({
               playerIndex:latest.currentPlayer,
               turn:latest.turn,
               promptId:pendingPick && pendingPick.promptId || '',
               selectedEntries:[]
-            }, ()=>{
+            }, latest, pendingPick), ()=>{
               if(typeof originalCancel === 'function') return originalCancel();
               return onConfirm([]);
             });
@@ -8022,12 +8214,12 @@
           if(latest?._onlineApplyingRemoteAction) return callback(aff);
           if(!canSendLocalAction(latest, 'PICK_AFFILIATION')) return;
           const pendingModal = latest?._serverPendingModalAction || null;
-          return sendOptimisticAction('PICK_AFFILIATION', {
+          return sendOptimisticAction('PICK_AFFILIATION', attachOnlinePendingEffectSource({
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
             promptId:pendingModal && pendingModal.promptId || '',
             aff:String(aff || '')
-          }, ()=>callback(aff));
+          }, latest, pendingModal), ()=>callback(aff));
         };
         return originals.showAffiliationPickerVisual.call(this, wrappedCallback);
       };
@@ -8138,7 +8330,20 @@
         if(pos && (fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect')) {
           payload.effectCinematic = boardEffectCinematicPayload(g, pos.z, pos.r, pos.c);
         }
-        return sendOptimisticAction('BOARD_ACTION', payload, ()=>originals[fnName].apply(this, args));
+        attachOnlineReactionActionType(payload, g, fnName);
+        const isMovementBoardAction = /^(activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName);
+        return sendOptimisticAction('BOARD_ACTION', payload, ()=>{
+          const beforeBoard = isMovementBoardAction ? cloneOnlinePlain(gameState()?.board) : null;
+          const localResult = originals[fnName].apply(this, args);
+          const protectAfterLocal = ()=>{
+            if(isMovementBoardAction) protectOnlineBoardIfChanged('movement', 'post-' + fnName, beforeBoard);
+          };
+          if(localResult && typeof localResult.then === 'function'){
+            return localResult.then(value=>{ protectAfterLocal(); return value; });
+          }
+          protectAfterLocal();
+          return localResult;
+        });
       };
     });
 

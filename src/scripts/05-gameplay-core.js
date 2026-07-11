@@ -2220,11 +2220,11 @@ function highlightTributeCards() {
   });
   document.querySelectorAll('#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('tutorial-target-square'));
   const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
-  const running = con.chosenIdxs.reduce((s,i)=>{
-    const item = con.allPossible[i];
-    return s + (item ? Math.max(0, Number(item.reinforcement) || 0) : 0);
-  },0);
-  const requirementsMet = con.phase === 'select_placement' || (running >= con.cost && con.phase === 'select_tributes');
+  const running = con.chosenIdxs.reduce((sum, idx)=>{
+    const item = con.allPossible[idx];
+    return sum + (item ? Math.max(0, Number(item.reinforcement) || 0) : 0);
+  }, 0);
+  const requirementsMet = con.phase === 'select_placement' || (running >= Math.max(0, Number(con.cost) || 0) && con.phase === 'select_tributes');
   con.allPossible.forEach((s,i)=>{
     const cell = document.querySelector(`#board .cell[data-z="${s.z}"][data-r="${s.r}"][data-c="${s.c}"]`);
     const el = cell ? cell.querySelector('.bc') : null;

@@ -202,6 +202,12 @@ function shouldPreferMoreBoardCardsForAction(type, payload){
   const actionType = String(type || '').toUpperCase();
   const actionKind = String(payload?.actionKind || payload?.originalType || '').toUpperCase();
   const effectiveType = actionType === 'ACTION_RESULT' && actionKind ? actionKind : actionType;
+  if((Array.isArray(payload?.presentationEvents) && payload.presentationEvents.some(event=>String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED'))
+    || payload?.consolidationPresentation) {
+    return false;
+  }
+  if(effectiveType === 'SELECT_CONSOLIDATION_TRIBUTE' || effectiveType === 'START_CONSOLIDATE') return false;
+  if(effectiveType === 'AUTO_CLIENT_STATE_COMMIT') return true;
   if(effectiveType === 'PLACE_CARD') return true;
   if(effectiveType === 'CLICK_CELL') return !!(
     payload?.placing ||
@@ -1700,29 +1706,101 @@ function armServerReactionWindowForWhenSet(state, inst, playerIndex, z, r, c){
   });
 }
 
-function multiplayerImprovisorEffectFamily(family){
-  const name = String(family || '').trim();
-  if(/^(supporterWhenSet|initiatorWhenSet|whenSetEffect|pendingWhenSetEffect|manualEffect|manualCharacterEffect|effectActivation)$/i.test(name)) return name;
-  return '';
+function multiplayerImprovisorReactionProfile(sourceCard, family, context){
+  const raw = String(family || context?.actionType || context?.reactionActionType || '').trim();
+  const lowered = raw.toLowerCase();
+  const sourceType = String(sourceCard?.type || '');
+  let actionType = '';
+  let pendingKind = '';
+  if(lowered === 'supporter_effect' || lowered === 'supportereffect'){
+    actionType = 'supporter_effect';
+    pendingKind = 'manualEffect';
+  } else if(lowered === 'initiator_effect' || lowered === 'initiatoreffect'){
+    actionType = 'initiator_effect';
+    pendingKind = 'manualCharacterEffect';
+  } else if(lowered === 'when_set_effect' || lowered === 'whenseteffect'){
+    actionType = 'when_set_effect';
+    pendingKind = sourceType === 'Initiator' ? 'initiatorWhenSet' : (sourceType === 'Supporter' ? 'supporterWhenSet' : 'whenSetEffect');
+  } else if(lowered === 'targeting_effect' || lowered === 'targetingeffect'){
+    actionType = 'targeting_effect';
+    pendingKind = sourceType === 'Initiator' ? 'manualCharacterEffect' : 'manualEffect';
+  } else if(/^(supporterwhenset|initiatorwhenset|whenseteffect|pendingwhenseteffect)$/i.test(raw)){
+    pendingKind = raw;
+    actionType = 'when_set_effect';
+  } else if(/^(manualcharactereffect)$/i.test(raw)){
+    pendingKind = raw;
+    actionType = 'initiator_effect';
+  } else if(/^(manualeffect|effectactivation)$/i.test(raw)){
+    pendingKind = raw;
+    actionType = sourceType === 'Initiator' ? 'initiator_effect' : (sourceType === 'Supporter' ? 'supporter_effect' : 'targeting_effect');
+  }
+  return {
+    actionType,
+    pendingKind,
+    isEffect:!!pendingKind
+  };
 }
 
-function multiplayerImprovisorLydiaEligible(sourceCard, family){
-  if(!sourceCard) return false;
-  return !!multiplayerImprovisorEffectFamily(family);
+function multiplayerImprovisorEffectFamily(family, sourceCard, context){
+  return multiplayerImprovisorReactionProfile(sourceCard, family, context).pendingKind;
 }
 
-function multiplayerImprovisorSeculesEligible(sourceCard, family){
-  if(!sourceCard) return false;
+function multiplayerImprovisorLydiaEligible(sourceCard, profile){
+  if(!sourceCard || !profile?.isEffect) return false;
+  return /^(supporter_effect|initiator_effect|when_set_effect|targeting_effect)$/i.test(profile.actionType || '');
+}
+
+function multiplayerImprovisorSeculesEligible(sourceCard, profile){
+  if(!sourceCard || !profile?.isEffect) return false;
   const sourceType = String(sourceCard.type || '');
-  const familyName = multiplayerImprovisorEffectFamily(family);
-  if(!familyName) return false;
+  const actionType = String(profile.actionType || '');
+  if(actionType === 'initiator_effect') return true;
+  if(actionType === 'supporter_effect') return true;
   if(sourceType === 'Initiator') return true;
-  return sourceType === 'Supporter' && /^(supporterWhenSet|whenSetEffect|pendingWhenSetEffect)$/i.test(familyName);
+  return sourceType === 'Supporter' && /^(supporterWhenSet|whenSetEffect|pendingWhenSetEffect|manualEffect|effectActivation)$/i.test(String(profile.pendingKind || ''));
 }
 
-function multiplayerImprovisorHavanoEligible(state, sourceCard, sourceOwner, family, sourceZ, postState){
-  if(!sourceCard) return false;
-  return !!multiplayerImprovisorEffectFamily(family);
+function multiplayerImprovisorHavanoEligible(state, sourceCard, sourceOwner, profile, sourceZ, postState, context){
+  if(!sourceCard || !profile?.isEffect) return false;
+  if(String(profile.actionType || '') === 'targeting_effect') return true;
+  const reactor = Number(sourceOwner) === 0 ? 1 : 0;
+  const affectedOwners = []
+    .concat(Array.isArray(context?.affectedOwners) ? context.affectedOwners : [])
+    .concat(Array.isArray(context?.payload?.affectedOwners) ? context.payload.affectedOwners : [])
+    .concat(Array.isArray(context?.payload?.effectCinematic?.affectedOwners) ? context.payload.effectCinematic.affectedOwners : []);
+  if(affectedOwners.some(owner=>Number(owner) === reactor)) return true;
+  return true;
+}
+
+function forEachServerBoardCardSlot(state, visit){
+  if(!state || typeof visit !== 'function') return;
+  const visited = new Set();
+  for(let z = 0; z < 3; z += 1){
+    const totalRows = Math.max(
+      3,
+      Array.isArray(state.board?.[z]) ? state.board[z].length : 0,
+      3 + (Number(state.extraRows?.[z] || 0) || 0)
+    );
+    for(let r = 0; r < Math.min(9, totalRows); r += 1){
+      const totalCols = Math.max(
+        3,
+        Array.isArray(state.board?.[z]?.[r]) ? state.board[z][r].length : 0,
+        3 + Math.max(
+          Number(state.extraCells?.[z]?.[r]?.p1 || 0) || 0,
+          Number(state.extraCells?.[z]?.[r]?.p2 || 0) || 0
+        )
+      );
+      for(let c = 0; c < Math.min(9, totalCols); c += 1){
+        visited.add(`${z}:${r}:${c}`);
+        visit(state.board?.[z]?.[r]?.[c] || null, z, r, c);
+      }
+    }
+  }
+  boardCardEntries(state.board).forEach(entry=>{
+    const key = `${entry.z}:${entry.r}:${entry.c}`;
+    if(visited.has(key)) return;
+    visit(entry.card, entry.z, entry.r, entry.c);
+  });
 }
 
 function collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, family, context){
@@ -1731,35 +1809,29 @@ function collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOw
   const triggerOwner = Number(sourceOwner);
   if(!state || !sourceCard || !Number.isInteger(triggerOwner) || triggerOwner < 0 || triggerOwner > 1) return options;
   if(isEffectImmuneSource(sourceCard)) return options;
-  const familyName = multiplayerImprovisorEffectFamily(family);
-  if(!familyName) return options;
+  const profile = multiplayerImprovisorReactionProfile(sourceCard, family, context || {});
+  const familyName = profile.pendingKind;
+  if(!profile.isEffect || !familyName) return options;
   const reactor = triggerOwner === 0 ? 1 : 0;
   const postState = context?.postState || null;
   const sourceZ = Number.isInteger(Number(context?.sourceZ)) ? Number(context.sourceZ) : null;
-  for(let z = 0; z < 3; z += 1){
-    const zone = state.board?.[z] || [];
-    for(let r = 0; r < zone.length; r += 1){
-      const row = zone[r] || [];
-      for(let c = 0; c < row.length; c += 1){
-        const card = row[c];
-        if(!card || Number(card.owner) !== reactor || isFaceDownServerCard(card) || card.immuneFlag === true) continue;
-        const id = String(card.id || '');
-        if(id === '56' && multiplayerImprovisorLydiaEligible(sourceCard, familyName)){
-          if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 3;
-          if(Number(card.usesLeft || 0) > 0){
-            pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('lydia', card, z, r, c));
-          }
-        }
-        if(id === '67' && multiplayerImprovisorSeculesEligible(sourceCard, familyName)){
-          if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = card._seculesUsed ? 0 : 1;
-          if(Number(card.usesLeft || 0) > 0){
-            pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('secules', card, z, r, c));
-          }
-        }
+  forEachServerBoardCardSlot(state, (card, z, r, c)=>{
+    if(!card || Number(card.owner) !== reactor || isFaceDownServerCard(card) || card.immuneFlag === true) return;
+    const id = String(card.id || '');
+    if(id === '56' && multiplayerImprovisorLydiaEligible(sourceCard, profile)){
+      if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = 3;
+      if(Number(card.usesLeft || 0) > 0){
+        pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('lydia', card, z, r, c));
       }
     }
-  }
-  if(multiplayerImprovisorHavanoEligible(state, sourceCard, triggerOwner, familyName, sourceZ, postState)){
+    if(id === '67' && multiplayerImprovisorSeculesEligible(sourceCard, profile)){
+      if(card.usesLeft === null || card.usesLeft === undefined) card.usesLeft = card._seculesUsed ? 0 : 1;
+      if(Number(card.usesLeft || 0) > 0){
+        pushUniqueServerReactionOption(options, seen, serverReactionOptionForBoardCard('secules', card, z, r, c));
+      }
+    }
+  });
+  if(multiplayerImprovisorHavanoEligible(state, sourceCard, triggerOwner, profile, sourceZ, postState, context || {})){
     const hand = state.players?.[reactor]?.hand || [];
     hand.forEach((card, handIndex)=>{
       if(!card || String(card.id || '') !== '79') return;
@@ -1773,9 +1845,9 @@ function collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOw
 
 function armMultiplayerImprovisorReactionWindow(state, sourceCard, sourceOwner, sourcePosition, family, reactionOptions){
   if(!state || !sourceCard) return false;
-  const kind = multiplayerImprovisorEffectFamily(family);
+  const kind = multiplayerImprovisorEffectFamily(family, sourceCard, reactionOptions || {});
   if(!kind) return false;
-  const options = collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, kind, reactionOptions || {});
+  const options = collectMultiplayerImprovisorReactionOptions(state, sourceCard, sourceOwner, family, reactionOptions || {});
   if(!options.length) return false;
   const triggerOwner = Number(sourceOwner);
   const z = Number(sourcePosition?.z), r = Number(sourcePosition?.r), c = Number(sourcePosition?.c);
@@ -1806,11 +1878,12 @@ function armMultiplayerImprovisorReactionWindow(state, sourceCard, sourceOwner, 
   return true;
 }
 
-function armServerReactionWindowForResolvedState(state, source, playerIndex, z, r, c, resolvedState, family){
+function armServerReactionWindowForResolvedState(state, source, playerIndex, z, r, c, resolvedState, family, reactionContext){
   if(!state || !source || !resolvedState) return false;
   const postState = cloneState(resolvedState);
   delete postState._serverPendingReaction;
   return armMultiplayerImprovisorReactionWindow(state, source, playerIndex, {z, r, c}, family || 'effectActivation', {
+    ...(reactionContext || {}),
     postState,
     promptPrefix:'rxs',
     resolution:{
@@ -1825,6 +1898,7 @@ function armServerReactionWindowForAuthoritativePostState(state, source, playerI
   if(!state || !source || !payload || !payload.postState || !payload.stateHash) return false;
   return armMultiplayerImprovisorReactionWindow(state, source, playerIndex, {z, r, c}, family || 'effectActivation', {
     postState:payload.postState,
+    payload,
     promptPrefix:'rxp',
     resolution:{
       kind:'authoritativePostState',
@@ -1843,19 +1917,63 @@ function armServerReactionWindowForManualEffect(state, source, playerIndex, z, r
 }
 
 function universalImprovisorFallbackIntent(intent){
-  return /^(PLACE_CARD|BOARD_ACTION|HAND_ACTION|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET)$/i.test(String(intent || ''));
+  return /^(PLACE_CARD|BOARD_ACTION|HAND_ACTION|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|SELECT_BOARD_TARGET)$/i.test(String(intent || ''));
 }
 
-function pendingEffectSourceLocation(pending){
+function pendingEffectSourceLocation(pending, state){
   if(!pending || typeof pending !== 'object') return null;
-  const z = pending.sourceZ !== undefined ? Number(pending.sourceZ) : Number(pending.z);
-  const r = pending.sourceR !== undefined ? Number(pending.sourceR) : Number(pending.r);
-  const c = pending.sourceC !== undefined ? Number(pending.sourceC) : Number(pending.c);
-  if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) return {z, r, c};
+  const candidates = [
+    pending,
+    pending.source,
+    pending.boardSource,
+    pending.effectCinematic,
+    pending.origin,
+    pending.sourcePosition
+  ];
+  for(const candidate of candidates){
+    if(!candidate || typeof candidate !== 'object') continue;
+    const z = candidate.sourceZ !== undefined ? Number(candidate.sourceZ) : Number(candidate.z);
+    const r = candidate.sourceR !== undefined ? Number(candidate.sourceR) : Number(candidate.r);
+    const c = candidate.sourceC !== undefined ? Number(candidate.sourceC) : Number(candidate.c);
+    if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) return {z, r, c};
+  }
+  const sourceIid = String(pending.sourceIid || pending.iid || pending.movingIid || pending.source?.card?.iid || '');
+  const sourceId = String(pending.sourceId || pending.source?.card?.id || '');
+  if(sourceIid || sourceId){
+    const matches = boardCardEntries(state?.board).filter(entry=>{
+      if(sourceIid) return String(entry.card?.iid || '') === sourceIid;
+      return String(entry.card?.id || '') === sourceId && Number(entry.card?.owner) === Number(pending.playerIndex);
+    });
+    if(matches.length === 1) return {z:matches[0].z, r:matches[0].r, c:matches[0].c};
+  }
   return null;
 }
 
+function isExplicitImprovisorEffectAction(intent, payload){
+  const declared = String(
+    payload?.reactionActionType ||
+    payload?.effectActionType ||
+    payload?.checkReactionType ||
+    payload?.effectCinematic?.reactionActionType ||
+    payload?.effectCinematic?.effectActionType ||
+    ''
+  ).trim();
+  if(/^(supporter_effect|initiator_effect|when_set_effect|targeting_effect)$/i.test(declared)) return true;
+  return /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(String(payload?.fn || ''));
+}
+
 function universalImprovisorFamilyForSource(source, pending, intent, payload){
+  const declared = String(
+    payload?.reactionActionType ||
+    payload?.effectActionType ||
+    payload?.actionType ||
+    payload?.checkReactionType ||
+    payload?.effectCinematic?.reactionActionType ||
+    payload?.effectCinematic?.effectActionType ||
+    payload?.effectCinematic?.actionType ||
+    ''
+  ).trim();
+  if(declared) return declared;
   const kind = String(pending?.kind || payload?.fn || intent || '');
   const type = String(source?.type || '');
   const whenSetFamily = serverWhenSetReactionFamily(source);
@@ -1873,15 +1991,12 @@ function universalImprovisorSourceForAction(preState, msg, intent){
   if(!preState || !msg) return null;
   const payload = msg.payload || {};
   const pending = preState._serverPendingZonePick || preState._serverPendingMove || preState._serverPendingCardPick || preState._serverPendingModalAction || null;
-  let loc = pendingEffectSourceLocation(pending);
+  let loc = pendingEffectSourceLocation(pending, preState);
   if(!loc && /^(BOARD_ACTION|HAND_ACTION|RESOLVE_MODAL|RESOLVE_ZONE_PICK|RESOLVE_CARD_PICK|RESOLVE_AFFILIATION_PICK|SELECT_BOARD_TARGET|SELECT_PENDING_MOVE_CELL)$/i.test(String(intent || ''))){
-    const candidates = [payload, payload.source, payload.effectCinematic, payload.boardSource, payload.selectedBoardCard];
+    const candidates = [payload, payload.source, payload.effectCinematic, payload.boardSource, payload.selectedBoardCard, payload.pendingSource, payload.sourcePosition];
     for(const candidate of candidates){
-      const z = Number(candidate?.z), r = Number(candidate?.r), c = Number(candidate?.c);
-      if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
-        loc = {z, r, c};
-        break;
-      }
+      loc = pendingEffectSourceLocation(candidate, preState);
+      if(loc) break;
     }
   }
   if(!loc) return null;
@@ -1981,11 +2096,12 @@ function maybeArmUniversalImprovisorReaction(room, msg, intent, result, options)
   if(!universalImprovisorFallbackIntent(intent)) return result;
   const preState = room?.canonicalState;
   if(!preState || preState._serverPendingReaction || result.canonicalState._serverPendingReaction) return result;
-  if(String(result.canonicalHash || '') === String(room?.canonicalHash || '')) return result;
+  if(String(result.canonicalHash || '') === String(room?.canonicalHash || '')
+    && !isExplicitImprovisorEffectAction(intent, msg?.payload || {})) return result;
   const placementInfo = actionResultPlacementReactionBase(room, msg, intent, result);
   if(placementInfo){
     const resolvedState = cloneState(result.canonicalState);
-    if(!armServerReactionWindowForResolvedState(placementInfo.reactionBase, placementInfo.source, Number(msg?.payload?.playerIndex), placementInfo.z, placementInfo.r, placementInfo.c, resolvedState, placementInfo.family)){
+    if(!armServerReactionWindowForResolvedState(placementInfo.reactionBase, placementInfo.source, Number(msg?.payload?.playerIndex), placementInfo.z, placementInfo.r, placementInfo.c, resolvedState, placementInfo.family, {payload:msg?.payload || {}})){
       return result;
     }
     placementInfo.reactionBase._serverUniversalImprovisorFallback = {
@@ -2008,7 +2124,7 @@ function maybeArmUniversalImprovisorReaction(room, msg, intent, result, options)
   clearConsumedPendingForUniversalReaction(reactionBase, intent);
   const reactionSource = reactionBase.board?.[sourceInfo.z]?.[sourceInfo.r]?.[sourceInfo.c] || cloneState(sourceInfo.source);
   const resolvedState = cloneState(result.canonicalState);
-  if(!armServerReactionWindowForResolvedState(reactionBase, reactionSource, Number(msg?.payload?.playerIndex), sourceInfo.z, sourceInfo.r, sourceInfo.c, resolvedState, sourceInfo.family)){
+  if(!armServerReactionWindowForResolvedState(reactionBase, reactionSource, Number(msg?.payload?.playerIndex), sourceInfo.z, sourceInfo.r, sourceInfo.c, resolvedState, sourceInfo.family, {payload:msg?.payload || {}})){
     return result;
   }
   reactionBase._serverUniversalImprovisorFallback = {

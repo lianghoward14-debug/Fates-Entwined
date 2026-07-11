@@ -1215,7 +1215,7 @@
       const running = Array.isArray(con.chosenIdxs)
         ? con.chosenIdxs.reduce(function(sum, i){
           const possible = all[i];
-          return sum + (possible && Number(possible.reinforcement) || 1);
+          return sum + (possible ? Math.max(0, Number(possible.reinforcement) || 0) : 0);
         }, 0)
         : 0;
       const requirementsMet = con.phase === 'select_placement' || (running >= Number(con.cost || 0) && con.phase === 'select_tributes');
@@ -1246,7 +1246,33 @@
   }
 
   function drawConsolidationCardOverlay(ctx, r, state){
-    return;
+    if(!ctx || !r || !state) return;
+    const selected = state === 'selected';
+    const ready = state === 'ready';
+    const placement = state === 'placement';
+    if(!selected && !ready && !placement) return;
+    const color = selected
+      ? 'rgba(255,244,132,.98)'
+      : ready
+        ? 'rgba(146,230,255,.96)'
+        : 'rgba(255,225,92,.94)';
+    const glow = selected
+      ? 'rgba(255,215,64,.74)'
+      : ready
+        ? 'rgba(90,205,255,.58)'
+        : 'rgba(255,205,55,.50)';
+    const inset = Math.max(2, Math.min(4, r.w * .025));
+    const radius = Math.max(6, Math.min(11, r.w * .07));
+    ctx.save();
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = Math.max(8, r.w * .105);
+    ctx.lineJoin = 'round';
+    roundedPath(ctx, r.x + inset, r.y + inset, Math.max(1, r.w - inset * 2), Math.max(1, r.h - inset * 2), radius);
+    ctx.lineWidth = Math.max(3, r.w * .032);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   function drawBlockOverlay(ctx, r, block){
