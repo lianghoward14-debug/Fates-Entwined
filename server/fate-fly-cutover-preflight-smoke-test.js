@@ -40,7 +40,6 @@ const requiredScripts = [
   'smoke:fly-config',
   'smoke:fly-local-runtime',
   'smoke:fly-store',
-  'smoke:fly-room',
   'smoke:fly-test-readiness',
   'smoke:multiplayer-diagnostics',
   'smoke:rtdb-rules-lockdown',
@@ -48,10 +47,8 @@ const requiredScripts = [
   'smoke:rtdb-appcheck-static',
   'smoke:ws-authority',
   'smoke:authority-bootstrap',
-  'smoke:authority-reducer',
-  'smoke:authority-state-gate',
-  'smoke:authority-strict-reducer',
-  'smoke:authority-two-client-placement',
+  'smoke:client-resolved-action-result',
+  'smoke:client-resolved-ws',
   'smoke:card-catalog'
 ];
 requiredScripts.forEach(name=>{
@@ -61,9 +58,6 @@ requiredScripts.forEach(name=>{
 runNode('Fly config contract', 'server/fate-fly-config-smoke-test.js');
 runNode('Fly local runtime', 'server/fate-fly-local-runtime-smoke-test.js');
 runNode('Fly volume store', 'server/fate-fly-store-smoke-test.js');
-runNode('Fly room lifecycle/action path', 'server/fate-fly-room-lifecycle-smoke-test.js', {
-  env:{FATE_FLY_SMOKE_SPAWN_LOCAL:'1', FATE_WS_SMOKE_ALLOW_FAKE:'1'}
-});
 runNode('Fly browser test readiness', 'server/fate-fly-test-readiness-static-smoke-test.js');
 runNode('multiplayer diagnostics', 'server/fate-multiplayer-diagnostics-smoke-test.js');
 runNode('RTDB rules lockdown', 'server/fate-rtdb-rules-lockdown-smoke-test.js');
@@ -73,10 +67,8 @@ runNode('WebSocket authority multiplayer smoke', 'server/local-multiplayer-smoke
   env:{FATE_WS_SMOKE_ALLOW_FAKE:'1'}
 });
 runNode('authority bootstrap', 'server/fate-authority-bootstrap-smoke-test.js');
-runNode('authority reducer', 'server/fate-authority-reducer-smoke-test.js');
-runNode('authority state gate', 'server/fate-authority-state-gate-smoke-test.js');
-runNode('authority strict reducer', 'server/fate-authority-strict-reducer-smoke-test.js');
-runNode('authority two-client placement', 'server/fate-authority-two-client-placement-smoke-test.js');
+runNode('client-resolved action result', 'server/fate-client-resolved-action-result-smoke-test.js');
+runNode('client-resolved WebSocket', 'server/fate-client-resolved-ws-smoke-test.js');
 runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
 
 console.log('fate-fly-cutover-preflight smoke passed');

@@ -65,7 +65,7 @@ assertEnv(env, 'FATE_RTDB_DISABLED', '1');
 assertEnv(env, 'FATE_WS_DURABLE_WRITES', 'off');
 assertEnv(env, 'FATE_WS_REQUIRE_DURABLE_WRITES', '0');
 assertEnv(env, 'FATE_WS_STATE_GATE', '1');
-assertEnv(env, 'FATE_WS_REDUCER_MODE', 'strict');
+assertEnv(env, 'FATE_WS_REDUCER_MODE', 'client-resolved');
 assert.strictEqual(service.internal_port, '8787', 'Fly internal port should match authority server default');
 assert.strictEqual(service.auto_stop_machines, 'off', 'Fly authority machines should not auto-stop during live WebSocket service');
 assert.strictEqual(service.min_machines_running, '1', 'Fly authority should keep one machine warm for live match hosting');
@@ -81,7 +81,7 @@ assert.strictEqual(pkg.scripts['deploy:fly-authority'], 'fly deploy --config fly
 assert.match(dockerfileText, /FROM\s+node:22-alpine/, 'Dockerfile should use a small Node runtime image');
 assert.match(dockerfileText, /COPY\s+server\s+\.\/server/, 'Dockerfile should copy server runtime files');
 assert.match(dockerfileText, /ENV\s+FATE_WEBSITE_DIR=\/app/, 'Dockerfile should serve the actual game app as the hosted root');
-assert.match(dockerfileText, /COPY\s+index\.html[\s\S]+\.\/\n/, 'Dockerfile should copy the game entrypoint');
+assert.match(dockerfileText, /COPY\s+index\.html[\s\S]+\.\/\r?\n/, 'Dockerfile should copy the game entrypoint');
 assert.match(dockerfileText, /COPY\s+src\s+\.\/src/, 'Dockerfile should copy the full game source and card catalog data');
 assert.match(dockerfileText, /COPY\s+optimized\s+\.\/optimized/, 'Dockerfile should copy optimized game art assets');
 assert.match(dockerfileText, /COPY\s+fates-entwined-website\/installer\s+\.\/installer/, 'Dockerfile should keep the hosted installer available');
