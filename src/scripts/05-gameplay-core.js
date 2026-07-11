@@ -3933,13 +3933,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     }
   }
 
-  // Manual activation feedback resolves before prompts or effect windows open.
-  const isPassiveOnly = card.type==='Coordinator' && ['01','10','11','15','19','23','34','57'].includes(id);
-  if(!opts.fromSet && !isPassiveOnly && typeof playEffectActivationCinematic === 'function') {
-    await playEffectActivationCinematic(card, z, r, c, {source:'manual-character'});
-    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
-  }
-
   // Initiators: fire ONCE (on placement). If already used, don't fire again.
   // Coordinators: passive/continuous or once per placement.
   // Dauntless: most have ongoing/active effects; handled case-by-case below.
@@ -3960,6 +3953,27 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     toast(`${card.name}'s effect already activated.`);
     return;
   }
+  if(card._effectActivationInFlight){
+    toast(`${card.name}'s effect is already resolving.`);
+    return;
+  }
+  card._effectActivationInFlight = true;
+  const clearEffectActivationInFlight = ()=>{
+    if(card) delete card._effectActivationInFlight;
+  };
+
+  // Manual activation feedback resolves before prompts or effect windows open.
+  const isPassiveOnly = card.type==='Coordinator' && ['01','10','11','15','19','23','34','57'].includes(id);
+  if(!opts.fromSet && !isPassiveOnly && typeof playEffectActivationCinematic === 'function') {
+    try {
+      await playEffectActivationCinematic(card, z, r, c, {source:'manual-character'});
+    } catch(e) {
+      clearEffectActivationInFlight();
+      throw e;
+    }
+    clearEffectActivationInFlight();
+    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
+  }
   if(typeof updateDailyChallengeProgress === 'function' && !opts.fromSet && !(G.aiEnabled && cp === G.aiPlayer) && !G._isSpectator){
     updateDailyChallengeProgress('effects', 1, 'add');
   }
@@ -3976,6 +3990,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       card.effectUsedInitial = true;
       card._effectTurnLocked = true;
       card._effectNegatedByReaction = true;
+      clearEffectActivationInFlight();
       return;
     }
   }
@@ -4347,6 +4362,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   }
   // Mark this character's effect as activated (fires once)
   card.effectUsedInitial = true;
+  clearEffectActivationInFlight();
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

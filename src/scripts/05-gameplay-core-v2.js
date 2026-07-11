@@ -2381,6 +2381,14 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     toast(`${card.name}'s effect already activated.`);
     return;
   }
+  if(card._effectActivationInFlight){
+    toast(`${card.name}'s effect is already resolving.`);
+    return;
+  }
+  card._effectActivationInFlight = true;
+  const clearEffectActivationInFlight = ()=>{
+    if(card) delete card._effectActivationInFlight;
+  };
 
   switch(id) {
     // Initiators
@@ -2651,6 +2659,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   }
   // Mark this character's effect as activated (fires once)
   card.effectUsedInitial = true;
+  clearEffectActivationInFlight();
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
