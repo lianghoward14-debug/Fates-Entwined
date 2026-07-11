@@ -20,8 +20,8 @@ const pkg = JSON.parse(read('package.json'));
 assert.match(indexText, /window\.__fateClientBuildStamp = 'leaderboard-reset-20260711a-1783782001'/, 'index must expose the current Electron/client parity build stamp');
 assert.match(indexText, /window\.FATE_GAMEPLAY_AUTHORITY = window\.FATE_GAMEPLAY_AUTHORITY \|\| 'client-resolved'/, 'browser and Electron must default gameplay to client-resolved');
 assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783778701/, 'renderer cache bust must include the live card-detail overlay parity build');
-assert.match(indexText, /05-gameplay-core\.js\?v=1783779901/, 'gameplay core cache bust must include the atomic consolidation cleanup build');
-assert.match(indexText, /18-online-rooms\.js\?v=1783782001&sync=1783782001/, 'online rooms cache bust must include the leaderboard reset authority build');
+assert.match(indexText, /05-gameplay-core\.js\?v=1783783201/, 'gameplay core cache bust must include the effect activation guard build');
+assert.match(indexText, /18-online-rooms\.js\?v=1783783301&sync=1783783301/, 'online rooms cache bust must include the nonblocking effect cinematic build');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
 assert.match(indexText, /fateMultiplayerClientReport/, 'client must expose multiplayer parity diagnostics');
 
@@ -36,6 +36,9 @@ assert.match(roomsText, /return \/\^\(CHOOSE_TURN\|BOARD_ACTION\|HAND_ACTION\)\$
 assert.match(roomsText, /if\(clientResolvedLocalCommitPending > 0\)[\s\S]*scheduleClientResolvedAutoCommit\(reason \|\| 'local-commit-pending-retry', 90\)/, 'auto-commit watchdog must not race an in-progress client-resolved local action');
 assert.match(roomsText, /function shouldUseStrictServerFirstBoardAction\(payload\)[\s\S]*if\(clientResolvedGameplayEnabled\(\)\) return false;/, 'client-resolved board effects must not be hijacked by strict server-first reducers');
 assert.match(roomsText, /function isServerAuthoritativeBoardIntent\(type, payload, g\)[\s\S]*if\(clientResolvedGameplayEnabled\(\)\) return false;/, 'client-resolved placement, movement, and consolidation must not be forced through stale server reducers');
+assert.match(roomsText, /window\.__fateSendEffectActivationCinematic = function[\s\S]*resolveOnlineLocalPlayerIndex\('effect-cinematic'\)[\s\S]*sendAction\('EFFECT_CINEMATIC'/, 'effect activation cinematic broadcasts must remain best-effort local visual sends');
+assert.doesNotMatch(roomsText, /__fateSendEffectActivationCinematic[\s\S]{0,220}canSendLocalAction\(g, 'EFFECT_CINEMATIC'\)/, 'effect activation cinematic broadcasts must not use the gameplay action gate');
+assert.match(roomsText, /k === '_effectActivationInFlight' \|\| k === '_pendingWhenSetActivationInFlight'/, 'online card snapshots must omit transient effect activation locks');
 assert.match(roomsText, /const finalConsolidationClick = pendingConsolidation && isOnlineFinalConsolidationClick/, 'final consolidation clicks must be identified before routing');
 assert.match(roomsText, /if\(pendingConsolidation && !finalConsolidationClick\)/, 'final consolidation clicks must avoid the old local-only tribute toggle path');
 assert.doesNotMatch(roomsText, /strict server-first board effect/i, 'online rooms must not describe board effects as strict server-first');

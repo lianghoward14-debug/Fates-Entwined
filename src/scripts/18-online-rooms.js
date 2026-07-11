@@ -174,6 +174,7 @@
       const v = card[k];
       if(typeof v === 'function') return;
       if(k === 'effect' || k === 'flavor') return;
+      if(k === '_effectActivationInFlight' || k === '_pendingWhenSetActivationInFlight') return;
       out[k] = cloneOnlinePlain(v);
     });
     return out;
@@ -8497,7 +8498,10 @@
 
     window.__fateSendEffectActivationCinematic = function(card, z, r, c, opts){
       const g = gameState();
-      if(!canSendLocalAction(g, 'EFFECT_CINEMATIC')) return false;
+      if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
+      const localIndex = resolveOnlineLocalPlayerIndex('effect-cinematic');
+      if(g._isSpectator || g._onlineRole === 'spectator' || localIndex === null) return false;
+      if(Number(g.currentPlayer) !== Number(localIndex)) return false;
       if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
       const boardCard = g.board?.[z]?.[r]?.[c] || card || null;
       const payload = {
