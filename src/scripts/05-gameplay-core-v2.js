@@ -325,6 +325,11 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  if(G._onlineRoomCode){
+    G._turnStartedAt = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
+      ? window.fateAuthorityServerNow()
+      : Date.now();
+  }
   G._turnInputLockUntil = Date.now() + 650;
   G.phase = 'main';
   G.supportsPlacedThisTurn = 0;
@@ -492,6 +497,22 @@ function getOnlineSyncedTurnRemaining(limit) {
   return Math.max(0, Math.min(limit, limit - elapsed));
 }
 
+function repairStaleOnlineTurnStartedAt(limit) {
+  if(!G || !G._onlineRoomCode) return false;
+  const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
+    ? window.fateAuthorityServerNow()
+    : Date.now();
+  const startedAt = Number(G._turnStartedAt);
+  const elapsed = Number.isFinite(startedAt) ? Math.floor((now - startedAt) / 1000) : null;
+  if(elapsed !== null && elapsed >= 0 && elapsed < Number(limit || TURN_TIME_LIMIT)) return false;
+  G._turnStartedAt = now;
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.onlineTurnStartedAtRepaired = { at:Date.now(), turn:G.turn, currentPlayer:G.currentPlayer, previousStartedAt:startedAt || null, elapsed };
+  } catch(e) {}
+  return true;
+}
+
 function formatTurnClock(seconds) {
   const safeSeconds = Math.max(0, Number(seconds) || 0);
   const m = Math.floor(safeSeconds / 60);
@@ -571,6 +592,7 @@ function cleanupGame() {
 function startTurnTimer() {
   stopTurnTimer();
   const limit = getTurnTimeLimit();
+  repairStaleOnlineTurnStartedAt(limit);
   _turnTimerRemaining = limit;
   const syncedRemaining = getOnlineSyncedTurnRemaining(limit);
   if(syncedRemaining !== null) _turnTimerRemaining = Math.max(1, syncedRemaining);
@@ -1572,6 +1594,77 @@ function cancelConsolidation() {
   toast('Consolidation cancelled');
 }
 
+function findLiveConsolidationTributeEntry(tribute) {
+  if(!tribute) return null;
+  const ref = tribute.card || {};
+  const iid = String(ref.iid || tribute.iid || '');
+  const z = Number(tribute.z), r = Number(tribute.r), c = Number(tribute.c);
+  const inSlot = Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
+    ? (G.board?.[z]?.[r]?.[c] || null)
+    : null;
+  if(inSlot && (!iid || String(inSlot.iid || '') === iid)) return {card:inSlot, z, r, c};
+  if(iid && Array.isArray(G.board)){
+    for(let bz = 0; bz < G.board.length; bz++){
+      const zone = G.board[bz];
+      if(!Array.isArray(zone)) continue;
+      for(let br = 0; br < zone.length; br++){
+        const row = zone[br];
+        if(!Array.isArray(row)) continue;
+        for(let bc = 0; bc < row.length; bc++){
+          const cell = row[bc];
+          if(cell && String(cell.iid || '') === iid) return {card:cell, z:bz, r:br, c:bc};
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function sendConsolidationTributeToDiscard(card, cp) {
+  if(!card) return;
+  if(card.id==='50' && typeof G._artilleryLockTurnsLeft==='number' && G._artilleryLockTurnsLeft>0){
+    G._artilleryEffectBlockLifted = true;
+    toast('Berkeley CS Major left the field - effect suppression lifted, but zone lock remains.');
+  }
+  if(card.id==='56'){
+    let unsuppressCount = 0;
+    if(typeof forEachBoardCard === 'function') forEachBoardCard(function(bc){
+      if(bc && bc._lydiaSuppressed){
+        bc._lydiaSuppressed = false;
+        unsuppressCount++;
+      }
+    });
+    if(unsuppressCount > 0) toast('Lydia left the field - '+unsuppressCount+' Supporter aura(s) restored');
+  }
+  if(card._stolenByRobo) {
+    const origOwner = card._roboOrigOwner;
+    card._stolenByRobo = false;
+    G.players[origOwner].deck.push(card);
+    shuffleDeck(origOwner);
+    toast(`${card.name} returned to opponent's deck`);
+    return;
+  }
+  fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : cp, card, {sound:false});
+}
+
+function spendConsolidationTributesAtomically(tributes, cp) {
+  const removed = [];
+  const seen = new Set();
+  (Array.isArray(tributes) ? tributes : []).forEach(function(tribute){
+    const entry = findLiveConsolidationTributeEntry(tribute);
+    if(!entry || !entry.card) return;
+    const key = entry.card.iid ? 'iid:' + String(entry.card.iid) : ['slot', entry.z, entry.r, entry.c].join(':');
+    if(seen.has(key)) return;
+    seen.add(key);
+    G.board[entry.z][entry.r][entry.c] = null;
+    if(entry.card._suppressDiscardVfx) delete entry.card._suppressDiscardVfx;
+    sendConsolidationTributeToDiscard(entry.card, cp);
+    removed.push(entry);
+  });
+  if(removed.length && typeof playDiscardSfx === 'function') playDiscardSfx();
+  return removed;
+}
+
 function finalizeConsolidate(card, tributes, targetIdx) {
   const cp = G.currentPlayer;
   const target = tributes[targetIdx];
@@ -1605,8 +1698,14 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     }
     tributes.forEach(t=>{
       if(t.card.id==='47') bonusFate += 3;
-      discardBoardCard(t.card, t.z, t.r, t.c);
     });
+    const removedTributes = spendConsolidationTributesAtomically(tributes, cp);
+    if(removedTributes.length !== tributes.length) {
+      console.warn('Consolidation tribute cleanup removed fewer cards than selected', {
+        expected:tributes.length,
+        removed:removedTributes.length
+      });
+    }
 
     const inst = newInstance(card);
     inst.owner = cp;
@@ -2355,6 +2454,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         setHint(adj > 0 ? `Isaac added ${adj} extra Supporter placement${adj===1?'':'s'} this turn.` : 'Isaac found no adjacent cards.');
       } break;
     case '27': // Kazumi: draw 3
+      card.effectUsedInitial = true;
+      card._effectTurnLocked = true;
       await drawCard(cp,3);
       toast('Drew 3 cards');
       renderHand(); break;
