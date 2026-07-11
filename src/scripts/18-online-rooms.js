@@ -82,6 +82,7 @@
   let onlineProtectedBoardPreference = null;
   let lastAuthorityBoardSnapshot = {layout:'', identity:'', count:null, stateHash:''};
   let onlineTurnBoundaryAgreementPromise = null;
+  let onlineTurnBoundaryAgreementStartedAt = 0;
   let onlinePendingEndTurnAfterAgreementPromise = null;
   let localConsolidationSelection = null;
   let queuedFinalConsolidationClick = null;
@@ -789,8 +790,39 @@
       sendMoreBoardCardsAuthoritySyncNow(reason);
     }, Math.max(40, Number(delayMs || 90) || 90));
   }
+  function waitForOnlineActionReplayQueueBounded(reason, timeoutMs){
+    const ms = Math.max(120, Number(timeoutMs || 700) || 700);
+    let timedOut = false;
+    return Promise.race([
+      actionReplayQueue.catch(()=>{}),
+      new Promise(resolve=>setTimeout(function(){
+        timedOut = true;
+        resolve(false);
+      }, ms))
+    ]).then(function(value){
+      if(timedOut){
+        recordOnlineDiagnostic('online-action-replay-bounded-wait-timeout', {
+          reason:String(reason || ''),
+          timeoutMs:ms,
+          lastActionSeq:Number(lastActionSeq || 0) || 0,
+          lastAppliedActionSeq:Number(lastAppliedActionSeq || 0) || 0
+        });
+      }
+      return value;
+    });
+  }
   async function waitForOnlineBoardAgreementBeforeTurnAdvance(reason){
-    if(onlineTurnBoundaryAgreementPromise) return onlineTurnBoundaryAgreementPromise;
+    if(onlineTurnBoundaryAgreementPromise){
+      if(Date.now() - Number(onlineTurnBoundaryAgreementStartedAt || 0) < 9000) return onlineTurnBoundaryAgreementPromise;
+      recordOnlineDiagnostic('online-turn-boundary-board-agreement-stale-cleared', {
+        reason:String(reason || ''),
+        ageMs:Date.now() - Number(onlineTurnBoundaryAgreementStartedAt || 0)
+      });
+      onlineTurnBoundaryAgreementPromise = null;
+      onlineTurnBoundaryAgreementStartedAt = 0;
+      onlinePendingEndTurnAfterAgreementPromise = null;
+    }
+    onlineTurnBoundaryAgreementStartedAt = Date.now();
     onlineTurnBoundaryAgreementPromise = (async function(){
     const latest = gameState();
     if(!isOnlineMatchState(latest) || latest._onlineApplyingRemoteAction) return true;
@@ -807,7 +839,7 @@
     });
     if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference() || hasOnlineProtectedBoardPreference()){
       await sendMoreBoardCardsAuthoritySyncNow(repairReason + ':immediate-repair');
-      await actionReplayQueue.catch(()=>{});
+      await waitForOnlineActionReplayQueueBounded('turn-boundary-immediate-repair', 700);
       if(localOnlineBoardMatchesAuthority()){
         recordOnlineDiagnostic('online-turn-boundary-board-agreement', {
           reason:repairReason,
@@ -823,14 +855,14 @@
         limit:60,
         timeoutMs:2500
       });
-      await actionReplayQueue.catch(()=>{});
+      await waitForOnlineActionReplayQueueBounded('turn-boundary-initial-catchup', 700);
     }
     if(localOnlineBoardMatchesAuthority()) return true;
     for(let attempt = 1; attempt <= 2; attempt += 1){
       if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference() || hasOnlineProtectedBoardPreference()){
         await sendMoreBoardCardsAuthoritySyncNow(repairReason + ':attempt-' + attempt);
       }
-      await actionReplayQueue.catch(()=>{});
+      await waitForOnlineActionReplayQueueBounded('turn-boundary-repair-' + attempt, 700);
       if(localOnlineBoardMatchesAuthority()){
         recordOnlineDiagnostic('online-turn-boundary-board-agreement', {
           reason:repairReason,
@@ -845,7 +877,7 @@
           limit:60,
           timeoutMs:2500
         });
-        await actionReplayQueue.catch(()=>{});
+        await waitForOnlineActionReplayQueueBounded('turn-boundary-catchup-' + attempt, 700);
         if(localOnlineBoardMatchesAuthority()){
           recordOnlineDiagnostic('online-turn-boundary-board-agreement', {
             reason:repairReason,
@@ -870,6 +902,7 @@
     })();
     return onlineTurnBoundaryAgreementPromise.finally(function(){
       onlineTurnBoundaryAgreementPromise = null;
+      onlineTurnBoundaryAgreementStartedAt = 0;
     });
   }
   function runOnlineTurnBoundaryAfterBoardAgreement(repairReason, finish){
