@@ -257,6 +257,29 @@ function actionCanArmImprovisorReaction(type, payload){
   return /^(BOARD_ACTION|PLACE_CARD|ACTION_RESULT|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION)$/i.test(type);
 }
 
+const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91']);
+const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
+const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','bh25']);
+const AUTHORITY_CHARACTER_AFFECTS_BOTH = new Set(['12','17','34','40']);
+
+function inferAuthorityReactionAffectedOwners(preState, sourceEntry, sourcePlayer, reactionPlayer, actionType, wasTargetingEffect){
+  if(wasTargetingEffect) return [reactionPlayer];
+  const card = sourceEntry && sourceEntry.card;
+  if(!card) return [];
+  const id = String(card.id || '');
+  const type = String(card.type || '');
+  if(type === 'Supporter' || /^supporter_effect$/i.test(actionType)){
+    if(AUTHORITY_SUPPORTER_AFFECTS_BOTH.has(id)) return [0, 1];
+    if(AUTHORITY_SUPPORTER_AFFECTS_OPPONENT.has(id)) return [reactionPlayer];
+    return [];
+  }
+  if(type === 'Initiator' || /^(initiator_effect|when_set_effect)$/i.test(actionType)){
+    if(AUTHORITY_CHARACTER_AFFECTS_BOTH.has(id)) return [0, 1];
+    if(AUTHORITY_CHARACTER_AFFECTS_OPPONENT.has(id)) return [reactionPlayer];
+  }
+  return [];
+}
+
 function collectAuthorityImprovisorOptions(preState, msg){
   const payload = msg && msg.payload || {};
   const sourcePlayer = Number(payload.playerIndex);
@@ -270,10 +293,16 @@ function collectAuthorityImprovisorOptions(preState, msg){
     if(String(sourceEntry.card.type || '') === 'Initiator') actionType = 'initiator_effect';
     else if(String(sourceEntry.card.type || '') === 'Supporter') actionType = 'supporter_effect';
   }
+  if(actionType === 'when_set_effect' && sourceEntry && sourceEntry.card && String(sourceEntry.card.type || '') === 'Supporter'){
+    actionType = 'supporter_effect';
+  }
   const options = [];
-  const affectedOwners = Array.isArray(payload.affectedOwners)
+  let affectedOwners = Array.isArray(payload.affectedOwners)
     ? payload.affectedOwners.map(Number).filter(Number.isInteger)
     : [];
+  if(!affectedOwners.length){
+    affectedOwners = inferAuthorityReactionAffectedOwners(preState, sourceEntry, sourcePlayer, reactionPlayer, actionType, wasTargetingEffect);
+  }
   const affectsReactor = affectedOwners.includes(reactionPlayer) || wasTargetingEffect;
   if(/^(supporter_effect|initiator_effect|when_set_effect|targeting_effect)$/i.test(actionType)){
     boardEntries(preState).forEach(entry=>{

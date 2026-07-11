@@ -72,7 +72,7 @@ async function startServer(){
       FATE_WS_DISABLE_FIREBASE_RTDB:'1',
       FATE_RTDB_DISABLED:'1',
       FATE_WS_STATE_GATE:'1',
-      FATE_WS_REDUCER_MODE:'strict',
+      FATE_WS_REDUCER_MODE:'client-resolved',
       FATE_WS_GAMEPLAY_AUTHORITY:'client-resolved',
       FATE_WS_DATA_DIR:dataDir,
       FATE_WS_DISCONNECT_TIMEOUT_MS:'60000',

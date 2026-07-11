@@ -235,6 +235,56 @@ assert.ok(pending.options.some(option=>option.kind === 'secules'), 'pending reac
 assert.ok(pending.options.some(option=>option.kind === 'havano'), 'pending reaction should include Havano');
 assert.strictEqual(armed.canonicalState.board[0][2][0].currentFate, 1, 'effect result should be paused until reaction choice');
 
+const sparseSupporterReactionBase = baseState();
+sparseSupporterReactionBase.players[0].hand = [];
+sparseSupporterReactionBase.players[1].hand = [card('79', 1, 'havano-sparse')];
+const supporterSource = card('16', 0, 'supporter-source-1', 'Supporter');
+supporterSource.name = 'MINAE Death Squad';
+const sparseLydia = card('56', 1, 'lydia-sparse', 'Improvisor');
+sparseLydia.name = 'Lydia';
+sparseLydia.usesLeft = 3;
+const sparseSecules = card('67', 1, 'secules-sparse', 'Improvisor');
+sparseSecules.name = 'Mr. Secules';
+sparseSupporterReactionBase.board[0][2][0] = supporterSource;
+sparseSupporterReactionBase.board[1][0][0] = sparseLydia;
+sparseSupporterReactionBase.board[1][0][1] = sparseSecules;
+const sparseSupporterBaseHash = canonicalStateHash(sparseSupporterReactionBase);
+const sparseSupporterResolved = clone(sparseSupporterReactionBase);
+sparseSupporterResolved.board[0][2][0].effectUsedInitial = true;
+sparseSupporterResolved.board[0][2][0]._effectTurnLocked = true;
+const sparseSupporterResolvedHash = canonicalStateHash(sparseSupporterResolved);
+const sparseSupporterArmed = reduceServerAction({
+  canonicalState:sparseSupporterReactionBase,
+  canonicalHash:sparseSupporterBaseHash
+}, {
+  type:'BOARD_ACTION',
+  payload:{
+    playerIndex:0,
+    turn:1,
+    fn:'activatePendingWhenSetEffect',
+    z:0,
+    r:2,
+    c:0,
+    source:{z:0, r:2, c:0, card:{iid:'supporter-source-1', id:'16', name:'MINAE Death Squad'}},
+    effectCinematic:{z:0, r:2, c:0, card:{iid:'supporter-source-1', id:'16', name:'MINAE Death Squad'}},
+    reactionActionType:'when_set_effect',
+    postState:sparseSupporterResolved,
+    stateHash:sparseSupporterResolvedHash,
+    baseStateHash:sparseSupporterBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(sparseSupporterArmed.ok, true, sparseSupporterArmed.reason);
+assert.ok(sparseSupporterArmed.reactionArmed, 'sparse Supporter when-set payload should still arm an Improvisor reaction');
+const sparseSupporterPending = sparseSupporterArmed.canonicalState._serverPendingReaction;
+assert.ok(sparseSupporterPending, 'sparse Supporter reaction should contain _serverPendingReaction');
+assert.strictEqual(sparseSupporterPending.actionType, 'supporter_effect', 'Supporter when-set payload should be normalized to supporter_effect');
+assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'lydia'), 'sparse Supporter reaction should include Lydia');
+assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'secules'), 'sparse Supporter reaction should include Mr. Secules');
+assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'havano'), 'sparse Supporter reaction should include Havano without affectedOwners');
+
 const lydiaIndex = pending.options.findIndex(option=>option.kind === 'lydia');
 const negated = reduceServerAction({
   canonicalState:armed.canonicalState,

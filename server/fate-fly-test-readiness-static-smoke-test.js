@@ -19,7 +19,7 @@ const pkg = JSON.parse(read('package.json'));
 
 assert.match(indexText, /window\.__fateClientBuildStamp = 'leaderboard-reset-20260711a-1783782001'/, 'index must expose the current Electron/client parity build stamp');
 assert.match(indexText, /window\.FATE_GAMEPLAY_AUTHORITY = window\.FATE_GAMEPLAY_AUTHORITY \|\| 'client-resolved'/, 'browser and Electron must default gameplay to client-resolved');
-assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783778701/, 'renderer cache bust must include the live card-detail overlay parity build');
+assert.match(indexText, /06-rendering-and-helpers\.js\?v=1783778702/, 'renderer cache bust must include the Berkeley Homeless and Ledger-keepers card-detail build');
 assert.match(indexText, /05-gameplay-core\.js\?v=1783783201/, 'gameplay core cache bust must include the effect activation guard build');
 assert.match(indexText, /18-online-rooms\.js\?v=1783783401&sync=1783783401/, 'online rooms cache bust must include the narrow resolving-effect gate build');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
@@ -58,6 +58,8 @@ assert.doesNotMatch(coreV2Text, /discardBoardCard\(t\.card,\s*t\.z,\s*t\.r,\s*t\
 
 assert.match(rendererText, /function openInteractiveCardDetailFromPicker/, 'renderer must route live picker cards to the real card detail UI');
 assert.match(rendererText, /function showCardInfoOverlay\(card\)[\s\S]*openInteractiveCardDetailFromPicker\(card, null\)/, 'direct card info overlays must converge on live card detail when possible');
+assert.match(rendererText, /function pickBoardSupporterEffect\(player, z\)[\s\S]*const whenSetIds = \[[^\]]*'62'[^\]]*\]/, 'Ledger-keepers must be able to copy Berkeley Homeless as a when-set Supporter effect');
+assert.match(rendererText, /function discardBerkeleyHomelessWithHandCost\(card, z, r, c\)[\s\S]*const actionPlayer =[\s\S]*fateResolveOnlineLocalPlayerIndex\('berkeley discard action'\)[\s\S]*G\.players\[actionPlayer\]\.hand[\s\S]*renderBoardActionForPlayer\(actionPlayer/, 'Berkeley Homeless discard must spend the local action player hand in multiplayer');
 
 assert.match(reducerText, /function validateProposedTransition/, 'authority reducer must be reduced to client-resolved transition validation');
 assert.match(reducerText, /client-resolved action requires postState/, 'authority reducer must require posted canonical states');

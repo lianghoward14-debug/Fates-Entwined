@@ -1966,6 +1966,49 @@ function renderOppHand() {
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
+function canOpenOnlineFreeplayDeckCatalog(player) {
+  if(typeof G === 'undefined' || !G || !G._onlineRoomCode) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return false;
+  const localIndex = Number.isInteger(Number(G._onlinePlayerIndex)) ? Number(G._onlinePlayerIndex) : null;
+  if(localIndex === null || Number(player) !== localIndex) return false;
+  const mode = String(G._onlineRoomMode || 'freeplay').toLowerCase();
+  return mode !== 'ranked' && mode !== 'challenger';
+}
+
+function showOnlineFreeplayDeckCatalog(player) {
+  if(!canOpenOnlineFreeplayDeckCatalog(player)){
+    if(typeof toast === 'function') toast('Deck catalog is only available for your own deck in online Free Play.');
+    return;
+  }
+  const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.filter(function(card){ return card && card.id; }) : [];
+  if(!cards.length){
+    showModal('Free Play Deck Catalog',
+      '<div class="di-window"><p class="di-note">No cards are available.</p></div>',
+      [{label:'Close', action:closeModal}], {immediate:true});
+    return;
+  }
+  pickCardsVisual(cards, {
+    title: 'Free Play Deck Catalog',
+    subtitle: 'Select cards to shuffle into your deck.',
+    maxCount: Math.min(30, cards.length),
+    minCount: 0,
+    confirmLabel: 'Add to Deck',
+    viewerPlayerIndex: player,
+    immediate: true
+  }, function(chosen){
+    if(!chosen || !chosen.length) return;
+    const ids = chosen.map(function(card){ return card && card.id; }).filter(Boolean);
+    if(!ids.length) return;
+    if(typeof window.fateAddOnlineFreeplayCardsToDeck !== 'function'){
+      if(typeof toast === 'function') toast('Online deck catalog is not ready.');
+      return;
+    }
+    window.fateAddOnlineFreeplayCardsToDeck(ids, player).then(function(ok){
+      if(ok && typeof showDeckInfo === 'function') setTimeout(function(){ showDeckInfo(player); }, 150);
+    });
+  });
+}
+
 function showDeckInfo(player) {
   if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
   else if(typeof playSfx === 'function') playSfx('uiClick');
@@ -1994,6 +2037,10 @@ function showDeckInfo(player) {
   if(canSetMaja){
     majaHtml = '<div class="di-action-panel"><div class="di-action-title">Maja Kaminska</div><div class="di-action-desc">Set directly from deck at no cost.</div><button class="btn sm pri" onclick="setMajaFromDeck()">Set from Deck</button></div>';
   }
+  let freeplayDeckCatalogHtml = '';
+  if(canOpenOnlineFreeplayDeckCatalog(player)){
+    freeplayDeckCatalogHtml = '<div class="di-action-panel"><div class="di-action-title">Free Play Deck Catalog</div><div class="di-action-desc">Browse every card and shuffle selected cards into your deck.</div><button class="btn sm pri" onclick="showOnlineFreeplayDeckCatalog(' + Number(player) + ')">Browse All Cards</button></div>';
+  }
   const totalCards = deck.length + hand.length + discard.length + boardCount;
   showModal(title,
     '<div class="di-window">'
@@ -2007,6 +2054,7 @@ function showDeckInfo(player) {
     + '</div>'
     + '<div class="di-progress-wrap"><div class="di-progress-bar" style="width:' + Math.round((deck.length / Math.max(1,totalCards)) * 100) + '%"></div><div class="di-progress-label">' + deck.length + ' / ' + totalCards + ' Cards Remaining</div></div>'
     + (isOwn ? '<p class="di-note">Deck contents are hidden — use search effects to look through specific cards.</p>' : '<p class="di-note">Opponent deck contents are hidden.</p>')
+    + freeplayDeckCatalogHtml
     + polishHtml
     + majaHtml
     + '</div>',
@@ -2045,6 +2093,7 @@ function showHowardDevDeckList(player) {
     if(typeof renderGame === 'function') renderGame({ hand:true, piles:true, topbar:true });
   });
 }
+window.showOnlineFreeplayDeckCatalog = showOnlineFreeplayDeckCatalog;
 window.showHowardDevDeckList = showHowardDevDeckList;
 
 window.setPolishFromDeck = function() {
@@ -4396,6 +4445,54 @@ function playEffectActivationButtonSound() {
   return true;
 }
 
+function isBerkeleyHomelessEffectCard(card) {
+  return !!(card && (card.berkeleyHomeless || String(card.id || '') === '62'));
+}
+
+function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
+  if(!isBerkeleyHomelessEffectCard(card)) return false;
+  if(!Number.isInteger(player) || card.owner === player) return false;
+  if(!G || G.currentPlayer !== player) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return false;
+  const rowOwner = typeof getBoardRowOwner === 'function'
+    ? getBoardRowOwner(z, r)
+    : (r === 0 ? 1 : (r === 2 ? 0 : -1));
+  return rowOwner === player;
+}
+
+function discardBerkeleyHomelessWithHandCost(card, z, r, c) {
+  if(!isBerkeleyHomelessEffectCard(card) || card.owner === G.currentPlayer) return false;
+  const actionPlayer = G._onlineRoomCode && typeof window.fateResolveOnlineLocalPlayerIndex === 'function'
+    ? window.fateResolveOnlineLocalPlayerIndex('berkeley discard action')
+    : G.currentPlayer;
+  if(!canDiscardBerkeleyHomelessEffect(card, z, r, c, actionPlayer)){
+    toast('Berkeley Homeless can only be removed from your side of the field.');
+    return true;
+  }
+  const hand = G.players[actionPlayer].hand;
+  if(hand.length < 2){
+    toast('Cannot discard Berkeley Homeless - you need 2 cards in hand to expend');
+    return true;
+  }
+  pickCardsVisual(hand, {
+    title: 'Discard 2 hand cards to remove Berkeley Homeless',
+    subtitle: 'You must expend 2 cards from your hand to discard this card',
+    maxCount: 2,
+    minCount: 2,
+    confirmLabel: 'Expend & Discard'
+  }, (chosen)=>{
+    if(chosen.length < 2) return;
+    const chosenIds = new Set(chosen.map(ch=>ch.iid));
+    G.players[actionPlayer].hand = G.players[actionPlayer].hand.filter(h=>!chosenIds.has(h.iid));
+    chosen.forEach(ch=>fatePushDiscard(actionPlayer, ch, {sound:false}));
+    G.board[z][r][c] = null;
+    fatePushDiscard(card.owner, card);
+    toast('2 cards expended to remove Berkeley Homeless');
+    renderBoardActionForPlayer(actionPlayer, {hand:true, piles:true});
+  });
+  return true;
+}
+
 function openCardDetail(card, fromHand=false, fromBoard=false) {
   if(fromBoard && typeof G !== 'undefined' && G && G._consolidating) return;
   if(!card){
@@ -4487,8 +4584,19 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     document.getElementById('modal').classList.add('on');
     return;
   }
+  const resolveOnlineActionPlayer = (reason)=>{
+    if(!G._onlineRoomCode) return getPerspectivePlayerIndex();
+    if(typeof window.fateResolveOnlineLocalPlayerIndex === 'function'){
+      const resolved = window.fateResolveOnlineLocalPlayerIndex(reason || 'card detail');
+      if(Number.isInteger(resolved)) return resolved;
+    }
+    if(Number.isInteger(G._onlinePlayerIndex)) return G._onlinePlayerIndex;
+    if(Number.isInteger(G.localPlayerIndex)) return G.localPlayerIndex;
+    if(Number.isInteger(G.viewerPlayerIndex)) return G.viewerPlayerIndex;
+    return null;
+  };
   const handActionPlayer = G._onlineRoomCode
-    ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : null)
+    ? resolveOnlineActionPlayer('card detail hand actions')
     : getPerspectivePlayerIndex();
   const handActionIndex = G.players?.[handActionPlayer]?.hand?.findIndex(c=>c && card && c.iid===card.iid) ?? -1;
   const canUseHandCard = Number.isInteger(handActionPlayer) && handActionIndex > -1 && G.currentPlayer===handActionPlayer && G.phase==='main' && !G._isSpectator && G._onlineRole !== 'spectator';
@@ -4553,10 +4661,20 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       acts.appendChild(con);
     }
   }
-  if(fromBoard && G.selectedBoardCard){
-    const {card:bc,z,r,c}=G.selectedBoardCard;
+  const boardDetail = (()=>{
+    if(!fromBoard) return null;
+    const sameCard = (a,b)=>!!(a && b && (a === b || (a.iid && b.iid && a.iid === b.iid)));
+    if(G.selectedBoardCard && sameCard(G.selectedBoardCard.card, card)) return G.selectedBoardCard;
+    const pos = boardPos || (typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null);
+    if(!pos) return null;
+    const live = G.board && G.board[pos.z] && G.board[pos.z][pos.r] ? G.board[pos.z][pos.r][pos.c] : null;
+    if(live && !sameCard(live, card)) return null;
+    return {card:live || card, z:pos.z, r:pos.r, c:pos.c};
+  })();
+  if(boardDetail){
+    const {card:bc,z,r,c}=boardDetail;
     const boardActionPlayer = G._onlineRoomCode
-      ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : null)
+      ? resolveOnlineActionPlayer('card detail board actions')
       : getPerspectivePlayerIndex();
     const canUseBoardCard = Number.isInteger(boardActionPlayer)
       && bc.owner===boardActionPlayer
@@ -4564,10 +4682,21 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       && G.phase==='main'
       && !G._isSpectator
       && G._onlineRole !== 'spectator';
+    const canDiscardBerkeleyHomeless = canDiscardBerkeleyHomelessEffect(bc, z, r, c, boardActionPlayer);
     const canActivateDeferredSetEffect = Number.isInteger(boardActionPlayer)
       && !isFaceDownCard(bc)
       && typeof canActivatePendingWhenSetEffect === 'function'
       && canActivatePendingWhenSetEffect(bc, z, r, c, boardActionPlayer);
+    if(canDiscardBerkeleyHomeless){
+      const berkeleyDisc=document.createElement('button');
+      berkeleyDisc.className='btn sm danger';
+      berkeleyDisc.textContent='Discard Effect';
+      berkeleyDisc.onclick=()=>{
+        closeModal();
+        discardBerkeleyHomelessWithHandCost(bc, z, r, c);
+      };
+      acts.appendChild(berkeleyDisc);
+    }
     if(isFaceDownCard(bc) && canUseBoardCard){
       const flip=document.createElement('button');
       flip.className='btn sm pri';
@@ -4861,6 +4990,59 @@ function closeModal() {
   if(typeof maybeCompleteDeferredTurnEnd === 'function') setTimeout(function(){ maybeCompleteDeferredTurnEnd('modal-close'); }, 0);
 }
 
+function openInteractiveCardDetailFromPicker(card, entry) {
+  if(!card || typeof openCardDetail !== 'function' || typeof G === 'undefined' || !G) return false;
+  const sameLiveCard = function(live, candidate) {
+    if(!live || !candidate) return false;
+    if(live === candidate) return true;
+    return !!(live.iid && candidate.iid && live.iid === candidate.iid);
+  };
+  const openBoard = function(live, z, r, c) {
+    G.selectedHandCard = null;
+    G.selectedBoardCard = {card:live, z:z, r:r, c:c};
+    openCardDetail(live, false, true);
+    return true;
+  };
+  if(entry && Number.isInteger(entry.z) && Number.isInteger(entry.r) && Number.isInteger(entry.c)) {
+    const live = G.board && G.board[entry.z] && G.board[entry.z][entry.r] ? G.board[entry.z][entry.r][entry.c] : null;
+    if(sameLiveCard(live, card)) return openBoard(live, entry.z, entry.r, entry.c);
+  }
+  if(G.board && typeof forEachBoardCard === 'function') {
+    let found = null;
+    forEachBoardCard(function(live, z, r, c) {
+      if(!found && sameLiveCard(live, card)) found = {live:live, z:z, r:r, c:c};
+    });
+    if(found) return openBoard(found.live, found.z, found.r, found.c);
+  }
+  const players = Array.isArray(G.players) ? G.players : [];
+  const onlinePlayer = (G._onlineRoomCode && typeof window.fateResolveOnlineLocalPlayerIndex === 'function')
+    ? window.fateResolveOnlineLocalPlayerIndex('picker card detail hand actions')
+    : null;
+  const preferred = [];
+  if(Number.isInteger(onlinePlayer)) preferred.push(onlinePlayer);
+  const perspective = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.localPlayerIndex;
+  if(Number.isInteger(perspective) && preferred.indexOf(perspective) < 0) preferred.push(perspective);
+  if(Number.isInteger(G.currentPlayer) && preferred.indexOf(G.currentPlayer) < 0) preferred.push(G.currentPlayer);
+  for(let p = 0; p < players.length; p++) if(preferred.indexOf(p) < 0) preferred.push(p);
+  for(const p of preferred) {
+    const hand = players[p] && Array.isArray(players[p].hand) ? players[p].hand : null;
+    if(!hand) continue;
+    const idx = hand.findIndex(function(live){ return sameLiveCard(live, card); });
+    if(idx >= 0) {
+      G.selectedBoardCard = null;
+      G.selectedHandCard = idx;
+      openCardDetail(hand[idx], true, false);
+      return true;
+    }
+  }
+  return false;
+}
+
+function inspectPickerCardDetail(card, entry) {
+  if(openInteractiveCardDetailFromPicker(card, entry)) return;
+  if(card && typeof showCardInfoOverlay === 'function') showCardInfoOverlay(card);
+}
+
 function pickAnyBoardCard(owner, callback) {
   const entries=[];
   forEachBoardCard((card,z,r,c)=>entries.push({card,z,r,c}));
@@ -4922,12 +5104,12 @@ function showBoardTargetPicker(opts, onConfirm) {
   entries.forEach(function(entry){ byPos.set(entry.z + ':' + entry.r + ':' + entry.c, entry); });
   let selected = [];
 
-  function openPickerCardInfo(ev, card) {
+  function openPickerCardInfo(ev, card, entry) {
     if(ev) {
       ev.preventDefault();
       ev.stopPropagation();
     }
-    if(card && typeof showCardInfoOverlay === 'function') showCardInfoOverlay(card);
+    inspectPickerCardDetail(card, entry);
   }
 
   function updateSelection(body) {
@@ -5027,9 +5209,9 @@ function showBoardTargetPicker(opts, onConfirm) {
               }
               updateSelection(body);
             };
-            cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell); };
+            cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
           } else {
-            cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell); };
+            cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, {card:cell, z:z, r:r, c:c}); };
           }
         }
         cells.appendChild(cellEl);
@@ -5389,7 +5571,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       const local = i - start;
       const x = pad + (local % cols) * (cardW + gap);
       const y = pad + Math.floor(local / cols) * (cardH + gap);
-      pickerHitboxes.push({ x, y, w:cardW, h:cardH, index:i, card:c, visual });
+      pickerHitboxes.push({ x, y, w:cardW, h:cardH, index:i, card:c, visual, entry: positionEntries && positionEntries[i] });
       pickerCtx.save();
       drawRoundedRectPath(pickerCtx, x, y, cardW, cardH, 8);
       pickerCtx.clip();
@@ -5478,7 +5660,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       el.onmouseenter=(ev)=>showHoverPreview(visual,ev);
       el.onmousemove=(ev)=>positionHoverPreview(ev);
       el.onmouseleave=()=>removeHoverPreview();
-      (function(_c){ el.oncontextmenu = function(ev){ ev.preventDefault(); ev.stopPropagation(); removeHoverPreview(); showCardInfoOverlay(_c); }; })(c);
+      (function(_c, _entry){ el.oncontextmenu = function(ev){ ev.preventDefault(); ev.stopPropagation(); removeHoverPreview(); inspectPickerCardDetail(_c, _entry); }; })(c, positionEntries && positionEntries[i]);
       (function(_i, _el){
         _el.onclick=()=>{
           if(_el.classList.contains('sel')){
@@ -5547,7 +5729,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       ev.preventDefault();
       ev.stopPropagation();
       removeHoverPreview();
-      showCardInfoOverlay(hit.card);
+      inspectPickerCardDetail(hit.card, hit.entry);
     };
   }
   renderPage();
@@ -5955,7 +6137,7 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
 
 function pickBoardSupporterEffect(player, z) {
   // Ledger-keepers: copy a supporter effect — visual card picker
-  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','42','43','50','51','58','60','68','69','71','72','73','76','80'];
+  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','42','43','50','51','58','60','62','68','69','71','72','73','76','80'];
   const supporters=[];
   forEachBoardCard((card,bz,r,c)=>{if(card.type==='Supporter' && whenSetIds.includes(card.id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});});
   if(!supporters.length){toast('No supporters on field');return;}
@@ -6290,54 +6472,7 @@ function discardBoardCard(card, z, r, c) {
   if(!card) return;
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
-  if(card.berkeleyHomeless && card.owner !== G.currentPlayer){
-    const oppHand2 = G.players[G.currentPlayer].hand;
-    if(oppHand2.length < 2){
-      toast('Cannot discard Berkeley Homeless - you need 2 cards in hand to expend');
-      return;
-    }
-    pickCardsVisual(oppHand2, {
-      title: 'Discard 2 hand cards to remove Berkeley Homeless',
-      subtitle: 'You must expend 2 cards from your hand to discard this card',
-      maxCount: 2,
-      minCount: 2,
-      confirmLabel: 'Expend & Discard'
-    }, (chosen)=>{
-      if(chosen.length < 2) return;
-      const chosenIds = new Set(chosen.map(ch=>ch.iid));
-      G.players[G.currentPlayer].hand = G.players[G.currentPlayer].hand.filter(h=>!chosenIds.has(h.iid));
-      chosen.forEach(ch=>fatePushDiscard(G.currentPlayer, ch, {sound:false}));
-      G.board[z][r][c] = null;
-      fatePushDiscard(card.owner, card);
-      toast('2 cards expended to remove Berkeley Homeless');
-      renderBoardActionForPlayer(G.currentPlayer, {hand:true, piles:true});
-    });
-    return;
-  }
-  // Berkeley Homeless (62): opponent can only discard by expending a hand card
-  if(card.berkeleyHomeless && card.owner !== G.currentPlayer){
-    const oppHand = G.players[G.currentPlayer].hand;
-    if(oppHand.length === 0){
-      toast('Cannot discard Berkeley Homeless — you have no cards in hand to expend');
-      return;
-    }
-    pickCardsVisual(oppHand, {
-      title: 'Discard a hand card to remove Berkeley Homeless',
-      subtitle: 'You must expend a card from your hand to discard this card',
-      maxCount: 1,
-      minCount: 1,
-      confirmLabel: 'Expend & Discard'
-    }, (chosen)=>{
-      if(chosen.length === 0) return;
-      G.players[G.currentPlayer].hand = G.players[G.currentPlayer].hand.filter(c=>c.iid!==chosen[0].iid);
-      fatePushDiscard(G.currentPlayer, chosen[0], {sound:false});
-      G.board[z][r][c] = null;
-      fatePushDiscard(card.owner, card);
-      toast(chosen[0].name+' expended to remove Berkeley Homeless');
-      renderBoardActionForPlayer(G.currentPlayer, {hand:true, piles:true});
-    });
-    return;
-  }
+  if(discardBerkeleyHomelessWithHandCost(card, z, r, c)) return;
   // Try to play discard animation on the DOM element before removing
   const suppressDiscardVfx = !!card._suppressDiscardVfx;
   if(!suppressDiscardVfx && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
@@ -6478,6 +6613,7 @@ function removeHoverPreview() {
 // ── CARD INFO OVERLAY (shows card detail on top of an open modal) ──
 function showCardInfoOverlay(card) {
   if(!card) return;
+  if(typeof openInteractiveCardDetailFromPicker === 'function' && openInteractiveCardDetailFromPicker(card, null)) return;
   dismissCardInfoOverlay();
   var visual = getCardVisualData(card, typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0);
   var useCanvasArt = !!(visual.img && typeof window.renderCanvasImage === 'function' && window.HTMLCanvasElement);
