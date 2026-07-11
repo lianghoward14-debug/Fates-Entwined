@@ -84,6 +84,7 @@
   let onlineTurnBoundaryAgreementPromise = null;
   let onlineTurnBoundaryAgreementStartedAt = 0;
   let onlinePendingEndTurnAfterAgreementPromise = null;
+  const ONLINE_TURN_BOUNDARY_WATCHDOG_MS = 4500;
   let localConsolidationSelection = null;
   let queuedFinalConsolidationClick = null;
   let lastClientResolvedAutoCommitHash = '';
@@ -563,18 +564,27 @@
       || (effectiveType === 'CLICK_CELL' && (payload.pendingMove === true || payload.move === true || /move/i.test(String(payload.promptId || ''))))
       || (effectiveType === 'BOARD_ACTION' && /^(activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName));
   }
+  function isOnlineConsolidationStateAction(action){
+    const type = String(action?.type || '').toUpperCase();
+    const payload = action?.payload || {};
+    const actionKind = String(payload.actionKind || payload.originalType || '').toUpperCase();
+    const effectiveType = type === 'ACTION_RESULT' && actionKind ? actionKind : type;
+    return effectiveType === 'SELECT_CONSOLIDATION_TRIBUTE'
+      || effectiveType === 'START_CONSOLIDATE'
+      || !!payload.consolidationPresentation
+      || (Array.isArray(payload.presentationEvents) && payload.presentationEvents.some(event=>String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED'));
+  }
+  function shouldProtectLocalMoreBoardDuringDesync(reason, action){
+    if(isOnlineConsolidationStateAction(action)) return false;
+    return /desync|hash drift|browser resume|board agreement/i.test(String(reason || ''));
+  }
   function shouldPreferMoreOnlineBoardCardsForAction(action){
     const type = String(action?.type || '').toUpperCase();
     const payload = action?.payload || {};
     const actionKind = String(payload.actionKind || payload.originalType || '').toUpperCase();
     const effectiveType = type === 'ACTION_RESULT' && actionKind ? actionKind : type;
-    if((Array.isArray(payload.presentationEvents) && payload.presentationEvents.some(event=>String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED'))
-      || payload.consolidationPresentation) {
-      return false;
-    }
+    if(isOnlineConsolidationStateAction(action)) return false;
     if(isMoreBoardMovementAction(action)) return true;
-    if(effectiveType === 'SELECT_CONSOLIDATION_TRIBUTE') return false;
-    if(effectiveType === 'START_CONSOLIDATE') return false;
     if(hasOnlineMoreBoardPreference()) return true;
     if(effectiveType === 'PLACE_CARD') return true;
     if(effectiveType === 'CLICK_CELL') return !!(
@@ -820,10 +830,9 @@
       });
       onlineTurnBoundaryAgreementPromise = null;
       onlineTurnBoundaryAgreementStartedAt = 0;
-      onlinePendingEndTurnAfterAgreementPromise = null;
     }
     onlineTurnBoundaryAgreementStartedAt = Date.now();
-    onlineTurnBoundaryAgreementPromise = (async function(){
+    const agreementPromise = (async function(){
     const latest = gameState();
     if(!isOnlineMatchState(latest) || latest._onlineApplyingRemoteAction) return true;
     if(latest._isSpectator || latest._onlineRole === 'spectator') return true;
@@ -900,22 +909,85 @@
     if(window.toast) toast('Board is still mismatched. Try End Turn again after the sync indicator clears.');
     return false;
     })();
-    return onlineTurnBoundaryAgreementPromise.finally(function(){
-      onlineTurnBoundaryAgreementPromise = null;
-      onlineTurnBoundaryAgreementStartedAt = 0;
+    onlineTurnBoundaryAgreementPromise = agreementPromise;
+    return agreementPromise.finally(function(){
+      if(onlineTurnBoundaryAgreementPromise === agreementPromise){
+        onlineTurnBoundaryAgreementPromise = null;
+        onlineTurnBoundaryAgreementStartedAt = 0;
+      }
     });
   }
   function runOnlineTurnBoundaryAfterBoardAgreement(repairReason, finish){
     if(onlinePendingEndTurnAfterAgreementPromise){
-      if(window.toast) toast('Syncing board before ending turn...');
-      return onlinePendingEndTurnAfterAgreementPromise;
+      const pendingAge = Date.now() - Number(onlineTurnBoundaryAgreementStartedAt || 0);
+      if(pendingAge < ONLINE_TURN_BOUNDARY_WATCHDOG_MS){
+        if(window.toast) toast('Syncing board before ending turn...');
+        return onlinePendingEndTurnAfterAgreementPromise;
+      }
+      recordOnlineDiagnostic('online-turn-boundary-outer-stale-released', {
+        reason:String(repairReason || ''),
+        ageMs:pendingAge
+      });
+      onlinePendingEndTurnAfterAgreementPromise = null;
+      onlineTurnBoundaryAgreementPromise = null;
+      onlineTurnBoundaryAgreementStartedAt = 0;
     }
-    onlinePendingEndTurnAfterAgreementPromise = waitForOnlineBoardAgreementBeforeTurnAdvance(repairReason)
+    let watchdogTimer = 0;
+    const boundedAgreement = Promise.race([
+      waitForOnlineBoardAgreementBeforeTurnAdvance(repairReason),
+      new Promise(resolve=>{
+        watchdogTimer = setTimeout(function(){
+          recordOnlineDiagnostic('online-turn-boundary-watchdog-released', {
+            reason:String(repairReason || ''),
+            timeoutMs:ONLINE_TURN_BOUNDARY_WATCHDOG_MS
+          });
+          if(window.toast) toast('Board sync timed out. End Turn is available again.');
+          resolve(false);
+        }, ONLINE_TURN_BOUNDARY_WATCHDOG_MS);
+      })
+    ]);
+    const pendingPromise = boundedAgreement
       .then((agreed)=>agreed && typeof finish === 'function' ? Promise.resolve().then(finish) : false)
       .finally(function(){
-        onlinePendingEndTurnAfterAgreementPromise = null;
+        if(watchdogTimer) clearTimeout(watchdogTimer);
+        if(onlinePendingEndTurnAfterAgreementPromise === pendingPromise) onlinePendingEndTurnAfterAgreementPromise = null;
       });
-    return onlinePendingEndTurnAfterAgreementPromise;
+    onlinePendingEndTurnAfterAgreementPromise = pendingPromise;
+    return pendingPromise;
+  }
+  function startOnlineBoardRepairBeforeTurnBoundary(reason){
+    const repairReason = String(reason || 'turn-boundary-background-board-repair');
+    recordOnlineDiagnostic('online-turn-boundary-background-repair-started', {
+      reason:repairReason,
+      localBoardCards:localOnlineBoardCardCount(),
+      authorityBoardCards:lastAuthorityBoardSnapshot && lastAuthorityBoardSnapshot.count,
+      localMatchesAuthority:localOnlineBoardMatchesAuthority(),
+      hasMoreBoardPreference:hasOnlineMoreBoardPreference(),
+      hasMovementPreference:hasOnlineMovementBoardPreference(),
+      hasProtectedPreference:hasOnlineProtectedBoardPreference()
+    });
+    if(hasOnlineMoreBoardPreference() || hasOnlineMovementBoardPreference() || hasOnlineProtectedBoardPreference()){
+      sendMoreBoardCardsAuthoritySyncNow(repairReason + ':background-repair').catch(function(e){
+        recordOnlineDiagnostic('online-turn-boundary-background-repair-failed', {
+          reason:repairReason,
+          message:String(e && e.message || e || '')
+        });
+      });
+    }
+    const g = gameState();
+    const code = g?._onlineRoomCode || activeRoom;
+    if(code && authorityHttpBaseUrl() && !firebaseActionFallbackAllowed() && !localOnlineBoardMatchesAuthority()){
+      catchUpFlyAuthorityReplay(code, repairReason + ' background catchup', {
+        includeState:true,
+        limit:60,
+        timeoutMs:2500
+      }).catch(function(e){
+        recordOnlineDiagnostic('online-turn-boundary-background-catchup-failed', {
+          reason:repairReason,
+          message:String(e && e.message || e || '')
+        });
+      });
+    }
   }
   function onlineCardCatalogMatch(card){
     if(!card || typeof card !== 'object' || typeof CARDS === 'undefined' || !Array.isArray(CARDS)) return null;
@@ -1242,6 +1314,17 @@
       && String(actionPayload.sourceType || '').toUpperCase() === 'MORE_BOARD_CARDS_REPAIR'
       && /mov/i.test(String(actionPayload.sourceReason || ''));
     const movementProtectionAction = isMoreBoardMovementAction(action) || movementRepairStateSync;
+    const desyncRecoveryProtectsMoreBoard = localBoardCardsBeforeApply > incomingBoardCardsBeforeApply
+      && shouldProtectLocalMoreBoardDuringDesync(reason, action)
+      && protectOnlineMoreBoardSnapshot('desync-recovery', reason || 'online-desync-recovery', 120000, g.board);
+    if(desyncRecoveryProtectsMoreBoard){
+      recordOnlineDiagnostic('online-desync-local-more-board-protected', {
+        reason:String(reason || ''),
+        localBoardCards:localBoardCardsBeforeApply,
+        incomingBoardCards:incomingBoardCardsBeforeApply,
+        actionType
+      });
+    }
     const protectedPreference = activeOnlineProtectedBoardPreference();
     const protectedMovementBoard = protectedPreference && String(protectedPreference.kind || '') === 'movement'
       ? protectedPreference.board
@@ -3759,10 +3842,11 @@
   function isStrictCompactAuthorityAction(type){
     if(String(authorityReducerMode || '').toLowerCase() !== 'strict') return false;
     if(firebaseActionFallbackAllowed()) return false;
-    return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
+    return /^(END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|PICK_AFFILIATION|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|ADD_CARD_TO_DECK|FORFEIT|MATCH_RESULT)$/i.test(String(type || ''));
   }
   function strictCompactActionNeedsPostState(type, payload){
     const actionType = String(type || '').toUpperCase();
+    if(isServerAuthoritativeBoardIntent(type, payload, gameState())) return false;
     if(actionType === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(payload)){
       const fn = String(payload?.fn || '');
       const id = String(payload?.cardId || payload?.card?.id || payload?.source?.card?.id || '');
@@ -3799,7 +3883,7 @@
   }
   function toAuthorityIntent(type, payload, g){
     const actionType = String(type || '').toUpperCase();
-    if(/^(PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|CHOOSE_TURN|END_TURN|FORFEIT|MATCH_RESULT|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|REACTION_CHOICE)$/i.test(actionType)){
+    if(/^(PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|RESOLVE_MODAL|RESOLVE_CARD_PICK|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|CHOOSE_TURN|END_TURN|FORFEIT|MATCH_RESULT|START_CONSOLIDATE|BOARD_ACTION|HAND_ACTION|REACTION_CHOICE|ADD_CARD_TO_DECK)$/i.test(actionType)){
       return actionType;
     }
     if(actionType === 'CLICK_CELL'){
@@ -3815,6 +3899,12 @@
     if(actionType === 'PICK_ZONE' || actionType === 'PICK_LANDSCAPE_ZONE') return 'RESOLVE_ZONE_PICK';
     if(actionType === 'PICK_AFFILIATION') return 'RESOLVE_AFFILIATION_PICK';
     return actionType;
+  }
+  function isServerAuthoritativeBoardIntent(type, payload, g){
+    if(String(authorityReducerMode || '').toLowerCase() !== 'strict') return false;
+    if(firebaseActionFallbackAllowed()) return false;
+    const intent = toAuthorityIntent(type, payload || null, g || gameState());
+    return /^(PLACE_CARD|START_CONSOLIDATE|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL)$/i.test(String(intent || ''));
   }
   function strictAuthorityIntentForSend(type, payload, g){
     const actionType = String(type || '').toUpperCase();
@@ -3912,8 +4002,10 @@
   function sendOptimisticAction(type, payload, applyLocal){
     const clientActionId = makeOptimisticActionId(type);
     const outbound = Object.assign({}, payload || {}, { clientActionId });
+    const serverAuthoritativeBoardIntent = isServerAuthoritativeBoardIntent(type, outbound, gameState());
     const clientResolvedCommit = clientResolvedGameplayEnabled()
       && isClientResolvedGameplayAction(type)
+      && !serverAuthoritativeBoardIntent
       && !(String(type || '').toUpperCase() === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(outbound));
     const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
     const authorityFirstPlacement = compactAuthorityPayload && toAuthorityIntent(type, outbound, gameState()) === 'PLACE_CARD';
@@ -6536,7 +6628,7 @@
       return;
     }
 
-    const turnAgnosticAction = type === 'CHOOSE_TURN' || type === 'REACTION_CHOICE';
+    const turnAgnosticAction = type === 'CHOOSE_TURN' || type === 'REACTION_CHOICE' || type === 'ADD_CARD_TO_DECK';
     if(type !== 'FORFEIT'){
       if(actionPlayer === null || actionPlayer === undefined){
         console.warn('Ignoring online action without a room player', action);
@@ -7794,24 +7886,28 @@
           if(typeof window.renderGame === 'function') window.renderGame({board:true, hand:true, blocks:true, topbar:true});
         }
         if(onlinePendingEndTurnAfterAgreementPromise){
-          return runOnlineTurnBoundaryAfterBoardAgreement('', null);
+          recordOnlineDiagnostic('online-end-turn-releasing-pending-board-agreement', {
+            actionType:'END_TURN',
+            reason:'nonblocking-turn-boundary-repair'
+          });
+          onlinePendingEndTurnAfterAgreementPromise = null;
+          onlineTurnBoundaryAgreementPromise = null;
+          onlineTurnBoundaryAgreementStartedAt = 0;
         }
         if(!canSendLocalAction(g, 'END_TURN')) return;
         if(typeof window.deferTurnEndUntilModalComplete === 'function' && window.deferTurnEndUntilModalComplete('online-end-turn')) {
           return false;
         }
+        const repairReason = hasOnlineMovementBoardPreference()
+          ? 'end-turn-current-turn-moved-board-cards-repair'
+          : 'end-turn-current-turn-more-board-cards-repair';
+        startOnlineBoardRepairBeforeTurnBoundary(repairReason);
         if(Number(g.turn || 0) >= Number(g.maxTurns || 0)){
-          const repairReason = hasOnlineMovementBoardPreference()
-            ? 'end-turn-current-turn-moved-board-cards-repair'
-            : 'end-turn-current-turn-more-board-cards-repair';
-          return runOnlineTurnBoundaryAfterBoardAgreement(repairReason, ()=>{
-              const latest = gameState() || g;
-              return sendAction('MATCH_RESULT', {
-                playerIndex:latest.currentPlayer,
-                turn:latest.turn,
-                baseStateHash:lastAuthorityStateHash || '',
-                boardAgreement:onlineAuthorityBoardAgreementPayload()
-              });
+          const latest = gameState() || g;
+          return sendAction('MATCH_RESULT', {
+              playerIndex:latest.currentPlayer,
+              turn:latest.turn,
+              baseStateHash:lastAuthorityStateHash || ''
             })
             .catch(e=>{
               console.error('Online match result finalization failed', e);
@@ -7823,18 +7919,14 @@
           const latest = gameState() || g;
           return sendOptimisticAction('END_TURN', {
             playerIndex:latest.currentPlayer,
-            turn:latest.turn,
-            boardAgreement:onlineAuthorityBoardAgreementPayload()
+            turn:latest.turn
           }, ()=>{
             const result = originals.endTurn.apply(this, args);
             updateRoomTurn(gameState()?.currentPlayer);
             return result;
           });
         };
-        const repairReason = hasOnlineMovementBoardPreference()
-          ? 'end-turn-current-turn-moved-board-cards-repair'
-          : 'end-turn-current-turn-more-board-cards-repair';
-        return runOnlineTurnBoundaryAfterBoardAgreement(repairReason, finishEndTurn);
+        return finishEndTurn();
       };
     }
 
@@ -8878,6 +8970,46 @@
   window.fateOpenRoomDeckPicker = openOnlineDeckPicker;
   window.fateChooseRoomDeck = chooseRoomDeck;
   window.fateSendRoomChat = sendRoomChat;
+  window.fateAddOnlineFreeplayCardsToDeck = async function(cardIds, playerIndex){
+    const g = gameState();
+    const localIndex = Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : null;
+    const targetIndex = Number.isInteger(Number(playerIndex)) ? Number(playerIndex) : localIndex;
+    const ids = (Array.isArray(cardIds) ? cardIds : [cardIds]).map(id=>String(id || '').trim()).filter(Boolean).slice(0, 30);
+    if(!isOnlineMatchState(g) || localIndex === null){
+      if(window.toast) toast('This deck catalog is only available in online Free Play.');
+      return false;
+    }
+    if(g._isSpectator || g._onlineRole === 'spectator'){
+      if(window.toast) toast('Spectators cannot edit decks.');
+      return false;
+    }
+    if(targetIndex !== localIndex){
+      if(window.toast) toast('You can only add cards to your own deck.');
+      return false;
+    }
+    if(normalizeRoomMode(g._onlineRoomMode || 'freeplay') !== 'freeplay'){
+      if(window.toast) toast('Deck catalog is only available in Free Play.');
+      return false;
+    }
+    if(!ids.length){
+      if(window.toast) toast('Choose at least one card.');
+      return false;
+    }
+    try{
+      const localState = captureOnlineCanonicalState();
+      await sendAction('ADD_CARD_TO_DECK', {
+        playerIndex:localIndex,
+        cardIds:ids,
+        baseStateHash:lastAuthorityStateHash || (localState ? onlineCanonicalStateHash(localState) : '')
+      });
+      if(window.toast) toast('Added ' + ids.length + ' card' + (ids.length === 1 ? '' : 's') + ' to your deck.');
+      return true;
+    }catch(e){
+      console.error('Online Free Play deck catalog add failed', e);
+      if(window.toast) toast(e && e.message ? e.message : 'Could not add card to deck.');
+      return false;
+    }
+  };
   window.fateSendRoomAction = sendAction;
   window.fatePublishOnlineMatchPreload = publishOnlineMatchPreload;
   window.fateWaitForOnlineMatchPreload = waitForOnlineMatchPreload;
