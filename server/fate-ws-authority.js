@@ -48,7 +48,7 @@ const SHUTDOWN_GRACE_MS = Number(process.env.FATE_WS_SHUTDOWN_GRACE_MS || 4500);
 const FLY_PERSIST_DEBOUNCE_MS = Math.max(50, Number(process.env.FATE_WS_PERSIST_DEBOUNCE_MS || 750) || 750);
 const APPEND_FLY_EVENT_LOG = process.env.FATE_WS_APPEND_EVENT_LOG === '1' ||
   (process.env.FATE_WS_APPEND_EVENT_LOG !== '0' && process.env.FATE_WS_FLY_STORE === '1');
-const LOAD_FLY_EVENT_LOG = process.env.FATE_WS_LOAD_EVENT_LOG === '1' || APPEND_FLY_EVENT_LOG;
+const LOAD_FLY_EVENT_LOG = process.env.FATE_WS_LOAD_EVENT_LOG === '1';
 const FLY_DATA_DIR = String(process.env.FATE_WS_DATA_DIR || '').trim();
 const FLY_STORE_ENABLED = process.env.FATE_WS_FLY_STORE !== '0' && !!FLY_DATA_DIR;
 const REQUIRE_FLY_STORE = process.env.FATE_WS_REQUIRE_FLY_STORE === '1';
@@ -65,6 +65,7 @@ const DIST_DIR = path.join(APP_ROOT, 'dist');
 const INSTALLER_PUBLIC_PATH = '/installer/Fates-Entwined-Installer.exe';
 const STATIC_OVERRIDE_DIR = FLY_DATA_DIR ? path.join(FLY_DATA_DIR, 'static-overrides') : '';
 const SHARED_AI_RECORD_SCHEMA_VERSION = 5;
+const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
 
 const rooms = new Map();
 const sockets = new Set();
@@ -91,6 +92,7 @@ let flyPrivateMessageSeq = 0;
 let flyAISimSchedule = {};
 let flyAISimulationInterval = 0;
 let flyAISimulationStartupTimer = 0;
+let flyLeaderboardResetVersion = '';
 const FLY_AI_SIMULATION_CADENCE_MS = 60 * 60 * 1000;
 let certCache = { expiresAt: 0, certs: null };
 let serviceAccountCache = undefined;
@@ -104,6 +106,7 @@ let restoredTimerCount = 0;
 let restoredEventCount = 0;
 let shuttingDown = false;
 let shutdownStartedAt = 0;
+let authorityReady = false;
 
 function gameplayAuthorityMode(){
   return GAMEPLAY_AUTHORITY_MODE;
@@ -258,6 +261,7 @@ function flyRoomsSnapshotPayload(){
     aiRecords:[...flyAIRecords.values()].map(publicFlyAIRecord).filter(Boolean).slice(0, 80),
     aiSimMatches:flyAISimMatches.map(publicFlyAISimMatch).filter(Boolean).slice(-100),
     aiSimSchedule:Object.assign({}, flyAISimSchedule || {}),
+    leaderboardResetVersion:flyLeaderboardResetVersion || '',
     parties:[...flyParties.values()].map(publicFlyParty).filter(Boolean),
     partyInvites:[...flyPartyInvites.values()].map(publicFlyPartyInvite).filter(Boolean),
     worldChatSeq:flyWorldChatSeq,
@@ -352,6 +356,7 @@ function loadFlyRoomsSnapshot(){
   });
   flyAISimMatches.splice(0, flyAISimMatches.length, ...(Array.isArray(parsed?.aiSimMatches) ? parsed.aiSimMatches : []).map(publicFlyAISimMatch).filter(Boolean).slice(-100));
   flyAISimSchedule = parsed?.aiSimSchedule && typeof parsed.aiSimSchedule === 'object' ? Object.assign({}, parsed.aiSimSchedule) : {};
+  flyLeaderboardResetVersion = String(parsed?.leaderboardResetVersion || '').slice(0, 40);
   (Array.isArray(parsed?.parties) ? parsed.parties : []).forEach(item=>{
     const party = publicFlyParty(item);
     if(party?.partyId) flyParties.set(party.partyId, party);
@@ -604,10 +609,11 @@ function serveFile(res, filePath, downloadName){
       return;
     }
     const isHtml = /\.html?$/i.test(filePath);
+    const isRuntimeAsset = /\.(?:js|mjs|css)$/i.test(filePath);
     const headers = {
       'content-type':contentTypeFor(filePath),
       'content-length':stat.size,
-      'cache-control':downloadName || isHtml ? 'no-cache' : 'public, max-age=86400'
+      'cache-control':downloadName || isHtml || isRuntimeAsset ? 'no-cache' : 'public, max-age=86400'
     };
     if(downloadName){
       headers['content-disposition'] = `attachment; filename="${downloadName}"`;
@@ -724,7 +730,7 @@ function send(ws, message){
 
 function closeSocket(ws, code, reason){
   if(!ws || ws.destroyed) return;
-  if(markSocketDisconnected(ws, {immediate:false})){
+  if(markSocketDisconnected(ws)){
     persistFlyRoomMutationNow('socket-close');
   }
   const reasonBuffer = Buffer.from(String(reason || '').slice(0, 120));
@@ -735,15 +741,7 @@ function closeSocket(ws, code, reason){
   ws.end();
 }
 
-function shouldFinalizeDisconnectImmediately(room){
-  return !!(room
-    && room.status !== 'lobby'
-    && room.status !== 'ended'
-    && room.canonicalState
-    && room.canonicalHash);
-}
-
-function markSocketDisconnected(ws, opts={}){
+function markSocketDisconnected(ws){
   const room = ws?.fateRoomCode ? rooms.get(ws.fateRoomCode) : null;
   if(!room || !ws.fateUid) return false;
   room.sockets.delete(ws);
@@ -753,23 +751,7 @@ function markSocketDisconnected(ws, opts={}){
   player.connected = stillConnected;
   player.lastSeen = now();
   if(stillConnected) clearDisconnectTimer(room, ws.fateUid);
-  else if(opts.immediate !== false && shouldFinalizeDisconnectImmediately(room)){
-    clearDisconnectTimer(room, ws.fateUid);
-    recordRoomDiagnostic(room, 'socket-disconnect-immediate-finalize', {
-      uid:ws.fateUid,
-      source:'websocket',
-      reason:'player socket disconnected from live authoritative room'
-    });
-    finalizeDisconnectTimeout(room.code, ws.fateUid).catch(err=>{
-      console.error('Immediate disconnect finalization failed:', err.message || err);
-      recordRoomDiagnostic(room, 'disconnect-finalize-error', {
-        uid:ws.fateUid,
-        source:'websocket',
-        reason:err.message || String(err),
-        severity:'error'
-      });
-    });
-  }else{
+  else{
     recordRoomDiagnostic(room, stillConnected ? 'socket-disconnect-duplicate-tab' : 'socket-disconnect-timer-scheduled', {
       uid:ws.fateUid,
       source:'websocket',
@@ -864,6 +846,22 @@ function sanitizeProfile(value){
     totalXp:safeNonNegativeInteger(profile.totalXp, 0),
     starlight:safeNonNegativeInteger(profile.starlight, 0)
   };
+}
+
+function profileWithServerRank(uid, value){
+  const clean = sanitizeProfile(value);
+  const server = publicFlyProfile(flyPlayerStats.get(String(uid || '').slice(0, 128)) || {uid:String(uid || '').slice(0, 128)}) || {};
+  return Object.assign({}, clean, {
+    elo:safeNonNegativeInteger(server.elo, 600),
+    challengerElo:safeNonNegativeInteger(server.challengerElo ?? server.elo, 600),
+    wins:safeNonNegativeInteger(server.wins, 0),
+    losses:safeNonNegativeInteger(server.losses, 0),
+    challengerWins:safeNonNegativeInteger(server.challengerWins ?? server.wins, 0),
+    challengerLosses:safeNonNegativeInteger(server.challengerLosses ?? server.losses, 0),
+    humanWins:safeNonNegativeInteger(server.humanWins, 0),
+    humanLosses:safeNonNegativeInteger(server.humanLosses, 0),
+    matchesPlayed:safeNonNegativeInteger(server.matchesPlayed, 0)
+  });
 }
 
 function sanitizeDeckChoice(value){
@@ -1496,6 +1494,7 @@ function listFlyLorePages(){
 }
 
 function upsertFlyLorePage(uid, body){
+  throw new Error('lore pages are read-only');
   const safeUid = String(uid || '').slice(0, 128);
   if(!safeUid) throw new Error('missing uid');
   const incoming = body?.page || body || {};
@@ -1524,6 +1523,7 @@ function upsertFlyLorePage(uid, body){
 }
 
 function deleteFlyLorePage(uid, pageId){
+  throw new Error('lore pages are read-only');
   const safeUid = String(uid || '').slice(0, 128);
   if(!safeUid) throw new Error('missing uid');
   const id = String(pageId || '').slice(0, 260);
@@ -1837,6 +1837,13 @@ function flySocialStateFor(uid){
   });
 }
 
+function flySocialStatesByUid(uids){
+  const states = {};
+  [...new Set((Array.isArray(uids) ? uids : []).map(uid=>String(uid || '').slice(0, 128)).filter(Boolean))]
+    .forEach(uid=>{ states[uid] = flySocialStateFor(uid); });
+  return states;
+}
+
 function publicRoom(room){
   const players = {};
   Object.keys(room.players || {}).forEach(uid=>{
@@ -1857,6 +1864,7 @@ function publicRoom(room){
     song:room.song || '',
     startedAt:room.startedAt || 0,
     endedAt:room.endedAt || 0,
+    endedBy:room.endedBy || '',
     endReason:room.endReason || '',
     winnerUid:room.winnerUid || '',
     loserUid:room.loserUid || '',
@@ -1884,8 +1892,9 @@ function publicFlyProfile(value){
   const raw = value && typeof value === 'object' ? value : {};
   const uid = String(raw.uid || '').slice(0, 128);
   if(!uid) return null;
-  const challengerWins = safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0);
-  const challengerLosses = safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0);
+  const hasCurrentLeaderboardReset = raw.leaderboardResetVersion === FATE_LEADERBOARD_RESET_VERSION;
+  const challengerWins = hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.challengerWins ?? raw.wins, 0) : 0;
+  const challengerLosses = hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.challengerLosses ?? raw.losses, 0) : 0;
   return {
     uid,
     name:String(raw.name || raw.username || raw.displayName || 'Player').slice(0, 32),
@@ -1898,15 +1907,16 @@ function publicFlyProfile(value){
     profileCropFocusY:safeNullableNumber(raw.profileCropFocusY ?? raw.imgCrop?.cropFocusY, 0, 1),
     profileCropY:safeNullableNumber(raw.profileCropY ?? raw.imgCrop?.cropY, 0, 100),
     profileCropZoom:safeNullableNumber(raw.profileCropZoom ?? raw.imgCrop?.cropZoom, 1, 4),
-    challengerElo:safeNonNegativeInteger(raw.challengerElo ?? raw.elo, 600),
-    elo:safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600),
+    leaderboardResetVersion:FATE_LEADERBOARD_RESET_VERSION,
+    challengerElo:hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.challengerElo ?? raw.elo, 600) : 600,
+    elo:hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.elo ?? raw.challengerElo, 600) : 600,
     challengerWins,
     challengerLosses,
     wins:challengerWins,
     losses:challengerLosses,
-    humanWins:safeNonNegativeInteger(raw.humanWins, 0),
-    humanLosses:safeNonNegativeInteger(raw.humanLosses, 0),
-    matchesPlayed:safeNonNegativeInteger(raw.matchesPlayed, 0),
+    humanWins:hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.humanWins, 0) : 0,
+    humanLosses:hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.humanLosses, 0) : 0,
+    matchesPlayed:hasCurrentLeaderboardReset ? safeNonNegativeInteger(raw.matchesPlayed, 0) : 0,
     starlight:safeNonNegativeInteger(raw.starlight, 0),
     updatedAt:Number(raw.updatedAt || 0) || now(),
     source:'fly-authority'
@@ -2007,22 +2017,23 @@ function publicFlyAISimMatch(value){
   };
 }
 
-function upsertFlyProfile(uid, profile){
+function upsertFlyProfile(uid, profile, opts = {}){
   const safeUid = String(uid || profile?.uid || '').slice(0, 128);
   if(!safeUid) return null;
-  const existing = flyPlayerStats.get(safeUid) || {};
+  const existing = publicFlyProfile(flyPlayerStats.get(safeUid) || {uid:safeUid}) || {uid:safeUid};
   const incoming = publicFlyProfile(Object.assign({}, profile || {}, {uid:safeUid})) || {uid:safeUid};
+  const allowRankWrite = !!opts.allowRankWrite;
+  const forceRankWrite = !!opts.forceRankWrite;
   const incomingMatches = safeNonNegativeInteger(incoming.matchesPlayed, 0);
   const existingMatches = safeNonNegativeInteger(existing.matchesPlayed, 0);
-  const useIncomingRank = incomingMatches >= existingMatches;
-  const hasExplicitChallengerWins = Object.prototype.hasOwnProperty.call(profile || {}, 'challengerWins');
-  const hasExplicitChallengerLosses = Object.prototype.hasOwnProperty.call(profile || {}, 'challengerLosses');
-  const mergedChallengerWins = hasExplicitChallengerWins
+  const useIncomingRank = allowRankWrite && (forceRankWrite || incomingMatches >= existingMatches);
+  const rankSource = useIncomingRank ? incoming : existing;
+  const mergedChallengerWins = useIncomingRank
     ? safeNonNegativeInteger(incoming.challengerWins, 0)
-    : Math.max(safeNonNegativeInteger(existing.challengerWins, 0), safeNonNegativeInteger(incoming.challengerWins, 0));
-  const mergedChallengerLosses = hasExplicitChallengerLosses
+    : safeNonNegativeInteger(existing.challengerWins, 0);
+  const mergedChallengerLosses = useIncomingRank
     ? safeNonNegativeInteger(incoming.challengerLosses, 0)
-    : Math.max(safeNonNegativeInteger(existing.challengerLosses, 0), safeNonNegativeInteger(incoming.challengerLosses, 0));
+    : safeNonNegativeInteger(existing.challengerLosses, 0);
   const next = publicFlyProfile(Object.assign({}, existing, incoming, {
     uid:safeUid,
     name:incoming.name || existing.name || 'Player',
@@ -2035,20 +2046,76 @@ function upsertFlyProfile(uid, profile){
     profileCropFocusY:incoming.profileCropFocusY ?? existing.profileCropFocusY ?? null,
     profileCropZoom:incoming.profileCropZoom ?? existing.profileCropZoom ?? null,
     profileCropY:incoming.profileCropY ?? existing.profileCropY ?? null,
-    challengerElo:useIncomingRank ? incoming.challengerElo : (existing.challengerElo ?? incoming.challengerElo),
-    elo:useIncomingRank ? incoming.elo : (existing.elo ?? incoming.elo),
+    challengerElo:rankSource.challengerElo ?? rankSource.elo ?? 600,
+    elo:rankSource.elo ?? rankSource.challengerElo ?? 600,
     challengerWins:mergedChallengerWins,
     challengerLosses:mergedChallengerLosses,
     wins:mergedChallengerWins,
     losses:mergedChallengerLosses,
-    humanWins:Math.max(safeNonNegativeInteger(existing.humanWins, 0), safeNonNegativeInteger(incoming.humanWins, 0)),
-    humanLosses:Math.max(safeNonNegativeInteger(existing.humanLosses, 0), safeNonNegativeInteger(incoming.humanLosses, 0)),
-    matchesPlayed:Math.max(existingMatches, incomingMatches),
+    humanWins:useIncomingRank ? safeNonNegativeInteger(incoming.humanWins, 0) : safeNonNegativeInteger(existing.humanWins, 0),
+    humanLosses:useIncomingRank ? safeNonNegativeInteger(incoming.humanLosses, 0) : safeNonNegativeInteger(existing.humanLosses, 0),
+    matchesPlayed:useIncomingRank ? Math.max(incomingMatches, mergedChallengerWins + mergedChallengerLosses) : existingMatches,
     starlight:Math.max(safeNonNegativeInteger(existing.starlight, 0), safeNonNegativeInteger(incoming.starlight, 0)),
     updatedAt:now()
   }));
   if(next?.uid) flyPlayerStats.set(next.uid, next);
   return next;
+}
+
+function recordFlyChallengerResult(uid, body = {}){
+  const safeUid = String(uid || body?.uid || '').slice(0, 128);
+  if(!safeUid) throw new Error('missing uid');
+  const cosmeticProfile = upsertFlyProfile(safeUid, body.profile || body) || publicFlyProfile({uid:safeUid});
+  const current = publicFlyProfile(flyPlayerStats.get(safeUid) || cosmeticProfile || {uid:safeUid}) || {uid:safeUid};
+  const didWin = !!body.didWin;
+  const didLose = !body.isDraw && !didWin;
+  const oldElo = safeNonNegativeInteger(current.challengerElo ?? current.elo, 600);
+  const opponentElo = safeNonNegativeInteger(body.opponentElo, 1000);
+  let delta = 0;
+  let newElo = oldElo;
+  if(!body.isDraw){
+    const k = didWin ? 32 : 40;
+    const expected = 1 / (1 + Math.pow(10, (opponentElo - oldElo) / 400));
+    delta = applyMinimumEloDelta(k * ((didWin ? 1 : 0) - expected), didWin);
+    newElo = Math.max(0, oldElo + delta);
+  }
+  const challengerWins = safeNonNegativeInteger(current.challengerWins ?? current.wins, 0) + (didWin ? 1 : 0);
+  const challengerLosses = safeNonNegativeInteger(current.challengerLosses ?? current.losses, 0) + (didLose ? 1 : 0);
+  const source = String(body.source || 'client').slice(0, 40);
+  const isHumanSource = source !== 'ai';
+  const humanWins = safeNonNegativeInteger(current.humanWins, 0) + (isHumanSource && didWin ? 1 : 0);
+  const humanLosses = safeNonNegativeInteger(current.humanLosses, 0) + (isHumanSource && didLose ? 1 : 0);
+  const matchesPlayed = safeNonNegativeInteger(current.matchesPlayed, 0) + 1;
+  const matchId = `client_${now()}_${safeUid}_${Math.random().toString(36).slice(2, 8)}`;
+  const nextProfile = upsertFlyProfile(safeUid, Object.assign({}, current, {
+    uid:safeUid,
+    challengerElo:newElo,
+    elo:newElo,
+    challengerWins,
+    challengerLosses,
+    wins:challengerWins,
+    losses:challengerLosses,
+    humanWins,
+    humanLosses,
+    matchesPlayed,
+    leaderboardResetVersion:FATE_LEADERBOARD_RESET_VERSION,
+    updatedAt:now()
+  }), {allowRankWrite:true, forceRankWrite:true});
+  const result = publicFlyMatchResult({
+    matchId,
+    uid:safeUid,
+    opponentUid:body.opponentUid || '',
+    roomCode:body.roomCode || '',
+    didWin,
+    isDraw:!!body.isDraw,
+    endReason:body.endReason || source,
+    oldElo,
+    newElo,
+    delta,
+    createdAt:now()
+  });
+  if(result) flyMatchResults.set(matchId, result);
+  return {profile:nextProfile, result};
 }
 
 function publicFlyMatchResult(value){
@@ -2226,32 +2293,40 @@ function resetFlyHumanLeaderboard(){
   const removed = [];
   for(const [uid, profile] of [...flyPlayerStats.entries()]){
     if(!profile || profile.isAI || profile.aiId || isFlyInternalProfile(profile)) continue;
-    const hadRank = Number(profile.challengerWins || 0)
-      || Number(profile.challengerLosses || 0)
-      || Number(profile.matchesPlayed || 0);
-    const resetProfile = publicFlyProfile(Object.assign({}, profile, {
-      challengerElo:600,
-      elo:600,
-      challengerWins:0,
-      challengerLosses:0,
-      wins:0,
-      losses:0,
-      humanWins:0,
-      humanLosses:0,
-      matchesPlayed:0,
-      updatedAt:now()
-    }));
-    if(resetProfile?.uid) flyPlayerStats.set(uid, resetProfile);
-    if(hadRank) removed.push({uid, name:profile.name || profile.username || profile.displayName || 'Player'});
+    flyPlayerStats.delete(uid);
+    removed.push({uid, name:profile.name || profile.username || profile.displayName || 'Player'});
   }
+  flyLeaderboardResetVersion = FATE_LEADERBOARD_RESET_VERSION;
   persistFlyRoomMutationNow('leaderboard-reset');
-  return {removed:removed.length, removedPlayers:removed, leaderboard:flyLeaderboard(100, {})};
+  return {removed:removed.length, removedPlayers:removed, resetVersion:flyLeaderboardResetVersion, leaderboard:flyLeaderboard(100, {})};
+}
+
+function ensureFlyHumanLeaderboardResetApplied(){
+  if(flyLeaderboardResetVersion === FATE_LEADERBOARD_RESET_VERSION) return {applied:false, removed:0};
+  return Object.assign({applied:true}, resetFlyHumanLeaderboard());
 }
 
 function isStaleFlyHumanLeaderboardName(entry){
   if(entry?.isAI || entry?.aiId || isFlyInternalProfile(entry)) return false;
   const normalized = String(entry?.username || entry?.name || entry?.displayName || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player' || isCorruptedFlySharedLeaderboardName(entry);
+}
+
+function isCorruptedFlySharedLeaderboardName(entry){
+  if(entry?.isAI || entry?.aiId || isFlyInternalProfile(entry)) return false;
+  const normalized = String(entry?.username || entry?.name || entry?.displayName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return /^sic kemper tyrann?us$/.test(normalized);
+}
+
+function purgeCorruptedFlySharedLeaderboardProfiles(){
+  let removed = 0;
+  for(const [uid, profile] of [...flyPlayerStats.entries()]){
+    if(!isCorruptedFlySharedLeaderboardName(profile)) continue;
+    flyPlayerStats.delete(uid);
+    removed += 1;
+  }
+  if(removed) persistFlyRoomMutation();
+  return removed;
 }
 
 function runScheduledFlyAISimulation(reason = 'timer'){
@@ -2276,6 +2351,7 @@ function startFlyAISimulationCadence(){
 }
 
 function flyLeaderboard(limit = 100, opts = {}){
+  purgeCorruptedFlySharedLeaderboardProfiles();
   const monthKey = String(opts.monthKey || '').slice(0, 24);
   const players = [...flyPlayerStats.values()]
     .map(publicFlyProfile)
@@ -2407,7 +2483,7 @@ function upsertRoomPlayer(room, uid, role, profile, deckChoice){
     connected:existing.connected || false,
     joinedAt:existing.joinedAt || now(),
     lastSeen:now(),
-    profile:sanitizeProfile(profile || existing.profile),
+    profile:profileWithServerRank(uid, profile || existing.profile),
     deckChoice:sanitizeDeckChoice(deckChoice || existing.deckChoice)
   });
   room.players[uid] = player;
@@ -2797,7 +2873,7 @@ function validateAction(room, ws, msg){
     return 'ACTION_RESULT requires client-resolved gameplay authority';
   }
   const compactStrictIntent = STATE_GATE_ENABLED && REDUCER_MODE === 'strict' && type !== 'STATE_SYNC' && type !== 'EFFECT_CINEMATIC';
-  if(!compactStrictIntent && type !== 'FORFEIT' && type !== 'MATCH_RESULT' && type !== 'REACTION_CHOICE' && !payload.postState){
+  if(!compactStrictIntent && type !== 'FORFEIT' && type !== 'MATCH_RESULT' && type !== 'REACTION_CHOICE' && type !== 'CHOOSE_TURN' && !payload.postState){
     return 'accepted actions must include postState';
   }
   return '';
@@ -3002,8 +3078,9 @@ function applyFlyResultLedger(code, accepted){
       humanLosses:Number(entry.humanLosses || 0) || 0,
       matchesPlayed:Number(entry.matchesPlayed || 0) || 0,
       starlight:Number(entry.starlightTotal || entry.starlight || 0) || 0,
+      leaderboardResetVersion:FATE_LEADERBOARD_RESET_VERSION,
       updatedAt:Number(ledger.endedAt || accepted.savedAt || action.authorityTime || 0) || now()
-    });
+    }, {allowRankWrite:true});
     changed = true;
   });
   if(flyMatchResults.size > 5000){
@@ -3157,6 +3234,59 @@ async function finalizeDisconnectTimeoutQueued(roomCodeValue, uid){
   clearAllDisconnectTimers(room);
   appendRoomEvent(room, accepted);
   persistFlyRoomMutationNow('disconnect-timeout');
+  broadcast(room, accepted);
+  return accepted;
+}
+
+function forfeitFlyRoom(room, uid, requestId, clientActionId){
+  if(!room || !uid) throw new Error('room not found');
+  const playerIndex = playerIndexForUid(room, uid);
+  if(playerIndex === null) throw new Error('user is not seated in this room');
+  if(room.status === 'ended'){
+    const prior = [...room.eventLog].reverse().find(item=>String(item?.action?.type || '').toUpperCase() === 'FORFEIT') || null;
+    if(prior) broadcast(room, prior);
+    return prior;
+  }
+  if(!room.canonicalState) throw new Error('FORFEIT requires an active canonical match state');
+  const msg = {type:'FORFEIT', payload:{playerIndex}};
+  const gateResult = validateAuthorityStateGate(room, msg);
+  if(!gateResult.ok) throw new Error(gateResult.reason || 'forfeit reducer rejected');
+  const action = {
+    seq:room.lastSeq + 1,
+    uid,
+    type:'FORFEIT',
+    payload:Object.assign({playerIndex}, gateResult.serverReduced ? {
+      postState:gateResult.canonicalState,
+      stateHash:gateResult.canonicalHash,
+      serverReduced:true,
+      reducerMode:REDUCER_MODE
+    } : {}),
+    clientActionId:String(clientActionId || ''),
+    serverAuthoritative:true,
+    authority:'fate-ws-authority',
+    authorityTime:now()
+  };
+  const roomPatch = roomPatchForAction(room, action);
+  attachResultLedger(room, action, roomPatch);
+  const accepted = {
+    kind:'accepted',
+    requestId:String(requestId || ''),
+    roomCode:room.code,
+    action,
+    roomPatch,
+    durableWrite:false,
+    flyEventLog:true,
+    serverTime:now()
+  };
+  persistAcceptedActionInBackground(room.code, accepted);
+  room.lastSeq = action.seq;
+  room.canonicalState = gateResult.canonicalState;
+  room.canonicalHash = gateResult.canonicalHash;
+  room.lastStateHash = String(room.canonicalHash || room.lastStateHash || '');
+  accepted.serverStateHash = room.canonicalHash || room.lastStateHash || '';
+  applyRoomPatch(room, roomPatch);
+  appendRoomEvent(room, accepted);
+  persistFlyRoomMutationNow('http-forfeit');
   broadcast(room, accepted);
   return accepted;
 }
@@ -3375,7 +3505,9 @@ async function startRoomOnFlyQueued(room, uid, body){
   const initial = buildInitialAuthorityState({
     catalog:authorityCardCatalog(),
     seed,
+    song,
     decks:{0:hostDeck, 1:guestDeck},
+    mode:roomMode,
     currentPlayer:coinWinner,
     phase:'draw'
   });
@@ -3562,9 +3694,15 @@ function broadcast(room, message){
 async function handleHello(ws, msg){
   const code = roomCode(msg.roomCode);
   if(!isRoomCode(code)) throw new Error('invalid room code');
-  const verified = await verifyFirebaseToken(msg.idToken);
-  const uid = String(msg.uid || verified.uid || '');
-  if(verified.uid !== 'dev-token-disabled' && uid !== verified.uid) throw new Error('uid does not match Firebase token');
+  let verified = null;
+  let uid = '';
+  if(!msg.idToken && msg.guestSession === true && isEphemeralGuestUid(msg.uid)){
+    uid = String(msg.uid || '');
+  }else{
+    verified = await verifyFirebaseToken(msg.idToken);
+    uid = String(msg.uid || verified.uid || '');
+    if(verified.uid !== 'dev-token-disabled' && uid !== verified.uid) throw new Error('uid does not match Firebase token');
+  }
   const room = getRoom(code);
   if(shouldUseDurableWrites()){
     const durableRoom = await firebaseGetJson(`rooms/${code}`);
@@ -3648,7 +3786,8 @@ async function handleIntentQueued(ws, msg){
       requestId:msg.requestId || '',
       reason:gateResult.reason || 'state transition rejected',
       serverSeq:room.lastSeq,
-      serverStateHash:room.canonicalHash || room.lastStateHash || ''
+      serverStateHash:gateResult.serverStateHash || room.canonicalHash || room.lastStateHash || '',
+      serverState:gateResult.serverState || null
     });
     return;
   }
@@ -3745,7 +3884,7 @@ function readFrames(ws, chunk){
 function setCors(res){
   res.setHeader('access-control-allow-origin', '*');
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
-  res.setHeader('access-control-allow-headers', 'content-type,authorization');
+  res.setHeader('access-control-allow-headers', 'content-type,authorization,x-fate-guest-session,x-fate-guest-uid');
   res.setHeader('access-control-max-age', '600');
 }
 
@@ -3781,6 +3920,18 @@ function bearerToken(req, body){
   return match ? match[1] : String(body?.idToken || '');
 }
 
+function isEphemeralGuestUid(uid){
+  return /^guest-[a-z0-9_-]{8,96}$/i.test(String(uid || ''));
+}
+
+function guestSessionUid(req, body){
+  const marked = String(req?.headers?.['x-fate-guest-session'] || '').trim() === '1'
+    || body?.guestSession === true;
+  if(!marked) return '';
+  const uid = String(req?.headers?.['x-fate-guest-uid'] || body?.uid || '').trim();
+  return isEphemeralGuestUid(uid) ? uid : '';
+}
+
 function verifyAdminToken(req, body){
   if(!ADMIN_TOKEN) throw new Error('admin routes are disabled');
   const provided = String(body?.token || req.headers['x-fate-admin-token'] || '').trim();
@@ -3788,7 +3939,12 @@ function verifyAdminToken(req, body){
 }
 
 async function verifyRequestUser(req, body){
-  const verified = await verifyFirebaseToken(bearerToken(req, body));
+  const token = bearerToken(req, body);
+  if(!token){
+    const guestUid = guestSessionUid(req, body);
+    if(guestUid) return guestUid;
+  }
+  const verified = await verifyFirebaseToken(token);
   const uid = String(body?.uid || verified.uid || '');
   if(verified.uid !== 'dev-token-disabled' && uid !== verified.uid) throw new Error('uid does not match Firebase token');
   if(!uid) throw new Error('missing uid');
@@ -3901,20 +4057,11 @@ async function handleApiRequest(req, res, url){
         return true;
       }
       if(req.method === 'POST' && !parts[2]){
-        const body = await readJsonBody(req);
-        const uid = await verifyRequestUser(req, body);
-        if(body.profile) upsertFlyProfile(uid, body.profile);
-        const page = upsertFlyLorePage(uid, body);
-        persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, page, pages:listFlyLorePages()});
+        writeJson(res, 403, {ok:false, error:'lore pages are read-only'});
         return true;
       }
       if(req.method === 'POST' && parts[2] && parts[3] === 'delete'){
-        const body = await readJsonBody(req);
-        const uid = await verifyRequestUser(req, body);
-        const page = deleteFlyLorePage(uid, decodeURIComponent(parts[2]));
-        persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, deleted:page, pages:listFlyLorePages()});
+        writeJson(res, 403, {ok:false, error:'lore pages are read-only'});
         return true;
       }
     }
@@ -4150,7 +4297,7 @@ async function handleApiRequest(req, res, url){
         if(body.profile) upsertFlyProfile(uid, body.profile);
         const party = createFlyParty(uid);
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, party, state:flySocialState(uid)});
+        writeJson(res, 200, {ok:true, party, state:flySocialStateFor(uid)});
         return true;
       }
       const partyId = String(parts[2] || '').slice(0, 160);
@@ -4171,7 +4318,7 @@ async function handleApiRequest(req, res, url){
         if(body.profile) upsertFlyProfile(uid, body.profile);
         const invite = inviteFlyParty(partyId, uid, body.toUid, body.profile || body);
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, invite, state:flySocialState(uid)});
+        writeJson(res, 200, {ok:true, invite, state:flySocialStateFor(uid)});
         return true;
       }
       if(req.method === 'POST' && partyId && parts[3] === 'accept'){
@@ -4180,7 +4327,7 @@ async function handleApiRequest(req, res, url){
         if(body.profile) upsertFlyProfile(uid, body.profile);
         const party = acceptFlyPartyInvite(partyId, uid, body.fromUid);
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, party, state:flySocialState(uid)});
+        writeJson(res, 200, {ok:true, party, state:flySocialStateFor(uid)});
         return true;
       }
       if(req.method === 'POST' && partyId && parts[3] === 'decline'){
@@ -4188,7 +4335,7 @@ async function handleApiRequest(req, res, url){
         const uid = await verifyRequestUser(req, body);
         const invite = declineFlyPartyInvite(uid, body.fromUid);
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, declined:!!invite, state:flySocialState(uid)});
+        writeJson(res, 200, {ok:true, declined:!!invite, state:flySocialStateFor(uid)});
         return true;
       }
       if(req.method === 'POST' && partyId && parts[3] === 'leave'){
@@ -4197,8 +4344,9 @@ async function handleApiRequest(req, res, url){
         const party = flyParties.get(partyId);
         if(party && !party.members?.[uid]) throw new Error('user is not in this party');
         const removed = removeFlyParty(partyId);
+        const affectedUids = removed ? Object.keys(removed.members || {}) : [uid];
         persistFlyRoomMutation();
-        writeJson(res, 200, {ok:true, deleted:!!removed, state:flySocialState(uid)});
+        writeJson(res, 200, {ok:true, deleted:!!removed, state:flySocialStateFor(uid), statesByUid:flySocialStatesByUid(affectedUids)});
         return true;
       }
     }
@@ -4214,6 +4362,14 @@ async function handleApiRequest(req, res, url){
       const profile = upsertFlyProfile(uid, body.profile || body);
       persistFlyRoomMutation();
       writeJson(res, 200, {ok:true, profile});
+      return true;
+    }
+    if(req.method === 'POST' && parts[1] === 'challenger-results'){
+      const body = await readJsonBody(req);
+      const uid = await verifyRequestUser(req, body);
+      const result = recordFlyChallengerResult(uid, body);
+      persistFlyRoomMutation();
+      writeJson(res, 200, Object.assign({ok:true}, result));
       return true;
     }
     if(req.method === 'GET' && parts[1] === 'match-results'){
@@ -4405,6 +4561,13 @@ async function handleApiRequest(req, res, url){
         writeJson(res, 200, {ok:true, deleted:!!result.deleted, room:result.room ? publicRoom(result.room) : null});
         return true;
       }
+      if(req.method === 'POST' && parts[3] === 'forfeit'){
+        const body = await readJsonBody(req);
+        const uid = await verifyRequestUser(req, body);
+        const accepted = forfeitFlyRoom(room, uid, body.requestId, body.clientActionId);
+        writeJson(res, 200, {ok:true, accepted, room:publicRoom(room)});
+        return true;
+      }
       if(req.method === 'POST' && parts[3] === 'heartbeat'){
         const body = await readJsonBody(req);
         const uid = await verifyRequestUser(req, body);
@@ -4476,6 +4639,12 @@ const server = http.createServer((req, res)=>{
     res.end(safeJson({ok:false, error:'server shutting down'}));
     return;
   }
+  if(!authorityReady && requestPath !== '/health'){
+    setCors(res);
+    res.writeHead(503, {'content-type':'application/json; charset=utf-8'});
+    res.end(safeJson({ok:false, error:'authority starting'}));
+    return;
+  }
   if(requestPath === '/api' || requestPath.startsWith('/api/')){
     handleApiRequest(req, res, requestUrl).catch(err=>apiError(res, err, 500));
     return;
@@ -4508,6 +4677,7 @@ const server = http.createServer((req, res)=>{
       flyResumeReplay:true,
       flyDurableStore:FLY_STORE_ENABLED,
       flyDurableStoreReady:flyStoreReady,
+      authorityReady,
       flyDataDir:FLY_STORE_ENABLED ? FLY_DATA_DIR : '',
       stateGate:STATE_GATE_ENABLED,
       reducerMode:REDUCER_MODE,
@@ -4541,7 +4711,7 @@ const server = http.createServer((req, res)=>{
 });
 
 server.on('upgrade', (req, socket)=>{
-  if(shuttingDown){
+  if(shuttingDown || !authorityReady){
     socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
     socket.destroy();
     return;
@@ -4572,7 +4742,7 @@ server.on('upgrade', (req, socket)=>{
 
 function cleanupSocket(ws){
   sockets.delete(ws);
-  if(markSocketDisconnected(ws, {immediate:!shuttingDown})){
+  if(markSocketDisconnected(ws)){
     persistFlyRoomMutationNow('socket-disconnect');
   }
 }
@@ -4656,24 +4826,33 @@ async function gracefulShutdown(signal){
 process.once('SIGTERM', ()=>{ gracefulShutdown('SIGTERM').catch(err=>{ console.error('Graceful shutdown failed:', err.message || err); process.exit(1); }); });
 process.once('SIGINT', ()=>{ gracefulShutdown('SIGINT').catch(err=>{ console.error('Graceful shutdown failed:', err.message || err); process.exit(1); }); });
 
-try{
-  const restoredRooms = loadFlyRoomsSnapshot();
-  restoredEventCount = loadFlyEventsLog();
-  if(restoredEventCount > 0) persistFlyRoomsSnapshot();
-  const timers = rearmRestoredTimers();
-  startFlyAISimulationCadence();
-  if(FLY_STORE_ENABLED){
-    console.log(`Fly durable store: on (${FLY_DATA_DIR}); restored rooms=${restoredRooms}; restored events=${restoredEventCount}; restored timers=${timers}`);
-  }else{
-    console.log('Fly durable store: off (set FATE_WS_DATA_DIR to enable volume-backed replay)');
+function startAuthorityRuntime(){
+  try{
+    const restoredRooms = loadFlyRoomsSnapshot();
+    restoredEventCount = loadFlyEventsLog();
+    const leaderboardReset = ensureFlyHumanLeaderboardResetApplied();
+    if(restoredEventCount > 0 || leaderboardReset.applied) persistFlyRoomsSnapshot();
+    const timers = rearmRestoredTimers();
+    startFlyAISimulationCadence();
+    authorityReady = true;
+    if(leaderboardReset.applied){
+      console.log(`Fly human leaderboard reset ${FATE_LEADERBOARD_RESET_VERSION}: cleared ${leaderboardReset.removed || 0} player entr${Number(leaderboardReset.removed || 0) === 1 ? 'y' : 'ies'}`);
+    }
+    if(FLY_STORE_ENABLED){
+      console.log(`Fly durable store: on (${FLY_DATA_DIR}); restored rooms=${restoredRooms}; restored events=${restoredEventCount}; restored timers=${timers}`);
+    }else{
+      console.log('Fly durable store: off (set FATE_WS_DATA_DIR to enable volume-backed replay)');
+    }
+    console.log('Fates WebSocket authority ready');
+  }catch(e){
+    console.error('Fly durable store startup failed:', e.message || e);
+    if(REQUIRE_FLY_STORE) process.exit(1);
   }
-}catch(e){
-  console.error('Fly durable store startup failed:', e.message || e);
-  if(REQUIRE_FLY_STORE) process.exit(1);
 }
 
 server.listen(PORT, HOST, ()=>{
   console.log(`Fates WebSocket authority listening on ${HOST}:${PORT}`);
   console.log(`Firebase token verification: ${REQUIRE_FIREBASE_TOKEN ? 'on' : 'off'} (${FIREBASE_PROJECT_ID})`);
   console.log(`Firebase RTDB admin mirror: ${FIREBASE_RTDB_DISABLED ? 'disabled' : (shouldUseDurableWrites() ? 'enabled' : 'off')}`);
+  setImmediate(startAuthorityRuntime);
 });

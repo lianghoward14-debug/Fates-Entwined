@@ -623,14 +623,6 @@
         nextDelay = Math.min(nextDelay, Math.max(16, start + duration - now));
         continue;
       }
-      if(p.kind === 'numberPop' && numberPopIsFateDelta(p, p.text)){
-        const progress = clamp((now - start) / duration, 0, 1);
-        const holdEnd = numberPopHoldEnd(p);
-        if(progress >= .12 && progress < holdEnd){
-          nextDelay = Math.min(nextDelay, Math.max(16, start + duration * holdEnd - now));
-          continue;
-        }
-      }
       return 0;
     }
     return nextDelay;
@@ -1053,7 +1045,9 @@
       const lift = Number(p.rise) || (isFateDelta ? Math.max(18, r.h * .16) : 38);
       const x = isFateDelta ? (r.x + r.w * .86) : (r.x + r.w / 2);
       const yBase = isFateDelta ? (r.y + Math.max(12, r.h * .06)) : (r.y + r.h * .22);
-      const y = yBase - lift * Math.max(0, exit - .08) / .92;
+      const y = isFateDelta
+        ? yBase - lift * clamp(p.progress * .92, 0, 1)
+        : yBase - lift * Math.max(0, exit - .08) / .92;
       const scale = isFateDelta
         ? 1
         : (1 + Math.sin(Math.PI * p.progress) * .12);
@@ -1259,16 +1253,27 @@
     tick(started);
     const effectsCtx = opts.effectsCtx || null;
     const particleCtx = opts.particleCtx || null;
+    const topEffectsCtx = opts.topEffectsCtx || null;
     if(effectsCtx){
       const shake = activeScreenShakeOffset();
       effectsCtx.save();
       effectsCtx.translate(shake.x, shake.y);
       activePrimitives.forEach(function(p){
-        if(p.layer === 'audio' || p.layer === 'control' || p.kind === 'particleBurst' || p.kind === 'screenShake') return;
+        if(p.layer === 'audio' || p.layer === 'control' || p.layer === 'top' || p.kind === 'particleBurst' || p.kind === 'screenShake') return;
         drawPrimitive(effectsCtx, p, metrics);
       });
       drawDragPreview(effectsCtx);
       effectsCtx.restore();
+    }
+    if(topEffectsCtx){
+      const shake = activeScreenShakeOffset();
+      topEffectsCtx.save();
+      topEffectsCtx.translate(shake.x, shake.y);
+      activePrimitives.forEach(function(p){
+        if(p.layer !== 'top') return;
+        drawPrimitive(topEffectsCtx, p, metrics);
+      });
+      topEffectsCtx.restore();
     }
     if(particleCtx && window.FateVfxParticlePool && typeof window.FateVfxParticlePool.draw === 'function'){
       window.FateVfxParticlePool.draw(particleCtx);

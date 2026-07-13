@@ -130,7 +130,6 @@ function showScreen(id) {
 let dbFilter_ = 'all';
 let dbSearch_ = '';
 let _titleDeckBuilderMounted = false;
-let _presetPickerSig = '';
 
 function fateActiveScreenId() {
   return document.querySelector('.screen.active')?.id || '';
@@ -172,6 +171,7 @@ function fateHandleEscapeBack(event) {
   if(event && (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey)) return false;
   const activeScreen = fateActiveScreenId();
   const inGame = activeScreen === 's-game';
+  if(activeScreen === 's-coin') return true;
 
   const cardInfo = document.querySelector('.card-info-overlay.on, .card-info-overlay');
   if(cardInfo && fateEscapeIsVisible(cardInfo)){
@@ -237,8 +237,6 @@ function fateHandleEscapeBack(event) {
   const backMap = {
     's-title': '',
     's-deck': 's-title',
-    's-preset': 's-title',
-    's-coin': 's-preset',
     's-campaign-intro': 's-challenger',
     's-campaign-level': 's-challenger',
     's-challenger': 's-title',
@@ -372,99 +370,9 @@ function setDbSearch(value) {
   renderDBCollection();
 }
 
-function titlePresetPickerSig(vsAI) {
-  const keys = Object.keys(PRESET_DECKS || {}).sort();
-  const presetSig = keys.map(pid=>{
-    const p = PRESET_DECKS[pid] || {};
-    return [
-      pid,
-      p.name || '',
-      p.description || '',
-      p.faceCardId || '',
-      (p.displayCardIds || []).join(','),
-      (p.ids || []).join(',')
-    ].join(':');
-  }).join('|');
-  return (vsAI ? 'ai' : 'mirror') + '|' + presetSig;
-}
-
-function ensureTitlePresetPickerView() {
-  if(!window.FateMenuViews) return;
-  window.FateMenuViews.register('titlePresetPicker', {
-    root: '#preset-cards',
-    signature: opts=>titlePresetPickerSig(!!opts.vsAI),
-    render: ({opts, sig})=>renderTitlePresetPicker(!!opts.vsAI, sig)
-  });
-}
-
-function renderTitlePresetPicker(vsAI, sig) {
-  const container = document.getElementById('preset-cards');
-  if(!container) return;
-  container.innerHTML = '';
-  const keys = Object.keys(PRESET_DECKS);
-  if(keys.length===0){
-    container.innerHTML = `
-      <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--dim);font-style:italic;">
-        No saved presets. Go to the Deck Builder to create one.
-      </div>`;
-  } else {
-    keys.forEach((pid, i)=>{
-      const p = PRESET_DECKS[pid];
-      const sampleIds = [...new Set((p.ids || []).filter(id=>!isRetiredCardForBuilder(id)))];
-      const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
-      // Use saved face card if set
-      const hero = p.faceCardId ? CARDS.find(c=>c.id===p.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
-      // Use saved display cards if set
-      const previews = (p.displayCardIds && p.displayCardIds.length>0)
-        ? p.displayCardIds.filter(id=>!isRetiredCardForBuilder(id)).map(id=>CARDS.find(c=>c.id===id)).filter(c=>c&&c.img).slice(0,5)
-        : sampleCards.filter(c=>c.img).slice(0,5);
-      const el = document.createElement('div');
-      el.className = 'preset-card';
-      el.style.animationDelay = '0s';
-      const useCanvasPreview = false;
-      const heroArt = hero?.img ? `<img src="${hero.img}" alt="${hero.name}" loading="lazy" decoding="async" draggable="false" onerror="this.parentElement.style.display='none'">` : '';
-      el.innerHTML = `
-        <div class="preset-card-art">
-          ${useCanvasPreview ? '<canvas class="canvas-deck-preview-hero" aria-hidden="true"></canvas>' : heroArt}
-          <div class="preset-card-overlay"></div>
-        </div>
-        <div class="preset-card-body">
-          <div class="preset-name">${escapeHtml(p.name)}</div>
-          <div class="preset-desc">${escapeHtml(p.description||'')}</div>
-          <div class="preset-minis">
-            ${useCanvasPreview ? '<canvas class="canvas-deck-preview-minis" aria-hidden="true"></canvas>' : previews.map(c=>`<div class="preset-mini-art">${c.img?`<img src="${typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(c.img, 'thumb') : c.img}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" draggable="false">`:''}</div>`).join('')}
-          </div>
-          <div class="preset-action-row">
-            <button class="btn sm" onclick="event.stopPropagation();viewPresetContents('${pid}')">Preview</button>
-            <button class="btn sm pri" onclick="event.stopPropagation();loadPresetAndStart('${pid}',${vsAI})">Play</button>
-          </div>
-        </div>`;
-      if(useCanvasPreview) scheduleCanvasDeckPreviewTile(el, {hero, minis:previews});
-      el.onclick = ()=>viewPresetContents(pid);
-      container.appendChild(el);
-    });
-  }
-  const customBtn = document.getElementById('preset-custom-btn');
-  if(customBtn){
-    customBtn.style.display = 'none';
-    customBtn.disabled = true;
-    customBtn.onclick = null;
-    customBtn.title = '';
-    customBtn.setAttribute('aria-hidden','true');
-  }
-  _presetPickerSig = sig;
-  container.dataset.presetMounted = '1';
-}
-
-// Show preset picker screen (entry to starting a game)
 function showPresetPicker(vsAI) {
-  showScreen('s-preset');
-  document.getElementById('s-preset')?.classList.toggle('no-edge-corners-modal', !!vsAI);
-  document.getElementById('preset-mode-label').textContent =
-    vsAI ? 'Playing vs AI - pick a preset deck' : 'Both players will use the same preset deck';
-  ensureTitlePresetPickerView();
-  if(window.FateMenuViews) window.FateMenuViews.render('titlePresetPicker', {vsAI:!!vsAI});
-  else renderTitlePresetPicker(!!vsAI, titlePresetPickerSig(!!vsAI));
+  if(typeof showPresetOverlay === 'function') showPresetOverlay(!!vsAI, 0);
+  else if(typeof showScreen === 'function') showScreen('s-title');
 }
 
 function toggleDBPlayer() {

@@ -151,6 +151,10 @@
       return false;
     }
 
+    shouldSuppressHandClick(){
+      return Date.now() < (Number(window.__fateV2SuppressHandClickUntil) || 0);
+    }
+
     hitTest(x, y){
       const scene = this.scene || window.FateMatchRendererAdapter;
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
@@ -241,7 +245,12 @@
         this.recordInputDebug('viewport-up-no-start', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
       }
-      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) {
+      if(started.kind === 'hand-card' && this.shouldSuppressHandClick()) {
+        this.recordInputDebug('viewport-up-hand-drag-intent', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      const moveLimit = started.kind === 'hand-card' ? 4 : 10;
+      if(Math.abs(ev.clientX - startedPoint.clientX) > moveLimit || Math.abs(ev.clientY - startedPoint.clientY) > moveLimit) {
         this.recordInputDebug('viewport-up-moved', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
       }
@@ -277,6 +286,12 @@
       const hit = this.viewportHitTest(ev.clientX, ev.clientY);
       if(!hit || (hit.kind !== 'hand-card' && hit.kind !== 'opponent-hand-card' && hit.kind !== 'pile' && hit.kind !== 'ui-command')) {
         this.recordInputDebug('viewport-click-miss', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        return;
+      }
+      if(hit.kind === 'hand-card' && this.shouldSuppressHandClick()) {
+        this.recordInputDebug('viewport-click-hand-drag-intent', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        ev.preventDefault();
+        ev.stopPropagation();
         return;
       }
       this.lastHandledAt = performance.now ? performance.now() : Date.now();

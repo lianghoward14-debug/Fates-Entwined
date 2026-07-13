@@ -37,9 +37,7 @@
     if(!wsUrl) {
       const host = String(location.hostname || '').toLowerCase();
       if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
-      const isElectron = /Electron/i.test(navigator.userAgent || '') || location.protocol === 'file:';
-      if(isElectron) return 'https://fates-entwined-main.fly.dev';
-      return '';
+      return 'https://fates-entwined-main.fly.dev';
     }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
@@ -807,7 +805,30 @@
     const wins = Number.isFinite(Number(givenWins)) ? Number(givenWins) : Number(localProfile().challengerWins||0);
     const losses = Number.isFinite(Number(givenLosses)) ? Number(givenLosses) : Number(localProfile().challengerLosses||0);
     if(flyLeaderboardEnabled()){
-      await FO.syncPublicProfile?.().catch(()=>{});
+      const syncedProfile = await FO.syncPublicProfile?.().catch(()=>profile());
+      const publicProfile = syncedProfile || profile();
+      try{
+        const data = await flyApiRequest('/api/challenger-results', {
+          method:'POST',
+          body:{
+            uid:u.uid,
+            profile:publicProfile,
+            didWin,
+            opponentUid,
+            opponentElo,
+            roomCode,
+            source
+          }
+        });
+        if(data?.profile && typeof window.fateApplyServerProfileStats === 'function'){
+          window.fateApplyServerProfileStats(data.profile);
+        }
+        oldElo = Number(data?.result?.oldElo ?? oldElo) || oldElo;
+        newElo = Number(data?.result?.newElo ?? newElo) || newElo;
+        delta = Number(data?.result?.delta ?? delta) || delta;
+      }catch(e){
+        console.warn('Fly Challenger result submit failed', e);
+      }
       await fetchFlyLeaderboard().catch(()=>{});
       return {oldElo,newElo,delta};
     }

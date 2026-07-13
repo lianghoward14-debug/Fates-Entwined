@@ -55,11 +55,16 @@ const selvaDeck = validDeckWithSelva();
 const selvaBoot = buildInitialAuthorityState({
   catalog,
   seed:'selva-bootstrap-1',
+  song:'board8',
   decks:{0:selvaDeck, 1:deck}
 });
 assert(selvaBoot.state.players[0].hand.some(card=>String(card.id) === '74'), 'test seed should put Selva Islands Pirate in the opening hand');
 assert.strictEqual(selvaBoot.state._pendingSelvaSupportBoost[0], 1, 'opening-hand Selva should queue a supporter boost for its owner');
 assert.strictEqual(selvaBoot.state.players[0].hand.find(card=>String(card.id) === '74')._selvaOpeningQueued, true);
+assert.strictEqual(selvaBoot.state.landscapeId, 'igb8', 'server bootstrap should derive landscape from the selected song');
+assert.strictEqual(selvaBoot.state.landscapeBgNum, 8);
+assert.strictEqual(selvaBoot.state._landscapeState.id, 'igb8');
+assert(Number.isInteger(selvaBoot.state._landscapeState.targetZone), 'target-zone landscapes should be initialized server-side');
 assert.strictEqual(canonicalStateHash(selvaBoot.state), selvaBoot.stateHash);
 
 assert.throws(()=>buildInitialAuthorityState({
@@ -72,6 +77,32 @@ assert.throws(()=>buildInitialAuthorityState({
   catalog,
   seed:'duplicate-deck-seed',
   decks:{0:Array.from({length:40}, ()=>'02'), 1:deck}
+}), /too many copies/);
+
+const duplicateFreePlayBoot = buildInitialAuthorityState({
+  catalog,
+  seed:'duplicate-freeplay-deck-seed',
+  mode:'freeplay',
+  decks:{0:Array.from({length:40}, ()=>'02'), 1:deck}
+});
+assert(duplicateFreePlayBoot.state, 'Free Play bootstrap should allow sandbox decks with extra copies');
+assert.strictEqual(duplicateFreePlayBoot.state.players[0].hand.length, 6);
+
+const squareCard = catalog.cards.find(card=>card && !card.retired && !card.temporarilyDisabled && String(card.rarity || '').toLowerCase() === 'square');
+assert(squareCard, 'test catalog should include at least one available square card');
+const squareId = String(squareCard.id);
+const squareThreeDeck = deck.filter(id=>String(id) !== squareId).slice(0, 37).concat([squareId, squareId, squareId]);
+const squareFourDeck = deck.filter(id=>String(id) !== squareId).slice(0, 36).concat([squareId, squareId, squareId, squareId]);
+const squareThreeBoot = buildInitialAuthorityState({
+  catalog,
+  seed:'square-three-copy-seed',
+  decks:{0:squareThreeDeck, 1:deck}
+});
+assert(squareThreeBoot.state, 'multiplayer bootstrap should allow three copies of a square card');
+assert.throws(()=>buildInitialAuthorityState({
+  catalog,
+  seed:'square-four-copy-seed',
+  decks:{0:squareFourDeck, 1:deck}
 }), /too many copies/);
 
 console.log('fate-authority-bootstrap smoke passed');

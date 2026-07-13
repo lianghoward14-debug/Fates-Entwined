@@ -137,16 +137,15 @@
     let wsUrl = '';
     try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
     if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) return '';
+    if(!wsUrl) {
+      const host = String(location.hostname || '').toLowerCase();
+      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+      return 'https://fates-entwined-main.fly.dev';
+    }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flySocialEnabled(){
-    return !!authorityHttpBaseUrl() && (
-      localStorageFlag('fateFlyRoomsEnabled') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
-    );
+    return !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -175,6 +174,8 @@
   }
   function applyFlySocialState(state){
     const u = window.FATE_ONLINE?.user;
+    const previousPartyId = activePartyId || onlineParty?.partyId || '';
+    const previousPartyHadMembers = !!(onlineParty && Object.keys(onlineParty.members || {}).length);
     friends = state?.friends || {};
     requests = state?.requests || {};
     threads = state?.threads || {};
@@ -190,6 +191,12 @@
     onlineParty = nextParty;
     activePartyId = nextParty?.partyId || '';
     window.FATE_ONLINE_PARTY = nextParty || null;
+    if(nextParty){
+      lastPartyMemberCount = Object.keys(nextParty.members || {}).length;
+    }else if(previousPartyId && previousPartyHadMembers){
+      lastPartyMemberCount = 0;
+      showPartySystemNotice('Your party was disbanded because a player left.');
+    }
     Object.keys(nextParty?.members || {}).forEach(uid=>{
       if(!profileMap.has(uid)) profileMap.set(uid, fallback(uid));
     });
@@ -227,6 +234,7 @@
   let partyDisconnectArmedFor = '';
   let suppressPartyDisbandNoticeUntil = 0;
   let lastPartySystemNotice = { text:'', at:0 };
+  let partyDisbandInFlightFor = '';
   let lastThreadSeenAt = new Map();
   function showOnlineNotice(title, text, photo){
     const now = Date.now();
@@ -340,6 +348,19 @@
     title.textContent = `Friend Requests (${reqUids.length})`;
     body.innerHTML = friendRequestsBody();
   }
+  function removeFriendRowFromDom(friendUid){
+    const key = String(friendUid || '');
+    if(!key) return;
+    document.querySelectorAll('.social-friends-list-v20 .social-friend-row[data-friend-uid]').forEach(row=>{
+      if(String(row.getAttribute('data-friend-uid') || '') !== key) return;
+      row.classList.add('is-removing');
+      setTimeout(()=>{
+        if(row.isConnected) row.remove();
+        const list = document.querySelector('.social-friends-list-v20');
+        if(list && !list.querySelector('.social-friend-row')) list.innerHTML = '<div class="online-empty">No friends yet.</div>';
+      }, 120);
+    });
+  }
   document.addEventListener('visibilitychange', ()=>{
     if(!document.hidden && renderPendingWhileHidden){
       renderPendingWhileHidden = false;
@@ -430,6 +451,9 @@
     if(extraUid) members[extraUid] = members[extraUid] || { uid:extraUid };
     return Object.keys(members).filter(Boolean);
   }
+  function visiblePartyMemberUids(members){
+    return Object.keys(members || {}).filter(Boolean).slice(0, 2);
+  }
   function partyCleanupUpdates(partyId, partyData, extraUid){
     const members = partyMemberUids(partyData, extraUid);
     const updates = { [`parties/${partyId}`]: null };
@@ -462,31 +486,42 @@
       forceSocialRender();
       return;
     }
-    if(opts.silent) suppressPartyDisbandNoticeUntil = Date.now() + 1800;
-    if(id && flySocialEnabled()){
-      await flyApiRequest(`/api/parties/${encodeURIComponent(id)}/leave`, {
-        method:'POST',
-        body:{uid:u?.uid || '', profile:window.FATE_ONLINE?.profile || {}}
-      }).catch(e=>console.warn('Fly party leave failed', e));
+    if(partyDisbandInFlightFor === id) return;
+    partyDisbandInFlightFor = id;
+    const shouldNotice = !opts.silent && !opts.localLeave;
+    if(opts.silent || opts.localLeave) suppressPartyDisbandNoticeUntil = Date.now() + 1800;
+    try{
+      if(id && flySocialEnabled()){
+        const result = await flyApiRequest(`/api/parties/${encodeURIComponent(id)}/leave`, {
+          method:'POST',
+          body:{uid:u?.uid || '', profile:window.FATE_ONLINE?.profile || {}}
+        }).catch(e=>{ console.warn('Fly party leave failed', e); return null; });
+        if(result?.state) applyFlySocialState(result.state);
+        else if(result?.statesByUid && u?.uid && result.statesByUid[u.uid]) applyFlySocialState(result.statesByUid[u.uid]);
+        else clearLocalPartyState();
+        forceSocialRender();
+        if(shouldNotice) showPartySystemNotice(reason || 'Your party was disbanded.');
+        return;
+      }
+      if(id && firebaseSocialAllowed() && FO.update){
+        await FO.update(FO.ref(FO.rtdb), partyCleanupUpdates(id, data, u?.uid)).catch(e=>console.warn('Party disband failed', e));
+      }
       clearLocalPartyState();
-      await refreshFlySocialState().catch(()=>{});
       forceSocialRender();
-      if(!opts.silent) showPartySystemNotice(reason || 'Your party was disbanded.');
-      return;
+      if(shouldNotice) showPartySystemNotice(reason || 'Your party was disbanded.');
+    }finally{
+      if(partyDisbandInFlightFor === id) partyDisbandInFlightFor = '';
     }
-    if(id && firebaseSocialAllowed() && FO.update){
-      await FO.update(FO.ref(FO.rtdb), partyCleanupUpdates(id, data, u?.uid)).catch(e=>console.warn('Party disband failed', e));
-    }
-    clearLocalPartyState();
-    forceSocialRender();
-    if(!opts.silent) showPartySystemNotice(reason || 'Your party was disbanded.');
   }
   function handlePartyInviteNotifications(nextInvites){
-    Object.keys(nextInvites || {}).forEach(fromUid=>{
+    Object.entries(nextInvites || {}).forEach(([fromUid, invite])=>{
       if(!flySocialEnabled()) ensureProfileSub(fromUid);
-      if(seenPartyInviteIds.has(fromUid)) return;
-      seenPartyInviteIds.add(fromUid);
-      if(!partyInvitesInitialLoaded) return;
+      const inviteAt = Number(invite?.createdAt || invite?.updatedAt || 0) || 0;
+      const noticeKey = [fromUid, invite?.partyId || '', inviteAt || 'pending'].join('|');
+      if(seenPartyInviteIds.has(noticeKey)) return;
+      seenPartyInviteIds.add(noticeKey);
+      const freshInvite = inviteAt && Date.now() - inviteAt < 120000;
+      if(!partyInvitesInitialLoaded && !freshInvite) return;
       showPartyInviteNotice(fromUid);
     });
     partyInvitesInitialLoaded = true;
@@ -515,7 +550,7 @@
         if(u && FO.update) FO.update(FO.ref(FO.rtdb), { [`userParties/${u.uid}`]: null }).catch(()=>{});
         if(hadParty) showPartySystemNotice('Your party was disbanded because a player left.');
       }else{
-        const memberUids = Object.keys(data.members || {});
+        const memberUids = visiblePartyMemberUids(data.members || {});
         if(memberUids.length < 2 && (data.paired || lastPartyMemberCount >= 2)){
           disbandParty(partyId, data, 'Party disbanded because a player left.').catch(()=>{});
           return;
@@ -524,7 +559,7 @@
         Object.keys(onlineParty.members || {}).forEach(ensureProfileSub);
         window.FATE_ONLINE_PARTY = onlineParty;
         armPartyDisconnect(partyId, data);
-        const memberCount = Object.keys(onlineParty.members || {}).length;
+        const memberCount = visiblePartyMemberUids(onlineParty.members || {}).length;
         if(lastPartyMemberCount >= 0 && memberCount !== lastPartyMemberCount) socialSfx(memberCount > lastPartyMemberCount ? 'menuOpen' : 'menuClose');
         lastPartyMemberCount = memberCount;
       }
@@ -541,7 +576,7 @@
         refreshFlySocialState().catch(e=>console.warn('Fly social state failed', e));
         flySocialPollTimer = setInterval(()=>{
           if(!document.hidden && !window.__fatePageHidden) refreshFlySocialState().catch(()=>{});
-        }, 30000);
+        }, 3000);
       }
       scheduleRender();
       return;
@@ -722,6 +757,7 @@
     if(!useFly && !useFirebase){ if(window.toast) toast('Social service is not ready'); return; }
     const previousFriend = friends[friendUid] ? {...friends[friendUid]} : null;
     const wasFriend = Object.prototype.hasOwnProperty.call(friends || {}, friendUid);
+    removeFriendRowFromDom(friendUid);
     if(wasFriend){
       delete friends[friendUid];
       forceSocialRender();
@@ -801,10 +837,14 @@
     const unread = Number(threads?.[uid]?.unread || 0) || 0;
     const elo = Number(p.challengerElo || 600) || 600;
     const frameStyle = typeof window.getRankFrameStyle === 'function' ? window.getRankFrameStyle(elo, 'icon') : '';
-    return `<div class="social-friend-row" onclick="window.inspectOnlineProfile('${esc(uid)}')">
+    return `<div class="social-friend-row" data-friend-uid="${esc(uid)}" onclick="window.inspectOnlineProfile('${esc(uid)}')">
       <div class="social-friend-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="social-friend-info"><div class="social-friend-name">${esc(nameOf(p))}</div><div class="social-friend-meta">${Number(p.challengerElo||600)} ELO · ${esc(p.baseCode||'')}</div></div>
-      <div class="social-friend-actions"><button class="btn sm online-dm-button" onclick="event.stopPropagation();window.openOnlineDirectMessage('${esc(uid)}');" title="Message">💬${unread>0?`<span class="online-dm-unread-dot">${unread>9?'9+':unread}</span>`:''}</button><button class="btn sm" onclick="event.stopPropagation();window.inviteOnlineParty('${esc(uid)}');" title="Invite to Party">🎮</button><button class="btn sm danger" onclick="event.stopPropagation();window.removeOnlineFriend('${esc(uid)}')">×</button></div>
+      <div class="social-friend-actions">
+        <button class="btn sm social-friend-action-btn social-friend-chat-btn online-dm-button" onclick="event.stopPropagation();window.openOnlineDirectMessage('${esc(uid)}');" title="Message" aria-label="Message"><span class="social-friend-action-icon social-friend-chat-icon"></span>${unread>0?`<span class="online-dm-unread-dot">${unread>9?'9+':unread}</span>`:''}</button>
+        <button class="btn sm social-friend-action-btn social-friend-party-btn" onclick="event.stopPropagation();window.inviteOnlineParty('${esc(uid)}');" title="Invite to Party" aria-label="Invite to Party"><span class="social-friend-action-icon social-friend-party-icon"></span></button>
+        <button class="btn sm danger social-friend-action-btn social-friend-remove-btn" onclick="event.stopPropagation();this.closest('.social-friend-row')?.classList.add('is-removing');window.removeOnlineFriend('${esc(uid)}')" title="Remove Friend" aria-label="Remove Friend"><span class="social-friend-action-icon social-friend-remove-icon"></span></button>
+      </div>
     </div>`;
   }
   function requestRow(uid){
@@ -868,7 +908,7 @@
     if(u && activePartyId && !members[u.uid]){
       members[u.uid] = { uid:u.uid, status:onlineParty.leaderUid === u.uid ? 'Leader' : 'Ready', joinedAt:Date.now() };
     }
-    const memberRows = Object.keys(members).map(uid=>partyMemberRow(uid, members[uid]?.status));
+    const memberRows = visiblePartyMemberUids(members).map(uid=>partyMemberRow(uid, members[uid]?.status));
     while(memberRows.length < 2){
       memberRows.push(`<div class="party-member-clean party-member-empty">
         <div class="party-member-avatar party-member-avatar-empty"></div>
@@ -1026,11 +1066,33 @@
     });
     if(!firebaseSocialAllowed() || !FO.update){ if(window.toast) toast('Party service is not ready'); return; }
     let joined = true;
-    await FO.update(FO.ref(FO.rtdb), {
-      [`parties/${partyId}/members/${u.uid}`]: { uid:u.uid, status:'Ready', joinedAt:FO.serverTimestamp ? FO.serverTimestamp() : Date.now() },
-      [`parties/${partyId}/paired`]: true,
-      [`parties/${partyId}/updatedAt`]: FO.serverTimestamp ? FO.serverTimestamp() : Date.now()
-    }).catch(e=>{ joined = false; console.warn('Party accept failed', e); });
+    let acceptedParty = party;
+    const joinedMember = { uid:u.uid, status:'Ready', joinedAt:Date.now() };
+    if(FO.runTransaction){
+      let partyMissing = false;
+      let partyFull = false;
+      const tx = await FO.runTransaction(FO.ref(FO.rtdb, `parties/${partyId}`), current=>{
+        if(!current || !current.members){ partyMissing = true; return; }
+        const currentMembers = { ...(current.members || {}) };
+        if(!currentMembers[u.uid] && Object.keys(currentMembers).length >= 2){ partyFull = true; return; }
+        currentMembers[u.uid] = joinedMember;
+        return Object.assign({}, current, {
+          members:currentMembers,
+          paired:true,
+          updatedAt:Date.now()
+        });
+      }).catch(e=>{ joined = false; console.warn('Party accept transaction failed', e); return null; });
+      if(partyMissing){ if(window.toast) toast('Party no longer exists'); return; }
+      if(partyFull){ if(window.toast) toast('Party is full'); return; }
+      if(!tx || tx.committed === false){ if(window.toast) toast('Could not join party'); return; }
+      acceptedParty = tx.snapshot?.val?.() || acceptedParty;
+    }else{
+      await FO.update(FO.ref(FO.rtdb), {
+        [`parties/${partyId}/members/${u.uid}`]: { uid:u.uid, status:'Ready', joinedAt:FO.serverTimestamp ? FO.serverTimestamp() : Date.now() },
+        [`parties/${partyId}/paired`]: true,
+        [`parties/${partyId}/updatedAt`]: FO.serverTimestamp ? FO.serverTimestamp() : Date.now()
+      }).catch(e=>{ joined = false; console.warn('Party accept failed', e); });
+    }
     if(!joined){ if(window.toast) toast('Could not join party - Firebase party permissions need updating'); return; }
     FO.update(FO.ref(FO.rtdb), {
       ...cleanup,
@@ -1040,7 +1102,7 @@
     }).catch(e=>console.warn('Party accept bookkeeping failed', e));
     delete partyInvites[fromUid];
     activePartyId = partyId;
-    onlineParty = { partyId, ...party, members:{ ...members, [u.uid]:{ uid:u.uid, status:'Ready', joinedAt:Date.now() } } };
+    onlineParty = { partyId, ...acceptedParty, members:{ ...(acceptedParty.members || members), [u.uid]:joinedMember } };
     window.FATE_ONLINE_PARTY = onlineParty;
     watchActiveParty(partyId);
     armPartyDisconnect(partyId, onlineParty);
@@ -1076,7 +1138,7 @@
     const party = onlineParty;
     const partyId = party?.partyId || activePartyId;
     if(partyId){
-      await disbandParty(partyId, party, 'Party disbanded because a player left.', opts);
+      await disbandParty(partyId, party, 'Party disbanded because a player left.', Object.assign({}, opts, {localLeave:true}));
       if(!opts.silent && window.toast) toast('Left party');
       return;
     }
@@ -1148,7 +1210,7 @@
       ? `<div class="social-online-pagination"><button class="btn sm" ${onlinePage<=0?'disabled':''} onclick="window.shiftOnlinePlayersPage(-1)">Prev</button><div class="social-online-page-indicator">Page ${onlinePage + 1} / ${totalOnlinePages}</div><button class="btn sm" ${onlinePage>=totalOnlinePages-1?'disabled':''} onclick="window.shiftOnlinePlayersPage(1)">Next</button></div>`
       : `<div class="social-online-page-indicator social-online-page-indicator-static">${visibleOnlineUids.length ? `${visibleOnlineUids.length} online` : 'Only you online'}</div>`;
     const accountChip = `<div class="social-account-chip"><span class="social-account-orb">G</span><span class="social-account-copy"><span>Google Account</span><strong>${esc(window.FATE_ONLINE?.baseCode||'')}</strong></span><button class="btn sm" onclick="window.fateSignOut()">Sign Out</button></div>`;
-    const partyCount = onlineParty?.members ? Object.keys(onlineParty.members).length : 0;
+    const partyCount = onlineParty?.members ? visiblePartyMemberUids(onlineParty.members).length : 0;
     const html = `
       <div class="social-command-center online-social-layout-v20">
         <div class="social-command-hero">
@@ -1598,13 +1660,15 @@
             <div class="social-dm-header-meta">${peerElo} ELO · ${peer.baseCode ? esc(peer.baseCode) : ''}</div>
           </div>
         </div>
-        <div class="social-chat-box" id="social-dm-box"></div>
-        <div class="social-chat-input-row">
-          <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
-          <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
-          <button class="btn sm pri" id="dm-send-btn" type="button">Send</button>
-        </div>
-        <div id="dm-emoji-container" style="display:none;"></div>`;
+        <div class="social-dm-chat-shell">
+          <div class="social-chat-box" id="social-dm-box"></div>
+          <div class="social-chat-input-row">
+            <button class="social-emoji-toggle" id="dm-emoji-toggle" title="Emoji" aria-expanded="false"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
+            <input type="text" class="social-chat-input" id="dm-input" placeholder="Type a message..." maxlength="200" autocomplete="off">
+            <button class="btn sm pri" id="dm-send-btn" type="button">Send</button>
+          </div>
+          <div id="dm-emoji-container" style="display:none;"></div>
+        </div>`;
       titleEl.textContent = `Chat with ${peerName}`;
       actsEl.innerHTML = '';
       const close = document.createElement('button');
@@ -1625,14 +1689,19 @@
         emojiToggle.onclick = ()=>{
           if(emojiContainer.style.display === 'none'){
             emojiContainer.style.display = 'block';
+            emojiToggle.setAttribute('aria-expanded', 'true');
             emojiContainer.innerHTML = '';
             emojiContainer.appendChild(window.renderEmojiPicker(emoji=>{
               const i = document.getElementById('dm-input');
               if(i) i.value += emoji;
               emojiContainer.style.display = 'none';
+              emojiToggle.setAttribute('aria-expanded', 'false');
               if(i) i.focus();
             }));
-          }else emojiContainer.style.display = 'none';
+          }else {
+            emojiContainer.style.display = 'none';
+            emojiToggle.setAttribute('aria-expanded', 'false');
+          }
         };
       }
       dmShellOpen = true;

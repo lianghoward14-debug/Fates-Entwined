@@ -2671,8 +2671,8 @@ function cdbAdd(id) {
   const owned_n = USER_PROFILE.ownedCards[id] || 0;
   const inDeck = _cdbCurrentDeckIds.filter(x=>x===id).length;
   if(inDeck >= owned_n){toast(`You don't own any more copies of ${c.name}`);return;}
-  // Rarity copy limits
-  const lim = c.rarity==='star'?1:c.rarity==='square'?2:3;
+  // Rarity copy limits: Star cards are singleton, every other rarity can use up to 3 owned copies.
+  const lim = c.rarity==='star'?1:3;
   if(inDeck >= lim){toast(`Max ${lim} copies of this card allowed`);return;}
   // Star rarity: only 1 star card total in deck
   if(c.rarity==='star'){

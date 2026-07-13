@@ -210,19 +210,12 @@
     if(!wsUrl) {
       const host = String(location.hostname || '').toLowerCase();
       if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
-      const isElectron = /Electron/i.test(navigator.userAgent || '') || location.protocol === 'file:';
-      if(isElectron) return 'https://fates-entwined-main.fly.dev';
-      return '';
+      return 'https://fates-entwined-main.fly.dev';
     }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flyEconomyEnabled(){
-    return !!authorityHttpBaseUrl() && (
-      localStorageFlag('fateFlyRoomsEnabled') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
-    );
+    return !!authorityHttpBaseUrl();
   }
   function publicDeckApiEnabled(){
     return !!authorityHttpBaseUrl();

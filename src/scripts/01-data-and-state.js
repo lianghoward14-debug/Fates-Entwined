@@ -212,7 +212,7 @@ const CARDS = [
   {id:'51',name:'Rivera',ability:'Jorge\'s Right Hand Man',type:'Initiator',aff:'eventide',
     fate:3,cost:2,rarity:'square',
     effect:'Declare any affiliation; for the next three of your turns, any character you set with that affiliation gains 4 Fate, including characters that would have their affiliation changed to the declared affiliation.',
-    flavor:'"Everything that Rivera fights for is to ensure his daughter a bright future in West Caribbean"',img:'51.png'},
+    flavor:'"Everything that Rivera fights for is to ensure his daughter a bright future in West Caribbea"',img:'51.png'},
   {id:'52',name:'The Vigilantes',ability:'Marked for Death',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
     effect:'When set and once per turn, select one opponent card in this zone. Its Reinforcement value becomes 0.',
@@ -525,7 +525,7 @@ const LANDSCAPES = {
     id:'igb14',
     name:'46352 Lone Pine Drive: Envoy of Chaos',
     shortName:'Envoy of Chaos',
-    description:'Turn timers are reduced to 25 seconds.'
+    description:'Turn timers are reduced to 30 seconds.'
   },
   igb15: {
     id:'igb15',

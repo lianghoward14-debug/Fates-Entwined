@@ -18,6 +18,7 @@ const HOST_TOKEN = process.env.FATE_WS_SMOKE_HOST_ID_TOKEN || '';
 const GUEST_TOKEN = process.env.FATE_WS_SMOKE_GUEST_ID_TOKEN || '';
 const ALLOW_FAKE_TOKENS = process.env.FATE_WS_SMOKE_ALLOW_FAKE === '1' || SPAWN_LOCAL;
 const USE_ANON_AUTH = !ALLOW_FAKE_TOKENS && (process.env.FATE_WS_SMOKE_USE_ANON === '1' || process.argv.includes('--anon') || (!HOST_TOKEN && !GUEST_TOKEN));
+const JOIN_ONLY = process.argv.includes('--join-only');
 const REQUEST_TIMEOUT_MS = Number(process.env.FATE_FLY_SMOKE_TIMEOUT_MS || 45000);
 const SUPPORTED_SUPPORTER_IDS = new Set(['05','09','16','18','20','24','25','26','28','31','32','33','37','42','44','47','49','50','52','53','54','58','59','60','62','63','64','65','68','69','70','71','72','73','74','75','76','78','79','80','91','94']);
 const SMOKE_PLAIN_SUPPORTER_IDS = new Set([
@@ -127,7 +128,7 @@ async function startLocalAuthority() {
       FATE_WS_DISABLE_FIREBASE_RTDB:'1',
       FATE_RTDB_DISABLED:'1',
       FATE_WS_STATE_GATE:'1',
-      FATE_WS_REDUCER_MODE:'strict',
+      FATE_WS_REDUCER_MODE:'client-resolved',
       FATE_WS_DATA_DIR:dataDir,
       FATE_WS_DISCONNECT_TIMEOUT_MS:'60000',
       FATE_WS_PING_MS:'60000'
@@ -441,7 +442,7 @@ async function run() {
   const clients = [];
   try {
   const health = await fetchJson('/health', {timeoutMs:60000});
-  if(health.reducerMode !== 'strict') throw new Error(`expected strict reducer, got ${health.reducerMode}`);
+  if(health.reducerMode !== 'client-resolved') throw new Error(`expected client-resolved reducer mode, got ${health.reducerMode}`);
   if(health.firebaseRtdbDisabled !== true) throw new Error('expected Firebase RTDB gameplay disabled on Fly');
   const smokeDeck = reactionSmokeDeck();
   const smokeSeed = pickReactionSmokeSeed(smokeDeck);
@@ -460,6 +461,18 @@ async function run() {
     body:{uid:users.guest.uid, profile:profile('Fly Smoke Guest'), deckChoice:reactionDeckChoice('Fly Smoke Guest Deck', smokeDeck)}
   });
   if(joined.room?.guestUid !== users.guest.uid) throw new Error('guest did not join Fly room');
+  if(JOIN_ONLY){
+    console.log(JSON.stringify({
+      ok:true,
+      origin:ORIGIN,
+      authMode:users.mode,
+      roomCode:code,
+      hostUid:users.host.uid,
+      guestUid:users.guest.uid,
+      joinedGuestUid:joined.room?.guestUid || ''
+    }, null, 2));
+    return;
+  }
 
   const started = await fetchJson(`/api/rooms/${encodeURIComponent(code)}/start`, {
     method:'POST',

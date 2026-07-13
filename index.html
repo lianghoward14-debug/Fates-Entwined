@@ -10,9 +10,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-  <link rel="stylesheet" href="src/styles/game.css?v=1783776504">
-<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1783222215">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1783779902">
+  <link rel="stylesheet" href="src/styles/game.css?v=1783795701">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1783795701">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1783863001">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1783221300">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1782663600">
 <link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
@@ -31,6 +31,25 @@
 <script>
   (function(){
     var hostedFly = String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev';
+    if(hostedFly){
+      window.FATE_WS_AUTHORITY_URL = 'wss://fates-entwined-main.fly.dev';
+      window.FATE_FLY_API_URL = location.origin.replace(/\/+$/, '');
+      try{
+        var storedWs = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim();
+        var storedApi = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
+        localStorage.removeItem('fateRtdbDisabled');
+        localStorage.removeItem('fateFlyRoomsEnabled');
+        localStorage.removeItem('fateFlyAuthorityOnly');
+        localStorage.removeItem('fateFlyActionReplay');
+        if(/^wss?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(storedWs)){
+          localStorage.removeItem('fateWsAuthorityUrl');
+          localStorage.removeItem('fateWsAuthorityEnabled');
+        }
+        if(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(storedApi)){
+          localStorage.removeItem('fateFlyApiUrl');
+        }
+      }catch(e){}
+    }
     if(hostedFly && navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
       navigator.serviceWorker.getRegistrations().then(function(registrations){
         registrations.forEach(function(registration){ registration.unregister(); });
@@ -240,20 +259,6 @@
     <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
       <div id="preset-page-controls-ov" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;"></div>
       <button class="btn" id="preset-custom-btn-ov">Use My Custom Deck</button>
-    </div>
-  </div>
-</div>
-
-<!-- PRESET PICKER (original, kept for non-AI / back-compat) -->
-<div class="screen" id="s-preset">
-<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg3.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
-  <div style="flex:1;display:flex;flex-direction:column;padding:2rem;overflow-y:auto;align-items:center;justify-content:center;width:100%;position:relative;z-index:1;">
-    <div class="logo" style="font-size:2rem;margin-bottom:.2rem;">Choose Your Deck</div>
-    <div class="logo-sub" style="margin-bottom:2rem;" id="preset-mode-label">Select a preset or use custom</div>
-    <div id="preset-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;max-width:1200px;width:100%;"></div>
-    <div style="margin-top:2rem;display:flex;gap:.5rem;">
-      <button class="btn" id="preset-custom-btn">Use My Custom Deck</button>
-      <button class="btn" onclick="showScreen('s-title')">Back</button>
     </div>
   </div>
 </div>
@@ -564,16 +569,16 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1783222202"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1783853301"></script>
   <script src="src/scripts/01-data-and-state.js?v=1783222203"></script>
-<script src="src/scripts/02-screen-and-deckbuilder.js?v=1783779902"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=1783795701"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
-<script src="src/scripts/03-profile-and-progression.js?v=1783782001"></script>
-<script src="src/scripts/04-game-setup.js?v=1783776507"></script>
-  <script src="src/scripts/05-gameplay-core.js?v=1783783201"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1783778702"></script>
+<script src="src/scripts/03-profile-and-progression.js?v=1783794888"></script>
+<script src="src/scripts/04-game-setup.js?v=1783852201"></script>
+  <script src="src/scripts/05-gameplay-core.js?v=1783875601"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1783863001"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-<script src="src/scripts/render-v2/01-render-snapshot.js?v=1782620100"></script>
+<script src="src/scripts/render-v2/01-render-snapshot.js?v=1783863001"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1783526900"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=1781643501"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1781642401"></script>
@@ -582,17 +587,17 @@
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1783222102"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1783676101"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1783676101"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1783676419"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1783863001"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1783676101"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1783776503"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1783676101"></script>
-<script src="src/scripts/render-v2/17-action-presentation.js?v=1783676101"></script>
+<script src="src/scripts/render-v2/17-action-presentation.js?v=1783875601"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1783676419"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1783779902"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai.js?v=1783221101"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=1783526901"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1783779902"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=1783870801"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1783795701"></script>
 <script src="src/scripts/09-challenger-lore.js?v=1783060000"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1782663600"></script>
 <script src="src/scripts/11-tutorial.js?v=1782869000"></script>
@@ -604,15 +609,15 @@
 <!-- Online rebuild v1: Google auth + Fly-first profile/social/rooms foundation -->
 <script>
 (function(){
-  window.__fateClientBuildStamp = 'leaderboard-reset-20260711a-1783782001';
+  window.__fateClientBuildStamp = 'improvisor-reaction-resolution-sfx-20260712a-1783852201';
   window.FATE_GAMEPLAY_AUTHORITY = window.FATE_GAMEPLAY_AUTHORITY || 'client-resolved';
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
   var modules = [
-    './src/scripts/15-online-auth.js?v=1783782001',
+    './src/scripts/15-online-auth.js?v=1783797401',
     './src/scripts/16-online-core.js?v=1782617500',
     './src/scripts/17-online-social.js?v=1783782001',
-    './src/scripts/18-online-rooms.js?v=1783783401&sync=1783783401',
+    './src/scripts/18-online-rooms.js?v=1783874201&sync=1783874201',
     './src/scripts/19-online-elo.js?v=1783782001',
     './src/scripts/20-online-economy.js?v=1783782001'
   ];
@@ -698,12 +703,13 @@
   (function(){
     const params = new URLSearchParams(location.search);
     const electron = params.has('electron');
+    const hostedFly = String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev';
     if(!('serviceWorker' in navigator)) return;
-    if(electron){
+    if(electron || hostedFly){
       navigator.serviceWorker.getRegistrations?.().then(regs=>regs.forEach(reg=>reg.unregister())).catch(()=>{});
       return;
     }
-    if(!params.has('soloNoSw')) navigator.serviceWorker.register('./sw.js?v=deck-preview-1783779902').catch(()=>{});
+    if(!params.has('soloNoSw')) navigator.serviceWorker.register('./sw.js?v=browser-refresh-1783795901').catch(()=>{});
   })();
   (function(){
     const params = new URLSearchParams(location.search);

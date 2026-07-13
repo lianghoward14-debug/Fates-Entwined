@@ -2498,10 +2498,10 @@
   width:min(35vw,310px)!important;height:min(64vh,438px)!important;
 }
 
-/* Delay effect windows through full-screen cinematics, not just card placement. */
+/* Cinematics should not trap open windows; keep modal close/buttons usable. */
 body.cinematic-lock .modal,
 body.cinematic-lock #modal{
-  pointer-events:none!important;
+  pointer-events:auto!important;
 }
 
 
@@ -7000,13 +7000,6 @@ html body #modal .modal.card-detail-modal .modal-title{
   box-shadow:none!important;
 }
 
-#s-preset.no-edge-corners-modal .fate-svg-corners,
-#s-preset.no-edge-corners-modal .fate-svg-corner,
-#s-preset.no-edge-corners-modal .zone-edge-corner,
-#s-preset.no-edge-corners-modal .preset-card::before,
-#s-preset.no-edge-corners-modal .preset-card::after,
-#s-preset.no-edge-corners-modal .preset-browse-tile::before,
-#s-preset.no-edge-corners-modal .preset-browse-tile::after,
 #s-preset-overlay.no-edge-corners-modal .fate-svg-corners,
 #s-preset-overlay.no-edge-corners-modal .fate-svg-corner,
 #s-preset-overlay.no-edge-corners-modal .zone-edge-corner,
@@ -11488,9 +11481,6 @@ html body #s-game .zone-title{
   letter-spacing:.18em!important;
   text-transform:uppercase!important;
 }
-.freeplay-mode-card.random .freeplay-mode-label{
-  color:#fff2aa!important;
-}
 .freeplay-mode-copy b{
   color:#fff2aa!important;
   font-family:'Cinzel',serif!important;
@@ -14478,6 +14468,202 @@ html body #s-game .zone-rows .cell > .bc{
 }
 #modal:has(#social-dm-box) .social-dm-time{
   font-size:.68rem!important;
+}
+
+html body #s-social .social-friend-row.is-removing{
+  opacity:0!important;
+  transform:translateX(14px) scale(.985)!important;
+  max-height:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding-top:0!important;
+  padding-bottom:0!important;
+  border-width:0!important;
+  overflow:hidden!important;
+  transition:opacity .12s ease,transform .12s ease,max-height .12s ease,padding .12s ease,margin .12s ease,border-width .12s ease!important;
+}
+
+html body #s-social .social-friend-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:.28rem!important;
+  padding:.28rem!important;
+  border:1px solid rgba(232,196,82,.28)!important;
+  border-radius:6px!important;
+  background:linear-gradient(90deg,rgba(8,14,24,.82),rgba(20,16,28,.72))!important;
+  box-shadow:inset 0 0 16px rgba(232,196,82,.08),0 0 18px rgba(0,0,0,.22)!important;
+}
+
+html body #s-social .social-friend-actions .social-friend-action-btn,
+html body #s-social .social-friend-actions .btn.social-friend-action-btn,
+html body #s-social .social-friend-actions .btn.sm.social-friend-action-btn,
+html body #s-social .social-friend-actions .btn.sm.danger.social-friend-action-btn{
+  position:relative!important;
+  width:44px!important;
+  min-width:44px!important;
+  max-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  max-height:44px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:0 0 44px!important;
+  line-height:1!important;
+  overflow:hidden!important;
+  border-radius:5px!important;
+  border:1px solid rgba(232,196,82,.32)!important;
+  background:linear-gradient(180deg,rgba(15,28,43,.96),rgba(5,10,18,.96))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 16px rgba(0,0,0,.24)!important;
+  color:#f6df8a!important;
+  transition:transform .12s ease,border-color .12s ease,background .12s ease,box-shadow .12s ease!important;
+}
+
+html body #s-social .social-friend-actions .social-friend-action-btn:hover{
+  transform:translateY(-1px)!important;
+  border-color:rgba(255,220,108,.62)!important;
+  background:linear-gradient(180deg,rgba(23,42,62,.98),rgba(8,15,25,.98))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 18px rgba(0,0,0,.3),0 0 14px rgba(232,196,82,.12)!important;
+}
+
+html body #s-social .social-friend-actions .social-friend-party-btn{
+  border-color:rgba(166,104,255,.42)!important;
+  background:linear-gradient(180deg,rgba(42,27,70,.98),rgba(17,10,31,.98))!important;
+}
+
+html body #s-social .social-friend-actions .social-friend-remove-btn,
+html body #s-social .social-friend-actions .btn.sm.danger.social-friend-remove-btn{
+  border-color:rgba(255,112,86,.44)!important;
+  background:linear-gradient(180deg,rgba(54,20,17,.98),rgba(20,7,8,.98))!important;
+}
+
+html body #s-social .social-friend-action-icon{
+  position:relative!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:24px!important;
+  height:24px!important;
+  line-height:1!important;
+  pointer-events:none!important;
+}
+
+html body #s-social .social-friend-chat-icon::before{
+  content:''!important;
+  width:25px!important;
+  height:25px!important;
+  background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M5.2 6.3h13.6c1 0 1.8.8 1.8 1.8v6.7c0 1-.8 1.8-1.8 1.8h-7.1l-4.2 3v-3H5.2c-1 0-1.8-.8-1.8-1.8V8.1c0-1 .8-1.8 1.8-1.8Z' stroke='%23e8f3ff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M8 10.6h8M8 13.6h5.6' stroke='%2386d5ff' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")!important;
+  filter:drop-shadow(0 0 7px rgba(134,213,255,.35))!important;
+}
+
+html body #s-social .social-friend-chat-icon::after{
+  content:none!important;
+}
+
+html body #s-social .social-friend-party-icon{
+  width:25px!important;
+  height:25px!important;
+  background:center/23px 23px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7.4 8.5h9.2c2.2 0 3.8 1.8 4.1 4.4l.24 2.55c.12 1.28-.7 2.35-1.9 2.35-.7 0-1.22-.34-1.66-.9l-1.35-1.7H7.97l-1.35 1.7c-.44.56-.96.9-1.66.9-1.2 0-2.02-1.07-1.9-2.35l.24-2.55c.3-2.6 1.9-4.4 4.1-4.4Z' fill='%237d48d9' stroke='%23d9bdff' stroke-width='1.65' stroke-linejoin='round'/%3E%3Cpath d='M7.25 12.6v2.6M5.95 13.9h2.6' stroke='%23fff5ff' stroke-width='1.35' stroke-linecap='round'/%3E%3Ccircle cx='15.85' cy='13.1' r='.9' fill='%23fff5ff'/%3E%3Ccircle cx='18.05' cy='13.1' r='.9' fill='%23fff5ff'/%3E%3C/svg%3E")!important;
+  filter:drop-shadow(0 0 8px rgba(157,92,255,.5))!important;
+}
+
+html body #s-social .social-friend-party-icon::before{
+  content:none!important;
+}
+
+html body #s-social .social-friend-party-icon::after{
+  content:none!important;
+}
+
+html body #s-social .social-friend-remove-icon{
+  width:23px!important;
+  height:23px!important;
+}
+
+html body #s-social .social-friend-remove-icon::before,
+html body #s-social .social-friend-remove-icon::after{
+  content:''!important;
+  position:absolute!important;
+  left:3px!important;
+  top:10px!important;
+  width:17px!important;
+  height:3px!important;
+  border-radius:999px!important;
+  background:#ff795f!important;
+  box-shadow:0 0 8px rgba(255,96,72,.36)!important;
+}
+
+html body #s-social .social-friend-remove-icon::before{
+  transform:rotate(45deg)!important;
+}
+
+html body #s-social .social-friend-remove-icon::after{
+  transform:rotate(-45deg)!important;
+}
+
+html body #s-social .social-friend-actions .online-dm-unread-dot{
+  top:-5px!important;
+  right:-5px!important;
+}
+
+#modal:has(#social-dm-box) #modal-body{
+  overflow:visible!important;
+}
+
+#modal:has(#social-dm-box) .social-dm-chat-shell{
+  position:relative!important;
+  display:flex!important;
+  flex-direction:column!important;
+  min-height:0!important;
+  overflow:visible!important;
+}
+
+#modal:has(#social-dm-box) .social-chat-input-row{
+  position:relative!important;
+  z-index:3!important;
+}
+
+#modal:has(#social-dm-box) #dm-emoji-container{
+  position:absolute!important;
+  left:.75rem!important;
+  right:.75rem!important;
+  bottom:3.75rem!important;
+  z-index:5!important;
+  max-width:calc(100% - 1.5rem)!important;
+  max-height:210px!important;
+  overflow:hidden!important;
+  pointer-events:auto!important;
+}
+
+#modal:has(#social-dm-box) #dm-emoji-container .social-emoji-picker{
+  width:100%!important;
+  max-width:100%!important;
+  max-height:210px!important;
+  box-sizing:border-box!important;
+  grid-template-columns:repeat(8,minmax(0,1fr))!important;
+  gap:.22rem .28rem!important;
+  margin:0!important;
+  padding:.82rem .62rem 1.28rem!important;
+  align-content:start!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+
+#modal:has(#social-dm-box) #dm-emoji-container .social-emoji-picker::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+#modal:has(#social-dm-box) #dm-emoji-container .social-emoji-btn{
+  min-width:0!important;
+  min-height:27px!important;
+  font-size:1.12rem!important;
+  padding:.22rem .12rem!important;
+  line-height:1!important;
 }
 
 html body #s-social .social-online-command{

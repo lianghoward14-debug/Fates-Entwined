@@ -84,7 +84,7 @@ function stopServer(child){
   try{
     child = startServer(dataDir);
     const health = await waitForHealth();
-    assert.strictEqual(health.reducerMode, 'strict');
+    assert.strictEqual(health.reducerMode, 'client-resolved');
     assert.strictEqual(health.firebaseRtdbDisabled, true);
     assert.strictEqual(health.firebaseDurableWrites, false);
     assert.strictEqual(health.durableWrites, false);

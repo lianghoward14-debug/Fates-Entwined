@@ -51,6 +51,7 @@ let CURRENT_MODE = 'free';
 // so each account gets its own isolated save data on the same browser.
 let _fateActiveUid = null;
 const _fateStorageWriteCache = Object.create(null);
+const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
 
 function _fateStorageKey(base) {
   if (_fateActiveUid) return base + '_' + _fateActiveUid;
@@ -99,9 +100,100 @@ function _fateReadJsonStorage(key) {
   }
 }
 
+function fateApplyServerProfileStats(profile, opts={}) {
+  if(!profile || typeof profile !== 'object' || !USER_PROFILE) return false;
+  const uid = String(profile.uid || '');
+  const activeUid = String(_fateActiveUid || window.FATE_ONLINE?.user?.uid || '');
+  if(uid && activeUid && uid !== activeUid) return false;
+  const nextElo = Math.max(0, Math.round(Number(profile.challengerElo ?? profile.elo ?? USER_PROFILE.challengerElo ?? 600) || 600));
+  const nextWins = Math.max(0, Math.round(Number(profile.challengerWins ?? profile.wins ?? USER_PROFILE.challengerWins ?? 0) || 0));
+  const nextLosses = Math.max(0, Math.round(Number(profile.challengerLosses ?? profile.losses ?? USER_PROFILE.challengerLosses ?? 0) || 0));
+  USER_PROFILE.challengerElo = nextElo;
+  USER_PROFILE.elo = nextElo;
+  USER_PROFILE.challengerWins = nextWins;
+  USER_PROFILE.challengerLosses = nextLosses;
+  USER_PROFILE.wins = nextWins;
+  USER_PROFILE.losses = nextLosses;
+  USER_PROFILE.humanWins = Math.max(0, Math.round(Number(profile.humanWins ?? USER_PROFILE.humanWins ?? 0) || 0));
+  USER_PROFILE.humanLosses = Math.max(0, Math.round(Number(profile.humanLosses ?? USER_PROFILE.humanLosses ?? 0) || 0));
+  USER_PROFILE.matchesPlayed = Math.max(
+    nextWins + nextLosses,
+    Math.round(Number(profile.matchesPlayed ?? USER_PROFILE.matchesPlayed ?? 0) || 0)
+  );
+  USER_PROFILE.leaderboardResetVersion = profile.leaderboardResetVersion || FATE_LEADERBOARD_RESET_VERSION;
+  USER_PROFILE.serverRankSyncedAt = Date.now();
+  if(activeUid) USER_PROFILE._fateAccountUid = activeUid;
+  _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_profile'), USER_PROFILE);
+  if(opts.render !== false && typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
+  if(opts.leaderboard !== false && typeof updateLeaderboardEntry === 'function') updateLeaderboardEntry();
+  return true;
+}
+function normalizeLeaderboardStatsReset(profile) {
+  if(!profile || typeof profile !== 'object') return false;
+  if(profile.leaderboardResetVersion === FATE_LEADERBOARD_RESET_VERSION) return false;
+  profile.elo = 600;
+  profile.wins = 0;
+  profile.losses = 0;
+  profile.challengerElo = 600;
+  profile.challengerWins = 0;
+  profile.challengerLosses = 0;
+  profile.humanWins = 0;
+  profile.humanLosses = 0;
+  profile.matchesPlayed = 0;
+  profile.leaderboardResetVersion = FATE_LEADERBOARD_RESET_VERSION;
+  profile.leaderboardResetAt = Date.now();
+  return true;
+}
+
+function resetStoredLeaderboardDataIfNeeded() {
+  const marker = 'fate_leaderboard_reset_' + FATE_LEADERBOARD_RESET_VERSION;
+  try{
+    if(localStorage.getItem(marker) === '1') return false;
+    const keysToRemove = [];
+    const profileKeys = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(!key) continue;
+      if(key === 'fate_leaderboard' || key.startsWith('fate_leaderboard_') || key === 'fate_match_history' || key === 'fate_ai_elo_state'){
+        keysToRemove.push(key);
+      }
+      if(key === 'fate_user_profile' || key.startsWith('fate_user_profile_')){
+        profileKeys.push(key);
+      }
+    }
+    keysToRemove.forEach(key=>localStorage.removeItem(key));
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(!key || !key.startsWith('fate_account_aux_')) continue;
+      try{
+        const aux = JSON.parse(localStorage.getItem(key) || '{}');
+        if(aux && typeof aux === 'object'){
+          delete aux.fate_match_history;
+          delete aux.fate_ai_elo_state;
+          localStorage.setItem(key, JSON.stringify(aux));
+        }
+      }catch(e){}
+    }
+    profileKeys.forEach(key=>{
+      const profile = _fateReadJsonStorage(key);
+      if(profile && normalizeLeaderboardStatsReset(profile)){
+        _fateSetJsonStorageIfChanged(key, profile);
+      }
+    });
+    localStorage.setItem(marker, '1');
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+function isCorruptedSharedLeaderboardName(name) {
+  const normalized = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return /^sic kemper tyrann?us$/.test(normalized);
+}
+
 function isStaleHumanLeaderboardName(name) {
   const normalized = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player' || isCorruptedSharedLeaderboardName(normalized);
 }
 
 function sanitizeLocalLeaderboardEntries(entries) {
@@ -128,6 +220,19 @@ function _fatePrepareAccountSwitch(uid) {
   loadPresetsFromStorage();
   _fateStampProfileForUid(uid);
   if(uid) _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_profile'), USER_PROFILE);
+  if(typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
+}
+
+// Remove the signed-in player's data from memory on an explicit sign-out. The
+// UID-keyed local cache remains intact for their next sign-in, but it must not
+// stay visible (or become the source for a different account) in this tab.
+function _fateClearActiveAccount() {
+  if(_fateActiveUid) _fateSaveProfileForUid(_fateActiveUid);
+  _fateSetActiveUid(null);
+  USER_PROFILE = createDefaultUserProfile();
+  PRESET_DECKS = {};
+  if(typeof LEADERBOARD !== 'undefined') LEADERBOARD = [];
+  if(typeof PUBLIC_DECKS !== 'undefined') PUBLIC_DECKS = [];
   if(typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
 }
 
@@ -159,8 +264,12 @@ function _fateMigrateIfNeeded(uid) {
 window._fateSetActiveUid = _fateSetActiveUid;
 window._fateSaveProfileForUid = _fateSaveProfileForUid;
 window._fatePrepareAccountSwitch = _fatePrepareAccountSwitch;
+window._fateClearActiveAccount = _fateClearActiveAccount;
 window._fateMigrateIfNeeded = _fateMigrateIfNeeded;
 window._fateReloadProfile = function() { loadPresetsFromStorage(); };
+window.fateNormalizeLeaderboardStatsReset = normalizeLeaderboardStatsReset;
+window.fateResetLocalLeaderboardData = resetStoredLeaderboardDataIfNeeded;
+window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 
 
 const FATE_BACKGROUND_ASSET_VERSION = 'bg20260628a';
@@ -495,6 +604,7 @@ let PUBLIC_DECKS = []; // [{id, username, name, description, ids, faceCardId, di
 function loadPresetsFromStorage() {
   let didForceRankReset = false;
   let didResetAILeaderboard = false;
+  const didResetLeaderboardData = resetStoredLeaderboardDataIfNeeded();
   try {
     const stored = localStorage.getItem(_fateStorageKey('fate_user_presets'));
     PRESET_DECKS = stored ? JSON.parse(stored) : {};
@@ -510,6 +620,7 @@ function loadPresetsFromStorage() {
     USER_PROFILE = createDefaultUserProfile();
     if(_fateActiveUid) USER_PROFILE._fateAccountUid = _fateActiveUid;
   }
+  if(normalizeLeaderboardStatsReset(USER_PROFILE)) didForceRankReset = true;
   if((USER_PROFILE.elo==null || (USER_PROFILE.elo===1000 && !(USER_PROFILE.wins||0) && !(USER_PROFILE.losses||0)))) USER_PROFILE.elo = 600;
   if((USER_PROFILE.challengerElo==null || (USER_PROFILE.challengerElo===1000 && !(USER_PROFILE.challengerWins||0) && !(USER_PROFILE.challengerLosses||0)))) USER_PROFILE.challengerElo = 600;
   USER_PROFILE.humanWins = Number(USER_PROFILE.humanWins ?? USER_PROFILE.wins ?? 0) || 0;
@@ -576,6 +687,7 @@ function loadPresetsFromStorage() {
     const lb = localStorage.getItem(_fateStorageKey('fate_leaderboard'));
     LEADERBOARD = sanitizeLocalLeaderboardEntries(lb ? JSON.parse(lb) : []);
   } catch(e){ LEADERBOARD = []; }
+  if(didResetLeaderboardData) LEADERBOARD = [];
   if(!USER_PROFILE.aiLeaderboardReset_20260628){
     LEADERBOARD = Array.isArray(LEADERBOARD)
       ? LEADERBOARD.filter(entry=>!(entry && (entry.isAI || entry.isSimPlayer || String(entry.username || '').startsWith('AI Bot -'))))
@@ -1070,8 +1182,7 @@ window.requestFateOnlineProfileSync = function(){
 
 function saveLeaderboard() {
   LEADERBOARD = sanitizeLocalLeaderboardEntries(LEADERBOARD);
-  const didWrite = _fateSetJsonStorageIfChanged(_fateStorageKey('fate_leaderboard'), LEADERBOARD);
-  if(didWrite && window.FateCloudSave) window.FateCloudSave.saveLeaderboard();
+  _fateSetJsonStorageIfChanged(_fateStorageKey('fate_leaderboard'), LEADERBOARD);
 }
 
 function savePublicDecks() {
@@ -1080,15 +1191,36 @@ function savePublicDecks() {
 }
 
 function updateLeaderboardEntry() {
+  if(normalizeLeaderboardStatsReset(USER_PROFILE)) {
+    _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_profile'), USER_PROFILE);
+  }
+  const onlineUid = window.FATE_ONLINE?.user?.uid || _fateActiveUid || '';
+  const onlineProfile = window.FATE_ONLINE?.profile || {};
+  const baseCode = window.FATE_ONLINE?.baseCode || onlineProfile.baseCode || '';
   const entry = {
+    uid: onlineUid || undefined,
+    baseCode: baseCode || undefined,
     username: USER_PROFILE.username,
+    name: USER_PROFILE.username,
     elo: USER_PROFILE.challengerElo || 600,
     wins: USER_PROFILE.challengerWins || 0,
     losses: USER_PROFILE.challengerLosses || 0,
+    challengerWins: USER_PROFILE.challengerWins || 0,
+    challengerLosses: USER_PROFILE.challengerLosses || 0,
+    humanWins: USER_PROFILE.humanWins || 0,
+    humanLosses: USER_PROFILE.humanLosses || 0,
+    matchesPlayed: USER_PROFILE.matchesPlayed || 0,
     level: USER_PROFILE.level,
-    profileImg: USER_PROFILE.profileImg
+    profileImg: USER_PROFILE.profileImg,
+    leaderboardResetVersion: FATE_LEADERBOARD_RESET_VERSION
   };
-  const idx = LEADERBOARD.findIndex(e=>e.username===USER_PROFILE.username);
+  const normalizedName = String(USER_PROFILE.username || '').trim().toLowerCase();
+  LEADERBOARD = LEADERBOARD.filter(e=>{
+    if(!e) return false;
+    if(onlineUid && e.uid === onlineUid) return false;
+    return String(e.username || e.name || '').trim().toLowerCase() !== normalizedName;
+  });
+  const idx = LEADERBOARD.findIndex(e=>onlineUid ? e.uid===onlineUid : e.username===USER_PROFILE.username);
   if(idx>=0) LEADERBOARD[idx] = entry;
   else LEADERBOARD.push(entry);
   saveLeaderboard();
@@ -1530,7 +1662,7 @@ function showStarterDeckWarningBanner() {
   const banner = document.createElement('div');
   banner.id = 'starter-deck-warning';
   banner.style.cssText = 'background:linear-gradient(90deg,rgba(201,168,76,.18),rgba(201,168,76,.08));border:1px solid rgba(201,168,76,.35);border-radius:6px;padding:.45rem .7rem;margin:0 0 .5rem;font-size:.62rem;color:#e8c84a;text-align:center;letter-spacing:.04em;font-family:"Cinzel",serif;';
-  banner.textContent = 'This is a default starter deck. Changes will not be saved to this preset — use "Save As New" to create an editable copy.';
+  banner.textContent = 'This is a default starter deck. Changes will not be saved to this preset, use "Save As New" to create an editable copy.';
   deckPanel.insertBefore(banner, deckPanel.firstChild);
 }
 
@@ -1812,6 +1944,7 @@ function browsePresets(page=0) {
 function viewPresetContents(pid, returnMode='browser') {
   const preset = PRESET_DECKS[pid];
   if(!preset) return;
+  const sharedPreviewOptions = window._sharedDeckPreviewOptions && window._sharedDeckPreviewOptions[pid];
   if(typeof resetModalChrome === 'function') resetModalChrome();
   // Group by unique card + count
   const activeIds = preset.ids.filter(id=>!(typeof isRetiredCardForBuilder === 'function' && isRetiredCardForBuilder(id)));
@@ -1880,16 +2013,51 @@ function viewPresetContents(pid, returnMode='browser') {
   document.getElementById('modal-title').textContent = `${preset.name} - 40 Cards`;
   document.getElementById('modal-acts').innerHTML = '';
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('deck-inspect-compact-modal','title-deck-preview-modal');
+  if(modalBox) {
+    modalBox.classList.add('deck-inspect-compact-modal','title-deck-preview-modal');
+    if(sharedPreviewOptions) {
+      modalBox.classList.add('shared-deck-preview-modal');
+      const extraClasses = Array.isArray(sharedPreviewOptions.modalClasses)
+        ? sharedPreviewOptions.modalClasses
+        : (sharedPreviewOptions.modalClass ? String(sharedPreviewOptions.modalClass).split(/\s+/) : []);
+      extraClasses.filter(Boolean).forEach(cls=>modalBox.classList.add(cls));
+    }
+  }
 
-  const back = document.createElement('button');
-  back.className='btn sm';
-  back.textContent = 'Back';
-  back.onclick = returnMode === 'overlay' ? closeModal : ()=>browsePresets(_presetBrowsePage);
-  document.getElementById('modal-acts').appendChild(back);
+  const close = document.createElement('button');
+  close.className='btn sm';
+  close.textContent = (sharedPreviewOptions && sharedPreviewOptions.closeText) || 'Close';
+  close.onclick = ()=>{
+    if(sharedPreviewOptions && sharedPreviewOptions.cleanup !== false) {
+      delete PRESET_DECKS[pid];
+      delete window._sharedDeckPreviewOptions[pid];
+    }
+    if(sharedPreviewOptions && typeof sharedPreviewOptions.onBack === 'function') sharedPreviewOptions.onBack(pid, preset);
+    else if(returnMode === 'overlay') closeModal();
+    else browsePresets(_presetBrowsePage);
+  };
+  document.getElementById('modal-acts').appendChild(close);
   document.getElementById('modal').classList.add('on');
 }
 
+function openSharedDeckPreview(previewKey, preset, options={}) {
+  if(!previewKey || !preset || typeof PRESET_DECKS === 'undefined') return;
+  if(!window._sharedDeckPreviewOptions) window._sharedDeckPreviewOptions = {};
+  const extraClasses = [];
+  if(Array.isArray(options.modalClasses)) extraClasses.push(...options.modalClasses);
+  else if(options.modalClass) extraClasses.push(...String(options.modalClass).split(/\s+/));
+  PRESET_DECKS[previewKey] = {
+    ...preset,
+    ids: Array.isArray(preset.ids) ? [...preset.ids] : [],
+    displayCardIds: Array.isArray(preset.displayCardIds) ? [...preset.displayCardIds] : []
+  };
+  window._sharedDeckPreviewOptions[previewKey] = {
+    ...options,
+    modalClasses: extraClasses
+  };
+  viewPresetContents(previewKey, options.returnMode || 'overlay');
+}
+window.openSharedDeckPreview = openSharedDeckPreview;
 // Used from the title screen â€” loads a preset for both players (or vs AI)
 function loadPresetAndStart(presetId, vsAI) {
   const preset = PRESET_DECKS[presetId];

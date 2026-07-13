@@ -2628,7 +2628,7 @@ function isChallengerStarterPreset(preset, pid) {
 function showChallengerStarterDeckWarning(name) {
   const deckName = name || 'Starter deck';
   if(typeof showDeckOverwriteBanner === 'function') showDeckOverwriteBanner(deckName, 'Starter deck locked');
-  toast('Starter decks cannot be overwritten. Use Save as new to make an editable copy.');
+  toast('This is a default starter deck. Changes will not be saved to this preset, use "Save As New" to create an editable copy.');
 }
 window.showChallengerStarterDeckWarning = showChallengerStarterDeckWarning;
 
@@ -2666,7 +2666,7 @@ function renderChDeckBuilderTab(content) {
         <div class="cdb-collection" id="cdb-collection"></div>
       </div>
       <div class="cdb-right">
-        ${currentIsStarter ? `<div class="cdb-starter-warning">This is a starter deck. It cannot be overwritten; use Save as new to create an editable copy.</div>` : ''}
+        ${currentIsStarter ? `<div class="cdb-starter-warning">This is a default starter deck. Changes will not be saved to this preset, use "Save As New" to create an editable copy.</div>` : ''}
         <div class="db-deck-header cdb-deck-header">
           <div class="db-deck-titleline cdb-deck-titleline">
             <span class="cdb-deck-label">Current Deck</span>
@@ -2827,106 +2827,49 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
 function viewChallengerDeckContents(pid, options={}) {
   const preset = options.preset || getDeckPickPresetsForCurrentMode()?.[pid] || USER_PROFILE.challengerPresets?.[pid];
   if(!preset) return;
+  if(typeof viewPresetContents !== 'function' || typeof PRESET_DECKS === 'undefined') return;
+  const previewKey = `__challenger_preview_${String(pid).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const cameFromDeckPick = !!document.querySelector('#modal .modal[data-choose-deck-modal="1"], #modal .choose-deck-canonical-modal') ||
     !!(typeof G !== 'undefined' && G && (G._pickDeckAfterMatchmaking || G._pickDeckAfterAi)) ||
     CURRENT_MODE === 'free';
-  const counts = {};
-  (preset.ids || []).forEach(id=>{ counts[id] = (counts[id]||0)+1; });
-  const deckCards = Object.keys(counts)
-    .map(id=>CARDS.find(c=>c.id===id))
-    .filter(Boolean)
-    .sort((a,b)=>getCardOrderNumber(a)-getCardOrderNumber(b) || a.name.localeCompare(b.name));
-  const body = document.createElement('div');
-  body.className = 'deck-inspect-view title-deck-inspect-view';
-  const hero = preset.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : deckCards[0];
-  const totalCards = (preset.ids || []).length;
-  const theme = preset.theme || 'Challenger';
-  body.innerHTML = `
-    <div class="deck-inspect-summary">
-      <div class="deck-inspect-brief">
-        <p>${escapeHtml(preset.description||'')}</p>
-        <div class="deck-inspect-metrics">
-          <span><b>${totalCards}</b><em>Total Cards</em></span>
-          <span><b>${deckCards.length}</b><em>Unique Cards</em></span>
-          <span class="deck-inspect-theme-metric${typeof deckThemeFitClass === 'function' ? deckThemeFitClass(theme) : ''}"><b>${escapeHtml(theme)}</b><em>Theme</em></span>
-        </div>
-      </div>
-      <div class="deck-inspect-hero">${hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}">` : ''}</div>
-    </div>
-    <section class="deck-inspect-contents">
-      <div class="deck-inspect-section-title">Deck Contents <span>${deckCards.length} unique cards</span></div>
-      <div class="preset-view-grid"></div>
-    </section>`;
   const goBack = ()=>{
     if(typeof options.onBack === 'function') return options.onBack();
-    if(CURRENT_MODE === 'free') return renderFreePlayTitlePresetDeckPickModal(_challengerDeckPickPage || 0);
-    return cameFromDeckPick
-      ? renderChallengerDeckPickModal(_challengerDeckPickPage || 0)
-      : browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
+    if(CURRENT_MODE === 'free' && typeof renderFreePlayTitlePresetDeckPickModal === 'function') {
+      return renderFreePlayTitlePresetDeckPickModal(_challengerDeckPickPage || 0);
+    }
+    if(cameFromDeckPick && typeof renderChallengerDeckPickModal === 'function') {
+      return renderChallengerDeckPickModal(_challengerDeckPickPage || 0);
+    }
+    if(typeof browseChallengerDecks === 'function') {
+      return browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
+    }
+    if(typeof closeModal === 'function') return closeModal();
   };
-  const reopenPreview = ()=>viewChallengerDeckContents(pid, options);
-  const inlineBack = body.querySelector('.deck-inspect-back-inline');
-  if(inlineBack) inlineBack.onclick = goBack;
-  const grid = body.querySelector('.preset-view-grid');
-  if(grid) grid.classList.toggle('deck-preview-scroll-extra-row', deckCards.length >= 15);
-  document.getElementById('modal-body').innerHTML='';
-  document.getElementById('modal-body').appendChild(body);
-  const heroBox = body.querySelector('.deck-inspect-hero');
-  if(heroBox && hero?.img && !options.plainHeroImage && typeof window.renderCanvasImage === 'function') {
-    heroBox.textContent = '';
-    const canvas = document.createElement('canvas');
-    canvas.className = 'deck-inspect-hero-canvas';
-    canvas.setAttribute('aria-hidden','true');
-    heroBox.appendChild(canvas);
-    window.renderCanvasImage(canvas, hero.img, {mode:'cover', parent:heroBox, background:'transparent', maxDpr:4, cropY:.08});
-  }
-  if(false && grid && typeof window.renderCanvasDeckCollection === 'function') {
-    grid.style.setProperty('--dbcw', '82px');
-    grid.style.setProperty('--dbch', '115px');
-    window.renderCanvasDeckCollection(grid, deckCards.map(c=>({
-      card: c,
-      count: 0,
-      ownedText: 'x' + (counts[c.id] || 1),
-      title: c.name,
-      ariaLabel: c.name
-    })), {
-      onClick: (card)=>openCardDetailFromDeckPreview(card, reopenPreview),
-      onContextMenu: (card)=>showCardInfoOverlay(card)
+  if(typeof openSharedDeckPreview === 'function') {
+    openSharedDeckPreview(previewKey, preset, {
+      returnMode: 'overlay',
+      modalClasses: ['challenger-deck-preview-modal'],
+      onBack: goBack
     });
-  } else if(grid) {
-    deckCards.forEach(c=>{
-      const count = counts[c.id] || 0;
-      const el = document.createElement('div');
-      el.className='mc visual-mc preset-view-card';
-      el.title = c.name;
-      el.innerHTML = `
-        <div class="mc-art">${c.img?`<img src="${c.img}" alt="${escapeHtml(c.name)}">`:`<span class="mc-ico">${getAffIcon(c.aff)}</span>`}</div>
-        <div class="visual-name">${escapeHtml(c.name)}</div>
-        ${count>1?`<div class="preset-card-count">x${count}</div>`:`<div class="preset-card-count" style="opacity:.7;">x1</div>`}`;
-      el.onclick = ()=>openCardDetailFromDeckPreview(c, reopenPreview);
-      grid.appendChild(el);
-    });
-  }
-  document.getElementById('modal-title').textContent = `${preset.name} - ${totalCards} Cards`;
-  const modalBox = document.querySelector('#modal .modal');
-  if(modalBox){
-    modalBox.classList.remove('choose-deck-canonical-modal','choose-deck-runtime-modal','challenger-my-decks-modal');
-    delete modalBox.dataset.chooseDeckModal;
-    modalBox.classList.add('deck-inspect-compact-modal','title-deck-preview-modal');
-  }
-  const acts = document.getElementById('modal-acts');
-  acts.innerHTML='';
-  const backBtn = document.createElement('button');
-  backBtn.className='btn sm';
-  backBtn.textContent='Back';
-  backBtn.onclick = goBack;
-  if(CURRENT_MODE === 'free'){
-    acts.appendChild(backBtn);
-    document.getElementById('modal').classList.add('on');
     return;
   }
-  acts.appendChild(backBtn);
-  document.getElementById('modal').classList.add('on');
+  PRESET_DECKS[previewKey] = {
+    ...preset,
+    ids: Array.isArray(preset.ids) ? [...preset.ids] : [],
+    displayCardIds: Array.isArray(preset.displayCardIds) ? [...preset.displayCardIds] : []
+  };
+  viewPresetContents(previewKey, 'overlay');
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('challenger-deck-preview-modal');
+  const acts = document.getElementById('modal-acts');
+  const closeBtn = acts && acts.querySelector('button');
+  if(closeBtn){
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = ()=>{
+      delete PRESET_DECKS[previewKey];
+      goBack();
+    };
+  }
 }
 
 function cdbEditAppearance(pid=null){
@@ -3618,7 +3561,7 @@ function cdbDeleteDeck() {
        delete presets[_cdbCurrentDeckId];
        saveProfile();
        closeModal();
-       toast('Deck deleted');
+       setTimeout(()=>toast('Deck deleted'), 80);
        cdbNewDeck();
      }}]);
 }
@@ -3703,7 +3646,7 @@ function getMergedChallengerLeaderboardEntries() {
   const isStaleHumanName = entry => {
     if(entryIsAI(entry)) return false;
     const normalized = String(entry?.username || entry?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player' || /^sic kemper tyrann?us$/.test(normalized);
   };
   const isCurrentUserEntry = entry => {
     const rawName = entry?.username || entry?.name || '';
@@ -4049,6 +3992,9 @@ function loadSocial() {
     const stored = localStorage.getItem('fate_social');
     if(stored) SOCIAL = {...SOCIAL, ...JSON.parse(stored)};
   } catch(e){}
+  // Legacy offline simulations used to persist fake AI friend requests here.
+  // Real signed-in requests now come from the online social layer instead.
+  SOCIAL.pendingIncoming = [];
   if(window.FATE_ONLINE_CHAT_MODE){
     // Online mode keeps world chat in RTDB, not localStorage.
     SOCIAL.worldChat = [];
@@ -5538,6 +5484,10 @@ function fateOnlineLayerLoaded(){
   return !!(online && (online.rtdb || online.auth || typeof online.rtdbDisabledMode === 'function' || typeof online.rtdbAvailable === 'function'));
 }
 function simulateIncomingFriendRequests() {
+  SOCIAL.pendingIncoming = [];
+  saveSocial();
+  updatePendingBadge();
+  return;
   if(_fateSimFriendReqInterval) return;
   // Skip entirely if the online layer is loaded � these simulations are pure
   // overhead for online users and were leaking forever even though the inner

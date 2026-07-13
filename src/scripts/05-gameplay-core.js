@@ -442,7 +442,6 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
         if(!suppressed) {
           if(canActivateVigilantesWindow(card)) pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
-          if(card._busserMoves > 0 && !card._busserMovedThisTurn && !card.cantBeMoved && !card.immuneFlag && card.id !== '76') pushEndTurnEffectWarning(pending, card, 'Bussing', z);
           if((card.id === '93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '93'))) && !card.effectUsedThisTurn) {
             pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
           }
@@ -606,7 +605,35 @@ function hidePT() {
   nextPlayerTurn();
 }
 
+function getBusserTurnsLeft(card) {
+  if(!card) return 0;
+  const explicitTurns = Number(card._busserTurnsLeft);
+  if(Number.isFinite(explicitTurns) && explicitTurns > 0) return explicitTurns;
+  return Math.max(0, Number(card._busserMoves || 0) || 0);
+}
+
+function expireBusserTurnsForPlayer(player) {
+  if(typeof forEachBoardCard !== 'function') return;
+  forEachBoardCard(function(card){
+    if(!card) return;
+    const owner = typeof card._busserOwner === 'number' ? card._busserOwner : card.owner;
+    if(Number(owner) !== Number(player)) return;
+    const turnsLeft = getBusserTurnsLeft(card);
+    if(turnsLeft <= 0) return;
+    card._busserTurnsLeft = Math.max(0, turnsLeft - 1);
+    if(card._busserTurnsLeft <= 0) {
+      card._busserTurnsLeft = 0;
+      card._busserMoves = 0;
+      card._busserOwner = null;
+      card._busserSourceIid = null;
+      card._busserMovedThisTurn = false;
+    }
+  });
+}
+
 async function nextPlayerTurn() {
+  const endingPlayer = G.currentPlayer;
+  expireBusserTurnsForPlayer(endingPlayer);
   // Clear suppression if the just-ended turn belonged to the suppression target
   // (current player before switching = the one whose turn just ended)
   if(G.oppSuppressedNextTurn && G.currentPlayer===G.suppressTarget) {
@@ -675,7 +702,7 @@ async function nextPlayerTurn() {
       if(card.id==='52') card.vigilanteUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
-      if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
+      if(getBusserTurnsLeft(card)>0) card._busserMovedThisTurn = false;
       card._landscapeEventideMovedTurn = null;
     }
   });
@@ -821,7 +848,7 @@ let _aiTurnVisualTimerInterval = null;
 let _aiTurnVisualSeconds = 0;
 
 function getTurnTimeLimit() {
-  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 25;
+  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 30;
   return _tutorialActive ? 300 : TURN_TIME_LIMIT;
 }
 
@@ -1350,6 +1377,9 @@ function triggerRozsiPassive(card, destZ) {
 }
 
 async function clickCell(z,r,c) {
+  if(typeof window.fateHandleOnlineImprovisorHavanoDeploymentClick === 'function' && window.fateHandleOnlineImprovisorHavanoDeploymentClick(z,r,c)) {
+    return;
+  }
   if(G._havanoDeploying) {
     handleHavanoDeployClick(z,r,c);
     return;
@@ -1609,7 +1639,7 @@ async function clickCell(z,r,c) {
     const cp = typeof mv.card._busserOwner === 'number' ? mv.card._busserOwner : G.currentPlayer;
     const ownerSafeRow = cp === 0 ? 2 : 0;
     if(mv.card.cantBeMoved || mv.card.immuneFlag || mv.card.id==='76'){toast('This card cannot be moved');G._busserMovingCard=null;return;}
-    if(Number(mv.card._busserMoves||0)<=0){toast('No Busser moves remaining');G._busserMovingCard=null;return;}
+    if(getBusserTurnsLeft(mv.card)<=0){toast('No Busser turns remaining');G._busserMovingCard=null;return;}
     if(mv.card._busserMovedThisTurn){toast('This card already moved this turn');G._busserMovingCard=null;return;}
     // Validate: must be contested row or owner's safe row in adjacent zone
     if(r !== 1 && r !== ownerSafeRow){toast('Can only move to contested row or your safe row');return;}
@@ -1620,12 +1650,6 @@ async function clickCell(z,r,c) {
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     mv.card._busserMovedThisTurn = true;
-    mv.card._busserMoves = Math.max(0, (Number(mv.card._busserMoves||0)||0) - 1);
-    if(mv.card._busserMoves <= 0){
-      mv.card._busserMoves = 0;
-      mv.card._busserOwner = null;
-      mv.card._busserSourceIid = null;
-    }
     G._busserMovingCard = null;
     G.placing = false;
     clearPlaceHighlights();
@@ -1757,9 +1781,11 @@ async function clickCell(z,r,c) {
     }
     markCommit('dailyTrackingScheduled');
 
+  const freePlacementCinematicKind = card.type !== 'Supporter' ? String(card._freePlacementCinematicKind || '') : '';
+  const shouldPlayFreePlacementCinematic = !G._onlineRoomCode && !!(isLinaFree || freePlacementCinematicKind) && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
   // Show consolidation cinematic for free-set character cards (they bypass the consolidation flow)
-  if(isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function'){
-    inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || card._freePlacementCinematicKind || 'linaFreeSet');
+  if(shouldPlayFreePlacementCinematic){
+    inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || freePlacementCinematicKind || 'linaFreeSet');
     G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
     setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, 90);
   }
@@ -1774,7 +1800,7 @@ async function clickCell(z,r,c) {
   markCommit('anickaPassive');
 
   // Play card placement sound (rarity-based) — skip if cinematic already handles audio
-  var _cinematicHandlesAudio = isLinaFree && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
+  var _cinematicHandlesAudio = shouldPlayFreePlacementCinematic;
   if(!_cinematicHandlesAudio){
     if(typeof playCardSetAudio === 'function') playCardSetAudio(card);
     else {
@@ -1828,6 +1854,8 @@ async function clickCell(z,r,c) {
   if(isLinaFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
   if(isLinaFree) {
     delete card._linaFree;
+  }
+  if(freePlacementCinematicKind) {
     delete card._freePlacementCinematicKind;
   }
   markCommit('supporterTracking');
@@ -1835,9 +1863,10 @@ async function clickCell(z,r,c) {
   log(G.currentPlayer===0?'p1':'p2', `${player.name} placed ${card.name} in Zone ${z+1}`);
   markCommit('log');
 
-  G.placing = false;
-  G.selectedHandCard = null;
-  clearPlaceHighlights();
+    G.placing = false;
+    G.selectedHandCard = null;
+    G.selectedBoardCard = null;
+    clearPlaceHighlights();
   markCommit('clearHighlights');
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
@@ -2131,6 +2160,7 @@ function initiateConsolidate() {
   if(actualCost <= 0) {
     closeModal();
     G.placing = true;
+    if(card.type !== 'Supporter') card._freePlacementCinematicKind = card._freePlacementCinematicKind || 'costReducedFreeSet';
     if(!highlightValidCells(card, 'free-placement-choice')){
       G.placing = false;
       toast('No open squares available for ' + card.name);
@@ -2393,6 +2423,7 @@ function handleConsolidateClick(z,r,c) {
     }
     const targetTributeIdx = placementIdx;
     G._consolidating = null;
+    G.selectedBoardCard = null;
     document.getElementById('s-game')?.classList.remove('is-consolidating');
     const cancelBtn = document.getElementById('cancel-consolidate-btn');
     if(cancelBtn) cancelBtn.style.display = 'none';
@@ -2416,6 +2447,7 @@ function cancelConsolidation() {
   const cancelBtn = document.getElementById('cancel-consolidate-btn');
   if(cancelBtn) cancelBtn.style.display = 'none';
   G.selectedHandCard = null;
+  G.selectedBoardCard = null;
   clearPlaceHighlights();
   setHint('Select a card to play');
   renderGame({board:true, hand:true, blocks:true, topbar:true});
@@ -2575,7 +2607,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
       G.board[tz].forEach((row, mr)=>{
         if(!row) return;
         row.forEach((cell, mc)=>{
-          if(cell&&cell.id==='36'&&cell.owner!==cp){
+          if(cell&&cell.id==='36'&&cell.owner!==cp&&!isCardEffectSuppressed(cell)){
             log('sys','Deterrance activated! Zone '+(tz+1)+' Fate reduced by 4.');
             G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 4;
             if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(cell.owner)) toast('Deterrance activated: Zone '+(tz+1)+' loses 4 Fate.');
@@ -2616,11 +2648,15 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
       setTimeout(function(){ trackDailyCardPlacement(inst, targetZ, targetR, targetC); }, 0);
     }
     const placementDelay = _consolidationMotionMs ? 0 : Math.min(360, 180 + tributes.length * 40);
+    const cinematicDelay = _consolidationMotionMs
+      ? Math.max(0, Number(_consolidationMotionMs) || 0) + 120
+      : Math.max(0, placementDelay || 0) + 90;
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
-    if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
-      G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + Math.max(0, placementDelay || 0) + 90 + 2350);
-      setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, Math.max(0, placementDelay || 0) + 90);
+    const cinematicWaitsForPresentation = !!(tx && typeof tx.onFinished === 'function');
+    if(!useFaceDown && typeof showConsolidationCinematic === 'function' && !cinematicWaitsForPresentation) {
+      G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + cinematicDelay + 2350);
+      setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, cinematicDelay);
     }
     if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('consolidations', 1, 'add');
 
@@ -2629,6 +2665,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
 
     G.players[cp].hand = G.players[cp].hand.filter(c => c !== card);
     G.selectedHandCard = null;
+    G.selectedBoardCard = null;
 
     if(typeof tutorialEvent === 'function' && _tutorialActive) {
       tutorialEvent('placeCharacter', {
@@ -2656,6 +2693,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
         tributes,
         card,
         inst,
+        commitImmediately:!!G._onlineRoomCode,
         faceDown:useFaceDown,
         target:{z:targetZ, r:targetR, c:targetC},
         present:function(){
@@ -2673,6 +2711,14 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
         },
         commit:function(tx, delay){
           commitConsolidationAfterPresentation(tx, delay);
+        },
+        onFinished:function(tx){
+          if(useFaceDown || typeof showConsolidationCinematic !== 'function') return;
+          const settleDelay = tx && tx.animation && tx.animation.durationMs > 0 ? 100 : 70;
+          G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + settleDelay + 2350);
+          setTimeout(function(){
+            showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+          }, settleDelay);
         },
         rollback:function(){
           if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
@@ -3017,7 +3063,8 @@ window.setFateWhenSetImmediateMode = function(enabled) {
 
 function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
-  if(card._pendingWhenSetActivationInFlight) return false;
+  if(card._effectNegatedByReaction || card._reactionSuppressed || card._lydiaSuppressed) return false;
+  if(card._pendingWhenSetActivationInFlight || card._busserGrantPending) return false;
   const id = String(card.id || '');
   if(!WINDOWED_WHEN_SET_EFFECT_IDS.has(id)) return false;
   if(card.type === 'Supporter' && WHEN_SET_IDS.has(id)) return card.whenSetActivated !== true;
@@ -3164,7 +3211,6 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
 
   // Initiators fire their character effect
   if(isInitiatorWithEffect) {
-    beginInitialSetEffectGuard(inst);
     G.selectedBoardCard = {card:inst,z,r,c};
     await triggerCharacterEffect(inst,z,r,c,{fromSet:true});
     G.selectedBoardCard = null;
@@ -3177,21 +3223,14 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   G.selectedBoardCard = null;
 }
 
-const RETRYABLE_INITIAL_SET_EFFECT_IDS = new Set(['03','04','17','22','30','39','43','66','82']);
-
-function beginInitialSetEffectGuard(card) {
-  if(!card || !RETRYABLE_INITIAL_SET_EFFECT_IDS.has(String(card.id || ''))) return;
-  card._initialSetEffectGuard = {
-    turn: G.turn,
-    player: G.currentPlayer,
-    applied: false
-  };
-}
-
 function markInitialEffectResolved(card) {
   if(!card) return;
-  if(card._initialSetEffectGuard) card._initialSetEffectGuard.applied = true;
   card._effectTurnLocked = true;
+  if(card.type === 'Supporter') card.whenSetActivated = true;
+  if(card.type === 'Initiator') card.effectUsedInitial = true;
+  delete card._pendingWhenSetEffect;
+  delete card._pendingWhenSetActivationInFlight;
+  delete card._effectActivationInFlight;
 }
 
 function markInitialEffectResolvedByIid(iid) {
@@ -3199,12 +3238,6 @@ function markInitialEffectResolvedByIid(iid) {
   forEachBoardCard(function(card){
     if(card && card.iid === iid) markInitialEffectResolved(card);
   });
-}
-
-function canRetryInitialSetEffect(card) {
-  if(!card || !card._initialSetEffectGuard) return false;
-  const guard = card._initialSetEffectGuard;
-  return !guard.applied && guard.turn === G.turn && guard.player === G.currentPlayer && card.owner === G.currentPlayer;
 }
 
 window.markInitialEffectResolved = markInitialEffectResolved;
@@ -3561,6 +3594,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       // Highlight + require click
       toast('Click any open square');
       G._berkeleyMoving = {fromZ:z, fromR:r, fromC:c, options, inst};
+      if(typeof fateFastShowMovementTargets === 'function') fateFastShowMovementTargets(options, ['placeable','move-target']);
       options.forEach(opt=>{
         const el = document.querySelector(`#board .cell[data-z="${opt.z}"][data-r="${opt.r}"][data-c="${opt.c}"]`);
         if(el) el.classList.add('placeable','move-target');
@@ -3624,22 +3658,33 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
+      if(inst._busserGrantPending){
+        toast('Breakfast Republic Busser is already resolving.');
+        break;
+      }
+      inst._busserGrantPending = true;
       const candidates = [];
       if(G.board[z]) G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76'){
           candidates.push({card:cell,z:z,r:ri,c:ci});
         }
       }));
-      if(candidates.length===0){toast('No movable friendly cards in this zone');break;}
+      if(candidates.length===0){
+        inst._busserGrantPending = false;
+        toast('No movable friendly cards in this zone');
+        break;
+      }
       pickCardInZone(z,'Corner! Behind!: select a friendly card in this zone to move between adjacent zones.',(target)=>{
         if(!target || target.owner!==cp || isFaceDownCard(target) || target.cantBeMoved || target.immuneFlag || target.id==='76'){
           toast('Select a movable friendly card');
           return;
         }
-        target._busserMoves = Math.max(3, Number(target._busserMoves||0)||0);
+        target._busserTurnsLeft = Math.max(3, getBusserTurnsLeft(target));
+        target._busserMoves = target._busserTurnsLeft;
         target._busserOwner = cp;
         target._busserMovedThisTurn = false;
         target._busserSourceIid = inst.iid || null;
+        inst._busserGrantPending = false;
         inst.effectUsedInitial = true;
         inst.whenSetActivated = true;
         toast(target.name + ' can move to adjacent zones.');
@@ -3994,7 +4039,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       return;
     }
   }
-  if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !RETRYABLE_INITIAL_SET_EFFECT_IDS.has(id)) {
+  if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id)) {
     markInitialEffectResolved(card);
   }
 
@@ -4362,6 +4407,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   }
   // Mark this character's effect as activated (fires once)
   card.effectUsedInitial = true;
+  if(card.type === 'Initiator') card._effectTurnLocked = true;
   clearEffectActivationInFlight();
 }
 
@@ -4385,6 +4431,15 @@ function shouldShowManualCharacterEffectButton(card) {
   if(!card || card.type === 'Supporter') return false;
   const id = String(card.id || '');
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
+  if(G && G._onlineRoomCode && (
+    card._effectActivationInFlight ||
+    G._serverPendingReaction ||
+    G._serverPendingMove ||
+    G._serverPendingZonePick ||
+    G._serverPendingCardPick ||
+    G._serverPendingModalAction ||
+    G.pendingInteraction
+  )) return false;
   if(id === '40') return Number(card.usesLeft || 0) > 0;
   if(id === '38') return card.effectUsedThisTurn !== true;
   if(id === 'bh01') return card.bh01MovedThisTurn !== true;
@@ -4392,7 +4447,6 @@ function shouldShowManualCharacterEffectButton(card) {
   if(card.type === 'Coordinator') return false;
   if(card.type === 'Improvisor') return false;
   if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial) return isSameTurnAsCardSet(card);
-  if(card.type === 'Initiator' && card.effectUsedInitial) return canRetryInitialSetEffect(card);
   return false;
 }
 
@@ -4540,8 +4594,14 @@ function getCookIslandsDuelistTarget(source, zHint) {
   return candidates[0];
 }
 
+function isCardEffectSuppressed(card) {
+  if(!card || isEffectImmuneSource(card)) return false;
+  return !!(card._lydiaSuppressed || card._reactionSuppressed || card._effectNegatedByReaction);
+}
+
 function isCoordinatorSuppressedAt(z, r, c) {
-  return false;
+  const card = G && G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
+  return !!(card && card.type === 'Coordinator' && isCardEffectSuppressed(card));
 }
 
 function isSupporterAuraSuppressed(card) {
@@ -4657,13 +4717,13 @@ function getEffectiveFate(card, z) {
   }));
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(!cell || isInvisible(cell)) return;
+    if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
     if(cell.id==='10' && cell.owner!==card.owner) {
       if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
       G._continuousDamageSources.add(cell.owner+':10:'+cell.iid);
       bonus -= 2;
       return;
     }
-    if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
     if(cell.owner!==card.owner) return;
     // Felicyta (01): +3 to adjacent friendly cards
     if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 3 + jeremiahBoost;
@@ -4741,7 +4801,7 @@ function getBaseZoneScore(z, player) {
   // Determine if the player is the opponent of Deterrance's owner
   let deterranceOwner = -1;
   G.board[z].forEach(row=>row.forEach(cell=>{
-    if(cell&&cell.id==='36') deterranceOwner = cell.owner;
+    if(cell&&cell.id==='36'&&!isCardEffectSuppressed(cell)) deterranceOwner = cell.owner;
   }));
   if(deterranceOwner>=0 && deterranceOwner!==player && dm<0){
     score = Math.max(0, score+dm);
@@ -5136,7 +5196,7 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
 }
 
 function isWolfCreekMoveCandidateCard(cell, owner, sourceIid) {
-  return !!(cell && cell.owner === owner && cell.iid !== sourceIid && !cell.cantBeMoved);
+  return !!(cell && cell.owner === owner && !cell.cantBeMoved);
 }
 
 function isWolfCreekSideOpenSquare(z, r, c, owner) {
@@ -5282,13 +5342,17 @@ function activateLandscapeEventideMove(card, z, r, c) {
 }
 
 function activateBusserMove(card, fromZ, fromR, fromC) {
+  if(G._busserMovingCard){
+    toast('Choose the highlighted Busser square first');
+    return;
+  }
   var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
   if(!card || card.cantBeMoved || card.immuneFlag || card.id==='76'){
     toast('This card cannot be moved');
     return;
   }
-  if(Number(card._busserMoves||0)<=0){
-    toast('No Busser moves remaining');
+  if(getBusserTurnsLeft(card)<=0){
+    toast('No Busser turns remaining');
     return;
   }
   if(card._busserMovedThisTurn){
@@ -5320,12 +5384,14 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
   if(!options.length){
     toast('No open squares in adjacent zones!');
     G._busserMovingCard = null;
+    clearPlaceHighlights();
     return;
   }
   toast('Click an open square in an adjacent zone to move ' + card.name);
   G._busserMovingCard = {card:card, fromZ:fromZ, fromR:fromR, fromC:fromC, options:options};
+  if(typeof fateFastShowMovementTargets === 'function') fateFastShowMovementTargets(options, ['placeable','move-target']);
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(fromZ, fromR, fromC, card);
-  if(typeof showBusserStatusBanner === 'function') showBusserStatusBanner(card, Number(card._busserMoves || 0) || 0, cp);
+  if(typeof showBusserStatusBanner === 'function') showBusserStatusBanner(card, getBusserTurnsLeft(card), cp);
   if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   else if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
 }
@@ -5333,6 +5399,45 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
 // ══════════════════════════════════════════════════════════════
 //  REACTION SYSTEM (Havano Citizen 79, Lydia 56)
 // ══════════════════════════════════════════════════════════════
+
+const HAVANO_REACTION_SOURCE_IDS = new Set([
+  '04', // Zoe
+  '10', // Post-Modernist Dylan
+  '14', // Alondra Hopkins
+  '16', // MINAE Death Squad
+  '17', // Carolyn
+  '18', // 1st US Marines
+  '26', // UCPD
+  '30', // Santiago
+  '31', // Oathbound Noble Fighter
+  '36', // Marie L'amboure
+  '39', // Juan Carlos
+  '50', // Berkeley CS Major
+  '52', // The Vigilantes
+  '53', // Colombo Thug
+  '61', // Maria Song
+  '62', // Berkeley Homeless
+  '64', // Cook Islands Duelist
+  '71', // Fort Calvin Watcher
+  '72' // Robo en la Noche
+]);
+
+function isHavanoReactionSource(actionData) {
+  if(!actionData) return false;
+  const refs = [
+    actionData.card,
+    actionData.source,
+    actionData.effectCinematic,
+    actionData.pendingSource
+  ];
+  for(const ref of refs) {
+    if(!ref) continue;
+    const card = ref.card || ref;
+    const id = String(ref.id || ref.cardId || card.id || '');
+    if(HAVANO_REACTION_SOURCE_IDS.has(id)) return true;
+  }
+  return false;
+}
 
 function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
   if(!inst) return [];
@@ -5429,8 +5534,8 @@ function checkReactions(actionType, actionData) {
       });
     }
 
-    // Havano Citizen (79): reacts when an opponent effect affects you or your cards.
-    if(actionType === 'targeting_effect' || actionAffectsPlayerCards(actionData, opp)){
+    // Havano Citizen (79): reacts only to its explicit source list.
+    if(isHavanoReactionSource(actionData)){
       G.players[opp].hand.forEach(function(h) {
         if(h.id==='79' && !isSupporterEffectSuppressed(h) && getHavanoDeploymentOptions(opp, h).length) reactions.push({type:'havano', card: h});
       });
@@ -5491,7 +5596,7 @@ function checkReactions(actionType, actionData) {
       closeModal();
       const hasBoardSource = typeof candidate.z === 'number' && typeof candidate.r === 'number' && typeof candidate.c === 'number';
       const cinematic = hasBoardSource && typeof playEffectActivationCinematic === 'function'
-        ? playEffectActivationCinematic(candidate.card, candidate.z, candidate.r, candidate.c, {source:'improvisor-reaction'})
+        ? playEffectActivationCinematic(candidate.card, candidate.z, candidate.r, candidate.c, {source:'improvisor-reaction', sfx:false, broadcast:false})
         : Promise.resolve(false);
       Promise.resolve(cinematic)
         .then(function(){ return executeReaction(candidate, actionData); })
@@ -5580,7 +5685,7 @@ function checkReactions(actionType, actionData) {
           G._reactionPending = false;
           closeModal();
           const cinematic = typeof playEffectActivationCinematic === 'function'
-            ? playEffectActivationCinematic(reaction.card, reaction.z, reaction.r, reaction.c, {source:'improvisor-reaction'})
+            ? playEffectActivationCinematic(reaction.card, reaction.z, reaction.r, reaction.c, {source:'improvisor-reaction', sfx:false, broadcast:false})
             : Promise.resolve(false);
           Promise.resolve(cinematic)
             .then(function(){ return executeReaction(reaction, actionData); })
@@ -5685,8 +5790,9 @@ function handleHavanoDeployClick(z,r,c) {
     G.placing = false;
     clearPlaceHighlights();
     toast('Havano Citizen deployed to Zone '+(z+1)+'!');
-    playSfx('zoneBlock');
-    showBlockedAnimation('NEGATED by Havano Citizen!');
+    playSfx('effectNegated');
+    if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT NEGATED by Havano Citizen');
+    else showBlockedAnimation('NEGATED by Havano Citizen!');
     renderEffectResolutionForPlayer(dep.owner, {hand:true});
     dep.resolve(false);
   };
@@ -5717,25 +5823,35 @@ function executeReaction(reaction, actionData) {
     if(actionData.card) {
       actionData.card._lydiaSuppressed = true;
       actionData.card._effectNegatedByReaction = true;
+      markInitialEffectResolved(actionData.card);
     }
     toast('Lydia negated '+(actionData.card ? actionData.card.name : 'effect')+'! ('+reaction.card.usesLeft+' uses left)');
     log(opp===0?'p1':'p2', 'Lydia negated '+(actionData.card ? actionData.card.name : 'effect'));
-    playSfx('zoneBlock');
-    showBlockedAnimation('NEGATED by Lydia!');
+    playSfx('effectNegated');
+    if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT NEGATED by Lydia');
+    else showBlockedAnimation('NEGATED by Lydia!');
     renderEffectResolutionForPlayer(opp, {hand:false});
   } else if(reaction.type === 'havano'){
-    if(actionData.card && actionData.card.type === 'Supporter') actionData.card._reactionSuppressed = true;
-    playSfx('zoneBlock');
+    if(actionData.card) {
+      actionData.card._effectNegatedByReaction = true;
+      actionData.card._reactionSuppressed = true;
+      markInitialEffectResolved(actionData.card);
+    }
     log(opp===0?'p1':'p2', 'Havano Citizen negated and deployed');
     return beginHavanoDeployment(reaction, opp);
   } else if(reaction.type === 'secules'){
     reaction.card.usesLeft = 0;
     reaction.card._seculesUsed = true;
-    if(actionData.card && actionData.card.type === 'Supporter') actionData.card._reactionSuppressed = true;
+    if(actionData.card) {
+      actionData.card._effectNegatedByReaction = true;
+      actionData.card._reactionSuppressed = true;
+      markInitialEffectResolved(actionData.card);
+    }
     toast('Mr. Secules negated '+(actionData.card ? actionData.card.name : 'the effect')+'! (Effect Expended)');
     log(opp===0?'p1':'p2', 'Mr. Secules: Effect Expended after negating '+(actionData.card ? actionData.card.name : 'an effect'));
-    playSfx('zoneBlock');
-    showBlockedAnimation('NEGATED by Mr. Secules!');
+    playSfx('effectNegated');
+    if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT NEGATED by Mr. Secules');
+    else showBlockedAnimation('NEGATED by Mr. Secules!');
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)

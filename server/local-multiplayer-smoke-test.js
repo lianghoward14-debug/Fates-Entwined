@@ -382,14 +382,14 @@ async function run() {
     if(timeoutAccepted.resultLedgerWrite !== false){
       throw new Error(`expected local durable-off disconnect resultLedgerWrite=false, got ${JSON.stringify(timeoutAccepted)}`);
     }
-    if(ledger.byUid?.[HOST_UID]?.oldElo !== 1000 || ledger.byUid?.[HOST_UID]?.newElo !== 1008 || ledger.byUid?.[HOST_UID]?.delta !== 8 || ledger.byUid?.[HOST_UID]?.starlightGained !== 99){
+    if(ledger.byUid?.[HOST_UID]?.oldElo !== 600 || ledger.byUid?.[HOST_UID]?.newElo !== 616 || ledger.byUid?.[HOST_UID]?.delta !== 16 || ledger.byUid?.[HOST_UID]?.starlightGained !== 60){
       throw new Error(`unexpected host reward ledger: ${JSON.stringify(ledger.byUid?.[HOST_UID])}`);
     }
-    if(ledger.byUid?.[GUEST_UID]?.oldElo !== 800 || ledger.byUid?.[GUEST_UID]?.newElo !== 790 || ledger.byUid?.[GUEST_UID]?.delta !== -10){
+    if(ledger.byUid?.[GUEST_UID]?.oldElo !== 600 || ledger.byUid?.[GUEST_UID]?.newElo !== 580 || ledger.byUid?.[GUEST_UID]?.delta !== -20){
       throw new Error(`unexpected guest reward ledger: ${JSON.stringify(ledger.byUid?.[GUEST_UID])}`);
     }
     const disconnectFinal = (await apiRequest('GET', `/api/rooms/${disconnectRoomCode}`)).room;
-    if(disconnectFinal.status !== 'ended' || disconnectFinal.endReason !== 'disconnect' || disconnectFinal.winnerUid !== HOST_UID || disconnectFinal.loserUid !== GUEST_UID || disconnectFinal.resultLedger?.byUid?.[HOST_UID]?.newElo !== 1008){
+    if(disconnectFinal.status !== 'ended' || disconnectFinal.endReason !== 'disconnect' || disconnectFinal.winnerUid !== HOST_UID || disconnectFinal.loserUid !== GUEST_UID || disconnectFinal.resultLedger?.byUid?.[HOST_UID]?.newElo !== 616){
       throw new Error(`unexpected disconnect final room: ${JSON.stringify(disconnectFinal)}`);
     }
     const resumeEnded = await apiRequest('GET', `/api/rooms/${disconnectRoomCode}/resume?after=1&limit=20`);

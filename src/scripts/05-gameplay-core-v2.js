@@ -316,6 +316,8 @@ function hidePT() {
 }
 
 async function nextPlayerTurn() {
+  const endingPlayer = G.currentPlayer;
+  if(typeof expireBusserTurnsForPlayer === 'function') expireBusserTurnsForPlayer(endingPlayer);
   // Clear suppression if the just-ended turn belonged to the suppression target
   // (current player before switching = the one whose turn just ended)
   if(G.oppSuppressedNextTurn && G.currentPlayer===G.suppressTarget) {
@@ -358,7 +360,7 @@ async function nextPlayerTurn() {
       if(card.id==='52') card.vigilanteUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
-      if(Number(card._busserMoves||0)>0) card._busserMovedThisTurn = false;
+      if((typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserMoves||0))>0) card._busserMovedThisTurn = false;
     }
   });
   G._zimbabweUsedThisTurn = false;
@@ -476,7 +478,7 @@ let _aiTurnVisualTimerInterval = null;
 let _aiTurnVisualSeconds = 0;
 
 function getTurnTimeLimit() {
-  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 25;
+  if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 30;
   return _tutorialActive ? 300 : TURN_TIME_LIMIT;
 }
 
@@ -1113,7 +1115,7 @@ async function clickCell(z,r,c) {
     const cp = typeof mv.card._busserOwner === 'number' ? mv.card._busserOwner : G.currentPlayer;
     const ownerSafeRow = cp === 0 ? 2 : 0;
     if(mv.card.cantBeMoved || mv.card.immuneFlag || mv.card.id==='76'){toast('This card cannot be moved');G._busserMovingCard=null;return;}
-    if(Number(mv.card._busserMoves||0)<=0){toast('No Busser moves remaining');G._busserMovingCard=null;return;}
+    if((typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(mv.card) : Number(mv.card._busserMoves||0))<=0){toast('No Busser turns remaining');G._busserMovingCard=null;return;}
     if(mv.card._busserMovedThisTurn){toast('This card already moved this turn');G._busserMovingCard=null;return;}
     // Validate: must be contested row or owner's safe row in adjacent zone
     if(r !== 1 && r !== ownerSafeRow){toast('Can only move to contested row or your safe row');return;}
@@ -1124,12 +1126,6 @@ async function clickCell(z,r,c) {
     G.board[mv.fromZ][mv.fromR][mv.fromC] = null;
     G.board[z][r][c] = mv.card;
     mv.card._busserMovedThisTurn = true;
-    mv.card._busserMoves = Math.max(0, (Number(mv.card._busserMoves||0)||0) - 1);
-    if(mv.card._busserMoves <= 0){
-      mv.card._busserMoves = 0;
-      mv.card._busserOwner = null;
-      mv.card._busserSourceIid = null;
-    }
     G._busserMovingCard = null;
     G.placing = false;
     clearPlaceHighlights();
@@ -1180,6 +1176,8 @@ async function clickCell(z,r,c) {
 
   // Supporter limit re-check (skip for Lina free-set cards)
   const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
+  const freePlacementCinematicKind = card.type !== 'Supporter' ? String(card._freePlacementCinematicKind || '') : '';
+  const shouldPlayFreePlacementCinematic = !G._onlineRoomCode && !!(isLinaFree || freePlacementCinematicKind) && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
   if(!isLinaFree && card.type==='Supporter'){
     const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn >= maxSup){
@@ -1200,6 +1198,11 @@ async function clickCell(z,r,c) {
   G.board[z][r][c] = inst;
   applyRiveraBuffToPlacedCard(inst, inst.owner);
   triggerPlacementAnimation(inst, z, r, c);
+  if(shouldPlayFreePlacementCinematic) {
+    inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || freePlacementCinematicKind || 'linaFreeSet');
+    G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
+    setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, 90);
+  }
   player.hand.splice(G.selectedHandCard, 1);
 
   // Anicka Konvicka (02) Starlit Path: ANY card placed in this zone gains 4 Fate (owner-independent? No, only for her controller)
@@ -1211,9 +1214,11 @@ async function clickCell(z,r,c) {
   }));
 
   // Play card placement sound (rarity-based)
-  playCardSound(card.id);
-  const rarSfx = card.rarity==='star'?'starPlace':card.rarity==='square'?'squarePlace':card.rarity==='triangle'?'trianglePlace':'place';
-  playSfx(rarSfx);
+  if(!shouldPlayFreePlacementCinematic) {
+    playCardSound(card.id);
+    const rarSfx = card.rarity==='star'?'starPlace':card.rarity==='square'?'squarePlace':card.rarity==='triangle'?'trianglePlace':'place';
+    playSfx(rarSfx);
+  }
   // Tutorial event hooks
   if(typeof tutorialEvent==='function' && _tutorialActive){
     if(inst.type==='Supporter') tutorialEvent('placeSupporter');
@@ -1227,13 +1232,15 @@ async function clickCell(z,r,c) {
     triggerAIDialogue('aiPlacedCard');
   }
   // Affiliation-specific placement layer
-  if(inst.aff) playSfx('affPlace_'+inst.aff);
+  if(inst.aff && !shouldPlayFreePlacementCinematic) playSfx('affPlace_'+inst.aff);
   // Count for supporter limit (but not Lina free-set)
   if(card.type==='Supporter' && !isLinaFree) G.supportsPlacedThisTurn++;
   // Clear Lina free flag after use
   if(isLinaFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
+  if(isLinaFree) delete card._linaFree;
+  if(freePlacementCinematicKind) delete card._freePlacementCinematicKind;
   
-  if(typeof playSfx === 'function') playSfx('cardSet');
+  if(!shouldPlayFreePlacementCinematic && typeof playSfx === 'function') playSfx('cardSet');
   log(G.currentPlayer===0?'p1':'p2', `${player.name} placed ${card.name} in Zone ${z+1}`);
 
   G.placing = false;
@@ -1375,6 +1382,7 @@ function initiateConsolidate() {
   if(actualCost <= 0) {
     closeModal();
     G.placing = true;
+    if(card.type !== 'Supporter') card._freePlacementCinematicKind = card._freePlacementCinematicKind || 'costReducedFreeSet';
     highlightValidCells(card);
     setHint('Place ' + card.name + ' for free (cost reduced to 0)');
     return;
@@ -1576,6 +1584,7 @@ function handleConsolidateClick(z,r,c) {
     }
     const targetTributeIdx = placementIdx;
     G._consolidating = null;
+    G.selectedBoardCard = null;
     clearPlaceHighlights();
     finalizeConsolidate(con.card, tributes, targetTributeIdx);
     setHint('Select a card to play');
@@ -1588,6 +1597,7 @@ function cancelConsolidation() {
   if(!G._consolidating) return;
   G._consolidating = null;
   G.selectedHandCard = null;
+  G.selectedBoardCard = null;
   clearPlaceHighlights();
   setHint('Select a card to play');
   renderGame();
@@ -1730,6 +1740,7 @@ function finalizeConsolidate(card, tributes, targetIdx) {
 
     G.players[cp].hand = G.players[cp].hand.filter(c => c !== card);
     G.selectedHandCard = null;
+    G.selectedBoardCard = null;
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     renderGame();
@@ -2043,6 +2054,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       // Highlight + require click
       toast('Click any open square');
       G._berkeleyMoving = {fromZ:z, fromR:r, fromC:c, options, inst};
+      if(typeof fateFastShowMovementTargets === 'function') fateFastShowMovementTargets(options, ['placeable','move-target']);
       options.forEach(opt=>{
         const el = document.querySelector(`[data-z="${opt.z}"][data-r="${opt.r}"][data-c="${opt.c}"]`);
         if(el) el.classList.add('placeable','move-target');
@@ -2105,22 +2117,34 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
+      if(inst._busserGrantPending){
+        toast('Breakfast Republic Busser is already resolving.');
+        break;
+      }
+      inst._busserGrantPending = true;
       const candidates = [];
       if(G.board[z]) G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76'){
           candidates.push({card:cell,z:z,r:ri,c:ci});
         }
       }));
-      if(candidates.length===0){toast('No movable friendly cards in this zone');break;}
+      if(candidates.length===0){
+        inst._busserGrantPending = false;
+        toast('No movable friendly cards in this zone');
+        break;
+      }
       pickCardInZone(z,'Corner! Behind!: select a friendly card in this zone to move between adjacent zones.',(target)=>{
         if(!target || target.owner!==cp || isFaceDownCard(target) || target.cantBeMoved || target.immuneFlag || target.id==='76'){
           toast('Select a movable friendly card');
           return;
         }
-        target._busserMoves = Math.max(3, Number(target._busserMoves||0)||0);
+        const currentBusserTurns = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(target) : Number(target._busserMoves||0)||0;
+        target._busserTurnsLeft = Math.max(3, currentBusserTurns);
+        target._busserMoves = target._busserTurnsLeft;
         target._busserOwner = cp;
         target._busserMovedThisTurn = false;
         target._busserSourceIid = inst.iid || null;
+        inst._busserGrantPending = false;
         inst.effectUsedInitial = true;
         inst.whenSetActivated = true;
         toast(target.name + ' can move to adjacent zones.');
@@ -3297,7 +3321,7 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
 }
 
 function isWolfCreekMoveCandidateCard(cell, owner, sourceIid) {
-  return !!(cell && cell.owner === owner && cell.iid !== sourceIid && !cell.cantBeMoved);
+  return !!(cell && cell.owner === owner && !cell.cantBeMoved);
 }
 
 function isWolfCreekSideOpenSquare(z, r, c, owner) {
@@ -3389,13 +3413,18 @@ function activateExpeditionaryMove(card, z, r, c) {
 }
 
 function activateBusserMove(card, fromZ, fromR, fromC) {
+  if(G._busserMovingCard){
+    toast('Choose the highlighted Busser square first');
+    return;
+  }
   var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
   if(!card || card.cantBeMoved || card.immuneFlag || card.id==='76'){
     toast('This card cannot be moved');
     return;
   }
-  if(Number(card._busserMoves||0)<=0){
-    toast('No Busser moves remaining');
+  const turnsLeft = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserMoves||0)||0;
+  if(turnsLeft<=0){
+    toast('No Busser turns remaining');
     return;
   }
   if(card._busserMovedThisTurn){
@@ -3423,8 +3452,18 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
   if(!found){
     toast('No open squares in adjacent zones!');
     G._busserMovingCard = null;
-  } else if(typeof showEffectActivationGlow === 'function') {
-    showEffectActivationGlow(fromZ, fromR, fromC, card);
+  } else {
+    if(typeof fateFastShowMovementTargets === 'function') {
+      const options = [];
+      adjZones.forEach(function(zz){
+        G.board[zz].forEach(function(row,rr){row.forEach(function(cell,cc){
+          if(rr !== 1 && rr !== ownerSafeRow) return;
+          if(!cell && !isBlocked(zz,rr,cc)) options.push({z:zz,r:rr,c:cc});
+        });});
+      });
+      fateFastShowMovementTargets(options, ['placeable','move-target']);
+    }
+    if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(fromZ, fromR, fromC, card);
   }
 }
 
@@ -3635,8 +3674,9 @@ function handleHavanoDeployClick(z,r,c) {
     G.placing = false;
     clearPlaceHighlights();
     toast('Havano Citizen deployed to Zone '+(z+1)+'!');
-    playSfx('zoneBlock');
-    showBlockedAnimation('NEGATED by Havano Citizen!');
+    playSfx('effectNegated');
+    if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT NEGATED by Havano Citizen');
+    else showBlockedAnimation('NEGATED by Havano Citizen!');
     renderGame();
     dep.resolve();
   };
@@ -3656,20 +3696,40 @@ function handleHavanoDeployClick(z,r,c) {
   commit();
 }
 
+function markReactionSourceEffectResolved(card) {
+  if(!card) return;
+  card._effectNegatedByReaction = true;
+  if(card.type === 'Supporter') card.whenSetActivated = true;
+  if(card.type === 'Initiator') {
+    card.effectUsedInitial = true;
+    card._effectTurnLocked = true;
+  }
+  delete card._pendingWhenSetEffect;
+  delete card._pendingWhenSetActivationInFlight;
+  delete card._effectActivationInFlight;
+}
+
 function executeReaction(reaction, actionData) {
   var opp = 1 - G.currentPlayer;
   if(reaction.type === 'lydia'){
     if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(reaction.z, reaction.r, reaction.c, reaction.card);
     reaction.card.usesLeft--;
     reaction.card.currentFate = Math.max(0, reaction.card.currentFate - 1);
-    if(actionData.card && actionData.card.type === 'Supporter') actionData.card._lydiaSuppressed = true;
+    if(actionData.card) {
+      actionData.card._lydiaSuppressed = true;
+      markReactionSourceEffectResolved(actionData.card);
+    }
     toast('Lydia negated '+(actionData.card ? actionData.card.name : 'effect')+'! ('+reaction.card.usesLeft+' uses left)');
     log(opp===0?'p1':'p2', 'Lydia negated '+(actionData.card ? actionData.card.name : 'effect'));
-    playSfx('zoneBlock');
-    showBlockedAnimation('NEGATED by Lydia!');
+    playSfx('effectNegated');
+    if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT NEGATED by Lydia');
+    else showBlockedAnimation('NEGATED by Lydia!');
     renderGame();
   } else if(reaction.type === 'havano'){
-    playSfx('zoneBlock');
+    if(actionData.card) {
+      actionData.card._reactionSuppressed = true;
+      markReactionSourceEffectResolved(actionData.card);
+    }
     log(opp===0?'p1':'p2', 'Havano Citizen negated and deployed');
     return beginHavanoDeployment(reaction, opp);
   }

@@ -10,6 +10,7 @@
   var _cloudSaveDebounceTimers = {};
   var _cloudReady = false;
   var _cloudUid = null;
+  var _cloudSessionId = 0;
   var _loadingOverlay = null;
   var _loadingOverlayWasAsset = false;
 
@@ -18,6 +19,66 @@
 
   function _localStorageFlag(name){
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
+  }
+
+  var _accountAuxExactKeys = {
+    fate_match_history:true,
+    fate_daily_challenges:true,
+    fate_daily_bonus_claims_total:true,
+    fate_ai_elo_state:true,
+    fate_social:true
+  };
+  function _isAccountAuxKey(key){
+    return !!_accountAuxExactKeys[key]
+      || key.indexOf('fate_daily_progress_') === 0
+      || key.indexOf('fate_daily_bonus_') === 0;
+  }
+  function _readAccountAuxAliases(){
+    var data = {};
+    try{
+      for(var i = 0; i < localStorage.length; i++){
+        var key = localStorage.key(i);
+        if(key && _isAccountAuxKey(key)) data[key] = localStorage.getItem(key);
+      }
+    }catch(e){}
+    return data;
+  }
+  function _clearAccountAuxAliases(){
+    var keys = [];
+    try{
+      for(var i = 0; i < localStorage.length; i++){
+        var key = localStorage.key(i);
+        if(key && _isAccountAuxKey(key)) keys.push(key);
+      }
+      keys.forEach(function(key){ localStorage.removeItem(key); });
+    }catch(e){}
+  }
+  function _saveAccountAuxCache(uid){
+    if(!uid) return;
+    try{ localStorage.setItem('fate_account_aux_' + uid, JSON.stringify(_readAccountAuxAliases())); }catch(e){}
+  }
+  function _loadAccountAuxCache(uid){
+    _clearAccountAuxAliases();
+    if(!uid) return;
+    try{
+      var raw = localStorage.getItem('fate_account_aux_' + uid);
+      var data = raw ? JSON.parse(raw) : {};
+      Object.keys(data || {}).forEach(function(key){
+        if(_isAccountAuxKey(key) && data[key] != null) localStorage.setItem(key, String(data[key]));
+      });
+    }catch(e){}
+  }
+  function _switchAccountAuxCache(uid){
+    try{
+      var initialized = localStorage.getItem('fate_account_aux_initialized') === '1';
+      var previousUid = localStorage.getItem('fate_account_aux_active_uid');
+      if(!initialized && !previousUid) previousUid = localStorage.getItem('fate_cloud_migration_owner_uid');
+      if(previousUid) _saveAccountAuxCache(previousUid);
+      _loadAccountAuxCache(uid);
+      localStorage.setItem('fate_account_aux_initialized', '1');
+      if(uid) localStorage.setItem('fate_account_aux_active_uid', uid);
+      else localStorage.removeItem('fate_account_aux_active_uid');
+    }catch(e){}
   }
 
   function _authorityHttpBaseUrl(){
@@ -30,17 +91,16 @@
     var wsUrl = '';
     try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
     if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) return '';
+    if(!wsUrl){
+      var host = String(location.hostname || '').toLowerCase();
+      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+      return 'https://fates-entwined-main.fly.dev';
+    }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
 
   function _useFlyCloudSave(){
-    return !!_authorityHttpBaseUrl() && (
-      _localStorageFlag('fateFlyRoomsEnabled') ||
-      _localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
-    );
+    return !!_authorityHttpBaseUrl();
   }
 
   function _rtdbDisabledMode(){
@@ -83,7 +143,27 @@
       body:{uid:uid, data:payload}
     }).catch(function(e){
       console.warn('[CloudSave] Fly write failed for ' + path, e);
-    });
+      });
+  }
+
+  function _stripServerRankStats(profile){
+    if(!profile || typeof profile !== 'object') return profile;
+    var clean = Object.assign({}, profile);
+    [
+      'elo',
+      'wins',
+      'losses',
+      'challengerElo',
+      'challengerWins',
+      'challengerLosses',
+      'humanWins',
+      'humanLosses',
+      'matchesPlayed',
+      'leaderboardResetVersion',
+      'leaderboardResetAt',
+      'serverRankSyncedAt'
+    ].forEach(function(key){ delete clean[key]; });
+    return clean;
   }
 
   function _fb(){
@@ -150,7 +230,7 @@
       console.warn('[CloudSave] blocked cross-account profile write');
       return;
     }
-    _debouncedCloudWrite('profile', 'profile', Object.assign({}, data, {_fateAccountUid:_cloudUid}), 400);
+    _debouncedCloudWrite('profile', 'profile', Object.assign({}, _stripServerRankStats(data), {_fateAccountUid:_cloudUid}), 400);
   }
 
   function cloudSavePresets(){
@@ -161,10 +241,8 @@
   }
 
   function cloudSaveLeaderboard(){
-    if(!_cloudUid) return;
-    var data = typeof LEADERBOARD !== 'undefined' ? LEADERBOARD : null;
-    if(!data) return;
-    _debouncedCloudWrite('leaderboard', 'leaderboard', data, 600);
+    // Leaderboard rows are derived from profile + authority state. Do not persist
+    // a per-client leaderboard blob; stale browser/Electron caches can diverge.
   }
 
   function cloudSavePublicDecks(){
@@ -229,13 +307,11 @@
       if(profile._fateAccountUid && profile._fateAccountUid !== uid){
         console.warn('[CloudSave] blocked cross-account full profile write');
       }else{
-        payload.profile = Object.assign({}, profile, {_fateAccountUid:uid});
+        payload.profile = Object.assign({}, _stripServerRankStats(profile), {_fateAccountUid:uid});
       }
     }
     var presets = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
     if(presets != null) payload.presets = presets;
-    var lb = typeof LEADERBOARD !== 'undefined' ? LEADERBOARD : null;
-    if(lb) payload.leaderboard = lb;
     var pd = typeof PUBLIC_DECKS !== 'undefined' ? PUBLIC_DECKS : null;
     if(pd) payload.publicDecks = pd;
     try {
@@ -303,7 +379,16 @@
   // ─── CLOUD LOAD ───
   // Loads all data from Firebase and writes into globals + localStorage cache
 
-  function cloudLoadAll(uid){
+  function _isCurrentCloudSession(uid, sessionId){
+    if(_cloudUid !== uid) return false;
+    if(sessionId != null && sessionId !== _cloudSessionId) return false;
+    var authUid = window.FateOnline && window.FateOnline.auth && window.FateOnline.auth.currentUser
+      ? window.FateOnline.auth.currentUser.uid
+      : null;
+    return !authUid || authUid === uid;
+  }
+
+  function cloudLoadAll(uid, sessionId){
     if(_useFlyCloudSave()){
       return _flyApiRequest('/api/player-save/' + encodeURIComponent(uid), {method:'GET'})
         .then(function(res){
@@ -312,12 +397,13 @@
             console.log('[CloudSave] No Fly cloud data for ' + uid + ' - will upload current local data');
             return false;
           }
+          if(!_isCurrentCloudSession(uid, sessionId)) return null;
           console.log('[CloudSave] Loaded Fly cloud data for ' + uid);
-          _applyCloudData(data, uid);
+          _applyCloudData(data, uid, sessionId);
           return true;
         }).catch(function(e){
           console.warn('[CloudSave] Failed to load Fly cloud data', e);
-          return false;
+          return null;
         });
     }
     var FO = _fb();
@@ -329,29 +415,33 @@
         console.log('[CloudSave] No cloud data for ' + uid + ' — will upload current local data');
         return false;
       }
+      if(!_isCurrentCloudSession(uid, sessionId)) return null;
       console.log('[CloudSave] Loaded cloud data for ' + uid);
-      _applyCloudData(data, uid);
+      _applyCloudData(data, uid, sessionId);
       return true;
     }).catch(function(e){
       console.warn('[CloudSave] Failed to load cloud data', e);
-      return false;
+      return null;
     });
   }
 
   function _cloudNormalizeUsername(name){
     return String(name == null ? '' : name).trim().toLowerCase().replace(/\\s+/g, ' ');
   }
+  function _cloudIsCorruptedSharedUsername(name){
+    return /^sic kemper tyrann?us$/.test(_cloudNormalizeUsername(name));
+  }
   function _cloudIsLegacyStaleUsername(name){
     var normalized = _cloudNormalizeUsername(name);
-    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
+    return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player' || _cloudIsCorruptedSharedUsername(normalized);
   }
   function _cloudRepairLegacyUsername(name, fallback){
-    if(_cloudIsLegacyStaleUsername(name)) return fallback || 'Sic Kemper Tyrannus';
+    if(_cloudIsLegacyStaleUsername(name)) return fallback || 'Player';
     return name;
   }
 
-  function _applyCloudData(data, uid){
-    var previousUsername = (typeof USER_PROFILE !== 'undefined' && USER_PROFILE && !_cloudIsLegacyStaleUsername(USER_PROFILE.username)) ? USER_PROFILE.username : 'Sic Kemper Tyrannus';
+  function _applyCloudData(data, uid, sessionId){
+    if(!_isCurrentCloudSession(uid, sessionId)) return false;
     if(typeof USER_PROFILE !== 'undefined') USER_PROFILE = createDefaultUserProfile();
     if(typeof PRESET_DECKS !== 'undefined') PRESET_DECKS = {};
     if(typeof LEADERBOARD !== 'undefined') LEADERBOARD = [];
@@ -369,9 +459,12 @@
         challengerPresets:{}, lastFreePackClaim:0, createdAt:Date.now()
       };
       if(typeof USER_PROFILE !== 'undefined'){
-        USER_PROFILE = Object.assign({}, defaults, data.profile, {_fateAccountUid:uid});
-        USER_PROFILE.username = _cloudRepairLegacyUsername(USER_PROFILE.username || USER_PROFILE.displayName, previousUsername);
+        USER_PROFILE = Object.assign({}, defaults, _stripServerRankStats(data.profile), {_fateAccountUid:uid});
+        // Never repair one account with an in-memory value from the account that
+        // happened to be active before it.
+        USER_PROFILE.username = _cloudRepairLegacyUsername(USER_PROFILE.username || USER_PROFILE.displayName, 'Player');
         if(USER_PROFILE.displayName) USER_PROFILE.displayName = _cloudRepairLegacyUsername(USER_PROFILE.displayName, USER_PROFILE.username);
+        if(typeof window.fateNormalizeLeaderboardStatsReset === 'function') window.fateNormalizeLeaderboardStatsReset(USER_PROFILE);
       }
       try {
         var storageKey = uid ? 'fate_user_profile_' + uid : 'fate_user_profile';
@@ -380,7 +473,6 @@
     } else if(data.profile && typeof data.profile === 'object') {
       console.warn('[CloudSave] ignored profile stamped for another account');
     }
-
     // Presets
     if(data.presets && typeof data.presets === 'object'){
       if(typeof PRESET_DECKS !== 'undefined'){
@@ -393,17 +485,8 @@
       } catch(e){}
     }
 
-    // Leaderboard
-    if(Array.isArray(data.leaderboard)){
-      if(typeof LEADERBOARD !== 'undefined'){
-        LEADERBOARD.length = 0;
-        data.leaderboard.forEach(function(e){ LEADERBOARD.push(e); });
-      }
-      try {
-        var lbKey = uid ? 'fate_leaderboard_' + uid : 'fate_leaderboard';
-        localStorage.setItem(lbKey, JSON.stringify(LEADERBOARD));
-      } catch(e){}
-    }
+    // Per-client leaderboard saves are intentionally ignored; the visible
+    // leaderboard is rebuilt from the online authority and the active profile.
 
     // Public decks
     if(Array.isArray(data.publicDecks)){
@@ -417,10 +500,8 @@
       } catch(e){}
     }
 
-    // Match history
-    if(Array.isArray(data.matchHistory)){
-      try { localStorage.setItem('fate_match_history', JSON.stringify(data.matchHistory)); } catch(e){}
-    }
+    // Match history is part of the leaderboard reset surface, so old cloud
+    // entries are intentionally not restored after this reset.
 
     // Daily challenges
     if(data.daily && typeof data.daily === 'object'){
@@ -431,14 +512,7 @@
       } catch(e){}
     }
 
-    // AI ELO state
-    if(data.aiEloState && typeof data.aiEloState === 'object'){
-      try { localStorage.setItem('fate_ai_elo_state', JSON.stringify(data.aiEloState)); } catch(e){}
-      if(typeof applyStoredAIEloStateToList === 'function'){
-        if(typeof AI_OPPONENTS !== 'undefined') applyStoredAIEloStateToList(AI_OPPONENTS);
-        if(typeof MONTHLY_AI_OPPONENTS !== 'undefined') applyStoredAIEloStateToList(MONTHLY_AI_OPPONENTS);
-      }
-    }
+    // Local AI ELO state is also leaderboard-derived and is rebuilt fresh.
 
     // Social
     if(data.social && typeof data.social === 'object'){
@@ -452,6 +526,7 @@
         if(data.settings.sidePanel != null) localStorage.setItem('fate_side_panel', data.settings.sidePanel);
       } catch(e){}
     }
+    return true;
   }
 
   // ─── LOADING OVERLAY ───
@@ -526,6 +601,8 @@
 
   function onCloudSignIn(uid){
     _clearCloudDebounceTimers();
+    _switchAccountAuxCache(uid);
+    var sessionId = ++_cloudSessionId;
     _cloudUid = uid;
     _cloudReady = false;
     window._fateCloudUid = uid;
@@ -541,7 +618,7 @@
 
     var timedOut = false;
     var loadTimeout = 0;
-    var loadPromise = cloudLoadAll(uid);
+    var loadPromise = cloudLoadAll(uid, sessionId);
     var startupManagedLoad = !!(window.__fateStartupLoadingManaged || document.getElementById('fate-loading-screen'));
     var cloudLoadTimeoutMs = startupManagedLoad ? 30000 : 7000;
     var timeoutPromise = new Promise(function(resolve){
@@ -554,7 +631,8 @@
 
     return Promise.race([loadPromise, timeoutPromise]).then(function(hadCloudData){
       clearTimeout(loadTimeout);
-      if(!hadCloudData){
+      if(!_isCurrentCloudSession(uid, sessionId)) return false;
+      if(hadCloudData === false){
         // First sign-in or no cloud data — push current local data up
         if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(uid);
         cloudSaveAll();
@@ -568,16 +646,15 @@
       if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
       if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
       if(typeof updateLeaderboardEntry === 'function') updateLeaderboardEntry();
+      if(window.FateCloudSave && typeof window.FateCloudSave.saveProfile === 'function') window.FateCloudSave.saveProfile();
       if(typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
       if(typeof loadSocial === 'function') loadSocial();
 
       hideCloudLoadingOverlay();
 
       window.dispatchEvent(new CustomEvent('fate-cloud-ready', { detail: { uid: uid } }));
-      if(window.__fateMenusWarmed && typeof window.fateWarmProfileDependentMenus === 'function'){
-        setTimeout(function(){ window.fateWarmProfileDependentMenus().catch(function(){}); }, 0);
-      }
       console.log('[CloudSave] Cloud data ready for ' + uid + (timedOut ? ' after loading screen timeout' : ''));
+      return hadCloudData;
     }).catch(function(e){
       clearTimeout(loadTimeout);
       console.warn('[CloudSave] sign-in load failed, using local data', e);
@@ -588,6 +665,8 @@
   }
 
   function onCloudSignOut(){
+    _cloudSessionId++;
+    _switchAccountAuxCache(null);
     _cloudUid = null;
     _cloudReady = false;
     window._fateCloudUid = null;

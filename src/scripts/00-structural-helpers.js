@@ -18,6 +18,7 @@ function getPerspectivePlayerIndex() {
   if (typeof G === 'undefined' || !G) return 0;
   if (typeof G.viewerPlayerIndex === 'number') return G.viewerPlayerIndex;
   if (typeof G.localPlayerIndex === 'number') return G.localPlayerIndex;
+  if (typeof G._onlinePlayerIndex === 'number') return G._onlinePlayerIndex;
   if (G.aiEnabled) return 1 - G.aiPlayer;
   return typeof G.currentPlayer === 'number' ? G.currentPlayer : 0;
 }

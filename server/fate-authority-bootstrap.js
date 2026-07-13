@@ -62,20 +62,27 @@ function compactStateCard(meta, owner, iid){
   return card;
 }
 
-function validateDeckIds(deckIds, catalog, label){
+function normalizeBootstrapMode(mode){
+  const raw = String(mode || '').trim().toLowerCase();
+  return raw === 'freeplay' || raw === 'free' || raw === 'casual' ? 'freeplay' : 'ranked';
+}
+
+function validateDeckIds(deckIds, catalog, label, options = {}){
   if(!Array.isArray(deckIds) || deckIds.length !== 40) return `${label} must contain exactly 40 cards`;
   const byId = catalog && catalog.byId;
   if(!byId || typeof byId.get !== 'function') return 'card catalog is unavailable';
+  const enforceCopyLimits = options.enforceCopyLimits !== false;
   const counts = new Map();
   for(let i = 0; i < deckIds.length; i += 1){
     const id = String(deckIds[i] || '');
     const meta = byId.get(id);
     if(!id || !meta) return `${label} contains unknown card ${id || '(empty)'}`;
     if(meta.retired || meta.temporarilyDisabled) return `${label} contains unavailable card ${id}`;
+    if(!enforceCopyLimits) continue;
     const nextCount = (counts.get(id) || 0) + 1;
     counts.set(id, nextCount);
     const rarity = String(meta.rarity || '').toLowerCase();
-    const maxCopies = rarity === 'star' ? 1 : (rarity === 'square' ? 2 : 3);
+    const maxCopies = rarity === 'star' ? 1 : 3;
     if(nextCount > maxCopies) return `${label} contains too many copies of ${id}`;
   }
   return '';
@@ -114,17 +121,41 @@ function queueOpeningHandSelvaBoosts(state){
   });
 }
 
+function landscapeBgNumFromSong(song){
+  const match = String(song || 'board1').match(/board\s*(\d+)/i);
+  const n = match ? Number(match[1]) : 1;
+  return Math.max(1, Math.min(16, Number.isInteger(n) ? n : 1));
+}
+
+function makeInitialLandscapeState(id, rng){
+  const needsTargetZone = id === 'igb3' || id === 'igb8';
+  return {
+    id,
+    targetZone:needsTargetZone ? Math.floor(rng() * 3) : null,
+    consolidations:[0, 0],
+    zoneFateBonuses:[[0, 0, 0], [0, 0, 0]],
+    resolvedTurns:{},
+    eventideMovedIids:{},
+    drawPhaseCounts:[0, 0],
+    supporterEffectsThisTurn:[0, 0]
+  };
+}
+
 function buildInitialAuthorityState(input){
   const catalog = input && input.catalog;
   const decks = input && input.decks || {};
   const seed = String(input && input.seed || 'fates');
+  const mode = normalizeBootstrapMode(input && input.mode);
+  const enforceCopyLimits = mode !== 'freeplay';
   const hostDeck = Array.isArray(decks[0]) ? decks[0] : decks['0'];
   const guestDeck = Array.isArray(decks[1]) ? decks[1] : decks['1'];
-  const hostErr = validateDeckIds(hostDeck, catalog, 'host deck');
+  const hostErr = validateDeckIds(hostDeck, catalog, 'host deck', {enforceCopyLimits});
   if(hostErr) throw new Error(hostErr);
-  const guestErr = validateDeckIds(guestDeck, catalog, 'guest deck');
+  const guestErr = validateDeckIds(guestDeck, catalog, 'guest deck', {enforceCopyLimits});
   if(guestErr) throw new Error(guestErr);
   const rng = makeSeededRng(seed);
+  const landscapeBgNum = landscapeBgNumFromSong(input && input.song);
+  const landscapeId = 'igb' + landscapeBgNum;
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
@@ -143,9 +174,9 @@ function buildInitialAuthorityState(input){
     immuneCards:[],
     shieldWallZones:[],
     fateModifiers:{},
-    landscapeId:null,
-    landscapeBgNum:null,
-    _landscapeState:null,
+    landscapeId,
+    landscapeBgNum,
+    _landscapeState:makeInitialLandscapeState(landscapeId, rng),
     _landscapeDrawQueue:[],
     currentPlayer:firstPlayer,
     turn:1,

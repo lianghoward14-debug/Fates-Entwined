@@ -1,5 +1,5 @@
 // Minimal service worker for Chrome PWA installability
-const CACHE_NAME = 'fates-entwined-v8-card-lore-lina-cues';
+const CACHE_NAME = 'fates-entwined-v9-deck-preview-refresh';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

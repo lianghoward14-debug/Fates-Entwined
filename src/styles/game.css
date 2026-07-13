@@ -36,9 +36,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-hei
 /* Deck builder: bg2 */
 #s-deck{position:relative;overflow:hidden;}
 #s-deck .screen-bg img{opacity:.55;filter:brightness(.75) saturate(.85);}
-/* Preset picker: bg3 */
-#s-preset{position:relative;overflow:hidden;}
-#s-preset .screen-bg img{opacity:.6;filter:brightness(.8) saturate(.9);}
 #s-title::before{content:'';position:absolute;inset:0;z-index:2;
   background:repeating-linear-gradient(45deg,transparent,transparent 80px,rgba(201,168,76,.02) 80px,rgba(201,168,76,.02) 81px);pointer-events:none;}
 .title-content{position:relative;z-index:3;text-align:center;display:flex;flex-direction:column;align-items:center;padding:1rem 1.25rem 1.5rem;max-width:720px;width:min(94vw,720px);}
@@ -1513,8 +1510,6 @@ END OLD LEVEL BADGE */
   animation:modalIn .25s ease;
 }
 
-/* preset picker */
-#s-preset{flex-direction:column;}
 .preset-card{border:1px solid var(--border);cursor:pointer;padding:0;
   transition:all .22s;background:var(--bg2);border-radius:4px;position:relative;
   display:flex;flex-direction:column;overflow:hidden;
@@ -11476,6 +11471,11 @@ input[type="range"]::-moz-range-progress {
     overflow-y:hidden!important;
     overflow:auto hidden!important;
   }
+  #s-game .hand-cards:has(.hc:nth-child(12)){
+    --hcw:clamp(60px,6.15vw,76px)!important;
+    --hch:calc(var(--hcw) * 1.4)!important;
+    gap:clamp(.14rem,.44vw,.38rem)!important;
+  }
 }
 #s-game .hand-cards::-webkit-scrollbar{height:4px;}
 #s-game .hand-cards::-webkit-scrollbar-track{background:transparent;}
@@ -12255,9 +12255,22 @@ input[type="range"]::-moz-range-progress {
 
 .starter-deck-card .starter-deck-body{
   display:grid!important;
-  grid-template-rows:auto minmax(4.2em, auto) auto!important;
+  grid-template-rows:minmax(2.8em, auto) minmax(4.2em, 1fr) auto!important;
   gap:.55rem!important;
-  align-content:start!important;
+  align-content:stretch!important;
+}
+
+.starter-deck-card .starter-deck-title{
+  align-self:end!important;
+}
+
+.starter-deck-card .starter-deck-desc{
+  align-self:start!important;
+}
+
+#starter-deck-grid .starter-deck-card:nth-child(2) .starter-deck-title,
+#starter-deck-grid .starter-deck-card:nth-child(2) .starter-deck-desc{
+  transform:translateY(-9px)!important;
 }
 
 .starter-deck-card .starter-deck-pick-btn{

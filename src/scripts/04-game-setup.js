@@ -616,7 +616,7 @@ function showPreGameMatchup(vsAI, onContinue) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  AI PRESET DECKS — hand-crafted strategic builds
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Each deck is exactly 40 cards and respects rarity limits (1 star, 2 square, 3 circle/triangle).
+// Each deck is exactly 40 cards and respects rarity limits (1 star, 3 copies of every non-star rarity).
 // IDs reference the CARDS array. These favor synergy over raw card quantity.
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  AI OPPONENTS — Named characters per ELO rank tier
@@ -1193,11 +1193,11 @@ function buildDefaultDecks() {
     const sup = activeCards.filter(c=>c.type==='Supporter');
     const chr = activeCards.filter(c=>c.type!=='Supporter');
     for(const c of sup){
-      const lim=c.rarity==='star'?1:c.rarity==='square'?2:3;
+      const lim=c.rarity==='star'?1:3;
       for(let i=0;i<lim && deck.length<28;i++) deck.push(c.id);
     }
     for(const c of chr){
-      const lim=c.rarity==='star'?1:c.rarity==='square'?2:3;
+      const lim=c.rarity==='star'?1:3;
       for(let i=0;i<lim && deck.length<40;i++) deck.push(c.id);
       if(deck.length>=40) break;
     }
@@ -1384,6 +1384,11 @@ async function drawCard(player, count=1, options = {}) {
   }
   if(outsideDrawLandscapeCard && typeof queueLandscapeOutsideDrawBonus === 'function'){
     queueLandscapeOutsideDrawBonus(player, outsideDrawLandscapeCard);
+  }
+  if(!options.openingHand && typeof enforceHandLimit === 'function'){
+    setTimeout(function(){
+      if(typeof G !== 'undefined' && G && G.players && G.players[player]) enforceHandLimit(player);
+    }, options.drawPhase ? 180 : 0);
   }
 }
 
@@ -1692,37 +1697,6 @@ function doCoinFlip() {
         }
       },1700);
     };
-    if(!G._onlineCoinPlayableGateComplete && typeof window.fatePublishOnlineMatchPlayable === 'function' && typeof window.fateWaitForOnlineMatchPlayable === 'function'){
-      if(G._onlineCoinPlayableGateStarted) return;
-      G._onlineCoinPlayableGateStarted = true;
-      result.textContent = 'Waiting for both players to finish loading.';
-      winnerText.textContent = 'Syncing match before the coin flip.';
-      Promise.resolve()
-        .then(()=>window.fatePublishOnlineMatchPlayable())
-        .catch(err=>{
-          console.warn('Online coin playable publish failed', err);
-          return false;
-        })
-        .then(()=>window.fateWaitForOnlineMatchPlayable({
-          timeoutMs:30000,
-          onProgress:function(snap){
-            const ready = Number(snap && snap.readyCount || 0);
-            const total = Math.max(2, Number(snap && snap.total || 2));
-            result.textContent = `Waiting for both players to finish loading. ${ready}/${total} ready.`;
-          }
-        }))
-        .catch(err=>{
-          console.warn('Online coin playable wait failed', err);
-          return null;
-        })
-        .then(()=>{
-          G._onlineCoinPlayableGateComplete = true;
-          result.textContent = '';
-          winnerText.textContent = '';
-          setTimeout(startOnlineCoinAnimation, 100);
-        });
-      return;
-    }
     setTimeout(startOnlineCoinAnimation,100);
     return;
   }

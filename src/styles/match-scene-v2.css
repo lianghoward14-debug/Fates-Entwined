@@ -94,6 +94,21 @@ html.fate-match-renderer-v2-mode body #fate-match-v2-ui-canvas {
   contain: strict !important;
 }
 
+#s-game.fate-renderer-v2 #fate-match-v2-top-effect-canvas,
+html.fate-match-renderer-v2-mode body #fate-match-v2-top-effect-canvas {
+  display: block !important;
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 415 !important;
+  pointer-events: none !important;
+  contain: strict !important;
+}
+
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .pile-slot .pile-cards {
   opacity: 0 !important;
 }
@@ -450,7 +465,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > * {
   --fan-y: 0px;
   --fan-z: 0;
   transform: translateY(0) rotate(0deg) !important;
-  filter: drop-shadow(0 8px 8px rgba(0,0,0,.28)) !important;
+  filter: none !important;
   transition: none !important;
   z-index: var(--fan-z) !important;
 }
@@ -471,6 +486,8 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:n
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(8){--fan-rot:8deg;--fan-y:12px;--fan-z:8;}
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(9){--fan-rot:10deg;--fan-y:18px;--fan-z:9;}
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(10){--fan-rot:12deg;--fan-y:24px;--fan-z:10;}
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(11){--fan-rot:14deg;--fan-y:30px;--fan-z:11;}
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards > *:nth-child(12){--fan-rot:16deg;--fan-y:36px;--fan-z:12;}
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .pile-label {
   font-size: .66rem !important;

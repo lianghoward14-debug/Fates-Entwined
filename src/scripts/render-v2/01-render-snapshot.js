@@ -165,10 +165,13 @@
     base.handEffectModifiers = typeof window.getHandCardEffectModifiers === 'function'
       ? window.getHandCardEffectModifiers(card)
       : [];
+    const suppressed = !!(boardPos && typeof window.isCardVisuallySuppressed === 'function'
+      && window.isCardVisuallySuppressed(card, boardPos.z, boardPos.r, boardPos.c));
     base.flags = {
       faceDown:!!card.faceDown,
       immune:!!card.immuneFlag,
       markedForDeath:!!card._markedForDeath,
+      suppressed,
       noConsolidate:!!card.noConsolidate,
       xFate:!!card.xFate,
       xCost:!!card.xCost,

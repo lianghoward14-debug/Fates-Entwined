@@ -7,6 +7,9 @@ const ROOT = path.resolve(__dirname, '..');
 const APP_NAME = 'Fates Entwined';
 const DEFAULT_FLY_AUTHORITY_API_URL = 'https://fates-entwined-main.fly.dev';
 const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
+const ELECTRON_CLIENT_BUILD_STAMP = 'leaderboard-reset-20260711a-1783782001';
+const CHROME_VERSION = process.versions.chrome || '126.0.0.0';
+const GOOGLE_FRIENDLY_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -32,7 +35,9 @@ const LONG_CACHE_EXTENSIONS = new Set([
 const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 
 let staticServer;
+let staticServerUrlPromise = null;
 let mainWindow = null;
+let autoProfileCounter = 1;
 const diagnosticsDir = path.join(ROOT, 'diagnostics');
 const allowMultipleInstances = process.argv.includes('--allow-multiple-instances');
 
@@ -40,6 +45,25 @@ function argValue(name) {
   const prefix = `--${name}=`;
   const found = process.argv.find(a => String(a || '').startsWith(prefix));
   return found ? found.slice(prefix.length) : '';
+}
+
+function argValueFrom(argv, name) {
+  const prefix = `--${name}=`;
+  const found = (Array.isArray(argv) ? argv : []).find(a => String(a || '').startsWith(prefix));
+  return found ? String(found).slice(prefix.length) : '';
+}
+
+function sanitizeProfileName(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 48);
+}
+
+function sessionNameFromArgv(argv) {
+  return sanitizeProfileName(argValueFrom(argv, 'session') || argValueFrom(argv, 'profile'));
+}
+
+function nextAutoProfileName() {
+  autoProfileCounter += 1;
+  return `player${autoProfileCounter}`;
 }
 
 function electronAuthorityConfig() {
@@ -58,6 +82,7 @@ function electronAuthorityConfig() {
 function withElectronLaunchParams(rawUrl, sessionName) {
   const url = new URL(rawUrl);
   url.searchParams.set('electron', '1');
+  url.searchParams.set('electronBuild', ELECTRON_CLIENT_BUILD_STAMP);
   if (sessionName) url.searchParams.set('electronSession', sessionName);
   const authority = electronAuthorityConfig();
   if (authority) {
@@ -255,7 +280,8 @@ function safePathFromUrl(urlPath) {
 }
 
 function startStaticServer() {
-  return new Promise((resolve, reject) => {
+  if (staticServerUrlPromise) return staticServerUrlPromise;
+  staticServerUrlPromise = new Promise((resolve, reject) => {
     staticServer = http.createServer((req, res) => {
       try {
         const filePath = safePathFromUrl(req.url || '/');
@@ -303,6 +329,7 @@ function startStaticServer() {
         if (err.code === 'EADDRINUSE' && port === FIXED_PORT) {
           tryListen(0);
         } else {
+          staticServerUrlPromise = null;
           reject(err);
         }
       });
@@ -313,9 +340,11 @@ function startStaticServer() {
     }
     tryListen(FIXED_PORT);
   });
+  return staticServerUrlPromise;
 }
 
 function applyPerformanceSwitches() {
+  app.userAgentFallback = GOOGLE_FRIENDLY_USER_AGENT;
   app.commandLine.appendSwitch('force-device-scale-factor', '1');
   app.commandLine.appendSwitch('disable-background-timer-throttling');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -330,6 +359,7 @@ function applyPerformanceSwitches() {
 
 function isAllowedAuthPopupUrl(rawUrl) {
   try {
+    if (String(rawUrl || '').trim().toLowerCase() === 'about:blank') return true;
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
@@ -348,10 +378,9 @@ function isAllowedAuthPopupUrl(rawUrl) {
   }
 }
 
-async function createWindow() {
+async function createWindow(options = {}) {
   const startUrl = await startStaticServer();
-  const sessionArg = process.argv.find(a => a.startsWith('--session='));
-  const sessionName = sessionArg ? sessionArg.split('=')[1] : null;
+  const sessionName = sanitizeProfileName(options.sessionName || sessionNameFromArgv(process.argv));
   const webPrefs = {
     backgroundThrottling: false,
     contextIsolation: true,
@@ -367,7 +396,7 @@ async function createWindow() {
   }
   const sharedPartition = webPrefs.partition || null;
   const win = new BrowserWindow({
-    title: APP_NAME,
+    title: sessionName ? `${APP_NAME} (${sessionName})` : APP_NAME,
     width: 1920,
     height: 1080,
     minWidth: 1024,
@@ -380,6 +409,16 @@ async function createWindow() {
     webPreferences: webPrefs
   });
   mainWindow = win;
+  try {
+    win.webContents.setUserAgent(GOOGLE_FRIENDLY_USER_AGENT);
+  } catch (err) {
+    console.warn('Failed to set Electron window user agent', err);
+  }
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = BrowserWindow.getAllWindows().find(candidate => !candidate.isDestroyed()) || null;
+    }
+  });
 
   Menu.setApplicationMenu(null);
 
@@ -402,7 +441,7 @@ async function createWindow() {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
-          title: APP_NAME,
+          title: sessionName ? `${APP_NAME} Sign-In (${sessionName})` : `${APP_NAME} Sign-In`,
           width: 520,
           height: 720,
           minWidth: 420,
@@ -415,6 +454,13 @@ async function createWindow() {
     }
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+  win.webContents.on('did-create-window', childWindow => {
+    try {
+      childWindow.webContents.setUserAgent(GOOGLE_FRIENDLY_USER_AGENT);
+    } catch (err) {
+      console.warn('Failed to set Electron child window user agent', err);
+    }
   });
 
   win.webContents.on('before-input-event', (event, input) => {
@@ -450,11 +496,16 @@ if (!allowMultipleInstances) {
   if (!shouldCreateMainWindow) {
     app.quit();
   } else {
-    app.on('second-instance', () => {
-      if (!mainWindow) return;
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      if (!mainWindow.isVisible()) mainWindow.show();
-      mainWindow.focus();
+    app.on('second-instance', (event, argv) => {
+      const requestedSession = sessionNameFromArgv(argv);
+      const sessionName = requestedSession || nextAutoProfileName();
+      createWindow({ sessionName }).catch(err => {
+        console.error('Failed to open additional Electron profile window', err);
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+      });
     });
   }
 }

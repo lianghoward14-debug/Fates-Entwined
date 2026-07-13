@@ -123,13 +123,17 @@ function boardEntries(state){
 function cardMatchesRef(card, ref){
   if(!card || !ref) return false;
   const iid = String(ref.iid || ref.cardIid || ref?.card?.iid || '');
-  if(iid && String(card.iid || '') === iid) return true;
+  if(iid) return String(card.iid || '') === iid;
   const id = String(ref.id || ref.cardId || ref?.card?.id || '');
   return !!(id && String(card.id || '') === id);
 }
 
 function boardHasCardRef(state, ref){
   return boardEntries(state).some(entry=>cardMatchesRef(entry.card, ref));
+}
+
+function boardEntriesMatchingRef(state, ref){
+  return boardEntries(state).filter(entry=>cardMatchesRef(entry.card, ref));
 }
 
 function boardEntryAt(state, z, r, c){
@@ -247,20 +251,48 @@ function inferReactionActionType(msg){
   if(/^(activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fn)){
     return 'targeting_effect';
   }
-  if(type === 'PLACE_CARD') return 'supporter_effect';
+  if(type === 'PLACE_CARD' || (type === 'CLICK_CELL' && (payload.placing || payload.selectedHand || Number.isInteger(Number(payload.handIndex))))) return 'first_set_effect';
   return '';
 }
 
 function actionCanArmImprovisorReaction(type, payload){
   if(payload && payload.skipImprovisorReaction) return false;
   if(payload && payload.postState && payload.postState._serverPendingReaction) return false;
-  return /^(BOARD_ACTION|PLACE_CARD|ACTION_RESULT|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION)$/i.test(type);
+  return /^(BOARD_ACTION|CLICK_CELL|PLACE_CARD|ACTION_RESULT|MODAL_ACTION|PICK_CARDS_VISUAL|PICK_ZONE|PICK_AFFILIATION)$/i.test(type);
+}
+
+function isAuthorityEffectImmuneSource(card){
+  if(!card || card.faceDown === true) return false;
+  const id = String(card.id || '');
+  return id === '20' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
 }
 
 const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91']);
 const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
 const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','bh25']);
 const AUTHORITY_CHARACTER_AFFECTS_BOTH = new Set(['12','17','34','40']);
+const AUTHORITY_HAVANO_REACTION_SOURCE_IDS = new Set([
+  '04', // Zoe
+  '10', // Post-Modernist Dylan
+  '14', // Alondra Hopkins
+  '16', // MINAE Death Squad
+  '17', // Carolyn
+  '18', // 1st US Marines
+  '26', // UCPD
+  '30', // Santiago
+  '31', // Oathbound Noble Fighter
+  '36', // Marie L'amboure
+  '39', // Juan Carlos
+  '50', // Berkeley CS Major
+  '52', // The Vigilantes
+  '53', // Colombo Thug
+  '61', // Maria Song
+  '62', // Berkeley Homeless
+  '64', // Cook Islands Duelist
+  '71', // Fort Calvin Watcher
+  '72' // Robo en la Noche
+]);
+const CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2 = true;
 
 function inferAuthorityReactionAffectedOwners(preState, sourceEntry, sourcePlayer, reactionPlayer, actionType, wasTargetingEffect){
   if(wasTargetingEffect) return [reactionPlayer];
@@ -280,7 +312,19 @@ function inferAuthorityReactionAffectedOwners(preState, sourceEntry, sourcePlaye
   return [];
 }
 
-function collectAuthorityImprovisorOptions(preState, msg){
+function sourceRefFromEntry(entry){
+  if(!entry || !entry.card) return null;
+  return {
+    iid:String(entry.card.iid || ''),
+    id:String(entry.card.id || ''),
+    z:Number(entry.z),
+    r:Number(entry.r),
+    c:Number(entry.c),
+    card:entry.card
+  };
+}
+
+function collectAuthorityImprovisorOptions(preState, msg, postState){
   const payload = msg && msg.payload || {};
   const sourcePlayer = Number(payload.playerIndex);
   if(!Number.isInteger(sourcePlayer) || sourcePlayer < 0 || sourcePlayer > 1) return null;
@@ -288,13 +332,27 @@ function collectAuthorityImprovisorOptions(preState, msg){
   let actionType = inferReactionActionType(msg);
   if(!actionType) return null;
   const wasTargetingEffect = actionType === 'targeting_effect';
-  const sourceEntry = findBoardEntryByRef(preState, actionSourceRef(payload));
+  const msgType = String(msg && msg.type || '').toUpperCase();
+  const placementLike = msgType === 'PLACE_CARD' || (msgType === 'CLICK_CELL' && (payload.placing || payload.selectedHand || Number.isInteger(Number(payload.handIndex))));
+  const placementZ = Number(payload.z), placementR = Number(payload.r), placementC = Number(payload.c);
+  const placementSourceRef = placementLike && Number.isInteger(placementZ) && Number.isInteger(placementR) && Number.isInteger(placementC)
+    ? {z:placementZ, r:placementR, c:placementC}
+    : null;
+  const payloadSourceRef = placementSourceRef || actionSourceRef(payload);
+  const preSourceEntry = findBoardEntryByRef(preState, payloadSourceRef);
+  const postSourceEntry = findBoardEntryByRef(postState, payloadSourceRef);
+  const sourceEntry = preSourceEntry || postSourceEntry;
+  const sourceRef = sourceRefFromEntry(sourceEntry) || payloadSourceRef;
+  const sourceCard = sourceEntry && sourceEntry.card || sourceRef && sourceRef.card || sourceRef;
+  const sourceId = String(sourceCard && sourceCard.id || sourceRef && sourceRef.id || '');
+  if(isAuthorityEffectImmuneSource(sourceCard)) return null;
   if(actionType === 'targeting_effect' && sourceEntry && sourceEntry.card){
     if(String(sourceEntry.card.type || '') === 'Initiator') actionType = 'initiator_effect';
     else if(String(sourceEntry.card.type || '') === 'Supporter') actionType = 'supporter_effect';
   }
-  if(actionType === 'when_set_effect' && sourceEntry && sourceEntry.card && String(sourceEntry.card.type || '') === 'Supporter'){
-    actionType = 'supporter_effect';
+  if(actionType === 'when_set_effect' && sourceEntry && sourceEntry.card){
+    if(String(sourceEntry.card.type || '') === 'Supporter') actionType = 'supporter_effect';
+    else if(String(sourceEntry.card.type || '') === 'Initiator') actionType = 'initiator_effect';
   }
   const options = [];
   let affectedOwners = Array.isArray(payload.affectedOwners)
@@ -303,8 +361,9 @@ function collectAuthorityImprovisorOptions(preState, msg){
   if(!affectedOwners.length){
     affectedOwners = inferAuthorityReactionAffectedOwners(preState, sourceEntry, sourcePlayer, reactionPlayer, actionType, wasTargetingEffect);
   }
-  const affectsReactor = affectedOwners.includes(reactionPlayer) || wasTargetingEffect;
-  if(/^(supporter_effect|initiator_effect|when_set_effect|targeting_effect)$/i.test(actionType)){
+  const havanoListedSource = AUTHORITY_HAVANO_REACTION_SOURCE_IDS.has(sourceId);
+  const affectsReactor = affectedOwners.includes(reactionPlayer) || wasTargetingEffect || havanoListedSource;
+  if(/^(supporter_effect|initiator_effect|when_set_effect|targeting_effect|first_set_effect)$/i.test(actionType)){
     boardEntries(preState).forEach(entry=>{
       const card = entry.card;
       if(!card || Number(card.owner) !== reactionPlayer || isFaceDownAuthorityCard(card)) return;
@@ -322,7 +381,7 @@ function collectAuthorityImprovisorOptions(preState, msg){
       }
     });
   }
-  if(affectsReactor){
+  if(affectsReactor && havanoListedSource){
     playerHandEntries(preState, reactionPlayer).forEach(entry=>{
       const card = entry.card;
       if(String(card.id || '') !== '79') return;
@@ -337,8 +396,8 @@ function collectAuthorityImprovisorOptions(preState, msg){
     kind:'reaction',
     playerIndex:reactionPlayer,
     sourcePlayerIndex:sourcePlayer,
-    sourceName:sourceNameForReaction(payload),
-    source:actionSourceRef(payload),
+    sourceName:String(sourceCard && sourceCard.name || sourceNameForReaction(payload)),
+    source:sourceRef,
     actionType,
     timeoutMs:15000,
     options
@@ -351,9 +410,10 @@ function maybeArmAuthorityImprovisorReaction(room, msg, postState){
   const preState = room && room.canonicalState;
   if(!preState || preState._serverPendingReaction) return null;
   if(!actionCanArmImprovisorReaction(type, payload)) return null;
-  const pendingBase = collectAuthorityImprovisorOptions(preState, msg);
+  const pendingBase = collectAuthorityImprovisorOptions(preState, msg, postState);
   if(!pendingBase) return null;
   const state = cloneState(preState);
+  copySourceSpentFlagsFromResolved(state, postState, pendingBase);
   const seq = Number(state._serverReactionSeq || 0) + 1;
   state._serverReactionSeq = seq;
   state._serverPendingReaction = Object.assign({}, pendingBase, {
@@ -395,6 +455,52 @@ function collectConsolidationTributeRefs(payload){
   });
 }
 
+function validAuthoritySlot(z, r, c){
+  return Number.isInteger(Number(z)) && Number.isInteger(Number(r)) && Number.isInteger(Number(c));
+}
+
+function sameAuthoritySlot(entry, z, r, c){
+  return !!(entry && Number(entry.z) === Number(z) && Number(entry.r) === Number(r) && Number(entry.c) === Number(c));
+}
+
+function consolidationSourceEntry(preState, ref){
+  if(!preState || !ref) return null;
+  if(ref.iid){
+    const exact = boardEntriesMatchingRef(preState, ref)[0] || null;
+    if(exact) return exact;
+  }
+  if(validAuthoritySlot(ref.z, ref.r, ref.c)){
+    const card = boardEntryAt(preState, Number(ref.z), Number(ref.r), Number(ref.c));
+    if(!card) return null;
+    if(ref.iid && String(card.iid || '') !== ref.iid) return null;
+    if(ref.id && String(card.id || '') !== ref.id) return null;
+    return {card, z:Number(ref.z), r:Number(ref.r), c:Number(ref.c)};
+  }
+  return null;
+}
+
+function consolidationPostStateLeftConsumedSupporter(room, payload, postState, ref){
+  if(!CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2){
+    return !!(ref.iid && boardHasCardRef(postState, ref));
+  }
+  const targetZ = Number(payload.z), targetR = Number(payload.r), targetC = Number(payload.c);
+  const sameTarget = Number(ref.z) === targetZ && Number(ref.r) === targetR && Number(ref.c) === targetC;
+  const source = consolidationSourceEntry(room && room.canonicalState, ref);
+  if(ref.iid){
+    if(!source) return false;
+    return boardEntriesMatchingRef(postState, ref).some(entry=>{
+      if(sameAuthoritySlot(entry, targetZ, targetR, targetC)) return true;
+      if(sameAuthoritySlot(entry, source.z, source.r, source.c)) return true;
+      return String(entry.card && entry.card.id || '') === String(source.card && source.card.id || '');
+    });
+  }
+  if(!validAuthoritySlot(ref.z, ref.r, ref.c) || sameTarget) return false;
+  const card = boardEntryAt(postState, Number(ref.z), Number(ref.r), Number(ref.c));
+  if(!card) return false;
+  const expectedId = String(ref.id || source?.card?.id || ref.card?.id || '');
+  return expectedId ? String(card.id || '') === expectedId : !!source;
+}
+
 function validateConsolidationPostState(room, payload, postState){
   const refs = collectConsolidationTributeRefs(payload);
   if(!refs.length) return '';
@@ -408,8 +514,8 @@ function validateConsolidationPostState(room, payload, postState){
   for(const ref of refs){
     const sameTarget = Number(ref.z) === targetZ && Number(ref.r) === targetR && Number(ref.c) === targetC;
     if(ref.iid && String(targetCard.iid || '') === ref.iid) return 'consolidation target still contains a consumed supporter';
-    if(ref.iid && boardHasCardRef(postState, ref)) return 'consolidation left a consumed supporter on the board';
-    if(!ref.iid && Number.isInteger(ref.z) && Number.isInteger(ref.r) && Number.isInteger(ref.c) && !sameTarget && boardEntryAt(postState, ref.z, ref.r, ref.c)){
+    if(consolidationPostStateLeftConsumedSupporter(room, payload, postState, ref)) return 'consolidation left a consumed supporter on the board';
+    if(!CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2 && !ref.iid && Number.isInteger(ref.z) && Number.isInteger(ref.r) && Number.isInteger(ref.c) && !sameTarget && boardEntryAt(postState, ref.z, ref.r, ref.c)){
       return 'consolidation left a selected support square occupied';
     }
     if(ref.iid && !playerDiscardHasCardRef(postState, playerIndex, ref)){
@@ -486,7 +592,7 @@ function reduceChooseTurn(room, msg){
   const payload = msg && msg.payload || {};
   const playerIndex = Number(payload.playerIndex);
   if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return {ok:false, reason:'CHOOSE_TURN requires playerIndex'};
-  state.currentPlayer = playerIndex;
+  state.currentPlayer = payload.goFirst === false ? 1 - playerIndex : playerIndex;
   state.phase = 'main';
   const validationError = validateCanonicalState(state);
   if(validationError) return {ok:false, reason:validationError};
@@ -506,13 +612,31 @@ function copySourceSpentFlagsFromResolved(baseState, resolvedState, pending){
   [
     'effectUsedInitial',
     '_effectTurnLocked',
-    'whenSetActivated',
-    '_initialSetEffectGuard'
+    'whenSetActivated'
   ].forEach(key=>{
     if(Object.prototype.hasOwnProperty.call(resolvedEntry.card, key)){
       baseEntry.card[key] = cloneState(resolvedEntry.card[key]);
     }
   });
+  delete baseEntry.card._pendingWhenSetEffect;
+  delete baseEntry.card._pendingWhenSetActivationInFlight;
+  delete baseEntry.card._effectActivationInFlight;
+}
+
+function markAuthoritySourceNegated(state, pending, reactionKind){
+  const sourceEntry = findBoardEntryByRef(state, pending && pending.source);
+  if(!sourceEntry || !sourceEntry.card) return;
+  sourceEntry.card._effectNegatedByReaction = true;
+  if(String(sourceEntry.card.type || '') === 'Supporter') sourceEntry.card.whenSetActivated = true;
+  if(String(sourceEntry.card.type || '') === 'Initiator') sourceEntry.card.effectUsedInitial = true;
+  delete sourceEntry.card._pendingWhenSetEffect;
+  delete sourceEntry.card._pendingWhenSetActivationInFlight;
+  delete sourceEntry.card._effectActivationInFlight;
+  if(reactionKind === 'lydia'){
+    sourceEntry.card._lydiaSuppressed = true;
+    return;
+  }
+  sourceEntry.card._reactionSuppressed = true;
 }
 
 function findReactionOption(pending, payload){
@@ -538,11 +662,7 @@ function applyLydiaAuthorityReaction(state, option, pending){
   const entry = findBoardEntryByRef(state, option);
   if(!entry || !entry.card) return 'Lydia is no longer on the board';
   entry.card.usesLeft = Math.max(0, (entry.card.usesLeft === null || entry.card.usesLeft === undefined ? 3 : Number(entry.card.usesLeft) || 0) - 1);
-  const sourceEntry = findBoardEntryByRef(state, pending && pending.source);
-  if(sourceEntry && sourceEntry.card){
-    sourceEntry.card._lydiaSuppressed = true;
-    sourceEntry.card._effectNegatedByReaction = true;
-  }
+  markAuthoritySourceNegated(state, pending, 'lydia');
   return '';
 }
 
@@ -551,11 +671,7 @@ function applySeculesAuthorityReaction(state, option, pending){
   if(!entry || !entry.card) return 'Mr. Secules is no longer on the board';
   entry.card.usesLeft = 0;
   entry.card._seculesUsed = true;
-  const sourceEntry = findBoardEntryByRef(state, pending && pending.source);
-  if(sourceEntry && sourceEntry.card){
-    sourceEntry.card._reactionSuppressed = true;
-    sourceEntry.card._effectNegatedByReaction = true;
-  }
+  markAuthoritySourceNegated(state, pending, 'secules');
   return '';
 }
 
@@ -580,6 +696,7 @@ function applyHavanoAuthorityReaction(state, option, payload, pending){
   inst.owner = playerIndex;
   inst.currentFate = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
   state.board[z][r][c] = inst;
+  markAuthoritySourceNegated(state, pending, 'havano');
   return '';
 }
 
@@ -601,8 +718,9 @@ function reduceReactionChoice(room, msg){
   if(choice !== 'negate') return {ok:false, reason:'unknown reaction choice'};
   const option = findReactionOption(pending, payload);
   if(!option) return {ok:false, reason:'reaction option is missing'};
-  const state = removePendingReaction(current);
-  copySourceSpentFlagsFromResolved(state, pending.resolvedPostState, pending);
+  const isFirstSetReaction = String(pending.actionType || '') === 'first_set_effect';
+  const state = removePendingReaction(cloneState(isFirstSetReaction ? pending.resolvedPostState : current));
+  if(!isFirstSetReaction) copySourceSpentFlagsFromResolved(state, pending.resolvedPostState, pending);
   let error = '';
   const kind = String(option.kind || '');
   if(kind === 'lydia') error = applyLydiaAuthorityReaction(state, option, pending);
@@ -624,6 +742,26 @@ function reduceServerAction(room, msg, opts){
     const state = room && room.canonicalState;
     const hash = room && room.canonicalHash || (state ? canonicalStateHash(state) : '');
     return {ok:true, canonicalState:state, canonicalHash:hash};
+  }
+  if(type === 'FORFEIT'){
+    const state = cloneState(room && room.canonicalState);
+    if(!state) return {ok:false, reason:'FORFEIT requires an active canonical match state'};
+    return {
+      ok:true,
+      canonicalState:state,
+      canonicalHash:room && room.canonicalHash || canonicalStateHash(state),
+      serverReduced:true
+    };
+  }
+  if(type !== 'REACTION_CHOICE' && room && room.canonicalState && room.canonicalState._serverPendingReaction){
+    const state = room.canonicalState;
+    const hash = room.canonicalHash || canonicalStateHash(state);
+    return {
+      ok:false,
+      reason:'pending reaction must resolve first',
+      serverState:state,
+      serverStateHash:hash
+    };
   }
   if(type === 'REACTION_CHOICE'){
     return reduceReactionChoice(room, msg);

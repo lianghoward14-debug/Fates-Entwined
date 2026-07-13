@@ -182,6 +182,39 @@ async function expectAccepted(client, requestId, type){
   return msg;
 }
 
+async function expectRejected(client, requestId, pattern, label){
+  const msg = await waitForMessage(
+    client,
+    item => (item.kind === 'accepted' || item.kind === 'rejected') && item.requestId === requestId,
+    `${label || 'action'} accepted or rejected`
+  );
+  assert.strictEqual(msg.kind, 'rejected', `${label || 'action'} should be rejected`);
+  if(pattern) assert.match(String(msg.reason || ''), pattern);
+  return msg;
+}
+
+function clone(value){
+  return JSON.parse(JSON.stringify(value || null));
+}
+
+function blankBoard(){
+  return Array.from({length:3}, () => Array.from({length:3}, () => Array(3).fill(null)));
+}
+
+function testCard(id, owner, iid, type){
+  return {
+    id:String(id),
+    iid:String(iid || id + '-' + owner),
+    owner,
+    name:String(id),
+    type:type || 'Supporter',
+    aff:'reality',
+    fate:1,
+    currentFate:1,
+    cost:0
+  };
+}
+
 async function run(){
   const authority = await startServer();
   const clients = [];
@@ -252,9 +285,177 @@ async function run(){
     assert.strictEqual(accepted.roomPatch?.currentTurnUid, nextUid, 'expected ACTION_RESULT end turn to move room turn');
     await waitForMessage(observer, msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === Number(accepted.action?.seq || 0), 'observer ACTION_RESULT broadcast');
 
+    const reactionActor = Number(postState.currentPlayer);
+    const reactionReactor = reactionActor === 0 ? 1 : 0;
+    const reactionActorClient = reactionActor === activePlayer ? activeClient : observer;
+    const reactionReactorClient = reactionActor === activePlayer ? observer : activeClient;
+    const reactionActorUid = reactionActor === 0 ? host.uid : guest.uid;
+    const reactionReactorUid = reactionReactor === 0 ? host.uid : guest.uid;
+    const reactionBase = clone(postState);
+    reactionBase.board = blankBoard();
+    reactionBase.players[0].hand = [];
+    reactionBase.players[1].hand = [];
+    reactionBase.currentPlayer = reactionActor;
+    reactionBase.phase = 'main';
+    reactionBase.pendingInteraction = null;
+    reactionBase._serverPendingReaction = null;
+    const actorRow = reactionActor === 0 ? 2 : 0;
+    const reactorRow = reactionReactor === 0 ? 2 : 0;
+    const source = testCard('03', reactionActor, 'ws-source-1', 'Initiator');
+    source.name = 'Howard Walsh';
+    const lydia = testCard('56', reactionReactor, 'ws-lydia-1', 'Improvisor');
+    lydia.name = 'Lydia';
+    lydia.usesLeft = 3;
+    reactionBase.board[0][actorRow][0] = source;
+    reactionBase.board[1][reactorRow][0] = lydia;
+    const reactionBaseHash = canonicalStateHash(reactionBase);
+    const syncReactionBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
+      playerIndex:reactionActor,
+      currentPlayer:reactionActor,
+      turn:reactionBase.turn,
+      baseStateHash:postHash,
+      postState:reactionBase,
+      stateHash:reactionBaseHash
+    });
+    const syncedReactionBase = await expectAccepted(reactionActorClient, syncReactionBaseId, 'STATE_SYNC');
+    assert.strictEqual(syncedReactionBase.roomPatch?.currentTurnUid, reactionActorUid, 'reaction setup should make actor current turn');
+
+    const resolvedReaction = clone(reactionBase);
+    resolvedReaction.board[0][actorRow][0].currentFate = 99;
+    resolvedReaction.board[0][actorRow][0].effectUsedInitial = true;
+    resolvedReaction.board[0][actorRow][0]._effectTurnLocked = true;
+    const resolvedReactionHash = canonicalStateHash(resolvedReaction);
+    const armReactionId = sendIntent(reactionActorClient, roomCode, 'ACTION_RESULT', {
+      playerIndex:reactionActor,
+      turn:reactionBase.turn,
+      actionKind:'BOARD_ACTION',
+      fn:'triggerCharacterEffect',
+      z:0,
+      r:actorRow,
+      c:0,
+      source:{z:0, r:actorRow, c:0, card:{iid:'ws-source-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
+      effectCinematic:{z:0, r:actorRow, c:0, card:{iid:'ws-source-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
+      reactionActionType:'targeting_effect',
+      affectedOwners:[reactionReactor],
+      baseStateHash:reactionBaseHash,
+      postState:resolvedReaction,
+      stateHash:resolvedReactionHash
+    });
+    const armedReaction = await expectAccepted(reactionActorClient, armReactionId, 'ACTION_RESULT');
+    const pendingReaction = armedReaction.action.payload.postState._serverPendingReaction;
+    assert.ok(pendingReaction, 'WebSocket ACTION_RESULT should arm pending Improvisor reaction');
+    assert.strictEqual(armedReaction.roomPatch?.currentTurnUid, reactionReactorUid, 'pending reaction should pass turn to reactor');
+    assert.strictEqual(Number(armedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 1, 'armed reaction state must pause before applying effect');
+
+    const overwritePendingId = sendIntent(reactionReactorClient, roomCode, 'STATE_SYNC', {
+      playerIndex:reactionReactor,
+      currentPlayer:reactionActor,
+      turn:reactionBase.turn,
+      baseStateHash:armedReaction.action.payload.stateHash,
+      postState:resolvedReaction,
+      stateHash:resolvedReactionHash
+    });
+    await expectRejected(reactionReactorClient, overwritePendingId, /pending reaction must resolve first/, 'pending reaction overwrite');
+
+    const lydiaIndex = pendingReaction.options.findIndex(option=>String(option.kind || '') === 'lydia');
+    assert.ok(lydiaIndex >= 0, 'pending WebSocket reaction should include Lydia');
+    const negateId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
+      playerIndex:reactionReactor,
+      promptId:pendingReaction.promptId,
+      choice:'negate',
+      optionIndex:lydiaIndex,
+      baseStateHash:armedReaction.action.payload.stateHash
+    });
+    const negatedReaction = await expectAccepted(reactionReactorClient, negateId, 'REACTION_CHOICE');
+    assert.strictEqual(negatedReaction.action.payload.postState._serverPendingReaction, null);
+    assert.strictEqual(Number(negatedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 1, 'WebSocket negate should keep effect result unapplied');
+    assert.strictEqual(negatedReaction.action.payload.postState.board[0][actorRow][0].effectUsedInitial, true, 'WebSocket negate should still spend source effect');
+    assert.strictEqual(Number(negatedReaction.action.payload.postState.board[1][reactorRow][0].usesLeft), 2, 'WebSocket negate should spend Lydia use');
+
+    const allowBase = clone(postState);
+    allowBase.board = blankBoard();
+    allowBase.players[0].hand = [];
+    allowBase.players[1].hand = [];
+    allowBase.currentPlayer = reactionActor;
+    allowBase.phase = 'main';
+    allowBase.pendingInteraction = null;
+    allowBase._serverPendingReaction = null;
+    const allowSource = testCard('03', reactionActor, 'ws-source-allow-1', 'Initiator');
+    allowSource.name = 'Howard Walsh';
+    const allowLydia = testCard('56', reactionReactor, 'ws-lydia-allow-1', 'Improvisor');
+    allowLydia.name = 'Lydia';
+    allowLydia.usesLeft = 3;
+    allowBase.board[0][actorRow][0] = allowSource;
+    allowBase.board[1][reactorRow][0] = allowLydia;
+    const allowBaseHash = canonicalStateHash(allowBase);
+    const syncAllowBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
+      playerIndex:reactionActor,
+      currentPlayer:reactionActor,
+      turn:allowBase.turn,
+      baseStateHash:negatedReaction.action.payload.stateHash,
+      postState:allowBase,
+      stateHash:allowBaseHash
+    });
+    await expectAccepted(reactionActorClient, syncAllowBaseId, 'STATE_SYNC');
+
+    const allowResolved = clone(allowBase);
+    allowResolved.board[0][actorRow][0].currentFate = 99;
+    allowResolved.board[0][actorRow][0].effectUsedInitial = true;
+    allowResolved.board[0][actorRow][0]._effectTurnLocked = true;
+    const allowResolvedHash = canonicalStateHash(allowResolved);
+    const armAllowId = sendIntent(reactionActorClient, roomCode, 'ACTION_RESULT', {
+      playerIndex:reactionActor,
+      turn:allowBase.turn,
+      actionKind:'BOARD_ACTION',
+      fn:'triggerCharacterEffect',
+      z:0,
+      r:actorRow,
+      c:0,
+      source:{z:0, r:actorRow, c:0, card:{iid:'ws-source-allow-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
+      effectCinematic:{z:0, r:actorRow, c:0, card:{iid:'ws-source-allow-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
+      reactionActionType:'targeting_effect',
+      affectedOwners:[reactionReactor],
+      baseStateHash:allowBaseHash,
+      postState:allowResolved,
+      stateHash:allowResolvedHash
+    });
+    const armedAllow = await expectAccepted(reactionActorClient, armAllowId, 'ACTION_RESULT');
+    const allowPending = armedAllow.action.payload.postState._serverPendingReaction;
+    assert.ok(allowPending, 'WebSocket ACTION_RESULT should arm an allow-test Improvisor reaction');
+    const allowId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
+      playerIndex:reactionReactor,
+      promptId:allowPending.promptId,
+      choice:'decline',
+      baseStateHash:armedAllow.action.payload.stateHash
+    });
+    const allowedReaction = await expectAccepted(reactionReactorClient, allowId, 'REACTION_CHOICE');
+    assert.strictEqual(allowedReaction.action.payload.postState._serverPendingReaction, null);
+    assert.strictEqual(Number(allowedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 99, 'WebSocket allow/decline should apply the stored effect result');
+    assert.strictEqual(allowedReaction.action.payload.postState.board[0][actorRow][0]._effectNegatedByReaction, undefined, 'WebSocket allow/decline must not mark the source as negated');
+
     const resumed = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/resume?after=0&limit=20&includeState=1`);
-    assert.strictEqual(resumed.canonicalHash, postHash);
-    assert.strictEqual(Number(resumed.canonicalState.currentPlayer), Number(postState.currentPlayer));
+    assert.strictEqual(resumed.canonicalHash, allowedReaction.action.payload.stateHash);
+    assert.strictEqual(Number(resumed.canonicalState.board[0][actorRow][0].currentFate), 99);
+
+    const forfeitClientActionId = `http-forfeit-${Date.now()}`;
+    const remoteForfeitPromise = waitForMessage(
+      reactionReactorClient,
+      msg => msg.kind === 'accepted'
+        && String(msg.action?.type || '').toUpperCase() === 'FORFEIT'
+        && String(msg.action?.clientActionId || '') === forfeitClientActionId,
+      'opponent HTTP FORFEIT broadcast'
+    );
+    const forfeitResponse = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/forfeit`, {
+      method:'POST',
+      body:{uid:reactionActorUid, clientActionId:forfeitClientActionId}
+    });
+    const forfeited = forfeitResponse.accepted;
+    assert.strictEqual(forfeited.roomPatch?.status, 'ended', 'FORFEIT must end the authority room');
+    assert.strictEqual(forfeited.roomPatch?.phase, 'ended', 'FORFEIT must end the authority phase');
+    assert.strictEqual(forfeited.roomPatch?.endedBy, reactionActorUid, 'FORFEIT must identify the leaving player');
+    assert.strictEqual(forfeitResponse.room?.endedBy, reactionActorUid, 'room watch payload must identify who ended the match');
+    const remoteForfeit = await remoteForfeitPromise;
+    assert.strictEqual(remoteForfeit.roomPatch?.status, 'ended', 'opponent must receive the terminal room status');
     console.log('fate-client-resolved-ws smoke passed');
   }finally{
     clients.forEach(client => {

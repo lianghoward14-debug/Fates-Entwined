@@ -3,6 +3,7 @@
 let _audioCtx = null;
 let _sfxBusByContext = new WeakMap();
 let _sfxNoiseBuffersByContext = new WeakMap();
+let _lastEffectNegatedSfxAt = 0;
 function getAudioCtx(){
   if(!_audioCtx) _audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   if(_audioCtx.state==='suspended') _audioCtx.resume();
@@ -233,6 +234,11 @@ window.playFateSfxOnce = playFateSfxOnce;
 
 function playSfx(type) {
   if(_masterVol<=0) return;
+  if(type === 'effectNegated'){
+    const nowMs = Date.now();
+    if(nowMs - _lastEffectNegatedSfxAt < 320) return;
+    _lastEffectNegatedSfxAt = nowMs;
+  }
   const isTurnChangeSound = type === 'turnChange';
   const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition'].includes(type);
   if(isMenuSound) {
@@ -1544,6 +1550,30 @@ function playSfx(type) {
       }
     }
 
+    else if(type==='effectNegated'){
+      const cut = ctx.createOscillator(); cut.type='square';
+      cut.frequency.setValueAtTime(1320, now);
+      cut.frequency.exponentialRampToValueAtTime(330, now + 0.11);
+      const cutG = ctx.createGain();
+      cutG.gain.setValueAtTime(0.16, now);
+      cutG.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=860; bp.Q.value=4.5;
+      cut.connect(bp); bp.connect(cutG); cutG.connect(vol);
+      cut.start(now); cut.stop(now + 0.18);
+
+      const seal = ctx.createOscillator(); seal.type='sine';
+      seal.frequency.setValueAtTime(196, now + 0.03);
+      seal.frequency.exponentialRampToValueAtTime(82, now + 0.24);
+      const sealG = ctx.createGain();
+      sealG.gain.setValueAtTime(0.11, now + 0.03);
+      sealG.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      seal.connect(sealG); sealG.connect(vol);
+      seal.start(now + 0.03); seal.stop(now + 0.3);
+
+      const hiss = noiseBurst(0.05, 2.8, 0.12, 'highpass', 1400);
+      hiss.start(now + 0.015);
+    }
+
     else if(type==='matchEnd'){
       const gong = ctx.createOscillator(); gong.type='sine';
       gong.frequency.setValueAtTime(80,now); gong.frequency.exponentialRampToValueAtTime(55,now+1.5);
@@ -1581,6 +1611,7 @@ function playSfx(type) {
 
 function playEffectActivationClickSfx(opts) {
   const options = opts || {};
+  if(options.sfx === false) return false;
   const now = Date.now();
   const key = options.remote ? '__fateLastRemoteEffectActivateSfxAt' : '__fateLastLocalEffectActivateSfxAt';
   const minGap = Math.max(0, Number(options.minGapMs) || 120);
@@ -1954,7 +1985,7 @@ function exitGame() {
 
 function startMusic() {
   if(!_musicEnabled) return;
-  const menuScreens = ['s-title','s-preset','s-deck','s-coin','s-challenger','s-starter-pick','s-win','s-social','s-matchmaking'];
+  const menuScreens = ['s-title','s-deck','s-coin','s-challenger','s-starter-pick','s-win','s-social','s-matchmaking'];
   if(menuScreens.includes(_currentScreen) || !_currentScreen) playBgMusic();
   else if(_currentScreen==='s-game') playGameMusic();
   else playBgMusic(); // fallback: always play bg music
@@ -2136,7 +2167,7 @@ window.fateResumeMusicAfterHidden = resumeMusicAfterTabHidden;
 function onScreenChange(screenId) {
   const prev = _currentScreen;
   _currentScreen = screenId;
-  const menuScreens = ['s-title','s-preset','s-deck','s-coin','s-challenger','s-starter-pick','s-win','s-social','s-matchmaking'];
+  const menuScreens = ['s-title','s-deck','s-coin','s-challenger','s-starter-pick','s-win','s-social','s-matchmaking'];
   const wasMenu = menuScreens.includes(prev);
   const isGame = screenId==='s-game';
   const isMenu = menuScreens.includes(screenId);
@@ -2153,6 +2184,7 @@ function onScreenChange(screenId) {
 }
 
 function confirmEndGame() {
+  if(typeof window.fateConfirmOnlineEndGame === 'function' && window.fateConfirmOnlineEndGame()) return;
   showModal('End Game?',
     'Are you sure you want to forfeit the current game? This will count as a loss.',
     [

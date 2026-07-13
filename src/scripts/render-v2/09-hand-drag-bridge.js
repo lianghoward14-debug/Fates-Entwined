@@ -4,8 +4,10 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchHandDragBridge) return;
 
-  const BRIDGE_VERSION = 3;
-  const DRAG_THRESHOLD = 10;
+  const BRIDGE_VERSION = 4;
+  const DRAG_THRESHOLD = 4;
+  const DRAG_CLICK_SUPPRESS_THRESHOLD = 3;
+  const BUTTON_RELEASE_GRACE_MS = 140;
   let state = null;
   let blockClickUntil = 0;
   let pendingHover = null;
@@ -14,9 +16,62 @@
   const DROP_PREVIEW_INTERVAL_MS = 42;
   const DROP_PREVIEW_MIN_DELTA = 12;
   let handOrganizer = null;
+  const localHandOrders = new Map();
 
   function setDraggingFlag(active){
     window.__fateV2DraggingCard = !!active;
+  }
+
+  function suppressHandClick(ms){
+    const until = Date.now() + (Number(ms) || 420);
+    window.__fateV2SuppressHandClickUntil = Math.max(Number(window.__fateV2SuppressHandClickUntil) || 0, until);
+  }
+
+  function captureDragPointer(ev){
+    if(!state || !ev || ev.pointerId == null) return false;
+    const target = ev.target && typeof ev.target.setPointerCapture === 'function' ? ev.target : null;
+    if(!target) return false;
+    try {
+      target.setPointerCapture(ev.pointerId);
+      state.captureTarget = target;
+      state.pointerCaptured = true;
+      return true;
+    } catch(e) {
+      state.pointerCaptured = false;
+      return false;
+    }
+  }
+
+  function releaseDragPointer(){
+    if(!state || !state.captureTarget || state.pointerId == null) return;
+    const target = state.captureTarget;
+    try {
+      if(typeof target.hasPointerCapture !== 'function' || target.hasPointerCapture(state.pointerId)) {
+        target.releasePointerCapture(state.pointerId);
+      }
+    } catch(e) {}
+    state.pointerCaptured = false;
+    state.captureTarget = null;
+  }
+
+  function isActiveDragPointer(ev){
+    return !!(!state || state.pointerId == null || !ev || ev.pointerId == null || Number(ev.pointerId) === Number(state.pointerId));
+  }
+
+  function primaryButtonStillTrusted(ev){
+    if(!state || !ev || typeof ev.buttons !== 'number') return true;
+    const now = nowMs();
+    if(state.dragging) {
+      if((ev.buttons & 1) !== 0) state.lastPrimaryButtonAt = now;
+      return true;
+    }
+    if((ev.buttons & 1) !== 0) {
+      state.lastPrimaryButtonAt = now;
+      state.primaryButtonMissingSince = 0;
+      return true;
+    }
+    if(!state.primaryButtonMissingSince) state.primaryButtonMissingSince = now;
+    return now - state.primaryButtonMissingSince <= BUTTON_RELEASE_GRACE_MS;
   }
 
   function adapter(){
@@ -78,6 +133,53 @@
     if(typeof G === 'undefined' || !G || !G.players) return null;
     const p = G.players[currentHandOwner()];
     return p && Array.isArray(p.hand) ? p.hand : null;
+  }
+
+  function handOrderKey(owner){
+    return String(Number(owner) || 0);
+  }
+
+  function rememberLocalHandOrder(owner, hand){
+    if(!Array.isArray(hand)) return false;
+    const order = hand.map(function(card){ return card && card.iid != null ? String(card.iid) : ''; }).filter(Boolean);
+    localHandOrders.set(handOrderKey(owner), order);
+    return true;
+  }
+
+  function applyStoredHandOrderForOwner(owner, hand){
+    if(!Array.isArray(hand) || hand.length < 2) return false;
+    const order = localHandOrders.get(handOrderKey(owner));
+    if(!Array.isArray(order) || !order.length) return false;
+    const ranked = new Map();
+    order.forEach(function(iid, index){ if(iid && !ranked.has(iid)) ranked.set(iid, index); });
+    let changed = false;
+    const selected = (typeof G !== 'undefined' && G && Number.isInteger(G.selectedHandCard)) ? hand[G.selectedHandCard] : null;
+    const sorted = hand.map(function(card, index){ return {card, index}; }).sort(function(a, b){
+      const aiid = a.card && a.card.iid != null ? String(a.card.iid) : '';
+      const biid = b.card && b.card.iid != null ? String(b.card.iid) : '';
+      const ar = ranked.has(aiid) ? ranked.get(aiid) : Number.MAX_SAFE_INTEGER;
+      const br = ranked.has(biid) ? ranked.get(biid) : Number.MAX_SAFE_INTEGER;
+      if(ar !== br) return ar - br;
+      return a.index - b.index;
+    });
+    sorted.forEach(function(entry, index){
+      if(hand[index] !== entry.card) changed = true;
+    });
+    if(!changed) return false;
+    hand.splice(0, hand.length, ...sorted.map(function(entry){ return entry.card; }));
+    if(selected && typeof G !== 'undefined' && G){
+      const nextSelected = hand.findIndex(function(card){ return card && selected && card.iid === selected.iid; });
+      G.selectedHandCard = nextSelected >= 0 ? nextSelected : null;
+    }
+    return true;
+  }
+
+  function applyLocalHandOrder(game){
+    const root = game || (typeof G !== 'undefined' ? G : null);
+    if(!root || !Array.isArray(root.players)) return false;
+    const owner = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : root.currentPlayer;
+    const player = root.players[owner];
+    return !!(player && applyStoredHandOrderForOwner(owner, player.hand));
   }
 
   function isFreeSetCard(card){
@@ -293,6 +395,7 @@
       const nextSelected = hand.findIndex(function(card){ return card && selected && card.iid === selected.iid; });
       G.selectedHandCard = nextSelected >= 0 ? nextSelected : null;
     }
+    rememberLocalHandOrder(currentHandOwner(), hand);
     requestHandOnlyRender();
     renderHandOrganizer();
   }
@@ -301,6 +404,7 @@
     if(!handOrganizer || !handOrganizer.root) return;
     guardHandOrganizer();
     if(!handOrganizer) return;
+    applyLocalHandOrder();
     const hand = currentHand() || [];
     const rows = hand.map(function(card, index){
       const img = cardImageSrc(card);
@@ -682,6 +786,7 @@
 
   function cleanup(options){
     const opts = options || {};
+    releaseDragPointer();
     if(state && state.el) state.el.classList.remove('fate-v2-drag-source');
     if(state && state.card && !opts.keepDeparting) {
       try { delete state.card._presentationDeparting; } catch(e) {}
@@ -767,6 +872,7 @@
       return;
     }
     state.dragging = true;
+    suppressHandClick(900);
     const cache = buildDragCache();
     state.boardCache = cache;
     state.hitMap = cache.hitMap;
@@ -781,6 +887,8 @@
 
   function onPointerDown(ev){
     if(Date.now() < blockClickUntil) return;
+    if(state && state.dragging) return;
+    if(state) cleanup({clearPlacement:false});
     const handHit = viewportHandHitFromPoint(ev.clientX, ev.clientY);
     if(!handHit) return;
     const el = null;
@@ -797,16 +905,28 @@
       dragging:false,
       ghost:null,
       sourceViewportRect:handHit && handHit.rect ? Object.assign({}, handHit.rect) : null,
-      sourceBoardRect:handHit && handHit.rect ? viewportRectInBoardSpace(handHit.rect) : null
+      sourceBoardRect:handHit && handHit.rect ? viewportRectInBoardSpace(handHit.rect) : null,
+      pointerId:ev.pointerId,
+      captureTarget:null,
+      pointerCaptured:false,
+      lastPrimaryButtonAt:nowMs(),
+      primaryButtonMissingSince:0
     };
+    captureDragPointer(ev);
+    if(ev.preventDefault) ev.preventDefault();
   }
 
   function onPointerMove(ev){
     if(!state) return;
-    if(typeof ev.buttons === 'number' && (ev.buttons & 1) === 0){ cleanup({clearPlacement:true}); return; }
+    if(!isActiveDragPointer(ev)) return;
+    if(!primaryButtonStillTrusted(ev)){
+      cleanup({clearPlacement:true});
+      return;
+    }
     const dx = ev.clientX - state.sx;
     const dy = ev.clientY - state.sy;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    if(dist >= DRAG_CLICK_SUPPRESS_THRESHOLD) suppressHandClick(520);
     if(!state.dragging){
       if(dist < DRAG_THRESHOLD) return;
       beginDrag(ev);
@@ -879,6 +999,7 @@
 
   function onPointerUp(ev){
     if(!state) return;
+    if(!isActiveDragPointer(ev)) return;
     if(!state.dragging){ cleanup(); return; }
     ev.preventDefault();
     ev.stopPropagation();
@@ -911,6 +1032,12 @@
 
   function onContextMenu(ev){
     if(!ev) return;
+    if(state && state.dragging) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return;
+    }
     if(handOrganizer && ev.target && ev.target.closest && ev.target.closest('.fate-hand-organizer-root')) {
       ev.preventDefault();
       stopOrganizerEvent(ev);
@@ -924,13 +1051,23 @@
     openHandOrganizer();
   }
 
+  function onPointerCancel(ev){
+    if(!state || !isActiveDragPointer(ev)) return;
+    if(state.dragging) {
+      state.pointerCancelIgnoredAt = Date.now();
+      return;
+    }
+    cleanup({clearPlacement:true});
+  }
+
   document.addEventListener('pointerdown', onPointerDown, true);
   document.addEventListener('pointermove', onPointerMove, {capture:true, passive:false});
   document.addEventListener('pointerup', onPointerUp, true);
+  document.addEventListener('pointercancel', onPointerCancel, true);
   document.addEventListener('contextmenu', onContextMenu, true);
   document.addEventListener('click', blockGhostClick, true);
   window.addEventListener('blur', function(){
-    if(state) cleanup({clearPlacement:true});
+    if(state && !state.dragging) cleanup({clearPlacement:true});
     closeHandOrganizer('blur');
   });
   document.addEventListener('visibilitychange', function(){
@@ -942,6 +1079,7 @@
     version:BRIDGE_VERSION,
     usesDomHand:false,
     usesHitMap:true,
+    applyLocalHandOrder:applyLocalHandOrder,
     report:function(){
       return {
         available:true,
@@ -955,5 +1093,6 @@
       };
     }
   };
+  window.fateApplyLocalHandOrder = applyLocalHandOrder;
   window.fateMatchHandDragReport = window.FateMatchHandDragBridge.report;
 })();

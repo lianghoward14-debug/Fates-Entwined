@@ -759,7 +759,23 @@ function performGameRender(parts) {
   }
 }
 
-function cardRenderSignature(card, z) {
+function isCardVisuallySuppressed(card, z, r, c) {
+  if(!card) return false;
+  try {
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card)) return true;
+  } catch(e) {}
+  try {
+    if(card.type === 'Supporter' && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card)) return true;
+  } catch(e) {}
+  try {
+    if(card.type === 'Coordinator' && Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
+      && typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(z, r, c)) return true;
+  } catch(e) {}
+  return !!(card._lydiaSuppressed || card._reactionSuppressed || card._effectNegatedByReaction || card._lumberjackSuppressed);
+}
+if(typeof window !== 'undefined') window.isCardVisuallySuppressed = isCardVisuallySuppressed;
+
+function cardRenderSignature(card, z, r, c) {
   if(!card) return '0';
   let eff = '';
   try{ eff = z == null ? getLiveCardFate(card) : getCachedEffectiveFate(card, z); }catch(e){}
@@ -767,6 +783,7 @@ function cardRenderSignature(card, z) {
     card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card._markedForDeath ? 1 : 0,
+    isCardVisuallySuppressed(card, z, r, c) ? 1 : 0,
     card.noConsolidate ? 1 : 0, card.usesLeft || 0,
     card.vigilanteUsed ? 1 : 0, card.wolfCreekUsed ? 1 : 0,
     card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0
@@ -858,7 +875,7 @@ function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidde
     z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
     visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
     visual && visual.displayFate || '',
-    cardRenderSignature(card, z)
+    cardRenderSignature(card, z, r, c)
   ].join('|');
 }
 
@@ -898,7 +915,7 @@ function getBoardRenderState() {
       parts.push('r', r, 'len', row.length);
       for(let c=0; c<totalCols; c++){
         const card = row[c] || null;
-        const sig = cardRenderSignature(card, z) + ';cell=' + getBoardCellStateSignature(z, r, c, card);
+        const sig = cardRenderSignature(card, z, r, c) + ';cell=' + getBoardCellStateSignature(z, r, c, card);
         parts.push(c, sig);
         cellSignatures.set(z + ':' + r + ':' + c, sig);
       }
@@ -937,7 +954,7 @@ function getBoardRenderSignatureLegacy() {
     for(let r=0; r<zone.length; r++){
       const row = zone[r] || [];
       parts.push('r', r, 'len', row.length);
-      for(let c=0; c<row.length; c++) parts.push(c, cardRenderSignature(row[c], z));
+      for(let c=0; c<row.length; c++) parts.push(c, cardRenderSignature(row[c], z, r, c));
     }
   }
   return parts.join('|');
@@ -1719,7 +1736,7 @@ function showCanvasCardGalleryModal(title, cards, opts) {
   body.innerHTML =
     '<canvas class="canvas-card-gallery-surface" width="720" height="420" style="width:100%;max-width:720px;display:block;margin:0 auto;border-radius:10px;background:transparent;"></canvas>'+
     '<div class="canvas-card-gallery-footer" style="display:flex;align-items:center;justify-content:center;gap:1rem;margin-top:.7rem;color:var(--dim);font-family:Cinzel,serif;font-size:.78rem;"></div>'+
-    '<p style="font-size:.75rem;color:var(--dim);text-align:center;margin-top:.45rem;">'+cards.length+' card'+(cards.length!==1?'s':'')+'</p>';
+    (opts.hideCountText ? '' : '<p style="font-size:.75rem;color:var(--dim);text-align:center;margin-top:.45rem;">'+cards.length+' card'+(cards.length!==1?'s':'')+'</p>');
   const modalBody = document.getElementById('modal-body');
   if(modalBody) {
     modalBody.innerHTML = '';
@@ -1966,49 +1983,6 @@ function renderOppHand() {
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
-function canOpenOnlineFreeplayDeckCatalog(player) {
-  if(typeof G === 'undefined' || !G || !G._onlineRoomCode) return false;
-  if(G._isSpectator || G._onlineRole === 'spectator') return false;
-  const localIndex = Number.isInteger(Number(G._onlinePlayerIndex)) ? Number(G._onlinePlayerIndex) : null;
-  if(localIndex === null || Number(player) !== localIndex) return false;
-  const mode = String(G._onlineRoomMode || 'freeplay').toLowerCase();
-  return mode !== 'ranked' && mode !== 'challenger';
-}
-
-function showOnlineFreeplayDeckCatalog(player) {
-  if(!canOpenOnlineFreeplayDeckCatalog(player)){
-    if(typeof toast === 'function') toast('Deck catalog is only available for your own deck in online Free Play.');
-    return;
-  }
-  const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.filter(function(card){ return card && card.id; }) : [];
-  if(!cards.length){
-    showModal('Free Play Deck Catalog',
-      '<div class="di-window"><p class="di-note">No cards are available.</p></div>',
-      [{label:'Close', action:closeModal}], {immediate:true});
-    return;
-  }
-  pickCardsVisual(cards, {
-    title: 'Free Play Deck Catalog',
-    subtitle: 'Select cards to shuffle into your deck.',
-    maxCount: Math.min(30, cards.length),
-    minCount: 0,
-    confirmLabel: 'Add to Deck',
-    viewerPlayerIndex: player,
-    immediate: true
-  }, function(chosen){
-    if(!chosen || !chosen.length) return;
-    const ids = chosen.map(function(card){ return card && card.id; }).filter(Boolean);
-    if(!ids.length) return;
-    if(typeof window.fateAddOnlineFreeplayCardsToDeck !== 'function'){
-      if(typeof toast === 'function') toast('Online deck catalog is not ready.');
-      return;
-    }
-    window.fateAddOnlineFreeplayCardsToDeck(ids, player).then(function(ok){
-      if(ok && typeof showDeckInfo === 'function') setTimeout(function(){ showDeckInfo(player); }, 150);
-    });
-  });
-}
-
 function showDeckInfo(player) {
   if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
   else if(typeof playSfx === 'function') playSfx('uiClick');
@@ -2037,10 +2011,6 @@ function showDeckInfo(player) {
   if(canSetMaja){
     majaHtml = '<div class="di-action-panel"><div class="di-action-title">Maja Kaminska</div><div class="di-action-desc">Set directly from deck at no cost.</div><button class="btn sm pri" onclick="setMajaFromDeck()">Set from Deck</button></div>';
   }
-  let freeplayDeckCatalogHtml = '';
-  if(canOpenOnlineFreeplayDeckCatalog(player)){
-    freeplayDeckCatalogHtml = '<div class="di-action-panel"><div class="di-action-title">Free Play Deck Catalog</div><div class="di-action-desc">Browse every card and shuffle selected cards into your deck.</div><button class="btn sm pri" onclick="showOnlineFreeplayDeckCatalog(' + Number(player) + ')">Browse All Cards</button></div>';
-  }
   const totalCards = deck.length + hand.length + discard.length + boardCount;
   showModal(title,
     '<div class="di-window">'
@@ -2054,7 +2024,6 @@ function showDeckInfo(player) {
     + '</div>'
     + '<div class="di-progress-wrap"><div class="di-progress-bar" style="width:' + Math.round((deck.length / Math.max(1,totalCards)) * 100) + '%"></div><div class="di-progress-label">' + deck.length + ' / ' + totalCards + ' Cards Remaining</div></div>'
     + (isOwn ? '<p class="di-note">Deck contents are hidden — use search effects to look through specific cards.</p>' : '<p class="di-note">Opponent deck contents are hidden.</p>')
-    + freeplayDeckCatalogHtml
     + polishHtml
     + majaHtml
     + '</div>',
@@ -2093,7 +2062,6 @@ function showHowardDevDeckList(player) {
     if(typeof renderGame === 'function') renderGame({ hand:true, piles:true, topbar:true });
   });
 }
-window.showOnlineFreeplayDeckCatalog = showOnlineFreeplayDeckCatalog;
 window.showHowardDevDeckList = showHowardDevDeckList;
 
 window.setPolishFromDeck = function() {
@@ -2611,6 +2579,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const perspectivePlayer = getPerspectivePlayerIndex();
   const visual = getCardVisualData(card, perspectivePlayer, {forceBoardHidden:true, boardPos:{z,r,c}});
   const isHidden = !!visual?.isHidden;
+  const isSuppressed = !isHidden && isCardVisuallySuppressed(card, z, r, c);
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -2623,7 +2592,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
       existing.dataset.z = String(z);
       existing.dataset.r = String(r);
       existing.dataset.c = String(c);
-      existing.setAttribute('aria-label', visual.name || card.name || 'Card');
+      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isSuppressed ? ', suppressed' : ''));
       existing.classList.toggle('sel', selected);
       return existing;
     }
@@ -2635,10 +2604,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.dataset.r=String(r);
   el.dataset.c=String(c);
   el.dataset.boardCardSig=domSig;
-  el.setAttribute('aria-label', visual.name || card.name || 'Card');
-  // Lydia can temporarily suppress Supporter auras.
-  const isSuppressedByLydia = card.type==='Supporter' && (card._lydiaSuppressed || card._reactionSuppressed);
-  const isSuppressed = isSuppressedByLydia;
+  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isSuppressed ? ', suppressed' : ''));
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(isHidden?' face-down-card':'')
     +(card.immuneFlag?' immune':'')
@@ -2849,10 +2815,11 @@ function renderHand() {
 
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
-  const handLimit = 9;
+  const handLimit = 12;
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
+    if(G._onlineRoomCode) return false;
     while(G.players[player].hand.length > handLimit){
       const card = G.players[player].hand.pop();
       if(card) {
@@ -2862,7 +2829,13 @@ function enforceHandLimit(player) {
     }
     return true;
   }
-  if(G._handLimitDiscard && G._handLimitDiscard.player === player) return true;
+  if(G._handLimitDiscard && G._handLimitDiscard.player === player) {
+    const modal = document.getElementById('modal');
+    const modalOpen = !!(modal && modal.classList && modal.classList.contains('on') && modal.querySelector && modal.querySelector('.hand-limit-discard'));
+    const deferredActive = !!(G._handLimitDiscard.deferred && G._handLimitDiscardTimer);
+    if(modalOpen || deferredActive) return true;
+    G._handLimitDiscard = null;
+  }
   const cinematicWait = Math.max(
     0,
     (Number(G._cinematicUiLockUntil) || 0) - Date.now(),
@@ -2888,14 +2861,14 @@ function enforceHandLimit(player) {
 function openHandLimitDiscardModal(player) {
   const p = G.players[player];
   if(!p || !Array.isArray(p.hand)) return;
-  const handLimit = 9;
+  const handLimit = 12;
   const needed = Math.max(0, p.hand.length - handLimit);
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
   const cards = p.hand.slice();
   const bodyHtml = `
     <div class="hand-limit-discard">
-      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 9.</div>
+      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 12.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
@@ -2908,7 +2881,7 @@ function openHandLimitDiscardModal(player) {
         }).join('')}
       </div>
     </div>`;
-  showModal('Discard Down to 9', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
+  showModal('Discard Down to 12', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
     if(selectedIids.length < excess){ toast('Select ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
@@ -2925,6 +2898,7 @@ function openHandLimitDiscardModal(player) {
     closeModal();
     renderHand();
     if(typeof updateTopBar === 'function') updateTopBar();
+    if(typeof window.fateOnlineHandLimitResolved === 'function') window.fateOnlineHandLimitResolved(player);
     if((G.players[player].hand || []).length > handLimit) enforceHandLimit(player);
   }}], {immediate:true});
   const modalBox = document.querySelector('#modal .modal');
@@ -3113,13 +3087,13 @@ function showBusserStatusBanner(card, moves, owner) {
   const effectCard = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.find(c => c.id === '69') : null;
   const name = card && card.name ? card.name : 'Selected card';
   if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
-  if(typeof toast === 'function') toast(name + ' can move to adjacent zones' + (turns ? ' (' + turns + ' moves)' : '') + '.');
+  if(typeof toast === 'function') toast(name + ' can move to adjacent zones' + (turns ? ' (' + turns + ' turn' + (turns === 1 ? '' : 's') + ' remaining)' : '') + '.');
   try {
     window.__fateLastBusserStatusBanner = {
       cardName:name,
       cardId:String(card && card.id || ''),
       sourceName:effectCard ? effectCard.name : 'Breakfast Republic Busser',
-      moves:turns,
+      turnsLeft:turns,
       owner:coerceStatusOwner(owner, typeof G !== 'undefined' && G ? G.currentPlayer : 0),
       at:Date.now()
     };
@@ -3593,7 +3567,7 @@ function renderTopbarEffects() {
 
   const marieCard = CARDS.find(c => c.id === '36');
   forEachBoardCard((c, z) => {
-    if(c && c.id === '36' && !isFaceDownCard(c)) {
+    if(c && c.id === '36' && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) {
       const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + z] || 0)) / 4));
       allEffects.push({
         icon: getStatusEffectIcon('marie_deterrence'),
@@ -3734,7 +3708,7 @@ function renderTopbarEffects() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z){
       if(!c || isFaceDownCard(c)) return;
-      if(c.id === '81' && !c._lydiaSuppressed && !c._reactionSuppressed) {
+      if(c.id === '81' && !(typeof isCardEffectSuppressed === 'function' ? isCardEffectSuppressed(c) : (c._lydiaSuppressed || c._reactionSuppressed))) {
         if(!wojciechZonesByOwner[c.owner]) wojciechZonesByOwner[c.owner] = [];
         if(!wojciechZonesByOwner[c.owner].includes(z + 1)) wojciechZonesByOwner[c.owner].push(z + 1);
       }
@@ -3887,7 +3861,7 @@ function renderTopbarEffects() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c){
       if(!c || isFaceDownCard(c) || c.cantBeMoved || c.immuneFlag || String(c.id || '') === '76') return;
-      const moves = Math.max(0, Number(c._busserMoves || 0) || 0);
+      const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(c) : Math.max(0, Number(c._busserTurnsLeft || c._busserMoves || 0) || 0);
       if(moves <= 0) return;
       const owner = coerceStatusOwner(c._busserOwner == null ? c.owner : c._busserOwner, c.owner);
       busserMovesByOwner[owner] = (Number(busserMovesByOwner[owner]) || 0) + moves;
@@ -3902,7 +3876,7 @@ function renderTopbarEffects() {
       label: busserCard ? busserCard.ability : 'Corner! Behind!',
       cardName: busserCard ? busserCard.name : 'Breakfast Republic Busser',
       cardAbility: busserCard ? busserCard.ability : 'Corner! Behind!',
-      cardEffect: 'Friendly cards have ' + moves + ' Busser movement ' + (moves === 1 ? 'use' : 'uses') + ' remaining.',
+      cardEffect: 'Friendly cards can use Busser movement once per turn for ' + moves + ' turn' + (moves === 1 ? '' : 's') + '.',
       owner: owner,
       extraClass: 'effect-pill-busser',
       turnsLeft: moves
@@ -4401,10 +4375,10 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     value = (2 - uses) + ' / 2';
     sub = uses + ' Empowerment' + (uses === 1 ? '' : 's') + ' Remaining';
   } else if(card.id === '56') {
-    const uses = Math.max(0, Number(card.usesLeft == null ? 5 : card.usesLeft) || 0);
+    const uses = Math.max(0, Math.min(3, Number(card.usesLeft == null ? 3 : card.usesLeft) || 0));
     label = 'Berknomaly Uses';
-    value = (5 - uses) + ' / 5';
-    sub = uses + ' negation' + (uses === 1 ? '' : 's') + ' remaining';
+    value = (3 - uses) + ' / 3';
+    sub = uses + ' Negation' + (uses === 1 ? '' : 's') + ' Remaining';
   } else if(card.id === '67') {
     const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
     label = 'Negation Uses';
@@ -4445,26 +4419,53 @@ function playEffectActivationButtonSound() {
   return true;
 }
 
+function fateFastShowMovementTargets(options, classNames) {
+  const list = Array.isArray(options) ? options : [];
+  const classes = Array.isArray(classNames) && classNames.length ? classNames : ['placeable','move-target'];
+  const board = document.getElementById('board');
+  if(board && list.length) {
+    for(let i = 0; i < list.length; i++){
+      const opt = list[i] || {};
+      const el = board.querySelector('.cell[data-z="'+Number(opt.z)+'"][data-r="'+Number(opt.r)+'"][data-c="'+Number(opt.c)+'"]');
+      if(el) el.classList.add.apply(el.classList, classes);
+    }
+  }
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
+    window.FateMatchRendererAdapter.scheduleRender('movement-targets-fast');
+    window.FateMatchRendererAdapter.scheduleRender('hover');
+  }
+  return list.length;
+}
+
+function canUseBusserMoveButton(card, actionPlayer) {
+  if(!card || !Number.isInteger(actionPlayer)) return false;
+  const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserTurnsLeft || card._busserMoves || 0) || 0;
+  if(moves <= 0 || card._busserMovedThisTurn || card.cantBeMoved || card.immuneFlag || String(card.id || '') === '76') return false;
+  const busserOwner = card._busserOwner == null ? card.owner : Number(card._busserOwner);
+  return Number(busserOwner) === Number(actionPlayer) || Number(card.owner) === Number(actionPlayer);
+}
+
 function isBerkeleyHomelessEffectCard(card) {
   return !!(card && (card.berkeleyHomeless || String(card.id || '') === '62'));
 }
 
 function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
+  player = Number(player);
   if(!isBerkeleyHomelessEffectCard(card)) return false;
-  if(!Number.isInteger(player) || card.owner === player) return false;
-  if(!G || G.currentPlayer !== player) return false;
+  if(!Number.isInteger(player) || Number(card.owner) === player) return false;
+  if(!G || Number(G.currentPlayer) !== player) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
   const rowOwner = typeof getBoardRowOwner === 'function'
     ? getBoardRowOwner(z, r)
     : (r === 0 ? 1 : (r === 2 ? 0 : -1));
-  return rowOwner === player;
+  return Number(rowOwner) === player;
 }
 
 function discardBerkeleyHomelessWithHandCost(card, z, r, c) {
-  if(!isBerkeleyHomelessEffectCard(card) || card.owner === G.currentPlayer) return false;
   const actionPlayer = G._onlineRoomCode && typeof window.fateResolveOnlineLocalPlayerIndex === 'function'
-    ? window.fateResolveOnlineLocalPlayerIndex('berkeley discard action')
+    ? Number(window.fateResolveOnlineLocalPlayerIndex('berkeley discard action'))
     : G.currentPlayer;
+  if(!isBerkeleyHomelessEffectCard(card) || card.owner === actionPlayer) return false;
   if(!canDiscardBerkeleyHomelessEffect(card, z, r, c, actionPlayer)){
     toast('Berkeley Homeless can only be removed from your side of the field.');
     return true;
@@ -4587,7 +4588,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const resolveOnlineActionPlayer = (reason)=>{
     if(!G._onlineRoomCode) return getPerspectivePlayerIndex();
     if(typeof window.fateResolveOnlineLocalPlayerIndex === 'function'){
-      const resolved = window.fateResolveOnlineLocalPlayerIndex(reason || 'card detail');
+      const resolved = Number(window.fateResolveOnlineLocalPlayerIndex(reason || 'card detail'));
       if(Number.isInteger(resolved)) return resolved;
     }
     if(Number.isInteger(G._onlinePlayerIndex)) return G._onlinePlayerIndex;
@@ -4662,7 +4663,6 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     }
   }
   const boardDetail = (()=>{
-    if(!fromBoard) return null;
     const sameCard = (a,b)=>!!(a && b && (a === b || (a.iid && b.iid && a.iid === b.iid)));
     if(G.selectedBoardCard && sameCard(G.selectedBoardCard.card, card)) return G.selectedBoardCard;
     const pos = boardPos || (typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null);
@@ -4690,7 +4690,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     if(canDiscardBerkeleyHomeless){
       const berkeleyDisc=document.createElement('button');
       berkeleyDisc.className='btn sm danger';
-      berkeleyDisc.textContent='Discard Effect';
+      berkeleyDisc.textContent='Clearing Them Off';
       berkeleyDisc.onclick=()=>{
         closeModal();
         discardBerkeleyHomelessWithHandCost(bc, z, r, c);
@@ -4741,7 +4741,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     // no longer freely removable from their card info window.
     if(canUseBoardCard && bc.id!=='76'){
       const supporterActionsSuppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(bc);
-      if(!supporterActionsSuppressed && !isFaceDownCard(bc) && bc._busserMoves > 0 && !bc._busserMovedThisTurn && !bc.cantBeMoved && !bc.immuneFlag && bc.id!=='76'){
+      if(!supporterActionsSuppressed && !isFaceDownCard(bc) && canUseBusserMoveButton(bc, boardActionPlayer)){
         const busBtn=document.createElement('button');
         busBtn.className='btn sm pri';busBtn.textContent='Bussing';
         busBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateBusserMove(bc,z,r,c);};
@@ -4845,6 +4845,10 @@ function resetModalChrome() {
       'deck-slate-modal',
       'cdb-save-modal',
       'deck-inspect-compact-modal',
+      'deck-inspect-fit-modal',
+      'title-deck-preview-modal',
+      'shared-deck-preview-modal',
+      'challenger-deck-preview-modal',
       'deck-art-editor-modal',
       'challenger-deck-art-editor-modal',
       'title-deck-art-editor-modal',
@@ -6137,9 +6141,15 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
 
 function pickBoardSupporterEffect(player, z) {
   // Ledger-keepers: copy a supporter effect — visual card picker
-  const whenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','42','43','50','51','58','60','62','68','69','71','72','73','76','80'];
+  const fallbackWhenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','37','42','43','50','51','52','58','60','62','68','69','71','72','73','76','80','91','94'];
+  const whenSetIds = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS && typeof WHEN_SET_IDS.has === 'function')
+    ? WHEN_SET_IDS
+    : new Set(fallbackWhenSetIds);
   const supporters=[];
-  forEachBoardCard((card,bz,r,c)=>{if(card.type==='Supporter' && whenSetIds.includes(card.id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});});
+  forEachBoardCard((card,bz,r,c)=>{
+    const id = String(card && card.id || '');
+    if(card.type==='Supporter' && id !== '75' && whenSetIds.has(id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});
+  });
   if(!supporters.length){toast('No supporters on field');return;}
   window._ledgerSups=supporters;window._ledgerZ=z;window._ledgerPlayer=player;
   const cards = supporters.map(s=>s.card);
@@ -6775,6 +6785,24 @@ function showBlockedAnimation(msg) {
   setTimeout(()=>flash.remove(), 1550);
 }
 
+function showEffectNegatedBanner(msg) {
+  if(G._aiAbort) return;
+  const text = String(msg || 'EFFECT NEGATED').replace(/^\s*!\s*/, '').replace(/\s*!+\s*$/, '') || 'EFFECT NEGATED';
+  try {
+    const existing = document.querySelector('.effect-blocked-flash.effect-negated-banner');
+    if(existing) return;
+  } catch(e) {}
+  try {
+    const perf = window.__fatePerf = window.__fatePerf || {};
+    perf.lastEffectNegatedBanner = {at:Math.round(performance.now ? performance.now() : Date.now()), text};
+  } catch(e) {}
+  const flash = document.createElement('div');
+  flash.className = 'effect-blocked-flash effect-negated-banner';
+  flash.innerHTML = `<div class="ebf-inner">${escapeHtml(text)}!</div>`;
+  document.body.appendChild(flash);
+  setTimeout(()=>flash.remove(), 1550);
+}
+
 function showEffectFlash(card) {
   return;
 }
@@ -7319,7 +7347,7 @@ function effectActivationCinematicDisabled() {
 function playEffectActivationCinematic(card, z, r, c, opts) {
   const options = opts || {};
   if(effectActivationCinematicDisabled()) return Promise.resolve(false);
-  if(!options.remote && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
+  if(!options.remote && options.broadcast !== false && String(options.source || '') !== 'improvisor-reaction' && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
     try { window.__fateSendEffectActivationCinematic(card, z, r, c, options); } catch(e) {}
   }
   if(typeof showEffectActivationCinematic === 'function') {
@@ -7373,16 +7401,9 @@ function showRevealedHandWindow(playerIdx) {
 
   showCanvasCardGalleryModal(G.players[playerIdx].name + "'s Revealed Cards", revealedCards, {
     viewerPlayerIndex: getPerspectivePlayerIndex(),
-    imageRole: 'detail'
+    imageRole: 'detail',
+    hideCountText: true
   });
-  const modalBody = document.getElementById('modal-body');
-  if(modalBody) {
-    const note = document.createElement('p');
-    note.style.cssText = 'font-size:.75rem;color:var(--dim);text-align:center;margin-top:.45rem;';
-    const hiddenCount = hand.length - revealedCards.length;
-    note.textContent = revealedCards.length + ' of ' + hand.length + ' cards revealed' + (hiddenCount > 0 ? ' - ' + hiddenCount + ' hidden' : '');
-    modalBody.appendChild(note);
-  }
 }
 
 function normalizeBlockedCells() {

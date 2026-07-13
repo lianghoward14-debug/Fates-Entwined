@@ -29,6 +29,14 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function rotatedBounds(r, radians){
+    const sin = Math.abs(Math.sin(radians || 0));
+    const cos = Math.abs(Math.cos(radians || 0));
+    const w = r.w * cos + r.h * sin;
+    const h = r.w * sin + r.h * cos;
+    return rect(r.x + r.w / 2 - w / 2, r.y + r.h / 2 - h / 2, w, h);
+  }
+
   const MATCH_ZONE_SIZE_SCALE = 0.965;
   const MATCH_ZONE_VERTICAL_ALIGN = 0.21;
 
@@ -138,64 +146,98 @@
     const handCards = Array.isArray(own.hand) ? own.hand : [];
     const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
     const handCount = handCards.length;
-    const cardW = handCount >= 9 ? clamp(winW * 0.043, 68, 92) : clamp(winW * 0.047, 76, 100);
-    const cardH = Math.round(cardW * 1.4);
-    const handFallbackW = Math.min(1040, Math.max(600, winW - 800));
-    const desiredHandRect = rect((winW - handFallbackW) / 2, winH - cardH - 74, handFallbackW, cardH + 48);
-    const handRect = desiredHandRect;
-    const maxHandW = Math.max(1, Math.min(handRect.w - 34, winW - 620));
-    const naturalGap = clamp(winW * 0.0035, 4, 9);
-    let gap = naturalGap;
-    let handStartX = handRect.x;
+    const denseHand = handCount >= 10;
+    const handFanMaxAngle = clamp(
+      8 + handCount * .8,
+      12,
+      16
+    ) * Math.PI / 180;
+    const handBottom = winH - clamp(winH * .006, 6, 12);
+    const maxCardWByHeight = Math.max(94, winH * .292 / 1.4);
+    const preferredCardW = clamp(winW * 0.076, 102, 152);
+    let cardW = Math.min(preferredCardW, maxCardWByHeight);
+    const centerLaneW = winW >= 1040 ? winW - 620 : winW - 32;
+    const maxHandW = Math.max(320, Math.min(centerLaneW, winW * .86));
+    const minStepFactor = denseHand ? .26 : .34;
+    const maxStepFactor = denseHand ? .48 : .62;
     if(handCount > 1) {
-      const free = maxHandW - cardW * handCount;
-      gap = Math.min(naturalGap, Math.max(-cardW * .52, free / (handCount - 1)));
+      const minStep = cardW * minStepFactor;
+      const fanNeedW = cardW + minStep * (handCount - 1) + Math.sin(handFanMaxAngle) * cardW * 1.4;
+      if(fanNeedW > maxHandW) cardW *= maxHandW / fanNeedW;
     }
-    const totalHandW = handCount ? (cardW * handCount + gap * Math.max(0, handCount - 1)) : 0;
-    handStartX = handRect.x + handRect.w / 2 - totalHandW / 2;
-    const handY = handRect.y + Math.max(0, handRect.h - cardH - 18);
+    cardW = clamp(cardW, 94, preferredCardW);
+    const cardH = Math.round(cardW * 1.4);
+    const step = handCount > 1
+      ? Math.max(cardW * .18, Math.min(cardW * maxStepFactor, (maxHandW - cardW) / Math.max(1, handCount - 1)))
+      : 0;
+    const totalHandW = handCount ? (cardW + step * Math.max(0, handCount - 1)) : 0;
+    const handStartX = winW / 2 - totalHandW / 2;
+    const handBaseY = handBottom - cardH;
+    const handCurve = clamp(cardH * .065, 7, 14);
+    const handRects = handCards.map(function(card, index){
+      const spread = handCount > 1 ? (index / (handCount - 1) - .5) : 0;
+      const angle = spread * handFanMaxAngle * 2;
+      const fanLift = (1 - Math.min(1, Math.abs(spread) * 2)) * handCurve;
+      const cardRect = rect(handStartX + index * step, handBaseY - fanLift, cardW, cardH);
+      const visualBounds = rotatedBounds(cardRect, angle);
+      const hitPad = Math.max(5, cardW * .045);
+      return {
+        index,
+        iid:card && card.iid != null ? String(card.iid) : '',
+        card,
+        rect:cardRect,
+        hitRect:rect(visualBounds.x - hitPad, visualBounds.y - hitPad, visualBounds.w + hitPad * 2, visualBounds.h + hitPad * 2),
+        visualBounds,
+        angle,
+        fanOffset:spread
+      };
+    });
+    const fanBounds = handRects.reduce(function(acc, item){
+      const b = item.visualBounds || item.rect;
+      if(!b) return acc;
+      if(!acc) return rect(b.x, b.y, b.w, b.h);
+      const x1 = Math.min(acc.x, b.x);
+      const y1 = Math.min(acc.y, b.y);
+      const x2 = Math.max(acc.x + acc.w, b.x + b.w);
+      const y2 = Math.max(acc.y + acc.h, b.y + b.h);
+      return rect(x1, y1, x2 - x1, y2 - y1);
+    }, null) || rect(winW / 2, handBottom, 0, 0);
+    const handRect = rect(fanBounds.x, fanBounds.y, fanBounds.w, fanBounds.h);
     const hand = {
       rect:handRect,
-      cards:handCards.map(function(card, index){
-        return {
-          index,
-          iid:card && card.iid != null ? String(card.iid) : '',
-          card,
-          rect:rect(handStartX + index * (cardW + gap), handY, cardW, cardH),
-          hitRect:rect(handStartX + index * (cardW + gap), handY, cardW, cardH)
-        };
-      })
+      style:'fan',
+      cards:handRects
     };
 
     const oppCount = oppCards.length;
-    const denseOppHand = oppCount >= 9;
-    const oppGap = denseOppHand ? 5 : 6;
+    const packedOppHand = oppCount >= 9;
+    const denseOppHand = oppCount >= 10;
+    const fullOppHand = oppCount >= 12;
+    const oppGap = fullOppHand ? 4 : (packedOppHand ? 5 : 6);
     const oppCols = Math.min(4, Math.max(1, oppCount || 1));
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
     const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
-    const denseOppCardMaxW = denseOppHand ? (oppCount === 9 ? 52 : 46) : 54;
-    const denseOppCardMinW = denseOppHand ? (oppCount === 9 ? 38 : 32) : 34;
-    const baseOppCardW = hasRevealedOppCards && !denseOppHand
+    const denseOppCardMaxW = fullOppHand ? 42 : (denseOppHand ? 48 : (packedOppHand ? 51 : 54));
+    const denseOppCardMinW = fullOppHand ? 30 : (denseOppHand ? 34 : (packedOppHand ? 36 : 34));
+    const baseOppCardW = hasRevealedOppCards && !packedOppHand
       ? clamp(winW * 0.038, 56, 66)
-      : clamp(winW * (denseOppHand ? (oppCount === 9 ? 0.032 : 0.027) : 0.034), denseOppCardMinW, denseOppCardMaxW);
+      : clamp(winW * (fullOppHand ? 0.024 : (denseOppHand ? 0.028 : (packedOppHand ? 0.0315 : 0.034))), denseOppCardMinW, denseOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
-    const oppFallback = rect(22, denseOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
+    const oppFallback = rect(22, packedOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
-    if(denseOppHand) {
-      const denseInsetY = oppCount >= 9 ? 6 : 18;
+    if(packedOppHand) {
+      const denseInsetY = 6;
       oppRect = rect(oppRect.x, oppRect.y + denseInsetY, oppRect.w, Math.max(1, oppRect.h - denseInsetY));
-    }
-    const minOppW = baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16;
-    const minOppH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
-    if(oppRows > 1 && oppRect.h < minOppH) {
-      oppRect = rect(oppRect.x, oppRect.y, oppRect.w, minOppH);
     }
     const fitOppCardW = oppCount
       ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
       : baseOppCardW;
-    const oppCardW = Math.min(baseOppCardW, fitOppCardW);
+    const fitOppCardWByHeight = oppCount
+      ? Math.max(30, Math.floor(((oppRect.h - 14 - oppGap * Math.max(0, oppRows - 1)) / oppRows) / 1.4))
+      : baseOppCardW;
+    const oppCardW = Math.min(baseOppCardW, fitOppCardW, fitOppCardWByHeight);
     const oppCardH = Math.round(oppCardW * 1.4);
     const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
     const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);

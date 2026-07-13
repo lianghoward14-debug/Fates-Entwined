@@ -155,6 +155,10 @@ function isElectronShell(){
   try{ return new URLSearchParams(location.search).get('electron') === '1'; }
   catch(e){ return false; }
 }
+function electronSessionName(){
+  try{ return String(new URLSearchParams(location.search || '').get('electronSession') || 'default'); }
+  catch(e){ return 'default'; }
+}
 function isMissingRedirectStateError(e){
   const code = String(e?.code || '');
   const msg = String(e?.message || '');
@@ -189,12 +193,12 @@ function hashCode(str){
 }
 function makeBaseCode(uid){ return 'FATE-' + hashCode(uid || 'guest'); }
 function normalizeUsername(name){ return safe(name).trim().toLowerCase().replace(/\s+/g,' '); }
+function isCorruptedSharedUsername(name){
+  return /^sic kemper tyrann?us$/.test(normalizeUsername(name));
+}
 function isLegacyStaleUsername(name){
   const normalized = normalizeUsername(name);
-  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player';
-}
-function repairedLegacyUsername(name){
-  return isLegacyStaleUsername(name) ? 'Sic Kemper Tyrannus' : name;
+  return normalized === 'poop god' || normalized === 'plyer' || normalized === 'player' || isCorruptedSharedUsername(normalized);
 }
 function getLocalProfile(){
   try{ if(typeof window.getFateLocalProfile === 'function') return window.getFateLocalProfile() || {}; }catch(e){}
@@ -202,9 +206,10 @@ function getLocalProfile(){
 }
 function getLocalUsername(user){
   const p = getLocalProfile();
-  const candidates = [p.username, p.displayName, user?.displayName].map(repairedLegacyUsername);
-  const picked = candidates.find(name=>safe(name).trim() && !isLegacyStaleUsername(name)) || 'Sic Kemper Tyrannus';
-  return safe(picked).trim().slice(0,24) || 'Sic Kemper Tyrannus';
+  const picked = [p.username, p.displayName, user?.displayName]
+    .find(name=>safe(name).trim() && !isLegacyStaleUsername(name));
+  const fallback = makeBaseCode(user?.uid || p._fateAccountUid || 'guest');
+  return safe(picked || fallback).trim().slice(0,24) || fallback;
 }
 function getLocalBio(){
   const p = getLocalProfile();
@@ -220,6 +225,13 @@ function getLocalPhoto(user){
   try{ if(typeof window.getProfileImgSrc === 'function') return window.getProfileImgSrc() || user?.photoURL || 'blank.png'; }catch(e){}
   const p = getLocalProfile();
   return p.profileImg || p.photoURL || p.pfp || user?.photoURL || 'blank.png';
+}
+function applyServerRankProfile(profile){
+  try{
+    if(profile && typeof window.fateApplyServerProfileStats === 'function'){
+      window.fateApplyServerProfileStats(profile, {leaderboard:false});
+    }
+  }catch(e){}
 }
 
 const state = {
@@ -253,6 +265,56 @@ function updateAuthPanelVisibility(){
     setTimeout(()=>window.scheduleFateCornerDock(), 0);
   }
 }
+
+let ephemeralElectronGuestUser = null;
+function randomEphemeralGuestToken(){
+  try{
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b=>b.toString(16).padStart(2, '0')).join('');
+  }catch(e){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  }
+}
+function getEphemeralMultiplayerGuestUser(){
+  if(!isElectronShell()) return null;
+  if(auth.currentUser) return null;
+  if(ephemeralElectronGuestUser) return ephemeralElectronGuestUser;
+  const session = electronSessionName().replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 32) || 'guest';
+  ephemeralElectronGuestUser = {
+    uid:`guest-${session}-${randomEphemeralGuestToken()}`.slice(0, 96),
+    isEphemeralGuest:true,
+    isAnonymous:false,
+    displayName:'Guest',
+    photoURL:'',
+    getIdToken:async ()=>''
+  };
+  return ephemeralElectronGuestUser;
+}
+
+let electronAnonymousCleanupInFlight = false;
+async function clearPersistedElectronAnonymousUser(user){
+  if(!user || !isElectronShell() || !user.isAnonymous || electronAnonymousCleanupInFlight) return false;
+  electronAnonymousCleanupInFlight = true;
+  try{
+    console.info('[FateOnline] Clearing persisted anonymous Electron auth user', {
+      uid:user.uid,
+      electronSession:electronSessionName()
+    });
+    try{
+      localStorage.removeItem('fateElectronAuthSession');
+      localStorage.removeItem('fateElectronAuthUid');
+      localStorage.removeItem('fateElectronAuthRefreshedAt');
+    }catch(e){}
+    await signOut(auth);
+    if(typeof window._fateClearActiveAccount === 'function') window._fateClearActiveAccount();
+  }catch(e){
+    console.warn('Failed to clear persisted anonymous Electron auth user', e);
+  }finally{
+    electronAnonymousCleanupInFlight = false;
+  }
+  return true;
+}
 function installAuthPanelScreenWatcher(){
   if(titleVisibilityObserverInstalled) return;
   titleVisibilityObserverInstalled = true;
@@ -277,6 +339,9 @@ function onAuth(fn){ state.listeners.add(fn); try{ fn(state); }catch(e){} return
 function localStorageFlag(name){
   try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
 }
+function hostedFlyRuntime(){
+  try{ return String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev'; }catch(e){ return false; }
+}
 function rtdbDisabledMode(){
   return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
 }
@@ -284,6 +349,7 @@ function rtdbAvailable(){
   return !rtdbDisabledMode() && !!rtdb;
 }
 function authorityHttpBaseUrl(){
+  if(hostedFlyRuntime()) return location.origin.replace(/\/+$/, '');
   try{
     const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
     if(explicit) return explicit.replace(/\/+$/, '');
@@ -293,16 +359,15 @@ function authorityHttpBaseUrl(){
   let wsUrl = '';
   try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
   if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-  if(!wsUrl) return '';
+  if(!wsUrl){
+    const host = String(location.hostname || '').toLowerCase();
+    if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+    return 'https://fates-entwined-main.fly.dev';
+  }
   return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
 }
 function flyProfilesEnabled(){
-  return !!authorityHttpBaseUrl() && (
-    localStorageFlag('fateFlyRoomsEnabled') ||
-    localStorageFlag('fateRtdbDisabled') ||
-    window.FATE_FLY_ROOMS_ENABLED === true ||
-    window.FATE_RTDB_DISABLED === true
-  );
+  return !!authorityHttpBaseUrl();
 }
 async function flyApiRequest(path, opts={}){
   const base = authorityHttpBaseUrl();
@@ -334,6 +399,8 @@ async function syncPublicProfile(opts={}){
       window._fatePrepareAccountSwitch(uid);
     }
   }
+  const localForReset = getLocalProfile();
+  if(typeof window.fateNormalizeLeaderboardStatsReset === 'function') window.fateNormalizeLeaderboardStatsReset(localForReset);
   const baseCode = makeBaseCode(uid);
   const chosenUsername = getLocalUsername(user);
   const photoURL = getLocalPhoto(user);
@@ -346,6 +413,14 @@ async function syncPublicProfile(opts={}){
   const humanWins = Number(localProfile.humanWins ?? localProfile.wins ?? 0) || 0;
   const humanLosses = Number(localProfile.humanLosses ?? localProfile.losses ?? 0) || 0;
   const matchesPlayed = Number(localProfile.matchesPlayed ?? ((Number(localProfile.challengerWins||0)||0) + (Number(localProfile.challengerLosses||0)||0) + (Number(localProfile.wins||0)||0) + (Number(localProfile.losses||0)||0))) || 0;
+  let existingServerRank = null;
+  if(!flyProfilesEnabled() && rtdbAvailable()){
+    try{ existingServerRank = (await get(ref(rtdb, `publicProfiles/${uid}`))).val() || null; }catch(e){}
+  }
+  const rankProfile = existingServerRank || {};
+  const challengerElo = Number(rankProfile.challengerElo ?? rankProfile.elo ?? getLocalElo()) || 600;
+  const challengerWins = Number(rankProfile.challengerWins ?? rankProfile.wins ?? localProfile.challengerWins ?? 0) || 0;
+  const challengerLosses = Number(rankProfile.challengerLosses ?? rankProfile.losses ?? localProfile.challengerLosses ?? 0) || 0;
   const payload = {
     uid,
     baseCode,
@@ -357,9 +432,9 @@ async function syncPublicProfile(opts={}){
     photoURL,
     profileImg: photoURL,
     level: getLocalLevel(),
-    challengerElo: getLocalElo(),
-    challengerWins: Number(localProfile.challengerWins || 0) || 0,
-    challengerLosses: Number(localProfile.challengerLosses || 0) || 0,
+    challengerElo,
+    challengerWins,
+    challengerLosses,
     humanWins,
     humanLosses,
     matchesPlayed,
@@ -370,7 +445,8 @@ async function syncPublicProfile(opts={}){
     rank: getLocalRankLabel(),
     bio: getLocalBio(),
     updatedAt: rtdbAvailable() ? serverTimestamp() : Date.now(),
-    schemaVersion: 1
+    schemaVersion: 1,
+    leaderboardResetVersion: localProfile.leaderboardResetVersion || '20260711a'
   };
   if(flyProfilesEnabled()){
     const flyPayload = Object.assign({}, payload, {updatedAt:Date.now()});
@@ -379,8 +455,9 @@ async function syncPublicProfile(opts={}){
         method:'POST',
         body:{uid, profile:flyPayload}
       });
-      state.profile = Object.assign({}, data?.profile || {}, flyPayload);
+      state.profile = Object.assign({}, flyPayload, data?.profile || {});
       state.baseCode = baseCode;
+      applyServerRankProfile(state.profile);
       renderAuthPanel();
       emit();
       return state.profile;
@@ -426,6 +503,7 @@ async function syncPublicProfile(opts={}){
   await update(ref(rtdb), multiPathUpdate);
   state.profile = payload;
   state.baseCode = baseCode;
+  applyServerRankProfile(payload);
   renderAuthPanel();
   emit();
   return payload;
@@ -488,19 +566,17 @@ function shouldFallbackToRedirect(e){
     || code === 'auth/operation-not-supported-in-this-environment'
     || /Pending promise was never set|network-request-failed|operation-not-supported/i.test(msg);
 }
+
 async function signIn(){
   if(state.signingIn) return;
   state.signingIn = true;
   try{
-    if(isElectronShell()){
-      if(window.toast) toast('Opening Google sign-in...');
-    }
     await signInWithPopup(auth, provider);
   }
   catch(e){
     console.error('Google sign-in failed', e);
     if(isElectronShell()){
-      if(window.toast) toast('Google sign-in failed. Please try again.');
+      if(window.toast) toast('Google sign-in failed. Check the sign-in popup and OAuth settings.');
       return;
     }
     if(shouldFallbackToRedirect(e)){
@@ -527,6 +603,7 @@ async function signOutNow(){
     }
     state.unsubs.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
     await signOut(auth);
+    if(typeof window._fateClearActiveAccount === 'function') window._fateClearActiveAccount();
     state.user = null;
     state.profile = null;
     state.baseCode = null;
@@ -549,6 +626,7 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
   flyProfilesEnabled,
   rtdbDisabledMode,
   rtdbAvailable,
+  getEphemeralMultiplayerGuestUser,
   requireUser(){ const u=auth.currentUser; if(!u){ if(window.toast) toast('Sign in with Google first'); throw new Error('not signed in'); } return u; },
   escapeHtml
 });
@@ -591,6 +669,7 @@ async function finishSignedInOnlineStartup(user){
       await window.FateCloudSave.onSignIn(user.uid);
     }
   }catch(e){ console.warn('Cloud data load failed, using local data', e); }
+  if(auth.currentUser !== user) return;
 
   try{
     await syncSignedInPresenceAndProfile(user);
@@ -598,6 +677,16 @@ async function finishSignedInOnlineStartup(user){
 }
 
 onAuthStateChanged(auth, async user => {
+  const previousUser = state.user;
+  if(await clearPersistedElectronAnonymousUser(user)) return;
+  if(user && isElectronShell() && !user.isAnonymous){
+    try{
+      console.info('[FateOnline] Keeping persisted Google Electron auth user', {
+        uid:user.uid,
+        electronSession:electronSessionName()
+      });
+    }catch(e){}
+  }
   state.user = user || null;
   state.ready = true;
   state.profile = null;
@@ -631,6 +720,7 @@ onAuthStateChanged(auth, async user => {
   } else {
     state.unsubs.splice(0).forEach(fn=>{ try{fn();}catch(e){} });
     if(window.FateCloudSave) window.FateCloudSave.onSignOut();
+    if(previousUser && typeof window._fateClearActiveAccount === 'function') window._fateClearActiveAccount();
   }
   emit();
 });

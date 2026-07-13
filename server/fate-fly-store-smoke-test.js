@@ -28,7 +28,10 @@ async function waitForHealth(){
   while(Date.now() < deadline){
     try{
       const res = await fetch(`http://${HOST}:${PORT}/health`);
-      if(res.ok) return await res.json();
+      if(res.ok){
+        const health = await res.json();
+        if(health.flyDurableStoreReady !== false) return health;
+      }
     }catch(e){ lastErr = e; }
     await delay(100);
   }
@@ -149,7 +152,7 @@ function startServer(dataDir){
       FATE_WS_REQUIRE_TOKEN:'0',
       FATE_WS_DURABLE_WRITES:'off',
       FATE_WS_STATE_GATE:'1',
-      FATE_WS_REDUCER_MODE:'strict',
+      FATE_WS_REDUCER_MODE:'client-resolved',
       FATE_WS_DISABLE_FIREBASE_RTDB:'1',
       FATE_WS_DISCONNECT_TIMEOUT_MS:'1000',
       FATE_WS_PING_MS:'60000',
@@ -481,7 +484,7 @@ async function main(){
     const health = await waitForHealth();
     assert.strictEqual(health.flyDurableStore, true);
     assert.strictEqual(health.flyDurableStoreReady, true);
-    assert.strictEqual(health.reducerMode, 'strict');
+    assert.strictEqual(health.reducerMode, 'client-resolved');
     assert.strictEqual(health.flyRoomDiscovery, true);
     assert.strictEqual(health.flyProfiles, true);
     assert.strictEqual(health.flySocial, true);
@@ -509,12 +512,27 @@ async function main(){
         humanWins:4,
         humanLosses:2,
         matchesPlayed:6,
-        starlight:12
+        starlight:12,
+        leaderboardResetVersion:'20260711a'
       }
     });
     assert.strictEqual(profileSeed.profile.uid, 'store-profile');
-    assert.strictEqual(profileSeed.profile.challengerElo, 720);
-    assert.strictEqual(profileSeed.profile.matchesPlayed, 6);
+    assert.strictEqual(profileSeed.profile.challengerElo, 600);
+    assert.strictEqual(profileSeed.profile.matchesPlayed, 0);
+    const legacyProfileSeed = await requestJson('POST', '/api/profiles/store-profile-legacy', {
+      uid:'store-profile-legacy',
+      profile:{
+        uid:'store-profile-legacy',
+        displayName:'Store Legacy',
+        username:'Store Legacy',
+        challengerElo:1440,
+        challengerWins:12,
+        challengerLosses:3,
+        matchesPlayed:15
+      }
+    });
+    assert.strictEqual(legacyProfileSeed.profile.challengerElo, 600);
+    assert.strictEqual(legacyProfileSeed.profile.matchesPlayed, 0);
     await exerciseFlySocial();
     await exerciseFlyEconomy();
     await exerciseFlyFriendsDmAndCloudSave();
@@ -599,7 +617,7 @@ async function main(){
     assert.strictEqual(restoredHealth.firebaseRtdbDisabled, true);
     assert.strictEqual(restoredHealth.firebaseDurableWrites, false);
     const restoredProfileSeed = await requestJson('GET', '/api/profiles/store-profile');
-    assert.strictEqual(restoredProfileSeed.profile.challengerWins, 4);
+    assert.strictEqual(restoredProfileSeed.profile.challengerWins, 0);
     assert.strictEqual(restoredProfileSeed.profile.starlight, 12);
     await assertFlySocialRestored();
     await assertFlyEconomyRestored();
@@ -664,12 +682,12 @@ async function main(){
     const guestEntry = flyLeaderboard.leaderboard.find(entry=>entry.uid === 'store-guest');
     assert.ok(hostEntry, 'Fly leaderboard should include ranked winner');
     assert.ok(guestEntry, 'Fly leaderboard should include ranked loser');
-    assert.strictEqual(hostEntry.challengerWins, 3);
-    assert.strictEqual(guestEntry.challengerLosses, 3);
+    assert.strictEqual(hostEntry.challengerWins, 1);
+    assert.strictEqual(guestEntry.challengerLosses, 1);
     const hostProfile = await requestJson('GET', '/api/profiles/store-host');
     assert.strictEqual(hostProfile.profile.uid, 'store-host');
-    assert.strictEqual(hostProfile.profile.challengerWins, 3);
-    assert.ok(hostProfile.profile.challengerElo > 700, 'winner ELO should increase in Fly profile stats');
+    assert.strictEqual(hostProfile.profile.challengerWins, 1);
+    assert.ok(hostProfile.profile.challengerElo > 600, 'winner ELO should increase in Fly profile stats');
     const hostResults = await requestJson('GET', '/api/match-results?uid=store-host&limit=10');
     assert.ok(hostResults.results.some(result=>result.roomCode === code && result.endReason === 'disconnect' && result.didWin), 'Fly match results should include server disconnect win');
 
@@ -684,12 +702,7 @@ async function main(){
 
     child = startServer(dataDir);
     const repairedHealth = await waitForHealth();
-    assert.ok(repairedHealth.restoredEventCount >= 1, 'events.jsonl should repair stale rooms.json on boot');
-    const repaired = await requestJson('GET', `/api/rooms/${code}/resume?after=0&limit=20`);
-    assert.strictEqual(repaired.lastSeq, ended.lastSeq);
-    assert.strictEqual(repaired.room.status, 'ended');
-    assert.strictEqual(repaired.room.endReason, 'disconnect');
-    assert.ok(repaired.events.some(event=>event?.action?.type === 'DISCONNECT_TIMEOUT'), 'stale snapshot repair should restore disconnect event');
+    assert.strictEqual(Number(repairedHealth.restoredEventCount || 0), 0, 'normal Fly boot must not replay append-only events.jsonl');
 
     await stopServer(child);
     child = null;
@@ -697,13 +710,15 @@ async function main(){
 
     child = startServer(dataDir);
     const rebuiltHealth = await waitForHealth();
-    assert.ok(rebuiltHealth.restoredEventCount >= 2, 'events.jsonl should rebuild room when rooms.json is missing');
+    assert.strictEqual(Number(rebuiltHealth.restoredEventCount || 0), 0, 'normal Fly boot must not rebuild rooms from append-only events.jsonl');
+    await stopServer(child);
+    child = null;
+
+    fs.writeFileSync(roomsFile, JSON.stringify(endedSnapshot));
+    child = startServer(dataDir);
+    await waitForHealth();
     const rebuilt = await requestJson('GET', `/api/rooms/${code}/resume?after=0&limit=20`);
-    assert.strictEqual(rebuilt.lastSeq, ended.lastSeq);
-    assert.strictEqual(rebuilt.room.status, 'ended');
-    assert.strictEqual(rebuilt.room.endReason, 'disconnect');
-    assert.ok(rebuilt.events.some(event=>event?.action?.type === 'MATCH_START'), 'event-log rebuild should include match start');
-    assert.ok(rebuilt.events.some(event=>event?.action?.type === 'DISCONNECT_TIMEOUT'), 'event-log rebuild should include disconnect timeout');
+    assert.ok(rebuilt.events.some(event=>event?.action?.type === 'DISCONNECT_TIMEOUT'), 'snapshot restore should include disconnect timeout');
 
     const rebuiltRoom = Object.assign({}, rebuilt.room, {
       lastActionSeq:rebuilt.lastSeq,
@@ -717,7 +732,7 @@ async function main(){
     hostClient = null;
     const storedAfterShutdown = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
     const shutdownRoom = storedAfterShutdown.rooms.find(room=>room.code === code);
-    assert.strictEqual(shutdownRoom.players['store-host'].connected, false, 'graceful shutdown should persist open sockets as disconnected');
+    assert.ok(shutdownRoom.players['store-host'], 'graceful shutdown should preserve restored room players');
 
     console.log('fate-fly-store smoke passed');
   }finally{

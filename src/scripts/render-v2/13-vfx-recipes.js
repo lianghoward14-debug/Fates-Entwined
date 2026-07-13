@@ -154,14 +154,14 @@
   function leftPanelSearchRevealRect(source, target, sourceIsDiscard){
     const baseTarget = target || source;
     if(!baseTarget) return source || target || null;
-    const base = scaleRect(baseTarget, sourceIsDiscard ? 1.30 : 1.52);
+    const base = scaleRect(baseTarget, sourceIsDiscard ? 1.24 : 1.42);
     if(!base) return baseTarget;
     const vw = Math.max(320, window.innerWidth || 1280);
     const vh = Math.max(320, window.innerHeight || 720);
     const sourceRight = source ? (Number(source.x) || 0) + (Number(source.w) || 0) : vw * .14;
     const x = Math.max(sourceRight + Math.max(36, base.w * .22), vw * .18);
-    const y = vh * (sourceIsDiscard ? .56 : .52) - base.h / 2;
-    return clampRectToViewport({x, y, w:base.w, h:base.h}, Math.max(12, base.w * .08));
+    const y = vh * (sourceIsDiscard ? .54 : .50) - base.h / 2;
+    return clampRectToViewport({x, y, w:base.w, h:base.h}, Math.max(18, base.w * .11));
   }
 
   function strikeRect(target, index, count, scale){
@@ -315,8 +315,8 @@
     const p = payload || {};
     const amount = Math.max(1, Math.abs(Number(p.amount != null ? p.amount : p.fateDelta) || 1));
     const countMs = 1;
-    const holdMs = 2350;
-    const exitMs = 180;
+    const holdMs = 760;
+    const exitMs = 320;
     const duration = countMs + holdMs + exitMs;
     return P().numberPop({
       text:fateDeltaText(p, sign),
@@ -394,20 +394,24 @@
     const lane = drawCount <= 1 ? 0 : (drawIndex - (drawCount - 1) / 2) / Math.max(1, drawCount - 1);
     const start = (Number(p.startOffset) || 0) + (drawCount > 1 ? drawIndex * 84 : 0);
     const baseId = String(p.iid || ('draw-' + drawIndex));
+    const layer = p.layer || 'top';
     const w = Number((to || from || {}).w) || 70;
     const h = Number((to || from || {}).h) || 98;
+    const motionTo = to
+      ? clampRectToViewport(offsetRect(scaleRect(to, .72), 0, -Math.max(18, h * .14)), 12)
+      : to;
     const peel = from ? offsetRect(from, lane * Math.max(5, w * .12), -Math.max(7, h * .08)) : from;
-    const revealScale = drawCount > 1 ? 1.10 : 1.16;
-    const reveal = to
-      ? clampRectToViewport(offsetRect(scaleRect(to, revealScale), lane * w * .58, -Math.max(36, h * .64)), 10)
+    const revealScale = drawCount > 1 ? .82 : .84;
+    const reveal = motionTo
+      ? clampRectToViewport(offsetRect(scaleRect(motionTo, revealScale), lane * w * .20, -Math.max(6, h * .06)), 12)
       : (peel || from);
     const travelRotate = lane * 9 + (drawCount <= 1 ? -4 : 0);
     const travelSide = lane * .34 - .12;
     const list = [
-      cardMove({iid:baseId + ':deck-peek', card:null, faceDown:true, fromRect:from, toRect:peel || from, startOffset:start, duration:96, easing:'out-quint', path:'direct', rotate:lane * 4.5 - 1.5, bank:0, scale:1, endScale:1, textureScale:1.08, layer:p.layer || 'effects', priority:'normal'}),
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:peel || from, toRect:reveal || to, startOffset:start + 72, duration:246, easing:'out-expo-soft', path:'s-curve', arc:.24, lift:.25, sideArc:travelSide, rotate:travelRotate, bank:lane * 4, scale:1, endScale:1, textureScale:1.22, holdMs:drawCount > 1 ? 34 : 48, launchSquash:.010, layer:p.layer || 'effects', priority:'high'}),
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal || from, toRect:to, startOffset:start + 294, duration:248, easing:'snap-settle', path:'direct', rotate:-lane * 3.5, bank:0, scale:1, endScale:1, textureScale:1.12, landSquash:.010, wobble:.16, settleMs:44, layer:p.layer || 'effects', priority:'high'}),
-      P().cardImpact({iid:p.iid || baseId, card:null, rect:to, startOffset:start + 520, duration:64, amplitude:.006, priority:'normal'})
+      cardMove({iid:baseId + ':deck-peek', card:null, faceDown:true, fromRect:from, toRect:peel || from, startOffset:start, duration:96, easing:'out-quint', path:'direct', rotate:lane * 4.5 - 1.5, bank:0, scale:1, endScale:1, textureScale:1.08, layer, priority:'normal'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:peel || from, toRect:reveal || to, startOffset:start + 72, duration:220, easing:'out-expo-soft', path:'s-curve', arc:.10, lift:.08, sideArc:travelSide * .38, rotate:travelRotate * .48, bank:lane * 1.4, scale:1, endScale:1, textureScale:1, holdMs:drawCount > 1 ? 18 : 24, launchSquash:.004, noShadow:true, layer, priority:'high'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal || from, toRect:motionTo || to, startOffset:start + 262, duration:218, easing:'snap-settle', path:'direct', rotate:-lane * 1.4, bank:0, scale:1, endScale:1, textureScale:1, landSquash:.004, wobble:.04, settleMs:28, noShadow:true, layer, priority:'high'}),
+      P().cardImpact({iid:p.iid || baseId, card:null, rect:motionTo || to, startOffset:start + 456, duration:56, amplitude:.005, layer, priority:'normal'})
     ];
     if(!p.suppressMotionAudio) list.push(P().soundCue({cue:p.cue || 'draw_card', startOffset:start + 94}));
     return list;
@@ -419,15 +423,19 @@
     const to = payloadRect(p, ['toRect', 'handRect', 'slotRect']);
     const sourceIsDiscard = p.source === 'discard';
     const baseId = String(p.iid || 'search');
-    const layer = p.layer || 'effects';
-    const reveal = leftPanelSearchRevealRect(from, to, sourceIsDiscard) || to || from;
+    const layer = p.layer || 'top';
+    const h = Number((to || from || {}).h) || 98;
+    const safeTo = to
+      ? clampRectToViewport(offsetRect(scaleRect(to, .84), 0, -Math.max(12, h * .08)), 12)
+      : to;
+    const reveal = leftPanelSearchRevealRect(from, safeTo || to, sourceIsDiscard) || safeTo || to || from;
     const revealMs = sourceIsDiscard ? 420 : 620;
     const flyMs = sourceIsDiscard ? 300 : 360;
     const flyStart = revealMs + 10;
     return [
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:from, toRect:reveal, startOffset:0, duration:revealMs, easing:'out-expo-soft', path:'s-curve', arc:sourceIsDiscard ? .16 : .24, lift:sourceIsDiscard ? .16 : .24, sideArc:sourceIsDiscard ? -.08 : .14, rotate:sourceIsDiscard ? -3.2 : 4.6, bank:sourceIsDiscard ? -1.6 : 2.8, scale:sourceIsDiscard ? 1.08 : 1.16, endScale:1.08, textureScale:sourceIsDiscard ? 1.38 : 1.66, holdMs:sourceIsDiscard ? 110 : 190, wobble:.08, settleMs:120, layer, priority:'high'}),
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal, toRect:to, startOffset:flyStart, duration:flyMs, easing:'in-quart', path:'s-curve', arc:sourceIsDiscard ? .10 : .14, lift:sourceIsDiscard ? .09 : .12, sideArc:sourceIsDiscard ? -.08 : .12, rotate:sourceIsDiscard ? 1.2 : -2.8, bank:0, scale:1.06, endScale:1, textureScale:sourceIsDiscard ? 1.24 : 1.34, landSquash:.010, wobble:.12, settleMs:42, layer, priority:'high'}),
-      P().cardImpact({iid:p.iid || baseId, card:null, rect:to, startOffset:flyStart + flyMs - 30, duration:72, amplitude:.006, priority:'normal'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:from, toRect:reveal, startOffset:0, duration:revealMs, easing:'out-expo-soft', path:'s-curve', arc:sourceIsDiscard ? .14 : .20, lift:sourceIsDiscard ? .14 : .20, sideArc:sourceIsDiscard ? -.08 : .12, rotate:sourceIsDiscard ? -2.6 : 3.8, bank:sourceIsDiscard ? -1.2 : 2.2, scale:sourceIsDiscard ? 1.04 : 1.08, endScale:1.04, textureScale:sourceIsDiscard ? 1.20 : 1.34, holdMs:sourceIsDiscard ? 100 : 170, wobble:.06, settleMs:100, noShadow:true, layer, priority:'high'}),
+      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal, toRect:safeTo || to, startOffset:flyStart, duration:flyMs, easing:'in-quart', path:'s-curve', arc:sourceIsDiscard ? .08 : .11, lift:sourceIsDiscard ? .07 : .09, sideArc:sourceIsDiscard ? -.06 : .09, rotate:sourceIsDiscard ? 1.0 : -2.0, bank:0, scale:1.02, endScale:1, textureScale:sourceIsDiscard ? 1.10 : 1.16, landSquash:.006, wobble:.07, settleMs:36, noShadow:true, layer, priority:'high'}),
+      P().cardImpact({iid:p.iid || baseId, card:null, rect:safeTo || to, startOffset:flyStart + flyMs - 30, duration:64, amplitude:.005, priority:'normal'}),
       P().soundCue({cue:'search_found', startOffset:Math.max(90, flyStart - 70), priority:'high'})
     ].filter(Boolean);
   }

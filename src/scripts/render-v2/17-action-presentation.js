@@ -398,6 +398,10 @@
     });
     recent.length = Math.min(recent.length, 24);
     clearActive(tx);
+    if(tx.status !== 'failed' && !tx._finishedNotified && typeof tx.onFinished === 'function') {
+      tx._finishedNotified = true;
+      try { tx.onFinished(tx); } catch(e) {}
+    }
     return tx;
   }
 
@@ -993,6 +997,7 @@
       lockMs:Number(opts.lockMs) || 1300,
       renderHint:'preflight and compositor consolidation before tribute removal/result commit'
     });
+    tx.onFinished = typeof opts.onFinished === 'function' ? opts.onFinished : null;
     tx.tributeCount = Array.isArray(opts.tributes) ? opts.tributes.length : 0;
     const disabledReason = matchActionMotionDisableReason();
     if(disabledReason || !consolidationMotionAllowed()) {
@@ -1003,6 +1008,25 @@
     const duration = payload ? estimateDuration('CONSOLIDATE', payload) : 0;
     if(payload) payload.resultMotionIid = 'consolidate-result:' + tx.id;
     hideConsolidationTributes(payload, duration + 340);
+    if(opts.commitImmediately){
+      const adapter = window.FateMatchRendererAdapter;
+      const hideResultMs = Math.max(700, duration + 760);
+      if(payload && payload.resultCardIid && adapter && typeof adapter.suppressInitialPlacementMotion === 'function') {
+        adapter.suppressInitialPlacementMotion(payload.resultCardIid, hideResultMs);
+      }
+      if(payload && payload.resultCardIid && adapter && typeof adapter.hideBoardCardForVfx === 'function') {
+        adapter.hideBoardCardForVfx(payload.resultCardIid, hideResultMs);
+      }
+      try{
+        opts.commit(tx, duration);
+        tx.stateCommittedImmediately = true;
+      }catch(err){
+        tx.error = String(err && err.message || err);
+        try { if(typeof opts.rollback === 'function') opts.rollback(tx, err); } catch(e) {}
+        finish(tx, 'failed');
+        return true;
+      }
+    }
     waitForPreflight(tx, 'CONSOLIDATE', payload, 460).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       let delay = 0;
@@ -1037,7 +1061,7 @@
       }
       const commitDelay = delay > 160 ? delay - 34 : delay;
       scheduleCommit(tx, function(innerTx){
-        opts.commit(innerTx, delay);
+        if(!tx.stateCommittedImmediately) opts.commit(innerTx, delay);
       }, commitDelay, delay + 34);
     }).catch(function(err){
       tx.error = String(err && err.message || err);

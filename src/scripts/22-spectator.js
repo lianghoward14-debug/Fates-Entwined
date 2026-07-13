@@ -44,16 +44,15 @@
     let wsUrl = '';
     try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
     if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) return '';
+    if(!wsUrl) {
+      const host = String(location.hostname || '').toLowerCase();
+      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+      return 'https://fates-entwined-main.fly.dev';
+    }
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flySpectatorEnabled(){
-    return !!authorityHttpBaseUrl() && (
-      localStorageFlag('fateFlyRoomsEnabled') ||
-      localStorageFlag('fateRtdbDisabled') ||
-      window.FATE_FLY_ROOMS_ENABLED === true ||
-      window.FATE_RTDB_DISABLED === true
-    );
+    return !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
