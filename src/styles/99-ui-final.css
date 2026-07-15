@@ -17723,8 +17723,40 @@ html body #s-social .social-party-command .party-panel-clean.party-active-clean{
   pointer-events:none;
 }
 .spectator-badge.has-spectators{opacity:1;}
+.spectator-badge.spectator-viewing{top:52px;right:12px;}
 .spectator-eye{font-size:.82rem;line-height:1;}
 .spectator-count{color:var(--gold,#c9a84c);font-weight:600;min-width:10px;text-align:center;}
+
+.spectator-perspective-controls{
+  position:absolute;top:8px;right:12px;z-index:260;
+  display:flex;align-items:stretch;gap:.35rem;
+  max-width:min(52vw,430px);
+}
+.spectator-perspective-btn{
+  min-width:112px;max-width:200px;height:36px;padding:.28rem .65rem;
+  display:flex;align-items:center;gap:.42rem;
+  border:1px solid rgba(201,168,76,.22);border-radius:8px;
+  background:rgba(8,10,18,.88);backdrop-filter:blur(6px);
+  color:rgba(235,228,208,.7);cursor:pointer;
+  font-family:'Cinzel',serif;text-align:left;
+  box-shadow:0 4px 14px rgba(0,0,0,.28);
+  transition:border-color .16s ease,background .16s ease,color .16s ease,transform .16s ease;
+}
+.spectator-perspective-btn:hover{
+  border-color:rgba(201,168,76,.5);color:#fff6d8;transform:translateY(-1px);
+}
+.spectator-perspective-btn.active{
+  border-color:rgba(201,168,76,.72);
+  background:linear-gradient(180deg,rgba(201,168,76,.22),rgba(48,37,17,.88));
+  color:#fff2bd;box-shadow:0 0 0 1px rgba(255,237,172,.08) inset,0 5px 18px rgba(0,0,0,.34);
+}
+.spectator-perspective-slot{
+  flex:0 0 auto;font-size:.58rem;letter-spacing:.1em;color:var(--gold,#c9a84c);
+}
+.spectator-perspective-name{
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:.68rem;letter-spacing:.035em;
+}
 
 /* --- Spectator chat messages styling --- */
 .wc-msg-spectator .wc-msg-name{
@@ -17742,6 +17774,10 @@ html body #s-social .social-party-command .party-panel-clean.party-active-clean{
   .lm-card-name{font-size:.72rem;}
   .lm-card-vs{font-size:1rem;}
   .spectator-badge{top:4px;right:6px;font-size:.58rem;padding:.18rem .45rem;}
+  .spectator-badge.spectator-viewing{top:46px;right:6px;}
+  .spectator-perspective-controls{top:4px;right:6px;gap:.22rem;max-width:76vw;}
+  .spectator-perspective-btn{min-width:0;max-width:150px;height:34px;padding:.24rem .42rem;}
+  .spectator-perspective-name{font-size:.58rem;}
   .social-live-matches-banner{gap:.6rem;padding:.6rem .8rem;}
   .slm-icon{font-size:1.2rem;}
   .slm-label{font-size:.72rem;}
@@ -18418,12 +18454,12 @@ html body #s-game .hand-strip::after{
   z-index:0!important;
 }
 html body #s-game #board .cell.tribute-cell-ready{
-  outline:1px solid rgba(100,160,255,.64)!important;
-  box-shadow:0 0 0 1px rgba(100,160,255,.22) inset!important;
+  outline:1.25px solid rgba(100,160,255,.5)!important;
+  box-shadow:0 0 4px rgba(100,160,255,.1)!important;
 }
 html body #s-game #board .bc.tribute-ready{
-  outline:1px solid rgba(100,160,255,.72)!important;
-  box-shadow:0 0 10px rgba(100,160,255,.18)!important;
+  outline:1.25px solid rgba(100,160,255,.54)!important;
+  box-shadow:0 0 4px rgba(100,160,255,.1)!important;
 }
 html body .cc-overlay-v2 .cc-sigil-v2.rarity-square{
   box-shadow:0 0 0 1px rgba(255,255,255,.12) inset,0 0 34px rgba(214,127,255,.24)!important;
@@ -19334,4 +19370,160 @@ html body #s-challenger .ch-cdb-content .cdb-decklist{
 html body #s-challenger .ch-cdb-content .cdb-starter-warning{
   order:-1!important;
   margin-bottom:.55rem!important;
+}
+
+/* Codex 2026-07-13: social friend hover polish and denser DM emoji picker. */
+html body #s-social .social-friends-list-v20 .social-friend-row,
+html body #s-social .social-friends-list-v20 .social-friend-row:hover,
+html body #s-social .social-friends-list-v20 .social-friend-row:focus-within{
+  transform:none!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row:hover{
+  border-color:rgba(232,196,82,.52)!important;
+  background:linear-gradient(90deg,rgba(12,18,29,.88),rgba(6,10,17,.84))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,238,166,.035),0 0 18px rgba(232,196,82,.08)!important;
+}
+
+html body #s-social .social-friend-party-icon{
+  width:27px!important;
+  height:27px!important;
+  background:center/26px 26px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23945cff'/%3E%3Cstop offset='1' stop-color='%23401a92'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M7.2 21.7V6.1' stroke='%23e6d6ff' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M8.2 6.8h12.1l-2 3.5 2 3.5H8.2Z' fill='url(%23g)' stroke='%23e6d6ff' stroke-width='1.55' stroke-linejoin='round'/%3E%3Cpath d='M14.1 8.95v2.9M12.65 10.4h2.9' stroke='%23fff8ff' stroke-width='1.45' stroke-linecap='round'/%3E%3Ccircle cx='7.2' cy='21.8' r='2.15' fill='%237d48d9' stroke='%23e6d6ff' stroke-width='1.25'/%3E%3C/svg%3E")!important;
+  filter:drop-shadow(0 0 8px rgba(157,92,255,.48))!important;
+}
+
+html body #s-social .social-friend-party-icon::before,
+html body #s-social .social-friend-party-icon::after{
+  content:none!important;
+}
+
+html body #modal:has(#social-dm-box) #dm-emoji-container{
+  left:.75rem!important;
+  right:auto!important;
+  bottom:3.75rem!important;
+  width:min(274px,calc(100% - 1.5rem))!important;
+  max-width:min(274px,calc(100% - 1.5rem))!important;
+  height:238px!important;
+  max-height:238px!important;
+  transform:none!important;
+  border:1px solid rgba(134,213,255,.28)!important;
+  border-radius:7px!important;
+  background:linear-gradient(180deg,rgba(8,13,23,.98),rgba(5,8,15,.98))!important;
+  box-shadow:0 16px 34px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.035),0 0 24px rgba(134,213,255,.08)!important;
+}
+
+html body #modal:has(#social-dm-box) #dm-emoji-container .social-emoji-picker{
+  display:grid!important;
+  grid-template-columns:repeat(7,30px)!important;
+  justify-content:center!important;
+  align-content:start!important;
+  gap:.16rem!important;
+  width:100%!important;
+  height:100%!important;
+  max-height:none!important;
+  box-sizing:border-box!important;
+  padding:.78rem .68rem 1.05rem!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+
+html body #modal:has(#social-dm-box) #dm-emoji-container .social-emoji-btn{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  min-height:30px!important;
+  max-width:30px!important;
+  max-height:30px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid transparent!important;
+  border-radius:5px!important;
+  background:rgba(255,255,255,.025)!important;
+  font-size:1.22rem!important;
+  line-height:1!important;
+}
+
+html body #modal:has(#social-dm-box) #dm-emoji-container .social-emoji-btn:hover{
+  border-color:rgba(232,196,82,.42)!important;
+  background:rgba(232,196,82,.12)!important;
+  transform:none!important;
+}
+
+/* Codex 2026-07-13/15: opponent hand panel uses density tiers; 9 cards keep the snug 4-column 8-card fit. */
+html body #s-game #opp-hand.opp-hand-large,
+html body #s-game #opp-hand.opp-hand-medium,
+html body #s-game #opp-hand.opp-hand-compact{
+  display:grid!important;
+  justify-content:center!important;
+  align-content:start!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #s-game #opp-hand.opp-hand-large{
+  --opp-hand-card-w:68px!important;
+  --opp-hand-card-h:95px!important;
+  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  grid-auto-rows:var(--opp-hand-card-h)!important;
+  gap:.42rem!important;
+  max-height:116px!important;
+  padding:.2rem .08rem .22rem!important;
+}
+
+html body #s-game #opp-hand.opp-hand-medium{
+  --opp-hand-card-w:56px!important;
+  --opp-hand-card-h:78px!important;
+  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  grid-auto-rows:var(--opp-hand-card-h)!important;
+  gap:.34rem .38rem!important;
+  max-height:174px!important;
+  padding:.18rem .08rem .22rem!important;
+}
+
+html body #s-game #opp-hand.opp-hand-compact{
+  --opp-hand-card-w:56px!important;
+  --opp-hand-card-h:78px!important;
+  grid-template-columns:repeat(3,var(--opp-hand-card-w))!important;
+  grid-auto-rows:var(--opp-hand-card-h)!important;
+  gap:.38rem .46rem!important;
+  max-height:258px!important;
+  padding:.18rem .08rem .24rem!important;
+}
+
+html body #s-game #opp-hand.opp-hand-nine-only{
+  --opp-hand-card-w:56px!important;
+  --opp-hand-card-h:78px!important;
+  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  gap:.3rem .36rem!important;
+  max-height:248px!important;
+  padding:.16rem .08rem .2rem!important;
+}
+
+html body #s-game #opp-hand.opp-hand-ten-plus{
+  --opp-hand-card-w:52px!important;
+  --opp-hand-card-h:73px!important;
+  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  gap:.34rem .4rem!important;
+  max-height:246px!important;
+}
+
+html body #s-game #opp-hand.opp-hand-twelve-plus{
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
+  gap:.3rem .36rem!important;
+  max-height:244px!important;
+}
+
+html body #s-game #opp-hand:is(.opp-hand-large,.opp-hand-medium,.opp-hand-compact) .opp-card-back{
+  width:var(--opp-hand-card-w)!important;
+  height:var(--opp-hand-card-h)!important;
+  min-width:var(--opp-hand-card-w)!important;
+  min-height:var(--opp-hand-card-h)!important;
 }

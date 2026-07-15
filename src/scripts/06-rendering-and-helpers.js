@@ -761,8 +761,9 @@ function performGameRender(parts) {
 
 function isCardVisuallySuppressed(card, z, r, c) {
   if(!card) return false;
+  if(isCardVisuallyNegated(card)) return false;
   try {
-    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card)) return true;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c) && !card._effectNegatedByReaction) return true;
   } catch(e) {}
   try {
     if(card.type === 'Supporter' && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card)) return true;
@@ -771,9 +772,94 @@ function isCardVisuallySuppressed(card, z, r, c) {
     if(card.type === 'Coordinator' && Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
       && typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(z, r, c)) return true;
   } catch(e) {}
-  return !!(card._lydiaSuppressed || card._reactionSuppressed || card._effectNegatedByReaction || card._lumberjackSuppressed);
+  return !!(card._effectSuppressedByReaction || card._lydiaSuppressed || card._reactionSuppressed || card._lumberjackSuppressed);
 }
 if(typeof window !== 'undefined') window.isCardVisuallySuppressed = isCardVisuallySuppressed;
+
+function isCardVisuallyNegated(card) {
+  return !!(card && card._effectNegatedByReaction);
+}
+if(typeof window !== 'undefined') window.isCardVisuallyNegated = isCardVisuallyNegated;
+
+function isInnateProtectionIconHiddenCard(card) {
+  const id = String(card && card.id || '');
+  return id === '20' || id === '70' || id === '76' || id === 'bh01';
+}
+
+function shouldShowProtectionStatusIcon(card) {
+  if(!card || isFaceDownCard(card) || isInnateProtectionIconHiddenCard(card)) return false;
+  if(typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '20')) return true;
+  return !!(card.immuneFlag || card.opponentEffectImmune);
+}
+if(typeof window !== 'undefined') window.shouldShowProtectionStatusIcon = shouldShowProtectionStatusIcon;
+
+let cardStatusVisualTick = 0;
+const cardStatusVisualOrders = new Map();
+
+function queueCardStatusIconSfx(kind, cardKey) {
+  if(kind !== 'immune' && kind !== 'marked' && kind !== 'blocked') return;
+  if(typeof window === 'undefined') return;
+  const type = kind === 'immune' ? 'immuneShield' : (kind === 'marked' ? 'statusMarked' : 'statusBlocked');
+  const key = 'status-icon-' + kind + '-' + String(cardKey || 'card');
+  setTimeout(function(){
+    try {
+      if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce(type, key, 260);
+      else if(typeof playSfx === 'function') playSfx(type);
+    } catch(e) {}
+  }, 0);
+}
+
+function getBoardCardStatusEligibility(card, z, r, c, isHidden) {
+  const hidden = !!isHidden || !card;
+  return {
+    negated:!hidden && isCardVisuallyNegated(card),
+    suppressed:!hidden && isCardVisuallySuppressed(card, z, r, c),
+    marked:!hidden && !!card._markedForDeath,
+    blocked:!hidden && !!((G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c && b.type === 'zoe'; })),
+    immune:!hidden && shouldShowProtectionStatusIcon(card)
+  };
+}
+
+function getCardStatusVisualState(card, statuses) {
+  const active = statuses || {};
+  const key = String(card && (card.iid || card.id) || '');
+  const order = key ? (cardStatusVisualOrders.get(key) || {}) : {};
+  const appeared = [];
+  ['negated','suppressed','marked','blocked'].forEach(function(kind){
+    if(active[kind]) {
+      if(!order[kind]) {
+        order[kind] = ++cardStatusVisualTick;
+        appeared.push(kind);
+      }
+    } else {
+      delete order[kind];
+    }
+  });
+  if(active.immune) {
+    if(!order.immune) {
+      order.immune = ++cardStatusVisualTick;
+      appeared.push('immune');
+    }
+  } else {
+    delete order.immune;
+  }
+  if(key) cardStatusVisualOrders.set(key, order);
+  let primary = '';
+  let latest = -1;
+  ['negated','suppressed','marked','blocked'].forEach(function(kind){
+    if(active[kind] && order[kind] > latest) {
+      latest = order[kind];
+      primary = kind;
+    }
+  });
+  if(!primary && active.immune) primary = 'immune';
+  if(key) {
+    if(appeared.includes('immune')) queueCardStatusIconSfx('immune', key);
+    if(appeared.includes(primary) && primary !== 'negated' && primary !== 'suppressed') queueCardStatusIconSfx(primary, key);
+  }
+  return { primary, immune:!!active.immune };
+}
+if(typeof window !== 'undefined') window.getCardStatusVisualState = getCardStatusVisualState;
 
 function cardRenderSignature(card, z, r, c) {
   if(!card) return '0';
@@ -782,9 +868,11 @@ function cardRenderSignature(card, z, r, c) {
   return [
     card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
-    card.immuneFlag ? 1 : 0, card._markedForDeath ? 1 : 0,
+    card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0,
+    shouldShowProtectionStatusIcon(card) ? 1 : 0,
     isCardVisuallySuppressed(card, z, r, c) ? 1 : 0,
-    card.noConsolidate ? 1 : 0, card.usesLeft || 0,
+    isCardVisuallyNegated(card) ? 1 : 0,
+    card.noConsolidate ? 1 : 0, card.usesLeft || 0, card._copiedPassiveId || card.copiedPassiveId || '',
     card.vigilanteUsed ? 1 : 0, card.wolfCreekUsed ? 1 : 0,
     card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0
   ].join(':');
@@ -814,7 +902,7 @@ function appendBoardInteractionSignature(parts) {
   const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   parts.push('viewer', viewer, 'cur', G.currentPlayer, 'placing', G.placing ? 1 : 0, 'selH', G.selectedHandCard ?? '', 'con', G._consolidating ? 1 : 0);
   if(G.selectedBoardCard?.card) parts.push('selB', G.selectedBoardCard.card.iid);
-  if(G._markSelecting) parts.push('mark', G._markSelecting.player, G._markSelecting.zone ?? '');
+  if(G._markSelecting) parts.push('mark', G._markSelecting.player, G._markSelecting.zone ?? '', G._markSelecting.row ?? '');
   ['_boardTargeting','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving','_busserMovingCard'].forEach(k=>{
     if(G[k]) parts.push(k, safeInteractionStateSignature(G[k]));
   });
@@ -830,7 +918,7 @@ function getBoardCellStateSignature(z, r, c, card) {
   let markState = '';
   if(r >= 3 && !fullExtraRow){
     if(typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z,r,c)) markState = 'safe';
-    else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (typeof getNextExtraRowIndex !== 'function' || r === getNextExtraRowIndex(z))) markState = 'choice';
+    else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (Number.isInteger(G._markSelecting.row) ? r === G._markSelecting.row : (typeof getMarkSafeSquareChoiceRow !== 'function' || r === getMarkSafeSquareChoiceRow(z, G.currentPlayer)))) markState = 'choice';
     else markState = 'inactive';
   }
   return [
@@ -855,7 +943,7 @@ function applyBoardCellStateClasses(cellEl, z, r, c, card) {
   cellEl.classList.remove('mark-safe-square','mark-safe-choice','mark-safe-inactive');
   if(r >= 3 && !fullExtraRow){
     if(typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z,r,c)) cellEl.classList.add('mark-safe-square');
-    else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (typeof getNextExtraRowIndex !== 'function' || r === getNextExtraRowIndex(z))) cellEl.classList.add('mark-safe-choice');
+    else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (Number.isInteger(G._markSelecting.row) ? r === G._markSelecting.row : (typeof getMarkSafeSquareChoiceRow !== 'function' || r === getMarkSafeSquareChoiceRow(z, G.currentPlayer)))) cellEl.classList.add('mark-safe-choice');
     else cellEl.classList.add('mark-safe-inactive');
   }
 }
@@ -871,8 +959,11 @@ function collectReusableBoardCards(boardEl) {
 }
 
 function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected) {
+  const block = (G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c; });
+  const statusState = getCardStatusVisualState(card, getBoardCardStatusEligibility(card, z, r, c, isHidden));
   return [
     z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
+    block && block.type === 'zoe' ? 1 : 0, statusState.primary || '', statusState.immune ? 1 : 0,
     visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
     visual && visual.displayFate || '',
     cardRenderSignature(card, z, r, c)
@@ -892,7 +983,10 @@ function getBoardRenderState() {
     const zone = G.board?.[z] || [];
     const extraRowCount = (G.extraRows && G.extraRows[z]) || 0;
     const showMarkChoiceRow = !!(G._markSelecting && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z));
-    const totalRows = Math.max(zone.length, 3 + extraRowCount + (showMarkChoiceRow ? 1 : 0));
+    const markChoiceRow = showMarkChoiceRow
+      ? (Number.isInteger(G._markSelecting.row) ? G._markSelecting.row : (typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, G._markSelecting.player) : 3 + extraRowCount))
+      : -1;
+    const totalRows = Math.max(zone.length, 3 + extraRowCount, showMarkChoiceRow && markChoiceRow >= 3 ? markChoiceRow + 1 : 0);
     structureParts.push('z', z, 'rows', totalRows);
     for(let r=0; r<totalRows; r++){
       const extraCols = r<3?(r===2?G.extraCells?.[z]?.[r]?.p1:(r===0?G.extraCells?.[z]?.[r]?.p2:0)):0;
@@ -900,7 +994,7 @@ function getBoardRenderState() {
       let rowOwner = r===0 ? 1 : (r===1 ? -1 : (r===2 ? 0 : 0));
       let fullExtraRow = false;
       if(r >= 3) {
-        const isMarkChoiceRow = !!(showMarkChoiceRow && r === 3 + extraRowCount);
+        const isMarkChoiceRow = !!(showMarkChoiceRow && r === markChoiceRow);
         rowOwner = isMarkChoiceRow
           ? G._markSelecting.player
           : (typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z, r) : 0);
@@ -941,7 +1035,7 @@ function getBoardRenderSignatureLegacy() {
   const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   const parts = ['viewer', viewer, 'cur', G.currentPlayer, 'placing', G.placing ? 1 : 0, 'selH', G.selectedHandCard ?? '', 'con', G._consolidating ? 1 : 0];
   if(G.selectedBoardCard?.card) parts.push('selB', G.selectedBoardCard.card.iid);
-  if(G._markSelecting) parts.push('mark', G._markSelecting.player, G._markSelecting.zone ?? '');
+  if(G._markSelecting) parts.push('mark', G._markSelecting.player, G._markSelecting.zone ?? '', G._markSelecting.row ?? '');
   ['_boardTargeting','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving','_busserMovingCard'].forEach(k=>{
     if(G[k]) parts.push(k, safeInteractionStateSignature(G[k]));
   });
@@ -964,7 +1058,7 @@ function getHandRenderSignature() {
   if(typeof G === 'undefined' || !G) return '';
   const cp = getPerspectivePlayerIndex();
   const canActFromHand = (cp === G.currentPlayer);
-  const canInspectHand = !G._isSpectator;
+  const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
   const force = G._forceHandEnterIids ? Array.from(G._forceHandEnterIids).sort().join(',') : '';
   const tutorialSig = typeof tutorialHandRenderStateSignature === 'function' ? tutorialHandRenderStateSignature() : '';
   const hand = G.players?.[cp]?.hand || [];
@@ -994,12 +1088,28 @@ function applyOpponentHandDensity(container, count) {
   if(!container) return;
   const handCount = Math.max(0, Number(count) || 0);
   container.dataset.count = String(handCount);
-  container.classList.toggle('opp-hand-compact', handCount >= 8);
+  const large = handCount > 0 && handCount <= 4;
+  const medium = handCount >= 5 && handCount <= 8;
+  const compact = handCount >= 9;
+  const nineOnly = handCount === 9;
+  container.classList.toggle('opp-hand-large', large);
+  container.classList.toggle('opp-hand-medium', medium);
+  container.classList.toggle('opp-hand-compact', compact);
+  container.classList.toggle('opp-hand-nine-only', nineOnly);
   container.classList.toggle('opp-hand-nine-plus', handCount >= 9);
   container.classList.toggle('opp-hand-ten-plus', handCount >= 10);
-  if(handCount === 9) {
+  container.classList.toggle('opp-hand-twelve-plus', handCount >= 12);
+  if(large) {
     container.style.setProperty('--opp-hand-card-w', '68px');
     container.style.setProperty('--opp-hand-card-h', '95px');
+  } else if(medium) {
+    container.style.setProperty('--opp-hand-card-w', '56px');
+    container.style.setProperty('--opp-hand-card-h', '78px');
+  } else if(compact) {
+    const twelvePlus = handCount >= 12;
+    const tenPlus = handCount >= 10;
+    container.style.setProperty('--opp-hand-card-w', nineOnly ? '56px' : (twelvePlus ? '50px' : (tenPlus ? '52px' : '56px')));
+    container.style.setProperty('--opp-hand-card-h', nineOnly ? '78px' : (twelvePlus ? '70px' : (tenPlus ? '73px' : '78px')));
   } else {
     container.style.removeProperty('--opp-hand-card-w');
     container.style.removeProperty('--opp-hand-card-h');
@@ -1291,7 +1401,8 @@ function renderLandscapePanel() {
     (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '');
 }
 
-function showLandscapeChoiceModal(page, onChoose) {
+function showLandscapeChoiceModal(page, onChoose, promptState) {
+  const choiceState = promptState || {committed:false};
   const entries = Object.keys(LANDSCAPES || {}).sort(function(a,b){
     return (parseInt(a.replace('igb',''),10)||0) - (parseInt(b.replace('igb',''),10)||0);
   }).map(function(id){
@@ -1323,14 +1434,17 @@ function showLandscapeChoiceModal(page, onChoose) {
   }).join('') + '</div>' +
   '<div class="landscape-choice-page">Page ' + (currentPage + 1) + ' / ' + (maxPage + 1) + '</div>';
   const actions = [];
-  if(currentPage > 0) actions.push({label:'Prev', action:function(){ showLandscapeChoiceModal(currentPage - 1, onChoose); }});
+  if(currentPage > 0) actions.push({label:'Prev', action:function(){ showLandscapeChoiceModal(currentPage - 1, onChoose, choiceState); }});
   shown.forEach(function(entry){
     actions.push({label:'Choose ' + (entry.landscape && entry.landscape.shortName ? entry.landscape.shortName : ('Landscape ' + entry.num)), pri:true, hidden:true, action:function(){
+      if(choiceState.committed) return;
+      choiceState.committed = true;
+      document.querySelectorAll('#modal .landscape-choice-card').forEach(function(choiceCard){ choiceCard.disabled = true; });
       closeModal();
       if(typeof onChoose === 'function') onChoose(entry.song, entry.landscape, entry.num);
     }});
   });
-  if(currentPage < maxPage) actions.push({label:'Next', action:function(){ showLandscapeChoiceModal(currentPage + 1, onChoose); }});
+  if(currentPage < maxPage) actions.push({label:'Next', action:function(){ showLandscapeChoiceModal(currentPage + 1, onChoose, choiceState); }});
   actions.push({label:'Cancel', action:closeModal});
   showModal('Choose Landscape', body, actions);
   const modalBox = document.querySelector('#modal .modal');
@@ -1482,6 +1596,75 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
 }
 window.activateSantaAnnaProsperityFromHand = activateSantaAnnaProsperityFromHand;
 
+function landscapeZonePromptKey(player, title, opts) {
+  opts = opts || {};
+  if(opts.promptKey) return String(opts.promptKey);
+  const landscape = typeof getCurrentLandscape === 'function' ? getCurrentLandscape() : null;
+  const matchKey = G && (G._onlineSeed || G._onlineRoomCode || G._matchStartedAt || G._turnStartedAt || G.song || G.landscapeId) || 'local';
+  return [
+    String(matchKey),
+    String(G && G.landscapeId || landscape && landscape.id || ''),
+    String(G && G.turn || 0),
+    String(player),
+    String(opts.kind || 'zone'),
+    String(title || 'Choose Zone')
+  ].join('|');
+}
+
+function landscapeZonePromptRegistry() {
+  if(!window.__fateLandscapeZonePromptRegistry) {
+    window.__fateLandscapeZonePromptRegistry = {active:Object.create(null), resolved:Object.create(null)};
+  }
+  return window.__fateLandscapeZonePromptRegistry;
+}
+
+function pruneLandscapeZonePromptRegistry(registry) {
+  const cutoff = Date.now() - (10 * 60 * 1000);
+  Object.keys(registry.resolved).forEach(function(key){
+    if(Number(registry.resolved[key] || 0) < cutoff) delete registry.resolved[key];
+  });
+}
+
+function isLandscapeZonePromptGuarded(key) {
+  const registry = landscapeZonePromptRegistry();
+  pruneLandscapeZonePromptRegistry(registry);
+  return !!(registry.active[key] || registry.resolved[key]);
+}
+
+function beginLandscapeZonePrompt(key) {
+  const registry = landscapeZonePromptRegistry();
+  pruneLandscapeZonePromptRegistry(registry);
+  if(registry.active[key] || registry.resolved[key]) return null;
+  const token = {key:String(key), openedAt:Date.now(), settled:false};
+  registry.active[key] = token;
+  return token;
+}
+
+function finishLandscapeZonePrompt(token) {
+  if(!token || token.settled) return false;
+  token.settled = true;
+  const registry = landscapeZonePromptRegistry();
+  if(registry.active[token.key] === token) delete registry.active[token.key];
+  registry.resolved[token.key] = Date.now();
+  return true;
+}
+
+function releaseLandscapeZonePrompt(keyOrToken) {
+  const key = String(keyOrToken && keyOrToken.key || keyOrToken || '');
+  if(!key) return false;
+  const registry = landscapeZonePromptRegistry();
+  if(registry.active[key]) registry.active[key].settled = true;
+  delete registry.active[key];
+  delete registry.resolved[key];
+  return true;
+}
+
+window.fateLandscapeZonePromptKey = landscapeZonePromptKey;
+window.fateIsLandscapeZonePromptGuarded = isLandscapeZonePromptGuarded;
+window.fateBeginLandscapeZonePrompt = beginLandscapeZonePrompt;
+window.fateFinishLandscapeZonePrompt = finishLandscapeZonePrompt;
+window.fateReleaseLandscapeZonePrompt = releaseLandscapeZonePrompt;
+
 function chooseLandscapeZone(player, title, subtitle, onChoose, opts) {
   opts = opts || {};
   const available = [0, 1, 2].filter(function(z){
@@ -1504,6 +1687,9 @@ function chooseLandscapeZone(player, title, subtitle, onChoose, opts) {
     if(typeof onChoose === 'function') onChoose(best);
     return;
   }
+  const promptKey = landscapeZonePromptKey(player, title, opts);
+  const guardToken = opts._landscapePromptGuardToken || beginLandscapeZonePrompt(promptKey);
+  if(!guardToken || guardToken.key !== promptKey || guardToken.settled) return false;
   const body =
     '<div class="landscape-zone-picker">' +
       '<div class="landscape-zone-subtitle">' + escapeHtml(subtitle || '') + '</div>' +
@@ -1518,16 +1704,29 @@ function chooseLandscapeZone(player, title, subtitle, onChoose, opts) {
         }).join('') +
       '</div>' +
     '</div>';
-  showModal(title || 'Choose Zone', body, [{label:'Wait', action:function(){}}], {immediate:true});
+  try {
+    showModal(title || 'Choose Zone', body, [{label:'Wait', action:function(){}}], {immediate:true});
+  } catch(err) {
+    releaseLandscapeZonePrompt(guardToken);
+    throw err;
+  }
+  const modal = document.getElementById('modal');
+  if(modal) modal.dataset.landscapePromptKey = promptKey;
   const acts = document.getElementById('modal-acts');
   if(acts) acts.innerHTML = '';
+  let choiceCommitted = false;
   document.querySelectorAll('#modal .landscape-zone-choice').forEach(function(btn){
     btn.onclick = function(){
+      if(choiceCommitted || guardToken.settled) return;
+      choiceCommitted = true;
+      document.querySelectorAll('#modal .landscape-zone-choice').forEach(function(choiceBtn){ choiceBtn.disabled = true; });
       const z = Number(btn.dataset.zone);
+      finishLandscapeZonePrompt(guardToken);
       closeModal();
       if(typeof onChoose === 'function') onChoose(z);
     };
   });
+  return true;
 }
 window.chooseLandscapeZone = chooseLandscapeZone;
 
@@ -1579,15 +1778,19 @@ function maybeResolveLandscapeEndTurn() {
       return false;
     }
     const winner = c0 > c1 ? 0 : 1;
+    let frontierResolved = false;
     const resolveFrontier = function(z){
+      if(frontierResolved) return false;
+      frontierResolved = true;
       if(typeof z === 'number') {
-        addLandscapeZoneFateBonus(winner, z, 10, 'major');
-        toast(G.players[winner].name + ' gains 10 Fate in Zone ' + (z + 1) + '.');
+        addLandscapeZoneFateBonus(winner, z, 12, 'major');
+        toast(G.players[winner].name + ' gains 12 Fate in Zone ' + (z + 1) + '.');
       }
       continueTurnAfterLandscapeResolution();
+      return true;
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveFrontier(chooseBestLandscapeZoneForAI(winner, {kind:'fate'}));
-    else window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 10 Fate.', resolveFrontier, {kind:'fate'});
+    else window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 12 Fate.', resolveFrontier, {kind:'fate'});
     return true;
   }
 
@@ -1603,13 +1806,17 @@ function maybeResolveLandscapeEndTurn() {
       return false;
     }
     const winner = s0 > s1 ? 0 : 1;
+    let qingdaoResolved = false;
     const resolveQingdao = function(targetZ){
+      if(qingdaoResolved) return false;
+      qingdaoResolved = true;
       if(typeof targetZ === 'number') {
         addFullExtraSafeRowForPlayer(targetZ, winner, 'Qingdao extra row', {sfxKind:'major'});
         toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (targetZ + 1) + '.');
         renderGame({board:true, scores:true, blocks:true, landscape:true});
       }
       continueTurnAfterLandscapeResolution();
+      return true;
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveQingdao(chooseBestLandscapeZoneForAI(winner, {kind:'row', requireOpenExtraRow:true}));
     else window.chooseLandscapeZone(winner, 'Qingdao Breakthrough', G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.', resolveQingdao, {kind:'row', requireOpenExtraRow:true});
@@ -1628,6 +1835,17 @@ function queueLandscapeOutsideDrawBonus(player, drawnCard) {
 
 function processLandscapeDrawQueue() {
   if(!G._landscapeDrawQueue || !G._landscapeDrawQueue.length || G._landscapeDrawPromptOpen) return;
+  const presenter = window.FateActionPresentation;
+  if(presenter && typeof presenter.isActive === 'function' && presenter.isActive()) {
+    if(typeof presenter.waitForIdle === 'function') {
+      presenter.waitForIdle({minQuietMs:90, timeoutMs:5200}).then(function(){
+        setTimeout(processLandscapeDrawQueue, 0);
+      });
+    } else {
+      setTimeout(processLandscapeDrawQueue, 180);
+    }
+    return;
+  }
   if(document.getElementById('modal')?.classList.contains('on')) {
     setTimeout(processLandscapeDrawQueue, 180);
     return;
@@ -1636,9 +1854,13 @@ function processLandscapeDrawQueue() {
   const entries = getAllBoardCardEntries(function(card){ return card && !isFaceDownCard(card); });
   if(!entries.length) return;
   G._landscapeDrawPromptOpen = true;
+  let drawPromptSettled = false;
   const finish = function(){
+    if(drawPromptSettled) return false;
+    drawPromptSettled = true;
     G._landscapeDrawPromptOpen = false;
     if(G._landscapeDrawQueue && G._landscapeDrawQueue.length) setTimeout(processLandscapeDrawQueue, 120);
+    return true;
   };
   if(G.aiEnabled && item.player === G.aiPlayer) {
     const target = entries.filter(e=>e.card.owner===item.player).sort(function(a,b){
@@ -1663,6 +1885,7 @@ function processLandscapeDrawQueue() {
     allowOptionalCancelServerAction:true,
     onCancel:finish
   }, function(chosen){
+    if(!finish()) return;
     const target = chosen && chosen[0] && chosen[0].card;
     if(target) {
       modifyFate(target, 3, 'permanent');
@@ -1670,7 +1893,6 @@ function processLandscapeDrawQueue() {
       if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('West Coast Dreaming', 'minor');
       renderGame({board:true, scores:true, landscape:true});
     }
-    finish();
   });
 }
 
@@ -1999,10 +2221,10 @@ function showDeckInfo(player) {
   const title = (isOwn ? 'Your' : G.players[player].name+"'s") + ' Deck';
   let boardCount = 0;
   G.board.forEach(function(zone){ zone.forEach(function(row){ if(row) row.forEach(function(cell){ if(cell && cell.owner === player) boardCount++; }); }); });
-  const polishCards = isOwn ? deck.filter(c=>c.id==='28') : [];
+  const polishCards = isOwn ? deck.filter(c=>c.id==='28' && !c._deckSetNegatedByReaction) : [];
   const polishUses = Array.isArray(G.polishArmyUses) ? (G.polishArmyUses[player]||0) : 0;
   const canSetPolish = isOwn && player===G.currentPlayer && polishCards.length>0 && !G._polishUsedThisTurn && polishUses<2 && G.phase==='main' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(polishCards[0]));
-  const canSetMaja = isOwn && player===G.currentPlayer && deck.some(c=>c.id==='07') && G.phase==='main';
+  const canSetMaja = isOwn && player===G.currentPlayer && deck.some(c=>c.id==='07' && !c._deckSetNegatedByReaction) && G.phase==='main';
   let polishHtml = '';
   if(canSetPolish){
     polishHtml = '<div class="di-action-panel"><div class="di-action-title">2nd Polish-Lithuanian Army</div><div class="di-action-desc">Set directly from deck (' + (2-polishUses) + ' game use' + ((2-polishUses)!==1?'s':'') + ' left)</div><button class="btn sm pri" onclick="setPolishFromDeck()">Set from Deck</button></div>';
@@ -2068,14 +2290,20 @@ window.setPolishFromDeck = function() {
   const cp = G.currentPlayer;
   if(!isPerspectivePlayer(cp)){toast('You can only set from your deck on your turn.');return;}
   const deck = G.players[cp].deck;
-  const idx = deck.findIndex(c=>c.id==='28');
+  const idx = deck.findIndex(c=>c.id==='28' && !c._deckSetNegatedByReaction);
   if(idx===-1){toast('No Polish-Lithuanian Army in deck');closeModal();return;}
   const card = deck[idx];
   deck.splice(idx,1);
   if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
   else G.players[cp].hand.push(card);
   if(typeof beginImmediateFreePlacement==='function') {
-    beginImmediateFreePlacement(cp, card, 'Place ' + card.name + ' for free from your deck.');
+    beginImmediateFreePlacement(cp, card, 'Place ' + card.name + ' for free from your deck.', {
+      key:'polish-lithuanian-deck-set',
+      name:'2nd Polish-Lithuanian Army',
+      ability:'The Army of Exiles',
+      text:'Set directly from your deck at no cost.',
+      freePlacementKind:'polishLithuanianDeckSet'
+    });
   }
   G._polishUsedThisTurn = true;
   if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
@@ -2089,7 +2317,7 @@ window.setMajaFromDeck = function() {
   const cp = G.currentPlayer;
   if(!isPerspectivePlayer(cp)){toast('You can only set from your deck on your turn.');return;}
   const deck = G.players[cp].deck;
-  const idx = deck.findIndex(c=>c.id==='07');
+  const idx = deck.findIndex(c=>c.id==='07' && !c._deckSetNegatedByReaction);
   if(idx===-1){toast('No Maja Kaminska in deck');closeModal();return;}
   const card = deck[idx];
   deck.splice(idx,1);
@@ -2306,14 +2534,17 @@ function renderBoard() {
     </div>`;
     const extraRowCount = (G.extraRows && G.extraRows[z]) || 0;
     const showMarkChoiceRow = !!(G._markSelecting && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z));
+    const markChoiceRow = showMarkChoiceRow
+      ? (Number.isInteger(G._markSelecting.row) ? G._markSelecting.row : (typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, G._markSelecting.player) : 3 + extraRowCount))
+      : -1;
     const rowsEl=document.createElement('div');
     rowsEl.className='zone-rows' + ((extraRowCount > 0 || showMarkChoiceRow) ? ' has-extra-rows' : '');
     installZoneRowScrollGuard(rowsEl, z);
     const baseRowClasses=['p2safe','contested','p1safe'];
-    const totalRows = 3 + extraRowCount + (showMarkChoiceRow ? 1 : 0);
+    const totalRows = Math.max(3 + extraRowCount, showMarkChoiceRow && markChoiceRow >= 3 ? markChoiceRow + 1 : 0);
     const displayRows = viewerP === 1 ? [2,1,0] : [0,1,2];
     for(let r=3;r<totalRows;r++){
-      const isMarkChoiceRow = !!(showMarkChoiceRow && r === 3 + extraRowCount);
+      const isMarkChoiceRow = !!(showMarkChoiceRow && r === markChoiceRow);
       const extraRowOwner = isMarkChoiceRow
         ? G._markSelecting.player
         : (typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z, r) : 0);
@@ -2330,7 +2561,7 @@ function renderBoard() {
       }
       else {
         const fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
-        const isMarkChoiceRow = !!(showMarkChoiceRow && r === 3 + extraRowCount);
+        const isMarkChoiceRow = !!(showMarkChoiceRow && r === markChoiceRow);
         const extraRowOwner = isMarkChoiceRow
           ? G._markSelecting.player
           : (typeof getExtraSafeRowOwner === 'function' ? getExtraSafeRowOwner(z, r) : viewerP);
@@ -2356,7 +2587,7 @@ function renderBoard() {
         const fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
         if(r>=3 && !fullExtraRow){
           if(typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z,r,c)) cellEl.classList.add('mark-safe-square');
-          else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (typeof getNextExtraRowIndex !== 'function' || r === getNextExtraRowIndex(z))) cellEl.classList.add('mark-safe-choice');
+          else if(G._markSelecting && G._markSelecting.player === G.currentPlayer && (typeof G._markSelecting.zone !== 'number' || G._markSelecting.zone === z) && (Number.isInteger(G._markSelecting.row) ? r === G._markSelecting.row : (typeof getMarkSafeSquareChoiceRow !== 'function' || r === getMarkSafeSquareChoiceRow(z, G.currentPlayer)))) cellEl.classList.add('mark-safe-choice');
           else cellEl.classList.add('mark-safe-inactive');
         }
         cellEl.dataset.z=z;cellEl.dataset.r=r;cellEl.dataset.c=c;
@@ -2579,7 +2810,15 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const perspectivePlayer = getPerspectivePlayerIndex();
   const visual = getCardVisualData(card, perspectivePlayer, {forceBoardHidden:true, boardPos:{z,r,c}});
   const isHidden = !!visual?.isHidden;
-  const isSuppressed = !isHidden && isCardVisuallySuppressed(card, z, r, c);
+  const statusEligibility = getBoardCardStatusEligibility(card, z, r, c, isHidden);
+  const statusState = getCardStatusVisualState(card, statusEligibility);
+  const isSuppressed = statusState.primary === 'suppressed';
+  const isNegated = statusState.primary === 'negated';
+  const isImmune = !!statusState.immune;
+  const isMarkedForDeath = !!statusEligibility.marked;
+  const showMarkedIcon = statusState.primary === 'marked';
+  const isZoeBlocked = statusState.primary === 'blocked';
+  const hasPrimaryStatus = !!(statusState.primary && statusState.primary !== 'immune');
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -2592,7 +2831,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
       existing.dataset.z = String(z);
       existing.dataset.r = String(r);
       existing.dataset.c = String(c);
-      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isSuppressed ? ', suppressed' : ''));
+      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))));
       existing.classList.toggle('sel', selected);
       return existing;
     }
@@ -2604,7 +2843,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.dataset.r=String(r);
   el.dataset.c=String(c);
   el.dataset.boardCardSig=domSig;
-  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isSuppressed ? ', suppressed' : ''));
+  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))));
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(isHidden?' face-down-card':'')
     +(card.immuneFlag?' immune':'')
@@ -2612,7 +2851,12 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(rarity==='star'?' star-card':'')
     +(rarity==='square'?' square-card':'')
     +(card.owner!==perspectivePlayer?' opponent-card':'')
-    +(isSuppressed?' fate-suppressed':'');
+    +(isNegated?' fate-negated':'')
+    +(isSuppressed?' fate-suppressed':'')
+    +(showMarkedIcon?' fate-marked-death':'')
+    +(isZoeBlocked?' fate-blocked-action':'')
+    +(isImmune?' fate-immune':'')
+    +(hasPrimaryStatus?' fate-has-primary-status':'');
   if(selected) el.classList.add('sel');
   const eff=isHidden ? 0 : getCachedEffectiveFate(card,z);
   // Determine buff/debuff state — compare effective fate vs base (printed) fate
@@ -2630,7 +2874,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   G._cardFateMap[card.iid] = eff;
   // Mark Menz still changes affiliation, but no longer renders a persistent icon badge.
   const affBadge = '';
-  if(card._markedForDeath) el.classList.add('vigilante-muted'); else el.classList.remove('vigilante-muted');
+  if(isMarkedForDeath) el.classList.add('vigilante-muted'); else el.classList.remove('vigilante-muted');
   if(shouldUseCanvasBoardVisuals()){
     el.dataset.canvasVisual = '1';
     el.dataset.iid = String(card.iid || '');
@@ -2639,6 +2883,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.innerHTML=`
     <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
     ${affBadge}
+    ${isImmune && hasPrimaryStatus ? '<div class="bc-protection-status-glyph" aria-hidden="true"></div>' : ''}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
   if(changed && !shouldUseCanvasBoardVisuals()){
@@ -2687,7 +2932,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
 function renderHand() {
   const cp = getPerspectivePlayerIndex();
   const canActFromHand = (cp === G.currentPlayer);
-  const canInspectHand = !G._isSpectator;
+  const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
   const hand = G.players[cp].hand;
   const hc = document.getElementById('hand-cards');
   if(!hc) return;
@@ -2815,6 +3060,7 @@ function renderHand() {
 
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
+  if(G._isSpectator || G._onlineRole === 'spectator') return false;
   const handLimit = 12;
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
@@ -3861,6 +4107,7 @@ function renderTopbarEffects() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c){
       if(!c || isFaceDownCard(c) || c.cantBeMoved || c.immuneFlag || String(c.id || '') === '76') return;
+      if(c._busserSourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(c._busserSourceIid)) return;
       const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(c) : Math.max(0, Number(c._busserTurnsLeft || c._busserMoves || 0) || 0);
       if(moves <= 0) return;
       const owner = coerceStatusOwner(c._busserOwner == null ? c.owner : c._busserOwner, c.owner);
@@ -4024,6 +4271,7 @@ function renderTitleProfile(){
 
 function updatePlayerStatBadge(el, opts) {
   if(!el) return;
+  el.classList.add('in-game-rank-stat');
   const mode = opts && opts.mode ? opts.mode : 'local';
   const elo = opts ? opts.elo : null;
   const wins = opts ? (opts.wins || 0) : 0;
@@ -4034,9 +4282,97 @@ function updatePlayerStatBadge(el, opts) {
   if(elo != null) {
     const nextHtml = renderRankBadge(elo, 'sm');
     if(el.innerHTML !== nextHtml) el.innerHTML = nextHtml;
+    decorateInGameRankBadge(el);
   } else {
     if(el.textContent !== 'Local Player') el.textContent = 'Local Player';
   }
+}
+
+function decorateInGameRankBadge(el) {
+  if(!el || !el.querySelector) return;
+  const badge = el.querySelector('.rank-badge');
+  const label = el.querySelector('.rank-badge-label');
+  if(badge) badge.classList.add('in-game-rank-badge');
+  if(!label) return;
+  const raw = (label.dataset.rawRankName || label.textContent || '').replace(/\s+/g, ' ').trim();
+  label.dataset.rawRankName = raw;
+  if(badge) badge.classList.remove('rank-badge-two-line');
+  label.classList.remove('rank-badge-label-two-line');
+  if(badge) {
+    badge.classList.add('in-game-rank-adaptive-v2');
+    const rankKey = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if(rankKey) badge.classList.add('in-game-rank-name-' + rankKey);
+    const icon = badge.querySelector('.rank-icon-img');
+    const iconClass = icon && Array.from(icon.classList || []).find(cls => /^rank-icon-\d+$/.test(cls));
+    if(iconClass) badge.classList.add('in-game-rank-' + iconClass);
+  }
+  let breakAt = raw.indexOf('-');
+  let keepDelimiter = true;
+  if(breakAt < 0) {
+    keepDelimiter = false;
+    const spaces = [];
+    raw.replace(/\s/g, function(_, idx){ spaces.push(idx); return _; });
+    if(spaces.length) {
+      const mid = raw.length / 2;
+      breakAt = spaces.reduce(function(best, idx){ return Math.abs(idx - mid) < Math.abs(best - mid) ? idx : best; }, spaces[0]);
+    }
+  }
+  const shouldSplit = raw.length > 14 && breakAt > 0 && breakAt < raw.length - 1;
+  if(shouldSplit) {
+    const first = keepDelimiter ? raw.slice(0, breakAt + 1) : raw.slice(0, breakAt);
+    const second = raw.slice(breakAt + 1).trim();
+    applyInGameRankBadgeMetrics(badge, raw, [first.trim(), second]);
+    if(badge) badge.classList.add('rank-badge-two-line');
+    label.classList.add('rank-badge-label-two-line');
+    label.innerHTML = '<span class="rank-badge-line rank-badge-line-main">' + escapeHtml(first.trim()) + '</span><span class="rank-badge-line rank-badge-line-sub">' + escapeHtml(second) + '</span>';
+    return;
+  }
+  applyInGameRankBadgeMetrics(badge, raw, [raw]);
+  label.innerHTML = escapeHtml(raw);
+}
+
+function estimateInGameRankLineUnits(text) {
+  const value = String(text || '');
+  let units = 0;
+  for(let i = 0; i < value.length; i++) {
+    const ch = value.charAt(i);
+    if(ch === ' ') units += .32;
+    else if(ch === '-' || ch === '/') units += .28;
+    else if(/[MW]/.test(ch)) units += .78;
+    else if(/[A-Z]/.test(ch)) units += .66;
+    else if(/[ilI]/.test(ch)) units += .3;
+    else if(/[0-9]/.test(ch)) units += .52;
+    else units += .52;
+  }
+  return Math.max(1, units);
+}
+
+function applyInGameRankBadgeMetrics(badge, raw, lines) {
+  if(!badge || !badge.style) return;
+  const rawText = String(raw || '');
+  const rankKey = rawText.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const rankLines = Array.isArray(lines) && lines.length ? lines : [raw || ''];
+  const maxUnits = rankLines.reduce(function(max, line){
+    return Math.max(max, estimateInGameRankLineUnits(line));
+  }, 1);
+  const twoLine = rankLines.length > 1;
+  const labelWidthPx = twoLine ? 106 : 108;
+  const fittedPx = labelWidthPx / maxUnits;
+  const capPx = rankKey === 'high-marshall' ? 12.2 : (twoLine ? 13.2 : (rawText.length <= 8 ? 17 : 14.4));
+  const floorPx = twoLine ? 10.6 : 11.4;
+  const fontPx = Math.max(floorPx, Math.min(capPx, fittedPx));
+  const baseIconShift = rawText.length <= 8 ? 0 : Math.max(2, Math.min(6, Math.round((14.8 - fontPx) * 1.05 + (twoLine ? 3 : 2))));
+  const iconAdjust = rankKey === 'footman' ? 7 : (rankKey === 'captain-officer' ? 15 : (rankKey === 'high-marshall' ? -4 : 0));
+  const iconShift = Math.max(-4, Math.min(17, baseIconShift + iconAdjust));
+  const labelShift = (iconShift > 0 ? -1 : 0) + (rankKey === 'high-marshall' ? 1 : 0);
+  const badgeShift = 0;
+  const gapRem = iconShift > 0 ? .1 : .16;
+  badge.style.setProperty('--rank-fit-font', (Math.round(fontPx * 100) / 100) + 'px');
+  badge.style.setProperty('--rank-fit-line-height', twoLine ? '.88' : '1');
+  badge.style.setProperty('--rank-fit-badge-shift', badgeShift + 'px');
+  badge.style.setProperty('--rank-fit-icon-shift', iconShift + 'px');
+  badge.style.setProperty('--rank-fit-label-shift', labelShift + 'px');
+  badge.style.setProperty('--rank-fit-gap', gapRem + 'rem');
 }
 
 function shouldDeferMatchEntryCanvasPaint() {
@@ -4357,12 +4693,13 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       value = String(reductions);
       sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 4) + ' total Fate';
     }
-  } else if(card.id === '09') {
-    const counts = Array.isArray(G.un5thUses) ? G.un5thUses : [0,0];
-    const used = Math.max(0, Number(counts[owner]) || 0);
-    label = 'Battle of Bremen Uses';
+  } else if(card.id === '18') {
+    const used = typeof getUsMarinesUses === 'function'
+      ? getUsMarinesUses(owner)
+      : Math.max(0, Number(Array.isArray(G.usMarinesUses) ? G.usMarinesUses[owner] : 0) || 0);
+    label = 'Semper Fidelis Uses';
     value = used + ' / 3';
-    sub = used < 3 ? '2 Reinforcement uses available' : '2 Reinforcement exhausted';
+    sub = used < 3 ? 'Suppression Uses Available' : 'Effect Expended';
   } else if(card.id === '28') {
     const counts = Array.isArray(G.polishArmyUses) ? G.polishArmyUses : [0,0];
     const used = Math.max(0, Number(counts[owner]) || 0);
@@ -4441,6 +4778,7 @@ function canUseBusserMoveButton(card, actionPlayer) {
   if(!card || !Number.isInteger(actionPlayer)) return false;
   const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserTurnsLeft || card._busserMoves || 0) || 0;
   if(moves <= 0 || card._busserMovedThisTurn || card.cantBeMoved || card.immuneFlag || String(card.id || '') === '76') return false;
+  if(card._busserSourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(card._busserSourceIid)) return false;
   const busserOwner = card._busserOwner == null ? card.owner : Number(card._busserOwner);
   return Number(busserOwner) === Number(actionPlayer) || Number(card.owner) === Number(actionPlayer);
 }
@@ -4749,8 +5087,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       }
       // Supporter active abilities — specific cards with board-activated effects
       if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
-        // Vigilantes (52): mark an opponent card in this zone as 0 Reinforcement (once per turn)
-        if(!supporterActionsSuppressed && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : (bc.id==='52' && !bc.vigilanteUsed && bc.whenSetActivated !== true))){
+        // Vigilantes (52): when-set-only; only show if a deferred when-set effect is pending.
+        if(!supporterActionsSuppressed && bc.id==='52' && bc._pendingWhenSetEffect && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : bc.whenSetActivated !== true)){
           const vigBtn=document.createElement('button');
           vigBtn.className='btn sm pri';vigBtn.textContent='Activate Effect';
           vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
@@ -4867,6 +5205,8 @@ function resetModalChrome() {
       'online-profile-modal-v18',
       'online-profile-modal-v19',
       'title-profile-modal',
+      'profile-view-modal-v2',
+      'profile-edit-modal-v2',
       'inspected-profile-modal-stable',
       'friend-requests-modal',
       'title-my-decks-modal',
@@ -4953,7 +5293,7 @@ function showModal(title, bodyHtml, actions, opts) {
     btn.className='btn sm'+(a.danger?' danger':'')+(a.pri?' pri':'');
     btn.textContent=a.label;
     btn.onclick=function(e){
-      if(typeof playSfx === 'function'){
+      if(typeof playSfx === 'function' && !a.silent){
         const label = String(a.label || '').toLowerCase();
         const cancelLike = a.danger || /cancel|close|back|skip|decline|no|leave/.test(label);
         if(a.sfx) playSfx(a.sfx);
@@ -4986,11 +5326,11 @@ function showModal(title, bodyHtml, actions, opts) {
   if(!(opts && opts.silentOpen)) playSfx('menuOpen');
 }
 
-function closeModal() {
+function closeModal(opts) {
   document.getElementById('modal').classList.remove('on');
   resetModalChrome();
   if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
-  if(typeof playSfx === 'function') playSfx('menuClose');
+  if(!(opts && opts.silent) && typeof playSfx === 'function') playSfx('menuClose');
   if(typeof maybeCompleteDeferredTurnEnd === 'function') setTimeout(function(){ maybeCompleteDeferredTurnEnd('modal-close'); }, 0);
 }
 
@@ -5098,7 +5438,8 @@ function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
 
 function showBoardTargetPicker(opts, onConfirm) {
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
-  const entries = (opts.entries || []).filter(function(entry){ return entry && entry.card; });
+  const allowSquareTargets = !!(opts && opts.allowSquareTargets);
+  const entries = (opts.entries || []).filter(function(entry){ return entry && (entry.card || allowSquareTargets); });
   if(!entries.length){ toast(opts.emptyMessage || 'No valid targets'); return; }
   const maxCount = Math.max(1, Math.min(opts.maxCount || 1, entries.length));
   const zones = (opts.zones && opts.zones.length ? opts.zones : [entries[0].z]).filter(function(z, idx, arr){
@@ -5179,10 +5520,17 @@ function showBoardTargetPicker(opts, onConfirm) {
         const cellEl = document.createElement(entry ? 'button' : 'div');
         cellEl.className = 'board-target-cell';
         cellEl.dataset.pickerPos = posKey;
+        if(entry) {
+          cellEl.classList.add('is-targetable');
+          cellEl.setAttribute('type', 'button');
+          if(entry.squareOnly || allowSquareTargets) cellEl.classList.add('is-square-target');
+        }
 
         if(!cell) {
           cellEl.classList.add('is-empty');
-          cellEl.innerHTML = '<span>Empty</span>';
+          cellEl.innerHTML = entry
+            ? '<div class="board-target-card board-target-square-mark"><span>Square</span></div>'
+            : '<span>Empty</span>';
         } else {
           const visual = getCardVisualData(cell, viewerP, {forceBoardHidden:true, boardPos:{z:z, r:r, c:c}});
           const img = visual && (visual.runtimeImg || visual.img);
@@ -5196,27 +5544,28 @@ function showBoardTargetPicker(opts, onConfirm) {
               (img ? '<img src="' + img + '" alt="' + (visual.name || 'Card') + '" decoding="async" loading="eager">' : '<span class="board-target-aff">' + getAffIcon(visual.aff) + '</span>') +
               '<div class="board-target-fate' + (visual.isHidden ? ' is-hidden-fate' : '') + '">' + visual.displayFate + '</div>' +
             '</div>';
-          if(entry) {
-            cellEl.onclick = function(ev){
-              ev.preventDefault();
-              ev.stopPropagation();
-              const exists = selected.some(function(item){ return item.z === entry.z && item.r === entry.r && item.c === entry.c; });
-              if(exists) {
-                selected = selected.filter(function(item){ return !(item.z === entry.z && item.r === entry.r && item.c === entry.c); });
-              } else if(maxCount === 1) {
-                selected = [entry];
-              } else if(selected.length < maxCount) {
-                selected.push(entry);
-              } else {
-                toast('Max ' + maxCount + ' selected');
-                return;
-              }
-              updateSelection(body);
-            };
-            cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
-          } else {
+          if(entry) cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
+          else {
             cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, {card:cell, z:z, r:r, c:c}); };
           }
+        }
+        if(entry) {
+          cellEl.onclick = function(ev){
+            ev.preventDefault();
+            ev.stopPropagation();
+            const exists = selected.some(function(item){ return item.z === entry.z && item.r === entry.r && item.c === entry.c; });
+            if(exists) {
+              selected = selected.filter(function(item){ return !(item.z === entry.z && item.r === entry.r && item.c === entry.c); });
+            } else if(maxCount === 1) {
+              selected = [entry];
+            } else if(selected.length < maxCount) {
+              selected.push(entry);
+            } else {
+              toast('Max ' + maxCount + ' selected');
+              return;
+            }
+            updateSelection(body);
+          };
         }
         cells.appendChild(cellEl);
       }
@@ -5234,7 +5583,7 @@ function showBoardTargetPicker(opts, onConfirm) {
       if(typeof opts.onCancel === 'function') opts.onCancel();
     }},
     {label:opts.confirmLabel || 'Confirm', pri:true, action:function(){
-      if(!selected.length){ toast('Select a card first'); return; }
+      if(!selected.length){ toast(opts.emptySelectionMessage || (allowSquareTargets ? 'Select a square first' : 'Select a card first')); return; }
       closeModal();
       if(typeof onConfirm === 'function') onConfirm(selected.slice());
     }}
@@ -5767,20 +6116,28 @@ function pickCardsVisual(cards, opts, onConfirm) {
   }
 }
 
-function queueSearchToHandMotion(player, card, source, handIndex) {
+function queueSearchToHandMotion(player, card, source, handIndex, sequenceIndex, sequenceCount) {
   if(!card || !document.getElementById('s-game')?.classList.contains('active')) return false;
   const motion = window.FateV2CardMotionFx;
   if(!motion || typeof motion.searchCardToHand !== 'function') return false;
   const idx = handIndex == null && G && G.players && G.players[player] ? G.players[player].hand.length : handIndex;
-  return !!motion.searchCardToHand(card, player, source || 'deck', {handIndex:idx});
+  const seq = Math.max(0, Number(sequenceIndex) || 0);
+  const count = Math.max(1, Number(sequenceCount) || 1);
+  return !!motion.searchCardToHand(card, player, source || 'deck', {
+    handIndex:idx,
+    drawIndex:seq,
+    drawCount:count,
+    startOffset:seq * 170
+  });
 }
 
 function searchDeckForType(player, type, prompt, maxCount=1) {
   const matches=G.players[player].deck.filter(c=>c.type===type);
   pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand', immediate:true},
     (chosen)=>{
-      chosen.forEach(c=>{
-        queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length);
+      const baseHandIndex = G.players[player].hand.length;
+      chosen.forEach((c, idx)=>{
+        queueSearchToHandMotion(player, c, 'deck', baseHandIndex + idx, idx, chosen.length);
         if(typeof addCardToHand==='function') addCardToHand(player, c);
         else G.players[player].hand.push(c);
         G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -5799,10 +6156,11 @@ function searchDeckForCard(player, filter, prompt, callback) {
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
+      queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length, 0, 1);
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       shuffle(G.players[player].deck);
       if(typeof playSfx === 'function') playSfx('searchFound');
-      if(callback) callback(c);
+      if(callback) callback(c, 'deck');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
     });
 }
@@ -5814,10 +6172,12 @@ function searchAnySource(player, filter, prompt, callback) {
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
+      const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+      queueSearchToHandMotion(player, c, source, G.players[player].hand.length, 0, 1);
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       G.players[player].discard = G.players[player].discard.filter(x=>x.iid!==c.iid);
       if(typeof playSfx === 'function') playSfx('searchFound');
-      if(callback) callback(c);
+      if(callback) callback(c, source);
     });
 }
 
@@ -5830,7 +6190,8 @@ function pickFromDiscard(player, type, prompt, callback) {
   pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose', immediate:true},
     (chosen)=>{
       if(!chosen.length) return;
-      if(callback) callback(chosen[0]);
+      queueSearchToHandMotion(player, chosen[0], 'discard', G.players[player].hand.length, 0, 1);
+      if(callback) callback(chosen[0], 'discard');
     });
 }
 
@@ -5839,10 +6200,11 @@ function drawAffiliated(player, aff, count) {
   const from=[...G.players[player].deck.filter(c=>c.aff===aff),...recoverableDiscard];
   if(!from.length){toast('No '+AFF_LABEL[aff]+' cards available');return;}
   let added=0;
+  const baseHandIndex = G.players[player].hand.length;
   for(const c of from){
     if(added>=count) break;
     const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
-    queueSearchToHandMotion(player, c, source, G.players[player].hand.length);
+    queueSearchToHandMotion(player, c, source, baseHandIndex + added, added, count);
     if(typeof addCardToHand==='function') addCardToHand(player, c);
     else G.players[player].hand.push(c);
     G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -5857,10 +6219,11 @@ function drawSupportersFromDeckOrDiscard(player, count, cb) {
   const matches=[...G.players[player].deck.filter(c=>c.type==='Supporter'),...recoverableDiscard];
   if(!matches.length){toast('No supporters available');if(cb)cb();return;}
   let added=0;
+  const baseHandIndex = G.players[player].hand.length;
   for(const c of matches){
     if(added>=count) break;
     const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
-    queueSearchToHandMotion(player, c, source, G.players[player].hand.length);
+    queueSearchToHandMotion(player, c, source, baseHandIndex + added, added, count);
     if(typeof addCardToHand==='function') addCardToHand(player, c);
     else G.players[player].hand.push(c);
     G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -5875,9 +6238,10 @@ function addAffFromDeckDiscard(player, aff) {
   const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, c=>c.aff===aff) : G.players[player].discard.filter(c=>c.aff===aff);
   const label = AFF_LABEL[aff] || aff;
   let added = 0;
+  const baseHandIndex = G.players[player].hand.length;
   const addChosen = (card, source) => {
     if(!card) return;
-    queueSearchToHandMotion(player, card, source || 'deck', G.players[player].hand.length);
+    queueSearchToHandMotion(player, card, source || 'deck', baseHandIndex + added, added, 2);
     if(typeof addCardToHand==='function') addCardToHand(player, card);
     else G.players[player].hand.push(card);
     if(source === 'deck') G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==card.iid);
@@ -6245,26 +6609,37 @@ window.doMove=function(i){
 };
 
 function highlightForBlock(z, sourceCard) {
-  toast('Click a contested or opponent-side square in this zone to block consolidation on it');
+  const anyZone = Number(z) === -1;
+  toast(anyZone ? 'Click any valid empty square to lock it permanently' : 'Click a contested or opponent-side square in this zone to block consolidation on it');
   G.placing=true;
   G.blockingCell=true;
   G._blockingEffectSourceIid = sourceCard && sourceCard.iid;
+  window._blockZone=z;
   if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
   const owner = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
-  const totalRows = G.board[z]?G.board[z].length:3;
-  for(let r=0;r<totalRows;r++) {
-    const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3;
-    for(let c=0;c<rowCap;c++){
-    // Skip cells already blocked by either Carolyn or Zoe
-    const anyBlock = G.blockedCells.some(b=>b.z===z&&b.r===r&&b.c===c);
-    const allowed = typeof isZoeBlockTargetAllowed === 'function' ? isZoeBlockTargetAllowed(z, r, c, owner) : true;
-    if(!anyBlock && allowed){
-      const el=document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"]`);
-      if(el) el.classList.add('placeable','block-target-choice','zoe-block-choice');
-    }
+  const zStart = anyZone ? 0 : Number(z);
+  const zEnd = anyZone ? 2 : Number(z);
+  for(let zz=zStart;zz<=zEnd;zz++) {
+    const totalRows = G.board[zz]?G.board[zz].length:3;
+    for(let r=0;r<totalRows;r++) {
+      const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(zz, r) : 3;
+      for(let c=0;c<rowCap;c++){
+        const open = !!(G.board[zz] && G.board[zz][r] && G.board[zz][r][c] === null);
+        const anyBlock = G.blockedCells.some(b=>b.z===zz&&b.r===r&&b.c===c);
+        const allowed = anyZone
+          ? (open && !anyBlock && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(zz, r, c, owner)))
+          : (!anyBlock && (typeof isZoeBlockTargetAllowed === 'function' ? isZoeBlockTargetAllowed(zz, r, c, owner) : true));
+        if(allowed){
+          const el=document.querySelector(`#board .cell[data-z="${zz}"][data-r="${r}"][data-c="${c}"]`);
+          if(el) el.classList.add('placeable','block-target-choice', anyZone ? 'carolyn-block-choice' : 'zoe-block-choice');
+        }
+      }
     }
   }
-  window._blockZone=z;
+  if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+    window.FateMatchRendererAdapter.scheduleRender('block-square-selection-state');
+    window.FateMatchRendererAdapter.scheduleRender('block-square-selection-hover');
+  }
 }
 
 function highlightAllOpenCells() {
@@ -6415,10 +6790,28 @@ function fatePlayNextToast() {
   }, next.holdMs);
 }
 
+function fateMaybePlayToastSfx(text, isEffectAlert) {
+  const msg = String(text || '');
+  const lower = msg.toLowerCase();
+  if(isEffectAlert) {
+    const cue = /\bsuppress/.test(lower) ? 'effectSuppressed' : 'effectNegated';
+    if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce(cue, 'toast-effect-alert', 260);
+    else if(typeof playSfx === 'function') playSfx(cue);
+    return;
+  }
+  const gameActive = typeof document !== 'undefined' && !!document.getElementById('s-game')?.classList.contains('active');
+  if(!gameActive) return;
+  const invalidLike = /\b(cannot|can't|can only|not enough|no valid|no open|must |choose .*highlighted|select .*first|cell is|already moved|already used|limit reached|drop on|invalid)\b/i.test(msg);
+  if(!invalidLike) return;
+  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('invalidAction', 'toast-invalid-action', 190);
+  else if(typeof playSfx === 'function') playSfx('invalidAction');
+}
+
 function toast(msg, durationMs) {
   if(G._aiAbort) return;
   const text = String(msg || '');
   const isEffectAlert = /\b(negated|negate|suppressed|suppress)\b/i.test(text);
+  fateMaybePlayToastSfx(text, isEffectAlert);
   const effectAlertMs = 2000;
   const holdMs = Math.max(isEffectAlert ? effectAlertMs : 900, Number(durationMs) || (isEffectAlert ? effectAlertMs : 4500));
   try {
@@ -6929,7 +7322,7 @@ function getCinematicVoiceline(card) {
   return '';
 }
 
-function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
+function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
   const line = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
   if(!line) return null;
@@ -6952,7 +7345,8 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity) {
     }
   } catch(e) {}
   const ttl = Math.max(800, Number(durationMs) || 2100);
-  setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(300, ttl - 470));
+  const fadeLead = Math.max(120, Number(fadeLeadMs) || 470);
+  setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(300, ttl - fadeLead));
   setTimeout(function(){ if(el.parentNode) el.remove(); }, ttl + 100);
   return el;
 }
@@ -6962,6 +7356,42 @@ function _hexToRgb(hex) {
   if(hex.length===3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
   var n = parseInt(hex,16);
   return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255);
+}
+
+function getConsolidationCinematicTiming(perfLite) {
+  if(perfLite) {
+    return {
+      subtitleDelay:80,
+      overlayFadeAt:2520,
+      overlayRemoveAt:2920,
+      safetyAt:3360,
+      lockMs:3000,
+      fadeMs:400
+    };
+  }
+  return {
+    subtitleDelay:140,
+    overlayFadeAt:2740,
+    overlayRemoveAt:3180,
+    safetyAt:3620,
+    lockMs:3260,
+    fadeMs:440
+  };
+}
+
+function isConsolidationCinematicPerfLite() {
+  var enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
+  return !!document.documentElement.classList.contains('fate-performance-plus-mode') && !enhancedFx;
+}
+
+function getConsolidationCinematicTotalMs(options) {
+  var opts = options || {};
+  var perfLite = Object.prototype.hasOwnProperty.call(opts, 'perfLite') ? !!opts.perfLite : isConsolidationCinematicPerfLite();
+  return getConsolidationCinematicTiming(perfLite).lockMs;
+}
+
+if(typeof window !== 'undefined') {
+  window.getConsolidationCinematicTotalMs = getConsolidationCinematicTotalMs;
 }
 
 let _consolidationCinematicQueue = [];
@@ -7012,7 +7442,8 @@ function showConsolidationCinematic(card, opts) {
   var useTriangleSvg = (rarity==='triangle');
   var sigilRadius = (rarity==='circle') ? '50%' : '30px';
   var enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
-  var perfLite = !!document.documentElement.classList.contains('fate-performance-plus-mode') && !enhancedFx;
+  var perfLite = isConsolidationCinematicPerfLite();
+  var timing = getConsolidationCinematicTiming(perfLite);
 
   var overlay = document.createElement('div');
   overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '');
@@ -7107,7 +7538,9 @@ function showConsolidationCinematic(card, opts) {
   //   perfLite: subtitle at 80ms, fade-out at 1900ms (.45s), remove at 2400ms
   //             subtitle duration = 2400 - 80 = 2320ms
   if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){
-    var subEl = showCinematicSubtitle(subtitle, perfLite ? 2600 : 2740, rarity);
+    var subtitleTtl = Math.max(800, timing.overlayRemoveAt - timing.subtitleDelay + 80);
+    var fadeLead = Math.max(220, subtitleTtl - (timing.overlayFadeAt - timing.subtitleDelay));
+    var subEl = showCinematicSubtitle(subtitle, subtitleTtl, rarity, fadeLead);
     if(subEl && overlay && overlay.isConnected){
       overlay.appendChild(subEl);
       subEl.classList.add('inside-consolidation-cinematic');
@@ -7117,9 +7550,9 @@ function showConsolidationCinematic(card, opts) {
       subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
       subEl.style.setProperty('z-index', '6', 'important');
     }
-  }, perfLite ? 80 : 140);
+  }, timing.subtitleDelay);
   document.body.classList.add('cinematic-lock');
-  if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + (perfLite ? 2920 : 3180));
+  if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + timing.lockMs);
 
   if(opts.playVoice !== false && typeof playCardSound === 'function') playCardSound(card.id);
   if(opts.playSfx !== false && typeof playSfx === 'function') {
@@ -7127,14 +7560,14 @@ function showConsolidationCinematic(card, opts) {
   }
 
   // Fade-out: smooth transition so card + subtitle dissolve together
-  setTimeout(function(){ overlay.style.opacity = '0'; overlay.style.transition = 'opacity '+(perfLite ? '.34s' : '.44s')+' ease-in-out'; }, perfLite ? 2240 : 2400);
+  setTimeout(function(){ overlay.style.opacity = '0'; overlay.style.transition = 'opacity '+(timing.fadeMs / 1000).toFixed(2)+'s ease-in-out'; }, timing.overlayFadeAt);
   setTimeout(function(){
     overlay.remove();
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     var next = _consolidationCinematicQueue.shift();
     if(next) setTimeout(function(){ showConsolidationCinematic(next.card, next.opts); }, 45);
-  }, perfLite ? 2620 : 2880);
+  }, timing.overlayRemoveAt);
 
   // Safety: force-cleanup if stuck
   setTimeout(function(){
@@ -7145,7 +7578,7 @@ function showConsolidationCinematic(card, opts) {
       var next = _consolidationCinematicQueue.shift();
       if(next) showConsolidationCinematic(next.card, next.opts);
     }
-  }, perfLite ? 2960 : 3160);
+  }, timing.safetyAt);
   return true;
 }
 

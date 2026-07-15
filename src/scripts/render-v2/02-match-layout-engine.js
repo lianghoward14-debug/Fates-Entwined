@@ -153,22 +153,26 @@
       16
     ) * Math.PI / 180;
     const handBottom = winH - clamp(winH * .006, 6, 12);
-    const maxCardWByHeight = Math.max(94, winH * .292 / 1.4);
-    const preferredCardW = clamp(winW * 0.076, 102, 152);
+    const handCardScale = 0.95;
+    const minHandCardW = 94 * handCardScale;
+    const maxCardWByHeight = Math.max(minHandCardW, (winH * .292 / 1.4) * handCardScale);
+    const preferredCardW = clamp(winW * 0.076, 102, 152) * handCardScale;
     let cardW = Math.min(preferredCardW, maxCardWByHeight);
     const centerLaneW = winW >= 1040 ? winW - 620 : winW - 32;
     const maxHandW = Math.max(320, Math.min(centerLaneW, winW * .86));
     const minStepFactor = denseHand ? .26 : .34;
     const maxStepFactor = denseHand ? .48 : .62;
+    const stepSpreadBoost = handCount <= 3 ? 1.55 : (handCount <= 5 ? 1.38 : (handCount <= 7 ? 1.24 : (handCount <= 9 ? 1.12 : 1.04)));
+    const boostedMaxStepFactor = maxStepFactor * stepSpreadBoost;
     if(handCount > 1) {
       const minStep = cardW * minStepFactor;
       const fanNeedW = cardW + minStep * (handCount - 1) + Math.sin(handFanMaxAngle) * cardW * 1.4;
       if(fanNeedW > maxHandW) cardW *= maxHandW / fanNeedW;
     }
-    cardW = clamp(cardW, 94, preferredCardW);
+    cardW = clamp(cardW, minHandCardW, preferredCardW);
     const cardH = Math.round(cardW * 1.4);
     const step = handCount > 1
-      ? Math.max(cardW * .18, Math.min(cardW * maxStepFactor, (maxHandW - cardW) / Math.max(1, handCount - 1)))
+      ? Math.max(cardW * .18, Math.min(cardW * boostedMaxStepFactor, (maxHandW - cardW) / Math.max(1, handCount - 1)))
       : 0;
     const totalHandW = handCount ? (cardW + step * Math.max(0, handCount - 1)) : 0;
     const handStartX = winW / 2 - totalHandW / 2;
@@ -210,18 +214,18 @@
     };
 
     const oppCount = oppCards.length;
+    const largeOppHand = oppCount <= 4;
+    const mediumOppHand = oppCount >= 5 && oppCount <= 8;
     const packedOppHand = oppCount >= 9;
-    const denseOppHand = oppCount >= 10;
     const fullOppHand = oppCount >= 12;
-    const oppGap = fullOppHand ? 4 : (packedOppHand ? 5 : 6);
-    const oppCols = Math.min(4, Math.max(1, oppCount || 1));
-    const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / 4));
-    const hasRevealedOppCards = oppCards.some(function(card){ return !!(card && card.revealed); });
-    const denseOppCardMaxW = fullOppHand ? 42 : (denseOppHand ? 48 : (packedOppHand ? 51 : 54));
-    const denseOppCardMinW = fullOppHand ? 30 : (denseOppHand ? 34 : (packedOppHand ? 36 : 34));
-    const baseOppCardW = hasRevealedOppCards && !packedOppHand
-      ? clamp(winW * 0.038, 56, 66)
-      : clamp(winW * (fullOppHand ? 0.024 : (denseOppHand ? 0.028 : (packedOppHand ? 0.0315 : 0.034))), denseOppCardMinW, denseOppCardMaxW);
+    // Codex 2026-07-15: keep exactly 9 opponent cards in the same snug 4-column rhythm as 8 cards.
+    const oppCols = largeOppHand ? Math.min(4, Math.max(1, oppCount || 1)) : 4;
+    const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / oppCols));
+    const oppGap = largeOppHand ? 7 : (mediumOppHand ? 6 : (fullOppHand ? 5 : 6));
+    const tierOppCardMinW = largeOppHand ? 58 : (mediumOppHand ? 50 : (fullOppHand ? 50 : (oppCount >= 10 ? 52 : 56)));
+    const tierOppCardMaxW = largeOppHand ? 70 : (mediumOppHand ? 58 : (fullOppHand ? 52 : (oppCount >= 10 ? 54 : 56)));
+    const tierOppCardScale = largeOppHand ? 0.041 : (mediumOppHand ? 0.033 : (fullOppHand ? 0.03 : 0.033));
+    const baseOppCardW = clamp(winW * tierOppCardScale, tierOppCardMinW, tierOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
@@ -230,6 +234,8 @@
     if(packedOppHand) {
       const denseInsetY = 6;
       oppRect = rect(oppRect.x, oppRect.y + denseInsetY, oppRect.w, Math.max(1, oppRect.h - denseInsetY));
+    } else if(oppRows > 1 && oppRect.h < oppFallbackH) {
+      oppRect = rect(oppRect.x, oppRect.y, oppRect.w, oppFallbackH);
     }
     const fitOppCardW = oppCount
       ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
@@ -237,16 +243,18 @@
     const fitOppCardWByHeight = oppCount
       ? Math.max(30, Math.floor(((oppRect.h - 14 - oppGap * Math.max(0, oppRows - 1)) / oppRows) / 1.4))
       : baseOppCardW;
-    const oppCardW = Math.min(baseOppCardW, fitOppCardW, fitOppCardWByHeight);
+    const oppCardW = packedOppHand
+      ? Math.min(baseOppCardW, fitOppCardW, fitOppCardWByHeight)
+      : Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
     const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
     const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);
     const opponentHand = {
       rect:oppRect,
       cards:oppCards.map(function(card, index){
-        const row = Math.floor(index / 4);
-        const col = index % 4;
-        const rowCount = row === oppRows - 1 ? (oppCount - row * 4) : 4;
+        const row = Math.floor(index / oppCols);
+        const col = index % oppCols;
+        const rowCount = row === oppRows - 1 ? (oppCount - row * oppCols) : oppCols;
         const totalRowW = oppCardW * rowCount + oppGap * Math.max(0, rowCount - 1);
         const rowStartX = oppRect.x + Math.max(0, (oppRect.w - totalRowW) / 2);
         return {

@@ -332,7 +332,7 @@
       _balladEffects:cloneOnlinePlain(g._balladEffects),
       _mailDeliveries:cloneOnlinePlain(g._mailDeliveries),
       _blameGameEffects:cloneOnlinePlain(g._blameGameEffects),
-      un5thUses:cloneOnlinePlain(g.un5thUses),
+      usMarinesUses:cloneOnlinePlain(g.usMarinesUses),
       polishArmyUses:cloneOnlinePlain(g.polishArmyUses),
       oppSuppressedNextTurn:!!g.oppSuppressedNextTurn,
       suppressTarget:g.suppressTarget,
@@ -381,7 +381,9 @@
   }
   function renderOnlineAuthoritativeState(reason){
     const g = gameState();
-    const player = Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : Number(g?.currentPlayer || 0) || 0;
+    const player = g?._isSpectator && typeof window.getPerspectivePlayerIndex === 'function'
+      ? Number(window.getPerspectivePlayerIndex())
+      : (Number.isInteger(Number(g?._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : Number(g?.currentPlayer || 0) || 0);
     if(typeof window.renderBoardActionForPlayer === 'function'){
       window.renderBoardActionForPlayer(player, {
         bothHands:true,
@@ -1107,6 +1109,154 @@
   function onlineCardType(card){
     return String(card?.type || onlineCardCatalogMatch(card)?.type || '');
   }
+  const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
+    '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
+  ]);
+  const ONLINE_SECULES_WHEN_SET_IDS = new Set([
+    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25'
+  ]);
+  const resumedOnlinePlacementReactionPrompts = new Set();
+
+  function onlinePlacementReactionSourceIsImmune(card){
+    if(!card || card.faceDown) return true;
+    const id = String(card.id || '');
+    return id === '20' || id === '70' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
+  }
+  function forEachOnlineBoardEntry(g, callback){
+    (Array.isArray(g?.board) ? g.board : []).forEach(function(zone, z){
+      (Array.isArray(zone) ? zone : []).forEach(function(row, r){
+        (Array.isArray(row) ? row : []).forEach(function(card, c){
+          if(card) callback(card, z, r, c);
+        });
+      });
+    });
+  }
+  function onlineImprovisorOnBoardReady(g, playerIndex, id){
+    let ready = false;
+    forEachOnlineBoardEntry(g, function(card){
+      if(ready || String(card.id || '') !== String(id) || Number(card.owner) !== Number(playerIndex) || card.faceDown || card.immuneFlag) return;
+      if(String(id) === '56') ready = (card.usesLeft == null ? 3 : Number(card.usesLeft)) > 0;
+      else if(String(id) === '67') ready = (card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : Number(card.usesLeft)) > 0;
+    });
+    return ready;
+  }
+  function onlineHavanoHasDeploymentOption(g, owner, card){
+    const blocked = Array.isArray(g?.blockedCells) ? g.blockedCells : [];
+    for(let z = 0; z < (Array.isArray(g?.board) ? g.board.length : 0); z += 1){
+      const zone = g.board[z];
+      if(!Array.isArray(zone)) continue;
+      for(let r = 0; r < zone.length; r += 1){
+        const rowOwner = r === 0 ? 1 : (r === 1 ? -1 : 0);
+        if(rowOwner !== -1 && rowOwner !== Number(owner)) continue;
+        if(card?.contestedOnly && r !== 1) continue;
+        const row = zone[r];
+        if(!Array.isArray(row)) continue;
+        for(let c = 0; c < row.length; c += 1){
+          if(row[c]) continue;
+          if(blocked.some(item=>Number(item?.z) === z && Number(item?.r) === r && Number(item?.c) === c)) continue;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  function onlineEligiblePlacementImprovisorKinds(g, sourceCard){
+    if(!isOnlineMatchState(g) || !sourceCard || onlinePlacementReactionSourceIsImmune(sourceCard)) return [];
+    if(sourceCard._skipOnlinePlacementImprovisorReactionOnce || sourceCard._skipOnlinePlacementImprovisorReactionPromptId) return [];
+    const sourceOwner = Number(sourceCard.owner);
+    if(!Number.isInteger(sourceOwner) || sourceOwner < 0 || sourceOwner > 1) return [];
+    const reactor = sourceOwner === 0 ? 1 : 0;
+    const sourceId = String(sourceCard.id || '');
+    const sourceType = onlineCardType(sourceCard);
+    const kinds = [];
+    if(onlineImprovisorOnBoardReady(g, reactor, '56')) kinds.push('lydia');
+    if(onlineImprovisorOnBoardReady(g, reactor, '67') && (sourceType === 'Initiator' || (sourceType === 'Supporter' && ONLINE_SECULES_WHEN_SET_IDS.has(sourceId)))) kinds.push('secules');
+    if(ONLINE_HAVANO_FIRST_SET_SOURCE_IDS.has(sourceId)){
+      const havano = (g.players?.[reactor]?.hand || []).find(card=>String(card?.id || '') === '79');
+      if(havano && onlineHavanoHasDeploymentOption(g, reactor, havano)) kinds.push('havano');
+    }
+    return kinds;
+  }
+  window.fateShouldHoldOnlinePlacementEffect = function(card, z, r, c){
+    const g = gameState();
+    if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction || g._serverPendingReaction) return false;
+    const localIndex = resolveOnlineLocalPlayerIndex('placement-improvisor-gate');
+    if(localIndex === null || Number(card?.owner) !== Number(localIndex)) return false;
+    const kinds = onlineEligiblePlacementImprovisorKinds(g, card);
+    if(!kinds.length) return false;
+    g._onlineHeldPlacementEffect = {
+      iid:String(card.iid || ''),
+      z:Number(z),
+      r:Number(r),
+      c:Number(c),
+      kinds
+    };
+    recordOnlineDiagnostic('online-placement-effect-held-for-improvisor', {
+      iid:String(card.iid || ''),
+      id:String(card.id || ''),
+      z:Number(z),
+      r:Number(r),
+      c:Number(c),
+      kinds
+    });
+    return true;
+  };
+
+  function onlinePlacementAllowEntry(g, promptId){
+    let found = null;
+    forEachOnlineBoardEntry(g, function(card, z, r, c){
+      if(found || String(card._onlinePlacementReactionAllowPromptId || '') !== String(promptId || '')) return;
+      found = {card, z, r, c};
+    });
+    return found;
+  }
+  function maybeResumeAllowedOnlinePlacementEffect(action, reason){
+    const type = String(action?.type || '').toUpperCase();
+    const payload = action?.payload || {};
+    const choice = String(payload.choice || '').toLowerCase();
+    const promptId = String(payload.promptId || '');
+    if(type !== 'REACTION_CHOICE' || !/^(allow|decline|timeout)$/.test(choice) || !promptId || resumedOnlinePlacementReactionPrompts.has(promptId)) return false;
+    const g = gameState();
+    const entry = onlinePlacementAllowEntry(g, promptId);
+    const localIndex = resolveOnlineLocalPlayerIndex('resume-placement-improvisor-effect');
+    if(!entry || localIndex === null || Number(entry.card.owner) !== Number(localIndex)) return false;
+    resumedOnlinePlacementReactionPrompts.add(promptId);
+    const attempt = function(){
+      const latest = gameState();
+      const live = onlinePlacementAllowEntry(latest, promptId);
+      if(!live) return;
+      if(latest._onlineApplyingRemoteAction){
+        setTimeout(attempt, 40);
+        return;
+      }
+      const lockDelay = Math.max(0, Number(latest._cinematicUiLockUntil || 0) - Date.now());
+      if(lockDelay > 20){
+        setTimeout(attempt, Math.min(lockDelay + 20, 2800));
+        return;
+      }
+      latest._onlineHeldPlacementEffect = null;
+      if(typeof window.resolveSetCardAfterPlacement !== 'function') return;
+      recordOnlineDiagnostic('online-placement-effect-resumed-after-allow', {
+        promptId,
+        iid:String(live.card.iid || ''),
+        reason:String(reason || '')
+      });
+      Promise.resolve(window.resolveSetCardAfterPlacement(live.card, live.z, live.r, live.c, {
+        onlineImprovisorResolved:true,
+        allowPromptId:promptId
+      })).finally(function(){
+        scheduleClientResolvedAutoCommit('placement-improvisor-allowed', 80);
+      });
+    };
+    setTimeout(attempt, 0);
+    return true;
+  }
+  function onlineConsolidationCinematicTotalMs(){
+    if(typeof window.getConsolidationCinematicTotalMs === 'function'){
+      return Math.max(2400, Number(window.getConsolidationCinematicTotalMs()) || 3260);
+    }
+    return 3260;
+  }
   function maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason){
     if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
     const added = onlineBoardAddedEntries(previousBoard, g.board).filter(function(entry){
@@ -1129,7 +1279,7 @@
       scheduled = true;
       const delayMs = 120 + index * 80;
       try{
-        g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + 2440);
+        g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + onlineConsolidationCinematicTotalMs());
       }catch(e){}
       setTimeout(function(){
         try{
@@ -1255,7 +1405,7 @@
     played.add(key);
     const delayMs = Math.max(160, Number(options && options.delayMs) || 160);
     try{
-      g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + 2480);
+      g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + onlineConsolidationCinematicTotalMs());
     }catch(e){}
     setTimeout(function(){
       try{
@@ -1339,7 +1489,7 @@
       const currentName = g.players?.[g.currentPlayer]?.name || `Player ${Number(g.currentPlayer || 0) + 1}`;
       if(typeof window.log === 'function') window.log('sys', 'Online match begins! ' + currentName + ' goes first.');
     }
-    if(typeof window.startTurnTimer === 'function') window.startTurnTimer();
+    if(!g._isSpectator && g._onlineRole !== 'spectator' && typeof window.startTurnTimer === 'function') window.startTurnTimer();
     try {
       const perf = window.__fatePerf = window.__fatePerf || {};
       perf.onlineAuthorityEnteredGameScreen = { at:Date.now(), reason:String(reason || '') };
@@ -1348,6 +1498,10 @@
   }
   function syncOnlineTurnTimerAfterAuthoritativeState(g, previous, reason){
     if(!g || !isOnlineMatchState(g) || String(g.phase || '') !== 'main') return false;
+    if(g._isSpectator || g._onlineRole === 'spectator'){
+      if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
+      return false;
+    }
     if(!isGameScreenActive()) return false;
     const turnStartedAt = Number(g._turnStartedAt || 0) || 0;
     const prevTurnStartedAt = previous ? (Number(previous._turnStartedAt || 0) || 0) : 0;
@@ -1413,18 +1567,27 @@
   }
   function clearOnlinePendingPromptUi(g, reason){
     if(!g) return;
+    const pendingLandscapePrompt = g._onlinePendingLandscapeZonePicker;
+    const preserveLandscapePrompt = !!(
+      pendingLandscapePrompt &&
+      !pendingLandscapePrompt.submitted &&
+      !pendingLandscapePrompt.resolved &&
+      pendingLandscapePrompt.promptKey &&
+      typeof window.fateIsLandscapeZonePromptGuarded === 'function' &&
+      window.fateIsLandscapeZonePromptGuarded(pendingLandscapePrompt.promptKey)
+    );
     const hadPendingUi = !!(
       g._onlinePendingModalActions ||
       g._onlinePendingPickCardsVisual ||
       g._onlinePendingZonePicker ||
       g._onlinePendingAffiliationPicker ||
-      g._onlinePendingLandscapeZonePicker
+      (g._onlinePendingLandscapeZonePicker && !preserveLandscapePrompt)
     );
     g._onlinePendingModalActions = null;
     g._onlinePendingPickCardsVisual = null;
     g._onlinePendingZonePicker = null;
     g._onlinePendingAffiliationPicker = null;
-    g._onlinePendingLandscapeZonePicker = null;
+    g._onlinePendingLandscapeZonePicker = preserveLandscapePrompt ? pendingLandscapePrompt : null;
     if(hadPendingUi) {
       g._onlineShownServerCardPickPromptId = '';
       g._onlineShownServerZonePickPromptId = '';
@@ -1587,7 +1750,7 @@
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
-      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','un5thUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
+      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
@@ -1786,6 +1949,7 @@
       if(reactionChoiceResolution) maybeShowOnlineEffectNegatedBanner(action, reason || ('matching authoritative reaction choice seq ' + (action?.seq || '?')));
       if(payloadHasServerReactionWindow(payload)) forceServerPendingPromptChecks(reason || ('matching authoritative reaction seq ' + (action?.seq || '?')));
       else scheduleServerPendingPromptChecks(reason || ('authoritative postState seq ' + (action?.seq || '?')));
+      if(reactionChoiceResolution) maybeResumeAllowedOnlinePlacementEffect(action, reason || ('matching authoritative reaction choice seq ' + (action?.seq || '?')));
       return false;
     }
     const previousPresentation = collectOnlineRemotePresentationSnapshot(gameState());
@@ -1794,6 +1958,7 @@
     if(applied && reactionChoiceResolution) maybeShowOnlineEffectNegatedBanner(action, reason || ('authoritative reaction choice seq ' + (action?.seq || '?')));
     if(applied && payloadHasServerReactionWindow(payload)) forceServerPendingPromptChecks(reason || ('authoritative reaction seq ' + (action?.seq || '?')));
     else if(applied) scheduleServerPendingPromptChecks(reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied && reactionChoiceResolution) maybeResumeAllowedOnlinePlacementEffect(action, reason || ('authoritative reaction choice seq ' + (action?.seq || '?')));
     return applied;
   }
 
@@ -1838,6 +2003,24 @@
   function onlineImprovisorPromptId(pending){
     return String(pending?.promptId || '');
   }
+  const onlineImprovisorSubmittedPromptIds = new Set();
+  const onlineImprovisorPromptTimers = new Map();
+  const onlineImprovisorResolutionPromptIds = new Set();
+  function trackOnlineImprovisorPromptTimer(promptId, timer){
+    if(!promptId || !timer) return;
+    const timers = onlineImprovisorPromptTimers.get(promptId) || new Set();
+    timers.add(timer);
+    onlineImprovisorPromptTimers.set(promptId, timers);
+  }
+  function clearOnlineImprovisorPromptTimers(promptId){
+    if(!promptId){
+      [...onlineImprovisorPromptTimers.keys()].forEach(clearOnlineImprovisorPromptTimers);
+      return;
+    }
+    const timers = onlineImprovisorPromptTimers.get(promptId);
+    if(timers) timers.forEach(timer=>clearInterval(timer));
+    onlineImprovisorPromptTimers.delete(promptId);
+  }
   function onlineImprovisorModalPanel(){
     try{
       return document.querySelector('#online-improvisor-reaction-root[data-online-improvisor-prompt-id]');
@@ -1875,6 +2058,7 @@
     return root;
   }
   function closeOnlineImprovisorModal(g, promptId){
+    clearOnlineImprovisorPromptTimers(promptId || '');
     const panel = onlineImprovisorModalPanel();
     if(panel && (!promptId || panel.getAttribute('data-online-improvisor-prompt-id') === promptId)){
       try{ panel.remove(); }catch(e){}
@@ -1882,9 +2066,17 @@
     }
     const legacyPanel = onlineImprovisorLegacyModalPanel();
     if(legacyPanel && (!promptId || legacyPanel.getAttribute('data-online-improvisor-prompt-id') === promptId)){
-      try{ if(typeof window.closeModal === 'function') window.closeModal(); }catch(e){}
+      try{
+        const modalRoot = document.getElementById('modal');
+        if(modalRoot?.classList.contains('on') && typeof window.closeModal === 'function') window.closeModal({silent:true});
+        legacyPanel.remove();
+      }catch(e){}
     }
     if(g){
+      if(g._onlineImprovisorPlacementPromptTimer){
+        clearTimeout(g._onlineImprovisorPlacementPromptTimer);
+        g._onlineImprovisorPlacementPromptTimer = null;
+      }
       if(g._onlineImprovisorReactionTimer){
         clearInterval(g._onlineImprovisorReactionTimer);
         g._onlineImprovisorReactionTimer = null;
@@ -2014,6 +2206,9 @@
   }
   function sendOnlineImprovisorReactionChoice(g, pending, localIndex, choice, optionIndex, deployment){
     const promptId = onlineImprovisorPromptId(pending);
+    if(!promptId || onlineImprovisorSubmittedPromptIds.has(promptId)) return false;
+    onlineImprovisorSubmittedPromptIds.add(promptId);
+    clearOnlineImprovisorPromptTimers(promptId);
     const options = Array.isArray(pending?.options) ? pending.options : [];
     const payload = onlineImprovisorReactionPayload(pending, localIndex, choice);
     if(Number.isInteger(optionIndex)){
@@ -2028,13 +2223,21 @@
       };
       if(deployment) payload.deployment = deployment;
     }
+    if(g) g._onlineImprovisorChoiceSubmittedPromptId = promptId;
     closeOnlineImprovisorModal(g, promptId);
     sendAction('REACTION_CHOICE', payload).catch(err=>{
       console.warn('Server reaction choice failed', err);
-      if(g) g._onlineReactionPromptId = '';
+      onlineImprovisorSubmittedPromptIds.delete(promptId);
+      if(g){
+        if(String(g._onlineImprovisorChoiceSubmittedPromptId || '') === promptId){
+          g._onlineImprovisorChoiceSubmittedPromptId = '';
+        }
+        g._onlineReactionPromptId = '';
+      }
       scheduleServerPendingPromptChecks('improvisor reaction choice failed');
       if(window.toast) toast('Reaction choice failed');
     });
+    return true;
   }
   function onlineImprovisorReactionButtons(pending){
     const options = Array.isArray(pending?.options) ? pending.options : [];
@@ -2067,6 +2270,7 @@
   function showOnlineImprovisorChoiceWindow(g, pending, localIndex, reason){
     const promptId = onlineImprovisorPromptId(pending);
     if(!promptId) return false;
+    if(onlineImprovisorSubmittedPromptIds.has(promptId)) return true;
     const existing = onlineImprovisorModalPanel() || onlineImprovisorLegacyModalPanel();
     if(existing && existing.getAttribute('data-online-improvisor-prompt-id') === promptId && existing.getAttribute('data-online-improvisor-mode') === 'choice') return true;
     closeOnlineImprovisorModal(g);
@@ -2078,7 +2282,7 @@
     let timer = null;
     let finished = false;
     const finish = (choice, optionIndex, deployment) => {
-      if(finished) return;
+      if(finished || onlineImprovisorSubmittedPromptIds.has(promptId)) return;
       finished = true;
       if(timer) clearInterval(timer);
       if(g._onlineImprovisorReactionTimer === timer) g._onlineImprovisorReactionTimer = null;
@@ -2105,9 +2309,9 @@
         `</div>` +
       `</div>`,
       [
-        {label:'Allow Effect', action:function(){ finish('decline'); }}
+        {label:'Allow Effect', silent:true, action:function(){ finish('decline'); }}
       ],
-      {immediate:true}
+      {immediate:true, silentOpen:true}
     );
     const modalBox = document.querySelector('#modal .modal');
     if(modalBox) modalBox.classList.add('reaction-choice-modal');
@@ -2144,6 +2348,7 @@
       if(titleEl) titleEl.textContent = title();
       if(countdown <= 0) finish('timeout');
     }, 1000);
+    trackOnlineImprovisorPromptTimer(promptId, timer);
     g._onlineImprovisorReactionTimer = timer;
     return true;
   }
@@ -2182,6 +2387,12 @@
     if(!isOnlineMatchState(g)) return false;
     const pending = g._serverPendingReaction;
     if(!pending || typeof pending !== 'object'){
+      const submittedPromptId = String(g._onlineImprovisorChoiceSubmittedPromptId || '');
+      if(submittedPromptId){
+        onlineImprovisorSubmittedPromptIds.delete(submittedPromptId);
+        clearOnlineImprovisorPromptTimers(submittedPromptId);
+      }
+      g._onlineImprovisorChoiceSubmittedPromptId = '';
       closeOnlineImprovisorModal(g);
       return false;
     }
@@ -2197,9 +2408,25 @@
       optionKinds:(Array.isArray(pending.options) ? pending.options : []).map(option=>String(option?.kind || '')).filter(Boolean)
     });
     if(!promptId || pendingIndex === null) return false;
+    if(onlineImprovisorSubmittedPromptIds.has(promptId) || String(g._onlineImprovisorChoiceSubmittedPromptId || '') === promptId){
+      closeOnlineImprovisorModal(g, promptId);
+      return true;
+    }
     if(g._onlineApplyingRemoteAction){
       setTimeout(()=>syncOnlineImprovisorReactionUi('remote apply finished retry'), 40);
       return false;
+    }
+    if(String(pending.actionType || '') === 'first_set_effect'){
+      const waitMs = Math.max(0, Number(g._cinematicUiLockUntil || 0) - Date.now());
+      if(waitMs > 20){
+        if(!g._onlineImprovisorPlacementPromptTimer){
+          g._onlineImprovisorPlacementPromptTimer = setTimeout(function(){
+            g._onlineImprovisorPlacementPromptTimer = null;
+            syncOnlineImprovisorReactionUi('placement cinematic finished');
+          }, Math.min(waitMs + 24, 2800));
+        }
+        return true;
+      }
     }
     if(localIndex === null){
       return showOnlineImprovisorWaitingWindow(g, pending, null, reason);
@@ -2448,7 +2675,7 @@
     if(kind === 'ledgerKeepersCopyWhenSet') return 'Choose a Supporter effect to copy';
     if(kind === 'frenchFusiliersCopyPassive') return 'Choose a Supporter passive to copy';
     if(kind === 'mariaSongCopies') return 'Choose an opponent card';
-    if(kind === 'vigilantesMark') return 'Choose an opponent card in this zone';
+    if(kind === 'vigilantesMark') return 'Choose an opponent Supporter in this zone';
     if(kind === 'wolfCreekSelectMoveTarget') return 'Choose a highlighted friendly card in this zone';
     if(kind === 'juanCarlosSelectMoveTarget') return 'Choose an opponent card to move';
     if(kind === 'breakfastBusserGrantMove') return 'Choose a friendly card to gain movement';
@@ -2477,7 +2704,7 @@
     if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
     if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, playerIndex));
     if(kind === 'mariaSongCopies') return Number(card.owner) === opponent;
-    if(kind === 'vigilantesMark') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'vigilantesMark') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter' && card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'wolfCreekSelectMoveTarget') return Number(z) === Number(pending?.z) && Number(card.owner) === playerIndex && card.cantBeMoved !== true;
     if(kind === 'juanCarlosSelectMoveTarget') return Number(card.owner) === opponent && card.cantBeMoved !== true;
     if(kind === 'breakfastBusserGrantMove') return Number(card.owner) === playerIndex && card.faceDown !== true && card.cantBeMoved !== true && card.immuneFlag !== true && String(card.id || '') !== '76';
@@ -2837,6 +3064,11 @@
     const snapshot = { index:idx, iid:card.iid || '', id:card.id || '' };
     const freePlacementKind = String(card._freePlacementCinematicKind || card._serverFreePlacementConsumed || (card._linaFree ? 'linaFreeSet' : '') || '');
     if(freePlacementKind) snapshot.freePlacementCinematicKind = freePlacementKind;
+    const skipPromptId = String(card._skipOnlinePlacementImprovisorReactionPromptId || '');
+    if(card._skipOnlinePlacementImprovisorReactionOnce || skipPromptId){
+      snapshot.skipImprovisorReaction = true;
+      if(skipPromptId) snapshot.skipImprovisorReactionPromptId = skipPromptId;
+    }
     if(card.name) snapshot.name = card.name;
     if(card.type) snapshot.type = card.type;
     return snapshot;
@@ -3268,37 +3500,6 @@
     if(!card) return null;
     return {z, r, c, card:cardIdentity(card)};
   }
-  function onlineReactionActionTypeForSource(card, fnName){
-    const fn = String(fnName || '');
-    if(fn === 'activatePendingWhenSetEffect'){
-      if(String(card?.type || '') === 'Supporter') return 'supporter_effect';
-      if(String(card?.type || '') === 'Initiator') return 'initiator_effect';
-      return 'when_set_effect';
-    }
-    if(fn === 'triggerCharacterEffect'){
-      if(String(card?.type || '') === 'Initiator') return 'initiator_effect';
-      if(String(card?.type || '') === 'Supporter') return 'supporter_effect';
-      return 'targeting_effect';
-    }
-    if(/^(activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fn)){
-      return 'targeting_effect';
-    }
-    if(String(card?.type || '') === 'Supporter') return 'supporter_effect';
-    if(String(card?.type || '') === 'Initiator') return 'initiator_effect';
-    return '';
-  }
-  function attachOnlineReactionActionType(payload, g, fnName){
-    if(!payload || payload.reactionActionType) return payload;
-    const fx = payload.effectCinematic || payload.source || null;
-    const z = Number(fx?.z), r = Number(fx?.r), c = Number(fx?.c);
-    const card = Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
-      ? g?.board?.[z]?.[r]?.[c] || null
-      : null;
-    const reactionActionType = onlineReactionActionTypeForSource(card, fnName || payload.fn || '');
-    if(reactionActionType) payload.reactionActionType = reactionActionType;
-    if(payload.effectCinematic && reactionActionType) payload.effectCinematic.reactionActionType = reactionActionType;
-    return payload;
-  }
   function attachOnlinePendingEffectSource(payload, g, pending){
     if(!payload || !pending || typeof pending !== 'object') return payload;
     const nested = [pending, pending.source, pending.boardSource, pending.effectCinematic, pending.origin, pending.sourcePosition];
@@ -3325,10 +3526,6 @@
     }
     if(!loc) return payload;
     payload.pendingSource = boardEffectCinematicPayload(g, loc.z, loc.r, loc.c) || loc;
-    if(!payload.reactionActionType){
-      const card = g?.board?.[loc.z]?.[loc.r]?.[loc.c] || null;
-      payload.reactionActionType = onlineReactionActionTypeForSource(card, '');
-    }
     return payload;
   }
   function selectedBoardEffectCinematicPayload(g){
@@ -3934,6 +4131,9 @@
           }
           if(typeof window.playSfx === 'function') window.playSfx('cardFlip');
           if(entry.card && onlineCardType(entry.card) !== 'Supporter' && typeof window.showConsolidationCinematic === 'function') {
+            try{
+              g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + 650 + onlineConsolidationCinematicTotalMs());
+            }catch(e){}
             setTimeout(function(){
               window.showConsolidationCinematic(entry.card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
             }, 650);
@@ -4046,8 +4246,16 @@
     const payload = action?.payload || {};
     if(type !== 'REACTION_CHOICE' || String(payload.choice || '').toLowerCase() !== 'negate') return false;
     const g = gameState();
+    const resolutionMode = String(payload.reactionResolution?.mode || 'negated') === 'suppressed' ? 'suppressed' : 'negated';
+    const resolutionPromptId = String(payload.promptId || '') || ('seq:' + String(action?.seq || payload.clientActionId || ''));
+    if(onlineImprovisorResolutionPromptIds.has(resolutionPromptId)) return false;
+    onlineImprovisorResolutionPromptIds.add(resolutionPromptId);
+    if(onlineImprovisorResolutionPromptIds.size > 80){
+      const first = onlineImprovisorResolutionPromptIds.values().next().value;
+      if(first) onlineImprovisorResolutionPromptIds.delete(first);
+    }
     const key = onlineRemotePresentationKey(action, [
-      'effect-negated',
+      'effect-' + resolutionMode,
       String(payload.promptId || ''),
       String(payload.optionIndex ?? ''),
       String(payload.reaction?.kind || '')
@@ -4058,19 +4266,24 @@
       : kind === 'lydia' ? 'Lydia'
       : kind === 'secules' ? 'Mr. Secules'
       : 'Reaction';
-    if(typeof window.playSfx === 'function') window.playSfx('effectNegated');
+    const resultWord = resolutionMode === 'suppressed' ? 'SUPPRESSED' : 'NEGATED';
+    if(typeof window.playSfx === 'function') {
+      if(resolutionMode === 'suppressed') window.playSfx('effectSuppressed');
+      else window.playSfx('effectNegated');
+    }
     if(typeof window.showEffectNegatedBanner === 'function'){
-      window.showEffectNegatedBanner('EFFECT NEGATED by ' + label);
+      window.showEffectNegatedBanner('EFFECT ' + resultWord + ' by ' + label);
     }else if(typeof window.showBlockedAnimation === 'function'){
-      window.showBlockedAnimation('EFFECT NEGATED by ' + label);
+      window.showBlockedAnimation('EFFECT ' + resultWord + ' by ' + label);
     }else if(typeof window.toast === 'function'){
-      window.toast('Effect negated.');
+      window.toast('Effect ' + resolutionMode + '.');
     }
     recordOnlineDiagnostic('online-effect-negated-banner', {
       reason:String(reason || ''),
       actionSeq:Number(action?.seq || 0) || 0,
       promptId:String(payload.promptId || ''),
-      kind:label
+      kind:label,
+      resolutionMode
     });
     return true;
   }
@@ -4604,6 +4817,19 @@
     return clientResolvedGameplayEnabled()
       && String(type || '').toUpperCase() === 'BOARD_ACTION'
       && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(String(payload?.fn || ''));
+  }
+  function onlineBoardEffectActivationBlockReason(g, fnName, pos){
+    if(!g || !pos || !/^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(fnName || ''))) return '';
+    const card = g.board?.[pos.z]?.[pos.r]?.[pos.c] || null;
+    if(!card) return '';
+    const id = String(card.id || '');
+    if(card._reactionSuppressed || card._effectSuppressedByReaction || card._lydiaSuppressed){
+      return String(card.name || 'That card') + '\'s effect is suppressed.';
+    }
+    if(id === '21' && (card._onlineEffectActivationSubmitPending || card._henrySuppressionPicking || card.effectUsedInitial || (Array.isArray(card._henrySuppressionSquares) && card._henrySuppressionSquares.length > 0))){
+      return 'Henry Dong has already selected suppression squares.';
+    }
+    return '';
   }
   function needsAuthorityCatchupBeforeLocal(type){
     return (
@@ -5715,9 +5941,7 @@
       }
     }catch(e){}
     showOnlineForfeitResult('victory', captureOnlineGameBackground(), {reason:'Opponent left the match.'});
-    if(code && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(code);
-    activeRoom = null;
-    clearRoomWatchers();
+    cleanupTerminalOnlineRoomState('opponent-left');
   }
   function maybeHandleOpponentDisconnect(room, players){
     const g = gameState();
@@ -6330,6 +6554,31 @@
     if(partyQueueWaitTimer) clearInterval(partyQueueWaitTimer);
     partyQueueWaitTimer = null;
   }
+  function cleanupTerminalOnlineRoomState(reason){
+    const code = String(gameState()?._onlineRoomCode || activeRoom || randomQueueState.roomCode || '').trim().toUpperCase();
+    removeOwnQueueEntry().catch(e=>console.warn('Terminal room queue cleanup failed', e));
+    activeRoom = null;
+    randomQueueState = { active:false, roomCode:null, role:null, started:false, handlers:null };
+    const g = gameState();
+    if(g){
+      g._onlineRoomCode = null;
+      g._onlineRole = null;
+      g._onlinePlayerIndex = null;
+      g._onlineRoomMode = null;
+      g.localPlayerIndex = null;
+      g.viewerPlayerIndex = null;
+      g._onlineActionLogMode = false;
+      g._onlineGameSong = null;
+      g._onlineApplyingRemoteAction = false;
+      g._onlineLagPauseActive = false;
+      g._onlineBootstrappingRoomCode = null;
+    }
+    clearRoomWatchers();
+    clearRandomQueueWatcher();
+    if(typeof setOnlinePlayableWaitVisible === 'function') setOnlinePlayableWaitVisible(false);
+    if(code && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(code);
+    recordOnlineDiagnostic('online-terminal-room-cleanup', {reason:String(reason || ''), roomCode:code});
+  }
   async function setConnectedOnDisconnect(code, uid){
     if(!firebaseRoomTransportAllowed()) return false;
     await FO.onDisconnect(FO.ref(FO.rtdb, `rooms/${code}/players/${uid}`)).update({connected:false, disconnectedAt:FO.serverTimestamp()}).catch(()=>{});
@@ -6803,7 +7052,7 @@
           if(notFoundCount >= 2){
             stopped = true;
             if(timer) clearTimeout(timer);
-            if(String(activeRoom || '').toUpperCase() === String(code || '').toUpperCase()) activeRoom = null;
+            if(String(activeRoom || '').toUpperCase() === String(code || '').toUpperCase()) cleanupTerminalOnlineRoomState('fly-room-not-found');
             if(lastLobbyRoom && String(lastLobbyRoom.roomCode || '').toUpperCase() === String(code || '').toUpperCase()) lastLobbyRoom = null;
             lastLobbyPlayers = null;
             if(!activeRoomSilent && window.toast) toast('That online room is no longer available.');
@@ -7241,8 +7490,7 @@
     const bg = captureOnlineGameBackground();
     g._onlineResultMarked = true;
     if(window.toast) toast('Opponent forfeited');
-    activeRoom = null;
-    clearRoomWatchers();
+    cleanupTerminalOnlineRoomState('remote-forfeit');
     closeModal();
     if(typeof cleanupGame === 'function') cleanupGame();
     showOnlineForfeitResult('victory', bg, {reason:'Opponent ended the match.', rewardData});
@@ -7349,21 +7597,7 @@
         rewardData
       });
       if(current) current._onlineResultMarked = true;
-      setTimeout(()=>{
-        activeRoom = null;
-        const latest = gameState();
-        if(latest){
-          latest._onlineRoomCode = null;
-          latest._onlineRole = null;
-          latest._onlinePlayerIndex = null;
-          latest._onlineRoomMode = null;
-          latest.localPlayerIndex = null;
-          latest.viewerPlayerIndex = null;
-          latest._onlineActionLogMode = false;
-          latest._onlineApplyingRemoteAction = false;
-        }
-        clearRoomWatchers();
-      }, 0);
+      setTimeout(()=>cleanupTerminalOnlineRoomState('disconnect-timeout'), 0);
       return;
     }
 
@@ -7390,6 +7624,7 @@
           latest._onlineResultMarked = true;
         }
       }
+      cleanupTerminalOnlineRoomState('match-result');
       if(typeof window.disbandOnlineParty === 'function'){
         window.disbandOnlineParty('Party disbanded after the match.', {silent:true}).catch(()=>{});
       }
@@ -7528,11 +7763,15 @@
       }
       if(type === 'PICK_LANDSCAPE_ZONE'){
         const pending = g._onlinePendingLandscapeZonePicker;
-        if(!pending || typeof pending.onChoose !== 'function') return;
+        if(!pending || pending.resolved || typeof pending.onChoose !== 'function') return;
+        pending.resolved = true;
+        g._onlinePendingLandscapeZonePicker = null;
+        if(typeof window.fateFinishLandscapeZonePrompt === 'function') {
+          window.fateFinishLandscapeZonePrompt(pending.guardToken);
+        }
         const zone = Number(payload.zone);
         if(g.currentPlayer !== g._onlinePlayerIndex) g._onlineSilentEndTurnUntil = Date.now() + 700;
         await pending.onChoose(Number.isInteger(zone) ? zone : null);
-        g._onlinePendingLandscapeZonePicker = null;
         return;
       }
     }, actionPlayer);
@@ -8988,6 +9227,7 @@
           promptId:(pendingMove && pendingMove.promptId) || (pendingConsolidation && pendingConsolidation.promptId) || '',
           placing:!!g.placing || hasPlacementIntent,
           selectedHand:placementPayloadSelected,
+          skipImprovisorReaction:!!placementPayloadSelected?.skipImprovisorReaction,
           consolidationPresentation
         }, ()=>{
           const latest = gameState();
@@ -9081,13 +9321,13 @@
           action:()=>{
             const pendingModal = gameState()?._serverPendingModalAction || null;
             if(!canSendLocalAction(gameState(), 'MODAL_ACTION')) return;
-            return sendOptimisticAction('MODAL_ACTION', attachOnlineReactionActionType(attachOnlinePendingEffectSource({
+            return sendOptimisticAction('MODAL_ACTION', attachOnlinePendingEffectSource({
               playerIndex:g.currentPlayer,
               turn:g.turn,
               promptId:pendingModal && pendingModal.promptId || '',
               actionIndex,
               effectCinematic:selectedBoardEffectCinematicPayload(g)
-            }, g, pendingModal), g), ()=>action.action());
+            }, g, pendingModal), ()=>action.action());
           }
         }));
         return originals.showModal.call(this, title, bodyHtml, wrappedActions);
@@ -9270,9 +9510,24 @@
         if(!isOnlineMatchState(g) || typeof onChoose !== 'function'){
           return originals.chooseLandscapeZone.apply(this, arguments);
         }
-        g._onlinePendingLandscapeZonePicker = { player, onChoose };
+        const guardedOpts = Object.assign({}, opts || {});
+        const promptKey = typeof window.fateLandscapeZonePromptKey === 'function'
+          ? window.fateLandscapeZonePromptKey(player, title, guardedOpts)
+          : [String(g._onlineRoomCode || ''), String(g.turn || 0), String(player), String(title || '')].join('|');
+        if(typeof window.fateIsLandscapeZonePromptGuarded === 'function' && window.fateIsLandscapeZonePromptGuarded(promptKey)) {
+          recordOnlineDiagnostic('online-landscape-prompt-duplicate-blocked', {promptKey, player:Number(player), turn:Number(g.turn || 0)});
+          return false;
+        }
+        const guardToken = typeof window.fateBeginLandscapeZonePrompt === 'function'
+          ? window.fateBeginLandscapeZonePrompt(promptKey)
+          : {key:promptKey, settled:false};
+        if(!guardToken) return false;
+        guardedOpts.promptKey = promptKey;
+        guardedOpts._landscapePromptGuardToken = guardToken;
+        const pendingLandscapePrompt = { player, onChoose, promptKey, guardToken, submitted:false, resolved:false };
+        g._onlinePendingLandscapeZonePicker = pendingLandscapePrompt;
         const localCanChoose = Number(player) === g._onlinePlayerIndex;
-        if(!localCanChoose) return;
+        if(!localCanChoose) return true;
         const wrappedChoose = (zone)=>{
           const latest = gameState();
           if(latest?._onlineApplyingRemoteAction) return onChoose(zone);
@@ -9284,18 +9539,22 @@
             onlineTurnError();
             return;
           }
+          const pending = latest._onlinePendingLandscapeZonePicker;
+          if(!pending || pending.promptKey !== promptKey || pending.submitted || pending.resolved) return false;
+          pending.submitted = true;
           return sendOptimisticAction('PICK_LANDSCAPE_ZONE', {
             playerIndex:Number(player),
             chooserIndex:Number(player),
             turn:latest.turn,
-            zone:Number(zone)
+            zone:Number(zone),
+            landscapePromptKey:promptKey
           }, ()=>{
             const applying = gameState();
             if(applying && applying.currentPlayer !== applying._onlinePlayerIndex) applying._onlineSilentEndTurnUntil = Date.now() + 700;
             return onChoose(zone);
           });
         };
-        return originals.chooseLandscapeZone.call(this, player, title, subtitle, wrappedChoose, opts);
+        return originals.chooseLandscapeZone.call(this, player, title, subtitle, wrappedChoose, guardedOpts);
       };
     }
 
@@ -9316,6 +9575,36 @@
         return originals.toast.apply(this, arguments);
       };
     }
+
+    [
+      {fn:'setPolishFromDeck', id:'28', name:'2nd Polish-Lithuanian Army'},
+      {fn:'setMajaFromDeck', id:'07', name:'Maja Kaminska'}
+    ].forEach(function(deckSet){
+      if(typeof window[deckSet.fn] !== 'function' || originals[deckSet.fn]) return;
+      originals[deckSet.fn] = window[deckSet.fn];
+      window[deckSet.fn] = function(){
+        const g = gameState();
+        if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
+          return originals[deckSet.fn].apply(this, arguments);
+        }
+        if(!canSendLocalAction(g, 'HAND_ACTION')) return;
+        const localIndex = resolveOnlineLocalPlayerIndex('direct-deck-set:' + deckSet.fn);
+        if(localIndex === null) return;
+        const sourceCard = (g.players?.[localIndex]?.deck || []).find(card=>
+          String(card?.id || '') === deckSet.id && !card._deckSetNegatedByReaction
+        );
+        if(!sourceCard) return originals[deckSet.fn].apply(this, arguments);
+        const args = arguments;
+        return sendOptimisticAction('HAND_ACTION', {
+          fn:deckSet.fn,
+          playerIndex:localIndex,
+          turn:g.turn,
+          deckSetAction:true,
+          sourceName:deckSet.name,
+          source:{card:cardIdentity(sourceCard)}
+        }, ()=>originals[deckSet.fn].apply(this, args));
+      };
+    });
 
     const boardFns = [
       'triggerCharacterEffect',
@@ -9375,6 +9664,15 @@
             args[3] = pos.c;
           }
         }
+        const activationBlockReason = activateEffectBoardAction && pos ? onlineBoardEffectActivationBlockReason(g, fnName, pos) : '';
+        if(activationBlockReason){
+          if(window.toast) toast(activationBlockReason);
+          if(typeof window.playSfx === 'function') window.playSfx('blocked');
+          return;
+        }
+        const submitPendingCard = activateEffectBoardAction && pos ? (g.board?.[pos.z]?.[pos.r]?.[pos.c] || null) : null;
+        const markSubmitPending = submitPendingCard && String(submitPendingCard.id || '') === '21';
+        if(markSubmitPending) submitPendingCard._onlineEffectActivationSubmitPending = true;
         const payload = Object.assign({
           fn:fnName,
           playerIndex:g.currentPlayer,
@@ -9387,6 +9685,11 @@
             c:pos.c,
             card:g.board?.[pos.z]?.[pos.r]?.[pos.c] || null
           });
+          const placementAllowPromptId = String(g.board?.[pos.z]?.[pos.r]?.[pos.c]?._onlinePlacementReactionAllowPromptId || '');
+          if(placementAllowPromptId){
+            payload.skipImprovisorReaction = true;
+            payload.placementReactionPromptId = placementAllowPromptId;
+          }
         }
         if(/^(activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)){
           noteOnlineMoreBoardPreference('movement', fnName, 30000);
@@ -9394,9 +9697,8 @@
         if(pos && (fnName === 'triggerCharacterEffect' || fnName === 'activatePendingWhenSetEffect')) {
           payload.effectCinematic = boardEffectCinematicPayload(g, pos.z, pos.r, pos.c);
         }
-        attachOnlineReactionActionType(payload, g, fnName);
         const isMovementBoardAction = /^(activateWolfCreek|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName);
-        return sendOptimisticAction('BOARD_ACTION', payload, ()=>{
+        const onlineBoardActionResult = sendOptimisticAction('BOARD_ACTION', payload, ()=>{
           const beforeBoard = isMovementBoardAction ? cloneOnlinePlain(gameState()?.board) : null;
           let localResult;
           try{
@@ -9421,6 +9723,10 @@
           protectAfterLocal();
           return localResult;
         });
+        Promise.resolve(onlineBoardActionResult).finally(function(){
+          if(markSubmitPending && submitPendingCard) delete submitPendingCard._onlineEffectActivationSubmitPending;
+        });
+        return onlineBoardActionResult;
       };
     });
 
@@ -9468,22 +9774,6 @@
       sendAction('EFFECT_CINEMATIC', payload).catch(e=>console.warn('Effect cinematic broadcast failed', e));
       return true;
     };
-
-    if(typeof window.setMajaFromDeck === 'function' && !originals.setMajaFromDeck){
-      originals.setMajaFromDeck = window.setMajaFromDeck;
-      window.setMajaFromDeck = function(){
-        const g = gameState();
-        if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
-          return originals.setMajaFromDeck.apply(this, arguments);
-        }
-        if(!canSendLocalAction(g, 'HAND_ACTION')) return;
-        return sendOptimisticAction('HAND_ACTION', {
-          fn:'setMajaFromDeck',
-          playerIndex:g.currentPlayer,
-          turn:g.turn
-        }, ()=>originals.setMajaFromDeck.apply(this, arguments));
-      };
-    }
 
     const handFns = ['activateWineCountryGuerillaFromHand'];
     handFns.forEach(fnName=>{
@@ -9550,26 +9840,11 @@
         }
       }
     }
-    activeRoom=null;
-    const g = gameState();
-    if(g){
-      g._onlineRoomCode = null;
-      g._onlineRole = null;
-      g._onlinePlayerIndex = null;
-      g._onlineRoomMode = null;
-      g.localPlayerIndex = null;
-      g.viewerPlayerIndex = null;
-      g._onlineActionLogMode = false;
-      g._onlineGameSong = null;
-      g._onlineApplyingRemoteAction = false;
-    }
-    clearRoomWatchers();
+    cleanupTerminalOnlineRoomState(markForfeit ? 'local-forfeit' : 'local-leave');
     closeModal();
     if(typeof window.disbandOnlineParty === 'function'){
       window.disbandOnlineParty(markForfeit ? 'Party disbanded because a player left the match.' : 'Party disbanded after the match.', {silent:passive}).catch(()=>{});
     }
-    // Unpublish live match listing when host leaves
-    if(code && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(code);
   }
   function installEphemeralGuestUnloadCleanup(){
     if(window.__fateEphemeralGuestUnloadCleanupInstalled) return;
@@ -9616,8 +9891,7 @@
       const rewardData = remoteEnded ? collectOnlineServerRewardData('victory', {payload:{result:room?.result || null}}) : collectOnlineForfeitRewardData(outcome, g);
       result = {outcome, rewardData};
     }
-    activeRoom = null;
-    clearRoomWatchers();
+    cleanupTerminalOnlineRoomState(remoteEnded ? 'remote-room-ended' : 'room-ended');
     closeModal();
     if(result){
       if(typeof cleanupGame === 'function') cleanupGame();
@@ -9629,8 +9903,6 @@
     if(typeof window.disbandOnlineParty === 'function'){
       window.disbandOnlineParty('Party disbanded after the match.', {silent:false}).catch(()=>{});
     }
-    // Unpublish when match ends
-    if(room?.roomCode && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(room.roomCode);
   }
 
   async function startFlyRandomQueue(mode, deckChoice, handlers={}, partyTargetUid=''){
@@ -10265,6 +10537,14 @@
       hash:onlineCanonicalStateHash(state),
       board
     };
+  };
+  // Spectators consume the same canonical state as the seated clients, but this
+  // narrow bridge refuses to mutate a player session. Spectator transport stays
+  // HTTP/read-only and never joins the gameplay WebSocket or sends an action.
+  window.fateApplySpectatorCanonicalState = function(state, reason, action){
+    const g = gameState();
+    if(!g || !g._isSpectator || g._onlineRole !== 'spectator' || Number.isInteger(g._onlinePlayerIndex)) return false;
+    return applyOnlineCanonicalState(state, reason || 'spectator canonical state', action || null);
   };
   window.fateLeaveOnlineRoom = leaveRoom;
   installOnlineGameplayHooks();
