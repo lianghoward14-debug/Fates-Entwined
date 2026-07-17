@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 7;
+  const ADAPTER_VERSION = 8;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -35,6 +35,9 @@
   let pendingDirtySources = [];
   let pendingPostFrameVfx = false;
   let actionVfxRaf = 0;
+  let dedicatedVfxRaf = 0;
+  let dedicatedVfxWatchdog = 0;
+  let dedicatedVfxSource = '';
   let deferredActionDirtyMask = 0;
   let deferredActionSources = [];
   let deferredActionFlushTimer = 0;
@@ -473,6 +476,15 @@
       cancelAnimationFrame(actionVfxRaf);
       actionVfxRaf = 0;
     }
+    if(dedicatedVfxRaf) {
+      cancelAnimationFrame(dedicatedVfxRaf);
+      dedicatedVfxRaf = 0;
+    }
+    if(dedicatedVfxWatchdog) {
+      clearTimeout(dedicatedVfxWatchdog);
+      dedicatedVfxWatchdog = 0;
+    }
+    dedicatedVfxSource = '';
     if(hoverRaf) {
       cancelAnimationFrame(hoverRaf);
       hoverRaf = 0;
@@ -1254,7 +1266,7 @@
     const inset = 2.4;
     ctx.save();
     roundedPath(ctx, r.x + inset, r.y + inset, Math.max(1, r.w - inset * 2), Math.max(1, r.h - inset * 2), radius);
-    ctx.lineWidth = ready ? 3.4 : (selected ? 3.1 : 2.4);
+    ctx.lineWidth = 1.25;
     ctx.strokeStyle = color;
     ctx.stroke();
     ctx.restore();
@@ -1272,18 +1284,18 @@
         ? 'rgba(146,230,255,.96)'
         : 'rgba(255,225,92,.94)';
     const glow = selected
-      ? 'rgba(255,215,64,.74)'
+      ? 'rgba(255,215,64,.26)'
       : ready
-        ? 'rgba(90,205,255,.58)'
-        : 'rgba(255,205,55,.50)';
+        ? 'rgba(90,205,255,.22)'
+        : 'rgba(255,205,55,.18)';
     const inset = Math.max(2, Math.min(4, r.w * .025));
     const radius = Math.max(6, Math.min(11, r.w * .07));
     ctx.save();
     ctx.shadowColor = glow;
-    ctx.shadowBlur = Math.max(8, r.w * .105);
+    ctx.shadowBlur = Math.max(3, r.w * .035);
     ctx.lineJoin = 'round';
     roundedPath(ctx, r.x + inset, r.y + inset, Math.max(1, r.w - inset * 2), Math.max(1, r.h - inset * 2), radius);
-    ctx.lineWidth = Math.max(3, r.w * .032);
+    ctx.lineWidth = 1.25;
     ctx.strokeStyle = color;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -1435,8 +1447,10 @@
       const sel = G._markSelecting;
       if(Number(sel.player) !== Number(G.currentPlayer)) return false;
       if(typeof sel.zone === 'number' && z !== Number(sel.zone)) return false;
-      const expectedRow = typeof getNextExtraRowIndex === 'function' ? getNextExtraRowIndex(z) : 3;
-      return (cell && cell.markSafeChoice === true) || (r === expectedRow && !cell.markSafe);
+      const expectedRow = Number.isInteger(sel.row)
+        ? sel.row
+        : (typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, Number(sel.player)) : (typeof getNextExtraRowIndex === 'function' ? getNextExtraRowIndex(z) : 3));
+      return (cell && cell.markSafeChoice === true && !cell.markSafe) || (r === expectedRow && !cell.markSafe);
     }
     const havanoDeploying = G._havanoDeploying || G._onlineHavanoReactionDeploying || null;
     const havanoOptions = havanoDeploying && (havanoDeploying.options || havanoDeploying.deploymentOptions);
@@ -1915,8 +1929,52 @@
     ctx.restore();
   }
 
+  function cardHasPendingWhenSetVisual(card, hit){
+    if(!card) return false;
+    if(card._pendingWhenSetEffect || (card.flags && (card.flags.pendingWhenSet || card.flags.activationReady))) return true;
+    if(hit && typeof window.canShowBoardActivateEffect === 'function') {
+      try {
+        const viewer = typeof getPerspectivePlayerIndex === 'function'
+          ? getPerspectivePlayerIndex()
+          : (G && Number.isInteger(G.viewerPlayerIndex) ? G.viewerPlayerIndex : G.currentPlayer);
+        return !!window.canShowBoardActivateEffect(card, hit.z, hit.r, hit.c, viewer);
+      } catch(e) {}
+    }
+    return false;
+  }
+
+  function liveBoardCardForHit(hit){
+    if(!hit) return null;
+    try {
+      const g = (typeof G !== 'undefined' && G) ? G : null;
+      if(g && g.board && Number.isFinite(hit.z) && Number.isFinite(hit.r) && Number.isFinite(hit.c)) {
+        const live = g.board[hit.z] && g.board[hit.z][hit.r] ? g.board[hit.z][hit.r][hit.c] : null;
+        if(live) return live;
+      }
+      const iid = hit.card && hit.card.iid != null ? String(hit.card.iid) : String(hit.iid || '');
+      if(iid && typeof forEachBoardCard === 'function') {
+        let found = null;
+        forEachBoardCard(function(card){
+          if(!found && card && String(card.iid || '') === iid) found = card;
+        });
+        return found;
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  function pendingWhenSetVisualCardForHit(hit){
+    if(!hit) return null;
+    const live = liveBoardCardForHit(hit);
+    // If the card still exists on the live board, its current eligibility is
+    // authoritative. Never revive a spent effect from an older render snapshot.
+    if(live) return cardHasPendingWhenSetVisual(live, hit) ? live : null;
+    if(cardHasPendingWhenSetVisual(hit.card, hit)) return hit.card;
+    return null;
+  }
+
   function drawPendingWhenSetGlow(ctx, r, card){
-    if(!card || !(card._pendingWhenSetEffect || (card.flags && card.flags.pendingWhenSet))) return;
+    if(!card) return;
     const now = nowMs();
     const pulse = .5 + .5 * Math.sin(now / 720);
     ctx.save();
@@ -1942,8 +2000,8 @@
     }
   }
 
-  function shouldShowPendingWhenSetGlow(card){
-    if(!card || !(card._pendingWhenSetEffect || (card.flags && card.flags.pendingWhenSet))) return false;
+  function shouldShowPendingWhenSetGlow(card, hit){
+    if(!cardHasPendingWhenSetVisual(card, hit)) return false;
     const pending = card._pendingWhenSetEffect || {};
     const owner = Number.isInteger(card.owner) ? card.owner : Number(pending.owner);
     const viewer = typeof getPerspectivePlayerIndex === 'function'
@@ -1955,9 +2013,10 @@
   function drawPendingWhenSetGlows(ctx){
     if(!ctx || !lastHitMap || !Array.isArray(lastHitMap.cards)) return;
     lastHitMap.cards.forEach(function(hit){
-      if(!hit || !hit.card || !hit.rect) return;
-      if(!shouldShowPendingWhenSetGlow(hit.card)) return;
-      drawPendingWhenSetGlow(ctx, hit.rect, hit.card);
+      if(!hit || !hit.rect) return;
+      const card = pendingWhenSetVisualCardForHit(hit);
+      if(!shouldShowPendingWhenSetGlow(card, hit)) return;
+      drawPendingWhenSetGlow(ctx, hit.rect, card);
     });
   }
 
@@ -2022,7 +2081,7 @@
 
   function handEffectIconRect(cardRect) {
     const size = Math.max(13, Math.min(18, cardRect.w * .17));
-    return {x:cardRect.x + cardRect.w - size - Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055), w:size, h:size};
+    return {x:cardRect.x + cardRect.w - size - Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055) + 8, w:size, h:size};
   }
 
   function drawHandEffectIcon(ctx, card, cardRect) {
@@ -2104,6 +2163,17 @@
     ctx.restore();
   }
 
+  function getCardVisualStatusState(entry, statuses){
+    if(typeof window !== 'undefined' && typeof window.getCardStatusVisualState === 'function') {
+      try { return window.getCardStatusVisualState(entry && entry.card, statuses); } catch(e) {}
+    }
+    const order = ['negated','suppressed','marked','blocked'];
+    for(let i = 0; i < order.length; i++){
+      if(statuses && statuses[order[i]]) return {primary:order[i], immune:!!statuses.immune};
+    }
+    return {primary:statuses && statuses.immune ? 'immune' : '', immune:!!(statuses && statuses.immune)};
+  }
+
   function drawCardVisual(ctx, entry, visual, r, onChange, options){
     const opts = options || {};
     const tilt = Number.isFinite(opts.tilt) ? opts.tilt : stableCardTilt(entry);
@@ -2116,9 +2186,21 @@
     ctx.rotate(tilt);
     ctx.scale(1 + lift * .012, 1 - Math.abs(tilt) * .22 + lift * .008);
     ctx.translate(-cx, -cy);
-    const markedForDeath = !!(entry && entry.card && (entry.card._markedForDeath || (entry.card.flags && entry.card.flags.markedForDeath)));
-    const suppressed = !!(entry && entry.card && entry.card.flags && entry.card.flags.suppressed);
-    if(markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'grayscale(1) saturate(0) brightness(.78) contrast(.94)';
+    const flags = entry && entry.card && entry.card.flags ? entry.card.flags : {};
+    const markedForDeath = !!(entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
+    const suppressed = !!(entry && entry.card && flags.suppressed);
+    const negated = !!(entry && entry.card && flags.negated);
+    const immune = !!(entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
+    const zoeBlocked = !!(entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
+    const statusState = getCardVisualStatusState(entry, {
+      negated,
+      suppressed,
+      marked:markedForDeath,
+      blocked:zoeBlocked,
+      immune
+    });
+    const primaryStatus = statusState.primary || '';
+    if(markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)';
     if(isRenderFaceDownCard(entry && entry.card, visual)){
       drawCardBack(ctx, r, '', 'back.png');
       drawCardPlaneGleam(ctx, r, tilt);
@@ -2129,8 +2211,13 @@
     drawCardContent(ctx, entry, visual, r, onChange, contentOpts);
     if(opts.opponent) drawOpponentTint(ctx, r);
     drawCardPlaneGleam(ctx, r, tilt);
+    if(primaryStatus === 'negated') drawNegatedCardOverlay(ctx, r);
+    else if(primaryStatus === 'suppressed') drawSuppressedCardOverlay(ctx, r);
+    else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
+    else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
+    else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
+    if(statusState.immune && primaryStatus && primaryStatus !== 'immune') drawProtectionMiniStatus(ctx, r);
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
-    if(suppressed) drawSuppressedCardOverlay(ctx, r);
     ctx.restore();
   }
 
@@ -2140,20 +2227,236 @@
     ctx.save();
     roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
     ctx.clip();
-    ctx.fillStyle = 'rgba(82,0,12,.64)';
+    // Codex 2026-07-14 reversible status-overlay v5: suppression uses a bare lock glyph.
+    ctx.fillStyle = 'rgba(32,14,48,.18)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    const wash = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
-    wash.addColorStop(0, 'rgba(126,8,24,.34)');
-    wash.addColorStop(.48, 'rgba(75,0,10,.2)');
-    wash.addColorStop(1, 'rgba(34,0,6,.55)');
-    ctx.fillStyle = wash;
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'suppressed');
     ctx.restore();
+  }
 
+  function drawNegatedCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
     ctx.save();
-    roundedPath(ctx, r.x + .75, r.y + .75, Math.max(0, r.w - 1.5), Math.max(0, r.h - 1.5), radius);
-    ctx.lineWidth = Math.max(1.25, Math.min(2.2, r.w * .025));
-    ctx.strokeStyle = 'rgba(198,28,48,.9)';
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    // Codex 2026-07-14 reversible status-overlay v5: negation uses a bare broken-link glyph.
+    ctx.fillStyle = 'rgba(178,84,24,.14)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'negated');
+    ctx.restore();
+  }
+
+  function drawMarkedForDeathCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(118,44,54,.16)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'marked');
+    ctx.restore();
+  }
+
+  function drawBlockedActionCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(70,42,120,.16)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'blocked');
+    ctx.restore();
+  }
+
+  function drawImmuneCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(32,95,124,.12)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'immune');
+    ctx.restore();
+  }
+
+  function drawStatusBadge(ctx, r, kind){
+    const suppressed = kind === 'suppressed';
+    const size = Math.max(60, Math.min(104, r.w * .88));
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    ctx.save();
+    ctx.shadowColor = suppressed ? 'rgba(154,108,218,.42)'
+      : kind === 'negated' ? 'rgba(235,135,45,.40)'
+      : kind === 'marked' ? 'rgba(190,92,112,.34)'
+      : kind === 'blocked' ? 'rgba(154,108,218,.38)'
+      : 'rgba(108,208,226,.34)';
+    ctx.shadowBlur = Math.max(6, size * .18);
+    if(suppressed) drawSuppressionLockIcon(ctx, cx, cy, size);
+    else if(kind === 'marked') drawMarkedForDeathIcon(ctx, cx, cy, size);
+    else if(kind === 'blocked') drawBlockedActionIcon(ctx, cx, cy, size);
+    else if(kind === 'immune') drawImmuneShieldIcon(ctx, cx, cy, size);
+    else drawNegationBrokenLinkIcon(ctx, cx, cy, size);
+    ctx.restore();
+  }
+
+  function drawProtectionMiniStatus(ctx, r){
+    const size = Math.max(36, Math.min(60, r.w * .52));
+    const cx = r.x + r.w * .20;
+    const cy = r.y + r.h * .82;
+    ctx.save();
+    ctx.shadowColor = 'rgba(108,208,226,.34)';
+    ctx.shadowBlur = Math.max(5, size * .22);
+    drawImmuneShieldIcon(ctx, cx, cy, size);
+    ctx.restore();
+  }
+
+  function drawSuppressionLockIcon(ctx, cx, cy, size){
+    const bodyW = size * .44;
+    const bodyH = size * .31;
+    const bodyX = cx - bodyW / 2;
+    const bodyY = cy - size * .05;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(242,226,255,.98)';
+    ctx.lineWidth = Math.max(2.3, size * .075);
+    ctx.beginPath();
+    ctx.moveTo(cx - size * .156, bodyY + size * .016);
+    ctx.lineTo(cx - size * .156, cy - size * .14);
+    ctx.quadraticCurveTo(cx - size * .156, cy - size * .30, cx, cy - size * .30);
+    ctx.quadraticCurveTo(cx + size * .156, cy - size * .30, cx + size * .156, cy - size * .14);
+    ctx.lineTo(cx + size * .156, bodyY + size * .016);
+    ctx.stroke();
+    roundedPath(ctx, bodyX, bodyY, bodyW, bodyH, Math.max(4, size * .08));
+    ctx.stroke();
+    ctx.lineWidth = Math.max(2, size * .065);
+    ctx.beginPath();
+    ctx.moveTo(cx - size * .078, bodyY + bodyH * .50);
+    ctx.lineTo(cx + size * .078, bodyY + bodyH * .50);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawNegationBrokenLinkIcon(ctx, cx, cy, size){
+    function px(v){ return cx + (v - 32) / 64 * size; }
+    function py(v){ return cy + (v - 32) / 64 * size; }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,202,124,.98)';
+    ctx.lineWidth = Math.max(2.5, size * .0875);
+    ctx.beginPath();
+    ctx.moveTo(px(21), py(34));
+    ctx.bezierCurveTo(px(16), py(29), px(16), py(21), px(21), py(16));
+    ctx.bezierCurveTo(px(26), py(11), px(34), py(11), px(39), py(16));
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(px(43), py(30));
+    ctx.bezierCurveTo(px(48), py(35), px(48), py(43), px(43), py(48));
+    ctx.bezierCurveTo(px(38), py(53), px(30), py(53), px(25), py(48));
+    ctx.stroke();
+    ctx.lineWidth = Math.max(2.8, size * .09);
+    ctx.beginPath();
+    ctx.moveTo(px(20), py(48));
+    ctx.lineTo(px(48), py(20));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawImmuneShieldIcon(ctx, cx, cy, size){
+    function px(v){ return cx + (v - 32) / 64 * size; }
+    function py(v){ return cy + (v - 32) / 64 * size; }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(214,246,255,.96)';
+    ctx.lineWidth = Math.max(2.5, size * .082);
+    ctx.beginPath();
+    ctx.moveTo(px(32), py(9));
+    ctx.lineTo(px(49), py(17));
+    ctx.lineTo(px(49), py(31));
+    ctx.bezierCurveTo(px(49), py(43), px(42), py(51), px(32), py(56));
+    ctx.bezierCurveTo(px(22), py(51), px(15), py(43), px(15), py(31));
+    ctx.lineTo(px(15), py(17));
+    ctx.closePath();
+    ctx.stroke();
+    ctx.lineWidth = Math.max(2.1, size * .07);
+    ctx.beginPath();
+    ctx.moveTo(px(24), py(33));
+    ctx.lineTo(px(30), py(39));
+    ctx.lineTo(px(42), py(26));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMarkedForDeathIcon(ctx, cx, cy, size){
+    function px(v){ return cx + (v - 32) / 64 * size; }
+    function py(v){ return cy + (v - 32) / 64 * size; }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(224,220,216,.96)';
+    ctx.lineWidth = Math.max(2.4, size * .078);
+    ctx.beginPath();
+    ctx.moveTo(px(22), py(47));
+    ctx.lineTo(px(22), py(39));
+    ctx.bezierCurveTo(px(15), py(35), px(14), py(24), px(21), py(17));
+    ctx.bezierCurveTo(px(27), py(10), px(37), py(10), px(43), py(17));
+    ctx.bezierCurveTo(px(50), py(24), px(49), py(35), px(42), py(39));
+    ctx.lineTo(px(42), py(47));
+    ctx.lineTo(px(22), py(47));
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(224,220,216,.96)';
+    ctx.beginPath();
+    ctx.arc(px(26), py(30), Math.max(2, size * .055), 0, Math.PI * 2);
+    ctx.arc(px(38), py(30), Math.max(2, size * .055), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, size * .064);
+    ctx.beginPath();
+    ctx.moveTo(px(32), py(35));
+    ctx.lineTo(px(29), py(40));
+    ctx.lineTo(px(35), py(40));
+    ctx.lineTo(px(32), py(35));
+    ctx.moveTo(px(27), py(47));
+    ctx.lineTo(px(27), py(52));
+    ctx.moveTo(px(32), py(47));
+    ctx.lineTo(px(32), py(53));
+    ctx.moveTo(px(37), py(47));
+    ctx.lineTo(px(37), py(52));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBlockedActionIcon(ctx, cx, cy, size){
+    function px(v){ return cx + (v - 32) / 64 * size; }
+    function py(v){ return cy + (v - 32) / 64 * size; }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(238,222,255,.96)';
+    ctx.lineWidth = Math.max(2.5, size * .082);
+    ctx.beginPath();
+    ctx.moveTo(px(17), py(24));
+    ctx.lineTo(px(17), py(17));
+    ctx.lineTo(px(25), py(17));
+    ctx.moveTo(px(39), py(17));
+    ctx.lineTo(px(47), py(17));
+    ctx.lineTo(px(47), py(25));
+    ctx.moveTo(px(47), py(39));
+    ctx.lineTo(px(47), py(47));
+    ctx.lineTo(px(39), py(47));
+    ctx.moveTo(px(25), py(47));
+    ctx.lineTo(px(17), py(47));
+    ctx.lineTo(px(17), py(39));
+    ctx.stroke();
+    ctx.lineWidth = Math.max(2.8, size * .09);
+    ctx.beginPath();
+    ctx.moveTo(px(18), py(48));
+    ctx.lineTo(px(48), py(18));
     ctx.stroke();
     ctx.restore();
   }
@@ -2882,7 +3185,7 @@
 
   function drawCommandDock(ctx, hitMap, snapshot, cssW, cssH){
     const interaction = snapshot && snapshot.interaction ? snapshot.interaction : {};
-    const canEndTurn = interaction.currentPlayer === snapshot.viewer;
+    const canEndTurn = !!interaction.localActionTurn && !interaction.aiTurnLocked && (interaction.phase || 'main') === 'main';
     const w = clamp(cssW * .218, 268, 312);
     const h = 186;
     const x = Math.max(12, cssW - w - 42);
@@ -4218,6 +4521,43 @@
     enqueueRender(src, dirtyMaskForSource(src));
   }
 
+  function clearDedicatedVfxFrameRequest(){
+    if(dedicatedVfxRaf) cancelAnimationFrame(dedicatedVfxRaf);
+    if(dedicatedVfxWatchdog) clearTimeout(dedicatedVfxWatchdog);
+    dedicatedVfxRaf = 0;
+    dedicatedVfxWatchdog = 0;
+  }
+
+  function flushDedicatedVfxFrame(){
+    const source = dedicatedVfxSource || 'vfx-animation';
+    dedicatedVfxSource = '';
+    clearDedicatedVfxFrameRequest();
+    if(!isActiveMatchScreen()) return;
+    const board = document.getElementById('board');
+    const canvas = document.getElementById(canvasId) || (board ? ensureCanvas(board) : null);
+    const layers = canvas && canvas.__fateLayers ? canvas.__fateLayers : null;
+    if(!layers || !(lastReport && lastReport.available && lastCanvasMetrics)) {
+      enqueueRender(source, DIRTY_VFX_ONLY);
+      return;
+    }
+    drawActionCompositorOnlyFrame(layers, source, DIRTY_VFX_ONLY, nowMs());
+  }
+
+  // Fate deltas are functional feedback. Give them an independent compositor
+  // clock so gameplay redraw coalescing, AI work, or a recovery frame cannot
+  // strand a number halfway through its rise. The timeout is a watchdog for a
+  // starved rAF; progress itself remains wall-clock based in FateVfxDirector.
+  function scheduleVfxFrame(source){
+    const src = source || 'vfx-animation';
+    if(dedicatedVfxSource.indexOf(src) < 0) {
+      dedicatedVfxSource = dedicatedVfxSource ? dedicatedVfxSource + '+' + src : src;
+    }
+    if(dedicatedVfxRaf || dedicatedVfxWatchdog) return true;
+    dedicatedVfxRaf = requestAnimationFrame(flushDedicatedVfxFrame);
+    dedicatedVfxWatchdog = setTimeout(flushDedicatedVfxFrame, 40);
+    return true;
+  }
+
   function report(){
     return Object.assign({
       available:true,
@@ -4362,6 +4702,7 @@
     ownsPiles,
     renderFromGameState,
     scheduleRender,
+    scheduleVfxFrame,
     getHitMap,
     setHoverHit,
     setViewportHoverHit,

@@ -702,8 +702,17 @@ window.__FATES_HAND_DRAG_INSTALLED = false;
   // Clear the block when leaving the game screen so title buttons always work
   window.addEventListener('fate-screen-changed', clearInterruptedDragClickBlock);
 
+  function v2HandDragOwnsInput(){
+    return !!(document.documentElement &&
+      document.documentElement.classList &&
+      document.documentElement.classList.contains('fate-match-renderer-v2-mode') &&
+      window.FateMatchHandDragBridge &&
+      window.FateMatchHandDragBridge.usesHitMap);
+  }
+
   function canStartFromEvent(e){
     if(e.button !== 0 || !activeGame()) return false;
+    if(v2HandDragOwnsInput()) return false;
     if(typeof G === 'undefined' || !G || G.phase !== 'main') return false;
     if(G._boardTargeting || G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._busserMoving || G._busserMovingCard || G._markSelecting) return false;
     if(G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) return false;

@@ -154,15 +154,48 @@ function isMarkSafeSquare(z, r, c, player = null) {
   return squares.some(s => s && s.z === z && s.r === r && s.c === c && (player === null || s.owner === player));
 }
 
+function getMarkSafeSquareRowsForPlayer(z, player) {
+  const squares = ensureMarkSafeSquareState();
+  const rows = [];
+  squares.forEach(s => {
+    if (!s || s.z !== z || s.owner !== player || !Number.isInteger(s.r)) return;
+    if (!rows.includes(s.r)) rows.push(s.r);
+  });
+  return rows.sort((a, b) => a - b);
+}
+
+function getMarkSafeSquareChoiceRow(z, player) {
+  if (typeof G === 'undefined' || !G || !G.board || !G.board[z]) return -1;
+  ensureExtraRowOwnerState(z);
+  const rows = getMarkSafeSquareRowsForPlayer(z, player);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (isFullExtraSafeRow(z, row)) continue;
+    let open = 0;
+    for (let c = 0; c < 3; c++) {
+      const occupied = !!(G.board[z] && G.board[z][row] && G.board[z][row][c]);
+      if (!occupied && !isMarkSafeSquare(z, row, c)) open++;
+    }
+    if (open > 0) return row;
+  }
+  return rows.length ? -1 : getNextExtraRowIndex(z);
+}
+
 function addBottomSafeSquareForPlayer(z, player, c = 1) {
   if (typeof G === 'undefined' || !G || !G.board || !G.board[z]) return null;
   const col = Math.max(0, Math.min(2, Number(c) || 0));
   ensureExtraRowOwnerState(z);
-  const row = getNextExtraRowIndex(z);
-  G.extraRows[z] = (Number(G.extraRows[z]) || 0) + 1;
-  G.extraRowOwners[z][row - 3] = null;
+  const row = getMarkSafeSquareChoiceRow(z, player);
+  if (row < 3) return null;
+  const neededExtraRows = row - 2;
+  while ((Number(G.extraRows[z]) || 0) < neededExtraRows) {
+    G.extraRows[z] = (Number(G.extraRows[z]) || 0) + 1;
+    if (!Array.isArray(G.extraRowOwners[z])) G.extraRowOwners[z] = [];
+    G.extraRowOwners[z][G.extraRows[z] - 1] = null;
+  }
   if (!G.board[z][row]) G.board[z][row] = Array(3).fill(null);
   const squares = ensureMarkSafeSquareState();
+  if (G.board[z][row][col]) return null;
   if (squares.some(s => s.z === z && s.r === row && s.c === col)) return null;
   squares.push({ z, r: row, c: col, owner: player, source: 'mark' });
   if (typeof window !== 'undefined') {
@@ -339,6 +372,7 @@ function getRecoverableDiscardCards(player, filter) {
 function applyLandscapePlacementBonuses(card, z, r, c) {
   if (!card) return 0;
   if (!Array.isArray(card._landscapeBonusIds)) card._landscapeBonusIds = [];
+  if (isCardEffectImmutable(card)) return 0;
   let bonus = 0;
   let playFeedback = false;
   if (isLandscapeActive('igb6') && card.aff === 'reality' && !card._landscapeBonusIds.includes('igb6')) {
@@ -353,7 +387,7 @@ function applyLandscapePlacementBonuses(card, z, r, c) {
   }
   if (isLandscapeActive('igb5') && card.owner === getFlowingCurrentsLeader() && !card._landscapeBonusIds.includes('igb5')) {
     card._landscapeBonusIds.push('igb5');
-    bonus += 1;
+    bonus += 2;
   }
   if (bonus) {
     card._landscapeStaticFateBonus = (Number(card._landscapeStaticFateBonus) || 0) + bonus;
@@ -411,7 +445,7 @@ function createCardInstance(cardDef, owner) {
   if (card.currentFate === undefined) card.currentFate = card.fate;
   if (card.bonusFate === undefined) card.bonusFate = 0;
   if (card.usesLeft === undefined) {
-    card.usesLeft = card.id === '09' ? 3 : (card.id === '40' ? 2 : (card.id === '67' ? 1 : null));
+    card.usesLeft = card.id === '40' ? 2 : (card.id === '67' ? 1 : null);
   }
   if (card.immuneFlag === undefined) card.immuneFlag = false;
   if (card.cantBeReduced === undefined) card.cantBeReduced = false;
@@ -573,6 +607,7 @@ function getPlacedCardFate(card, options = {}) {
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   const printedFate = typeof card.fate === 'number' ? card.fate : 0;
+  if (isAlpineInfantryCard(card)) return printedFate + 4;
   const tributeCount = typeof options.tributeCount === 'number' ? options.tributeCount : 0;
   const bonusFate = typeof options.bonusFate === 'number' ? options.bonusFate : 0;
   const carriedDelta = getLiveCardFate(card) - printedFate;
@@ -664,18 +699,56 @@ function getSupportReinforcementValue(card) {
   applyPermanentEffectImmunity(card);
   if (isCardEffectImmutable(card)) {
     if (card.id === '86') return 3;
-    if (card.id === '09' && (card.usesLeft === null || card.usesLeft > 0)) return 2;
+    if (card.id === '09') return 2;
     if (card.id === '37' && card._returnUsed) return 0.5;
     return 1;
   }
   if (card._markedForDeath) return 0; // Vigilantes: marked cards have 0 reinforcement
   let value = 1;
   if (card.id === '86') value = 3;
-  if (card.id === '09' && (card.usesLeft === null || card.usesLeft > 0)) value = 2;
+  if (card.id === '09') value = 2;
   if (card.id === '37' && card._returnUsed) value = 0.5;
   if (Number(card._reinforcementBonus)) value += Number(card._reinforcementBonus);
   if (isLandscapeActive('igb10') && card.type === 'Supporter' && card.aff === 'third_great_war') value += 1;
   return value;
+}
+
+function ensureUsMarinesUses() {
+  if (typeof G === 'undefined' || !G) return [0, 0];
+  if (!Array.isArray(G.usMarinesUses)) G.usMarinesUses = [0, 0];
+  G.usMarinesUses[0] = Math.max(0, Number(G.usMarinesUses[0]) || 0);
+  G.usMarinesUses[1] = Math.max(0, Number(G.usMarinesUses[1]) || 0);
+  return G.usMarinesUses;
+}
+
+function getUsMarinesUses(player) {
+  const uses = ensureUsMarinesUses();
+  return Math.max(0, Number(uses[player]) || 0);
+}
+
+function canActivateUsMarinesEffect(player) {
+  return getUsMarinesUses(player) < 3;
+}
+
+function recordUsMarinesEffectUse(player) {
+  const uses = ensureUsMarinesUses();
+  uses[player] = Math.min(3, getUsMarinesUses(player) + 1);
+  return uses[player];
+}
+
+function activateUsMarinesSuppressionEffect(player, opponent, options) {
+  options = options || {};
+  if (!canActivateUsMarinesEffect(player)) {
+    if (!options.silent && typeof toast === 'function') toast('1st US Marines effect has already been activated three times this game.');
+    return false;
+  }
+  const used = recordUsMarinesEffectUse(player);
+  G.oppSuppressedNextTurn = true;
+  G.suppressTarget = opponent;
+  if (!options.silent && typeof toast === 'function') toast('Opponent supporter effects suppressed next turn! (' + used + '/3)');
+  if (typeof updateTopBar === 'function') updateTopBar();
+  if (typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  return true;
 }
 
 function consumePendingPlacementFlags(sourceCard, placedCard) {
@@ -948,7 +1021,7 @@ function resetMatchTransientState() {
   G._balladEffects = [null, null];
   G._mailDeliveries = [];
   G._blameGameEffects = [null, null];
-  G.un5thUses = [0, 0];
+  G.usMarinesUses = [0, 0];
   G.polishArmyUses = [0, 0];
   G.oppSuppressedNextTurn = false;
   G.suppressTarget = null;
@@ -960,6 +1033,9 @@ function resetMatchTransientState() {
   G._aiRunning = false;
   G._turnInputLockUntil = 0;
   G._aiTurnToken = 0;
+  G._aiOpponentMemory = null;
+  G._aiTurnPlan = null;
+  G._aiOpponentHandModel = null;
   G._artilleryLockedZone = null;
   G._artilleryLockOwner = null;
   G._artilleryLockTurnsLeft = 0;

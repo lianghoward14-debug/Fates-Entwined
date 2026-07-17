@@ -27,6 +27,10 @@
   let flySocialPollTimer = 0;
   let flyWorldChatPollTimer = 0;
   let flyWorldChatLastSeq = 0;
+  let flyDmPollTimer = 0;
+  let flyDmPollRunning = false;
+  let flyDmPollGeneration = 0;
+  let flyDmLastSeq = 0;
   const ONLINE_PAGE_SIZE = 40;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s||'').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
@@ -113,6 +117,13 @@
   }
   function fallback(uid){ return { uid, chosenUsername:'Player', displayName:'Player', username:'Player', baseCode:FO.makeBaseCode?FO.makeBaseCode(uid):uid, photoURL:'blank.png', level:1, challengerElo:600, bio:'' }; }
   function profileOf(uid){ return profileMap.get(uid) || (FO.profileCache && FO.profileCache.get(uid)) || fallback(uid); }
+  function compactFriendRankFrameStyle(elo){
+    if(typeof window.getRankFrameStyle !== 'function') return '';
+    return String(window.getRankFrameStyle(elo, 'icon') || '')
+      .replace(/border:\s*[\d.]+px\s+solid\s+([^;!]+)!important;/i, 'border:1px solid $1!important;')
+      .replace(/inset 0 0 0 [\d.]+px/ig, 'inset 0 0 0 .5px')
+      .replace(/,0 0 0 [\d.]+px/ig, ',0 0 0 .5px');
+  }
   function isInternalOnlineProfile(uid, profile){
     const p = profile || {};
     const id = String(uid || p.uid || '').toLowerCase();
@@ -178,7 +189,7 @@
     const previousPartyHadMembers = !!(onlineParty && Object.keys(onlineParty.members || {}).length);
     friends = state?.friends || {};
     requests = state?.requests || {};
-    threads = state?.threads || {};
+    const nextThreads = state?.threads || {};
     onlineUids = Array.isArray(state?.onlineUids) ? state.onlineUids.filter(Boolean) : [];
     partyInvites = state?.partyInvites || {};
     const profiles = state?.profiles || {};
@@ -186,6 +197,8 @@
       profileMap.set(uid, profile || fallback(uid));
       if(FO.profileCache && profile) FO.profileCache.set(uid, profile);
     });
+    handleThreadNotifications(nextThreads);
+    threads = nextThreads;
     onlineUids = onlineUids.filter(uid=>!isInternalOnlineProfile(uid, profiles[uid] || profileMap.get(uid)));
     const nextParty = state?.party || null;
     onlineParty = nextParty;
@@ -217,8 +230,10 @@
   }
   function socialSfx(type){
     try{
-      if(typeof window.playSfx === 'function') window.playSfx(type || 'uiClick');
-      else if(typeof playSfx === 'function') playSfx(type || 'uiClick');
+      const raw = type || 'socialAction';
+      const cue = raw === 'uiClick' ? 'socialAction' : (raw === 'menuOpen' ? 'socialOpen' : raw);
+      if(typeof window.playSfx === 'function') window.playSfx(cue);
+      else if(typeof playSfx === 'function') playSfx(cue);
     }catch(e){}
   }
 
@@ -249,6 +264,7 @@
     }
     const el = document.createElement('div');
     el.className = 'fate-online-notice';
+    socialSfx('socialNotify');
     const noticePhoto = normalizePhotoValue(photo) || 'blank.png';
     el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(noticePhoto)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='blank.png';"></div><div class="fate-online-notice-copy"><div class="fate-online-notice-title">${esc(title)}</div><div class="fate-online-notice-text">${esc(text)}</div></div>`;
     wrap.appendChild(el);
@@ -266,6 +282,7 @@
     }
     const el = document.createElement('div');
     el.className = 'fate-online-notice fate-party-invite-notice';
+    socialSfx('socialNotify');
     el.innerHTML = `<div class="fate-online-notice-pic"><img src="${esc(photoOf(p)||'blank.png')}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="fate-online-notice-copy">
         <div class="fate-online-notice-title">Party Request</div>
@@ -294,6 +311,7 @@
     }
     const el = document.createElement('div');
     el.className = 'fate-online-notice fate-party-system-notice';
+    socialSfx('socialNotify');
     el.innerHTML = `<div class="fate-online-notice-pic fate-party-system-mark">!</div><div class="fate-online-notice-copy"><div class="fate-online-notice-title">Party Disbanded</div><div class="fate-online-notice-text">${esc(msg)}</div></div>`;
     wrap.appendChild(el);
     requestAnimationFrame(()=>el.classList.add('show'));
@@ -789,11 +807,25 @@
   }
 
   async function inspectOnlineProfile(uid){
-    if(flySocialEnabled()) await refreshFlySocialState().catch(()=>{});
+    if(flySocialEnabled()) refreshFlySocialState().catch(()=>{});
     else ensureProfileSub(uid);
     const p = profileOf(uid);
     const code = p.baseCode || (FO.makeBaseCode ? FO.makeBaseCode(uid) : uid);
     const isFriend = !!friends[uid];
+    if(window.FateProfileView && typeof window.FateProfileView.open === 'function'){
+      return window.FateProfileView.open(p, {
+        uid,
+        code,
+        photoSrc:photoOf(p, 'square'),
+        photoStyle:photoStyleOf(p),
+        isFriend,
+        returnScreen:'s-social',
+        actions:isFriend ? [
+          {label:'Message', primary:true, closeOnRun:true, action:()=>window.openOnlineDirectMessage(uid)},
+          {label:'Invite to Party', action:()=>window.inviteOnlineParty(uid)}
+        ] : []
+      });
+    }
     const elo = Number(p.challengerElo || 600) || 600;
     const level = Number(p.level || 1) || 1;
     const humanWins = Number(p.humanWins ?? p.wins ?? 0) || 0;
@@ -836,14 +868,14 @@
     const p = profileOf(uid);
     const unread = Number(threads?.[uid]?.unread || 0) || 0;
     const elo = Number(p.challengerElo || 600) || 600;
-    const frameStyle = typeof window.getRankFrameStyle === 'function' ? window.getRankFrameStyle(elo, 'icon') : '';
-    return `<div class="social-friend-row" data-friend-uid="${esc(uid)}" onclick="window.inspectOnlineProfile('${esc(uid)}')">
+    const frameStyle = compactFriendRankFrameStyle(elo);
+    return `<div class="social-friend-row" data-friend-uid="${esc(uid)}" role="button" tabindex="0" onclick="this.classList.add('is-opening');window.inspectOnlineProfile('${esc(uid)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.classList.add('is-opening');window.inspectOnlineProfile('${esc(uid)}')}">
       <div class="social-friend-pic" style="${frameStyle}"><img src="${esc(photoOf(p))}" style="${photoStyleOf(p)}" onerror="this.onerror=null;this.src='blank.png';"></div>
-      <div class="social-friend-info"><div class="social-friend-name">${esc(nameOf(p))}</div><div class="social-friend-meta">${Number(p.challengerElo||600)} ELO · ${esc(p.baseCode||'')}</div></div>
+      <div class="social-friend-info"><div class="social-friend-name">${esc(nameOf(p))}</div><div class="social-friend-meta"><span>${Number(p.challengerElo||600)} ELO</span><span>${esc(p.baseCode||'')}</span></div></div>
       <div class="social-friend-actions">
-        <button class="btn sm social-friend-action-btn social-friend-chat-btn online-dm-button" onclick="event.stopPropagation();window.openOnlineDirectMessage('${esc(uid)}');" title="Message" aria-label="Message"><span class="social-friend-action-icon social-friend-chat-icon"></span>${unread>0?`<span class="online-dm-unread-dot">${unread>9?'9+':unread}</span>`:''}</button>
-        <button class="btn sm social-friend-action-btn social-friend-party-btn" onclick="event.stopPropagation();window.inviteOnlineParty('${esc(uid)}');" title="Invite to Party" aria-label="Invite to Party"><span class="social-friend-action-icon social-friend-party-icon"></span></button>
-        <button class="btn sm danger social-friend-action-btn social-friend-remove-btn" onclick="event.stopPropagation();this.closest('.social-friend-row')?.classList.add('is-removing');window.removeOnlineFriend('${esc(uid)}')" title="Remove Friend" aria-label="Remove Friend"><span class="social-friend-action-icon social-friend-remove-icon"></span></button>
+        <button type="button" class="btn sm social-friend-action-btn social-friend-chat-btn online-dm-button" onclick="event.stopPropagation();window.openOnlineDirectMessage('${esc(uid)}');" title="Message" aria-label="Message"><span class="social-friend-action-icon social-friend-chat-icon"></span>${unread>0?`<span class="online-dm-unread-dot">${unread>9?'9+':unread}</span>`:''}</button>
+        <button type="button" class="btn sm social-friend-action-btn social-friend-party-btn" onclick="event.stopPropagation();window.inviteOnlineParty('${esc(uid)}');" title="Invite to Party" aria-label="Invite to Party"><span class="social-friend-action-icon social-friend-party-icon"></span></button>
+        <button type="button" class="btn sm danger social-friend-action-btn social-friend-remove-btn" onclick="event.stopPropagation();this.closest('.social-friend-row')?.classList.add('is-removing');window.removeOnlineFriend('${esc(uid)}')" title="Remove Friend" aria-label="Remove Friend"><span class="social-friend-action-icon social-friend-remove-icon"></span></button>
       </div>
     </div>`;
   }
@@ -1313,6 +1345,7 @@
   let unsubDm = null;
   let unsubDmProfile = null;
   let dmShellOpen = false;
+  let dmEmojiPickerOpen = false;
   let worldInitialLoaded = false;
   let seenWorldIds = new Set();
 
@@ -1323,6 +1356,67 @@
   function currentProfile(){ return window.FATE_ONLINE?.profile || fallback(window.FATE_ONLINE?.user?.uid || ''); }
   function currentName(){ return nameOf(currentProfile()); }
   function currentPhoto(){ return photoOf(currentProfile()); }
+
+  function dmMessageSeq(message){
+    const explicit = Number(message?.seq || 0) || 0;
+    if(explicit) return explicit;
+    const match = String(message?.id || '').match(/dm(\d+)$/i);
+    return match ? (Number(match[1]) || 0) : 0;
+  }
+  function mergeFlyDmMessages(incoming){
+    const byId = new Map();
+    dmMessages.concat(Array.isArray(incoming) ? incoming : []).forEach(message=>{
+      if(!message || !message.text) return;
+      const key = String(message.id || [message.fromUid || message.uid || '', timestampOf(message), message.text].join(':'));
+      byId.set(key, message);
+      flyDmLastSeq = Math.max(flyDmLastSeq, dmMessageSeq(message));
+    });
+    dmMessages = [...byId.values()].sort((a,b)=>timestampOf(a)-timestampOf(b)).slice(-80);
+    return dmMessages;
+  }
+  function stopFlyDmPolling(){
+    if(flyDmPollTimer) clearTimeout(flyDmPollTimer);
+    flyDmPollTimer = 0;
+    flyDmPollGeneration += 1;
+  }
+  async function refreshOpenFlyDm(peerUid, generation){
+    const u = window.FATE_ONLINE?.user;
+    const peer = String(peerUid || '');
+    if(!u || !peer || peer !== String(dmPeerUid || '') || generation !== flyDmPollGeneration || flyDmPollRunning) return false;
+    flyDmPollRunning = true;
+    try{
+      const data = await flyApiRequest(
+        `/api/direct-messages/${encodeURIComponent(peer)}?uid=${encodeURIComponent(u.uid)}&limit=60&after=${encodeURIComponent(flyDmLastSeq)}&state=0`
+      );
+      if(generation !== flyDmPollGeneration || peer !== String(dmPeerUid || '')) return false;
+      mergeFlyDmMessages(data.messages || []);
+      if(threads?.[peer]) threads[peer] = Object.assign({}, threads[peer], {unread:0});
+      renderDmMessagesOnly();
+      scheduleRender();
+      return true;
+    }catch(e){
+      console.warn('Fly DM live refresh failed', e);
+      return false;
+    }finally{
+      flyDmPollRunning = false;
+    }
+  }
+  function startFlyDmPolling(peerUid){
+    stopFlyDmPolling();
+    const peer = String(peerUid || '');
+    const generation = flyDmPollGeneration;
+    const poll = async function(){
+      flyDmPollTimer = 0;
+      const modalOpen = !!document.getElementById('modal')?.classList.contains('on');
+      const dmOpen = !!document.getElementById('social-dm-box');
+      if(!peer || peer !== String(dmPeerUid || '') || !modalOpen || !dmOpen || generation !== flyDmPollGeneration) return;
+      if(!document.hidden && !window.__fatePageHidden) await refreshOpenFlyDm(peer, generation);
+      if(peer === String(dmPeerUid || '') && generation === flyDmPollGeneration){
+        flyDmPollTimer = setTimeout(poll, 900);
+      }
+    };
+    flyDmPollTimer = setTimeout(poll, 650);
+  }
   let fpsOverlayRaf = 0;
   let fpsOverlayLast = 0;
   let fpsOverlayFrames = 0;
@@ -1597,18 +1691,24 @@
   }
 
   function closeDmSub(){
+    stopFlyDmPolling();
     try{ if(unsubDm) unsubDm(); }catch(e){}
     try{ if(unsubDmProfile) unsubDmProfile(); }catch(e){}
     unsubDm = unsubDmProfile = null;
     dmPeerUid = null;
     dmMessages = [];
+    flyDmLastSeq = 0;
     dmShellOpen = false;
+    dmEmojiPickerOpen = false;
   }
 
   function dmMessageHtml(m, peer){
     const isMe = m.uid === window.FATE_ONLINE?.user?.uid || m.fromUid === window.FATE_ONLINE?.user?.uid;
     const senderName = isMe ? currentName() : (m.from || nameOf(peer));
-    const senderPic = isMe ? currentPhoto() : (normalizePhotoValue(m.photoURL || m.profileImg) || photoOf(peer));
+    const livePeerPic = photoOf(peer);
+    const senderPic = isMe
+      ? currentPhoto()
+      : (livePeerPic && livePeerPic !== 'blank.png' ? livePeerPic : (normalizePhotoValue(m.photoURL || m.profileImg) || 'blank.png'));
     return `<div class="social-dm ${isMe ? 'social-dm-me' : 'social-dm-them'}">
       <div class="social-dm-avatar"><img src="${esc(senderPic || 'blank.png')}" style="${isMe ? photoStyleOf(currentProfile()) : photoStyleOf(peer)}" onerror="this.onerror=null;this.src='blank.png';"></div>
       <div class="social-dm-bubble">
@@ -1686,23 +1786,25 @@
       const emojiToggle = document.getElementById('dm-emoji-toggle');
       const emojiContainer = document.getElementById('dm-emoji-container');
       if(emojiToggle && emojiContainer && typeof window.renderEmojiPicker === 'function'){
-        emojiToggle.onclick = ()=>{
-          if(emojiContainer.style.display === 'none'){
-            emojiContainer.style.display = 'block';
-            emojiToggle.setAttribute('aria-expanded', 'true');
+        const syncDmEmojiPicker = ()=>{
+          emojiContainer.style.display = dmEmojiPickerOpen ? 'block' : 'none';
+          emojiToggle.setAttribute('aria-expanded', dmEmojiPickerOpen ? 'true' : 'false');
+          if(dmEmojiPickerOpen && !emojiContainer.querySelector('.social-emoji-picker')){
             emojiContainer.innerHTML = '';
             emojiContainer.appendChild(window.renderEmojiPicker(emoji=>{
               const i = document.getElementById('dm-input');
-              if(i) i.value += emoji;
-              emojiContainer.style.display = 'none';
-              emojiToggle.setAttribute('aria-expanded', 'false');
-              if(i) i.focus();
+              if(i) {
+                i.value += emoji;
+                i.focus();
+              }
             }));
-          }else {
-            emojiContainer.style.display = 'none';
-            emojiToggle.setAttribute('aria-expanded', 'false');
           }
         };
+        emojiToggle.onclick = ()=>{
+          dmEmojiPickerOpen = !dmEmojiPickerOpen;
+          syncDmEmojiPicker();
+        };
+        syncDmEmojiPicker();
       }
       dmShellOpen = true;
       if(inp) setTimeout(()=>inp.focus(),0);
@@ -1717,18 +1819,21 @@
       closeDmSub();
       dmPeerUid = peerUid;
       dmShellOpen = false;
+      flyDmLastSeq = 0;
       if(!profileMap.has(peerUid)) profileMap.set(peerUid, fallback(peerUid));
       flyApiRequest(`/api/direct-messages/${encodeURIComponent(peerUid)}?uid=${encodeURIComponent(u.uid)}&limit=50`)
         .then(data=>{
-          dmMessages = Array.isArray(data.messages) ? data.messages : [];
+          mergeFlyDmMessages(data.messages || []);
           if(data.state) applyFlySocialState(data.state);
-          renderDirectMessageModal(true);
+          if(data.peerProfile) profileMap.set(peerUid, data.peerProfile);
+          renderDirectMessageModal(false);
         })
         .catch(e=>{
           console.warn('Fly DM open failed', e);
           if(window.toast) toast('Could not open messages');
         });
       renderDirectMessageModal(true);
+      startFlyDmPolling(peerUid);
       return;
     }
     socialSfx('menuOpen');
@@ -1773,10 +1878,10 @@
         return null;
       });
       if(!data) return;
-      dmMessages = Array.isArray(data.messages) ? data.messages : (data.message ? [...dmMessages, data.message] : dmMessages);
+      mergeFlyDmMessages(Array.isArray(data.messages) ? data.messages : (data.message ? [data.message] : []));
       if(data.state) applyFlySocialState(data.state);
       renderDirectMessageModal(false);
-      if(typeof window.playSfx === 'function') window.playSfx('uiClick');
+      socialSfx('socialAction');
       return;
     }
     if(!firebaseSocialAllowed() || !FO.push || !FO.update){ if(window.toast) toast('Message service is not ready'); return; }
@@ -1802,7 +1907,7 @@
         [`privateThreads/${u.uid}/${dmPeerUid}`]: { peerUid:dmPeerUid, lastText:payload.text, lastAt:now, unread:0 },
         [`privateThreads/${dmPeerUid}/${u.uid}`]: { peerUid:u.uid, lastText:payload.text, lastAt:now, unread:peerUnread + 1 }
       });
-      if(typeof window.playSfx === 'function') window.playSfx('uiClick');
+      socialSfx('socialAction');
     }catch(e){
       if(inp) inp.value = text;
       console.error('Private message send failed', e);

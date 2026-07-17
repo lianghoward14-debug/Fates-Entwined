@@ -1275,22 +1275,235 @@ html body #s-game .zone.final-zone-board-flash::after{
   display:none!important;
 }
 
-/* Suppressed cards use the same deep-red state treatment as the canvas board. */
-.bc.fate-suppressed{
+/* Codex 2026-07-14 reversible status-overlay v5:
+   suppression = bare lock glyph; negation = bare broken-link glyph.
+   Additional card statuses reuse the same single-stroke glyph language.
+   Revert this block to restore the older overlay treatment. */
+.bc.fate-suppressed,
+.bc.fate-negated,
+.bc.fate-immune,
+.bc.fate-marked-death,
+.bc.fate-blocked-action{
   filter:none!important;
   opacity:1!important;
   transition:none!important;
 }
-.bc.fate-suppressed::after{
+.bc.fate-suppressed::before,
+.bc.fate-negated::before,
+.bc.fate-immune::before,
+.bc.fate-marked-death::before,
+.bc.fate-blocked-action::before,
+.bc.fate-suppressed::after,
+.bc.fate-negated::after,
+.bc.fate-immune::after,
+.bc.fate-marked-death::after,
+.bc.fate-blocked-action::after{
   content:'';
   position:absolute;
-  inset:0;
-  border:1px solid rgba(198,28,48,.9);
   border-radius:inherit;
-  background:linear-gradient(135deg,rgba(126,8,24,.66),rgba(75,0,10,.62) 48%,rgba(34,0,6,.82));
   box-sizing:border-box;
   z-index:5;
   pointer-events:none;
+}
+.bc .bc-protection-status-glyph{
+  display:none;
+}
+.bc.fate-immune.fate-has-primary-status .bc-protection-status-glyph{
+  display:block;
+  position:absolute;
+  left:7%;
+  bottom:7%;
+  width:clamp(36px,52%,60px);
+  aspect-ratio:1;
+  z-index:6;
+  pointer-events:none;
+  background:rgba(214,246,255,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 1px 5px rgba(6,28,42,.7)) drop-shadow(0 0 8px rgba(108,208,226,.32));
+}
+.bc.fate-suppressed > :not(.fate-svg-corners):not(.bc-fate){
+  filter:saturate(.58) brightness(.82) contrast(.92)!important;
+}
+.bc.fate-suppressed .bc-fate,
+.bc.fate-negated .bc-fate,
+.bc.fate-immune .bc-fate,
+.bc.fate-marked-death .bc-fate,
+.bc.fate-blocked-action .bc-fate{
+  z-index:7!important;
+  opacity:1!important;
+  filter:none!important;
+}
+.bc.fate-suppressed::before{
+  inset:0;
+  border:0;
+  background:rgba(48,25,78,.12);
+  box-shadow:none;
+}
+.bc.fate-suppressed::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:0;
+  background:rgba(238,218,255,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(24,8,42,.72)) drop-shadow(0 0 9px rgba(154,108,218,.32));
+}
+.bc.fate-negated > :not(.fate-svg-corners):not(.bc-fate){
+  filter:saturate(.7) brightness(.9) contrast(.98)!important;
+}
+.bc.fate-negated::before{
+  inset:0;
+  border:0;
+  background:rgba(178,84,24,.14);
+  box-shadow:none;
+}
+.bc.fate-negated::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:0;
+  background:rgba(255,202,124,.98);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 34c-5-5-5-13 0-18s13-5 18 0'/%3E%3Cpath d='M43 30c5 5 5 13 0 18s-13 5-18 0'/%3E%3Cpath d='M20 48L48 20'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 34c-5-5-5-13 0-18s13-5 18 0'/%3E%3Cpath d='M43 30c5 5 5 13 0 18s-13 5-18 0'/%3E%3Cpath d='M20 48L48 20'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(45,18,3,.72)) drop-shadow(0 0 9px rgba(235,135,45,.34));
+}
+html body #s-game .bc.fate-suppressed::after{
+  left:50%!important;
+  top:50%!important;
+  width:clamp(60px,88%,104px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  inset:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:rgba(238,218,255,.96)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(24,8,42,.72)) drop-shadow(0 0 9px rgba(154,108,218,.32))!important;
+}
+html body #s-game .bc.fate-negated::after{
+  left:50%!important;
+  top:50%!important;
+  width:clamp(60px,88%,104px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  inset:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:rgba(255,202,124,.98)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 34c-5-5-5-13 0-18s13-5 18 0'/%3E%3Cpath d='M43 30c5 5 5 13 0 18s-13 5-18 0'/%3E%3Cpath d='M20 48L48 20'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 34c-5-5-5-13 0-18s13-5 18 0'/%3E%3Cpath d='M43 30c5 5 5 13 0 18s-13 5-18 0'/%3E%3Cpath d='M20 48L48 20'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(45,18,3,.72)) drop-shadow(0 0 9px rgba(235,135,45,.34))!important;
+}
+.bc.fate-immune:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death):not(.fate-blocked-action) > :not(.fate-svg-corners):not(.bc-fate){
+  filter:saturate(.78) brightness(.92) contrast(.98)!important;
+}
+.bc.fate-immune:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death):not(.fate-blocked-action)::before{
+  inset:0;
+  border:0;
+  background:rgba(32,95,124,.12);
+  box-shadow:none;
+}
+.bc.fate-immune:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death):not(.fate-blocked-action)::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:0;
+  background:rgba(214,246,255,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(6,28,42,.62)) drop-shadow(0 0 9px rgba(108,208,226,.32));
+}
+.bc.fate-marked-death:not(.fate-negated):not(.fate-suppressed)::before{
+  inset:0;
+  border:0;
+  background:rgba(118,44,54,.16);
+  box-shadow:none;
+}
+.bc.fate-marked-death:not(.fate-negated):not(.fate-suppressed)::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:0;
+  background:rgba(224,220,216,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 39c-5-4-7-10-6-16 2-9 9-15 18-15s16 6 18 15c1 6-1 12-6 16v9c0 3-2 5-5 5H25c-3 0-5-2-5-5v-9z'/%3E%3Cpath d='M25 43h14M25 48v5M32 47v6M39 48v5M28 38l4 5 4-5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Cpath d='M22 31c0-3 2-5 5-5 4 0 6 4 5 7-1 3-3 5-6 5-3 0-4-3-4-7z'/%3E%3Cpath d='M42 31c0-3-2-5-5-5-4 0-6 4-5 7 1 3 3 5 6 5 3 0 4-3 4-7z'/%3E%3Cpath d='M32 35l-3 6h6z'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 39c-5-4-7-10-6-16 2-9 9-15 18-15s16 6 18 15c1 6-1 12-6 16v9c0 3-2 5-5 5H25c-3 0-5-2-5-5v-9z'/%3E%3Cpath d='M25 43h14M25 48v5M32 47v6M39 48v5M28 38l4 5 4-5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Cpath d='M22 31c0-3 2-5 5-5 4 0 6 4 5 7-1 3-3 5-6 5-3 0-4-3-4-7z'/%3E%3Cpath d='M42 31c0-3-2-5-5-5-4 0-6 4-5 7 1 3 3 5 6 5 3 0 4-3 4-7z'/%3E%3Cpath d='M32 35l-3 6h6z'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(42,12,22,.62)) drop-shadow(0 0 8px rgba(190,92,112,.28));
+}
+html body #s-game .bc.fate-marked-death:not(.fate-negated):not(.fate-suppressed)::before{
+  inset:0;
+  border:0;
+  background:rgba(118,44,54,.16);
+  box-shadow:none;
+}
+html body #s-game .bc.fate-marked-death:not(.fate-negated):not(.fate-suppressed)::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  inset:auto;
+  border:0;
+  border-radius:0;
+  background:rgba(224,220,216,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 39c-5-4-7-10-6-16 2-9 9-15 18-15s16 6 18 15c1 6-1 12-6 16v9c0 3-2 5-5 5H25c-3 0-5-2-5-5v-9z'/%3E%3Cpath d='M25 43h14M25 48v5M32 47v6M39 48v5M28 38l4 5 4-5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Cpath d='M22 31c0-3 2-5 5-5 4 0 6 4 5 7-1 3-3 5-6 5-3 0-4-3-4-7z'/%3E%3Cpath d='M42 31c0-3-2-5-5-5-4 0-6 4-5 7 1 3 3 5 6 5 3 0 4-3 4-7z'/%3E%3Cpath d='M32 35l-3 6h6z'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 39c-5-4-7-10-6-16 2-9 9-15 18-15s16 6 18 15c1 6-1 12-6 16v9c0 3-2 5-5 5H25c-3 0-5-2-5-5v-9z'/%3E%3Cpath d='M25 43h14M25 48v5M32 47v6M39 48v5M28 38l4 5 4-5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Cpath d='M22 31c0-3 2-5 5-5 4 0 6 4 5 7-1 3-3 5-6 5-3 0-4-3-4-7z'/%3E%3Cpath d='M42 31c0-3-2-5-5-5-4 0-6 4-5 7 1 3 3 5 6 5 3 0 4-3 4-7z'/%3E%3Cpath d='M32 35l-3 6h6z'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(42,12,22,.62)) drop-shadow(0 0 8px rgba(190,92,112,.28));
+}
+html body #s-game .bc.vigilante-muted.fate-marked-death .bc-art img,
+html body #s-game .bc.vigilante-muted.fate-marked-death .bc-art .bc-ico,
+html body #s-game .bc.vigilante-muted.fate-marked-death .bc-name{
+  filter:saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)!important;
+}
+html body #s-game .bc.vigilante-muted.fate-marked-death .bc-fate{
+  filter:none!important;
+}
+.bc.fate-blocked-action:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death)::before{
+  inset:0;
+  border:0;
+  background:rgba(70,42,120,.16);
+  box-shadow:none;
+}
+.bc.fate-blocked-action:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death)::after{
+  left:50%;
+  top:50%;
+  width:clamp(60px,88%,104px);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:0;
+  background:rgba(238,222,255,.96);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 2px 7px rgba(24,8,42,.66)) drop-shadow(0 0 9px rgba(154,108,218,.32));
+}
+html body #s-game .bc.fate-blocked-action:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death)::after{
+  left:50%!important;
+  top:50%!important;
+  width:clamp(60px,88%,104px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  inset:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:rgba(238,222,255,.96)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(24,8,42,.66)) drop-shadow(0 0 9px rgba(154,108,218,.32))!important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -3979,8 +4192,8 @@ html body #s-game.is-consolidating .hand-strip{min-height:118px!important;max-he
 html body #s-game.is-consolidating .hand-cards{min-height:86px!important;align-content:center!important;z-index:3!important;}
 html body #s-game .hc,html body #s-game .hc.dim,html body #s-game .hc.supporter-limit-reached{z-index:4!important;isolation:isolate!important;}
 html body #s-game .hand-strip::before,html body #s-game .hand-strip::after{pointer-events:none!important;z-index:0!important;}
-html body #s-game #board .cell.tribute-cell-ready{outline:1px solid rgba(100,160,255,.64)!important;box-shadow:0 0 0 1px rgba(100,160,255,.22) inset!important;}
-html body #s-game #board .bc.tribute-ready{outline:1px solid rgba(100,160,255,.72)!important;box-shadow:0 0 10px rgba(100,160,255,.18)!important;}
+html body #s-game #board .cell.tribute-cell-ready{outline:1.25px solid rgba(100,160,255,.5)!important;box-shadow:0 0 4px rgba(100,160,255,.1)!important;}
+html body #s-game #board .bc.tribute-ready{outline:1.25px solid rgba(100,160,255,.54)!important;box-shadow:0 0 4px rgba(100,160,255,.1)!important;animation:none!important;}
 html body .cinematic-subtitle-live{display:block!important;visibility:visible!important;opacity:1!important;padding:0!important;border:0!important;background:transparent!important;color:#fff7d7!important;font-family:'Crimson Pro',serif!important;font-size:clamp(1.1rem,2vw,1.6rem)!important;line-height:1.18!important;text-shadow:0 2px 10px rgba(0,0,0,.82)!important;box-shadow:none!important;}
 html body .cinematic-subtitle-live.fade-out{opacity:0!important;transition:opacity .42s ease!important;}
 html body #s-deck #db-collection .db-mc img,html body #s-challenger #cdb-collection .db-mc img{opacity:1!important;visibility:visible!important;filter:none!important;transition:none!important;}
@@ -4025,34 +4238,36 @@ html body #s-game.is-consolidating .hc.dim::before,html body #s-game.is-consolid
 
 /* Codex 2026-05-19: consolidation, hand-card, deck-builder, and profile-pill polish. */
 html body #s-game #board .cell.tribute-cell-available{
-  outline:1.25px solid rgba(255,215,0,.7)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 0 1px rgba(255,246,190,.16) inset,0 0 10px rgba(255,215,0,.14)!important;
+  outline:1.25px solid rgba(255,215,0,.5)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 4px rgba(255,215,0,.08)!important;
 }
 html body #s-game #board .bc.tribute-available{
-  outline:1.25px solid rgba(255,215,0,.72)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 10px rgba(255,215,0,.16)!important;
+  outline:1.25px solid rgba(255,215,0,.52)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 4px rgba(255,215,0,.08)!important;
+  animation:none!important;
 }
 html body #s-game #board .cell.tribute-cell-selected{
-  outline:2.4px solid rgba(255,226,96,.96)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 0 1px rgba(255,250,210,.32) inset,0 0 18px rgba(255,215,0,.34)!important;
+  outline:1.25px solid rgba(255,226,96,.7)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 5px rgba(255,215,0,.14)!important;
 }
 html body #s-game #board .bc.tribute-selected{
-  outline:2.4px solid rgba(255,226,96,.96)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 18px rgba(255,215,0,.36)!important;
+  outline:1.25px solid rgba(255,226,96,.7)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 5px rgba(255,215,0,.14)!important;
 }
 html body #s-game #board .cell.tribute-cell-ready{
-  outline:2.45px solid rgba(105,190,255,.96)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 0 1px rgba(220,242,255,.34) inset,0 0 20px rgba(75,170,255,.42)!important;
+  outline:1.25px solid rgba(105,190,255,.7)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 5px rgba(75,170,255,.14)!important;
 }
 html body #s-game #board .bc.tribute-ready{
-  outline:2.45px solid rgba(105,190,255,.96)!important;
-  outline-offset:-2px!important;
-  box-shadow:0 0 19px rgba(75,170,255,.45),0 0 0 1px rgba(220,242,255,.24) inset!important;
+  outline:1.25px solid rgba(105,190,255,.7)!important;
+  outline-offset:-1px!important;
+  box-shadow:0 0 5px rgba(75,170,255,.14)!important;
+  animation:none!important;
 }
 
 html body #s-game .hc,
@@ -12516,18 +12731,27 @@ html body #s-game #opp-hand.opp-hand-compact{
 }
 
 html body #s-game #opp-hand.opp-hand-nine-plus{
-  --opp-hand-card-w:42px;
-  --opp-hand-card-h:59px;
-  gap:.24rem!important;
-  max-height:192px!important;
+  --opp-hand-card-w:56px;
+  --opp-hand-card-h:78px;
+  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
+  gap:.38rem .46rem!important;
+  max-height:258px!important;
 }
 
 html body #s-game #opp-hand.opp-hand-ten-plus{
-  --opp-hand-card-w:42px;
-  --opp-hand-card-h:59px;
+  --opp-hand-card-w:52px;
+  --opp-hand-card-h:73px;
   grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
-  gap:.28rem!important;
-  max-height:202px!important;
+  gap:.34rem .4rem!important;
+  max-height:246px!important;
+}
+
+html body #s-game #opp-hand.opp-hand-twelve-plus{
+  --opp-hand-card-w:50px;
+  --opp-hand-card-h:70px;
+  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
+  gap:.3rem .36rem!important;
+  max-height:244px!important;
 }
 
 html body #s-game #opp-hand.opp-hand-compact .opp-card-back{
@@ -12561,7 +12785,7 @@ html body #s-game .hand-effect-marker{
   position:absolute!important;
   left:auto!important;
   right:5px!important;
-  top:5px!important;
+  top:13px!important;
   z-index:8!important;
   width:17px!important;
   height:17px!important;
@@ -14174,12 +14398,12 @@ html body #modal .modal.cdb-save-modal .cdb-save-top:has(.deck-theme-select-wrap
   z-index:12000!important;
 }
 html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus){
-  --opp-hand-card-w:50px!important;
-  --opp-hand-card-h:70px!important;
-  grid-template-columns:repeat(5, var(--opp-hand-card-w))!important;
-  gap:.34rem .44rem!important;
-  max-height:224px!important;
-  padding:.2rem .08rem .22rem!important;
+  --opp-hand-card-w:56px!important;
+  --opp-hand-card-h:78px!important;
+  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
+  gap:.38rem .46rem!important;
+  max-height:258px!important;
+  padding:.18rem .08rem .24rem!important;
 }
 html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus) .opp-card-back{
   width:var(--opp-hand-card-w)!important;
@@ -14188,11 +14412,19 @@ html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus) .opp-card
   min-height:var(--opp-hand-card-h)!important;
 }
 html body #s-game #opp-hand.opp-hand-ten-plus{
-  --opp-hand-card-w:46px!important;
-  --opp-hand-card-h:64px!important;
-  grid-template-columns:repeat(5, var(--opp-hand-card-w))!important;
-  gap:.32rem .4rem!important;
-  max-height:218px!important;
+  --opp-hand-card-w:52px!important;
+  --opp-hand-card-h:73px!important;
+  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
+  gap:.34rem .4rem!important;
+  max-height:246px!important;
+}
+
+html body #s-game #opp-hand.opp-hand-twelve-plus{
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
+  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
+  gap:.3rem .36rem!important;
+  max-height:244px!important;
 }
 
 /* Codex 2026-06-30: tiny HUD alignment nudge without moving the topbar frame. */
@@ -14998,11 +15230,15 @@ html body #s-difficulty-overlay #difficulty-panel .ai-division-rank-badge .rank-
   color:inherit!important;
   font-size:1.04rem!important;
   line-height:1.05!important;
-  white-space:normal!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
   text-align:center!important;
 }
 
 html body #s-difficulty-overlay #difficulty-panel .ai-division-meta{
+  position:relative!important;
+  top:7px!important;
   margin-top:.28rem!important;
   font-family:'Cinzel',serif!important;
   font-size:.62rem!important;
@@ -15012,11 +15248,7 @@ html body #s-difficulty-overlay #difficulty-panel .ai-division-meta{
 }
 
 html body #s-difficulty-overlay #difficulty-panel .ai-picker-subcopy{
-  margin:0 0 .72rem!important;
-  color:rgba(195,190,215,.72)!important;
-  font-style:italic!important;
-  font-size:.78rem!important;
-  text-align:center!important;
+  display:none!important;
 }
 
 @media (max-width:700px){
@@ -15093,6 +15325,24 @@ html body #s-game .hc.sel .bc-name,
 html body #s-game .hc.sel:hover .bc-name{
   display:none!important;
   opacity:0!important;
+}
+
+/* Codex 2026-07-14: hand cards are 5% smaller across match renderers. */
+html body #s-game{
+  --hcw:104.5px!important;
+  --hch:146.3px!important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2{
+  --hcw:95px!important;
+  --hch:133px!important;
+}
+
+html body #s-game .hand-cards:has(.hc:nth-child(9)),
+html body #s-game .hand-cards:has(.hc:nth-child(10)),
+html body #s-game .hand-cards:has(.hc:nth-child(12)){
+  --hcw:clamp(57px,5.84vw,72.2px)!important;
+  --hch:calc(var(--hcw) * 1.4)!important;
 }
 
 /* World Chat uses a CSS-drawn mark so Electron never renders mojibake/question marks. */
@@ -17302,6 +17552,298 @@ html body .social-emoji-picker::-webkit-scrollbar{
   display:none!important;
 }
 
+/* DM/friends usability: keep the emoji tray comfortable and friend rows easier to hit. */
+html body #modal #dm-emoji-container{
+  padding-bottom:1rem!important;
+}
+
+html body #modal #dm-emoji-container .social-emoji-picker{
+  margin-bottom:.75rem!important;
+  padding-bottom:1.15rem!important;
+}
+
+html body .social-friend-row{
+  min-height:82px!important;
+  touch-action:manipulation!important;
+}
+
+html body .social-friend-row:active,
+html body .social-friend-row.is-pressing{
+  transform:translateX(3px) scale(.992)!important;
+  border-color:rgba(245,222,126,.44)!important;
+  background:rgba(201,168,76,.12)!important;
+}
+
+html body .social-friend-row .social-friend-action-btn{
+  min-width:42px!important;
+  min-height:42px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+/* Old social UI friend rows: tighter hit targets and a cleaner single-row card treatment. */
+html body #s-social .social-friends-list-v20{
+  gap:.42rem!important;
+  padding:.02rem .08rem .18rem!important;
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+
+html body #s-social .social-friends-list-v20::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row{
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:58px minmax(0,1fr) max-content!important;
+  align-items:center!important;
+  gap:.72rem!important;
+  min-height:82px!important;
+  padding:.58rem .62rem .58rem .68rem!important;
+  cursor:pointer!important;
+  touch-action:manipulation!important;
+  isolation:isolate!important;
+  overflow:hidden!important;
+  border:1px solid rgba(218,185,82,.34)!important;
+  border-radius:4px!important;
+  background:
+    linear-gradient(90deg,rgba(5,10,17,.96),rgba(8,12,20,.92) 56%,rgba(16,15,12,.9)),
+    rgba(5,8,14,.94)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,238,166,.025)!important;
+  transition:border-color .12s ease,background .12s ease,box-shadow .12s ease,transform .08s ease!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row::before{
+  content:''!important;
+  position:absolute!important;
+  left:7px!important;
+  top:7px!important;
+  bottom:7px!important;
+  width:1px!important;
+  pointer-events:none!important;
+  background:rgba(218,185,82,.54)!important;
+  opacity:.78!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row::after{
+  content:''!important;
+  position:absolute!important;
+  left:0!important;
+  right:0!important;
+  top:0!important;
+  height:1px!important;
+  pointer-events:none!important;
+  background:linear-gradient(90deg,rgba(218,185,82,.32),transparent 46%,rgba(218,185,82,.16))!important;
+  opacity:.85!important;
+  z-index:0!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row:hover,
+html body #s-social .social-friends-list-v20 .social-friend-row:focus-visible,
+html body #s-social .social-friends-list-v20 .social-friend-row.is-opening{
+  border-color:rgba(232,196,82,.58)!important;
+  background:
+    linear-gradient(90deg,rgba(9,16,26,.98),rgba(10,14,22,.96) 56%,rgba(22,19,13,.94)),
+    rgba(7,10,16,.96)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,238,166,.04),0 0 14px rgba(218,185,82,.09)!important;
+  outline:none!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row:active{
+  transform:translateY(1px) scale(.996)!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-pic{
+  width:56px!important;
+  height:56px!important;
+  border-radius:4px!important;
+  border:1px solid rgba(232,196,82,.58)!important;
+  overflow:hidden!important;
+  background:rgba(0,0,0,.28)!important;
+  box-shadow:var(--rank-frame-shadow, none),0 0 0 1px rgba(3,7,13,.82)!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-pic img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  display:block!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-info{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.28rem!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-name{
+  color:#fff0a8!important;
+  font-size:.96rem!important;
+  line-height:1.08!important;
+  letter-spacing:.035em!important;
+  text-shadow:none!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:.32rem .48rem!important;
+  color:rgba(176,190,208,.74)!important;
+  font-size:.69rem!important;
+  line-height:1.2!important;
+  letter-spacing:.05em!important;
+  text-transform:uppercase!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-meta span:first-child{
+  color:#8fcfff!important;
+  font-weight:700!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-meta span{
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-actions{
+  position:relative!important;
+  z-index:2!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:.36rem!important;
+  min-width:136px!important;
+  padding:.34rem!important;
+  border:1px solid rgba(218,185,82,.22)!important;
+  border-radius:4px!important;
+  background:rgba(0,0,0,.18)!important;
+  pointer-events:auto!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-action-btn{
+  width:38px!important;
+  height:38px!important;
+  min-width:38px!important;
+  min-height:38px!important;
+  padding:0!important;
+  border-radius:4px!important;
+  border-color:rgba(232,196,82,.34)!important;
+  background:linear-gradient(180deg,rgba(10,15,24,.92),rgba(2,5,10,.94))!important;
+  box-shadow:none!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-action-btn:hover{
+  transform:none!important;
+  border-color:rgba(232,196,82,.66)!important;
+  background:linear-gradient(180deg,rgba(31,27,17,.96),rgba(5,7,11,.96))!important;
+  box-shadow:0 0 10px rgba(218,185,82,.1)!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-chat-btn{
+  border-color:rgba(143,207,255,.38)!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-party-btn{
+  border-color:rgba(180,142,255,.38)!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-remove-btn{
+  border-color:rgba(230,95,95,.38)!important;
+}
+
+@media(max-width:720px){
+  html body #s-social .social-friends-list-v20 .social-friend-row{
+    grid-template-columns:54px minmax(0,1fr)!important;
+  }
+
+  html body #s-social .social-friends-list-v20 .social-friend-actions{
+    grid-column:1 / -1!important;
+    justify-content:flex-start!important;
+    min-width:0!important;
+  }
+}
+
+/* Mission Control: keep the First Victory glyph fully visible inside its icon tile. */
+html body #mission-control-window #mission-window-daily-container .dc-item-icon-wrap{
+  overflow:visible!important;
+  display:grid!important;
+  place-items:center!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon{
+  width:28px!important;
+  height:28px!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:visible!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon-mark{
+  width:22px!important;
+  height:22px!important;
+  overflow:visible!important;
+  transform:none!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon-victory::before{
+  width:14px!important;
+  height:9px!important;
+  border-left:2px solid currentColor!important;
+  border-right:2px solid currentColor!important;
+  border-bottom:2px solid currentColor!important;
+  border-top:0!important;
+  border-radius:0 0 7px 7px!important;
+  transform:translate(-50%,-42%)!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon-victory::after{
+  width:10px!important;
+  height:8px!important;
+  background:currentColor!important;
+  clip-path:polygon(35% 0,65% 0,65% 48%,100% 48%,100% 72%,0 72%,0 48%,35% 48%)!important;
+  transform:translate(-50%,18%)!important;
+}
+
+/* Direct-message modal: keep Close in the top-right chrome, away from the composer. */
+html body #modal:has(#social-dm-box) .modal{
+  position:relative!important;
+}
+
+html body #modal:has(#social-dm-box) #modal-acts,
+html body #modal:has(#social-dm-box) .modal-acts{
+  position:absolute!important;
+  top:1rem!important;
+  right:1.05rem!important;
+  z-index:12!important;
+  margin:0!important;
+  padding:0!important;
+  height:auto!important;
+  min-height:0!important;
+  display:flex!important;
+  justify-content:flex-end!important;
+  pointer-events:auto!important;
+}
+
+html body #modal:has(#social-dm-box) #modal-acts .btn,
+html body #modal:has(#social-dm-box) .modal-acts .btn{
+  min-width:74px!important;
+  min-height:30px!important;
+  height:30px!important;
+  padding:.34rem .74rem!important;
+}
+
 /* Final Complete All Missions icon: one clear star, no stacked fallback glyphs. */
 html body #mission-control-window .dc-bonus-row .dc-icon{
   position:relative!important;
@@ -17767,4 +18309,1056 @@ html body #online-improvisor-reaction-root .reaction-waiting-bar span{
   html body #online-improvisor-reaction-root .reaction-prompt{
     font-size:.8rem!important;
   }
+}
+
+/* Screenshot polish: unclipped First Victory icon, higher DM composer, no friend-row left rail. */
+html body #mission-control-window #mission-window-daily-container .dc-icon-victory{
+  position:relative!important;
+  width:22px!important;
+  height:22px!important;
+  overflow:visible!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon-victory::before{
+  content:''!important;
+  position:absolute!important;
+  left:5px!important;
+  top:5px!important;
+  width:12px!important;
+  height:7px!important;
+  border-left:2px solid currentColor!important;
+  border-right:2px solid currentColor!important;
+  border-bottom:2px solid currentColor!important;
+  border-top:0!important;
+  border-radius:0 0 6px 6px!important;
+  transform:none!important;
+  box-sizing:border-box!important;
+}
+
+html body #mission-control-window #mission-window-daily-container .dc-icon-victory::after{
+  content:''!important;
+  position:absolute!important;
+  left:8px!important;
+  top:12px!important;
+  width:6px!important;
+  height:5px!important;
+  border-left:2px solid currentColor!important;
+  border-right:2px solid currentColor!important;
+  border-bottom:2px solid currentColor!important;
+  border-top:0!important;
+  background:transparent!important;
+  clip-path:none!important;
+  transform:none!important;
+  box-sizing:border-box!important;
+}
+
+html body #modal:has(#social-dm-box) .social-chat-input-row{
+  position:relative!important;
+  bottom:6px!important;
+}
+
+html body #s-social .social-friends-list-v20 .social-friend-row::before{
+  content:none!important;
+  display:none!important;
+}
+
+/* Henry square picker and profile avatar pixel nudges. */
+html body #modal .board-target-cell.is-square-target.is-empty{
+  border-color:rgba(166,135,236,.56)!important;
+  background:linear-gradient(145deg,rgba(38,24,70,.76),rgba(8,12,22,.82))!important;
+}
+
+html body #modal .board-target-square-mark{
+  width:100%!important;
+  height:100%!important;
+  border:1px dashed rgba(221,202,255,.42)!important;
+  background:
+    radial-gradient(circle at center,rgba(186,151,255,.22),rgba(10,12,23,.24) 62%),
+    linear-gradient(145deg,rgba(98,73,160,.26),rgba(22,31,48,.58))!important;
+  box-shadow:inset 0 0 18px rgba(142,108,224,.16)!important;
+}
+
+html body #modal .board-target-square-mark span{
+  opacity:.72!important;
+  color:rgba(235,225,255,.86)!important;
+  letter-spacing:.14em!important;
+}
+
+html body #modal .board-target-cell.is-square-target.is-selected .board-target-square-mark{
+  border-color:rgba(244,216,111,.82)!important;
+  background:
+    radial-gradient(circle at center,rgba(244,216,111,.22),rgba(25,19,45,.18) 64%),
+    linear-gradient(145deg,rgba(117,88,186,.34),rgba(20,33,54,.62))!important;
+}
+
+html body #modal :is(.online-profile-inspect-v19,.inspected-profile-stable) .profile-img-wrap{
+  transform:translateX(6px)!important;
+}
+
+html body #modal .title-profile-modal-v2:not(.inspected-profile-stable):not(.online-profile-inspect-v19) .profile-img-wrap{
+  transform:translate(3px,2px)!important;
+}
+
+/* Codex 2026-07-14: raise the standalone title profile badge frame and portrait together. */
+html body #s-title #title-profile .tp-pic{
+  transform:translateY(-2px)!important;
+}
+
+html body #s-title #title-profile .tp-pic img{
+  position:relative!important;
+  top:0!important;
+  height:100%!important;
+}
+
+/* Codex 2026-07-14: nudge only the user's own profile-tab portrait crop. */
+html body #modal .title-profile-modal-v2:not(.inspected-profile-stable):not(.online-profile-inspect-v19) .profile-img-wrap img{
+  position:relative!important;
+  left:-6px!important;
+  top:-10px!important;
+  width:calc(100% + 12px)!important;
+  height:calc(100% + 20px)!important;
+  transform:translate(6px,-10px)!important;
+  object-fit:cover!important;
+  object-position:center 20%!important;
+}
+
+/* Codex 2026-07-14: draw-to-hand fallback polish and final profile portrait positioning. */
+html body .draw-fly-card{
+  overflow:visible!important;
+  border:1px solid rgba(255,224,118,.62)!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.54),0 0 12px rgba(236,203,101,.18)!important;
+  animation:cardDrawRiseIntoHand .68s cubic-bezier(.18,.82,.20,1) both!important;
+  transform-origin:50% 88%!important;
+}
+
+@keyframes cardDrawRiseIntoHand{
+  0%{opacity:0;transform:translate3d(0,0,0) scale(.70) rotate(-7deg);}
+  16%{opacity:1;transform:translate3d(calc(var(--dx) * .10),calc(var(--dy) * .08 - 26px),0) scale(.91) rotate(-4deg);}
+  56%{opacity:1;transform:translate3d(calc(var(--dx) * .66),calc(var(--dy) * .58 - 52px),0) scale(.99) rotate(2deg);}
+  84%{opacity:.9;transform:translate3d(calc(var(--dx) * .94),calc(var(--dy) - 38px),0) scale(.92) rotate(.6deg);}
+  100%{opacity:0;transform:translate3d(var(--dx),calc(var(--dy) - 28px),0) scale(.86) rotate(0);}
+}
+
+html body #modal .title-profile-modal-v2:not(.inspected-profile-stable):not(.online-profile-inspect-v19) .profile-img-wrap{
+  margin:0 auto!important;
+  transform:translate(6px,-10px)!important;
+}
+
+html body #modal :is(.online-profile-inspect-v19,.inspected-profile-stable,.social-profile-inspect) .profile-img-wrap{
+  margin:0 auto!important;
+  transform:translateX(6px)!important;
+}
+
+html body #modal .title-profile-modal-v2:not(.inspected-profile-stable):not(.online-profile-inspect-v19) .profile-img-wrap img{
+  position:static!important;
+  left:auto!important;
+  top:auto!important;
+  width:100%!important;
+  height:100%!important;
+  transform:none!important;
+  object-fit:cover!important;
+  object-position:center 20%!important;
+}
+
+/* Codex 2026-07-14: in-match rank badges wrap only long opponent/player rank names. */
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge{
+  width:155px!important;
+  min-width:0!important;
+  max-width:calc(100% - 7px)!important;
+  min-height:35px!important;
+  justify-content:flex-start!important;
+  gap:.24rem!important;
+  padding:.15rem .42rem!important;
+  padding-right:.46rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long,
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong{
+  align-items:center!important;
+  min-height:36px!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon{
+  width:28px!important;
+  height:28px!important;
+  flex:0 0 28px!important;
+  margin-right:0!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon .rank-icon-img,
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon img{
+  width:28px!important;
+  height:28px!important;
+  max-width:none!important;
+  max-height:none!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label{
+  flex:1 1 0!important;
+  display:block!important;
+  min-width:0!important;
+  width:auto!important;
+  max-width:none!important;
+  line-height:1!important;
+  letter-spacing:.01em!important;
+  text-align:center!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-short .rank-badge-label{
+  font-size:.82rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-medium .rank-badge-label{
+  font-size:.74rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label,
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label,
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label.rank-badge-label-long{
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  max-width:none!important;
+  line-height:1.02!important;
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  hyphens:manual!important;
+  text-align:center!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label{
+  font-size:.66rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label{
+  font-size:.58rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line{
+  width:155px!important;
+  min-width:0!important;
+  max-width:calc(100% - 7px)!important;
+  justify-content:flex-start!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:1 1 0!important;
+  text-align:center!important;
+  width:auto!important;
+  max-width:none!important;
+  line-height:.9!important;
+  font-size:.68rem!important;
+}
+
+html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-line{
+  display:block!important;
+  width:max-content!important;
+  max-width:100%!important;
+  text-align:center!important;
+  align-self:center!important;
+}
+
+/* Opponent found overlay: compact horizontal match badge, scoped away from shared rank badges. */
+html body #opponent-found-overlay.opp-found-overlay{
+  background:rgba(0,0,0,.64)!important;
+  backdrop-filter:blur(7px) saturate(.78)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card{
+  position:relative!important;
+  width:486px!important;
+  min-height:246px!important;
+  padding:1.05rem 1.1rem 1rem!important;
+  display:grid!important;
+  grid-template-columns:148px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto auto auto!important;
+  column-gap:1rem!important;
+  row-gap:.34rem!important;
+  align-items:center!important;
+  text-align:left!important;
+  overflow:hidden!important;
+  border-radius:7px!important;
+  border:1px solid rgba(226,198,96,.5)!important;
+  outline:1px solid rgba(226,198,96,.18)!important;
+  outline-offset:4px!important;
+  background:
+    linear-gradient(90deg,rgba(18,24,36,.99),rgba(8,12,20,.99) 44%,rgba(5,8,15,.99)),
+    rgba(7,10,18,.99)!important;
+  box-shadow:
+    0 24px 72px rgba(0,0,0,.72),
+    inset 0 1px 0 rgba(255,239,176,.08),
+    inset 0 0 0 1px rgba(255,239,176,.035)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  background:
+    linear-gradient(90deg,rgba(226,198,96,.2),transparent 1px) 10px 10px/1px calc(100% - 20px) no-repeat,
+    linear-gradient(90deg,transparent,rgba(226,198,96,.11),transparent),
+    radial-gradient(circle at 29% 18%,rgba(226,198,96,.12),transparent 34%)!important;
+  opacity:.95!important;
+}
+
+html body #opponent-found-overlay .ai-found-label{
+  position:relative!important;
+  grid-column:1 / -1!important;
+  margin:0 0 .18rem!important;
+  padding-bottom:.52rem!important;
+  border-bottom:1px solid rgba(226,198,96,.18)!important;
+  color:rgba(145,163,215,.72)!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.24em!important;
+  text-align:center!important;
+}
+
+html body #opponent-found-overlay .ai-found-pic{
+  position:relative!important;
+  grid-column:1!important;
+  grid-row:2 / 6!important;
+  width:148px!important;
+  height:148px!important;
+  margin:0!important;
+  border-radius:6px!important;
+  border:1px solid rgba(226,198,96,.68)!important;
+  outline:1px solid rgba(5,7,12,.92)!important;
+  outline-offset:-3px!important;
+  background:#070b13!important;
+  box-shadow:0 12px 26px rgba(0,0,0,.5),0 0 18px rgba(226,198,96,.12)!important;
+}
+
+html body #opponent-found-overlay .ai-found-pic img{
+  object-position:center 24%!important;
+}
+
+html body #opponent-found-overlay .ai-found-name{
+  position:relative!important;
+  grid-column:2!important;
+  grid-row:2!important;
+  max-width:100%!important;
+  margin:0!important;
+  color:#ead36e!important;
+  font-size:1.18rem!important;
+  line-height:1.04!important;
+  letter-spacing:.025em!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  text-align:left!important;
+}
+
+html body #opponent-found-overlay .ai-found-name + div{
+  position:relative!important;
+  grid-column:2!important;
+  grid-row:3!important;
+  margin:.08rem 0 0!important;
+  line-height:1!important;
+  text-align:left!important;
+}
+
+html body #opponent-found-overlay .rank-badge{
+  max-width:246px!important;
+}
+
+html body #opponent-found-overlay .rank-badge-label{
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #opponent-found-overlay .ai-found-elo{
+  position:relative!important;
+  grid-column:2!important;
+  grid-row:4!important;
+  margin:.16rem 0 0!important;
+  transform:translateY(2px)!important;
+  color:rgba(242,237,217,.86)!important;
+  font-size:.8rem!important;
+  line-height:1!important;
+  letter-spacing:.035em!important;
+  text-align:left!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats{
+  position:relative!important;
+  grid-column:2!important;
+  grid-row:5!important;
+  width:220px!important;
+  margin:.38rem 0 0!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:.5rem!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats > div{
+  justify-content:center!important;
+  min-height:28px!important;
+  padding:.22rem .36rem!important;
+  border:1px solid rgba(226,198,96,.2)!important;
+  border-radius:4px!important;
+  background:linear-gradient(180deg,rgba(15,20,31,.68),rgba(2,5,10,.58))!important;
+}
+
+html body #opponent-found-overlay .ai-found-w,
+html body #opponent-found-overlay .ai-found-l{
+  font-size:1rem!important;
+  line-height:1!important;
+}
+
+html body #opponent-found-overlay .ai-found-lbl{
+  font-size:.56rem!important;
+  letter-spacing:.08em!important;
+}
+
+html body #opponent-found-overlay .ai-found-btn{
+  position:relative!important;
+  grid-column:1 / -1!important;
+  justify-self:center!important;
+  min-width:150px!important;
+  height:30px!important;
+  margin-top:.68rem!important;
+  border-radius:3px!important;
+}
+
+@media(max-width:620px){
+  html body #opponent-found-overlay .ai-found-card{
+    width:min(88vw,360px)!important;
+    grid-template-columns:1fr!important;
+    text-align:center!important;
+  }
+
+  html body #opponent-found-overlay .ai-found-pic,
+  html body #opponent-found-overlay .ai-found-name,
+  html body #opponent-found-overlay .ai-found-name + div,
+  html body #opponent-found-overlay .ai-found-elo,
+  html body #opponent-found-overlay .ai-found-stats{
+    grid-column:1!important;
+    grid-row:auto!important;
+    justify-self:center!important;
+    text-align:center!important;
+  }
+}
+
+/* Opponent found overlay v2: centered dossier badge, scoped only to the confirmation popup. */
+html body #opponent-found-overlay.opp-found-overlay{
+  background:rgba(0,0,0,.66)!important;
+  backdrop-filter:blur(8px) saturate(.74)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card{
+  width:376px!important;
+  min-height:432px!important;
+  padding:1.16rem 1.25rem 1.08rem!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:.48rem!important;
+  text-align:center!important;
+  border-radius:7px!important;
+  border:1px solid rgba(229,199,93,.58)!important;
+  outline:1px solid rgba(229,199,93,.18)!important;
+  outline-offset:4px!important;
+  background:
+    linear-gradient(180deg,rgba(15,20,31,.985),rgba(7,10,18,.99) 58%,rgba(4,6,12,.995)),
+    rgba(7,10,18,.99)!important;
+  box-shadow:0 24px 74px rgba(0,0,0,.76),inset 0 1px 0 rgba(255,239,176,.08),inset 0 0 0 1px rgba(255,239,176,.035)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::before{
+  content:''!important;
+  position:absolute!important;
+  inset:10px!important;
+  border:1px solid rgba(229,199,93,.18)!important;
+  border-radius:4px!important;
+  pointer-events:none!important;
+  background:radial-gradient(circle at 50% 0%,rgba(229,199,93,.1),transparent 42%)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::after{
+  content:''!important;
+  position:absolute!important;
+  left:24px!important;
+  right:24px!important;
+  top:48px!important;
+  height:1px!important;
+  pointer-events:none!important;
+  background:linear-gradient(90deg,transparent,rgba(229,199,93,.38),transparent)!important;
+}
+
+html body #opponent-found-overlay .ai-found-label{
+  width:100%!important;
+  margin:0 0 .2rem!important;
+  padding:0 0 .62rem!important;
+  border:0!important;
+  color:rgba(146,164,214,.76)!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.24em!important;
+  text-align:center!important;
+}
+
+html body #opponent-found-overlay .ai-found-pic{
+  width:136px!important;
+  height:136px!important;
+  margin:.04rem auto .18rem!important;
+  border-radius:6px!important;
+  border:1px solid rgba(229,199,93,.72)!important;
+  outline:1px solid rgba(5,7,12,.94)!important;
+  outline-offset:-3px!important;
+  box-shadow:0 12px 26px rgba(0,0,0,.54),0 0 18px rgba(229,199,93,.12)!important;
+}
+
+html body #opponent-found-overlay .ai-found-name{
+  width:100%!important;
+  max-width:310px!important;
+  margin:.04rem auto 0!important;
+  color:#ead36e!important;
+  font-size:1.28rem!important;
+  line-height:1.04!important;
+  letter-spacing:.025em!important;
+  text-align:center!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+
+html body #opponent-found-overlay .ai-found-name + div{
+  margin:.04rem auto .02rem!important;
+  text-align:center!important;
+  line-height:1!important;
+}
+
+html body #opponent-found-overlay .rank-badge{
+  max-width:286px!important;
+}
+
+html body #opponent-found-overlay .rank-badge-label{
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+html body #opponent-found-overlay .ai-found-elo{
+  margin:.16rem 0 .06rem!important;
+  transform:translateY(3px)!important;
+  color:rgba(242,237,217,.86)!important;
+  font-size:.82rem!important;
+  line-height:1!important;
+  letter-spacing:.04em!important;
+  text-align:center!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats{
+  width:214px!important;
+  margin:.34rem auto .04rem!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:.48rem!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats > div{
+  min-height:29px!important;
+  justify-content:center!important;
+  padding:.24rem .36rem!important;
+  border:1px solid rgba(229,199,93,.2)!important;
+  border-radius:4px!important;
+  background:linear-gradient(180deg,rgba(15,20,31,.72),rgba(2,5,10,.58))!important;
+}
+
+html body #opponent-found-overlay .ai-found-btn{
+  min-width:154px!important;
+  height:31px!important;
+  margin-top:.58rem!important;
+}
+
+/* Opponent found overlay v3: wide confirmation plate. Keep scoped to this popup only. */
+html body #opponent-found-overlay.opp-found-overlay{
+  background:rgba(0,0,0,.67)!important;
+  backdrop-filter:blur(8px) saturate(.76)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card{
+  width:512px!important;
+  min-height:282px!important;
+  padding:1.06rem 1.16rem 1rem!important;
+  display:grid!important;
+  grid-template-columns:154px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto auto auto!important;
+  column-gap:1.04rem!important;
+  row-gap:.34rem!important;
+  align-items:center!important;
+  text-align:left!important;
+  border-radius:7px!important;
+  border:1px solid rgba(229,199,93,.56)!important;
+  outline:1px solid rgba(229,199,93,.18)!important;
+  outline-offset:4px!important;
+  background:
+    linear-gradient(90deg,rgba(15,20,31,.99),rgba(8,12,20,.99) 44%,rgba(5,8,14,.995)),
+    rgba(7,10,18,.99)!important;
+  box-shadow:0 24px 74px rgba(0,0,0,.76),inset 0 1px 0 rgba(255,239,176,.08),inset 0 0 0 1px rgba(255,239,176,.035)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::before{
+  content:''!important;
+  position:absolute!important;
+  inset:10px!important;
+  pointer-events:none!important;
+  border:1px solid rgba(229,199,93,.16)!important;
+  border-radius:4px!important;
+  background:linear-gradient(90deg,rgba(229,199,93,.08),transparent 32%,rgba(128,158,220,.055))!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::after{
+  content:''!important;
+  position:absolute!important;
+  left:181px!important;
+  top:58px!important;
+  bottom:54px!important;
+  width:1px!important;
+  pointer-events:none!important;
+  background:linear-gradient(180deg,transparent,rgba(229,199,93,.34),transparent)!important;
+}
+
+html body #opponent-found-overlay .ai-found-label{
+  grid-column:1 / -1!important;
+  grid-row:1!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0 0 .58rem!important;
+  border:0!important;
+  color:rgba(146,164,214,.78)!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.24em!important;
+  text-align:center!important;
+}
+
+html body #opponent-found-overlay .ai-found-pic{
+  grid-column:1!important;
+  grid-row:2 / 6!important;
+  width:154px!important;
+  height:154px!important;
+  margin:0!important;
+  border-radius:6px!important;
+  border:1px solid rgba(229,199,93,.72)!important;
+  outline:1px solid rgba(5,7,12,.94)!important;
+  outline-offset:-3px!important;
+  box-shadow:0 12px 26px rgba(0,0,0,.54),0 0 18px rgba(229,199,93,.12)!important;
+}
+
+html body #opponent-found-overlay .ai-found-name{
+  grid-column:2!important;
+  grid-row:2!important;
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+  color:#ead36e!important;
+  font-size:1.26rem!important;
+  line-height:1.06!important;
+  letter-spacing:.025em!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+
+html body #opponent-found-overlay .ai-found-name + div{
+  grid-column:2!important;
+  grid-row:3!important;
+  margin:.02rem 0 0!important;
+  text-align:left!important;
+  line-height:1!important;
+}
+
+html body #opponent-found-overlay .rank-badge{
+  max-width:278px!important;
+}
+
+html body #opponent-found-overlay .ai-found-elo{
+  grid-column:2!important;
+  grid-row:4!important;
+  justify-self:start!important;
+  margin:.16rem 0 0!important;
+  transform:none!important;
+  color:rgba(242,237,217,.86)!important;
+  font-size:.82rem!important;
+  line-height:1!important;
+  letter-spacing:.04em!important;
+  text-align:left!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats{
+  grid-column:2!important;
+  grid-row:5!important;
+  width:214px!important;
+  margin:.18rem 0 0!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:.5rem!important;
+}
+
+html body #opponent-found-overlay .ai-found-btn{
+  grid-column:1 / -1!important;
+  grid-row:6!important;
+  justify-self:center!important;
+  min-width:156px!important;
+  height:31px!important;
+  margin-top:.7rem!important;
+}
+
+@media(max-width:620px){
+  html body #opponent-found-overlay .ai-found-card{
+    width:min(88vw,370px)!important;
+    grid-template-columns:1fr!important;
+    text-align:center!important;
+  }
+
+  html body #opponent-found-overlay .ai-found-card::after{
+    display:none!important;
+  }
+
+  html body #opponent-found-overlay .ai-found-pic,
+  html body #opponent-found-overlay .ai-found-name,
+  html body #opponent-found-overlay .ai-found-name + div,
+  html body #opponent-found-overlay .ai-found-elo,
+  html body #opponent-found-overlay .ai-found-stats{
+    grid-column:1!important;
+    grid-row:auto!important;
+    justify-self:center!important;
+    text-align:center!important;
+  }
+}
+
+/* Final scoped match-only rank badge tuning. Do not share with menus or matchup screens. */
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge{
+  width:155px!important;
+  min-width:0!important;
+  max-width:calc(100% - 7px)!important;
+  min-height:35px!important;
+  padding:.12rem .36rem!important;
+  gap:.18rem!important;
+  justify-content:flex-start!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  flex:0 0 30px!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon .rank-icon-img,
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon img{
+  width:30px!important;
+  height:30px!important;
+  max-width:none!important;
+  max-height:none!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:1 1 0!important;
+  min-width:0!important;
+  width:100%!important;
+  max-width:none!important;
+  line-height:1!important;
+  letter-spacing:.01em!important;
+  text-align:center!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-short .rank-badge-label{
+  font-size:.98rem!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-medium .rank-badge-label{
+  font-size:.88rem!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label{
+  font-size:.78rem!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label{
+  font-size:.69rem!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:1 1 0!important;
+  min-width:0!important;
+  width:100%!important;
+  max-width:none!important;
+  line-height:.88!important;
+  font-size:.8rem!important;
+  text-align:center!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-line{
+  display:block!important;
+  width:max-content!important;
+  max-width:100%!important;
+  text-align:center!important;
+  align-self:center!important;
+}
+
+/* Opponent found overlay v4: larger modern confirmation card. */
+html body #opponent-found-overlay.opp-found-overlay{
+  background:rgba(0,0,0,.7)!important;
+  backdrop-filter:blur(10px) saturate(.72)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card{
+  width:410px!important;
+  min-height:390px!important;
+  padding:1.05rem 1.18rem 1.08rem!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:auto auto auto auto auto auto!important;
+  justify-items:center!important;
+  align-items:center!important;
+  gap:.34rem!important;
+  text-align:center!important;
+  overflow:hidden!important;
+  border-radius:6px!important;
+  border:1px solid rgba(229,199,93,.62)!important;
+  outline:1px solid rgba(229,199,93,.2)!important;
+  outline-offset:4px!important;
+  background:linear-gradient(180deg,rgba(15,20,32,.99),rgba(7,10,18,.99) 58%,rgba(4,6,12,.995))!important;
+  box-shadow:0 26px 76px rgba(0,0,0,.78),inset 0 1px 0 rgba(255,239,176,.09),inset 0 0 0 1px rgba(255,239,176,.04)!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::before{
+  content:''!important;
+  position:absolute!important;
+  inset:10px!important;
+  border:1px solid rgba(229,199,93,.18)!important;
+  border-radius:4px!important;
+  pointer-events:none!important;
+  background:none!important;
+}
+
+html body #opponent-found-overlay .ai-found-card::after{
+  content:''!important;
+  position:absolute!important;
+  left:34px!important;
+  right:34px!important;
+  top:50px!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(229,199,93,.4),transparent)!important;
+  pointer-events:none!important;
+}
+
+html body #opponent-found-overlay .ai-found-label{
+  grid-column:1!important;
+  grid-row:auto!important;
+  width:100%!important;
+  margin:0 0 .16rem!important;
+  padding-bottom:.52rem!important;
+  border:0!important;
+  color:rgba(146,164,214,.8)!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.24em!important;
+  text-align:center!important;
+  transform:translateY(4px)!important;
+}
+
+html body #opponent-found-overlay .ai-found-pic{
+  grid-column:1!important;
+  grid-row:auto!important;
+  width:136px!important;
+  height:136px!important;
+  margin:.02rem auto .12rem!important;
+  border-radius:6px!important;
+  border:1px solid rgba(229,199,93,.75)!important;
+  outline:1px solid rgba(5,7,12,.95)!important;
+  outline-offset:-3px!important;
+  box-shadow:0 13px 28px rgba(0,0,0,.56)!important;
+}
+
+html body #opponent-found-overlay .ai-found-name{
+  grid-column:1!important;
+  grid-row:auto!important;
+  width:100%!important;
+  max-width:340px!important;
+  margin:.02rem auto 0!important;
+  color:#ead36e!important;
+  font-size:1.32rem!important;
+  line-height:1.04!important;
+  letter-spacing:.025em!important;
+  text-align:center!important;
+  white-space:normal!important;
+}
+
+html body #opponent-found-overlay .ai-found-name + div{
+  grid-column:1!important;
+  grid-row:auto!important;
+  margin:.04rem auto 0!important;
+  text-align:center!important;
+  line-height:1!important;
+}
+
+html body #opponent-found-overlay .rank-badge{
+  max-width:308px!important;
+}
+
+html body #opponent-found-overlay .ai-found-elo{
+  grid-column:1!important;
+  grid-row:auto!important;
+  justify-self:center!important;
+  margin:.14rem 0 .02rem!important;
+  transform:translateY(2px)!important;
+  color:rgba(242,237,217,.86)!important;
+  font-size:.78rem!important;
+  line-height:1!important;
+  letter-spacing:.04em!important;
+  text-align:center!important;
+}
+
+html body #opponent-found-overlay .ai-found-stats{
+  grid-column:1!important;
+  grid-row:auto!important;
+  width:232px!important;
+  margin:.25rem auto .02rem!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:.5rem!important;
+}
+
+html body #opponent-found-overlay .ai-found-w,
+html body #opponent-found-overlay .ai-found-l{
+  display:inline-block!important;
+  transform:translateY(2px)!important;
+}
+
+
+html body #opponent-found-overlay .ai-found-btn{
+  grid-column:1!important;
+  grid-row:auto!important;
+  justify-self:center!important;
+  min-width:160px!important;
+  height:31px!important;
+  margin-top:.42rem!important;
+}
+
+/* Live-match side panel rank badge adaptive v2. */
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2{
+  gap:var(--rank-fit-gap,.12rem)!important;
+  transform:translateX(var(--rank-fit-badge-shift,0px))!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon{
+  transform:none!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-img,
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon img{
+  transform:translateX(var(--rank-fit-icon-shift,0px)) translateZ(0)!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-4{
+  transform:translateX(var(--rank-fit-icon-shift,0px)) translateZ(0) scale(1.12)!important;
+}
+
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label,
+html body #s-game .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label-two-line{
+  font-size:var(--rank-fit-font,.86rem)!important;
+  line-height:var(--rank-fit-line-height,1)!important;
+  transform:translateX(var(--rank-fit-label-shift,0px))!important;
+}
+
+/* Global button cleanup: remove decorative horizontal line/sheen strokes from game buttons. */
+html body .btn::before,
+html body .btn::after,
+html body #s-game .icon-btn::before,
+html body #s-game .icon-btn::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+
+/* Global button cleanup v2: cover non-.btn button skins that draw their own line layers. */
+html body .title-btn::before,
+html body .title-btn::after,
+html body .online-dm-button::before,
+html body .online-dm-button::after,
+html body .btn-overwrite-preset::before,
+html body .btn-overwrite-preset::after,
+html body button[onclick="cdbOverwriteDeck()"]::before,
+html body button[onclick="cdbOverwriteDeck()"]::after,
+html body #s-game #btn-end-turn::before,
+html body #s-game .actbar #btn-end-turn::before,
+html body #s-challenger .ch-tab::before,
+html body #s-challenger .ch-tab::after,
+html body #s-challenger .ch-play-choice::before,
+html body #s-challenger .ch-play-choice::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+/* Reaction choice polish: keep hover glows inside the scroll gutter and make negate labels feel intentional. */
+html body #modal .modal.reaction-choice-modal{
+  overflow:hidden!important;
+}
+
+html body #modal .modal.reaction-choice-modal #modal-body{
+  overflow:visible!important;
+}
+
+html body #modal .reaction-choice-grid,
+html body #online-improvisor-reaction-root .reaction-choice-grid{
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:5px 8px 6px 5px!important;
+  margin:-5px -8px -6px -5px!important;
+  gap:.58rem!important;
+}
+
+html body #modal .reaction-choice-card,
+html body #online-improvisor-reaction-root .reaction-choice-card{
+  position:relative!important;
+  z-index:0!important;
+  overflow:visible!important;
+}
+
+html body #modal .reaction-choice-card:hover,
+html body #modal .reaction-choice-card:focus-visible,
+html body #online-improvisor-reaction-root .reaction-choice-card:hover,
+html body #online-improvisor-reaction-root .reaction-choice-card:focus-visible{
+  z-index:2!important;
+  box-shadow:0 10px 22px rgba(0,0,0,.38),0 0 0 1px rgba(255,229,140,.32),0 0 18px rgba(232,196,82,.18),inset 0 0 0 1px rgba(255,255,255,.06)!important;
+}
+
+html body #modal .reaction-choice-copy em,
+html body #online-improvisor-reaction-root .reaction-choice-copy em{
+  color:#e9ddad!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  font-weight:700!important;
+  letter-spacing:.045em!important;
+  line-height:1.24!important;
+  text-transform:none!important;
+  text-shadow:0 1px 8px rgba(232,196,82,.16)!important;
+}
+
+html body #modal .reaction-choice-copy em::first-letter,
+html body #online-improvisor-reaction-root .reaction-choice-copy em::first-letter{
+  color:#ffe58c!important;
 }

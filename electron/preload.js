@@ -30,6 +30,37 @@ contextBridge.exposeInMainWorld('FateElectronDiagnostics', {
   }
 });
 
+contextBridge.exposeInMainWorld('FateElectronAuthBridge', {
+  beginGoogleSignIn(options) {
+    return ipcRenderer.invoke('fate:begin-external-google-signin', options || {});
+  }
+});
+
+contextBridge.exposeInMainWorld('FateDesktopUpdater', {
+  getState() {
+    return ipcRenderer.invoke('fate:desktop-update-get-state');
+  },
+  check() {
+    return ipcRenderer.invoke('fate:desktop-update-check');
+  },
+  download() {
+    return ipcRenderer.invoke('fate:desktop-update-download');
+  },
+  install() {
+    return ipcRenderer.invoke('fate:desktop-update-install');
+  },
+  onState(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, state) => callback(state);
+    ipcRenderer.on('fate:desktop-update-state', listener);
+    return () => ipcRenderer.removeListener('fate:desktop-update-state', listener);
+  }
+});
+
+ipcRenderer.on('fate:desktop-window-shown', () => {
+  window.dispatchEvent(new Event('fate-desktop-window-shown'));
+});
+
 setTimeout(() => {
   ipcRenderer.invoke('fate:append-ui-minute-log', {
     type: 'preload-ready',

@@ -7,6 +7,38 @@ let _tutorialArrowEls = [];
 let _tutorialActionLog = [];
 let _tutorialPaused = false;
 let _tutorialBannerTimer = null;
+let _tutorialVideoIndex = 0;
+let _tutorialVideoKeydownHandler = null;
+
+const TUTORIAL_VIDEO_MODULES = [
+  {
+    title: 'Module 1: Objectives and Basics',
+    src: 'tutorialvideos/1.webm',
+    description: 'Introducing the objectives and basics of the card game.'
+  },
+  {
+    title: 'Module 2: Anatomy of a Card',
+    src: 'tutorialvideos/2.mp4',
+    description: 'Evaluating the structure of different card types in the game.'
+  },
+  {
+    title: 'Module 3: Gameplay Flow',
+    src: 'tutorialvideos/3.mp4',
+    description: 'Demonstrating consolidation, activating effects, and board placement in a mock game.'
+  },
+  {
+    title: 'Module 4: Introduction to the Starter Decks',
+    src: 'tutorialvideos/4.mp4',
+    description: 'A brief overview of each of the starter decks, reviewing their general strategy.'
+  }
+];
+
+const TUTORIAL_MODULE_DISPLAY_NAMES = [
+  'Objectives and Basics',
+  'Anatomy of a Card',
+  'Gameplay Flow',
+  'Introduction to the Starter Decks'
+];
 
 const TUTORIAL_FREE_WORLD_FALLBACK = [
   '77','77','77','29','29','29','13','13','13','01','01',
@@ -385,7 +417,611 @@ function tutorialOnTurnStart(player) {
   }, turnNo === 1 ? 450 : 250);
 }
 
+function escapeTutorialVideoHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
+function getTutorialIntroLandscape() {
+  const ids = ['igb1','igb2','igb3','igb4','igb5','igb6','igb7','igb8','igb9','igb10','igb11','igb12','igb13','igb14','igb15','igb16'];
+  const id = ids[Math.floor(Math.random() * ids.length)] || 'igb1';
+  const meta = typeof LANDSCAPES !== 'undefined' && LANDSCAPES && LANDSCAPES[id] ? LANDSCAPES[id] : null;
+  return {
+    id,
+    src: 'ingamebackgrouds/' + id + '.png?v=tutorialIntro20260715',
+    name: meta && meta.name ? meta.name : 'In-Game Landscape',
+    shortName: meta && meta.shortName ? meta.shortName : 'Landscape Preview',
+    description: meta && meta.description ? meta.description : 'Landscapes can change how a match is played.'
+  };
+}
+
+function injectTutorialVideoCSS() {
+  if(document.getElementById('tutorial-video-css')) return;
+  const style = document.createElement('style');
+  style.id = 'tutorial-video-css';
+  style.textContent = `
+    #tutorial-video-overlay{
+      position:fixed;
+      inset:0;
+      z-index:70000;
+      display:grid;
+      place-items:center;
+      padding:clamp(14px,2.5vw,34px);
+      background:radial-gradient(ellipse at 50% 18%,rgba(201,168,76,.18),transparent 44%),rgba(2,3,7,.82);
+      backdrop-filter:blur(7px);
+    }
+    .tutorial-video-shell{
+      width:min(1120px,100%);
+      max-height:min(92vh,840px);
+      display:grid;
+      grid-template-rows:auto minmax(0,1fr) auto;
+      gap:.85rem;
+      padding:1.05rem;
+      border:1px solid rgba(201,168,76,.48);
+      border-radius:8px;
+      background:linear-gradient(180deg,rgba(16,19,29,.97),rgba(5,6,11,.98));
+      box-shadow:0 28px 80px rgba(0,0,0,.7),inset 0 0 0 1px rgba(255,246,191,.06);
+      color:#f4ead3;
+      overflow:hidden;
+    }
+    .tutorial-video-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      min-width:0;
+      padding-bottom:.72rem;
+      border-bottom:1px solid rgba(201,168,76,.22);
+    }
+    .tutorial-video-kicker{
+      color:#bcb0c6;
+      font-family:'Cinzel',serif;
+      font-size:.62rem;
+      font-weight:800;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-title{
+      margin-top:.18rem;
+      color:var(--gold,#c9a84c);
+      font-family:'Cinzel',serif;
+      font-size:clamp(1rem,2.2vw,1.45rem);
+      letter-spacing:.1em;
+      text-transform:uppercase;
+      line-height:1.15;
+    }
+    .tutorial-video-close{
+      flex:0 0 auto;
+      min-width:40px!important;
+      width:40px;
+      height:40px;
+      padding:0!important;
+      border-radius:7px!important;
+      font-size:1.15rem!important;
+      line-height:1!important;
+    }
+    .tutorial-video-intro{
+      display:grid;
+      align-content:start;
+      gap:.72rem;
+      min-height:0;
+      padding:clamp(.78rem,1.8vw,1.18rem);
+      overflow:visible;
+    }
+    .tutorial-video-hero{
+      position:relative;
+      min-height:clamp(200px,25vh,260px);
+      display:grid;
+      align-items:end;
+      overflow:hidden;
+      border:1px solid rgba(201,168,76,.36);
+      border-radius:8px;
+      background:#05070d;
+      box-shadow:0 22px 54px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,246,191,.045);
+    }
+    .tutorial-video-hero-img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      filter:saturate(.96) contrast(1.05) brightness(.78);
+      transform:scale(1.015);
+    }
+    .tutorial-video-hero::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(90deg,rgba(4,5,9,.92),rgba(4,5,9,.52) 44%,rgba(4,5,9,.22)),
+        linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.7));
+      z-index:1;
+    }
+    .tutorial-video-hero::after{
+      content:"";
+      position:absolute;
+      inset:10px;
+      border:1px solid rgba(255,238,170,.18);
+      border-radius:5px;
+      z-index:2;
+      pointer-events:none;
+    }
+    .tutorial-video-hero-content{
+      position:relative;
+      z-index:3;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(310px,380px);
+      gap:1.08rem;
+      align-items:end;
+      padding:clamp(.95rem,2.4vw,1.28rem);
+    }
+    .tutorial-video-intro-copy{
+      min-width:0;
+      max-width:720px;
+      color:#eadfc5;
+      text-align:left;
+    }
+    .tutorial-video-intro-eyebrow{
+      color:#9fb9ff;
+      font-family:'Cinzel',serif;
+      font-size:.66rem;
+      font-weight:800;
+      letter-spacing:.2em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-intro-copy h3{
+      margin:.34rem 0 .44rem;
+      color:#fff2c4;
+      font-family:'Cinzel',serif;
+      font-size:clamp(1.34rem,3vw,2.35rem);
+      line-height:1.1;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-intro-copy p{
+      margin:0;
+      max-width:640px;
+      color:#dcd2bb;
+      font-size:.93rem;
+      line-height:1.48;
+    }
+    .tutorial-video-intro-copy b{color:#ffe28a;}
+    .tutorial-video-landscape-card{
+      display:grid;
+      align-content:center;
+      gap:.34rem;
+      min-height:96px;
+      padding:.72rem .88rem;
+      border:1px solid rgba(231,198,100,.42);
+      border-radius:7px;
+      background:
+        linear-gradient(180deg,rgba(9,11,18,.86),rgba(2,3,7,.9)),
+        linear-gradient(135deg,rgba(201,168,76,.12),rgba(76,112,170,.08));
+      box-shadow:0 16px 34px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,246,191,.055);
+    }
+    .tutorial-video-landscape-kicker{
+      color:#9fb9ff;
+      font-family:'Cinzel',serif;
+      font-size:.62rem;
+      font-weight:800;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-landscape-name{
+      color:#fff0bd;
+      font-family:'Cinzel',serif;
+      font-size:clamp(.94rem,1.08vw,1.04rem);
+      font-weight:900;
+      letter-spacing:.05em;
+      line-height:1.12;
+      text-transform:uppercase;
+    }
+    .tutorial-video-section-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:.75rem;
+      width:100%;
+      max-width:980px;
+      margin:.06rem auto -.14rem;
+      color:#cabd9e;
+      font-family:'Cinzel',serif;
+      font-size:.62rem;
+      font-weight:800;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-section-head::after{
+      content:"";
+      flex:1 1 auto;
+      height:1px;
+      background:linear-gradient(90deg,rgba(201,168,76,.34),transparent);
+    }
+    .tutorial-video-rules{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:.64rem;
+      width:100%;
+      max-width:980px;
+      margin:0 auto .05rem;
+    }
+    .tutorial-video-rule{
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr);
+      gap:.58rem;
+      align-items:start;
+      min-height:78px;
+      padding:.68rem .76rem;
+      border:1px solid rgba(201,168,76,.3);
+      border-radius:8px;
+      background:
+        linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02)),
+        linear-gradient(135deg,rgba(201,168,76,.08),rgba(42,66,108,.06));
+      box-shadow:0 10px 22px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,246,191,.035);
+    }
+    .tutorial-video-rule-mark{
+      display:grid;
+      place-items:center;
+      width:28px;
+      height:28px;
+      border:1px solid rgba(201,168,76,.48);
+      border-radius:50%;
+      color:#ffe28a;
+      font-family:'Cinzel',serif;
+      font-size:.72rem;
+      font-weight:900;
+      box-shadow:0 0 14px rgba(201,168,76,.16);
+    }
+    .tutorial-video-rule-copy b{
+      display:block;
+      color:#f8e6ad;
+      font-family:'Cinzel',serif;
+      font-size:.72rem;
+      letter-spacing:.08em;
+      line-height:1.2;
+      text-transform:uppercase;
+    }
+    .tutorial-video-rule-copy span{
+      display:block;
+      margin-top:.22rem;
+      color:#cfc4ae;
+      font-size:.78rem;
+      line-height:1.34;
+    }
+    .tutorial-video-module-list{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:.56rem .9rem;
+      width:100%;
+      max-width:940px;
+      margin:0 auto .62rem;
+    }
+    .tutorial-video-module-item{
+      position:relative;
+      min-height:72px;
+      display:flex;
+      align-items:center;
+      gap:.82rem;
+      padding:.68rem .72rem .68rem .58rem;
+      color:#dacfb7;
+      font-family:'Cinzel',serif;
+      overflow:hidden;
+    }
+    .tutorial-video-module-num{
+      position:relative;
+      z-index:1;
+      flex:0 0 34px;
+      width:34px;
+      height:34px;
+      display:grid;
+      align-content:center;
+      justify-content:center;
+      border:1px solid rgba(201,168,76,.48);
+      border-radius:50%;
+      background:
+        radial-gradient(circle at 50% 35%,rgba(255,226,138,.15),transparent 62%),
+        rgba(8,10,17,.92);
+      color:#ffe28a;
+      font-size:.72rem;
+      font-weight:900;
+      letter-spacing:.02em;
+      box-shadow:0 0 18px rgba(201,168,76,.12),inset 0 0 0 1px rgba(255,246,191,.04);
+    }
+    .tutorial-video-module-copy{
+      flex:1 1 auto;
+      min-width:0;
+      display:grid;
+      gap:.18rem;
+      min-height:54px;
+      align-content:center;
+      padding:.58rem .86rem;
+      border:1px solid rgba(201,168,76,.18);
+      border-radius:6px;
+      background:linear-gradient(90deg,rgba(18,21,31,.84),rgba(7,8,13,.28));
+      box-shadow:inset 0 1px 0 rgba(255,246,191,.035);
+    }
+    .tutorial-video-module-label{
+      color:#8fb6ff;
+      font-size:.5rem;
+      font-weight:800;
+      letter-spacing:.16em;
+      line-height:1;
+      text-transform:uppercase;
+      transform:translateY(-1px);
+    }
+    .tutorial-video-module-name{
+      color:#efe4c5;
+      font-size:clamp(.74rem,.86vw,.82rem);
+      font-weight:900;
+      letter-spacing:.045em;
+      text-transform:uppercase;
+      line-height:1.18;
+      transform:translateY(1px);
+    }
+    .tutorial-video-start-row{
+      display:flex;
+      justify-content:center;
+      padding:.02rem 0 .08rem;
+    }
+    .tutorial-video-player{
+      width:min(100%,1088px);
+      margin:0 auto;
+      display:grid;
+      gap:.72rem;
+      min-height:0;
+    }
+    .tutorial-video-frame-row{
+      display:grid;
+      grid-template-columns:48px minmax(0,960px) 48px;
+      align-items:center;
+      justify-content:center;
+      gap:.58rem;
+      width:100%;
+      min-height:0;
+    }
+    .tutorial-video-nav{
+      width:48px;
+      height:72px;
+      padding:0!important;
+      border-radius:7px!important;
+      font-size:2rem!important;
+      line-height:1!important;
+    }
+    #tutorial-video-prev{
+      transform:translateX(-10px);
+    }
+    .tutorial-video-stage{
+      min-width:0;
+      min-height:0;
+      display:grid;
+      gap:.72rem;
+    }
+    .tutorial-video-frame{
+      position:relative;
+      width:100%;
+      aspect-ratio:var(--tutorial-video-aspect, 16/9);
+      border:1px solid rgba(201,168,76,.36);
+      border-radius:8px;
+      background:#020307;
+      overflow:hidden;
+      box-shadow:0 18px 46px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,246,191,.045);
+    }
+    .tutorial-video-frame video{
+      display:block;
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      background:transparent;
+    }
+    .tutorial-video-meta{
+      display:grid;
+      justify-items:center;
+      gap:.34rem;
+      min-width:0;
+      max-width:760px;
+      margin:0 auto;
+      text-align:center;
+    }
+    .tutorial-video-desc{
+      color:#dcd2bb;
+      font-size:.94rem;
+      line-height:1.5;
+    }
+    .tutorial-video-count{
+      color:#b9acc4;
+      font-family:'Cinzel',serif;
+      font-size:.62rem;
+      font-weight:800;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+    }
+    .tutorial-video-dots{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:.46rem;
+      min-height:30px;
+    }
+    .tutorial-video-dots:empty{
+      display:none;
+      min-height:0;
+    }
+    .tutorial-video-dot{
+      width:10px;
+      height:10px;
+      padding:0;
+      border:1px solid rgba(201,168,76,.52);
+      border-radius:50%;
+      background:rgba(255,255,255,.08);
+      cursor:pointer;
+    }
+    .tutorial-video-dot.active{
+      background:#d8b85c;
+      box-shadow:0 0 14px rgba(201,168,76,.55);
+    }
+    @media(max-width:760px){
+      .tutorial-video-shell{padding:.82rem;max-height:96vh;}
+      .tutorial-video-hero{min-height:310px;}
+      .tutorial-video-hero-content{grid-template-columns:1fr;align-items:end;}
+      .tutorial-video-intro-copy{text-align:left;}
+      .tutorial-video-player{gap:.5rem;}
+      .tutorial-video-frame-row{grid-template-columns:40px minmax(0,1fr) 40px;gap:.5rem;}
+      .tutorial-video-nav{width:40px;height:56px;font-size:1.55rem!important;}
+      .tutorial-video-rules{grid-template-columns:1fr;}
+      .tutorial-video-module-list{grid-template-columns:1fr;gap:.32rem;}
+      .tutorial-video-meta{display:grid;gap:.35rem;}
+      .tutorial-video-count{justify-self:center;}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function closeTutorialVideoPlayer() {
+  const overlay = document.getElementById('tutorial-video-overlay');
+  if(overlay) {
+    const video = overlay.querySelector('video');
+    if(video) {
+      try { video.pause(); } catch(e) {}
+      video.removeAttribute('src');
+      try { video.load(); } catch(e) {}
+    }
+    overlay.remove();
+  }
+  if(_tutorialVideoKeydownHandler) {
+    document.removeEventListener('keydown', _tutorialVideoKeydownHandler);
+    _tutorialVideoKeydownHandler = null;
+  }
+}
+
+function showTutorialVideoIntro() {
+  injectTutorialVideoCSS();
+  closeTutorialVideoPlayer();
+  const landscape = getTutorialIntroLandscape();
+  const overlay = document.createElement('div');
+  overlay.id = 'tutorial-video-overlay';
+  overlay.innerHTML = `
+    <div class="tutorial-video-shell" role="dialog" aria-modal="true" aria-labelledby="tutorial-video-heading">
+      <div class="tutorial-video-top">
+        <div>
+          <div class="tutorial-video-kicker">Tutorial Videos</div>
+          <div class="tutorial-video-title" id="tutorial-video-heading">Learn Fates Entwined</div>
+        </div>
+        <button class="btn sm tutorial-video-close" id="tutorial-video-close" aria-label="Close tutorial">x</button>
+      </div>
+      <div class="tutorial-video-intro">
+        <div class="tutorial-video-hero">
+          <img class="tutorial-video-hero-img" src="${escapeTutorialVideoHtml(landscape.src)}" alt="">
+          <div class="tutorial-video-hero-content">
+            <div class="tutorial-video-intro-copy">
+              <div class="tutorial-video-intro-eyebrow">Four Module Primer</div>
+              <h3>Converge your Fate, control the board</h3>
+              <p><b>Fates Entwined</b> is won across three zones. Build pressure with Supporters, consolidate into stronger Characters, and use effects to swing the lanes that matter.</p>
+            </div>
+            <div class="tutorial-video-landscape-card">
+              <div class="tutorial-video-landscape-kicker">Landscape Preview</div>
+              <div class="tutorial-video-landscape-name">${escapeTutorialVideoHtml(landscape.name)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="tutorial-video-section-head">Match Rules</div>
+        <div class="tutorial-video-rules">
+          <div class="tutorial-video-rule">
+            <span class="tutorial-video-rule-mark">1</span>
+            <span class="tutorial-video-rule-copy"><b>Win Zones</b><span>Each zone compares Fate totals. Take more zones than your opponent.</span></span>
+          </div>
+          <div class="tutorial-video-rule">
+            <span class="tutorial-video-rule-mark">2</span>
+            <span class="tutorial-video-rule-copy"><b>Build Lanes</b><span>Supporters establish your board and become Reinforcement for Characters.</span></span>
+          </div>
+          <div class="tutorial-video-rule">
+            <span class="tutorial-video-rule-mark">3</span>
+            <span class="tutorial-video-rule-copy"><b>Choose Timing</b><span>Consolidation and effects turn small setups into winning positions.</span></span>
+          </div>
+        </div>
+        <div class="tutorial-video-section-head">Video Modules</div>
+        <div class="tutorial-video-module-list">
+      ${TUTORIAL_MODULE_DISPLAY_NAMES.map((name, idx) => `<div class="tutorial-video-module-item"><span class="tutorial-video-module-num">${idx + 1}</span><span class="tutorial-video-module-copy"><span class="tutorial-video-module-label">Module ${idx + 1}</span><span class="tutorial-video-module-name">${escapeTutorialVideoHtml(name)}</span></span></div>`).join('')}
+        </div>
+        <div class="tutorial-video-start-row">
+          <button class="btn pri" id="tutorial-video-start">Start Videos</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('tutorial-video-close').onclick = closeTutorialVideoPlayer;
+  document.getElementById('tutorial-video-start').onclick = function(){ renderTutorialVideoPlayer(0); };
+  _tutorialVideoKeydownHandler = function(ev) {
+    if(ev.key === 'Escape') closeTutorialVideoPlayer();
+    if(ev.key === 'Enter') renderTutorialVideoPlayer(0);
+  };
+  document.addEventListener('keydown', _tutorialVideoKeydownHandler);
+}
+
+function renderTutorialVideoPlayer(index) {
+  injectTutorialVideoCSS();
+  const bounded = Math.max(0, Math.min(TUTORIAL_VIDEO_MODULES.length - 1, Number(index) || 0));
+  _tutorialVideoIndex = bounded;
+  let overlay = document.getElementById('tutorial-video-overlay');
+  if(!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'tutorial-video-overlay';
+    document.body.appendChild(overlay);
+  }
+  const module = TUTORIAL_VIDEO_MODULES[_tutorialVideoIndex];
+  overlay.innerHTML = `
+    <div class="tutorial-video-shell" role="dialog" aria-modal="true" aria-labelledby="tutorial-video-heading">
+      <div class="tutorial-video-top">
+        <div>
+          <div class="tutorial-video-kicker">Tutorial Videos</div>
+          <div class="tutorial-video-title" id="tutorial-video-heading">${escapeTutorialVideoHtml(module.title)}</div>
+        </div>
+        <button class="btn sm tutorial-video-close" id="tutorial-video-close" aria-label="Close tutorial">x</button>
+      </div>
+      <div class="tutorial-video-player">
+        <div class="tutorial-video-frame-row">
+          <button class="btn sm tutorial-video-nav" id="tutorial-video-prev" aria-label="Previous tutorial video">&lt;</button>
+          <div class="tutorial-video-frame">
+            <video id="tutorial-video-el" src="${escapeTutorialVideoHtml(module.src)}" controls playsinline preload="metadata"></video>
+          </div>
+          <button class="btn sm tutorial-video-nav" id="tutorial-video-next" aria-label="Next tutorial video">&gt;</button>
+        </div>
+        <div class="tutorial-video-meta">
+          <div class="tutorial-video-desc">${escapeTutorialVideoHtml(module.description)}</div>
+          <div class="tutorial-video-count">${_tutorialVideoIndex + 1}/${TUTORIAL_VIDEO_MODULES.length}</div>
+        </div>
+      </div>
+      <div class="tutorial-video-dots">
+        ${TUTORIAL_VIDEO_MODULES.map((item, idx) => `<button class="tutorial-video-dot${idx === _tutorialVideoIndex ? ' active' : ''}" data-tutorial-video-dot="${idx}" aria-label="Open tutorial module ${idx + 1}"></button>`).join('')}
+      </div>
+    </div>`;
+
+  document.getElementById('tutorial-video-close').onclick = closeTutorialVideoPlayer;
+  document.getElementById('tutorial-video-prev').onclick = function(){ tutorialVideoStep(-1); };
+  document.getElementById('tutorial-video-next').onclick = function(){ tutorialVideoStep(1); };
+  overlay.querySelectorAll('[data-tutorial-video-dot]').forEach(function(dot){
+    dot.onclick = function(){ renderTutorialVideoPlayer(Number(dot.getAttribute('data-tutorial-video-dot')) || 0); };
+  });
+  if(_tutorialVideoKeydownHandler) document.removeEventListener('keydown', _tutorialVideoKeydownHandler);
+  _tutorialVideoKeydownHandler = function(ev) {
+    if(!document.getElementById('tutorial-video-overlay')) return;
+    if(ev.key === 'Escape') closeTutorialVideoPlayer();
+    else if(ev.key === 'ArrowLeft') tutorialVideoStep(-1);
+    else if(ev.key === 'ArrowRight') tutorialVideoStep(1);
+  };
+  document.addEventListener('keydown', _tutorialVideoKeydownHandler);
+}
+
+function tutorialVideoStep(delta) {
+  const next = (_tutorialVideoIndex + delta + TUTORIAL_VIDEO_MODULES.length) % TUTORIAL_VIDEO_MODULES.length;
+  renderTutorialVideoPlayer(next);
+}
+
 function startTutorial() {
+  showTutorialVideoIntro();
+}
+
+function startScriptedTutorial() {
   _tutorialActive = true;
   if(document.body) document.body.classList.add('tutorial-active');
   _tutorialSeenDialogues = {};
@@ -873,6 +1509,7 @@ async function runTutorialAITurn() {
 function dismissTutorial() {
   _tutorialActive = false;
   if(document.body) document.body.classList.remove('tutorial-active');
+  closeTutorialVideoPlayer();
   removeTutorialHint();
   clearTutorialHighlights();
   tutorialClearCardStructureCallouts();
@@ -887,7 +1524,9 @@ function dismissTutorial() {
 }
 
 window.startTutorial = startTutorial;
+window.startScriptedTutorial = startScriptedTutorial;
 window.dismissTutorial = dismissTutorial;
+window.closeTutorialVideoPlayer = closeTutorialVideoPlayer;
 window.tutorialEvent = tutorialEvent;
 window.tutorialOnTurnStart = tutorialOnTurnStart;
 window.tutorialCanSelectHandCard = tutorialCanSelectHandCard;

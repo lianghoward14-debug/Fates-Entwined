@@ -10170,6 +10170,35 @@ input[type="range"]::-moz-range-progress {
 .rank-badge.rank-lg.rank-badge-medium .rank-badge-label{font-size:.92rem!important;}
 .rank-badge.rank-lg.rank-badge-long .rank-badge-label{font-size:.74rem!important;letter-spacing:.005em!important;}
 .rank-badge.rank-lg.rank-badge-xlong .rank-badge-label{font-size:.66rem!important;letter-spacing:0!important;}
+.rank-badge.rank-badge-two-line{
+  width:max-content!important;
+  max-width:max-content!important;
+  align-items:center!important;
+}
+.rank-badge .rank-badge-label-two-line{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  max-width:max-content!important;
+  white-space:normal!important;
+  text-align:center!important;
+  line-height:.88!important;
+}
+.rank-badge .rank-badge-line{
+  display:block!important;
+  width:max-content!important;
+  max-width:max-content!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+}
+.rank-badge .rank-badge-line-sub{
+  align-self:center!important;
+}
+.rank-badge.rank-sm.rank-badge-two-line .rank-badge-label{font-size:.58rem!important;}
+.rank-badge.rank-md.rank-badge-two-line .rank-badge-label{font-size:.66rem!important;}
+.rank-badge.rank-lg.rank-badge-two-line .rank-badge-label{font-size:.78rem!important;}
 #s-game .pb-stat .rank-badge.rank-sm{
   min-width:0!important;
   width:max-content!important;
@@ -11021,7 +11050,7 @@ input[type="range"]::-moz-range-progress {
 #modal .profile-wrap .profile-img-wrap,
 #modal .profile-wrap:not(.social-profile-inspect) .profile-img-wrap,
 #modal .modal.social-profile-modal .profile-wrap.social-profile-inspect .profile-img-wrap{
-  transform:translateY(-39px)!important;
+  transform:translate(var(--profile-photo-offset-x,0px),var(--profile-photo-offset-y,-39px))!important;
 }
 
 /* Fast gameplay fixes: solid disabled hand cards, visible status banners, Busser/Havano target zones */
@@ -11746,6 +11775,10 @@ input[type="range"]::-moz-range-progress {
 }
 #s-game .pb-stat .rank-badge.rank-sm.rank-badge-long .rank-badge-label{font-size:.62rem!important;}
 #s-game .pb-stat .rank-badge.rank-sm.rank-badge-xlong .rank-badge-label{font-size:.55rem!important;}
+#s-game .pb-stat .rank-badge.rank-sm.rank-badge-two-line .rank-badge-label{
+  font-size:.62rem!important;
+  line-height:.86!important;
+}
 
 #s-game.ai-turn #tp-timer,
 #s-game #tp-timer.ai-thinking{
@@ -12561,4 +12594,21 @@ html body #s-game .zone-title{
 #s-title #music-toggle-btn:hover,
 #s-title #enhanced-fx-toggle-btn:hover{
   border-color:rgba(255,235,130,.94)!important;
+}
+
+/* Codex 2026-07-14: profile modal portrait positioning.
+   Keep X/Y offsets scoped so small alignment changes do not fight older broad transforms. */
+#modal .profile-wrap.title-profile-modal-v2:not(.inspected-profile-stable) .profile-img-wrap{
+  --profile-photo-offset-x:9px;
+  --profile-photo-offset-y:-46px;
+  justify-self:start!important;
+  transform:translate(var(--profile-photo-offset-x),var(--profile-photo-offset-y))!important;
+}
+
+#modal .profile-wrap.title-profile-modal-v2.inspected-profile-stable .profile-img-wrap,
+#modal .modal.inspected-profile-modal-stable .profile-wrap.inspected-profile-stable .profile-img-wrap{
+  --profile-photo-offset-x:12px;
+  --profile-photo-offset-y:-39px;
+  justify-self:start!important;
+  transform:translate(var(--profile-photo-offset-x),var(--profile-photo-offset-y))!important;
 }

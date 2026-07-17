@@ -1827,10 +1827,35 @@ function maybeResolveLandscapeEndTurn() {
 
 function queueLandscapeOutsideDrawBonus(player, drawnCard) {
   if(!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb9'))) return false;
+  if(G && G._onlineRoomCode) {
+    const localPlayer = Number(G._onlinePlayerIndex);
+    if(!Number.isInteger(localPlayer) || Number(player) !== localPlayer || G._onlineApplyingRemoteAction) return false;
+  }
   if(!G._landscapeDrawQueue) G._landscapeDrawQueue = [];
   G._landscapeDrawQueue.push({player:player, cardName:drawnCard && drawnCard.name || 'a card'});
   processLandscapeDrawQueue();
   return true;
+}
+
+function resolveLiveLandscapeDrawTarget(choice) {
+  if(!choice || !G || !G.board) return null;
+  const z = Number(choice.z);
+  const r = Number(choice.r);
+  const c = Number(choice.c);
+  const chosenIid = String(choice.card?.iid ?? choice.iid ?? '');
+  if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)) {
+    const live = G.board?.[z]?.[r]?.[c] || null;
+    if(live && (!chosenIid || String(live.iid ?? '') === chosenIid)) return {card:live, z, r, c};
+  }
+  if(chosenIid) {
+    const byIid = getAllBoardCardEntries(function(card){
+      return card && String(card.iid ?? '') === chosenIid;
+    });
+    if(byIid.length) return byIid[0];
+  }
+  // Offline board objects are stable, so preserve the legacy fallback there.
+  if(!G._onlineRoomCode && choice.card) return {card:choice.card, z, r, c};
+  return null;
 }
 
 function processLandscapeDrawQueue() {
@@ -1882,16 +1907,21 @@ function processLandscapeDrawQueue() {
     zones:[0,1,2],
     entries:entries,
     showOpponentOverlay:true,
+    onlineClientOwnedChoice:true,
     allowOptionalCancelServerAction:true,
     onCancel:finish
   }, function(chosen){
     if(!finish()) return;
-    const target = chosen && chosen[0] && chosen[0].card;
+    const targetEntry = resolveLiveLandscapeDrawTarget(chosen && chosen[0]);
+    const target = targetEntry && targetEntry.card;
     if(target) {
       modifyFate(target, 3, 'permanent');
       toast('West Coast Dreaming: ' + target.name + ' gains 3 Fate.');
       if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('West Coast Dreaming', 'minor');
       renderGame({board:true, scores:true, landscape:true});
+      if(typeof window.fatePublishClientOwnedState === 'function') {
+        window.fatePublishClientOwnedState('west-coast-dreaming-fate-bonus');
+      }
     }
   });
 }
@@ -4950,7 +4980,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   if((fromHand||G.selectedHandCard!==null) && canUseSantaAnnaLandscape){
     const santa=document.createElement('button');
     santa.className='btn sm pri';
-    santa.textContent='Activate Effect';
+    santa.textContent='Prosperity';
     santa.onclick=()=>{playEffectActivationButtonSound(); activateSantaAnnaProsperityFromHand(card);};
     acts.appendChild(santa);
   }
@@ -7341,7 +7371,7 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
     const h = el.getBoundingClientRect ? el.getBoundingClientRect().height : 0;
     if(lineHeight > 0 && h > lineHeight * 1.45) {
       el.classList.add('multi-line');
-      el.style.setProperty('bottom', '24vh', 'important');
+      el.style.setProperty('bottom', 'calc(24vh - 25px)', 'important');
     }
   } catch(e) {}
   const ttl = Math.max(800, Number(durationMs) || 2100);
@@ -7396,6 +7426,7 @@ if(typeof window !== 'undefined') {
 
 let _consolidationCinematicQueue = [];
 let _consolidationCinematicShowing = false;
+let _lastConsolidationCinematicEndedAt = 0;
 if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanupInstalled) {
   const previousConsolidationQueueCleanup = window.clearConsolidationCinematicQueues;
   window.clearConsolidationCinematicQueues = function(){
@@ -7546,7 +7577,9 @@ function showConsolidationCinematic(card, opts) {
       subEl.classList.add('inside-consolidation-cinematic');
       subEl.style.setProperty('position', 'absolute', 'important');
       subEl.style.setProperty('left', '50%', 'important');
-      subEl.style.setProperty('bottom', perfLite ? '24vh' : '27vh', 'important');
+      var consolidationSubtitleBottom = perfLite ? '24vh' : '27vh';
+      if(subEl.classList.contains('multi-line')) consolidationSubtitleBottom = 'calc(' + consolidationSubtitleBottom + ' - 25px)';
+      subEl.style.setProperty('bottom', consolidationSubtitleBottom, 'important');
       subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
       subEl.style.setProperty('z-index', '6', 'important');
     }
@@ -7565,6 +7598,8 @@ function showConsolidationCinematic(card, opts) {
     overlay.remove();
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
+    _lastConsolidationCinematicEndedAt = Date.now();
+    scheduleEffectActivationCinematicDrain();
     var next = _consolidationCinematicQueue.shift();
     if(next) setTimeout(function(){ showConsolidationCinematic(next.card, next.opts); }, 45);
   }, timing.overlayRemoveAt);
@@ -7575,6 +7610,8 @@ function showConsolidationCinematic(card, opts) {
       _consolidationCinematicShowing = false;
       document.querySelectorAll('.cc-overlay-v2').forEach(function(el){ el.remove(); });
       document.body.classList.remove('cinematic-lock');
+      _lastConsolidationCinematicEndedAt = Date.now();
+      scheduleEffectActivationCinematicDrain();
       var next = _consolidationCinematicQueue.shift();
       if(next) showConsolidationCinematic(next.card, next.opts);
     }
@@ -7618,6 +7655,45 @@ let _effectActivationCinematicShowing = false;
 let _effectActivationCinematicQueue = [];
 let _lastEffectActivationCinematicKey = '';
 let _lastEffectActivationCinematicAt = 0;
+let _effectActivationCinematicDrainTimer = 0;
+const EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS = 1000;
+
+function consolidationCinematicIsActive() {
+  return _consolidationCinematicShowing || !!document.querySelector('.cc-overlay-v2:not(.effect-activation-cinematic)');
+}
+
+function effectActivationConsolidationGapRemaining() {
+  if(!_lastConsolidationCinematicEndedAt) return 0;
+  return Math.max(0, EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS - (Date.now() - _lastConsolidationCinematicEndedAt));
+}
+
+function scheduleEffectActivationCinematicDrain() {
+  if(_effectActivationCinematicShowing || !_effectActivationCinematicQueue.length) return;
+  if(_effectActivationCinematicDrainTimer) clearTimeout(_effectActivationCinematicDrainTimer);
+  const delay = consolidationCinematicIsActive()
+    ? 80
+    : Math.max(0, effectActivationConsolidationGapRemaining());
+  _effectActivationCinematicDrainTimer = setTimeout(function(){
+    _effectActivationCinematicDrainTimer = 0;
+    if(_effectActivationCinematicShowing) return;
+    if(consolidationCinematicIsActive() || effectActivationConsolidationGapRemaining() > 0) {
+      scheduleEffectActivationCinematicDrain();
+      return;
+    }
+    const next = _effectActivationCinematicQueue.shift();
+    if(next) showEffectActivationCinematic(next.card, next.opts).then(next.resolve);
+  }, Math.max(0, delay));
+}
+
+function queueEffectActivationCinematic(card, options, key) {
+  const alreadyQueued = _effectActivationCinematicQueue.some(function(item){ return item.key === key; });
+  if(alreadyQueued) return Promise.resolve(false);
+  return new Promise(function(resolve){
+    _effectActivationCinematicQueue.push({card:card, opts:Object.assign({}, options), key:key, resolve:resolve});
+    scheduleEffectActivationCinematicDrain();
+  });
+}
+
 function showEffectActivationCinematic(card, opts) {
   const options = opts || {};
   if(typeof document === 'undefined' || !card) return Promise.resolve(false);
@@ -7626,10 +7702,9 @@ function showEffectActivationCinematic(card, opts) {
   if(key === _lastEffectActivationCinematicKey && now - _lastEffectActivationCinematicAt < 3200) {
     return Promise.resolve(false);
   }
-  if(_effectActivationCinematicShowing || document.querySelector('.effect-activation-cinematic')) {
-    return new Promise(function(resolve){
-      _effectActivationCinematicQueue.push({card:card, opts:Object.assign({}, options), resolve:resolve});
-    });
+  if(_effectActivationCinematicShowing || document.querySelector('.effect-activation-cinematic') ||
+    consolidationCinematicIsActive() || effectActivationConsolidationGapRemaining() > 0) {
+    return queueEffectActivationCinematic(card, options, key);
   }
   _lastEffectActivationCinematicKey = key;
   _lastEffectActivationCinematicAt = now;
@@ -7708,7 +7783,7 @@ function showEffectActivationCinematic(card, opts) {
     cardWrap.appendChild(cardSquare);
     const label = document.createElement('div');
     label.setAttribute('style',
-      'position:absolute;left:50%;bottom:-52px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
+      'position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
       'font-family:var(--serif,serif);letter-spacing:.12em;text-transform:uppercase;text-shadow:0 0 14px rgba(255,217,102,.65);' +
       'font-size:clamp(17px,2.1vw,28px);line-height:1;white-space:nowrap;opacity:0;transition:opacity .2s ease-out;'
     );
@@ -7727,10 +7802,7 @@ function showEffectActivationCinematic(card, opts) {
         if(overlay.parentNode) overlay.remove();
         if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
         _effectActivationCinematicShowing = false;
-        const next = _effectActivationCinematicQueue.shift();
-        if(next) {
-          showEffectActivationCinematic(next.card, next.opts).then(next.resolve);
-        }
+        scheduleEffectActivationCinematicDrain();
         resolve(result);
       }, perfLite ? 160 : 220);
     }

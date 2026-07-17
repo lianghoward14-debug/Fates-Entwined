@@ -22,6 +22,164 @@ function aiCachedZoneScore(z, p) {
 function aiClearZoneScoreCache() { _aiZoneScoreCache = [undefined,undefined,undefined,undefined,undefined,undefined]; }
 function aiInvalidateZoneScoreCache() { _aiZoneScoreCache = null; }
 
+function aiIntelligence(){
+  return typeof window !== 'undefined' ? window.FateAIIntelligence : null;
+}
+
+function aiHasPerfectHandKnowledge(){
+  const intelligence = aiIntelligence();
+  return !!(intelligence && intelligence.hasPerfectHandKnowledge(G._selectedAI));
+}
+
+function aiIsPublicBoardCard(card){
+  return !!(card && !(typeof isFaceDownCard === 'function' ? isFaceDownCard(card) : card.faceDown));
+}
+
+function aiOpponentCardDecisionFate(card, z){
+  if(!aiIsPublicBoardCard(card)) return 0;
+  return typeof getEffectiveFate === 'function'
+    ? Math.max(0, Number(getEffectiveFate(card, z)) || 0)
+    : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+}
+
+function aiChooseReaction(reactions, actionData){
+  const candidates = Array.isArray(reactions) ? reactions.slice() : [];
+  if(!candidates.length) return null;
+  const intelligence = aiIntelligence();
+  const source = actionData && actionData.card;
+  const sourceProfile = intelligence && source ? intelligence.profileCard(source) : {responsePower:4,disruption:0,scaling:0};
+  const perfect = aiHasPerfectHandKnowledge();
+  const difficulty = G.aiDifficulty || 'medium';
+  const threshold = perfect ? 0 : (difficulty === 'extreme' ? 3.5 : difficulty === 'hard' ? 4.5 : difficulty === 'easy' ? 7 : 5.5);
+  const affectsAI = !!(actionData && (
+    (Array.isArray(actionData.affectedOwners) && actionData.affectedOwners.includes(G.aiPlayer)) ||
+    (actionData.target && actionData.target.owner === G.aiPlayer)
+  ));
+  const ranked = candidates.map(reaction=>{
+    let score = Number(sourceProfile.responsePower) || 0;
+    if(affectsAI) score += 5;
+    if(sourceProfile.disruption) score += 3;
+    if(sourceProfile.scaling) score += 2;
+    if(reaction.type === 'havano') score += 7;
+    else if(reaction.type === 'secules') score += 3;
+    else if(reaction.type === 'lydia') score += Math.max(0, Number(reaction.card?.usesLeft) || 0);
+    return {reaction,score};
+  }).sort((a,b)=>b.score-a.score);
+  if(!perfect && ranked[0].score < threshold) return null;
+  return ranked[0].reaction;
+}
+
+function aiShouldActivateOptionalDrawEffect(player, card, context){
+  if(player !== G.aiPlayer || !card || (Number(card.usesLeft) || 0) <= 0) return false;
+  if(aiHasPerfectHandKnowledge()) return true;
+  const ctx = context || {};
+  if(ctx.drawPhase) return true;
+  const handSize = G.players?.[player]?.hand?.length || 0;
+  const lateGame = Number(G.turn) >= Math.max(1, (Number(G.maxTurns) || 20)-5);
+  const style = G._selectedAI?.style || '';
+  return lateGame || handSize <= 3 || ['resourceful','efficient','visionary','inevitable'].includes(style);
+}
+
+function aiCollectObservedOpponentCards(){
+  const opp = 1-G.aiPlayer;
+  const cards = [];
+  if(G.players?.[opp]?.discard) cards.push(...G.players[opp].discard);
+  if(Array.isArray(G.board)){
+    G.board.forEach(zone=>zone?.forEach(row=>row?.forEach(card=>{
+      const hidden = card && (typeof isFaceDownCard === 'function' ? isFaceDownCard(card) : !!card.faceDown);
+      if(card && card.owner === opp && !hidden) cards.push(card);
+    })));
+  }
+  return cards;
+}
+
+function aiBuildOpponentHandModel(){
+  const intelligence = aiIntelligence();
+  const opp = 1-G.aiPlayer;
+  const handSize = G.players?.[opp]?.hand?.length || 0;
+  if(!intelligence){
+    return {mode:'belief',handSize,cards:Array.from({length:handSize},()=>({id:'belief',fate:2,responsePower:2,type:'Supporter',cost:0,disruption:0,draw:0,scaling:0}))};
+  }
+  const perfect = aiHasPerfectHandKnowledge();
+  const revealedCards = perfect ? [] : (G.players?.[opp]?.hand || []).filter(card=>card && G._revealedCards?.[card.iid]);
+  const model = intelligence.buildHandModel({
+    ai:G._selectedAI,
+    allowPerfect:perfect,
+    hiddenCards:perfect ? G.players[opp].hand : undefined,
+    handSize:perfect ? handSize : Math.max(0, handSize-revealedCards.length),
+    observedCards:aiCollectObservedOpponentCards(),
+    catalogue:typeof CARDS !== 'undefined' ? CARDS : [],
+    seed:(G.players?.[opp]?.name || 'opponent')+':'+G.turn
+  });
+  if(revealedCards.length){
+    model.mode = 'mixed';
+    model.handSize = handSize;
+    model.cards = [...revealedCards.map(card=>intelligence.profileCard(card)), ...model.cards];
+  }
+  return model;
+}
+
+function aiObserveOpponentAndPlan(){
+  const intelligence = aiIntelligence();
+  if(!intelligence) return;
+  const cp = G.aiPlayer;
+  const opp = 1-cp;
+  const zoneCounts = [0,0,0];
+  let contestedCount = 0;
+  for(let z=0; z<3; z++){
+    G.board?.[z]?.forEach((row,r)=>row?.forEach(card=>{
+      if(card && card.owner === opp){
+        zoneCounts[z]++;
+        if(r === 1) contestedCount++;
+      }
+    }));
+  }
+  if(!G._aiOpponentMemory) G._aiOpponentMemory = intelligence.createOpponentMemory();
+  G._aiOpponentMemory = intelligence.updateOpponentMemory(G._aiOpponentMemory, {
+    turn:G.turn,
+    zoneCounts,
+    contestedCount,
+    handSize:G.players?.[opp]?.hand?.length || 0,
+    discardCount:G.players?.[opp]?.discard?.length || 0
+  });
+  G._aiOpponentHandModel = aiBuildOpponentHandModel();
+  const myScores = [0,1,2].map(z=>getZoneScore(z,cp));
+  const oppScores = [0,1,2].map(z=>getZoneScore(z,opp));
+  G._aiTurnPlan = intelligence.makeTurnPlan({
+    myScores,
+    oppScores,
+    memory:G._aiOpponentMemory,
+    style:G._selectedAI?.style || '',
+    turn:G.turn,
+    handModelMode:G._aiOpponentHandModel.mode
+  });
+}
+
+function aiTurnPlanMoveBonus(move){
+  const intelligence = aiIntelligence();
+  if(!intelligence || !G._aiTurnPlan || !move) return 0;
+  const cp = G.aiPlayer, opp = 1-cp;
+  const myScores = [0,1,2].map(z=>aiCachedZoneScore(z,cp));
+  const oppScores = [0,1,2].map(z=>aiCachedZoneScore(z,opp));
+  return intelligence.scoreMoveForPlan(G._aiTurnPlan, {
+    z:move.z,
+    projectedFate:aiProjectedMoveFate(move)
+  }, myScores, oppScores);
+}
+
+function aiProjectedOpponentAction(hypoMy, hypoOp){
+  const intelligence = aiIntelligence();
+  const model = G._aiOpponentHandModel || aiBuildOpponentHandModel();
+  if(!intelligence || !model?.cards?.length) return {zone:0,addFate:2,reduceEnemy:0};
+  return intelligence.chooseProjectedAction({
+    cards:model.cards,
+    ownScores:hypoOp,
+    enemyScores:hypoMy,
+    memory:G._aiOpponentMemory,
+    mode:model.mode
+  });
+}
+
 async function runAITurn() {
   if(G.currentPlayer !== G.aiPlayer) return;
   if(G._aiRunning) return;
@@ -38,6 +196,7 @@ async function runAITurn() {
 
     try {
       const settings = getAIDifficultySettings();
+      aiObserveOpponentAndPlan();
     const thinkTime = G.aiDifficulty==='extreme'?280:G.aiDifficulty==='hard'?240:G.aiDifficulty==='easy'?380:320;
     let actionsThisTurn = 0;
     const maxActions = 15;
@@ -172,10 +331,11 @@ function aiShouldAbortSearch(ctx) {
 
 function aiGetMCTSConfig() {
   const d = G.aiDifficulty || 'medium';
-  if(d === 'extreme') return {enabled:true, budgetMs:360, maxCandidates:8, maxChunkMs:2.25, minVisits:28, exploration:1.18, depth:3};
-  if(d === 'hard') return {enabled:true, budgetMs:260, maxCandidates:7, maxChunkMs:2, minVisits:22, exploration:1.28, depth:3};
-  if(d === 'medium') return {enabled:true, budgetMs:180, maxCandidates:6, maxChunkMs:1.75, minVisits:16, exploration:1.38, depth:2};
-  return {enabled:true, budgetMs:110, maxCandidates:5, maxChunkMs:1.5, minVisits:10, exploration:1.55, depth:2};
+  if(aiHasPerfectHandKnowledge()) return {enabled:true, budgetMs:620, maxCandidates:10, maxChunkMs:2.25, minVisits:72, exploration:0.92, depth:7};
+  if(d === 'extreme') return {enabled:true, budgetMs:430, maxCandidates:9, maxChunkMs:2.25, minVisits:42, exploration:1.08, depth:5};
+  if(d === 'hard') return {enabled:true, budgetMs:310, maxCandidates:8, maxChunkMs:2, minVisits:28, exploration:1.2, depth:4};
+  if(d === 'medium') return {enabled:true, budgetMs:200, maxCandidates:6, maxChunkMs:1.75, minVisits:18, exploration:1.34, depth:3};
+  return {enabled:true, budgetMs:115, maxCandidates:5, maxChunkMs:1.5, minVisits:10, exploration:1.55, depth:2};
 }
 
 async function aiChooseMoveWithMCTS(moves, settings, ctx) {
@@ -217,13 +377,25 @@ async function aiChooseMoveWithMCTS(moves, settings, ctx) {
 
   let best = null;
   let bestScore = -Infinity;
+  const finalCandidates = [];
   for(const ms of candidates){
     const mctsScore = ms.mctsVisits ? (ms.mctsValue / ms.mctsVisits) : 0;
-    const noise = (Math.random()-0.5) * settings.mistakeChance * 20;
-    const finalScore = ms.combined + mctsScore + noise;
+    const finalScore = ms.combined + mctsScore;
+    finalCandidates.push({move:ms.move,finalScore,search:ms});
     if(finalScore > bestScore){
       bestScore = finalScore;
       best = ms.move;
+    }
+  }
+  const intelligence = aiIntelligence();
+  if(intelligence){
+    const selected = intelligence.selectCandidate(finalCandidates, {
+      mistakeChance:Math.max(0, (Number(settings.mistakeChance) || 0) + (Number(settings.mistakeChanceMod) || 0)),
+      perfect:aiHasPerfectHandKnowledge()
+    });
+    if(selected){
+      best = selected.move;
+      bestScore = selected.finalScore;
     }
   }
   return best ? {move:best, score:bestScore} : null;
@@ -289,7 +461,9 @@ function aiMCTSStateAfterMove(move) {
   const opp = 1 - cp;
   const state = {
     score: [[0,0,0],[0,0,0]],
-    handFate: [aiMCTSHandFates(0), aiMCTSHandFates(1)]
+    handOptions: [aiMCTSHandOptions(0), aiMCTSHandOptions(1)],
+    memory:G._aiOpponentMemory || null,
+    handKnowledgeMode:aiHasPerfectHandKnowledge() ? 'perfect' : 'belief'
   };
   for(let z=0; z<3; z++){
     state.score[cp][z] = aiCachedZoneScore(z, cp);
@@ -306,23 +480,50 @@ function aiMCTSStateAfterMove(move) {
   return state;
 }
 
-function aiMCTSHandFates(player) {
+function aiMCTSHandOptions(player) {
+  const intelligence = aiIntelligence();
+  const cp = G.aiPlayer;
   const hand = G.players?.[player]?.hand || [];
-  return hand.map(c=>Math.max(1, Number(c.currentFate ?? c.fate) || 1)).sort((a,b)=>b-a).slice(0, 8);
+  if(player !== cp){
+    const model = G._aiOpponentHandModel || aiBuildOpponentHandModel();
+    return (model.cards || []).map(card=>({...card}));
+  }
+  if(intelligence) return hand.map(card=>intelligence.profileCard(card)).sort((a,b)=>b.responsePower-a.responsePower).slice(0,12);
+  return hand.map(card=>({id:card.id,iid:card.iid,fate:Math.max(1,Number(card.currentFate ?? card.fate)||1),responsePower:Math.max(1,Number(card.currentFate ?? card.fate)||1),type:card.type,cost:card.cost||0,disruption:0,draw:0,scaling:0})).slice(0,12);
 }
 
 function aiMCTSConsumeHandCard(state, player, card) {
-  if(!card || !state.handFate[player]) return;
+  const options = state.handOptions?.[player];
+  if(!card || !options) return;
   const fate = Math.max(1, Number(card.currentFate ?? card.fate) || 1);
-  const idx = state.handFate[player].findIndex(v=>Math.abs(v - fate) <= 1);
-  if(idx >= 0) state.handFate[player].splice(idx, 1);
+  let idx = options.findIndex(option=>card.iid && option.iid === card.iid);
+  if(idx < 0) idx = options.findIndex(option=>card.id && option.id === card.id);
+  if(idx < 0) idx = options.findIndex(option=>Math.abs((Number(option.fate)||1)-fate)<=1);
+  if(idx >= 0) options.splice(idx, 1);
 }
 
 function aiApplyAbstractMCTSMove(state, player) {
   const cp = G.aiPlayer;
   const opp = 1 - cp;
-  const values = state.handFate[player] || [];
-  const fate = values.length ? values.splice(Math.floor(Math.random() * Math.min(values.length, 4)), 1)[0] : (2 + Math.floor(Math.random() * 3));
+  const intelligence = aiIntelligence();
+  const options = state.handOptions?.[player] || [];
+  if(intelligence && options.length){
+    const action = intelligence.chooseProjectedAction({
+      cards:options,
+      ownScores:state.score[player],
+      enemyScores:state.score[player === cp ? opp : cp],
+      memory:player === opp ? state.memory : null,
+      mode:player === opp ? state.handKnowledgeMode : 'known'
+    });
+    if(action){
+      state.score[player][action.zone] += action.addFate;
+      state.score[player === cp ? opp : cp][action.zone] = Math.max(0, state.score[player === cp ? opp : cp][action.zone]-action.reduceEnemy);
+      if(action.cardIndex >= 0 && action.cardIndex < options.length) options.splice(action.cardIndex,1);
+      return;
+    }
+  }
+  const values = options.map(option=>Math.max(1,Number(option.fate)||1));
+  const fate = values.length ? values[Math.floor(Math.random() * Math.min(values.length, 4))] : (2 + Math.floor(Math.random() * 3));
   let bestZone = 0;
   let bestWeight = -Infinity;
   for(let z=0; z<3; z++){
@@ -339,6 +540,7 @@ function aiApplyAbstractMCTSMove(state, player) {
     }
   }
   state.score[player][bestZone] += fate;
+  if(options.length) options.splice(0,1);
 }
 
 function aiMCTSZonesWon(state, player) {
@@ -367,46 +569,6 @@ function aiEvaluateMCTSState(state) {
   return score;
 }
 
-// Board evaluation heuristic — returns score from AI perspective
-function aiEvalBoard() {
-  const cp = G.aiPlayer, opp = 1-cp;
-  let score = 0;
-  let zonesWon = 0, zonesLost = 0;
-  for(let z=0;z<3;z++){
-    const my = aiCachedZoneScore(z,cp), op = aiCachedZoneScore(z,opp);
-    const diff = my - op;
-    if(diff > 0) zonesWon++;
-    else if(diff < 0) zonesLost++;
-    // Zone score differential
-    score += diff * 3;
-    // Contested row presence is hugely important
-    if(G.board[z][1]){
-      for(let c=0;c<3;c++){
-        const cell = G.board[z][1][c];
-        if(cell){
-          const fate = getEffectiveFate(cell, z);
-          if(cell.owner===cp) score += fate * 2;
-          else score -= fate * 2;
-        }
-      }
-    }
-    // Safe row presence matters too
-    const safeRow = cp===0?2:0;
-    if(G.board[z][safeRow]){
-      for(let c=0;c<3;c++){
-        const cell = G.board[z][safeRow][c];
-        if(cell && cell.owner===cp) score += getEffectiveFate(cell, z);
-      }
-    }
-  }
-  // Winning 2+ zones = huge bonus
-  if(zonesWon>=2) score += 40;
-  if(zonesLost>=2) score -= 40;
-  // Hand size advantage
-  score += (G.players[cp].hand.length - G.players[opp].hand.length) * 0.5;
-  return score;
-}
-
 // Generate all legal moves for AI this action
 function aiGenerateAllMoves() {
   const cp = G.aiPlayer, opp = 1-cp;
@@ -421,7 +583,7 @@ function aiGenerateAllMoves() {
   if(majaFromDeck){
     for(let z=0;z<3;z++){
       if(isArtilleryLockedForAI(z)) continue;
-      const rowOrder = [1, cp===0?2:0];
+      const rowOrder = [cp===0?2:0];
       for(const r of rowOrder){
         if(!G.board[z][r]) continue;
         if(typeof getChingachlookPlacementBlockReason === 'function' && getChingachlookPlacementBlockReason(majaFromDeck, z, cp)) continue;
@@ -470,6 +632,7 @@ function aiGenerateAllMoves() {
       if(typeof getChingachlookPlacementBlockReason === 'function' && getChingachlookPlacementBlockReason(ch, z, cp)) continue;
       const rowOrder = [1, cp===0?2:0];
       for(const r of rowOrder){
+        if(typeof requiresOwnSafeRowPlacement === 'function' && requiresOwnSafeRowPlacement(ch) && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(z, r, 0, cp))) continue;
         if(!G.board[z][r]) continue;
         for(let c=0;c<getBoardRowCapacity(z,r);c++){
           if(G.board[z][r][c]!==null || isBlocked(z,r,c)) continue;
@@ -509,6 +672,7 @@ function aiGenerateAllMoves() {
       for(const target of uniquePool){
         if(isArtilleryLockedForAI(target.z)) continue;
         if(typeof isBlockedForConsolidate === 'function' && isBlockedForConsolidate(target.z, target.r, target.c)) continue;
+        if(typeof requiresOwnSafeRowPlacement === 'function' && requiresOwnSafeRowPlacement(ch) && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(target.z, target.r, target.c, cp))) continue;
         const tributes = aiPickTributes(uniquePool, cost, target);
         if(!tributes) continue;
         if(typeof getChingachlookPlacementBlockReason === 'function'){
@@ -698,6 +862,33 @@ function aiPersonalityMoveBonus(move, mods) {
   return bonus;
 }
 
+function aiLearnedMoveBonus(move) {
+  const learning = typeof window !== 'undefined' ? window.FateAILearning : null;
+  const policy = typeof window !== 'undefined' && typeof window.fateAIGetLearnedPolicy === 'function'
+    ? window.fateAIGetLearnedPolicy(G._selectedAI)
+    : null;
+  if(!learning || !policy || !move || !move.card || !learning.isLearningAI(G._selectedAI)) return 0;
+  const z = Number.isInteger(Number(move.z)) ? Number(move.z) : 1;
+  const cp = G.aiPlayer;
+  const opp = 1-cp;
+  let ownCount = 0;
+  if(Array.isArray(G.board?.[z])) {
+    G.board[z].forEach(row=>Array.isArray(row) && row.forEach(card=>{ if(card && card.owner === cp) ownCount++; }));
+  }
+  const profile = aiIntelligence()?.profileCard?.(move.card) || {};
+  return learning.scoreMove(policy, {
+    type:move.type,
+    contested:!!move.contested,
+    tempo:Math.max(0, Math.min(1, 1-(Number(G.turn)||1)/Math.max(1, Number(G.maxTurns)||20))),
+    disruption:!!profile.disruption,
+    scaling:!!profile.scaling,
+    margin:aiCachedZoneScore(z,cp)-aiCachedZoneScore(z,opp),
+    ownCount,
+    fate:aiProjectedMoveFate(move),
+    tributeCount:Array.isArray(move.tributes) ? move.tributes.length : 0
+  });
+}
+
 // Evaluate a move's immediate value
 function aiEvaluateMove(move) {
   let score = 0;
@@ -759,6 +950,8 @@ function aiEvaluateMove(move) {
   score += aiDeckStrategyBonus(move, deckStrat);
   score += aiLandscapeMoveBonus(move);
   score += aiPersonalityMoveBonus(move, getAIStyleModifiers(G._selectedAI?.style || ''));
+  score += aiLearnedMoveBonus(move);
+  score += aiTurnPlanMoveBonus(move);
 
   return score;
 }
@@ -836,6 +1029,30 @@ function aiDeckSearchPriority(deckId, kind) {
       lina: ['56'],
       dylan: ['28','05','09'],
       coordinator: []
+    },
+    ai_kvetka_chain: {
+      supporter: ['68','09','47','60','24','05','58','32'],
+      character: ['84','100','88','86','81','03'],
+      jorge: [],
+      lina: [],
+      dylan: ['84','100','86','09','47','05'],
+      coordinator: ['81']
+    },
+    ai_total_blackout: {
+      supporter: ['50','16','71','75','60','58','32','09'],
+      character: ['17','04','21','61','30','56'],
+      jorge: [],
+      lina: [],
+      dylan: ['21','17','04','61','50','16'],
+      coordinator: []
+    },
+    ai_living_formation: {
+      supporter: ['68','24','59','63','60','32','05','09'],
+      character: ['35','11','57','23','22','02'],
+      jorge: [],
+      lina: [],
+      dylan: ['35','11','57','23','59','63'],
+      coordinator: ['11','57','23']
     }
   };
   return priorities[deckId]?.[kind] || [];
@@ -1188,7 +1405,7 @@ function aiDeckStrategyBonus(move, deckId) {
       }
       if(move.card.id === '16') {
         let hasOppSupporter = false;
-        G.board[move.z]?.forEach(row=>row?.forEach(cell=>{ if(cell && cell.owner === 1-cp && cell.type === 'Supporter') hasOppSupporter = true; }));
+        G.board[move.z]?.forEach(row=>row?.forEach(cell=>{ if(cell && cell.owner === 1-cp && aiIsPublicBoardCard(cell) && cell.type === 'Supporter') hasOppSupporter = true; }));
         bonus += hasOppSupporter ? 130 : -30;
       }
       if(move.card.id === '05') bonus += aiCountOwnCardsInZone(move.z, c => c.id === '14') ? 115 : -20;
@@ -1198,6 +1415,78 @@ function aiDeckStrategyBonus(move, deckId) {
       if(move.card.id === '14') bonus += 420;
       if(move.card.id === '06') bonus += aiOwnBoardCardsById('14').length < 3 ? 150 : 20;
       if(move.card.id === '61') bonus += 55;
+    }
+  }
+
+  else if(deckId === 'ai_kvetka_chain') {
+    const kvetkas = aiOwnBoardCardsById('84');
+    if(move.type === 'place') {
+      if(move.card.id === '68') bonus += aiOwnBoardCardsById('81').length ? 35 : 140;
+      if(['09','47','60','24','58','32'].includes(move.card.id)) bonus += 45;
+      if(move.card.id === '05') {
+        const hasPayoff = aiCountOwnCardsInZone(move.z, c => ['100','88','84'].includes(c.id)) > 0;
+        bonus += hasPayoff ? 95 : 20;
+      }
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === '84') bonus += kvetkas.length ? 260 : 540;
+      if(move.card.id === '100') {
+        const namedPieceReady = kvetkas.length || aiOwnBoardCardsById('88').length;
+        bonus += namedPieceReady ? 310 : 145;
+      }
+      if(move.card.id === '88') bonus += 190;
+      if(move.card.id === '86') bonus += 130;
+      if(move.card.id === '81') bonus += 115;
+      if(move.card.id === '03') {
+        const hasPayoff = aiCountOwnCardsInZone(move.z, c => ['100','88','84'].includes(c.id)) > 0;
+        bonus += hasPayoff ? 260 : -55;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_total_blackout') {
+    if(move.type === 'place') {
+      if(move.card.id === '50') bonus += 230;
+      if(move.card.id === '16') {
+        const hasTarget = G.board[move.z]?.some(row=>row?.some(c=>c && c.owner===1-cp && aiIsPublicBoardCard(c) && c.type==='Supporter'));
+        bonus += hasTarget ? 175 : -25;
+      }
+      if(move.card.id === '71') bonus += 90;
+      if(['75','60','58','32','09'].includes(move.card.id)) bonus += 45;
+    }
+    if(move.type === 'consolidate') {
+      const priority = {'17':330,'04':290,'21':260,'56':240,'61':185,'30':150};
+      bonus += priority[move.card.id] || 0;
+      if(move.card.id === '21') {
+        const opposingCoordinator = G.board[move.z]?.some(row=>row?.some(c=>c && c.owner===1-cp && aiIsPublicBoardCard(c) && c.type==='Coordinator'));
+        if(opposingCoordinator) bonus += 110;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_living_formation') {
+    const formationIds = ['35','11','57','23','59','63'];
+    const formationZone = aiFirstOwnCardZone(c => formationIds.includes(c.id));
+    const supportCount = aiCountOwnCardsInZone(move.z, c => c.type === 'Supporter');
+    if(move.type === 'place') {
+      if(formationZone !== null && move.z !== formationZone && ['24','59','63','05'].includes(move.card.id)) bonus -= 115;
+      if(move.card.id === '68') bonus += 120;
+      if(move.card.id === '24') bonus += 80;
+      if(move.card.id === '59') bonus += 95 + supportCount * 20;
+      if(move.card.id === '63') {
+        const copies = aiCountOwnCardsInZone(move.z, c => c.id === '63');
+        bonus += 90 + copies * 70;
+      }
+      if(['60','32','05','09'].includes(move.card.id)) bonus += 45;
+    }
+    if(move.type === 'consolidate') {
+      if(formationZone !== null && move.z !== formationZone && formationIds.includes(move.card.id)) bonus -= 150;
+      const auraPieces = aiCountOwnCardsInZone(move.z, c => ['11','57','23'].includes(c.id));
+      if(move.card.id === '11') bonus += 230 + supportCount * 25 + auraPieces * 35;
+      if(move.card.id === '57') bonus += 205 + auraPieces * 45;
+      if(move.card.id === '23') bonus += 180 + auraPieces * 35;
+      if(move.card.id === '35') bonus += supportCount >= 3 ? 360 + supportCount * 35 : -90;
+      if(move.card.id === '22') bonus += 70;
     }
   }
 
@@ -1224,15 +1513,11 @@ function aiSimulateOutcome(move) {
     }
   }
 
-  // Opponent threat: assume opponent responds in zone where they gain most advantage
-  let bestOppZone = 0, bestOppGain = -Infinity;
-  for(let z = 0; z < 3; z++){
-    const diff = hypoMy[z] - hypoOp[z];
-    // Opponent targets zones they can flip or closely contest
-    const gain = (diff > 0 && diff <= 4) ? 5 : (diff <= 0) ? 3 : 1;
-    if(gain > bestOppGain){ bestOppGain = gain; bestOppZone = z; }
-  }
-  hypoOp[bestOppZone] += 2; // average opponent supporter placement
+  // Model the opponent's most plausible response. Only the three built-in High
+  // Marshalls receive exact hand profiles; all other opponents use public evidence.
+  const response = aiProjectedOpponentAction(hypoMy, hypoOp);
+  hypoOp[response.zone] += response.addFate;
+  hypoMy[response.zone] = Math.max(0, hypoMy[response.zone]-response.reduceEnemy);
 
   // Evaluate resulting position
   let zonesWon = 0, zonesLost = 0, totalMargin = 0;
@@ -1272,16 +1557,9 @@ function aiDeepEval(move) {
     for(const t of move.tributes) hypoMy[t.z] -= (t.card.currentFate || t.card.fate || 1);
   }
 
-  // Opponent's best response: place ~3 fate in the zone that gains them the most
-  let bestOppZone = 0, bestOppValue = -Infinity;
-  for(let z = 0; z < 3; z++){
-    const diff = hypoMy[z] - hypoOp[z];
-    // Value of opponent placing here: flip potential > reinforce > waste
-    const value = (diff > 0 && diff <= 5) ? (6 - diff) * 2 : // can flip or narrow
-                  (diff <= 0) ? 3 : 0;                        // reinforce lead
-    if(value > bestOppValue){ bestOppValue = value; bestOppZone = z; }
-  }
-  hypoOp[bestOppZone] += 3;
+  const response = aiProjectedOpponentAction(hypoMy, hypoOp);
+  hypoOp[response.zone] += response.addFate;
+  hypoMy[response.zone] = Math.max(0, hypoMy[response.zone]-response.reduceEnemy);
 
   // Count zones after opponent response
   let zonesWon = 0;
@@ -1659,7 +1937,12 @@ function getAIDifficultySettings() {
     const trueElo = getDailyTrueElo(G._selectedAI);
     const comp = getAICompetenceFromTrueElo(trueElo);
     const styleModifiers = getAIStyleModifiers(G._selectedAI.style || '');
-    return {...comp, ...styleModifiers, opponentElo: customElo || G._selectedAI.elo};
+    return {
+      ...comp,
+      ...styleModifiers,
+      opponentElo:customElo || G._selectedAI.elo,
+      handKnowledge:aiHasPerfectHandKnowledge() ? 'perfect' : 'belief'
+    };
   }
 
   // Title screen free play uses fixed ELO = true ELO (no boost)
@@ -1768,7 +2051,7 @@ async function aiDoConsolidate(choice) {
   const affectedZones = [...new Set(choice.tributes.map(t=>t.z))];
   affectedZones.forEach(tz=>{
     G.board[tz].forEach(row=>row.forEach(cell=>{
-      if(cell&&cell.id==='36'&&cell.owner!==cp){
+      if(cell&&cell.id==='36'&&cell.owner!==cp&&aiIsPublicBoardCard(cell)){
         G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
       }
     }));
@@ -1811,13 +2094,6 @@ async function aiDoConsolidate(choice) {
   const commitAiConsolidation = function(presentationDelay){
     const motionMs = Math.max(0, Number(presentationDelay) || 0);
     try {
-      choice.tributes.forEach(t=>{
-        if(t.card && t.card.id === '09' && t.card.usesLeft > 0) {
-          t.card.usesLeft--;
-          if(!Array.isArray(G.un5thUses)) G.un5thUses = [0,0];
-          G.un5thUses[cp] = (Number(G.un5thUses[cp]) || 0) + 1;
-        }
-      });
       choice.tributes.forEach(t=>{
         if(t && t.card) t.card._suppressDiscardVfx = true;
         discardBoardCard(t.card, t.z, t.r, t.c);
@@ -1952,6 +2228,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
   }
 
+  const hasVisibleSetActivation = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(id))
+    || (inst.type === 'Initiator'
+      && typeof INITIAL_SET_INITIATOR_IDS !== 'undefined'
+      && INITIAL_SET_INITIATOR_IDS.has(id));
+  if(hasVisibleSetActivation && typeof playEffectActivationCinematic === 'function') {
+    const waitForPlacementMs = Math.max(0, Math.min(2800, Number(G._cinematicUiLockUntil || 0) - Date.now()));
+    if(waitForPlacementMs) await aiSleep(waitForPlacementMs);
+    await playEffectActivationCinematic(inst, z, r, c, {source:'ai-when-set', broadcast:false});
+  }
+
   switch(id) {
     case '02': { // Anicka Konvicka: create extra safe row in this zone
       if(typeof addFullExtraSafeRowForPlayer === 'function') addFullExtraSafeRowForPlayer(z, cp, 'Starlit Path', {landscape:false});
@@ -2071,7 +2357,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const opps=[];
       G.board[z].forEach(row=>row.forEach(cell=>{if(cell&&cell.owner===opp) opps.push(cell);}));
       if(opps.length){
-        opps.sort((a,b)=>b.currentFate - a.currentFate);
+      opps.sort((a,b)=>aiOpponentCardDecisionFate(b,z)-aiOpponentCardDecisionFate(a,z));
         const target = opps[0];
         const before = target.currentFate || target.fate || 0;
         const changed = setCardFateValue(target, before - 3, cp);
@@ -2086,14 +2372,17 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(cell&&cell.owner===opp&&cell.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) opps.push({card:cell,r:rr,c:cc});
       }));
       if(opps.length){
-        opps.sort((a,b)=>b.card.currentFate - a.card.currentFate);
+        opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
         const t = opps[0];
         G.board[z][t.r][t.c]=null;
         fatePushDiscard(opp, t.card);
         log('p2', `AI: MINAE discarded ${t.card.name}`);
       } break;
     }
-    case '18': G.oppSuppressedNextTurn=true; G.suppressTarget=opp; break;
+    case '18':
+      if(typeof activateUsMarinesSuppressionEffect === 'function') activateUsMarinesSuppressionEffect(cp, opp, {silent:true});
+      else { G.oppSuppressedNextTurn=true; G.suppressTarget=opp; }
+      break;
     case '33': // West Caribbea Infantry: next character added to hand gets boosted
       G._westCaribNext = { owner: cp };
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
@@ -2210,9 +2499,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
     case '61': { // Maria Song: pick highest-fate opp card, discard copies
       let best=null, bestFate=-1;
-      G.board.forEach(zone=>zone.forEach(row=>row.forEach(cell=>{
-        if(cell && cell.owner===opp && (cell.currentFate||cell.fate) > bestFate){
-          bestFate = cell.currentFate||cell.fate;
+      G.board.forEach((zone,zi)=>zone.forEach(row=>row.forEach(cell=>{
+        const decisionFate = cell && cell.owner===opp ? aiOpponentCardDecisionFate(cell,zi) : -1;
+        if(cell && cell.owner===opp && decisionFate > bestFate){
+          bestFate = decisionFate;
           best = cell;
         }
       })));
@@ -2480,11 +2770,11 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   const opp = 1 - cp;
-  if(card.id==='52' && !card.vigilanteUsed){
+  if(card.id==='52' && card._pendingWhenSetEffect && card.whenSetActivated !== true){
     const targets = [];
-    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
+    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && bc.type==='Supporter' && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
     if(!targets.length) return;
-    targets.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
+    targets.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
     const target = targets[0];
     target.card._markedForDeath = true;
     target.card._reinforcementOverride = 0;
@@ -2681,7 +2971,7 @@ async function aiRunEffect(card, z, r, c) {
       const contested = G.board[z]?.[1] || [];
       contested.forEach((cell, cc)=>{ if(cell&&cell.owner===opp&&!cell.immuneFlag&&cell.id!=='76') opps.push({card:cell,c:cc}); });
       if(opps.length){
-        opps.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
+        opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
         const target = opps[0];
         discardBoardCard(target.card, z, 1, target.c);
         log('p2',`AI: El Matador discarded ${target.card.name}`);
@@ -2704,7 +2994,7 @@ async function aiRunEffect(card, z, r, c) {
         if(cell && cell.owner===opp && !cell.cantBeMoved) targets.push({card:cell,z:zz,r:rr,c:cc});
       })));
       if(targets.length){
-        targets.sort((a,b)=>(b.card.currentFate||b.card.fate||0)-(a.card.currentFate||a.card.fate||0));
+        targets.sort((a,b)=>aiOpponentCardDecisionFate(b.card,b.z)-aiOpponentCardDecisionFate(a.card,a.z));
         const dest = openCells[0];
         const target = targets[0];
         G.board[target.z][target.r][target.c] = null;
@@ -2749,7 +3039,20 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case '43': { // Mark Kemper: add one extra safe cell
-      if(typeof addBottomSafeSquareForPlayer === 'function') addBottomSafeSquareForPlayer(z, cp, 1);
+      const row = typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, cp) : 3;
+      if(row < 3) {
+        log('p2', `AI: Mark Kemper had no safe-square slots left in Zone ${z+1}`);
+        break;
+      }
+      const colOrder = [1, 0, 2];
+      let col = 1;
+      for(let i = 0; i < colOrder.length; i++){
+        const c = colOrder[i];
+        const taken = typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z, row, c);
+        const occupied = !!(G.board && G.board[z] && G.board[z][row] && G.board[z][row][c]);
+        if(!taken && !occupied){ col = c; break; }
+      }
+      if(typeof addBottomSafeSquareForPlayer === 'function') addBottomSafeSquareForPlayer(z, cp, col);
       effectNeedsBlocks = true;
       log('p2', `AI: Mark Kemper added one safe square in Zone ${z+1}`);
       if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:true, topbar:false, effects:false, hover:false});
@@ -2878,30 +3181,11 @@ async function aiRunEffect(card, z, r, c) {
       if(added) { shuffle(G.players[cp].deck); log('p2',`AI: Kirby searched ${added} supporters`); }
       break;
     }
-    case '21': { // Henry Dong: discard hand cards for Fate
-      if(card._henryAiUsed) break;
-      const hand = G.players[cp].hand;
-      if(hand.length) {
-        const strat = G._selectedAI?._deckStrategy || '';
-        const protectedIds = strat === 'ai_henrys_conviction' ? ['63','32','58','75','69'] : [];
-        const discardCount = strat === 'ai_henrys_conviction'
-          ? (hand.length >= 3 ? Math.min(hand.length, Math.max(3, hand.length - 1)) : hand.length)
-          : Math.min(hand.length, Math.max(1, Math.floor(hand.length / 2)));
-        const sorted = [...hand].sort((a,b)=>{
-          const ap = protectedIds.includes(a.id) ? 1 : 0;
-          const bp = protectedIds.includes(b.id) ? 1 : 0;
-          if(ap !== bp) return ap - bp;
-          return (a.fate||0) - (b.fate||0);
-        });
-        const chosen = sorted.slice(0, discardCount);
-        chosen.forEach(c=>{
-          G.players[cp].hand = G.players[cp].hand.filter(h=>h.iid!==c.iid);
-          fatePushDiscard(cp, c);
-          card.currentFate += 3;
-        });
-        log('p2', `AI: Henry Dong discarded ${chosen.length} card${chosen.length===1?'':'s'} and gained ${chosen.length*3} Fate`);
+    case '21': { // Henry Dong: choose adjacent suppression squares
+      if(typeof activateHenryDongSuppression === 'function') {
+        const applied = await activateHenryDongSuppression(card, z, r, c, {auto:true});
+        if(applied) log('p2', 'AI: Henry Dong selected adjacent suppression squares');
       }
-      card._henryAiUsed = true;
       break;
     }
     case '38': { // Jake: discard a supporter once per turn for +5 Fate
@@ -2920,6 +3204,7 @@ async function aiRunEffect(card, z, r, c) {
     case '40': { // Christopher Erbs: arm the next draw for +4 Fate
       if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
       if((card.usesLeft || 0) <= 0 || G.erbsActive[cp]) break;
+      if(!aiShouldActivateOptionalDrawEffect(cp, card, {drawPhase:false, manualActivation:true})) break;
       card.usesLeft--;
       G.erbsActive[cp] = true;
       log('p2','AI: Christopher Erbs empowered the next drawn card');

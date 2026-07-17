@@ -83,13 +83,17 @@ const FATE_SAMPLE_SFX = {
   menuOpen: {src:'soundeffects/codex-redesign/menu_open_silk_gate.wav', gain:0.92},
   menuClose: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.88},
   cardSelect: {src:'soundeffects/codex-redesign/card_select_fate_thread.wav', gain:0.82},
+  cardHover: {src:'soundeffects/codex-redesign/card_select_fate_thread.wav', gain:0.34},
   boardCardClick: {src:'soundeffects/codex-redesign/board_card_coin_cascade.wav', gain:0.68},
   supporterSet: {src:'soundeffects/codex-redesign/supporter_gold_inlay.wav', gain:0.92},
   discard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   discardCard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   blocked: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.82},
+  invalidAction: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.58},
   fateGain: {src:'soundeffects/codex-redesign/fate_gain_gold_tick.wav', gain:0.92},
   fateLose: {src:'soundeffects/codex-redesign/fate_loss_dull_drop.wav', gain:1.25},
+  effectSuppressed: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.7},
+  effectNegated: {src:'soundeffects/codex-redesign/reaction_interrupt_sting.wav', gain:0.78},
   landscapePulse: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.82},
   landscapeMajor: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.86},
   effect: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.88},
@@ -99,15 +103,22 @@ const FATE_SAMPLE_SFX = {
   cardMove: {src:'soundeffects/codex-redesign/card_move_board_slide.wav', gain:0.86},
   searchFound: {src:'soundeffects/codex-redesign/search_page_reveal.wav', gain:0.9},
   zoneBlock: {src:'soundeffects/codex-redesign/zone_block_crystal_seal.wav', gain:0.88},
+  carolynBlock: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.9},
   zoeBlock: {src:'soundeffects/codex-redesign/zone_block_crystal_seal.wav', gain:0.88},
   timerWarn: {src:'soundeffects/codex-redesign/turn_warning_low_clock.wav', gain:0.82},
   coinFlip: {src:'soundeffects/codex-redesign/coin_flip_fate_coin.wav', gain:0.88},
+  endTurn: {src:'soundeffects/codex-redesign/end_turn_scroll_close.wav', gain:0.94},
   forfeit: {src:'soundeffects/codex-redesign/forfeit_quiet_collapse.wav', gain:0.9},
   modalConfirm: {src:'soundeffects/codex-redesign/modal_confirm.wav', gain:0.9},
   modalCancel: {src:'soundeffects/codex-redesign/modal_cancel.wav', gain:0.88},
   cardFlip: {src:'soundeffects/codex-redesign/card_flip_reveal_turn.wav', gain:0.9},
   deckComplete: {src:'soundeffects/codex-redesign/deck_complete_lock_in.wav', gain:0.92},
   onlineRemote: {src:'soundeffects/codex-redesign/online_remote_pulse.wav', gain:0.72},
+  socialAction: {src:'soundeffects/codex-redesign/online_remote_pulse.wav', gain:0.52},
+  socialOpen: {src:'soundeffects/codex-redesign/spectator_soft_arrive.wav', gain:0.54},
+  socialNotify: {src:'soundeffects/codex-redesign/online_remote_pulse.wav', gain:0.62},
+  missionProgress: {src:'soundeffects/codex-redesign/fate_gain_gold_tick.wav', gain:0.52},
+  missionComplete: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.56},
   spectatorJoin: {src:'soundeffects/codex-redesign/spectator_soft_arrive.wav', gain:0.9},
   levelUp: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.9},
   characterSet: {src:'soundeffects/codex-redesign/character_heroic_crest.wav', gain:0.9},
@@ -232,6 +243,12 @@ function playFateSfxOnce(type, key, minGapMs) {
 }
 window.playFateSfxOnce = playFateSfxOnce;
 
+function playEndTurnSfxOnce(key) {
+  const dedupeKey = String(key || 'end-turn');
+  return playFateSfxOnce('endTurn', dedupeKey, 700);
+}
+window.playEndTurnSfxOnce = playEndTurnSfxOnce;
+
 function playSfx(type) {
   if(_masterVol<=0) return;
   if(type === 'effectNegated'){
@@ -240,7 +257,7 @@ function playSfx(type) {
     _lastEffectNegatedSfxAt = nowMs;
   }
   const isTurnChangeSound = type === 'turnChange';
-  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition'].includes(type);
+  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','cardHover','boardCardHover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition','socialAction','socialOpen','socialNotify'].includes(type);
   if(isMenuSound) {
     const startupOverlay = typeof document !== 'undefined' ? document.getElementById('fate-loading-screen') : null;
     if(startupOverlay && !startupOverlay.classList.contains('is-hiding')) return;
@@ -816,6 +833,39 @@ function playSfx(type) {
       sweep.start(now); sweep.stop(now+0.18);
     }
 
+    else if(type==='boardCardHover'){
+      const main = ctx.createOscillator(); main.type='triangle';
+      main.frequency.setValueAtTime(620, now);
+      main.frequency.exponentialRampToValueAtTime(820, now + 0.075);
+      const mainLp = ctx.createBiquadFilter(); mainLp.type='lowpass';
+      mainLp.frequency.setValueAtTime(1550, now);
+      mainLp.Q.value = 0.45;
+      const mainG = ctx.createGain();
+      mainG.gain.setValueAtTime(0.001, now);
+      mainG.gain.linearRampToValueAtTime(0.022, now + 0.012);
+      mainG.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+      main.connect(mainLp); mainLp.connect(mainG); mainG.connect(vol);
+      main.start(now); main.stop(now + 0.15);
+
+      const touch = ctx.createOscillator(); touch.type='sine';
+      touch.frequency.setValueAtTime(1180, now + 0.014);
+      touch.frequency.exponentialRampToValueAtTime(940, now + 0.095);
+      const touchG = ctx.createGain();
+      touchG.gain.setValueAtTime(0.001, now + 0.014);
+      touchG.gain.linearRampToValueAtTime(0.012, now + 0.026);
+      touchG.gain.exponentialRampToValueAtTime(0.001, now + 0.105);
+      touch.connect(touchG); touchG.connect(vol);
+      touch.start(now + 0.014); touch.stop(now + 0.12);
+
+      const body = ctx.createOscillator(); body.type='sine';
+      body.frequency.setValueAtTime(246.94, now);
+      const bodyG = ctx.createGain();
+      bodyG.gain.setValueAtTime(0.009, now);
+      bodyG.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+      body.connect(bodyG); bodyG.connect(vol);
+      body.start(now); body.stop(now + 0.1);
+    }
+
     else if(type==='toast'){
       // Subtle notification ping with sub body
       const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=1600;
@@ -1238,6 +1288,42 @@ function playSfx(type) {
       const subG=ctx.createGain();subG.gain.setValueAtTime(0.2,now);
       subG.gain.exponentialRampToValueAtTime(0.001,now+0.1);
       sub.connect(subG);subG.connect(vol);sub.start(now);sub.stop(now+0.12);
+    }
+
+    else if(type==='statusMarked'){
+      // Muted target lock: soft wooden tick with a short gray shimmer.
+      const tick=ctx.createOscillator();tick.type='triangle';
+      tick.frequency.setValueAtTime(760,now);
+      tick.frequency.exponentialRampToValueAtTime(420,now+0.07);
+      const tickG=ctx.createGain();tickG.gain.setValueAtTime(0.09,now);
+      tickG.gain.exponentialRampToValueAtTime(0.001,now+0.13);
+      tick.connect(tickG);tickG.connect(vol);tick.start(now);tick.stop(now+0.15);
+      const hush=noiseBurst(0.08,3.4,0.12,'bandpass',1450,2.2);
+      hush.start(now+0.012);
+      [980,1240].forEach((f,i)=>{
+        const o=ctx.createOscillator();o.type='sine';o.frequency.value=f;
+        const g=ctx.createGain();g.gain.setValueAtTime(0.035,now+0.035+i*0.035);
+        g.gain.exponentialRampToValueAtTime(0.001,now+0.18+i*0.03);
+        o.connect(g);g.connect(vol);o.start(now+0.035+i*0.035);o.stop(now+0.22+i*0.03);
+      });
+    }
+
+    else if(type==='statusBlocked'){
+      // Clean sealed-square cue: light glass click, not the heavy invalid-action clang.
+      const click=ctx.createOscillator();click.type='sine';
+      click.frequency.setValueAtTime(1320,now);
+      click.frequency.exponentialRampToValueAtTime(880,now+0.055);
+      const clickG=ctx.createGain();clickG.gain.setValueAtTime(0.11,now);
+      clickG.gain.exponentialRampToValueAtTime(0.001,now+0.11);
+      click.connect(clickG);clickG.connect(vol);click.start(now);click.stop(now+0.13);
+      [1760,2217].forEach((f,i)=>{
+        const o=ctx.createOscillator();o.type='sine';o.frequency.value=f;
+        const g=ctx.createGain();g.gain.setValueAtTime(0.045,now+0.028+i*0.026);
+        g.gain.exponentialRampToValueAtTime(0.001,now+0.2+i*0.04);
+        o.connect(g);g.connect(vol);o.start(now+0.028+i*0.026);o.stop(now+0.25+i*0.04);
+      });
+      const air=noiseBurst(0.07,3.0,0.08,'highpass',2200,0.8);
+      air.start(now+0.018);
     }
 
     else if(type==='reactionTrigger'){
@@ -1866,6 +1952,46 @@ function playSfxDeferred(type, delayMs) {
 }
 window.playSfxDeferred = playSfxDeferred;
 
+function playFateCardHoverSfx(key) {
+  const hoverKey = String(key || 'card-hover');
+  if(typeof window.playFateSfxOnce === 'function') return window.playFateSfxOnce('cardHover', hoverKey, 95);
+  if(typeof playSfx === 'function') {
+    playSfx('cardHover');
+    return true;
+  }
+  return false;
+}
+window.playFateCardHoverSfx = playFateCardHoverSfx;
+
+function playFateBoardCardHoverSfx(key) {
+  const hoverKey = String(key || 'board-card-hover');
+  if(typeof window.playFateSfxOnce === 'function') return window.playFateSfxOnce('boardCardHover', hoverKey, 110);
+  if(typeof playSfx === 'function') {
+    playSfx('boardCardHover');
+    return true;
+  }
+  return false;
+}
+window.playFateBoardCardHoverSfx = playFateBoardCardHoverSfx;
+
+(function installFateCardHoverSfx(){
+  if(typeof document === 'undefined' || window.__fateCardHoverSfxInstalled) return;
+  window.__fateCardHoverSfxInstalled = true;
+  document.addEventListener('pointerover', function(ev){
+    if(!ev || ev.pointerType === 'touch') return;
+    const target = ev.target && ev.target.closest ? ev.target.closest('.hc,.bc,.opp-card-back,.mc,.visual-mc,.preset-view-card') : null;
+    if(!target || (ev.relatedTarget && target.contains && target.contains(ev.relatedTarget))) return;
+    if(target.closest && target.closest('#s-deck,#s-challenger .cdb-card-grid,#modal')) return;
+    if(window.__fateV2DraggingCard || (document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'))) return;
+    const key = target.dataset && (target.dataset.iid || target.dataset.cardId || target.dataset.index || target.dataset.cardKey);
+    if(target.classList && target.classList.contains('bc') && target.closest && target.closest('#s-game #board')) {
+      playFateBoardCardHoverSfx('dom-board:' + (key || target.className || 'card'));
+      return;
+    }
+    playFateCardHoverSfx('dom:' + (key || target.className || 'card'));
+  }, {capture:true, passive:true});
+})();
+
 function playCardSetAudio(card, options) {
   if(!card) return false;
   const opts = options || {};
@@ -2345,6 +2471,10 @@ function showTurnFlash() {
 //  PROFILE UI
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function showProfile() {
+  if(window.FateProfileView && typeof window.FateProfileView.openSelf === 'function'){
+    window.FateProfileView.openSelf({returnScreen:'s-title'});
+    return;
+  }
   renderProfileModal(false);
 }
 
@@ -2355,6 +2485,11 @@ function refreshProfileDisplays() {
 }
 
 function renderProfileModal(editing) {
+  if(!editing && window.FateProfileView && typeof window.FateProfileView.shouldReturnFromTool === 'function' && window.FateProfileView.shouldReturnFromTool()){
+    if(typeof closeModal === 'function') closeModal({silent:true});
+    window.FateProfileView.returnFromTool();
+    return;
+  }
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const body = document.createElement('div');
   const picImg = getProfileImgSrc('square');
@@ -2422,7 +2557,14 @@ function renderProfileModal(editing) {
   }
 
   const close = document.createElement('button');
-  close.className='btn sm'; close.textContent='Close'; close.onclick=closeModal;
+  close.className='btn sm'; close.textContent='Close';
+  close.onclick = ()=>{
+    if(editing && window.FateProfileView && typeof window.FateProfileView.shouldReturnFromTool === 'function' && window.FateProfileView.shouldReturnFromTool()){
+      renderProfileModal(false);
+      return;
+    }
+    closeModal();
+  };
   document.getElementById('modal-acts').appendChild(close);
 
   if(editing){

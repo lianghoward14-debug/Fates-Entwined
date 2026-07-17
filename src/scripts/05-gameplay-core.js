@@ -561,6 +561,10 @@ function endTurn(opts) {
     return;
   }
 
+  const endTurnSfxKey = ['end-turn', String(G._onlineRoomCode || 'local'), Number(G.turn || 0) || 0, cp].join(':');
+  if(typeof window.playEndTurnSfxOnce === 'function') window.playEndTurnSfxOnce(endTurnSfxKey);
+  else if(typeof playSfx === 'function') playSfx('endTurn');
+
   // Check win condition at end of turn 10
   if(G.turn >= G.maxTurns) {
     checkWin();
@@ -578,8 +582,6 @@ function endTurn(opts) {
       }
     });
   }
-  if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('turnChange', 'turn-change-end-click', 350);
-  else if(typeof playSfx === 'function') playSfx('turnChange');
   // Online rooms are not a same-device handoff, so pass directly to the
   // replayed next turn instead of showing the local pass-turn overlay.
   if(G._onlineRoomCode){
@@ -896,12 +898,36 @@ function isLocalConsolidationActive() {
   return !!(G && G._consolidating && isLocalPlayerActionTurn());
 }
 
+function isImprovisorTurnTimerPaused() {
+  if(!G) return false;
+  if(G._reactionPending || G._serverPendingReaction) return true;
+  try {
+    if(document.documentElement.classList.contains('online-improvisor-reaction-paused')) return true;
+    return !!document.querySelector(
+      '#online-improvisor-reaction-root[data-online-improvisor-prompt-id], ' +
+      '#modal [data-online-improvisor-prompt-id], #modal .reaction-choice-panel'
+    );
+  } catch(e) {
+    return false;
+  }
+}
+if(typeof window !== 'undefined') window.isImprovisorTurnTimerPaused = isImprovisorTurnTimerPaused;
+
+function getOnlineActiveImprovisorPauseMs(now) {
+  const pending = G && G._serverPendingReaction;
+  const openedAt = Number(pending?.openedAt);
+  if(!pending || !Number.isFinite(openedAt)) return 0;
+  const timeoutMs = Math.max(0, Number(pending.timeoutMs || 15000) || 15000);
+  return Math.min(timeoutMs + 2000, Math.max(0, Number(now) - openedAt));
+}
+
 function getOnlineSyncedTurnRemaining(limit) {
   if(!G || !G._onlineRoomCode || !Number.isFinite(Number(G._turnStartedAt))) return null;
   const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
     ? window.fateAuthorityServerNow()
     : Date.now();
-  const elapsed = Math.floor((now - Number(G._turnStartedAt)) / 1000);
+  const activePauseMs = getOnlineActiveImprovisorPauseMs(now);
+  const elapsed = Math.floor((now - Number(G._turnStartedAt) - activePauseMs) / 1000);
   if(elapsed < 0) return null;
   return Math.max(0, Math.min(limit, limit - elapsed));
 }
@@ -912,7 +938,9 @@ function repairStaleOnlineTurnStartedAt(limit) {
     ? window.fateAuthorityServerNow()
     : Date.now();
   const startedAt = Number(G._turnStartedAt);
-  const elapsed = Number.isFinite(startedAt) ? Math.floor((now - startedAt) / 1000) : null;
+  const elapsed = Number.isFinite(startedAt)
+    ? Math.floor((now - startedAt - getOnlineActiveImprovisorPauseMs(now)) / 1000)
+    : null;
   if(elapsed !== null && elapsed >= 0 && elapsed < Number(limit || TURN_TIME_LIMIT)) return false;
   G._turnStartedAt = now;
   try {
@@ -1009,6 +1037,10 @@ function startTurnTimer() {
   _lastTurnWarnSecond = null;
   updateTimerDisplay();
   _turnTimerInterval = setInterval(()=>{
+    if(isImprovisorTurnTimerPaused()){
+      updateTimerDisplay();
+      return;
+    }
     const liveSyncedRemaining = getOnlineSyncedTurnRemaining(limit);
     _turnTimerRemaining = liveSyncedRemaining !== null ? liveSyncedRemaining : (_turnTimerRemaining - 1);
     updateTimerDisplay();
@@ -3140,6 +3172,14 @@ function whenSetEffectsAreDeferred() {
   }
 }
 
+function wasOnlineOneShotEffectSubmitted(fnName, card, z, r, c) {
+  if(!card || !G || !G._onlineRoomCode || typeof window.fateOnlineEffectActivationWasSubmitted !== 'function') return false;
+  const pos = Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
+    ? { z, r, c }
+    : (typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null);
+  return !!(pos && window.fateOnlineEffectActivationWasSubmitted(fnName, card, pos));
+}
+
 window.setFateWhenSetImmediateMode = function(enabled) {
   try {
     if(enabled) localStorage.setItem('fateWhenSetImmediate', '1');
@@ -3153,6 +3193,7 @@ function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
   if(card._effectNegatedByReaction || card._reactionSuppressed || card._lydiaSuppressed) return false;
   if(card._pendingWhenSetActivationInFlight || card._busserGrantPending) return false;
+  if(wasOnlineOneShotEffectSubmitted('activatePendingWhenSetEffect', card)) return false;
   const id = String(card.id || '');
   if(!WINDOWED_WHEN_SET_EFFECT_IDS.has(id)) return false;
   if(card.type === 'Supporter' && WHEN_SET_IDS.has(id)) return card.whenSetActivated !== true;
@@ -3196,12 +3237,21 @@ function queueDeferredWhenSetEffect(card, z, r, c) {
   };
   card._effectNegatedByReaction = false;
   if(card.type === 'Supporter') card.whenSetActivated = false;
+  try {
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('pending-when-set-queued');
+    }
+  } catch(e) {}
+  try {
+    if(typeof renderGame === 'function') renderGame({board:true, effects:true, hover:true});
+  } catch(e) {}
   return true;
 }
 
 function canActivatePendingWhenSetEffect(card, z, r, c, player = G.currentPlayer) {
   if(!card || !card._pendingWhenSetEffect || isFaceDownCard(card)) return false;
   if(card._pendingWhenSetActivationInFlight) return false;
+  if(wasOnlineOneShotEffectSubmitted('activatePendingWhenSetEffect', card, z, r, c)) return false;
   if(expireStalePendingWhenSetEffect(card)) return false;
   if(card.owner !== player || G.currentPlayer !== player) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
@@ -3630,12 +3680,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       inst._philSetTurn = G.turn; break;
     case '57': // Jeremiah Jones: no special when-set (aura potency boost handled in getEffectiveFate)
       break;
-    case '77': { // Duncan Heyward: when set, declare affiliation; then passive +3 to that aff
+    case '77': { // Duncan Heyward: when set, declare affiliation; then passive +4 to that aff
       showAffiliationPickerVisual((aff)=>{
         inst._declaredAff = aff;
         // Show affiliation icon flash on Duncan
         if(typeof showAffChangeOverlay==='function') showAffChangeOverlay(inst, aff);
-        toast('Duncan Heyward declared '+AFF_LABEL[aff]+'! All '+AFF_LABEL[aff]+' cards in zone gain 3 Fate.');
+        toast('Duncan Heyward declared '+AFF_LABEL[aff]+'! All '+AFF_LABEL[aff]+' cards in zone gain 4 Fate.');
         log(cp===0?'p1':'p2','Duncan Heyward declared '+AFF_LABEL[aff]);
         renderEffectResolutionForPlayer(cp, {hand:false});
       });
@@ -4638,6 +4688,7 @@ function shouldShowManualCharacterEffectButton(card) {
   if(!card || card.type === 'Supporter') return false;
   const id = String(card.id || '');
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
+  if(wasOnlineOneShotEffectSubmitted('triggerCharacterEffect', card)) return false;
   if(G && G._onlineRoomCode && (
     card._effectActivationInFlight ||
     G._serverPendingReaction ||
@@ -4659,6 +4710,44 @@ function shouldShowManualCharacterEffectButton(card) {
   if(card.type === 'Initiator' && INITIAL_SET_INITIATOR_IDS.has(id) && !card.effectUsedInitial) return isSameTurnAsCardSet(card);
   return false;
 }
+
+// Keep the board's purple activation border in lockstep with the card modal.
+// This includes deferred when-set effects as well as Characters (for example
+// Henry) whose manual Activate Effect button does not use the deferred marker.
+function canShowBoardActivateEffect(card, z, r, c, player) {
+  if(!card || isFaceDownCard(card) || !G) return false;
+  const actionPlayer = Number.isInteger(player)
+    ? player
+    : (G._onlineRoomCode && Number.isInteger(G._onlinePlayerIndex)
+      ? G._onlinePlayerIndex
+      : (typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer));
+  if(!Number.isInteger(actionPlayer)
+    || card.owner !== actionPlayer
+    || G.currentPlayer !== actionPlayer
+    || G.phase !== 'main'
+    || G._isSpectator
+    || G._onlineRole === 'spectator') return false;
+  if(typeof canActivatePendingWhenSetEffect === 'function'
+    && canActivatePendingWhenSetEffect(card, z, r, c, actionPlayer)) return true;
+  if(shouldShowManualCharacterEffectButton(card)) return true;
+  if(card.type !== 'Supporter') return false;
+  const supporterSuppressed = typeof isSupporterEffectSuppressed === 'function'
+    && isSupporterEffectSuppressed(card);
+  if(supporterSuppressed) return false;
+  const id = String(card.id || '');
+  if(id === '52') {
+    return !!card._pendingWhenSetEffect
+      && (typeof canActivateVigilantesWindow === 'function'
+        ? canActivateVigilantesWindow(card)
+        : card.whenSetActivated !== true);
+  }
+  if(id === '73') return !!card._canMoveOncePerTurn && !card._expMoved;
+  if(id === '93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '93'))) {
+    return card.effectUsedThisTurn !== true;
+  }
+  return false;
+}
+window.canShowBoardActivateEffect = canShowBoardActivateEffect;
 
 //  FATE HELPERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -4836,7 +4925,7 @@ function isCardEffectSuppressed(card) {
   return !!(isDirectCardEffectSuppressed(card) || isCardSuppressedByHenryDong(card, z, r, c));
 }
 
-const ONGOING_REACTION_EFFECT_IDS = new Set(['10','14','36','53','62','64']);
+const ONGOING_REACTION_EFFECT_IDS = new Set(['10','14','21','36','53','62','64']);
 const DELAYED_REACTION_SUPPRESSION_IDS = new Set([
   '33', // West Caribbea Infantry: next Character added to hand
   '40', // Christopher Erbs: later draw empowerment
@@ -5002,8 +5091,8 @@ function getEffectiveFate(card, z) {
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
     if(cardActsAsPassive(cell, '59') && card.type==='Supporter' && !isSupporterEffectSuppressed(cell)) bonus += 1;
-    // Duncan Heyward (77): +3 to declared-affiliation friendly cards in zone
-    if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 3 + jeremiahBoost;
+    // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
+    if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
 
   // Zsofia (15): each copy applies its own zone-wide buff

@@ -284,6 +284,13 @@ async function run() {
     if (retryEndAccepted.idempotentReplay !== true || retryEndAccepted.action.clientActionId !== endPayload.clientActionId) {
       throw new Error(`expected duplicate END_TURN to replay original accepted action, got ${JSON.stringify(retryEndAccepted)}`);
     }
+    const retryEndNewId = sendIntent(host, 'END_TURN', actionPayload(0, 'host-end-turn-fresh-id', {
+      nextCurrentPlayer: 1
+    }));
+    const retryEndNewIdAccepted = await expectAccepted(host, retryEndNewId, 'END_TURN', 4);
+    if (retryEndNewIdAccepted.idempotentReplay !== true || retryEndNewIdAccepted.action.clientActionId !== endPayload.clientActionId) {
+      throw new Error(`expected fresh-id duplicate END_TURN to replay original accepted action, got ${JSON.stringify(retryEndNewIdAccepted)}`);
+    }
     const conflictingRetry = sendIntent(host, 'CLICK_CELL', Object.assign({}, endPayload, {
       z: 2,
       r: 2,
@@ -309,9 +316,19 @@ async function run() {
 
     const landscapePick = sendIntent(guest, 'PICK_LANDSCAPE_ZONE', actionPayload(1, 'guest-landscape-zone', {
       chooserIndex: 1,
-      zone: 2
+      zone: 2,
+      landscapePromptKey: 'smoke-room|igb8|10|1|row|Qingdao Breakthrough'
     }));
-    await expectAccepted(guest, landscapePick, 'PICK_LANDSCAPE_ZONE', 6);
+    const landscapeAccepted = await expectAccepted(guest, landscapePick, 'PICK_LANDSCAPE_ZONE', 6);
+    const duplicateLandscapePick = sendIntent(guest, 'PICK_LANDSCAPE_ZONE', actionPayload(1, 'guest-landscape-zone-duplicate', {
+      chooserIndex: 1,
+      zone: 0,
+      landscapePromptKey: 'smoke-room|igb8|10|1|row|Qingdao Breakthrough'
+    }));
+    const duplicateLandscapeAccepted = await expectAccepted(guest, duplicateLandscapePick, 'PICK_LANDSCAPE_ZONE', 6);
+    if(duplicateLandscapeAccepted.idempotentReplay !== true || duplicateLandscapeAccepted.action.clientActionId !== landscapeAccepted.action.clientActionId){
+      throw new Error(`expected duplicate landscape prompt to replay the first choice, got ${JSON.stringify(duplicateLandscapeAccepted)}`);
+    }
 
     const forfeitGuest = sendIntent(guest, 'FORFEIT', {
       clientActionId: `smoke:guest-forfeit:${Date.now()}`
@@ -372,7 +389,7 @@ async function run() {
       'server disconnect timeout',
       4000
     );
-    if(timeoutAccepted.roomPatch.winnerUid !== HOST_UID || timeoutAccepted.roomPatch.loserUid !== GUEST_UID){
+    if(timeoutAccepted.roomPatch.winnerUid !== HOST_UID || timeoutAccepted.roomPatch.loserUid !== GUEST_UID || timeoutAccepted.roomPatch.endedBy !== GUEST_UID){
       throw new Error(`unexpected disconnect room patch: ${JSON.stringify(timeoutAccepted.roomPatch)}`);
     }
     const ledger = timeoutAccepted.action.payload.rewardLedger;
@@ -389,7 +406,7 @@ async function run() {
       throw new Error(`unexpected guest reward ledger: ${JSON.stringify(ledger.byUid?.[GUEST_UID])}`);
     }
     const disconnectFinal = (await apiRequest('GET', `/api/rooms/${disconnectRoomCode}`)).room;
-    if(disconnectFinal.status !== 'ended' || disconnectFinal.endReason !== 'disconnect' || disconnectFinal.winnerUid !== HOST_UID || disconnectFinal.loserUid !== GUEST_UID || disconnectFinal.resultLedger?.byUid?.[HOST_UID]?.newElo !== 616){
+    if(disconnectFinal.status !== 'ended' || disconnectFinal.endReason !== 'disconnect' || disconnectFinal.endedBy !== GUEST_UID || disconnectFinal.winnerUid !== HOST_UID || disconnectFinal.loserUid !== GUEST_UID || disconnectFinal.resultLedger?.byUid?.[HOST_UID]?.newElo !== 616){
       throw new Error(`unexpected disconnect final room: ${JSON.stringify(disconnectFinal)}`);
     }
     const resumeEnded = await apiRequest('GET', `/api/rooms/${disconnectRoomCode}/resume?after=1&limit=20`);

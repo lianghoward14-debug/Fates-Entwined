@@ -19,6 +19,7 @@
     <nav class="nav-links" aria-label="Primary navigation">
       <a href="#game">Game</a>
       <a href="#features">Features</a>
+      <a href="#archive" data-archive-link="cards">Cards</a>
       <a href="#worlds">Worlds</a>
       <a href="#download">Download</a>
     </nav>
@@ -33,10 +34,10 @@
         <h1>Control the board.<br><span>Bend Fate.</span></h1>
         <p class="hero-copy">Build a forty-card deck, set characters across three contested zones, activate strange abilities, and win by commanding more Fate than your rival when the final turn arrives.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://fates-entwined-main.fly.dev/installer/Fates-Entwined-Installer.exe" download>Download Installer</a>
+          <a class="btn btn-primary" href="https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe" download>Download Installer</a>
           <a class="btn btn-ghost" href="#game">How it plays</a>
         </div>
-        <p class="installer-note">Latest Windows build: v1.39.0. Installer downloads are served through Fly.io.</p>
+        <p class="installer-note">Latest Windows build: v1.39.0. Installer downloads are served through GitHub Releases.</p>
       </div>
       <aside class="hero-card" aria-label="Featured card preview">
         <div class="card-frame rarity-star">
@@ -119,12 +120,55 @@
         <h2>Matches unfold across painted battlefields, harbors, rivers, and moonlit frontiers.</h2>
       </div>
       <div class="gallery">
-        <img src="assets/backgrounds/ocean.png" alt="Sunlit ocean">
-        <img src="assets/backgrounds/winter.png" alt="Moonlit winter mountains">
-        <img src="assets/backgrounds/harbor.png" alt="Sunset harbor city">
-        <img src="assets/backgrounds/battlefield.png" alt="Army gathering below a tree">
-        <img src="assets/backgrounds/pirates.png" alt="Pirate tavern at night">
-        <img src="assets/backgrounds/canyon.png" alt="Canyon at sunset">
+        <img src="assets/backgrounds/river.png" alt="Moonlit river crossing in-game landscape">
+        <img src="assets/backgrounds/winter.png" alt="Snow on the Carpathians in-game landscape">
+        <img src="assets/backgrounds/war.png" alt="Snowy warfront in-game landscape">
+        <img src="assets/backgrounds/battlefield.png" alt="United Nations Army at Bremen in-game landscape">
+        <img src="assets/backgrounds/qingdao-igb8-20260718.png" alt="Qingdao invasion in-game landscape">
+        <img src="assets/backgrounds/canyon.png" alt="Zion Canyon in-game landscape">
+      </div>
+    </section>
+
+    <section class="archive-section" id="archive">
+      <div class="archive-bg" aria-hidden="true"></div>
+      <div class="archive-heading">
+        <p class="section-kicker">The archive</p>
+        <h2>Browse the card archive.</h2>
+        <p class="section-copy">Open any card for its current in-game rules text, stats, rarity, and art.</p>
+      </div>
+
+      <div class="archive-console">
+        <div class="archive-tabs" role="tablist" aria-label="Archive tabs">
+          <button class="archive-tab is-active" type="button" role="tab" aria-selected="true" data-archive-tab="cards">Card Archive</button>
+        </div>
+
+        <section class="archive-panel is-active" id="archive-cards" role="tabpanel" aria-label="Card archive">
+          <div class="archive-toolbar">
+            <label class="archive-search">
+              <span>Search cards</span>
+              <input id="archive-card-search" type="search" autocomplete="off" placeholder="Name, effect, affiliation..." />
+            </label>
+            <label>
+              <span>Affiliation</span>
+              <select id="archive-card-affiliation">
+                <option value="">All affiliations</option>
+                <option value="third_great_war">Third Great War</option>
+                <option value="eventide">Eventide</option>
+                <option value="expanded_worlds">Expanded Worlds</option>
+                <option value="reality">Reality</option>
+              </select>
+            </label>
+            <label>
+              <span>Type</span>
+              <select id="archive-card-type">
+                <option value="">All types</option>
+              </select>
+            </label>
+          </div>
+          <div class="archive-count" id="archive-card-count"></div>
+          <div class="archive-card-grid" id="archive-card-grid"></div>
+        </section>
+
       </div>
     </section>
 
@@ -133,8 +177,8 @@
       <div class="download-box">
         <p class="eyebrow">Ready for release</p>
         <h2>Download the Windows installer.</h2>
-        <p>The latest Windows installer, v1.39.0, is hosted through Fly.io alongside the online match server.</p>
-        <a class="btn btn-primary" href="https://fates-entwined-main.fly.dev/installer/Fates-Entwined-Installer.exe" download>Download Installer</a>
+        <p>The latest Windows installer, v1.39.0, is hosted through GitHub Releases alongside the auto-updater build.</p>
+        <a class="btn btn-primary" href="https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe" download>Download Installer</a>
       </div>
     </section>
   </main>
@@ -143,6 +187,9 @@
     <span>© <span id="year"></span> Fates Entwined</span>
     <a href="#top">Back to top</a>
   </footer>
+  <div class="archive-modal" id="archive-modal" hidden></div>
+  <script src="archive-data.js"></script>
+  <script src="archive.js"></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>

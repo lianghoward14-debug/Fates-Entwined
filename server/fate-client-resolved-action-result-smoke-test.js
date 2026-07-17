@@ -349,39 +349,35 @@ const armed = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(armed.ok, true, armed.reason);
-assert.ok(armed.reactionArmed, 'BOARD_ACTION should arm an Improvisor reaction');
-const pending = armed.canonicalState._serverPendingReaction;
-assert.ok(pending, 'armed state should contain _serverPendingReaction');
-assert.strictEqual(Number(pending.playerIndex), 1);
-assert.ok(pending.options.some(option=>option.kind === 'lydia'), 'pending reaction should include Lydia');
-assert.ok(pending.options.some(option=>option.kind === 'secules'), 'pending reaction should include Mr. Secules');
-assert.ok(!pending.options.some(option=>option.kind === 'havano'), 'pending reaction should not include Havano for sources outside the explicit Havano table');
-assert.strictEqual(armed.canonicalState.board[0][2][0].currentFate, 1, 'effect result should be paused until reaction choice');
-assert.strictEqual(armed.canonicalState.board[0][2][0].effectUsedInitial, true, 'armed reaction canonical state should still mark the source effect spent');
-assert.strictEqual(armed.canonicalState.board[0][2][0]._effectTurnLocked, true, 'armed reaction canonical state should still lock the source effect');
+assert.strictEqual(armed.reactionArmed, undefined, 'BOARD_ACTION must never reopen an Improvisor reaction after first-set adjudication');
+assert.strictEqual(armed.canonicalState._serverPendingReaction, undefined, 'activation-time actions must not create stale Improvisor prompts');
+assert.strictEqual(armed.canonicalState.board[0][2][0].currentFate, 99, 'activation-time actions should apply their client-resolved result immediately');
 
-const rogueCommitWhileReactionPending = clone(resolvedEffect);
-rogueCommitWhileReactionPending.board[0][2][0].currentFate = 123;
-const rogueCommitHash = canonicalStateHash(rogueCommitWhileReactionPending);
-const blockedRogueCommit = reduceServerAction({
-  canonicalState:armed.canonicalState,
-  canonicalHash:armed.canonicalHash
+const duplicateEffectResolved = clone(resolvedEffect);
+duplicateEffectResolved.board[0][2][0].currentFate = 123;
+const duplicateEffect = reduceServerAction({
+  canonicalState:resolvedEffect,
+  canonicalHash:resolvedHash
 }, {
-  type:'ACTION_RESULT',
+  type:'BOARD_ACTION',
   payload:{
     playerIndex:0,
     turn:1,
-    actionKind:'AUTO_CLIENT_STATE_COMMIT',
-    postState:rogueCommitWhileReactionPending,
-    stateHash:rogueCommitHash,
-    baseStateHash:armed.canonicalHash
+    fn:'triggerCharacterEffect',
+    z:0,
+    r:2,
+    c:0,
+    source:{z:0, r:2, c:0, card:{iid:'source-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
+    postState:duplicateEffectResolved,
+    stateHash:canonicalStateHash(duplicateEffectResolved),
+    baseStateHash:resolvedHash
   }
 }, {
   mode:'client-resolved',
   requireBaseHash:true
 });
-assert.strictEqual(blockedRogueCommit.ok, false, 'generic state commits must not overwrite a pending Improvisor reaction');
-assert.match(blockedRogueCommit.reason, /pending reaction must resolve first/);
+assert.strictEqual(duplicateEffect.ok, false, 'already-spent board effects must not be accepted a second time');
+assert.match(duplicateEffect.reason, /already activated/);
 
 const sparseSupporterReactionBase = baseState();
 sparseSupporterReactionBase.players[0].hand = [];
@@ -425,38 +421,175 @@ const sparseSupporterArmed = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(sparseSupporterArmed.ok, true, sparseSupporterArmed.reason);
-assert.ok(sparseSupporterArmed.reactionArmed, 'sparse Supporter when-set payload should still arm an Improvisor reaction');
-const sparseSupporterPending = sparseSupporterArmed.canonicalState._serverPendingReaction;
-assert.ok(sparseSupporterPending, 'sparse Supporter reaction should contain _serverPendingReaction');
-assert.strictEqual(sparseSupporterPending.actionType, 'supporter_effect', 'Supporter when-set payload should be normalized to supporter_effect');
-assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'lydia'), 'sparse Supporter reaction should include Lydia');
-assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'secules'), 'sparse Supporter reaction should include Mr. Secules');
-assert.ok(sparseSupporterPending.options.some(option=>option.kind === 'havano'), 'sparse Supporter reaction should include Havano without affectedOwners');
+assert.strictEqual(sparseSupporterArmed.reactionArmed, undefined, 'activatePendingWhenSetEffect must not reopen the first-set Improvisor path');
+assert.strictEqual(sparseSupporterArmed.canonicalState._serverPendingReaction, undefined, 'Supporter activate buttons must not create a second Improvisor prompt');
+assert.strictEqual(sparseSupporterArmed.canonicalState.board[0][2][0].effectUsedInitial, true, 'allowed Supporter effects should proceed normally after first-set adjudication');
+
+const ordinaryPlacementBase = baseState();
+const ordinaryKazumi = card('27', 0, 'ordinary-kazumi-1', 'Initiator');
+ordinaryKazumi.name = 'Kazumi';
+ordinaryPlacementBase.players[0].hand = [ordinaryKazumi];
+ordinaryPlacementBase.players[1].hand = [];
+const ordinaryPlacementBaseHash = canonicalStateHash(ordinaryPlacementBase);
+const ordinaryPlacementPost = clone(ordinaryPlacementBase);
+ordinaryPlacementPost.players[0].hand = [];
+ordinaryPlacementPost.board[0][2][0] = ordinaryKazumi;
+const ordinaryPlacementPostHash = canonicalStateHash(ordinaryPlacementPost);
+const ordinaryPlacementAccepted = reduceServerAction({
+  canonicalState:ordinaryPlacementBase,
+  canonicalHash:ordinaryPlacementBaseHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'PLACE_CARD',
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    selectedHand:{iid:ordinaryKazumi.iid, id:ordinaryKazumi.id, card:ordinaryKazumi},
+    postState:ordinaryPlacementPost,
+    stateHash:ordinaryPlacementPostHash,
+    baseStateHash:ordinaryPlacementBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(ordinaryPlacementAccepted.ok, true, ordinaryPlacementAccepted.reason);
+assert.strictEqual(ordinaryPlacementAccepted.reactionArmed, undefined, 'ordinary placement must not enter the Improvisor path');
+assert.deepStrictEqual(ordinaryPlacementAccepted.canonicalState, ordinaryPlacementPost, 'ordinary placement state must remain untouched');
+
+const seculesPlacementBase = baseState();
+const seculesKazumi = card('27', 0, 'secules-kazumi-1', 'Initiator');
+seculesKazumi.name = 'Kazumi';
+const placementSecules = card('67', 1, 'secules-placement-1', 'Improvisor');
+placementSecules.name = 'Mr. Secules';
+seculesPlacementBase.players[0].hand = [seculesKazumi];
+seculesPlacementBase.players[1].hand = [];
+seculesPlacementBase.board[1][0][0] = placementSecules;
+const seculesPlacementBaseHash = canonicalStateHash(seculesPlacementBase);
+const seculesPlacementPost = clone(seculesPlacementBase);
+seculesPlacementPost.players[0].hand = [];
+seculesPlacementPost.board[0][2][0] = seculesKazumi;
+const seculesPlacementPostHash = canonicalStateHash(seculesPlacementPost);
+const seculesPlacementArmed = reduceServerAction({
+  canonicalState:seculesPlacementBase,
+  canonicalHash:seculesPlacementBaseHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'PLACE_CARD',
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    selectedHand:{iid:seculesKazumi.iid, id:seculesKazumi.id, card:seculesKazumi},
+    postState:seculesPlacementPost,
+    stateHash:seculesPlacementPostHash,
+    baseStateHash:seculesPlacementBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(seculesPlacementArmed.ok, true, seculesPlacementArmed.reason);
+assert.ok(seculesPlacementArmed.reactionArmed, 'placing an Initiator such as Kazumi must arm Secules before its automatic effect');
+assert.strictEqual(seculesPlacementArmed.canonicalState.board[0][2][0].iid, seculesKazumi.iid, 'placement reaction must keep the newly set card on board');
+assert.ok(seculesPlacementArmed.canonicalState._serverPendingReaction.options.some(option=>option.kind === 'secules'), 'Kazumi placement reaction must include Secules');
+
+const passiveSupporterBase = clone(seculesPlacementBase);
+const passiveSupporter = card('53', 0, 'passive-supporter-1', 'Supporter');
+passiveSupporter.name = 'Colombo Thug';
+passiveSupporterBase.players[0].hand = [passiveSupporter];
+const passiveSupporterBaseHash = canonicalStateHash(passiveSupporterBase);
+const passiveSupporterPost = clone(passiveSupporterBase);
+passiveSupporterPost.players[0].hand = [];
+passiveSupporterPost.board[0][2][0] = passiveSupporter;
+const passiveSupporterAccepted = reduceServerAction({canonicalState:passiveSupporterBase, canonicalHash:passiveSupporterBaseHash}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'PLACE_CARD',
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    selectedHand:{iid:passiveSupporter.iid, id:passiveSupporter.id, card:passiveSupporter},
+    postState:passiveSupporterPost,
+    stateHash:canonicalStateHash(passiveSupporterPost),
+    baseStateHash:passiveSupporterBaseHash
+  }
+}, {mode:'client-resolved', requireBaseHash:true});
+assert.strictEqual(passiveSupporterAccepted.ok, true, passiveSupporterAccepted.reason);
+assert.strictEqual(passiveSupporterAccepted.reactionArmed, undefined, 'Secules must not react to a Supporter without a when-set effect');
+
+const immunePlacementBase = baseState();
+const alpineInfantry = card('76', 0, 'immune-placement-1', 'Supporter');
+alpineInfantry.name = 'ALPINE Infantry';
+const immuneLydia = card('56', 1, 'immune-lydia-1', 'Improvisor');
+immuneLydia.usesLeft = 3;
+immunePlacementBase.players[0].hand = [alpineInfantry];
+immunePlacementBase.players[1].hand = [card('79', 1, 'immune-havano-1', 'Improvisor')];
+immunePlacementBase.board[1][0][0] = immuneLydia;
+const immunePlacementBaseHash = canonicalStateHash(immunePlacementBase);
+const immunePlacementPost = clone(immunePlacementBase);
+immunePlacementPost.players[0].hand = [];
+immunePlacementPost.board[0][2][0] = alpineInfantry;
+const immunePlacementAccepted = reduceServerAction({canonicalState:immunePlacementBase, canonicalHash:immunePlacementBaseHash}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'PLACE_CARD',
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    selectedHand:{iid:alpineInfantry.iid, id:alpineInfantry.id, card:alpineInfantry},
+    postState:immunePlacementPost,
+    stateHash:canonicalStateHash(immunePlacementPost),
+    baseStateHash:immunePlacementBaseHash
+  }
+}, {mode:'client-resolved', requireBaseHash:true});
+assert.strictEqual(immunePlacementAccepted.ok, true, immunePlacementAccepted.reason);
+assert.strictEqual(immunePlacementAccepted.reactionArmed, undefined, 'effect-immune placements must bypass every Improvisor');
 
 const dylanFirstSetBase = baseState();
 const postModernistDylan = card('10', 0, 'dylan-first-set-1', 'Coordinator');
 postModernistDylan.name = 'Post-Modernist Dylan';
 const dylanHavano = card('79', 1, 'havano-dylan-first-set-1', 'Improvisor');
 dylanHavano.name = 'Havano Citizen';
+const dylanTribute = card('90', 0, 'dylan-tribute-1', 'Supporter');
+dylanTribute.name = 'Dylan Consolidation Tribute';
 dylanFirstSetBase.players[0].hand = [postModernistDylan];
 dylanFirstSetBase.players[1].hand = [dylanHavano];
+dylanFirstSetBase.board[0][2][0] = dylanTribute;
 const dylanFirstSetBaseHash = canonicalStateHash(dylanFirstSetBase);
 const dylanFirstSetPost = clone(dylanFirstSetBase);
 dylanFirstSetPost.players[0].hand = [];
+dylanFirstSetPost.players[0].discard = [dylanTribute];
 dylanFirstSetPost.board[0][2][0] = postModernistDylan;
 const dylanFirstSetPostHash = canonicalStateHash(dylanFirstSetPost);
 const dylanFirstSetArmed = reduceServerAction({
   canonicalState:dylanFirstSetBase,
   canonicalHash:dylanFirstSetBaseHash
 }, {
-  type:'PLACE_CARD',
+  type:'ACTION_RESULT',
   payload:{
+    actionKind:'SELECT_CONSOLIDATION_TRIBUTE',
     playerIndex:0,
     turn:1,
     z:0,
     r:2,
     c:0,
     selectedHand:{iid:postModernistDylan.iid, id:postModernistDylan.id, card:postModernistDylan},
+    chosenTributes:[{iid:dylanTribute.iid, id:dylanTribute.id, z:0, r:2, c:0, card:dylanTribute}],
+    consolidationPresentation:{
+      target:{z:0, r:2, c:0},
+      resultCard:{iid:postModernistDylan.iid, id:postModernistDylan.id, card:postModernistDylan},
+      tributes:[{iid:dylanTribute.iid, id:dylanTribute.id, z:0, r:2, c:0, card:dylanTribute}]
+    },
     postState:dylanFirstSetPost,
     stateHash:dylanFirstSetPostHash,
     baseStateHash:dylanFirstSetBaseHash
@@ -466,14 +599,65 @@ const dylanFirstSetArmed = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(dylanFirstSetArmed.ok, true, dylanFirstSetArmed.reason);
-assert.ok(dylanFirstSetArmed.reactionArmed, 'placing Post-Modernist Dylan must arm Havano from the first-set path');
+assert.ok(dylanFirstSetArmed.reactionArmed, 'consolidating Post-Modernist Dylan must arm Havano from the first-set path');
 const dylanPending = dylanFirstSetArmed.canonicalState._serverPendingReaction;
 assert.ok(dylanPending, 'Dylan first-set reaction should contain _serverPendingReaction');
-assert.strictEqual(dylanPending.actionType, 'first_set_effect', 'Dylan placement should be classified as first_set_effect');
-assert.strictEqual(String(dylanPending.source && dylanPending.source.id), '10', 'Dylan placement source must be read from postState target square');
+assert.strictEqual(dylanPending.actionType, 'first_set_effect', 'Dylan consolidation should be classified as first_set_effect');
+assert.strictEqual(String(dylanPending.source && dylanPending.source.id), '10', 'Dylan consolidation source must come from the declared result target, never the final tribute click');
+assert.strictEqual(dylanPending.sourceName, 'Post-Modernist Dylan', 'Dylan consolidation prompt must never name the consumed tribute');
 assert.ok(dylanPending.options.some(option=>option.kind === 'havano'), 'Dylan first-set reaction should include Havano');
 
+const carolynFirstSetBase = baseState();
+const carolyn = card('17', 0, 'carolyn-first-set-1', 'Initiator');
+carolyn.name = 'Carolyn';
+const carolynHavano = card('79', 1, 'havano-carolyn-first-set-1', 'Improvisor');
+carolynHavano.name = 'Havano Citizen';
+const unFifthTribute = card('09', 0, 'un-fifth-carolyn-tribute-1', 'Supporter');
+unFifthTribute.name = 'UN 5th Army';
+carolynFirstSetBase.players[0].hand = [carolyn];
+carolynFirstSetBase.players[1].hand = [carolynHavano];
+carolynFirstSetBase.board[1][2][1] = unFifthTribute;
+const carolynFirstSetBaseHash = canonicalStateHash(carolynFirstSetBase);
+const carolynFirstSetPost = clone(carolynFirstSetBase);
+carolynFirstSetPost.players[0].hand = [];
+carolynFirstSetPost.players[0].discard = [unFifthTribute];
+carolynFirstSetPost.board[1][2][1] = carolyn;
+const carolynFirstSetArmed = reduceServerAction({
+  canonicalState:carolynFirstSetBase,
+  canonicalHash:carolynFirstSetBaseHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'CLICK_CELL',
+    playerIndex:0,
+    turn:1,
+    z:1,
+    r:2,
+    c:1,
+    selectedHand:{iid:carolyn.iid, id:carolyn.id, card:carolyn},
+    chosenTributes:[{iid:unFifthTribute.iid, id:unFifthTribute.id, z:1, r:2, c:1, card:unFifthTribute}],
+    consolidationPresentation:{
+      target:{z:1, r:2, c:1},
+      resultCard:{iid:carolyn.iid, id:carolyn.id, card:carolyn},
+      tributes:[{iid:unFifthTribute.iid, id:unFifthTribute.id, z:1, r:2, c:1, card:unFifthTribute}]
+    },
+    postState:carolynFirstSetPost,
+    stateHash:canonicalStateHash(carolynFirstSetPost),
+    baseStateHash:carolynFirstSetBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(carolynFirstSetArmed.ok, true, carolynFirstSetArmed.reason);
+assert.ok(carolynFirstSetArmed.reactionArmed, 'consolidating Carolyn over UN 5th Army must arm Havano');
+const carolynPending = carolynFirstSetArmed.canonicalState._serverPendingReaction;
+assert.strictEqual(String(carolynPending.source && carolynPending.source.id), '17', 'Carolyn must be the reaction source instead of UN 5th Army');
+assert.strictEqual(carolynPending.sourceName, 'Carolyn', 'Carolyn consolidation prompt must name Carolyn');
+assert.ok(carolynPending.options.some(option=>option.kind === 'havano'), 'Carolyn first-set reaction should include Havano');
+
 const clickCellFirstSetBase = baseState();
+clickCellFirstSetBase._turnStartedAt = Date.now() - 10000;
 const colomboThug = card('53', 0, 'colombo-first-set-1', 'Supporter');
 colomboThug.name = 'Colombo Thug';
 const clickCellHavano = card('79', 1, 'havano-click-cell-first-set-1', 'Improvisor');
@@ -510,6 +694,8 @@ assert.strictEqual(clickCellFirstSetArmed.ok, true, clickCellFirstSetArmed.reaso
 assert.ok(clickCellFirstSetArmed.reactionArmed, 'placement-shaped CLICK_CELL must arm Havano for first-set continuous/passive sources');
 const clickCellPending = clickCellFirstSetArmed.canonicalState._serverPendingReaction;
 assert.ok(clickCellPending, 'CLICK_CELL first-set reaction should contain _serverPendingReaction');
+assert.ok(Number.isFinite(Number(clickCellPending.openedAt)), 'authority reaction must record when the timer pause began');
+assert.strictEqual(clickCellFirstSetArmed.canonicalState.board[1][2][1].iid, colomboThug.iid, 'pending first-set reaction must preserve the placed source on board');
 assert.strictEqual(clickCellPending.actionType, 'first_set_effect', 'placement-shaped CLICK_CELL should be classified as first_set_effect');
 assert.strictEqual(String(clickCellPending.source && clickCellPending.source.id), '53', 'CLICK_CELL placement source must be read from postState target square');
 assert.ok(clickCellPending.options.some(option=>option.kind === 'havano'), 'CLICK_CELL first-set reaction should include Havano');
@@ -537,21 +723,89 @@ const clickCellHavanoNegated = reduceServerAction({
 assert.strictEqual(clickCellHavanoNegated.ok, true, clickCellHavanoNegated.reason);
 assert.strictEqual(clickCellHavanoNegated.canonicalState._serverPendingReaction, null, 'first-set Havano negate should clear the pending reaction');
 assert.strictEqual(clickCellHavanoNegated.canonicalState.board[1][2][1].id, '53', 'first-set negate should keep the source card on board');
-assert.strictEqual(clickCellHavanoNegated.canonicalState.board[1][2][1]._effectNegatedByReaction, true, 'first-set Havano negate should mark source negated');
+assert.strictEqual(clickCellHavanoNegated.canonicalState.board[1][2][1]._effectNegatedByReaction, undefined, 'ongoing first-set effects must not use the one-shot negation visual');
+assert.strictEqual(clickCellHavanoNegated.canonicalState.board[1][2][1]._effectSuppressedByReaction, true, 'ongoing first-set effects must use the deep-red suppression visual');
 assert.strictEqual(clickCellHavanoNegated.canonicalState.board[1][2][1]._reactionSuppressed, true, 'first-set Havano negate should suppress the source');
+assert.strictEqual(clickCellHavanoNegated.reactionResolution.mode, 'suppressed', 'ongoing first-set reactions must announce suppression');
 assert.strictEqual(clickCellHavanoNegated.canonicalState.board[clickCellHavanoTarget.z][clickCellHavanoTarget.r][clickCellHavanoTarget.c].id, '79', 'first-set Havano negate should deploy Havano');
 assert.strictEqual(clickCellHavanoNegated.canonicalState.players[1].hand.length, 0, 'first-set Havano negate should remove Havano from hand');
 
+const henryFirstSetBase = baseState();
+const henryDong = card('21', 0, 'henry-first-set-1', 'Dauntless');
+henryDong.name = 'Henry Dong';
+const henryHavano = card('79', 1, 'havano-henry-first-set-1', 'Improvisor');
+henryHavano.name = 'Havano Citizen';
+henryFirstSetBase.players[0].hand = [henryDong];
+henryFirstSetBase.players[1].hand = [henryHavano];
+const henryFirstSetBaseHash = canonicalStateHash(henryFirstSetBase);
+const henryFirstSetPost = clone(henryFirstSetBase);
+henryFirstSetPost.players[0].hand = [];
+henryFirstSetPost.board[1][2][1] = henryDong;
+const henryFirstSetPostHash = canonicalStateHash(henryFirstSetPost);
+const henryFirstSetArmed = reduceServerAction({
+  canonicalState:henryFirstSetBase,
+  canonicalHash:henryFirstSetBaseHash
+}, {
+  type:'CLICK_CELL',
+  payload:{
+    playerIndex:0,
+    turn:1,
+    placing:true,
+    z:1,
+    r:2,
+    c:1,
+    selectedHand:{iid:henryDong.iid, id:henryDong.id, card:henryDong},
+    postState:henryFirstSetPost,
+    stateHash:henryFirstSetPostHash,
+    baseStateHash:henryFirstSetBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(henryFirstSetArmed.ok, true, henryFirstSetArmed.reason);
+assert.ok(henryFirstSetArmed.reactionArmed, 'setting Henry must arm Havano from the first-set path');
+const henryPending = henryFirstSetArmed.canonicalState._serverPendingReaction;
+assert.ok(henryPending.options.some(option=>option.kind === 'havano'), 'Henry first-set reaction should include Havano');
+assert.strictEqual(henryPending.resolutionMode, 'suppressed', 'Henry first-set Havano reaction must suppress instead of one-shot negate');
+const henryHavanoIndex = henryPending.options.findIndex(option=>option.kind === 'havano');
+const henryHavanoOption = henryPending.options[henryHavanoIndex];
+const henryHavanoTarget = henryHavanoOption.deploymentOptions[0];
+const henryHavanoSuppressed = reduceServerAction({
+  canonicalState:henryFirstSetArmed.canonicalState,
+  canonicalHash:henryFirstSetArmed.canonicalHash
+}, {
+  type:'REACTION_CHOICE',
+  payload:{
+    playerIndex:1,
+    promptId:henryPending.promptId,
+    choice:'negate',
+    optionIndex:henryHavanoIndex,
+    deployment:henryHavanoTarget,
+    baseStateHash:henryFirstSetArmed.canonicalHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(henryHavanoSuppressed.ok, true, henryHavanoSuppressed.reason);
+assert.strictEqual(henryHavanoSuppressed.canonicalState.board[1][2][1]._effectSuppressedByReaction, true, 'Havano must persistently suppress Henry after first-set reaction');
+assert.strictEqual(henryHavanoSuppressed.canonicalState.board[1][2][1]._reactionSuppressed, true, 'Havano suppression must make Henry inert instead of leaving an activation button path');
+assert.strictEqual(henryHavanoSuppressed.canonicalState.board[1][2][1]._effectNegatedByReaction, undefined, 'Henry Havano response must not use one-shot negation');
+
+const timedAllowState = clone(clickCellFirstSetArmed.canonicalState);
+timedAllowState._serverPendingReaction.openedAt -= 4200;
+const timedAllowHash = canonicalStateHash(timedAllowState);
 const clickCellAllowed = reduceServerAction({
-  canonicalState:clickCellFirstSetArmed.canonicalState,
-  canonicalHash:clickCellFirstSetArmed.canonicalHash
+  canonicalState:timedAllowState,
+  canonicalHash:timedAllowHash
 }, {
   type:'REACTION_CHOICE',
   payload:{
     playerIndex:1,
     promptId:clickCellPending.promptId,
     choice:'decline',
-    baseStateHash:clickCellFirstSetArmed.canonicalHash
+    baseStateHash:timedAllowHash
   }
 }, {
   mode:'client-resolved',
@@ -561,108 +815,192 @@ assert.strictEqual(clickCellAllowed.ok, true, clickCellAllowed.reason);
 assert.strictEqual(clickCellAllowed.canonicalState._serverPendingReaction, null, 'first-set allow should clear the pending reaction');
 assert.strictEqual(clickCellAllowed.canonicalState.board[1][2][1].id, '53', 'first-set allow should keep the placed source card');
 assert.strictEqual(clickCellAllowed.canonicalState.board[1][2][1]._effectNegatedByReaction, undefined, 'first-set allow should not mark source negated');
+assert.strictEqual(clickCellAllowed.canonicalState.board[1][2][1]._onlinePlacementReactionAllowPromptId, clickCellPending.promptId, 'first-set allow should mark exactly one placement-effect resume');
 assert.strictEqual(clickCellAllowed.canonicalState.players[1].hand.length, 1, 'first-set allow should not deploy Havano');
+assert.ok(
+  clickCellAllowed.canonicalState._turnStartedAt >= clickCellFirstSetPost._turnStartedAt + 4000,
+  'authority must move the turn start forward by the time spent in the Improvisor prompt'
+);
 
-const lydiaIndex = pending.options.findIndex(option=>option.kind === 'lydia');
-const negated = reduceServerAction({
-  canonicalState:armed.canonicalState,
-  canonicalHash:armed.canonicalHash
-}, {
-  type:'REACTION_CHOICE',
-  payload:{
-    playerIndex:1,
-    promptId:pending.promptId,
-    choice:'negate',
-    optionIndex:lydiaIndex,
-    baseStateHash:armed.canonicalHash
-  }
-}, {
-  mode:'client-resolved',
-  requireBaseHash:true
-});
-assert.strictEqual(negated.ok, true, negated.reason);
-assert.strictEqual(negated.canonicalState._serverPendingReaction, null);
-assert.strictEqual(negated.canonicalState.board[0][2][0].currentFate, 1, 'negated effect should not apply resolved postState mutation');
-assert.strictEqual(negated.canonicalState.board[0][2][0].effectUsedInitial, true, 'negated source should still be spent');
-assert.strictEqual(negated.canonicalState.board[0][2][0]._effectNegatedByReaction, true, 'Lydia should mark the source as negated');
-assert.strictEqual(negated.canonicalState.board[0][2][0]._lydiaSuppressed, true, 'Lydia should suppress the source effect');
-assert.strictEqual(negated.canonicalState.board[0][2][0]._pendingWhenSetEffect, undefined, 'Lydia-negated source should not keep a pending when-set activation');
-assert.strictEqual(negated.canonicalState.board[0][2][0]._pendingWhenSetActivationInFlight, undefined, 'Lydia-negated source should not keep a pending activation lock');
-assert.strictEqual(negated.canonicalState.board[1][0][0].usesLeft, 2, 'Lydia should spend one use');
-
-const declined = reduceServerAction({
-  canonicalState:armed.canonicalState,
-  canonicalHash:armed.canonicalHash
-}, {
-  type:'REACTION_CHOICE',
-  payload:{
-    playerIndex:1,
-    promptId:pending.promptId,
-    choice:'decline',
-    baseStateHash:armed.canonicalHash
-  }
-}, {
-  mode:'client-resolved',
-  requireBaseHash:true
-});
-assert.strictEqual(declined.ok, true, declined.reason);
-assert.strictEqual(declined.canonicalState._serverPendingReaction, null);
-assert.strictEqual(declined.canonicalState.board[0][2][0].currentFate, 99, 'decline should apply stored effect result');
-
-const havanoIndex = sparseSupporterPending.options.findIndex(option=>option.kind === 'havano');
-const havanoOption = sparseSupporterPending.options[havanoIndex];
-const havanoNegated = reduceServerAction({
-  canonicalState:sparseSupporterArmed.canonicalState,
-  canonicalHash:sparseSupporterArmed.canonicalHash
-}, {
-  type:'REACTION_CHOICE',
-  payload:{
-    playerIndex:1,
-    promptId:sparseSupporterPending.promptId,
-    choice:'negate',
-    optionIndex:havanoIndex,
-    deployment:havanoOption.deploymentOptions[0],
-    baseStateHash:sparseSupporterArmed.canonicalHash
-  }
-}, {
-  mode:'client-resolved',
-  requireBaseHash:true
-});
-assert.strictEqual(havanoNegated.ok, true, havanoNegated.reason);
-assert.strictEqual(havanoNegated.canonicalState.players[1].hand.length, 0, 'Havano should leave hand');
-const deployed = havanoOption.deploymentOptions[0];
-assert.strictEqual(havanoNegated.canonicalState.board[deployed.z][deployed.r][deployed.c].id, '79', 'Havano should deploy to chosen square');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0].effectUsedInitial, true, 'Havano-negated source should still be spent');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true, 'Havano should mark the source as negated');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0]._reactionSuppressed, true, 'Havano should suppress the source effect');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0]._pendingWhenSetEffect, undefined, 'Havano-negated source should not keep a pending when-set activation');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0]._pendingWhenSetActivationInFlight, undefined, 'Havano-negated source should not keep a pending activation lock');
-assert.strictEqual(havanoNegated.canonicalState.board[0][2][0].whenSetActivated, true, 'Havano-negated Supporter source should have its when-set button spent');
-
-const seculesIndex = pending.options.findIndex(option=>option.kind === 'secules');
+const placementPending = seculesPlacementArmed.canonicalState._serverPendingReaction;
+const placementSeculesIndex = placementPending.options.findIndex(option=>option.kind === 'secules');
 const seculesNegated = reduceServerAction({
-  canonicalState:armed.canonicalState,
-  canonicalHash:armed.canonicalHash
+  canonicalState:seculesPlacementArmed.canonicalState,
+  canonicalHash:seculesPlacementArmed.canonicalHash
 }, {
   type:'REACTION_CHOICE',
   payload:{
     playerIndex:1,
-    promptId:pending.promptId,
+    promptId:placementPending.promptId,
     choice:'negate',
-    optionIndex:seculesIndex,
-    baseStateHash:armed.canonicalHash
+    optionIndex:placementSeculesIndex,
+    baseStateHash:seculesPlacementArmed.canonicalHash
   }
 }, {
   mode:'client-resolved',
   requireBaseHash:true
 });
 assert.strictEqual(seculesNegated.ok, true, seculesNegated.reason);
-assert.strictEqual(seculesNegated.canonicalState.board[0][2][0].currentFate, 1, 'Mr. Secules negation should not apply resolved postState mutation');
-assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true, 'Mr. Secules should mark the source as negated');
-assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._reactionSuppressed, true, 'Mr. Secules should suppress the source effect');
-assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._pendingWhenSetEffect, undefined, 'Mr. Secules-negated source should not keep a pending when-set activation');
-assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._pendingWhenSetActivationInFlight, undefined, 'Mr. Secules-negated source should not keep a pending activation lock');
-assert.strictEqual(seculesNegated.canonicalState.board[1][0][1].usesLeft, 0, 'Mr. Secules should spend its use');
-assert.strictEqual(seculesNegated.canonicalState.board[1][0][1]._seculesUsed, true, 'Mr. Secules should be marked used');
+assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._effectNegatedByReaction, true, 'one-shot first-set effects must use the negated state');
+assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._effectSuppressedByReaction, undefined, 'one-shot first-set effects must not use the ongoing suppression state');
+assert.strictEqual(seculesNegated.canonicalState.board[0][2][0]._reactionSuppressed, undefined, 'one-shot negation must not leak into the suppression visual predicate');
+assert.strictEqual(seculesNegated.canonicalState.board[1][0][0].usesLeft, 0, 'Mr. Secules should spend its use');
+assert.strictEqual(seculesNegated.canonicalState.board[1][0][0]._seculesUsed, true, 'Mr. Secules should be marked used');
+assert.strictEqual(seculesNegated.reactionResolution.mode, 'negated', 'one-shot first-set reactions must announce negation');
+
+const deckSetBase = baseState();
+const polishArmy = card('28', 0, 'polish-deck-set-1', 'Supporter');
+polishArmy.name = '2nd Polish-Lithuanian Army';
+const deckSetLydia = card('56', 1, 'lydia-deck-set-1', 'Improvisor');
+deckSetLydia.name = 'Lydia';
+deckSetLydia.usesLeft = 3;
+deckSetBase.players[0].hand = [];
+deckSetBase.players[0].deck = [polishArmy];
+deckSetBase.players[1].hand = [];
+deckSetBase.board[1][0][0] = deckSetLydia;
+deckSetBase.polishArmyUses = [0, 0];
+deckSetBase._polishUsedThisTurn = false;
+const deckSetBaseHash = canonicalStateHash(deckSetBase);
+const deckSetPost = clone(deckSetBase);
+deckSetPost.players[0].deck = [];
+deckSetPost.players[0].hand = [polishArmy];
+deckSetPost.selectedHandCard = 0;
+deckSetPost.placing = true;
+deckSetPost.polishArmyUses = [1, 0];
+deckSetPost._polishUsedThisTurn = true;
+const deckSetPostHash = canonicalStateHash(deckSetPost);
+const deckSetArmed = reduceServerAction({
+  canonicalState:deckSetBase,
+  canonicalHash:deckSetBaseHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'HAND_ACTION',
+    playerIndex:0,
+    turn:1,
+    fn:'setPolishFromDeck',
+    deckSetAction:true,
+    sourceName:polishArmy.name,
+    source:{card:polishArmy},
+    postState:deckSetPost,
+    stateHash:deckSetPostHash,
+    baseStateHash:deckSetBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(deckSetArmed.ok, true, deckSetArmed.reason);
+assert.ok(deckSetArmed.reactionArmed, 'direct Set from Deck must let Lydia react before placement');
+const deckSetPending = deckSetArmed.canonicalState._serverPendingReaction;
+assert.ok(deckSetPending, 'direct deck set must create one pending Lydia prompt');
+assert.strictEqual(deckSetPending.actionType, 'set_from_deck_effect');
+assert.deepStrictEqual(deckSetPending.options.map(option=>option.kind), ['lydia'], 'deck-set interception is Lydia-only');
+assert.strictEqual(deckSetArmed.canonicalState.players[0].deck[0].iid, polishArmy.iid, 'card must remain in its deck while Lydia decides');
+
+const rogueDeckCommit = clone(deckSetPost);
+rogueDeckCommit.currentPlayer = 1;
+const blockedRogueCommit = reduceServerAction({
+  canonicalState:deckSetArmed.canonicalState,
+  canonicalHash:deckSetArmed.canonicalHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    playerIndex:0,
+    turn:1,
+    actionKind:'AUTO_CLIENT_STATE_COMMIT',
+    postState:rogueDeckCommit,
+    stateHash:canonicalStateHash(rogueDeckCommit),
+    baseStateHash:deckSetArmed.canonicalHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(blockedRogueCommit.ok, false, 'generic state commits must not overwrite a pending Improvisor reaction');
+assert.match(blockedRogueCommit.reason, /pending reaction must resolve first/);
+
+const deckSetLydiaIndex = deckSetPending.options.findIndex(option=>option.kind === 'lydia');
+const deckSetNegated = reduceServerAction({
+  canonicalState:deckSetArmed.canonicalState,
+  canonicalHash:deckSetArmed.canonicalHash
+}, {
+  type:'REACTION_CHOICE',
+  payload:{
+    playerIndex:1,
+    promptId:deckSetPending.promptId,
+    choice:'negate',
+    optionIndex:deckSetLydiaIndex,
+    baseStateHash:deckSetArmed.canonicalHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(deckSetNegated.ok, true, deckSetNegated.reason);
+assert.strictEqual(deckSetNegated.canonicalState.players[0].hand.length, 0, 'negated direct-set card must not remain ready to place');
+assert.strictEqual(deckSetNegated.canonicalState.players[0].deck[0].iid, polishArmy.iid, 'negated direct-set card must return to its original deck');
+assert.strictEqual(deckSetNegated.canonicalState.players[0].deck[0]._deckSetNegatedByReaction, true, 'returned card instance must be permanently spent for its direct-set button');
+assert.deepStrictEqual(deckSetNegated.canonicalState.polishArmyUses, [1, 0], 'a negated Polish deck-set attempt must still spend its game use');
+assert.strictEqual(deckSetNegated.canonicalState._polishUsedThisTurn, true, 'a negated Polish deck-set attempt must still spend its turn use');
+assert.strictEqual(deckSetNegated.canonicalState.board[1][0][0].usesLeft, 2, 'Lydia must spend one use when returning the card');
+assert.strictEqual(deckSetNegated.reactionResolution.mode, 'negated');
+
+const deckSetAllowed = reduceServerAction({
+  canonicalState:deckSetArmed.canonicalState,
+  canonicalHash:deckSetArmed.canonicalHash
+}, {
+  type:'REACTION_CHOICE',
+  payload:{
+    playerIndex:1,
+    promptId:deckSetPending.promptId,
+    choice:'allow',
+    baseStateHash:deckSetArmed.canonicalHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(deckSetAllowed.ok, true, deckSetAllowed.reason);
+assert.strictEqual(deckSetAllowed.canonicalState.players[0].deck.length, 0, 'allowed direct-set card must leave the deck');
+assert.strictEqual(deckSetAllowed.canonicalState.players[0].hand[0].iid, polishArmy.iid, 'allowed direct-set card must remain ready for placement');
+assert.strictEqual(deckSetAllowed.canonicalState.players[0].hand[0]._skipOnlinePlacementImprovisorReactionPromptId, deckSetPending.promptId, 'allowed direct-set card must carry a one-placement adjudication token');
+
+const deckSetPlaced = clone(deckSetAllowed.canonicalState);
+deckSetPlaced.players[0].hand = [];
+deckSetPlaced.selectedHandCard = null;
+deckSetPlaced.placing = false;
+deckSetPlaced.board[0][2][0] = deckSetAllowed.canonicalState.players[0].hand[0];
+const deckSetPlacedResult = reduceServerAction({
+  canonicalState:deckSetAllowed.canonicalState,
+  canonicalHash:deckSetAllowed.canonicalHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'PLACE_CARD',
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    skipImprovisorReaction:true,
+    selectedHand:{
+      iid:polishArmy.iid,
+      id:polishArmy.id,
+      skipImprovisorReaction:true,
+      skipImprovisorReactionPromptId:deckSetPending.promptId,
+      card:deckSetAllowed.canonicalState.players[0].hand[0]
+    },
+    postState:deckSetPlaced,
+    stateHash:canonicalStateHash(deckSetPlaced),
+    baseStateHash:deckSetAllowed.canonicalHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(deckSetPlacedResult.ok, true, deckSetPlacedResult.reason);
+assert.strictEqual(deckSetPlacedResult.reactionArmed, undefined, 'placing an already allowed direct-set card must not ask Lydia a second time');
+assert.strictEqual(deckSetPlacedResult.canonicalState.board[0][2][0].iid, polishArmy.iid);
 
 console.log('fate-client-resolved-action-result smoke passed');

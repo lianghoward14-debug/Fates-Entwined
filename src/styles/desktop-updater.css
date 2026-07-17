@@ -1,0 +1,84 @@
+#desktop-update-banner {
+  position: fixed;
+  right: clamp(14px, 2.1vw, 26px);
+  bottom: clamp(14px, 2.1vw, 26px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 28px));
+  padding: 12px 14px;
+  border: 1px solid rgba(248, 215, 106, 0.42);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(18, 23, 38, 0.96), rgba(7, 10, 18, 0.96)),
+    rgba(8, 12, 20, 0.96);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #f8e8a8;
+  font: 700 12px/1.35 "Cinzel", "Times New Roman", serif;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+#desktop-update-banner[hidden] {
+  display: none;
+}
+
+#desktop-update-banner.is-match-active {
+  color: #d9e8ff;
+  border-color: rgba(111, 184, 255, 0.38);
+}
+
+.desktop-update-message {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.desktop-update-action,
+.desktop-update-close {
+  flex: 0 0 auto;
+  border: 1px solid rgba(248, 215, 106, 0.45);
+  border-radius: 11px;
+  background: rgba(248, 215, 106, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.desktop-update-action {
+  padding: 8px 11px;
+}
+
+.desktop-update-action:hover,
+.desktop-update-close:hover {
+  background: rgba(248, 215, 106, 0.16);
+}
+
+.desktop-update-action:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.desktop-update-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+@media (max-width: 620px) {
+  #desktop-update-banner {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    max-width: none;
+    align-items: stretch;
+  }
+
+  .desktop-update-action {
+    white-space: nowrap;
+  }
+}

@@ -1652,7 +1652,7 @@
     window.__fateStartupWarmupCancelled = false;
     try{ if(window.__fateStartupLoadingFallback) clearTimeout(window.__fateStartupLoadingFallback); }catch(e){}
     const assetTotal = collectInitialAssets().length;
-    const menuStepTotal = 18;
+    const menuStepTotal = 19;
     const state = {done:0, total:assetTotal + menuStepTotal, cancelled:false, errors:[]};
     const originalScreen = getActiveScreenId() || 's-title';
     showInitialLoadingScreen(state.total, {
@@ -1676,6 +1676,28 @@
           waitStartupMs(timeoutMs || (isElectronShell() ? 8000 : 2500))
         ]);
       });
+    }
+    async function runDesktopUpdateStartupCheck(){
+      const starter = window.fateStartDesktopUpdateCheck;
+      const promise = window.__fateDesktopUpdateCheckPromise;
+      if(typeof starter !== 'function' && !(promise && typeof promise.then === 'function')) return;
+      await runNonVisualPrep(
+        'Checking for Updates',
+        'Verifying your desktop build before loading menu assets.',
+        function(){
+          try{
+            if(typeof starter === 'function') starter({startup:true, timeoutMs:isElectronShell() ? 7000 : 1000});
+          }catch(e){}
+          const check = window.__fateDesktopUpdateCheckPromise;
+          if(check && typeof check.then === 'function') {
+            return Promise.race([
+              check,
+              waitStartupMs(isElectronShell() ? 7500 : 1000)
+            ]);
+          }
+        },
+        isElectronShell() ? 8000 : 1200
+      );
     }
     async function runTitleMenuWarmupPass(passLabel){
       await runNonVisualPrep('Preparing Free Play ' + passLabel, 'Caching Free Play templates and images.', function(){
@@ -1709,6 +1731,7 @@
       });
     }
     const work = (async function(){
+      await runDesktopUpdateStartupCheck();
       await preloadInitialAssets({
         keepVisible:true,
         shouldCancel:function(){ return state.cancelled || startupWarmupEpoch !== sequenceEpoch || isStartupGameFlowActive(); },

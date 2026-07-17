@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 7;
+  const VERSION = 8;
   const VFX_BUDGET = {
     maxActiveParticles:0,
     maxActiveParticlesLow:0,
@@ -336,6 +336,26 @@
     return {x:cx - w / 2, y:cy - h / 2, w, h};
   }
 
+  function keepTransformedRectInFrame(r, scaleX, scaleY, rotation, metrics, margin, bottomMargin){
+    if(!r || !metrics) return r;
+    const m = Math.max(0, Number(margin) || 0);
+    const bm = Math.max(m, Number(bottomMargin) || m);
+    const cssW = Math.max(1, Number(metrics.cssW) || 1);
+    const cssH = Math.max(1, Number(metrics.cssH) || 1);
+    const sx = Math.max(.01, Math.abs(Number(scaleX) || 1));
+    const sy = Math.max(.01, Math.abs(Number(scaleY) || 1));
+    const rot = Number(rotation) || 0;
+    const c = Math.abs(Math.cos(rot));
+    const s = Math.abs(Math.sin(rot));
+    const drawnW = Math.max(1, (Number(r.w) || 0) * sx * c + (Number(r.h) || 0) * sy * s);
+    const drawnH = Math.max(1, (Number(r.w) || 0) * sx * s + (Number(r.h) || 0) * sy * c);
+    let cx = (Number(r.x) || 0) + (Number(r.w) || 0) / 2;
+    let cy = (Number(r.y) || 0) + (Number(r.h) || 0) / 2;
+    if(drawnW < cssW - m * 2) cx = clamp(cx, m + drawnW / 2, cssW - m - drawnW / 2);
+    if(drawnH < cssH - m - bm) cy = clamp(cy, m + drawnH / 2, cssH - bm - drawnH / 2);
+    return {x:cx - r.w / 2, y:cy - r.h / 2, w:r.w, h:r.h};
+  }
+
   function pointBetween(a, b, t){
     return {
       x:lerp(Number(a && a.x) || 0, Number(b && b.x) || 0, t),
@@ -395,6 +415,10 @@
 
   function scheduleRender(reason){
     const adapter = window.FateMatchRendererAdapter;
+    if(adapter && typeof adapter.scheduleVfxFrame === 'function') {
+      adapter.scheduleVfxFrame(reason || 'vfx-animation');
+      return;
+    }
     if(adapter && typeof adapter.scheduleRender === 'function') adapter.scheduleRender(reason || 'vfx-animation');
   }
 
@@ -693,6 +717,7 @@
       visual,
       dpr:Number(opts.textureDpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
       preferFullArt:true,
+      fitMode:opts.fitMode || 'cover',
       source:'vfx-card',
       onChange:function(){ scheduleRender('vfx-texture-ready'); }
     };
@@ -729,9 +754,15 @@
     }
     if(texture && texture.loaded && texture.canvas){
       try {
+        ctx.save();
+        rounded(ctx, r.x, r.y, r.w, r.h, Math.max(7, r.w * .055));
+        ctx.clip();
         ctx.drawImage(texture.canvas, r.x, r.y, r.w, r.h);
+        ctx.restore();
         return;
-      } catch(e) {}
+      } catch(e) {
+        try { ctx.restore(); } catch(_e) {}
+      }
     }
     ctx.save();
     const grd = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
@@ -785,6 +816,7 @@
         visual:(p.card && p.card.visual) || p.card,
         dpr:Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
         preferFullArt:true,
+        fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover'),
         source:'vfx-card-prime',
         onChange:function(){ scheduleRender('vfx-texture-ready'); }
       });
@@ -825,6 +857,7 @@
           visual:(p.card && p.card.visual) || p.card,
           dpr:Number(opts.dpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
           preferFullArt:true,
+          fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover'),
           source:opts.source || 'vfx-card-preflight',
           onChange:function(){ scheduleRender('vfx-texture-ready'); }
         });
@@ -1133,6 +1166,17 @@
         scaleX += q;
         scaleY -= q * .55;
       }
+      if(p.keepInFrame){
+        rr = keepTransformedRectInFrame(
+          rr,
+          scaleX,
+          scaleY,
+          rotation,
+          metrics,
+          Number.isFinite(Number(p.safeMargin)) ? Number(p.safeMargin) : 10,
+          Number.isFinite(Number(p.safeBottomMargin)) ? Number(p.safeBottomMargin) : 28
+        );
+      }
       ctx.save();
       let alpha = 1;
       if(p.fadeIn) alpha *= clamp(raw / .18, 0, 1);
@@ -1144,7 +1188,7 @@
       ctx.rotate(rotation);
       if(skewX || skewY) ctx.transform(1, skewY, skewX, 1, 0, 0);
       ctx.scale(scaleX, scaleY);
-      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr)});
+      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr), fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover')});
       ctx.restore();
       return;
     }
@@ -1219,17 +1263,11 @@
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
     ctx.rotate((dragPreview.invalid ? -2 : 1.2) * Math.PI / 180);
     drawCardMotionShadow(ctx, cardRect, .32, .18);
-    ctx.save();
-    roundedPath(ctx, cardRect.x, cardRect.y, cardRect.w, cardRect.h, Math.max(7, cardRect.w * .045));
-    ctx.fillStyle = 'rgb(6,8,13)';
-    ctx.fill();
-    ctx.clip();
     drawCard(ctx, dragPreview.card, cardRect, {
       textureDpr:1.5,
       textureSize:{x:0, y:0, w:132, h:184},
-      readyOnly:!dragPreview.tutorialDragPreview
+      readyOnly:false
     });
-    ctx.restore();
     ctx.restore();
     return true;
   }

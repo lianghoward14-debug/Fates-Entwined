@@ -1,13 +1,15 @@
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { createDesktopUpdater } = require('./updater');
 
 const ROOT = path.resolve(__dirname, '..');
 const APP_NAME = 'Fates Entwined';
 const DEFAULT_FLY_AUTHORITY_API_URL = 'https://fates-entwined-main.fly.dev';
 const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
-const ELECTRON_CLIENT_BUILD_STAMP = 'leaderboard-reset-20260711a-1783782001';
+const ELECTRON_CLIENT_BUILD_STAMP = 'electron-google-auth-bridge-stable-20260713a-1783961301';
 const CHROME_VERSION = process.versions.chrome || '126.0.0.0';
 const GOOGLE_FRIENDLY_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
 const MIME_TYPES = {
@@ -36,10 +38,13 @@ const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 
 let staticServer;
 let staticServerUrlPromise = null;
+let staticServerBaseUrl = '';
 let mainWindow = null;
 let autoProfileCounter = 1;
 const diagnosticsDir = path.join(ROOT, 'diagnostics');
 const allowMultipleInstances = process.argv.includes('--allow-multiple-instances');
+const pendingGoogleAuthBridges = new Map();
+const desktopUpdater = createDesktopUpdater();
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -272,6 +277,27 @@ ipcMain.handle('fate:finish-ui-minute-log', async (event, payload) => {
   return { ok: true, sessionId, paths };
 });
 
+ipcMain.handle('fate:begin-external-google-signin', async (event, options = {}) => {
+  await startStaticServer();
+  const sessionName = sanitizeProfileName(options.sessionName || 'default');
+  const state = crypto.randomBytes(24).toString('base64url');
+  const authUrl = new URL('/index.html', staticServerBaseUrl);
+  authUrl.searchParams.set('electronExternalAuth', '1');
+  authUrl.searchParams.set('electronSession', sessionName);
+  authUrl.searchParams.set('bridgeState', state);
+  authUrl.searchParams.set('bridgeUrl', `${staticServerBaseUrl}/__fate-google-auth-bridge`);
+  authUrl.searchParams.set('fresh', String(Date.now()));
+  const credentialPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingGoogleAuthBridges.delete(state);
+      reject(new Error('Google sign-in timed out'));
+    }, 5 * 60 * 1000);
+    pendingGoogleAuthBridges.set(state, { resolve, reject, timeout });
+  });
+  await shell.openExternal(authUrl.toString());
+  return await credentialPromise;
+});
+
 function safePathFromUrl(urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split('?')[0]).replace(/^\/+/, '') || 'index.html';
   const resolved = path.resolve(ROOT, cleanPath);
@@ -279,11 +305,90 @@ function safePathFromUrl(urlPath) {
   return resolved;
 }
 
+function sendJson(res, statusCode, payload) {
+  const body = JSON.stringify(payload || {});
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  });
+  res.end(body);
+}
+
+function readJsonRequest(req, maxBytes = 32768) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > maxBytes) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!body) return resolve({});
+      try {
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(new Error('Invalid JSON request body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+async function handleGoogleAuthBridgeRequest(req, res) {
+  if (req.method === 'OPTIONS') {
+    sendJson(res, 204, {});
+    return;
+  }
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
+    return;
+  }
+  let payload;
+  try {
+    payload = await readJsonRequest(req);
+  } catch (err) {
+    sendJson(res, 400, { ok: false, error: String(err && err.message || err) });
+    return;
+  }
+  const state = String(payload && payload.state || '');
+  const pending = pendingGoogleAuthBridges.get(state);
+  if (!pending) {
+    sendJson(res, 404, { ok: false, error: 'unknown_or_expired_state' });
+    return;
+  }
+  const idToken = String(payload.idToken || '');
+  const accessToken = String(payload.accessToken || '');
+  if (!idToken && !accessToken) {
+    sendJson(res, 400, { ok: false, error: 'missing_google_credential' });
+    return;
+  }
+  pendingGoogleAuthBridges.delete(state);
+  clearTimeout(pending.timeout);
+  pending.resolve({
+    idToken,
+    accessToken,
+    email: String(payload.email || ''),
+    displayName: String(payload.displayName || '')
+  });
+  sendJson(res, 200, { ok: true });
+}
+
 function startStaticServer() {
   if (staticServerUrlPromise) return staticServerUrlPromise;
   staticServerUrlPromise = new Promise((resolve, reject) => {
-    staticServer = http.createServer((req, res) => {
+    staticServer = http.createServer(async (req, res) => {
       try {
+        const requestUrl = new URL(req.url || '/', 'http://localhost');
+        if (requestUrl.pathname === '/__fate-google-auth-bridge') {
+          await handleGoogleAuthBridgeRequest(req, res);
+          return;
+        }
         const filePath = safePathFromUrl(req.url || '/');
         if (!filePath) {
           res.writeHead(403);
@@ -335,7 +440,8 @@ function startStaticServer() {
       });
       staticServer.listen(port, '127.0.0.1', () => {
         const address = staticServer.address();
-        resolve(`http://localhost:${address.port}/index.html?electron=1`);
+        staticServerBaseUrl = `http://localhost:${address.port}`;
+        resolve(`${staticServerBaseUrl}/index.html?electron=1`);
       });
     }
     tryListen(FIXED_PORT);
@@ -408,6 +514,7 @@ async function createWindow(options = {}) {
     autoHideMenuBar: true,
     webPreferences: webPrefs
   });
+  desktopUpdater.attachWindow(win);
   mainWindow = win;
   try {
     win.webContents.setUserAgent(GOOGLE_FRIENDLY_USER_AGENT);
@@ -425,6 +532,7 @@ async function createWindow(options = {}) {
   win.once('ready-to-show', () => {
     win.show();
     win.focus();
+    win.webContents.send('fate:desktop-window-shown');
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -510,10 +618,19 @@ if (!allowMultipleInstances) {
   }
 }
 
-if (shouldCreateMainWindow) app.whenReady().then(createWindow);
+if (shouldCreateMainWindow) {
+  app.whenReady().then(() => {
+    desktopUpdater.start();
+    return createWindow();
+  }).catch(err => {
+    console.error('Failed to start Electron desktop app', err);
+    app.quit();
+  });
+}
 
 app.on('window-all-closed', () => {
   if (staticServer) staticServer.close();
+  desktopUpdater.stop();
   if (process.platform !== 'darwin') app.quit();
 });
 

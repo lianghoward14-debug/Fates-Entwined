@@ -10,11 +10,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-<script>
-  if(new URLSearchParams(location.search).get('electron') === '1') {
-    document.documentElement.classList.add('fate-desktop-launch');
-  }
-</script>
   <link rel="stylesheet" href="src/styles/game.css?v=1784050605">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1784163201">
 <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1784160701">
@@ -22,51 +17,11 @@
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1784071401">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1782663600">
 <link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
-<link rel="stylesheet" href="src/styles/desktop-updater.css?v=1784156400">
-<link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784072201">
+<link rel="stylesheet" href="src/styles/desktop-updater.css?v=1784163601">
+<link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784200501">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
-<div id="fate-update-gate" class="fate-update-gate" aria-label="Desktop update check" aria-live="polite">
-  <div class="fate-update-aurora fate-update-aurora-a" aria-hidden="true"></div>
-  <div class="fate-update-aurora fate-update-aurora-b" aria-hidden="true"></div>
-  <div class="fate-update-stars" aria-hidden="true"></div>
-  <section class="fate-update-card">
-    <div class="fate-update-sigil" aria-hidden="true">
-      <span class="fate-update-ring fate-update-ring-a"></span>
-      <span class="fate-update-ring fate-update-ring-b"></span>
-      <span class="fate-update-core"></span>
-    </div>
-    <div class="fate-update-kicker">Desktop Launcher</div>
-    <h1 class="fate-update-brand">Fates Entwined</h1>
-    <div class="fate-update-rule" aria-hidden="true"><span></span></div>
-    <h2 id="fate-update-title">Checking for updates</h2>
-    <p id="fate-update-copy">Contacting the release service and verifying your game version.</p>
-    <div id="fate-update-progress" class="fate-update-progress is-indeterminate" aria-label="Update progress">
-      <span id="fate-update-progress-fill"></span>
-    </div>
-    <div class="fate-update-meta">
-      <span id="fate-update-detail">Securing connection</span>
-      <span id="fate-update-version">Version —</span>
-    </div>
-    <div id="fate-update-actions" class="fate-update-actions" hidden>
-      <button id="fate-update-primary" class="fate-update-button is-primary" type="button">Retry</button>
-      <button id="fate-update-continue" class="fate-update-button is-quiet" type="button">Continue to game</button>
-    </div>
-  </section>
-  <div class="fate-update-footer"><span class="fate-update-shield">✓</span> Updates are verified before installation</div>
-</div>
-<script>
-  window.__fateUpdateGateFailsafe = setTimeout(function(){
-    if(typeof window.__fateFinishDesktopUpdateGate === 'function') {
-      window.__fateFinishDesktopUpdateGate();
-      return;
-    }
-    var gate = document.getElementById('fate-update-gate');
-    if(gate) gate.hidden = true;
-    document.documentElement.classList.remove('fate-desktop-launch');
-  }, 45000);
-</script>
 <div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
   <div class="fate-loading-panel">
     <div class="fate-loading-kicker">Fates Entwined</div>
@@ -618,15 +573,15 @@
 <div id="toast"></div>
 
 <script src="src/scripts/00-structural-helpers.js?v=1784162301"></script>
-  <script src="src/scripts/01-data-and-state.js?v=1783222203"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1784201201"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1783795701"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
 <script src="src/scripts/03-profile-and-progression.js?v=1784062801"></script>
 <script src="src/scripts/04-game-setup.js?v=1784162201"></script>
-  <script src="src/scripts/05-gameplay-core.js?v=1784163401"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1784163401"></script>
+  <script src="src/scripts/05-gameplay-core.js?v=1784201601"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=1784291301"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-<script src="src/scripts/render-v2/01-render-snapshot.js?v=1784061901"></script>
+<script src="src/scripts/render-v2/01-render-snapshot.js?v=1784201603"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1784163201"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=1784050601"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1781642401"></script>
@@ -634,8 +589,8 @@
 <script src="src/scripts/render-v2/12-vfx-primitives.js?v=1780900001"></script>
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1783222102"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1784062801"></script>
-<script src="src/scripts/render-v2/11-vfx-director.js?v=1784050604"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1784063301"></script>
+<script src="src/scripts/render-v2/11-vfx-director.js?v=1784291302"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1784291303"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1784050402"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1784050404"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1783676101"></script>
@@ -645,16 +600,17 @@
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=1784065001"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784066501"></script>
-  <script src="src/scripts/07-ai.js?v=1784072001"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=1784061901"></script>
+<script src="src/scripts/07-ai.js?v=1784201605"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=1784197001"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=1784059901"></script>
 <script src="src/scripts/09-challenger-mode.js?v=1784072001"></script>
-<script src="src/scripts/09-challenger-lore.js?v=1784072301"></script>
+<script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
+<script src="src/scripts/09-challenger-lore.js?v=1784293501"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1782663600"></script>
-<script src="src/scripts/11-tutorial.js?v=1782869000"></script>
+<script src="src/scripts/11-tutorial.js?v=1784203201"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
 <script src="src/scripts/10-init.js?v=1783526902"></script>
-<script src="src/scripts/26-desktop-updater.js?v=1784160101"></script>
+<script src="src/scripts/26-desktop-updater.js?v=1784163601"></script>
 
 <!-- Cloud save: player data syncs to Fly in RTDB-disabled mode, Firebase otherwise -->
 <script src="src/scripts/14-cloud-save.js?v=1783782001"></script>
@@ -668,8 +624,8 @@
   var modules = [
     './src/scripts/15-online-auth.js?v=1784059901',
     './src/scripts/16-online-core.js?v=1782617500',
-    './src/scripts/17-online-social.js?v=1784055102',
-    './src/scripts/18-online-rooms.js?v=1784163401&sync=1784163401',
+    './src/scripts/17-online-social.js?v=1784195101',
+    './src/scripts/18-online-rooms.js?v=1784284501&sync=1784284501',
     './src/scripts/19-online-elo.js?v=1784059901',
     './src/scripts/20-online-economy.js?v=1783782001'
   ];
@@ -749,7 +705,7 @@
   };
 })();
 </script>
-<script src="src/scripts/21-smoothness-core.js?v=1782865000"></script>
+<script src="src/scripts/21-smoothness-core.js?v=1784163601"></script>
 <script src="src/scripts/22-spectator.js?v=1783952405"></script>
 <script>
   (function(){

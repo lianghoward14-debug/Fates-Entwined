@@ -341,101 +341,75 @@ async function run(){
       postState:resolvedReaction,
       stateHash:resolvedReactionHash
     });
-    const armedReaction = await expectAccepted(reactionActorClient, armReactionId, 'ACTION_RESULT');
-    const pendingReaction = armedReaction.action.payload.postState._serverPendingReaction;
-    assert.ok(pendingReaction, 'WebSocket ACTION_RESULT should arm pending Improvisor reaction');
-    assert.strictEqual(armedReaction.roomPatch?.currentTurnUid, reactionReactorUid, 'pending reaction should pass turn to reactor');
-    assert.strictEqual(Number(armedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 1, 'armed reaction state must pause before applying effect');
+    const activationAccepted = await expectAccepted(reactionActorClient, armReactionId, 'ACTION_RESULT');
+    assert.strictEqual(activationAccepted.action.payload.postState._serverPendingReaction, null, 'activation buttons must not reopen the multiplayer Improvisor path');
+    assert.strictEqual(activationAccepted.roomPatch?.currentTurnUid, reactionActorUid, 'normal activation must keep control with the acting player');
+    assert.strictEqual(Number(activationAccepted.action.payload.postState.board[0][actorRow][0].currentFate), 99, 'normal activation must apply immediately after first-set adjudication');
 
-    const overwritePendingId = sendIntent(reactionReactorClient, roomCode, 'STATE_SYNC', {
-      playerIndex:reactionReactor,
-      currentPlayer:reactionActor,
-      turn:reactionBase.turn,
-      baseStateHash:armedReaction.action.payload.stateHash,
-      postState:resolvedReaction,
-      stateHash:resolvedReactionHash
-    });
-    await expectRejected(reactionReactorClient, overwritePendingId, /pending reaction must resolve first/, 'pending reaction overwrite');
-
-    const lydiaIndex = pendingReaction.options.findIndex(option=>String(option.kind || '') === 'lydia');
-    assert.ok(lydiaIndex >= 0, 'pending WebSocket reaction should include Lydia');
-    const negateId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
-      playerIndex:reactionReactor,
-      promptId:pendingReaction.promptId,
-      choice:'negate',
-      optionIndex:lydiaIndex,
-      baseStateHash:armedReaction.action.payload.stateHash
-    });
-    const negatedReaction = await expectAccepted(reactionReactorClient, negateId, 'REACTION_CHOICE');
-    assert.strictEqual(negatedReaction.action.payload.postState._serverPendingReaction, null);
-    assert.strictEqual(Number(negatedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 1, 'WebSocket negate should keep effect result unapplied');
-    assert.strictEqual(negatedReaction.action.payload.postState.board[0][actorRow][0].effectUsedInitial, true, 'WebSocket negate should still spend source effect');
-    assert.strictEqual(Number(negatedReaction.action.payload.postState.board[1][reactorRow][0].usesLeft), 2, 'WebSocket negate should spend Lydia use');
-
-    const allowBase = clone(postState);
-    allowBase.board = blankBoard();
-    allowBase.players[0].hand = [];
-    allowBase.players[1].hand = [];
-    allowBase.currentPlayer = reactionActor;
-    allowBase.phase = 'main';
-    allowBase.pendingInteraction = null;
-    allowBase._serverPendingReaction = null;
-    const allowSource = testCard('03', reactionActor, 'ws-source-allow-1', 'Initiator');
-    allowSource.name = 'Howard Walsh';
-    const allowLydia = testCard('56', reactionReactor, 'ws-lydia-allow-1', 'Improvisor');
-    allowLydia.name = 'Lydia';
-    allowLydia.usesLeft = 3;
-    allowBase.board[0][actorRow][0] = allowSource;
-    allowBase.board[1][reactorRow][0] = allowLydia;
-    const allowBaseHash = canonicalStateHash(allowBase);
-    const syncAllowBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
+    const placementBase = clone(activationAccepted.action.payload.postState);
+    placementBase.board = blankBoard();
+    placementBase.players[0].hand = [];
+    placementBase.players[1].hand = [];
+    placementBase.currentPlayer = reactionActor;
+    placementBase.pendingInteraction = null;
+    placementBase._serverPendingReaction = null;
+    const placementSource = testCard('27', reactionActor, 'ws-placement-kazumi-1', 'Initiator');
+    placementSource.name = 'Kazumi';
+    const placementSecules = testCard('67', reactionReactor, 'ws-placement-secules-1', 'Improvisor');
+    placementSecules.name = 'Mr. Secules';
+    placementBase.players[reactionActor].hand = [placementSource];
+    placementBase.board[1][reactorRow][0] = placementSecules;
+    const placementBaseHash = canonicalStateHash(placementBase);
+    const syncPlacementBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
       playerIndex:reactionActor,
       currentPlayer:reactionActor,
-      turn:allowBase.turn,
-      baseStateHash:negatedReaction.action.payload.stateHash,
-      postState:allowBase,
-      stateHash:allowBaseHash
+      turn:placementBase.turn,
+      baseStateHash:activationAccepted.action.payload.stateHash,
+      postState:placementBase,
+      stateHash:placementBaseHash
     });
-    await expectAccepted(reactionActorClient, syncAllowBaseId, 'STATE_SYNC');
+    await expectAccepted(reactionActorClient, syncPlacementBaseId, 'STATE_SYNC');
 
-    const allowResolved = clone(allowBase);
-    allowResolved.board[0][actorRow][0].currentFate = 99;
-    allowResolved.board[0][actorRow][0].effectUsedInitial = true;
-    allowResolved.board[0][actorRow][0]._effectTurnLocked = true;
-    const allowResolvedHash = canonicalStateHash(allowResolved);
-    const armAllowId = sendIntent(reactionActorClient, roomCode, 'ACTION_RESULT', {
+    const placementPost = clone(placementBase);
+    placementPost.players[reactionActor].hand = [];
+    placementPost.board[0][actorRow][0] = placementSource;
+    const placementPostHash = canonicalStateHash(placementPost);
+    const armPlacementId = sendIntent(reactionActorClient, roomCode, 'ACTION_RESULT', {
       playerIndex:reactionActor,
-      turn:allowBase.turn,
-      actionKind:'BOARD_ACTION',
-      fn:'triggerCharacterEffect',
+      turn:placementBase.turn,
+      actionKind:'PLACE_CARD',
       z:0,
       r:actorRow,
       c:0,
-      source:{z:0, r:actorRow, c:0, card:{iid:'ws-source-allow-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
-      effectCinematic:{z:0, r:actorRow, c:0, card:{iid:'ws-source-allow-1', id:'03', name:'Howard Walsh', type:'Initiator'}},
-      reactionActionType:'targeting_effect',
-      affectedOwners:[reactionReactor],
-      baseStateHash:allowBaseHash,
-      postState:allowResolved,
-      stateHash:allowResolvedHash
+      selectedHand:{iid:placementSource.iid, id:placementSource.id, type:placementSource.type, name:placementSource.name},
+      baseStateHash:placementBaseHash,
+      postState:placementPost,
+      stateHash:placementPostHash
     });
-    const armedAllow = await expectAccepted(reactionActorClient, armAllowId, 'ACTION_RESULT');
-    const allowPending = armedAllow.action.payload.postState._serverPendingReaction;
-    assert.ok(allowPending, 'WebSocket ACTION_RESULT should arm an allow-test Improvisor reaction');
-    const allowId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
+    const armedPlacement = await expectAccepted(reactionActorClient, armPlacementId, 'ACTION_RESULT');
+    const placementPending = armedPlacement.action.payload.postState._serverPendingReaction;
+    assert.ok(placementPending, 'client-resolved ACTION_RESULT placement must arm a first-set Improvisor reaction');
+    assert.strictEqual(placementPending.actionType, 'first_set_effect');
+    assert.strictEqual(armedPlacement.action.payload.postState.board[0][actorRow][0].iid, placementSource.iid, 'pending placement reaction must keep Kazumi set on board');
+    assert.ok(placementPending.options.some(option=>String(option.kind || '') === 'secules'), 'Kazumi placement must offer Secules before its automatic draw');
+    const placementSeculesIndex = placementPending.options.findIndex(option=>String(option.kind || '') === 'secules');
+    assert.ok(placementSeculesIndex >= 0, 'Kazumi placement must expose the Secules option index');
+    const negatePlacementId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
       playerIndex:reactionReactor,
-      promptId:allowPending.promptId,
-      choice:'decline',
-      baseStateHash:armedAllow.action.payload.stateHash
+      promptId:placementPending.promptId,
+      choice:'negate',
+      optionIndex:placementSeculesIndex,
+      baseStateHash:armedPlacement.action.payload.stateHash
     });
-    const allowedReaction = await expectAccepted(reactionReactorClient, allowId, 'REACTION_CHOICE');
-    assert.strictEqual(allowedReaction.action.payload.postState._serverPendingReaction, null);
-    assert.strictEqual(Number(allowedReaction.action.payload.postState.board[0][actorRow][0].currentFate), 99, 'WebSocket allow/decline should apply the stored effect result');
-    assert.strictEqual(allowedReaction.action.payload.postState.board[0][actorRow][0]._effectNegatedByReaction, undefined, 'WebSocket allow/decline must not mark the source as negated');
+    const negatedPlacement = await expectAccepted(reactionReactorClient, negatePlacementId, 'REACTION_CHOICE');
+    assert.strictEqual(negatedPlacement.action.payload.postState._serverPendingReaction, null);
+    assert.strictEqual(negatedPlacement.action.payload.postState.board[0][actorRow][0]._effectNegatedByReaction, true, 'WebSocket first-set negate must mark the one-shot source negated');
+    assert.strictEqual(negatedPlacement.action.payload.reactionResolution?.mode, 'negated', 'WebSocket accepted action must broadcast negation semantics to both clients');
+    assert.strictEqual(negatedPlacement.action.payload.reactionResolution?.sourceName, 'Kazumi', 'WebSocket negation banner must name the actual first-set source');
 
     const resumed = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/resume?after=0&limit=20&includeState=1`);
-    assert.strictEqual(resumed.canonicalHash, allowedReaction.action.payload.stateHash);
-    assert.strictEqual(Number(resumed.canonicalState.board[0][actorRow][0].currentFate), 99);
+    assert.strictEqual(resumed.canonicalHash, negatedPlacement.action.payload.stateHash);
+    assert.strictEqual(resumed.canonicalState.board[0][actorRow][0].iid, placementSource.iid);
 
     const forfeitClientActionId = `http-forfeit-${Date.now()}`;
     const remoteForfeitPromise = waitForMessage(

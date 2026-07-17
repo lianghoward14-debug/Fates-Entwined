@@ -1,0 +1,126 @@
+/* Final button ornament cleanup.
+   Loaded last so decorative horizontal strokes cannot reappear from older skins. */
+html body .btn,
+html body .title-btn,
+html body .icon-btn,
+html body .online-dm-button,
+html body .btn-overwrite-preset,
+html body .ch-tab,
+html body .ch-play-choice,
+html body .social-online-command,
+html body .social-party-command,
+html body .ai-found-btn,
+html body .lm-card-action{
+  background-image:none!important;
+}
+
+html body .btn::before,
+html body .btn::after,
+html body .title-btn::before,
+html body .title-btn::after,
+html body .icon-btn::before,
+html body .icon-btn::after,
+html body .online-dm-button::before,
+html body .online-dm-button::after,
+html body .btn-overwrite-preset::before,
+html body .btn-overwrite-preset::after,
+html body .ch-tab::before,
+html body .ch-tab::after,
+html body .ch-play-choice::before,
+html body .ch-play-choice::after,
+html body .social-online-command::before,
+html body .social-online-command::after,
+html body .social-party-command::before,
+html body .social-party-command::after,
+html body .ai-found-btn::before,
+html body .ai-found-btn::after,
+html body .lm-card-action::before,
+html body .lm-card-action::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+  clip-path:none!important;
+}
+
+html body .btn .fate-svg-corners,
+html body .btn .fate-svg-corner,
+html body .btn .zone-edge-corner,
+html body .title-btn .fate-svg-corners,
+html body .title-btn .fate-svg-corner,
+html body .title-btn .zone-edge-corner{
+  display:none!important;
+}
+
+/* Restore card-like lore buttons that should keep solid panel fills, not button sheen. */
+html body #s-challenger .ch-lore-character-card,
+html body #fate-lore-window-overlay .ch-lore-character-card{
+  background:linear-gradient(145deg,rgba(18,23,36,.94),rgba(5,8,14,.94))!important;
+  background-image:linear-gradient(145deg,rgba(18,23,36,.94),rgba(5,8,14,.94))!important;
+}
+
+/* Unread DM counts sit outside the message button's top-right corner. */
+html body #s-social .social-friend-actions,
+html body #s-social .social-friends-list-v20 .social-friend-row .social-friend-actions .social-friend-action-btn.online-dm-button{
+  overflow:visible!important;
+}
+html body #s-social .social-friends-list-v20 .social-friend-row .social-friend-actions .social-friend-action-btn.online-dm-button{
+  contain:none!important;
+  clip-path:none!important;
+}
+html body #s-social .social-friends-list-v20 .social-friend-row .social-friend-actions .social-friend-action-btn.online-dm-button::before,
+html body #s-social .social-friends-list-v20 .social-friend-row .social-friend-actions .social-friend-action-btn.online-dm-button::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+html body #s-social .social-friends-list-v20 .social-friend-row .social-friend-actions .social-friend-action-btn.online-dm-button .online-dm-unread-dot{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  top:-8px!important;
+  right:-5px!important;
+  min-width:20px!important;
+  width:auto!important;
+  height:20px!important;
+  padding:0 5px!important;
+  border:2px solid #f7e8c2!important;
+  border-radius:999px!important;
+  background:linear-gradient(180deg,#ff6969 0%,#c92338 72%,#8d1025 100%)!important;
+  color:#fff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.62rem!important;
+  font-weight:800!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  text-indent:0!important;
+  box-sizing:border-box!important;
+  box-shadow:0 2px 7px rgba(0,0,0,.78),0 0 9px rgba(255,70,92,.68)!important;
+  transform:none!important;
+  opacity:1!important;
+  visibility:visible!important;
+  z-index:30!important;
+}
+
+/* Challenger header: keep Starlight and ELO, remove the top-right Packs indicator. */
+html body #s-challenger .ch-topbar .ch-currency > .ch-packs-pill{
+  display:none!important;
+}
+
+/* Legacy DOM placement animations are retired; prevent old horizontal set motion from leaking over renderer-v2. */
+html body #s-game #placement-anim-layer,
+html body #s-game .placement-anim-ghost,
+html body #s-game .placement-anim-card{
+  display:none!important;
+  visibility:hidden!important;
+  animation:none!important;
+  transform:none!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}

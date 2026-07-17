@@ -1,0 +1,61 @@
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+
+const indexText = read('index.html');
+const viewText = read('src/scripts/25-profile-view-v2.js');
+const styleText = read('src/styles/profile-view-v2.css');
+const metaText = read('src/scripts/08-audio-and-meta-ui.js');
+const socialText = read('src/scripts/17-online-social.js');
+const helperText = read('src/scripts/06-rendering-and-helpers.js');
+const progressionText = read('src/scripts/03-profile-and-progression.js');
+const lastCssText = read('src/styles/zz-codex-last.css');
+const onlineAuthText = read('src/scripts/15-online-auth.js');
+const onlineEloText = read('src/scripts/19-online-elo.js');
+
+assert.match(indexText, /profile-view-v2\.css\?v=\d+/, 'the shared profile stylesheet must be loaded');
+assert.match(indexText, /08-audio-and-meta-ui\.js\?v=\d+[\s\S]*25-profile-view-v2\.js\?v=\d+/, 'the shared renderer must load after legacy profile tools');
+assert.match(viewText, /function normalizeProfile\(profile, options\)/, 'self and friend data must share one normalization source');
+assert.match(viewText, /function render\(\)/, 'self and friend profiles must share one renderer');
+assert.match(viewText, /profile-view-modal-v2/, 'profiles must open in the shared profile window');
+assert.match(viewText, /data-profile-tab="overview"[\s\S]*data-profile-tab="record"/, 'the profile view must expose overview and match-record tabs');
+assert.match(metaText, /FateProfileView\.openSelf\(\{returnScreen:'s-title'\}\)/, 'the title profile must use the shared renderer');
+assert.match(metaText, /FateProfileView\.shouldReturnFromTool\(\)[\s\S]*FateProfileView\.returnFromTool\(\)/, 'legacy portrait tools must return to the correct shared profile window');
+assert.match(socialText, /FateProfileView\.open\(p,[\s\S]*returnScreen:'s-social'/, 'friend profiles must use the shared renderer');
+assert.match(socialText, /function compactFriendRankFrameStyle\(elo\)[\s\S]*border:1px solid[\s\S]*inset 0 0 0 \.5px/, 'friend rows must reduce the inline rank frame thickness');
+assert.match(styleText, /#modal \.modal\.profile-view-modal-v2/, 'profile styles must remain scoped to the new modal window');
+assert.match(styleText, /width:min\(900px,[\s\S]*grid-template-columns:190px minmax\(0,1fr\)[\s\S]*width:190px;[\s\S]*height:190px;/, 'the compact profile window must give the portrait stronger visual weight');
+assert.match(viewText, /function openEditor\(\)[\s\S]*Edit Profile[\s\S]*Save Changes/, 'self profile editing must use the new shared editor');
+assert.match(viewText, /profile-edit-name[\s\S]*profile-edit-bio[\s\S]*function saveEditor\(\)/, 'the shared editor must save name and bio through one path');
+assert.doesNotMatch(viewText, /How you appear to other players/, 'the edit profile header must not show the extra helper subtitle');
+assert.match(styleText, /font:700 1\.28rem 'Cinzel'[\s\S]*translate\(-7px,-15px\)[\s\S]*translateY\(3px\)/, 'the profile heading and lowered Close button must match the requested polish');
+assert.match(styleText, /profile-edit-layout[\s\S]*profile-edit-portrait[\s\S]*profile-edit-form/, 'the new edit profile UI must preserve the portrait-first layout');
+assert.match(styleText, /profile-edit-modal-v2 \.modal-title[\s\S]*font-size:1\.22rem!important;[\s\S]*translate\(-11px,-18px\)/, 'the edit profile title must be shifted farther up-left');
+assert.doesNotMatch(viewText, /profile-edit-rank/, 'the edit profile portrait column must not show rank or level badges');
+assert.doesNotMatch(viewText, /profile-edit-id-row/, 'the edit profile tab must not render the Player ID section');
+assert.doesNotMatch(styleText, /profile-edit-id-row/, 'the edit profile tab must not keep dead Player ID styling');
+assert.match(styleText, /profile-edit-modal-v2\{[\s\S]*max-height:min\(610px,[\s\S]*profile-edit-portrait-column\{[\s\S]*padding-top:30px;[\s\S]*profile-edit-portrait\{[\s\S]*width:230px;[\s\S]*height:250px;/, 'the edit window must be shorter and the portrait must sit eight pixels higher');
+assert.match(styleText, /profile-edit-section-head span\{[\s\S]*font:700 1\.02rem 'Cinzel'/, 'the Identity label must be larger in the edit profile form');
+assert.match(styleText, /modal-acts::before\{[\s\S]*content:none!important;[\s\S]*display:none!important;/, 'profile footers must not draw decorative filler lines');
+assert.match(styleText, /modal-title::after\{[\s\S]*content:none!important;[\s\S]*display:none!important;/, 'profile headings must not inherit the extra ornamental title rule');
+assert.match(styleText, /profile-view-lower-grid[^}]*border-top:0;[\s\S]*profile-view-summary-list>div[^}]*border:0;/, 'the lower profile view must avoid stacked divider lines');
+assert.match(styleText, /profile-edit-section-head[\s\S]*border-bottom:0;/, 'the profile editor must use spacing and surfaces instead of stacked rules');
+assert.match(helperText, /function resetModalChrome\(\)[\s\S]*'profile-view-modal-v2'[\s\S]*'profile-edit-modal-v2'/, 'shared modal cleanup must remove profile-specific classes before another modal opens');
+assert.match(viewText, /const recordSource = opts\.serverProfile[\s\S]*recordsCleared[\s\S]*humanWins = recordsCleared \? 0[\s\S]*matchesPlayed = recordsCleared \? 0/, 'the shared renderer must use the server profile record source instead of local counters');
+assert.match(viewText, /serverProfile:online\.profile \|\| null/, 'self profiles must pass the online server profile into the shared renderer');
+assert.match(progressionText, /FATE_PROFILE_RECORD_RESET_VERSION = '20260714b'[\s\S]*function resetProfileMatchRecord\(profile\)[\s\S]*hasStaleRecord[\s\S]*profileRecordResetVersion === FATE_PROFILE_RECORD_RESET_VERSION && !hasStaleRecord[\s\S]*humanWins = 0[\s\S]*humanLosses = 0[\s\S]*matchesPlayed = 0/, 'profile match records must clear even when the reset marker already exists');
+assert.match(progressionText, /function fateApplyServerProfileStats\(profile,[\s\S]*resetProfileMatchRecord\(profile\)[\s\S]*const nextElo/, 'incoming server profile stats must not refill records after the reset');
+assert.match(progressionText, /resetStoredProfileRecordDataIfNeeded\(\)[\s\S]*fate_match_history[\s\S]*fate_ai_elo_state[\s\S]*resetProfileMatchRecord\(USER_PROFILE\)/, 'stored match history and active profile record data must clear on load');
+assert.doesNotMatch(onlineAuthText, /recordStatsCleared|profileRecordResetVersion/, 'public profile sync must not publish client-owned record reset or counter fields');
+assert.match(onlineAuthText, /Object\.keys\(payload\)\.forEach\(k => \{[\s\S]*challengerElo\|elo\|wins\|losses\|challengerWins\|challengerLosses\|humanWins\|humanLosses\|matchesPlayed\|leaderboardResetVersion[\s\S]*return;[\s\S]*publicProfiles/, 'public profile sync must filter server-owned rank and record fields');
+assert.match(onlineEloText, /function syncMyLeaderboard\(\)[\s\S]*flyLeaderboardEnabled\(\)[\s\S]*fetchFlyLeaderboard\(\)[\s\S]*return;[\s\S]*await FO\.syncPublicProfile\?\.\(\)\.catch\(\(\)=>\{\}\);[\s\S]*\}/, 'human leaderboard sync must not write local record rows outside the server path');
+assert.doesNotMatch(onlineEloText, /publicProfiles\/\$\{u\.uid\}\/(?:challengerWins|challengerLosses|humanWins|humanLosses|matchesPlayed)|leaderboards\/challenger\/\$\{u\.uid\}/, 'Challenger result submission must not write client-owned human record stats');
+assert.match(lastCssText, /#s-title #title-profile \.tp-pic\{[\s\S]*transform:translateY\(-2px\)!important;[\s\S]*#s-title #title-profile \.tp-pic img\{[\s\S]*top:0!important;[\s\S]*height:100%!important;/, 'the title profile badge frame and portrait must be raised together');
+assert.match(styleText, /@media \(max-width:480px\)/, 'the shared view must include a compact mobile layout');
+
+console.log('fate-profile-view-v2 static smoke passed');

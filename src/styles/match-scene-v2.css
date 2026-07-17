@@ -1074,8 +1074,8 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
 
 .draw-fly-card {
   background: transparent !important;
-  box-shadow: none !important;
-  border-color: rgba(236,203,101,.42) !important;
+  box-shadow: 0 10px 24px rgba(0,0,0,.54), 0 0 12px rgba(236,203,101,.18) !important;
+  border-color: rgba(236,203,101,.62) !important;
 }
 
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-info {
@@ -1133,6 +1133,164 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .playe
   text-overflow: ellipsis !important;
 }
 
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge {
+  width: 155px !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 7px) !important;
+  min-height: 35px !important;
+  justify-content: flex-start !important;
+  gap: .24rem !important;
+  padding: .15rem .46rem .15rem .42rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong {
+  min-height: 36px !important;
+  align-items: center !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label.rank-badge-label-long {
+  display: block !important;
+  max-width: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.02 !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: manual !important;
+  text-align: center !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon {
+  width: 28px !important;
+  height: 28px !important;
+  flex: 0 0 28px !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon .rank-icon-img,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon img {
+  width: 28px !important;
+  height: 28px !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label {
+  flex: 1 1 0 !important;
+  display: block !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  line-height: 1 !important;
+  letter-spacing: .01em !important;
+  text-align: center !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-short .rank-badge-label {
+  font-size: .82rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-medium .rank-badge-label {
+  font-size: .74rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label {
+  font-size: .66rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label {
+  font-size: .58rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line {
+  width: 155px !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 7px) !important;
+  justify-content: flex-start !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-label-two-line {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 1 0 !important;
+  text-align: center !important;
+  width: auto !important;
+  max-width: none !important;
+  line-height: .9 !important;
+  font-size: .68rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-line {
+  display: block !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  text-align: center !important;
+  align-self: center !important;
+}
+
+/* Renderer-v2 final adaptive rank badge override. This must remain after fixed rank-badge sizes. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 {
+  gap: var(--rank-fit-gap, .12rem) !important;
+  transform: translateX(var(--rank-fit-badge-shift, 0px)) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon {
+  transform: none !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-img,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon img {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) translateZ(0) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-4 {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) translateZ(0) scale(1.12) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label-two-line {
+  font-size: var(--rank-fit-font, .86rem) !important;
+  line-height: var(--rank-fit-line-height, 1) !important;
+  transform: translateX(var(--rank-fit-label-shift, 0px)) !important;
+}
+
+/* Renderer-v2 final adaptive rank badge override. Keep after the legacy final-pass sizes. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 {
+  gap: var(--rank-fit-gap, .12rem) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label-two-line {
+  font-size: var(--rank-fit-font, .86rem) !important;
+  line-height: var(--rank-fit-line-height, 1) !important;
+  transform: translateX(var(--rank-fit-label-shift, 0px)) !important;
+}
+
+/* Renderer-v2 live-match side panel rank badge adaptive v2. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 {
+  gap: var(--rank-fit-gap, .12rem) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label-two-line {
+  font-size: var(--rank-fit-font, .86rem) !important;
+  line-height: var(--rank-fit-line-height, 1) !important;
+  transform: translateX(var(--rank-fit-label-shift, 0px)) !important;
+}
+
 @keyframes fateV2FlyCard {
   0% { transform: translate3d(0,0,0) rotate(-4deg) scale(1); opacity: .98; }
   42% { transform: translate3d(calc(var(--fx-dx) * .46), calc(var(--fx-dy) * .46 - 92px), 0) rotate(8deg) scale(1.16); opacity: 1; }
@@ -1150,4 +1308,111 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .playe
   0% { transform: perspective(800px) rotateY(0deg) translateY(0) scale(1); opacity: .98; }
   48% { transform: perspective(800px) rotateY(92deg) translateY(-18px) scale(1.1); opacity: 1; filter: drop-shadow(0 24px 24px rgba(0,0,0,.44)) brightness(1.2); }
   100% { transform: perspective(800px) rotateY(180deg) translateY(0) scale(1.02); opacity: 0; }
+}
+
+/* Renderer-v2 match-only rank badge final pass. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge {
+  width: 155px !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 7px) !important;
+  min-height: 35px !important;
+  padding: .12rem .36rem !important;
+  gap: .18rem !important;
+  justify-content: flex-start !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  flex: 0 0 30px !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon .rank-icon-img,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-icon img {
+  width: 30px !important;
+  height: 30px !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge .rank-badge-label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  line-height: 1 !important;
+  letter-spacing: .01em !important;
+  text-align: center !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-short .rank-badge-label {
+  font-size: .98rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-medium .rank-badge-label {
+  font-size: .88rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-long .rank-badge-label {
+  font-size: .78rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-xlong .rank-badge-label {
+  font-size: .69rem !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-label-two-line {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  line-height: .88 !important;
+  font-size: .8rem !important;
+  text-align: center !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-line {
+  display: block !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  text-align: center !important;
+  align-self: center !important;
+}
+
+/* Renderer-v2 final adaptive rank badge override. This must remain after fixed rank-badge sizes. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 {
+  gap: var(--rank-fit-gap, .12rem) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-label-two-line {
+  font-size: var(--rank-fit-font, .86rem) !important;
+  line-height: var(--rank-fit-line-height, 1) !important;
+  transform: translateX(var(--rank-fit-label-shift, 0px)) !important;
+}
+
+/* Renderer-v2 final icon-image rank badge nudges. Keep scoped to live-match side-panel badges only. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon {
+  transform: none !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-img,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon img {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) translateZ(0) !important;
+}
+
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-4 {
+  transform: translateX(var(--rank-fit-icon-shift, 0px)) translateZ(0) scale(1.12) !important;
 }

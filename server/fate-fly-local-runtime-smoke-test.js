@@ -90,7 +90,20 @@ function stopServer(child){
     assert.strictEqual(health.durableWrites, false);
     assert.strictEqual(health.flyDurableStore, true);
     assert.strictEqual(health.flyDurableStoreReady, true);
+    assert.strictEqual(health.flyAILearning, true);
+    assert.strictEqual(health.flyAITrainingMode, 'scheduled');
     assert.strictEqual(path.resolve(health.flyDataDir), path.resolve(dataDir));
+
+    const policy = await requestJson('GET', '/api/ai-learning/policy');
+    assert.strictEqual(Object.keys(policy.policies || {}).length, 3, 'policy API should expose only the three learned High Marshalls');
+    const learned = await requestJson('POST', '/api/ai-learning/decisions', {
+      uid:'runtime-host',
+      v:1,
+      mode:'freeplay',
+      decisions:[[1,'p','25','s',0,1,0,1,-2,2,1,1,5,0,1]]
+    });
+    assert.strictEqual(learned.accepted, 1);
+    assert.strictEqual(learned.stored, 1);
 
     const created = await requestJson('POST', '/api/rooms', {
       uid:'runtime-host',
@@ -110,6 +123,8 @@ function stopServer(child){
     const snapshot = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
     assert.ok(Array.isArray(snapshot.rooms), 'rooms.json should contain rooms array');
     assert.ok(snapshot.rooms.some(room=>room.code === code && room.hostUid === 'runtime-host'), 'rooms.json should include created room');
+    assert.strictEqual(snapshot.aiLearningSamples.length, 1, 'rooms.json should persist the bounded learning sample');
+    assert(!JSON.stringify(snapshot.aiLearningSamples).includes('runtime-host'), 'learning samples must not retain authenticated identity');
     console.log('fate-fly-local-runtime smoke passed');
   }finally{
     await stopServer(child);

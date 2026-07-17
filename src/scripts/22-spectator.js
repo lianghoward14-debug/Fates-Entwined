@@ -1,21 +1,14 @@
-// FATES ENTWINED SPECTATOR SYSTEM V1.0
-// Browse live matches from title screen, join as spectator, chat anonymously.
+// FATES ENTWINED SPECTATOR SYSTEM V2.0
+// Read-only canonical match viewing with switchable player perspectives.
 (function(){
   // Use a getter so FO always reads the latest window.FateOnline (modules load async)
   function FO(){ return window.FateOnline || {}; }
   let liveMatchesUnsub = null;
   let spectatingRoom = null;
   let spectatorRoomUnsub = null;
-  let spectatorPlayersUnsub = null;
   let spectatorActionsUnsub = null;
   let spectatorCountUnsub = null;
-  let spectatorActionReplayQueue = Promise.resolve();
-  let spectatorActionBuffer = new Map();
-  let spectatorActionDrainScheduled = false;
   let spectatorLastActionSeq = 0;
-  let spectatorLastAppliedSeq = 0;
-  let spectatorLiveProfiles = new Map();
-  let spectatorProfileUnsubs = new Map();
   let spectatorPanelOpen = false;
   let liveMatchPublishDisabled = false;
   let flyLiveMatchesTimer = 0;
@@ -24,6 +17,7 @@
   let flySpectatorActionTimer = 0;
   let flySpectatorHeartbeatTimer = 0;
   let spectatorFlyChatSeq = 0;
+  let spectatorLastCanonicalHash = '';
   const LIVE_MATCH_STALE_MS = 2 * 60 * 60 * 1000;
 
   function esc(s){ return String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -362,9 +356,7 @@
 
     spectatingRoom = roomCode;
     spectatorLastActionSeq = 0;
-    spectatorLastAppliedSeq = 0;
-    spectatorActionBuffer.clear();
-    spectatorActionDrainScheduled = false;
+    spectatorLastCanonicalHash = '';
 
     // Get match data to bootstrap the game
     const players = (await FO().get(FO().ref(FO().rtdb, `rooms/${roomCode}/players`))).val() || {};
@@ -447,7 +439,9 @@
     // Init chat for spectators
     if(typeof window.initInGameChat === 'function') window.initInGameChat();
 
-    // Subscribe to actions and replay them all
+    installSpectatorPerspectiveControls();
+
+    // Subscribe only to authoritative post-state snapshots.
     subscribeSpectatorActions(roomCode);
     // Subscribe to spectator count for badge
     subscribeSpectatorCount(roomCode);
@@ -488,10 +482,8 @@
     closeLiveMatchesPanel();
     spectatingRoom = code;
     spectatorLastActionSeq = 0;
-    spectatorLastAppliedSeq = 0;
     spectatorFlyChatSeq = 0;
-    spectatorActionBuffer.clear();
-    spectatorActionDrainScheduled = false;
+    spectatorLastCanonicalHash = '';
 
     let resume = null;
     try{
@@ -502,10 +494,10 @@
         method:'POST',
         body:{uid:u.uid}
       }).catch(()=>{});
-      if(typeof toast === 'function') toast('Could not load match replay');
+      if(typeof toast === 'function') toast('Could not load the live match');
       return;
     }
-    const replayRoom = resume?.room || room;
+    const currentRoom = resume?.room || room;
     const events = Array.isArray(resume?.events) ? resume.events : [];
     const startAccepted = events.find(item=>String(item?.action?.type || item?.type || '').toUpperCase() === 'MATCH_START') || null;
     const startAction = startAccepted?.action || startAccepted || {};
@@ -525,9 +517,9 @@
     if(Array.isArray(decks[0]) && decks[0].length === 40) g.p1Deck = [...decks[0]];
     if(Array.isArray(decks[1]) && decks[1].length === 40) g.p2Deck = [...decks[1]];
 
-    const seed = replayRoom.seed || startPayload.seed || `${code}_fallback`;
-    const song = replayRoom.song || startPayload.song || 'board1';
-    const players = replayRoom.players || {};
+    const seed = currentRoom.seed || startPayload.seed || `${code}_fallback`;
+    const song = currentRoom.song || startPayload.song || 'board1';
+    const players = currentRoom.players || {};
 
     function gameProfileFromPublic(prof, fallbackName){
       return {
@@ -541,8 +533,8 @@
         baseCode: prof?.baseCode || ''
       };
     }
-    const hostProf = startPayload.profiles?.[0] || players[replayRoom.hostUid]?.profile || players[replayRoom.hostUid]?.profileSnapshot || {};
-    const guestProf = startPayload.profiles?.[1] || (replayRoom.guestUid ? (players[replayRoom.guestUid]?.profile || players[replayRoom.guestUid]?.profileSnapshot || {}) : {});
+    const hostProf = startPayload.profiles?.[0] || players[currentRoom.hostUid]?.profile || players[currentRoom.hostUid]?.profileSnapshot || {};
+    const guestProf = startPayload.profiles?.[1] || (currentRoom.guestUid ? (players[currentRoom.guestUid]?.profile || players[currentRoom.guestUid]?.profileSnapshot || {}) : {});
 
     g._onlineRoomCode = code;
     g._onlineRole = 'spectator';
@@ -552,7 +544,7 @@
     g.viewerPlayerIndex = 0;
     g._onlineActionSeq = 0;
     g._onlineSeed = seed;
-    g._onlineRoomMode = replayRoom.mode || 'freeplay';
+    g._onlineRoomMode = currentRoom.mode || 'freeplay';
     g._onlineGameSong = song;
     g._onlineActionLogMode = true;
     g.playerProfiles = { 0: gameProfileFromPublic(hostProf, 'Host'), 1: gameProfileFromPublic(guestProf, 'Guest') };
@@ -566,7 +558,7 @@
     g.localPlayerIndex = 0;
     g.viewerPlayerIndex = 0;
     g._onlineSeed = seed;
-    g._onlineRoomMode = replayRoom.mode || 'freeplay';
+    g._onlineRoomMode = currentRoom.mode || 'freeplay';
     g._onlineGameSong = song;
     g._onlineActionLogMode = true;
     g.playerProfiles = { 0: gameProfileFromPublic(hostProf, 'Host'), 1: gameProfileFromPublic(guestProf, 'Guest') };
@@ -577,76 +569,68 @@
     if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
     if(typeof window.initInGameChat === 'function') window.initInGameChat();
 
+    installSpectatorPerspectiveControls();
+    const canonicalState = resume?.canonicalState || startPayload.postState || null;
+    if(canonicalState && typeof window.fateApplySpectatorCanonicalState === 'function'){
+      const latestEvent = events.length ? (events[events.length - 1]?.action || events[events.length - 1]) : null;
+      applySpectatorCanonicalState(canonicalState, 'spectator initial canonical state', latestEvent, resume?.canonicalHash || resume?.serverStateHash || startPayload.stateHash || '');
+      const resumeSeq = Number(resume?.lastSeq || latestEvent?.seq || 0) || 0;
+      spectatorLastActionSeq = resumeSeq;
+    }
+
     subscribeSpectatorActions(code);
     subscribeSpectatorCount(code);
-    watchSpectatorRoom(code, replayRoom);
+    watchSpectatorRoom(code, currentRoom);
     installSpectatorBadge();
     if(typeof playSfx === 'function') playSfx('spectatorJoin');
     if(typeof toast === 'function') toast('Spectating match - you are watching live');
   }
 
-  function makeSeededRng(seed){
-    let a = 0;
-    const s = String(seed||'fates');
-    for(let i=0;i<s.length;i++){ a ^= s.charCodeAt(i); a = Math.imul(a, 16777619); }
-    a = (a >>> 0) || 0x9e3779b9;
-    return function(){
-      a |= 0; a = (a + 0x6D2B79F5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+  function applySpectatorCanonicalState(state, reason, action, hash){
+    if(!state || typeof window.fateApplySpectatorCanonicalState !== 'function') return false;
+    const nextHash = String(hash || action?.serverStateHash || action?.payload?.stateHash || '');
+    if(nextHash && nextHash === spectatorLastCanonicalHash) return true;
+    const applied = window.fateApplySpectatorCanonicalState(state, reason || 'spectator canonical state', action || null);
+    if(applied && nextHash) spectatorLastCanonicalHash = nextHash;
+    if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
+    return !!applied;
   }
 
   function subscribeSpectatorActions(code){
     if(spectatorActionsUnsub) try{ spectatorActionsUnsub(); }catch(e){}
-    async function drainSpectatorActions(){
-      while(true){
-        const nextSeq = spectatorLastAppliedSeq + 1;
-        const a = spectatorActionBuffer.get(nextSeq);
-        if(!a) break;
-        spectatorActionBuffer.delete(nextSeq);
-        if(a.type === 'MATCH_START'){
-          spectatorLastAppliedSeq = Math.max(spectatorLastAppliedSeq, a.seq || 0);
-          continue;
-        }
-        try{
-          await applySpectatorAction(a);
-          spectatorLastAppliedSeq = Math.max(spectatorLastAppliedSeq, a.seq || 0);
-        }catch(e){
-          console.error('[Spectator] action replay failed', e, a);
-        }
+    function consumeCanonicalAction(action){
+      const seq = Number(action?.seq || 0) || 0;
+      if(!seq || seq <= spectatorLastActionSeq) return;
+      const payload = action?.payload || {};
+      if(payload.postState){
+        applySpectatorCanonicalState(payload.postState, 'spectator authoritative action seq ' + seq, action, action.serverStateHash || payload.stateHash || '');
       }
-    }
-    function scheduleSpectatorDrain(){
-      if(spectatorActionDrainScheduled) return;
-      spectatorActionDrainScheduled = true;
-      spectatorActionReplayQueue = spectatorActionReplayQueue
-        .then(()=>drainSpectatorActions())
-        .catch(e=>console.error('[Spectator] action queue failed', e))
-        .then(()=>{
-          spectatorActionDrainScheduled = false;
-          if(spectatorActionBuffer.has(spectatorLastAppliedSeq + 1)) scheduleSpectatorDrain();
-        });
-    }
-    function queueSpectatorAction(a){
-      const seq = Number(a?.seq || 0) || 0;
-      if(!seq || seq <= spectatorLastAppliedSeq || spectatorActionBuffer.has(seq)) return;
       spectatorLastActionSeq = Math.max(spectatorLastActionSeq, seq);
-      spectatorActionBuffer.set(seq, a);
-      scheduleSpectatorDrain();
     }
     if(flySpectatorEnabled()){
       let stopped = false;
       const poll = async function(){
         if(stopped || !spectatingRoom) return;
         try{
-          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=300`);
+          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&includeState=1`);
           const events = Array.isArray(data.events) ? data.events : [];
-          events.forEach(item=>queueSpectatorAction(item?.action || item));
-          if(Number(data.lastSeq || 0) > spectatorLastActionSeq && !events.length) spectatorLastActionSeq = Number(data.lastSeq || 0) || spectatorLastActionSeq;
+          const latestAction = events.length ? (events[events.length - 1]?.action || events[events.length - 1]) : null;
+          const hasCanonicalState = !!data.canonicalState && typeof window.fateApplySpectatorCanonicalState === 'function';
+          if(hasCanonicalState){
+            applySpectatorCanonicalState(
+              data.canonicalState,
+              'spectator live canonical state',
+              latestAction,
+              data.canonicalHash || data.serverStateHash || latestAction?.serverStateHash || latestAction?.payload?.stateHash || ''
+            );
+            const canonicalSeq = Number(data.lastSeq || latestAction?.seq || spectatorLastActionSeq) || spectatorLastActionSeq;
+            spectatorLastActionSeq = Math.max(spectatorLastActionSeq, canonicalSeq);
+          }else{
+            const latestCanonicalAction = events.map(item=>item?.action || item).filter(action=>action?.payload?.postState).pop();
+            if(latestCanonicalAction) consumeCanonicalAction(latestCanonicalAction);
+          }
         }catch(e){
-          console.warn('[Spectator] Fly action replay poll failed', e);
+          console.warn('[Spectator] Fly canonical-state poll failed', e);
         }
       };
       poll();
@@ -661,125 +645,12 @@
     if(!firebaseSpectatorAllowed() || !FO().onChildAdded) return;
     const arBase = FO().ref(FO().rtdb, `rooms/${code}/actions`);
     if(FO().onChildAdded && FO().query && FO().orderByKey && FO().startAt){
-      const startKey = String(Math.max(1, spectatorLastAppliedSeq + 1)).padStart(6, '0');
+      const startKey = String(Math.max(1, spectatorLastActionSeq + 1)).padStart(6, '0');
       const ar = FO().query(arBase, FO().orderByKey(), FO().startAt(startKey));
-      spectatorActionsUnsub = FO().onChildAdded(ar, snap=>queueSpectatorAction(snap.val() || {}));
+      spectatorActionsUnsub = FO().onChildAdded(ar, snap=>consumeCanonicalAction(snap.val() || {}));
       return;
     }
-    console.warn('[Spectator] Action replay requires keyed RTDB queries; refusing unbounded action-log fallback.');
-  }
-
-  async function applySpectatorAction(action){
-    const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
-    if(!g) return;
-    const type = String(action?.type || '').toUpperCase();
-    if(type === 'MATCH_START') return;
-    const payload = action.payload || {};
-
-    // Apply action as remote
-    const prev = g._onlineApplyingRemoteAction;
-    const prevPlayer = g._onlineRemoteActionPlayer;
-    g._onlineApplyingRemoteAction = true;
-    g._onlineRemoteActionPlayer = Number.isInteger(payload.playerIndex) ? payload.playerIndex : null;
-    try{
-      if(type === 'END_TURN'){
-        if(typeof window.endTurn === 'function') window.endTurn();
-      } else if(type === 'CHOOSE_TURN'){
-        if(typeof window.chooseTurn === 'function') window.chooseTurn(!!payload.goFirst);
-      } else if(type === 'START_CONSOLIDATE'){
-        if(payload.selectedHand && typeof restoreSelectedHand === 'function'){
-          restoreSelectedHand(g, payload.playerIndex, payload.selectedHand);
-        } else if(payload.selectedHand){
-          const hand = g.players?.[payload.playerIndex]?.hand;
-          if(hand && payload.selectedHand.iid){
-            const idx = hand.findIndex(c=>c && c.iid === payload.selectedHand.iid);
-            if(idx >= 0) g.selectedHandCard = idx;
-          }
-        }
-        if(typeof window.initiateConsolidate === 'function') window.initiateConsolidate();
-      } else if(type === 'CLICK_CELL'){
-        if(payload.selectedHand){
-          const hand = g.players?.[payload.playerIndex]?.hand;
-          if(hand && payload.selectedHand.iid){
-            const idx = hand.findIndex(c=>c && c.iid === payload.selectedHand.iid);
-            if(idx >= 0) g.selectedHandCard = idx;
-          }
-        }
-        if(payload.placing) g.placing = true;
-        if(typeof window.clickCell === 'function') await window.clickCell(payload.z, payload.r, payload.c);
-      } else if(type === 'BOARD_ACTION'){
-        const fn = window.__fateOnlineOriginalFns?.[payload.fn];
-        if(typeof fn === 'function'){
-          const card = g.board?.[payload.z]?.[payload.r]?.[payload.c] || null;
-          const fx = payload.effectCinematic || (/^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || '')) ? payload : null);
-          const fxCard = fx ? (g.board?.[fx.z]?.[fx.r]?.[fx.c] || null) : null;
-          if(fxCard && typeof window.showEffectActivationCinematic === 'function') {
-            await window.showEffectActivationCinematic(fxCard, {remote:true, source:'spectator-board-action-effect-cinematic'});
-          }
-          await fn.call(window, card, payload.z, payload.r, payload.c);
-        }
-      } else if(type === 'EFFECT_CINEMATIC'){
-        const card = g.board?.[payload.z]?.[payload.r]?.[payload.c] || null;
-        if(card && typeof window.showEffectActivationCinematic === 'function') {
-          await window.showEffectActivationCinematic(card, {remote:true, source:'spectator-effect-cinematic'});
-        }
-      } else if(type === 'HAND_ACTION'){
-        const fn = window.__fateOnlineOriginalFns?.[payload.fn];
-        if(typeof fn === 'function'){
-          if(payload.selectedHand){
-            const hand = g.players?.[payload.playerIndex]?.hand;
-            if(hand && payload.selectedHand.iid){
-              const idx = hand.findIndex(c=>c && c.iid === payload.selectedHand.iid);
-              if(idx >= 0) g.selectedHandCard = idx;
-            }
-          }
-          const card = g.players?.[payload.playerIndex]?.hand?.[g.selectedHandCard] || null;
-          await fn.call(window, card);
-        }
-      } else if(type === 'MODAL_ACTION'){
-        const fx = payload.effectCinematic || (g.selectedBoardCard ? {z:g.selectedBoardCard.z, r:g.selectedBoardCard.r, c:g.selectedBoardCard.c} : null);
-        const fxCard = fx ? (g.board?.[fx.z]?.[fx.r]?.[fx.c] || null) : null;
-        if(fxCard && typeof window.showEffectActivationCinematic === 'function') {
-          await window.showEffectActivationCinematic(fxCard, {remote:true, source:'spectator-modal-action-effect-cinematic'});
-        }
-        const modalAction = g._onlinePendingModalActions?.[payload.actionIndex];
-        if(modalAction && typeof modalAction.action === 'function') await modalAction.action();
-        g._onlinePendingModalActions = null;
-      } else if(type === 'PICK_CARDS_VISUAL'){
-        const pending = g._onlinePendingPickCardsVisual;
-        if(pending && typeof pending.onConfirm === 'function'){
-          const selected = (payload.selectedCards || [])
-            .map(ident => (pending.cards || []).find(card => card && ident && ((ident.iid && card.iid === ident.iid) || (ident.id && card.id === ident.id))))
-            .filter(Boolean);
-          await pending.onConfirm(selected);
-          g._onlinePendingPickCardsVisual = null;
-        }
-      } else if(type === 'PICK_ZONE'){
-        const pending = g._onlinePendingZonePicker;
-        if(pending && typeof pending.onConfirm === 'function'){
-          const selected = (payload.selectedEntries || [])
-            .map(item => (pending.entries || []).find(e=> e && item && e.z === item.z && e.r === item.r && e.c === item.c))
-            .filter(Boolean);
-          await pending.onConfirm(selected);
-          g._onlinePendingZonePicker = null;
-        }
-      } else if(type === 'PICK_AFFILIATION'){
-        const pending = g._onlinePendingAffiliationPicker;
-        if(pending && typeof pending.callback === 'function'){
-          await pending.callback(String(payload.aff || ''));
-          g._onlinePendingAffiliationPicker = null;
-        }
-      } else if(type === 'FORFEIT'){
-        // Match ended by forfeit — show result and leave
-        if(typeof toast === 'function') toast('A player forfeited — match over');
-        setTimeout(()=> leaveSpectating(), 3000);
-      }
-    }finally{
-      g._onlineApplyingRemoteAction = prev;
-      g._onlineRemoteActionPlayer = prevPlayer;
-    }
-    // After each action, stop timer for spectators
-    if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
+    console.warn('[Spectator] Canonical RTDB updates require keyed action queries; refusing an unbounded fallback.');
   }
 
   function watchSpectatorRoom(code, initialRoom){
@@ -927,7 +798,83 @@
     badge.innerHTML = '<span class="spectator-eye" aria-hidden="true">👁</span><span class="spectator-count" id="spectator-count">0</span>';
     badge.title = 'Spectators watching this match';
     const gameScreen = document.getElementById('s-game');
-    if(gameScreen) gameScreen.appendChild(badge);
+    if(gameScreen){
+      const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
+      badge.classList.toggle('spectator-viewing', !!(g && g._isSpectator));
+      gameScreen.appendChild(badge);
+    }
+  }
+
+  function spectatorPerspectiveName(playerIndex){
+    const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
+    return String(g?.playerProfiles?.[playerIndex]?.name || g?.players?.[playerIndex]?.name || `Player ${playerIndex + 1}`);
+  }
+
+  function updateSpectatorPerspectiveControls(){
+    const controls = document.getElementById('spectator-perspective-controls');
+    if(!controls) return;
+    const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
+    const selected = Number(g?.viewerPlayerIndex) === 1 ? 1 : 0;
+    controls.querySelectorAll('[data-spectator-perspective]').forEach(function(button){
+      const playerIndex = Number(button.dataset.spectatorPerspective);
+      const name = spectatorPerspectiveName(playerIndex);
+      button.classList.toggle('active', playerIndex === selected);
+      button.setAttribute('aria-pressed', playerIndex === selected ? 'true' : 'false');
+      button.setAttribute('aria-label', `View from ${name}'s perspective`);
+      const nameEl = button.querySelector('.spectator-perspective-name');
+      if(nameEl) nameEl.textContent = name;
+    });
+  }
+
+  function setSpectatorPerspective(playerIndex, announce=true){
+    const next = Number(playerIndex);
+    const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
+    if(!g || !g._isSpectator || g._onlineRole !== 'spectator' || (next !== 0 && next !== 1)) return false;
+    const changed = Number(g.viewerPlayerIndex) !== next;
+    g.viewerPlayerIndex = next;
+    g.localPlayerIndex = next;
+    g.selectedHandCard = null;
+    g.selectedBoardCard = null;
+    g.placing = false;
+    if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+    if(typeof window.renderBoardActionForPlayer === 'function'){
+      window.renderBoardActionForPlayer(next, {bothHands:true, piles:true, scores:true, effects:true, topbar:true, landscape:true});
+    }else if(typeof window.renderGame === 'function'){
+      window.renderGame({board:true, hand:true, oppHand:true, piles:true, scores:true, effects:true, topbar:true, landscape:true});
+    }
+    if(typeof window.updatePlayerBanners === 'function') window.updatePlayerBanners();
+    if(typeof window.updateTopBar === 'function') window.updateTopBar();
+    updateSpectatorPerspectiveControls();
+    if(changed && announce && typeof toast === 'function') toast(`Viewing ${spectatorPerspectiveName(next)}'s perspective`);
+    return true;
+  }
+
+  function installSpectatorPerspectiveControls(){
+    removeSpectatorPerspectiveControls();
+    const gameScreen = document.getElementById('s-game');
+    if(!gameScreen) return;
+    const controls = document.createElement('div');
+    controls.id = 'spectator-perspective-controls';
+    controls.className = 'spectator-perspective-controls';
+    controls.setAttribute('role', 'group');
+    controls.setAttribute('aria-label', 'Spectator perspective');
+    controls.innerHTML = [0, 1].map(function(playerIndex){
+      return `<button type="button" class="spectator-perspective-btn" data-spectator-perspective="${playerIndex}" aria-pressed="false"><span class="spectator-perspective-slot">P${playerIndex + 1}</span><span class="spectator-perspective-name"></span></button>`;
+    }).join('');
+    controls.addEventListener('click', function(event){
+      const button = event.target?.closest?.('[data-spectator-perspective]');
+      if(button) setSpectatorPerspective(Number(button.dataset.spectatorPerspective));
+    });
+    gameScreen.classList.add('spectator-mode');
+    gameScreen.appendChild(controls);
+    updateSpectatorPerspectiveControls();
+  }
+
+  function removeSpectatorPerspectiveControls(){
+    const controls = document.getElementById('spectator-perspective-controls');
+    if(controls) controls.remove();
+    const gameScreen = document.getElementById('s-game');
+    if(gameScreen) gameScreen.classList.remove('spectator-mode');
   }
 
   function updateSpectatorBadge(count){
@@ -966,18 +913,12 @@
     if(flySpectatorHeartbeatTimer) clearInterval(flySpectatorHeartbeatTimer);
     flySpectatorRoomTimer = flySpectatorActionTimer = flySpectatorCountTimer = flySpectatorHeartbeatTimer = 0;
     spectatorRoomUnsub = spectatorActionsUnsub = spectatorCountUnsub = null;
-    spectatorActionReplayQueue = Promise.resolve();
     spectatorLastActionSeq = 0;
-    spectatorLastAppliedSeq = 0;
     spectatorFlyChatSeq = 0;
-    spectatorActionBuffer.clear();
-    spectatorActionDrainScheduled = false;
-    // Clean up profile subscriptions to prevent memory leaks
-    spectatorProfileUnsubs.forEach(function(unsub){ try{ unsub(); }catch(e){} });
-    spectatorProfileUnsubs.clear();
-    spectatorLiveProfiles.clear();
+    spectatorLastCanonicalHash = '';
 
     removeSpectatorBadge();
+    removeSpectatorPerspectiveControls();
 
     // Clean up game state
     const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
@@ -1106,9 +1047,7 @@
       const orig = window[fnName];
       if(typeof orig !== 'function') return;
       window[fnName] = function(){
-        const g = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
-        // Only block if it's NOT a remote action replay
-        if(isSpec() && !g?._onlineApplyingRemoteAction){
+        if(isSpec()){
           if(typeof toast === 'function') toast('You are spectating — actions are not allowed');
           return;
         }
@@ -1134,6 +1073,7 @@
   window.fateSpectateMatch = spectateMatch;
   window.fateJoinAsSpectator = spectateMatch;
   window.fateLeaveSpectating = leaveSpectating;
+  window.fateSetSpectatorPerspective = setSpectatorPerspective;
   window.fatePublishLiveMatch = publishLiveMatch;
   window.fateUnpublishLiveMatch = unpublishLiveMatch;
   window.fateInstallPlayerSpectatorBadge = installPlayerSpectatorBadge;

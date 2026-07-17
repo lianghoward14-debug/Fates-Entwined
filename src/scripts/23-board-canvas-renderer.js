@@ -323,6 +323,8 @@
       fate:publicCard.fate,
       currentFate:publicCard.currentFate,
       _markedForDeath:!!flags.markedForDeath,
+      _immuneStatus:!!flags.immune,
+      _zoeBlockedStatus:!!flags.zoeBlocked,
       faceDown:!!flags.faceDown,
       xFate:!!flags.xFate,
       xCost:!!flags.xCost
@@ -667,7 +669,7 @@
     ctx.save();
     roundedPath(ctx, x, y, w, h, radius);
     ctx.clip();
-    if(card && card._markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'grayscale(1) saturate(0) brightness(.78) contrast(.94)';
+    if(card && card._markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)';
     const src = visual && (visual.runtimeImg || visual.img);
     const baseTexture = getBaseCardTexture((options && options.textureCard) || card, visual, rect);
     if(baseTexture && baseTexture.loaded && !baseTexture.failed && baseTexture.canvas) {
@@ -691,10 +693,117 @@
     }
     ctx.restore();
 
+    drawCardStatusOverlay(ctx, rect, card);
     drawTributeCue(ctx, rect, options && options.tributeState);
     drawFateBadge(ctx, visual, card, rect, false, options && options.fateAnim);
 
     return true;
+  }
+
+  function drawCardStatusOverlay(ctx, rect, card){
+    if(!ctx || !rect || !card) return;
+    const statuses = {
+      marked:!!card._markedForDeath,
+      blocked:!!card._zoeBlockedStatus,
+      immune:!!(card._immuneStatus || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(card)))
+    };
+    let state = null;
+    if(typeof window !== 'undefined' && typeof window.getCardStatusVisualState === 'function') {
+      try { state = window.getCardStatusVisualState(card, statuses); } catch(e) {}
+    }
+    if(!state) state = {primary:statuses.marked ? 'marked' : (statuses.blocked ? 'blocked' : (statuses.immune ? 'immune' : '')), immune:statuses.immune};
+    const kind = state.primary || '';
+    if(!kind && !state.immune) return;
+    const radius = Math.max(3, Math.min(8, rect.w * .08));
+    const fill = kind === 'marked' ? 'rgba(118,44,54,.16)' : (kind === 'blocked' ? 'rgba(70,42,120,.16)' : 'rgba(32,95,124,.12)');
+    if(kind) {
+      ctx.save();
+      roundedPath(ctx, rect.x, rect.y, rect.w, rect.h, radius);
+      ctx.clip();
+      ctx.fillStyle = fill;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      drawStatusGlyph(ctx, rect, kind);
+      ctx.restore();
+    }
+    if(state.immune && kind && kind !== 'immune') drawMiniProtectionGlyph(ctx, rect);
+  }
+
+  function drawStatusGlyph(ctx, rect, kind){
+    const size = Number(rect && rect._fixedSize) || Math.max(30, Math.min(52, rect.w * .44));
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    function px(v){ return cx + (v - 32) / 64 * size; }
+    function py(v){ return cy + (v - 32) / 64 * size; }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2.4, size * .078);
+    ctx.shadowBlur = Math.max(6, size * .18);
+    if(kind === 'marked'){
+      ctx.strokeStyle = 'rgba(224,220,216,.96)';
+      ctx.shadowColor = 'rgba(190,92,112,.34)';
+      ctx.beginPath();
+      ctx.moveTo(px(22), py(47));
+      ctx.lineTo(px(22), py(39));
+      ctx.bezierCurveTo(px(15), py(35), px(14), py(24), px(21), py(17));
+      ctx.bezierCurveTo(px(27), py(10), px(37), py(10), px(43), py(17));
+      ctx.bezierCurveTo(px(50), py(24), px(49), py(35), px(42), py(39));
+      ctx.lineTo(px(42), py(47));
+      ctx.lineTo(px(22), py(47));
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(224,220,216,.96)';
+      ctx.beginPath();
+      ctx.arc(px(26), py(30), Math.max(2, size * .055), 0, Math.PI * 2);
+      ctx.arc(px(38), py(30), Math.max(2, size * .055), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, size * .064);
+      ctx.beginPath();
+      ctx.moveTo(px(32), py(35)); ctx.lineTo(px(29), py(40)); ctx.lineTo(px(35), py(40)); ctx.lineTo(px(32), py(35));
+      ctx.moveTo(px(27), py(47)); ctx.lineTo(px(27), py(52));
+      ctx.moveTo(px(32), py(47)); ctx.lineTo(px(32), py(53));
+      ctx.moveTo(px(37), py(47)); ctx.lineTo(px(37), py(52));
+      ctx.stroke();
+    } else if(kind === 'blocked'){
+      ctx.strokeStyle = 'rgba(238,222,255,.96)';
+      ctx.shadowColor = 'rgba(154,108,218,.38)';
+      ctx.beginPath();
+      ctx.moveTo(px(17), py(24)); ctx.lineTo(px(17), py(17)); ctx.lineTo(px(25), py(17));
+      ctx.moveTo(px(39), py(17)); ctx.lineTo(px(47), py(17)); ctx.lineTo(px(47), py(25));
+      ctx.moveTo(px(47), py(39)); ctx.lineTo(px(47), py(47)); ctx.lineTo(px(39), py(47));
+      ctx.moveTo(px(25), py(47)); ctx.lineTo(px(17), py(47)); ctx.lineTo(px(17), py(39));
+      ctx.stroke();
+      ctx.lineWidth = Math.max(2.8, size * .09);
+      ctx.beginPath();
+      ctx.moveTo(px(18), py(48));
+      ctx.lineTo(px(48), py(18));
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(214,246,255,.96)';
+      ctx.shadowColor = 'rgba(108,208,226,.34)';
+      ctx.lineWidth = Math.max(2.5, size * .082);
+      ctx.beginPath();
+      ctx.moveTo(px(32), py(9));
+      ctx.lineTo(px(49), py(17));
+      ctx.lineTo(px(49), py(31));
+      ctx.bezierCurveTo(px(49), py(43), px(42), py(51), px(32), py(56));
+      ctx.bezierCurveTo(px(22), py(51), px(15), py(43), px(15), py(31));
+      ctx.lineTo(px(15), py(17));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.lineWidth = Math.max(2.1, size * .07);
+      ctx.beginPath();
+      ctx.moveTo(px(24), py(33));
+      ctx.lineTo(px(30), py(39));
+      ctx.lineTo(px(42), py(26));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawMiniProtectionGlyph(ctx, rect){
+    const size = Math.max(18, Math.min(30, rect.w * .26));
+    const miniRect = {x:rect.x + rect.w * .20 - size / 2, y:rect.y + rect.h * .82 - size / 2, w:size, h:size, _fixedSize:size};
+    drawStatusGlyph(ctx, miniRect, 'immune');
   }
 
   function getVisual(card, z, r, c, viewerP){

@@ -19,6 +19,7 @@ const {
 } = require('./fate-authority-reducer');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {buildInitialAuthorityState} = require('./fate-authority-bootstrap');
+const AILearning = require('../src/scripts/07-ai-learning.js');
 const {
   publicRoomDiagnostics,
   publicSystemDiagnostics,
@@ -61,11 +62,21 @@ const APP_ROOT = path.resolve(__dirname, '..');
 const WEBSITE_DIR = process.env.FATE_WEBSITE_DIR
   ? path.resolve(process.env.FATE_WEBSITE_DIR)
   : path.join(APP_ROOT, 'fates-entwined-website');
+const LANDING_WEBSITE_DIR = process.env.FATE_LANDING_WEBSITE_DIR
+  ? path.resolve(process.env.FATE_LANDING_WEBSITE_DIR)
+  : path.join(APP_ROOT, 'fates-entwined-website');
 const DIST_DIR = path.join(APP_ROOT, 'dist');
 const INSTALLER_PUBLIC_PATH = '/installer/Fates-Entwined-Installer.exe';
 const STATIC_OVERRIDE_DIR = FLY_DATA_DIR ? path.join(FLY_DATA_DIR, 'static-overrides') : '';
 const SHARED_AI_RECORD_SCHEMA_VERSION = 5;
 const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
+const AI_LEARNING_ENABLED = process.env.FATE_AI_LEARNING_ENABLED !== '0';
+const AI_TRAINING_MODE = String(process.env.FATE_AI_TRAINING_MODE || 'scheduled').toLowerCase();
+const AI_LEARNING_MAX_SAMPLES = Math.max(500, Math.min(50000, Number(process.env.FATE_AI_TRAIN_MAX_SAMPLES || 12000) || 12000));
+const AI_LEARNING_RETENTION_MS = Math.max(1, Math.min(365, Number(process.env.FATE_AI_TRAIN_RETENTION_DAYS || 45) || 45)) * 86400000;
+const AI_TRAIN_INTERVAL_MS = Math.max(60 * 60 * 1000, Number(process.env.FATE_AI_TRAIN_INTERVAL_MS || 6 * 60 * 60 * 1000) || 6 * 60 * 60 * 1000);
+const AI_TRAIN_MAX_MS = Math.max(5, Math.min(250, Number(process.env.FATE_AI_TRAIN_MAX_MS || 30) || 30));
+const AI_TRAIN_EPISODES = Math.max(0, Math.min(2000, Number(process.env.FATE_AI_TRAIN_EPISODES || 96) || 96));
 
 const rooms = new Map();
 const sockets = new Set();
@@ -74,6 +85,7 @@ const flyPlayerStats = new Map();
 const flyMatchResults = new Map();
 const flyAIRecords = new Map();
 const flyAISimMatches = [];
+const flyAILearningSamples = [];
 const flyParties = new Map();
 const flyPartyInvites = new Map();
 const flyWorldChat = [];
@@ -90,8 +102,12 @@ let flyMarketplaceSeq = 0;
 let flyPublicDeckCommentSeq = 0;
 let flyPrivateMessageSeq = 0;
 let flyAISimSchedule = {};
+let flyAILearnedPolicies = AILearning.createBasePolicies();
+let flyAILearningStats = {seen:0,accepted:0,rejected:0,lastIngestAt:0,lastTrainAt:0,lastEpisodes:0,lastElapsedMs:0};
 let flyAISimulationInterval = 0;
 let flyAISimulationStartupTimer = 0;
+let flyAITrainingInterval = 0;
+let flyAITrainingStartupTimer = 0;
 let flyLeaderboardResetVersion = '';
 const FLY_AI_SIMULATION_CADENCE_MS = 60 * 60 * 1000;
 let certCache = { expiresAt: 0, certs: null };
@@ -261,6 +277,9 @@ function flyRoomsSnapshotPayload(){
     aiRecords:[...flyAIRecords.values()].map(publicFlyAIRecord).filter(Boolean).slice(0, 80),
     aiSimMatches:flyAISimMatches.map(publicFlyAISimMatch).filter(Boolean).slice(-100),
     aiSimSchedule:Object.assign({}, flyAISimSchedule || {}),
+    aiLearningSamples:flyAILearningSamples.slice(-AI_LEARNING_MAX_SAMPLES),
+    aiLearnedPolicies:AILearning.sanitizePolicySet(flyAILearnedPolicies),
+    aiLearningStats:Object.assign({}, flyAILearningStats),
     leaderboardResetVersion:flyLeaderboardResetVersion || '',
     parties:[...flyParties.values()].map(publicFlyParty).filter(Boolean),
     partyInvites:[...flyPartyInvites.values()].map(publicFlyPartyInvite).filter(Boolean),
@@ -356,6 +375,13 @@ function loadFlyRoomsSnapshot(){
   });
   flyAISimMatches.splice(0, flyAISimMatches.length, ...(Array.isArray(parsed?.aiSimMatches) ? parsed.aiSimMatches : []).map(publicFlyAISimMatch).filter(Boolean).slice(-100));
   flyAISimSchedule = parsed?.aiSimSchedule && typeof parsed.aiSimSchedule === 'object' ? Object.assign({}, parsed.aiSimSchedule) : {};
+  const learningCutoff = now() - AI_LEARNING_RETENTION_MS;
+  flyAILearningSamples.splice(0, flyAILearningSamples.length, ...(Array.isArray(parsed?.aiLearningSamples) ? parsed.aiLearningSamples : [])
+    .map(publicFlyAILearningSample).filter(sample=>sample && sample.t >= learningCutoff).slice(-AI_LEARNING_MAX_SAMPLES));
+  flyAILearnedPolicies = AILearning.sanitizePolicySet(parsed?.aiLearnedPolicies || flyAILearnedPolicies);
+  flyAILearningStats = Object.assign({}, flyAILearningStats, parsed?.aiLearningStats || {}, {
+    accepted:Math.max(Number(parsed?.aiLearningStats?.accepted || 0) || 0, flyAILearningSamples.length)
+  });
   flyLeaderboardResetVersion = String(parsed?.leaderboardResetVersion || '').slice(0, 40);
   (Array.isArray(parsed?.parties) ? parsed.parties : []).forEach(item=>{
     const party = publicFlyParty(item);
@@ -689,6 +715,24 @@ function writeStaticOverride(publicPath, body){
 function serveWebsiteRequest(req, res){
   const url = new URL(req.url || '/', 'http://localhost');
   let pathname = decodeURIComponent(url.pathname || '/');
+  if(pathname === '/website'){
+    res.writeHead(302, {location:'/website/'});
+    res.end();
+    return true;
+  }
+  if(pathname === '/website/' || pathname.startsWith('/website/')){
+    if(pathname === '/website/assets/backgrounds/panacea-igb7-20260718.png' || pathname === '/website/assets/backgrounds/pirates.png' || pathname === '/website/assets/backgrounds/harbor.png' || pathname === '/website/assets/backgrounds/ocean.png'){
+      res.writeHead(302, {
+        location:'/website/assets/backgrounds/war.png',
+        'cache-control':'no-cache'
+      });
+      res.end();
+      return true;
+    }
+    const landingPathname = pathname === '/website/' ? '/index.html' : pathname.slice('/website'.length);
+    const normalizedLanding = path.normalize(landingPathname).replace(/^(\.\.[/\\])+/, '');
+    return serveStaticFileWithOverride(res, LANDING_WEBSITE_DIR, normalizedLanding, pathname);
+  }
   if(pathname === INSTALLER_PUBLIC_PATH){
     const installerPath = latestInstallerPath();
     if(!installerPath){
@@ -1689,10 +1733,13 @@ function publicFlyPrivateMessage(value){
   const id = String(raw.id || '').slice(0, 80);
   const uid = String(raw.uid || raw.fromUid || '').slice(0, 128);
   const toUid = String(raw.toUid || '').slice(0, 128);
+  const idSeqMatch = id.match(/dm(\d+)$/i);
+  const seq = safeNonNegativeInteger(raw.seq, idSeqMatch ? Number(idSeqMatch[1]) : 0);
   const text = sanitizeChatText(raw.text);
   if(!id || !uid || !toUid || !text) return null;
   return {
     id,
+    seq,
     uid,
     fromUid:uid,
     toUid,
@@ -1764,10 +1811,14 @@ function getThreadMap(uid){
   return flyPrivateThreads.get(safeUid);
 }
 
-function listFlyPrivateMessages(uid, peerUid, limit = 80){
+function listFlyPrivateMessages(uid, peerUid, limit = 80, after = 0){
   const key = conversationKey(uid, peerUid);
   const max = Math.min(60, Math.max(1, Number(limit || 50) || 50));
-  return (flyPrivateMessages.get(key) || []).map(publicFlyPrivateMessage).filter(Boolean).slice(-max);
+  const minSeq = Math.max(0, Number(after || 0) || 0);
+  return (flyPrivateMessages.get(key) || [])
+    .map(publicFlyPrivateMessage)
+    .filter(message=>message && Number(message.seq || 0) > minSeq)
+    .slice(-max);
 }
 
 function appendFlyPrivateMessage(uid, peerUid, text, profile){
@@ -1779,6 +1830,7 @@ function appendFlyPrivateMessage(uid, peerUid, text, profile){
   flyPrivateMessageSeq += 1;
   const message = publicFlyPrivateMessage({
     id:`dm${flyPrivateMessageSeq}`,
+    seq:flyPrivateMessageSeq,
     uid:safeUid,
     toUid:safePeer,
     from:cleanProfile.name || cleanProfile.displayName || 'Player',
@@ -1798,7 +1850,9 @@ function appendFlyPrivateMessage(uid, peerUid, text, profile){
 
 function markFlyThreadRead(uid, peerUid){
   const thread = getThreadMap(uid).get(peerUid);
-  if(thread) getThreadMap(uid).set(peerUid, publicFlyPrivateThread(Object.assign({}, thread, {unread:0})));
+  if(!thread || safeNonNegativeInteger(thread.unread, 0) <= 0) return false;
+  getThreadMap(uid).set(peerUid, publicFlyPrivateThread(Object.assign({}, thread, {unread:0})));
+  return true;
 }
 
 function lookupFlyProfiles(term, limit = 8){
@@ -2017,6 +2071,16 @@ function publicFlyAISimMatch(value){
   };
 }
 
+function publicFlyAILearningSample(value){
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {d:value};
+  const decision = AILearning.sanitizeDecision(raw.d || raw.decision);
+  if(!decision) return null;
+  return {
+    d:decision,
+    t:Math.max(0, Math.round(Number(raw.t || raw.receivedAt) || now()))
+  };
+}
+
 function upsertFlyProfile(uid, profile, opts = {}){
   const safeUid = String(uid || profile?.uid || '').slice(0, 128);
   if(!safeUid) return null;
@@ -2028,6 +2092,8 @@ function upsertFlyProfile(uid, profile, opts = {}){
   const existingMatches = safeNonNegativeInteger(existing.matchesPlayed, 0);
   const useIncomingRank = allowRankWrite && (forceRankWrite || incomingMatches >= existingMatches);
   const rankSource = useIncomingRank ? incoming : existing;
+  const incomingPhotoURL = incoming.photoURL && incoming.photoURL !== 'blank.png' ? incoming.photoURL : '';
+  const incomingProfileImg = incoming.profileImg && incoming.profileImg !== 'blank.png' ? incoming.profileImg : '';
   const mergedChallengerWins = useIncomingRank
     ? safeNonNegativeInteger(incoming.challengerWins, 0)
     : safeNonNegativeInteger(existing.challengerWins, 0);
@@ -2040,8 +2106,8 @@ function upsertFlyProfile(uid, profile, opts = {}){
     username:incoming.username || existing.username || incoming.name || 'Player',
     displayName:incoming.displayName || incoming.name || existing.displayName || 'Player',
     baseCode:incoming.baseCode || existing.baseCode || '',
-    photoURL:incoming.photoURL || existing.photoURL || 'blank.png',
-    profileImg:incoming.profileImg || incoming.photoURL || existing.profileImg || 'blank.png',
+    photoURL:incomingPhotoURL || existing.photoURL || existing.profileImg || 'blank.png',
+    profileImg:incomingProfileImg || incomingPhotoURL || existing.profileImg || existing.photoURL || 'blank.png',
     profileCropFocusX:incoming.profileCropFocusX ?? existing.profileCropFocusX ?? null,
     profileCropFocusY:incoming.profileCropFocusY ?? existing.profileCropFocusY ?? null,
     profileCropZoom:incoming.profileCropZoom ?? existing.profileCropZoom ?? null,
@@ -2329,6 +2395,107 @@ function purgeCorruptedFlySharedLeaderboardProfiles(){
   return removed;
 }
 
+function pruneFlyAILearningSamples(){
+  const cutoff = now() - AI_LEARNING_RETENTION_MS;
+  let removed = 0;
+  for(let i=flyAILearningSamples.length-1; i>=0; i--){
+    if(Number(flyAILearningSamples[i]?.t || 0) >= cutoff) continue;
+    flyAILearningSamples.splice(i, 1);
+    removed++;
+  }
+  if(flyAILearningSamples.length > AI_LEARNING_MAX_SAMPLES){
+    removed += flyAILearningSamples.length - AI_LEARNING_MAX_SAMPLES;
+    flyAILearningSamples.splice(0, flyAILearningSamples.length - AI_LEARNING_MAX_SAMPLES);
+  }
+  return removed;
+}
+
+function ingestFlyAILearningDecisions(body = {}){
+  if(!AI_LEARNING_ENABLED) throw new Error('AI learning collection is disabled');
+  const incoming = Array.isArray(body.decisions) ? body.decisions.slice(0, AILearning.MAX_CLIENT_DECISIONS) : [];
+  const receivedAt = now();
+  let accepted = 0;
+  let rejected = 0;
+  pruneFlyAILearningSamples();
+  incoming.forEach(value=>{
+    flyAILearningStats.seen = Math.max(0, Number(flyAILearningStats.seen || 0)) + 1;
+    const decision = AILearning.sanitizeDecision(value);
+    if(!decision){ rejected++; return; }
+    const sample = {d:decision,t:receivedAt};
+    if(flyAILearningSamples.length < AI_LEARNING_MAX_SAMPLES){
+      flyAILearningSamples.push(sample);
+    }else{
+      // Reservoir sampling keeps storage fixed while retaining a representative history.
+      const slot = Math.floor(Math.random() * Math.max(1, flyAILearningStats.seen));
+      if(slot < AI_LEARNING_MAX_SAMPLES) flyAILearningSamples[slot] = sample;
+    }
+    accepted++;
+  });
+  flyAILearningStats.accepted = Math.max(0, Number(flyAILearningStats.accepted || 0)) + accepted;
+  flyAILearningStats.rejected = Math.max(0, Number(flyAILearningStats.rejected || 0)) + rejected;
+  if(accepted) flyAILearningStats.lastIngestAt = receivedAt;
+  if(accepted) persistFlyRoomMutation();
+  return {accepted,rejected,stored:flyAILearningSamples.length,capacity:AI_LEARNING_MAX_SAMPLES};
+}
+
+function publicFlyAILearningPolicy(){
+  return {
+    enabled:AI_LEARNING_ENABLED,
+    mode:AI_TRAINING_MODE,
+    policyVersion:AILearning.POLICY_VERSION,
+    policies:AILearning.sanitizePolicySet(flyAILearnedPolicies),
+    stats:{
+      stored:flyAILearningSamples.length,
+      capacity:AI_LEARNING_MAX_SAMPLES,
+      retentionDays:Math.round(AI_LEARNING_RETENTION_MS / 86400000),
+      lastTrainAt:Number(flyAILearningStats.lastTrainAt || 0) || 0,
+      lastEpisodes:Number(flyAILearningStats.lastEpisodes || 0) || 0,
+      lastElapsedMs:Number(flyAILearningStats.lastElapsedMs || 0) || 0
+    }
+  };
+}
+
+function runFlyAITraining(reason = 'scheduled', force = false){
+  if(!AI_LEARNING_ENABLED) return {ran:false,skipped:'disabled'};
+  if(AI_TRAINING_MODE === 'off') return {ran:false,skipped:'training-off'};
+  const lastTrainAt = Number(flyAILearningStats.lastTrainAt || 0) || 0;
+  if(!force && lastTrainAt && now()-lastTrainAt < AI_TRAIN_INTERVAL_MS) return {ran:false,skipped:'cadence'};
+  if(!force && listFlyLiveMatches(1).length) return {ran:false,skipped:'live-match-active'};
+  pruneFlyAILearningSamples();
+  const trainingAt = now();
+  const decisions = flyAILearningSamples.map(sample=>sample.d);
+  let next = AILearning.trainImitation(flyAILearnedPolicies, decisions, {
+    maxSamples:AI_LEARNING_MAX_SAMPLES,
+    updatedAt:trainingAt
+  });
+  const selfPlay = AILearning.runSelfPlay(next, {
+    episodes:AI_TRAIN_EPISODES,
+    maxMs:AI_TRAIN_MAX_MS,
+    seed:`${reason}:${trainingAt}:${decisions.length}`,
+    updatedAt:trainingAt
+  });
+  next = selfPlay.policies;
+  flyAILearnedPolicies = AILearning.sanitizePolicySet(next);
+  flyAILearningStats.lastTrainAt = trainingAt;
+  flyAILearningStats.lastEpisodes = selfPlay.episodes;
+  flyAILearningStats.lastElapsedMs = selfPlay.elapsedMs;
+  persistFlyRoomMutation();
+  console.log(`Fly AI policy training ${reason}: samples=${decisions.length}; selfPlay=${selfPlay.episodes}; elapsed=${selfPlay.elapsedMs}ms`);
+  return {ran:true,reason,samples:decisions.length,episodes:selfPlay.episodes,elapsedMs:selfPlay.elapsedMs,policy:publicFlyAILearningPolicy()};
+}
+
+function startFlyAITrainingCadence(){
+  if(AI_TRAINING_MODE !== 'scheduled' || flyAITrainingInterval) return;
+  flyAITrainingStartupTimer = setTimeout(()=>{
+    flyAITrainingStartupTimer = 0;
+    runFlyAITraining('startup', false);
+  }, 45000);
+  flyAITrainingStartupTimer.unref?.();
+  const retryMs = Math.min(AI_TRAIN_INTERVAL_MS, 30 * 60 * 1000);
+  flyAITrainingInterval = setInterval(()=>runFlyAITraining('timer', false), retryMs);
+  flyAITrainingInterval.unref?.();
+}
+
 function runScheduledFlyAISimulation(reason = 'timer'){
   if(shuttingDown || flyAIRecords.size < 2) return {ran:0, skipped:'empty-roster', roster:[]};
   const key = String(flyAISimSchedule?.monthKey || '').slice(0, 24);
@@ -2592,6 +2759,21 @@ function enterFlyMatchmaking(uid, body){
 function removeRoomMatchmakingEntries(room){
   if(!room) return;
   [room.hostUid, room.guestUid].filter(Boolean).forEach(uid=>matchmaking.delete(uid));
+}
+
+function cleanupEndedRoomPlayerState(room, reason){
+  if(!room) return;
+  removeRoomMatchmakingEntries(room);
+  clearAllDisconnectTimers(room);
+  clearReactionTimer(room);
+  Object.keys(room.players || {}).forEach(uid=>{
+    const player = room.players[uid];
+    if(!player) return;
+    player.connected = false;
+    player.lastSeen = now();
+  });
+  room.matchmaking = false;
+  room.terminalCleanupReason = String(reason || room.endReason || 'ended').slice(0, 80);
 }
 
 function leaveFlyRoom(room, uid){
@@ -3121,7 +3303,7 @@ function roomPatchForAction(room, action){
     const winnerIndex = loserIndex === 0 ? 1 : 0;
     patch.status = 'ended';
     patch.phase = 'ended';
-    patch.endedBy = room.playerOrder[winnerIndex] || '';
+    patch.endedBy = room.playerOrder[loserIndex] || action.uid || '';
     patch.endReason = 'disconnect';
     patch.endedAt = Number(payload.endedAt || 0) || now();
     patch.loserIndex = loserIndex;
@@ -3409,8 +3591,7 @@ function applyRoomPatch(room, patch){
   if(patch.status) room.status = String(patch.status).slice(0, 32);
   if(patch.phase) room.phase = String(patch.phase).slice(0, 32);
   if(room.status === 'ended'){
-    clearAllDisconnectTimers(room);
-    clearReactionTimer(room);
+    cleanupEndedRoomPlayerState(room, patch.endReason || 'ended');
   }
   if(patch.endedBy) room.endedBy = String(patch.endedBy).slice(0, 128);
   if(patch.endReason) room.endReason = String(patch.endReason).slice(0, 80);
@@ -3447,6 +3628,117 @@ function findAcceptedClientAction(room, uid, clientActionId){
     const action = accepted?.action;
     if(!action || action.uid !== uid) continue;
     if(String(action.clientActionId || '') === id) return accepted;
+  }
+  return null;
+}
+
+function findAcceptedLandscapePrompt(room, landscapePromptKey){
+  const key = String(landscapePromptKey || '').slice(0, 320);
+  if(!room || !key) return null;
+  for(let i = room.eventLog.length - 1; i >= 0; i -= 1){
+    const accepted = room.eventLog[i];
+    const action = accepted?.action;
+    if(!action || String(action.type || '').toUpperCase() !== 'PICK_LANDSCAPE_ZONE') continue;
+    if(String(action.payload?.landscapePromptKey || '').slice(0, 320) === key) return accepted;
+  }
+  return null;
+}
+
+function effectiveAcceptedActionType(action){
+  const rawType = String(action && action.type || '').toUpperCase();
+  const actionKind = String(action && action.payload && action.payload.actionKind || '').toUpperCase();
+  return rawType === 'ACTION_RESULT' && actionKind ? actionKind : rawType;
+}
+
+function boardEffectActivationKey(payload){
+  const fn = String(payload && payload.fn || '');
+  if(!/^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(fn)) return '';
+  const source = payload && payload.source || {};
+  const card = source && source.card || {};
+  const iid = String(source.iid || source.cardIid || card.iid || '');
+  if(iid) return fn + ':iid:' + iid;
+  const id = String(source.id || source.cardId || card.id || '');
+  const z = Number(source.z ?? payload.z);
+  const r = Number(source.r ?? payload.r);
+  const c = Number(source.c ?? payload.c);
+  if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
+    return fn + ':pos:' + z + ':' + r + ':' + c + ':id:' + id;
+  }
+  return '';
+}
+
+function findBoardEntryByEffectSource(state, payload){
+  const source = payload && payload.source || {};
+  const cardRef = source && source.card || {};
+  const iid = String(source.iid || source.cardIid || cardRef.iid || '');
+  const id = String(source.id || source.cardId || cardRef.id || '');
+  const z = Number(source.z ?? payload.z);
+  const r = Number(source.r ?? payload.r);
+  const c = Number(source.c ?? payload.c);
+  const board = state && state.board;
+  if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
+    const card = board && board[z] && board[z][r] ? board[z][r][c] : null;
+    if(card && (!iid || String(card.iid || '') === iid) && (!id || String(card.id || '') === id)) return card;
+  }
+  if(!Array.isArray(board)) return null;
+  for(const zone of board){
+    if(!Array.isArray(zone)) continue;
+    for(const row of zone){
+      if(!Array.isArray(row)) continue;
+      for(const card of row){
+        if(!card || typeof card !== 'object') continue;
+        if(iid && String(card.iid || '') === iid) return card;
+        if(!iid && id && String(card.id || '') === id) return card;
+      }
+    }
+  }
+  return null;
+}
+
+function isAcceptedBoardEffectSourceSpent(action){
+  const payload = action && action.payload || {};
+  const fn = String(payload.fn || '');
+  const card = findBoardEntryByEffectSource(payload.postState, payload);
+  if(!card) return true;
+  if(fn === 'activatePendingWhenSetEffect'){
+    return card.whenSetActivated === true || card.effectUsedInitial === true;
+  }
+  if(fn === 'triggerCharacterEffect'){
+    if(String(card.id || '') === '21') return card.effectUsedInitial === true || (Array.isArray(card._henrySuppressionSquares) && card._henrySuppressionSquares.length > 0);
+    return String(card.type || '') === 'Initiator' && card.effectUsedInitial === true && card._effectTurnLocked === true;
+  }
+  return false;
+}
+
+function findAcceptedBoardEffectActivation(room, uid, msg){
+  const payload = msg && msg.payload || {};
+  const key = boardEffectActivationKey(payload);
+  if(!room || !uid || !key) return null;
+  for(let i = room.eventLog.length - 1; i >= 0; i -= 1){
+    const accepted = room.eventLog[i];
+    const action = accepted && accepted.action;
+    if(!action || action.uid !== uid) continue;
+    if(effectiveAcceptedActionType(action) !== 'BOARD_ACTION') continue;
+    if(boardEffectActivationKey(action.payload || {}) !== key) continue;
+    if(isAcceptedBoardEffectSourceSpent(action)) return accepted;
+  }
+  return null;
+}
+
+function findAcceptedTurnBoundary(room, uid, msg){
+  const payload = msg && msg.payload || {};
+  if(effectiveAcceptedActionType(msg) !== 'END_TURN') return null;
+  if(!room || !uid) return null;
+  const playerIndex = Number(payload.playerIndex);
+  const turn = Number(payload.turn);
+  for(let i = room.eventLog.length - 1; i >= 0; i -= 1){
+    const accepted = room.eventLog[i];
+    const action = accepted && accepted.action;
+    if(!action || action.uid !== uid) continue;
+    if(effectiveAcceptedActionType(action) !== 'END_TURN') continue;
+    if(Number(action.payload && action.payload.playerIndex) !== playerIndex) continue;
+    if(Number.isFinite(turn) && Number.isFinite(Number(action.payload && action.payload.turn)) && Number(action.payload.turn) !== turn) continue;
+    return accepted;
   }
   return null;
 }
@@ -3774,9 +4066,37 @@ async function handleIntentQueued(ws, msg){
     replayAcceptedClientAction(ws, priorAccepted, msg.requestId || '');
     return;
   }
+  if(String(msg.type || '').toUpperCase() === 'PICK_LANDSCAPE_ZONE'){
+    const priorLandscapePrompt = findAcceptedLandscapePrompt(room, msg.payload?.landscapePromptKey);
+    if(priorLandscapePrompt){
+      replayAcceptedClientAction(ws, priorLandscapePrompt, msg.requestId || '');
+      return;
+    }
+  }
+  if(effectiveAcceptedActionType(msg) === 'BOARD_ACTION'){
+    const priorBoardEffect = findAcceptedBoardEffectActivation(room, ws.fateUid, msg);
+    if(priorBoardEffect){
+      replayAcceptedClientAction(ws, priorBoardEffect, msg.requestId || '');
+      return;
+    }
+  }
+  if(effectiveAcceptedActionType(msg) === 'END_TURN' && room.currentTurnUid && room.currentTurnUid !== ws.fateUid){
+    const priorTurnBoundary = findAcceptedTurnBoundary(room, ws.fateUid, msg);
+    if(priorTurnBoundary){
+      replayAcceptedClientAction(ws, priorTurnBoundary, msg.requestId || '');
+      return;
+    }
+  }
   const rejection = validateAction(room, ws, msg);
   if(rejection){
-    send(ws, { kind:'rejected', requestId:msg.requestId || '', reason:rejection, serverSeq:room.lastSeq });
+    send(ws, {
+      kind:'rejected',
+      requestId:msg.requestId || '',
+      reason:rejection,
+      serverSeq:room.lastSeq,
+      serverStateHash:room.canonicalHash || room.lastStateHash || '',
+      serverState:room.canonicalState || null
+    });
     return;
   }
   const gateResult = validateAuthorityStateGate(room, msg);
@@ -3808,6 +4128,11 @@ async function handleIntentQueued(ws, msg){
       stateHash:gateResult.canonicalHash,
       serverReduced:true,
       reducerMode:REDUCER_MODE
+    });
+  }
+  if(gateResult.reactionResolution){
+    action.payload = Object.assign({}, action.payload || {}, {
+      reactionResolution:gateResult.reactionResolution
     });
   }
   if(Array.isArray(gateResult.presentationEvents) && gateResult.presentationEvents.length){
@@ -4003,6 +4328,7 @@ async function handleApiRequest(req, res, url){
             flyActionReplay:true,
             flyMultiplayerDiagnostics:true,
             flyChallengerAI:true,
+            flyAILearning:AI_LEARNING_ENABLED,
           flyResumeReplay:true,
           flyDurableStore:FLY_STORE_ENABLED,
           flyDurableStoreReady:flyStoreReady,
@@ -4042,6 +4368,13 @@ async function handleApiRequest(req, res, url){
       writeJson(res, 200, Object.assign({ok:true}, result));
       return true;
     }
+    if(parts[1] === 'admin' && parts[2] === 'ai-learning' && parts[3] === 'train'){
+      if(req.method !== 'POST') throw new Error('AI learning train route requires POST');
+      const body = await readJsonBody(req);
+      verifyAdminToken(req, body);
+      writeJson(res, 200, Object.assign({ok:true}, runFlyAITraining('admin', true)));
+      return true;
+    }
     if(req.method === 'GET' && parts[1] === 'leaderboards' && parts[2] === 'challenger'){
       const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
       const monthKey = String(url.searchParams.get('monthKey') || '').slice(0, 24);
@@ -4078,6 +4411,19 @@ async function handleApiRequest(req, res, url){
       const body = await readJsonBody(req);
       await verifyRequestUser(req, body);
       const result = runFlyAISimulationBatch(body?.monthKey || '', body?.count);
+      writeJson(res, 200, Object.assign({ok:true}, result));
+      return true;
+    }
+    if(parts[1] === 'ai-learning' && parts[2] === 'policy' && req.method === 'GET'){
+      writeJson(res, 200, Object.assign({ok:true}, publicFlyAILearningPolicy()));
+      return true;
+    }
+    if(parts[1] === 'ai-learning' && parts[2] === 'decisions'){
+      if(req.method !== 'POST') throw new Error('AI learning decisions route requires POST');
+      const body = await readJsonBody(req);
+      await verifyRequestUser(req, body);
+      // Authentication prevents anonymous spam; user identity is deliberately not retained.
+      const result = ingestFlyAILearningDecisions(body);
       writeJson(res, 200, Object.assign({ok:true}, result));
       return true;
     }
@@ -4232,10 +4578,21 @@ async function handleApiRequest(req, res, url){
       const peerUid = String(parts[2] || '').slice(0, 128);
       if(req.method === 'GET'){
         const uid = await verifyRequestUser(req, {uid:String(url.searchParams.get('uid') || '')});
-        markFlyThreadRead(uid, peerUid);
-        persistFlyRoomMutation();
+        if(markFlyThreadRead(uid, peerUid)) persistFlyRoomMutation();
         const limit = Math.min(60, Math.max(1, Number(url.searchParams.get('limit') || 50) || 50));
-        writeJson(res, 200, {ok:true, peerUid, messages:listFlyPrivateMessages(uid, peerUid, limit), state:flySocialStateFor(uid)});
+        const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
+        const includeState = url.searchParams.get('state') !== '0';
+        const response = {
+          ok:true,
+          peerUid,
+          messageSeq:flyPrivateMessageSeq,
+          messages:listFlyPrivateMessages(uid, peerUid, limit, after)
+        };
+        if(includeState){
+          response.state = flySocialStateFor(uid);
+          response.peerProfile = publicFlyProfile(flyPlayerStats.get(peerUid) || {uid:peerUid});
+        }
+        writeJson(res, 200, response);
         return true;
       }
       if(req.method === 'POST'){
@@ -4673,6 +5030,9 @@ const server = http.createServer((req, res)=>{
       flyDirectMessages:true,
       flySpectators:true,
       flyLiveMatches:true,
+      flyAILearning:AI_LEARNING_ENABLED,
+      flyAITrainingMode:AI_TRAINING_MODE,
+      flyAILearningSamples:flyAILearningSamples.length,
       flyActionReplay:true,
       flyResumeReplay:true,
       flyDurableStore:FLY_STORE_ENABLED,
@@ -4799,6 +5159,8 @@ async function gracefulShutdown(signal){
   console.log(`Fates authority shutting down from ${signal || 'signal'}; draining for up to ${SHUTDOWN_GRACE_MS}ms`);
   if(flyAISimulationStartupTimer){ clearTimeout(flyAISimulationStartupTimer); flyAISimulationStartupTimer = 0; }
   if(flyAISimulationInterval){ clearInterval(flyAISimulationInterval); flyAISimulationInterval = 0; }
+  if(flyAITrainingStartupTimer){ clearTimeout(flyAITrainingStartupTimer); flyAITrainingStartupTimer = 0; }
+  if(flyAITrainingInterval){ clearInterval(flyAITrainingInterval); flyAITrainingInterval = 0; }
   clearInterval(roomMaintenanceInterval);
   clearInterval(pingInterval);
   const queueResult = await waitForRoomActionQueues(Math.max(500, Math.floor(SHUTDOWN_GRACE_MS * 0.55)));
@@ -4834,6 +5196,7 @@ function startAuthorityRuntime(){
     if(restoredEventCount > 0 || leaderboardReset.applied) persistFlyRoomsSnapshot();
     const timers = rearmRestoredTimers();
     startFlyAISimulationCadence();
+    startFlyAITrainingCadence();
     authorityReady = true;
     if(leaderboardReset.applied){
       console.log(`Fly human leaderboard reset ${FATE_LEADERBOARD_RESET_VERSION}: cleared ${leaderboardReset.removed || 0} player entr${Number(leaderboardReset.removed || 0) === 1 ? 'y' : 'ies'}`);

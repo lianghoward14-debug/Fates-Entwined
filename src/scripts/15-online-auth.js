@@ -8,7 +8,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check.js';
 import {
   getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence,
-  signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+  signInWithPopup, signInWithRedirect, signInWithCredential, getRedirectResult, signOut, onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   getDatabase, ref, child, get, set, update, push, remove, onValue, onChildAdded,
@@ -155,9 +155,24 @@ function isElectronShell(){
   try{ return new URLSearchParams(location.search).get('electron') === '1'; }
   catch(e){ return false; }
 }
+function isElectronExternalAuth(){
+  try{ return new URLSearchParams(location.search).get('electronExternalAuth') === '1'; }
+  catch(e){ return false; }
+}
 function electronSessionName(){
   try{ return String(new URLSearchParams(location.search || '').get('electronSession') || 'default'); }
   catch(e){ return 'default'; }
+}
+function electronExternalAuthConfig(){
+  try{
+    const params = new URLSearchParams(location.search || '');
+    return {
+      state:String(params.get('bridgeState') || ''),
+      bridgeUrl:String(params.get('bridgeUrl') || '')
+    };
+  }catch(e){
+    return {state:'', bridgeUrl:''};
+  }
 }
 function isMissingRedirectStateError(e){
   const code = String(e?.code || '');
@@ -401,6 +416,7 @@ async function syncPublicProfile(opts={}){
   }
   const localForReset = getLocalProfile();
   if(typeof window.fateNormalizeLeaderboardStatsReset === 'function') window.fateNormalizeLeaderboardStatsReset(localForReset);
+  if(typeof window.fateResetProfileMatchRecord === 'function') window.fateResetProfileMatchRecord(localForReset);
   const baseCode = makeBaseCode(uid);
   const chosenUsername = getLocalUsername(user);
   const photoURL = getLocalPhoto(user);
@@ -410,17 +426,17 @@ async function syncPublicProfile(opts={}){
     console.warn('Blocked public profile sync for mismatched local account profile');
     return null;
   }
-  const humanWins = Number(localProfile.humanWins ?? localProfile.wins ?? 0) || 0;
-  const humanLosses = Number(localProfile.humanLosses ?? localProfile.losses ?? 0) || 0;
-  const matchesPlayed = Number(localProfile.matchesPlayed ?? ((Number(localProfile.challengerWins||0)||0) + (Number(localProfile.challengerLosses||0)||0) + (Number(localProfile.wins||0)||0) + (Number(localProfile.losses||0)||0))) || 0;
   let existingServerRank = null;
   if(!flyProfilesEnabled() && rtdbAvailable()){
     try{ existingServerRank = (await get(ref(rtdb, `publicProfiles/${uid}`))).val() || null; }catch(e){}
   }
   const rankProfile = existingServerRank || {};
   const challengerElo = Number(rankProfile.challengerElo ?? rankProfile.elo ?? getLocalElo()) || 600;
-  const challengerWins = Number(rankProfile.challengerWins ?? rankProfile.wins ?? localProfile.challengerWins ?? 0) || 0;
-  const challengerLosses = Number(rankProfile.challengerLosses ?? rankProfile.losses ?? localProfile.challengerLosses ?? 0) || 0;
+  const challengerWins = Number(rankProfile.challengerWins ?? rankProfile.wins ?? 0) || 0;
+  const challengerLosses = Number(rankProfile.challengerLosses ?? rankProfile.losses ?? 0) || 0;
+  const humanWins = Number(rankProfile.humanWins ?? 0) || 0;
+  const humanLosses = Number(rankProfile.humanLosses ?? 0) || 0;
+  const matchesPlayed = Number(rankProfile.matchesPlayed ?? Math.max(challengerWins + challengerLosses, humanWins + humanLosses)) || 0;
   const payload = {
     uid,
     baseCode,
@@ -482,22 +498,10 @@ async function syncPublicProfile(opts={}){
     return state.profile;
   }
   const multiPathUpdate = {};
-  Object.keys(payload).forEach(k => { multiPathUpdate[`publicProfiles/${uid}/${k}`] = payload[k]; });
-  multiPathUpdate[`leaderboards/challenger/${uid}`] = {
-    uid,
-    name:chosenUsername,
-    username:chosenUsername,
-    baseCode,
-    photoURL,
-    profileImg:photoURL,
-    elo:payload.challengerElo,
-    wins:payload.challengerWins,
-    losses:payload.challengerLosses,
-    challengerWins:payload.challengerWins,
-    challengerLosses:payload.challengerLosses,
-    matchesPlayed:payload.matchesPlayed,
-    updatedAt:serverTimestamp()
-  };
+  Object.keys(payload).forEach(k => {
+    if(/^(challengerElo|elo|wins|losses|challengerWins|challengerLosses|humanWins|humanLosses|matchesPlayed|leaderboardResetVersion)$/.test(k)) return;
+    multiPathUpdate[`publicProfiles/${uid}/${k}`] = payload[k];
+  });
   multiPathUpdate[`friendInviteCodes/${baseCode}`] = uid;
   if(payload.usernameLower) multiPathUpdate[`usernames/${payload.usernameLower}/${uid}`] = true;
   await update(ref(rtdb), multiPathUpdate);
@@ -567,16 +571,197 @@ function shouldFallbackToRedirect(e){
     || /Pending promise was never set|network-request-failed|operation-not-supported/i.test(msg);
 }
 
+async function signInWithElectronExternalBrowser(){
+  const bridge = window.FateElectronAuthBridge;
+  if(!bridge || typeof bridge.beginGoogleSignIn !== 'function'){
+    throw new Error('Electron external Google sign-in bridge is unavailable');
+  }
+  if(window.toast) toast('Opening Google sign-in in your browser...');
+  const payload = await bridge.beginGoogleSignIn({sessionName:electronSessionName()});
+  const credential = GoogleAuthProvider.credential(payload?.idToken || null, payload?.accessToken || null);
+  await signInWithCredential(auth, credential);
+}
+
+async function postElectronExternalAuthResult(result){
+  const config = electronExternalAuthConfig();
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const idToken = credential?.idToken || '';
+  const accessToken = credential?.accessToken || '';
+  if(!config.bridgeUrl || !config.state) throw new Error('Missing Electron auth bridge parameters');
+  if(!idToken && !accessToken) throw new Error('Google did not return a transferable sign-in credential');
+  const user = result?.user || auth.currentUser || {};
+  const res = await fetch(config.bridgeUrl, {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({
+      state:config.state,
+      idToken,
+      accessToken,
+      email:user.email || '',
+      displayName:user.displayName || ''
+    })
+  });
+  if(!res.ok){
+    let text = '';
+    try{ text = await res.text(); }catch(e){}
+    throw new Error('Electron auth bridge failed: ' + res.status + (text ? ' ' + text.slice(0, 120) : ''));
+  }
+  renderElectronExternalAuthPrompt('complete');
+}
+
+function renderElectronExternalAuthPrompt(mode, message){
+  if(!isElectronExternalAuth()) return;
+  let el = document.getElementById('fate-electron-external-auth');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'fate-electron-external-auth';
+    document.body.appendChild(el);
+  }
+  const isComplete = mode === 'complete';
+  const isError = mode === 'error';
+  const title = isComplete ? 'Sign-in complete' : (isError ? 'Sign-in interrupted' : 'Secure Google sign-in');
+  const copy = message || (isComplete
+    ? 'You can return to Fates Entwined now. The desktop app will finish linking your command profile.'
+    : 'Continue with Google in this browser tab. When authorization finishes, your session will be handed back to the desktop app automatically.');
+  const buttonText = isError ? 'Try Again' : 'Continue with Google';
+  el.innerHTML = `
+    <style>
+      #fate-electron-external-auth{
+        position:fixed;inset:0;z-index:2147483647;display:grid;grid-template-rows:auto 1fr auto;
+        min-height:100vh;color:#f4ead2;background:#070910;
+        background-image:linear-gradient(180deg,rgba(3,4,8,.38),rgba(3,4,8,.88)),url('optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d');
+        background-size:cover;background-position:center;font-family:'Crimson Pro',Georgia,serif;overflow:hidden;
+      }
+      #fate-electron-external-auth *{box-sizing:border-box}
+      #fate-electron-external-auth::before{
+        content:'';position:absolute;inset:0;pointer-events:none;
+        background:linear-gradient(90deg,rgba(0,0,0,.68),transparent 28%,transparent 72%,rgba(0,0,0,.68));
+      }
+      #fate-electron-external-auth .fea-topbar{
+        position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;
+        min-height:64px;padding:0 24px;border-bottom:1px solid rgba(201,168,76,.46);
+        background:rgba(4,6,11,.88);box-shadow:0 12px 28px rgba(0,0,0,.28);
+      }
+      #fate-electron-external-auth .fea-brand{
+        font-family:'Cinzel',Georgia,serif;color:#d6b76d;font-size:1.08rem;font-weight:700;
+        letter-spacing:.18em;text-transform:uppercase;text-shadow:0 0 18px rgba(214,183,109,.25);
+      }
+      #fate-electron-external-auth .fea-state{
+        border:1px solid rgba(201,168,76,.38);color:#d6b76d;background:rgba(0,0,0,.28);
+        padding:.45rem .75rem;font-family:'Cinzel',Georgia,serif;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+      }
+      #fate-electron-external-auth .fea-center{
+        position:relative;z-index:1;display:grid;place-items:center;padding:36px 18px;
+      }
+      #fate-electron-external-auth .fea-panel{
+        position:relative;width:min(520px,calc(100vw - 32px));padding:30px 32px 28px;
+        border:1px solid rgba(214,183,109,.62);background:linear-gradient(180deg,rgba(8,10,17,.96),rgba(3,5,10,.94));
+        box-shadow:0 28px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,246,191,.08);
+      }
+      #fate-electron-external-auth .fea-panel::before,
+      #fate-electron-external-auth .fea-panel::after{
+        content:'';position:absolute;width:24px;height:24px;pointer-events:none;border-color:rgba(232,196,82,.86);
+      }
+      #fate-electron-external-auth .fea-panel::before{left:10px;top:10px;border-left:2px solid;border-top:2px solid}
+      #fate-electron-external-auth .fea-panel::after{right:10px;bottom:10px;border-right:2px solid;border-bottom:2px solid}
+      #fate-electron-external-auth .fea-kicker{
+        margin:0 0 .45rem;color:#5fb5ff;font-family:'Cinzel',Georgia,serif;font-size:.74rem;
+        letter-spacing:.22em;text-transform:uppercase;
+      }
+      #fate-electron-external-auth .fea-title{
+        margin:0;color:#f5d77d;font-family:'Cinzel',Georgia,serif;font-size:clamp(1.55rem,4vw,2.25rem);
+        line-height:1.05;letter-spacing:.035em;text-transform:uppercase;
+      }
+      #fate-electron-external-auth .fea-rule{
+        height:1px;margin:18px 0;background:linear-gradient(90deg,rgba(201,168,76,.7),rgba(201,168,76,.1));
+      }
+      #fate-electron-external-auth .fea-copy{
+        margin:0;color:#d8cfb8;font-size:1.02rem;line-height:1.55;
+      }
+      #fate-electron-external-auth .fea-note{
+        margin:18px 0 0;padding:.72rem .82rem;border:1px dashed rgba(95,181,255,.28);
+        color:#aebee0;background:rgba(4,13,25,.54);font-size:.88rem;line-height:1.45;
+      }
+      #fate-electron-external-auth .fea-actions{display:flex;align-items:center;gap:.75rem;margin-top:22px}
+      #fate-electron-external-auth .fea-google{
+        appearance:none;border:1px solid rgba(214,183,109,.82);background:linear-gradient(180deg,#e2c777,#9c7427);
+        color:#090b11;font-family:'Cinzel',Georgia,serif;font-size:.82rem;font-weight:800;letter-spacing:.12em;
+        text-transform:uppercase;padding:.78rem 1rem;min-height:44px;cursor:pointer;box-shadow:0 0 24px rgba(214,183,109,.16);
+      }
+      #fate-electron-external-auth .fea-google:hover{filter:brightness(1.08)}
+      #fate-electron-external-auth .fea-google:disabled{cursor:wait;filter:saturate(.55) brightness(.82)}
+      #fate-electron-external-auth .fea-mark{
+        width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);
+        background:rgba(255,255,255,.08);color:#fff;font:700 1.25rem system-ui,sans-serif;
+      }
+      #fate-electron-external-auth .fea-footer{
+        position:relative;z-index:1;padding:0 18px 16px;color:rgba(244,234,210,.42);
+        font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;text-align:center;
+      }
+      @media (max-width:640px){
+        #fate-electron-external-auth .fea-topbar{padding:0 14px}
+        #fate-electron-external-auth .fea-brand{font-size:.9rem;letter-spacing:.14em}
+        #fate-electron-external-auth .fea-state{display:none}
+        #fate-electron-external-auth .fea-panel{padding:26px 22px 24px}
+        #fate-electron-external-auth .fea-actions{align-items:stretch;flex-direction:column}
+        #fate-electron-external-auth .fea-google{width:100%}
+      }
+    </style>
+    <div class="fea-topbar">
+      <div class="fea-brand">Fates Entwined</div>
+      <div class="fea-state">${isComplete ? 'Linked' : (isError ? 'Retry Required' : 'Account Link')}</div>
+    </div>
+    <main class="fea-center">
+      <section class="fea-panel" aria-live="polite">
+        <div class="fea-kicker">Online Command</div>
+        <h1 class="fea-title">${escapeHtml(title)}</h1>
+        <div class="fea-rule"></div>
+        <p class="fea-copy">${escapeHtml(copy)}</p>
+        <div class="fea-note">${isComplete ? 'This tab may be closed after the desktop app updates.' : 'Google opens here because the desktop shell cannot reliably host Google OAuth directly.'}</div>
+        ${isComplete ? '' : `
+          <div class="fea-actions">
+            <div class="fea-mark" aria-hidden="true">G</div>
+            <button id="fate-electron-external-auth-button" class="fea-google">${escapeHtml(buttonText)}</button>
+          </div>`}
+      </section>
+    </main>
+    <div class="fea-footer">Secure browser handoff for the desktop client</div>`;
+  if(!isComplete){
+    const btn = document.getElementById('fate-electron-external-auth-button');
+    if(btn) btn.onclick = async function(){
+      btn.disabled = true;
+      btn.textContent = 'Signing in';
+      try{
+        await signIn();
+      }catch(e){
+        renderElectronExternalAuthPrompt('error', String(e?.message || e || 'Google sign-in failed'));
+      }
+    };
+  }
+  if(isError) console.warn('[FateOnline] Electron external auth prompt error', message);
+}
+
 async function signIn(){
   if(state.signingIn) return;
   state.signingIn = true;
   try{
-    await signInWithPopup(auth, provider);
+    if(isElectronShell() && !isElectronExternalAuth()){
+      await signInWithElectronExternalBrowser();
+      return;
+    }
+    const result = await signInWithPopup(auth, provider);
+    if(isElectronExternalAuth()){
+      await postElectronExternalAuthResult(result);
+    }
   }
   catch(e){
     console.error('Google sign-in failed', e);
+    if(isElectronExternalAuth()){
+      renderElectronExternalAuthPrompt('error', String(e?.message || e || 'Google sign-in failed'));
+      return;
+    }
     if(isElectronShell()){
-      if(window.toast) toast('Google sign-in failed. Check the sign-in popup and OAuth settings.');
+      if(window.toast) toast('Google sign-in failed in the external browser.');
       return;
     }
     if(shouldFallbackToRedirect(e)){
@@ -632,6 +817,12 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
 });
 window.fateSignInWithGoogle = signIn;
 window.fateSignOut = signOutNow;
+
+if(isElectronExternalAuth()){
+  const installExternalPrompt = ()=>renderElectronExternalAuthPrompt('ready');
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installExternalPrompt, {once:true});
+  else installExternalPrompt();
+}
 
 async function syncSignedInPresenceAndProfile(user){
   if(!user) return;

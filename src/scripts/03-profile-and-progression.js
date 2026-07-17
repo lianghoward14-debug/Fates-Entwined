@@ -52,6 +52,7 @@ let CURRENT_MODE = 'free';
 let _fateActiveUid = null;
 const _fateStorageWriteCache = Object.create(null);
 const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
+const FATE_PROFILE_RECORD_RESET_VERSION = '20260714b';
 
 function _fateStorageKey(base) {
   if (_fateActiveUid) return base + '_' + _fateActiveUid;
@@ -105,6 +106,7 @@ function fateApplyServerProfileStats(profile, opts={}) {
   const uid = String(profile.uid || '');
   const activeUid = String(_fateActiveUid || window.FATE_ONLINE?.user?.uid || '');
   if(uid && activeUid && uid !== activeUid) return false;
+  resetProfileMatchRecord(profile);
   const nextElo = Math.max(0, Math.round(Number(profile.challengerElo ?? profile.elo ?? USER_PROFILE.challengerElo ?? 600) || 600));
   const nextWins = Math.max(0, Math.round(Number(profile.challengerWins ?? profile.wins ?? USER_PROFILE.challengerWins ?? 0) || 0));
   const nextLosses = Math.max(0, Math.round(Number(profile.challengerLosses ?? profile.losses ?? USER_PROFILE.challengerLosses ?? 0) || 0));
@@ -145,6 +147,68 @@ function normalizeLeaderboardStatsReset(profile) {
   return true;
 }
 
+function resetProfileMatchRecord(profile) {
+  if(!profile || typeof profile !== 'object') return false;
+  const hasStaleRecord = !!(
+    Number(profile.wins || 0) ||
+    Number(profile.losses || 0) ||
+    Number(profile.challengerWins || 0) ||
+    Number(profile.challengerLosses || 0) ||
+    Number(profile.humanWins || 0) ||
+    Number(profile.humanLosses || 0) ||
+    Number(profile.matchesPlayed || 0)
+  );
+  if(profile.profileRecordResetVersion === FATE_PROFILE_RECORD_RESET_VERSION && !hasStaleRecord) return false;
+  profile.wins = 0;
+  profile.losses = 0;
+  profile.challengerWins = 0;
+  profile.challengerLosses = 0;
+  profile.humanWins = 0;
+  profile.humanLosses = 0;
+  profile.matchesPlayed = 0;
+  profile.profileRecordResetVersion = FATE_PROFILE_RECORD_RESET_VERSION;
+  profile.profileRecordResetAt = Date.now();
+  return true;
+}
+
+function resetStoredProfileRecordDataIfNeeded() {
+  let changed = false;
+  try{
+    const profileKeys = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(!key) continue;
+      if(key === 'fate_match_history' || key === 'fate_ai_elo_state'){
+        localStorage.removeItem(key);
+        changed = true;
+      }
+      if(key === 'fate_user_profile' || key.startsWith('fate_user_profile_')){
+        profileKeys.push(key);
+      }
+    }
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(!key || !key.startsWith('fate_account_aux_')) continue;
+      try{
+        const aux = JSON.parse(localStorage.getItem(key) || '{}');
+        if(aux && typeof aux === 'object' && (aux.fate_match_history || aux.fate_ai_elo_state)){
+          delete aux.fate_match_history;
+          delete aux.fate_ai_elo_state;
+          localStorage.setItem(key, JSON.stringify(aux));
+          changed = true;
+        }
+      }catch(e){}
+    }
+    profileKeys.forEach(key=>{
+      const profile = _fateReadJsonStorage(key);
+      if(profile && resetProfileMatchRecord(profile)){
+        _fateSetJsonStorageIfChanged(key, profile);
+        changed = true;
+      }
+    });
+  }catch(e){}
+  return changed;
+}
 function resetStoredLeaderboardDataIfNeeded() {
   const marker = 'fate_leaderboard_reset_' + FATE_LEADERBOARD_RESET_VERSION;
   try{
@@ -268,6 +332,7 @@ window._fateClearActiveAccount = _fateClearActiveAccount;
 window._fateMigrateIfNeeded = _fateMigrateIfNeeded;
 window._fateReloadProfile = function() { loadPresetsFromStorage(); };
 window.fateNormalizeLeaderboardStatsReset = normalizeLeaderboardStatsReset;
+window.fateResetProfileMatchRecord = resetProfileMatchRecord;
 window.fateResetLocalLeaderboardData = resetStoredLeaderboardDataIfNeeded;
 window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 
@@ -503,9 +568,10 @@ function renderRankBadge(elo, size='md') {
   const len = rankName.length;
   const fitClass = len <= 8 ? ' rank-badge-short' : (len <= 14 ? ' rank-badge-medium' : (len <= 20 ? ' rank-badge-long' : ' rank-badge-xlong'));
   const longClass = len > 14 ? ' rank-badge-label-long' : '';
+  const labelHtml = `<span class="rank-badge-label${longClass}" data-raw-rank-name="${escapeHtml(rankName)}" title="${escapeHtml(rankName)}">${escapeHtml(rankName)}</span>`;
   return `<span class="rank-badge rank-${size}${fitClass} fate-badge-frame" style="background:${rank.bg};border-color:${rank.color}40;color:${rank.color};">
     <span class="rank-badge-svg">${divider}</span>
-    <span class="rank-badge-icon">${renderRankIconMark(rank,size)}</span><span class="rank-badge-label${longClass}">${rankName}</span>
+    <span class="rank-badge-icon">${renderRankIconMark(rank,size)}</span>${labelHtml}
   </span>`;
 }
 
@@ -605,6 +671,7 @@ function loadPresetsFromStorage() {
   let didForceRankReset = false;
   let didResetAILeaderboard = false;
   const didResetLeaderboardData = resetStoredLeaderboardDataIfNeeded();
+  const didResetProfileRecordData = resetStoredProfileRecordDataIfNeeded();
   try {
     const stored = localStorage.getItem(_fateStorageKey('fate_user_presets'));
     PRESET_DECKS = stored ? JSON.parse(stored) : {};
@@ -621,6 +688,10 @@ function loadPresetsFromStorage() {
     if(_fateActiveUid) USER_PROFILE._fateAccountUid = _fateActiveUid;
   }
   if(normalizeLeaderboardStatsReset(USER_PROFILE)) didForceRankReset = true;
+  if(resetProfileMatchRecord(USER_PROFILE)){
+    didForceRankReset = true;
+    try { localStorage.setItem(_fateStorageKey('fate_user_profile'), JSON.stringify(USER_PROFILE)); } catch(e){}
+  }
   if((USER_PROFILE.elo==null || (USER_PROFILE.elo===1000 && !(USER_PROFILE.wins||0) && !(USER_PROFILE.losses||0)))) USER_PROFILE.elo = 600;
   if((USER_PROFILE.challengerElo==null || (USER_PROFILE.challengerElo===1000 && !(USER_PROFILE.challengerWins||0) && !(USER_PROFILE.challengerLosses||0)))) USER_PROFILE.challengerElo = 600;
   USER_PROFILE.humanWins = Number(USER_PROFILE.humanWins ?? USER_PROFILE.wins ?? 0) || 0;
@@ -687,7 +758,7 @@ function loadPresetsFromStorage() {
     const lb = localStorage.getItem(_fateStorageKey('fate_leaderboard'));
     LEADERBOARD = sanitizeLocalLeaderboardEntries(lb ? JSON.parse(lb) : []);
   } catch(e){ LEADERBOARD = []; }
-  if(didResetLeaderboardData) LEADERBOARD = [];
+  if(didResetLeaderboardData || didResetProfileRecordData) LEADERBOARD = [];
   if(!USER_PROFILE.aiLeaderboardReset_20260628){
     LEADERBOARD = Array.isArray(LEADERBOARD)
       ? LEADERBOARD.filter(entry=>!(entry && (entry.isAI || entry.isSimPlayer || String(entry.username || '').startsWith('AI Bot -'))))

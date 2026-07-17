@@ -22,6 +22,12 @@
     "predeploy:fly-authority": "npm run smoke:fly-cutover",
     "deploy:fly-authority": "fly deploy --config fly.toml",
     "smoke:card-catalog": "node server/fate-card-catalog-smoke-test.js",
+    "smoke:lore": "node server/fate-lore-card-information-5-smoke-test.js",
+    "smoke:ai-intelligence": "node server/fate-ai-intelligence-smoke-test.js",
+    "smoke:ai-learning": "node server/fate-ai-learning-smoke-test.js",
+    "smoke:ai-deck-pool": "node server/fate-ai-deck-pool-smoke-test.js",
+    "smoke:desktop-updater": "node server/fate-desktop-updater-smoke-test.js",
+    "smoke:landscape-prompt-guard": "node server/fate-landscape-prompt-guard-smoke-test.js",
     "smoke:authority-bootstrap": "node server/fate-authority-bootstrap-smoke-test.js",
     "smoke:rtdb-disconnect-static": "node server/fate-rtdb-disconnect-static-smoke-test.js",
     "smoke:rtdb-appcheck-static": "node server/fate-rtdb-appcheck-static-smoke-test.js",
@@ -36,6 +42,7 @@
     "smoke:multiplayer-diagnostics": "node server/fate-multiplayer-diagnostics-smoke-test.js",
     "smoke:client-resolved-action-result": "node server/fate-client-resolved-action-result-smoke-test.js",
     "smoke:client-resolved-ws": "node server/fate-client-resolved-ws-smoke-test.js",
+    "smoke:spectator": "node server/fate-spectator-static-smoke-test.js",
     "smoke:account-isolation": "node server/fate-account-isolation-smoke-test.js",
     "smoke:ws-authority": "node server/local-multiplayer-smoke-test.js",
     "smoke:multiplayer": "node server/full-multiplayer-smoke-test.js",
@@ -78,6 +85,14 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "lianghoward14-debug",
+        "repo": "Fates-Entwined",
+        "releaseType": "release"
+      }
+    ],
     "icon": "build/icon.ico",
     "win": {
       "icon": "build/icon.ico",
@@ -119,5 +134,8 @@
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3",
     "rcedit": "^5.0.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

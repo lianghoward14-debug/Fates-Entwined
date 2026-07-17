@@ -103,6 +103,13 @@ function findCurrentAILeaderboardRecord(ai) {
 
 function getCurrentAIRankState(ai) {
   if(!ai) return {elo:600, rankName:'Footman', rank:null, entry:null};
+  const override = getAIBalanceOverride(ai);
+  if(override && Number.isFinite(Number(override.elo))) {
+    const elo = Math.max(100, Math.round(Number(override.elo)));
+    let rank = null;
+    try { rank = typeof getRank === 'function' ? getRank(elo) : null; } catch(e) {}
+    return {elo, rankName:(rank && rank.name) || ai.rank || 'Footman', rank, entry:null};
+  }
   const entry = findCurrentAILeaderboardRecord(ai);
   const selectedMatch = typeof G !== 'undefined' && G && G._selectedAI && isSameAIRecord(ai, G._selectedAI);
   const liveElo = Number(entry && entry.elo);
@@ -671,7 +678,7 @@ const AI_OPPONENTS = [
   {name:'Financial Consultant Phil',elo:1450,rank:'Commander-General',style:'efficient',img:'aiicons/ai6.png',
    desc:'Invests exactly where the return is highest. Ruthless efficiency.',
    deckPool:'starter', deckRef:'ai_investing_future', deck:[]},
-  {name:'Codebreaker Agent K',elo:1500,rank:'Commander-General',style:'elusive',img:'aiicons/ai5.png',
+  {name:'Codebreaker Agent K',elo:1450,rank:'Commander-General',style:'elusive',img:'aiicons/ai5.png',
    desc:'You never know where the next threat is coming from.',
    deckPool:'starter', deckRef:'ai_howards_choice', deck:[]},
   {name:'Divine Entity Cosmic GF',elo:1550,rank:'Commander-General',style:'visionary',img:'aiicons/ai4.png',
@@ -679,14 +686,14 @@ const AI_OPPONENTS = [
    deckPool:'starter', deckRef:'ai_henrys_conviction', deck:[]},
 
   // === HIGH MARSHALL (1600+) — AI-exclusive advanced decks ===
-  {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',img:'aiicons/ai3.png',
-   desc:'Every card placed builds toward an unbeatable endgame. Patience personified.',
+  {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',handKnowledge:'perfect',img:'aiicons/ai3.png',
+   desc:'Tracks every card in your hand and builds patiently toward an unbeatable endgame.',
    deckPool:'starter', deckRef:'ai_royal_flush', deck:[]},
-  {name:'Field Marshall Achille Laurent',elo:1750,rank:'High Marshall',style:'omniscient',img:'aiicons/ai2.png',
-   desc:'Reads your strategy and dismantles it. Adapts faster than you can adjust.',
+  {name:'Field Marshall Achille Laurent',elo:1750,rank:'High Marshall',style:'omniscient',handKnowledge:'perfect',img:'aiicons/ai2.png',
+   desc:'Reads your hand and strategy, then dismantles both before you can adjust.',
    deckPool:'starter', deckRef:'ai_coordinators_dream', deck:[]},
-  {name:'Commander Maja Kaminska',elo:1850,rank:'High Marshall',style:'overwhelming',img:'aiicons/ai1.png',
-   desc:'Raw power backed by perfect execution. The final test.',
+  {name:'Commander Maja Kaminska',elo:1850,rank:'High Marshall',style:'overwhelming',handKnowledge:'perfect',img:'aiicons/ai1.png',
+   desc:'Perfect knowledge of your hand backs overwhelming force and flawless execution.',
    deckPool:'starter', deckRef:'ai_blitz', deck:[]}
 ];
 
@@ -698,6 +705,40 @@ AI_OPPONENTS.forEach(ai => {
 });
 
 const AI_ELO_STATE_KEY = 'fate_ai_elo_state';
+const AI_BALANCE_OVERRIDES = {
+  'Shadow Tiger': { elo:1250, trueElo:1250 },
+  'Codebreaker Agent K': { elo:1450 }
+};
+
+function getAIBalanceOverrideName(aiOrName) {
+  const rawName = typeof aiOrName === 'string' ? aiOrName : (aiOrName && (aiOrName.name || aiOrName.username));
+  return String(rawName || '').replace(/^\d{4}-Q\d+:/, '');
+}
+
+function getAIBalanceOverride(aiOrName) {
+  const name = getAIBalanceOverrideName(aiOrName);
+  return AI_BALANCE_OVERRIDES[name] || null;
+}
+
+function applyAIBalanceOverride(ai) {
+  if(!ai || !(ai.name || ai.username)) return ai;
+  const override = getAIBalanceOverride(ai);
+  if(!override) return ai;
+  if(Number.isFinite(Number(override.elo))) ai.elo = Math.max(100, Math.round(Number(override.elo)));
+  if(Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
+  try { if(typeof getRank === 'function') ai.rank = getRank(ai.elo).name; } catch(e) {}
+  if(ai.defaultElo !== undefined) ai.defaultElo = ai.elo;
+  if(ai._defaultElo !== undefined) ai._defaultElo = ai.elo;
+  if(ai.defaultRank !== undefined) ai.defaultRank = ai.rank || ai.defaultRank;
+  if(ai._defaultRank !== undefined) ai._defaultRank = ai.rank || ai._defaultRank;
+  return ai;
+}
+
+function getAIBalanceOverrideNumber(override, key) {
+  if(!override) return null;
+  const value = Number(override[key]);
+  return Number.isFinite(value) ? Math.round(value) : null;
+}
 
 function loadAIEloState() {
   try { return JSON.parse(localStorage.getItem(AI_ELO_STATE_KEY) || '{}'); }
@@ -719,13 +760,17 @@ function applyStoredAIEloState(ai) {
   if(!ai || !ai.name) return ai;
   const state = loadAIEloState();
   const rec = state[getAIRecordKey(ai)];
-  if(ai.isMonthly && rec && Number(rec.generationVersion) !== Number(MONTHLY_AI_GENERATION_VERSION)) return ai;
+  if(ai.isMonthly && rec && Number(rec.generationVersion) !== Number(MONTHLY_AI_GENERATION_VERSION)) {
+    applyAIBalanceOverride(ai, rec);
+    return ai;
+  }
   if(rec && Number.isFinite(Number(rec.elo))) {
     const storedElo = Math.max(100, Math.round(Number(rec.elo)));
     const seededElo = Math.max(100, Math.round(Number(ai.elo) || 600));
     ai.elo = ai.isMonthly && storedElo === 600 && seededElo > 600 ? seededElo : storedElo;
   }
   if(rec && Number.isFinite(Number(rec.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(rec.trueElo)));
+  applyAIBalanceOverride(ai, rec);
   return ai;
 }
 
@@ -734,6 +779,8 @@ function applyStoredAIEloStateToList(list) {
   list.forEach(applyStoredAIEloState);
   return list;
 }
+
+AI_OPPONENTS.forEach(applyAIBalanceOverride);
 
 function saveCurrentMonthlyAI() {
   if(typeof MONTHLY_AI_OPPONENTS === 'undefined' || !Array.isArray(MONTHLY_AI_OPPONENTS) || !MONTHLY_AI_OPPONENTS.length) return;
@@ -744,6 +791,7 @@ function saveCurrentMonthlyAI() {
 
 function persistAIEloState(ai) {
   if(!ai || !ai.name) return;
+  applyAIBalanceOverride(ai);
   const state = loadAIEloState();
   state[getAIRecordKey(ai)] = {
     elo: Math.max(100, Math.round(Number(ai.elo) || 600)),
@@ -757,7 +805,10 @@ function persistAIEloState(ai) {
 
 function syncAIEloEverywhere(aiName, newElo, didWin) {
   if(!aiName) return null;
-  const resolvedElo = Math.max(100, Math.round(Number(newElo) || 600));
+  const override = getAIBalanceOverride(aiName);
+  const resolvedElo = override && Number.isFinite(Number(override.elo))
+    ? Math.max(100, Math.round(Number(override.elo)))
+    : Math.max(100, Math.round(Number(newElo) || 600));
   let source = null;
   const updateList = list=>{
     if(!Array.isArray(list)) return;
@@ -765,7 +816,9 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
     if(ai){
       ai.elo = resolvedElo;
       try { if(typeof getRank === 'function') ai.rank = getRank(resolvedElo).name; } catch(e) {}
-      if(!ai.trueElo) ai.trueElo = resolvedElo + 200;
+      if(override && Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
+      else if(!ai.trueElo) ai.trueElo = resolvedElo + 200;
+      applyAIBalanceOverride(ai);
       source = source || ai;
     }
   };
@@ -817,6 +870,8 @@ const AI_DECKS = {
 // Title screen "Free Play" AI uses fixed true ELO = displayed ELO (no boost).
 
 function getDailyTrueElo(ai) {
+  const override = getAIBalanceOverride(ai);
+  if(override && Number.isFinite(Number(override.trueElo))) return Math.max(100, Math.round(Number(override.trueElo)));
   // Generate a daily seed from the AI name + today's date
   const today = new Date().toISOString().slice(0,10);
   const seed = hashStr(ai.name + today);
@@ -918,6 +973,7 @@ function runAISimulation(options={}) {
 
 function updateAILeaderboardEntry(ai, didWin) {
   if(typeof LEADERBOARD === 'undefined') return;
+  applyAIBalanceOverride(ai);
   let entry = LEADERBOARD.find(e => e.username === ai.name);
   if(!entry) {
     entry = {username: ai.name, elo: ai.elo, wins: 0, losses: 0, profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || 'blank.png')), isAI: true, isMonthly: !!ai.isMonthly, monthKey:ai.monthKey || (ai.isMonthly ? getMonthKey() : '')};
@@ -1071,12 +1127,16 @@ function generateMonthlyAI() {
     const refreshed = stored.map((ai, i) => {
       const p = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
       const band = monthlyBandForSlot(monthKey, i);
-      const seededElo = monthlyVisibleElo(ai.trueElo, i);
+      const override = getAIBalanceOverride(ai);
+      const overrideTrueElo = getAIBalanceOverrideNumber(override, 'trueElo');
+      const overrideElo = getAIBalanceOverrideNumber(override, 'elo');
+      const effectiveTrueElo = overrideTrueElo != null ? overrideTrueElo : ai.trueElo;
+      const seededElo = overrideElo != null ? overrideElo : monthlyVisibleElo(effectiveTrueElo, i);
       const currentElo = Math.round(Number(ai.elo) || 600);
       const hasMatchRecord = Number(ai.wins || 0) > 0 || Number(ai.losses || 0) > 0;
       const elo = !hasMatchRecord && currentElo === 600 ? seededElo : currentElo;
-      const record = hasMatchRecord ? {wins:Number(ai.wins || 0) || 0, losses:Number(ai.losses || 0) || 0, seededWinRate:ai.seededWinRate} : monthlySeededRecord(monthKey, i, ai.trueElo, band);
-      return {...ai, ...record, elo, rank:rankNameForElo(elo), style:p.style, personalityLabel:p.label, personalityDesc:p.desc, generationVersion:MONTHLY_AI_GENERATION_VERSION};
+      const record = hasMatchRecord ? {wins:Number(ai.wins || 0) || 0, losses:Number(ai.losses || 0) || 0, seededWinRate:ai.seededWinRate} : monthlySeededRecord(monthKey, i, effectiveTrueElo, band);
+      return applyAIBalanceOverride({...ai, ...record, elo, rank:rankNameForElo(elo), style:p.style, personalityLabel:p.label, personalityDesc:p.desc, generationVersion:MONTHLY_AI_GENERATION_VERSION});
     });
     try { localStorage.setItem(storageKey, JSON.stringify(refreshed)); } catch(e){}
     return refreshed;
@@ -1102,8 +1162,12 @@ function generateMonthlyAI() {
     const band = monthlyBandForSlot(monthKey, i);
     const trueSpread = (hashStr(monthKey + 'true' + i) % 121) - 60;
     const trueElo = Math.max(450, Math.min(2050, Math.round((Number(band.trueBase) || 900) + trueSpread)));
-    const visibleElo = monthlyVisibleElo(trueElo, i);
-    const seededRecord = monthlySeededRecord(monthKey, i, trueElo, band);
+    const override = getAIBalanceOverride(name);
+    const overrideTrueElo = getAIBalanceOverrideNumber(override, 'trueElo');
+    const overrideElo = getAIBalanceOverrideNumber(override, 'elo');
+    const effectiveTrueElo = overrideTrueElo != null ? overrideTrueElo : trueElo;
+    const visibleElo = overrideElo != null ? overrideElo : monthlyVisibleElo(effectiveTrueElo, i);
+    const seededRecord = monthlySeededRecord(monthKey, i, effectiveTrueElo, band);
     const personality = RANDOM_AI_PERSONALITIES[hashStr(monthKey + 'personality' + i) % RANDOM_AI_PERSONALITIES.length];
     const style = personality.style;
 
@@ -1121,10 +1185,10 @@ function generateMonthlyAI() {
     const deckIdx = hashStr(monthKey + 'deck' + i) % Math.max(1, allDecks.length);
     const deck = allDecks.length > 0 ? allDecks[deckIdx] : [];
 
-    players.push({
+    players.push(applyAIBalanceOverride({
       name,
       elo: visibleElo,
-      trueElo,
+      trueElo: effectiveTrueElo,
       style,
       personalityLabel: personality.label,
       personalityDesc: personality.desc,
@@ -1139,7 +1203,7 @@ function generateMonthlyAI() {
       monthKey,
       generationVersion: MONTHLY_AI_GENERATION_VERSION,
       img: 'aiicons/ai' + ((i % 18) + 1) + '.png'
-    });
+    }));
   }
 
   try { localStorage.setItem(storageKey, JSON.stringify(players)); } catch(e){}
@@ -1157,13 +1221,21 @@ function integrateMonthlyAI() {
 function getMonthlyAIOpponents() {
   const monthKey = getMonthKey();
   if(!Array.isArray(MONTHLY_AI_OPPONENTS) || MONTHLY_AI_OPPONENTS.length !== 10 || MONTHLY_AI_OPPONENTS.some(ai => ai.monthKey !== monthKey)) {
-    integrateMonthlyAI();
+    try { integrateMonthlyAI(); }
+    catch(e) {
+      console.warn('Monthly AI generation failed; falling back to built-in AI opponents.', e);
+      MONTHLY_AI_OPPONENTS = [];
+    }
   }
   return MONTHLY_AI_OPPONENTS;
 }
 
 function getRandomMatchAIOpponents() {
-  const monthly = getMonthlyAIOpponents();
+  let monthly = [];
+  try { monthly = getMonthlyAIOpponents(); }
+  catch(e) {
+    console.warn('Random AI roster failed to include monthly opponents.', e);
+  }
   const byName = new Map();
   [...AI_OPPONENTS, ...monthly].forEach(ai => {
     if(ai && ai.name && !byName.has(ai.name)) byName.set(ai.name, ai);
@@ -1174,7 +1246,11 @@ function getRandomMatchAIOpponents() {
 // Run simulation on load
 if(typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
-    integrateMonthlyAI();
+    try { integrateMonthlyAI(); }
+    catch(e) {
+      console.warn('Monthly AI startup generation failed; continuing with built-in AI opponents.', e);
+      MONTHLY_AI_OPPONENTS = [];
+    }
     if(!window.__fateLocalAISimulationLoopStarted){
       window.__fateLocalAISimulationLoopStarted = true;
       setTimeout(() => { try { runAISimulation(); } catch(e) { console.warn('Local AI simulation failed', e); } }, 2200);
@@ -1249,7 +1325,7 @@ function findReadyChristopherErbs(player) {
   if(typeof forEachBoardCard !== 'function') return null;
   let erbs = null;
   forEachBoardCard(c => {
-    if(!erbs && c && c.id === '40' && c.owner === player && (c.usesLeft || 0) > 0 && !isFaceDownCard(c)) erbs = c;
+    if(!erbs && c && c.id === '40' && c.owner === player && (c.usesLeft || 0) > 0 && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) erbs = c;
   });
   return erbs;
 }
@@ -1259,7 +1335,10 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
     if(!card){ resolve(false); return; }
     const isAI = G.aiEnabled && player === G.aiPlayer;
     if(isAI){
-      resolve(true);
+      const activate = typeof aiShouldActivateOptionalDrawEffect === 'function'
+        ? aiShouldActivateOptionalDrawEffect(player, card, context)
+        : true;
+      resolve(activate);
       return;
     }
     const img = card.img
@@ -1297,6 +1376,12 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
 async function drawCard(player, count=1, options = {}) {
   const myP = getPerspectivePlayerIndex();
   let outsideDrawLandscapeCard = null;
+  if(count > 0 && !options.skipPresentationWait && document.getElementById('s-game')?.classList.contains('active')) {
+    const presenter = window.FateActionPresentation;
+    if(presenter && typeof presenter.waitForIdle === 'function') {
+      await presenter.waitForIdle({minQuietMs:90, timeoutMs:7600});
+    }
+  }
   if(!options.drawPhase && !options.suppressDrawSfx && count > 0) playSfx('draw');
   for(let i=0;i<count;i++){
     if(G.players[player].deck.length===0){
@@ -1309,7 +1394,9 @@ async function drawCard(player, count=1, options = {}) {
       if(erbs){
         const activate = await chooseOptionalImprovisorActivation(player, erbs, {
           triggerText: 'Activate Christopher Erbs so the next card you draw gains 4 Fate?',
-          costText: erbs.usesLeft + ' use' + (erbs.usesLeft===1?'':'s') + ' remaining'
+          costText: erbs.usesLeft + ' use' + (erbs.usesLeft===1?'':'s') + ' remaining',
+          drawPhase:!!options.drawPhase,
+          openingHand:!!options.openingHand
         });
         if(activate){
           if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
@@ -1326,6 +1413,7 @@ async function drawCard(player, count=1, options = {}) {
     if(!addCardToHand(player, card, { openingHand: !!options.openingHand })) continue;
     // Fort Calvin Watcher (71): reveal opponent's drawn cards, send characters to deck bottom
     if(options.drawPhase && G._fortCalvinActive && G._fortCalvinActive.length > 0){
+      G._fortCalvinActive = G._fortCalvinActive.filter(w => !(w && w.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(w.sourceIid)));
       const activeWatchers = G._fortCalvinActive.filter(w => w.remaining > 0 && w.owner !== player);
       if(activeWatchers.length > 0){
         const watcher = activeWatchers[0];
@@ -1368,7 +1456,7 @@ async function drawCard(player, count=1, options = {}) {
     if(document.getElementById('s-game')?.classList.contains('active')){
       let v2DrawQueued = false;
       if(player === myP && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
-        v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(i, player, {
+        v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(count > 1 ? 0 : i, player, {
           card,
           faceDown:false,
           drawIndex:i,
@@ -1405,6 +1493,9 @@ function addCardToHand(player, card, options = {}) {
 
   const isCharacterCard = card.type !== 'Supporter';
   const westCaribOwner = typeof G._westCaribNext === 'object' ? G._westCaribNext.owner : (G._westCaribNext ? player : null);
+  if(G._westCaribNext && typeof G._westCaribNext === 'object' && G._westCaribNext.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(G._westCaribNext.sourceIid)) {
+    G._westCaribNext = false;
+  }
   if(G._westCaribNext && westCaribOwner === targetPlayer && card.id!=='70' && isCharacterCard){
     card._wciBonus = true;
     card._handCostDelta = (Number(card._handCostDelta) || 0) - 1;
@@ -1645,7 +1736,9 @@ function animateDrawCard(delayIdx) {
   flyCard.style.height = cardHeight+'px';
   flyCard.style.animationDelay = (delayIdx*0.08)+'s';
   const targetX = handRect.left + Math.min(handRect.width - cardWidth, Math.max(0, 18 + delayIdx * (cardWidth * .24)));
-  const targetY = handRect.top + Math.max(6, (handRect.height - cardHeight) * .5);
+  const handTargetY = handRect.top + Math.max(6, (handRect.height - cardHeight) * .5);
+  const bottomSafeY = Math.max(12, (window.innerHeight || document.documentElement.clientHeight || 720) - cardHeight - 38);
+  const targetY = Math.min(handTargetY - 10, bottomSafeY);
   const dx = targetX - deckRect.left;
   const dy = targetY - deckRect.top;
   flyCard.style.setProperty('--dx', dx+'px');
@@ -1739,6 +1832,7 @@ function chooseTurn(goFirst) {
   const entryVeilStarted = showMatchEntryLoadingVeil();
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
+  if(typeof window.fateAIStartLearningMatch === 'function') window.fateAIStartLearningMatch();
   showScreen('s-game');
   recordMatchEntryStep('screen-game-active');
   G.phase = 'main';

@@ -66,6 +66,13 @@ assertEnv(env, 'FATE_WS_DURABLE_WRITES', 'off');
 assertEnv(env, 'FATE_WS_REQUIRE_DURABLE_WRITES', '0');
 assertEnv(env, 'FATE_WS_STATE_GATE', '1');
 assertEnv(env, 'FATE_WS_REDUCER_MODE', 'client-resolved');
+assertEnv(env, 'FATE_AI_LEARNING_ENABLED', '1');
+assertEnv(env, 'FATE_AI_TRAINING_MODE', 'scheduled');
+assertEnv(env, 'FATE_AI_TRAIN_INTERVAL_MS', '21600000');
+assertEnv(env, 'FATE_AI_TRAIN_MAX_MS', '30');
+assertEnv(env, 'FATE_AI_TRAIN_EPISODES', '96');
+assertEnv(env, 'FATE_AI_TRAIN_MAX_SAMPLES', '12000');
+assertEnv(env, 'FATE_AI_TRAIN_RETENTION_DAYS', '45');
 assert.strictEqual(service.internal_port, '8787', 'Fly internal port should match authority server default');
 assert.strictEqual(service.auto_stop_machines, 'off', 'Fly authority machines should not auto-stop during live WebSocket service');
 assert.strictEqual(service.min_machines_running, '1', 'Fly authority should keep one machine warm for live match hosting');
@@ -76,6 +83,7 @@ assert.strictEqual(pkg.scripts['server:fly-local'], 'node server/fate-fly-author
 assert.strictEqual(pkg.scripts['smoke:fly-config'], 'node server/fate-fly-config-smoke-test.js');
 assert.strictEqual(pkg.scripts['smoke:fly-test-readiness'], 'node server/fate-fly-test-readiness-static-smoke-test.js');
 assert.strictEqual(pkg.scripts['smoke:fly-cutover'], 'node server/fate-fly-cutover-preflight-smoke-test.js');
+assert.strictEqual(pkg.scripts['smoke:ai-learning'], 'node server/fate-ai-learning-smoke-test.js');
 assert.strictEqual(pkg.scripts['predeploy:fly-authority'], 'npm run smoke:fly-cutover');
 assert.strictEqual(pkg.scripts['deploy:fly-authority'], 'fly deploy --config fly.toml');
 assert.match(dockerfileText, /FROM\s+node:22-alpine/, 'Dockerfile should use a small Node runtime image');
@@ -84,6 +92,7 @@ assert.match(dockerfileText, /ENV\s+FATE_WEBSITE_DIR=\/app/, 'Dockerfile should 
 assert.match(dockerfileText, /COPY\s+index\.html[\s\S]+\.\/\r?\n/, 'Dockerfile should copy the game entrypoint');
 assert.match(dockerfileText, /COPY\s+src\s+\.\/src/, 'Dockerfile should copy the full game source and card catalog data');
 assert.match(dockerfileText, /COPY\s+optimized\s+\.\/optimized/, 'Dockerfile should copy optimized game art assets');
+assert.match(dockerfileText, /COPY\s+fates-entwined-website\s+\.\/fates-entwined-website/, 'Dockerfile should copy the landing website for /website/');
 assert.match(dockerfileText, /COPY\s+fates-entwined-website\/installer\s+\.\/installer/, 'Dockerfile should keep the hosted installer available');
 assert.match(dockerfileText, /CMD\s+\["node",\s*"server\/fate-ws-authority\.js"\]/, 'Dockerfile should start the authority server');
 assert.doesNotMatch(dockerfileText, /npm\s+install|npm\s+ci|electron|solo-static-server/i, 'Dockerfile should not install or launch desktop/static-server tooling');
@@ -100,6 +109,7 @@ dockerignoreHas('!titlscreenbackgrounds/**', 'allow title screen backgrounds');
 dockerignoreHas('!ingamebackgrouds/**', 'allow in-game backgrounds');
 dockerignoreHas('!soundeffects/**', 'allow game sound effects');
 dockerignoreHas('!fates-entwined-website/', 'allow hosted website assets');
+dockerignoreHas('!fates-entwined-website/**', 'allow hosted landing website files');
 dockerignoreHas('!fates-entwined-website/installer/**', 'allow hosted installer files');
 assert.doesNotMatch(dockerignoreText, /^!.*(?:node_modules|dist|out|electron|project-backups)/mi, '.dockerignore should not re-include desktop/build backup paths');
 

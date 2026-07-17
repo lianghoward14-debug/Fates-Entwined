@@ -29,6 +29,7 @@
   let randomQueueSwitching = false;
   let partyQueueWaitTimer = null;
   let disconnectEndTimer = null;
+  let unloadEndSignalSent = false;
   let optimisticActionCounter = 0;
   let lastReportedActionSeq = -1;
   let lastReportedActionAt = 0;
@@ -52,6 +53,7 @@
   let authorityJoinPromise = null;
   let authorityRequestCounter = 0;
   let lastAuthorityStateHash = '';
+  let lastAuthorityIdToken = '';
   let authorityReducerMode = '';
   let authorityServerTimeOffsetMs = 0;
   let authorityServerTimeSyncedAt = 0;
@@ -73,6 +75,7 @@
   let optimisticSendQueue = Promise.resolve();
   let clientResolvedCommitInFlight = 0;
   let clientResolvedLocalCommitPending = 0;
+  let clientResolvedLocalCommitStartedAt = 0;
   let onlineLocalActionGate = null;
   let clientResolvedAutoCommitTimer = null;
   let onlineMoreBoardRepairSyncTimer = null;
@@ -305,7 +308,6 @@
       landscapeId:g.landscapeId || null,
       landscapeBgNum:g.landscapeBgNum || null,
       _landscapeState:cloneOnlinePlain(g._landscapeState),
-      _landscapeDrawQueue:cloneOnlinePlain(g._landscapeDrawQueue),
       currentPlayer:g.currentPlayer,
       turn:g.turn,
       turnNumber:g.turnNumber,
@@ -1259,6 +1261,16 @@
   }
   function maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason){
     if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
+    const presentationEvents = Array.isArray(action?.payload?.presentationEvents) ? action.payload.presentationEvents : [];
+    if(isOnlineConsolidationCompletionAction(action) || presentationEvents.some(function(event){
+      return String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED';
+    })){
+      recordOnlineDiagnostic('online-new-character-cinematic-deferred-to-consolidation', {
+        reason:String(reason || ''),
+        actionType:onlineEffectiveActionType(action)
+      });
+      return false;
+    }
     const added = onlineBoardAddedEntries(previousBoard, g.board).filter(function(entry){
       return entry && entry.card && !entry.card.faceDown && onlineCardType(entry.card) !== 'Supporter';
     });
@@ -1404,16 +1416,51 @@
     if(played.has(key)) return false;
     played.add(key);
     const delayMs = Math.max(160, Number(options && options.delayMs) || 160);
+    const waitForMotion = !!(options && options.waitForMotion);
+    const maxWaitMs = Math.max(delayMs + 900, Number(options && options.maxWaitMs) || (delayMs + 2400));
+    const scheduledAt = Date.now();
+    const ownedLockUntil = scheduledAt + maxWaitMs + onlineConsolidationCinematicTotalMs();
+    let motionIdleAt = 0;
     try{
-      g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + onlineConsolidationCinematicTotalMs());
+      g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, ownedLockUntil);
     }catch(e){}
-    setTimeout(function(){
+    const showWhenReady = function(){
+      if(waitForMotion){
+        let motionActive = false;
+        try{
+          const director = window.FateVfxDirector;
+          const presenter = window.FateActionPresentation;
+          motionActive = !!(
+            (director && typeof director.hasActiveEffects === 'function' && director.hasActiveEffects()) ||
+            (presenter && typeof presenter.isActive === 'function' && presenter.isActive())
+          );
+        }catch(e){}
+        const elapsed = Date.now() - scheduledAt;
+        if(motionActive && elapsed < maxWaitMs){
+          motionIdleAt = 0;
+          setTimeout(showWhenReady, 60);
+          return;
+        }
+        if(!motionIdleAt && elapsed < maxWaitMs){
+          motionIdleAt = Date.now();
+          setTimeout(showWhenReady, 140);
+          return;
+        }
+        if(motionIdleAt && Date.now() - motionIdleAt < 120 && elapsed < maxWaitMs){
+          setTimeout(showWhenReady, 40);
+          return;
+        }
+      }
       try{
+        if(Number(g._cinematicUiLockUntil || 0) <= ownedLockUntil + 80){
+          g._cinematicUiLockUntil = Date.now() + onlineConsolidationCinematicTotalMs();
+        }
         window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
       }catch(e){
         console.warn('Online consolidation cinematic failed', e);
       }
-    }, delayMs);
+    };
+    setTimeout(showWhenReady, delayMs);
     recordOnlineDiagnostic('online-remote-consolidation-cinematic', {
       actionType:onlineEffectiveActionType(action),
       seq:Number(action?.seq || 0) || 0,
@@ -1423,7 +1470,9 @@
       r:entry.r,
       c:entry.c,
       reason:String(reason || ''),
-      delayMs
+      delayMs,
+      waitForMotion,
+      maxWaitMs
     });
     return true;
   }
@@ -1439,8 +1488,12 @@
     const ownerMatches = !Number.isInteger(Number(payload.playerIndex)) || Number(card.owner) === Number(payload.playerIndex);
     if(!ownerMatches) return false;
     const entry = {z, r, c, card};
-    const cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, entry, action, reason || 'matching authoritative consolidation');
     const emitted = emitOnlineRemoteConsolidationPresentation(g, entry, [], action, 'matching-consolidate');
+    const cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, entry, action, reason || 'matching authoritative consolidation', {
+      waitForMotion:emitted,
+      delayMs:160,
+      maxWaitMs:estimateOnlineConsolidationMotionMs({tributes:[]}) + 1800
+    });
     return !!(cinematic || emitted);
   }
   function maybePlayOnlineConsolidationCinematic(g, previousBoard, action, reason){
@@ -1557,9 +1610,9 @@
     if(g._onlineLastLocalEndTurnSfxKey === key) return false;
     g._onlineLastLocalEndTurnSfxKey = key;
     try{
-      window.__fateLastTurnChangeSfxAt = 0;
-      if(typeof window.playFateSfxOnce === 'function') return window.playFateSfxOnce('turnChange', 'online-local-end-turn', 220);
-      window.playSfx('turnChange');
+      const dedupeKey = 'end-turn:' + key;
+      if(typeof window.playEndTurnSfxOnce === 'function') return window.playEndTurnSfxOnce(dedupeKey);
+      window.playSfx('endTurn');
       return true;
     }catch(e){
       return false;
@@ -1748,7 +1801,7 @@
     g.board = syncOnlineBoardInPlace(g.board, state.board, state);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
-      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_landscapeDrawQueue','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
+      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
       'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
@@ -2006,6 +2059,9 @@
   const onlineImprovisorSubmittedPromptIds = new Set();
   const onlineImprovisorPromptTimers = new Map();
   const onlineImprovisorResolutionPromptIds = new Set();
+  let onlineImprovisorWaitingCatchupTimer = 0;
+  let onlineImprovisorWaitingCatchupPromptId = '';
+  let onlineImprovisorWaitingCatchupRunning = false;
   function trackOnlineImprovisorPromptTimer(promptId, timer){
     if(!promptId || !timer) return;
     const timers = onlineImprovisorPromptTimers.get(promptId) || new Set();
@@ -2020,6 +2076,54 @@
     const timers = onlineImprovisorPromptTimers.get(promptId);
     if(timers) timers.forEach(timer=>clearInterval(timer));
     onlineImprovisorPromptTimers.delete(promptId);
+  }
+  function stopOnlineImprovisorWaitingCatchup(promptId){
+    if(promptId && onlineImprovisorWaitingCatchupPromptId && String(promptId) !== onlineImprovisorWaitingCatchupPromptId) return;
+    if(onlineImprovisorWaitingCatchupTimer) clearTimeout(onlineImprovisorWaitingCatchupTimer);
+    onlineImprovisorWaitingCatchupTimer = 0;
+    onlineImprovisorWaitingCatchupPromptId = '';
+  }
+  function scheduleOnlineImprovisorWaitingCatchup(g, promptId){
+    const id = String(promptId || '');
+    if(!id || !isOnlineMatchState(g)) return false;
+    if(onlineImprovisorWaitingCatchupTimer && onlineImprovisorWaitingCatchupPromptId === id) return true;
+    stopOnlineImprovisorWaitingCatchup();
+    onlineImprovisorWaitingCatchupPromptId = id;
+    const poll = async function(){
+      onlineImprovisorWaitingCatchupTimer = 0;
+      const latest = gameState();
+      const pendingId = String(latest?._serverPendingReaction?.promptId || '');
+      if(!isOnlineMatchState(latest) || pendingId !== id){
+        stopOnlineImprovisorWaitingCatchup(id);
+        if(isOnlineMatchState(latest)) syncOnlineImprovisorReactionUi('waiting authority catch-up resolved');
+        return;
+      }
+      const code = latest?._onlineRoomCode || activeRoom;
+      if(!onlineImprovisorWaitingCatchupRunning && code && authorityHttpBaseUrl() && !firebaseActionFallbackAllowed() && !(typeof document !== 'undefined' && document.hidden)){
+        onlineImprovisorWaitingCatchupRunning = true;
+        try{
+          await ensureAuthorityJoined(code).catch(()=>false);
+          await catchUpFlyAuthorityReplay(code, 'improvisor waiting watchdog ' + id, {
+            includeState:true,
+            limit:40,
+            timeoutMs:5000
+          });
+        }catch(e){
+          console.warn('Improvisor waiting authority catch-up failed', e);
+        }finally{
+          onlineImprovisorWaitingCatchupRunning = false;
+        }
+      }
+      const after = gameState();
+      if(String(after?._serverPendingReaction?.promptId || '') === id){
+        onlineImprovisorWaitingCatchupTimer = setTimeout(poll, 1200);
+      }else{
+        stopOnlineImprovisorWaitingCatchup(id);
+        if(isOnlineMatchState(after)) syncOnlineImprovisorReactionUi('waiting watchdog observed resolution');
+      }
+    };
+    onlineImprovisorWaitingCatchupTimer = setTimeout(poll, 900);
+    return true;
   }
   function onlineImprovisorModalPanel(){
     try{
@@ -2059,6 +2163,7 @@
   }
   function closeOnlineImprovisorModal(g, promptId){
     clearOnlineImprovisorPromptTimers(promptId || '');
+    stopOnlineImprovisorWaitingCatchup(promptId || '');
     const panel = onlineImprovisorModalPanel();
     if(panel && (!promptId || panel.getAttribute('data-online-improvisor-prompt-id') === promptId)){
       try{ panel.remove(); }catch(e){}
@@ -2356,7 +2461,10 @@
     const promptId = onlineImprovisorPromptId(pending);
     if(!promptId) return false;
     const existing = onlineImprovisorModalPanel();
-    if(existing && existing.getAttribute('data-online-improvisor-prompt-id') === promptId && existing.getAttribute('data-online-improvisor-mode') === 'waiting') return true;
+    if(existing && existing.getAttribute('data-online-improvisor-prompt-id') === promptId && existing.getAttribute('data-online-improvisor-mode') === 'waiting'){
+      scheduleOnlineImprovisorWaitingCatchup(g, promptId);
+      return true;
+    }
     closeOnlineImprovisorModal(g);
     g._onlineReactionPromptId = '';
     g._onlineReactionWaitingPromptId = promptId;
@@ -2380,6 +2488,7 @@
         `<div class="reaction-waiting-bar" aria-hidden="true"><span></span></div>` +
       `</div>`
     );
+    scheduleOnlineImprovisorWaitingCatchup(g, promptId);
     return true;
   }
   function syncOnlineImprovisorReactionUi(reason){
@@ -3541,6 +3650,22 @@
     await window.showEffectActivationCinematic(card, {remote:true, source:source || 'online-payload-effect-cinematic'});
     return true;
   }
+  function maybeShowRemoteEffectCinematicForAction(g, action, source){
+    if(!g || !action) return false;
+    const localUid = getUser()?.uid;
+    if(localUid && String(action.uid || '') === String(localUid)) return false;
+    const type = onlineEffectiveActionType(action);
+    const payload = action.payload || {};
+    const boardEffect = type === 'BOARD_ACTION' &&
+      /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || '')) &&
+      !!payload.effectCinematic;
+    const modalEffect = type === 'MODAL_ACTION' && !!payload.effectCinematic;
+    if(!boardEffect && !modalEffect) return false;
+    Promise.resolve(showPayloadEffectCinematic(g, payload, source || 'online-remote-effect-cinematic')).catch(function(e){
+      console.warn('Online remote effect cinematic failed', e);
+    });
+    return true;
+  }
   function payloadHasServerReactionWindow(payload){
     return !!(payload && payload.postState && payload.postState._serverPendingReaction);
   }
@@ -3913,8 +4038,13 @@
     }
     let cinematic = false;
     if(!resultCard.faceDown && onlineCardType(resultCard) !== 'Supporter'){
-      const cinematicDelayMs = motion ? estimateOnlineConsolidationMotionMs({tributes:removedEntries}) + 220 : 160;
-      cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, resultEntry, action, 'presentation-event-consolidate', {force:true, delayMs:cinematicDelayMs});
+      const estimatedMotionMs = estimateOnlineConsolidationMotionMs({tributes:removedEntries});
+      cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, resultEntry, action, 'presentation-event-consolidate', {
+        force:true,
+        waitForMotion:motion,
+        delayMs:160,
+        maxWaitMs:estimatedMotionMs + 1800
+      });
     }
     if(!motion && removedEntries.length) playOnlineRemoteRemovalAudio(removedEntries.length, {consolidation:true});
     if(!motion && !cinematic) playOnlineRemotePlacementAudio(resultCard, 120);
@@ -4186,8 +4316,13 @@
         c:resultEntry?.c,
         targetRect
       }, action, 'consolidate');
-      const cinematicDelayMs = emitted ? estimateOnlineConsolidationMotionMs({tributes:tributePayload}) + 220 : 160;
-      const cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, resultEntry, action, reason || 'remote authoritative board presentation', {force:true, delayMs:cinematicDelayMs});
+      const estimatedMotionMs = estimateOnlineConsolidationMotionMs({tributes:tributePayload});
+      const cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, resultEntry, action, reason || 'remote authoritative board presentation', {
+        force:true,
+        waitForMotion:emitted,
+        delayMs:160,
+        maxWaitMs:estimatedMotionMs + 1800
+      });
       if(removed.length && !emitted) playOnlineRemoteRemovalAudio(removed.length, {consolidation:true});
       if(!cinematic && resultEntry) playOnlineRemotePlacementAudio(resultEntry.card, 120);
       return true;
@@ -4223,7 +4358,7 @@
   }
   function playOnlineRemoteActionSound(type, payload, action){
     if(!isRemoteOnlineAction(action) || typeof window.playSfx !== 'function') return;
-    const actionType = String(type || action.type || '').toUpperCase();
+    const actionType = onlineEffectiveActionType(action) || String(type || action.type || '').toUpperCase();
     const fnName = String(payload?.fn || '');
     const remoteEffectActivation =
       (actionType === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(fnName)) ||
@@ -4818,6 +4953,41 @@
       && String(type || '').toUpperCase() === 'BOARD_ACTION'
       && /^(triggerCharacterEffect|activatePendingWhenSetEffect|activateVigilantes|activateExpeditionaryMove|activateLandscapeEventideMove|activateBusserMove|activateWodnyPotokYouth)$/i.test(String(payload?.fn || ''));
   }
+  const onlineSubmittedEffectActivations = new Map();
+  function onlineBoardEffectActivationKey(fnName, card, pos){
+    if(!card || !pos) return '';
+    const iid = String(card.iid || card.instanceId || '');
+    const id = String(card.id || '');
+    const source = iid ? ('iid:' + iid) : ('pos:' + pos.z + ':' + pos.r + ':' + pos.c + ':id:' + id);
+    return String(fnName || '').toLowerCase() + ':' + source;
+  }
+  function shouldRememberOnlineEffectActivation(fnName, card){
+    const name = String(fnName || '');
+    if(name === 'activatePendingWhenSetEffect') return true;
+    if(name !== 'triggerCharacterEffect' || !card) return false;
+    if(String(card.id || '') === '21') return true;
+    return String(card.type || '') === 'Initiator';
+  }
+  function rememberOnlineEffectActivation(fnName, card, pos){
+    if(!shouldRememberOnlineEffectActivation(fnName, card)) return;
+    const key = onlineBoardEffectActivationKey(fnName, card, pos);
+    if(!key) return;
+    onlineSubmittedEffectActivations.set(key, Date.now());
+    if(onlineSubmittedEffectActivations.size > 240){
+      const cutoff = Date.now() - 15 * 60 * 1000;
+      for(const [storedKey, storedAt] of onlineSubmittedEffectActivations.entries()){
+        if(Number(storedAt || 0) < cutoff) onlineSubmittedEffectActivations.delete(storedKey);
+      }
+    }
+  }
+  function onlineEffectActivationWasSubmitted(fnName, card, pos){
+    const key = onlineBoardEffectActivationKey(fnName, card, pos);
+    return !!(key && onlineSubmittedEffectActivations.has(key));
+  }
+  window.fateOnlineEffectActivationWasSubmitted = function(fnName, card, pos){
+    if(!shouldRememberOnlineEffectActivation(fnName, card)) return false;
+    return onlineEffectActivationWasSubmitted(fnName, card, pos);
+  };
   function onlineBoardEffectActivationBlockReason(g, fnName, pos){
     if(!g || !pos || !/^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(fnName || ''))) return '';
     const card = g.board?.[pos.z]?.[pos.r]?.[pos.c] || null;
@@ -4825,6 +4995,20 @@
     const id = String(card.id || '');
     if(card._reactionSuppressed || card._effectSuppressedByReaction || card._lydiaSuppressed){
       return String(card.name || 'That card') + '\'s effect is suppressed.';
+    }
+    if(card._onlineEffectActivationSubmitPending || card._effectActivationInFlight || card._pendingWhenSetActivationInFlight){
+      return String(card.name || 'That card') + '\'s effect is already resolving.';
+    }
+    if(shouldRememberOnlineEffectActivation(fnName, card) && onlineEffectActivationWasSubmitted(fnName, card, pos)){
+      return String(card.name || 'That card') + '\'s effect already activated.';
+    }
+    if(String(fnName || '') === 'activatePendingWhenSetEffect'){
+      if(card.whenSetActivated === true || card.effectUsedInitial === true || !card._pendingWhenSetEffect){
+        return String(card.name || 'That card') + '\'s effect already activated.';
+      }
+    }
+    if(String(fnName || '') === 'triggerCharacterEffect' && card.type === 'Initiator' && card.effectUsedInitial && card._effectTurnLocked){
+      return String(card.name || 'That card') + '\'s effect already activated.';
     }
     if(id === '21' && (card._onlineEffectActivationSubmitPending || card._henrySuppressionPicking || card.effectUsedInitial || (Array.isArray(card._henrySuppressionSquares) && card._henrySuppressionSquares.length > 0))){
       return 'Henry Dong has already selected suppression squares.';
@@ -5122,6 +5306,7 @@
       if(window.toast) toast('Spectators cannot take game actions.');
       return false;
     }
+    clearStaleClientResolvedLocalCommit(g, 'before-' + actionType.toLowerCase());
     if(resolvingEffectGateProtectsAction(actionType) && clientResolvedGameplayEnabled() && clientResolvedLocalCommitPending > 0){
       recordOnlineDiagnostic('client-resolved-action-waiting-for-commit', {
         actionType,
@@ -5236,12 +5421,51 @@
 
   function noteClientResolvedLocalCommitStart(){
     clientResolvedLocalCommitPending += 1;
+    if(!clientResolvedLocalCommitStartedAt) clientResolvedLocalCommitStartedAt = Date.now();
+    const startedAt = clientResolvedLocalCommitStartedAt;
+    setTimeout(function(){
+      if(clientResolvedLocalCommitStartedAt === startedAt) {
+        clearStaleClientResolvedLocalCommit(gameState(), 'local-commit-watchdog');
+      }
+    }, 9000);
     let done = false;
     return function finishClientResolvedLocalCommit(){
       if(done) return;
       done = true;
       clientResolvedLocalCommitPending = Math.max(0, clientResolvedLocalCommitPending - 1);
+      if(clientResolvedLocalCommitPending === 0) clientResolvedLocalCommitStartedAt = 0;
     };
+  }
+
+  function clientResolvedEffectUiIsActive(g){
+    if(!g) return false;
+    if(normalizedClientPendingInteraction(g)) return true;
+    if(g.pendingEffect || g._reactionPending || g._onlineResolvingPickerAction) return true;
+    if(document.getElementById('online-improvisor-reaction-root')) return true;
+    if(document.getElementById('modal')?.classList.contains('on')) return true;
+    try{
+      const presenter = window.FateActionPresentation;
+      if(presenter && typeof presenter.isActive === 'function' && presenter.isActive()) return true;
+    }catch(e){}
+    return false;
+  }
+
+  function clearStaleClientResolvedLocalCommit(g, reason){
+    if(clientResolvedLocalCommitPending <= 0 || !clientResolvedLocalCommitStartedAt) return false;
+    const ageMs = Date.now() - clientResolvedLocalCommitStartedAt;
+    if(ageMs < 8000 || clientResolvedEffectUiIsActive(g)) return false;
+    const staleCount = clientResolvedLocalCommitPending;
+    clientResolvedLocalCommitPending = 0;
+    clientResolvedLocalCommitStartedAt = 0;
+    onlineLocalActionGate = null;
+    recordOnlineDiagnostic('client-resolved-stale-effect-lock-cleared', {
+      reason:String(reason || ''),
+      ageMs,
+      staleCount,
+      commitInFlight:clientResolvedCommitInFlight
+    });
+    scheduleClientResolvedAutoCommit('stale-effect-lock-cleared', 60);
+    return true;
   }
 
   function scheduleClientResolvedAutoCommit(reason, delayMs){
@@ -7536,13 +7760,7 @@
         scheduleServerPendingPromptChecks('local client-resolved acknowledgement seq ' + (action.seq || '?'));
         return;
       }
-      if(action.uid !== localUid && !payloadHasServerReactionWindow(payload)) {
-        if(type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || ''))) {
-          await showPayloadEffectCinematic(g, payload, 'online-direct-board-effect-cinematic');
-        } else if(type === 'MODAL_ACTION' && payload.effectCinematic) {
-          await showPayloadEffectCinematic(g, payload, 'online-direct-modal-effect-cinematic');
-        }
-      }
+      maybeShowRemoteEffectCinematicForAction(g, action, 'online-direct-effect-cinematic');
       playOnlineRemoteActionSound(type, payload, action);
       applyAuthoritativePostState(action, 'client-resolved authoritative state seq ' + (action.seq || '?'));
       maybeShowOnlineEffectNegatedBanner(action, 'client-resolved authoritative state seq ' + (action.seq || '?'));
@@ -7575,13 +7793,7 @@
       }
       return;
     }
-    if(action.uid !== localUid && !payloadHasServerReactionWindow(payload)) {
-      if(type === 'BOARD_ACTION' && /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(String(payload.fn || ''))) {
-        await showPayloadEffectCinematic(g, payload, 'online-precheck-board-effect-cinematic');
-      } else if(type === 'MODAL_ACTION' && payload.effectCinematic) {
-        await showPayloadEffectCinematic(g, payload, 'online-precheck-modal-effect-cinematic');
-      }
-    }
+    maybeShowRemoteEffectCinematicForAction(g, action, 'online-precheck-effect-cinematic');
 
     if(type === 'DISCONNECT_TIMEOUT'){
       reconcileOnlinePostState(action, 'server disconnect timeout seq ' + (action.seq || '?'));
@@ -8072,6 +8284,10 @@
       endedAt:room.endedAt || 0,
       endedBy:room.endedBy || '',
       endReason:room.endReason || '',
+      winnerUid:room.winnerUid || '',
+      loserUid:room.loserUid || '',
+      winnerIndex:room.winnerIndex === 0 || room.winnerIndex === 1 ? Number(room.winnerIndex) : null,
+      loserIndex:room.loserIndex === 0 || room.loserIndex === 1 ? Number(room.loserIndex) : null,
       result:room.result || null,
       chatSeq:Number(room.chatSeq || 0) || 0,
       chat:Array.isArray(room.chat) ? room.chat : [],
@@ -8490,8 +8706,11 @@
   }
   async function getAuthorityIdToken(){
     const user = window.FATE_ONLINE?.user || FO.auth?.currentUser || null;
-    if(user && typeof user.getIdToken === 'function') return await user.getIdToken(false);
-    return '';
+    if(user && typeof user.getIdToken === 'function') {
+      const token = await user.getIdToken(false);
+      if(token) lastAuthorityIdToken = String(token);
+    }
+    return lastAuthorityIdToken;
   }
   async function ensureAuthorityJoined(code){
     const url = configuredAuthorityUrl();
@@ -8749,6 +8968,7 @@
         evaluateLagPause();
         return true;
       }
+      maybeShowRemoteEffectCinematicForAction(g, directAction, 'accepted-authoritative-effect-cinematic');
       applyAuthoritativePostState(directAction, 'accepted authoritative state seq ' + (seq || '?'));
       if(type !== 'REACTION_CHOICE') maybeShowOnlinePresentationEvents(directAction);
       if(seq){
@@ -8779,6 +8999,18 @@
     syncAuthorityServerClock(accepted.serverTime || action.authorityTime);
     if(accepted.serverStateHash) lastAuthorityStateHash = String(accepted.serverStateHash || '');
     if(handleLobbyMatchStartAccepted(accepted)) return;
+    // Presentation packets should not wait behind gameplay replay sequencing.
+    // Playing them immediately also covers rare missing-sequence recovery cases;
+    // the cinematic's per-card dedupe prevents a later replay from duplicating it.
+    if(String(action.type || '').toUpperCase() === 'EFFECT_CINEMATIC'){
+      const g = gameState();
+      const localUid = getUser()?.uid;
+      if(g && (!localUid || String(action.uid || '') !== String(localUid))){
+        Promise.resolve(showPayloadEffectCinematic(g, action.payload || {}, 'online-immediate-effect-cinematic')).catch(function(e){
+          console.warn('Immediate online effect cinematic failed', e);
+        });
+      }
+    }
     if(String(action.type || '').toUpperCase() === 'FORFEIT'){
       const terminalAction = Object.assign({}, action, {roomPatch:accepted.roomPatch || null});
       markOnlineActionSeqApplied(action.seq || 0, 'immediate websocket forfeit');
@@ -9427,6 +9659,7 @@
       window.showBoardTargetPicker = function(opts, onConfirm){
         const g = gameState();
         if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.showBoardTargetPicker.apply(this, arguments);
+        if(opts && opts.onlineClientOwnedChoice === true) return originals.showBoardTargetPicker.apply(this, arguments);
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.showBoardTargetPicker.apply(this, arguments);
         }
@@ -9671,7 +9904,7 @@
           return;
         }
         const submitPendingCard = activateEffectBoardAction && pos ? (g.board?.[pos.z]?.[pos.r]?.[pos.c] || null) : null;
-        const markSubmitPending = submitPendingCard && String(submitPendingCard.id || '') === '21';
+        const markSubmitPending = !!(submitPendingCard && /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(fnName));
         if(markSubmitPending) submitPendingCard._onlineEffectActivationSubmitPending = true;
         const payload = Object.assign({
           fn:fnName,
@@ -9703,6 +9936,9 @@
           let localResult;
           try{
             localResult = originals[fnName].apply(this, args);
+            if(pos && submitPendingCard){
+              rememberOnlineEffectActivation(fnName, submitPendingCard, pos);
+            }
           }catch(e){
             throw e;
           }
@@ -9854,6 +10090,7 @@
       if(!u?.isEphemeralGuest || !u.uid) return;
       const code = String(gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
       if(!code || !roomUsesFly(code)) return;
+      if(shouldSendUnloadEndRoomSignal()) return;
       const base = authorityHttpBaseUrl();
       if(!base) return;
       const payload = JSON.stringify({uid:u.uid, guestSession:true, reason:'ephemeral-window-close'});
@@ -9874,6 +10111,86 @@
       }catch(e){}
     });
   }
+  function shouldSendUnloadEndRoomSignal(){
+    const u = getUser();
+    if(!u?.uid) return false;
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = String(g?._onlineRoomCode || activeRoom || room.roomCode || '').trim().toUpperCase();
+    if(!code) return false;
+    const status = String(room.status || '').trim().toLowerCase();
+    if(status === 'ended') return false;
+    if(status === 'lobby' && !isOnlineMatchState(g)) return false;
+    return isOnlineMatchState(g) || (!!status && status !== 'lobby');
+  }
+  function postUnloadFlyForfeit(code, uid){
+    const base = authorityHttpBaseUrl();
+    if(!base) return false;
+    const url = `${base}/api/rooms/${encodeURIComponent(code)}/forfeit`;
+    const user = getUser();
+    const payload = JSON.stringify({
+      uid,
+      idToken:lastAuthorityIdToken || undefined,
+      guestSession:!!user?.isEphemeralGuest,
+      reason:'window-close',
+      clientActionId:makeOptimisticActionId('FORFEIT')
+    });
+    try{
+      if(navigator.sendBeacon){
+        const accepted = navigator.sendBeacon(url, new Blob([payload], {type:'application/json'}));
+        if(accepted) return true;
+      }
+    }catch(e){}
+    try{
+      fetch(url, {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:payload,
+        keepalive:true
+      }).catch(()=>{});
+      return true;
+    }catch(e){}
+    return false;
+  }
+  function postUnloadRtdbEndRoom(code, uid){
+    if(!firebaseRoomTransportAllowed()) return false;
+    try{
+      const stamp = FO.serverTimestamp();
+      const patch = {
+        [`rooms/${code}/status`]:'ended',
+        [`rooms/${code}/phase`]:'ended',
+        [`rooms/${code}/endedBy`]:uid,
+        [`rooms/${code}/endReason`]:'disconnect',
+        [`rooms/${code}/players/${uid}/connected`]:false,
+        [`rooms/${code}/updatedAt`]:stamp,
+        [`rooms/${code}/endedAt`]:stamp
+      };
+      FO.update(FO.ref(FO.rtdb), patch).catch(()=>{});
+      return true;
+    }catch(e){}
+    return false;
+  }
+  function sendUnloadEndRoomSignal(){
+    if(unloadEndSignalSent || !shouldSendUnloadEndRoomSignal()) return false;
+    const u = getUser();
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const code = String(g?._onlineRoomCode || activeRoom || room.roomCode || '').trim().toUpperCase();
+    if(!u?.uid || !code) return false;
+    const sent = roomUsesFly(code) ? postUnloadFlyForfeit(code, u.uid) : postUnloadRtdbEndRoom(code, u.uid);
+    if(sent) unloadEndSignalSent = true;
+    return sent;
+  }
+  function installOnlineRoomUnloadEndSignal(){
+    if(window.__fateOnlineRoomUnloadEndSignalInstalled) return;
+    window.__fateOnlineRoomUnloadEndSignalInstalled = true;
+    const handler = function(event){
+      if(event && event.persisted) return;
+      sendUnloadEndRoomSignal();
+    };
+    window.addEventListener('pagehide', handler);
+    window.addEventListener('beforeunload', handler);
+  }
   function handleRoomEnded(room){
     const code = room?.roomCode || activeRoom || '';
     if(code && endedRoomCodesHandled.has(code)) return;
@@ -9881,13 +10198,18 @@
     const g = gameState();
     const uid = String(getUser()?.uid || '');
     const endedBy = String(room?.endedBy || '');
-    const remoteEnded = !!(uid && endedBy && endedBy !== uid);
+    const localIndex = Number.isInteger(g?._onlinePlayerIndex) ? g._onlinePlayerIndex : null;
+    const localWon = !!(uid && room?.winnerUid && String(room.winnerUid) === uid)
+      || (localIndex !== null && Number(room?.winnerIndex) === localIndex);
+    const localLost = !!(uid && room?.loserUid && String(room.loserUid) === uid)
+      || (localIndex !== null && Number(room?.loserIndex) === localIndex);
+    const remoteEnded = localWon || (!localLost && !!(uid && endedBy && endedBy !== uid));
     const bg = captureOnlineGameBackground();
     if(window.toast) toast(remoteEnded ? 'Opponent ended the match' : 'Room ended');
     let result = null;
     if(g && isOnlineMatchState(g) && !g._onlineResultMarked){
       g._onlineResultMarked = true;
-      const outcome = remoteEnded ? 'victory' : 'defeat';
+      const outcome = localWon ? 'victory' : (localLost ? 'defeat' : (remoteEnded ? 'victory' : 'defeat'));
       const rewardData = remoteEnded ? collectOnlineServerRewardData('victory', {payload:{result:room?.result || null}}) : collectOnlineForfeitRewardData(outcome, g);
       result = {outcome, rewardData};
     }
@@ -10546,6 +10868,12 @@
     if(!g || !g._isSpectator || g._onlineRole !== 'spectator' || Number.isInteger(g._onlinePlayerIndex)) return false;
     return applyOnlineCanonicalState(state, reason || 'spectator canonical state', action || null);
   };
+  window.fatePublishClientOwnedState = function(reason){
+    const g = gameState();
+    if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction) return false;
+    scheduleClientResolvedAutoCommit(String(reason || 'client-owned-state'), 40);
+    return true;
+  };
   window.fateLeaveOnlineRoom = leaveRoom;
   installOnlineGameplayHooks();
 
@@ -10635,6 +10963,7 @@
   };
 
   setTimeout(()=>{
+    installOnlineRoomUnloadEndSignal();
     installEphemeralGuestUnloadCleanup();
     installOnlineGameplayHooks();
   },0);

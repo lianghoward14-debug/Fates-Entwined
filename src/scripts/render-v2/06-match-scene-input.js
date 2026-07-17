@@ -13,6 +13,7 @@
       this.viewportPointerDownHit = null;
       this.viewportPointerDownPoint = null;
       this.lastHandledAt = 0;
+      this.lastHoverSfxKey = '';
       this.moveRaf = 0;
       this.pendingMove = null;
       this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -60,6 +61,7 @@
       this.viewportPointerDownHit = null;
       this.viewportPointerDownPoint = null;
       this.pendingMove = null;
+      this.lastHoverSfxKey = '';
     }
 
     updateScene(scene){
@@ -199,6 +201,19 @@
       return null;
     }
 
+    maybePlayCardHoverSfx(hit){
+      if(!hit || (hit.kind !== 'card' && hit.kind !== 'hand-card' && hit.kind !== 'opponent-hand-card')) return;
+      if(window.__fateV2DraggingCard || (document.body && document.body.classList && document.body.classList.contains('fate-v2-dragging-card'))) return;
+      const card = hit.card || {};
+      const key = [hit.kind, card.iid || hit.iid || card.id || hit.index || hit.z + ':' + hit.r + ':' + hit.c].join(':');
+      if(!key || key === this.lastHoverSfxKey) return;
+      this.lastHoverSfxKey = key;
+      if(hit.kind === 'card' && typeof window.playFateBoardCardHoverSfx === 'function') window.playFateBoardCardHoverSfx('v2-board:' + key);
+      else if(typeof window.playFateCardHoverSfx === 'function') window.playFateCardHoverSfx('v2:' + key);
+      else if(hit.kind === 'card' && typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('boardCardHover', 'v2-board:' + key, 110);
+      else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardHover', 'v2:' + key, 95);
+    }
+
     handleViewportPointerDown(ev){
       if(this.isModalBlockingSceneInput()) {
         this.viewportPointerDownHit = null;
@@ -314,7 +329,8 @@
         return;
       }
       const hit = this.viewportHitTest(ev.clientX, ev.clientY);
-        scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'pile') ? hit : null);
+      this.maybePlayCardHoverSfx(hit);
+      scene.setViewportHoverHit(hit && (hit.kind === 'hand-card' || hit.kind === 'hand-effect-icon' || hit.kind === 'pile') ? hit : null);
     }
 
     handlePointerMove(ev){
@@ -333,6 +349,7 @@
         const p = this.pointFromClient(this.pendingMove.clientX, this.pendingMove.clientY);
         this.pendingMove = null;
         const hit = this.hitTest(p.x, p.y);
+        this.maybePlayCardHoverSfx(hit);
         if(scene && typeof scene.setHoverHit === 'function') scene.setHoverHit(hit);
       });
     }
@@ -433,7 +450,13 @@
         if(hit.kind === 'hand-card'){
           const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
           const card = G.players[cp] && G.players[cp].hand ? G.players[cp].hand[Number(hit.index)] : null;
-          if(!card || G._isSpectator) return;
+          if(!card) return;
+          if(G._isSpectator){
+            if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
+            else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
+            if(typeof openCardDetail === 'function') openCardDetail(card, false, false);
+            return;
+          }
           const canActFromHand = cp === G.currentPlayer;
           let selectable = false;
           try {
@@ -473,9 +496,21 @@
           if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
           if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
         } else if(hit.kind === 'ui-command') {
-          if(hit.disabled) return;
+          if(hit.disabled) {
+            if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('invalidAction', 'disabled-ui-command:' + (hit.command || 'unknown'), 180);
+            else if(typeof playSfx === 'function') playSfx('invalidAction');
+            return;
+          }
           const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!(typeof G !== 'undefined' && G && G._consolidating);
           if(hit.command === 'end-turn' && typeof endTurn === 'function') {
+            if(typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()) {
+              if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('invalidAction', 'end-turn-not-local', 180);
+              return;
+            }
+            if(typeof G !== 'undefined' && G && G.aiEnabled && (G.currentPlayer === G.aiPlayer || G._aiRunning)) {
+              if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('invalidAction', 'end-turn-ai', 180);
+              return;
+            }
             endTurn();
           } else if(hit.command === 'consolidate') {
             if(localConsolidationActive && typeof cancelConsolidation === 'function') cancelConsolidation();

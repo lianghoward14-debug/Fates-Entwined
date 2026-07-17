@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateCardTextureCache) return;
 
-  const CACHE_VERSION = 3;
+  const CACHE_VERSION = 4;
   const artRecords = new Map();
   const baseRecords = new Map();
   const stats = {
@@ -285,12 +285,14 @@
     const id = card && card.id != null ? card.id : (card && card.iid != null ? card.iid : '');
     const rarity = card && card.rarity ? card.rarity : '';
     const aff = card && card.aff ? card.aff : (visual && visual.aff ? visual.aff : '');
+    const fitMode = String(opts.fitMode || opts.fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover';
     return [
       id,
       img,
       hidden ? 'down' : 'up',
       rarity,
       aff,
+      fitMode,
       width,
       height,
       dprBucket(opts.dpr)
@@ -307,6 +309,7 @@
       hidden:hidden ? 'down' : 'up',
       rarity:String(card && card.rarity ? card.rarity : ''),
       aff:String(card && card.aff ? card.aff : (visual && visual.aff ? visual.aff : '')),
+      fitMode:String(opts.fitMode || opts.fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover',
       dpr:dprBucket(opts.dpr)
     };
   }
@@ -319,16 +322,18 @@
         String(rec.hiddenKey || '') === identity.hidden &&
         String(rec.rarityKey || '') === identity.rarity &&
         String(rec.affKey || '') === identity.aff &&
+        String(rec.fitMode || 'cover') === identity.fitMode &&
         String(rec.dprKey || dprBucket(rec.dpr)) === identity.dpr;
     }
     const parts = String(rec.key || '').split('|');
-    return parts.length >= 8 &&
+    return parts.length >= 9 &&
       parts[0] === identity.id &&
       parts[1] === identity.img &&
       parts[2] === identity.hidden &&
       parts[3] === identity.rarity &&
       parts[4] === identity.aff &&
-      parts[7] === identity.dpr;
+      parts[5] === identity.fitMode &&
+      parts[8] === identity.dpr;
   }
 
   function drawImageCover(ctx, img, x, y, w, h){
@@ -344,6 +349,19 @@
     const sx = Math.max(0, (iw - sw) / 2);
     const sy = Math.max(0, (ih - sh) * 0.22);
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function drawImageContain(ctx, img, x, y, w, h){
+    try {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    } catch(e) {}
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const scale = Math.min(w / iw, h / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
   }
 
   function roundedPath(ctx, x, y, w, h, r){
@@ -375,14 +393,17 @@
     const h = rec.height;
     const radius = Math.max(3, Math.min(8, w * .045));
 
-    roundedPath(ctx, 0, 0, w, h, radius);
-    ctx.fillStyle = '#070910';
-    ctx.fill();
+    if(rec.fitMode !== 'contain'){
+      roundedPath(ctx, 0, 0, w, h, radius);
+      ctx.fillStyle = '#070910';
+      ctx.fill();
+    }
 
     ctx.save();
     roundedPath(ctx, 0, 0, w, h, radius);
     ctx.clip();
-    drawImageCover(ctx, img, 0, 0, w, h);
+    if(rec.fitMode === 'contain') drawImageContain(ctx, img, 0, 0, w, h);
+    else drawImageCover(ctx, img, 0, 0, w, h);
     const fade = ctx.createLinearGradient(0, h * .52, 0, h);
     fade.addColorStop(0, 'rgba(0,0,0,0)');
     fade.addColorStop(1, 'rgba(0,0,0,.22)');
@@ -442,6 +463,7 @@
       hiddenKey:baseIdentity(card, opts).hidden,
       rarityKey:String(card && card.rarity ? card.rarity : ''),
       affKey:String(card && card.aff ? card.aff : (visual && visual.aff ? visual.aff : '')),
+      fitMode:String(opts.fitMode || opts.fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover',
       pixels:0,
       artSrc:cardTextureSrc(card, opts)
     };

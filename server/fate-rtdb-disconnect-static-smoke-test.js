@@ -97,7 +97,7 @@ assertNotContains('Dockerfile',
   /solo-static-server|electron/i,
   'Fly image must not launch desktop/static-server tooling');
 assertContains('.dockerignore',
-  /^\*[\s\S]*^!server\/\*\*[\s\S]*^!src\/\*\*[\s\S]*^!optimized\/\*\*[\s\S]*^!fates-entwined-website\/installer\/\*\*/m,
+  /^\*[\s\S]*^!server\/\*\*[\s\S]*^!src\/\*\*[\s\S]*^!optimized\/\*\*[\s\S]*^!fates-entwined-website\/\*\*[\s\S]*^!fates-entwined-website\/installer\/\*\*/m,
   'Docker build context must remain hosted game/runtime allowlisted');
 assertNotContains('.dockerignore',
   /^!.*(?:node_modules|dist|out|electron|project-backups)/mi,

@@ -51,7 +51,7 @@
       card_reveal:'cardPreview',
       supporter_activate:'effectActivate',
       landscape_trigger:'landscapePulse',
-      invalid_action:'blocked',
+      invalid_action:'invalidAction',
       return_to_hand:'cardMove',
       discard_to_hand:'searchFound'
     })[cue] || cue;

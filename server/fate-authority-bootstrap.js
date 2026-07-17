@@ -53,7 +53,7 @@ function compactStateCard(meta, owner, iid){
   if(card.currentFate === undefined) card.currentFate = card.fate;
   if(card.bonusFate === undefined) card.bonusFate = 0;
   if(card.usesLeft === undefined){
-    card.usesLeft = card.id === '09' ? 3 : (card.id === '40' ? 2 : (card.id === '67' ? 1 : null));
+    card.usesLeft = card.id === '40' ? 2 : (card.id === '67' ? 1 : null);
   }
   if(card.immuneFlag === undefined) card.immuneFlag = false;
   if(card.cantBeReduced === undefined) card.cantBeReduced = false;
@@ -203,7 +203,7 @@ function buildInitialAuthorityState(input){
     _balladEffects:[null, null],
     _mailDeliveries:[],
     _blameGameEffects:[null, null],
-    un5thUses:[0, 0],
+    usMarinesUses:[0, 0],
     polishArmyUses:[0, 0],
     oppSuppressedNextTurn:false,
     suppressTarget:null,

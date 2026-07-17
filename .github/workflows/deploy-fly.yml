@@ -9,6 +9,7 @@ on:
       - "fly.toml"
       - "server/**"
       - "src/**"
+      - "fates-entwined-website/**"
       - "index.html"
       - "package.json"
       - ".github/workflows/deploy-fly.yml"

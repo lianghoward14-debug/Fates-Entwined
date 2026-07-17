@@ -667,6 +667,81 @@ const AI_ONLY_RANDOM_DECKS = [
       '73','05','05','05','27','27','27','13','13','13',
       '06','06','06','15','15','15','39','39','39','03'
     ]
+  },
+  {
+    id: 'ai_kvetka_chain',
+    baseStrategy: 'ai_kvetka_chain',
+    name: "Kvetka's Chain Reaction",
+    description: 'AI-only character-cheat deck. Kvetka sets a major Expanded Worlds payoff for free, then Howard amplifies the strongest lane.',
+    theme: 'AI Only - Character Chain',
+    faceCardId: '84',
+    displayCardIds: ['84','100','88','86','81','03','68'],
+    ids: [
+      '03','84','84','84','100','100','100','88','88','88',
+      '86','86','86','81','81','81','09','09','09','47',
+      '47','47','60','60','60','32','32','32','58','58',
+      '58','68','68','68','24','24','24','05','05','05'
+    ]
+  },
+  {
+    id: 'ai_total_blackout',
+    baseStrategy: 'ai_total_blackout',
+    name: 'Total Blackout',
+    description: 'AI-only control deck that blocks cells, locks zones, suppresses Coordinators and uses Lydia to deny pivotal effects.',
+    theme: 'AI Only - Lockdown',
+    faceCardId: '21',
+    displayCardIds: ['21','17','04','50','61','16','56'],
+    ids: [
+      '56','17','17','17','04','04','04','21','21','21',
+      '30','30','30','61','61','61','50','50','50','16',
+      '16','16','71','71','71','60','60','60','32','32',
+      '32','58','58','58','75','75','75','09','09','09'
+    ]
+  },
+  {
+    id: 'ai_jake_compound_interest',
+    baseStrategy: 'ai_fat_jake',
+    name: "Jake's Compound Interest",
+    description: 'AI-only focused Jake deck that turns recyclable Supporters into permanent Fate before Howard multiplies the payoff.',
+    theme: 'AI Only - Fate Engine',
+    faceCardId: '38',
+    displayCardIds: ['38','03','27','40','32','58','75'],
+    ids: [
+      '03','38','38','38','27','27','27','40','40','40',
+      '06','06','06','13','13','13','32','32','32','58',
+      '58','58','75','75','75','60','60','60','47','47',
+      '47','76','76','76','05','05','05','09','09','09'
+    ]
+  },
+  {
+    id: 'ai_living_formation',
+    baseStrategy: 'ai_living_formation',
+    name: 'Living Formation',
+    description: 'AI-only aura stack where Anne, Jeremiah and Cathy turn a dense Supporter lane into an enormous Alexander.',
+    theme: 'AI Only - Formation',
+    faceCardId: '35',
+    displayCardIds: ['35','11','57','23','63','59','02'],
+    ids: [
+      '02','35','35','35','11','11','11','57','57','57',
+      '23','23','23','22','22','22','63','63','63','59',
+      '59','59','24','24','24','68','68','68','60','60',
+      '60','32','32','32','05','05','05','09','09','09'
+    ]
+  },
+  {
+    id: 'ai_rozsi_relay',
+    baseStrategy: 'ai_movement',
+    name: 'Rozsi Relay',
+    description: "AI-only movement deck that routes cards through Rozsi's lane and assembles Expanded Worlds groups for Bobby Jones.",
+    theme: 'AI Only - Movement',
+    faceCardId: '34',
+    displayCardIds: ['34','39','55','54','69','73','02'],
+    ids: [
+      '02','34','34','34','39','39','39','55','55','55',
+      '22','22','22','06','06','06','54','54','54','69',
+      '69','69','73','73','73','76','76','76','60','60',
+      '60','75','75','75','47','47','47','05','05','05'
+    ]
   }
 ];
 
@@ -3571,6 +3646,7 @@ function syncAIOpponentLeaderboardEntries() {
   const history = getMatchHistory();
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
   aiList.forEach(ai=>{
+    if(typeof applyAIBalanceOverride === 'function') applyAIBalanceOverride(ai);
     const rawWins = Math.max(0, Number(ai.challengerWins ?? ai.wins ?? 0) || 0);
     const rawLosses = Math.max(0, Number(ai.challengerLosses ?? ai.losses ?? 0) || 0);
     const seededRecord = isStaleSeededLeaderboardEntry(Object.assign({}, ai, {isAI:true}));
@@ -3628,6 +3704,14 @@ function getProfileCropStyleForEntry(entry, fallback='center 22%'){
   if(window.FateOnline?.profilePhotoCropStyle) return window.FateOnline.profilePhotoCropStyle(profile, fallback);
   return `width:100%;height:100%;object-fit:cover;object-position:${fallback};`;
 }
+function applyAIBalanceOverrideToLeaderboardEntry(entry){
+  if(!entry || typeof applyAIBalanceOverride !== 'function') return entry;
+  const balanced = {...entry, name:entry.name || entry.username || ''};
+  applyAIBalanceOverride(balanced);
+  if(!balanced.name && entry.username) balanced.name = entry.username;
+  if(!balanced.username && (entry.username || balanced.name)) balanced.username = entry.username || balanced.name;
+  return balanced;
+}
 function getMergedChallengerLeaderboardEntries() {
   updateLeaderboardEntry();
   syncAIOpponentLeaderboardEntries();
@@ -3665,9 +3749,10 @@ function getMergedChallengerLeaderboardEntries() {
     ? window.FateOnline.getOnlineLeaderboard()
     : (window.FATE_ONLINE_LEADERBOARD || {});
   const sharedAIEntries = Array.isArray(window.FATE_SHARED_AI_ROSTER) ? window.FATE_SHARED_AI_ROSTER : [];
-  const onlineEntries = sharedAIEntries.concat(Object.values(onlineSource || {}));
+  const onlineEntries = sharedAIEntries.concat(Object.values(onlineSource || {})).map(applyAIBalanceOverrideToLeaderboardEntry);
   const hasAuthoritativeAI = onlineEntries.some(entry=>entryIsAI(entry) && !isRetiredMonthlyEntry(entry));
   LEADERBOARD.forEach(entry=>{
+    entry = applyAIBalanceOverrideToLeaderboardEntry(entry);
     if(isRetiredMonthlyEntry(entry)) return;
     if(hasAuthoritativeAI && entryIsAI(entry)) return;
     if(isStaleHumanName(entry)) return;
@@ -6025,9 +6110,14 @@ function updateDailyChallengeProgress(key, value, mode) {
   // mode: 'add' | 'max' | 'set'
   var today = getDailyChallengeDate();
   var prog = getDailyChallengeProgress();
+  var beforeValue = Number(prog[key] || 0) || 0;
   if(mode === 'add') prog[key] = (prog[key] || 0) + value;
   else if(mode === 'max') prog[key] = Math.max(prog[key] || 0, value);
   else prog[key] = value;
+  var afterValue = Number(prog[key] || 0) || 0;
+  if(afterValue > beforeValue && typeof window.playFateSfxOnce === 'function') {
+    window.playFateSfxOnce('missionProgress', 'mission-progress:' + key, 700);
+  }
   try { localStorage.setItem('fate_daily_progress_' + today, JSON.stringify(prog)); } catch(e){}
   if(window.FateCloudSave) window.FateCloudSave.saveDailyChallenges();
   // Check completions
@@ -6049,7 +6139,8 @@ function updateDailyChallengeProgress(key, value, mode) {
           try { localStorage.setItem('fate_daily_progress_' + today, JSON.stringify(prog)); } catch(e){}
         }
         if(typeof saveProfile === 'function') saveProfile();
-        if(typeof playSfx === 'function') playSfx('starPlace');
+        if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('missionComplete', 'mission-complete:' + def.id, 900);
+        else if(typeof playSfx === 'function') playSfx('missionComplete');
         showDailyChallengeNotification(def.label, def.reward.starlight, def);
       }
     }
@@ -6069,7 +6160,8 @@ function updateDailyChallengeProgress(key, value, mode) {
       if(typeof saveProfile === 'function') saveProfile();
       setTimeout(function(){
         showDailyChallengeNotification('All Missions Complete!', 50, 'ALL');
-        if(typeof playSfx === 'function') playSfx('starPlace');
+        if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('missionComplete', 'mission-complete:all', 900);
+        else if(typeof playSfx === 'function') playSfx('missionComplete');
       }, 1800);
     }
   }

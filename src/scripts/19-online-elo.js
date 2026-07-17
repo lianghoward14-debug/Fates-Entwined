@@ -415,18 +415,7 @@
       await fetchFlyLeaderboard().catch(()=>{});
       return;
     }
-    if(!firebaseLeaderboardAllowed()) return;
-    const p = await FO.syncPublicProfile().catch(()=>profile());
-    await FO.update(FO.ref(FO.rtdb, `leaderboards/challenger/${u.uid}`), {
-      uid:u.uid,
-      name:nameOf(p),
-      baseCode:p.baseCode || window.FATE_ONLINE?.baseCode || '',
-      photoURL:p.photoURL || p.profileImg || 'blank.png',
-      elo:Number(p.challengerElo || localProfile().challengerElo || 600),
-      wins:Number(localProfile().challengerWins || 0),
-      losses:Number(localProfile().challengerLosses || 0),
-      updatedAt:FO.serverTimestamp()
-    });
+    await FO.syncPublicProfile?.().catch(()=>{});
   }
   async function writeAILeaderboardEntry(rec){
     if(flyLeaderboardEnabled()) return;
@@ -792,7 +781,7 @@
       delta=Math.round(k*(score-expected));
       if(didWin && delta<=0) delta=1; if(!didWin && delta>=0) delta=-1;
       newElo=Math.max(0,oldElo+delta);
-      if(lp){
+      if(!flyLeaderboardEnabled() && lp){
         lp.challengerElo=newElo;
         if(didWin) lp.challengerWins=(lp.challengerWins||0)+1; else lp.challengerLosses=(lp.challengerLosses||0)+1;
         lp.matchesPlayed=(Number(lp.matchesPlayed)||0)+1;
@@ -832,19 +821,6 @@
       await fetchFlyLeaderboard().catch(()=>{});
       return {oldElo,newElo,delta};
     }
-    if(!firebaseLeaderboardAllowed()) return {oldElo,newElo,delta};
-    const matchId = `${Date.now()}_${u.uid}_${Math.random().toString(36).slice(2,7)}`;
-    await FO.update(FO.ref(FO.rtdb), {
-      [`matchResults/${matchId}`]: { matchId, uid:u.uid, opponentUid, roomCode, didWin, oldElo, newElo, delta, source, createdAt:FO.serverTimestamp() },
-      [`leaderboards/challenger/${u.uid}`]: { uid:u.uid, name:nameOf(p), baseCode:p.baseCode||window.FATE_ONLINE?.baseCode||'', photoURL:p.photoURL||p.profileImg||'blank.png', elo:newElo, wins, losses, updatedAt:FO.serverTimestamp() },
-      [`publicProfiles/${u.uid}/challengerElo`]: newElo,
-      [`publicProfiles/${u.uid}/challengerWins`]: Number(localProfile().challengerWins || wins || 0) || 0,
-      [`publicProfiles/${u.uid}/challengerLosses`]: Number(localProfile().challengerLosses || losses || 0) || 0,
-      [`publicProfiles/${u.uid}/humanWins`]: Number(localProfile().humanWins ?? localProfile().wins ?? 0) || 0,
-      [`publicProfiles/${u.uid}/humanLosses`]: Number(localProfile().humanLosses ?? localProfile().losses ?? 0) || 0,
-      [`publicProfiles/${u.uid}/matchesPlayed`]: Number(localProfile().matchesPlayed || 0) || 0,
-      [`publicProfiles/${u.uid}/updatedAt`]: FO.serverTimestamp()
-    });
     return {oldElo,newElo,delta};
   }
   function watchLeaderboard(){

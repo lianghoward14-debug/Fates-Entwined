@@ -143,6 +143,7 @@
     if(!card) return null;
     const opts = options || {};
     const boardPos = opts.boardPos || null;
+    const blockedCell = opts.blocked || null;
     const hidden = !!opts.forceHidden || (boardPos && isCardFaceDown(card) && card.owner !== viewer);
     const visual = visualForCard(card, viewer, boardPos, hidden);
     const base = {
@@ -167,15 +168,26 @@
       : [];
     const suppressed = !!(boardPos && typeof window.isCardVisuallySuppressed === 'function'
       && window.isCardVisuallySuppressed(card, boardPos.z, boardPos.r, boardPos.c));
+    const negated = !!(typeof window.isCardVisuallyNegated === 'function'
+      && window.isCardVisuallyNegated(card));
+    const showProtectionIcon = typeof window.shouldShowProtectionStatusIcon === 'function'
+      ? window.shouldShowProtectionStatusIcon(card)
+      : !!(card.immuneFlag || card.opponentEffectImmune);
+    const activationReady = !!(boardPos
+      && typeof window.canShowBoardActivateEffect === 'function'
+      && window.canShowBoardActivateEffect(card, boardPos.z, boardPos.r, boardPos.c, viewer));
     base.flags = {
       faceDown:!!card.faceDown,
-      immune:!!card.immuneFlag,
+      immune:!!showProtectionIcon,
       markedForDeath:!!card._markedForDeath,
       suppressed,
+      negated,
+      zoeBlocked:!!(blockedCell && blockedCell.type === 'zoe'),
       noConsolidate:!!card.noConsolidate,
       xFate:!!card.xFate,
       xCost:!!card.xCost,
       pendingWhenSet:!!card._pendingWhenSetEffect,
+      activationReady,
       presentationDeparting:!!card._presentationDeparting
     };
     return base;
@@ -217,6 +229,30 @@
     }));
   }
 
+  function getMarkChoiceRow(g, z){
+    const sel = g && g._markSelecting;
+    if(!sel || (typeof sel.zone === 'number' && sel.zone !== z)) return -1;
+    if(Number.isInteger(sel.row)) return sel.row;
+    const player = Number(sel.player);
+    const rows = [];
+    (Array.isArray(g.markSafeSquares) ? g.markSafeSquares : []).forEach(function(s){
+      if(!s || s.z !== z || Number(s.owner) !== player || !Number.isInteger(s.r)) return;
+      if(!rows.includes(s.r)) rows.push(s.r);
+    });
+    rows.sort(function(a, b){ return a - b; });
+    for(let i = 0; i < rows.length; i++){
+      const row = rows[i];
+      let open = 0;
+      for(let c = 0; c < 3; c++){
+        const occupied = !!(g.board && g.board[z] && g.board[z][row] && g.board[z][row][c]);
+        if(!occupied && !isMarkSafeSquare(g, z, row, c)) open++;
+      }
+      if(open > 0) return row;
+    }
+    if(rows.length) return -1;
+    return 3 + (Number(g.extraRows && g.extraRows[z]) || 0);
+  }
+
   function getBlock(g, z, r, c){
     const blocks = g && Array.isArray(g.blockedCells) ? g.blockedCells : [];
     return blocks.find(function(b){ return b && b.z === z && b.r === r && b.c === c; }) || null;
@@ -237,8 +273,8 @@
       const sourceZone = board[z] || [];
       const extraRows = Number(g.extraRows && g.extraRows[z]) || 0;
       const showMarkChoiceRow = !!(g._markSelecting && (typeof g._markSelecting.zone !== 'number' || g._markSelecting.zone === z));
-      const markChoiceRow = showMarkChoiceRow ? 3 + extraRows : -1;
-      const totalRows = Math.max(sourceZone.length || 0, 3 + extraRows + (showMarkChoiceRow ? 1 : 0));
+      const markChoiceRow = showMarkChoiceRow ? getMarkChoiceRow(g, z) : -1;
+      const totalRows = Math.max(sourceZone.length || 0, 3 + extraRows, markChoiceRow >= 3 ? markChoiceRow + 1 : 0);
       const rows = [];
       for(let r = 0; r < totalRows; r++){
         const sourceRow = sourceZone[r] || [];
@@ -249,15 +285,16 @@
           const card = sourceRow[c] || null;
           if(card) cardCount++;
           const block = getBlock(g, z, r, c);
+          const markSafe = isMarkSafeSquare(g, z, r, c);
           cells.push({
             z,
             r,
             c,
             extra:c >= 3,
             blocked:block ? {type:block.type || 'blocked', owner:block.owner} : null,
-            markSafe:isMarkSafeSquare(g, z, r, c),
-            markSafeChoice:r === markChoiceRow,
-            card:cardPublicState(card, viewer, {boardPos:{z,r,c}})
+            markSafe,
+            markSafeChoice:r === markChoiceRow && !markSafe && !card,
+            card:cardPublicState(card, viewer, {boardPos:{z,r,c}, blocked:block})
           });
         }
         rows.push({
@@ -302,6 +339,7 @@
     const maxSupports = (Number(g.maxSupportsPerTurn) || 0) + (Number(g.extraSupportsThisTurn) || 0);
     const supportsPlaced = Number(g.supportsPlacedThisTurn) || 0;
     const majaActive = !!g.majaEffectThisTurn;
+    const localActionTurn = typeof isLocalPlayerActionTurn === 'function' ? isLocalPlayerActionTurn() : (g.currentPlayer === viewer);
     return {
       viewer,
       currentPlayer:g.currentPlayer,
@@ -309,6 +347,8 @@
       turn:g.turn,
       turnNumber:g.turnNumber,
       maxTurns:g.maxTurns,
+      localActionTurn:!!localActionTurn,
+      aiTurnLocked:!!(g.aiEnabled && (g.currentPlayer === g.aiPlayer || g._aiRunning)),
       placing:!!g.placing,
       selectedHandCard:g.selectedHandCard,
       selectedBoardIid:g.selectedBoardCard && g.selectedBoardCard.card ? String(g.selectedBoardCard.card.iid || '') : '',
@@ -322,7 +362,7 @@
         : [],
       markSelecting:g._markSelecting ? clonePlain(g._markSelecting) : null,
       boardTargeting:g._boardTargeting ? clonePlain(g._boardTargeting) : null,
-      moving:(typeof isLocalPlayerActionTurn !== 'function' || isLocalPlayerActionTurn()) && ['_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving'].some(function(k){ return !!g[k]; })
+      moving:!!localActionTurn && ['_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving'].some(function(k){ return !!g[k]; })
     };
   }
 

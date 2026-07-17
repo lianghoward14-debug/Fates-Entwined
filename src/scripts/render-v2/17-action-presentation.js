@@ -667,9 +667,9 @@
     if(type === 'SET_DRAG_LAND') return 360;
     if(type === 'DRAW_CARD' || type === 'DECK_TO_HAND' || type === 'DISCARD_TO_HAND') {
       const count = Math.max(1, Number(p.drawCount || p.count || 1) || 1);
-      return 700 + Math.min(5, count - 1) * 84;
+      return 700 + Math.min(5, count - 1) * 720;
     }
-    if(type === 'SEARCH_TO_HAND') return 1100;
+    if(type === 'SEARCH_TO_HAND') return 1100 + Math.max(0, Number(p.startOffset) || 0);
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS') return 240;
     if(type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
@@ -704,28 +704,15 @@
       }
       return null;
     }
-    let dragPreview = null;
-    try {
-      const director = window.FateVfxDirector;
-      if(director && typeof director.getDragPreview === 'function') dragPreview = director.getDragPreview();
-    } catch(e) {}
-    let fromRect = (opts && opts.fromRect) || (dragPreview && dragPreview.rect);
-    if(!fromRect) {
-      try {
-        const fx = motionFx();
-        if(fx && typeof fx.handRectForCard === 'function') fromRect = fx.handRectForCard(opts && opts.sourceCard);
-      } catch(e) {}
-    }
     const payload = {
       iid:opts.inst && opts.inst.iid,
-      card:opts.inst || opts.sourceCard || opts.card || (dragPreview && dragPreview.card) || null,
+      card:opts.inst || opts.sourceCard || opts.card || null,
       faceDown:!!(opts.inst && opts.inst.faceDown),
-      fromRect:fromRect || null,
+      fromRect:targetRect,
       toRect:targetRect,
       targetRect,
       suppressMotionAudio:false
     };
-    if(fromRect && payload.card) return {recipe:'SET_DRAG_LAND', payload, duration:360};
     return {recipe:'SET_CONFIRM', payload, duration:220};
   }
 
@@ -1151,6 +1138,35 @@
     return !!active;
   }
 
+  function waitForIdle(options){
+    const opts = options || {};
+    const minQuietMs = Math.max(0, Number(opts.minQuietMs == null ? 80 : opts.minQuietMs) || 0);
+    const timeoutMs = Math.max(120, Number(opts.timeoutMs == null ? 4200 : opts.timeoutMs) || 4200);
+    const startedAt = Date.now();
+    return new Promise(function(resolve){
+      function check(){
+        const lockUntil = (window.G && Number(window.G._actionPresentationLockUntil)) || 0;
+        const cinematicUntil = (window.G && Number(window.G._cinematicUiLockUntil)) || 0;
+        const lockRemaining = Math.max(0, lockUntil - Date.now());
+        const cinematicRemaining = Math.max(0, cinematicUntil - Date.now());
+        const actionQuietRemaining = Math.max(0, minQuietMs - msSinceLastAction());
+        const animQuietRemaining = Math.max(0, minQuietMs - msSinceLastActionAnimation());
+        const waiting = !!active || lockRemaining > 0 || cinematicRemaining > 0 || actionQuietRemaining > 0 || animQuietRemaining > 0;
+        if(!waiting || Date.now() - startedAt >= timeoutMs) {
+          resolve({
+            waitedMs:Date.now() - startedAt,
+            timedOut:waiting,
+            active:!!active
+          });
+          return;
+        }
+        const nextDelay = Math.min(120, Math.max(24, lockRemaining || cinematicRemaining || actionQuietRemaining || animQuietRemaining || 60));
+        setTimeout(check, nextDelay);
+      }
+      check();
+    });
+  }
+
   function report(){
     return {
       available:true,
@@ -1197,6 +1213,7 @@
     msSinceLastActionAnimation,
     msSinceLastAction,
     wasActionRecently,
+    waitForIdle,
     isActive,
     report
   };

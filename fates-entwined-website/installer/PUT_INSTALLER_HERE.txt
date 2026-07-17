@@ -1,8 +1,7 @@
 The website no longer needs a local installer file in this folder.
 
-The Download Installer buttons in index.html point to the Fly.io public URL:
+The Download Installer buttons in index.html point to the GitHub Releases public URL:
 
-https://fates-entwined-main.fly.dev/installer/Fates-Entwined-Installer.exe
+https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe
 
-Build the installer into dist/ before deploying. The Fly server maps the latest
-Fates-Entwined-Setup-*.exe file to /installer/Fates-Entwined-Installer.exe.
+Push to main to let the GitHub Actions desktop build publish the latest installer.

@@ -417,11 +417,11 @@ async function assertFlyEconomyRestored(){
 async function exerciseFlyFriendsDmAndCloudSave(){
   await requestJson('POST', '/api/profiles/friend-a', {
     uid:'friend-a',
-    profile:{uid:'friend-a', displayName:'Friend A', username:'Friend A', baseCode:'FRIENDA'}
+    profile:{uid:'friend-a', displayName:'Friend A', username:'Friend A', baseCode:'FRIENDA', photoURL:'7.png'}
   });
   await requestJson('POST', '/api/profiles/friend-b', {
     uid:'friend-b',
-    profile:{uid:'friend-b', displayName:'Friend B', username:'Friend B', baseCode:'FRIENDB'}
+    profile:{uid:'friend-b', displayName:'Friend B', username:'Friend B', baseCode:'FRIENDB', photoURL:'9.png'}
   });
   const lookup = await requestJson('GET', '/api/social/lookup?term=FRIENDB');
   assert.ok(lookup.profiles.some(profile=>profile.uid === 'friend-b'), 'Fly profile lookup should find base code');
@@ -446,9 +446,21 @@ async function exerciseFlyFriendsDmAndCloudSave(){
     profile:{displayName:'Friend A', baseCode:'FRIENDA'}
   });
   assert.strictEqual(dmSent.message.text, 'hello fly dm');
+  assert.ok(dmSent.message.seq > 0, 'Fly DMs should carry an incremental sequence for live refresh');
   const dmList = await requestJson('GET', '/api/direct-messages/friend-a?uid=friend-b&limit=80');
   assert.ok(dmList.messages.some(message=>message.text === 'hello fly dm'), 'Fly DM list should include sent message');
   assert.strictEqual(dmList.state.threads['friend-a'].unread, 0, 'Fly DM read should clear recipient unread count');
+  assert.strictEqual(dmList.peerProfile.photoURL, '7.png', 'Fly DM open should include the peer live profile image');
+  const noDmDelta = await requestJson('GET', `/api/direct-messages/friend-a?uid=friend-b&limit=60&after=${dmSent.message.seq}&state=0`);
+  assert.deepStrictEqual(noDmDelta.messages, [], 'Fly DM incremental refresh should return no already-seen messages');
+  assert.strictEqual(noDmDelta.state, undefined, 'Fly DM live refresh should omit the full social state payload');
+  const dmReply = await requestJson('POST', '/api/direct-messages/friend-a', {
+    uid:'friend-b',
+    text:'live fly reply',
+    profile:{displayName:'Friend B', baseCode:'FRIENDB', photoURL:'9.png'}
+  });
+  const dmDelta = await requestJson('GET', `/api/direct-messages/friend-a?uid=friend-b&limit=60&after=${dmSent.message.seq}&state=0`);
+  assert.deepStrictEqual(dmDelta.messages.map(message=>message.id), [dmReply.message.id], 'Fly DM incremental refresh should return only the new reply');
   const removed = await requestJson('POST', '/api/friends/remove', {uid:'friend-a', friendUid:'friend-b'});
   assert.ok(!removed.state.friends['friend-b'], 'Fly friend remove should remove local friend');
 
@@ -469,6 +481,7 @@ async function exerciseFlyFriendsDmAndCloudSave(){
 async function assertFlyFriendsDmAndCloudSaveRestored(){
   const dmList = await requestJson('GET', '/api/direct-messages/friend-a?uid=friend-b&limit=80');
   assert.ok(dmList.messages.some(message=>message.text === 'hello fly dm'), 'Fly DM should restore after restart');
+  assert.ok(dmList.messages.some(message=>message.text === 'live fly reply'), 'Fly DM live reply should restore after restart');
   const save = await requestJson('GET', '/api/player-save/friend-a');
   assert.strictEqual(save.data.profile.starlight, 77);
   assert.strictEqual(save.data.presets.one.name, 'One');

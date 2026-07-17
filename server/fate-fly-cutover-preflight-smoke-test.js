@@ -49,7 +49,10 @@ const requiredScripts = [
   'smoke:authority-bootstrap',
   'smoke:client-resolved-action-result',
   'smoke:client-resolved-ws',
-  'smoke:card-catalog'
+  'smoke:card-catalog',
+  'smoke:ai-intelligence',
+  'smoke:ai-learning',
+  'smoke:ai-deck-pool'
 ];
 requiredScripts.forEach(name=>{
   assert.ok(pkg.scripts[name], `package should expose ${name}`);
@@ -70,5 +73,8 @@ runNode('authority bootstrap', 'server/fate-authority-bootstrap-smoke-test.js');
 runNode('client-resolved action result', 'server/fate-client-resolved-action-result-smoke-test.js');
 runNode('client-resolved WebSocket', 'server/fate-client-resolved-ws-smoke-test.js');
 runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
+runNode('AI intelligence leakage audit', 'server/fate-ai-intelligence-smoke-test.js');
+runNode('AI imitation and self-play', 'server/fate-ai-learning-smoke-test.js');
+runNode('AI custom deck pool', 'server/fate-ai-deck-pool-smoke-test.js');
 
 console.log('fate-fly-cutover-preflight smoke passed');

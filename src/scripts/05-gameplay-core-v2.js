@@ -239,7 +239,7 @@ function canActivateVigilantesWindow(card) {
   if(!card || String(card.id || '') !== '52' || isFaceDownCard(card)) return false;
   if(card.vigilanteUsed === true || card.whenSetActivated === true) return false;
   if(card._pendingWhenSetEffect) return true;
-  return Number(card._setTurn) === Number(G.turn);
+  return false;
 }
 
 function expireSkippedVigilantesWindowsForPlayer(player) {
@@ -357,7 +357,6 @@ async function nextPlayerTurn() {
   forEachBoardCard((card)=>{
     if(card.owner===G.currentPlayer) {
       card.effectUsedThisTurn = false;
-      if(card.id==='52') card.vigilanteUsed = false;
       if(card.id==='73') card._expMoved = false;
       if(card.id==='bh01') card.bh01MovedThisTurn = false;
       if((typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserMoves||0))>0) card._busserMovedThisTurn = false;
@@ -400,7 +399,7 @@ async function nextPlayerTurn() {
   renderHand();
 
   // Draw 1 card
-  await drawCard(G.currentPlayer, 1, { drawPhase: true });
+  await drawCard(G.currentPlayer, 1, { drawPhase: true, skipPresentationWait: !!G._onlineRoomCode });
 
   // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set
   forEachBoardCard((card)=>{
@@ -886,20 +885,21 @@ function beginBoardCardTargetSelection(opts) {
   return true;
 }
 
-// Vigilantes (52) — pick opponent card in zone, set reinforcement to 0
+// Vigilantes (52) — pick opponent Supporter in zone, set reinforcement to 0
 function vigilantePickTarget(targetZ, cp, opp, inst) {
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===opp) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
+    if(cell && cell.owner===opp && cell.type === 'Supporter') oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
-  if(oppCards.length===0){toast('No opponent cards in Zone '+(targetZ+1));return;}
-  pickCardInZone(targetZ,'Marked for Death: select one opponent card in this zone.',(tgt)=>{
+  if(oppCards.length===0){toast('No opponent Supporters in Zone '+(targetZ+1));return;}
+  pickCardInZone(targetZ,'Marked for Death: select one opponent Supporter in this zone.',(tgt)=>{
+    if(tgt.type !== 'Supporter'){toast('Must select an opponent Supporter');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
     toast(tgt.name+' has been Marked for Death — 0 Reinforcement!');
     log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
     renderGame();
-  }, cell=>cell && cell.owner===opp);
+  }, cell=>cell && cell.owner===opp && cell.type === 'Supporter');
 }
 
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
@@ -968,7 +968,7 @@ async function clickCell(z,r,c) {
     // Show visual effect for the block
     if(typeof showBlockVisual === 'function') showBlockVisual(blockZ,r,c,blockType);
     if(blockType==='carolyn') {
-      playSfx('zoneBlock');
+      playSfx('carolynBlock');
       toast('Cell permanently locked by Carolyn!');
     } else {
       playSfx('zoeBlock');
@@ -979,8 +979,15 @@ async function clickCell(z,r,c) {
   if(G._markSelecting) {
     const sel = G._markSelecting;
     if(sel.player !== G.currentPlayer){ G._markSelecting = null; return; }
+    if(typeof sel.zone === 'number' && z !== sel.zone){
+      toast('That square is not available');
+      return;
+    }
+    const expectedMarkRow = Number.isInteger(sel.row)
+      ? sel.row
+      : (typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, G.currentPlayer) : 3);
     const markRowCapacity = G.board && G.board[z] && G.board[z][r] ? G.board[z][r].length : 3;
-    if(r !== 3 || c < 0 || c >= markRowCapacity){
+    if(r !== expectedMarkRow || c < 0 || c >= markRowCapacity){
       toast('Choose one of the highlighted safe-square slots');
       return;
     }
@@ -1698,10 +1705,6 @@ function finalizeConsolidate(card, tributes, targetIdx) {
       });
     });
 
-    tributes.forEach(t=>{
-      if(t.card.id==='09' && t.card.usesLeft>0) t.card.usesLeft--;
-    });
-
     let bonusFate = 0;
     if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.crashTributes === 'function'){
       window.FateV2CardMotionFx.crashTributes(tributes, target);
@@ -1746,7 +1749,13 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     renderGame();
     // Defer consolidation visual to after renderGame's rAF completes so it isn't wiped by the DOM rebuild
     requestAnimationFrame(() => { requestAnimationFrame(() => showConsolidateVisual(targetZ,targetR,targetC)); });
-    requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, targetZ, targetR, targetC));
+    const resolveSetEffectAfterCinematic = function(){
+      const wait = typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : 0;
+      setTimeout(function(){
+        requestAnimationFrame(function(){ resolveSetCardAfterPlacement(inst, targetZ, targetR, targetC); });
+      }, Math.max(0, wait) + 90);
+    };
+    resolveSetEffectAfterCinematic();
   }
 
   if(chaparralSource){
@@ -1948,10 +1957,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         renderGame();
       },c=>c.owner===opp&&c.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(c, cp))); break;
     case '18': // 1st US Marines: suppress opponent's supporter effects next turn
-      G.oppSuppressedNextTurn = true;
-      G.suppressTarget = opp;
-      toast('Opponent supporter effects suppressed next turn!');
-      updateTopBar();
+      activateUsMarinesSuppressionEffect(cp, opp);
       break;
     case '33': // West Caribbea Infantry: next character added to hand costs 1 less, gains 2 fate
       G._westCaribNext = { owner: cp };
@@ -1996,12 +2002,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       inst._philSetTurn = G.turn; break;
     case '57': // Jeremiah Jones: no special when-set (aura potency boost handled in getEffectiveFate)
       break;
-    case '77': { // Duncan Heyward: when set, declare affiliation; then passive +3 to that aff
+    case '77': { // Duncan Heyward: when set, declare affiliation; then passive +4 to that aff
       showAffiliationPickerVisual((aff)=>{
         inst._declaredAff = aff;
         // Show affiliation icon flash on Duncan
         if(typeof showAffChangeOverlay==='function') showAffChangeOverlay(inst, aff);
-        toast('Duncan Heyward declared '+AFF_LABEL[aff]+'! All '+AFF_LABEL[aff]+' cards in zone gain 3 Fate.');
+        toast('Duncan Heyward declared '+AFF_LABEL[aff]+'! All '+AFF_LABEL[aff]+' cards in zone gain 4 Fate.');
         log(cp===0?'p1':'p2','Duncan Heyward declared '+AFF_LABEL[aff]);
         renderGame();
       });
@@ -2101,11 +2107,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-        case '68': { // Great Oak High Schooler: search deck for a Coordinator (non-star)
+    case '68': { // Great Oak High Schooler: search deck for a Coordinator (non-star)
       const matches = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
       pickCardsVisual(matches,{title:'Home of the Wolfpack',subtitle:'Add a Coordinator (non-Star) to your hand',maxCount:1,confirmLabel:'Add to Hand',immediate:true},(picked)=>{
         if(picked.length===0) return;
         const chosen = picked[0];
+        if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, chosen, 'deck', G.players[cp].hand.length);
         if(typeof addCardToHand==='function') addCardToHand(cp, chosen);
         else G.players[cp].hand.push(chosen);
         G.players[cp].deck = G.players[cp].deck.filter(d=>d.iid!==chosen.iid);
@@ -2267,8 +2274,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '47': // Great Oak Infantry: when used for consolidation, new card gains 3 Fate
       inst._greatOakBonus = true;
       break;
-    case '52': { // Vigilantes: same-zone card-picker window
-      pickCardInZone(z,'Vigilantes: Select an opponent card in this zone to set its Reinforcement to 0:',(tgt)=>{
+    case '52': { // Vigilantes: same-zone opponent Supporter picker window
+      pickCardInZone(z,'Vigilantes: Select an opponent Supporter in this zone to set its Reinforcement to 0:',(tgt)=>{
         tgt._markedForDeath = true;
         tgt._reinforcementOverride = 0;
         if(typeof playSfx==='function') playSfx('fateLose');
@@ -2277,7 +2284,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         inst.effectUsedInitial = true;
         renderGame();
         if(typeof updateTopBar === 'function') updateTopBar();
-      }, function(cell){ return cell && cell.owner===opp && cell.id!=='76' && !cell.immuneFlag; });
+      }, function(cell){ return cell && cell.owner===opp && cell.type === 'Supporter' && cell.id!=='76' && !cell.immuneFlag; });
       break;
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
@@ -2424,7 +2431,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         renderGame();
       },c=>!c.immuneFlag); break;
     case '04': // Zoe: block consolidation on a square
-      highlightForBlock(z); break;
+      highlightForBlock(z, card); break;
     case '06': // Jorge Alvarez: search deck for non-star card
       searchDeckForCard(cp, c=>c.rarity!=='star','Search deck (no Stars):', inst=>{
         if(typeof addCardToHand==='function') addCardToHand(cp, inst);
@@ -2448,7 +2455,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         confirmLabel:'Add to Hand',
         immediate:true
       }, (chosen)=>{
-        chosen.forEach(c=>{
+        const baseHandIndex = G.players[cp].hand.length;
+        chosen.forEach((c, idx)=>{
+          const source = G.players[cp].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+          if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, source, baseHandIndex + idx, idx, chosen.length);
           if(typeof addCardToHand==='function') addCardToHand(cp, c);
           else G.players[cp].hand.push(c);
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
@@ -2502,7 +2512,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           confirmLabel:'Add to Hand',
           immediate:true
         }, (chosen)=>{
-          chosen.forEach(c=>{
+          const baseHandIndex = G.players[cp].hand.length;
+          chosen.forEach((c, idx)=>{
+            const source = G.players[cp].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
+            if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, source, baseHandIndex + idx, idx, chosen.length);
             if(typeof addCardToHand==='function') addCardToHand(cp, c);
             else G.players[cp].hand.push(c);
             G.players[cp].deck=G.players[cp].deck.filter(x=>x.iid!==c.iid);
@@ -2538,23 +2551,26 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       },c=>c.owner===opp); break;
     case '43': { // Mark Kemper: choose one extra safe cell
       closeModal();
-      G._markSelecting = { player: cp, sourceIid: card.iid };
+      const markChoiceRow = typeof getMarkSafeSquareChoiceRow === 'function' ? getMarkSafeSquareChoiceRow(z, cp) : 3;
+      if(markChoiceRow < 3){
+        toast('Mark Kemper has no remaining safe-square slots in this row.');
+        break;
+      }
+      G._markSelecting = { player: cp, sourceIid: card.iid, zone: z, row: markChoiceRow };
       G.placing = true;
       clearPlaceHighlights();
-      // Pre-create row 3 in all zones so renderBoard shows the selectable cells
+      // Pre-create only the chosen row so renderBoard shows the selectable cells.
       if(!G.extraRows) G.extraRows = [0,0,0];
       G._markPreCreatedZones = [];
-      for(var mz=0;mz<3;mz++){
-        if((G.extraRows[mz]||0) < 1){
-          G.extraRows[mz] = 1;
-          G._markPreCreatedZones.push(mz);
-        }
-        if(!G.board[mz][3]) G.board[mz][3] = Array(3).fill(null);
+      if((G.extraRows[z]||0) < markChoiceRow - 2){
+        G.extraRows[z] = markChoiceRow - 2;
+        G._markPreCreatedZones.push(z);
       }
+      if(!G.board[z][markChoiceRow]) G.board[z][markChoiceRow] = Array(3).fill(null);
       renderGame();
       document.querySelectorAll('.cell.mark-safe-choice').forEach(el=>el.classList.add('placeable'));
-      toast('Choose a safe-square slot below any zone\'s safe row');
-      setHint('Mark Kemper: click one highlighted safe-square slot below any zone.');
+      toast('Choose one highlighted safe-square slot in Zone '+(z+1)+'.');
+      setHint('Mark Kemper: click one highlighted safe-square slot in Zone '+(z+1)+'.');
       break;
     }
     case '48': // Cosmic GF: add Expanded Worlds from deck, then discard
@@ -2651,20 +2667,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       } else toast('No uses remaining.'); break;
     case '17': // Carolyn: block any open cell permanently
       {
-        toast('Click any empty cell on the board to lock it permanently');
-        G.placing = true;
-        G.blockingCell = true;
-        clearPlaceHighlights();
-        for(let zz=0;zz<3;zz++){
-          const totalRows = G.board[zz]?G.board[zz].length:3;
-          for(let rr=0;rr<totalRows;rr++) for(let cc=0;cc<(G.board[zz][rr] ? G.board[zz][rr].length : 3);cc++){
-            if(G.board[zz][rr]&&G.board[zz][rr][cc]===null && !isBlocked(zz,rr,cc)){
-              const el = document.querySelector(`[data-z="${zz}"][data-r="${rr}"][data-c="${cc}"]`);
-              if(el) el.classList.add('placeable');
-            }
-          }
-        }
-        window._blockZone = -1;
+        highlightForBlock(-1, card);
       } break;
     case '14': // Alondra Hopkins: on-set only, not re-activatable
       toast('Alondra\'s effect only fires when she is first set.');
@@ -2888,8 +2891,8 @@ function getEffectiveFate(card, z) {
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
     if(cell.id==='59' && card.type==='Supporter' && !isSupporterAuraSuppressed(cell)) bonus += 1;
-    // Duncan Heyward (77): +3 to declared-affiliation friendly cards in zone
-    if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 3 + jeremiahBoost;
+    // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
+    if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
 
   // Zsofia (15): each copy applies its own zone-wide buff
@@ -3265,13 +3268,13 @@ function checkWin() {
 //  SUPPORTER ACTIVE ABILITIES
 // ══════════════════════════════════════════════════════════════
 
-// Vigilantes (52): set one opponent card in this same zone to 0 Reinforcement
+// Vigilantes (52): set one opponent Supporter in this same zone to 0 Reinforcement
 function activateVigilantes(card, z, r, c) {
   const cp = G.currentPlayer;
   const opp = 1 - cp;
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardInZone(z,'Vigilantes: select an opponent card in this zone to set its Reinforcement to 0.',(tgt)=>{
-    if(tgt.owner !== opp){toast('Must select an opponent card');return;}
+  pickCardInZone(z,'Vigilantes: select an opponent Supporter in this zone to set its Reinforcement to 0.',(tgt)=>{
+    if(tgt.owner !== opp || tgt.type !== 'Supporter'){toast('Must select an opponent Supporter');return;}
     if(tgt.immuneFlag || tgt.id==='76'){showBlockedAnimation(tgt.name+' is IMMUNE');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
@@ -3282,7 +3285,7 @@ function activateVigilantes(card, z, r, c) {
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
     renderGame();
-  }, function(cell){ return !!cell && cell.owner === opp && cell.id!=='76' && !cell.immuneFlag; });
+  }, function(cell){ return !!cell && cell.owner === opp && cell.type === 'Supporter' && cell.id!=='76' && !cell.immuneFlag; });
 }
 
 function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
