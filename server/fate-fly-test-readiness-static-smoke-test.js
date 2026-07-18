@@ -48,8 +48,8 @@ assert.doesNotMatch(indexText, /window\.FATE_RTDB_DISABLED = true;|window\.FATE_
 assert.match(indexText, /localStorage\.removeItem\('fateRtdbDisabled'\);[\s\S]*localStorage\.removeItem\('fateFlyRoomsEnabled'\);[\s\S]*localStorage\.removeItem\('fateFlyAuthorityOnly'\);[\s\S]*localStorage\.removeItem\('fateFlyActionReplay'\);/, 'hosted Fly browser clients must clear stale forced Fly-room flags');
 assert.match(indexText, /localStorage\.removeItem\('fateWsAuthorityUrl'\);[\s\S]*localStorage\.removeItem\('fateWsAuthorityEnabled'\);/, 'hosted Fly browser clients must clear stale localhost WebSocket authority overrides');
 assert.match(indexText, /game\.css\?v=1784359001/, 'game stylesheet cache bust must include removal of the retired card-set flight');
-assert.match(indexText, /99-ui-final\.css\?v=1784359002/, 'final UI stylesheet cache bust must include removal of retired placement keyframes');
-assert.match(indexText, /zz-codex-last\.css\?v=1784360301/, 'last override stylesheet cache bust must include adaptive transient effect-alert sizing');
+assert.match(indexText, /99-ui-final\.css\?v=1784365001/, 'final UI stylesheet cache bust must include the crowded opponent-hand sizing');
+assert.match(indexText, /zz-codex-last\.css\?v=1784365002/, 'last override stylesheet cache bust must include the crowded opponent-hand sizing');
 assert.match(indexText, /button-line-cleanup\.css\?v=1784359003/, 'final button cleanup stylesheet cache bust must include the stale placement-class reset');
 assert.match(indexText, /17-online-social\.js\?v=1784195101/, 'social module cache bust must include live Fly DMs and peer avatars');
 assert.match(socialText, /function refreshOpenFlyDm[\s\S]*after=\$\{encodeURIComponent\(flyDmLastSeq\)\}&state=0[\s\S]*function startFlyDmPolling[\s\S]*setTimeout\(poll, 900\)/, 'an open Fly DM must incrementally poll for new messages without downloading full social state');
@@ -68,7 +68,9 @@ assert.match(indexText, /render-v2\/13-vfx-recipes\.js\?v=1784359006/, 'VFX reci
 assert.match(indexText, /render-v2\/01-render-snapshot\.js\?v=1784201603/, 'render snapshot cache bust must include Activate Effect readiness');
 assert.match(indexText, /05-gameplay-core\.js\?v=1784359401/, 'gameplay core cache bust must include successful Mark safe-square audio feedback');
 assert.match(indexText, /07-ai\.js\?v=1784354403/, 'AI cache bust must include manual activation cinematic eligibility');
-assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784163201/, 'render-v2 layout cache bust must include the snug 9-card opponent hand layout');
+assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784365003/, 'render-v2 layout cache bust must include the snug 9-12 card opponent hand layout');
+assert.match(matchLayoutText, /nineCardHand[\s\S]*nineCardHand \? 3 : 4/, 'exactly 9 opponent cards must use a full 3-by-3 grid');
+assert.match(matchLayoutText, /const packedOppCardW = fullOppHand \? 48 : 50;[\s\S]*Math\.min\(packedOppCardW, fitOppCardW\)/, '9-12 opponent cards must not collapse against the empty DOM proxy height');
 assert.match(indexText, /render-v2\/11-vfx-director\.js\?v=1784291302/, 'VFX director cache bust must include the dedicated Fate-delta repaint path');
 assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784364002/, 'render-v2 adapter cache bust must include stable Activate Effect glow startup and hidden spectator hands');
 assert.match(indexText, /render-v2\/17-action-presentation\.js\?v=1784063301/, 'action presentation cache bust must include target-local set motion and consolidation cinematic handoff');
@@ -127,7 +129,7 @@ assert.doesNotMatch(setupText, /_onlineCoinPlayableGate|fatePublishOnlineMatchPl
 assert.match(rendererText, /const nineOnly = handCount === 9;[\s\S]*container\.classList\.toggle\('opp-hand-nine-only', nineOnly\);/, 'DOM opponent hand density must mark exactly 9 cards separately');
 assert.match(rendererText, /if\(lineHeight > 0 && h > lineHeight \* 1\.45\)[\s\S]*classList\.add\('multi-line'\)[\s\S]*setProperty\('bottom', 'calc\(24vh - 25px\)', 'important'\)/, 'two-line consolidation subtitles must sit exactly twenty-five pixels lower than the existing multi-line position');
 assert.match(rendererText, /overlay\.appendChild\(subEl\);[\s\S]*consolidationSubtitleBottom = perfLite \? '24vh' : '27vh';[\s\S]*classList\.contains\('multi-line'\)[\s\S]*' - 25px\)'[\s\S]*setProperty\('bottom', consolidationSubtitleBottom, 'important'\)/, 'consolidation overlay reparenting must retain the twenty-five-pixel multi-line subtitle offset');
-assert.match(matchLayoutText, /const oppCols = largeOppHand \? Math\.min\(4, Math\.max\(1, oppCount \|\| 1\)\) : 4;/, 'render-v2 opponent hand layout must keep 9 cards in the same 4-column rhythm as 8');
+assert.match(matchLayoutText, /const nineCardHand = oppCount === 9;[\s\S]*nineCardHand \? 3 : 4/, 'render-v2 opponent hand layout must give 9 cards a snug 3-by-3 grid');
 assert.match(coreText, /card\._henrySuppressionPicking[\s\S]*Henry Dong is already choosing suppression squares\./, 'Henry must not open duplicate suppression pickers');
 assert.match(dataText, /\{id:'77',name:'Duncan Heyward'[\s\S]*fate:6,cost:3[\s\S]*declared affiliation gains 4 Fate\./, 'Duncan Heyward card data must show 6 Fate and the +4 Fate declared-affiliation effect');
 assert.match(coreText, /Duncan Heyward \(77\): \+4[\s\S]*cell\.id==='77'[\s\S]*bonus \+= 4 \+ jeremiahBoost;/, 'the active gameplay core must apply Duncan Heyward\'s +4 Fate aura');

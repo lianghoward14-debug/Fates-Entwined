@@ -1,7 +1,5 @@
-The website no longer needs a local installer file in this folder.
+The website serves the public Windows installer from this folder:
 
-The Download Installer buttons in index.html point to the GitHub Releases public URL:
+/installer/Fates-Entwined-Installer.exe
 
-https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe
-
-Push to main to let the GitHub Actions desktop build publish the latest installer.
+Replace that file with the latest built installer before deploying the website.

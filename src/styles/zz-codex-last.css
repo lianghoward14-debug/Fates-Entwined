@@ -14423,8 +14423,8 @@ html body #modal .modal.cdb-save-modal .cdb-save-top:has(.deck-theme-select-wrap
   z-index:12000!important;
 }
 html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus){
-  --opp-hand-card-w:56px!important;
-  --opp-hand-card-h:78px!important;
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
   grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
   gap:.38rem .46rem!important;
   max-height:258px!important;
@@ -14437,16 +14437,16 @@ html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus) .opp-card
   min-height:var(--opp-hand-card-h)!important;
 }
 html body #s-game #opp-hand.opp-hand-ten-plus{
-  --opp-hand-card-w:52px!important;
-  --opp-hand-card-h:73px!important;
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
   grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
   gap:.34rem .4rem!important;
   max-height:246px!important;
 }
 
 html body #s-game #opp-hand.opp-hand-twelve-plus{
-  --opp-hand-card-w:50px!important;
-  --opp-hand-card-h:70px!important;
+  --opp-hand-card-w:48px!important;
+  --opp-hand-card-h:67px!important;
   grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
   gap:.3rem .36rem!important;
   max-height:244px!important;

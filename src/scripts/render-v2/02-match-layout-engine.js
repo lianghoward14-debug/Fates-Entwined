@@ -218,8 +218,10 @@
     const mediumOppHand = oppCount >= 5 && oppCount <= 8;
     const packedOppHand = oppCount >= 9;
     const fullOppHand = oppCount >= 12;
-    // Codex 2026-07-15: keep exactly 9 opponent cards in the same snug 4-column rhythm as 8 cards.
-    const oppCols = largeOppHand ? Math.min(4, Math.max(1, oppCount || 1)) : 4;
+    const nineCardHand = oppCount === 9;
+    const oppCols = largeOppHand
+      ? Math.min(4, Math.max(1, oppCount || 1))
+      : (nineCardHand ? 3 : 4);
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / oppCols));
     const oppGap = largeOppHand ? 7 : (mediumOppHand ? 6 : (fullOppHand ? 5 : 6));
     const tierOppCardMinW = largeOppHand ? 58 : (mediumOppHand ? 50 : (fullOppHand ? 50 : (oppCount >= 10 ? 52 : 56)));
@@ -240,11 +242,11 @@
     const fitOppCardW = oppCount
       ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
       : baseOppCardW;
-    const fitOppCardWByHeight = oppCount
-      ? Math.max(30, Math.floor(((oppRect.h - 14 - oppGap * Math.max(0, oppRows - 1)) / oppRows) / 1.4))
-      : baseOppCardW;
+    // The canvas owns this surface, so its empty DOM proxy has no useful content
+    // height. Crowded hands use a stable size instead of collapsing against it.
+    const packedOppCardW = fullOppHand ? 48 : 50;
     const oppCardW = packedOppHand
-      ? Math.min(baseOppCardW, fitOppCardW, fitOppCardWByHeight)
+      ? Math.min(packedOppCardW, fitOppCardW)
       : Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
     const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);

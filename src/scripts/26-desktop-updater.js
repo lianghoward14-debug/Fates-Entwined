@@ -35,6 +35,12 @@
     return Object.assign({supported:!!updater, status:updater ? 'idle' : 'disabled'}, nextState || {});
   }
 
+  function renderCurrentVersion(nextState){
+    const version = String(nextState?.currentVersion || '').trim();
+    const label = document.getElementById('game-version');
+    if(label && version) label.textContent = `Version ${version}`;
+  }
+
   function describeStatus(nextState){
     const s = normalizedState(nextState);
     if(!s.supported) {
@@ -82,6 +88,7 @@
     if(startupCheckSettled) return;
     startupCheckSettled = true;
     if(nextState) state = normalizedState(nextState);
+    renderCurrentVersion(state);
     emitUpdateStatus(state, {startupDone:true});
     if(resolveStartupCheck) resolveStartupCheck(state || normalizedState(null));
     renderBanner();
@@ -112,6 +119,7 @@
       .then(() => updater.check())
       .then(nextState => {
         state = normalizedState(nextState);
+        renderCurrentVersion(state);
         emitUpdateStatus(state, {startup:!!opts.startup});
         renderBanner();
         if(opts.startup && stateEndsStartupWait(state)) settleStartupCheck(state);
@@ -255,12 +263,14 @@
   if(updater) {
     updater.onState(nextState => {
       state = normalizedState(nextState);
+      renderCurrentVersion(state);
       emitUpdateStatus(state);
       if(stateEndsStartupWait(state)) settleStartupCheck(state);
       renderBanner();
     });
     updater.getState().then(nextState => {
       state = normalizedState(nextState);
+      renderCurrentVersion(state);
       emitUpdateStatus(state);
       if(!state.supported || state.status === 'disabled') {
         settleStartupCheck(state);

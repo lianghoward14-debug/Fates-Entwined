@@ -19226,7 +19226,7 @@ html body #modal:has(#social-dm-box) #dm-emoji-container .social-emoji-btn:hover
   transform:none!important;
 }
 
-/* Codex 2026-07-13/15: opponent hand panel uses density tiers; 9 cards keep the snug 4-column 8-card fit. */
+/* Opponent hand panel density tiers mirror the canvas renderer. */
 html body #s-game #opp-hand.opp-hand-large,
 html body #s-game #opp-hand.opp-hand-medium,
 html body #s-game #opp-hand.opp-hand-compact{
@@ -19268,9 +19268,9 @@ html body #s-game #opp-hand.opp-hand-compact{
 }
 
 html body #s-game #opp-hand.opp-hand-nine-only{
-  --opp-hand-card-w:56px!important;
-  --opp-hand-card-h:78px!important;
-  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
+  grid-template-columns:repeat(3,var(--opp-hand-card-w))!important;
   gap:.3rem .36rem!important;
   max-height:248px!important;
   padding:.16rem .08rem .2rem!important;
