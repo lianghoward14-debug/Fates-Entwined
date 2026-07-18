@@ -2183,7 +2183,7 @@
     if(typeof window !== 'undefined' && typeof window.getCardStatusVisualState === 'function') {
       try { return window.getCardStatusVisualState(entry && entry.card, statuses); } catch(e) {}
     }
-    const order = ['negated','suppressed','marked','blocked'];
+    const order = ['snowball','negated','suppressed','marked','blocked'];
     for(let i = 0; i < order.length; i++){
       if(statuses && statuses[order[i]]) return {primary:order[i], immune:!!statuses.immune};
     }
@@ -2206,11 +2206,13 @@
     const markedForDeath = !!(entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
     const suppressed = !!(entry && entry.card && flags.suppressed);
     const negated = !!(entry && entry.card && flags.negated);
+    const snowballHit = !!(entry && entry.card && flags.snowballHit);
     const immune = !!(entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
     const zoeBlocked = !!(entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
     const statusState = getCardVisualStatusState(entry, {
       negated,
       suppressed,
+      snowball:snowballHit,
       marked:markedForDeath,
       blocked:zoeBlocked,
       immune
@@ -2229,6 +2231,7 @@
     drawCardPlaneGleam(ctx, r, tilt);
     if(primaryStatus === 'negated') drawNegatedCardOverlay(ctx, r);
     else if(primaryStatus === 'suppressed') drawSuppressedCardOverlay(ctx, r);
+    else if(primaryStatus === 'snowball') drawSnowballFightCardOverlay(ctx, r);
     else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
     else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
     else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
@@ -2260,6 +2263,18 @@
     ctx.fillStyle = 'rgba(178,84,24,.14)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
     drawStatusBadge(ctx, r, 'negated');
+    ctx.restore();
+  }
+
+  function drawSnowballFightCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(68,153,198,.15)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawStatusBadge(ctx, r, 'snowball');
     ctx.restore();
   }
 
@@ -2307,15 +2322,53 @@
     ctx.save();
     ctx.shadowColor = suppressed ? 'rgba(154,108,218,.42)'
       : kind === 'negated' ? 'rgba(235,135,45,.40)'
+      : kind === 'snowball' ? 'rgba(138,224,255,.48)'
       : kind === 'marked' ? 'rgba(190,92,112,.34)'
       : kind === 'blocked' ? 'rgba(154,108,218,.38)'
       : 'rgba(108,208,226,.34)';
     ctx.shadowBlur = Math.max(6, size * .18);
     if(suppressed) drawSuppressionLockIcon(ctx, cx, cy, size);
+    else if(kind === 'snowball') drawSnowballFightIcon(ctx, cx, cy, size);
     else if(kind === 'marked') drawMarkedForDeathIcon(ctx, cx, cy, size);
     else if(kind === 'blocked') drawBlockedActionIcon(ctx, cx, cy, size);
     else if(kind === 'immune') drawImmuneShieldIcon(ctx, cx, cy, size);
     else drawNegationBrokenLinkIcon(ctx, cx, cy, size);
+    ctx.restore();
+  }
+
+  function drawSnowballFightIcon(ctx, cx, cy, size){
+    const radius = size * .34;
+    const branchStart = radius * .54;
+    const branchLength = radius * .24;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = 'rgba(222,248,255,.98)';
+    ctx.lineWidth = Math.max(2.4, size * .064);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for(let arm = 0; arm < 6; arm++){
+      const angle = arm * Math.PI / 3 - Math.PI / 2;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(-dx * radius, -dy * radius);
+      ctx.lineTo(dx * radius, dy * radius);
+      ctx.stroke();
+      const bx = dx * branchStart;
+      const by = dy * branchStart;
+      const left = angle + Math.PI * .76;
+      const right = angle - Math.PI * .76;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + Math.cos(left) * branchLength, by + Math.sin(left) * branchLength);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + Math.cos(right) * branchLength, by + Math.sin(right) * branchLength);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(222,248,255,.98)';
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(2.2, size * .048), 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

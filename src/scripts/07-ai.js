@@ -2213,9 +2213,17 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(!lumberjack && cell && cell.owner === cp && cell.iid !== inst.iid && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '92') && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
     }); });
     if(lumberjack) {
-      inst._lumberjackSuppressed = true;
-      inst._lydiaSuppressed = true;
-      inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
+      if(typeof applyWodnyPotokLumberjackSuppression === 'function') {
+        applyWodnyPotokLumberjackSuppression(inst, z, cp);
+      } else {
+        inst._lumberjackSuppressed = true;
+        inst.whenSetActivated = true;
+        inst.effectUsedInitial = true;
+        if(!inst._lumberjackReinforcementGranted) {
+          inst._lumberjackReinforcementGranted = true;
+          inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
+        }
+      }
       showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
       return;
     }
@@ -2311,7 +2319,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._effectTurnLocked = true;
       break;
     }
-    case '90': { // Wojciech Fisherman: choose the affiliation with the largest deck pool
+    case '90': { // Wojciech Fisherman: choose the affiliation with the largest deck pool and give those cards +3 Fate
       const pools = {};
       G.players[cp].deck.forEach(function(deckCard){ if(deckCard && deckCard.aff) (pools[deckCard.aff] || (pools[deckCard.aff] = [])).push(deckCard); });
       const affiliation = Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
@@ -2324,6 +2332,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       chosen.forEach(function(found){
         G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
+        const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
+        found.currentFate = beforeFate + 3;
+        if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
+          recordHandCardEffectModifier(found, {
+            key:'wojciech-fisherman:' + (inst.iid || inst.id || 'source'),
+            name:'Catch of the Day',
+            text:'Catch of the Day: this card gained 3 Fate when Wojciech caught it.',
+            fateDelta:3
+          });
+        }
         if(typeof addCardToHand === 'function') addCardToHand(cp, found, {announce:false});
         else G.players[cp].hand.push(found);
       });
@@ -2484,7 +2502,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       opps.sort((a,b)=>aiOpponentCardDecisionFate(b,z)-aiOpponentCardDecisionFate(a,z));
         const target = opps[0];
         const before = target.currentFate || target.fate || 0;
-        const changed = setCardFateValue(target, before - 3, cp);
+        const changed = typeof reduceStoredCardFateBy === 'function'
+          ? reduceStoredCardFateBy(target, 3, cp)
+          : setCardFateValue(target, before - 3, cp);
         if(changed || before <= 0){
           log('p2', `AI: Hemorrhaging Wound -3 Fate to ${target.name}`);
         }
@@ -2907,7 +2927,10 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     if(typeof setCardFateValue === 'function') setCardFateValue(target, before - 1, cp);
     else target.currentFate = Math.max(0, before - 1);
     card.effectUsedThisTurn = true;
+    if(typeof markSnowballFightHit === 'function') markSnowballFightHit(target);
+    if(typeof playSfx === 'function') playSfx('snowballFight');
     log('p2','AI: Snowball Fight reduced ' + target.name + ' by 1 Fate');
+    renderGame({board:true, scores:true, topbar:true});
     return;
   }
   if(card.id==='52' && card._pendingWhenSetEffect && card.whenSetActivated !== true){

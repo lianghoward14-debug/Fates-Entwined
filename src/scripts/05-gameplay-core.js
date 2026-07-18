@@ -2963,12 +2963,12 @@ function resolveBalladEndOfTurn(player) {
   forEachBoardCard(card=>{
     if(card && card.owner===player && ids.includes(card.iid)) {
       const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-      card.currentFate = before + 3;
+      card.currentFate = before + 4;
       if(typeof playFateChangeSound === 'function') playFateChangeSound(card, before, card.currentFate, player);
     }
   });
   fx.consolidatedIids = [];
-  toast('A Noble Effort at a Ballad: consolidations gain 3 Fate.');
+  toast('A Noble Effort at a Ballad: consolidations gain 4 Fate.');
 }
 
 function recordSupporterEffectActivation(player, card, options) {
@@ -3156,11 +3156,42 @@ function showSnowShovelerReturnedCards(returned, player) {
   }
 }
 
+function markSnowballFightHit(card) {
+  if(!card) return false;
+  card._snowballFightHitAt = Date.now();
+  return true;
+}
+window.markSnowballFightHit = markSnowballFightHit;
+
+function applyWodnyPotokLumberjackSuppression(inst, z, owner) {
+  if(!inst || inst.id === '92' || isFaceDownCard(inst) || isEffectImmuneSource(inst)) return false;
+  const cp = owner === 0 || owner === 1 ? owner : (inst.owner === 0 || inst.owner === 1 ? inst.owner : G.currentPlayer);
+  const instIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(inst, cp) : inst.type === 'Supporter';
+  if(!instIsSupporterForRules) return false;
+  let lumberjack = null;
+  if(G.board && G.board[z]) G.board[z].forEach((row)=>row && row.forEach((cell)=>{
+    if(!lumberjack && cell && cardActsAsPassive(cell, '92') && cell.owner === cp && cell.iid !== inst.iid && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
+  }));
+  if(!lumberjack) return false;
+  inst._lumberjackSuppressed = true;
+  inst.whenSetActivated = true;
+  inst.effectUsedInitial = true;
+  delete inst._pendingWhenSetEffect;
+  delete inst._pendingWhenSetActivationInFlight;
+  if(!inst._lumberjackReinforcementGranted) {
+    inst._lumberjackReinforcementGranted = true;
+    inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
+  }
+  return true;
+}
+window.applyWodnyPotokLumberjackSuppression = applyWodnyPotokLumberjackSuppression;
+
 async function activateWodnyPotokYouth(card, z, r, c) {
   if(!card || card.owner !== G.currentPlayer || card.effectUsedThisTurn) {
     toast('Snowball Fight can only be used once per turn.');
     return;
   }
+  if(card._snowballFightResolving) return;
   const cp = G.currentPlayer;
   const opp = 1 - cp;
   const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [opp]);
@@ -3171,6 +3202,7 @@ async function activateWodnyPotokYouth(card, z, r, c) {
   }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardFromAnyZone('Snowball Fight: select an opponent card to lose 1 Fate.', function(tgt){
+    if(card._snowballFightResolving || card.effectUsedThisTurn) return;
     if(!tgt || tgt.owner !== opp) {
       toast('Select an opponent card.');
       return;
@@ -3179,13 +3211,18 @@ async function activateWodnyPotokYouth(card, z, r, c) {
       showBlockedAnimation('this card is immune');
       return;
     }
+    card._snowballFightResolving = true;
     const before = Math.max(0, Number(tgt.currentFate ?? tgt.fate) || 0);
     const changed = setCardFateValue(tgt, before - 1, cp);
     if(!changed && before > 0) {
+      delete card._snowballFightResolving;
       showBlockedAnimation('this card is immune');
       return;
     }
     card.effectUsedThisTurn = true;
+    delete card._snowballFightResolving;
+    markSnowballFightHit(tgt);
+    if(typeof playSfx === 'function') playSfx('snowballFight');
     toast('Snowball Fight: ' + tgt.name + ' loses 1 Fate.');
     log(cp === 0 ? 'p1' : 'p2', 'Snowball Fight: ' + tgt.name + ' loses 1 Fate');
     renderGame({board:true, scores:true, topbar:true});
@@ -3207,7 +3244,7 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','82','83','87','90','99','bh25']);
 const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
   '03','04','05','06','07','08','12','13','16','17','22','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','96','97','bh25'
 ]);
@@ -3240,7 +3277,7 @@ window.setFateWhenSetImmediateMode = function(enabled) {
 
 function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
-  if(card._effectNegatedByReaction || card._reactionSuppressed || card._lydiaSuppressed) return false;
+  if(card._effectNegatedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return false;
   if(card._pendingWhenSetActivationInFlight || card._busserGrantPending) return false;
   if(wasOnlineOneShotEffectSubmitted('activatePendingWhenSetEffect', card)) return false;
   const id = String(card.id || '');
@@ -3391,6 +3428,12 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
     markInitialEffectResolved(inst);
     return;
   }
+  if(applyWodnyPotokLumberjackSuppression(inst, z, cp)) {
+    showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
+    toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
+    renderGame({board:true, scores:true, topbar:true});
+    return;
+  }
 
   // By default, set effects are queued so the player deliberately activates them
   // from the card window instead of receiving a modal the moment the card lands.
@@ -3453,20 +3496,11 @@ async function runWhenSetEffect(inst, z, r, c) {
     updateDailyChallengeProgress('effects', 1, 'add');
     if(instIsSupporterForRules) updateDailyChallengeProgress('supporterEffects', 1, 'add');
   }
-  if(instIsSupporterForRules && inst.id!=='92' && !isEffectImmuneSource(inst)) {
-    let lumberjack = null;
-    if(G.board && G.board[z]) G.board[z].forEach((row, rr)=>row && row.forEach((cell, cc)=>{
-      if(!lumberjack && cell && cardActsAsPassive(cell, '92') && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
-    }));
-    if(lumberjack) {
-      inst._lumberjackSuppressed = true;
-      inst._lydiaSuppressed = true;
-      inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
-      showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
-      toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
-      renderGame({board:true, scores:true, topbar:true});
-      return;
-    }
+  if(applyWodnyPotokLumberjackSuppression(inst, z, cp)) {
+    showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
+    toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
+    renderGame({board:true, scores:true, topbar:true});
+    return;
   }
 
   if(instIsSupporterForRules && !canActivateLandscapeSupporterEffect(cp)) {
@@ -4612,7 +4646,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       renderEffectResolutionForPlayer(cp, {hand:false});
       break;
     }
-    case '90': { // Wojciech (Fisherman): declare affiliation, draw 2 random matching cards
+    case '90': { // Wojciech (Fisherman): declare affiliation, draw 2 random matching cards and give them +3 Fate
       showAffiliationPickerVisual((aff)=>{
         const matches = G.players[cp].deck.filter(c=>c.aff===aff);
         const chosen = [];
@@ -4624,10 +4658,20 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         }
         chosen.forEach(found=>{
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
+          const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
+          found.currentFate = beforeFate + 3;
+          if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
+            recordHandCardEffectModifier(found, {
+              key:'wojciech-fisherman:' + (card.iid || card.id || 'source'),
+              name:'Catch of the Day',
+              text:'Catch of the Day: this card gained 3 Fate when Wojciech caught it.',
+              fateDelta:3
+            });
+          }
           if(typeof addCardToHand==='function') addCardToHand(cp, found);
           else G.players[cp].hand.push(found);
         });
-        toast('Catch of the Day added '+chosen.length+' '+(AFF_LABEL[aff]||aff)+' card'+(chosen.length===1?'':'s')+'.');
+        toast('Catch of the Day added '+chosen.length+' '+(AFF_LABEL[aff]||aff)+' card'+(chosen.length===1?'':'s')+' and gave '+(chosen.length===1?'it':'them')+' +3 Fate.');
         shuffle(G.players[cp].deck);
         card.effectUsedInitial = true;
         renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
@@ -4896,10 +4940,7 @@ function setCardFateValue(card, newValue, sourceOwner) {
   const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const baseBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const targetValue = Math.max(0, Number(newValue) || 0);
-  const baseNext = Math.max(0, Math.min(baseBefore, targetValue));
-  card.currentFate = baseNext;
-  const overflowLoss = Math.max(0, baseBefore - targetValue);
-  if(overflowLoss > 0) card._staticFatePenalty = (Number(card._staticFatePenalty || 0) || 0) + overflowLoss;
+  card.currentFate = Math.max(0, Math.min(baseBefore, targetValue));
   clampCardToLandscapeFateCap(card);
   const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   recordFateReductionEvent(sourceOwner, before, after);
@@ -5039,6 +5080,7 @@ function isPlayerSupporterEffectsSuppressed(player) {
 function isSupporterEffectSuppressed(card) {
   if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(isEffectImmuneSource(card)) return false;
+  if(card._lumberjackSuppressed) return true;
   if(card._lydiaSuppressed) return true;
   if(card._reactionSuppressed) return true;
   if(isCardSuppressedByHenryDong(card)) return true;

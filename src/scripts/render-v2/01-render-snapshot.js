@@ -170,6 +170,8 @@
       && window.isCardVisuallySuppressed(card, boardPos.z, boardPos.r, boardPos.c));
     const negated = !!(typeof window.isCardVisuallyNegated === 'function'
       && window.isCardVisuallyNegated(card));
+    const snowballHit = !!(typeof window.isSnowballFightHitActive === 'function'
+      && window.isSnowballFightHitActive(card));
     const showProtectionIcon = typeof window.shouldShowProtectionStatusIcon === 'function'
       ? window.shouldShowProtectionStatusIcon(card)
       : !!(card.immuneFlag || card.opponentEffectImmune);
@@ -182,6 +184,7 @@
       markedForDeath:!!card._markedForDeath,
       suppressed,
       negated,
+      snowballHit,
       zoeBlocked:!!(blockedCell && blockedCell.type === 'zoe'),
       noConsolidate:!!card.noConsolidate,
       xFate:!!card.xFate,

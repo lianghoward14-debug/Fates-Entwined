@@ -23,6 +23,8 @@
     "deploy:fly-authority": "fly deploy --config fly.toml",
     "smoke:card-catalog": "node server/fate-card-catalog-smoke-test.js",
     "smoke:expanded-worlds": "node server/fate-expanded-worlds-80-100-smoke-test.js",
+    "smoke:booster2": "node server/fate-booster2-smoke-test.js",
+    "smoke:profile-pictures": "node server/fate-profile-picture-booster-smoke-test.js",
     "smoke:lore": "node server/fate-lore-card-information-5-smoke-test.js",
     "smoke:ai-intelligence": "node server/fate-ai-intelligence-smoke-test.js",
     "smoke:ai-learning": "node server/fate-ai-learning-smoke-test.js",

@@ -795,11 +795,43 @@ if(typeof window !== 'undefined') window.shouldShowProtectionStatusIcon = should
 
 let cardStatusVisualTick = 0;
 const cardStatusVisualOrders = new Map();
+const snowballFightStatusTimers = new Map();
+const SNOWBALL_FIGHT_STATUS_MS = 3000;
+
+function scheduleSnowballFightStatusExpiry(card, hitAt) {
+  if(typeof window === 'undefined' || !card || !hitAt) return;
+  const key = String(card.iid || card.id || 'card');
+  const previous = snowballFightStatusTimers.get(key);
+  if(previous && previous.hitAt === hitAt) return;
+  if(previous && previous.timer) clearTimeout(previous.timer);
+  const remaining = Math.max(0, hitAt + SNOWBALL_FIGHT_STATUS_MS - Date.now());
+  const timer = setTimeout(function(){
+    const current = snowballFightStatusTimers.get(key);
+    if(!current || current.hitAt !== hitAt) return;
+    snowballFightStatusTimers.delete(key);
+    try { renderGame({board:true}); } catch(e) {}
+    try {
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+        window.FateMatchRendererAdapter.scheduleRender('snowball-fight-status-expired');
+      }
+    } catch(e) {}
+  }, remaining + 24);
+  snowballFightStatusTimers.set(key, {hitAt, timer});
+}
+
+function isSnowballFightHitActive(card) {
+  const hitAt = Number(card && card._snowballFightHitAt) || 0;
+  if(!hitAt || Date.now() >= hitAt + SNOWBALL_FIGHT_STATUS_MS) return false;
+  scheduleSnowballFightStatusExpiry(card, hitAt);
+  return true;
+}
+if(typeof window !== 'undefined') window.isSnowballFightHitActive = isSnowballFightHitActive;
 
 function queueCardStatusIconSfx(kind, cardKey) {
-  if(kind !== 'immune' && kind !== 'marked' && kind !== 'blocked') return;
+  if(kind !== 'immune' && kind !== 'marked' && kind !== 'blocked' && kind !== 'snowball') return;
   if(typeof window === 'undefined') return;
-  const type = kind === 'immune' ? 'immuneShield' : (kind === 'marked' ? 'statusMarked' : 'statusBlocked');
+  const type = kind === 'immune' ? 'immuneShield'
+    : (kind === 'marked' ? 'statusMarked' : (kind === 'snowball' ? 'snowballFight' : 'statusBlocked'));
   const key = 'status-icon-' + kind + '-' + String(cardKey || 'card');
   setTimeout(function(){
     try {
@@ -814,6 +846,7 @@ function getBoardCardStatusEligibility(card, z, r, c, isHidden) {
   return {
     negated:!hidden && isCardVisuallyNegated(card),
     suppressed:!hidden && isCardVisuallySuppressed(card, z, r, c),
+    snowball:!hidden && isSnowballFightHitActive(card),
     marked:!hidden && !!card._markedForDeath,
     blocked:!hidden && !!((G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c && b.type === 'zoe'; })),
     immune:!hidden && shouldShowProtectionStatusIcon(card)
@@ -825,7 +858,7 @@ function getCardStatusVisualState(card, statuses) {
   const key = String(card && (card.iid || card.id) || '');
   const order = key ? (cardStatusVisualOrders.get(key) || {}) : {};
   const appeared = [];
-  ['negated','suppressed','marked','blocked'].forEach(function(kind){
+  ['negated','suppressed','snowball','marked','blocked'].forEach(function(kind){
     if(active[kind]) {
       if(!order[kind]) {
         order[kind] = ++cardStatusVisualTick;
@@ -846,12 +879,15 @@ function getCardStatusVisualState(card, statuses) {
   if(key) cardStatusVisualOrders.set(key, order);
   let primary = '';
   let latest = -1;
-  ['negated','suppressed','marked','blocked'].forEach(function(kind){
+  ['negated','suppressed','snowball','marked','blocked'].forEach(function(kind){
     if(active[kind] && order[kind] > latest) {
       latest = order[kind];
       primary = kind;
     }
   });
+  // Snowball Fight is deliberately transient and must be visible even when the
+  // target already carries a persistent suppression, negation, or mark icon.
+  if(active.snowball) primary = 'snowball';
   if(!primary && active.immune) primary = 'immune';
   if(key) {
     if(appeared.includes('immune')) queueCardStatusIconSfx('immune', key);
@@ -869,6 +905,7 @@ function cardRenderSignature(card, z, r, c) {
     card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0,
+    Number(card._snowballFightHitAt) || 0,
     shouldShowProtectionStatusIcon(card) ? 1 : 0,
     isCardVisuallySuppressed(card, z, r, c) ? 1 : 0,
     isCardVisuallyNegated(card) ? 1 : 0,
@@ -2834,6 +2871,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const isSuppressed = statusState.primary === 'suppressed';
   const isNegated = statusState.primary === 'negated';
   const isImmune = !!statusState.immune;
+  const isSnowballHit = statusState.primary === 'snowball';
   const isMarkedForDeath = !!statusEligibility.marked;
   const showMarkedIcon = statusState.primary === 'marked';
   const isZoeBlocked = statusState.primary === 'blocked';
@@ -2850,7 +2888,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
       existing.dataset.z = String(z);
       existing.dataset.r = String(r);
       existing.dataset.c = String(c);
-      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))));
+      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : '')))))));
       existing.classList.toggle('sel', selected);
       return existing;
     }
@@ -2862,7 +2900,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.dataset.r=String(r);
   el.dataset.c=String(c);
   el.dataset.boardCardSig=domSig;
-  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))));
+  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : '')))))));
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(isHidden?' face-down-card':'')
     +(card.immuneFlag?' immune':'')
@@ -2872,6 +2910,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(card.owner!==perspectivePlayer?' opponent-card':'')
     +(isNegated?' fate-negated':'')
     +(isSuppressed?' fate-suppressed':'')
+    +(isSnowballHit?' fate-snowball-hit':'')
     +(showMarkedIcon?' fate-marked-death':'')
     +(isZoeBlocked?' fate-blocked-action':'')
     +(isImmune?' fate-immune':'')
@@ -4043,8 +4082,8 @@ function renderTopbarEffects() {
         cardName: card ? card.name : 'Kvetka Svoboda',
         cardAbility: card ? card.ability : 'A Noble Effort at a Ballad',
         cardEffect: waiting
-          ? 'Starting next turn, consolidations can gain 3 Fate if no Supporter is set.'
-          : 'Consolidations this turn gain 3 Fate at end turn if no Supporter is set.',
+          ? 'Starting next turn, consolidations can gain 4 Fate if no Supporter is set.'
+          : 'Consolidations this turn gain 4 Fate at end turn if no Supporter is set.',
         owner: owner,
         extraClass: 'effect-pill-music'
       });
@@ -4703,12 +4742,33 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let value = '';
   let sub = '';
 
-  if(card.id === '89') {
+  if(card.id === '15') {
+    const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
+    let coordinators = 0;
+    if(pos && G.board && G.board[pos.z]) {
+      G.board[pos.z].forEach((row, r)=>row && row.forEach((cell, c)=>{
+        if(cell && cell.owner === owner && cell.type === 'Coordinator' && !isFaceDownCard(cell) && !(typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(pos.z, r, c))) coordinators++;
+      }));
+    }
+    label = 'Blue Danube Waltz';
+    value = 'Bonus Active';
+    sub = '+' + Math.min(3, coordinators) + ' Fate in this zone';
+  } else if(card.id === '88') {
+    let charCount = 0;
+    if(typeof forEachBoardCard === 'function') {
+      forEachBoardCard(function(cell){
+        if(cell && cell.owner === owner && !isFaceDownCard(cell) && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, owner) : cell.type !== 'Supporter')) charCount++;
+      });
+    }
+    label = 'Characters Controlled';
+    value = String(charCount);
+    sub = '+2 Fate Each';
+  } else if(card.id === '89') {
     const counts = Array.isArray(G._supporterEffectsActivatedP) ? G._supporterEffectsActivatedP : [0,0];
     const used = Math.max(0, Number(counts[owner]) || 0);
     label = 'Supporter Effects';
     value = used + ' / 10';
-    sub = used < 10 ? 'Bonus active' : 'Bonus inactive';
+    sub = used < 10 ? 'Bonus Active' : 'Bonus Inactive';
   } else if(card.id === '41') {
     const manual = Math.max(0, Number(Array.isArray(G.damageDoneP) ? G.damageDoneP[owner] : 0) || 0);
     const continuous = getContinuousFateReductionCountForDetail(owner);
@@ -4722,7 +4782,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       : Math.max(0, Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[1 - owner] : 0) || 0);
     label = 'Opponent Supporters Placed';
     value = String(opponentSets);
-    sub = '+1 Fate each';
+    sub = '+1 Fate Each';
   } else if(card.id === '36') {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {
@@ -4765,6 +4825,22 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Snowy Village Uses';
     value = used + ' / 2';
     sub = used < 2 ? 'landscape lock available' : 'landscape lock exhausted';
+  } else if(card.id === '97') {
+    let remaining = 0;
+    if(Array.isArray(G._administrativeBloatEffects)) {
+      G._administrativeBloatEffects.forEach(function(fx){
+        if(fx && Number(fx.sourceOwner) === Number(owner)) remaining += Math.max(0, Number(fx.remaining) || 0);
+      });
+    }
+    label = 'Administrative Bloat';
+    value = remaining ? String(remaining) : 'Inactive';
+    sub = remaining ? 'Opponent consolidations cost +1' : 'Activate to tax the next 2 consolidations';
+  } else if(card.id === '99') {
+    const fx = Array.isArray(G._blameGameEffects) ? G._blameGameEffects[owner] : null;
+    const turns = fx && fx.active ? Math.max(0, Number(fx.turnsLeft) || 0) : 0;
+    label = 'The Blame Game';
+    value = turns ? turns + ' Turn' + (turns === 1 ? '' : 's') : 'Inactive';
+    sub = turns ? 'Supporters count as Characters' : 'Activate to classify Supporters as Characters';
   }
 
   if(!label) return '';
@@ -7341,11 +7417,11 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "67": "You just said nothing",
   "77": "My heart no longer sings...I've walked a thousand lives of men",
   "81": "Eat some pierogi, and you'll never feel sad again.",
-  "82": "Say Hello to my new snowman friend!",
+  "82": "Meet my friend, the snowman.",
   "83": "We stand alone against the imperialism of the European Union",
   "84": "What a pretty flower!",
   "85": "The night, the dark...its so cold",
-  "86": "Lifes too short to think before doing!",
+  "86": "You really underestimate my willingness to overestimate!",
   "87": "Ready to be serenaded?",
   "88": "The next time Zsofia even thinks about touching my waffles, im stabbing her!",
   "89": "Daaaad! Rozsi is annoying me again!",

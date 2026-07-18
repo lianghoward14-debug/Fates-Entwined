@@ -16730,32 +16730,22 @@ html body #s-social .social-party-command .party-panel-clean.party-active-clean{
 }
 
 /* ── PORTRAIT ART: standard + favored only ── */
-#s-challenger .ch-store-product-standard .ch-store-product-art,
-#s-challenger .ch-store-product-favored .ch-store-product-art{
+#s-challenger .ch-store-product .ch-store-product-art{
   aspect-ratio:5/7!important;
   height:auto!important;
   background:#07080f!important;
 }
-#s-challenger .ch-store-product-standard .ch-store-product-art img,
-#s-challenger .ch-store-product-favored .ch-store-product-art img{
+#s-challenger .ch-store-product .ch-store-product-art img{
   object-fit:contain!important;
   object-position:center center!important;
   transform:none!important;
   filter:none!important;
 }
-#s-challenger .ch-store-product-standard .booster-desc,
-#s-challenger .ch-store-product-favored .booster-desc,
-#s-challenger .ch-store-product-standard .booster-contents,
-#s-challenger .ch-store-product-favored .booster-contents{
-  display:none!important;
-}
-#s-challenger .ch-store-product-standard .ch-store-product-info,
-#s-challenger .ch-store-product-favored .ch-store-product-info{
+#s-challenger .ch-store-product .ch-store-product-info{
   min-height:0!important;
   padding:.65rem .9rem .75rem!important;
 }
-#s-challenger .ch-store-product-standard,
-#s-challenger .ch-store-product-favored{
+#s-challenger .ch-store-product{
   min-height:0!important;
 }
 

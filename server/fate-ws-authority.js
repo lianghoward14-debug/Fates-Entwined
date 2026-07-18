@@ -59,6 +59,7 @@ const ADMIN_TOKEN = String(process.env.FATE_ADMIN_TOKEN || process.env.FATE_STAT
 const STATE_GATE_ENABLED = process.env.FATE_WS_STATE_GATE !== '0';
 const REDUCER_MODE = String(process.env.FATE_WS_REDUCER_MODE || 'turns').toLowerCase();
 const GAMEPLAY_AUTHORITY_MODE = String(process.env.FATE_WS_GAMEPLAY_AUTHORITY || '').toLowerCase();
+const WEB_GAME_DISABLED = process.env.FATE_WEB_GAME_DISABLED === '1';
 const APP_ROOT = path.resolve(__dirname, '..');
 const WEBSITE_DIR = process.env.FATE_WEBSITE_DIR
   ? path.resolve(process.env.FATE_WEBSITE_DIR)
@@ -742,6 +743,14 @@ function serveWebsiteRequest(req, res){
       return true;
     }
     serveFile(res, installerPath, 'Fates-Entwined-Installer.exe');
+    return true;
+  }
+  if(WEB_GAME_DISABLED){
+    res.writeHead(410, {
+      'content-type':'text/html; charset=utf-8',
+      'cache-control':'no-store'
+    });
+    res.end('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fates Entwined</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#070a10;color:#eee;font-family:Georgia,serif;text-align:center"><main><h1>Fates Entwined</h1><p>The browser game is currently unavailable.</p><p><a href="/website/" style="color:#e7c766">Download the desktop installer</a></p></main></body></html>');
     return true;
   }
   if(pathname === '/') pathname = '/index.html';

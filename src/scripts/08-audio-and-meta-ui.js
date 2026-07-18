@@ -1290,6 +1290,31 @@ function playSfx(type) {
       sub.connect(subG);subG.connect(vol);sub.start(now);sub.stop(now+0.12);
     }
 
+    else if(type==='snowballFight'){
+      // Powdery impact followed by brittle ice crystals: distinct from the
+      // standard Fate-loss drop and general effect-activation shimmer.
+      const powder=noiseBurst(0.16,2.4,0.22,'bandpass',1180,0.75);
+      powder.start(now);
+      const frost=noiseBurst(0.11,3.1,0.10,'highpass',3100,0.8);
+      frost.start(now+0.025);
+
+      const thump=ctx.createOscillator();thump.type='sine';
+      thump.frequency.setValueAtTime(150,now);
+      thump.frequency.exponentialRampToValueAtTime(72,now+0.12);
+      const thumpG=ctx.createGain();thumpG.gain.setValueAtTime(0.14,now);
+      thumpG.gain.exponentialRampToValueAtTime(0.001,now+0.16);
+      thump.connect(thumpG);thumpG.connect(vol);thump.start(now);thump.stop(now+0.18);
+
+      [1760,2349,3136].forEach((f,i)=>{
+        const crystal=ctx.createOscillator();crystal.type='sine';crystal.frequency.value=f;
+        const crystalG=ctx.createGain();
+        crystalG.gain.setValueAtTime(0.045,now+0.035+i*0.035);
+        crystalG.gain.exponentialRampToValueAtTime(0.001,now+0.25+i*0.055);
+        crystal.connect(crystalG);crystalG.connect(vol);
+        crystal.start(now+0.035+i*0.035);crystal.stop(now+0.29+i*0.055);
+      });
+    }
+
     else if(type==='statusMarked'){
       // Muted target lock: soft wooden tick with a short gray shimmer.
       const tick=ctx.createOscillator();tick.type='triangle';

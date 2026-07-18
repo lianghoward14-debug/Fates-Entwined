@@ -26,6 +26,7 @@ let USER_PROFILE = {
   unopenedPacks: 0,       // packs not yet opened
   unopenedProfilePacks: 0,// profile picture packs not yet opened
   unopenedFavoredPacks: 0,
+  unopenedBooster2Packs: 0,
   challengerElo: 600,     // separate ELO for challenger ranked
   challengerWins: 0,
   challengerLosses: 0,
@@ -352,7 +353,7 @@ const PFP_PATH = (n, shape='circle') => {
 };
 const UI_PICTURE_PATH = name => `uipictures/${name}`;
 const SET_VOICELINE_PATH = name => `setvoicelines/${name}.mp3`;
-const ALL_PFP_IDS = Array.from({length:80}, (_,i)=>i+1);
+const ALL_PFP_IDS = Array.from({length:100}, (_,i)=>i+1);
 const DEFAULT_PROFILE_IMG = 'blank.png';
 
 function getDefaultProfileImgSrc() {
@@ -361,7 +362,7 @@ function getDefaultProfileImgSrc() {
 
 function normalizeOwnedPfps() {
   const raw = Array.isArray(USER_PROFILE.ownedPfps) ? USER_PROFILE.ownedPfps : [];
-  USER_PROFILE.ownedPfps = [...new Set(raw.map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=80))].sort((a,b)=>a-b);
+  USER_PROFILE.ownedPfps = [...new Set(raw.map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=100))].sort((a,b)=>a-b);
   return USER_PROFILE.ownedPfps;
 }
 
@@ -722,6 +723,7 @@ function loadPresetsFromStorage() {
     USER_PROFILE.unopenedPacks = 0;
     USER_PROFILE.unopenedProfilePacks = 0;
     USER_PROFILE.unopenedFavoredPacks = 0;
+    USER_PROFILE.unopenedBooster2Packs = 0;
     USER_PROFILE.challengerElo = 600;
     USER_PROFILE.challengerWins = 0;
     USER_PROFILE.challengerLosses = 0;

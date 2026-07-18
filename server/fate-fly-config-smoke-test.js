@@ -10,6 +10,7 @@ const flyPath = path.join(ROOT, 'fly.toml');
 const packagePath = path.join(ROOT, 'package.json');
 const dockerfilePath = path.join(ROOT, 'Dockerfile');
 const dockerignorePath = path.join(ROOT, '.dockerignore');
+const authorityPath = path.join(ROOT, 'server', 'fate-ws-authority.js');
 
 function readText(file){
   return fs.readFileSync(file, 'utf8');
@@ -50,6 +51,7 @@ const tables = parseTomlTables(readText(flyPath));
 const flyText = readText(flyPath);
 const dockerfileText = readText(dockerfilePath);
 const dockerignoreText = readText(dockerignorePath);
+const authorityText = readText(authorityPath);
 const dockerignoreLines = dockerignoreText.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
 const env = tables.env || {};
 const processes = tables.processes || {};
@@ -62,6 +64,7 @@ assertEnv(env, 'FATE_WS_REQUIRE_FLY_STORE', '1');
 assertEnv(env, 'FATE_WS_REQUIRE_TOKEN', '1');
 assertEnv(env, 'FATE_WS_DISABLE_FIREBASE_RTDB', '1');
 assertEnv(env, 'FATE_RTDB_DISABLED', '1');
+assertEnv(env, 'FATE_WEB_GAME_DISABLED', '1');
 assertEnv(env, 'FATE_WS_DURABLE_WRITES', 'off');
 assertEnv(env, 'FATE_WS_REQUIRE_DURABLE_WRITES', '0');
 assertEnv(env, 'FATE_WS_STATE_GATE', '1');
@@ -95,6 +98,8 @@ assert.match(dockerfileText, /COPY\s+optimized\s+\.\/optimized/, 'Dockerfile sho
 assert.match(dockerfileText, /COPY\s+fates-entwined-website\s+\.\/fates-entwined-website/, 'Dockerfile should copy the landing website for /website/');
 assert.match(dockerfileText, /COPY\s+fates-entwined-website\/installer\s+\.\/installer/, 'Dockerfile should keep the hosted installer available');
 assert.match(dockerfileText, /CMD\s+\["node",\s*"server\/fate-ws-authority\.js"\]/, 'Dockerfile should start the authority server');
+assert.match(authorityText, /const WEB_GAME_DISABLED = process\.env\.FATE_WEB_GAME_DISABLED === '1';/, 'authority should expose a narrow browser-game disable switch');
+assert.match(authorityText, /if\(pathname === INSTALLER_PUBLIC_PATH\)[\s\S]*serveFile\(res, installerPath, 'Fates-Entwined-Installer\.exe'\);[\s\S]*if\(WEB_GAME_DISABLED\)[\s\S]*res\.writeHead\(410,[\s\S]*href="\/website\/"/, 'browser-game takedown must preserve the installer route and landing page');
 assert.doesNotMatch(dockerfileText, /npm\s+install|npm\s+ci|electron|solo-static-server/i, 'Dockerfile should not install or launch desktop/static-server tooling');
 
 assert.strictEqual(dockerignoreLines[0], '*', '.dockerignore should default-deny the build context');

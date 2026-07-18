@@ -1506,6 +1506,56 @@ html body #s-game .bc.fate-blocked-action:not(.fate-negated):not(.fate-suppresse
   filter:drop-shadow(0 2px 7px rgba(24,8,42,.66)) drop-shadow(0 0 9px rgba(154,108,218,.32))!important;
 }
 
+/* Snowball Fight: a transient status glyph matching the 60-104px card-overlay
+   icon scale used by suppression, negation, and Mark for Death. */
+.bc.fate-snowball-hit{
+  filter:none!important;
+  opacity:1!important;
+}
+.bc.fate-snowball-hit::before,
+.bc.fate-snowball-hit::after{
+  content:''!important;
+  display:block!important;
+  position:absolute!important;
+  box-sizing:border-box;
+  pointer-events:none;
+}
+.bc.fate-snowball-hit::before{
+  inset:0;
+  z-index:5;
+  border-radius:inherit;
+  background:rgba(68,153,198,.15);
+  box-shadow:inset 0 0 20px rgba(174,232,255,.12);
+}
+.bc.fate-snowball-hit::after,
+html body #s-game .bc.fate-snowball-hit::after{
+  inset:auto!important;
+  left:50%!important;
+  top:50%!important;
+  width:clamp(60px,88%,104px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  z-index:6;
+  border:0!important;
+  border-radius:0!important;
+  background:rgba(222,248,255,.98)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 7v50M10 20l44 24M10 44l44-24'/%3E%3Cpath d='M32 7l-7 8M32 7l7 8M32 57l-7-8M32 57l7-8M10 20l11 2M10 20l4 10M54 44l-11-2M54 44l-4-10M10 44l11-2M10 44l4-10M54 20l-11 2M54 20l-4 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='3.2' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 7v50M10 20l44 24M10 44l44-24'/%3E%3Cpath d='M32 7l-7 8M32 7l7 8M32 57l-7-8M32 57l7-8M10 20l11 2M10 20l4 10M54 44l-11-2M54 44l-4-10M10 44l11-2M10 44l4-10M54 20l-11 2M54 20l-4 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='3.2' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(7,37,58,.68)) drop-shadow(0 0 12px rgba(138,224,255,.52))!important;
+  animation:fate-snowball-status-flash 3s ease-out both;
+}
+.bc.fate-snowball-hit .bc-fate{
+  z-index:7!important;
+  opacity:1!important;
+  filter:none!important;
+}
+@keyframes fate-snowball-status-flash{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.58) rotate(-24deg)}
+  12%{opacity:1;transform:translate(-50%,-50%) scale(1.08) rotate(3deg)}
+  22%,84%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.04) rotate(8deg)}
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    MAIN MENU V2  —  scoped under .fate-menu-v2 on #s-title.
    Uses original layout (profile left, centered content) but with
@@ -19443,4 +19493,23 @@ html body #toast.toast-effect-alert{
   line-height:1.24!important;
   white-space:normal!important;
   overflow-wrap:anywhere!important;
+}
+
+/* Final functional overlay exception: general performance/card cleanup removes
+   decorative pseudo-elements, but Snowball Fight's three-second status is gameplay UI. */
+html body #s-game #board .bc.fate-snowball-hit::before,
+html body #s-game .bc.fate-snowball-hit::before,
+html body #s-game #board .bc.fate-snowball-hit::after,
+html body #s-game .bc.fate-snowball-hit::after{
+  content:''!important;
+  display:block!important;
+  position:absolute!important;
+  pointer-events:none!important;
+}
+html body #s-game #board .bc.fate-snowball-hit::after,
+html body #s-game .bc.fate-snowball-hit::after{
+  inset:auto!important;
+  left:50%!important;
+  top:50%!important;
+  transform:translate(-50%,-50%)!important;
 }

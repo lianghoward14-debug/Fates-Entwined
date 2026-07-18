@@ -172,6 +172,36 @@ function generatePack() {
   return pick;
 }
 
+// Booster 2 is the Expanded Worlds mini-set (cards 80-100).
+// Every pack contains exactly three cards:
+// - 75%: 1 Supporter + 2 Triangle Characters
+// - 25%: 1 Supporter + 1 Triangle Character + 1 Square Character
+function getBooster2CardPool() {
+  return getChallengerCardPool().filter(c=>{
+    const id = Number(c.id);
+    return id >= 80 && id <= 100;
+  });
+}
+
+function takeRandomBooster2Card(pool) {
+  if(!pool.length) return null;
+  return pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+}
+
+function generateBooster2Pack() {
+  const pool = getBooster2CardPool();
+  const supporters = pool.filter(c=>c.type === 'Supporter');
+  const triangles = pool.filter(c=>c.type !== 'Supporter' && c.rarity === 'triangle');
+  const squares = pool.filter(c=>c.type !== 'Supporter' && c.rarity === 'square');
+  const twoTrianglePack = Math.random() < 0.75;
+  const cards = [
+    takeRandomBooster2Card(supporters),
+    takeRandomBooster2Card(triangles),
+    twoTrianglePack ? takeRandomBooster2Card(triangles) : takeRandomBooster2Card(squares),
+  ].filter(Boolean);
+  return cards.map(c=>c.id);
+}
+
 // Add owned cards to profile (called when opening a pack). Returns list of {cardId, isNew}.
 function grantCardsToProfile(cardIds) {
   if(!USER_PROFILE.ownedCards) USER_PROFILE.ownedCards = {};
@@ -189,6 +219,7 @@ function grantCardsToProfile(cardIds) {
 // ─── STARLIGHT ECONOMY ───
 // Pack cost and reward tuning.
 const PACK_COST_STARLIGHT = 100;
+const BOOSTER2_COST_STARLIGHT = 150;
 
 // Starlight earned for winning a game. Human opponents give 3x vs AI of same ELO.
 // Base ~20 + scaled by opponent ELO. At equal ELO 1000, AI gives ~33, human gives 100 (enough for pack).
@@ -207,7 +238,7 @@ function freePackChance(opponentElo) {
 }
 
 function favoredPackChance() {
-  return 0.025;
+  return 0;
 }
 
 function profilePackChance() {
@@ -220,10 +251,6 @@ function awardVictoryDrops(didWin) {
   if(Math.random() < freePackChance()){
     USER_PROFILE.unopenedPacks = (USER_PROFILE.unopenedPacks||0) + 1;
     drops.push('Fates Entwined booster');
-  }
-  if(Math.random() < favoredPackChance()){
-    USER_PROFILE.unopenedFavoredPacks = (USER_PROFILE.unopenedFavoredPacks||0) + 1;
-    drops.push('Favored Fates Entwined booster');
   }
   if(Math.random() < profilePackChance()){
     USER_PROFILE.unopenedProfilePacks = (USER_PROFILE.unopenedProfilePacks||0) + 1;
@@ -767,6 +794,7 @@ function preloadChallengerAssets() {
     'Illustration3.png',
     'pfpbooster.png',
     'booster1.png',
+    'booster2.png',
     'blank.png',
     'ingamebackgrouds/igb1.png?v=bg20260705',
     'optimized/backgrounds/ingamebackgrouds_igb4.jpg',
@@ -1191,6 +1219,7 @@ function getChTabStateSig(tab) {
     tab,
     p.starlight || 0,
     p.unopenedPacks || 0,
+    p.unopenedBooster2Packs || 0,
     p.unopenedProfilePacks || 0,
     p.challengerElo || 600,
     Object.keys(presets).sort().map(k=>{
@@ -1816,8 +1845,10 @@ function renderChStoreTab(content) {
   const packs = USER_PROFILE.unopenedPacks || 0;
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
+  const booster2Packs = USER_PROFILE.unopenedBooster2Packs || 0;
   const starlight = USER_PROFILE.starlight || 0;
   const canBuy = starlight >= PACK_COST_STARLIGHT;
+  const canBuyBooster2 = starlight >= BOOSTER2_COST_STARLIGHT;
   const canBuyFavored = starlight >= 500;
   const canBuyProfile = starlight >= 50;
   content.innerHTML = `
@@ -1825,16 +1856,16 @@ function renderChStoreTab(content) {
       <h2 style="font-family:'Cinzel',serif;color:#ffd700;font-size:1.6rem;letter-spacing:.1em;margin-bottom:.3rem;">THE STORE</h2>
       <p style="color:var(--dim);font-style:italic;">Spend Starlight to acquire new cards. ${STARLIGHT_ICON} ${starlight} available</p>
     </div>
-    ${(packs+favoredPacks)>0 ? `<div style="text-align:center;margin-bottom:1.5rem;padding:1rem;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.4);border-radius:6px;max-width:500px;margin-left:auto;margin-right:auto;">
+    ${(packs+booster2Packs)>0 ? `<div style="text-align:center;margin-bottom:1.5rem;padding:1rem;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.4);border-radius:6px;max-width:500px;margin-left:auto;margin-right:auto;">
       <div style="font-family:'Cinzel',serif;color:#ffd700;font-size:1rem;">
         ${packs>0?`<strong>${packs}</strong> Standard pack${packs!==1?'s':''}`:''} 
-        ${packs>0&&favoredPacks>0?' | ':''} 
-        ${favoredPacks>0?`<strong>${favoredPacks}</strong> Favored pack${favoredPacks!==1?'s':''}`:''} 
+        ${packs>0&&booster2Packs>0?' | ':''} 
+        ${booster2Packs>0?`<strong>${booster2Packs}</strong> Snow on the Carpathians Booster${booster2Packs!==1?'s':''}`:''} 
         unopened!
       </div>
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.5rem;">
         ${packs>0?'<button class="btn pri" onclick="openNextPack()">Open Standard</button>':''}
-        ${favoredPacks>0?'<button class="btn pri" style="background:linear-gradient(135deg,rgba(255,215,0,.3),rgba(201,168,76,.2));border:1px solid rgba(255,215,0,.5);color:#ffd700;" onclick="openNextFavoredPack()">Open Favored</button>':''}
+        ${booster2Packs>0?'<button class="btn pri" onclick="openNextBooster2Pack()">Open Snow on the Carpathians Booster</button>':''}
       </div>
     </div>`:''}
     <div class="ch-store-layout" style="display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,.95fr);gap:1.5rem;max-width:1220px;margin:0 auto;align-items:start;">
@@ -1846,25 +1877,25 @@ function renderChStoreTab(content) {
         </div>
         <div class="booster-info">
           <div class="booster-name" style="color:#b388ff;">Fates Entwined Booster</div>
-          <div class="booster-desc">All 80 cards from the base set of the game</div>
-          <div class="booster-contents">8 cards - 4 Triangles, 1+ Squares, 3 Supporters, 5% chance at a Star</div>
+          <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world.</div>
+          <div class="booster-contents">8 cards from the Fates Entwined base set.</div>
           <div class="booster-price-row">
             <div class="booster-price" style="color:#b388ff;">${STARLIGHT_ICON} ${PACK_COST_STARLIGHT}</div>
             <button class="btn-buy" style="border-color:#b388ff;color:#b388ff;background:linear-gradient(135deg,rgba(155,89,182,.2),rgba(142,68,173,.12));" onclick="buyPack()" ${canBuy?'':'disabled'}>${canBuy?'Buy':'Need '+PACK_COST_STARLIGHT}</button>
           </div>
         </div>
       </div>
-      <div class="booster-tile favored-booster-gold" style="border-color:rgba(255,215,0,.5);">
-        <div class="booster-art favored-gold-art" style="background:linear-gradient(135deg,rgba(255,215,0,.15),rgba(201,168,76,.08));">
-          <img src="Illustration3.png" alt="Favored Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:5rem;opacity:.3;color:#ffd700;\\'>F</div>'">
+      <div class="booster-tile" style="border-color:rgba(155,220,255,.65);">
+        <div class="booster-art" style="background:linear-gradient(135deg,rgba(118,196,242,.18),rgba(28,62,94,.22));">
+          <img src="booster2.png" alt="Snow on the Carpathians Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:2rem;opacity:.5;color:#9bdcff;text-align:center;\\'>SNOW BOOSTER</div>'">
         </div>
         <div class="booster-info">
-          <div class="booster-name" style="color:#ffd700;">Favored Fates Entwined</div>
-          <div class="booster-desc">Premium pack for Fates Entwined - higher rarity, better odds</div>
-          <div class="booster-contents">5 cards - 2 Triangles, 3 Squares, ~33% chance at a Star</div>
+          <div class="booster-name" style="color:#9bdcff;">Snow on the Carpathians Booster</div>
+          <div class="booster-desc">The second expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
+          <div class="booster-contents">3 cards from the Snow on the Carpathians set.</div>
           <div class="booster-price-row">
-            <div class="booster-price">${STARLIGHT_ICON} 500</div>
-            <button class="btn-buy" onclick="buyFavoredPack()" ${canBuyFavored?'':'disabled'}>${canBuyFavored?'Buy':'Need 500'}</button>
+            <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER2_COST_STARLIGHT}</div>
+            <button class="btn-buy" onclick="buyBooster2Pack()" ${canBuyBooster2?'':'disabled'}>${canBuyBooster2?'Buy':'Need '+BOOSTER2_COST_STARLIGHT}</button>
           </div>
         </div>
       </div>
@@ -1892,6 +1923,31 @@ function buyPack() {
   toast('Pack purchased!');
   updateChTopbar();
   switchChTab('store');
+}
+
+function buyBooster2Pack() {
+  if((USER_PROFILE.starlight||0) < BOOSTER2_COST_STARLIGHT){toast('Not enough Starlight');return;}
+  USER_PROFILE.starlight -= BOOSTER2_COST_STARLIGHT;
+  USER_PROFILE.unopenedBooster2Packs = (USER_PROFILE.unopenedBooster2Packs||0) + 1;
+  saveProfile();
+  toast('Snow on the Carpathians Booster purchased!');
+  updateChTopbar();
+  switchChTab('store');
+}
+
+function openNextBooster2Pack() {
+  if((USER_PROFILE.unopenedBooster2Packs||0) <= 0){toast('No Snow on the Carpathians Boosters to open');return;}
+  const ids = generateBooster2Pack();
+  if(ids.length !== 3){toast('Snow on the Carpathians Booster is temporarily unavailable');return;}
+  USER_PROFILE.unopenedBooster2Packs--;
+  if(typeof updateDailyChallengeProgress === 'function'){
+    updateDailyChallengeProgress('packsOpened', 1, 'add');
+    updateDailyChallengeProgress('booster2PacksOpened', 1, 'add');
+  }
+  const results = grantCardsToProfile(ids);
+  saveProfile();
+  playSfx('packOpen');
+  showPackOpening(results, 'booster2');
 }
 
 function buyFavoredPack() {
@@ -2317,8 +2373,10 @@ function renderChStoreTab(content) {
   const packs = USER_PROFILE.unopenedPacks || 0;
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
+  const booster2Packs = USER_PROFILE.unopenedBooster2Packs || 0;
   const starlight = USER_PROFILE.starlight || 0;
   const canBuy = starlight >= PACK_COST_STARLIGHT;
+  const canBuyBooster2 = starlight >= BOOSTER2_COST_STARLIGHT;
   const canBuyFavored = starlight >= 500;
   const canBuyProfile = starlight >= 50;
   content.innerHTML = `
@@ -2335,18 +2393,18 @@ function renderChStoreTab(content) {
           <div class="ch-store-bank-sub">Spend on packs or marketplace trades</div>
         </div>
       </div>
-      ${(packs+favoredPacks+profilePacks)>0 ? `<div class="ch-store-unopened">
+      ${(packs+booster2Packs+profilePacks)>0 ? `<div class="ch-store-unopened">
         <div>
           <div class="ch-store-unopened-kicker">Ready to Open</div>
           <div class="ch-store-unopened-title">
             ${packs>0?`<span><strong>${packs}</strong> Standard</span>`:''}
-            ${favoredPacks>0?`<span><strong>${favoredPacks}</strong> Favored</span>`:''}
+            ${booster2Packs>0?`<span><strong>${booster2Packs}</strong> Snow on the Carpathians Booster</span>`:''}
             ${profilePacks>0?`<span><strong>${profilePacks}</strong> Profile Booster</span>`:''}
           </div>
         </div>
         <div class="ch-store-unopened-actions">
           ${packs>0?'<button class="btn pri" onclick="openNextPack()">Open Standard</button>':''}
-          ${favoredPacks>0?'<button class="btn pri" onclick="openNextFavoredPack()">Open Favored</button>':''}
+          ${booster2Packs>0?'<button class="btn pri" onclick="openNextBooster2Pack()">Open Snow on the Carpathians Booster</button>':''}
           ${profilePacks>0?'<button class="btn pri" onclick="openNextProfilePack()">Open Profile Booster</button>':''}
         </div>
       </div>`:''}
@@ -2360,26 +2418,26 @@ function renderChStoreTab(content) {
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Base Set</div>
                 <div class="booster-name">Fates Entwined Booster</div>
-                <div class="booster-desc">All 80 cards from the base set of the game.</div>
-                <div class="booster-contents">8 cards - 4 Triangles, 1+ Squares, 3 Supporters, 5% chance at a Star</div>
+                <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world.</div>
+                <div class="booster-contents">8 cards from the Fates Entwined base set.</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} ${PACK_COST_STARLIGHT}</div>
                   <button class="btn-buy" onclick="buyPack()" ${canBuy?'':'disabled'}>${canBuy?'Buy Pack':'Need '+PACK_COST_STARLIGHT}</button>
                 </div>
               </div>
             </div>
-            <div class="booster-tile favored-booster-gold ch-store-product ch-store-product-favored">
-              <div class="booster-art favored-gold-art ch-store-product-art">
-                <img src="Illustration3.png" alt="Favored Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>FAVORED</div>'">
+            <div class="booster-tile ch-store-product ch-store-product-booster2">
+              <div class="booster-art ch-store-product-art">
+                <img src="booster2.png" alt="Snow on the Carpathians Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>SNOW BOOSTER</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
-                <div class="ch-store-product-kicker">Premium Odds</div>
-                <div class="booster-name">Favored Fates Entwined</div>
-                <div class="booster-desc">Higher rarity and better Star odds for collection building.</div>
-                <div class="booster-contents">5 cards - 2 Triangles, 3 Squares, ~33% chance at a Star</div>
+                <div class="ch-store-product-kicker">Second Expansion</div>
+                <div class="booster-name">Snow on the Carpathians Booster</div>
+                <div class="booster-desc">The second expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
+                <div class="booster-contents">3 cards from the Snow on the Carpathians set.</div>
                 <div class="booster-price-row">
-                  <div class="booster-price">${STARLIGHT_ICON} 500</div>
-                  <button class="btn-buy" onclick="buyFavoredPack()" ${canBuyFavored?'':'disabled'}>${canBuyFavored?'Buy Pack':'Need 500'}</button>
+                  <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER2_COST_STARLIGHT}</div>
+                  <button class="btn-buy" onclick="buyBooster2Pack()" ${canBuyBooster2?'':'disabled'}>${canBuyBooster2?'Buy Pack':'Need '+BOOSTER2_COST_STARLIGHT}</button>
                 </div>
               </div>
             </div>
@@ -2442,17 +2500,22 @@ function showPackOpening(results, packType) {
   const stage = document.getElementById('pack-stage-content');
   const sparkleLayer = document.getElementById('pack-sparkle-layer');
   const isFavored = packType === 'favored';
+  const isBooster2 = packType === 'booster2';
   overlay.classList.add('on');
   if(isFavored) overlay.classList.add('favored-opening');
   else overlay.classList.remove('favored-opening');
   sparkleLayer.innerHTML = '';
   // Stage 1: show the pack, prompt to click
-  const packBorder = isFavored ? 'border-color:rgba(255,215,0,.8);box-shadow:0 16px 34px rgba(0,0,0,.58);' : '';
+  const packBorder = isFavored
+    ? 'border-color:rgba(255,215,0,.8);box-shadow:0 16px 34px rgba(0,0,0,.58);'
+    : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : '');
+  const packArtSrc = isBooster2 ? 'booster2.png' : 'Illustration3.png';
+  const packAlt = isBooster2 ? 'Snow on the Carpathians Booster' : 'Booster Pack';
   stage.innerHTML = `
     <div class="pack-stage">
       <div class="pack-art-container">
         <div class="pack-art ${isFavored?'pack-art-favored':''}" id="pack-art-el" style="${packBorder}">
-          <img src="Illustration3.png" alt="Booster Pack" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:7rem;color:#ffd700;\\'>PACK</div>'">
+          <img src="${packArtSrc}" alt="${packAlt}" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;color:#dff5ff;text-align:center;\\'>BOOSTER</div>'">
         </div>
       </div>
       <div class="pack-prompt">CLICK TO OPEN</div>
@@ -5940,9 +6003,9 @@ function checkDivisionReward(elo) {
   if(rank.name === 'Footman') return; // No reward for starting division
   USER_PROFILE._achievedDivisions.push(rank.name);
   USER_PROFILE.starlight = (USER_PROFILE.starlight || 0) + 500;
-  USER_PROFILE.unopenedFavoredPacks = (USER_PROFILE.unopenedFavoredPacks || 0) + 1;
+  USER_PROFILE.unopenedBooster2Packs = (USER_PROFILE.unopenedBooster2Packs || 0) + 1;
   saveProfile();
-  toast(`New division: ${rank.name}! +500 Starlight + 1 Favored Pack`, 4200);
+  toast(`New division: ${rank.name}! +500 Starlight + 1 Snow on the Carpathians Booster`, 4200);
   playSfx('starPlace');
 }
 window.checkDivisionReward = checkDivisionReward;
@@ -5996,7 +6059,6 @@ const DAILY_CHALLENGE_POOL = [
   { id:'effect_support',label:'Support Network',        desc:'Activate 2 supporter effects.',             target:2,  key:'supporterEffects',reward:{starlight:38},icon:'S' },
   { id:'zone_pair_win', label:'Two-Front Victory',      desc:'Win exactly 2 zones in a match.',           target:1,  key:'twoZoneWins',reward:{starlight:40}, icon:'2' },
   { id:'fate_total_25', label:'Fate Overflow',          desc:'Finish a match with 25 total Fate.',        target:25, key:'totalFateBest',reward:{starlight:45},icon:'25' },
-  { id:'open_favored',  label:'Favored Reveal',         desc:'Open a Favored pack.',                      target:1,  key:'favoredPacksOpened',reward:{starlight:35},icon:'?' },
 ];
 
 const DAILY_CHALLENGE_ICON_LABELS = {
@@ -6009,7 +6071,7 @@ const DAILY_CHALLENGE_ICON_LABELS = {
   supporter_5:'S5', supporter_10:'S10',
   char_3:'CH', char_5:'WAR',
   star_place:'ST', square_place:'SQ', triad_advance:'TR', circle_line:'CI',
-  open_pack:'PK', open_3_packs:'3P', open_favored:'FP',
+  open_pack:'PK', open_3_packs:'3P',
   first_blood:'FB', close_zone:'CZ', win_fast:'FAST',
   play_eventide:'EV', play_war:'WAR', play_expanded:'EW', play_reality:'RL', play_variety:'VAR',
   earn_xp:'XP', earn_100xp:'XP', earn_starlight:'SL',
@@ -6055,7 +6117,6 @@ function getDailyChallengeIconKind(defOrIcon) {
   if(id === 'heavy_hitters') return 'hammer';
   if(id === 'cheap_orders') return 'coin';
   if(id === 'fate_total_25') return 'fate';
-  if(id === 'open_favored') return 'gem';
   if(/pack|collector|unboxing/.test(id)) return 'pack';
   if(/star|starlight|shining/.test(id)) return 'star';
   if(/deck|architect/.test(id)) return 'deck';
