@@ -1423,12 +1423,16 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   const selectActionStart = currentPage > 0 ? 1 : 0;
   const body = '<div class="landscape-choice-grid">' + shown.map(function(entry, idx){
     const landscape = entry.landscape || {};
-    return '<button type="button" class="landscape-choice-card" data-landscape-action-index="' + (selectActionStart + idx) + '">' +
+    const blockReason = choiceState.sourceCard && String(choiceState.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function'
+      ? getFelicitaLandscapeChangeBlockReason(entry.id)
+      : '';
+    return '<button type="button" class="landscape-choice-card' + (blockReason ? ' is-blocked' : '') + '" data-landscape-action-index="' + (selectActionStart + idx) + '" data-landscape-block-reason="' + escapeHtml(blockReason) + '">' +
       '<div class="landscape-choice-art"><img src="' + escapeHtml(entry.img) + '" alt=""></div>' +
       '<div class="landscape-choice-copy">' +
         '<div class="landscape-choice-kicker">Landscape ' + entry.num + '</div>' +
         '<div class="landscape-choice-title">' + escapeHtml(landscape.name || ('Landscape ' + entry.num)).replace(/:\s+/, ':<br>') + '</div>' +
         '<div class="landscape-choice-desc">' + escapeHtml(landscape.description || '') + '</div>' +
+        (blockReason ? '<div class="landscape-choice-blocked">Unavailable during the final four turns</div>' : '') +
       '</div>' +
     '</button>';
   }).join('') + '</div>' +
@@ -1438,6 +1442,13 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   shown.forEach(function(entry){
     actions.push({label:'Choose ' + (entry.landscape && entry.landscape.shortName ? entry.landscape.shortName : ('Landscape ' + entry.num)), pri:true, hidden:true, action:function(){
       if(choiceState.committed) return;
+      if(choiceState.sourceCard && String(choiceState.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
+        const blockReason = getFelicitaLandscapeChangeBlockReason(entry.id);
+        if(blockReason) {
+          if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(blockReason);
+          return;
+        }
+      }
       choiceState.committed = true;
       document.querySelectorAll('#modal .landscape-choice-card').forEach(function(choiceCard){ choiceCard.disabled = true; });
       closeModal();
@@ -2715,7 +2726,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       name: card.name,
       ability: card.ability,
       effect: card.effect,
-      type: card.type,
+      type:typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner) ? 'Character' : card.type,
       aff: card.aff,
       fate: typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate),
       currentFate: liveFate,
@@ -3183,7 +3194,7 @@ function canPlayCard(card) {
   if(card && card.id==='70' && card.guerilla_transferred) return false;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
-  if(card.type==='Supporter') {
+  if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
     const max=G.maxSupportsPerTurn+G.extraSupportsThisTurn;
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn>=max) return false;
   }
@@ -3191,7 +3202,7 @@ function canPlayCard(card) {
 }
 
 function isSupporterLimitReachedForCard(card) {
-  if(!card || card.type !== 'Supporter') return false;
+  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(G.phase !== 'main') return false;
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return false;
   if(G.majaEffectThisTurn) return false;
@@ -3740,6 +3751,7 @@ function getTopBarEffectsSourceSignature() {
     JSON.stringify(G._balladEffects || []),
     JSON.stringify(G._mailDeliveries || []),
     JSON.stringify(G._blameGameEffects || []),
+    JSON.stringify(G._administrativeBloatEffects || []),
     JSON.stringify(G._selvaSupportBoosts || []),
     handBits.join(','),
     boardBits.join(',')
@@ -4109,6 +4121,23 @@ function renderTopbarEffects() {
           turnsLeft: eff.turnsLeft
         });
       }
+    });
+  }
+
+  if(Array.isArray(G._administrativeBloatEffects)) {
+    const card = CARDS.find(c => c.id === '97');
+    G._administrativeBloatEffects.forEach(function(fx){
+      if(!fx || (Number(fx.remaining) || 0) <= 0) return;
+      allEffects.push({
+        icon:getStatusEffectIcon('debuff'),
+        label:card ? card.ability : 'Administrative Bloat',
+        cardName:card ? card.name : 'Visegrad Politician',
+        cardAbility:card ? card.ability : 'Administrative Bloat',
+        cardEffect:'The opponent\'s next ' + Math.max(0, Number(fx.remaining) || 0) + ' consolidation' + ((Number(fx.remaining) || 0) === 1 ? '' : 's') + ' cost 1 extra Reinforcement.',
+        owner:coerceStatusOwner(fx.sourceOwner, myP),
+        extraClass:'effect-pill-debuff',
+        turnsLeft:Math.max(0, Number(fx.remaining) || 0)
+      });
     });
   }
 
@@ -4691,7 +4720,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const opponentSets = typeof getSupportersSetCountForPlayer === 'function'
       ? getSupportersSetCountForPlayer(1 - owner)
       : Math.max(0, Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[1 - owner] : 0) || 0);
-    label = 'Opponent Supporters Set';
+    label = 'Opponent Supporters Placed';
     value = String(opponentSets);
     sub = '+1 Fate each';
   } else if(card.id === '36') {
@@ -4969,7 +4998,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       document.getElementById('modal').classList.add('on');
       return;
     }
-    if(card.type==='Supporter'){
+    if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter'){
       // Selva Islands Pirate (74) triggers on hand arrival; no manual action button.
       if(false && card.id==='74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))){
         const selva=document.createElement('button');
@@ -5095,7 +5124,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         acts.appendChild(busBtn);
       }
       // Supporter active abilities — specific cards with board-activated effects
-      if(!canActivateDeferredSetEffect && bc.type==='Supporter' && !isFaceDownCard(bc)){
+      if(!canActivateDeferredSetEffect && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') && !isFaceDownCard(bc)){
         // Vigilantes (52): when-set-only; only show if a deferred when-set effect is pending.
         if(!supporterActionsSuppressed && bc.id==='52' && bc._pendingWhenSetEffect && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : bc.whenSetActivated !== true)){
           const vigBtn=document.createElement('button');
@@ -5124,7 +5153,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         landMove.onclick=()=>{playEffectActivationButtonSound();closeModal();activateLandscapeEventideMove(bc,z,r,c);};
         acts.appendChild(landMove);
       }
-      if(bc.type!=='Supporter' || ALLOW_MANUAL_SUPPORTER_DISCARD){
+      if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') || ALLOW_MANUAL_SUPPORTER_DISCARD){
         const disc=document.createElement('button');
         disc.className='btn sm danger';disc.textContent='Discard';
         disc.onclick=()=>{
@@ -6150,7 +6179,7 @@ function queueSearchToHandMotion(player, card, source, handIndex, sequenceIndex,
 }
 
 function searchDeckForType(player, type, prompt, maxCount=1) {
-  const matches=G.players[player].deck.filter(c=>c.type===type);
+  const matches=G.players[player].deck.filter(c=>type === 'Supporter' && typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, player) : c.type===type);
   pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand', immediate:true},
     (chosen)=>{
       const baseHandIndex = G.players[player].hand.length;
@@ -6233,8 +6262,9 @@ function drawAffiliated(player, aff, count) {
 }
 
 function drawSupportersFromDeckOrDiscard(player, count, cb) {
-  const recoverableDiscard = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, c=>c.type==='Supporter') : G.players[player].discard.filter(c=>c.type==='Supporter');
-  const matches=[...G.players[player].deck.filter(c=>c.type==='Supporter'),...recoverableDiscard];
+  const supporterFilter = c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, player) : c.type==='Supporter';
+  const recoverableDiscard = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, supporterFilter) : G.players[player].discard.filter(supporterFilter);
+  const matches=[...G.players[player].deck.filter(supporterFilter),...recoverableDiscard];
   if(!matches.length){toast('No supporters available');if(cb)cb();return;}
   let added=0;
   const baseHandIndex = G.players[player].hand.length;
@@ -6530,7 +6560,7 @@ function pickBoardSupporterEffect(player, z) {
   const supporters=[];
   forEachBoardCard((card,bz,r,c)=>{
     const id = String(card && card.id || '');
-    if(card.type==='Supporter' && id !== '75' && whenSetIds.has(id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});
+    if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && id !== '75' && whenSetIds.has(id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});
   });
   if(!supporters.length){toast('No supporters on field');return;}
   window._ledgerSups=supporters;window._ledgerZ=z;window._ledgerPlayer=player;

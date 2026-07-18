@@ -597,7 +597,7 @@ function aiGenerateAllMoves() {
 
   // 1. Supporter placements — prioritize contested row (1), then safe, then extra
   if(canPlaceSup){
-    const supporters = hand.filter(c=>c.type==='Supporter' && c.id!=='70').map(card=>({card, fromDeck:false}));
+    const supporters = hand.filter(c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter') && c.id!=='70').map(card=>({card, fromDeck:false}));
     const polishUses = Array.isArray(G.polishArmyUses) ? (G.polishArmyUses[cp] || 0) : 0;
     const polishFromDeck = G.players[cp].deck.find(c=>c.id==='28');
     if(polishFromDeck && !G._polishUsedThisTurn && polishUses < 2) supporters.push({card:polishFromDeck, fromDeck:true});
@@ -624,7 +624,7 @@ function aiGenerateAllMoves() {
   // 1b. Free character placements from card effects/conditional costs.
   const freeCharacters = hand.filter(c=>{
     const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
-    return isEffectFree || (c.type !== 'Supporter' && (typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(c) : c.cost) <= 0);
+    return isEffectFree || ((typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(c, cp) : c.type !== 'Supporter') && (typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(c) : c.cost) <= 0);
   });
   for(const ch of freeCharacters){
     for(let z=0;z<3;z++){
@@ -643,7 +643,7 @@ function aiGenerateAllMoves() {
   }
 
   // 2. Consolidation moves
-  const chars = hand.filter(c=>c.type!=='Supporter');
+  const chars = hand.filter(c=>typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(c, cp) : c.type!=='Supporter');
   if(chars.length){
     const mySups = [];
     forEachBoardCard((card,z,r,c)=>{
@@ -655,7 +655,7 @@ function aiGenerateAllMoves() {
       const ralphBonus = typeof countFriendlyRalphAdjacency === 'function' ? countFriendlyRalphAdjacency(z, r, c, cp) : 0;
       const reinforcement = getSupportReinforcementValue(card) + ralphBonus;
       const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, cp) : card.type !== 'Supporter';
-      if(card.type === 'Supporter' || card.id === '86') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
+      if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter') || card.id === '86') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
       if(isCharacter) mySups.push({card,z,r,c,reinforcement, kind:'character'});
     });
 
@@ -673,7 +673,9 @@ function aiGenerateAllMoves() {
         if(isArtilleryLockedForAI(target.z)) continue;
         if(typeof isBlockedForConsolidate === 'function' && isBlockedForConsolidate(target.z, target.r, target.c)) continue;
         if(typeof requiresOwnSafeRowPlacement === 'function' && requiresOwnSafeRowPlacement(ch) && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(target.z, target.r, target.c, cp))) continue;
-        const tributes = aiPickTributes(uniquePool, cost, target);
+        const targetCost = typeof getConsolidationCostForZone === 'function' ? getConsolidationCostForZone(ch, target.z, cp, cost) : cost;
+        if(totalReinforcement < targetCost) continue;
+        const tributes = aiPickTributes(uniquePool, targetCost, target);
         if(!tributes) continue;
         if(typeof getChingachlookPlacementBlockReason === 'function'){
           const removedIids = new Set(tributes.map(t=>t.card?.iid).filter(Boolean));
@@ -682,7 +684,7 @@ function aiGenerateAllMoves() {
         moves.push({
           type:'consolidate',
           card:ch,
-          cost,
+          cost:targetCost,
           tributes,
           z:target.z,
           r:target.r,
@@ -867,7 +869,7 @@ function aiLearnedMoveBonus(move) {
   const policy = typeof window !== 'undefined' && typeof window.fateAIGetLearnedPolicy === 'function'
     ? window.fateAIGetLearnedPolicy(G._selectedAI)
     : null;
-  if(!learning || !policy || !move || !move.card || !learning.isLearningAI(G._selectedAI)) return 0;
+  if(!learning || !policy || !move || !move.card || !G._selectedAI) return 0;
   const z = Number.isInteger(Number(move.z)) ? Number(move.z) : 1;
   const cp = G.aiPlayer;
   const opp = 1-cp;
@@ -1387,7 +1389,7 @@ function aiDeckStrategyBonus(move, deckId) {
       if(move.card.id === '27') bonus += 70;
     }
     if(move.type === 'place') {
-      const handSupporters = G.players[cp].hand.filter(c=>c.type === 'Supporter').length;
+      const handSupporters = G.players[cp].hand.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type === 'Supporter').length;
       if(['32','42','60','58','75','80'].includes(move.card.id)) bonus += 85;
       else if(handSupporters <= Math.max(2, jakes.length + 1)) bonus -= 45;
       if(move.card.id === '54') bonus += jakes.length ? 80 : 0;
@@ -1405,7 +1407,7 @@ function aiDeckStrategyBonus(move, deckId) {
       }
       if(move.card.id === '16') {
         let hasOppSupporter = false;
-        G.board[move.z]?.forEach(row=>row?.forEach(cell=>{ if(cell && cell.owner === 1-cp && aiIsPublicBoardCard(cell) && cell.type === 'Supporter') hasOppSupporter = true; }));
+        G.board[move.z]?.forEach(row=>row?.forEach(cell=>{ if(cell && cell.owner === 1-cp && aiIsPublicBoardCard(cell) && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, 1-cp) : cell.type === 'Supporter')) hasOppSupporter = true; }));
         bonus += hasOppSupporter ? 130 : -30;
       }
       if(move.card.id === '05') bonus += aiCountOwnCardsInZone(move.z, c => c.id === '14') ? 115 : -20;
@@ -1448,7 +1450,7 @@ function aiDeckStrategyBonus(move, deckId) {
     if(move.type === 'place') {
       if(move.card.id === '50') bonus += 230;
       if(move.card.id === '16') {
-        const hasTarget = G.board[move.z]?.some(row=>row?.some(c=>c && c.owner===1-cp && aiIsPublicBoardCard(c) && c.type==='Supporter'));
+        const hasTarget = G.board[move.z]?.some(row=>row?.some(c=>c && c.owner===1-cp && aiIsPublicBoardCard(c) && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, 1-cp) : c.type==='Supporter')));
         bonus += hasTarget ? 175 : -25;
       }
       if(move.card.id === '71') bonus += 90;
@@ -1467,7 +1469,7 @@ function aiDeckStrategyBonus(move, deckId) {
   else if(deckId === 'ai_living_formation') {
     const formationIds = ['35','11','57','23','59','63'];
     const formationZone = aiFirstOwnCardZone(c => formationIds.includes(c.id));
-    const supportCount = aiCountOwnCardsInZone(move.z, c => c.type === 'Supporter');
+    const supportCount = aiCountOwnCardsInZone(move.z, c => typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type === 'Supporter');
     if(move.type === 'place') {
       if(formationZone !== null && move.z !== formationZone && ['24','59','63','05'].includes(move.card.id)) bonus -= 115;
       if(move.card.id === '68') bonus += 120;
@@ -1964,6 +1966,7 @@ async function aiDoPlace(choice) {
   if(idx<0) return;
   const card = sourceList[idx];
   const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(card.iid));
+  const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const inst = newInstance(card);
   inst.owner = cp;
   inst.currentFate = getPlacedCardFate(card);
@@ -1978,14 +1981,18 @@ async function aiDoPlace(choice) {
       setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true}); }, 90);
     }
     sourceList.splice(idx,1);
-    if(card.type==='Supporter') {
+    if(cardIsSupporterForRules) {
       if(!isEffectFree) G.supportsPlacedThisTurn++;
       if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
       G.supportersSetP[cp] = (Number(G.supportersSetP[cp]) || 0) + 1;
+      if(!Array.isArray(G.supporterReinforcementSetP)) G.supporterReinforcementSetP = [0,0];
+      const setReinforcementValue = Math.max(0, Number(typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1) || 0);
+      G.supporterReinforcementSetP[cp] = (Number(G.supporterReinforcementSetP[cp]) || 0) + setReinforcementValue;
       inst._supporterSetCounted = true;
       inst._wasSetAsSupporter = true;
       inst._hasBeenOnBoard = true;
       inst._supporterSetOwner = cp;
+      inst._setReinforcementValue = setReinforcementValue;
       if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp);
     }
     if(isEffectFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
@@ -2005,7 +2012,7 @@ async function aiDoPlace(choice) {
       else {
         if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
         else setTimeout(function(){ playCardSound(card.id); }, 0);
-        const aiSetSfx = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
+        const aiSetSfx = cardIsSupporterForRules ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
         if(typeof playSfxDeferred === 'function') playSfxDeferred(aiSetSfx, 0);
         else setTimeout(function(){ playSfx(aiSetSfx); }, 0);
       }
@@ -2103,6 +2110,8 @@ async function aiDoConsolidate(choice) {
     } finally {
       G.board[target.z][target.r][target.c] = inst;
     }
+    if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
+    if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const placementDelay = motionMs ? 0 : Math.min(360, 180 + choice.tributes.length * 40);
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
@@ -2189,25 +2198,53 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   const cp = G.currentPlayer;
   const opp = 1-cp;
   const id = inst.id;
+  const instIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(inst, inst.owner) : inst.type === 'Supporter';
 
   if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
 
-  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type==='Supporter') {
+  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules) {
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     return;
   }
 
-  if(inst.type==='Supporter' && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id)){
+  if(instIsSupporterForRules && inst.id !== '92' && !isEffectImmuneSource(inst)) {
+    let lumberjack = null;
+    if(G.board && G.board[z]) G.board[z].forEach(function(row){ row.forEach(function(cell){
+      if(!lumberjack && cell && cell.owner === cp && cell.iid !== inst.iid && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '92') && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
+    }); });
+    if(lumberjack) {
+      inst._lumberjackSuppressed = true;
+      inst._lydiaSuppressed = true;
+      inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
+      showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
+      return;
+    }
+  }
+
+  if(instIsSupporterForRules && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(cp)) return;
+
+  if(instIsSupporterForRules && typeof isPersistentSupporterEffectOnSet === 'function' && isPersistentSupporterEffectOnSet(inst)) {
+    if(!G._suppressEffectPrompt) {
+      const affectedOwners = typeof getSupporterEffectAffectedOwners === 'function' ? getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) : [];
+      const proceed = await checkReactions('supporter_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
+      if(!proceed) return;
+    }
+    if(typeof recordSupporterEffectActivation === 'function') recordSupporterEffectActivation(cp, inst);
+    return;
+  }
+
+  if(instIsSupporterForRules && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id)){
     inst.whenSetActivated = true;
     inst.effectUsedInitial = true;
   }
 
-  if(inst.type==='Supporter' && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id) && !G._suppressEffectPrompt){
+  if(instIsSupporterForRules && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id) && !G._suppressEffectPrompt){
     const affectedOwners = typeof getSupporterEffectAffectedOwners === 'function'
       ? getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp)
       : [];
     const proceed = await checkReactions('supporter_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
     if(!proceed) return;
+    if(typeof recordSupporterEffectActivation === 'function') recordSupporterEffectActivation(cp, inst);
   }
   if(inst.type==='Initiator' && !G._suppressEffectPrompt){
     const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
@@ -2220,7 +2257,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       return;
     }
   }
-  if(inst.type!=='Supporter' && inst.type!=='Initiator' && !G._suppressEffectPrompt && typeof getCharacterEffectAffectedOwners === 'function'){
+  if(!instIsSupporterForRules && inst.type!=='Initiator' && !G._suppressEffectPrompt && typeof getCharacterEffectAffectedOwners === 'function'){
     const affectedOwners = getCharacterEffectAffectedOwners(inst, z, r, c, cp, opp);
     if(affectedOwners.includes(opp)){
       const proceed = await checkReactions('targeting_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
@@ -2237,6 +2274,95 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '82': { // Felicyta Janowicz (Youth): choose a legal replacement landscape
+      const currentId = String(G.landscapeId || '');
+      const leavingBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
+      if(!leavingBlock) {
+        const preferredIds = ['igb15','igb8','igb2','igb10','igb1'];
+        const targetId = preferredIds.find(function(candidate){
+          if(candidate === currentId || !(typeof LANDSCAPES !== 'undefined' && LANDSCAPES[candidate])) return false;
+          return !(typeof getFelicitaLandscapeChangeBlockReason === 'function' && getFelicitaLandscapeChangeBlockReason(candidate));
+        });
+        if(targetId && typeof transitionGameLandscape === 'function') {
+          transitionGameLandscape('board' + targetId.replace('igb',''), {player:cp, sourceCard:inst});
+          log('p2','AI: Felicyta changed the landscape to ' + (LANDSCAPES[targetId].name || targetId));
+        }
+      }
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case '83': { // Sebastyen: all friendly Characters in the zone gain 2 Fate permanently
+      let boosted = 0;
+      G.board[z].forEach(function(row){ row.forEach(function(cell){
+        if(cell && cell.owner === cp && !isFaceDownCard(cell) && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')) {
+          modifyFate(cell, 2, 'permanent');
+          boosted++;
+        }
+      }); });
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      if(boosted) log('p2','AI: Sebastyen gave ' + boosted + ' Character card(s) +2 Fate');
+      break;
+    }
+    case '87': { // Kvetka Ukulele: start the next-turn consolidation ballad
+      if(typeof ensureBalladState === 'function') ensureBalladState()[cp] = {active:true, ended:false, sourceIid:inst.iid, startTurn:G.turn + 2, consolidatedIids:[]};
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case '90': { // Wojciech Fisherman: choose the affiliation with the largest deck pool
+      const pools = {};
+      G.players[cp].deck.forEach(function(deckCard){ if(deckCard && deckCard.aff) (pools[deckCard.aff] || (pools[deckCard.aff] = [])).push(deckCard); });
+      const affiliation = Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
+      const candidates = affiliation ? pools[affiliation].slice() : [];
+      const chosen = [];
+      while(candidates.length && chosen.length < 2) {
+        const onlineIndex = typeof deterministicOnlineRandomIndex === 'function' ? deterministicOnlineRandomIndex(candidates.length, 'aiWojciechFisherman:' + affiliation + ':' + chosen.length, cp) : -1;
+        const index = onlineIndex >= 0 ? onlineIndex : Math.floor(Math.random() * candidates.length);
+        chosen.push(candidates.splice(index, 1)[0]);
+      }
+      chosen.forEach(function(found){
+        G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
+        if(typeof addCardToHand === 'function') addCardToHand(cp, found, {announce:false});
+        else G.players[cp].hand.push(found);
+      });
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case '91': {
+      if(!Array.isArray(G._snowyVillageUses)) G._snowyVillageUses = [0,0];
+      if(!Array.isArray(G._landscapeChangeLocks)) G._landscapeChangeLocks = [0,0];
+      if((Number(G._snowyVillageUses[cp]) || 0) < 2) {
+        G._snowyVillageUses[cp] = (Number(G._snowyVillageUses[cp]) || 0) + 1;
+        G._landscapeChangeLocks[opp] = Math.max(Number(G._landscapeChangeLocks[opp]) || 0, 6);
+      }
+      break;
+    }
+    case '94': {
+      const triangles = G.players[cp].deck.filter(function(deckCard){ return deckCard.rarity === 'triangle'; }).sort(function(a,b){ return (Number(b.fate)||0) - (Number(a.fate)||0); });
+      const found = triangles[0];
+      if(found) {
+        G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
+        if(typeof ensureMailDeliveryState === 'function') ensureMailDeliveryState().push({player:cp, card:found, turnsLeft:4, sourceIid:inst.iid});
+      }
+      break;
+    }
+    case '96': {
+      if(typeof returnRandomDiscardCardsToDeck === 'function') returnRandomDiscardCardsToDeck(cp, 4, 'aiWodnyPotokSnowShoveler:' + (inst.iid || inst.id));
+      break;
+    }
+    case '97': {
+      if(typeof activateAdministrativeBloat === 'function') activateAdministrativeBloat(cp, inst);
+      break;
+    }
+    case '99': {
+      if(typeof activateBlameGameEffect === 'function') activateBlameGameEffect(cp, inst);
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
     case '02': { // Anicka Konvicka: create extra safe row in this zone
       if(typeof addFullExtraSafeRowForPlayer === 'function') addFullExtraSafeRowForPlayer(z, cp, 'Starlit Path', {landscape:false});
       else {
@@ -2265,7 +2391,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '14': { // Alondra Hopkins: discard adjacent/diagonal opposing supporters, gain Fate
-      const targets = getAdjacentAndDiagonalCards(z,r,c).filter(a=>a.card.owner===opp && a.card.type==='Supporter' && a.card.id!=='76' && !a.card.immuneFlag);
+      const targets = getAdjacentAndDiagonalCards(z,r,c).filter(a=>a.card.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(a.card, opp) : a.card.type==='Supporter') && a.card.id!=='76' && !a.card.immuneFlag);
       let gained = 0;
       targets.forEach(t=>{
         G.board[t.z][t.r][t.c] = null;
@@ -2367,7 +2493,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '16': { // MINAE: discard opp supporter in zone
       const opps=[];
       G.board[z].forEach((row,rr)=>row.forEach((cell,cc)=>{
-        if(cell&&cell.owner===opp&&cell.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) opps.push({card:cell,r:rr,c:cc});
+        if(cell&&cell.owner===opp&&(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, opp) : cell.type==='Supporter')&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) opps.push({card:cell,r:rr,c:cc});
       }));
       if(opps.length){
         opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
@@ -2406,7 +2532,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '35': { // Alexander: snapshot Fate from friendly Supporters in zone
       let total = 0;
       G.board[z].forEach(row=>row.forEach(cell=>{
-        if(cell && cell.owner===cp && cell.iid!==inst.iid && cell.type==='Supporter'){
+        if(cell && cell.owner===cp && cell.iid!==inst.iid && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type==='Supporter')){
           total += Number(cell.currentFate ?? cell.fate ?? 0) || 0;
         }
       }));
@@ -2461,7 +2587,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '58': { // Crossroads: add supporter from discard
-      const sups = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.type==='Supporter') : G.players[cp].discard.filter(c=>c.type==='Supporter');
+      const sups = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter')) : G.players[cp].discard.filter(c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter'));
       if(sups.length){
         // Deck-aware: prioritize recycling key supporters
         const strat = G._selectedAI?._deckStrategy || '';
@@ -2480,7 +2606,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       } break;
     }
     case '60': { // IB Student: search deck for supporter
-      const sups = G.players[cp].deck.filter(c=>c.type==='Supporter');
+      const sups = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
       if(sups.length){
         const strat = G._selectedAI?._deckStrategy || '';
         const priorities = aiDeckSearchPriority(strat, 'supporter').length ? aiDeckSearchPriority(strat, 'supporter')
@@ -2578,7 +2704,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '69': { // Breakfast Republic Busser: find any friendly supporter, move & re-activate
       const friendlySupporters = [];
       G.board.forEach((zone,zi)=>zone.forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid){
+        if(cell && cell.owner===cp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type==='Supporter') && cell.iid!==inst.iid){
           friendlySupporters.push({card:cell,z:zi,r:ri,c:ci});
         }
       })));
@@ -2628,7 +2754,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const copyableIds = ['05','16','25','31','32','33','42','43','50','58','60','68','69','71','72','73','76','80'];
       const candidates = [];
       forEachBoardCard((card,bz,br,bc)=>{
-        if(card.type==='Supporter' && card.iid!==inst.iid && copyableIds.includes(card.id) && !isFaceDownCard(card)){
+        if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && card.iid!==inst.iid && copyableIds.includes(card.id) && !isFaceDownCard(card)){
           candidates.push({card,z:bz,r:br,c:bc});
         }
       });
@@ -2753,11 +2879,11 @@ async function aiActivateEffects() {
 
   const supporterActions = [];
   forEachBoardCard((card,z,r,c)=>{
-    if(card.owner===cp && card.type==='Supporter' && !isFaceDownCard(card) && ['52','54','73'].includes(card.id)){
+    if(card.owner===cp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter') && !isFaceDownCard(card) && ['52','54','73','93'].includes(card.id)){
       supporterActions.push({card,z,r,c});
     }
   });
-  supporterActions.sort((a,b)=>({'52':3,'73':2,'54':1}[b.card.id]||0)-({'52':3,'73':2,'54':1}[a.card.id]||0));
+  supporterActions.sort((a,b)=>({'52':4,'93':3,'73':2,'54':1}[b.card.id]||0)-({'52':4,'93':3,'73':2,'54':1}[a.card.id]||0));
   for(const action of supporterActions){
     await aiRunSupporterBoardAbility(action.card, action.z, action.r, action.c);
     await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
@@ -2768,9 +2894,25 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   const opp = 1 - cp;
+  if(card.id === '93') {
+    if(card.effectUsedThisTurn) return;
+    const allowed = typeof beginManualSupporterEffectActivation === 'function' ? await beginManualSupporterEffectActivation(card, z, r, c, [opp]) : true;
+    if(!allowed) return;
+    const targets = [];
+    forEachBoardCard(function(target, tz){ if(target && target.owner === opp && !isFaceDownCard(target)) targets.push({card:target,z:tz}); });
+    targets.sort(function(a,b){ return aiOpponentCardDecisionFate(b.card,b.z) - aiOpponentCardDecisionFate(a.card,a.z); });
+    const target = targets[0] && targets[0].card;
+    if(!target) return;
+    const before = Math.max(0, Number(target.currentFate == null ? target.fate : target.currentFate) || 0);
+    if(typeof setCardFateValue === 'function') setCardFateValue(target, before - 1, cp);
+    else target.currentFate = Math.max(0, before - 1);
+    card.effectUsedThisTurn = true;
+    log('p2','AI: Snowball Fight reduced ' + target.name + ' by 1 Fate');
+    return;
+  }
   if(card.id==='52' && card._pendingWhenSetEffect && card.whenSetActivated !== true){
     const targets = [];
-    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && bc.type==='Supporter' && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
+    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, opp) : bc.type==='Supporter') && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
     if(!targets.length) return;
     targets.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
     const target = targets[0];
@@ -3188,7 +3330,7 @@ async function aiRunEffect(card, z, r, c) {
     }
     case '38': { // Jake: discard a supporter once per turn for +5 Fate
       if(card.effectUsedThisTurn) break;
-      const supporters = G.players[cp].hand.filter(c=>c.type==='Supporter');
+      const supporters = G.players[cp].hand.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
       if(!supporters.length) break;
       supporters.sort((a,b)=>(a.fate||0)-(b.fate||0));
       const spent = supporters[0];

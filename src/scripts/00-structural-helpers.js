@@ -575,7 +575,7 @@ function playerHasMoreCharactersThanSupportersInHand(owner) {
   let characters = 0, supporters = 0;
   G.players[owner].hand.forEach(function(card) {
     if(!card) return;
-    if(card.type === 'Supporter') supporters++;
+    if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, owner) : card.type === 'Supporter') supporters++;
     if(typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, owner) : card.type !== 'Supporter') characters++;
   });
   return characters > supporters;
@@ -590,11 +590,92 @@ function isBlameGameActive(owner) {
   return !!(fx && fx.active && (Number(fx.turnsLeft) || 0) > 0);
 }
 
+function isCardSupporterForRules(card, owner) {
+  if(!card || card.type !== 'Supporter') return false;
+  const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
+  return !isBlameGameActive(resolvedOwner);
+}
+
 function isCardCharacterForRules(card, owner) {
   if(!card) return false;
   if(card.type !== 'Supporter') return true;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
   return isBlameGameActive(resolvedOwner);
+}
+
+const FELICYTA_TIMED_LANDSCAPE_TURNS = Object.freeze({igb2:14, igb8:10});
+
+function getTimedLandscapeResolutionTurn(id) {
+  return Number(FELICYTA_TIMED_LANDSCAPE_TURNS[String(id || '')]) || 0;
+}
+
+function getFelicitaLandscapeChangeBlockReason(targetId) {
+  if(typeof G === 'undefined' || !G) return '';
+  const turn = Math.max(1, Number(G.turn) || 1);
+  const current = typeof getCurrentLandscape === 'function' ? getCurrentLandscape() : null;
+  const currentId = String((current && current.id) || G.landscapeId || '');
+  const nextId = String(targetId || '');
+  const state = typeof getLandscapeState === 'function' ? getLandscapeState() : G._landscapeState;
+  const resolvedTurns = state && state.resolvedTurns ? state.resolvedTurns : {};
+  const currentResolutionTurn = getTimedLandscapeResolutionTurn(currentId);
+  if(currentResolutionTurn && !resolvedTurns[currentId] && turn >= currentResolutionTurn - 4 && (!nextId || nextId !== currentId)) {
+    const currentName = currentId === 'igb2' ? 'ALPINE Headquarters' : 'Qingdao';
+    return currentName + ' resolves on turn ' + currentResolutionTurn + ' and cannot be changed away from during its final four turns.';
+  }
+  const nextResolutionTurn = getTimedLandscapeResolutionTurn(nextId);
+  if(nextResolutionTurn && nextId !== currentId && turn >= nextResolutionTurn - 4) {
+    const nextName = nextId === 'igb2' ? 'ALPINE Headquarters' : 'Qingdao';
+    return nextName + ' resolves on turn ' + nextResolutionTurn + ' and cannot be entered during its final four turns.';
+  }
+  return '';
+}
+
+function showFelicitaLandscapeChangeBlockedBanner(reason) {
+  const text = String(reason || 'This timed landscape cannot be changed right now.');
+  if(typeof toast === 'function') toast('Landscape Change Blocked: ' + text);
+  if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Landscape change blocked', 'major');
+  if(typeof showBlockedAnimation === 'function') showBlockedAnimation('LANDSCAPE CHANGE BLOCKED');
+  else if(typeof playSfx === 'function') playSfx('blocked');
+}
+
+function ensureAdministrativeBloatEffects() {
+  if(typeof G === 'undefined' || !G) return [];
+  if(!Array.isArray(G._administrativeBloatEffects)) G._administrativeBloatEffects = [];
+  G._administrativeBloatEffects = G._administrativeBloatEffects.filter(function(effect){
+    return effect && (effect.target === 0 || effect.target === 1) && (Number(effect.remaining) || 0) > 0;
+  });
+  return G._administrativeBloatEffects;
+}
+
+function getAdministrativeBloatCostPenalty(owner) {
+  return ensureAdministrativeBloatEffects().reduce(function(total, effect){
+    if(Number(effect.target) !== Number(owner)) return total;
+    return total + Math.max(0, Number(effect.amount) || 1);
+  }, 0);
+}
+
+function activateAdministrativeBloat(sourceOwner, sourceCard) {
+  const owner = Number(sourceOwner);
+  if(owner !== 0 && owner !== 1) return false;
+  ensureAdministrativeBloatEffects().push({
+    target:1 - owner,
+    sourceOwner:owner,
+    sourceIid:sourceCard && sourceCard.iid != null ? sourceCard.iid : null,
+    remaining:2,
+    amount:1
+  });
+  return true;
+}
+
+function consumeAdministrativeBloatForPlayer(owner) {
+  let consumed = 0;
+  ensureAdministrativeBloatEffects().forEach(function(effect){
+    if(Number(effect.target) !== Number(owner)) return;
+    effect.remaining = Math.max(0, (Number(effect.remaining) || 0) - 1);
+    consumed++;
+  });
+  ensureAdministrativeBloatEffects();
+  return consumed;
 }
 
 function isSnowOnCarpathiansLandscapeActive() {
@@ -624,10 +705,12 @@ function getDisplayedCardCost(card) {
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   const owner = getPlayerForHandCard(card);
-  if (card.id === '86' && playerHasMoreCharactersThanSupportersInHand(owner)) return 0;
-  if (card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia'])) return 0;
-  if (isCardEffectImmutable(card)) return Math.max(0, typeof card.cost === 'number' ? card.cost : 0);
-  return Math.max(0, (typeof card.cost === 'number' ? card.cost : 0) + (Number(card._handCostDelta) || 0));
+  const hasConditionalFreeCost = (card.id === '86' && playerHasMoreCharactersThanSupportersInHand(owner)) ||
+    (card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia']));
+  const bloatPenalty = isCardCharacterForRules(card, owner) ? getAdministrativeBloatCostPenalty(owner) : 0;
+  const printedCost = hasConditionalFreeCost ? 0 : (typeof card.cost === 'number' ? card.cost : 0);
+  if (isCardEffectImmutable(card)) return Math.max(0, printedCost + bloatPenalty);
+  return Math.max(0, printedCost + (Number(card._handCostDelta) || 0) + bloatPenalty);
 }
 
 function recordHandCardEffectModifier(card, effect) {
@@ -709,7 +792,7 @@ function getSupportReinforcementValue(card) {
   if (card.id === '09') value = 2;
   if (card.id === '37' && card._returnUsed) value = 0.5;
   if (Number(card._reinforcementBonus)) value += Number(card._reinforcementBonus);
-  if (isLandscapeActive('igb10') && card.type === 'Supporter' && card.aff === 'third_great_war') value += 1;
+  if (isLandscapeActive('igb10') && isCardSupporterForRules(card, card.owner) && card.aff === 'third_great_war') value += 1;
   return value;
 }
 
@@ -770,6 +853,13 @@ if (typeof window !== 'undefined') {
   window.applyPermanentEffectImmunity = applyPermanentEffectImmunity;
   window.recordHandCardEffectModifier = recordHandCardEffectModifier;
   window.getHandCardEffectModifiers = getHandCardEffectModifiers;
+  window.isCardSupporterForRules = isCardSupporterForRules;
+  window.isCardCharacterForRules = isCardCharacterForRules;
+  window.getFelicitaLandscapeChangeBlockReason = getFelicitaLandscapeChangeBlockReason;
+  window.showFelicitaLandscapeChangeBlockedBanner = showFelicitaLandscapeChangeBlockedBanner;
+  window.getAdministrativeBloatCostPenalty = getAdministrativeBloatCostPenalty;
+  window.activateAdministrativeBloat = activateAdministrativeBloat;
+  window.consumeAdministrativeBloatForPlayer = consumeAdministrativeBloatForPlayer;
 }
 
 function purgeRetiredCardSetMotion() {
@@ -1004,6 +1094,8 @@ function resetMatchTransientState() {
   G._balladEffects = [null, null];
   G._mailDeliveries = [];
   G._blameGameEffects = [null, null];
+  G._administrativeBloatEffects = [];
+  G._serverRngCounter = 0;
   G.usMarinesUses = [0, 0];
   G.polishArmyUses = [0, 0];
   G.oppSuppressedNextTurn = false;

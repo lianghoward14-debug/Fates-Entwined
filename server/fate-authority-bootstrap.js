@@ -94,7 +94,12 @@ function makePlayerState(deckIds, playerIndex, catalog, rng, instanceCounter){
     return compactStateCard(catalog.byId.get(String(id)), playerIndex, instanceCounter.value);
   });
   shuffleInPlace(deck, rng);
+  const avalancheEscapeCards = [];
+  for(let i = deck.length - 1; i >= 0; i -= 1){
+    if(deck[i] && String(deck[i].id) === '98') avalancheEscapeCards.unshift(deck.splice(i, 1)[0]);
+  }
   const hand = deck.splice(0, 6);
+  hand.push(...avalancheEscapeCards);
   return {
     player:{
       name:playerIndex === 0 ? 'Player 1' : 'Player 2',
@@ -203,6 +208,8 @@ function buildInitialAuthorityState(input){
     _balladEffects:[null, null],
     _mailDeliveries:[],
     _blameGameEffects:[null, null],
+    _administrativeBloatEffects:[],
+    _serverRngCounter:0,
     usMarinesUses:[0, 0],
     polishArmyUses:[0, 0],
     oppSuppressedNextTurn:false,

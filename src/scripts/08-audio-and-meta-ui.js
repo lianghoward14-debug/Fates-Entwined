@@ -1841,6 +1841,13 @@ function applyGameBackground(song=null) {
 function transitionGameLandscape(song, opts = {}) {
   const pickedSong = (song && GAME_SONGS.includes(song)) ? song : pickGameSong();
   const bgNum = Math.max(1, Math.min(16, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  if(!opts.remote && opts.sourceCard && String(opts.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
+    const reason = getFelicitaLandscapeChangeBlockReason('igb' + bgNum);
+    if(reason) {
+      if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(reason);
+      return false;
+    }
+  }
   if(typeof G !== 'undefined' && G) {
     G.landscapeId = 'igb' + bgNum;
     G.landscapeBgNum = bgNum;

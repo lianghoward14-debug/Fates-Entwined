@@ -38,7 +38,7 @@ function cardActsAsPassive(card, sourceId) {
 }
 
 function canFrenchFusiliersCopyPassive(card) {
-  if(!card || card.type !== 'Supporter' || isFaceDownCard(card)) return false;
+  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter') || isFaceDownCard(card)) return false;
   const id = String(card.id || '');
   if(id === '37' || !FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS.has(id)) return false;
   const text = String(card.effect || '');
@@ -437,7 +437,7 @@ function collectPendingCardWindowEffectsForEndTurn(player) {
       if(typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(card)) {
         pushEndTurnEffectWarning(pending, card, 'Activate Effect', z);
       }
-      if(card.type === 'Supporter') {
+      if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, player) : card.type === 'Supporter') {
         const suppressed = typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card);
         if(!suppressed) {
           if(card.id === '73' && card._canMoveOncePerTurn && !card._expMoved) pushEndTurnEffectWarning(pending, card, 'Move', z);
@@ -553,6 +553,7 @@ function endTurn(opts) {
   clearPendingWhenSetEffectsForPlayer(cp);
   G._skipImprovisorCheck = false;
   if(typeof resolveBalladEndOfTurn === 'function') resolveBalladEndOfTurn(cp);
+  if(typeof tickBlameGameAtEndOfTurn === 'function') tickBlameGameAtEndOfTurn();
   if(Array.isArray(G._landscapeChangeLocks)) {
     G._landscapeChangeLocks = G._landscapeChangeLocks.map(v=>Math.max(0, (Number(v) || 0) - 1));
   }
@@ -734,7 +735,6 @@ async function nextPlayerTurn() {
   tickRiveraBuffsForCurrentPlayer();
   if(typeof tickMailDeliveriesForCurrentPlayer === 'function') tickMailDeliveriesForCurrentPlayer();
   if(typeof tickCarpathianSpecters === 'function') tickCarpathianSpecters();
-  if(typeof tickBlameGameForCurrentPlayer === 'function') tickBlameGameForCurrentPlayer();
   if(typeof tickWintertideForCurrentPlayer === 'function') tickWintertideForCurrentPlayer();
 
   // Wine Country Guerilla (70): tick down counter and debuff random card in holder's hand
@@ -1188,7 +1188,8 @@ function placeSelected() {
     return;
   }
 
-  if(!isLinaFree && card.type==='Supporter') {
+  const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, G.currentPlayer) : card.type === 'Supporter';
+  if(!isLinaFree && cardIsSupporterForRules) {
     const totalSupports = G.supportsPlacedThisTurn;
     const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
     // Maja Kaminska effect: unlimited supporters
@@ -1279,7 +1280,7 @@ function getValidPlacementOptionsForCard(card, player) {
         if(requiresOwnSafeRowPlacement(card) && !isOwnSafeRowSquare(z, r, c, cp)) continue;
         if(isBlocked(z,r,c) && !ignoresOpponentPlacementLocks) continue;
         if(G.board[z][r][c]!==null) continue;
-        if(card.type==='Supporter' && card.id!=='76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z,r,c,cp)) continue;
+        if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter') && card.id!=='76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z,r,c,cp)) continue;
         options.push({z,r,c});
       }
     }
@@ -1408,11 +1409,11 @@ function beginBoardCardTargetSelection(opts) {
 function vigilantePickTarget(targetZ, cp, opp, inst) {
   const oppCards = [];
   G.board[targetZ].forEach((row,ri)=>row.forEach((cell,ci)=>{
-    if(cell && cell.owner===opp && cell.type === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
+    if(cell && cell.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, opp) : cell.type === 'Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)))) oppCards.push({card:cell,z:targetZ,r:ri,c:ci});
   }));
   if(oppCards.length===0){toast('No opponent Supporters in Zone '+(targetZ+1));return;}
   pickCardInZone(targetZ,'Marked for Death: select one opponent Supporter in this zone.',(tgt)=>{
-    if(tgt.type !== 'Supporter'){toast('Must select an opponent Supporter');return;}
+    if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(tgt, opp) : tgt.type === 'Supporter')){toast('Must select an opponent Supporter');return;}
     if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(tgt))){showBlockedAnimation('this card is immune');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
@@ -1420,7 +1421,7 @@ function vigilantePickTarget(targetZ, cp, opp, inst) {
     toast(tgt.name+' has 0 Reinforcement.');
     log(cp===0?'p1':'p2','Vigilantes marked '+tgt.name+' for death');
     renderGame({board:true, scores:true, topbar:true});
-  }, cell=>cell && cell.owner===opp && cell.type === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))));
+  }, cell=>cell && cell.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, opp) : cell.type === 'Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))));
 }
 
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
@@ -1816,12 +1817,13 @@ async function clickCell(z,r,c) {
 
   // Supporter limit re-check (skip for Lina free-set cards)
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)));
-  if(card.type === 'Supporter' && card.id !== '76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z, r, c, cp)) {
+  const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
+  if(cardIsSupporterForRules && card.id !== '76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z, r, c, cp)) {
     playSfx('blocked');
     toast('Alondra blocks Supporters adjacent to her.');
     return;
   }
-  if(!isLinaFree && card.type==='Supporter'){
+  if(!isLinaFree && cardIsSupporterForRules){
     const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn >= maxSup){
       toast('Supporter limit reached: '+maxSup+'/turn');
@@ -1897,7 +1899,7 @@ async function clickCell(z,r,c) {
       if(typeof playCardSoundDeferred === 'function') playCardSoundDeferred(card.id, 0);
       else setTimeout(function(){ playCardSound(card.id); }, 0);
       if(typeof playSfx === 'function') {
-        const setSfxType = card.type === 'Supporter' ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
+        const setSfxType = cardIsSupporterForRules ? 'supporterSet' : (typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
         if(typeof playSfxDeferred === 'function') playSfxDeferred(setSfxType, 0);
         else setTimeout(function(){ playSfx(setSfxType); }, 0);
       }
@@ -1912,20 +1914,20 @@ async function clickCell(z,r,c) {
   // Tutorial event hooks
   if(typeof tutorialEvent==='function' && _tutorialActive){
     deferSetCommitHook(function(){
-      if(inst.type==='Supporter') tutorialEvent('placeSupporter', {card:inst, z, r, c, kind:'place'});
+      if(cardIsSupporterForRules) tutorialEvent('placeSupporter', {card:inst, z, r, c, kind:'place'});
       else tutorialEvent('placeCharacter', {card:inst, z, r, c, kind:'place'});
     });
   }
   // AI dialogue hooks (safe — triggerAIDialogue checks if AI game)
   if(typeof triggerAIDialogue==='function'){
     const dialogueEvent = G.currentPlayer !== G.aiPlayer
-      ? (inst.type==='Supporter' ? 'opponentPlacedSupporter' : 'opponentPlacedCharacter')
+      ? (cardIsSupporterForRules ? 'opponentPlacedSupporter' : 'opponentPlacedCharacter')
       : 'aiPlacedCard';
     deferSetCommitHook(function(){ triggerAIDialogue(dialogueEvent); });
   }
   markCommit('hooks');
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
-  if(card.type==='Supporter') {
+  if(cardIsSupporterForRules) {
     const rawSetReinforcementValue = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1;
     const setReinforcementValue = Math.max(0, Number(rawSetReinforcementValue) || 0);
     if(!isLinaFree) G.supportsPlacedThisTurn++;
@@ -2036,6 +2038,8 @@ function getUnusedChaparralAmbusherInZone(z, owner) {
 }
 
 function countFriendlyRalphAdjacency(z, r, c, owner) {
+  const target = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
+  if(!target || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(target, owner) : target.type === 'Supporter')) return 0;
   let count = 0;
   if(!G.board[z]) return 0;
   G.board[z].forEach((row, rr)=>{
@@ -2208,6 +2212,7 @@ function activateBlameGameEffect(player, card) {
   effects[player] = {
     active: true,
     turnsLeft: 5,
+    startedTurn: Number(G.turn) || 1,
     sourceIid: card ? card.iid : null,
     sourceName: card ? card.name : 'The Blame Game'
   };
@@ -2215,15 +2220,17 @@ function activateBlameGameEffect(player, card) {
   if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
 }
 
-function tickBlameGameForCurrentPlayer() {
+function tickBlameGameAtEndOfTurn() {
   const effects = ensureBlameGameState();
-  const fx = effects[G.currentPlayer];
-  if(!fx || !fx.active) return;
-  fx.turnsLeft = Math.max(0, (Number(fx.turnsLeft) || 0) - 1);
-  if(fx.turnsLeft <= 0) {
-    fx.active = false;
-    toast('The Blame Game has ended.');
-  }
+  effects.forEach(function(fx){
+    if(!fx || !fx.active) return;
+    if(Number(fx.startedTurn) === Number(G.turn)) return;
+    fx.turnsLeft = Math.max(0, (Number(fx.turnsLeft) || 0) - 1);
+    if(fx.turnsLeft <= 0) {
+      fx.active = false;
+      toast('The Blame Game has ended.');
+    }
+  });
 }
 
 function tickWintertideForCurrentPlayer() {
@@ -2233,7 +2240,7 @@ function tickWintertideForCurrentPlayer() {
     if(!card || card.id !== '100' || card.owner !== G.currentPlayer || isFaceDownCard(card)) return;
     if(card._wintertideLastTurn === G.turn) return;
     const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-    card.currentFate = before + 1;
+    card.currentFate = before + 2;
     card._wintertideLastTurn = G.turn;
     applied++;
     if(typeof playFateChangeSound === 'function') playFateChangeSound(card, before, card.currentFate, card.owner);
@@ -2248,7 +2255,8 @@ function initiateConsolidate() {
   }
   if(G.selectedHandCard===null){toast('Select a character card from your hand first');return;}
   const card = G.players[G.currentPlayer].hand[G.selectedHandCard];
-  if(!card||card.type==='Supporter'){toast('Select a character card (not a Supporter)');return;}
+  const cardIsCharacterForRules = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, G.currentPlayer) : !!(card && card.type !== 'Supporter');
+  if(!card || !cardIsCharacterForRules){toast('Select a Character card first');return;}
   if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'consolidate')) return;
 
   // Lina free-set: skip consolidation entirely, just place directly
@@ -2315,9 +2323,10 @@ function doConsolidate(card, cost) {
     if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0) return;
     row.forEach((cell,c)=>{
       const isCharacterTribute = typeof isCardCharacterForRules === 'function' && isCardCharacterForRules(cell, cp);
+      const cellIsSupporterForRules = cell && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type === 'Supporter');
       const canUseForThisCard = usesCharacterTributes
         ? isCharacterTribute
-        : (cell && (cell.type==='Supporter' || cell.id==='86'));
+        : (cell && (cellIsSupporterForRules || cell.id==='86'));
       if(cell && canUseForThisCard && canUseAsConsolidationTribute(cell, cp)) {
         const reinforcement = getSupportReinforcementValue(cell) + countFriendlyRalphAdjacency(z, r, c, cp);
         supports.push({card:cell,z,r,c,zoneIdx:z,reinforcement});
@@ -2341,7 +2350,7 @@ function doConsolidate(card, cost) {
       zone.forEach((row,r)=>{
         if(!row) return;
         row.forEach((cell,c)=>{
-          if(cell&&cell.type!=='Supporter'&&canUseAsConsolidationTribute(cell, cp)){
+          if(cell && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && canUseAsConsolidationTribute(cell, cp)){
             charSupports.push({card:cell,z,r,c,zoneIdx:z,isChar:true,reinforcement:1});
           }
         });
@@ -2762,6 +2771,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
       window.fateAIRecordDecision({player:cp, action:'c', card:inst, zone:targetZ, row:targetR, faceDown:!!useFaceDown, tributes:tributes});
     }
     if(typeof applyBoleslawConsolidationBonus === 'function') applyBoleslawConsolidationBonus(inst, targetZ, cp);
+    if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     if(typeof trackDailyCardPlacement === 'function') {
@@ -2896,7 +2906,9 @@ function hasFriendlyWojciechDiscountInZone(owner, z) {
 function getConsolidationCostForZone(card, z, owner, baseCost) {
   let cost = Math.max(0, Number(baseCost) || 0);
   const cardIsCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, owner) : !!(card && card.type !== 'Supporter');
-  if(cardIsCharacter && cost >= 2 && hasFriendlyWojciechDiscountInZone(owner, z)) cost = Math.max(1, cost - 1);
+  const bloatPenalty = typeof getAdministrativeBloatCostPenalty === 'function' ? getAdministrativeBloatCostPenalty(owner) : 0;
+  const qualifyingCardCost = Math.max(0, cost - bloatPenalty);
+  if(cardIsCharacter && qualifyingCardCost >= 2 && hasFriendlyWojciechDiscountInZone(owner, z)) cost = Math.max(0, cost - 1);
   return cost;
 }
 
@@ -2912,7 +2924,7 @@ function getFriendlyZoneCharacterSupportCounts(owner, z) {
   if(!G.board || !G.board[z]) return counts;
   G.board[z].forEach(row=>row && row.forEach(cell=>{
     if(!cell || cell.owner!==owner || isFaceDownCard(cell) || (typeof isCardEffectImmutable === 'function' ? isCardEffectImmutable(cell) : cell.id==='76')) return;
-    if(cell.type === 'Supporter') counts.supporters++;
+    if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, owner) : cell.type === 'Supporter') counts.supporters++;
     if(typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, owner) : cell.type !== 'Supporter') counts.characters++;
   }));
   return counts;
@@ -3051,13 +3063,13 @@ function getSupporterReinforcementSetTotalForPlayer(player) {
 window.getSupporterReinforcementSetTotalForPlayer = getSupporterReinforcementSetTotalForPlayer;
 
 function isPersistentSupporterEffectOnSet(card) {
-  if(!card || card.type !== 'Supporter') return false;
+  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(WHEN_SET_IDS.has(String(card.id))) return false;
   return new Set(['20','24','44','49','53','59','63','65','78','92','95']).has(String(card.id));
 }
 
 async function beginManualSupporterEffectActivation(card, z, r, c, affectedOwners) {
-  if(!card || card.type !== 'Supporter') return true;
+  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return true;
   const cp = G.currentPlayer;
   if(!canActivateLandscapeSupporterEffect(cp)) {
     toast('Snow on the Carpathians: only one Supporter effect can activate each turn.');
@@ -3092,32 +3104,56 @@ function ensureMailDeliveryState() {
 function tickMailDeliveriesForCurrentPlayer() {
   const deliveries = ensureMailDeliveryState();
   if(!deliveries.length) return;
-  const cp = G.currentPlayer;
   let changed = false;
   for(let i = deliveries.length - 1; i >= 0; i--) {
     const d = deliveries[i];
-    if(!d || d.player !== cp) continue;
-    if(d.sourceIid && isStoredEffectSourceSuppressed(d.sourceIid)) {
-      deliveries.splice(i, 1);
-      changed = true;
-      toast('Mail Delivery was suppressed and will not arrive.');
-      continue;
-    }
+    if(!d || (d.player !== 0 && d.player !== 1)) continue;
     d.turnsLeft = Math.max(0, (Number(d.turnsLeft) || 0) - 1);
     changed = true;
     if(d.turnsLeft <= 0) {
       const card = d.card;
+      const recipient = d.player;
       deliveries.splice(i, 1);
       if(card) {
-        card.owner = cp;
-        if(typeof addCardToHand === 'function') addCardToHand(cp, card);
-        else G.players[cp].hand.push(card);
+        card.owner = recipient;
+        if(typeof addCardToHand === 'function') addCardToHand(recipient, card);
+        else G.players[recipient].hand.push(card);
         toast('Mail Delivery arrived: ' + card.name + ' was added to your hand.');
         if(typeof playSfx === 'function') playSfx('effect');
       }
     }
   }
   if(changed && typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+}
+
+function returnRandomDiscardCardsToDeck(player, count, reason) {
+  const p = Number(player);
+  const state = G.players && G.players[p];
+  if(!state || !Array.isArray(state.discard) || !Array.isArray(state.deck)) return [];
+  const returned = [];
+  const wanted = Math.min(Math.max(0, Number(count) || 0), state.discard.length);
+  const rng = typeof G._onlineRng === 'function' ? G._onlineRng : Math.random;
+  for(let i = 0; i < wanted; i++) {
+    const randomIndex = deterministicOnlineRandomIndex(state.discard.length, String(reason || 'returnDiscard') + ':pick:' + i, p);
+    const discardIndex = randomIndex >= 0 ? randomIndex : Math.floor(rng() * state.discard.length);
+    const card = state.discard.splice(discardIndex, 1)[0];
+    if(!card) continue;
+    const onlineInsertIndex = deterministicOnlineRandomIndex(state.deck.length + 1, String(reason || 'returnDiscard') + ':insert:' + i, p);
+    const insertIndex = onlineInsertIndex >= 0 ? onlineInsertIndex : Math.floor(rng() * (state.deck.length + 1));
+    state.deck.splice(insertIndex, 0, card);
+    returned.push(card);
+  }
+  return returned;
+}
+
+function showSnowShovelerReturnedCards(returned, player) {
+  if(typeof showCanvasCardGalleryModal === 'function') {
+    showCanvasCardGalleryModal('Shovel - Cards Returned to the Deck', returned, {
+      viewerPlayerIndex:typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : player,
+      immediate:true,
+      hideCountText:true
+    });
+  }
 }
 
 async function activateWodnyPotokYouth(card, z, r, c) {
@@ -3173,7 +3209,7 @@ function tickCarpathianSpecters() {
 
 const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','82','83','87','90','bh25']);
 const WINDOWED_WHEN_SET_EFFECT_IDS = new Set([
-  '03','04','05','06','07','08','12','13','16','17','22','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','bh25'
+  '03','04','05','06','07','08','12','13','16','17','22','29','30','31','39','42','43','48','50','51','52','54','58','60','61','62','66','68','69','75','77','80','82','84','90','94','96','97','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -3314,7 +3350,7 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
   const az = pos && typeof pos.z === 'number' ? pos.z : z;
   const ar = pos && typeof pos.r === 'number' ? pos.r : r;
   const ac = pos && typeof pos.c === 'number' ? pos.c : c;
-  if(card.type === 'Supporter' && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(G.currentPlayer)) {
+  if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, G.currentPlayer) : card.type === 'Supporter') && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(G.currentPlayer)) {
     toast('Snow on the Carpathians: only one Supporter effect can activate each turn.');
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Snow on the Carpathians', 'major');
     return;
@@ -3341,15 +3377,16 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   const cp = G.currentPlayer;
   const opp = 1-cp;
   const id = inst.id;
+  const instIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(inst, inst.owner) : inst.type === 'Supporter';
   // Rivera (51): active declared affiliation buff applies to cards as they are set.
   applyRiveraBuffToPlacedCard(inst, inst.owner);
 
   // Suppress check: only if current player is the suppression target
-  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type==='Supporter' && !isEffectImmuneSource(inst)) {
+  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     return;
   }
-  if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (inst.type === 'Supporter' && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
+  if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
     showBlockedAnimation('Effect SUPPRESSED - The Last Revolution');
     markInitialEffectResolved(inst);
     return;
@@ -3406,16 +3443,17 @@ async function runWhenSetEffect(inst, z, r, c) {
   const cp = G.currentPlayer;
   const opp = 1-cp;
   const id = inst.id;
-  if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (inst.type === 'Supporter' && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
+  const instIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(inst, inst.owner) : inst.type === 'Supporter';
+  if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
     showBlockedAnimation('Effect SUPPRESSED - The Last Revolution');
     markInitialEffectResolved(inst);
     return;
   }
   if(typeof updateDailyChallengeProgress === 'function' && !(G.aiEnabled && cp === G.aiPlayer) && !G._isSpectator){
     updateDailyChallengeProgress('effects', 1, 'add');
-    if(inst.type === 'Supporter') updateDailyChallengeProgress('supporterEffects', 1, 'add');
+    if(instIsSupporterForRules) updateDailyChallengeProgress('supporterEffects', 1, 'add');
   }
-  if(inst.type==='Supporter' && inst.id!=='92' && !isEffectImmuneSource(inst)) {
+  if(instIsSupporterForRules && inst.id!=='92' && !isEffectImmuneSource(inst)) {
     let lumberjack = null;
     if(G.board && G.board[z]) G.board[z].forEach((row, rr)=>row && row.forEach((cell, cc)=>{
       if(!lumberjack && cell && cardActsAsPassive(cell, '92') && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
@@ -3431,7 +3469,7 @@ async function runWhenSetEffect(inst, z, r, c) {
     }
   }
 
-  if(inst.type==='Supporter' && !canActivateLandscapeSupporterEffect(cp)) {
+  if(instIsSupporterForRules && !canActivateLandscapeSupporterEffect(cp)) {
     toast('Snow on the Carpathians: only one Supporter effect can activate each turn.');
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Snow on the Carpathians', 'major');
     return;
@@ -3439,7 +3477,7 @@ async function runWhenSetEffect(inst, z, r, c) {
 
   // Mark when-set effects as spent before any target picker opens; stale card
   // panels should not be able to fire the same source again while it resolves.
-  if(inst.type==='Supporter') {
+  if(instIsSupporterForRules) {
     inst.whenSetActivated = true;
     inst.effectUsedInitial = true;
   }
@@ -3447,7 +3485,7 @@ async function runWhenSetEffect(inst, z, r, c) {
   // Reaction check: opponent Supporter effects that target the opponent can be negated
   // by Lydia (56) or Havano Citizen (79)
   // Lydia can react to opponent card effect activations; set-triggered effects also have their while-on-field effects suppressed.
-  if(inst.type==='Supporter' && isPersistentSupporterEffectOnSet(inst) && !G._suppressEffectPrompt){
+  if(instIsSupporterForRules && isPersistentSupporterEffectOnSet(inst) && !G._suppressEffectPrompt){
     const proceed = await checkReactions('supporter_effect', {
       card:inst,
       z,
@@ -3464,7 +3502,7 @@ async function runWhenSetEffect(inst, z, r, c) {
     recordSupporterEffectActivation(cp, inst);
   }
 
-  if(inst.type==='Supporter' && WHEN_SET_IDS.has(inst.id) && inst.id!=='56' && !G._suppressEffectPrompt){
+  if(instIsSupporterForRules && WHEN_SET_IDS.has(inst.id) && inst.id!=='56' && !G._suppressEffectPrompt){
     const proceed = await checkReactions('supporter_effect', {
       card:inst,
       z,
@@ -3482,7 +3520,7 @@ async function runWhenSetEffect(inst, z, r, c) {
 
   // Havano reacts only when it is affected; Lydia can negate any fresh effect activation.
   const affectedByCharacterEffect = getCharacterEffectAffectedOwners(inst, z, r, c, cp, opp);
-  if(inst.type!=='Supporter' && !G._suppressEffectPrompt){
+  if(!instIsSupporterForRules && !G._suppressEffectPrompt){
     const proceed = await checkReactions('when_set_effect', {
       card:inst,
       z,
@@ -3638,12 +3676,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt === inst || (tgt.iid && inst.iid && tgt.iid === inst.iid)){toast('MINAE Death Squad cannot discard itself');return;}
-        if(tgt.owner!==opp||tgt.type!=='Supporter'){toast('Must select opponent Supporter');return;}
+        if(tgt.owner!==opp || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(tgt, opp) : tgt.type==='Supporter')){toast('Must select opponent Supporter');return;}
         if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(tgt, cp)){showBlockedAnimation('this card is immune');return;}
         discardBoardCard(tgt,tz,tr,tc);
         log(cp===0?'p1':'p2',`MINAE Death Squad: discarded ${tgt.name}`);
         renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
-      },c=>c.owner===opp&&c.type==='Supporter'&&!(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(c, cp))); break;
+      },c=>c.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, opp) : c.type==='Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(c, cp))); break;
     case '18': // 1st US Marines: suppress opponent's supporter effects next turn
       activateUsMarinesSuppressionEffect(cp, opp);
       break;
@@ -3664,7 +3702,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       ]);
       break;
     case '58': // Crossroads Worker: add supporter from discard
-      const recoverableSupporters = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.type==='Supporter') : G.players[cp].discard.filter(c=>c.type==='Supporter');
+      const recoverableSupporters = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter')) : G.players[cp].discard.filter(c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter'));
       if(recoverableSupporters.length===0){
         toast('No supporters in discard');break;
       }
@@ -3964,7 +4002,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         break;
       }
       G._snowyVillageUses[cp] = (Number(G._snowyVillageUses[cp]) || 0) + 1;
-      G._landscapeChangeLocks[opp] = Math.max(Number(G._landscapeChangeLocks[opp]) || 0, 5);
+      G._landscapeChangeLocks[opp] = Math.max(Number(G._landscapeChangeLocks[opp]) || 0, 6);
       toast('A Snowy Village: opponent cannot change the landscape for 5 turns.');
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
@@ -3974,7 +4012,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       if(!matches.length){toast('No Triangle cards in deck');break;}
       pickCardsVisual(matches, {
         title:'Mail Delivery',
-        subtitle:'Choose a Triangle card from your deck. It will arrive in four of your turns.',
+        subtitle:'Choose a Triangle card from your deck. It will arrive in four turns.',
         maxCount:1,
         confirmLabel:'Schedule Delivery',
         immediate:true
@@ -4026,7 +4064,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         let alexSum = 0;
         const boardZone = (G.board && G.board[z]) ? G.board[z] : [];
         boardZone.forEach(row=>row.forEach(cell=>{
-          if(cell && cell.owner===cp && cell.type==='Supporter' && cell.iid!==inst.iid)
+          if(cell && cell.owner===cp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type==='Supporter') && cell.iid!==inst.iid)
             alexSum += Number(typeof getEffectiveFate === 'function' ? getEffectiveFate(cell, z) : (cell.currentFate ?? cell.fate ?? 0)) || 0;
         }));
         inst.currentFate = alexSum + (Number(inst._landscapeStaticFateBonus) || 0);
@@ -4041,6 +4079,24 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case '52': {
       if(typeof activateVigilantes === 'function') activateVigilantes(inst, z, r, c);
+      break;
+    }
+    case '96': { // Wodny Potok Snow Shoveler: return four random discard cards
+      const returned = returnRandomDiscardCardsToDeck(cp, 4, 'wodnyPotokSnowShoveler:' + (inst.iid || inst.id));
+      if(returned.length) {
+        toast('Shovel returned ' + returned.length + ' random card' + (returned.length === 1 ? '' : 's') + ' to the deck.');
+      } else {
+        toast('There are no cards in your discard pile to return.');
+      }
+      showSnowShovelerReturnedCards(returned, cp);
+      renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
+      break;
+    }
+    case '97': { // Visegrad Politician: opponent's next two consolidations cost +1
+      if(typeof activateAdministrativeBloat === 'function') activateAdministrativeBloat(cp, inst);
+      toast('Administrative Bloat: the opponent\'s next two consolidations cost 1 extra Reinforcement.');
+      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+      renderEffectResolutionForPlayer(cp, {hand:false, topbar:true});
       break;
     }
     case '53': // Colombo Thug: restricts opponent consolidation (continuous, checked in doConsolidate)
@@ -4060,7 +4116,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const adjCards = getAdjacentAndDiagonalCards(z,r,c);
         let gained = 0;
         adjCards.forEach(({card:ac,z:az,r:ar,c:ac2})=>{
-          if(ac.owner===opp && ac.type==='Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(ac, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac)))){
+          if(ac.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(ac, opp) : ac.type==='Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(ac, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac)))){
             G.board[az][ar][ac2]=null;
             fatePushDiscard(opp, ac);
             gained++;
@@ -4351,7 +4407,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         renderHand();
       }); break;
     case '07': { // Maja Kaminska: add up to 3 deck supporters, buff them, then +2 supporter plays this turn
-      const matches = G.players[cp].deck.filter(c=>c.type==='Supporter');
+      const matches = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
       if(!matches.length){
         G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
         toast('Maja added 2 extra Supporter placements this turn!');
@@ -4424,12 +4480,18 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast('Landscape selection is unavailable.');
         break;
       }
+      const currentLandscapeBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
+      if(currentLandscapeBlock) {
+        if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(currentLandscapeBlock);
+        break;
+      }
       showLandscapeChoiceModal(0, function(song){
-        transitionGameLandscape(song, {player:cp, sourceCard:card});
+        const changed = transitionGameLandscape(song, {player:cp, sourceCard:card});
+        if(changed === false) return;
         markInitialEffectResolved(card);
         card.effectUsedInitial = true;
         renderGame({board:true, scores:true, landscape:true, topbar:true});
-      });
+      }, {committed:false, sourceCard:card, player:cp});
       break;
     }
     case '83': { // Sebastyen Janowicz: friendly characters in zone +2 permanently
@@ -4626,7 +4688,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '38': // Jake: discard supporter, +5 Fate (once per turn)
       if(card.effectUsedThisTurn){toast('Jake can only use this effect once per turn');break;}
       pickCardsFromHand(cp,1,'Discard a Supporter for +5 Fate:',(cards)=>{
-        if(!cards[0]||cards[0].type!=='Supporter'){toast('Must be a Supporter');return;}
+        if(!cards[0] || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cards[0], cp) : cards[0].type==='Supporter')){toast('Must be a Supporter');return;}
         G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==cards[0].iid);
         fatePushDiscard(cp, cards[0]);
         card.currentFate+=5;
@@ -4743,7 +4805,7 @@ function canShowBoardActivateEffect(card, z, r, c, player) {
   if(typeof canActivatePendingWhenSetEffect === 'function'
     && canActivatePendingWhenSetEffect(card, z, r, c, actionPlayer)) return true;
   if(shouldShowManualCharacterEffectButton(card)) return true;
-  if(card.type !== 'Supporter') return false;
+  if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, actionPlayer) : card.type === 'Supporter')) return false;
   const supporterSuppressed = typeof isSupporterEffectSuppressed === 'function'
     && isSupporterEffectSuppressed(card);
   if(supporterSuppressed) return false;
@@ -4975,7 +5037,7 @@ function isPlayerSupporterEffectsSuppressed(player) {
 }
 
 function isSupporterEffectSuppressed(card) {
-  if(!card || card.type !== 'Supporter') return false;
+  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(isEffectImmuneSource(card)) return false;
   if(card._lydiaSuppressed) return true;
   if(card._reactionSuppressed) return true;
@@ -5017,9 +5079,9 @@ function getEffectiveFate(card, z) {
 
   if(card.id==='85') {
     const opponent = 1 - card.owner;
-    bonus += typeof getSupporterReinforcementSetTotalForPlayer === 'function'
-      ? getSupporterReinforcementSetTotalForPlayer(opponent)
-      : (Number(Array.isArray(G.supporterReinforcementSetP) ? G.supporterReinforcementSetP[opponent] : 0) || Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[opponent] : 0) || 0);
+    bonus += typeof getSupportersSetCountForPlayer === 'function'
+      ? getSupportersSetCountForPlayer(opponent)
+      : (Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[opponent] : 0) || 0);
   }
   if(card.id==='88') {
     let charCount = 0;
@@ -5030,7 +5092,7 @@ function getEffectiveFate(card, z) {
   }
   if(card.id==='89') {
     const counts = Array.isArray(G._supporterEffectsActivatedP) ? G._supporterEffectsActivatedP : [0,0];
-    if((Number(counts[card.owner]) || 0) < 10) bonus += 6;
+    if((Number(counts[card.owner]) || 0) < 10) bonus += 7;
   }
   if(card.id==='100' && typeof controlsNamedCard === 'function' && controlsNamedCard(card.owner, ['Felicyta', 'Kvetka', 'Květka'])) {
     bonus += 3;
@@ -5092,7 +5154,7 @@ function getEffectiveFate(card, z) {
     if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 3 + jeremiahBoost;
     // Phil (46): no zone aura
     // Anne Stone (11): +3 to supporters in zone
-    if(cell.id==='11' && card.type==='Supporter') bonus += 3 + jeremiahBoost;
+    if(cell.id==='11' && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
@@ -5103,7 +5165,7 @@ function getEffectiveFate(card, z) {
     if(cell.id==='23' && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
-    if(cardActsAsPassive(cell, '59') && card.type==='Supporter' && !isSupporterEffectSuppressed(cell)) bonus += 1;
+    if(cardActsAsPassive(cell, '59') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
     if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
@@ -5511,7 +5573,7 @@ async function activateVigilantes(card, z, r, c) {
   }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
   pickCardInZone(z,'Vigilantes: select an opponent Supporter in this zone to set its Reinforcement to 0.',(tgt)=>{
-    if(tgt.owner !== opp || tgt.type !== 'Supporter'){toast('Must select an opponent Supporter');return;}
+    if(tgt.owner !== opp || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(tgt, opp) : tgt.type === 'Supporter')){toast('Must select an opponent Supporter');return;}
     if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
     tgt._markedForDeath = true;
     tgt._reinforcementOverride = 0;
@@ -5522,7 +5584,7 @@ async function activateVigilantes(card, z, r, c) {
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
     renderEffectResolutionForPlayer(cp, {hand:false});
-  }, function(cell){ return !!cell && cell.owner === opp && cell.type === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))); });
+  }, function(cell){ return !!cell && cell.owner === opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, opp) : cell.type === 'Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))); });
 }
 
 
@@ -5833,7 +5895,7 @@ function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
     }
     return [];
   }
-  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','75','76','77','80','91']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','75','76','77','80','91','97']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
@@ -6275,4 +6337,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh01','bh25']);

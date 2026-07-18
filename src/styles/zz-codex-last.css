@@ -7045,6 +7045,30 @@ body.tutorial-active #s-game .landscape-panel.tutorial-landscape .landscape-desc
   transform:translateY(-1px);
 }
 
+.landscape-choice-card.is-blocked{
+  border-color:rgba(207,82,82,.72);
+  box-shadow:inset 0 0 0 1px rgba(207,82,82,.2);
+}
+
+.landscape-choice-card.is-blocked:hover{
+  border-color:rgba(236,112,112,.92);
+  box-shadow:0 0 18px rgba(207,82,82,.18);
+}
+
+.landscape-choice-blocked{
+  margin-top:.65rem;
+  padding:.42rem .5rem;
+  border:1px solid rgba(207,82,82,.48);
+  border-radius:4px;
+  color:#f3aaaa;
+  background:rgba(102,18,18,.24);
+  font-family:'Cinzel',serif;
+  font-size:.67rem;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  text-align:center;
+}
+
 .landscape-choice-art{
   width:100%!important;
   min-width:0!important;

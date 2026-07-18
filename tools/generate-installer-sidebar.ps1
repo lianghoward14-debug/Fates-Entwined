@@ -20,24 +20,37 @@ $sourceRect = New-Object System.Drawing.Rectangle $cropX, 0, $cropWidth, $source
 $targetRect = New-Object System.Drawing.Rectangle 0, 0, 164, 314
 $graphics.DrawImage($source, $targetRect, $sourceRect, [System.Drawing.GraphicsUnit]::Pixel)
 
-# Keep the art readable throughout; there is intentionally no bottom black fade.
+# Keep the art readable throughout, then add a focused title shadow at the bottom.
 $veil = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(48, 0, 0, 0))
 $graphics.FillRectangle($veil, $targetRect)
 
-$titleFont = New-Object System.Drawing.Font 'Georgia', 18, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
-$subtitleFont = New-Object System.Drawing.Font 'Georgia', 10, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
+$titleShadowBaseY = 225
+for ($i = 0; $i -lt 70; $i++) {
+  $distance = [Math]::Abs($i - 38) / 38
+  $alpha = [int](28 + (96 * (1 - [Math]::Min(1, $distance))))
+  $shadowBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 0, 0, 0))
+  $graphics.FillRectangle($shadowBrush, 0, ($titleShadowBaseY + $i), 164, 1)
+  $shadowBrush.Dispose()
+}
+
+$titleFont = New-Object System.Drawing.Font 'Georgia', 28, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
+$subtitleFont = New-Object System.Drawing.Font 'Georgia', 14, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
 $titleBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 247, 213, 104))
 $subtitleBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 255, 240, 184))
+$textShadow = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(176, 0, 0, 0))
 $center = New-Object System.Drawing.StringFormat
 $center.Alignment = [System.Drawing.StringAlignment]::Center
 
-$graphics.DrawString('FATES', $titleFont, $titleBrush, (New-Object System.Drawing.RectangleF 0, 226, 164, 25), $center)
-$graphics.DrawString('ENTWINED', $subtitleFont, $subtitleBrush, (New-Object System.Drawing.RectangleF 0, 250, 164, 16), $center)
+$graphics.DrawString('FATES', $titleFont, $textShadow, (New-Object System.Drawing.RectangleF 1, 239, 164, 34), $center)
+$graphics.DrawString('ENTWINED', $subtitleFont, $textShadow, (New-Object System.Drawing.RectangleF 1, 270, 164, 21), $center)
+$graphics.DrawString('FATES', $titleFont, $titleBrush, (New-Object System.Drawing.RectangleF 0, 238, 164, 34), $center)
+$graphics.DrawString('ENTWINED', $subtitleFont, $subtitleBrush, (New-Object System.Drawing.RectangleF 0, 269, 164, 21), $center)
 
 $bitmap.Save($installerPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
 $bitmap.Save($uninstallerPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
 
 $center.Dispose()
+$textShadow.Dispose()
 $subtitleBrush.Dispose()
 $titleBrush.Dispose()
 $subtitleFont.Dispose()

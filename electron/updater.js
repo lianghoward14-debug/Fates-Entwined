@@ -81,7 +81,9 @@ function createDesktopUpdater() {
 
   function installNow() {
     if (!autoUpdater || state.status !== 'ready') return false;
-    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+    // Install silently so updates feel native to the client instead of reopening
+    // the interactive NSIS setup wizard, then force the updated app to relaunch.
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
     return true;
   }
 

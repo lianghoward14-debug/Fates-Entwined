@@ -95,7 +95,8 @@ function stopServer(child){
     assert.strictEqual(path.resolve(health.flyDataDir), path.resolve(dataDir));
 
     const policy = await requestJson('GET', '/api/ai-learning/policy');
-    assert.strictEqual(Object.keys(policy.policies || {}).length, 3, 'policy API should expose only the three learned High Marshalls');
+    assert.strictEqual(Object.keys(policy.policies || {}).length, 4, 'policy API should expose the universal learned layer and three High Marshall specialists');
+    assert(policy.policies?.['all ai opponents'], 'policy API should provide a learned fallback for every AI opponent');
     const learned = await requestJson('POST', '/api/ai-learning/decisions', {
       uid:'runtime-host',
       v:1,

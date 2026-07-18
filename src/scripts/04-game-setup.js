@@ -1303,11 +1303,22 @@ function initGameState() {
   G.players[0].discard = [];
   G.players[1].discard = [];
 
+  // Avalanche Escape (98): remove copies before the normal six-card draw,
+  // then add them as additional opening cards.
+  const avalancheEscapeCards = [0, 1].map(function(player){
+    const extras = G.players[player].deck.filter(function(card){ return card && String(card.id) === '98'; });
+    G.players[player].deck = G.players[player].deck.filter(function(card){ return !card || String(card.id) !== '98'; });
+    return extras;
+  });
+
   // Draw starting hands (6 each)
   G._pendingSelvaSupportBoost = [0, 0];
   G._selvaSupportBoosts = [null, null];
   for(let i=0;i<6;i++) drawCard(0, 1, { skipOptionalImprovisors: true, openingHand: true });
   for(let i=0;i<6;i++) drawCard(1, 1, { skipOptionalImprovisors: true, openingHand: true });
+  avalancheEscapeCards.forEach(function(cards, player){
+    cards.forEach(function(card){ addCardToHand(player, card, {openingHand:true, announce:false}); });
+  });
 }
 
 function shuffle(arr) {

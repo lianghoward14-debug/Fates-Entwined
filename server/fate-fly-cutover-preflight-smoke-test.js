@@ -52,6 +52,7 @@ const requiredScripts = [
   'smoke:card-catalog',
   'smoke:ai-intelligence',
   'smoke:ai-learning',
+  'smoke:ai-full-game',
   'smoke:ai-deck-pool',
   'smoke:spectator'
 ];
@@ -76,6 +77,7 @@ runNode('client-resolved WebSocket', 'server/fate-client-resolved-ws-smoke-test.
 runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
 runNode('AI intelligence leakage audit', 'server/fate-ai-intelligence-smoke-test.js');
 runNode('AI imitation and self-play', 'server/fate-ai-learning-smoke-test.js');
+runNode('AI offline full-game self-play', 'server/fate-full-game-self-play-smoke-test.js');
 runNode('AI custom deck pool', 'server/fate-ai-deck-pool-smoke-test.js');
 runNode('spectator privacy and lifecycle', 'server/fate-spectator-static-smoke-test.js');
 

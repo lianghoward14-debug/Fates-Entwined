@@ -269,7 +269,7 @@ function isAuthorityEffectImmuneSource(card){
   return id === '20' || id === '70' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
 }
 
-const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91']);
+const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91','97']);
 const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
 const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','bh25']);
 const AUTHORITY_CHARACTER_AFFECTS_BOTH = new Set(['12','17','34','40']);
@@ -293,10 +293,11 @@ const AUTHORITY_HAVANO_REACTION_SOURCE_IDS = new Set([
   '62', // Berkeley Homeless
   '64', // Cook Islands Duelist
   '71', // Fort Calvin Watcher
-  '72' // Robo en la Noche
+  '72', // Robo en la Noche
+  '97' // Visegrad Politician
 ]);
 const AUTHORITY_SECULES_WHEN_SET_IDS = new Set([
-  '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25'
+  '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh01','bh25'
 ]);
 const AUTHORITY_ONGOING_FIRST_SET_EFFECT_IDS = new Set([
   '10','14','21','36','53','62','64',
@@ -668,6 +669,8 @@ function validateBoardEffectActivationPostState(room, payload, postState){
 function validateActionSpecificPostState(room, msg, postState){
   const type = effectiveAuthorityActionType(msg);
   const payload = msg && msg.payload || {};
+  const timedLandscapeErr = validateTimedLandscapeTransition(room && room.canonicalState, postState);
+  if(timedLandscapeErr) return timedLandscapeErr;
   const usMarinesErr = validateUsMarinesUsesTransition(room, postState);
   if(usMarinesErr) return usMarinesErr;
   if(type === 'SELECT_CONSOLIDATION_TRIBUTE' || payload.consolidationPresentation || collectConsolidationTributeRefs(payload).length){
@@ -681,6 +684,25 @@ function validateActionSpecificPostState(room, msg, postState){
   }
   if(type === 'BOARD_ACTION'){
     return validateBoardEffectActivationPostState(room, payload, postState);
+  }
+  return '';
+}
+
+function validateTimedLandscapeTransition(preState, postState){
+  if(!preState || !postState) return '';
+  const currentId = String(preState.landscapeId || '');
+  const targetId = String(postState.landscapeId || '');
+  if(!currentId || !targetId || currentId === targetId) return '';
+  const resolutionTurns = {igb2:14, igb8:10};
+  const turn = Math.max(1, Number(preState.turn) || 1);
+  const currentResolutionTurn = Number(resolutionTurns[currentId]) || 0;
+  const targetResolutionTurn = Number(resolutionTurns[targetId]) || 0;
+  const resolvedTurns = preState._landscapeState && preState._landscapeState.resolvedTurns || {};
+  if(currentResolutionTurn && !resolvedTurns[currentId] && turn >= currentResolutionTurn - 4){
+    return 'timed landscape cannot be changed away from during its final four turns';
+  }
+  if(targetResolutionTurn && turn >= targetResolutionTurn - 4){
+    return 'timed landscape cannot be entered during its final four turns';
   }
   return '';
 }

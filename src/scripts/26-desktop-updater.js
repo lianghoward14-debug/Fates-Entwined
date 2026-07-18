@@ -216,7 +216,7 @@
     bannerAction = document.createElement('button');
     bannerAction.type = 'button';
     bannerAction.className = 'desktop-update-action';
-    bannerAction.textContent = 'Restart to install';
+    bannerAction.textContent = 'Restart and update';
     bannerAction.addEventListener('click', async () => {
       bannerAction.disabled = true;
       try {

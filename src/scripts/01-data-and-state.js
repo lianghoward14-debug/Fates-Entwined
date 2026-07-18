@@ -319,7 +319,7 @@ const CARDS = [
     flavor:'"You\'d think that wrathful apparitions would be a cause for concern, but all they do is ramble about neo-liberalism"',img:'80.png'},
   {id:'81',name:'Wojciech',ability:'Warm Pierogi',type:'Coordinator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
-    effect:'Character cards in this card\'s zone that cost 2 or more Reinforcement cost 1 less.',
+    effect:'Character cards in this card\'s zone that cost 2 or more Reinforcement now cost 1 less.',
     flavor:'"Wojciech\'s advanced age has given him ample time to refine his pierogi craft - He is a true artist!"',img:'81.png'},
   {id:'82',name:'Felicyta Janowicz (Youth)',ability:'A Quaint Polish Village',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'square',
@@ -329,19 +329,19 @@ const CARDS = [
     fate:3,cost:2,rarity:'triangle',
     effect:'All Character cards you control in this zone gain 2 Fate permanently.',
     flavor:'"Sebastyen\'s vision was to see an autonomous Eastern Europe, one that didn\'t have to bow to foreign powers like the European Union"',img:'83.png'},
-  {id:'84',name:'Kvetka Svoboda',ability:'Flower Picking',type:'Dauntless',aff:'expanded_worlds',
+  {id:'84',name:'Kv\u011btka Svoboda',ability:'Flower Picking',type:'Dauntless',aff:'expanded_worlds',
     fate:8,cost:3,rarity:'square',
-    effect:'When set, add any Expanded Worlds Character card from the deck to the hand and set it at no cost, excluding copies of this card and Star cards.',
+    effect:'When set, add any Expanded Worlds Character card from the deck to the hand and set it at no cost, excluding copies of this card and Star Cards.',
     flavor:'"Felicytaaa! Look outside, its snowing, its snowing! Hurry up and wake up we have to go play with everyone!"',img:'84.png'},
   {id:'85',name:'Felicyta Janowicz (Specters)',ability:'A Specter\'s Lament',type:'Dauntless',aff:'expanded_worlds',
     fate:1,cost:3,rarity:'square',
-    effect:'This card gains Fate equal to the total Reinforcement value of Supporters your opponent has set this game.',
+    effect:'This card gains 1 Fate for the total amount of times your opponent set a Supporter this game.',
     flavor:'"A blood-stained axe, a shattered bayonet, a burning flag - I saw the last thing they saw in the fleeting moments of their lives"',img:'85.png'},
   {id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
     effect:'This card can be set at no cost from the hand if you have more Character cards than Supporters in your hand. This card counts as 3 Reinforcement, and any consolidation with this card gains 4 Fate.',
     flavor:'"Boleslaw is the de-facto uncle of the Janowicz family - controversial and disruptive, but charismatic and amusing"',img:'86.png'},
-  {id:'87',name:'Kvetka Svoboda (Ukulele)',ability:'A Noble Effort at a Ballad',type:'Initiator',aff:'expanded_worlds',
+  {id:'87',name:'Kv\u011btka Svoboda (Ukulele)',ability:'A Noble Effort at a Ballad',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
     effect:'Starting your next turn, if you would consolidate at least once and not set a Supporter, all of your consolidations that turn gain 3 Fate permanently at the end of the turn. This effect ends when you set a Supporter.',
     flavor:'"Let me sing you a song! It goes like... em... ughhh... something... wow!"',img:'87.png'},
@@ -350,8 +350,8 @@ const CARDS = [
     effect:'This card gains 2 Fate for each Character card you control on the field.',
     flavor:'"This sword is a priceless antique from the late Matthias I of Hungary... with it, all of the Danube is mine!"',img:'88.png'},
   {id:'89',name:'Zsofia Szocs (Youth)',ability:'Terrible Twins: Diva',type:'Dauntless',aff:'expanded_worlds',
-    fate:6,cost:2,rarity:'triangle',
-    effect:'As long as you activate less than 10 Supporter effects this game, this card gains 6 Fate.',
+    fate:7,cost:2,rarity:'triangle',
+    effect:'As long as you activate less than 10 Supporter effects this game, this card gains 7 Fate.',
     flavor:'"Ummm can you tell Rozsi to read somewhere else in the house? His aura is giving me bad skin..."',img:'89.png'},
   {id:'90',name:'Wojciech (Fisherman)',ability:'Catch of the Day',type:'Initiator',aff:'expanded_worlds',
     fate:3,cost:1,rarity:'triangle',
@@ -377,13 +377,25 @@ const CARDS = [
     fate:1,cost:0,rarity:'circle',
     effect:'This card gains 1 Fate for every two turns it is on the field, maximum of six times.',
     flavor:'"The shadows of those who fell in forgotten battles, condemned to an eternity of lamentation"',img:'95.png'},
+  {id:'96',name:'Wodny Potok Snow Shoveler',ability:'Shovel',type:'Supporter',aff:'expanded_worlds',
+    fate:1,cost:0,rarity:'circle',
+    effect:'Return four random cards in your discard pile to your deck.',
+    flavor:'"Maybe the real Christmas miracle is how Sebastyen is able to convince a group of grown adults to shovel snow for minimum wage"',img:'96.png'},
+  {id:'97',name:'Visegrad Politician',ability:'Administrative Bloat',type:'Supporter',aff:'expanded_worlds',
+    fate:1,cost:0,rarity:'circle',
+    effect:'Your opponent\'s next two consolidations cost 1 extra Reinforcement.',
+    flavor:'"Every week, these fat men in suits come to have dinner parties with dad - they are all so boring!!!"',img:'97.png'},
+  {id:'98',name:'Wodny Potok Skier',ability:'Avalanche Escape',type:'Supporter',aff:'expanded_worlds',
+    fate:1,cost:0,rarity:'circle',
+    effect:'This card will always appear in your opening hand as an additional card.',
+    flavor:'"Pine trees are the leading cause of fatal accidents in Wodny Potok"',img:'98.png'},
   {id:'99',name:'Rozsi and Zsofia (Youth)',ability:'The Blame Game',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:1,rarity:'triangle',
     effect:'For the next five turns, your Supporters are classified as Characters. If you control any Rozsi or Zsofia card, this card has no cost. This card uses Characters for its consolidation.',
     flavor:'',img:'99.png'},
-  {id:'100',name:'Felicyta and Kvetka (Youth)',ability:'Wintertide',type:'Dauntless',aff:'expanded_worlds',
+  {id:'100',name:'Felicyta and Kv\u011btka (Youth)',ability:'Wintertide',type:'Dauntless',aff:'expanded_worlds',
     fate:12,cost:3,rarity:'square',
-    effect:'This card gains 1 Fate for each of your turns that the "Snow on the Carpathians" landscape is active. If you control any Felicyta or Kvetka card, this card gains 3 Fate. This card uses Characters for its consolidation.',
+    effect:'This card gains 2 Fate for each of your turns that the "Snow on the Carpathians" landscape is active. If you control any Felicyta or Květka card, this card gains 3 Fate. This card uses Characters for its consolidation.',
     flavor:'',img:'100.png'},
   {id:'65',name:'1st West Caribbea Marines',ability:'Sea-Men',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',contestedOnly:true,
@@ -408,15 +420,9 @@ const CARDS = [
     flavor:'"I will burn this planet down before I spend another minute among these foids"',img:''},
 ];
 
-// Temporary card-pool hold: keep definitions and effect code intact, but remove
-// these cards from builders, packs, preset validation, and match deck creation.
-const TEMP_DISABLED_CARD_IDS = new Set(Array.from({length:20}, function(_, i){ return String(81 + i); }));
-CARDS.forEach(function(card){
-  if(card && TEMP_DISABLED_CARD_IDS.has(String(card.id))) {
-    card.temporarilyDisabled = true;
-    card.retired = true;
-  }
-});
+// Cards 80-100 are released into every normal card pool. Keep this shared set
+// available for any future temporary holds without marking released cards retired.
+const TEMP_DISABLED_CARD_IDS = new Set();
 
 function hasAnyChallengerDeck() {
   return Object.values(USER_PROFILE.challengerPresets || {}).some(p=>Array.isArray(p.ids) && p.ids.length===40);
@@ -595,6 +601,8 @@ let G = {
   // Polish army set-from-deck uses
   polishArmyUses: [0, 0],
   _blameGameEffects: [null, null],
+  _administrativeBloatEffects: [],
+  _serverRngCounter: 0,
   // opponent suppressed effects
   oppSuppressedNextTurn: false,
   erbsActive: [false, false],

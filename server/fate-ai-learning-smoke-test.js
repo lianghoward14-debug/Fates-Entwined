@@ -7,7 +7,20 @@ const path = require('path');
 const Learning = require('../src/scripts/07-ai-learning.js');
 
 const base = Learning.createBasePolicies();
-assert.deepStrictEqual(Object.keys(base).sort(), Learning.POLICY_NAMES.slice().sort(), 'only the three named High Marshalls receive learned policies');
+assert.deepStrictEqual(Object.keys(base).sort(), Learning.POLICY_NAMES.slice().sort(), 'the shared policy and all specialist policies should be initialized');
+assert(base[Learning.GLOBAL_POLICY_NAME], 'every AI needs a shared learned-policy fallback');
+assert.strictEqual(Learning.policyForAI(base, {name:'High Envoy Chloe Kirk'}), base[Learning.GLOBAL_POLICY_NAME], 'ordinary named AI opponents should receive the shared learned policy');
+assert.strictEqual(Learning.policyForAI(base, {name:'Generated Monthly Rival'}), base[Learning.GLOBAL_POLICY_NAME], 'future generated opponents should inherit learning automatically');
+assert.strictEqual(Learning.policyForAI(base, {name:'Commander Maja Kaminska'}), base['commander maja kaminska'], 'named High Marshalls should retain their specialist policies');
+assert.strictEqual(base[Learning.GLOBAL_POLICY_NAME].selfPlayEpisodes, 1000, 'the requested universal self-play bootstrap should be retained');
+assert.strictEqual(base[Learning.GLOBAL_POLICY_NAME].fullGameEpisodes, 125250, 'the promoted offline full-game league should be retained');
+assert.strictEqual(base['commander maja kaminska'].selfPlayEpisodes, 1531, 'specialist bootstrap should include prior Fly training plus the requested batch');
+const migratedV1 = Learning.sanitizePolicySet({
+  'commander maja kaminska':{version:1,samples:133,selfPlayEpisodes:531,updatedAt:1,weights:{contested:-1.5}}
+});
+assert.strictEqual(migratedV1['commander maja kaminska'].version, Learning.POLICY_VERSION, 'version-1 Fly policies should migrate to the universal-policy schema');
+assert.strictEqual(migratedV1['commander maja kaminska'].selfPlayEpisodes, 1531, 'migration should retain the newly completed self-play accounting');
+assert.strictEqual(migratedV1['commander maja kaminska'].weights.contested, Learning.BASE_WEIGHTS['commander maja kaminska'].contested, 'migration should use the newly trained bootstrap rather than stale version-1 weights');
 
 const winningMajaLike = Learning.createDecision({
   action:'p',
@@ -61,6 +74,7 @@ assert(index.indexOf('07-ai-learning.js') < index.indexOf('07-ai.js'), 'learning
 assert.strictEqual((controller.match(/function\s+runAITurn\s*\(/g) || []).length, 1, 'learning must not introduce a second AI turn controller');
 assert.strictEqual((index.match(/07-ai-learning\.js/g) || []).length, 1, 'exactly one learning module should be active');
 assert(controller.includes('score += aiLearnedMoveBonus(move);'), 'the learned policy must feed the unified move evaluator');
+assert(!controller.includes('learning.isLearningAI(G._selectedAI)'), 'the move evaluator must not restrict learned bonuses to the original High Marshalls');
 assert(gameplay.includes("action:'p'") && gameplay.includes("action:'c'") && gameplay.includes("action:'e'"), 'human placements, consolidations, and turn endings should be sampled');
 assert(authority.includes("Authentication prevents anonymous spam; user identity is deliberately not retained."), 'the ingestion route should document its identity boundary');
 assert(authority.includes('AI_LEARNING_MAX_SAMPLES'), 'server learning storage must have a hard sample cap');

@@ -6,30 +6,50 @@
   'use strict';
 
   const SCHEMA_VERSION = 1;
-  const POLICY_VERSION = 1;
+  const POLICY_VERSION = 3;
   const MAX_CLIENT_DECISIONS = 72;
-  const POLICY_NAMES = Object.freeze([
+  const GLOBAL_POLICY_NAME = 'all ai opponents';
+  const SPECIALIST_POLICY_NAMES = Object.freeze([
     'mastermind duncan heyward',
     'field marshall achille laurent',
     'commander maja kaminska'
   ]);
+  const POLICY_NAMES = Object.freeze([GLOBAL_POLICY_NAME, ...SPECIALIST_POLICY_NAMES]);
   const FEATURE_KEYS = Object.freeze([
     'consolidate', 'contested', 'tempo', 'disruption', 'scaling',
     'trailing', 'concentrate', 'spread', 'fate', 'conserve'
   ]);
   const BASE_WEIGHTS = Object.freeze({
+    'all ai opponents': Object.freeze({
+      consolidate:0.39909250159145854, contested:0.5339972964685081, tempo:0.34751610776676767,
+      disruption:0.3763270519744865, scaling:0.40161562184283855, trailing:0.5023363200174865,
+      concentrate:0.30874469558461787, spread:0.26759202789969255, fate:0.5129980198249735,
+      conserve:0.43943983835361045
+    }),
     'mastermind duncan heyward': Object.freeze({
-      consolidate:0.82, contested:0.44, tempo:-0.18, disruption:0.18, scaling:0.50,
-      trailing:0.36, concentrate:0.52, spread:-0.10, fate:0.62, conserve:0.70
+      consolidate:0.8099789691546397, contested:0.46735844992312914, tempo:-0.12107212481943551,
+      disruption:0.2082375128704897, scaling:0.5286147331636655, trailing:0.3553955665755025,
+      concentrate:0.5480691550993716, spread:-0.07203054986445272, fate:0.6373692231041487,
+      conserve:0.7195305175751469
     }),
     'field marshall achille laurent': Object.freeze({
-      consolidate:0.16, contested:0.40, tempo:0.10, disruption:0.88, scaling:0.42,
-      trailing:0.78, concentrate:0.12, spread:0.34, fate:0.36, conserve:0.46
+      consolidate:0.17641879589927834, contested:0.4523821150958264, tempo:0.16718395281332402,
+      disruption:0.9055160593705083, scaling:0.4627662822965515, trailing:0.7700075711034019,
+      concentrate:0.1632309367254857, spread:0.36999023146704124, fate:0.41180486444848374,
+      conserve:0.4952545928679643
     }),
     'commander maja kaminska': Object.freeze({
-      consolidate:0.34, contested:0.92, tempo:0.86, disruption:0.12, scaling:0.34,
-      trailing:0.48, concentrate:0.84, spread:-0.16, fate:0.58, conserve:0.12
+      consolidate:0.3407390518830276, contested:0.9232686310053195, tempo:0.8730800896524656,
+      disruption:0.14327316206691815, scaling:0.36994781690483447, trailing:0.4709934825560519,
+      concentrate:0.8504761032718344, spread:-0.13159187261171557, fate:0.5924782105206846,
+      conserve:0.15547424484966058
     })
+  });
+  const BOOTSTRAP_STATS = Object.freeze({
+    'all ai opponents': Object.freeze({samples:0,selfPlayEpisodes:1000,fullGameEpisodes:125250,updatedAt:1784360921159}),
+    'mastermind duncan heyward': Object.freeze({samples:133,selfPlayEpisodes:1531,fullGameEpisodes:125250,updatedAt:1784360921162}),
+    'field marshall achille laurent': Object.freeze({samples:133,selfPlayEpisodes:1531,fullGameEpisodes:125250,updatedAt:1784360921163}),
+    'commander maja kaminska': Object.freeze({samples:133,selfPlayEpisodes:1531,fullGameEpisodes:125250,updatedAt:1784360921166})
   });
 
   function clamp(value, min, max){
@@ -43,7 +63,15 @@
 
   function isLearningAI(value){
     const name = normalizeName(value && typeof value === 'object' ? (value.name || value.username) : value);
-    return POLICY_NAMES.includes(name);
+    return !!name;
+  }
+
+  function policyForAI(policiesValue, value){
+    const raw = policiesValue && typeof policiesValue === 'object'
+      ? (policiesValue.policies || policiesValue)
+      : {};
+    const name = normalizeName(value && typeof value === 'object' ? (value.name || value.username) : value);
+    return raw[name] || raw[GLOBAL_POLICY_NAME] || createBasePolicies()[GLOBAL_POLICY_NAME];
   }
 
   function copyWeights(source){
@@ -55,12 +83,14 @@
   function createBasePolicies(){
     const policies = {};
     POLICY_NAMES.forEach(name=>{
+      const stats = BOOTSTRAP_STATS[name] || {};
       policies[name] = {
         name,
         version:POLICY_VERSION,
-        samples:0,
-        selfPlayEpisodes:0,
-        updatedAt:0,
+        samples:Math.max(0, Math.round(Number(stats.samples) || 0)),
+        selfPlayEpisodes:Math.max(0, Math.round(Number(stats.selfPlayEpisodes) || 0)),
+        fullGameEpisodes:Math.max(0, Math.round(Number(stats.fullGameEpisodes) || 0)),
+        updatedAt:Math.max(0, Math.round(Number(stats.updatedAt) || 0)),
         weights:copyWeights(BASE_WEIGHTS[name])
       };
     });
@@ -73,13 +103,18 @@
     POLICY_NAMES.forEach(name=>{
       const incoming = raw[name];
       if(!incoming || typeof incoming !== 'object') return;
+      const incomingVersion = Math.max(0, Math.round(Number(incoming.version) || 0));
+      const incomingWeights = incomingVersion >= POLICY_VERSION
+        ? Object.assign({}, BASE_WEIGHTS[name], incoming.weights || {})
+        : BASE_WEIGHTS[name];
       base[name] = {
         name,
-        version:Math.max(POLICY_VERSION, Math.round(Number(incoming.version) || 0)),
-        samples:Math.max(0, Math.round(Number(incoming.samples) || 0)),
-        selfPlayEpisodes:Math.max(0, Math.round(Number(incoming.selfPlayEpisodes) || 0)),
-        updatedAt:Math.max(0, Math.round(Number(incoming.updatedAt) || 0)),
-        weights:copyWeights(Object.assign({}, BASE_WEIGHTS[name], incoming.weights || {}))
+        version:Math.max(POLICY_VERSION, incomingVersion),
+        samples:Math.max(base[name].samples, Math.round(Number(incoming.samples) || 0)),
+        selfPlayEpisodes:Math.max(base[name].selfPlayEpisodes, Math.round(Number(incoming.selfPlayEpisodes) || 0)),
+        fullGameEpisodes:Math.max(base[name].fullGameEpisodes, Math.round(Number(incoming.fullGameEpisodes) || 0)),
+        updatedAt:Math.max(base[name].updatedAt, Math.round(Number(incoming.updatedAt) || 0)),
+        weights:copyWeights(incomingWeights)
       };
     });
     return base;
@@ -320,11 +355,15 @@
     SCHEMA_VERSION,
     POLICY_VERSION,
     MAX_CLIENT_DECISIONS,
+    GLOBAL_POLICY_NAME,
+    SPECIALIST_POLICY_NAMES,
     POLICY_NAMES,
     FEATURE_KEYS,
     BASE_WEIGHTS,
+    BOOTSTRAP_STATS,
     normalizeName,
     isLearningAI,
+    policyForAI,
     createBasePolicies,
     sanitizePolicySet,
     sanitizeDecision,
@@ -332,6 +371,7 @@
     createDecision,
     trainImitation,
     runSelfPlay,
+    moveFeatures,
     scoreMove,
     seededRng
   };
@@ -342,7 +382,7 @@
   if(!root || !root.FateAILearning || root.__fateAILearningClientInstalled) return;
   root.__fateAILearningClientInstalled = true;
   const AI = root.FateAILearning;
-  const POLICY_KEY = 'fate_ai_learned_policy_v1';
+  const POLICY_KEY = 'fate_ai_learned_policy_v3';
   const QUEUE_KEY = 'fate_ai_learning_queue_v1';
   const OPT_OUT_KEY = 'fate_ai_learning_opt_out';
   let policies = AI.createBasePolicies();
@@ -530,8 +570,7 @@
   }
 
   function getPolicy(ai){
-    const name = AI.normalizeName(ai && typeof ai === 'object' ? (ai.name || ai.username) : ai);
-    return policies[name] || null;
+    return AI.policyForAI(policies, ai);
   }
 
   loadLocalPolicies();
