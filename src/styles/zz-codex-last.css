@@ -19387,3 +19387,36 @@ html body #modal .reaction-choice-copy em::first-letter,
 html body #online-improvisor-reaction-root .reaction-choice-copy em::first-letter{
   color:#ffe58c!important;
 }
+
+/* Deck builders keep wheel/touch scrolling without visible scrollbar chrome. */
+html body #s-deck #db-collection,
+html body #s-deck #db-deck-list,
+html body #s-challenger .ch-tab-pane.ch-cdb-content,
+html body #s-challenger .ch-tab-pane.ch-cdb-content #cdb-collection,
+html body #s-challenger .ch-tab-pane.ch-cdb-content #cdb-decklist{
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+  scrollbar-gutter:auto!important;
+}
+
+html body #s-deck #db-collection::-webkit-scrollbar,
+html body #s-deck #db-deck-list::-webkit-scrollbar,
+html body #s-challenger .ch-tab-pane.ch-cdb-content::-webkit-scrollbar,
+html body #s-challenger .ch-tab-pane.ch-cdb-content #cdb-collection::-webkit-scrollbar,
+html body #s-challenger .ch-tab-pane.ch-cdb-content #cdb-decklist::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+/* Transient effect alerts size to their message; persistent status banners are untouched. */
+html body #toast.toast-effect-alert{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:min(720px,calc(100vw - 32px))!important;
+  box-sizing:border-box!important;
+  padding:.9rem 1.25rem!important;
+  line-height:1.24!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
