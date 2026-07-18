@@ -584,9 +584,23 @@ async function main(){
     assert.ok(liveMatches.matches.some(match=>match.roomCode === code), 'Fly live matches should include started room');
     const spectatorJoin = await requestJson('POST', `/api/rooms/${code}/spectators/join`, {uid:'spectator-one'});
     assert.strictEqual(spectatorJoin.room.spectatorCount, 1);
-    const spectatorResume = await requestJson('GET', `/api/rooms/${code}/resume?after=0&limit=20`);
+    const spectatorResume = await requestJson('GET', `/api/rooms/${code}/resume?after=0&limit=20&includeState=1&spectator=1`);
     assert.strictEqual(spectatorResume.room.spectatorCount, 1);
+    assert.deepStrictEqual(spectatorResume.room.spectators, {}, 'public spectator room must not expose viewer UIDs');
+    assert.strictEqual(spectatorResume.room.seed, '', 'spectators must not receive the deterministic deck seed');
+    assert.strictEqual(spectatorResume.spectatorView, true);
     assert.strictEqual(spectatorResume.events[0].action.type, 'MATCH_START');
+    assert.strictEqual(spectatorResume.events[0].action.uid, undefined, 'spectator events must not expose stable action UIDs');
+    assert.strictEqual(spectatorResume.events[0].action.payload.decks, undefined, 'spectator events must not expose deck recipes');
+    assert.ok(spectatorResume.canonicalState, 'spectator resume should include a redacted canonical state');
+    spectatorResume.canonicalState.players.forEach((player, playerIndex)=>{
+      assert.ok(player.hand.length > 0, 'initial spectator state should preserve hand counts');
+      assert.ok(player.deck.length > 0, 'initial spectator state should preserve deck counts');
+      assert.ok(player.hand.every(card=>card.hidden && card._spectatorHidden && !card.id), `player ${playerIndex} hand must contain only hidden placeholders`);
+      assert.ok(player.deck.every(card=>card.hidden && card._spectatorHidden && !card.id), `player ${playerIndex} deck must contain only hidden placeholders`);
+    });
+    assert.ok(!JSON.stringify(spectatorResume).includes('spectator-one'), 'spectator resume must not leak the viewer UID');
+    assert.ok(!JSON.stringify(spectatorResume).includes('fly-store-smoke-seed'), 'spectator resume must not leak the shuffle seed through events or room patches');
     const spectatorChat = await requestJson('POST', `/api/rooms/${code}/chat`, {
       uid:'spectator-one',
       text:'spectator hello',
@@ -595,6 +609,7 @@ async function main(){
     assert.strictEqual(spectatorChat.message.text, 'spectator hello');
     assert.strictEqual(spectatorChat.message.isSpectator, true);
     assert.strictEqual(spectatorChat.message.name, 'Spectator');
+    assert.strictEqual(spectatorChat.message.uid, '', 'spectator chat identity must remain anonymous');
     const chatAfterTwo = await requestJson('GET', `/api/rooms/${code}/chat?after=2&limit=80`);
     assert.ok(chatAfterTwo.messages.some(message=>message.text === 'spectator hello'), 'Fly spectator chat should use room chat endpoint');
     const spectatorLeave = await requestJson('POST', `/api/rooms/${code}/spectators/leave`, {uid:'spectator-one'});

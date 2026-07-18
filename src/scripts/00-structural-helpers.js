@@ -414,7 +414,7 @@ function trackLandscapeConsolidation(player, card, z) {
   st.consolidations[player] = (Number(st.consolidations[player]) || 0) + 1;
   let bonus = 0;
   if (isLandscapeActive('igb3') && st.targetZone === z && G.turn < 10) {
-    bonus = 3;
+    bonus = 4;
     if (card) {
       card._landscapeStaticFateBonus = (Number(card._landscapeStaticFateBonus) || 0) + bonus;
       const before = Math.max(0, Number(card.currentFate ?? card.fate ?? 0) || 0);
@@ -772,41 +772,24 @@ if (typeof window !== 'undefined') {
   window.getHandCardEffectModifiers = getHandCardEffectModifiers;
 }
 
-function getPlacementAnimationDurationMs(cardOrRarity) {
-  const rarity = typeof cardOrRarity === 'string' ? cardOrRarity : cardOrRarity?.rarity;
-  if (rarity === 'star') return 760;
-  if (rarity === 'square') return 640;
-  if (rarity === 'triangle') return 580;
-  return 500;
+function purgeRetiredCardSetMotion() {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('#placement-anim-layer, .placement-anim-ghost, .placement-anim-card').forEach(function(el){
+    el.remove();
+  });
+  document.querySelectorAll('#s-game .bc.place-anim, #s-game .bc[class*="place-anim-"]').forEach(function(el){
+    Array.from(el.classList).forEach(function(className){
+      if (className === 'place-anim' || className.indexOf('place-anim-') === 0) el.classList.remove(className);
+    });
+    el.style.removeProperty('animation');
+    el.style.removeProperty('transform');
+    el.style.removeProperty('filter');
+  });
 }
 
-function markCardPlacementAnimation(card) {
-  if (!card) return 0;
-  const ms = getPlacementAnimationDurationMs(card);
-  // Only set the UI lock — animation is handled by the overlay layer
-  if (typeof G !== 'undefined' && G) {
-    const lockUntil = Date.now() + ms;
-    G._placementUiLockUntil = lockUntil;
-    G._cardDetailModalLockUntil = Math.max(Number(G._cardDetailModalLockUntil) || 0, lockUntil + 1120);
-    G._setEffectModalLockUntil = Math.max(Number(G._setEffectModalLockUntil) || 0, lockUntil + 1500);
-  }
-  return ms;
-}
-
-function triggerPlacementAnimation(card, z, r, c) {
-  if (card && (card._suppressPlacementAnimation || card._suppressCinematicSubtitle)) return 0;
-  const ms = markCardPlacementAnimation(card);
-  const renderV2OwnsBoard = typeof window !== 'undefined'
-    && window.FateMatchRendererAdapter
-    && typeof window.FateMatchRendererAdapter.ownsBoard === 'function'
-    && window.FateMatchRendererAdapter.ownsBoard();
-  if (renderV2OwnsBoard && typeof window !== 'undefined' && window.FateActionPresentation && !(card && card._allowLegacyPlacementAnimation)) {
-    return ms;
-  }
-  if (typeof playPlacementAnimation === 'function') {
-    playPlacementAnimation(card, z, r, c);
-  }
-  return ms;
+function triggerPlacementAnimation() {
+  purgeRetiredCardSetMotion();
+  return 0;
 }
 
 const FATE_ENHANCED_VISUAL_FX_KEY = 'fateEnhancedVisualFx';

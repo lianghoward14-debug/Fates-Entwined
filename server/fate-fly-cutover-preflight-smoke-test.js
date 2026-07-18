@@ -52,7 +52,8 @@ const requiredScripts = [
   'smoke:card-catalog',
   'smoke:ai-intelligence',
   'smoke:ai-learning',
-  'smoke:ai-deck-pool'
+  'smoke:ai-deck-pool',
+  'smoke:spectator'
 ];
 requiredScripts.forEach(name=>{
   assert.ok(pkg.scripts[name], `package should expose ${name}`);
@@ -76,5 +77,6 @@ runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
 runNode('AI intelligence leakage audit', 'server/fate-ai-intelligence-smoke-test.js');
 runNode('AI imitation and self-play', 'server/fate-ai-learning-smoke-test.js');
 runNode('AI custom deck pool', 'server/fate-ai-deck-pool-smoke-test.js');
+runNode('spectator privacy and lifecycle', 'server/fate-spectator-static-smoke-test.js');
 
 console.log('fate-fly-cutover-preflight smoke passed');

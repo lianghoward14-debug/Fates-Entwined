@@ -18,6 +18,13 @@
   let flySpectatorHeartbeatTimer = 0;
   let spectatorFlyChatSeq = 0;
   let spectatorLastCanonicalHash = '';
+  let spectatorEndLeaveTimer = 0;
+  let spectatorCachedAuthToken = '';
+  let spectatorActionPollInFlight = false;
+  let spectatorRoomPollInFlight = false;
+  let spectatorHostUid = '';
+  let spectatorGuestUid = '';
+  const spectatorChatMessages = new Map();
   const LIVE_MATCH_STALE_MS = 2 * 60 * 60 * 1000;
 
   function esc(s){ return String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -59,12 +66,15 @@
     const base = authorityHttpBaseUrl();
     if(!base) throw new Error('Fly authority API URL is not configured');
     const headers = {'accept':'application/json'};
-    const init = {method:String(opts.method || 'GET').toUpperCase(), headers};
+    const init = {method:String(opts.method || 'GET').toUpperCase(), headers, keepalive:opts.keepalive === true};
     try{
       const user = FO().auth?.currentUser;
       if(user && typeof user.getIdToken === 'function'){
         const token = await user.getIdToken(false).catch(()=> '');
-        if(token) headers.authorization = 'Bearer ' + token;
+        if(token){
+          headers.authorization = 'Bearer ' + token;
+          spectatorCachedAuthToken = token;
+        }
       }
     }catch(e){}
     if(Object.prototype.hasOwnProperty.call(opts, 'body')){
@@ -329,10 +339,9 @@
   async function spectateMatch(roomCode){
     const u = getUser();
     if(!u){ if(typeof toast === 'function') toast('Sign in to spectate'); return; }
-    if(flySpectatorEnabled()){
-      await spectateFlyMatch(roomCode, u);
-      return;
-    }
+    if(!flySpectatorEnabled()){ if(typeof toast === 'function') toast('Online not ready'); return; }
+    await spectateFlyMatch(roomCode, u);
+    return;
     if(!firebaseSpectatorAllowed()){ if(typeof toast === 'function') toast('Online not ready'); return; }
 
     // Check room exists and is playing
@@ -479,21 +488,16 @@
       return;
     }
 
-    closeLiveMatchesPanel();
-    spectatingRoom = code;
-    spectatorLastActionSeq = 0;
-    spectatorFlyChatSeq = 0;
-    spectatorLastCanonicalHash = '';
-
     let resume = null;
     try{
-      resume = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=0&limit=500&includeState=1`);
+      resume = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=0&limit=500&includeState=1&spectator=1`);
     }catch(e){
       console.warn('[Spectator] Fly spectator resume failed', e);
       flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/spectators/leave`, {
         method:'POST',
         body:{uid:u.uid}
       }).catch(()=>{});
+      spectatingRoom = null;
       if(typeof toast === 'function') toast('Could not load the live match');
       return;
     }
@@ -509,13 +513,20 @@
         method:'POST',
         body:{uid:u.uid}
       }).catch(()=>{});
+      spectatingRoom = null;
       if(typeof toast === 'function') toast('Game state not ready');
       return;
     }
-
-    const decks = startPayload.decks || {};
-    if(Array.isArray(decks[0]) && decks[0].length === 40) g.p1Deck = [...decks[0]];
-    if(Array.isArray(decks[1]) && decks[1].length === 40) g.p2Deck = [...decks[1]];
+    const canonicalState = resume?.canonicalState || null;
+    if(!canonicalState){
+      flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/spectators/leave`, {
+        method:'POST',
+        body:{uid:u.uid}
+      }).catch(()=>{});
+      spectatingRoom = null;
+      if(typeof toast === 'function') toast('Could not load the live match state');
+      return;
+    }
 
     const seed = currentRoom.seed || startPayload.seed || `${code}_fallback`;
     const song = currentRoom.song || startPayload.song || 'board1';
@@ -536,6 +547,17 @@
     const hostProf = startPayload.profiles?.[0] || players[currentRoom.hostUid]?.profile || players[currentRoom.hostUid]?.profileSnapshot || {};
     const guestProf = startPayload.profiles?.[1] || (currentRoom.guestUid ? (players[currentRoom.guestUid]?.profile || players[currentRoom.guestUid]?.profileSnapshot || {}) : {});
 
+    closeLiveMatchesPanel();
+    spectatingRoom = code;
+    spectatorLastActionSeq = 0;
+    spectatorFlyChatSeq = 0;
+    spectatorLastCanonicalHash = '';
+    spectatorChatMessages.clear();
+    spectatorHostUid = String(currentRoom.hostUid || '');
+    spectatorGuestUid = String(currentRoom.guestUid || '');
+    if(spectatorEndLeaveTimer) clearTimeout(spectatorEndLeaveTimer);
+    spectatorEndLeaveTimer = 0;
+
     g._onlineRoomCode = code;
     g._onlineRole = 'spectator';
     g._onlinePlayerIndex = null;
@@ -547,39 +569,40 @@
     g._onlineRoomMode = currentRoom.mode || 'freeplay';
     g._onlineGameSong = song;
     g._onlineActionLogMode = true;
+    g.aiEnabled = false;
+    g._aiRunning = false;
+    g._aiAbort = true;
     g.playerProfiles = { 0: gameProfileFromPublic(hostProf, 'Host'), 1: gameProfileFromPublic(guestProf, 'Guest') };
 
-    if(typeof window.startGame === 'function') window.startGame(false);
-
-    g._onlineRoomCode = code;
-    g._onlineRole = 'spectator';
-    g._onlinePlayerIndex = null;
-    g._isSpectator = true;
-    g.localPlayerIndex = 0;
-    g.viewerPlayerIndex = 0;
-    g._onlineSeed = seed;
-    g._onlineRoomMode = currentRoom.mode || 'freeplay';
-    g._onlineGameSong = song;
-    g._onlineActionLogMode = true;
-    g.playerProfiles = { 0: gameProfileFromPublic(hostProf, 'Host'), 1: gameProfileFromPublic(guestProf, 'Guest') };
-    if(g.players && g.players[0]) g.players[0].name = g.playerProfiles[0].name;
-    if(g.players && g.players[1]) g.players[1].name = g.playerProfiles[1].name;
+    // Spectators enter directly from the authority snapshot. Running the normal
+    // local start flow here creates a fake deck/coin state before the live match
+    // arrives and can briefly expose or overwrite authoritative data.
+    if(typeof window.showScreen === 'function') window.showScreen('s-game');
     if(typeof window.applyGameBackground === 'function') window.applyGameBackground(song);
-    if(typeof window.updatePlayerBanners === 'function') setTimeout(()=> window.updatePlayerBanners(), 80);
     if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
     if(typeof window.initInGameChat === 'function') window.initInGameChat();
+    const initialChat = Array.isArray(currentRoom.chat) ? currentRoom.chat : [];
+    spectatorFlyChatSeq = Math.max(Number(currentRoom.chatSeq || 0) || 0, ...initialChat.map(message=>Number(message?.seq || 0) || 0));
+    syncSpectatorChat(currentRoom);
 
     installSpectatorPerspectiveControls();
-    const canonicalState = resume?.canonicalState || startPayload.postState || null;
-    if(canonicalState && typeof window.fateApplySpectatorCanonicalState === 'function'){
+    let initialApplied = false;
+    if(typeof window.fateApplySpectatorCanonicalState === 'function'){
       const latestEvent = events.length ? (events[events.length - 1]?.action || events[events.length - 1]) : null;
-      applySpectatorCanonicalState(canonicalState, 'spectator initial canonical state', latestEvent, resume?.canonicalHash || resume?.serverStateHash || startPayload.stateHash || '');
+      initialApplied = applySpectatorCanonicalState(canonicalState, 'spectator initial canonical state', null, resume?.canonicalHash || resume?.serverStateHash || startPayload.stateHash || '');
       const resumeSeq = Number(resume?.lastSeq || latestEvent?.seq || 0) || 0;
       spectatorLastActionSeq = resumeSeq;
     }
+    if(!initialApplied){
+      leaveSpectating({expectedCode:code});
+      if(typeof toast === 'function') toast('Could not display the live match');
+      return;
+    }
+    if(g.players && g.players[0]) g.players[0].name = g.playerProfiles[0].name;
+    if(g.players && g.players[1]) g.players[1].name = g.playerProfiles[1].name;
+    if(typeof window.updatePlayerBanners === 'function') setTimeout(()=> window.updatePlayerBanners(), 80);
 
     subscribeSpectatorActions(code);
-    subscribeSpectatorCount(code);
     watchSpectatorRoom(code, currentRoom);
     installSpectatorBadge();
     if(typeof playSfx === 'function') playSfx('spectatorJoin');
@@ -589,7 +612,10 @@
   function applySpectatorCanonicalState(state, reason, action, hash){
     if(!state || typeof window.fateApplySpectatorCanonicalState !== 'function') return false;
     const nextHash = String(hash || action?.serverStateHash || action?.payload?.stateHash || '');
-    if(nextHash && nextHash === spectatorLastCanonicalHash) return true;
+    if(nextHash && nextHash === spectatorLastCanonicalHash){
+      if(action && typeof window.fatePresentSpectatorAction === 'function') window.fatePresentSpectatorAction(action, reason || 'spectator unchanged state');
+      return true;
+    }
     const applied = window.fateApplySpectatorCanonicalState(state, reason || 'spectator canonical state', action || null);
     if(applied && nextHash) spectatorLastCanonicalHash = nextHash;
     if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer();
@@ -604,37 +630,44 @@
       const payload = action?.payload || {};
       if(payload.postState){
         applySpectatorCanonicalState(payload.postState, 'spectator authoritative action seq ' + seq, action, action.serverStateHash || payload.stateHash || '');
+      }else if(typeof window.fatePresentSpectatorAction === 'function'){
+        window.fatePresentSpectatorAction(action, 'spectator presentation action seq ' + seq);
       }
       spectatorLastActionSeq = Math.max(spectatorLastActionSeq, seq);
     }
     if(flySpectatorEnabled()){
       let stopped = false;
       const poll = async function(){
-        if(stopped || !spectatingRoom) return;
+        if(stopped || spectatingRoom !== code || spectatorActionPollInFlight) return;
+        spectatorActionPollInFlight = true;
         try{
-          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&includeState=1`);
+          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&spectator=1`);
           const events = Array.isArray(data.events) ? data.events : [];
-          const latestAction = events.length ? (events[events.length - 1]?.action || events[events.length - 1]) : null;
-          const hasCanonicalState = !!data.canonicalState && typeof window.fateApplySpectatorCanonicalState === 'function';
-          if(hasCanonicalState){
-            applySpectatorCanonicalState(
-              data.canonicalState,
-              'spectator live canonical state',
-              latestAction,
-              data.canonicalHash || data.serverStateHash || latestAction?.serverStateHash || latestAction?.payload?.stateHash || ''
-            );
-            const canonicalSeq = Number(data.lastSeq || latestAction?.seq || spectatorLastActionSeq) || spectatorLastActionSeq;
-            spectatorLastActionSeq = Math.max(spectatorLastActionSeq, canonicalSeq);
-          }else{
-            const latestCanonicalAction = events.map(item=>item?.action || item).filter(action=>action?.payload?.postState).pop();
-            if(latestCanonicalAction) consumeCanonicalAction(latestCanonicalAction);
+          events.forEach(item=>consumeCanonicalAction(item?.action || item));
+          const serverSeq = Number(data.lastSeq || 0) || 0;
+          if(serverSeq > spectatorLastActionSeq && !events.length){
+            const recovery = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&includeState=1&spectator=1`);
+            const recoveryEvents = Array.isArray(recovery.events) ? recovery.events : [];
+            recoveryEvents.forEach(item=>consumeCanonicalAction(item?.action || item));
+            if(recovery.canonicalState && Number(recovery.lastSeq || 0) > spectatorLastActionSeq){
+              const latestAction = recoveryEvents.length ? (recoveryEvents[recoveryEvents.length - 1]?.action || recoveryEvents[recoveryEvents.length - 1]) : null;
+              applySpectatorCanonicalState(
+                recovery.canonicalState,
+                'spectator canonical recovery',
+                latestAction,
+                recovery.canonicalHash || recovery.serverStateHash || ''
+              );
+              spectatorLastActionSeq = Math.max(spectatorLastActionSeq, Number(recovery.lastSeq || 0) || 0);
+            }
           }
         }catch(e){
           console.warn('[Spectator] Fly canonical-state poll failed', e);
+        }finally{
+          spectatorActionPollInFlight = false;
         }
       };
       poll();
-      flySpectatorActionTimer = setInterval(poll, 1200);
+      flySpectatorActionTimer = setInterval(poll, 1000);
       spectatorActionsUnsub = function(){
         stopped = true;
         if(flySpectatorActionTimer) clearInterval(flySpectatorActionTimer);
@@ -659,25 +692,38 @@
       let stopped = false;
       let lastStatus = initialRoom?.status || '';
       const poll = async function(){
-        if(stopped || !spectatingRoom) return;
+        if(stopped || spectatingRoom !== code || spectatorRoomPollInFlight) return;
+        spectatorRoomPollInFlight = true;
         try{
-          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`);
+          const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}?spectator=1`);
           const room = data.room || {};
+          spectatorHostUid = String(room.hostUid || spectatorHostUid || initialRoom?.hostUid || '');
+          spectatorGuestUid = String(room.guestUid || spectatorGuestUid || initialRoom?.guestUid || '');
           updateSpectatorBadge(room.spectatorCount || 0);
           if(room.status && room.status !== lastStatus) lastStatus = room.status;
           if(!room.status || room.status === 'ended' || room.status === 'lobby'){
-            if(typeof toast === 'function') toast(room.status === 'ended' ? 'Match has ended' : 'Match room no longer exists');
-            setTimeout(()=> leaveSpectating(), room.status === 'ended' ? 4000 : 0);
+            if(!spectatorEndLeaveTimer){
+              if(typeof toast === 'function') toast(room.status === 'ended' ? 'Match has ended' : 'Match room no longer exists');
+              spectatorEndLeaveTimer = setTimeout(()=>{
+                spectatorEndLeaveTimer = 0;
+                leaveSpectating({expectedCode:code});
+              }, room.status === 'ended' ? 4000 : 0);
+            }
             return;
           }
-          const chat = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/chat?after=${encodeURIComponent(spectatorFlyChatSeq)}&limit=80`).catch(()=>null);
-          if(chat){
-            const messages = Array.isArray(chat.messages) ? chat.messages : [];
-            spectatorFlyChatSeq = Math.max(Number(chat.chatSeq || 0) || 0, spectatorFlyChatSeq, ...messages.map(m=>Number(m.seq || 0) || 0));
-            syncSpectatorChat({chat:messages, hostUid:room.hostUid || initialRoom?.hostUid, guestUid:room.guestUid || initialRoom?.guestUid});
-          }
+          const messages = Array.isArray(room.chat) ? room.chat : [];
+          spectatorFlyChatSeq = Math.max(Number(room.chatSeq || 0) || 0, spectatorFlyChatSeq, ...messages.map(m=>Number(m.seq || 0) || 0));
+          syncSpectatorChat(room);
         }catch(e){
           console.warn('[Spectator] Fly room poll failed', e);
+          if(/404|room not found/i.test(String(e?.message || e)) && !spectatorEndLeaveTimer){
+            spectatorEndLeaveTimer = setTimeout(()=>{
+              spectatorEndLeaveTimer = 0;
+              leaveSpectating({expectedCode:code});
+            }, 0);
+          }
+        }finally{
+          spectatorRoomPollInFlight = false;
         }
       };
       poll();
@@ -724,6 +770,7 @@
       lastChatJson = json;
       // Build a minimal room-like object for syncSpectatorChat
       const fakeRoom = { chat: chatVal || {}, hostUid: initialRoom?.hostUid, guestUid: initialRoom?.guestUid };
+      fakeRoom._replaceChat = true;
       syncSpectatorChat(fakeRoom);
     });
     spectatorRoomUnsub = function(){
@@ -742,14 +789,15 @@
       .slice(-80);
     function roomPlayerIndexForUid(r, uid){
       if(!r || !uid) return null;
-      if(r.hostUid === uid) return 0;
-      if(r.guestUid === uid) return 1;
+      if((r.hostUid || spectatorHostUid) === uid) return 0;
+      if((r.guestUid || spectatorGuestUid) === uid) return 1;
       return null;
     }
-    const messages = entries.map(({id, msg})=>{
+    if(room._replaceChat) spectatorChatMessages.clear();
+    entries.forEach(({id, msg})=>{
       const player = roomPlayerIndexForUid(room, msg.uid);
-      const isSpectatorMsg = player === null;
-      return {
+      const isSpectatorMsg = msg.isSpectator === true || player === null;
+      spectatorChatMessages.set(String(id), {
         id,
         uid: msg.uid || '',
         from: isSpectatorMsg ? 'Spectator' : (msg.name || 'Player'),
@@ -757,8 +805,15 @@
         text: String(msg.text || ''),
         timestamp: Number(msg.createdAt || 0) || 0,
         isSpectator: isSpectatorMsg
-      };
+      });
     });
+    const messages = [...spectatorChatMessages.values()]
+      .sort((a,b)=>(Number(a.timestamp || 0) || 0) - (Number(b.timestamp || 0) || 0))
+      .slice(-80);
+    if(spectatorChatMessages.size > 80){
+      spectatorChatMessages.clear();
+      messages.forEach(message=>spectatorChatMessages.set(String(message.id), message));
+    }
     window.fateSetOnlineInGameMessages(messages);
   }
 
@@ -766,6 +821,7 @@
   function subscribeSpectatorCount(code){
     if(spectatorCountUnsub) try{ spectatorCountUnsub(); }catch(e){}
     if(flySpectatorEnabled()){
+      if(spectatingRoom === code) return;
       let stopped = false;
       const poll = async function(){
         if(stopped || !code) return;
@@ -890,16 +946,36 @@
   }
 
   // ─── Leave spectating ───
-  function leaveSpectating(){
+  function signalSpectatorLeave(code, uid){
+    if(!code || !uid || !flySpectatorEnabled()) return false;
+    const headers = {'content-type':'application/json', 'accept':'application/json'};
+    if(spectatorCachedAuthToken) headers.authorization = 'Bearer ' + spectatorCachedAuthToken;
+    try{
+      fetch(authorityHttpBaseUrl() + `/api/rooms/${encodeURIComponent(code)}/spectators/leave`, {
+        method:'POST',
+        headers,
+        body:JSON.stringify({uid}),
+        keepalive:true
+      }).catch(()=>{});
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function leaveSpectating(options){
+    const opts = options && typeof options === 'object' ? options : {};
     const code = spectatingRoom;
+    if(opts.expectedCode && String(opts.expectedCode) !== String(code || '')) return false;
+    const current = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
+    if(!code && !(current && current._isSpectator)) return false;
     spectatingRoom = null;
+    if(spectatorEndLeaveTimer) clearTimeout(spectatorEndLeaveTimer);
+    spectatorEndLeaveTimer = 0;
     // Clean up RTDB
     const u = window.FATE_ONLINE?.user;
     if(code && u && flySpectatorEnabled()){
-      flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/spectators/leave`, {
-        method:'POST',
-        body:{uid:u.uid}
-      }).catch(()=>{});
+      signalSpectatorLeave(code, u.uid);
     }else if(code && u && firebaseSpectatorAllowed() && FO().remove){
       FO().remove(FO().ref(FO().rtdb, `rooms/${code}/spectators/${u.uid}`)).catch(()=>{});
     }
@@ -916,6 +992,11 @@
     spectatorLastActionSeq = 0;
     spectatorFlyChatSeq = 0;
     spectatorLastCanonicalHash = '';
+    spectatorActionPollInFlight = false;
+    spectatorRoomPollInFlight = false;
+    spectatorHostUid = '';
+    spectatorGuestUid = '';
+    spectatorChatMessages.clear();
 
     removeSpectatorBadge();
     removeSpectatorPerspectiveControls();
@@ -934,6 +1015,7 @@
     }
     if(typeof window.cleanupGame === 'function') window.cleanupGame();
     if(typeof window.showScreen === 'function') window.showScreen('s-title');
+    return true;
   }
 
   // ─── Spectator chat: spectators can send messages but they appear anonymously ───
@@ -968,8 +1050,17 @@
   // ─── Install spectator badge for PLAYERS in online matches ───
   // This subscribes to spectator count even for non-spectators so they see the eyeball.
   function installPlayerSpectatorBadge(roomCode){
+    cleanupPlayerSpectatorBadge();
     installSpectatorBadge();
     subscribeSpectatorCount(roomCode);
+  }
+
+  function cleanupPlayerSpectatorBadge(){
+    try{ if(spectatorCountUnsub) spectatorCountUnsub(); }catch(e){}
+    spectatorCountUnsub = null;
+    if(flySpectatorCountTimer) clearInterval(flySpectatorCountTimer);
+    flySpectatorCountTimer = 0;
+    removeSpectatorBadge();
   }
 
   // ─── Intercept confirmEndGame for spectators ───
@@ -1061,6 +1152,14 @@
     installSpectatorEndGameHook();
     installSpectatorChatHook();
     installSpectatorActionGuards();
+    if(!window.__fateSpectatorPagehideInstalled){
+      window.__fateSpectatorPagehideInstalled = true;
+      window.addEventListener('pagehide', function(){
+        const u = window.FATE_ONLINE?.user;
+        const code = spectatingRoom;
+        if(code && u) signalSpectatorLeave(code, u.uid);
+      });
+    }
   }
 
   // Run after DOM ready
@@ -1077,6 +1176,7 @@
   window.fatePublishLiveMatch = publishLiveMatch;
   window.fateUnpublishLiveMatch = unpublishLiveMatch;
   window.fateInstallPlayerSpectatorBadge = installPlayerSpectatorBadge;
+  window.fateCleanupPlayerSpectatorBadge = cleanupPlayerSpectatorBadge;
   window.fateIsSpectating = function(){ return !!spectatingRoom; };
   window.fateSendSpectatorChat = sendSpectatorChat;
   window.fateFetchFlyLiveMatches = fetchFlyLiveMatches;

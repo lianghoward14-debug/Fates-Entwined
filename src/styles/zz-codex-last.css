@@ -1349,8 +1349,8 @@ html body #s-game .zone.final-zone-board-flash::after{
   border:0;
   border-radius:0;
   background:rgba(238,218,255,.96);
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
   filter:drop-shadow(0 2px 7px rgba(24,8,42,.72)) drop-shadow(0 0 9px rgba(154,108,218,.32));
 }
 .bc.fate-negated > :not(.fate-svg-corners):not(.bc-fate){
@@ -1385,8 +1385,8 @@ html body #s-game .bc.fate-suppressed::after{
   border:0!important;
   border-radius:0!important;
   background:rgba(238,218,255,.96)!important;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 30v-7a10 10 0 0 1 20 0v7'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
   filter:drop-shadow(0 2px 7px rgba(24,8,42,.72)) drop-shadow(0 0 9px rgba(154,108,218,.32))!important;
 }
 html body #s-game .bc.fate-negated::after{
@@ -3956,9 +3956,6 @@ html body #modal .modal.affiliation-picker-modal .aff-pick-square > div:first-ch
 }
 
 /* Codex 2026-05-17: Wild FX opt-in overrides performance-mode suppression. */
-html.fate-enhanced-fx.fate-performance-mode #s-game #placement-anim-layer,
-html.fate-enhanced-fx.fate-performance-mode #s-game .placement-anim-ghost,
-html.fate-enhanced-fx.fate-performance-mode #s-game .placement-anim-card,
 html.fate-enhanced-fx.fate-performance-mode body .draw-fly-card{
   display:block!important;
   animation-play-state:running!important;
@@ -5343,11 +5340,11 @@ html body #modal .board-target-picker.is-multi-zone .board-target-cell{
   height:auto!important;
 }
 
-html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone:has(.board-target-row:nth-of-type(5)){
+html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone.has-extra-rows{
   --board-target-cell-w:98px;
 }
 
-html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone:has(.board-target-row:nth-of-type(5)) .board-target-cell{
+html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone.has-extra-rows .board-target-cell{
   width:var(--board-target-cell-w,98px)!important;
 }
 
@@ -5899,7 +5896,7 @@ html body #modal .modal.board-target-picker-modal{
   max-width:760px!important;
 }
 
-html body #modal .modal.board-target-picker-modal:has(.board-target-picker.is-multi-zone){
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker{
   width:min(880px,90vw)!important;
   max-width:880px!important;
 }
@@ -6245,7 +6242,7 @@ html body #s-preset-overlay .preset-mini-art img{
   transform:translateZ(0)!important;
 }
 
-html body #modal .modal.board-target-picker-modal:has(.board-target-picker.is-multi-zone){
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker{
   width:min(1180px,94vw)!important;
   max-width:1180px!important;
 }
@@ -6288,30 +6285,6 @@ html body #modal .move-target-zone{
 html body #modal .move-target-row-labels > div{
   font-size:.43rem!important;
   letter-spacing:.05em!important;
-}
-
-html body #s-game .placement-anim-ghost,
-html body #s-game .placement-anim-ghost.place-anim-circle,
-html body #s-game .placement-anim-ghost.place-anim-triangle,
-html body #s-game .placement-anim-ghost.place-anim-square,
-html body #s-game .placement-anim-ghost.place-anim-star{
-  border:0!important;
-  box-shadow:none!important;
-  background:transparent!important;
-}
-
-html body #s-game .placement-anim-ghost::before,
-html body #s-game .placement-anim-ghost::after,
-html body #s-game .placement-anim-card::before,
-html body #s-game .placement-anim-card::after{
-  content:none!important;
-  display:none!important;
-}
-
-html body #s-game .placement-anim-card{
-  border:0!important;
-  box-shadow:none!important;
-  background:transparent!important;
 }
 
 html body #s-game .set-flash,
@@ -6470,19 +6443,6 @@ html body #modal .hand-limit-art img{
 html body #modal .hand-limit-card.is-selected .hand-limit-art{
   outline:2px solid rgba(238,205,105,.96)!important;
   outline-offset:4px!important;
-}
-
-html body #s-game .placement-anim-art,
-html body #s-game .placement-anim-art img,
-html body #s-game .placement-anim-fate,
-html body #s-game .placement-anim-name{
-  border:0!important;
-  box-shadow:none!important;
-  background:transparent!important;
-}
-
-html body #s-game .placement-anim-name{
-  display:none!important;
 }
 
 /* Codex 2026-05-22: fit rank pills inside win/forfeit reward cards without clipping. */
@@ -13174,6 +13134,71 @@ html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-
 html body #modal .board-target-row.has-extra-cells .board-target-cells::-webkit-scrollbar-thumb{
   background:rgba(218,185,82,.28)!important;
   border-radius:999px!important;
+}
+
+/* Zone picker performance: preserve the board layout while reducing scroll-time paint work. */
+html body #modal .modal.board-target-picker-modal,
+html body #modal .modal.board-target-picker-modal #modal-body,
+html body #modal .board-target-picker,
+html body #modal .board-target-zones{
+  contain:layout paint style!important;
+}
+
+html body #modal .board-target-zone{
+  contain:layout paint style!important;
+  will-change:scroll-position!important;
+  transform:translateZ(0)!important;
+  background:linear-gradient(180deg,rgba(13,18,29,.96),rgba(6,8,14,.97))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,246,191,.035)!important;
+}
+
+html body #modal .board-target-row{
+  contain:layout paint style!important;
+  content-visibility:auto!important;
+  contain-intrinsic-size:auto 132px!important;
+}
+
+html body #modal .board-target-row-label{
+  background:rgba(4,6,11,.78)!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-cell{
+  contain:layout paint style!important;
+  transition:border-color .08s linear,background-color .08s linear!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-cell.is-targetable{
+  box-shadow:inset 0 0 0 1px rgba(105,178,235,.22)!important;
+}
+
+html body #modal .board-target-cell.is-selected,
+html body #modal .board-target-cell.is-targetable.is-selected{
+  box-shadow:inset 0 0 0 2px rgba(238,205,105,.78)!important;
+}
+
+html body #modal .board-target-card,
+html body #modal .board-target-card img{
+  contain:paint!important;
+  backface-visibility:hidden!important;
+  transform:translateZ(0)!important;
+  filter:none!important;
+}
+
+html body #modal .board-target-picker.show-opponent-overlay .board-target-cell.is-opponent-card .board-target-card::after{
+  background:rgba(117,16,30,.34)!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-zone.is-scrolling .board-target-cell{
+  pointer-events:none!important;
+  transition:none!important;
+  box-shadow:none!important;
+}
+
+html body #modal .board-target-zone.is-scrolling .board-target-card::after{
+  box-shadow:none!important;
 }
 
 /* Codex 2026-06-18: affiliation declaration modal as a compact sigil window. */

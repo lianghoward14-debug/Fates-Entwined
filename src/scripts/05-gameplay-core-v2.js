@@ -1022,6 +1022,7 @@ async function clickCell(z,r,c) {
       delete G._markPreCreatedZones;
     }
     if(!added){ toast('Could not add that safe square'); renderGame(); return; }
+    if(typeof playSfx === 'function') playSfx('squarePlace');
     toast(`Added one safe square to Zone ${z+1}`);
     log(G.currentPlayer===0?'p1':'p2', `Mark Kemper added one safe square to Zone ${z+1}`);
     renderGame();

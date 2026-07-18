@@ -336,10 +336,6 @@
     });
   }
 
-  function playCard(payload){
-    return [];
-  }
-
   function clampRectToViewportMargins(rect, margins){
     if(!rect) return null;
     const opts = margins || {};
@@ -665,7 +661,6 @@
         P().soundCue({cue:'card_flip', startOffset:250})
       ];
     },
-    PLAY_CARD:playCard,
     SET_CONFIRM:setConfirm,
     SET_DRAG_LAND:setDragLand,
     DRAW_CARD:drawCard,
@@ -675,7 +670,6 @@
     SWAP_CARDS:swapCards,
     RETURN_TO_HAND:function(payload){ return moveCard(Object.assign({cue:'return_to_hand', path:'withdraw', rotate:-2.0, scale:1, duration:MOTION.normal}, payload || {})); },
     HAND_DISCARD:discardCard,
-    DECK_TO_BOARD:playCard,
     DECK_TO_HAND:drawCard,
     DISCARD_TO_HAND:function(payload){ return drawCard(Object.assign({cue:'discard_to_hand'}, payload || {})); },
     SEARCH_TO_HAND:searchToHand,

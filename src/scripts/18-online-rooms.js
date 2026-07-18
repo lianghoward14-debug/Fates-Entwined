@@ -1716,7 +1716,8 @@
       && String(actionPayload.sourceType || '').toUpperCase() === 'MORE_BOARD_CARDS_REPAIR'
       && /mov/i.test(String(actionPayload.sourceReason || ''));
     const movementProtectionAction = isMoreBoardMovementAction(action) || movementRepairStateSync;
-    const desyncRecoveryProtectsMoreBoard = localBoardCardsBeforeApply > incomingBoardCardsBeforeApply
+    const desyncRecoveryProtectsMoreBoard = !g._isSpectator
+      && localBoardCardsBeforeApply > incomingBoardCardsBeforeApply
       && shouldProtectLocalMoreBoardDuringDesync(reason, action)
       && protectOnlineMoreBoardSnapshot('desync-recovery', reason || 'online-desync-recovery', 120000, g.board);
     if(desyncRecoveryProtectsMoreBoard){
@@ -1736,7 +1737,7 @@
     const protectedMovementIdentity = protectedMovementBoard ? String(protectedPreference.identity || '') : '';
     const incomingBoardIdentity = onlineBoardIdentitySetSignature(state.board);
     const incomingBoardLayout = onlineBoardLayoutSignature(state.board);
-    const protectedLocalMovementLayout = !!(
+    const protectedLocalMovementLayout = !g._isSpectator && !!(
       (hasOnlineMovementBoardPreference() || protectedMovementBoard) &&
       movementProtectionAction &&
       (
@@ -1905,7 +1906,7 @@
       clearOnlinePendingPromptUi(g, authoritativeHasServerPending ? 'pending belongs to opponent' : 'no authoritative pending prompt');
     }
     try{
-      if(typeof window.fateApplyLocalHandOrder === 'function') window.fateApplyLocalHandOrder(g, reason || 'online-authoritative-state');
+      if(!g._isSpectator && typeof window.fateApplyLocalHandOrder === 'function') window.fateApplyLocalHandOrder(g, reason || 'online-authoritative-state');
     }catch(e){}
     if(g.landscapeBgNum && typeof window.applyGameBackground === 'function') {
       const song = 'board' + g.landscapeBgNum;
@@ -1921,7 +1922,8 @@
     syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     maybePlayOnlineYourTurnNotification(g, previousTurnState, reason || 'online-authoritative-state');
     renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
-    maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason || 'online-authoritative-state');
+    const spectatorSnapshotBootstrap = !!(g._isSpectator && /spectator (initial|canonical recovery)/i.test(String(reason || '')));
+    if(!spectatorSnapshotBootstrap) maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason || 'online-authoritative-state');
     scheduleOnlineLocalHandLimitPrompt(g, reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     if(repairedMoreBoardCards){
@@ -3822,6 +3824,7 @@
   }
   function emitOnlineAcceptedPresentation(recipe, payload, action, suffix){
     const type = String(recipe || '').toUpperCase();
+    if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD' || type === 'SET_CONFIRM' || type === 'SET_DRAG_LAND') return false;
     const eventPayload = Object.assign({remote:true, online:true}, payload || {});
     const eventOptions = {
       remote:true,
@@ -3922,7 +3925,10 @@
   function onlineBoardAddedEntries(previousBoard, currentBoard){
     const added = [];
     collectOnlineBoardSnapshot(currentBoard).forEach(function(entry, key){
-      if(!previousBoard || !previousBoard.has(key)) added.push(entry);
+      if(previousBoard && previousBoard.has(key)) return;
+      const priorAtCell = previousBoard ? boardSnapshotEntryAt(previousBoard, entry.z, entry.r, entry.c) : null;
+      if(priorAtCell?.card?._spectatorHidden && entry?.card && !entry.card.faceDown) return;
+      added.push(entry);
     });
     return added;
   }
@@ -3930,7 +3936,10 @@
     const current = collectOnlineBoardSnapshot(currentBoard);
     return onlineBoardSnapshotValues(previousBoard).filter(function(entry){
       const key = onlineBoardEntryKey(entry);
-      return key && !current.has(key);
+      if(!key || current.has(key)) return false;
+      const nextAtCell = boardSnapshotEntryAt(current, entry.z, entry.r, entry.c);
+      if(entry?.card?._spectatorHidden && nextAtCell?.card && !nextAtCell.card.faceDown) return false;
+      return true;
     });
   }
   function onlineBoardFlippedFaceUpEntries(previousBoard, currentBoard){
@@ -3938,7 +3947,8 @@
     const flipped = [];
     onlineBoardSnapshotValues(previousBoard).forEach(function(prev){
       const key = onlineBoardEntryKey(prev);
-      const next = key ? current.get(key) : null;
+      let next = key ? current.get(key) : null;
+      if(!next && prev?.card?._spectatorHidden) next = boardSnapshotEntryAt(current, prev.z, prev.r, prev.c);
       if(!next || !prev.card || !next.card) return;
       if(prev.card.faceDown && !next.card.faceDown) flipped.push(next);
     });
@@ -4339,12 +4349,6 @@
     }
     added.forEach(function(entry, index){
       if(entry && entry.card) {
-        emitOnlineAcceptedPresentation('PLAY_CARD', {
-          iid:entry.card.iid,
-          card:entry.card,
-          faceDown:!!entry.card.faceDown,
-          suppressMotionAudio:true
-        }, action, 'play-card');
         playOnlineRemotePlacementAudio(entry.card, index * 70);
       }
     });
@@ -6799,6 +6803,7 @@
     }
     clearRoomWatchers();
     clearRandomQueueWatcher();
+    if(typeof window.fateCleanupPlayerSpectatorBadge === 'function') window.fateCleanupPlayerSpectatorBadge();
     if(typeof setOnlinePlayableWaitVisible === 'function') setOnlinePlayableWaitVisible(false);
     if(code && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(code);
     recordOnlineDiagnostic('online-terminal-room-cleanup', {reason:String(reason || ''), roomCode:code});
@@ -9277,15 +9282,6 @@
       };
     }
 
-    if(typeof window.playPlacementAnimation === 'function' && !originals.playPlacementAnimation){
-      originals.playPlacementAnimation = window.playPlacementAnimation;
-      window.playPlacementAnimation = function(){
-        const g = gameState();
-        if(isOnlineMatchState(g) && g._onlineApplyingRemoteAction) return 0;
-        return originals.playPlacementAnimation.apply(this, arguments);
-      };
-    }
-
     if(typeof window.initiateConsolidate === 'function' && !originals.initiateConsolidate){
       originals.initiateConsolidate = window.initiateConsolidate;
       window.initiateConsolidate = function(){
@@ -10088,6 +10084,7 @@
     window.addEventListener('beforeunload', function(){
       const u = getUser();
       if(!u?.isEphemeralGuest || !u.uid) return;
+      if(gameState()?._isSpectator || gameState()?._onlineRole === 'spectator') return;
       const code = String(gameState()?._onlineRoomCode || activeRoom || '').trim().toUpperCase();
       if(!code || !roomUsesFly(code)) return;
       if(shouldSendUnloadEndRoomSignal()) return;
@@ -10115,6 +10112,7 @@
     const u = getUser();
     if(!u?.uid) return false;
     const g = gameState();
+    if(g?._isSpectator || g?._onlineRole === 'spectator') return false;
     const room = lastLobbyRoom || {};
     const code = String(g?._onlineRoomCode || activeRoom || room.roomCode || '').trim().toUpperCase();
     if(!code) return false;
@@ -10863,10 +10861,67 @@
   // Spectators consume the same canonical state as the seated clients, but this
   // narrow bridge refuses to mutate a player session. Spectator transport stays
   // HTTP/read-only and never joins the gameplay WebSocket or sends an action.
+  function spectatorRemotePresentationAction(action){
+    if(!action || typeof action !== 'object') return null;
+    const payload = cloneOnlinePlain(action.payload || {}) || {};
+    const playerIndex = Number.isInteger(Number(payload.playerIndex))
+      ? Number(payload.playerIndex)
+      : (Number.isInteger(Number(action.playerIndex)) ? Number(action.playerIndex) : 0);
+    return Object.assign({}, action, {
+      uid:'spectator-player-' + playerIndex,
+      playerIndex,
+      payload:Object.assign({}, payload, {playerIndex})
+    });
+  }
+  function beginSpectatorActionPresentation(g, action, reason){
+    const remoteAction = spectatorRemotePresentationAction(action);
+    if(!g || !remoteAction) return null;
+    const seq = Number(remoteAction.seq || 0) || 0;
+    const key = [seq, String(remoteAction.type || '').toUpperCase()].join(':');
+    const shown = g._spectatorPresentedActionKeys instanceof Set ? g._spectatorPresentedActionKeys : new Set();
+    g._spectatorPresentedActionKeys = shown;
+    if(shown.has(key)) return null;
+    shown.add(key);
+    if(shown.size > 180){
+      const first = shown.values().next().value;
+      if(first) shown.delete(first);
+    }
+    const type = String(remoteAction.type || '').toUpperCase();
+    if(type === 'EFFECT_CINEMATIC'){
+      Promise.resolve(showPayloadEffectCinematic(g, remoteAction.payload || {}, reason || 'spectator effect cinematic')).catch(function(e){
+        console.warn('Spectator effect cinematic failed', e);
+      });
+    }else{
+      maybeShowRemoteEffectCinematicForAction(g, remoteAction, reason || 'spectator action cinematic');
+    }
+    return remoteAction;
+  }
+  window.fatePresentSpectatorAction = function(action, reason){
+    const g = gameState();
+    if(!g || !g._isSpectator || g._onlineRole !== 'spectator' || Number.isInteger(g._onlinePlayerIndex)) return false;
+    const remoteAction = beginSpectatorActionPresentation(g, action, reason);
+    if(!remoteAction) return false;
+    maybeShowOnlinePresentationEvents(remoteAction);
+    maybeShowOnlineEffectNegatedBanner(remoteAction, reason || 'spectator reaction presentation');
+    if(String(remoteAction.type || '').toUpperCase() !== 'EFFECT_CINEMATIC'){
+      playOnlineRemoteActionSound(remoteAction.type, remoteAction.payload || {}, remoteAction);
+    }
+    return true;
+  };
   window.fateApplySpectatorCanonicalState = function(state, reason, action){
     const g = gameState();
     if(!g || !g._isSpectator || g._onlineRole !== 'spectator' || Number.isInteger(g._onlinePlayerIndex)) return false;
-    return applyOnlineCanonicalState(state, reason || 'spectator canonical state', action || null);
+    const remoteAction = beginSpectatorActionPresentation(g, action, reason || 'spectator canonical state');
+    const previousPresentation = collectOnlineRemotePresentationSnapshot(g);
+    const applied = applyOnlineCanonicalState(state, reason || 'spectator canonical state', remoteAction || action || null);
+    if(applied && remoteAction){
+      maybePlayOnlineRemoteStatePresentation(g, previousPresentation, remoteAction, reason || 'spectator canonical presentation');
+      maybeShowOnlineEffectNegatedBanner(remoteAction, reason || 'spectator reaction presentation');
+      if(String(remoteAction.type || '').toUpperCase() !== 'EFFECT_CINEMATIC'){
+        playOnlineRemoteActionSound(remoteAction.type, remoteAction.payload || {}, remoteAction);
+      }
+    }
+    return applied;
   };
   window.fatePublishClientOwnedState = function(reason){
     const g = gameState();

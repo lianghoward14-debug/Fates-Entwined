@@ -58,6 +58,7 @@
   let activeActivationFlashes = [];
   let activeActivationCinematics = [];
   let pendingWhenSetPulseRaf = 0;
+  let pendingWhenSetGlowStartedAtByKey = new Map();
   let stableBoardViewport = null;
   const zoneScroll = {};
   let renderScale = 1;
@@ -1973,23 +1974,26 @@
     return null;
   }
 
-  function drawPendingWhenSetGlow(ctx, r, card){
+  function drawPendingWhenSetGlow(ctx, r, card, startedAt){
     if(!card) return;
     const now = nowMs();
-    const pulse = .5 + .5 * Math.sin(now / 720);
+    const age = Math.max(0, now - (Number(startedAt) || now));
+    const intro = Math.min(1, age / 650);
+    const phasePulse = .5 + .5 * Math.sin(age / 720 - Math.PI / 2);
+    const pulse = (.28 + phasePulse * .42) * intro;
     ctx.save();
     const rr = Math.max(4, r.w * .052);
-    const outerInset = 2.5 + pulse * 2.0;
+    const outerInset = 2.5 + pulse * 1.4;
     roundedPath(ctx, r.x - outerInset, r.y - outerInset, r.w + outerInset * 2, r.h + outerInset * 2, rr + outerInset);
-    ctx.shadowColor = 'rgba(174,93,255,' + (.30 + pulse * .20).toFixed(3) + ')';
-    ctx.shadowBlur = 7 + pulse * 9;
-    ctx.strokeStyle = 'rgba(196,126,255,' + (.52 + pulse * .24).toFixed(3) + ')';
-    ctx.lineWidth = 1.2 + pulse * .75;
+    ctx.shadowColor = 'rgba(174,93,255,' + (.26 + pulse * .14).toFixed(3) + ')';
+    ctx.shadowBlur = 7 + pulse * 6;
+    ctx.strokeStyle = 'rgba(196,126,255,' + (.50 + pulse * .16).toFixed(3) + ')';
+    ctx.lineWidth = 1.2 + pulse * .55;
     ctx.stroke();
     ctx.shadowBlur = 0;
     roundedPath(ctx, r.x + .8, r.y + .8, r.w - 1.6, r.h - 1.6, Math.max(3, rr - .8));
-    ctx.strokeStyle = 'rgba(242,222,255,' + (.24 + pulse * .28).toFixed(3) + ')';
-    ctx.lineWidth = .8 + pulse * .42;
+    ctx.strokeStyle = 'rgba(242,222,255,' + (.22 + pulse * .18).toFixed(3) + ')';
+    ctx.lineWidth = .8 + pulse * .32;
     ctx.stroke();
     ctx.restore();
     if(!pendingWhenSetPulseRaf) {
@@ -2012,11 +2016,23 @@
 
   function drawPendingWhenSetGlows(ctx){
     if(!ctx || !lastHitMap || !Array.isArray(lastHitMap.cards)) return;
+    const seen = new Set();
+    const activeKeys = new Set();
+    const now = nowMs();
     lastHitMap.cards.forEach(function(hit){
       if(!hit || !hit.rect) return;
       const card = pendingWhenSetVisualCardForHit(hit);
       if(!shouldShowPendingWhenSetGlow(card, hit)) return;
-      drawPendingWhenSetGlow(ctx, hit.rect, card);
+      const iid = card && card.iid != null ? String(card.iid) : '';
+      const key = iid ? 'iid:' + iid : 'cell:' + [hit.z, hit.r, hit.c].join(':');
+      if(seen.has(key)) return;
+      seen.add(key);
+      activeKeys.add(key);
+      if(!pendingWhenSetGlowStartedAtByKey.has(key)) pendingWhenSetGlowStartedAtByKey.set(key, now);
+      drawPendingWhenSetGlow(ctx, hit.rect, card, pendingWhenSetGlowStartedAtByKey.get(key));
+    });
+    pendingWhenSetGlowStartedAtByKey.forEach(function(value, key){
+      if(!activeKeys.has(key)) pendingWhenSetGlowStartedAtByKey.delete(key);
     });
   }
 
@@ -2325,11 +2341,11 @@
     ctx.strokeStyle = 'rgba(242,226,255,.98)';
     ctx.lineWidth = Math.max(2.3, size * .075);
     ctx.beginPath();
-    ctx.moveTo(cx - size * .156, bodyY + size * .016);
+    ctx.moveTo(cx - size * .156, bodyY);
     ctx.lineTo(cx - size * .156, cy - size * .14);
     ctx.quadraticCurveTo(cx - size * .156, cy - size * .30, cx, cy - size * .30);
     ctx.quadraticCurveTo(cx + size * .156, cy - size * .30, cx + size * .156, cy - size * .14);
-    ctx.lineTo(cx + size * .156, bodyY + size * .016);
+    ctx.lineTo(cx + size * .156, bodyY);
     ctx.stroke();
     roundedPath(ctx, bodyX, bodyY, bodyW, bodyH, Math.max(4, size * .08));
     ctx.stroke();
@@ -3340,6 +3356,11 @@
     });
     function drawHandItem(item){
       if(!item || !item.card || !item.rect) return;
+      if(item.card.hidden || item.card._spectatorHidden){
+        drawCardBack(ctx, item.rect, '', 'back.png');
+        hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:null, disabled:true});
+        return;
+      }
       if(item.card.flags && item.card.flags.presentationDeparting) {
         hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, card:item.card, disabled:true, departing:true});
         return;

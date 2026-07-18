@@ -452,6 +452,7 @@
           const card = G.players[cp] && G.players[cp].hand ? G.players[cp].hand[Number(hit.index)] : null;
           if(!card) return;
           if(G._isSpectator){
+            if(card.hidden || card._spectatorHidden) return;
             if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardInfoOpen', 'card-info-open', 180);
             else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
             if(typeof openCardDetail === 'function') openCardDetail(card, false, false);

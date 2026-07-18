@@ -457,7 +457,7 @@ const LANDSCAPES = {
     id:'igb3',
     name:'The Soviet Invasion of Anchorage, 2052',
     shortName:'Anchorage, 2052',
-    description:'A random zone is chosen. Any card consolidated in that zone before turn 10 gains 3 Fate permanently.',
+    description:'A random zone is chosen. Any card consolidated in that zone before turn 10 gains 4 Fate permanently.',
     needsTargetZone:true
   },
   igb4: {

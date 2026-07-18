@@ -846,36 +846,6 @@ window.__FATES_HAND_DRAG_INSTALLED = false;
   };
 })();
 
-/* ── 5. CINEMATIC PLACEMENT ANIMATIONS ── */
-(function(){
-  if(window.__FATES_PLACEMENT_CINEMATIC_INSTALLED) return;
-  window.__FATES_PLACEMENT_CINEMATIC_INSTALLED = true;
-  var orig=window.playPlacementAnimation||(typeof playPlacementAnimation==='function'?playPlacementAnimation:null);
-  function buildOverlayMarkup(rarity){
-    if(rarity==='star'){
-      return '<div class="cine-core"></div><div class="cine-halo"></div><div class="cine-rays">'
-        + '<span style="--rot:0deg"></span><span style="--rot:45deg"></span><span style="--rot:90deg"></span><span style="--rot:135deg"></span>'
-        + '<span style="--rot:180deg"></span><span style="--rot:225deg"></span><span style="--rot:270deg"></span><span style="--rot:315deg"></span>'
-        + '</div>';
-    }
-    if(rarity==='square'){
-      return '<div class="cine-core"></div><div class="cine-frame frame-a"></div><div class="cine-frame frame-b"></div><div class="cine-shards">'
-        + '<span style="--dx:-1;--dy:-1"></span><span style="--dx:1;--dy:-1"></span><span style="--dx:-1;--dy:1"></span><span style="--dx:1;--dy:1"></span>'
-        + '</div>';
-    }
-    if(rarity==='triangle'){
-      return '<div class="cine-core"></div><div class="cine-tri tri-a"></div><div class="cine-tri tri-b"></div><div class="cine-trails">'
-        + '<span style="--tx:-40px"></span><span style="--tx:0px"></span><span style="--tx:40px"></span>'
-        + '</div>';
-    }
-    return '<div class="cine-core"></div><div class="cine-ring cine-ring-1"></div><div class="cine-halo"></div>';
-  }
-  window.playPlacementAnimation=function(card,z,r,c){
-    if(orig) return orig(card,z,r,c) || 0;
-    return 0;
-  };
-})();
-
 /* ── 6. Felicyta Janowicz banner name fix ── */
 (function(){
   if(window.__FATES_BANNER_FIT_ENHANCEMENT_INSTALLED) return;

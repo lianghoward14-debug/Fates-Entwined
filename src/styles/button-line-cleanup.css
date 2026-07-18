@@ -124,3 +124,10 @@ html body #s-game .placement-anim-card{
   opacity:0!important;
   pointer-events:none!important;
 }
+
+html body #s-game .bc.place-anim,
+html body #s-game .bc[class*="place-anim-"]{
+  animation:none!important;
+  transform:none!important;
+  filter:none!important;
+}

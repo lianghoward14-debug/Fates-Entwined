@@ -12,26 +12,39 @@ const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const spectator = read('src/scripts/22-spectator.js');
 const rooms = read('src/scripts/18-online-rooms.js');
 const renderer = read('src/scripts/06-rendering-and-helpers.js');
-const input = read('src/scripts/render-v2/06-match-scene-input.js');
+const rendererV2 = read('src/scripts/render-v2/04-match-renderer-adapter.js');
+const inputV2 = read('src/scripts/render-v2/06-match-scene-input.js');
+const authority = read('server/fate-ws-authority.js');
 const css = read('src/styles/99-ui-final.css');
 const index = read('index.html');
 
 assert.match(spectator,
-  /\/resume\?after=\$\{encodeURIComponent\(spectatorLastActionSeq\)\}&limit=120&includeState=1/,
-  'Fly spectators must poll the authority resume endpoint with canonical state');
+  /\/resume\?after=0&limit=500&includeState=1&spectator=1/,
+  'Fly spectators must bootstrap from a spectator-redacted canonical state');
 assert.match(spectator,
-  /const canonicalState = resume\?\.canonicalState \|\| startPayload\.postState \|\| null;[\s\S]*applySpectatorCanonicalState\(canonicalState, 'spectator initial canonical state'/,
-  'spectators must bootstrap from current canonical state instead of replaying months-old client actions');
+  /const canonicalState = resume\?\.canonicalState \|\| null;[\s\S]*showScreen\('s-game'\)[\s\S]*applySpectatorCanonicalState\(canonicalState, 'spectator initial canonical state'/,
+  'spectators must enter directly from current canonical state without a fake local game bootstrap');
+assert.doesNotMatch(spectator.match(/async function spectateFlyMatch[\s\S]*?\n  }\n\n  function applySpectatorCanonicalState/)?.[0] || '', /startGame\(/,
+  'Fly spectator bootstrap must not run the normal local match start flow');
 assert.match(spectator,
-  /const hasCanonicalState = !!data\.canonicalState[\s\S]*applySpectatorCanonicalState\([\s\S]*data\.canonicalState/,
-  'live spectator polling must prefer canonical state');
+  /\/events\?after=\$\{encodeURIComponent\(spectatorLastActionSeq\)\}&limit=120&spectator=1[\s\S]*events\.forEach\(item=>consumeCanonicalAction/,
+  'live spectator polling must consume each accepted action in order without downloading unchanged canonical state');
+assert.match(spectator,
+  /spectatorChatMessages\.set[\s\S]*\[\.\.\.spectatorChatMessages\.values\(\)\]/,
+  'incremental spectator chat polls must accumulate instead of replacing visible history');
+assert.match(spectator,
+  /spectatorEndLeaveTimer[\s\S]*leaveSpectating\(\{expectedCode:code\}\)/,
+  'terminal room cleanup must be idempotent and scoped to the room that ended');
+assert.match(spectator,
+  /addEventListener\('pagehide'[\s\S]*signalSpectatorLeave/,
+  'browser refresh and close must send a keepalive spectator leave signal');
 assert.doesNotMatch(spectator, /\bsendAction\s*\(/,
   'spectator transport must never send a gameplay action');
 assert.doesNotMatch(spectator, /applySpectatorAction|__fateOnlineOriginalFns|drainSpectatorActions|spectatorActionReplayQueue/,
   'the stale client-side gameplay replayer must not remain in spectator mode');
 
 assert.match(rooms,
-  /window\.fateApplySpectatorCanonicalState = function\(state, reason, action\)[\s\S]*g\._isSpectator[\s\S]*g\._onlineRole !== 'spectator'[\s\S]*Number\.isInteger\(g\._onlinePlayerIndex\)[\s\S]*applyOnlineCanonicalState/,
+  /window\.fateApplySpectatorCanonicalState = function\(state, reason, action\)[\s\S]*g\._isSpectator[\s\S]*g\._onlineRole !== 'spectator'[\s\S]*Number\.isInteger\(g\._onlinePlayerIndex\)[\s\S]*maybePlayOnlineRemoteStatePresentation/,
   'the canonical-state bridge must fail closed unless the local session is an unseated spectator');
 assert.match(rooms,
   /if\(!g\._isSpectator && g\._onlineRole !== 'spectator' && typeof window\.startTurnTimer/,
@@ -47,17 +60,33 @@ assert.match(css, /\.spectator-perspective-controls\s*\{[\s\S]*position:absolute
   'perspective buttons must sit in the game screen top-right');
 
 assert.match(renderer,
-  /function enforceHandLimit\(player\)[\s\S]*if\(G\._isSpectator \|\| G\._onlineRole === 'spectator'\) return false;/,
+  /if\(!G\._isSpectator && typeof enforceHandLimit === 'function'\) enforceHandLimit\(cp\)/,
   'rendering either spectator perspective must never open a discard prompt or mutate a hand');
-assert.match(input,
-  /if\(G\._isSpectator\)\{[\s\S]*openCardDetail\(card, false, false\);[\s\S]*return;/,
-  'spectators may inspect the visible hand without entering the hand-action path');
+assert.match(rendererV2,
+  /if\(item\.card\.hidden \|\| item\.card\._spectatorHidden\)\{[\s\S]*drawCardBack[\s\S]*disabled:true/,
+  'both spectator hand perspectives must draw authority placeholders as non-interactive card backs');
+assert.match(inputV2,
+  /if\(G\._isSpectator\)\{[\s\S]*if\(card\.hidden \|\| card\._spectatorHidden\) return;/,
+  'hidden spectator hand placeholders must never open a card-detail action');
 
-assert.match(index, /99-ui-final\.css\?v=1783952401/, 'spectator CSS must be cache-busted');
-assert.match(index, /06-rendering-and-helpers\.js\?v=1784118301/, 'spectator-safe renderer must be cache-busted');
-assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1784050402/, 'spectator hand input must be cache-busted');
-assert.match(index, /18-online-rooms\.js\?v=1784118301&sync=1784118301/, 'canonical spectator bridge must be cache-busted');
-assert.match(index, /22-spectator\.js\?v=1783952405/, 'spectator runtime must be cache-busted');
+assert.match(authority,
+  /function spectatorSafeCanonicalState[\s\S]*next\.deck = Array\.from[\s\S]*next\.hand = Array\.from[\s\S]*card\.faceDown[\s\S]*spectatorHiddenCard/,
+  'authority spectator snapshots must redact ordered decks, both hands, and face-down board identities');
+assert.match(authority,
+  /spectators:\{\}[\s\S]*stable viewer UIDs never leave the authority process/,
+  'public room payloads must expose only an aggregate spectator count');
+assert.match(authority,
+  /const spectatorView = url\.searchParams\.get\('spectator'\) === '1'[\s\S]*spectatorSafeAcceptedEvent/,
+  'spectator event and resume endpoints must return redacted events');
+assert.match(authority,
+  /SPECTATOR_STALE_MS[\s\S]*function pruneStaleRoomSpectators/,
+  'the authority must reap spectators whose heartbeat disappeared');
+
+assert.match(index, /06-rendering-and-helpers\.js\?v=1784364001/, 'spectator-safe renderer must be cache-busted');
+assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1784364002/, 'hidden spectator hand renderer must be cache-busted');
+assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1784364005/, 'hidden spectator hand input guard must be cache-busted');
+assert.match(index, /18-online-rooms\.js\?v=1784364003&sync=1784364003/, 'canonical spectator bridge must be cache-busted');
+assert.match(index, /22-spectator\.js\?v=1784364004/, 'spectator runtime must be cache-busted');
 
 const spectatorState = {
   _isSpectator:true,

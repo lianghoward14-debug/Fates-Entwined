@@ -2084,93 +2084,6 @@
 /* v37: Rivera uses only the default golden status pill; no extra floating banner. */
 #rivera-status-banner{display:none!important;}
 
-/* v37: new per-rarity placement animation set. */
-#s-game .placement-anim-ghost{
-  border-radius:12px!important;
-  overflow:visible!important;
-  transform-origin:center center!important;
-}
-#s-game .placement-anim-ghost .placement-anim-card{
-  position:relative!important;
-  overflow:hidden!important;
-  border-radius:12px!important;
-}
-#s-game .placement-anim-ghost .placement-anim-card::before,
-#s-game .placement-anim-ghost .placement-anim-card::after{
-  content:'';position:absolute;inset:-18%;pointer-events:none;opacity:0;
-}
-#s-game .placement-anim-ghost.place-anim-star{
-  animation:cardSetStarPrime .92s cubic-bezier(.14,.94,.2,1.02) both!important;
-  box-shadow:0 0 40px rgba(255,226,120,.78),0 0 90px rgba(255,226,120,.25)!important;
-  border:2px solid rgba(255,228,136,.86)!important;
-}
-#s-game .placement-anim-ghost.place-anim-star .placement-anim-card::before{
-  background:radial-gradient(circle at 50% 50%, rgba(255,247,200,.58), rgba(255,223,110,.18) 42%, transparent 72%);
-  animation:cardSetGlowPrime .92s ease-out both;
-}
-#s-game .placement-anim-ghost.place-anim-star .placement-anim-card::after{
-  background:conic-gradient(from 0deg, transparent 0 8%, rgba(255,232,142,.65) 12%, transparent 18%, transparent 28%, rgba(255,232,142,.55) 34%, transparent 42%, transparent 52%, rgba(255,232,142,.58) 58%, transparent 66%, transparent 76%, rgba(255,232,142,.5) 82%, transparent 90%);
-  mix-blend-mode:screen; animation:cardSetStarSweep 1s linear both;
-}
-#s-game .placement-anim-ghost.place-anim-square{
-  animation:cardSetSquarePrime .78s cubic-bezier(.18,.9,.24,1.02) both!important;
-  box-shadow:0 0 30px rgba(214,127,255,.72),0 0 72px rgba(214,127,255,.2)!important;
-  border:2px solid rgba(225,155,255,.82)!important;
-}
-#s-game .placement-anim-ghost.place-anim-square .placement-anim-card::before{
-  background:linear-gradient(135deg, rgba(240,214,255,.34), transparent 40%, rgba(190,120,255,.24) 72%, transparent 100%);
-  animation:cardSetGlowPrime .78s ease-out both;
-}
-#s-game .placement-anim-ghost.place-anim-square .placement-anim-card::after{
-  inset:6%; border:1.5px solid rgba(234,186,255,.8); background:none; animation:cardSetSquareFrame 0.78s ease-out both;
-}
-#s-game .placement-anim-ghost.place-anim-triangle{
-  animation:cardSetTrianglePrime .7s cubic-bezier(.16,.88,.24,1.08) both!important;
-  box-shadow:0 0 26px rgba(103,190,255,.62),0 0 64px rgba(103,190,255,.18)!important;
-  border:2px solid rgba(145,214,255,.8)!important;
-}
-#s-game .placement-anim-ghost.place-anim-triangle .placement-anim-card::before{
-  background:linear-gradient(180deg, rgba(212,244,255,.28), transparent 45%, rgba(88,170,255,.22) 100%);
-  animation:cardSetGlowPrime .7s ease-out both;
-}
-#s-game .placement-anim-ghost.place-anim-triangle .placement-anim-card::after{
-  clip-path:polygon(50% 0%, 100% 100%, 0% 100%);
-  background:linear-gradient(180deg, rgba(164,228,255,.58), rgba(86,170,255,.12));
-  transform:translateY(18%) scale(.4); animation:cardSetTrianglePrism .72s ease-out both;
-}
-#s-game .placement-anim-ghost.place-anim-circle{
-  animation:cardSetCirclePrime .58s cubic-bezier(.18,.9,.28,1.06) both!important;
-  box-shadow:0 0 18px rgba(145,212,126,.48)!important;
-  border:2px solid rgba(145,212,126,.7)!important;
-}
-#s-game .placement-anim-ghost.place-anim-circle .placement-anim-card::before{
-  background:radial-gradient(circle at 50% 50%, rgba(190,246,176,.36), transparent 62%);
-  animation:cardSetGlowPrime .58s ease-out both;
-}
-
-@keyframes cardSetGlowPrime{0%{opacity:0;transform:scale(.4);}18%{opacity:1;}100%{opacity:0;transform:scale(1.2);}}
-@keyframes cardSetStarSweep{0%{opacity:0;transform:rotate(-18deg) scale(.58);}18%{opacity:.9;}100%{opacity:0;transform:rotate(38deg) scale(1.26);}}
-@keyframes cardSetSquareFrame{0%{opacity:0;transform:scale(.3) rotate(-16deg);}25%{opacity:1;}100%{opacity:0;transform:scale(1.18) rotate(14deg);}}
-@keyframes cardSetTrianglePrism{0%{opacity:0;transform:translateY(32%) scale(.25);}32%{opacity:.92;}100%{opacity:0;transform:translateY(-20%) scale(1.14);}}
-@keyframes cardSetStarPrime{
-  0%{opacity:0;transform:translateY(28px) scale(.24) rotate(-12deg);filter:brightness(2.4) blur(4px);}
-  16%{opacity:1;transform:translateY(-8px) scale(1.17) rotate(3deg);filter:brightness(1.4) blur(0);}
-  34%{transform:translateY(3px) scale(.95) rotate(-1deg);}58%{transform:translateY(-1px) scale(1.03) rotate(0);}100%{opacity:0;transform:translateY(0) scale(1.09);filter:brightness(1.02);}
-}
-@keyframes cardSetSquarePrime{
-  0%{opacity:0;transform:translateX(-22px) scale(.28) rotate(-16deg);filter:brightness(1.9) blur(3px);}
-  22%{opacity:1;transform:translateX(0) scale(1.12) rotate(2deg);filter:brightness(1.2) blur(0);}
-  42%{transform:translateX(-1px) scale(.97) rotate(0);}100%{opacity:0;transform:translateX(0) scale(1.08);}
-}
-@keyframes cardSetTrianglePrime{
-  0%{opacity:0;transform:translateY(22px) scale(.34) rotate(-8deg);filter:blur(2px);}
-  24%{opacity:1;transform:translateY(-6px) scale(1.1) rotate(1deg);filter:blur(0);}
-  48%{transform:translateY(1px) scale(.98);}100%{opacity:0;transform:translateY(0) scale(1.08);}
-}
-@keyframes cardSetCirclePrime{
-  0%{opacity:0;transform:translateY(10px) scale(.44);}36%{opacity:1;transform:translateY(-2px) scale(1.04);}100%{opacity:0;transform:translateY(0) scale(1.06);}
-}
-
 /* v37: rarity-specific cinematic placement overlays. */
 .cinematic-overlay{pointer-events:none;width:0;height:0;transform-style:preserve-3d;}
 .cinematic-overlay .cine-core,
@@ -2221,59 +2134,8 @@
 @keyframes v37CircleHalo{0%{opacity:.75;transform:translate(-50%,-50%) scale(.8);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.35);}}
 
 
-/* v38: bring animation name text closer/up onto the card face. */
-#s-game .placement-anim-name{
-  bottom:7px!important;
-  left:5px!important;
-  right:5px!important;
-  padding:8px 3px 2px!important;
-  border-radius:0 0 8px 8px!important;
-  background:linear-gradient(to top,rgba(0,0,0,.86) 0%,rgba(0,0,0,.42) 58%,rgba(0,0,0,0) 100%)!important;
-}
 .consolidation-cinematic-copy{
   bottom:14vh!important;
-}
-
-/* v38: clearer rarity variety for card-set animations. */
-#s-game .placement-anim-ghost.place-anim-star{
-  animation:cardSetStarV38 1.02s cubic-bezier(.12,.95,.18,1.02) both!important;
-}
-#s-game .placement-anim-ghost.place-anim-square{
-  animation:cardSetSquareV38 .86s cubic-bezier(.18,.88,.2,1.06) both!important;
-}
-#s-game .placement-anim-ghost.place-anim-triangle{
-  animation:cardSetTriangleV38 .78s cubic-bezier(.18,.88,.22,1.08) both!important;
-}
-#s-game .placement-anim-ghost.place-anim-circle{
-  animation:cardSetCircleV38 .62s cubic-bezier(.2,.9,.28,1.08) both!important;
-}
-@keyframes cardSetStarV38{
-  0%{opacity:0;transform:translateY(44px) scale(.18) rotate(-18deg);filter:brightness(3.4) blur(5px);}
-  12%{opacity:1;transform:translateY(-20px) scale(1.32) rotate(5deg);filter:brightness(1.75) blur(0);}
-  28%{transform:translateY(7px) scale(.92) rotate(-2deg);}
-  48%{transform:translateY(-5px) scale(1.08) rotate(1deg);}
-  72%{opacity:.88;transform:translateY(0) scale(1.03) rotate(0deg);}
-  100%{opacity:0;transform:translateY(-6px) scale(1.18) rotate(0deg);filter:brightness(1.06);}
-}
-@keyframes cardSetSquareV38{
-  0%{opacity:0;transform:translateX(-46px) scale(.25) rotate(-28deg);filter:brightness(2.2) blur(4px);}
-  20%{opacity:1;transform:translateX(10px) scale(1.14) rotate(7deg);filter:brightness(1.28) blur(0);}
-  42%{transform:translateX(-5px) scale(.98) rotate(-3deg);}
-  68%{opacity:.9;transform:translateX(0) scale(1.04) rotate(0deg);}
-  100%{opacity:0;transform:translateX(18px) scale(1.12) rotate(4deg);}
-}
-@keyframes cardSetTriangleV38{
-  0%{opacity:0;transform:translateY(36px) translateX(22px) scale(.34) rotate(10deg);filter:blur(3px);}
-  22%{opacity:1;transform:translateY(-10px) translateX(-8px) scale(1.12) rotate(-2deg);filter:blur(0);}
-  46%{transform:translateY(2px) translateX(2px) scale(.98) rotate(1deg);}
-  76%{opacity:.88;transform:translateY(0) translateX(0) scale(1.04);}
-  100%{opacity:0;transform:translateY(-18px) translateX(-16px) scale(1.1) rotate(-4deg);}
-}
-@keyframes cardSetCircleV38{
-  0%{opacity:0;transform:translateY(18px) scale(.5);filter:blur(2px);}
-  36%{opacity:1;transform:translateY(-4px) scale(1.05);filter:blur(0);}
-  64%{transform:translateY(1px) scale(.99);}
-  100%{opacity:0;transform:translateY(0) scale(1.08);}
 }
 
 /* v38: subtle on-field character effect activation, for Improvisors/active effects. */
@@ -2409,28 +2271,7 @@
 @keyframes ccSparkWhite{0%{opacity:0;transform:translate(-50%,-50%) scale(.4);}26%{opacity:.9;}100%{opacity:0;transform:translate(calc(-50% + var(--x) * .5),calc(-50% + var(--y) * .5)) scale(.8);}}
 
 
-/* v40 final polish: correct rarity colors on normal card set animations.
-   triangle=green, circle=white, square=purple, star=gold. */
-#s-game .placement-anim-ghost.place-anim-triangle{
-  box-shadow:0 0 24px rgba(94,227,122,.58),0 0 58px rgba(94,227,122,.16)!important;
-  border-color:rgba(126,239,148,.82)!important;
-}
-#s-game .placement-anim-ghost.place-anim-triangle .placement-anim-card::before{
-  background:linear-gradient(180deg, rgba(218,255,226,.28), transparent 45%, rgba(94,227,122,.20) 100%)!important;
-}
-#s-game .placement-anim-ghost.place-anim-triangle .placement-anim-card::after{
-  background:linear-gradient(180deg, rgba(162,245,178,.55), rgba(94,227,122,.13))!important;
-}
-#s-game .placement-anim-ghost.place-anim-circle{
-  box-shadow:0 0 18px rgba(255,255,255,.48),0 0 34px rgba(255,255,255,.12)!important;
-  border-color:rgba(255,255,255,.72)!important;
-}
-#s-game .placement-anim-ghost.place-anim-circle .placement-anim-card::before{
-  background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.38), transparent 62%)!important;
-}
-
 /* v40: lighter paint cost across repeated overlays. */
-#placement-anim-layer,
 .consolidation-cinematic-overlay,
 .cinematic-overlay,
 .effect-activation-aura{
@@ -3500,7 +3341,7 @@ body.cinematic-lock #modal{
 .fate-smooth-runtime #s-game :is(.bc,.hc,.cell,.opp-card-back){
   contain:layout paint!important;
 }
-.fate-smooth-runtime #s-game :is(.bc img,.hc img,.opp-card-back img,.placement-anim-card img),
+.fate-smooth-runtime #s-game :is(.bc img,.hc img,.opp-card-back img),
 #modal :is(.cd-img img,.preset-tile-art img,.preset-mini-art img){
   filter:none!important;
   backface-visibility:hidden!important;
@@ -4920,39 +4761,6 @@ body.cinematic-lock #modal{
 }
 @keyframes online-lag-spin{to{transform:rotate(360deg);}}
 
-/* Smoothness pass: keep the star set animation expressive, but make it compositor-friendly. */
-.fate-smooth-runtime #s-game .placement-anim-ghost.place-anim-star,
-.fate-smooth-runtime #s-game .bc.place-anim-star{
-  animation:cardSetStarUltra .96s cubic-bezier(.14,.9,.2,1.04) both!important;
-  filter:none!important;
-}
-.fate-smooth-runtime #s-game .placement-anim-ghost.place-anim-star::after,
-.fate-smooth-runtime #s-game .bc.place-anim-star::after{
-  animation:cardSetStarUltraRing .96s ease-out both!important;
-}
-.fate-smooth-runtime #s-game .placement-anim-ghost.place-anim-star .placement-anim-card::after{
-  animation:cardSetStarUltraSweep .96s linear both!important;
-}
-@keyframes cardSetStarUltra{
-  0%{opacity:0;transform:translate3d(0,46px,0) scale(.18) rotate(-18deg);}
-  14%{opacity:1;transform:translate3d(0,-18px,0) scale(1.22) rotate(5deg);}
-  31%{transform:translate3d(0,8px,0) scale(.92) rotate(-3deg);}
-  52%{transform:translate3d(0,-5px,0) scale(1.08) rotate(1.5deg);}
-  74%{transform:translate3d(0,1px,0) scale(1.02) rotate(0);}
-  100%{opacity:0;transform:translate3d(0,0,0) scale(1.12) rotate(0);}
-}
-@keyframes cardSetStarUltraRing{
-  0%{opacity:0;transform:scale(.42) rotate(-18deg);}
-  18%{opacity:.95;transform:scale(1.04) rotate(5deg);}
-  100%{opacity:0;transform:scale(1.34) rotate(22deg);}
-}
-@keyframes cardSetStarUltraSweep{
-  0%{opacity:0;transform:rotate(-28deg) scale(.45);}
-  20%{opacity:.95;}
-  100%{opacity:0;transform:rotate(46deg) scale(1.34);}
-}
-
-
 /* Codex compatibility layer: online/profile/deck/result UI overrides.
    Keep this block small and owned. Prefer adding wrapper classes in JS, then style here. */
 :root{
@@ -5389,20 +5197,18 @@ html body #modal .modal.card-detail-modal .modal-title{
 #s-win .online-forfeit-sub:empty{display:none!important;}
 #s-win :is(.online-forfeit-result-kicker,.online-result-divider,.online-result-note){display:none!important;}
 
-.fate-smooth-runtime #s-game :is(.placement-anim-ghost,.placement-anim-card,.bc.place-anim,.hc-entering){
+.fate-smooth-runtime #s-game .hc-entering{
   will-change:transform,opacity!important;
   backface-visibility:hidden!important;
 }
 .fate-smooth-runtime #s-game :is(.bc,.mc,.cell),
-.fate-smooth-runtime :is(.consolidation-cinematic-overlay,.placement-anim-card){
+.fate-smooth-runtime .consolidation-cinematic-overlay{
   backface-visibility:hidden!important;
   transform-style:preserve-3d!important;
 }
 .fate-smooth-runtime #s-game img{
   image-rendering:auto!important;
 }
-.fate-smooth-runtime #s-game :is(.placement-anim-ghost,.bc.place-anim){filter:none!important;}
-
 @media(max-width:900px){
   #modal .online-room-lobby-v21{width:min(640px,92vw)!important;}
   #modal .online-room-lobby-v21 .online-room-seats,
@@ -7785,7 +7591,7 @@ html body #modal .modal.card-detail-modal .modal-title{
 .fate-performance-mode #s-game :is(.hc:hover,.bc:hover){
   filter:none!important;
 }
-.fate-performance-mode #s-game :is(.placement-anim-ghost,.placement-anim-card,.card-set-flash,.zone-take-flash,.final-zone-board-flash){
+.fate-performance-mode #s-game :is(.card-set-flash,.zone-take-flash,.final-zone-board-flash){
   filter:none!important;
   box-shadow:none!important;
 }
@@ -14862,8 +14668,6 @@ html body #s-game .block-overlay.block-carolyn{
 html body #s-game :is(.bc,.hc,.cell,.zone,.brow,.player-banner,#tp-timer){
   transition-duration:.08s!important;
 }
-html body #s-game .placement-anim-ghost,
-html body #s-game .placement-anim-card,
 html body #s-game .card-set-flash,
 html body #s-game .zone-take-flash,
 html body #s-game .final-zone-board-flash{
@@ -18319,42 +18123,10 @@ html body #modal .modal.affiliation-picker-modal .aff-pick-square > div:first-ch
 #enhanced-fx-toggle-btn.off{
   opacity:.72!important;
 }
-html.fate-enhanced-fx #s-game #placement-anim-layer,
-html.fate-enhanced-fx #s-game .placement-anim-ghost,
-html.fate-enhanced-fx #s-game .placement-anim-card,
 html.fate-enhanced-fx body .draw-fly-card{
   display:block!important;
   animation-play-state:running!important;
 }
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set{
-  overflow:visible!important;
-  filter:none!important;
-  box-shadow:0 0 22px rgba(255,255,255,.2),0 0 34px color-mix(in srgb, var(--gold) 45%, transparent)!important;
-}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-rift{
-  position:absolute!important;
-  inset:-14px!important;
-  z-index:-1!important;
-  border-radius:10px!important;
-  border:1px solid rgba(255,255,255,.36)!important;
-  background:radial-gradient(circle,rgba(255,255,255,.22),rgba(201,168,76,.12) 42%,transparent 72%)!important;
-  animation:fateFxSetRift .62s cubic-bezier(.18,.86,.24,1) both!important;
-}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-sparks i{
-  position:absolute!important;
-  left:50%!important;
-  top:50%!important;
-  width:5px!important;
-  height:18px!important;
-  border-radius:999px!important;
-  background:linear-gradient(180deg,#fff8d4,rgba(201,168,76,0))!important;
-  transform-origin:center 44px!important;
-  animation:fateFxSetSpark .58s ease-out both!important;
-}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-sparks i:nth-child(1){--rot:18deg;animation-delay:.02s!important;}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-sparks i:nth-child(2){--rot:106deg;animation-delay:.06s!important;}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-sparks i:nth-child(3){--rot:202deg;animation-delay:.1s!important;}
-html.fate-enhanced-fx #s-game .placement-anim-ghost.fx-enhanced-set .fx-set-sparks i:nth-child(4){--rot:292deg;animation-delay:.14s!important;}
 html.fate-enhanced-fx body .draw-fly-card.fx-enhanced-draw{
   border-color:rgba(255,255,255,.72)!important;
   background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(201,168,76,.18),rgba(0,0,0,.35))!important;
@@ -18411,8 +18183,6 @@ html.fate-enhanced-fx body .cc-overlay-v2.fx-cinematic-v3 .fx-cine-glyphs span:n
 html.fate-enhanced-fx body .cc-overlay-v2.fx-cinematic-v3 .fx-cine-card-wrap img{
   box-shadow:0 0 0 1px rgba(255,255,255,.22),0 18px 44px rgba(0,0,0,.72),0 0 42px rgba(255,255,255,.14)!important;
 }
-@keyframes fateFxSetRift{0%{opacity:0;transform:scale(.62) rotate(-8deg);}38%{opacity:1;transform:scale(1.08) rotate(2deg);}100%{opacity:0;transform:scale(1.34) rotate(10deg);}}
-@keyframes fateFxSetSpark{0%{opacity:0;transform:translate(-50%,-50%) rotate(var(--rot)) translateY(0) scaleY(.4);}28%{opacity:1;}100%{opacity:0;transform:translate(-50%,-50%) rotate(var(--rot)) translateY(-54px) scaleY(1.25);}}
 @keyframes fateFxDrawGleam{0%{opacity:0;transform:translateX(-90%) skewX(-18deg);}28%{opacity:.9;}100%{opacity:0;transform:translateX(85%) skewX(-18deg);}}
 @keyframes fateFxRayBloom{0%{opacity:0;transform:scaleY(.1) rotate(var(--ray,0deg));}32%{opacity:1;}100%{opacity:0;transform:scaleY(1) rotate(var(--ray,0deg));}}
 @keyframes fateFxGlyphDrift{0%{opacity:0;transform:translateY(12px) scale(.96);}25%{opacity:1;}100%{opacity:0;transform:translateY(-28px) scale(1.04);}}

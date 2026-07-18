@@ -1376,10 +1376,21 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
 async function drawCard(player, count=1, options = {}) {
   const myP = getPerspectivePlayerIndex();
   let outsideDrawLandscapeCard = null;
+  const effectPresentationGapMs = options.afterSetOrCinematic ? 1000 : 0;
+  const presentationWaitStartedAt = Date.now();
   if(count > 0 && !options.skipPresentationWait && document.getElementById('s-game')?.classList.contains('active')) {
     const presenter = window.FateActionPresentation;
     if(presenter && typeof presenter.waitForIdle === 'function') {
-      await presenter.waitForIdle({minQuietMs:90, timeoutMs:7600});
+      await presenter.waitForIdle({
+        minQuietMs:effectPresentationGapMs || 90,
+        timeoutMs:effectPresentationGapMs ? 8600 : 7600
+      });
+    }
+  }
+  if(effectPresentationGapMs > 0) {
+    const remainingGapMs = effectPresentationGapMs - (Date.now() - presentationWaitStartedAt);
+    if(remainingGapMs > 0) {
+      await new Promise(function(resolve){ setTimeout(resolve, remainingGapMs); });
     }
   }
   if(!options.drawPhase && !options.suppressDrawSfx && count > 0) playSfx('draw');

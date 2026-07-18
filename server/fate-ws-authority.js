@@ -44,6 +44,7 @@ const MAX_ROOM_EVENTS = Number(process.env.FATE_WS_MAX_ROOM_EVENTS || 360);
 const ROOM_IDLE_MS = Number(process.env.FATE_WS_ROOM_IDLE_MS || 1000 * 60 * 90);
 const PING_MS = Number(process.env.FATE_WS_PING_MS || 45000);
 const DISCONNECT_TIMEOUT_MS = Number(process.env.FATE_WS_DISCONNECT_TIMEOUT_MS || 30000);
+const SPECTATOR_STALE_MS = Math.max(30000, Number(process.env.FATE_WS_SPECTATOR_STALE_MS || 45000) || 45000);
 const REACTION_TIMEOUT_MS = Number(process.env.FATE_WS_REACTION_TIMEOUT_MS || 16000);
 const SHUTDOWN_GRACE_MS = Number(process.env.FATE_WS_SHUTDOWN_GRACE_MS || 4500);
 const FLY_PERSIST_DEBOUNCE_MS = Math.max(50, Number(process.env.FATE_WS_PERSIST_DEBOUNCE_MS || 750) || 750);
@@ -1003,7 +1004,7 @@ function publicChatMessage(message){
   return {
     id:String(msg.id || '').slice(0, 80),
     seq:Number(msg.seq || 0) || 0,
-    uid:String(msg.uid || '').slice(0, 128),
+    uid:msg.isSpectator ? '' : String(msg.uid || '').slice(0, 128),
     text:sanitizeChatText(msg.text),
     name:String(msg.name || 'Player').slice(0, 32),
     createdAt:Number(msg.createdAt || 0) || 0,
@@ -1899,6 +1900,7 @@ function flySocialStatesByUid(uids){
 }
 
 function publicRoom(room){
+  pruneStaleRoomSpectators(room);
   const players = {};
   Object.keys(room.players || {}).forEach(uid=>{
     players[uid] = publicPlayer(room.players[uid]);
@@ -1930,10 +1932,9 @@ function publicRoom(room){
     chatSeq:Number(room.chatSeq || 0) || 0,
     chat:publicChat(room, 30, 0),
     spectatorCount:Object.keys(room.spectators || {}).length,
-    spectators:Object.keys(room.spectators || {}).slice(0, 200).reduce((acc, uid)=>{
-      acc[uid] = publicSpectator(room.spectators[uid]);
-      return acc;
-    }, {}),
+    // Spectators are intentionally anonymous. Only the aggregate count is
+    // public; stable viewer UIDs never leave the authority process.
+    spectators:{},
     sockets:room.sockets.size,
     createdAt:room.createdAt,
     updatedAt:room.updatedAt,
@@ -2557,6 +2558,7 @@ function roomIsLiveForSpectating(room){
 
 function publicLiveMatch(room){
   if(!roomIsLiveForSpectating(room)) return null;
+  pruneStaleRoomSpectators(room);
   const host = room.hostUid ? room.players?.[room.hostUid] : null;
   const guest = room.guestUid ? room.players?.[room.guestUid] : null;
   const hostProfile = sanitizeProfile(host?.profile || {});
@@ -2608,6 +2610,7 @@ function roomViewerIndexForUid(room, uid){
 function joinRoomSpectator(room, uid){
   if(!room || !uid) throw new Error('room not found');
   if(!roomIsLiveForSpectating(room)) throw new Error('room is not live');
+  if(playerIndexForUid(room, uid) !== null) throw new Error('seated players cannot join as spectators');
   if(!room.spectators || typeof room.spectators !== 'object') room.spectators = {};
   const existing = room.spectators[uid] || {};
   room.spectators[uid] = publicSpectator({
@@ -2639,6 +2642,207 @@ function leaveRoomSpectator(room, uid){
   touch(room);
   persistFlyRoomMutationNow('spectator-leave');
   return had;
+}
+
+function pruneStaleRoomSpectators(room, at = now()){
+  if(!room || !room.spectators || typeof room.spectators !== 'object') return 0;
+  let removed = 0;
+  Object.keys(room.spectators).forEach(uid=>{
+    const lastSeen = Number(room.spectators?.[uid]?.lastSeen || room.spectators?.[uid]?.joinedAt || 0) || 0;
+    if(lastSeen && at - lastSeen <= SPECTATOR_STALE_MS) return;
+    delete room.spectators[uid];
+    removed += 1;
+  });
+  if(removed){
+    touch(room);
+    persistFlyRoomMutation();
+  }
+  return removed;
+}
+
+function spectatorHiddenCard(owner, location, index){
+  return {
+    iid:`spectator-hidden-${Number(owner) || 0}-${String(location || 'card')}-${Number(index) || 0}`,
+    id:'',
+    name:'Hidden Card',
+    owner:Number(owner) || 0,
+    hidden:true,
+    faceDown:true,
+    _spectatorHidden:true
+  };
+}
+
+function spectatorSafeCanonicalState(value){
+  const state = parseJson(safeJson(value)) || null;
+  if(!state || typeof state !== 'object') return null;
+  if(Array.isArray(state.players)){
+    state.players = state.players.map((player, playerIndex)=>{
+      const next = player && typeof player === 'object' ? player : {};
+      const deckCount = Array.isArray(next.deck) ? next.deck.length : 0;
+      const handCount = Array.isArray(next.hand) ? next.hand.length : 0;
+      next.deck = Array.from({length:deckCount}, (_, index)=>spectatorHiddenCard(playerIndex, 'deck', index));
+      next.hand = Array.from({length:handCount}, (_, index)=>spectatorHiddenCard(playerIndex, 'hand', index));
+      return next;
+    });
+  }
+  if(Array.isArray(state.board)){
+    state.board = state.board.map((zone, z)=>Array.isArray(zone) ? zone.map((row, r)=>
+      Array.isArray(row) ? row.map((card, c)=>{
+        if(!card || typeof card !== 'object') return card || null;
+        if(card.faceDown || card.hidden || card._spectatorHidden){
+          return spectatorHiddenCard(card.owner, `board-${z}-${r}`, c);
+        }
+        return card;
+      }) : []
+    ) : []);
+  }
+
+  // Deck recipes and player-only interaction state are not part of a public
+  // match view. Explicit neutral values also prevent stale local state from
+  // surviving a later canonical apply.
+  state.p1Deck = [];
+  state.p2Deck = [];
+  state.selectedHandCard = null;
+  state.selectedBoardCard = null;
+  state.placing = false;
+  state.blockingCell = false;
+  state.pendingEffect = null;
+  state.pendingInteraction = null;
+  state._pendingSelvaSupportBoost = null;
+  state._revealedCards = {};
+  state._cardFateMap = {};
+  state._continuousDamageSources = [];
+  state._linaFreeIids = [];
+  state._serverFreePlacement = null;
+  state._skipImprovisorCheck = false;
+  state._skipReactions = false;
+  state._serverPendingReaction = null;
+  state._serverPendingModalAction = null;
+  state._serverPendingZonePick = null;
+  state._serverPendingMove = null;
+  state._serverPendingCardPick = null;
+  state._westCaribNext = null;
+  state._consolidating = null;
+  state._wolfCreekMoving = null;
+  state._expMoving = null;
+  state._berkeleyMoving = null;
+  state._bh01Moving = null;
+  state._landscapeMoving = null;
+  state._markSelecting = null;
+  state._havanoDeploying = null;
+  state._boardTargeting = null;
+  return state;
+}
+
+function spectatorStateHash(value){
+  return crypto.createHash('sha256').update(safeJson(value || null)).digest('hex').slice(0, 24);
+}
+
+function publicSpectatorRoom(room){
+  const view = publicRoom(room);
+  const safeState = spectatorSafeCanonicalState(room?.canonicalState || null);
+  view.seed = '';
+  view.canonicalHash = spectatorStateHash(safeState);
+  return view;
+}
+
+function spectatorSafeEffectLocation(value, safeState){
+  const raw = value && typeof value === 'object' ? value : {};
+  const z = Number(raw.z), r = Number(raw.r), c = Number(raw.c);
+  if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return null;
+  const card = safeState?.board?.[z]?.[r]?.[c] || null;
+  return {
+    z,
+    r,
+    c,
+    card:card && !card.hidden ? {
+      iid:String(card.iid || ''),
+      id:String(card.id || ''),
+      name:String(card.name || '')
+    } : null
+  };
+}
+
+function spectatorSafePresentationEvent(value, index){
+  const event = parseJson(safeJson(value)) || {};
+  const hideCard = (card, location)=>{
+    if(!card || typeof card !== 'object') return card || null;
+    return (card.faceDown || card.hidden || card._spectatorHidden)
+      ? spectatorHiddenCard(card.owner, location, index)
+      : card;
+  };
+  if(event.card) event.card = hideCard(event.card, 'presentation-card');
+  if(event.resultCard) event.resultCard = hideCard(event.resultCard, 'presentation-result');
+  if(event.target?.card) event.target.card = hideCard(event.target.card, 'presentation-target');
+  if(Array.isArray(event.tributes)){
+    event.tributes = event.tributes.map((tribute, tributeIndex)=>{
+      const next = tribute && typeof tribute === 'object' ? tribute : {};
+      if(next.card) next.card = hideCard(next.card, 'presentation-tribute-' + tributeIndex);
+      return next;
+    });
+  }
+  return event;
+}
+
+function spectatorSafeAcceptedEvent(room, value){
+  const accepted = value && typeof value === 'object' ? value : {};
+  const action = accepted.action && typeof accepted.action === 'object' ? accepted.action : {};
+  const payload = action.payload && typeof action.payload === 'object' ? action.payload : {};
+  const postState = spectatorSafeCanonicalState(payload.postState || null);
+  const stateHash = spectatorStateHash(postState);
+  const playerIndex = resultIndexOrNull(payload.playerIndex ?? payload.currentPlayer ?? payload.owner);
+  const safePayload = {
+    playerIndex,
+    stateHash,
+    postState
+  };
+  [
+    'fn','choice','promptId','actionKind','originalType','sourceType','sourceReason',
+    'z','r','c','placing','currentPlayer','owner','turn'
+  ].forEach(key=>{
+    if(Object.prototype.hasOwnProperty.call(payload, key)) safePayload[key] = parseJson(safeJson(payload[key]));
+  });
+  if(payload.effectCinematic){
+    safePayload.effectCinematic = spectatorSafeEffectLocation(payload.effectCinematic, postState);
+  }
+  if(payload.pendingSource){
+    safePayload.pendingSource = spectatorSafeEffectLocation(payload.pendingSource, postState);
+  }
+  if(Array.isArray(payload.presentationEvents)){
+    safePayload.presentationEvents = payload.presentationEvents.map(spectatorSafePresentationEvent);
+  }
+  if(payload.reactionResolution && typeof payload.reactionResolution === 'object'){
+    safePayload.reactionResolution = {
+      mode:String(payload.reactionResolution.mode || '').slice(0, 32)
+    };
+  }
+  if(payload.reaction && typeof payload.reaction === 'object'){
+    safePayload.reaction = {
+      kind:String(payload.reaction.kind || '').slice(0, 32)
+    };
+  }
+  const rawPatch = accepted.roomPatch && typeof accepted.roomPatch === 'object' ? accepted.roomPatch : {};
+  const roomPatch = {};
+  [
+    'status','phase','startedAt','endedAt','endReason','winnerIndex','loserIndex','isDraw'
+  ].forEach(key=>{
+    if(Object.prototype.hasOwnProperty.call(rawPatch, key)) roomPatch[key] = parseJson(safeJson(rawPatch[key]));
+  });
+  return {
+    kind:'accepted',
+    roomCode:room?.code || accepted.roomCode || '',
+    action:{
+      seq:Number(action.seq || 0) || 0,
+      type:String(action.type || '').slice(0, 80),
+      playerIndex,
+      payload:safePayload,
+      serverAuthoritative:true,
+      authority:'fate-ws-authority',
+      authorityTime:Number(action.authorityTime || 0) || 0
+    },
+    roomPatch,
+    serverStateHash:stateHash
+  };
 }
 
 function upsertRoomPlayer(room, uid, role, profile, deckChoice){
@@ -4290,7 +4494,11 @@ async function requireSeatedRequestUser(req, room){
 async function requireRoomViewerRequestUser(req, room){
   if(!REQUIRE_FIREBASE_TOKEN) return 'dev-token-disabled';
   const uid = await verifyRequestUser(req, {});
-  if(!roomViewerIndexForUid(room, uid)) throw new Error('user is not seated or spectating this room');
+  const viewerRole = roomViewerIndexForUid(room, uid);
+  if(!viewerRole) throw new Error('user is not seated or spectating this room');
+  if(viewerRole === 'spectator' && room.spectators?.[uid]){
+    room.spectators[uid].lastSeen = now();
+  }
   return uid;
 }
 
@@ -4824,17 +5032,22 @@ async function handleApiRequest(req, res, url){
         return true;
       }
       if(req.method === 'GET' && parts.length === 3){
-        await requireRoomViewerRequestUser(req, room);
-        writeJson(res, 200, {ok:true, room:publicRoom(room)});
+        const viewerUid = await requireRoomViewerRequestUser(req, room);
+        const spectatorView = url.searchParams.get('spectator') === '1'
+          || roomViewerIndexForUid(room, viewerUid) === 'spectator';
+        writeJson(res, 200, {ok:true, room:spectatorView ? publicSpectatorRoom(room) : publicRoom(room)});
         return true;
       }
       if(req.method === 'GET' && parts[3] === 'events'){
-        await requireRoomViewerRequestUser(req, room);
+        const viewerUid = await requireRoomViewerRequestUser(req, room);
+        const spectatorView = url.searchParams.get('spectator') === '1'
+          || roomViewerIndexForUid(room, viewerUid) === 'spectator';
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
         const limit = Math.min(120, Math.max(1, Number(url.searchParams.get('limit') || 80) || 80));
-        const events = room.eventLog
+        let events = room.eventLog
           .filter(item=>Number(item?.action?.seq || 0) > after)
           .slice(0, limit);
+        if(spectatorView) events = events.map(item=>spectatorSafeAcceptedEvent(room, item));
         writeJson(res, 200, {ok:true, roomCode:room.code, lastSeq:room.lastSeq, events});
         return true;
       }
@@ -4853,23 +5066,29 @@ async function handleApiRequest(req, res, url){
         return true;
       }
       if(req.method === 'GET' && parts[3] === 'resume'){
-        await requireRoomViewerRequestUser(req, room);
+        const viewerUid = await requireRoomViewerRequestUser(req, room);
+        const spectatorView = url.searchParams.get('spectator') === '1'
+          || roomViewerIndexForUid(room, viewerUid) === 'spectator';
         const after = Math.max(0, Number(url.searchParams.get('after') || 0) || 0);
         const limit = Math.min(MAX_ROOM_EVENTS, Math.max(1, Number(url.searchParams.get('limit') || 120) || 120));
         const includeState = url.searchParams.get('includeState') === '1' || url.searchParams.get('includeState') === 'true';
-        const events = room.eventLog
+        let events = room.eventLog
           .filter(item=>Number(item?.action?.seq || 0) > after)
           .slice(0, limit);
+        if(spectatorView) events = events.map(item=>spectatorSafeAcceptedEvent(room, item));
         const payload = {
           ok:true,
-          room:publicRoom(room),
+          room:spectatorView ? publicSpectatorRoom(room) : publicRoom(room),
           roomCode:room.code,
           lastSeq:room.lastSeq,
-          serverStateHash:room.canonicalHash || room.lastStateHash || '',
-          canonicalHash:room.canonicalHash || '',
-          events
+          serverStateHash:spectatorView ? spectatorStateHash(spectatorSafeCanonicalState(room.canonicalState || null)) : (room.canonicalHash || room.lastStateHash || ''),
+          canonicalHash:spectatorView ? spectatorStateHash(spectatorSafeCanonicalState(room.canonicalState || null)) : (room.canonicalHash || ''),
+          events,
+          spectatorView
         };
-        if(includeState) payload.canonicalState = room.canonicalState || null;
+        if(includeState) payload.canonicalState = spectatorView
+          ? spectatorSafeCanonicalState(room.canonicalState || null)
+          : (room.canonicalState || null);
         writeJson(res, 200, payload);
         return true;
       }
@@ -4878,21 +5097,21 @@ async function handleApiRequest(req, res, url){
           const body = await readJsonBody(req);
           const uid = await verifyRequestUser(req, body);
           const spectator = joinRoomSpectator(room, uid);
-          writeJson(res, 200, {ok:true, room:publicRoom(room), spectator});
+          writeJson(res, 200, {ok:true, room:publicSpectatorRoom(room), spectator});
           return true;
         }
         if(req.method === 'POST' && parts[4] === 'heartbeat'){
           const body = await readJsonBody(req);
           const uid = await verifyRequestUser(req, body);
           const spectator = heartbeatRoomSpectator(room, uid);
-          writeJson(res, 200, {ok:true, room:publicRoom(room), spectator});
+          writeJson(res, 200, {ok:true, room:publicSpectatorRoom(room), spectator});
           return true;
         }
         if(req.method === 'POST' && parts[4] === 'leave'){
           const body = await readJsonBody(req);
           const uid = await verifyRequestUser(req, body);
           const removed = leaveRoomSpectator(room, uid);
-          writeJson(res, 200, {ok:true, removed, room:publicRoom(room)});
+          writeJson(res, 200, {ok:true, removed, room:publicSpectatorRoom(room)});
           return true;
         }
       }
@@ -5111,6 +5330,7 @@ const roomMaintenanceInterval = setInterval(()=>{
   const cutoff = now() - ROOM_IDLE_MS;
   let deleted = false;
   for(const [code, room] of rooms){
+    pruneStaleRoomSpectators(room);
     if(room.sockets.size === 0 && room.lastTouched < cutoff){
       rooms.delete(code);
       deleted = true;
@@ -5120,7 +5340,7 @@ const roomMaintenanceInterval = setInterval(()=>{
   for(const socket of sockets){
     if(socket.destroyed) cleanupSocket(socket);
   }
-}, Math.max(30000, Math.min(ROOM_IDLE_MS, 120000)));
+}, Math.max(15000, Math.min(ROOM_IDLE_MS, SPECTATOR_STALE_MS, 120000)));
 roomMaintenanceInterval.unref?.();
 
 const pingInterval = setInterval(()=>{

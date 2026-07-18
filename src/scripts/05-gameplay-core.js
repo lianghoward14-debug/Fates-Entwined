@@ -1580,6 +1580,7 @@ async function clickCell(z,r,c) {
     _cleanupMarkPreCreatedZones(z);
     if(!added){ toast('Could not add that safe square'); renderGame({board:true, scores:true, topbar:true}); return; }
     if(sel.sourceIid) markInitialEffectResolvedByIid(sel.sourceIid);
+    if(typeof playSfx === 'function') playSfx('squarePlace');
     toast(`Added one safe square to Zone ${z+1}`);
     log(G.currentPlayer===0?'p1':'p2', `Mark Kemper added one safe square to Zone ${z+1}`);
     renderGame({board:true, scores:true, topbar:true});
@@ -2127,6 +2128,18 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
 
 async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
   if(!inst || isFaceDownCard(inst)) return;
+  // Flowing Currents must also evaluate with the newly set card included in
+  // total Fate. The helper deduplicates bonuses already awarded before commit.
+  const postPlacementLandscapeBonus = typeof applyLandscapePlacementBonuses === 'function'
+    ? applyLandscapePlacementBonuses(inst, z, r, c)
+    : 0;
+  if(postPlacementLandscapeBonus > 0) {
+    if(typeof renderBoardActionForPlayer === 'function') {
+      renderBoardActionForPlayer(inst.owner, {hand:false, blocks:false, topbar:true, effects:false, hover:false});
+    } else {
+      renderGame({board:true, scores:true, landscape:true, topbar:true});
+    }
+  }
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
     await aiTriggerWhenSet(inst, z, r, c);
     return;
@@ -3580,16 +3593,16 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '27': // Kazumi: automatic draw on set
       inst.effectUsedInitial = true;
       inst._effectTurnLocked = true;
-      await drawCard(cp,3);
+      await drawCard(cp,3,{afterSetOrCinematic:true});
       toast('Kazumi: drew 3 cards');
       renderEffectResolutionForPlayer(cp, {hand:true});
       break;
     case '32': // Temecula Resident: draw 1
-      await drawCard(cp,1);
+      await drawCard(cp,1,{afterSetOrCinematic:true});
       toast('Drew 1 card');
       renderHand(); break;
     case '42': // West German Soldier: draw 2, discard 2 (FORCED)
-      await drawCard(cp,2);
+      await drawCard(cp,2,{afterSetOrCinematic:true});
       toast('Drew 2 cards. You must discard 2.');
       renderHand();
       {
@@ -4434,7 +4447,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '27': // Kazumi: draw 3
       card.effectUsedInitial = true;
       card._effectTurnLocked = true;
-      await drawCard(cp,3);
+      await drawCard(cp,3,{afterSetOrCinematic:true});
       toast('Drew 3 cards');
       renderHand(); break;
     case '29': // Dylan Kirby: choose up to 2 Third Great War from deck or discard

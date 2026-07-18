@@ -766,7 +766,7 @@ function aiProjectedLandscapeFateBonus(card, move) {
   if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb11') && card.type === 'Initiator') bonus += 3;
   if(move && move.type === 'consolidate' && typeof isLandscapeActive === 'function' && isLandscapeActive('igb3')) {
     const targetZone = aiLandscapeTargetZone();
-    if(G.turn < 10 && targetZone === move.z) bonus += 3;
+    if(G.turn < 10 && targetZone === move.z) bonus += 4;
   }
   return bonus;
 }
@@ -2228,10 +2228,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
   }
 
-  const hasVisibleSetActivation = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(id))
-    || (inst.type === 'Initiator'
-      && typeof INITIAL_SET_INITIATOR_IDS !== 'undefined'
-      && INITIAL_SET_INITIATOR_IDS.has(id));
+  const hasVisibleSetActivation = typeof WINDOWED_WHEN_SET_EFFECT_IDS !== 'undefined'
+    && WINDOWED_WHEN_SET_EFFECT_IDS.has(id);
   if(hasVisibleSetActivation && typeof playEffectActivationCinematic === 'function') {
     const waitForPlacementMs = Math.max(0, Math.min(2800, Number(G._cinematicUiLockUntil || 0) - Date.now()));
     if(waitForPlacementMs) await aiSleep(waitForPlacementMs);
@@ -2340,9 +2338,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       await aiTriggerWhenSet(extra, slot.z, slot.r, slot.c);
       break;
     }
-    case '32': await drawCard(cp,1); break;
+    case '32': await drawCard(cp,1,{afterSetOrCinematic:true}); break;
     case '42': { // draw 2, discard 2
-      await drawCard(cp,2);
+      await drawCard(cp,2,{afterSetOrCinematic:true});
       const h = G.players[cp].hand;
       // Discard worst 2 cards (lowest fate supporters)
       const sorted = [...h].sort((a,b)=>(a.fate||0)-(b.fate||0));
@@ -3003,7 +3001,7 @@ async function aiRunEffect(card, z, r, c) {
       }
       break;
     }
-    case '27': await drawCard(cp,3); log('p2','AI: Kazumi drew 3'); break;
+    case '27': await drawCard(cp,3,{afterSetOrCinematic:true}); log('p2','AI: Kazumi drew 3'); break;
     case '07': { // Maja Kaminska: search up to 3 deck supporters, buff them, then +2 supporter plays
       const sources = G.players[cp].deck.filter(c=>c.type==='Supporter');
       const strat = G._selectedAI?._deckStrategy || '';

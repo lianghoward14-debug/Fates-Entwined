@@ -1057,7 +1057,7 @@ function getBoardRenderSignatureLegacy() {
 function getHandRenderSignature() {
   if(typeof G === 'undefined' || !G) return '';
   const cp = getPerspectivePlayerIndex();
-  const canActFromHand = (cp === G.currentPlayer);
+  const canActFromHand = !G._isSpectator && (cp === G.currentPlayer);
   const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
   const force = G._forceHandEnterIids ? Array.from(G._forceHandEnterIids).sort().join(',') : '';
   const tutorialSig = typeof tutorialHandRenderStateSignature === 'function' ? tutorialHandRenderStateSignature() : '';
@@ -2813,28 +2813,6 @@ function escapePlacementAnimHtml(value) {
   });
 }
 
-function ensurePlacementAnimationLayer() {
-  const layer = document.getElementById('placement-anim-layer');
-  if(layer) layer.textContent = '';
-  return null;
-}
-
-function playPlacementAnimation(card, z, r, c) {
-  if(!card || z == null || r == null || c == null) return 0;
-  const legacyLayer = document.getElementById('placement-anim-layer');
-  if(legacyLayer) legacyLayer.textContent = '';
-  try {
-    if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {
-      window.FateActionPresentation.noteRendererEvent('legacy-dom-motion-blocked', {
-        source:'playPlacementAnimation',
-        iid:card && card.iid,
-        z, r, c
-      });
-    }
-  } catch(e) {}
-  return 0;
-}
-
 function createBoardCardEl(card, z, r, c, reuseMap) {
   const rarity = card.rarity || 'circle';
   const perspectivePlayer = getPerspectivePlayerIndex();
@@ -2982,7 +2960,7 @@ function renderHand() {
         lblEl.innerHTML = nameStr + ' ' + countSpan;
       }
     }
-    if(typeof enforceHandLimit === 'function') enforceHandLimit(cp);
+    if(!G._isSpectator && typeof enforceHandLimit === 'function') enforceHandLimit(cp);
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderHand');
     else window.FateMatchRendererAdapter.renderFromGameState({hand:true, source:'renderHand'});
     return;
@@ -2999,7 +2977,8 @@ function renderHand() {
     const iidKey = String(card.iid);
     let el = existingByIid.get(iidKey);
     if(!el) el = document.createElement('div');
-    const canPlay = canActFromHand && canPlayCard(card);
+    const spectatorHidden = !!(card && (card.hidden || card._spectatorHidden));
+    const canPlay = !spectatorHidden && canActFromHand && canPlayCard(card);
     const supporterLimitReached = canActFromHand && isSupporterLimitReachedForCard(card);
     const tutorialBlocked = canActFromHand && typeof tutorialCanPlayHandCardNow === 'function' && !tutorialCanPlayHandCardNow(card);
     const canSelectForDetailAction = (canPlay || supporterLimitReached) && !tutorialBlocked;
@@ -3026,13 +3005,13 @@ function renderHand() {
       },{once:true});
     }
     const fate = getLiveCardFate(card);
-    const runtimeImg = card.img ? getRuntimeCardImageSrc(card.img, 'hand') : '';
+    const runtimeImg = !spectatorHidden && card.img ? getRuntimeCardImageSrc(card.img, 'hand') : '';
     const handEffectRows = typeof getHandCardEffectModifiers === 'function' ? getHandCardEffectModifiers(card) : [];
     const handEffectSig = JSON.stringify(handEffectRows);
     const visualSig = [runtimeImg, card.img || '', card.name || '', card.aff || '', fate, handEffectSig].join('|');
     if(el.__fateHandVisualSig !== visualSig){
       el.__fateHandVisualSig = visualSig;
-      el.innerHTML=`
+      el.innerHTML=spectatorHidden ? '<div class="opp-card-back" aria-label="Hidden card"></div>' : `
         <div class="bc-art">${card.img?`<img src="${runtimeImg}" alt="${escapePlacementAnimHtml(card.name)}" decoding="async" loading="eager" fetchpriority="high" data-full-src="${getFullCardImageFallbackSrc(runtimeImg)}" onerror="this.onerror=null;this.src=this.dataset.fullSrc||'${runtimeImg}';">`:''}<span class="bc-ico" style="${card.img?'display:none':''}">${getAffIcon(card.aff)}</span></div>
         <div class="bc-fate">${fate}</div>
         <div class="bc-name">${escapePlacementAnimHtml(card.name)}</div>
@@ -3046,7 +3025,7 @@ function renderHand() {
         }, 650);
       }
     }
-    if(canInspectHand) {
+    if(canInspectHand && !spectatorHidden) {
       el.onpointerenter = function(){ preloadCardDetailImage(card); };
       el.onclick=()=>{
       if(canSelectForDetailAction) {
@@ -5518,6 +5497,12 @@ function showBoardTargetPicker(opts, onConfirm) {
   zones.forEach(function(z){
     const panel = document.createElement('section');
     panel.className = 'board-target-zone';
+    let scrollIdleTimer = 0;
+    panel.addEventListener('scroll', function(){
+      panel.classList.add('is-scrolling');
+      clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = setTimeout(function(){ panel.classList.remove('is-scrolling'); }, 100);
+    }, {passive:true});
     const totalRows = G.board[z] ? G.board[z].length : 3;
     const hasExtraRows = totalRows > 3;
     let hasExtraCells = false;
@@ -5571,7 +5556,7 @@ function showBoardTargetPicker(opts, onConfirm) {
           cellEl.setAttribute('type', 'button');
           cellEl.innerHTML =
             '<div class="board-target-card">' +
-              (img ? '<img src="' + img + '" alt="' + (visual.name || 'Card') + '" decoding="async" loading="eager">' : '<span class="board-target-aff">' + getAffIcon(visual.aff) + '</span>') +
+              (img ? '<img src="' + img + '" alt="' + (visual.name || 'Card') + '" decoding="async" loading="lazy" fetchpriority="low">' : '<span class="board-target-aff">' + getAffIcon(visual.aff) + '</span>') +
               '<div class="board-target-fate' + (visual.isHidden ? ' is-hidden-fate' : '') + '">' + visual.displayFate + '</div>' +
             '</div>';
           if(entry) cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
@@ -5624,7 +5609,10 @@ function showBoardTargetPicker(opts, onConfirm) {
     bodySlot.appendChild(body);
   }
   const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('board-target-picker-modal');
+  if(modalBox) {
+    modalBox.classList.add('board-target-picker-modal');
+    modalBox.classList.toggle('is-multi-zone-picker', zones.length > 1);
+  }
   updateSelection(body);
 }
 
