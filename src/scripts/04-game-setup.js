@@ -707,7 +707,8 @@ AI_OPPONENTS.forEach(ai => {
 const AI_ELO_STATE_KEY = 'fate_ai_elo_state';
 const AI_BALANCE_OVERRIDES = {
   'Shadow Tiger': { elo:1250, trueElo:1250 },
-  'Codebreaker Agent K': { elo:1450 }
+  'Codebreaker Agent K': { elo:1450 },
+  'Indigo Falcon': { elo:1100, trueElo:1100 }
 };
 
 function getAIBalanceOverrideName(aiOrName) {

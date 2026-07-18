@@ -5,7 +5,11 @@
   const STARTUP_CHECK_TIMEOUT_MS = 7000;
   let state = null;
   let banner = null;
-  let bannerMessage = null;
+  let bannerKicker = null;
+  let bannerTitle = null;
+  let bannerPercent = null;
+  let bannerProgress = null;
+  let bannerWarning = null;
   let bannerAction = null;
   let startupCheckStarted = false;
   let startupCheckSettled = false;
@@ -16,9 +20,15 @@
     resolveStartupCheck = resolve;
   });
 
-  function isMatchActive(){
-    const game = document.getElementById('s-game');
-    return !!(game && game.classList.contains('active'));
+  function isTitleScreenActive(){
+    const title = document.getElementById('s-title');
+    return !!(title && title.classList.contains('active'));
+  }
+
+  function updatePercent(nextState){
+    if(String(nextState?.status || '').toLowerCase() === 'ready') return 100;
+    const percent = Number(nextState?.percent);
+    return Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : 0;
   }
 
   function normalizedState(nextState){
@@ -153,13 +163,52 @@
     banner.setAttribute('role', 'status');
     banner.setAttribute('aria-live', 'polite');
 
-    bannerMessage = document.createElement('span');
-    bannerMessage.className = 'desktop-update-message';
+    const head = document.createElement('div');
+    head.className = 'desktop-update-head';
+
+    const identity = document.createElement('div');
+    identity.className = 'desktop-update-identity';
+
+    const pulse = document.createElement('span');
+    pulse.className = 'desktop-update-pulse';
+    pulse.setAttribute('aria-hidden', 'true');
+
+    bannerKicker = document.createElement('span');
+    bannerKicker.className = 'desktop-update-kicker';
+    identity.append(pulse, bannerKicker);
+
+    bannerPercent = document.createElement('span');
+    bannerPercent.className = 'desktop-update-percent';
+    head.append(identity, bannerPercent);
+
+    bannerTitle = document.createElement('div');
+    bannerTitle.className = 'desktop-update-title';
+
+    const progressTrack = document.createElement('div');
+    progressTrack.className = 'desktop-update-progress';
+    progressTrack.setAttribute('role', 'progressbar');
+    progressTrack.setAttribute('aria-valuemin', '0');
+    progressTrack.setAttribute('aria-valuemax', '100');
+
+    bannerProgress = document.createElement('span');
+    bannerProgress.className = 'desktop-update-progress-fill';
+    progressTrack.appendChild(bannerProgress);
+
+    const warning = document.createElement('div');
+    warning.className = 'desktop-update-warning';
+
+    const warningMark = document.createElement('span');
+    warningMark.className = 'desktop-update-warning-mark';
+    warningMark.setAttribute('aria-hidden', 'true');
+    warningMark.textContent = '!';
+
+    bannerWarning = document.createElement('span');
+    warning.append(warningMark, bannerWarning);
 
     bannerAction = document.createElement('button');
     bannerAction.type = 'button';
     bannerAction.className = 'desktop-update-action';
-    bannerAction.textContent = 'Restart and update';
+    bannerAction.textContent = 'Restart to install';
     bannerAction.addEventListener('click', async () => {
       bannerAction.disabled = true;
       try {
@@ -170,50 +219,37 @@
       }
     });
 
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'desktop-update-close';
-    close.setAttribute('aria-label', 'Dismiss update notice');
-    close.textContent = '\u00d7';
-    close.addEventListener('click', () => {
-      if(state && state.availableVersion) {
-        try { sessionStorage.setItem('fate-dismissed-update', state.availableVersion); } catch(err) {}
-      }
-      renderBanner();
-    });
-
-    banner.append(bannerMessage, bannerAction, close);
+    banner.append(head, bannerTitle, progressTrack, warning, bannerAction);
     document.body.appendChild(banner);
   }
 
   function renderBanner(){
-    if(!window.__fateStartupLoadingFinished || !state || state.status !== 'ready') {
-      if(banner) banner.hidden = true;
-      return;
-    }
-    let dismissed = '';
-    try { dismissed = sessionStorage.getItem('fate-dismissed-update') || ''; } catch(err) {}
-    if(dismissed && dismissed === state.availableVersion) {
+    const status = String(state?.status || '').toLowerCase();
+    const visibleStatus = status === 'downloading' || status === 'ready';
+    if(!window.__fateStartupLoadingFinished || !state || !visibleStatus || !isTitleScreenActive()) {
       if(banner) banner.hidden = true;
       return;
     }
 
     ensureBanner();
-    const inMatch = isMatchActive();
+    const ready = status === 'ready';
+    const percent = updatePercent(state);
     const version = state.availableVersion ? ` ${state.availableVersion}` : '';
-    bannerMessage.textContent = inMatch
-      ? `Update${version} is ready and will install when you close the game.`
-      : `Update${version} is ready.`;
-    bannerAction.hidden = inMatch;
+    bannerKicker.textContent = ready ? 'Update Ready' : 'Desktop Update';
+    bannerTitle.textContent = ready
+      ? `Version${version} is ready to install`
+      : (version ? `Downloading version${version}` : 'Downloading the latest update');
+    bannerPercent.textContent = `${percent}%`;
+    bannerProgress.style.width = `${percent}%`;
+    bannerProgress.parentElement.setAttribute('aria-valuenow', String(percent));
+    bannerWarning.textContent = ready
+      ? 'Restart before entering multiplayer.'
+      : 'Do not enter multiplayer while this update is downloading.';
+    bannerAction.hidden = !ready;
     bannerAction.disabled = false;
     banner.hidden = false;
-    banner.classList.toggle('is-match-active', inMatch);
-  }
-
-  function observeGameScreen(){
-    const game = document.getElementById('s-game');
-    if(!game) return;
-    new MutationObserver(renderBanner).observe(game, { attributes: true, attributeFilter: ['class'] });
+    banner.classList.toggle('is-ready', ready);
+    banner.classList.toggle('is-downloading', !ready);
   }
 
   if(updater) {
@@ -247,10 +283,5 @@
   }
 
   window.addEventListener('fate-startup-loading-finished', renderBanner);
-
-  if(document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', observeGameScreen, { once: true });
-  } else {
-    observeGameScreen();
-  }
+  window.addEventListener('fate-screen-changed', renderBanner);
 })();

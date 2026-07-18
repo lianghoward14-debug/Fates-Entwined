@@ -87,6 +87,7 @@ for(const name of perfectNames){
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   assert(new RegExp(`name:'${escaped}'[^\\n]+handKnowledge:'perfect'`).test(setupSource), `${name} must be explicitly configured for perfect knowledge`);
 }
+assert(/'Indigo Falcon':\s*\{\s*elo:1100,\s*trueElo:1100\s*\}/.test(setupSource), 'Indigo Falcon must stay balanced as a 1100 Elo Lieutenant at Arms AI');
 const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert(indexSource.indexOf('07-ai-intelligence.js') < indexSource.indexOf('07-ai.js'), 'AI intelligence module must load before the turn controller');
 const activeAiScripts = Array.from(indexSource.matchAll(/<script[^>]+src="([^"]*07-ai(?:-intelligence)?\.js)[^"]*"/g), match=>path.basename(match[1]));
