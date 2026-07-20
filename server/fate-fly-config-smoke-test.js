@@ -66,7 +66,7 @@ assertEnv(env, 'FATE_WS_REQUIRE_FLY_STORE', '1');
 assertEnv(env, 'FATE_WS_REQUIRE_TOKEN', '1');
 assertEnv(env, 'FATE_WS_DISABLE_FIREBASE_RTDB', '1');
 assertEnv(env, 'FATE_RTDB_DISABLED', '1');
-assertEnv(env, 'FATE_WEB_GAME_DISABLED', '1');
+assertEnv(env, 'FATE_WEB_GAME_DISABLED', '0');
 assertEnv(env, 'FATE_WS_DURABLE_WRITES', 'off');
 assertEnv(env, 'FATE_WS_REQUIRE_DURABLE_WRITES', '0');
 assertEnv(env, 'FATE_WS_STATE_GATE', '1');
@@ -104,7 +104,7 @@ assert.doesNotMatch(dockerfileText, /COPY\s+fates-entwined-website\/installer\s+
 assert.match(dockerfileText, /CMD\s+\["node",\s*"server\/fate-ws-authority\.js"\]/, 'Dockerfile should start the authority server');
 assert.match(authorityText, /const WEB_GAME_DISABLED = process\.env\.FATE_WEB_GAME_DISABLED === '1';/, 'authority should expose a narrow browser-game disable switch');
 assert.match(authorityText, /const INSTALLER_RELEASE_URL[\s\S]*github\.com\/lianghoward14-debug\/Fates-Entwined\/releases\/latest\/download\/Fates-Entwined-Installer\.exe/, 'installer downloads should use the verified GitHub Release asset');
-assert.match(authorityText, /if\(pathname === INSTALLER_PUBLIC_PATH\)[\s\S]*res\.writeHead\(302,[\s\S]*location:INSTALLER_RELEASE_URL[\s\S]*if\(WEB_GAME_DISABLED\)[\s\S]*res\.writeHead\(410,[\s\S]*href="\/website\/"/, 'browser-game takedown must redirect installer downloads off Fly and preserve the landing page');
+assert.match(authorityText, /if\(pathname === INSTALLER_PUBLIC_PATH\)[\s\S]*res\.writeHead\(302,[\s\S]*location:INSTALLER_RELEASE_URL[\s\S]*if\(WEB_GAME_DISABLED\)[\s\S]*res\.writeHead\(410,[\s\S]*href="\/website\/"/, 'optional browser-game disable switch must still redirect installer downloads off Fly and preserve the landing page');
 assert.match(authorityText, /function sanitizeRoomProfile\(value\)[\s\S]*if\(\/\^data:image\\\/[\s\S]*profile\.photoURL = ''[\s\S]*profile\.profileImg = ''/, 'room responses should strip embedded profile images from high-frequency payloads');
 assert.match(onlineRoomsText, /if\(authoritySocketReady\(\)\)\{[\s\S]*timer = setTimeout\(poll, 5000\);[\s\S]*return;/, 'healthy WebSockets should suppress redundant HTTP event replay polling');
 assert.match(onlineRoomsText, /const nextPollMs = watchingQueuedRoom \? 1000 : \(activeMatch \? \(socketReady \? 5000 : 1500\) : 2500\);/, 'active matches should use a slower room poll while the authority WebSocket is healthy');
