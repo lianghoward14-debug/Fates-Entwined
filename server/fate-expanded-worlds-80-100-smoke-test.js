@@ -252,6 +252,7 @@ assert.match(core, /String\(card\.id \|\| ''\) === '37'[\s\S]*!card\._immuneByMa
 assert.match(css, /#tp-status-left,[\s\S]*#tp-status-right[\s\S]*flex-wrap:nowrap!important[\s\S]*effect-pill-icon[\s\S]*width:30px!important/, 'status banners must remain one row with larger icons');
 assert.match(rendering, /catalogCard[\s\S]*cinematicImage[\s\S]*triggerEntrance[\s\S]*setProperty\('opacity', '1', 'important'\)/, 'Character set cinematics must hydrate card art and force the visual overlay visible along with subtitles');
 assert.match(css, /#opp-hand\.opp-hand-compact[\s\S]*--opp-hand-card-w:44px!important[\s\S]*--opp-hand-card-h:62px!important[\s\S]*grid-template-columns:repeat\(4,var\(--opp-hand-card-w\)\)!important[\s\S]*grid-template-rows:repeat\(3,var\(--opp-hand-card-h\)\)!important[\s\S]*row-gap:4px!important/, '9+ opponent cards must use a non-overlapping four-column proxy grid');
+assert.match(css, /#opp-hand\[data-count="9"\] > \.opp-card-back:nth-child\(9\):last-child[\s\S]*translate:0 4px!important/, '9-card opponent hand must lower the lone third-row card by 4px');
 assert.match(ai, /case '96'[\s\S]*case '97'/, 'AI must implement cards 96 and 97');
 assert.match(rooms, /_administrativeBloatEffects/, 'Administrative Bloat must synchronize in multiplayer state');
 assert.match(rooms, /_serverRngCounter/, 'deterministic random effect state must synchronize in multiplayer');

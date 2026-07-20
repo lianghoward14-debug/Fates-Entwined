@@ -49,7 +49,7 @@ assert.match(indexText, /localStorage\.removeItem\('fateRtdbDisabled'\);[\s\S]*l
 assert.match(indexText, /localStorage\.removeItem\('fateWsAuthorityUrl'\);[\s\S]*localStorage\.removeItem\('fateWsAuthorityEnabled'\);/, 'hosted Fly browser clients must clear stale localhost WebSocket authority overrides');
 assert.match(indexText, /game\.css\?v=1784359001/, 'game stylesheet cache bust must include removal of the retired card-set flight');
 assert.match(indexText, /99-ui-final\.css\?v=1784660001/, 'final UI stylesheet cache bust must include the optically balanced booster descriptions');
-assert.match(indexText, /zz-codex-last\.css\?v=1784661005/, 'last override stylesheet cache bust must include the non-overlapping 9+ opponent hand grid');
+assert.match(indexText, /zz-codex-last\.css\?v=1784661006/, 'last override stylesheet cache bust must include the lowered non-overlapping 9-card opponent hand grid');
 assert.match(indexText, /button-line-cleanup\.css\?v=1784359003/, 'final button cleanup stylesheet cache bust must include the stale placement-class reset');
 assert.match(indexText, /17-online-social\.js\?v=1784195101/, 'social module cache bust must include live Fly DMs and peer avatars');
 assert.match(socialText, /function refreshOpenFlyDm[\s\S]*after=\$\{encodeURIComponent\(flyDmLastSeq\)\}&state=0[\s\S]*function startFlyDmPolling[\s\S]*setTimeout\(poll, 900\)/, 'an open Fly DM must incrementally poll for new messages without downloading full social state');
@@ -79,7 +79,7 @@ assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784667001/, 'render-v
 assert.match(indexText, /09-hand-drag-bridge\.js\?v=1784654001/, 'hand drag bridge cache bust must include centered organizer controls');
 assert.match(indexText, /render-v2\/17-action-presentation\.js\?v=1784063301/, 'action presentation cache bust must include target-local set motion and consolidation cinematic handoff');
 assert.match(indexText, /10-init\.js\?v=1784359007/, 'init cache bust must include removal of the placement animation wrapper');
-assert.match(indexText, /18-online-rooms\.js\?v=1784676002&sync=1784676002/, 'online rooms cache bust must include nonblocking Fly persistence, isolated Electron matchmaking sessions, and authority-first coin choice');
+assert.match(indexText, /18-online-rooms\.js\?v=1784676003&sync=1784676003/, 'online rooms cache bust must include Jake client-resolved multiplayer Fate sync');
 assert.match(indexText, /improvisor-consolidation-source-audio-cleanup-20260713a-1783961406/, 'client build stamp must identify the consolidation source and prompt audio cleanup');
 assert.match(indexText, /electron \|\| hostedFly/, 'Fly browser clients must unregister and skip service worker registration');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
@@ -229,6 +229,7 @@ assert.match(wsText, /function isEphemeralGuestUid\(uid\)/, 'Fly authority must 
 assert.match(wsText, /function guestSessionUid\(req, body\)/, 'Fly authority must verify explicit temporary guest session requests');
 assert.match(wsText, /msg\.guestSession === true && isEphemeralGuestUid\(msg\.uid\)/, 'WebSocket authority hello must accept explicit temporary guest sessions');
 assert.match(roomsText, /function shouldUseStrictServerFirstBoardAction\(payload\)[\s\S]*if\(clientResolvedGameplayEnabled\(\)\) return false;/, 'client-resolved board effects must not be hijacked by strict server-first reducers');
+assert.match(roomsText, /function strictCompactActionNeedsPostState\(type, payload\)[\s\S]*fn === 'triggerCharacterEffect' && !\/\^\(21\|40\)\$\/\.test\(id\)/, 'Jake must upload resolved postState so his multiplayer supporter discard and +5 Fate stay atomic');
 assert.match(roomsText, /function isServerAuthoritativeBoardIntent\(type, payload, g\)[\s\S]*if\(clientResolvedGameplayEnabled\(\)\) return false;/, 'client-resolved placement, movement, and consolidation must not be forced through stale server reducers');
 assert.match(roomsText, /window\.__fateSendEffectActivationCinematic = function[\s\S]*resolveOnlineLocalPlayerIndex\('effect-cinematic'\)[\s\S]*sendAction\('EFFECT_CINEMATIC'/, 'effect activation cinematic broadcasts must remain best-effort local visual sends');
 assert.match(roomsText, /handleAuthorityAcceptedMessage[\s\S]*EFFECT_CINEMATIC[\s\S]*online-immediate-effect-cinematic/, 'remote effect cinematic packets must play immediately instead of waiting behind gameplay replay sequencing');

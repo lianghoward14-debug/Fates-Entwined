@@ -5213,7 +5213,7 @@
     if(actionType === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(payload)){
       const fn = String(payload?.fn || '');
       const id = String(payload?.cardId || payload?.card?.id || payload?.source?.card?.id || '');
-      return fn === 'triggerCharacterEffect' && !/^(21|38|40)$/.test(id);
+      return fn === 'triggerCharacterEffect' && !/^(21|40)$/.test(id);
     }
     return isStrictCompactAuthorityAction(type)
       && (

@@ -20232,6 +20232,7 @@ html body #s-game #opp-hand[data-count="9"] > .opp-card-back:nth-child(9):last-c
   grid-column:2 / span 2!important;
   grid-row:3!important;
   justify-self:center!important;
+  translate:0 4px!important;
 }
 html body #s-game #opp-hand[data-count="10"] > .opp-card-back:nth-child(9){grid-column:2!important;grid-row:3!important;}
 html body #s-game #opp-hand[data-count="10"] > .opp-card-back:nth-child(10){grid-column:3!important;grid-row:3!important;}
