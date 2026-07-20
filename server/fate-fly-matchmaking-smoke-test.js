@@ -113,7 +113,8 @@ async function main(){
         uid:hostUid,
         mode:'ranked',
         profile:profile('Queue Host'),
-        deckChoice:deckChoice('Host Deck')
+        deckChoice:deckChoice('Host Deck'),
+        clientSession:'electron:player1'
       }
     });
     assert.strictEqual(hostEnter.matched, false);
@@ -121,6 +122,39 @@ async function main(){
     assert.strictEqual(hostEnter.room.hostUid, hostUid);
     const code = String(hostEnter.room.roomCode || hostEnter.room.code || '');
     assert.ok(/^[A-Z0-9]{6}$/.test(code), 'host queue room should expose a room code');
+
+    const duplicateHostEnter = await fetchJson('/api/matchmaking/enter', {
+      method:'POST',
+      body:{
+        uid:hostUid,
+        mode:'ranked',
+        profile:profile('Queue Host'),
+        deckChoice:deckChoice('Host Deck'),
+        clientSession:'electron:player1'
+      }
+    });
+    assert.strictEqual(duplicateHostEnter.matched, false);
+    assert.strictEqual(duplicateHostEnter.resumed, undefined, 'internal resume metadata should not leak into the API response');
+    assert.strictEqual(String(duplicateHostEnter.room.roomCode || duplicateHostEnter.room.code || ''), code, 'a duplicate enter from the same client must preserve its waiting room');
+
+    await assert.rejects(fetchJson('/api/matchmaking/enter', {
+      method:'POST',
+      body:{
+        uid:hostUid,
+        mode:'ranked',
+        profile:profile('Queue Host'),
+        deckChoice:deckChoice('Host Deck'),
+        clientSession:'electron:player2'
+      }
+    }), /already matchmaking in another Electron session/i);
+    const mismatchedLeave = await fetchJson('/api/matchmaking/leave', {
+      method:'POST',
+      body:{uid:hostUid, clientSession:'electron:player2'}
+    });
+    assert.strictEqual(mismatchedLeave.removed, false, 'a second Electron session must not cancel the first session queue');
+    assert.strictEqual(mismatchedLeave.sessionMismatch, true);
+    const preservedHostRoom = await fetchJson(`/api/rooms/${encodeURIComponent(code)}`);
+    assert.strictEqual(preservedHostRoom.room.hostUid, hostUid, 'same-account collision must not delete the original host room');
 
     const waiting = await fetchJson('/api/matchmaking?mode=ranked');
     assert.strictEqual(waiting.entries.length, 1, 'host should be visible in ranked matchmaking');
@@ -131,7 +165,8 @@ async function main(){
         uid:guestUid,
         mode:'ranked',
         profile:profile('Queue Guest'),
-        deckChoice:deckChoice('Guest Deck')
+        deckChoice:deckChoice('Guest Deck'),
+        clientSession:'electron:player2'
       }
     });
     assert.strictEqual(guestEnter.matched, true);

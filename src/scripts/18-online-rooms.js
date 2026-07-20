@@ -5533,7 +5533,11 @@
       && !serverAuthoritativeBoardIntent
       && (clientOwnedEffectBoardAction || !(String(type || '').toUpperCase() === 'BOARD_ACTION' && shouldUseStrictServerFirstBoardAction(outbound)));
     const compactAuthorityPayload = !clientResolvedCommit && isStrictCompactAuthorityAction(type);
-    const authorityFirstPlacement = compactAuthorityPayload && toAuthorityIntent(type, outbound, gameState()) === 'PLACE_CARD';
+    const authorityIntent = toAuthorityIntent(type, outbound, gameState());
+    const authorityFirstPlacement = compactAuthorityPayload && authorityIntent === 'PLACE_CARD';
+    const authorityFirstTurnChoice = authorityIntent === 'CHOOSE_TURN'
+      && !!configuredAuthorityUrl()
+      && !firebaseActionFallbackAllowed();
     let localResult;
     let localApplied = false;
     let finishLocalCommit = null;
@@ -5682,10 +5686,10 @@
       }, delayMs);
     }
     function applyLocalAndSend(){
-      if(compactAuthorityPayload && !authorityFirstPlacement) stampBaseStateHash();
-      if(authorityFirstPlacement){
+      if(compactAuthorityPayload && !authorityFirstPlacement && !authorityFirstTurnChoice) stampBaseStateHash();
+      if(authorityFirstPlacement || authorityFirstTurnChoice){
         const pendingState = gameState();
-        if(pendingState && isOnlineMatchState(pendingState)){
+        if(authorityFirstPlacement && pendingState && isOnlineMatchState(pendingState)){
           clearOnlinePlacementIntent(pendingState);
           pendingState.placing = false;
           pendingState.selectedHandCard = null;
@@ -7208,6 +7212,21 @@
     const target = String(targetUid || '');
     return target ? `${m}:${s}:party:${target}` : `${m}:${s}:open`;
   }
+  function matchmakingClientSession(){
+    const params = authorityLaunchParams();
+    if(electronRuntime()) return `electron:${String(params.get('electronSession') || 'default').slice(0, 48)}`;
+    const key = 'fateMatchmakingClientSession';
+    try{
+      let value = String(sessionStorage.getItem(key) || '');
+      if(!value){
+        value = `web:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+        sessionStorage.setItem(key, value);
+      }
+      return value.slice(0, 80);
+    }catch(e){
+      return 'web:default';
+    }
+  }
   function cappedRoomChatRef(code){
     const base = FO.ref(FO.rtdb, `rooms/${code}/chat`);
     return (FO.query && FO.orderByChild && FO.limitToLast)
@@ -7248,7 +7267,7 @@
     if(u && (flyRoomsEnabled() || roomUsesFly(randomQueueState.roomCode))){
       await flyApiRequest('/api/matchmaking/leave', {
         method:'POST',
-        body:{uid:u.uid}
+        body:{uid:u.uid, clientSession:matchmakingClientSession()}
       }).catch(()=>{});
       return;
     }
@@ -7702,6 +7721,7 @@
           lastLobbyPlayers = nextRoom.players;
         }
       }).catch(e=>{
+        if(stopped) return;
         if(e && e.status === 404) return;
         if(Date.now() - lastWarn > 5000){
           console.warn('Fly room heartbeat failed', e);
@@ -7750,9 +7770,11 @@
       if(stopped) return;
       try{
         const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}`, { timeoutMs:12000 });
+        notFoundCount = 0;
         if(data?.room) handleFlyRoom(data.room);
         await sendFlyHeartbeat();
       }catch(e){
+        if(stopped) return;
         if(e && e.status === 404){
           notFoundCount += 1;
           recordOnlineDiagnostic('fly-room-not-found', {
@@ -8701,7 +8723,12 @@
     if(typeof AbortController !== 'undefined'){
       controller = new AbortController();
       init.signal = controller.signal;
-      timeoutTimer = setTimeout(()=>controller.abort(), timeoutMs);
+      timeoutTimer = setTimeout(()=>{
+        const timeoutError = new Error(`Fly authority ${method} ${path} timed out after ${timeoutMs}ms`);
+        timeoutError.name = 'TimeoutError';
+        timeoutError.fateFlyTimeout = true;
+        controller.abort(timeoutError);
+      }, timeoutMs);
     }
     if(opts.body !== undefined){
       headers['content-type'] = 'application/json';
@@ -10765,7 +10792,8 @@
         mode,
         profile:prof,
         deckChoice:flyDeckChoiceFromRoomDeck(deck),
-        partyTargetUid:partyTargetUid || ''
+        partyTargetUid:partyTargetUid || '',
+        clientSession:matchmakingClientSession()
       }
     });
     const room = normalizeFlyRoom(data.room);
@@ -11016,8 +11044,13 @@
       }catch(e){
         console.error('Fly random queue failed', e);
         markFlyRandomQueueFailed();
-        setTimeout(()=>removeOwnQueueEntry().catch(()=>{}), 1500);
-        emitRandomQueueStatus('error', 'Could not enter Fly random queue. Try again.');
+        const sameAccount = /already matchmaking in another Electron session/i.test(String(e?.message || ''));
+        if(!sameAccount) setTimeout(()=>removeOwnQueueEntry().catch(()=>{}), 1500);
+        const message = sameAccount
+          ? 'This account is already queueing in another window. Sign out here or use a different Google account.'
+          : 'Could not enter Fly random queue. Try again.';
+        emitRandomQueueStatus('error', message);
+        if(sameAccount && window.toast) toast(message);
         return false;
       }
     }

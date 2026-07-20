@@ -121,6 +121,8 @@ let flyStoreReady = false;
 let flyRoomsPersistTimer = 0;
 let flyRoomsPersistRunning = false;
 let flyRoomsPersistAgain = false;
+let flyRoomsPersistPromise = Promise.resolve();
+let flyRoomsPersistWriteSeq = 0;
 let cardCatalogCache = null;
 let restoredTimerCount = 0;
 let restoredEventCount = 0;
@@ -270,6 +272,12 @@ function writeAtomicJson(filePath, value){
   fs.renameSync(tmpPath, filePath);
 }
 
+async function writeAtomicJsonAsync(filePath, value, writeSeq){
+  const tmpPath = filePath + `.tmp-${process.pid}-${writeSeq}`;
+  await fs.promises.writeFile(tmpPath, safeJson(value));
+  await fs.promises.rename(tmpPath, filePath);
+}
+
 function flyRoomsSnapshotPayload(){
   return {
     schemaVersion:1,
@@ -309,22 +317,35 @@ function persistFlyRoomsSnapshot(){
   return true;
 }
 
+async function persistFlyRoomsSnapshotAsync(writeSeq){
+  if(!ensureFlyStore()) return false;
+  await writeAtomicJsonAsync(flyStorePath('rooms.json'), flyRoomsSnapshotPayload(), writeSeq);
+  return true;
+}
+
 function flushScheduledFlyRoomsSnapshot(){
+  if(shuttingDown) return flyRoomsPersistPromise;
   if(flyRoomsPersistRunning){
     flyRoomsPersistAgain = true;
-    return;
+    return flyRoomsPersistPromise;
   }
   if(!ensureFlyStore()) return;
   flyRoomsPersistRunning = true;
   flyRoomsPersistAgain = false;
-  try{
-    persistFlyRoomsSnapshot();
-  }catch(e){
-    console.error('Fly durable room persist failed:', e.message || e);
-  }finally{
-    flyRoomsPersistRunning = false;
-    if(flyRoomsPersistAgain && !shuttingDown) scheduleFlyRoomsSnapshotPersist();
-  }
+  const writeSeq = ++flyRoomsPersistWriteSeq;
+  // Chain every snapshot even if a future call reaches this point while an
+  // earlier filesystem promise is settling. This prevents an older snapshot
+  // from renaming over a newer one on a slow or network-backed volume.
+  flyRoomsPersistPromise = flyRoomsPersistPromise.catch(()=>{})
+    .then(()=>persistFlyRoomsSnapshotAsync(writeSeq))
+    .catch(e=>{
+      console.error('Fly durable room persist failed:', e.message || e);
+    })
+    .finally(()=>{
+      flyRoomsPersistRunning = false;
+      if(flyRoomsPersistAgain && !shuttingDown) scheduleFlyRoomsSnapshotPersist();
+    });
+  return flyRoomsPersistPromise;
 }
 
 function scheduleFlyRoomsSnapshotPersist(){
@@ -974,6 +995,7 @@ function publicMatchmakingEntry(value){
     elo:safeNonNegativeInteger(entry.elo, 600),
     deckName:String(entry.deckName || 'Selected Deck').slice(0, 80),
     partyTargetUid,
+    clientSession:String(entry.clientSession || '').slice(0, 80),
     createdAt:Number(entry.createdAt || 0) || now(),
     updatedAt:Number(entry.updatedAt || 0) || now()
   };
@@ -2925,6 +2947,7 @@ function createMatchmakingHostRoom(uid, body, profile, deckChoice, mode){
     elo:profile.challengerElo || profile.elo || 600,
     deckName:deckChoice.name,
     partyTargetUid:String(body.partyTargetUid || '').slice(0, 128),
+    clientSession:String(body.clientSession || '').slice(0, 80),
     createdAt:now(),
     updatedAt:now()
   });
@@ -2962,6 +2985,26 @@ function enterFlyMatchmaking(uid, body){
   const deckChoice = sanitizeDeckChoice(body.deckChoice);
   if(!deckChoice.ready || deckChoice.deckIds.length !== 40) throw new Error('matchmaking requires a 40-card deck');
   const partyTargetUid = String(body.partyTargetUid || '').slice(0, 128);
+  const clientSession = String(body.clientSession || '').slice(0, 80);
+  const existingEntry = matchmaking.get(uid) || null;
+  const existingRoom = existingEntry?.roomCode ? rooms.get(roomCode(existingEntry.roomCode)) : null;
+  if(existingEntry && existingRoom && existingEntry.status === 'waiting'
+    && existingRoom.status === 'lobby' && existingRoom.hostUid === uid && !existingRoom.guestUid){
+    const existingClientSession = String(existingEntry.clientSession || '');
+    if(clientSession && existingClientSession && clientSession !== existingClientSession){
+      throw new Error('This account is already matchmaking in another Electron session. Sign out in one window or use a different Google account.');
+    }
+    if(normalizeRoomMode(existingEntry.mode) === mode
+      && String(existingEntry.partyTargetUid || '') === partyTargetUid){
+      const player = upsertRoomPlayer(existingRoom, uid, 'host', profile, deckChoice);
+      if(player) player.connected = true;
+      existingEntry.updatedAt = now();
+      if(clientSession && !existingEntry.clientSession) existingEntry.clientSession = clientSession;
+      touch(existingRoom);
+      persistFlyRoomMutation();
+      return {matched:false, role:'host', room:existingRoom, entry:publicMatchmakingEntry(existingEntry), resumed:true};
+    }
+  }
   removeMatchmakingEntry(uid);
   const match = findFlyMatchmakingOpponent(uid, mode, partyTargetUid);
   if(match){
@@ -3990,8 +4033,18 @@ function persistFlyRoomMutation(){
 
 function persistFlyRoomMutationNow(label){
   try{
+    if(shuttingDown) return;
     if(flyRoomsPersistTimer){ clearTimeout(flyRoomsPersistTimer); flyRoomsPersistTimer = 0; }
-    persistFlyRoomsSnapshot();
+    // Never block an HTTP response or WebSocket callback on volume I/O. Fly's
+    // mounted volume can pause for many seconds under load, which previously
+    // froze every room poll, heartbeat, and matchmaking request in the process.
+    // setImmediate also lets the current response reach the socket before the
+    // snapshot is serialized.
+    if(flyRoomsPersistRunning){
+      flyRoomsPersistAgain = true;
+    }else{
+      setImmediate(()=>flushScheduledFlyRoomsSnapshot());
+    }
   }catch(e){
     console.error(`Fly durable room ${label || 'immediate'} persist failed:`, e.message || e);
   }
@@ -5018,6 +5071,13 @@ async function handleApiRequest(req, res, url){
       if(req.method === 'POST' && parts[2] === 'leave'){
         const body = await readJsonBody(req);
         const uid = await verifyRequestUser(req, body);
+        const requestedClientSession = String(body.clientSession || '').slice(0, 80);
+        const currentEntry = matchmaking.get(uid) || null;
+        if(requestedClientSession && currentEntry?.clientSession
+          && requestedClientSession !== String(currentEntry.clientSession)){
+          writeJson(res, 200, {ok:true, removed:false, sessionMismatch:true});
+          return true;
+        }
         const entry = removeMatchmakingEntry(uid);
         writeJson(res, 200, {ok:true, removed:!!entry});
         return true;
@@ -5412,6 +5472,9 @@ async function gracefulShutdown(signal){
     markSocketDisconnected(socket);
   }
   if(flyRoomsPersistTimer){ clearTimeout(flyRoomsPersistTimer); flyRoomsPersistTimer = 0; }
+  if(flyRoomsPersistRunning){
+    await flyRoomsPersistPromise.catch(()=>{});
+  }
   try{ persistFlyRoomsSnapshot(); }catch(e){ console.error('Fly durable room shutdown persist failed:', e.message || e); }
   for(const socket of [...sockets]){
     closeSocket(socket, 1001, 'server restarting');

@@ -42,6 +42,18 @@ async function requestJson(method, requestPath, body){
   return json;
 }
 
+async function waitForStoredRoom(roomsFile, code, timeoutMs = 2500){
+  const deadline = Date.now() + timeoutMs;
+  while(Date.now() < deadline){
+    try{
+      const snapshot = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
+      if(snapshot.rooms?.some(room=>room.code === code && room.hostUid === 'runtime-host')) return snapshot;
+    }catch(e){}
+    await delay(50);
+  }
+  throw new Error(`rooms.json did not persist created room ${code}`);
+}
+
 function startServer(dataDir){
   const child = spawn(process.execPath, ['server/fate-fly-authority-local.js'], {
     cwd:ROOT,
@@ -115,11 +127,12 @@ function stopServer(child){
     const code = String(created.room?.roomCode || created.room?.code || '');
     assert.match(code, /^[A-Z0-9]{6}$/);
     assert.strictEqual(created.room.hostUid, 'runtime-host');
+    const roomsFile = path.join(dataDir, 'rooms.json');
+    await waitForStoredRoom(roomsFile, code);
 
     await stopServer(child);
     child = null;
 
-    const roomsFile = path.join(dataDir, 'rooms.json');
     assert.ok(fs.existsSync(roomsFile), 'local Fly wrapper should persist rooms.json');
     const snapshot = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
     assert.ok(Array.isArray(snapshot.rooms), 'rooms.json should contain rooms array');

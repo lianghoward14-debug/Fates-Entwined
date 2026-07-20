@@ -144,6 +144,19 @@ async function waitForStoredDisconnected(roomsFile, code, uid, timeoutMs = 2500)
   throw new Error(`stored room ${code} did not persist ${uid} disconnected`);
 }
 
+async function waitForStoredSpectatorCount(roomsFile, code, expected, timeoutMs = 2500){
+  const deadline = Date.now() + timeoutMs;
+  while(Date.now() < deadline){
+    try{
+      const latest = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
+      const room = latest.rooms.find(item=>item.code === code);
+      if(Object.keys(room?.spectators || {}).length === expected) return latest;
+    }catch(e){}
+    await delay(50);
+  }
+  throw new Error(`stored room ${code} did not persist spectator count ${expected}`);
+}
+
 function startServer(dataDir){
   const child = spawn(process.execPath, ['server/fate-ws-authority.js'], {
     cwd:ROOT,
@@ -615,6 +628,7 @@ async function main(){
     const spectatorLeave = await requestJson('POST', `/api/rooms/${code}/spectators/leave`, {uid:'spectator-one'});
     assert.strictEqual(spectatorLeave.removed, true);
     assert.strictEqual(spectatorLeave.room.spectatorCount, 0);
+    await waitForStoredSpectatorCount(path.join(dataDir, 'rooms.json'), code, 0);
 
     await stopServer(child);
     child = null;
@@ -625,7 +639,9 @@ async function main(){
     assert.ok(fs.existsSync(eventsFile), 'events.jsonl should be persisted');
     const stored = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
     assert.ok(Array.isArray(stored.rooms), 'rooms.json should contain room array');
-    assert.ok(stored.rooms.find(room=>room.code === code), 'stored rooms should include started room');
+    const storedRoom = stored.rooms.find(room=>room.code === code);
+    assert.ok(storedRoom, 'stored rooms should include started room');
+    assert.strictEqual(Object.keys(storedRoom.spectators || {}).length, 0, 'background persistence must retain the latest spectator leave');
 
     child = startServer(dataDir);
     const restoredHealth = await waitForHealth();

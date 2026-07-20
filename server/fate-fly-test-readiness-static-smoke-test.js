@@ -79,7 +79,7 @@ assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784667001/, 'render-v
 assert.match(indexText, /09-hand-drag-bridge\.js\?v=1784654001/, 'hand drag bridge cache bust must include centered organizer controls');
 assert.match(indexText, /render-v2\/17-action-presentation\.js\?v=1784063301/, 'action presentation cache bust must include target-local set motion and consolidation cinematic handoff');
 assert.match(indexText, /10-init\.js\?v=1784359007/, 'init cache bust must include removal of the placement animation wrapper');
-assert.match(indexText, /18-online-rooms\.js\?v=1784676000&sync=1784676000/, 'online rooms cache bust must include placement settling and exact rejected-action rollback');
+assert.match(indexText, /18-online-rooms\.js\?v=1784676002&sync=1784676002/, 'online rooms cache bust must include nonblocking Fly persistence, isolated Electron matchmaking sessions, and authority-first coin choice');
 assert.match(indexText, /improvisor-consolidation-source-audio-cleanup-20260713a-1783961406/, 'client build stamp must identify the consolidation source and prompt audio cleanup');
 assert.match(indexText, /electron \|\| hostedFly/, 'Fly browser clients must unregister and skip service worker registration');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
@@ -182,6 +182,7 @@ assert.match(roomsText, /online-optimistic-send-room-ended/, 'room-ended authori
 assert.match(roomsText, /function handleRoomEnded\(room\)[\s\S]*cleanupTerminalOnlineRoomState\(remoteEnded \? 'remote-room-ended' : 'room-ended'\)[\s\S]*cleanupGame\(\)[\s\S]*showOnlineForfeitResult\(result\.outcome/, 'remote room-ended watcher must close the match runtime before showing the result');
 assert.match(roomsText, /function authorityRetryMaxAttempts\(\)[\s\S]*\? 5 : 1/, 'authority sends must retry long enough to survive Fly startup readiness gaps');
 assert.match(roomsText, /function authorityRetryDelayMs\(attempt\)[\s\S]*900[\s\S]*1100/, 'authority retry backoff must be long enough for a just-started Fly machine');
+assert.match(roomsText, /authorityFirstTurnChoice = authorityIntent === 'CHOOSE_TURN'[\s\S]*!!configuredAuthorityUrl\(\)[\s\S]*!firebaseActionFallbackAllowed\(\)[\s\S]*if\(authorityFirstPlacement \|\| authorityFirstTurnChoice\)[\s\S]*return sendAuthorityNow\(\);/, 'Fly authority coin choice must be accepted by the authority before leaving coin flip locally');
 assert.match(roomsText, /if\(g\._serverPendingReaction \|\| String\(g\.pendingInteraction\?\.kind \|\| ''\) === 'reaction'\) return false;/, 'auto-commit watchdog must not publish resolved states while an Improvisor reaction is pending');
 assert.match(coreText, /async function resolveSetCardAfterPlacement\(inst, z, r, c, opts = \{\}\)[\s\S]*!opts\.onlineImprovisorResolved[\s\S]*window\.fateShouldHoldOnlinePlacementEffect[\s\S]*if\(held\) return;/, 'normal placement resolution must pause only when the online Improvisor eligibility hook explicitly holds it');
 assert.match(coreText, /actionData\.card\._onlinePlacementReactionAllowPromptId[\s\S]*delete actionData\.card\._onlinePlacementReactionAllowPromptId;[\s\S]*resolve\(true\);/, 'an allowed placement reaction must bypass exactly one later activation-time reaction check');
@@ -209,6 +210,9 @@ assert.doesNotMatch(roomsText, /attachOnlineReactionActionType|onlineReactionAct
 assert.match(roomsText, /fly-join-same-session-as-host/, 'Fly join path must diagnose Electron windows that are still signed in as the host');
 assert.doesNotMatch(roomsText, /fateRefreshElectronAnonymousSignIn\('fly-join-same-session-as-host'\)|fly-join-electron-identity-refreshed/, 'Fly join path must not silently rotate Electron identities during same-host joins');
 assert.match(roomsText, /electronSession:String\(params\.get\('electronSession'\) \|\| ''\)/, 'online diagnostics must expose the Electron session name');
+assert.match(roomsText, /function matchmakingClientSession\(\)[\s\S]*electronSession[\s\S]*clientSession:matchmakingClientSession\(\)/, 'Fly matchmaking must identify the Electron window that owns each queue entry');
+assert.match(wsText, /already matchmaking in another Electron session[\s\S]*sessionMismatch:true/, 'same-account Electron sessions must not delete or cancel each other queue rooms');
+assert.match(wsText, /async function writeAtomicJsonAsync[\s\S]*fs\.promises\.writeFile[\s\S]*function persistFlyRoomMutationNow[\s\S]*setImmediate\(\(\)=>flushScheduledFlyRoomsSnapshot\(\)\)/, 'Fly durable snapshots must leave HTTP and WebSocket callbacks before volume I/O');
 assert.match(roomsText, /x-fate-guest-session/, 'Fly room requests must mark ephemeral guest sessions without Firebase auth');
 assert.match(roomsText, /guestSession:!!u\.isEphemeralGuest/, 'WebSocket authority hello must mark ephemeral guest sessions');
 assert.match(roomsText, /async function removeOwnQueueEntry\(\)[\s\S]*const u = getUser\(\);/, 'queue cleanup must support Electron ephemeral guest users');
