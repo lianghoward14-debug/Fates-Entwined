@@ -1342,7 +1342,7 @@ function renderChStoreTab(content) {
         <div class="store-grid" style="display:flex;gap:1.2rem;flex-wrap:wrap;justify-content:center;">
       <div class="booster-tile standard-booster" style="border-color:rgba(155,89,182,.5);">
         <div class="booster-art standard-booster-art" style="background:linear-gradient(135deg,rgba(155,89,182,.2),rgba(142,68,173,.1));">
-          <img src="illustration3.png" alt="Fates Entwined Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:5rem;opacity:.3;color:#b388ff;\\'>PACK</div>'">
+          <img src="Illustration3.png" alt="Fates Entwined Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:5rem;opacity:.3;color:#b388ff;\\'>PACK</div>'">
         </div>
         <div class="booster-info">
           <div class="booster-name" style="color:#b388ff;">Fates Entwined Booster</div>
@@ -1865,7 +1865,7 @@ function renderChStoreTab(content) {
           <div class="store-grid">
             <div class="booster-tile standard-booster ch-store-product ch-store-product-standard">
               <div class="booster-art standard-booster-art ch-store-product-art">
-                <img src="illustration3.png" alt="Fates Entwined Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
+                <img src="Illustration3.png" alt="Fates Entwined Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Base Set</div>
@@ -1967,7 +1967,7 @@ function showPackOpening(results, packType) {
   const packBorder = isFavored
     ? 'border-color:rgba(255,215,0,.8);box-shadow:0 0 80px rgba(255,215,0,.5),0 30px 80px rgba(0,0,0,.8),inset 0 0 40px rgba(255,215,0,.2);'
     : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 0 70px rgba(118,196,242,.38),0 30px 80px rgba(0,0,0,.8),inset 0 0 40px rgba(155,220,255,.16);' : '');
-  const packArtSrc = isBooster2 ? 'booster2.png' : 'illustration3.png';
+  const packArtSrc = isBooster2 ? 'booster2.png' : 'Illustration3.png';
   const packAlt = isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster';
   stage.innerHTML = `
     <div class="pack-stage">

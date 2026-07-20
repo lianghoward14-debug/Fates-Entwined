@@ -70,7 +70,7 @@ assert.match(indexText, /render-v2\/01-render-snapshot\.js\?v=1784666001/, 'rend
 assert.match(indexText, /05-gameplay-core\.js\?v=1784676000/, 'gameplay core cache bust must include atomic multiplayer effect resolution');
 assert.match(indexText, /07-ai-learning\.js\?v=1784382001/, 'AI learning cache bust must include the promoted 250,000-game offline policy');
 assert.match(indexText, /07-ai\.js\?v=1784664001/, 'AI cache bust must include generic non-Kvetka Fate audio and placement reveal timing');
-assert.match(indexText, /09-challenger-mode\.js\?v=1784652002/, 'Challenger cache bust must include the revised booster artwork mapping');
+assert.match(indexText, /09-challenger-mode\.js\?v=1784652003/, 'Challenger cache bust must include the case-correct booster artwork mapping');
 assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784660002/, 'render-v2 layout cache bust must include the non-overlapping 4-by-3 opponent hand layout');
 assert.match(matchLayoutText, /const oppCols = largeOppHand[\s\S]*Math\.min\(4, Math\.max\(1, oppCount \|\| 1\)\)[\s\S]*: 4;/, '9-12 opponent cards must always use four columns');
 assert.match(matchLayoutText, /const packedOppCardW = 44;[\s\S]*const packedOppCardH = 62;[\s\S]*const packedOppRowStep = 66;[\s\S]*oppRowStep = packedOppHand[\s\S]*Math\.min\(packedOppRowStep, naturalOppRowStep, fitOppRowStep\)/, '9-12 opponent cards must fit three rows without overlapping');
@@ -79,7 +79,7 @@ assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784667001/, 'render-v
 assert.match(indexText, /09-hand-drag-bridge\.js\?v=1784654001/, 'hand drag bridge cache bust must include centered organizer controls');
 assert.match(indexText, /render-v2\/17-action-presentation\.js\?v=1784063301/, 'action presentation cache bust must include target-local set motion and consolidation cinematic handoff');
 assert.match(indexText, /10-init\.js\?v=1784359007/, 'init cache bust must include removal of the placement animation wrapper');
-assert.match(indexText, /18-online-rooms\.js\?v=1784676003&sync=1784676003/, 'online rooms cache bust must include Jake client-resolved multiplayer Fate sync');
+assert.match(indexText, /18-online-rooms\.js\?v=1784676004&sync=1784676004/, 'online rooms cache bust must include server-finalized match result postState sync');
 assert.match(indexText, /improvisor-consolidation-source-audio-cleanup-20260713a-1783961406/, 'client build stamp must identify the consolidation source and prompt audio cleanup');
 assert.match(indexText, /electron \|\| hostedFly/, 'Fly browser clients must unregister and skip service worker registration');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
@@ -304,6 +304,8 @@ assert.match(wsText, /function publicRoom\(room\)[\s\S]*endedBy:room\.endedBy \|
 assert.doesNotMatch(roomsText, /FORFEIT'[\s\S]{0,240}applyOnlineAction\(terminalAction\)/, 'accepted forfeits must not route back through the failed general replay path');
 assert.match(roomsText, /args = Array\.prototype\.slice\.call\(arguments\)[\s\S]*liveCard = g\.board[\s\S]*args\[0\] = liveCard/, 'board effect activation must rebind stale post-consolidation card references to the live board card');
 assert.match(roomsText, /function shouldApplyServerStateDirectly\(actionType, payload\)\{[\s\S]*FORFEIT\|MATCH_RESULT\|DISCONNECT_TIMEOUT[\s\S]*return false;/, 'terminal actions must reach their dedicated client shutdown handlers instead of the generic canonical-state fast path');
+assert.match(roomsText, /function attachOnlineMatchResultPostState\(payload, result, sourceG\)[\s\S]*postState\.phase = 'ended'[\s\S]*postState\.matchResult = cloneOnlinePlain\(result\)[\s\S]*payload\.stateHash = onlineCanonicalStateHash\(postState\)/, 'MATCH_RESULT must include a terminal postState and stateHash for the Fly authority state gate');
+assert.match(roomsText, /sendAction\('MATCH_RESULT', payload\)/, 'match result finalization must send the prepared terminal payload');
 assert.match(reducerText, /if\(type === 'FORFEIT'\)[\s\S]*canonicalState:state[\s\S]*serverReduced:true/, 'the authority reducer must accept and broadcast forfeit while preserving the canonical match board');
 assert.match(roomsText, /local client-resolved acknowledgement without replay/, 'local client-resolved acknowledgements must not replay stale snapshots over newer local picker state');
 assert.match(roomsText, /function runWithOnlinePickerResolution[\s\S]*_onlineResolvingPickerAction/, 'online picker confirmations must mark nested local resolution');

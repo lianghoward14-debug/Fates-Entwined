@@ -78,8 +78,8 @@ const exactDescription = "The first expansion of Fates Entwined - Winter morning
 for(const [label, source] of [['primary store', challengerSource], ['alternate store', challengerV2Source]]) {
   assert.match(source, /const BOOSTER2_COST_STARLIGHT = 150;/, `${label} must price Booster 2 at 150 Starlight`);
   assert(source.includes(baseDescription), `${label} must use the supplied base booster description`);
-  assert.match(source, /<img src="illustration3\.png" alt="Fates Entwined Booster"/, `${label} must use illustration3.png for the base booster`);
-  assert.match(source, /const packArtSrc = isBooster2 \? 'booster2\.png' : 'illustration3\.png'/, `${label} pack opening must use illustration3.png for the base booster`);
+  assert.match(source, /<img src="Illustration3\.png" alt="Fates Entwined Booster"/, `${label} must use Illustration3.png for the base booster`);
+  assert.match(source, /const packArtSrc = isBooster2 \? 'booster2\.png' : 'Illustration3\.png'/, `${label} pack opening must use Illustration3.png for the base booster`);
   assert.doesNotMatch(source, /8 cards from the Fates Entwined base set\./, `${label} must omit the obsolete base-pack contents section`);
   assert(source.includes(exactDescription), `${label} must use the supplied Booster 2 description`);
   assert.match(source, /<div class="ch-store-product-kicker">First Expansion<\/div>/, `${label} must label Snow on the Carpathians as the first expansion`);
@@ -97,11 +97,11 @@ assert(fs.existsSync(booster1Path), 'the profile booster1.png art must exist');
 const booster1Png = fs.readFileSync(booster1Path);
 assert.strictEqual(booster1Png.readUInt32BE(16), 1000, 'booster1.png must match the other booster art width');
 assert.strictEqual(booster1Png.readUInt32BE(20), 1400, 'booster1.png must match the other booster art height');
-assert(fs.existsSync(path.join(root, 'illustration3.png')), 'illustration3.png base booster art must exist');
+assert(fs.existsSync(path.join(root, 'Illustration3.png')), 'Illustration3.png base booster art must exist');
 assert.match(profileSource, /unopenedBooster2Packs:\s*0/, 'new profiles must initialize the Booster 2 counter');
 assert.match(profileSource, /USER_PROFILE\.unopenedBooster2Packs\s*=\s*0/, 'profile reset must clear the Booster 2 counter');
-assert.match(indexSource, /99-ui-final\.css\?v=1784652001/, 'full-art booster store CSS must be cache-busted');
+assert.match(indexSource, /99-ui-final\.css\?v=1784660001/, 'full-art booster store CSS must be cache-busted');
 assert.match(finalUiCss, /ch-store-product \.booster-desc::first-line\{[\s\S]*line-height:1\.24!important;/, 'booster descriptions must optically tighten the first-to-second line gap');
-assert.match(indexSource, /09-challenger-mode\.js\?v=1784652002/, 'booster art mapping, copy, and card-pool restrictions must be cache-busted');
+assert.match(indexSource, /09-challenger-mode\.js\?v=1784652003/, 'case-correct booster art mapping, copy, and card-pool restrictions must be cache-busted');
 
 console.log('fate Booster 2 smoke passed (cards 80-100, 75/25 composition, store purchase/open flow)');

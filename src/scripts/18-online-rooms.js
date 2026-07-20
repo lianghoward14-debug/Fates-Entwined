@@ -6747,6 +6747,65 @@
       starlightGained:Number(entry.starlightGained || 0) || 0
     };
   }
+
+  function buildOnlineMatchResultSnapshot(g){
+    if(!g) return null;
+    let p0wins = 0;
+    let p1wins = 0;
+    const zResults = [];
+    for(let z = 0; z < 3; z += 1){
+      let s0 = 0;
+      let s1 = 0;
+      try{
+        s0 = typeof getZoneScore === 'function' ? Number(getZoneScore(z, 0)) || 0 : 0;
+        s1 = typeof getZoneScore === 'function' ? Number(getZoneScore(z, 1)) || 0 : 0;
+      }catch(e){
+        recordOnlineDiagnostic('online-match-result-zone-score-failed', {
+          z,
+          message:String(e && e.message || e || '')
+        });
+      }
+      const ctrl = s0 > s1 ? 0 : (s1 > s0 ? 1 : -1);
+      if(ctrl === 0) p0wins += 1;
+      else if(ctrl === 1) p1wins += 1;
+      zResults.push({z, s0, s1, ctrl});
+    }
+    let winnerIndex = p0wins >= 2 ? 0 : (p1wins >= 2 ? 1 : -1);
+    let drawByFate = false;
+    let isDraw = false;
+    if(winnerIndex < 0){
+      const p0TotalFate = zResults.reduce((sum, zr)=>sum + (Number(zr.s0) || 0), 0);
+      const p1TotalFate = zResults.reduce((sum, zr)=>sum + (Number(zr.s1) || 0), 0);
+      if(p0TotalFate > p1TotalFate){ winnerIndex = 0; drawByFate = true; }
+      else if(p1TotalFate > p0TotalFate){ winnerIndex = 1; drawByFate = true; }
+      else { isDraw = true; }
+    }
+    const loserIndex = isDraw || winnerIndex < 0 ? -1 : (winnerIndex === 0 ? 1 : 0);
+    return {
+      winnerIndex:isDraw ? -1 : winnerIndex,
+      loserIndex,
+      isDraw,
+      drawByFate,
+      p0wins,
+      p1wins,
+      zResults,
+      reason:isDraw ? 'draw' : 'score',
+      endedAt:authorityServerNow()
+    };
+  }
+
+  function attachOnlineMatchResultPostState(payload, result, sourceG){
+    if(!payload || !result) return false;
+    const postState = captureOnlineCanonicalState(sourceG);
+    if(!postState) return false;
+    postState.phase = 'ended';
+    postState.matchResult = cloneOnlinePlain(result);
+    payload.matchResult = cloneOnlinePlain(result);
+    payload.postState = postState;
+    payload.stateHash = onlineCanonicalStateHash(postState);
+    return !!payload.stateHash;
+  }
+
   function collectOnlineForfeitRewardData(outcome, sourceG){
     const g = sourceG || gameState();
     if(!g || g._onlineForfeitRewardsApplied) return null;
@@ -9757,11 +9816,21 @@
         startOnlineBoardRepairBeforeTurnBoundary(repairReason);
         if(Number(g.turn || 0) >= Number(g.maxTurns || 0)){
           const latest = gameState() || g;
-          return sendAction('MATCH_RESULT', {
-              playerIndex:latest.currentPlayer,
+          const result = buildOnlineMatchResultSnapshot(latest);
+          const payload = {
+            playerIndex:latest.currentPlayer,
+            turn:latest.turn,
+            baseStateHash:lastAuthorityStateHash || ''
+          };
+          if(!attachOnlineMatchResultPostState(payload, result, latest)){
+            recordOnlineDiagnostic('online-match-result-post-state-missing', {
               turn:latest.turn,
-              baseStateHash:lastAuthorityStateHash || ''
-            })
+              maxTurns:latest.maxTurns
+            });
+            if(window.toast) toast('Could not prepare match result for server.');
+            return Promise.resolve(false);
+          }
+          return sendAction('MATCH_RESULT', payload)
             .catch(e=>{
               console.error('Online match result finalization failed', e);
               if(window.toast) toast('Could not finalize match result with server.');
