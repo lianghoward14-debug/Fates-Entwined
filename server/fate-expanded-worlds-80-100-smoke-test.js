@@ -36,6 +36,7 @@ assert.strictEqual(catalog.byId.get('97').effect, "Your opponent's next two cons
 assert.strictEqual(catalog.byId.get('98').effect, 'This card will always appear in your opening hand as an additional card.');
 assert.match(catalog.byId.get('99').effect, /Supporters are classified as Characters/);
 assert.match(catalog.byId.get('100').effect, /gains 2 Fate[\s\S]*Snow on the Carpathians/);
+assert.match(catalog.byId.get('71').effect, /expires after the third eligible draw/i, 'All Eyes on the I-15 must state exactly when its reveal window expires');
 
 const filler = catalog.cards.find(card=>card && !card.retired && !card.temporarilyDisabled && String(card.id) !== '98');
 assert(filler, 'a filler card must exist');
@@ -250,7 +251,7 @@ assert.doesNotMatch(ai, /case '37': inst\.opponentEffectImmune = true/, 'French 
 assert.match(core, /String\(card\.id \|\| ''\) === '37'[\s\S]*!card\._immuneByMakenna[\s\S]*delete card\.opponentEffectImmune/, 'continuous effects must clean stale French Fusilier protection while preserving real copied or Makenna protection');
 assert.match(css, /#tp-status-left,[\s\S]*#tp-status-right[\s\S]*flex-wrap:nowrap!important[\s\S]*effect-pill-icon[\s\S]*width:30px!important/, 'status banners must remain one row with larger icons');
 assert.match(rendering, /catalogCard[\s\S]*cinematicImage[\s\S]*triggerEntrance[\s\S]*setProperty\('opacity', '1', 'important'\)/, 'Character set cinematics must hydrate card art and force the visual overlay visible along with subtitles');
-assert.match(css, /opp-hand\.opp-hand-nine-plus:not\(\.opp-hand-ten-plus\)[\s\S]*grid-template-columns:repeat\(4,52px\)!important[\s\S]*grid-template-rows:repeat\(3,60px\)!important/, '9-12 opponent cards must use the definitive snug four-by-three grid');
+assert.match(css, /#opp-hand\.opp-hand-compact[\s\S]*--opp-hand-card-w:50px!important[\s\S]*--opp-hand-card-h:70px!important[\s\S]*grid-template-columns:repeat\(4,var\(--opp-hand-card-w\)\)!important[\s\S]*grid-template-rows:repeat\(3,65px\)!important/, '9+ opponent cards must use the current snug four-column proxy grid');
 assert.match(ai, /case '96'[\s\S]*case '97'/, 'AI must implement cards 96 and 97');
 assert.match(rooms, /_administrativeBloatEffects/, 'Administrative Bloat must synchronize in multiplayer state');
 assert.match(rooms, /_serverRngCounter/, 'deterministic random effect state must synchronize in multiplayer');

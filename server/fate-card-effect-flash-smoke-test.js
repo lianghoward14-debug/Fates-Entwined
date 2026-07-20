@@ -14,6 +14,14 @@ const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 const css = read('src/styles/zz-codex-last.css');
 const rooms = read('src/scripts/18-online-rooms.js');
 
+assert.match(core, /case '38': \{[\s\S]*await new Promise[\s\S]*pickCardsVisual\(supporters[\s\S]*modifyFate\(card, 5, 'permanent', cp\)[\s\S]*card\.effectUsedThisTurn = true/, 'Jake must resolve the Supporter discard and +5 Fate atomically before multiplayer captures the board action');
+assert.match(core, /_onlineSetResolutionPending = true[\s\S]*async function resolveSetCardAfterPlacement[\s\S]*_onlineSetResolutionInFlight = true[\s\S]*await triggerWhenSet[\s\S]*delete inst\._onlineSetResolutionPending/, 'placements must expose an in-flight marker until automatic when-set effects such as Alondra finish');
+assert.match(rooms, /function waitForOnlineSetResolution[\s\S]*_onlineSetResolutionPending[\s\S]*_onlineSetResolutionInFlight[\s\S]*await waitForOnlineSetResolution\(outbound\)/, 'multiplayer placement capture must wait for automatic when-set mutations');
+assert.match(rooms, /authority rejection resync\|rejected action rollback\|fly rejected action rollback[\s\S]*onlineIntentionalBoardRemovalKeys\.clear\(\)[\s\S]*return incomingState/, 'authoritative rejection rollback must restore the exact board instead of preserving a locally removed Supporter');
+assert.match(rooms, /function canCaptureClientResolvedBeforeLocalPromise[\s\S]*return actionType === 'CHOOSE_TURN'/, 'async draw and effect actions must not be captured before their local promise settles');
+assert.match(core, /case '42'[\s\S]*onlineParentAction: true[\s\S]*case '38'[\s\S]*onlineParentAction:true/, 'West German Soldier and Jake must explicitly keep their awaited picker inside the parent multiplayer action');
+assert.match(rooms, /_onlineClientOwnedBoardActionPickerDepth > 0 && opts\?\.onlineParentAction === true[\s\S]*originals\.pickCardsVisual/, 'only explicitly awaited pickers may bypass the nested multiplayer picker action');
+
 assert.match(rendering, /function markCardEffectFlash[\s\S]*card\._effectFlash[\s\S]*function getActiveCardEffectFlash/, 'shared card-effect flash lifecycle must exist');
 assert.match(rendering, /TEMPORARY_CARD_OVERLAY_MS = 3500[\s\S]*duration:cleanKind === 'kvetka_ballad' \? 0[\s\S]*turn:cleanKind === 'kvetka_ballad'[\s\S]*persistentForTurn:true/, 'temporary card overlays must last 3.5 seconds while Kvetka Ballad remains through the current turn');
 assert.match(rendering, /getActiveCardEffectFlash[\s\S]*cleanKind === 'kvetka_ballad'[\s\S]*Number\(G\.turn\)[\s\S]*return flash/, 'Kvetka Ballad must expire from the active overlay when the turn changes');

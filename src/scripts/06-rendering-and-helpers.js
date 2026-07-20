@@ -4403,7 +4403,7 @@ function renderTopbarEffects() {
         icon: getStatusEffectIcon('fort_calvin'), label: card ? card.ability : 'All Eyes on the I-15',
         cardName: card ? card.name : 'Fort Calvin Watcher',
         cardAbility: card ? card.ability : 'All Eyes on the I-15',
-        cardEffect: card ? card.effect : 'Next ' + w.remaining + ' opponent draw-phase cards will be revealed.',
+        cardEffect:'Reveals the next ' + w.remaining + ' eligible opponent Draw Phase card' + (w.remaining === 1 ? '' : 's') + '. Characters may be sent to the bottom of that opponent\'s deck. This effect expires after ' + w.remaining + ' more eligible draw' + (w.remaining === 1 ? '' : 's') + '.',
         owner: w.owner
       });
     });

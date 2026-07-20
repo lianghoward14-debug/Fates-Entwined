@@ -287,7 +287,7 @@ const CARDS = [
     flavor:'"Jorge\'s Personal Soldiers - Can they hold back the forces of Shenck?"',img:'70.png'},
   {id:'71',name:'Fort Calvin Watcher',ability:'All Eyes on the I-15',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, reveal the next 3 cards your opponent draws during only the Draw Phase. If any are characters, you may send them to the bottom of your opponent\'s deck.',
+    effect:'When set, reveal the next 3 cards your opponent draws during only the Draw Phase. If any are characters, you may send them to the bottom of your opponent\'s deck. This effect expires after the third eligible draw.',
     flavor:'"These men only have one job - To monitor the flow of traffic on the I-15"',img:'71.png'},
   {id:'72',name:'Robo en la Noche',ability:'Bane of Birds',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',

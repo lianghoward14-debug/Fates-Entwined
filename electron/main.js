@@ -12,6 +12,12 @@ const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
 const ELECTRON_CLIENT_BUILD_STAMP = 'electron-google-auth-bridge-stable-20260713a-1783961301';
 const CHROME_VERSION = process.versions.chrome || '126.0.0.0';
 const GOOGLE_FRIENDLY_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
+const GPU_ACCELERATION_FORCE_ENABLED = process.argv.includes('--enable-gpu') || process.env.FATE_ENABLE_GPU === '1';
+const GPU_ACCELERATION_FORCE_DISABLED = process.argv.includes('--disable-gpu')
+  || process.argv.includes('--safe-mode')
+  || process.env.FATE_DISABLE_GPU === '1';
+const GPU_ACCELERATION_DISABLED = !GPU_ACCELERATION_FORCE_ENABLED && GPU_ACCELERATION_FORCE_DISABLED;
+const GPU_ACCELERATION_MODE = GPU_ACCELERATION_DISABLED ? 'disabled-safe-mode' : 'default-enabled';
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -226,6 +232,8 @@ ipcMain.handle('fate:get-performance-info', (event) => {
     isElectron: true,
     versions: process.versions,
     commandSwitches: {
+      hardwareAccelerationDisabled: GPU_ACCELERATION_DISABLED,
+      hardwareAccelerationMode: GPU_ACCELERATION_MODE,
       forceDeviceScaleFactor: '1',
       disableBackgroundTimerThrottling: true,
       disableRendererBackgrounding: true,
@@ -451,6 +459,12 @@ function startStaticServer() {
 
 function applyPerformanceSwitches() {
   app.userAgentFallback = GOOGLE_FRIENDLY_USER_AGENT;
+  if (GPU_ACCELERATION_DISABLED) {
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    app.commandLine.appendSwitch('disable-gpu-sandbox');
+  }
   app.commandLine.appendSwitch('force-device-scale-factor', '1');
   app.commandLine.appendSwitch('disable-background-timer-throttling');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');

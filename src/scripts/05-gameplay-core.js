@@ -2139,6 +2139,7 @@ async function clickCell(z,r,c) {
   }
   function commitNormalSetAfterPresentation(tx){
     const markCommit = createSetCommitProfiler(tx);
+    if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[z][r][c] = inst;
     applyRiveraBuffToPlacedCard(inst, inst.owner);
     if(player.hand[handIndex] === card) player.hand.splice(handIndex, 1);
@@ -2421,47 +2422,54 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
 }
 
 async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
-  if(!inst || isFaceDownCard(inst)) return;
-  scheduleCoordinatorPlacementFlash(inst, {z:z, r:r, c:c, source:'resolve-set-card'});
-  // Flowing Currents must also evaluate with the newly set card included in
-  // total Fate. The helper deduplicates bonuses already awarded before commit.
-  const postPlacementLandscapeBonus = typeof applyLandscapePlacementBonuses === 'function'
-    ? applyLandscapePlacementBonuses(inst, z, r, c)
-    : 0;
-  if(postPlacementLandscapeBonus > 0) {
-    if(typeof renderBoardActionForPlayer === 'function') {
-      renderBoardActionForPlayer(inst.owner, {hand:false, blocks:false, topbar:true, effects:false, hover:false});
-    } else {
-      renderGame({board:true, scores:true, landscape:true, topbar:true});
+  if(!inst) return;
+  inst._onlineSetResolutionInFlight = true;
+  try {
+    if(isFaceDownCard(inst)) return;
+    scheduleCoordinatorPlacementFlash(inst, {z:z, r:r, c:c, source:'resolve-set-card'});
+    // Flowing Currents must also evaluate with the newly set card included in
+    // total Fate. The helper deduplicates bonuses already awarded before commit.
+    const postPlacementLandscapeBonus = typeof applyLandscapePlacementBonuses === 'function'
+      ? applyLandscapePlacementBonuses(inst, z, r, c)
+      : 0;
+    if(postPlacementLandscapeBonus > 0) {
+      if(typeof renderBoardActionForPlayer === 'function') {
+        renderBoardActionForPlayer(inst.owner, {hand:false, blocks:false, topbar:true, effects:false, hover:false});
+      } else {
+        renderGame({board:true, scores:true, landscape:true, topbar:true});
+      }
     }
-  }
-  // Wood for the Hearth is a same-zone placement replacement. Stamp it as
-  // soon as the printed Supporter reaches the board so its suppression icon
-  // and reinforcement bonus do not wait for deferred or online effect gates.
-  if(applyWodnyPotokLumberjackSuppression(inst, z, inst.owner)) {
-    showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
-    toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
-    renderGame({board:true, scores:true, topbar:true});
-    return;
-  }
-  if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
-    await aiTriggerWhenSet(inst, z, r, c);
-    return;
-  }
-  if(!opts.onlineImprovisorResolved && typeof window.fateShouldHoldOnlinePlacementEffect === 'function') {
-    try {
-      const held = await Promise.resolve(window.fateShouldHoldOnlinePlacementEffect(inst, z, r, c));
-      if(held) return;
-    } catch(e) {
-      console.warn('Online placement reaction gate failed open', e);
+    // Wood for the Hearth is a same-zone placement replacement. Stamp it as
+    // soon as the printed Supporter reaches the board so its suppression icon
+    // and reinforcement bonus do not wait for deferred or online effect gates.
+    if(applyWodnyPotokLumberjackSuppression(inst, z, inst.owner)) {
+      showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
+      toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
+      renderGame({board:true, scores:true, topbar:true});
+      return;
     }
-  }
-  await triggerWhenSet(inst, z, r, c);
-  delete inst._skipOnlinePlacementImprovisorReactionOnce;
-  delete inst._skipOnlinePlacementImprovisorReactionPromptId;
-  const allowPromptId = String(opts.allowPromptId || '');
-  if(allowPromptId && !inst._pendingWhenSetEffect && String(inst._onlinePlacementReactionAllowPromptId || '') === allowPromptId) {
-    delete inst._onlinePlacementReactionAllowPromptId;
+    if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
+      await aiTriggerWhenSet(inst, z, r, c);
+      return;
+    }
+    if(!opts.onlineImprovisorResolved && typeof window.fateShouldHoldOnlinePlacementEffect === 'function') {
+      try {
+        const held = await Promise.resolve(window.fateShouldHoldOnlinePlacementEffect(inst, z, r, c));
+        if(held) return;
+      } catch(e) {
+        console.warn('Online placement reaction gate failed open', e);
+      }
+    }
+    await triggerWhenSet(inst, z, r, c);
+    delete inst._skipOnlinePlacementImprovisorReactionOnce;
+    delete inst._skipOnlinePlacementImprovisorReactionPromptId;
+    const allowPromptId = String(opts.allowPromptId || '');
+    if(allowPromptId && !inst._pendingWhenSetEffect && String(inst._onlinePlacementReactionAllowPromptId || '') === allowPromptId) {
+      delete inst._onlinePlacementReactionAllowPromptId;
+    }
+  } finally {
+    delete inst._onlineSetResolutionPending;
+    delete inst._onlineSetResolutionInFlight;
   }
 }
 window.resolveSetCardAfterPlacement = resolveSetCardAfterPlacement;
@@ -3046,6 +3054,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
 
     function commitConsolidationAfterPresentation(tx, presentationDelay){
       var _consolidationMotionMs = Math.max(0, Number(presentationDelay) || 0);
+    if(!useFaceDown) inst._onlineSetResolutionPending = true;
     const affectedZones = [...new Set(tributes.map(t=>t.z))];
     affectedZones.forEach(tz=>{
       G.board[tz].forEach((row, mr)=>{
@@ -4020,18 +4029,22 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const hand42 = G.players[cp].hand;
         const discardCount = Math.min(2, hand42.length);
         if(discardCount <= 0) break;
-        pickCardsVisual(hand42, {
-          title: 'West German Soldier: Discard '+discardCount+' card(s)',
-          subtitle: 'You must discard '+discardCount+' card(s) from your hand',
-          maxCount: discardCount,
-          minCount: discardCount,
-          confirmLabel: 'Discard'
-        }, (chosen)=>{
-          chosen.forEach(c=>{
-            G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==c.iid);
-            fatePushDiscard(cp, c);
+        await new Promise(function(resolve){
+          pickCardsVisual(hand42, {
+            title: 'West German Soldier: Discard '+discardCount+' card(s)',
+            subtitle: 'You must discard '+discardCount+' card(s) from your hand',
+            maxCount: discardCount,
+            minCount: discardCount,
+            confirmLabel: 'Discard',
+            onlineParentAction: true
+          }, (chosen)=>{
+            chosen.forEach(c=>{
+              G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==c.iid);
+              fatePushDiscard(cp, c);
+            });
+            renderHand();
+            resolve();
           });
-          renderHand();
         });
       } break;
     case '31': // Hemorrhaging Wound: any card in zone loses 3 Fate
@@ -5116,17 +5129,36 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       }
       break;
     }
-    case '38': // Jake: discard supporter, +5 Fate (once per turn)
+    case '38': { // Jake: discard supporter, +5 Fate (once per turn)
       if(card.effectUsedThisTurn){toast('Jake can only use this effect once per turn');break;}
-      pickCardsFromHand(cp,1,'Discard a Supporter for +5 Fate:',(cards)=>{
-        if(!cards[0] || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cards[0], cp) : cards[0].type==='Supporter')){toast('Must be a Supporter');return;}
-        G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==cards[0].iid);
-        fatePushDiscard(cp, cards[0]);
-        card.currentFate+=5;
-        card.effectUsedThisTurn=true;
-        toast('Jake gained 5 Fate!');
-        renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
-      }); break;
+      const supporters = G.players[cp].hand.filter(function(handCard){
+        return typeof isCardSupporterForRules === 'function'
+          ? isCardSupporterForRules(handCard, cp)
+          : handCard?.type === 'Supporter';
+      });
+      if(!supporters.length){toast('No Supporter in hand to discard');break;}
+      await new Promise(function(resolve){
+        pickCardsVisual(supporters, {
+          title:'Discard a Supporter for +5 Fate:',
+          subtitle:'Choose 1 Supporter from your hand',
+          maxCount:1,
+          minCount:1,
+          confirmLabel:'Discard',
+          onlineParentAction:true
+        }, function(cards){
+          const spent = cards && cards[0];
+          if(!spent){resolve();return;}
+          G.players[cp].hand = G.players[cp].hand.filter(h=>h.iid!==spent.iid);
+          fatePushDiscard(cp, spent);
+          modifyFate(card, 5, 'permanent', cp);
+          card.effectUsedThisTurn = true;
+          toast('Jake gained 5 Fate!');
+          renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+          resolve();
+        });
+      });
+      break;
+    }
     case 'bh25': // Jimmy Viltrumite: discard any card on field
       showModal('Left Hook of the Incel','Select any card on the field to discard:',
         [{label:'Choose Target',action:()=>{closeModal();pickAnyBoardCard(cp,(tgt,tz,tr,tc)=>{

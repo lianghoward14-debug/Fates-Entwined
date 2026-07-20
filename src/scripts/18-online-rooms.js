@@ -186,6 +186,7 @@
       if(typeof v === 'function') return;
       if(k === 'effect' || k === 'flavor') return;
       if(k === '_effectActivationInFlight' || k === '_pendingWhenSetActivationInFlight' || k === '_busserGrantPending') return;
+      if(k === '_onlineSetResolutionPending' || k === '_onlineSetResolutionInFlight') return;
       if(k === '_effectFlash' || k === '_coordinatorPlacementFlashPlayed') return;
       if(k === '_placementFateReveal') return;
       out[k] = cloneOnlinePlain(v);
@@ -874,6 +875,15 @@
   }
   function preferMoreOnlineBoardCards(incomingState, localBoard, reason, action){
     if(!incomingState) return incomingState;
+    // A rejection is a rollback to the authority's exact pre-action state.
+    // Never reapply locally remembered removals here: doing so could return the
+    // consolidated Character to hand while leaving its sacrificed Supporter
+    // missing from the board.
+    if(/authority rejection resync|rejected action rollback|fly rejected action rollback/i.test(String(reason || ''))){
+      onlineIntentionalBoardRemovalKeys.clear();
+      clearOnlineMoreBoardPreference('authoritative-action-rollback');
+      return incomingState;
+    }
     incomingState = applyOnlineIntentionalBoardRemovals(incomingState, localBoard, reason);
     const localEntries = onlineBoardCardEntries(localBoard);
     const incomingEntries = onlineBoardCardEntries(incomingState.board);
@@ -5159,6 +5169,39 @@
       check();
     });
   }
+  function waitForOnlineSetResolution(payload){
+    const hintTarget = payload?.consolidationPresentation?.target || null;
+    const target = hintTarget || payload || {};
+    const z = Number(target.z), r = Number(target.r), c = Number(target.c);
+    if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return Promise.resolve(false);
+    const expectedIid = String(payload?.consolidationPresentation?.resultCard?.iid || payload?.selectedHand?.iid || '');
+    const startedAt = Date.now();
+    return new Promise(resolve=>{
+      const check = function(){
+        const card = gameState()?.board?.[z]?.[r]?.[c] || null;
+        const iidMatches = !expectedIid || String(card?.iid || '') === expectedIid;
+        if(card && iidMatches && !card._onlineSetResolutionPending && !card._onlineSetResolutionInFlight){
+          resolve(true);
+          return;
+        }
+        if(Date.now() - startedAt >= 5200){
+          recordOnlineDiagnostic('online-set-resolution-wait-timeout', {
+            z,
+            r,
+            c,
+            expectedIid,
+            foundIid:String(card?.iid || ''),
+            pending:!!card?._onlineSetResolutionPending,
+            inFlight:!!card?._onlineSetResolutionInFlight
+          });
+          resolve(false);
+          return;
+        }
+        setTimeout(check, 40);
+      };
+      check();
+    });
+  }
   function isStrictCompactAuthorityAction(type){
     if(String(authorityReducerMode || '').toLowerCase() !== 'strict') return false;
     if(firebaseActionFallbackAllowed()) return false;
@@ -5383,10 +5426,10 @@
   function canCaptureClientResolvedBeforeLocalPromise(type, payload){
     if(!clientResolvedGameplayEnabled()) return false;
     const actionType = String(type || '').toUpperCase();
-    if(actionType === 'CLICK_CELL'){
-      return toAuthorityIntent(actionType, payload || null, gameState()) === 'PLACE_CARD';
-    }
-    return /^(CHOOSE_TURN|BOARD_ACTION|HAND_ACTION)$/i.test(actionType);
+    // Gameplay effects and placements can continue mutating the hand/board after
+    // their initial click returns. Only the turn choice is genuinely complete
+    // before its returned promise settles.
+    return actionType === 'CHOOSE_TURN';
   }
   function isClientOwnedEffectBoardAction(type, payload){
     // Effect activation enters local selection immediately; its resolved state is synchronized afterward.
@@ -5585,6 +5628,10 @@
           ) || localActionRemovedBoardCards;
         }
         if(outbound.consolidationPresentation) await waitForOnlineConsolidationCommit(outbound);
+        const placementIntent = toAuthorityIntent(type, outbound, gameState()) === 'PLACE_CARD';
+        if(clientResolvedCommit && (placementIntent || outbound.consolidationPresentation)){
+          await waitForOnlineSetResolution(outbound);
+        }
         if(clientResolvedCommit) outbound.actionKind = String(type || '').toUpperCase();
         attachOnlinePostState(outbound);
         if(finishLocalCommit){
@@ -9016,7 +9063,7 @@
         && /stale baseStateHash/i.test(String(msg.reason || ''));
       if(msg.kind === 'rejected' && msg.serverState && msg.serverStateHash && !staleClientResolvedReject){
         lastAuthorityStateHash = String(msg.serverStateHash || '');
-        applyOnlineCanonicalState(msg.serverState, 'authority rejection resync');
+        applyOnlineCanonicalState(msg.serverState, 'authority rejection resync', msg.action || null);
         const serverSeq = Number(msg.serverSeq || 0) || 0;
         if(serverSeq){
           lastActionSeq = Math.max(lastActionSeq, serverSeq);
@@ -10046,6 +10093,9 @@
       window.pickCardsVisual = function(cards, opts, onConfirm){
         const g = gameState();
         if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.pickCardsVisual.apply(this, arguments);
+        if(g?._onlineClientOwnedBoardActionPickerDepth > 0 && opts?.onlineParentAction === true){
+          return originals.pickCardsVisual.apply(this, arguments);
+        }
         if(!isOnlineMatchState(g) || typeof onConfirm !== 'function'){
           return originals.pickCardsVisual.apply(this, arguments);
         }
