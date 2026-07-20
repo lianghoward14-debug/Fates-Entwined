@@ -61,9 +61,9 @@ assert.match(renderer, /busser_boot:[\s\S]*busser-boot-icon[\s\S]*M11 40h42[\s\S
 
 assert.match(css, /#s-challenger \.ch-store-v3\{\s*zoom:1\.1!important;/, 'desktop store content must render at the requested 110% scale');
 assert.match(store, /<em>Unlock two profile pictures for your account, sourced from every card art in the game<\/em>/, 'profile booster copy must match the requested text');
-assert.match(index, /zz-codex-last\.css\?v=1784661004/, 'store, overlay, and isolated preset picker stylesheet must be cache-busted');
+assert.match(index, /zz-codex-last\.css\?v=1784661005/, 'store, overlay, isolated preset picker, and compact opponent hand stylesheet must be cache-busted');
 assert.match(index, /match-scene-v2\.css\?v=1784654001/, 'hand organizer stylesheet must be cache-busted');
-assert.match(index, /06-rendering-and-helpers\.js\?v=1784676000/, 'legacy renderer must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1784676001/, 'legacy renderer must be cache-busted');
 assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1784667001/, 'canvas renderer must be cache-busted');
 assert.match(index, /render-v2\/09-hand-drag-bridge\.js\?v=1784654001/, 'hand organizer bridge must be cache-busted');
 

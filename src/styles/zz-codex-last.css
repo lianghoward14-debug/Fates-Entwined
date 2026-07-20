@@ -20195,20 +20195,20 @@ html body .status-overflow-dropdown-printed{
 
 /* Canonical 9-12 opponent-hand grid. Keep this in sync with the canvas layout. */
 html body #s-game #opp-hand.opp-hand-compact{
-  --opp-hand-card-w:50px!important;
-  --opp-hand-card-h:70px!important;
+  --opp-hand-card-w:44px!important;
+  --opp-hand-card-h:62px!important;
   display:grid!important;
   grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
-  grid-template-rows:repeat(3,65px)!important;
+  grid-template-rows:repeat(3,var(--opp-hand-card-h))!important;
   grid-auto-flow:row!important;
-  grid-auto-rows:65px!important;
+  grid-auto-rows:var(--opp-hand-card-h)!important;
   column-gap:6px!important;
-  row-gap:0!important;
+  row-gap:4px!important;
   justify-content:center!important;
   align-content:start!important;
   width:100%!important;
   min-height:0!important;
-  max-height:200px!important;
+  max-height:194px!important;
   padding:0!important;
   overflow:hidden!important;
 }

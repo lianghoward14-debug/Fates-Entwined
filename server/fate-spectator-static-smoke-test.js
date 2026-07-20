@@ -82,7 +82,7 @@ assert.match(authority,
   /SPECTATOR_STALE_MS[\s\S]*function pruneStaleRoomSpectators/,
   'the authority must reap spectators whose heartbeat disappeared');
 
-assert.match(index, /06-rendering-and-helpers\.js\?v=1784676000/, 'spectator-safe renderer must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1784676001/, 'spectator-safe renderer must be cache-busted');
 assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1784667001/, 'hidden spectator hand renderer must be cache-busted');
 assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1784650001/, 'hidden spectator hand input guard must be cache-busted');
 assert.match(index, /18-online-rooms\.js\?v=1784676002&sync=1784676002/, 'canonical spectator bridge must be cache-busted');

@@ -49,7 +49,7 @@ assert.match(indexText, /localStorage\.removeItem\('fateRtdbDisabled'\);[\s\S]*l
 assert.match(indexText, /localStorage\.removeItem\('fateWsAuthorityUrl'\);[\s\S]*localStorage\.removeItem\('fateWsAuthorityEnabled'\);/, 'hosted Fly browser clients must clear stale localhost WebSocket authority overrides');
 assert.match(indexText, /game\.css\?v=1784359001/, 'game stylesheet cache bust must include removal of the retired card-set flight');
 assert.match(indexText, /99-ui-final\.css\?v=1784660001/, 'final UI stylesheet cache bust must include the optically balanced booster descriptions');
-assert.match(indexText, /zz-codex-last\.css\?v=1784661004/, 'last override stylesheet cache bust must include the status hover tray, Union Jack overlay, and isolated preset picker scrolling');
+assert.match(indexText, /zz-codex-last\.css\?v=1784661005/, 'last override stylesheet cache bust must include the non-overlapping 9+ opponent hand grid');
 assert.match(indexText, /button-line-cleanup\.css\?v=1784359003/, 'final button cleanup stylesheet cache bust must include the stale placement-class reset');
 assert.match(indexText, /17-online-social\.js\?v=1784195101/, 'social module cache bust must include live Fly DMs and peer avatars');
 assert.match(socialText, /function refreshOpenFlyDm[\s\S]*after=\$\{encodeURIComponent\(flyDmLastSeq\)\}&state=0[\s\S]*function startFlyDmPolling[\s\S]*setTimeout\(poll, 900\)/, 'an open Fly DM must incrementally poll for new messages without downloading full social state');
@@ -64,16 +64,16 @@ assert.match(indexText, /03-profile-and-progression\.js\?v=1784390001/, 'profile
 assert.match(indexText, /08-audio-and-meta-ui\.js\?v=1784664001/, 'audio/meta cache bust must include Kvetka-only overlay audio');
 assert.match(indexText, /15-online-auth\.js\?v=1784059901/, 'online auth cache bust must include the current browser queue transport fix');
 assert.match(indexText, /04-game-setup\.js\?v=1784381001/, 'game setup cache bust must include Avalanche Escape opening hands');
-assert.match(indexText, /06-rendering-and-helpers\.js\?v=1784676000/, 'renderer cache bust must include serialized prompts and current status text');
+assert.match(indexText, /06-rendering-and-helpers\.js\?v=1784676001/, 'renderer cache bust must include non-overlapping 9+ opponent hand density');
 assert.match(indexText, /render-v2\/13-vfx-recipes\.js\?v=1784359006/, 'VFX recipes cache bust must include removal of board placement motion recipes');
 assert.match(indexText, /render-v2\/01-render-snapshot\.js\?v=1784666001/, 'render snapshot cache bust must include delayed placement Fate audio metadata');
 assert.match(indexText, /05-gameplay-core\.js\?v=1784676000/, 'gameplay core cache bust must include atomic multiplayer effect resolution');
 assert.match(indexText, /07-ai-learning\.js\?v=1784382001/, 'AI learning cache bust must include the promoted 250,000-game offline policy');
 assert.match(indexText, /07-ai\.js\?v=1784664001/, 'AI cache bust must include generic non-Kvetka Fate audio and placement reveal timing');
 assert.match(indexText, /09-challenger-mode\.js\?v=1784652002/, 'Challenger cache bust must include the revised booster artwork mapping');
-assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784660001/, 'render-v2 layout cache bust must include the snug 4-by-3 opponent hand layout');
+assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784660002/, 'render-v2 layout cache bust must include the non-overlapping 4-by-3 opponent hand layout');
 assert.match(matchLayoutText, /const oppCols = largeOppHand[\s\S]*Math\.min\(4, Math\.max\(1, oppCount \|\| 1\)\)[\s\S]*: 4;/, '9-12 opponent cards must always use four columns');
-assert.match(matchLayoutText, /const packedOppCardW = 50;[\s\S]*const packedOppCardH = 70;[\s\S]*const packedOppRowStep = 65;[\s\S]*const oppRowStep = packedOppHand[\s\S]*Math\.min\(packedOppRowStep, naturalOppRowStep, fitOppRowStep\)/, '9-12 opponent cards must retain readable dimensions while fitting three rows');
+assert.match(matchLayoutText, /const packedOppCardW = 44;[\s\S]*const packedOppCardH = 62;[\s\S]*const packedOppRowStep = 66;[\s\S]*oppRowStep = packedOppHand[\s\S]*Math\.min\(packedOppRowStep, naturalOppRowStep, fitOppRowStep\)/, '9-12 opponent cards must fit three rows without overlapping');
 assert.match(indexText, /render-v2\/11-vfx-director\.js\?v=1784291302/, 'VFX director cache bust must include the dedicated Fate-delta repaint path');
 assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784667001/, 'render-v2 adapter cache bust must include synchronized incoming Coordinator overlays and combined post-set Fate visuals');
 assert.match(indexText, /09-hand-drag-bridge\.js\?v=1784654001/, 'hand drag bridge cache bust must include centered organizer controls');

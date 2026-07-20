@@ -1275,8 +1275,8 @@ function applyOpponentHandDensity(container, count) {
     container.style.setProperty('--opp-hand-card-w', '56px');
     container.style.setProperty('--opp-hand-card-h', '78px');
   } else if(compact) {
-    container.style.setProperty('--opp-hand-card-w', '50px');
-    container.style.setProperty('--opp-hand-card-h', '70px');
+    container.style.setProperty('--opp-hand-card-w', '44px');
+    container.style.setProperty('--opp-hand-card-h', '62px');
   } else {
     container.style.removeProperty('--opp-hand-card-w');
     container.style.removeProperty('--opp-hand-card-h');

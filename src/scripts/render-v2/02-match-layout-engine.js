@@ -217,9 +217,9 @@
     const largeOppHand = oppCount <= 4;
     const mediumOppHand = oppCount >= 5 && oppCount <= 8;
     const packedOppHand = oppCount >= 9;
-    const packedOppCardW = 50;
-    const packedOppCardH = 70;
-    const packedOppRowStep = 65;
+    const packedOppCardW = 44;
+    const packedOppCardH = 62;
+    const packedOppRowStep = 66;
     const oppCols = largeOppHand
       ? Math.min(4, Math.max(1, oppCount || 1))
       : 4;
@@ -238,8 +238,8 @@
     if(oppRows > 1) {
       // The canvas-owned hand leaves an almost empty DOM proxy. Never use that
       // proxy's few pixels as the row-layout height: it collapses 9+ cards into
-      // one overlapping line. Four-column packed hands use a stable 65px row
-      // step, matching the snug spacing of the 5-8 card grid.
+      // one overlapping line. Four-column packed hands use a stable non-overlap
+      // row step that keeps 9-12 cards inside the opponent panel.
       const requiredOppH = packedOppHand
         ? packedOppCardH + packedOppRowStep * Math.max(0, oppRows - 1)
         : oppFallbackH;
