@@ -3251,6 +3251,9 @@ async function getAdminAccessToken(){
 function validateAction(room, ws, msg){
   const type = String(msg.type || '').toUpperCase();
   const payload = msg.payload || {};
+  const effectiveType = type === 'ACTION_RESULT' && payload.actionKind
+    ? String(payload.actionKind || '').toUpperCase()
+    : type;
   const uid = ws.fateUid;
   const playerIndex = playerIndexForUid(room, uid);
   if(playerIndex === null) return 'user is not seated in this room';
@@ -3263,7 +3266,7 @@ function validateAction(room, ws, msg){
     const pending = room.canonicalState?._serverPendingReaction;
     if(!pending || Number(pending.playerIndex) !== playerIndex) return 'no pending reaction for this player';
   }
-  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN' && type !== 'STATE_SYNC' && type !== 'REACTION_CHOICE' && type !== 'PICK_LANDSCAPE_ZONE'){
+  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN' && type !== 'STATE_SYNC' && type !== 'REACTION_CHOICE' && effectiveType !== 'PICK_LANDSCAPE_ZONE'){
     const turnUid = room.currentTurnUid || room.playerOrder[0];
     if(turnUid && turnUid !== uid) return 'not this player turn';
   }
@@ -3862,7 +3865,7 @@ function findAcceptedLandscapePrompt(room, landscapePromptKey){
   for(let i = room.eventLog.length - 1; i >= 0; i -= 1){
     const accepted = room.eventLog[i];
     const action = accepted?.action;
-    if(!action || String(action.type || '').toUpperCase() !== 'PICK_LANDSCAPE_ZONE') continue;
+    if(!action || effectiveAcceptedActionType(action) !== 'PICK_LANDSCAPE_ZONE') continue;
     if(String(action.payload?.landscapePromptKey || '').slice(0, 320) === key) return accepted;
   }
   return null;

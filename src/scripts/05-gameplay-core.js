@@ -4035,21 +4035,33 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         });
       } break;
     case '31': // Hemorrhaging Wound: any card in zone loses 3 Fate
-      pickCardInZone(z,'Select any card to lose 3 Fate:',(tgt)=>{
-        if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
-        const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
-        const changed = reduceStoredCardFateBy(tgt, 3, cp);
-        if(!changed && before > 0){
-          showBlockedAnimation('this card is immune');
-          return;
-        }
-        log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
-        flashCardEffect(tgt, 'oathbound_crescent', {
-          label:'oathbound blade',
-          soundKey:'oathbound:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
-        });
-        renderEffectResolutionForPlayer(cp, {hand:false});
-      }, function(cell){ return !!cell && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(cell) : (cell.immuneFlag || cell.id==='76'))); }); break;
+      await new Promise(function(resolve){
+        let settled = false;
+        const finish = function(){ if(!settled){ settled = true; resolve(); } };
+        const opened = pickCardInZone(z,'Select any card to lose 3 Fate:',(tgt)=>{
+          if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){
+            showBlockedAnimation('this card is immune');
+            finish();
+            return;
+          }
+          const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
+          const changed = reduceStoredCardFateBy(tgt, 3, cp);
+          if(!changed && before > 0){
+            showBlockedAnimation('this card is immune');
+            finish();
+            return;
+          }
+          log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
+          flashCardEffect(tgt, 'oathbound_crescent', {
+            label:'oathbound blade',
+            soundKey:'oathbound:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
+          });
+          renderEffectResolutionForPlayer(cp, {hand:false});
+          finish();
+        }, function(cell){ return !!cell && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(cell) : (cell.immuneFlag || cell.id==='76'))); }, finish);
+        if(opened === false) finish();
+      });
+      break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
       pickCardInZone(z,'Select an opponent Supporter to discard:',(tgt,tz,tr,tc)=>{
         if(tgt === inst || (tgt.iid && inst.iid && tgt.iid === inst.iid)){toast('MINAE Death Squad cannot discard itself');return;}

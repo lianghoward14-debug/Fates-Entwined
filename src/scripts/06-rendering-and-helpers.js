@@ -1908,6 +1908,46 @@ function chooseLandscapeZone(player, title, subtitle, onChoose, opts) {
 }
 window.chooseLandscapeZone = chooseLandscapeZone;
 
+function continueTurnAfterLandscapeResolution(){
+  return new Promise(function(resolve){
+    setTimeout(function(){
+      if(G) {
+        G._turnInputLockUntil = 0;
+        if(G._onlineRoomCode) G._onlineLandscapeEndTurnContinuation = true;
+      }
+      const result = endTurn();
+      if(result && typeof result.then === 'function') {
+        Promise.resolve(result).finally(resolve);
+      } else {
+        resolve(result);
+      }
+    }, 160);
+  });
+}
+
+function resolvePendingLandscapeEndTurnZone(pending, zone) {
+  if(!G || !pending || String(pending.kind || '') !== 'landscapeZone') return false;
+  const landscapeId = String(pending.landscapeId || '');
+  const winner = Number(pending.playerIndex);
+  const z = Number(zone);
+  if(!Number.isInteger(winner) || winner < 0 || winner > 1 || !Number.isInteger(z) || z < 0 || z > 2) return false;
+  const activePending = G.pendingInteraction;
+  if(activePending && activePending.promptId && pending.promptId && String(activePending.promptId) !== String(pending.promptId)) return false;
+  G.pendingInteraction = null;
+  if(landscapeId === 'igb2') {
+    addLandscapeZoneFateBonus(winner, z, 12, 'major');
+    toast(G.players[winner].name + ' gains 12 Fate in Zone ' + (z + 1) + '.');
+  } else if(landscapeId === 'igb8') {
+    addFullExtraSafeRowForPlayer(z, winner, 'Qingdao extra row', {sfxKind:'major'});
+    toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (z + 1) + '.');
+    renderGame({board:true, scores:true, blocks:true, landscape:true});
+  } else {
+    return false;
+  }
+  return continueTurnAfterLandscapeResolution();
+}
+window.resolvePendingLandscapeEndTurnZone = resolvePendingLandscapeEndTurnZone;
+
 function maybeResolveLandscapeEndTurn() {
   const landscape = typeof getCurrentLandscape === 'function' ? getCurrentLandscape() : null;
   const st = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
@@ -1918,13 +1958,6 @@ function maybeResolveLandscapeEndTurn() {
     if(G.aiEnabled && Number.isInteger(G.aiPlayer) && player === G.aiPlayer) return true;
     const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
     return !!(G.aiEnabled && player !== viewer);
-  }
-
-  function continueTurnAfterLandscapeResolution(){
-    setTimeout(function(){
-      if(G) G._turnInputLockUntil = 0;
-      endTurn();
-    }, 160);
   }
 
   function chooseBestLandscapeZoneForAI(player, opts) {
@@ -1957,18 +1990,26 @@ function maybeResolveLandscapeEndTurn() {
     }
     const winner = c0 > c1 ? 0 : 1;
     let frontierResolved = false;
+    const frontierPrompt = {
+      kind:'landscapeZone',
+      bucket:'landscapeZone',
+      playerIndex:winner,
+      landscapeId:'igb2',
+      title:'The Frontier of Innovation',
+      subtitle:G.players[winner].name + ' consolidated more times. Choose a zone to gain 12 Fate.',
+      pickerKind:'fate',
+      promptId:['landscape-zone', String(G._onlineRoomCode || 'local'), 'igb2', String(G.turn || 0), String(winner)].join(':')
+    };
     const resolveFrontier = function(z){
       if(frontierResolved) return false;
       frontierResolved = true;
-      if(typeof z === 'number') {
-        addLandscapeZoneFateBonus(winner, z, 12, 'major');
-        toast(G.players[winner].name + ' gains 12 Fate in Zone ' + (z + 1) + '.');
-      }
-      continueTurnAfterLandscapeResolution();
-      return true;
+      return resolvePendingLandscapeEndTurnZone(frontierPrompt, z);
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveFrontier(chooseBestLandscapeZoneForAI(winner, {kind:'fate'}));
-    else window.chooseLandscapeZone(winner, 'The Frontier of Innovation', G.players[winner].name + ' consolidated more times. Choose a zone to gain 12 Fate.', resolveFrontier, {kind:'fate'});
+    else {
+      if(G._onlineRoomCode) G.pendingInteraction = frontierPrompt;
+      window.chooseLandscapeZone(winner, frontierPrompt.title, frontierPrompt.subtitle, resolveFrontier, {kind:'fate', promptKey:frontierPrompt.promptId});
+    }
     return true;
   }
 
@@ -1985,19 +2026,27 @@ function maybeResolveLandscapeEndTurn() {
     }
     const winner = s0 > s1 ? 0 : 1;
     let qingdaoResolved = false;
+    const qingdaoPrompt = {
+      kind:'landscapeZone',
+      bucket:'landscapeZone',
+      playerIndex:winner,
+      landscapeId:'igb8',
+      title:'Qingdao Breakthrough',
+      subtitle:G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.',
+      pickerKind:'row',
+      requireOpenExtraRow:true,
+      promptId:['landscape-zone', String(G._onlineRoomCode || 'local'), 'igb8', String(G.turn || 0), String(winner)].join(':')
+    };
     const resolveQingdao = function(targetZ){
       if(qingdaoResolved) return false;
       qingdaoResolved = true;
-      if(typeof targetZ === 'number') {
-        addFullExtraSafeRowForPlayer(targetZ, winner, 'Qingdao extra row', {sfxKind:'major'});
-        toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (targetZ + 1) + '.');
-        renderGame({board:true, scores:true, blocks:true, landscape:true});
-      }
-      continueTurnAfterLandscapeResolution();
-      return true;
+      return resolvePendingLandscapeEndTurnZone(qingdaoPrompt, targetZ);
     };
     if(shouldAutoChooseLandscapeZone(winner)) resolveQingdao(chooseBestLandscapeZoneForAI(winner, {kind:'row', requireOpenExtraRow:true}));
-    else window.chooseLandscapeZone(winner, 'Qingdao Breakthrough', G.players[winner].name + ' controls more Fate in Zone ' + (z + 1) + '. Choose a zone for an extra safe row.', resolveQingdao, {kind:'row', requireOpenExtraRow:true});
+    else {
+      if(G._onlineRoomCode) G.pendingInteraction = qingdaoPrompt;
+      window.chooseLandscapeZone(winner, qingdaoPrompt.title, qingdaoPrompt.subtitle, resolveQingdao, {kind:'row', requireOpenExtraRow:true, promptKey:qingdaoPrompt.promptId});
+    }
     return true;
   }
   return false;
@@ -5906,18 +5955,18 @@ function pickAnyBoardCard(owner, callback) {
   });
 }
 
-function pickCardInZone(z, prompt, callback, filter=null) {
+function pickCardInZone(z, prompt, callback, filter=null, onCancel=null) {
   const viewerP = G.currentPlayer;
   const entries=[];
   G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{
     if(cell&&(!filter||filter(cell,z,r,c))) entries.push({card:cell,z,r,c});
   }));
-  if(entries.length===0){toast('No valid targets in this zone');return;}
-  showZonePicker(z, prompt, entries, 1, viewerP, (chosen)=>{
+  if(entries.length===0){toast('No valid targets in this zone');return false;}
+  return showZonePicker(z, prompt, entries, 1, viewerP, (chosen)=>{
     if(!chosen.length) return;
     const picked = chosen[0];
     callback(picked.card, picked.z, picked.r, picked.c);
-  }, filter);
+  }, filter, onCancel);
 }
 
 function pickMultipleInZone(z, max, prompt, callback, filter=null) {
@@ -6109,10 +6158,10 @@ function showBoardTargetPicker(opts, onConfirm) {
 }
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
-function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter) {
+function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
-    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter), wait);
+    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel), wait);
     return;
   }
   const pickerEntries = (entries || []).filter(function(entry){ return entry && entry.card; });
@@ -6126,7 +6175,8 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     zones: [z],
     entries: pickerEntries,
     showOpponentOverlay: true,
-    emptyMessage: 'No valid targets in this zone'
+    emptyMessage: 'No valid targets in this zone',
+    onCancel:onCancel
   }, function(chosen){
     onConfirm(chosen);
   });

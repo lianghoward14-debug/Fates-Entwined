@@ -64,10 +64,10 @@ assert.match(indexText, /03-profile-and-progression\.js\?v=1784390001/, 'profile
 assert.match(indexText, /08-audio-and-meta-ui\.js\?v=1784664001/, 'audio/meta cache bust must include Kvetka-only overlay audio');
 assert.match(indexText, /15-online-auth\.js\?v=1784059901/, 'online auth cache bust must include the current browser queue transport fix');
 assert.match(indexText, /04-game-setup\.js\?v=1784381001/, 'game setup cache bust must include Avalanche Escape opening hands');
-assert.match(indexText, /06-rendering-and-helpers\.js\?v=1784660002/, 'renderer cache bust must include hover status overflow entries and dialogue line breaks');
+assert.match(indexText, /06-rendering-and-helpers\.js\?v=1784672000/, 'renderer cache bust must include serialized Alpine and Qingdao end-turn zone prompts');
 assert.match(indexText, /render-v2\/13-vfx-recipes\.js\?v=1784359006/, 'VFX recipes cache bust must include removal of board placement motion recipes');
 assert.match(indexText, /render-v2\/01-render-snapshot\.js\?v=1784666001/, 'render snapshot cache bust must include delayed placement Fate audio metadata');
-assert.match(indexText, /05-gameplay-core\.js\?v=1784667001/, 'gameplay core cache bust must include incoming Coordinator overlays synchronized with delayed placement Fate audio');
+assert.match(indexText, /05-gameplay-core\.js\?v=1784672000/, 'gameplay core cache bust must include atomic Oathbound Noble Fighter target resolution');
 assert.match(indexText, /07-ai-learning\.js\?v=1784382001/, 'AI learning cache bust must include the promoted 250,000-game offline policy');
 assert.match(indexText, /07-ai\.js\?v=1784664001/, 'AI cache bust must include generic non-Kvetka Fate audio and placement reveal timing');
 assert.match(indexText, /09-challenger-mode\.js\?v=1784652002/, 'Challenger cache bust must include the revised booster artwork mapping');
@@ -79,7 +79,7 @@ assert.match(indexText, /04-match-renderer-adapter\.js\?v=1784667001/, 'render-v
 assert.match(indexText, /09-hand-drag-bridge\.js\?v=1784654001/, 'hand drag bridge cache bust must include centered organizer controls');
 assert.match(indexText, /render-v2\/17-action-presentation\.js\?v=1784063301/, 'action presentation cache bust must include target-local set motion and consolidation cinematic handoff');
 assert.match(indexText, /10-init\.js\?v=1784359007/, 'init cache bust must include removal of the placement animation wrapper');
-assert.match(indexText, /18-online-rooms\.js\?v=1784666001&sync=1784666001/, 'online rooms cache bust must preserve delayed placement Fate visuals and audio in multiplayer');
+assert.match(indexText, /18-online-rooms\.js\?v=1784672000&sync=1784672000/, 'online rooms cache bust must include landscape prompt handoff and stale resolution lock recovery');
 assert.match(indexText, /improvisor-consolidation-source-audio-cleanup-20260713a-1783961406/, 'client build stamp must identify the consolidation source and prompt audio cleanup');
 assert.match(indexText, /electron \|\| hostedFly/, 'Fly browser clients must unregister and skip service worker registration');
 assert.match(indexText, /electron-immediate/, 'Electron must load online multiplayer modules immediately');
@@ -168,7 +168,13 @@ assert.match(roomsText, /if\(electronRuntime\(\) && !launchedWithLocalAuthority\
 assert.match(roomsText, /function shouldSkipAuthorityRtdbPersist\(accepted\)[\s\S]*if\(accepted\?\.flyEventLog\) return true;/, 'Fly event-log accepted actions must never be mirrored back into client RTDB writes');
 assert.match(roomsText, /return \/\^\(CHOOSE_TURN\|BOARD_ACTION\|HAND_ACTION\)\$\/i\.test\(actionType\)/, 'END_TURN must not be captured before its local async turn-boundary flow settles');
 assert.match(roomsText, /if\(clientResolvedLocalCommitPending > 0\)[\s\S]*scheduleClientResolvedAutoCommit\(reason \|\| 'local-commit-pending-retry', 90\)/, 'auto-commit watchdog must not race an in-progress client-resolved local action');
-assert.match(roomsText, /function clearStaleClientResolvedLocalCommit[\s\S]*ageMs < 8000[\s\S]*clientResolvedEffectUiIsActive[\s\S]*client-resolved-stale-effect-lock-cleared/, 'orphaned client-resolved effect locks must self-heal only after the real effect UI is gone');
+assert.match(roomsText, /function clearStaleClientResolvedLocalCommit[\s\S]*ageMs < 1800[\s\S]*clientResolvedEffectUiIsActive[\s\S]*client-resolved-stale-effect-lock-cleared/, 'orphaned client-resolved effect locks must self-heal quickly after the real effect UI is gone');
+assert.doesNotMatch(roomsText, /function clientResolvedEffectUiIsActive[\s\S]{0,900}if\(document\.getElementById\('modal'\)\?\.classList\.contains\('on'\)\) return true/, 'ordinary information modals must not masquerade as unresolved gameplay effects');
+assert.match(roomsText, /hasLocalPicker && document\.getElementById\('modal'\)\?\.classList\.contains\('on'\)/, 'a visible effect picker must still keep its resolution lock active');
+assert.match(roomsText, /function maybeShowServerLandscapeZonePrompt[\s\S]*pending\.kind \|\| ''\) !== 'landscapeZone'[\s\S]*resolvePendingLandscapeEndTurnZone/, 'the winning multiplayer client must receive and resolve serialized Alpine and Qingdao zone prompts');
+assert.match(roomsText, /turnAgnosticAction = \/\^\(CHOOSE_TURN\|REACTION_CHOICE\|PICK_LANDSCAPE_ZONE\)/, 'the winning landscape player must be able to choose a zone even when the other player ended the turn');
+assert.match(coreText, /case '31'[\s\S]*await new Promise[\s\S]*pickCardInZone[\s\S]*reduceStoredCardFateBy\(tgt, 3, cp\)[\s\S]*finish\(\)/, 'Oathbound Noble Fighter must keep its activation open until its target loses Fate');
+assert.match(roomsText, /_onlineClientOwnedBoardActionPickerDepth[\s\S]*originals\.showZonePicker\.apply/, 'client-owned effect pickers must resolve inside the board action that opened them');
 assert.match(roomsText, /function showOnlineRemoteConsolidationCinematicForEntry[\s\S]*waitForMotion[\s\S]*director\.hasActiveEffects\(\)[\s\S]*motionIdleAt/, 'remote consolidation cinematics must wait for the consolidation set motion to become idle');
 assert.doesNotMatch(roomsText, /online-end-turn-local-deferred-before-send|END_TURN[\s\S]{0,160}localResult === false/, 'online END_TURN must not cancel the network send after local endTurn returns false');
 assert.match(roomsText, /function isRoomAlreadyEndedReason[\s\S]*room already ended/, 'online room-ended detection must recognize authority terminal rejections');
