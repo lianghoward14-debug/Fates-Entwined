@@ -82,7 +82,7 @@ assert.strictEqual(service.internal_port, '8787', 'Fly internal port should matc
 assert.strictEqual(service.auto_stop_machines, 'stop', 'Fly authority should stop when idle to avoid unnecessary compute charges');
 assert.strictEqual(service.auto_start_machines, 'true', 'Fly authority should wake automatically when a player connects');
 assert.strictEqual(service.min_machines_running, '0', 'Fly authority should not bill for an idle warm machine');
-assert.match(flyText, /\[\[vm\]\][\s\S]*memory\s*=\s*['"]512mb['"][\s\S]*memory_mb\s*=\s*512/m, 'Fly authority should use the measured 512 MB memory allocation');
+assert.match(flyText, /\[\[vm\]\][\s\S]*memory\s*=\s*['"]1gb['"][\s\S]*memory_mb\s*=\s*1024/m, 'Fly authority should use the 1 GB memory allocation');
 assert.ok(/\[\[mounts\]\][\s\S]*source\s*=\s*['"]fate_authority_data['"][\s\S]*destination\s*=\s*['"]\/data['"]/m.test(flyText), 'fly.toml should mount fate_authority_data at /data');
 
 const pkg = JSON.parse(readText(packagePath));

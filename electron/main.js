@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, crashReporter } = require('electron');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -12,9 +12,10 @@ const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
 const ELECTRON_CLIENT_BUILD_STAMP = 'electron-google-auth-bridge-stable-20260713a-1783961301';
 const CHROME_VERSION = process.versions.chrome || '126.0.0.0';
 const GOOGLE_FRIENDLY_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
+const SAFE_MODE_ENABLED = process.argv.includes('--safe-mode') || process.env.FATE_SAFE_MODE === '1';
 const GPU_ACCELERATION_FORCE_ENABLED = process.argv.includes('--enable-gpu') || process.env.FATE_ENABLE_GPU === '1';
 const GPU_ACCELERATION_FORCE_DISABLED = process.argv.includes('--disable-gpu')
-  || process.argv.includes('--safe-mode')
+  || SAFE_MODE_ENABLED
   || process.env.FATE_DISABLE_GPU === '1';
 const GPU_ACCELERATION_DISABLED = !GPU_ACCELERATION_FORCE_ENABLED && GPU_ACCELERATION_FORCE_DISABLED;
 const GPU_ACCELERATION_MODE = GPU_ACCELERATION_DISABLED ? 'disabled-safe-mode' : 'default-enabled';
@@ -51,6 +52,46 @@ const diagnosticsDir = path.join(ROOT, 'diagnostics');
 const allowMultipleInstances = process.argv.includes('--allow-multiple-instances');
 const pendingGoogleAuthBridges = new Map();
 const desktopUpdater = createDesktopUpdater();
+
+function safeStartupLogPath() {
+  try {
+    return path.join(app.getPath('userData'), 'startup.log');
+  } catch (err) {
+    return path.join(ROOT, 'diagnostics', 'startup.log');
+  }
+}
+
+function writeStartupLog(message, details) {
+  try {
+    const logPath = safeStartupLogPath();
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(logPath, JSON.stringify({
+      at: new Date().toISOString(),
+      message,
+      details: details || null
+    }) + '\n', 'utf8');
+  } catch (err) {
+    console.warn('Failed to write startup log', err);
+  }
+}
+
+function startLocalCrashReporter() {
+  try {
+    crashReporter.start({
+      uploadToServer: false,
+      compress: true,
+      productName: APP_NAME,
+      companyName: 'Fates Entwined'
+    });
+    writeStartupLog('crash-reporter-started', {
+      crashDumps: app.getPath('crashDumps')
+    });
+  } catch (err) {
+    writeStartupLog('crash-reporter-failed', {
+      error: String(err && err.message || err)
+    });
+  }
+}
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -232,6 +273,7 @@ ipcMain.handle('fate:get-performance-info', (event) => {
     isElectron: true,
     versions: process.versions,
     commandSwitches: {
+      safeMode: SAFE_MODE_ENABLED,
       hardwareAccelerationDisabled: GPU_ACCELERATION_DISABLED,
       hardwareAccelerationMode: GPU_ACCELERATION_MODE,
       forceDeviceScaleFactor: '1',
@@ -458,23 +500,40 @@ function startStaticServer() {
 }
 
 function applyPerformanceSwitches() {
+  if (SAFE_MODE_ENABLED) {
+    const safeUserData = path.join(app.getPath('appData'), 'Fates Entwined Safe Mode');
+    app.setPath('userData', safeUserData);
+  }
   app.userAgentFallback = GOOGLE_FRIENDLY_USER_AGENT;
+  const disabledFeatures = [
+    'CalculateNativeWinOcclusion',
+    'ThirdPartyStoragePartitioning',
+    'TrackingProtection3pcd',
+    'BlockThirdPartyCookies'
+  ];
   if (GPU_ACCELERATION_DISABLED) {
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
     app.commandLine.appendSwitch('disable-gpu-compositing');
     app.commandLine.appendSwitch('disable-gpu-sandbox');
+    app.commandLine.appendSwitch('disable-direct-composition');
+    app.commandLine.appendSwitch('disable-accelerated-2d-canvas');
+    app.commandLine.appendSwitch('disable-accelerated-video-decode');
+    app.commandLine.appendSwitch('disable-gpu-memory-buffer-video-frames');
+    disabledFeatures.push('DirectCompositionVideoOverlays');
   }
   app.commandLine.appendSwitch('force-device-scale-factor', '1');
   app.commandLine.appendSwitch('disable-background-timer-throttling');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-  app.commandLine.appendSwitch('disable-features', [
-    'CalculateNativeWinOcclusion',
-    'ThirdPartyStoragePartitioning',
-    'TrackingProtection3pcd',
-    'BlockThirdPartyCookies'
-  ].join(','));
+  app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
+  writeStartupLog('performance-switches-applied', {
+    safeMode: SAFE_MODE_ENABLED,
+    gpuAccelerationDisabled: GPU_ACCELERATION_DISABLED,
+    gpuAccelerationMode: GPU_ACCELERATION_MODE,
+    userData: app.getPath('userData'),
+    argv: process.argv
+  });
 }
 
 function isAllowedAuthPopupUrl(rawUrl) {
@@ -517,11 +576,11 @@ async function createWindow(options = {}) {
   const sharedPartition = webPrefs.partition || null;
   const win = new BrowserWindow({
     title: sessionName ? `${APP_NAME} (${sessionName})` : APP_NAME,
-    width: 1920,
-    height: 1080,
+    width: SAFE_MODE_ENABLED ? 1280 : 1920,
+    height: SAFE_MODE_ENABLED ? 720 : 1080,
     minWidth: 1024,
     minHeight: 640,
-    fullscreen: true,
+    fullscreen: !SAFE_MODE_ENABLED,
     backgroundColor: '#06080e',
     icon: path.join(ROOT, 'icon.png'),
     show: false,
@@ -609,6 +668,7 @@ async function createWindow(options = {}) {
 }
 
 applyPerformanceSwitches();
+startLocalCrashReporter();
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId('com.fatesentwined.desktop');
 
