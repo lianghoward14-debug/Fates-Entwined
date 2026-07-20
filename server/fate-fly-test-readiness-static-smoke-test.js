@@ -450,5 +450,8 @@ assert.doesNotMatch(reducerText, /dedicated server reducer|server reducer is not
 assert.doesNotMatch(wsText, /socket-disconnect-immediate-finalize|Immediate disconnect finalization|shouldFinalizeDisconnectImmediately/, 'WebSocket disconnects must use the disconnect timer instead of instantly ending live rooms');
 assert.match(wsText, /let authorityReady = false[\s\S]*if\(!authorityReady && requestPath !== '\/health'\)[\s\S]*authority starting/, 'Fly authority must listen before serving gameplay APIs and report starting during durable restore');
 assert.match(wsText, /server\.listen\(PORT, HOST[\s\S]*setImmediate\(startAuthorityRuntime\)/, 'Fly authority must bind the port before durable startup work to avoid first-turn connection refusals');
+assert.match(wsText, /function ensureAuthorityModulesLoaded\(\)[\s\S]*require\('\.\/fate-authority-reducer'\)[\s\S]*function startAuthorityRuntime\(\)[\s\S]*ensureAuthorityModulesLoaded\(\)/, 'Fly authority must lazy-load gameplay modules only after the port is bound');
+assert.doesNotMatch(wsText, /const \{[\s\S]{0,80}reduceServerAction[\s\S]{0,120}= require\('\.\/fate-authority-reducer'\);/, 'Fly authority must not require the reducer before server.listen');
+assert.match(wsText, /cardCatalog:!!cardCatalogCache \|\| authorityReady[\s\S]*cardCatalogSize:cardCatalogCache \? cardCatalogCache\.cards\.length : \(authorityReady \? authorityCardCatalog\(\)\.cards\.length : 0\)/, 'health checks must not force catalog loading before authority startup completes');
 
 console.log('fate-fly-test-readiness-static smoke passed');

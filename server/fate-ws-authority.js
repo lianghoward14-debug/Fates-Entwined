@@ -14,18 +14,14 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const {
-  reduceServerAction
-} = require('./fate-authority-reducer');
-const {getCardCatalog} = require('./fate-card-catalog');
-const {buildInitialAuthorityState} = require('./fate-authority-bootstrap');
-const AILearning = require('../src/scripts/07-ai-learning.js');
-const {
-  publicRoomDiagnostics,
-  publicSystemDiagnostics,
-  recordClientReport,
-  recordRoomDiagnostic
-} = require('./fate-multiplayer-diagnostics');
+let reduceServerAction = null;
+let getCardCatalog = null;
+let buildInitialAuthorityState = null;
+let AILearning = null;
+let publicRoomDiagnostics = null;
+let publicSystemDiagnostics = null;
+let recordClientReport = null;
+let recordRoomDiagnostic = null;
 
 const PORT = Number(process.env.PORT || process.env.FATE_WS_PORT || 8787);
 const HOST = process.env.HOST || process.env.FATE_WS_HOST || '0.0.0.0';
@@ -106,7 +102,7 @@ let flyMarketplaceSeq = 0;
 let flyPublicDeckCommentSeq = 0;
 let flyPrivateMessageSeq = 0;
 let flyAISimSchedule = {};
-let flyAILearnedPolicies = AILearning.createBasePolicies();
+let flyAILearnedPolicies = null;
 let flyAILearningStats = {seen:0,accepted:0,rejected:0,lastIngestAt:0,lastTrainAt:0,lastEpisodes:0,lastElapsedMs:0};
 let flyAISimulationInterval = 0;
 let flyAISimulationStartupTimer = 0;
@@ -201,7 +197,23 @@ function firebaseKeySegment(value){
   return String(value || '').replace(/[.#$\/\[\]]/g, '_').slice(0, 160);
 }
 
+function ensureAuthorityModulesLoaded(){
+  if(AILearning && reduceServerAction && getCardCatalog && buildInitialAuthorityState) return;
+  ({reduceServerAction} = require('./fate-authority-reducer'));
+  ({getCardCatalog} = require('./fate-card-catalog'));
+  ({buildInitialAuthorityState} = require('./fate-authority-bootstrap'));
+  AILearning = require('../src/scripts/07-ai-learning.js');
+  ({
+    publicRoomDiagnostics,
+    publicSystemDiagnostics,
+    recordClientReport,
+    recordRoomDiagnostic
+  } = require('./fate-multiplayer-diagnostics'));
+  if(!flyAILearnedPolicies) flyAILearnedPolicies = AILearning.createBasePolicies();
+}
+
 function authorityCardCatalog(){
+  ensureAuthorityModulesLoaded();
   if(cardCatalogCache) return cardCatalogCache;
   cardCatalogCache = getCardCatalog();
   return cardCatalogCache;
@@ -5345,8 +5357,8 @@ const server = http.createServer((req, res)=>{
       reducerMode:REDUCER_MODE,
       gameplayAuthority:gameplayAuthorityMode(),
       clientResolvedGameplay:clientResolvedGameplayEnabled(),
-      cardCatalog:true,
-      cardCatalogSize:authorityCardCatalog().cards.length,
+      cardCatalog:!!cardCatalogCache || authorityReady,
+      cardCatalogSize:cardCatalogCache ? cardCatalogCache.cards.length : (authorityReady ? authorityCardCatalog().cards.length : 0),
       disconnectTimeoutMs:DISCONNECT_TIMEOUT_MS,
       restoredTimerCount,
       restoredEventCount,
@@ -5496,6 +5508,10 @@ process.once('SIGINT', ()=>{ gracefulShutdown('SIGINT').catch(err=>{ console.err
 
 function startAuthorityRuntime(){
   try{
+    const moduleLoadStartedAt = now();
+    ensureAuthorityModulesLoaded();
+    const moduleLoadMs = now() - moduleLoadStartedAt;
+    if(moduleLoadMs > 250) console.log(`Fates authority modules loaded in ${moduleLoadMs}ms after port bind`);
     const restoredRooms = loadFlyRoomsSnapshot();
     restoredEventCount = loadFlyEventsLog();
     const leaderboardReset = ensureFlyHumanLeaderboardResetApplied();
