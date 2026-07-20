@@ -186,6 +186,8 @@
       if(typeof v === 'function') return;
       if(k === 'effect' || k === 'flavor') return;
       if(k === '_effectActivationInFlight' || k === '_pendingWhenSetActivationInFlight' || k === '_busserGrantPending') return;
+      if(k === '_effectFlash' || k === '_coordinatorPlacementFlashPlayed') return;
+      if(k === '_placementFateReveal') return;
       out[k] = cloneOnlinePlain(v);
     });
     return out;
@@ -428,6 +430,193 @@
       });
     });
     return map;
+  }
+  function collectOnlineFateSnapshot(board){
+    const map = new Map();
+    if(!Array.isArray(board)) return map;
+    board.forEach(function(zone, z){
+      if(!Array.isArray(zone)) return;
+      zone.forEach(function(row, r){
+        if(!Array.isArray(row)) return;
+        row.forEach(function(card, c){
+          if(!card) return;
+          const key = card.iid != null ? String(card.iid) : `${card.id || 'card'}:${z}:${r}:${c}`;
+          map.set(key, {
+            card,
+            id:String(card.id || ''),
+            iid:String(card.iid || ''),
+            owner:Number(card.owner),
+            z,
+            r,
+            c,
+            fate:Math.max(0, Number(card.currentFate ?? card.fate ?? 0) || 0),
+            declaredAff:String(card._declaredAff || ''),
+            specterFateGains:Math.max(0, Number(card._specterFateGains) || 0),
+            wintertideTriggerCount:Math.max(0, Number(card._wintertideTriggerCount) || 0)
+          });
+        });
+      });
+    });
+    return map;
+  }
+  function onlineFateSnapshotEntryForRef(snapshot, ref){
+    if(!(snapshot instanceof Map) || !ref || typeof ref !== 'object') return null;
+    const nested = ref.card && typeof ref.card === 'object' ? ref.card : ref;
+    const iid = String(ref.iid || ref.cardIid || nested.iid || '');
+    if(iid && snapshot.has(iid)) return snapshot.get(iid);
+    const z = Number(ref.z), r = Number(ref.r), c = Number(ref.c);
+    if(Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)){
+      let found = null;
+      snapshot.forEach(function(entry){
+        if(!found && entry.z === z && entry.r === r && entry.c === c) found = entry;
+      });
+      if(found) return found;
+    }
+    return null;
+  }
+  function onlineTargetEffectSourceId(action, beforeFateSnapshot){
+    const payload = action?.payload || {};
+    const refs = [payload.source, payload.pendingSource, payload.effectCinematic, payload.card, payload.selectedHand];
+    for(const ref of refs){
+      if(!ref || typeof ref !== 'object') continue;
+      const nested = ref.card && typeof ref.card === 'object' ? ref.card : ref;
+      const id = String(nested.id || nested.cardId || ref.id || ref.cardId || '');
+      if(id) return id;
+      const prior = onlineFateSnapshotEntryForRef(beforeFateSnapshot, ref);
+      if(prior && prior.id) return prior.id;
+    }
+    const description = [
+      payload.sourceName,
+      payload.fn,
+      payload.effectName,
+      payload.ability,
+      payload.pendingKind
+    ].filter(Boolean).join(' ');
+    if(/\b17th British Regiment\b|Liberators of Rwanda/i.test(description)) return '05';
+    if(/\bIsaac Perez\b|Scientific Inquiry/i.test(description)) return '22';
+    if(/\bOathbound\b|Hemorrhaging Wound/i.test(description)) return '31';
+    return '';
+  }
+  const shownOnlineTargetEffectFlashKeys = new Set();
+  function rememberOnlineEffectFlashKey(key){
+    if(shownOnlineTargetEffectFlashKeys.has(key)) return false;
+    shownOnlineTargetEffectFlashKeys.add(key);
+    if(shownOnlineTargetEffectFlashKeys.size > 512){
+      const oldest = shownOnlineTargetEffectFlashKeys.values().next().value;
+      if(oldest) shownOnlineTargetEffectFlashKeys.delete(oldest);
+    }
+    return true;
+  }
+  function scheduleOnlineClientCardFlash(card, kind, label, key){
+    if(!card || !kind || typeof window.flashCardEffect !== 'function' || !rememberOnlineEffectFlashKey(key)) return false;
+    return window.flashCardEffect(card, kind, {
+      label:String(label || kind.replace(/[_-]+/g, ' ')),
+      soundKey:'online-client:' + key
+    });
+  }
+  function maybeFlashOnlineTargetEffectDeltas(action, beforeFateSnapshot, reason){
+    if(!(beforeFateSnapshot instanceof Map) || typeof window.flashCardEffect !== 'function') return false;
+    const sourceId = onlineTargetEffectSourceId(action, beforeFateSnapshot);
+    const kind = sourceId === '05'
+      ? 'british_union_jack'
+      : (sourceId === '22' ? 'isaac_beaker' : (sourceId === '31' ? 'oathbound_crescent' : ''));
+    if(!kind) return false;
+    const current = collectOnlineFateSnapshot(gameState()?.board);
+    const seq = String(action?.seq || action?.payload?.clientActionId || action?.clientActionId || 'pending');
+    let flashed = false;
+    current.forEach(function(after, key){
+      const before = beforeFateSnapshot.get(key);
+      if(!before || !after.card) return;
+      const delta = after.fate - before.fate;
+      const affected = kind === 'isaac_beaker' || kind === 'british_union_jack' ? delta > 0 : delta < 0;
+      if(!affected) return;
+      const flashKey = [seq, kind, key].join(':');
+      flashed = scheduleOnlineClientCardFlash(
+        after.card,
+        kind,
+        kind === 'british_union_jack' ? 'Liberators of Rwanda' : (kind === 'isaac_beaker' ? 'scientific inquiry' : 'oathbound blade'),
+        flashKey
+      ) || flashed;
+    });
+    if(flashed && typeof recordOnlineDiagnostic === 'function'){
+      recordOnlineDiagnostic('online-target-effect-flash-reconstructed', {
+        reason:String(reason || ''),
+        sourceId,
+        kind,
+        actionType:onlineEffectiveActionType(action)
+      });
+    }
+    return flashed;
+  }
+  function onlineZoneHasActiveFriendlyRozsi(card, z){
+    const g = gameState();
+    const zone = g?.board?.[z];
+    if(!card || !Array.isArray(zone)) return false;
+    return zone.some(function(row, r){
+      return Array.isArray(row) && row.some(function(cell, c){
+        if(!cell || String(cell.id || '') !== '34' || Number(cell.owner) !== Number(card.owner) || cell.faceDown) return false;
+        if(cell._lydiaSuppressed || cell._effectNegatedByReaction) return false;
+        if(typeof isSupporterAuraSuppressed === 'function' && isSupporterAuraSuppressed(cell)) return false;
+        if(typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(z, r, c)) return false;
+        return true;
+      });
+    });
+  }
+  function maybeFlashOnlineAutomaticEffectDeltas(action, beforeFateSnapshot, reason){
+    if(!(beforeFateSnapshot instanceof Map) || typeof window.flashCardEffect !== 'function') return false;
+    const current = collectOnlineFateSnapshot(gameState()?.board);
+    const actionType = onlineEffectiveActionType(action);
+    const seq = String(action?.seq || action?.payload?.clientActionId || action?.clientActionId || 'pending');
+    const currentPlayer = Number(gameState()?.currentPlayer);
+    let flashed = false;
+    current.forEach(function(after, key){
+      const before = beforeFateSnapshot.get(key);
+      if(!before || !after.card) return;
+      const moved = before.z !== after.z || before.r !== after.r || before.c !== after.c;
+      let kind = '';
+      let label = '';
+      if(after.id === '77' && after.declaredAff && after.declaredAff !== before.declaredAff) {
+        const targets = typeof window.getCoordinatorPlacementFlashTargets === 'function'
+          ? window.getCoordinatorPlacementFlashTargets(after.card, after.z, after.r, after.c)
+          : [];
+        targets.forEach(function(target, targetIndex){
+          const targetKey = String(target?.iid || target?.id || targetIndex);
+          flashed = scheduleOnlineClientCardFlash(
+            target,
+            'coord_heyward_compass',
+            'declared affiliation',
+            [seq, 'coord_heyward_compass', key, targetKey].join(':')
+          ) || flashed;
+        });
+      }
+      if(moved){
+        kind = onlineZoneHasActiveFriendlyRozsi(after.card, after.z) ? 'rozsi_dance' : 'movement_boot';
+        label = kind === 'rozsi_dance' ? 'Hungarian Dance' : 'effect movement';
+      } else if(after.id === '95' && after.specterFateGains > before.specterFateGains) {
+        kind = 'specter_ghost';
+        label = 'Thousand Year Sorrow';
+      } else if(after.id === '100' && after.wintertideTriggerCount > before.wintertideTriggerCount) {
+        kind = 'wintertide';
+        label = 'Wintertide';
+      } else if(
+        after.id === '46'
+        && actionType === 'END_TURN'
+        && after.owner === currentPlayer
+        && after.fate > before.fate
+      ) {
+        kind = 'phil_crown';
+        label = 'Monarchist Manifesto';
+      }
+      if(!kind) return;
+      flashed = scheduleOnlineClientCardFlash(after.card, kind, label, [seq, kind, key].join(':')) || flashed;
+    });
+    if(flashed && typeof recordOnlineDiagnostic === 'function'){
+      recordOnlineDiagnostic('online-automatic-effect-flash-reconstructed', {
+        reason:String(reason || ''),
+        actionType
+      });
+    }
+    return flashed;
   }
   function onlineBoardCardKey(card, z, r, c){
     if(!card) return '';
@@ -1293,15 +1482,27 @@
       scheduled = true;
       const delayMs = 120 + index * 80;
       try{
-        g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + onlineConsolidationCinematicTotalMs());
-      }catch(e){}
-      setTimeout(function(){
-        try{
-          window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
-        }catch(e){
-          console.warn('Online new-character cinematic failed', e);
+        if(typeof window.requestCharacterSetCinematic === 'function') {
+          window.requestCharacterSetCinematic(card, {z:entry.z, r:entry.r, c:entry.c, delayMs, source:'online-new-character'});
+        } else {
+          g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + delayMs + onlineConsolidationCinematicTotalMs());
+          setTimeout(function(){
+            window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+          }, delayMs);
         }
-      }, delayMs);
+        if(typeof window.scheduleCoordinatorPlacementFlash === 'function') {
+          window.scheduleCoordinatorPlacementFlash(card, {
+            z:entry.z,
+            r:entry.r,
+            c:entry.c,
+            source:'online-new-character',
+            delayMs:delayMs + onlineConsolidationCinematicTotalMs() + 90,
+            soundKey:'coord-online:' + String(card.iid || card.id || 'card') + ':' + String(g.turn || 0)
+          });
+        }
+      }catch(e){
+        console.warn('Online new-character cinematic failed', e);
+      }
       recordOnlineDiagnostic('online-new-character-cinematic', {
         cardId:String(card.id || ''),
         cardName:String(card.name || ''),
@@ -1313,6 +1514,61 @@
       });
     });
     return scheduled;
+  }
+  function primeOnlineCharacterFatePresentationLock(g, previousBoard, action, previousHandFateByIid){
+    if(!g || !isOnlineMatchState(g)) return false;
+    const added = onlineBoardAddedEntries(previousBoard, g.board).filter(function(entry){
+      return entry && entry.card && !entry.card.faceDown;
+    });
+    if(!added.length) return false;
+    const presentationEvents = Array.isArray(action?.payload?.presentationEvents) ? action.payload.presentationEvents : [];
+    const consolidationEvent = presentationEvents.find(function(event){
+      return String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED';
+    }) || null;
+    const isConsolidation = isOnlineConsolidationCompletionAction(action) || !!consolidationEvent;
+    const selectedHand = action?.payload?.selectedHand || consolidationEvent?.resultCard || null;
+    const createdAt = Date.now();
+    added.forEach(function(entry){
+      const card = entry.card;
+      const iid = String(card && card.iid || '');
+      let fromValue = iid && previousHandFateByIid instanceof Map ? previousHandFateByIid.get(iid) : null;
+      if(!Number.isFinite(Number(fromValue)) && selectedHand && (
+        String(selectedHand.iid || '') === iid ||
+        (!selectedHand.iid && String(selectedHand.id || '') === String(card.id || ''))
+      )) {
+        fromValue = Number(selectedHand.currentFate ?? selectedHand.fate);
+      }
+      if(!Number.isFinite(Number(fromValue))) fromValue = Number(card.fate);
+      const owner = Number(card && card.owner);
+      const activeBallads = isConsolidation && Number.isInteger(owner) && Array.isArray(g._balladEffects?.[owner])
+        ? g._balladEffects[owner].filter(function(fx){ return fx && fx.active && !fx.ended; }).length
+        : 0;
+      const kvetkaGainAmount = activeBallads * 3;
+      const storedDelta = Number(card.currentFate ?? card.fate) - Number(fromValue);
+      card._placementFateReveal = {
+        fromValue:Math.max(0, Number(fromValue) || 0),
+        mode:isConsolidation ? 'consolidation' : 'set',
+        createdAt,
+        genericSoundRequested:Number.isFinite(storedDelta) && storedDelta !== 0 && storedDelta !== kvetkaGainAmount,
+        kvetkaGainAmount
+      };
+    });
+    const addedCharacters = added.filter(function(entry){
+      return onlineCardType(entry.card) !== 'Supporter';
+    });
+    if(!addedCharacters.length) return true;
+    let preCinematicMs = 120;
+    if(isConsolidation) {
+      const tributes = Array.isArray(consolidationEvent?.tributes)
+        ? consolidationEvent.tributes
+        : (Array.isArray(action?.payload?.tributes) ? action.payload.tributes : []);
+      preCinematicMs = Math.max(160, estimateOnlineConsolidationMotionMs({tributes}));
+    }
+    g._cinematicUiLockUntil = Math.max(
+      Number(g._cinematicUiLockUntil) || 0,
+      Date.now() + preCinematicMs + onlineConsolidationCinematicTotalMs() + 260
+    );
+    return true;
   }
   function scheduleOnlineLocalHandLimitPrompt(g, reason){
     const state = g || gameState();
@@ -1773,6 +2029,16 @@
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
     const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase, _turnStartedAt:g._turnStartedAt};
     const previousBoard = collectOnlineBoardSnapshot(g.board);
+    const previousHandFateByIid = new Map();
+    (Array.isArray(g.players) ? g.players : []).forEach(function(player){
+      (Array.isArray(player && player.hand) ? player.hand : []).forEach(function(card){
+        const iid = String(card && card.iid || '');
+        if(!iid) return;
+        let shownFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+        if(card._wciBonus && String(card.id || '') !== '76') shownFate += 2;
+        previousHandFateByIid.set(iid, shownFate);
+      });
+    });
     const authoritativeHasServerPending = !!(
       state.pendingInteraction ||
       state._serverPendingReaction ||
@@ -1923,9 +2189,10 @@
     enterOnlineGameScreenFromAuthoritativeState(reason || 'online-authoritative-state');
     syncOnlineTurnTimerAfterAuthoritativeState(g, previousTurnState, reason || 'online-authoritative-state');
     maybePlayOnlineYourTurnNotification(g, previousTurnState, reason || 'online-authoritative-state');
-    renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     const spectatorSnapshotBootstrap = !!(g._isSpectator && /spectator (initial|canonical recovery)/i.test(String(reason || '')));
+    if(!spectatorSnapshotBootstrap) primeOnlineCharacterFatePresentationLock(g, previousBoard, action, previousHandFateByIid);
     if(!spectatorSnapshotBootstrap) maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason || 'online-authoritative-state');
+    renderOnlineAuthoritativeState(reason || 'online-authoritative-state');
     scheduleOnlineLocalHandLimitPrompt(g, reason || 'online-authoritative-state');
     if(typeof window.updateTopBar === 'function') window.updateTopBar();
     if(repairedMoreBoardCards){
@@ -1949,8 +2216,11 @@
       return false;
     }
     const previousPresentation = collectOnlineRemotePresentationSnapshot(gameState());
+    const previousFate = collectOnlineFateSnapshot(gameState()?.board);
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('post-action mismatch ' + (action?.seq || '')), action);
     if(applied && !payloadHasServerReactionWindow(payload)) maybePlayOnlineRemoteStatePresentation(gameState(), previousPresentation, action, reason || ('post-action mismatch ' + (action?.seq || '?')));
+    if(applied) maybeFlashOnlineTargetEffectDeltas(action, previousFate, reason || ('post-action mismatch ' + (action?.seq || '?')));
+    if(applied) maybeFlashOnlineAutomaticEffectDeltas(action, previousFate, reason || ('post-action mismatch ' + (action?.seq || '?')));
     if(applied && payloadHasServerReactionWindow(payload)) forceServerPendingPromptChecks(reason || ('post-action reaction ' + (action?.seq || '?')));
     else if(applied) scheduleServerPendingPromptChecks(reason || ('post-action mismatch ' + (action?.seq || '?')));
     return applied;
@@ -2010,8 +2280,11 @@
       return false;
     }
     const previousPresentation = collectOnlineRemotePresentationSnapshot(gameState());
+    const previousFate = collectOnlineFateSnapshot(gameState()?.board);
     const applied = applyOnlineCanonicalState(payload.postState, reason || ('authoritative postState seq ' + (action?.seq || '?')), action);
     if(applied && !payloadHasServerReactionWindow(payload) && !reactionChoiceResolution) maybePlayOnlineRemoteStatePresentation(gameState(), previousPresentation, action, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied) maybeFlashOnlineTargetEffectDeltas(action, previousFate, reason || ('authoritative postState seq ' + (action?.seq || '?')));
+    if(applied) maybeFlashOnlineAutomaticEffectDeltas(action, previousFate, reason || ('authoritative postState seq ' + (action?.seq || '?')));
     if(applied && reactionChoiceResolution) maybeShowOnlineEffectNegatedBanner(action, reason || ('authoritative reaction choice seq ' + (action?.seq || '?')));
     if(applied && payloadHasServerReactionWindow(payload)) forceServerPendingPromptChecks(reason || ('authoritative reaction seq ' + (action?.seq || '?')));
     else if(applied) scheduleServerPendingPromptChecks(reason || ('authoritative postState seq ' + (action?.seq || '?')));
@@ -4060,6 +4333,34 @@
     }
     if(!motion && removedEntries.length) playOnlineRemoteRemovalAudio(removedEntries.length, {consolidation:true});
     if(!motion && !cinematic) playOnlineRemotePlacementAudio(resultCard, 120);
+    if(boardCard && typeof window.scheduleCoordinatorPlacementFlash === 'function'){
+      const estimatedMotionMs = motion ? estimateOnlineConsolidationMotionMs({tributes:removedEntries}) : 0;
+      window.scheduleCoordinatorPlacementFlash(boardCard, {
+        z,
+        r,
+        c,
+        source:'online-consolidation-completed',
+        delayMs:estimatedMotionMs + onlineConsolidationCinematicTotalMs() + 260,
+        soundKey:'coord-online-consolidation:' + String(boardCard.iid || boardCard.id || 'card') + ':' + String(action?.seq || g.turn || 0)
+      });
+    }
+    const balladEffects = Number.isInteger(playerIndex) && Array.isArray(g._balladEffects?.[playerIndex])
+      ? g._balladEffects[playerIndex].filter(function(fx){ return fx && fx.active && !fx.ended; })
+      : [];
+    if(boardCard && balladEffects.length && typeof window.flashCardEffect === 'function'){
+      const balladKey = [String(action?.seq || action?.clientActionId || 'pending'), 'kvetka_ballad', String(boardCard.iid || boardCard.id || 'card')].join(':');
+      if(rememberOnlineEffectFlashKey(balladKey)){
+        const pitchStep = balladEffects.reduce(function(highest, fx){
+          return Math.max(highest, Math.max(0, Number(fx.pitchStep) || 0));
+        }, 0);
+        window.flashCardEffect(boardCard, 'kvetka_ballad', {
+          label:'A Noble Effort at a Ballad',
+          soundKey:'online-client:' + balladKey,
+          pitchStep,
+          waitForConsolidationCinematic:true
+        });
+      }
+    }
     recordOnlineDiagnostic('online-consolidation-presentation-event', {
       seq:Number(action?.seq || 0) || 0,
       playerIndex:Number.isInteger(playerIndex) ? playerIndex : null,
@@ -4226,8 +4527,11 @@
     if(!moved && !fateUp && !fateDown) return false;
     const key = onlineRemotePresentationKey(action, ['board-change', moved, fateUp, fateDown, reason || ''].join(':'));
     if(!markOnlineRemotePresentation(g, key)) return false;
+    const kvetkaCoordinatorGain = Array.isArray(added) && added.some(function(entry){
+      return entry && entry.card && String(entry.card.id || '') === '19' && !entry.card.faceDown;
+    });
     if(moved && !added.length && !removed.length && !window.FateMatchRendererAdapter) emitOnlineAcceptedPresentation('MOVE_CARD', {duration:170, path:'direct', noShadow:true, fastBoardMove:true}, action, 'move');
-    if(fateUp) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_GAIN', {fateDelta:fateUp}, action, 'fate-gain'); }, moved ? 90 : 0);
+    if(fateUp && !kvetkaCoordinatorGain) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_GAIN', {fateDelta:fateUp}, action, 'fate-gain'); }, moved ? 90 : 0);
     if(fateDown) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_LOSS', {fateDelta:-fateDown, amount:fateDown}, action, 'fate-loss'); }, (moved || fateUp) ? 150 : 0);
     return true;
   }
@@ -4274,11 +4578,15 @@
           if(typeof window.playSfx === 'function') window.playSfx('cardFlip');
           if(entry.card && onlineCardType(entry.card) !== 'Supporter' && typeof window.showConsolidationCinematic === 'function') {
             try{
-              g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + 650 + onlineConsolidationCinematicTotalMs());
+              if(typeof window.requestCharacterSetCinematic === 'function') {
+                window.requestCharacterSetCinematic(entry.card, {z:entry.z, r:entry.r, c:entry.c, delayMs:650, source:'online-card-flip'});
+              } else {
+                g._cinematicUiLockUntil = Math.max(g._cinematicUiLockUntil || 0, Date.now() + 650 + onlineConsolidationCinematicTotalMs());
+                setTimeout(function(){
+                  window.showConsolidationCinematic(entry.card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+                }, 650);
+              }
             }catch(e){}
-            setTimeout(function(){
-              window.showConsolidationCinematic(entry.card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
-            }, 650);
           }
         }, index * 70);
       });
@@ -7298,8 +7606,14 @@
         if(!stopped) {
           const watchingQueuedRoom = randomQueueState.active
             && String(randomQueueState.roomCode || '').toUpperCase() === String(code || '').toUpperCase();
-          const startingOrFreshRoom = watchingQueuedRoom || isStartedRoomStatus(lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom.status : '');
-          timer = setTimeout(poll, startingOrFreshRoom ? 1000 : 2500);
+          const activeMatch = isStartedRoomStatus(lastLobbyRoom && lastLobbyRoom.roomCode === code ? lastLobbyRoom.status : '');
+          const socketReady = !!(configuredAuthorityUrl()
+            && typeof WebSocket !== 'undefined'
+            && authorityJoined
+            && authorityWs
+            && authorityWs.readyState === WebSocket.OPEN);
+          const nextPollMs = watchingQueuedRoom ? 1000 : (activeMatch ? (socketReady ? 5000 : 1500) : 2500);
+          timer = setTimeout(poll, nextPollMs);
         }
       }
     }
@@ -8320,7 +8634,10 @@
     }
     async function poll(){
       if(stopped) return;
-      const socketReady = authoritySocketReady();
+      if(authoritySocketReady()){
+        timer = setTimeout(poll, 5000);
+        return;
+      }
       try{
         const after = Math.max(0, lastAppliedActionSeq || 0);
         const data = await flyApiJson(`/api/rooms/${encodeURIComponent(code)}/events?after=${after}&limit=80`);
@@ -8336,7 +8653,7 @@
           lastWarn = Date.now();
         }
       }finally{
-        if(!stopped) timer = setTimeout(poll, (typeof document !== 'undefined' && document.hidden) ? 5000 : (socketReady ? 1200 : 1500));
+        if(!stopped) timer = setTimeout(poll, (typeof document !== 'undefined' && document.hidden) ? 5000 : 1500);
       }
     }
     async function hashDriftCheck(){

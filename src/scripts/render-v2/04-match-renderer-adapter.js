@@ -18,6 +18,12 @@
   let lastReport = {available:false, reason:'not-rendered', version:ADAPTER_VERSION};
   let lastHitMap = {cards:[], cells:[], handCards:[], handEffectIcons:[], opponentHandCards:[], piles:[], uiCommands:[]};
   let lastCardFateByIid = new Map();
+  let lastBoardCardIids = new Set();
+  let deferredCoordinatorFatePulseByIid = new Map();
+  let coordinatorAuraFateDelayUntilByIid = new Map();
+  let coordinatorAuraFateSoundModeByIid = new Map();
+  let deferredPlacementFatePulseByIid = new Map();
+  let completedPlacementFateRevealAtByIid = new Map();
   let lastCardRectByIid = new Map();
   let pendingPlacementRectByIid = new Map();
   let vfxHiddenBoardCardUntilByIid = new Map();
@@ -494,6 +500,11 @@
       if(pendingTextureTimers[key]) clearTimeout(pendingTextureTimers[key]);
       pendingTextureTimers[key] = 0;
     });
+    deferredPlacementFatePulseByIid.forEach(function(record){
+      if(record && record.timer) clearTimeout(record.timer);
+    });
+    deferredPlacementFatePulseByIid.clear();
+    completedPlacementFateRevealAtByIid.clear();
     if(input && typeof input.detach === 'function') input.detach();
     hoverHit = null;
     lastHitMap = {cards:[], cells:[], handCards:[], handEffectIcons:[], opponentHandCards:[], piles:[], uiCommands:[]};
@@ -942,7 +953,22 @@
     return '';
   }
 
+  function coordinatorFatePresentationVisual(card, visual){
+    const iid = getCardIid(card);
+    const placementPending = iid ? deferredPlacementFatePulseByIid.get(iid) : null;
+    const coordinatorPending = iid ? deferredCoordinatorFatePulseByIid.get(iid) : null;
+    const pending = placementPending && Date.now() < Number(placementPending.until || 0)
+      ? placementPending
+      : coordinatorPending;
+    if(!pending || Date.now() >= Number(pending.until || 0)) return visual;
+    return Object.assign({}, visual || {}, {
+      displayFate:String(pending.fromValue),
+      currentFate:pending.fromValue
+    });
+  }
+
   function drawFateBadge(ctx, visual, r, card){
+    visual = coordinatorFatePresentationVisual(card, visual);
     const fate = visual && visual.displayFate != null ? String(visual.displayFate) : '';
     if(!fate) return;
     const deltaState = fateBadgeState(card, visual);
@@ -1113,18 +1139,257 @@
     return '';
   }
 
+  function coordinatorCinematicDelayUntil(){
+    let totalMs = 3260;
+    try {
+      if(typeof window.getConsolidationCinematicTotalMs === 'function') {
+        totalMs = Math.max(totalMs, Number(window.getConsolidationCinematicTotalMs()) || 0);
+      }
+    } catch(e) {}
+    const gameLockUntil = typeof G !== 'undefined' && G ? Number(G._cinematicUiLockUntil) || 0 : 0;
+    return Math.max(Date.now() + totalMs + 140, gameLockUntil + 100);
+  }
+
+  function prepareCoordinatorAuraFateDelays(entries){
+    const currentBoardCardIids = new Set();
+    (entries || []).forEach(function(entry){
+      const iid = getCardIid(entry && entry.card);
+      if(iid) currentBoardCardIids.add(iid);
+    });
+    const hadPreviousBoard = lastBoardCardIids.size > 0;
+    const previousBoardCardIids = lastBoardCardIids;
+    lastBoardCardIids = currentBoardCardIids;
+    if(!hadPreviousBoard || typeof window.getCoordinatorPlacementFlashTargets !== 'function') return;
+    const coordinatorIds = new Set(['01','10','11','15','19','23','57']);
+    (entries || []).forEach(function(entry){
+      const source = entry && entry.card;
+      const sourceIid = getCardIid(source);
+      if(!source || !sourceIid || !coordinatorIds.has(String(source.id || '')) || previousBoardCardIids.has(sourceIid)) return;
+      const until = coordinatorCinematicDelayUntil();
+      const targets = window.getCoordinatorPlacementFlashTargets(source, Number(entry.z), Number(entry.r), Number(entry.c)) || [];
+      targets.forEach(function(target){
+        const targetIid = getCardIid(target);
+        if(!targetIid) return;
+        coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, until));
+        const soundMode = String(source.id || '') === '19' ? 'kvetka' : 'generic';
+        if(soundMode === 'generic' || !coordinatorAuraFateSoundModeByIid.has(targetIid)){
+          coordinatorAuraFateSoundModeByIid.set(targetIid, soundMode);
+        }
+      });
+    });
+  }
+
+  function deferCoordinatorFatePulse(iid, fromValue, toValue, delta, until){
+    const key = String(iid || '');
+    if(!key || !Number.isFinite(Number(delta)) || Number(delta) === 0) return false;
+    const previous = deferredCoordinatorFatePulseByIid.get(key);
+    if(previous && previous.timer) clearTimeout(previous.timer);
+    const record = {
+      fromValue:previous ? previous.fromValue : fromValue,
+      toValue,
+      delta:Number(toValue) - Number(previous ? previous.fromValue : fromValue),
+      until:Math.max(Number(until) || 0, previous ? Number(previous.until) || 0 : 0),
+      soundMode:coordinatorAuraFateSoundModeByIid.get(key) || (previous && previous.soundMode) || 'generic',
+      timer:null
+    };
+    const waitMs = Math.max(0, record.until - Date.now());
+    record.timer = setTimeout(function(){
+      const pending = deferredCoordinatorFatePulseByIid.get(key);
+      if(!pending || pending !== record) return;
+      deferredCoordinatorFatePulseByIid.delete(key);
+      coordinatorAuraFateDelayUntilByIid.delete(key);
+      coordinatorAuraFateSoundModeByIid.delete(key);
+      const timeline = getTimeline();
+      if(!timeline || !Number.isFinite(Number(pending.delta)) || Number(pending.delta) === 0) return;
+      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(key, 'fate-pulse');
+      else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(key, 'fate-pulse');
+      timeline.add({
+        kind:'fate-pulse',
+        iid:key,
+        start:nowMs(),
+        duration:1860,
+        easing:'out-cubic',
+        fromValue:pending.fromValue,
+        toValue:pending.toValue,
+        delta:pending.delta
+      });
+      if(pending.soundMode !== 'kvetka'){
+        try {
+          if(typeof window.playSfx === 'function'){
+            window.playSfx(Number(pending.delta) > 0 ? 'fateGain' : 'fateLose');
+          }
+        } catch(e) {}
+      }
+      scheduleRender('coordinator-fate-after-cinematic');
+    }, waitMs);
+    deferredCoordinatorFatePulseByIid.set(key, record);
+    return true;
+  }
+
+  function placementFateRevealUntil(card, existingUntil){
+    const now = Date.now();
+    const meta = card && card._placementFateReveal;
+    const mode = String(meta && meta.mode || 'set');
+    const isFaceDown = !!(card && card.faceDown);
+    const gameLockUntil = typeof G !== 'undefined' && G ? Number(G._cinematicUiLockUntil) || 0 : 0;
+    const actionLockUntil = typeof G !== 'undefined' && G ? Number(G._actionPresentationLockUntil) || 0 : 0;
+    let until = Math.max(0, Number(existingUntil) || 0);
+    if(!until) {
+      let settleMs = 340;
+      if(mode === 'consolidation' && !isFaceDown) {
+        let cinematicMs = 3260;
+        try {
+          if(typeof window.getConsolidationCinematicTotalMs === 'function') {
+            cinematicMs = Math.max(cinematicMs, Number(window.getConsolidationCinematicTotalMs()) || 0);
+          }
+        } catch(e) {}
+        settleMs = cinematicMs + 260;
+      }
+      const createdAt = Math.max(0, Number(meta && meta.createdAt) || now);
+      until = createdAt + settleMs;
+      if(until <= now) until = now + 180;
+    }
+    if(gameLockUntil > now) until = Math.max(until, gameLockUntil + 100);
+    if(actionLockUntil > now) until = Math.max(until, actionLockUntil + 100);
+    return until;
+  }
+
+  function clearLivePlacementFateReveal(iid){
+    const key = String(iid || '');
+    if(!key || typeof G === 'undefined' || !G || !Array.isArray(G.board)) return;
+    G.board.forEach(function(zone){
+      (zone || []).forEach(function(row){
+        (row || []).forEach(function(card){
+          if(card && String(card.iid || '') === key) {
+            try { delete card._placementFateReveal; } catch(e) {}
+          }
+        });
+      });
+    });
+  }
+
+  function schedulePlacementFateReveal(card, record){
+    if(!record) return;
+    if(record.timer) clearTimeout(record.timer);
+    record.timer = setTimeout(function finishPlacementFateReveal(){
+      const pending = deferredPlacementFatePulseByIid.get(record.iid);
+      if(!pending || pending !== record) return;
+      const extendedUntil = placementFateRevealUntil(card, pending.until);
+      const gameLockUntil = typeof G !== 'undefined' && G ? Number(G._cinematicUiLockUntil) || 0 : 0;
+      const actionLockUntil = typeof G !== 'undefined' && G ? Number(G._actionPresentationLockUntil) || 0 : 0;
+      if(extendedUntil > pending.until || gameLockUntil > Date.now() || actionLockUntil > Date.now()) {
+        pending.until = Math.max(extendedUntil, gameLockUntil + 100, actionLockUntil + 100);
+        schedulePlacementFateReveal(card, pending);
+        return;
+      }
+      deferredPlacementFatePulseByIid.delete(record.iid);
+      completedPlacementFateRevealAtByIid.set(record.iid, Number(record.createdAt) || Date.now());
+      try { delete card._placementFateReveal; } catch(e) {}
+      clearLivePlacementFateReveal(record.iid);
+      const delta = Number(pending.toValue) - Number(pending.fromValue);
+      const timeline = getTimeline();
+      if(timeline && Number.isFinite(delta) && delta !== 0) {
+        if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(record.iid, 'fate-pulse');
+        else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(record.iid, 'fate-pulse');
+        timeline.add({
+          kind:'fate-pulse',
+          iid:record.iid,
+          start:nowMs(),
+          duration:1860,
+          easing:'out-cubic',
+          fromValue:pending.fromValue,
+          toValue:pending.toValue,
+          delta
+        });
+      }
+      let incomingCoordinatorFeedback = {flashed:false, hasNonKvetka:false, kvetkaGainAmount:0};
+      try {
+        if(Number.isFinite(delta) && delta !== 0 && typeof window.flashIncomingCoordinatorEffects === 'function') {
+          incomingCoordinatorFeedback = window.flashIncomingCoordinatorEffects(record.iid, {
+            createdAt:record.createdAt,
+            fromValue:pending.fromValue,
+            toValue:pending.toValue
+          }) || incomingCoordinatorFeedback;
+        }
+      } catch(e) {}
+      const kvetkaGainAmount = Math.max(0, Number(pending.kvetkaGainAmount) || 0)
+        + Math.max(0, Number(incomingCoordinatorFeedback.kvetkaGainAmount) || 0);
+      const genericSoundRequested = !!pending.genericSoundRequested || !!incomingCoordinatorFeedback.hasNonKvetka;
+      const kvetkaOnlyGain = delta > 0
+        && !genericSoundRequested
+        && kvetkaGainAmount > 0
+        && delta === kvetkaGainAmount;
+      if(Number.isFinite(delta) && delta !== 0 && !kvetkaOnlyGain) {
+        try {
+          if(typeof window.playSfx === 'function') window.playSfx(delta > 0 ? 'fateGain' : 'fateLose');
+        } catch(e) {}
+      }
+      scheduleRender('placement-fate-after-settle');
+    }, Math.max(0, Number(record.until || 0) - Date.now()));
+  }
+
+  function deferPlacementFateReveal(card, fateValue){
+    const iid = getCardIid(card);
+    const meta = card && card._placementFateReveal;
+    const createdAt = Math.max(0, Number(meta && meta.createdAt) || 0);
+    const completedAt = iid ? Math.max(0, Number(completedPlacementFateRevealAtByIid.get(iid)) || 0) : 0;
+    if(!iid || !meta || (completedAt && (!createdAt || completedAt >= createdAt))) return false;
+    let record = deferredPlacementFatePulseByIid.get(iid);
+    if(!record) {
+      record = {
+        iid,
+        createdAt:createdAt || Date.now(),
+        fromValue:String(meta.fromValue == null ? fateValue : meta.fromValue),
+        toValue:String(fateValue),
+        genericSoundRequested:!!meta.genericSoundRequested,
+        kvetkaGainAmount:Math.max(0, Number(meta.kvetkaGainAmount) || 0),
+        until:placementFateRevealUntil(card, 0),
+        timer:null
+      };
+      deferredPlacementFatePulseByIid.set(iid, record);
+    } else {
+      record.toValue = String(fateValue);
+      record.genericSoundRequested = record.genericSoundRequested || !!meta.genericSoundRequested;
+      record.kvetkaGainAmount = Math.max(record.kvetkaGainAmount || 0, Number(meta.kvetkaGainAmount) || 0);
+      record.until = placementFateRevealUntil(card, record.until);
+    }
+    schedulePlacementFateReveal(card, record);
+    return Date.now() < Number(record.until || 0);
+  }
+
   function observeCardForAnimations(card, visual, cardRect){
     const timeline = getTimeline();
     const iid = getCardIid(card);
     if(!timeline || !iid) return;
     const fateValue = getCardFateValue(card, visual);
     const prev = lastCardFateByIid.get(iid);
+    const coordinatorDelayUntil = Number(coordinatorAuraFateDelayUntilByIid.get(iid)) || 0;
+    if(deferPlacementFateReveal(card, fateValue)) {
+      lastCardFateByIid.set(iid, fateValue);
+      return;
+    }
+    if(prev == null && coordinatorDelayUntil > Date.now()){
+      const storedFate = Number(card && (card.currentFate ?? card.fate));
+      const displayedFate = Number(fateValue);
+      const coordinatorDelta = Number.isFinite(storedFate) && Number.isFinite(displayedFate) ? displayedFate - storedFate : 0;
+      if(coordinatorDelta !== 0) deferCoordinatorFatePulse(iid, storedFate, fateValue, coordinatorDelta, coordinatorDelayUntil);
+    }
     if(card && card._suppressNextFatePulse && prev != null && prev !== fateValue) {
       delete card._suppressNextFatePulse;
       if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
       else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'fate-pulse');
       lastCardFateByIid.set(iid, fateValue);
       return;
+    }
+    if(prev != null && prev !== fateValue && coordinatorDelayUntil > Date.now()){
+      const prevNum = Number(prev);
+      const nextNum = Number(fateValue);
+      const coordinatorDelta = Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0;
+      if(coordinatorDelta !== 0){
+        deferCoordinatorFatePulse(iid, prev, fateValue, coordinatorDelta, coordinatorDelayUntil);
+        lastCardFateByIid.set(iid, fateValue);
+        return;
+      }
     }
     if(animationsOff()){
       if(prev != null && prev !== fateValue){
@@ -1433,7 +1698,7 @@
       const blockZ = blockType === 'carolyn' ? z : Number(rawBlockZone);
       const owner = Number(G.currentPlayer) || 0;
       if(blockType === 'zoe'){
-        if(z !== blockZ || cellHasBlock(z, r, c, 'carolyn')) return false;
+        if(z !== blockZ || cellHasBlock(z, r, c)) return false;
         if(typeof isZoeBlockTargetAllowed === 'function') {
           try { if(!isZoeBlockTargetAllowed(blockZ, r, c, owner)) return false; } catch(e) {}
         }
@@ -2096,8 +2361,8 @@
   }
 
   function handEffectIconRect(cardRect) {
-    const size = Math.max(13, Math.min(18, cardRect.w * .17));
-    return {x:cardRect.x + cardRect.w - size - Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055) + 8, w:size, h:size};
+    const size = Math.max(17, Math.min(22, cardRect.w * .21));
+    return {x:cardRect.x + cardRect.w - size - Math.max(4, cardRect.w * .055), y:cardRect.y + Math.max(4, cardRect.w * .055) + 2, w:size, h:size};
   }
 
   function drawHandEffectIcon(ctx, card, cardRect) {
@@ -2183,15 +2448,17 @@
     if(typeof window !== 'undefined' && typeof window.getCardStatusVisualState === 'function') {
       try { return window.getCardStatusVisualState(entry && entry.card, statuses); } catch(e) {}
     }
-    const order = ['snowball','negated','suppressed','marked','blocked'];
+    if(statuses && statuses.effectFlash) return {primary:'effect_flash', immune:false, flashKind:statuses.effectFlash.kind || ''};
+    const order = ['snowball','negated','suppressed','blocked','marked','immune'];
     for(let i = 0; i < order.length; i++){
-      if(statuses && statuses[order[i]]) return {primary:order[i], immune:!!statuses.immune};
+      if(statuses && statuses[order[i]]) return {primary:order[i], immune:order[i] === 'immune'};
     }
-    return {primary:statuses && statuses.immune ? 'immune' : '', immune:!!(statuses && statuses.immune)};
+    return {primary:'', immune:false};
   }
 
   function drawCardVisual(ctx, entry, visual, r, onChange, options){
     const opts = options || {};
+    const showStatus = opts.showStatus !== false;
     const tilt = Number.isFinite(opts.tilt) ? opts.tilt : stableCardTilt(entry);
     const lift = Number(opts.lift) || 0;
     const cx = r.x + r.w / 2;
@@ -2203,19 +2470,21 @@
     ctx.scale(1 + lift * .012, 1 - Math.abs(tilt) * .22 + lift * .008);
     ctx.translate(-cx, -cy);
     const flags = entry && entry.card && entry.card.flags ? entry.card.flags : {};
-    const markedForDeath = !!(entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
-    const suppressed = !!(entry && entry.card && flags.suppressed);
-    const negated = !!(entry && entry.card && flags.negated);
-    const snowballHit = !!(entry && entry.card && flags.snowballHit);
-    const immune = !!(entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
-    const zoeBlocked = !!(entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
+    const markedForDeath = !!(showStatus && entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
+    const suppressed = !!(showStatus && entry && entry.card && flags.suppressed);
+    const negated = !!(showStatus && entry && entry.card && flags.negated);
+    const snowballHit = !!(showStatus && entry && entry.card && flags.snowballHit);
+    const effectFlashKind = showStatus && entry && entry.card && flags.effectFlashKind ? String(flags.effectFlashKind) : '';
+    const immune = !!(showStatus && entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
+    const zoeBlocked = !!(showStatus && entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
     const statusState = getCardVisualStatusState(entry, {
       negated,
       suppressed,
       snowball:snowballHit,
       marked:markedForDeath,
       blocked:zoeBlocked,
-      immune
+      immune,
+      effectFlash:effectFlashKind ? {kind:effectFlashKind, at:Number(flags.effectFlashAt) || 0} : null
     });
     const primaryStatus = statusState.primary || '';
     if(markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)';
@@ -2232,10 +2501,10 @@
     if(primaryStatus === 'negated') drawNegatedCardOverlay(ctx, r);
     else if(primaryStatus === 'suppressed') drawSuppressedCardOverlay(ctx, r);
     else if(primaryStatus === 'snowball') drawSnowballFightCardOverlay(ctx, r);
+    else if(primaryStatus === 'effect_flash') drawEffectFlashCardOverlay(ctx, r, statusState.flashKind || effectFlashKind);
     else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
     else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
     else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
-    if(statusState.immune && primaryStatus && primaryStatus !== 'immune') drawProtectionMiniStatus(ctx, r);
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     ctx.restore();
   }
@@ -2275,6 +2544,52 @@
     ctx.fillStyle = 'rgba(68,153,198,.15)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
     drawStatusBadge(ctx, r, 'snowball');
+    ctx.restore();
+  }
+
+  const CARD_EFFECT_FLASH_PALETTE = Object.freeze({
+    specter_ghost:{color:'rgba(224,239,255,.98)',glow:'rgba(140,184,255,.58)',tint:'rgba(104,126,174,.16)'},
+    kvetka_ballad:{color:'rgba(255,202,238,.98)',glow:'rgba(244,94,184,.60)',tint:'rgba(142,42,104,.16)'},
+    marie_deterrence:{color:'rgba(255,225,211,.98)',glow:'rgba(225,105,78,.52)',tint:'rgba(170,78,64,.14)'},
+    movement_boot:{color:'rgba(255,224,166,.98)',glow:'rgba(255,158,61,.60)',tint:'rgba(172,91,24,.15)'},
+    rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
+    british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
+    oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
+    isaac_beaker:{color:'rgba(220,252,255,.98)',glow:'rgba(106,222,244,.58)',tint:'rgba(34,128,148,.15)'},
+    coord_anne_trio:{color:'rgba(255,233,168,.98)',glow:'rgba(240,190,82,.58)',tint:'rgba(164,116,30,.15)'},
+    coord_kvetka_bloom:{color:'rgba(226,255,224,.98)',glow:'rgba(118,232,126,.56)',tint:'rgba(44,134,63,.15)'},
+    coord_cathy_cardigan:{color:'rgba(199,255,231,.98)',glow:'rgba(100,214,176,.58)',tint:'rgba(42,130,105,.15)'},
+    coord_felicyta_eagle:{color:'rgba(255,239,224,.98)',glow:'rgba(240,123,91,.56)',tint:'rgba(163,67,38,.15)'},
+    coord_zsofia_river:{color:'rgba(224,249,255,.98)',glow:'rgba(106,205,238,.56)',tint:'rgba(38,121,159,.15)'},
+    coord_jeremiah_snowseal:{color:'rgba(235,247,255,.98)',glow:'rgba(164,214,255,.56)',tint:'rgba(72,119,157,.14)'},
+    coord_heyward_compass:{color:'rgba(232,238,255,.98)',glow:'rgba(156,170,255,.56)',tint:'rgba(65,69,152,.16)'},
+    coord_postmodern_dylan:{color:'rgba(242,226,255,.98)',glow:'rgba(182,126,255,.56)',tint:'rgba(94,50,154,.16)'},
+    rivera_crest:{color:'rgba(204,255,216,.98)',glow:'rgba(99,219,132,.60)',tint:'rgba(40,126,65,.15)'},
+    phil_crown:{color:'rgba(255,224,138,.98)',glow:'rgba(255,199,79,.62)',tint:'rgba(154,105,18,.15)'},
+    wintertide:{color:'rgba(224,249,255,.98)',glow:'rgba(110,214,246,.58)',tint:'rgba(92,174,210,.14)'},
+    maria_target:{color:'rgba(255,226,220,.98)',glow:'rgba(235,92,72,.56)',tint:'rgba(164,48,48,.16)'}
+  });
+  const DEFAULT_EFFECT_FLASH_PALETTE = Object.freeze({
+    color:'rgba(255,246,210,.98)',
+    glow:'rgba(235,194,92,.52)',
+    tint:'rgba(210,174,82,.13)'
+  });
+
+  function getEffectFlashPalette(kind){
+    return CARD_EFFECT_FLASH_PALETTE[kind] || DEFAULT_EFFECT_FLASH_PALETTE;
+  }
+
+  function drawEffectFlashCardOverlay(ctx, r, kind){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    const palette = getEffectFlashPalette(kind);
+    ctx.save();
+    if(kind === 'kvetka_ballad') ctx.globalAlpha = .84 + Math.sin(Date.now() / 650 * Math.PI * 2) * .12;
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = palette.tint;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    drawEffectFlashIcon(ctx, r.x + r.w / 2, r.y + r.h / 2, Math.max(60, Math.min(104, r.w * .88)), kind);
     ctx.restore();
   }
 
@@ -2372,14 +2687,158 @@
     ctx.restore();
   }
 
-  function drawProtectionMiniStatus(ctx, r){
-    const size = Math.max(36, Math.min(60, r.w * .52));
-    const cx = r.x + r.w * .20;
-    const cy = r.y + r.h * .82;
+  function drawEffectFlashIcon(ctx, cx, cy, size, kind){
+    const s = size / 64;
+    const palette = getEffectFlashPalette(kind);
     ctx.save();
-    ctx.shadowColor = 'rgba(108,208,226,.34)';
-    ctx.shadowBlur = Math.max(5, size * .22);
-    drawImmuneShieldIcon(ctx, cx, cy, size);
+    ctx.translate(cx, cy);
+    ctx.scale(s, s);
+    ctx.translate(-32, -32);
+    ctx.strokeStyle = palette.color;
+    ctx.fillStyle = palette.color;
+    ctx.lineWidth = 4.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = palette.glow;
+    ctx.shadowBlur = 9;
+    const line = function(points, close){
+      if(!points || !points.length) return;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+      if(close) ctx.closePath();
+      ctx.stroke();
+    };
+    const circle = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); };
+    const dot = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); };
+
+    if(kind === 'specter_ghost') {
+      ctx.beginPath();
+      ctx.moveTo(17,49); ctx.lineTo(17,29); ctx.bezierCurveTo(17,15,25,9,32,9); ctx.bezierCurveTo(41,9,48,17,48,29);
+      ctx.lineTo(48,50); ctx.lineTo(41,44); ctx.lineTo(35,51); ctx.lineTo(29,44); ctx.lineTo(23,51); ctx.closePath(); ctx.stroke();
+      circle(27,28,2); circle(38,28,2); line([[26,37],[32,34],[39,37]],false);
+    } else if(kind === 'kvetka_ballad') {
+      line([[38,11],[38,43]],false); line([[38,12],[52,16],[52,27],[38,23]],true);
+      ctx.beginPath(); ctx.ellipse(25,46,11,7,-.15,0,Math.PI*2); ctx.stroke();
+    } else if(kind === 'marie_deterrence') {
+      line([[14,15],[50,15],[50,30],[47,40],[40,49],[32,55],[24,49],[17,40],[14,30]],true);
+      line([[21,34],[43,34]],false); line([[25,26],[39,26]],false); line([[32,18],[32,47]],false);
+    } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
+      ctx.lineWidth = 4.2;
+      ctx.beginPath();
+      ctx.moveTo(25,15); ctx.lineTo(43,15); ctx.bezierCurveTo(40,25,40,33,43,41);
+      ctx.lineTo(57,45); ctx.bezierCurveTo(61,46,63,49,63,53); ctx.lineTo(63,58); ctx.lineTo(12,58);
+      ctx.lineTo(12,50); ctx.lineTo(24,50); ctx.lineTo(24,38); ctx.bezierCurveTo(24,31,24,24,25,15);
+      ctx.stroke();
+      line([[28,25],[39,25]],false); line([[14,58],[62,58]],false);
+      ctx.lineWidth = 2.75;
+      line([[17,50],[26,50],[26,58]],false); line([[8,24],[1,24]],false); line([[11,32],[1,32]],false); line([[13,40],[4,40]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'british_union_jack') {
+      ctx.lineWidth = 3.2;
+      circle(32,32,28);
+      line([[19,52],[19,12]],false);
+      ctx.beginPath();
+      ctx.moveTo(19,16);
+      ctx.bezierCurveTo(28,11,38,20,50,14);
+      ctx.lineTo(50,35);
+      ctx.bezierCurveTo(40,41,30,29,19,38);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(22,18); ctx.bezierCurveTo(29,22,39,30,47,33); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(47,17); ctx.bezierCurveTo(39,20,29,29,22,35); ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(21,26); ctx.bezierCurveTo(29,23,39,29,48,24); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(35,16); ctx.bezierCurveTo(34,22,34,29,34,36); ctx.stroke();
+      ctx.lineWidth = 3.2;
+      line([[19,10],[15,14],[19,18],[23,14],[19,10]],false);
+    } else if(kind === 'oathbound_crescent') {
+      ctx.lineWidth = 4.2;
+      ctx.beginPath(); ctx.moveTo(32,0); ctx.lineTo(39,10); ctx.lineTo(36,41); ctx.lineTo(28,41); ctx.lineTo(25,10); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(17,47); ctx.bezierCurveTo(25,55,39,55,47,47); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(17,47); ctx.bezierCurveTo(22,40,42,40,47,47); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(27,52); ctx.lineTo(37,52); ctx.lineTo(37,67); ctx.lineTo(27,67); ctx.closePath(); ctx.stroke();
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'isaac_beaker') {
+      ctx.lineWidth = 4.2;
+      line([[24,9],[40,9]],false);
+      ctx.beginPath(); ctx.moveTo(27,9); ctx.lineTo(27,26); ctx.lineTo(15,49); ctx.bezierCurveTo(13,53,16,56,21,56);
+      ctx.lineTo(43,56); ctx.bezierCurveTo(48,56,51,53,49,49); ctx.lineTo(37,26); ctx.lineTo(37,9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(19,43); ctx.bezierCurveTo(27,40,36,46,45,43); ctx.stroke();
+      dot(28,47,2); dot(39,38,2);
+    } else if(kind === 'coord_anne_trio') {
+      ctx.lineWidth = 4.2;
+      circle(32,13,6); circle(13,47,6); circle(51,47,6);
+      line([[29,19],[16,41]],false); line([[35,19],[48,41]],false); line([[19,47],[45,47]],false);
+    } else if(kind === 'coord_kvetka_bloom') {
+      ctx.lineWidth = 4.2;
+      circle(32,32,6);
+      ctx.beginPath(); ctx.moveTo(32,26); ctx.bezierCurveTo(27,16,30,9,32,7); ctx.bezierCurveTo(37,12,39,19,32,26); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(38,32); ctx.bezierCurveTo(48,27,55,30,57,32); ctx.bezierCurveTo(52,37,45,39,38,32); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(32,38); ctx.bezierCurveTo(37,48,34,55,32,57); ctx.bezierCurveTo(27,52,25,45,32,38); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(26,32); ctx.bezierCurveTo(16,37,9,34,7,32); ctx.bezierCurveTo(12,27,19,25,26,32); ctx.stroke();
+    } else if(kind === 'coord_cathy_cardigan') {
+      ctx.lineWidth = 4.2;
+      line([[23,10],[32,18],[41,10],[53,18],[47,30],[47,56],[17,56],[17,30],[11,18],[23,10],[21,24],[32,18],[43,24],[41,10]],false);
+      line([[32,18],[32,56]],false); dot(36,31,1.8); dot(36,40,1.8); dot(36,49,1.8);
+    } else if(kind === 'coord_felicyta_eagle') {
+      ctx.lineWidth = 4.2;
+      ctx.beginPath(); ctx.moveTo(10,29); ctx.bezierCurveTo(20,28,26,32,32,41); ctx.bezierCurveTo(38,32,44,28,54,29);
+      ctx.bezierCurveTo(50,39,43,46,32,52); ctx.bezierCurveTo(21,46,14,39,10,29); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(18,25); ctx.bezierCurveTo(23,18,28,15,32,11); ctx.bezierCurveTo(36,15,41,18,46,25); ctx.stroke();
+      line([[18,25],[18,29]],false); line([[46,25],[46,29]],false); line([[29,28],[32,25],[35,28]],false);
+    } else if(kind === 'coord_zsofia_river') {
+      ctx.lineWidth = 4.2;
+      circle(32,32,24);
+      [[20],[32],[44]].forEach(function(yArr){
+        const y = yArr[0];
+        ctx.beginPath(); ctx.moveTo(11,y); ctx.bezierCurveTo(18,y-6,25,y+6,32,y); ctx.bezierCurveTo(39,y-6,46,y+6,53,y); ctx.stroke();
+      });
+    } else if(kind === 'coord_jeremiah_snowseal') {
+      ctx.lineWidth = 4.2;
+      circle(32,32,24);
+      line([[13,47],[32,13],[51,47]],false);
+      ctx.beginPath(); ctx.moveTo(17.5,39); ctx.bezierCurveTo(21,35,24,44,28,39); ctx.bezierCurveTo(31,34,34,45,38,39); ctx.bezierCurveTo(41,35,44,42,46.5,39); ctx.stroke();
+    } else if(kind === 'coord_heyward_compass') {
+      ctx.lineWidth = 4.2;
+      circle(32,32,23);
+      line([[32,15],[38,26],[49,32],[38,38],[32,49],[26,38],[15,32],[26,26],[32,15]],true);
+      circle(32,32,5);
+    } else if(kind === 'coord_postmodern_dylan') {
+      ctx.lineWidth = 4.2;
+      line([[32,9],[54,32],[32,55],[10,32],[32,9]],true);
+      line([[32,19],[44,32],[32,45],[20,32],[32,19]],true);
+      line([[10,32],[20,32]],false); line([[44,32],[54,32]],false);
+    } else if(kind === 'phil_crown') {
+      line([[12,21],[22,40],[32,18],[42,40],[52,21],[48,49],[16,49]],true);
+      line([[17,43],[47,43]],false); circle(12,19,2); circle(32,16,2); circle(52,19,2);
+    } else if(kind === 'wintertide') {
+      ctx.lineWidth = 3.4;
+      for(let arm=0;arm<6;arm++){
+        ctx.save();
+        ctx.translate(32,32);
+        ctx.rotate(arm*Math.PI/3);
+        line([[0,0],[0,-27]],false);
+        line([[0,-21],[-4,-16]],false);
+        line([[0,-21],[4,-16]],false);
+        line([[0,-12],[-3.5,-8]],false);
+        line([[0,-12],[3.5,-8]],false);
+        ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(32,32,3.2,0,Math.PI*2); ctx.fill();
+    } else if(kind === 'maria_target') {
+      circle(32,32,16); circle(32,32,6);
+      line([[32,8],[32,19]],false); line([[32,45],[32,56]],false); line([[8,32],[19,32]],false); line([[45,32],[56,32]],false);
+    } else if(kind === 'rivera_crest') {
+      circle(32,32,20); line([[32,14],[32,50]],false); line([[14,32],[50,32]],false);
+      line([[21,21],[43,43]],false); line([[43,21],[21,43]],false);
+    } else {
+      // Fallback effect crest.
+      line([[32,10],[48,17],[46,38],[32,54],[18,38],[16,17]],true);
+      line([[19,24],[28,20],[32,28],[36,20],[45,24]],false); line([[32,28],[32,43]],false);
+      line([[24,37],[32,43],[40,37]],false);
+    }
     ctx.restore();
   }
 
@@ -2507,25 +2966,16 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(238,222,255,.96)';
-    ctx.lineWidth = Math.max(2.5, size * .082);
+    ctx.lineWidth = Math.max(2.4, size * .06);
     ctx.beginPath();
-    ctx.moveTo(px(17), py(24));
-    ctx.lineTo(px(17), py(17));
-    ctx.lineTo(px(25), py(17));
-    ctx.moveTo(px(39), py(17));
-    ctx.lineTo(px(47), py(17));
-    ctx.lineTo(px(47), py(25));
-    ctx.moveTo(px(47), py(39));
-    ctx.lineTo(px(47), py(47));
-    ctx.lineTo(px(39), py(47));
-    ctx.moveTo(px(25), py(47));
-    ctx.lineTo(px(17), py(47));
-    ctx.lineTo(px(17), py(39));
+    ctx.arc(cx, cy, size * .33, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.lineWidth = Math.max(2.8, size * .09);
+    ctx.lineWidth = Math.max(3.2, size * .105);
     ctx.beginPath();
-    ctx.moveTo(px(18), py(48));
-    ctx.lineTo(px(48), py(18));
+    ctx.moveTo(px(24), py(24));
+    ctx.lineTo(px(40), py(40));
+    ctx.moveTo(px(40), py(24));
+    ctx.lineTo(px(24), py(40));
     ctx.stroke();
     ctx.restore();
   }
@@ -3001,7 +3451,7 @@
     const r = hovered ? (hoverHandRect(item) || baseRect) : baseRect;
     const angle = hovered ? (Number(item.angle) || 0) * .62 : Number(item.angle) || 0;
     const entry = {card:item.card, c:item.index, r:0, z:0};
-    const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true};
+    const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true, showStatus:false};
     if(!angle) {
       drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
       const plainIconRect = drawHandEffectIcon(ctx, item.card, r);
@@ -3609,6 +4059,7 @@
       br.y -= getZoneScroll(bz);
       return (ar.y + ar.h) - (br.y + br.h);
     });
+    prepareCoordinatorAuraFateDelays(depthSortedCards);
     const boardIidCountsForMotion = boardCardIidCounts(layout.cardRects || []);
     refreshBoardMotionIdentityQuarantine(boardIidCountsForMotion);
     depthSortedCards.forEach(function(entry){
@@ -4140,7 +4591,7 @@
         piles:lastHitMap.piles || [],
         uiCommands:lastHitMap.uiCommands || []
       };
-      drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
+      drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:false});
       refreshHoverHitFromHitMap(draw.hitMap);
       drawHoverOverlay({dirty:false});
       drawCount++;
@@ -4346,7 +4797,7 @@
       if(dirtyMask & (DIRTY_EFFECTS | DIRTY_PARTICLES)) {
         drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:true});
       } else {
-        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
+        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:false});
       }
       refreshHoverHitFromHitMap(draw.hitMap);
       drawHoverOverlay({dirty:false});
@@ -4438,7 +4889,7 @@
       piles:uiHitMap.piles || [],
       uiCommands:uiHitMap.uiCommands || []
     };
-    drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:false, clearParticles:false});
+    drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:false});
     refreshHoverHitFromHitMap(draw.hitMap);
     drawHoverOverlay({dirty:false});
     drawCount++;

@@ -860,6 +860,8 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
 
 .fate-hand-organizer-close,
 .fate-hand-organizer-actions button {
+  display: grid;
+  place-items: center;
   border: 1px solid rgba(235, 197, 75, .42);
   border-radius: 6px;
   background: linear-gradient(180deg, rgba(20, 25, 36, .98), rgba(8, 11, 18, .98));
@@ -867,7 +869,7 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
   font: 900 13px/1 system-ui, sans-serif;
   min-width: 34px;
   height: 30px;
-  padding: 0 8px;
+  padding: 0;
   cursor: pointer;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
 }
@@ -875,6 +877,24 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .actbar {
 .fate-hand-organizer-close {
   width: 34px;
   font-size: 15px;
+}
+
+.fate-hand-organizer-control-icon {
+  display: block;
+  width: 17px;
+  height: 17px;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fate-hand-organizer-close .fate-hand-organizer-control-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .fate-hand-organizer-actions button:hover,

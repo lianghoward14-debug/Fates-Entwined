@@ -103,7 +103,10 @@ const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="d
 // Pack uses card IDs 1-80. Not all IDs exist in the CARDS array (some are reserved for expansion).
 // We filter to existing cards only.
 function getPackCardPool() {
-  return getChallengerCardPool();
+  return getChallengerCardPool().filter(card=>{
+    const numericId = Number(card && card.id);
+    return !Number.isInteger(numericId) || numericId < 80 || numericId > 100;
+  });
 }
 
 // Generate a booster pack. Returns array of card IDs (length = 8).
@@ -791,8 +794,8 @@ function preloadChallengerAssets() {
     'optimized/backgrounds/titlscreenbackgrounds_bg3.jpg',
     'play1.png',
     'play2.png',
-    'Illustration3.png',
-    'pfpbooster.png',
+    'illustration3.png',
+    'icon.png',
     'booster1.png',
     'booster2.png',
     'blank.png',
@@ -1322,6 +1325,7 @@ function switchChTab(tab, opts) {
   const content = document.getElementById('ch-content');
   if(!content) return;
   content.classList.toggle('ch-cdb-content', tab === 'deckbuilder');
+  content.classList.toggle('ch-store-content', tab === 'store');
   const pane = getChTabPane(tab);
   if(!pane) return;
   ensureChTabMenuView(tab);
@@ -1873,12 +1877,11 @@ function renderChStoreTab(content) {
         <div class="store-grid" style="display:flex;gap:1.2rem;flex-wrap:wrap;justify-content:center;">
       <div class="booster-tile standard-booster" style="border-color:rgba(155,89,182,.5);">
         <div class="booster-art standard-booster-art" style="background:linear-gradient(135deg,rgba(155,89,182,.2),rgba(142,68,173,.1));">
-          <img src="Illustration3.png" alt="Standard Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:5rem;opacity:.3;color:#b388ff;\\'>PACK</div>'">
+          <img src="illustration3.png" alt="Fates Entwined Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\\'font-size:5rem;opacity:.3;color:#b388ff;\\'>PACK</div>'">
         </div>
         <div class="booster-info">
           <div class="booster-name" style="color:#b388ff;">Fates Entwined Booster</div>
-          <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world.</div>
-          <div class="booster-contents">8 cards from the Fates Entwined base set.</div>
+          <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world. From the calm seas of Pacifica, the battlefields of Europe in the Third Great war, and the bustling streets of Telegraph, The Base Set is a culmination of a decade of stories and art.</div>
           <div class="booster-price-row">
             <div class="booster-price" style="color:#b388ff;">${STARLIGHT_ICON} ${PACK_COST_STARLIGHT}</div>
             <button class="btn-buy" style="border-color:#b388ff;color:#b388ff;background:linear-gradient(135deg,rgba(155,89,182,.2),rgba(142,68,173,.12));" onclick="buyPack()" ${canBuy?'':'disabled'}>${canBuy?'Buy':'Need '+PACK_COST_STARLIGHT}</button>
@@ -1891,8 +1894,7 @@ function renderChStoreTab(content) {
         </div>
         <div class="booster-info">
           <div class="booster-name" style="color:#9bdcff;">Snow on the Carpathians Booster</div>
-          <div class="booster-desc">The second expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
-          <div class="booster-contents">3 cards from the Snow on the Carpathians set.</div>
+          <div class="booster-desc">The first expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
           <div class="booster-price-row">
             <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER2_COST_STARLIGHT}</div>
             <button class="btn-buy" onclick="buyBooster2Pack()" ${canBuyBooster2?'':'disabled'}>${canBuyBooster2?'Buy':'Need '+BOOSTER2_COST_STARLIGHT}</button>
@@ -2143,8 +2145,8 @@ function showProfilePackOpening(pfpIds) {
   stage.innerHTML = `
     <div class="pack-stage">
       <div class="pack-art-container">
-        <div class="pack-art" id="profile-pack-art-el" style="border-color:rgba(127,182,255,.75);box-shadow:0 16px 34px rgba(0,0,0,.58);">
-          <img src="pfpbooster.png" alt="Profile Picture Booster" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
+        <div class="pack-art profile-pack-art" id="profile-pack-art-el" style="border-color:rgba(127,182,255,.75);box-shadow:0 16px 34px rgba(0,0,0,.58);">
+          <img src="booster1.png" alt="Profile Picture Booster" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
         </div>
       </div>
       <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">Rewards opened!</div>
@@ -2413,13 +2415,12 @@ function renderChStoreTab(content) {
           <div class="store-grid">
             <div class="booster-tile standard-booster ch-store-product ch-store-product-standard">
               <div class="booster-art standard-booster-art ch-store-product-art">
-                <img src="Illustration3.png" alt="Standard Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
+                <img src="illustration3.png" alt="Fates Entwined Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Base Set</div>
                 <div class="booster-name">Fates Entwined Booster</div>
-                <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world.</div>
-                <div class="booster-contents">8 cards from the Fates Entwined base set.</div>
+                <div class="booster-desc">The base set of the game, consisting of 80 cards from all corners of Howard's creative world. From the calm seas of Pacifica, the battlefields of Europe in the Third Great war, and the bustling streets of Telegraph, The Base Set is a culmination of a decade of stories and art.</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} ${PACK_COST_STARLIGHT}</div>
                   <button class="btn-buy" onclick="buyPack()" ${canBuy?'':'disabled'}>${canBuy?'Buy Pack':'Need '+PACK_COST_STARLIGHT}</button>
@@ -2431,10 +2432,9 @@ function renderChStoreTab(content) {
                 <img src="booster2.png" alt="Snow on the Carpathians Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>SNOW BOOSTER</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
-                <div class="ch-store-product-kicker">Second Expansion</div>
+                <div class="ch-store-product-kicker">First Expansion</div>
                 <div class="booster-name">Snow on the Carpathians Booster</div>
-                <div class="booster-desc">The second expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
-                <div class="booster-contents">3 cards from the Snow on the Carpathians set.</div>
+                <div class="booster-desc">The first expansion of Fates Entwined - Winter mornings, icy rivers, snowy forests - Felicyta's youth in Wodny Potok was filled with memories of not only her childhood, but an ancient sadness.</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER2_COST_STARLIGHT}</div>
                   <button class="btn-buy" onclick="buyBooster2Pack()" ${canBuyBooster2?'':'disabled'}>${canBuyBooster2?'Buy Pack':'Need '+BOOSTER2_COST_STARLIGHT}</button>
@@ -2443,12 +2443,12 @@ function renderChStoreTab(content) {
             </div>
             <div class="booster-tile ch-store-product ch-store-product-profile">
               <div class="booster-art ch-store-product-art">
-                <img src="pfpbooster.png" alt="Profile Picture Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PROFILE</div>'">
+                <img src="booster1.png" alt="Profile Picture Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PROFILE</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
                 <div class="ch-store-product-kicker">Profile</div>
                 <div class="booster-name">Profile Picture Booster</div>
-                <div class="booster-desc">Unlock two profile pictures for your account.</div>
+                <div class="booster-desc"><em>Unlock two profile pictures for your account, sourced from every card art in the game</em></div>
                 <div class="booster-contents">2 profile pictures - guaranteed no duplicates - selling removes them from your collection</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} 50</div>
@@ -2509,8 +2509,8 @@ function showPackOpening(results, packType) {
   const packBorder = isFavored
     ? 'border-color:rgba(255,215,0,.8);box-shadow:0 16px 34px rgba(0,0,0,.58);'
     : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : '');
-  const packArtSrc = isBooster2 ? 'booster2.png' : 'Illustration3.png';
-  const packAlt = isBooster2 ? 'Snow on the Carpathians Booster' : 'Booster Pack';
+  const packArtSrc = isBooster2 ? 'booster2.png' : 'illustration3.png';
+  const packAlt = isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster';
   stage.innerHTML = `
     <div class="pack-stage">
       <div class="pack-art-container">

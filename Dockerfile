@@ -23,7 +23,6 @@ COPY rankicons ./rankicons
 COPY pfp ./pfp
 COPY UIpictures ./UIpictures
 COPY fates-entwined-website ./fates-entwined-website
-COPY fates-entwined-website/installer ./installer
 
 EXPOSE 8787
 

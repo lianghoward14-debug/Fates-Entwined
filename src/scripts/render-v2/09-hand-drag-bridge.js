@@ -210,14 +210,19 @@
     if(!card || card.type === 'Supporter' || typeof G === 'undefined' || !G || !G.board) return Infinity;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return Infinity;
     const cp = G.currentPlayer;
+    const usesCharacterTributes = typeof cardUsesCharacterConsolidationTributes === 'function'
+      && cardUsesCharacterConsolidationTributes(card);
     let total = 0;
     try {
       G.board.forEach(function(zone, z){
         (zone || []).forEach(function(row, r){
           (row || []).forEach(function(cell, c){
             if(!cell || cell.owner !== cp || cell.noConsolidate) return;
-            if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(cell, cp)) return;
-            if(cell.type === 'Supporter'){
+            if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(cell, cp, z, r, c)) return;
+            const eligibleTribute = usesCharacterTributes
+              ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')
+              : (cell.type === 'Supporter' || cell.id === '86');
+            if(eligibleTribute){
               let value = 1;
               try {
                 value = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(cell) : (Number(cell.reinforcement) || 1);
@@ -332,6 +337,18 @@
     return src || '';
   }
 
+  function handOrganizerControlIcon(kind){
+    const paths = {
+      close:'<path d="M7 7l10 10M17 7L7 17"/>',
+      first:'<path d="M6 5v14M17 7l-5 5 5 5"/>',
+      left:'<path d="M15 7l-5 5 5 5"/>',
+      right:'<path d="M9 7l5 5-5 5"/>',
+      last:'<path d="M18 5v14M7 7l5 5-5 5"/>'
+    };
+    return '<svg class="fate-hand-organizer-control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+      (paths[kind] || paths.close) + '</svg>';
+  }
+
   function canOpenHandOrganizer(){
     if(!ownsBoard() || !activeGame()) return false;
     if(typeof G === 'undefined' || !G || !G.players || G._isSpectator) return false;
@@ -420,10 +437,10 @@
           '<em>' + escapeText(type) + '</em>' +
         '</div>' +
         '<div class="fate-hand-organizer-actions">' +
-          '<button type="button" class="fate-hand-organizer-edge" title="Move to front" data-move="first" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>|&lt;</button>' +
-          '<button type="button" title="Move left" data-move="left" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>&lt;</button>' +
-          '<button type="button" title="Move right" data-move="right" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>&gt;</button>' +
-          '<button type="button" class="fate-hand-organizer-edge" title="Move to end" data-move="last" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>&gt;|</button>' +
+          '<button type="button" class="fate-hand-organizer-edge" title="Move to front" aria-label="Move to front" data-move="first" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>' + handOrganizerControlIcon('first') + '</button>' +
+          '<button type="button" title="Move left" aria-label="Move left" data-move="left" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>' + handOrganizerControlIcon('left') + '</button>' +
+          '<button type="button" title="Move right" aria-label="Move right" data-move="right" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>' + handOrganizerControlIcon('right') + '</button>' +
+          '<button type="button" class="fate-hand-organizer-edge" title="Move to end" aria-label="Move to end" data-move="last" data-index="' + index + '"' + (index >= hand.length - 1 ? ' disabled' : '') + '>' + handOrganizerControlIcon('last') + '</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -431,7 +448,7 @@
       '<section class="fate-hand-organizer-panel" role="dialog" aria-modal="false" aria-label="Arrange hand">' +
         '<header class="fate-hand-organizer-head">' +
           '<div><span>Hand Order</span><strong>Arrange Cards</strong></div>' +
-          '<button type="button" class="fate-hand-organizer-close" data-close="1" title="Close">x</button>' +
+          '<button type="button" class="fate-hand-organizer-close" data-close="1" title="Close" aria-label="Close">' + handOrganizerControlIcon('close') + '</button>' +
         '</header>' +
         '<div class="fate-hand-organizer-list">' + rows + '</div>' +
       '</section>';
@@ -574,7 +591,14 @@
     if(card.type === 'Supporter') return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
-    return boardCard && boardCard.owner === G.currentPlayer && boardCard.type === 'Supporter' && !boardCard.noConsolidate ? 'valid' : 'invalid';
+    if(!boardCard || boardCard.owner !== G.currentPlayer || boardCard.noConsolidate) return 'invalid';
+    if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(boardCard, G.currentPlayer, Number(hit.z), Number(hit.r), Number(hit.c))) return 'invalid';
+    const usesCharacterTributes = typeof cardUsesCharacterConsolidationTributes === 'function'
+      && cardUsesCharacterConsolidationTributes(card);
+    const eligibleTribute = usesCharacterTributes
+      ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(boardCard, G.currentPlayer) : boardCard.type !== 'Supporter')
+      : (boardCard.type === 'Supporter' || boardCard.id === '86');
+    return eligibleTribute ? 'valid' : 'invalid';
   }
 
   function supporterDropBlockReason(card, hit){
@@ -1013,7 +1037,11 @@
         if(state.card && state.card.type !== 'Supporter' && !hasEnoughReinforcement(state.card)){
           toast('Not enough reinforcement to consolidate ' + (state.card.name || 'that card') + '.');
         } else {
-          toast(state.card && state.card.type === 'Supporter' ? (supporterDropBlockReason(state.card, hit) || 'Drop on an empty cell.') : 'Drop on one of your Supporters to consolidate.');
+          const usesCharacterTributes = state.card && typeof cardUsesCharacterConsolidationTributes === 'function'
+            && cardUsesCharacterConsolidationTributes(state.card);
+          toast(state.card && state.card.type === 'Supporter'
+            ? (supporterDropBlockReason(state.card, hit) || 'Drop on an empty cell.')
+            : ('Drop on one of your ' + (usesCharacterTributes ? 'Characters' : 'Supporters') + ' to consolidate.'));
         }
       }
       cleanup({clearPlacement:true});

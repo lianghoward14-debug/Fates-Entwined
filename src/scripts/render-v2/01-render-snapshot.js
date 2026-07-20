@@ -143,6 +143,7 @@
     if(!card) return null;
     const opts = options || {};
     const boardPos = opts.boardPos || null;
+    const onBoard = !!boardPos;
     const blockedCell = opts.blocked || null;
     const hidden = !!opts.forceHidden || (boardPos && isCardFaceDown(card) && card.owner !== viewer);
     const visual = visualForCard(card, viewer, boardPos, hidden);
@@ -162,29 +163,43 @@
     base.runtimeImg = runtimeCardImageSrc((visual && (visual.runtimeImg || visual.img)) || card.runtimeImg || base.img, 'board');
     base.fate = card.fate;
     base.currentFate = card.currentFate;
+    if(card._placementFateReveal) {
+      base._placementFateReveal = {
+        fromValue:card._placementFateReveal.fromValue,
+        mode:String(card._placementFateReveal.mode || 'set'),
+        createdAt:Number(card._placementFateReveal.createdAt) || Date.now(),
+        genericSoundRequested:!!card._placementFateReveal.genericSoundRequested,
+        kvetkaGainAmount:Math.max(0, Number(card._placementFateReveal.kvetkaGainAmount) || 0)
+      };
+    }
     base.cost = card.cost;
     base.handEffectModifiers = typeof window.getHandCardEffectModifiers === 'function'
       ? window.getHandCardEffectModifiers(card)
       : [];
-    const suppressed = !!(boardPos && typeof window.isCardVisuallySuppressed === 'function'
+    const suppressed = !!(onBoard && typeof window.isCardVisuallySuppressed === 'function'
       && window.isCardVisuallySuppressed(card, boardPos.z, boardPos.r, boardPos.c));
-    const negated = !!(typeof window.isCardVisuallyNegated === 'function'
+    const negated = !!(onBoard && typeof window.isCardVisuallyNegated === 'function'
       && window.isCardVisuallyNegated(card));
-    const snowballHit = !!(typeof window.isSnowballFightHitActive === 'function'
+    const snowballHit = !!(onBoard && typeof window.isSnowballFightHitActive === 'function'
       && window.isSnowballFightHitActive(card));
-    const showProtectionIcon = typeof window.shouldShowProtectionStatusIcon === 'function'
+    const effectFlash = onBoard && typeof window.getActiveCardEffectFlash === 'function'
+      ? window.getActiveCardEffectFlash(card)
+      : null;
+    const showProtectionIcon = onBoard && typeof window.shouldShowProtectionStatusIcon === 'function'
       ? window.shouldShowProtectionStatusIcon(card)
-      : !!(card.immuneFlag || card.opponentEffectImmune);
+      : !!(onBoard && (card.immuneFlag || card.opponentEffectImmune));
     const activationReady = !!(boardPos
       && typeof window.canShowBoardActivateEffect === 'function'
       && window.canShowBoardActivateEffect(card, boardPos.z, boardPos.r, boardPos.c, viewer));
     base.flags = {
       faceDown:!!card.faceDown,
       immune:!!showProtectionIcon,
-      markedForDeath:!!card._markedForDeath,
+      markedForDeath:!!(onBoard && card._markedForDeath),
       suppressed,
       negated,
       snowballHit,
+      effectFlashKind:effectFlash && effectFlash.kind ? String(effectFlash.kind) : '',
+      effectFlashAt:effectFlash && effectFlash.at ? Number(effectFlash.at) : 0,
       zoeBlocked:!!(blockedCell && blockedCell.type === 'zoe'),
       noConsolidate:!!card.noConsolidate,
       xFate:!!card.xFate,

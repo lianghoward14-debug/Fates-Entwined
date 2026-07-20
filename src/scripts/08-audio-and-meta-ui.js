@@ -249,6 +249,30 @@ function playEndTurnSfxOnce(key) {
 }
 window.playEndTurnSfxOnce = playEndTurnSfxOnce;
 
+const _cardEffectFlashSfxKeys = new Map();
+function playCardEffectFlashSfx(kind, options) {
+  const opts = options || {};
+  const cleanKind = String(kind || '').toLowerCase();
+  const typeByKind = {
+    kvetka_ballad:'cardFlashKvetka',
+    coord_kvetka_bloom:'cardFlashCoordinator',
+  };
+  const type = typeByKind[cleanKind];
+  if(!type) return false;
+  const nowMs = Date.now();
+  const key = String(opts.key || (cleanKind + ':' + nowMs));
+  const previous = Number(_cardEffectFlashSfxKeys.get(key)) || 0;
+  if(nowMs - previous < 900) return false;
+  _cardEffectFlashSfxKeys.set(key, nowMs);
+  if(_cardEffectFlashSfxKeys.size > 180) {
+    _cardEffectFlashSfxKeys.forEach(function(stamp, storedKey){ if(nowMs - stamp > 15000) _cardEffectFlashSfxKeys.delete(storedKey); });
+  }
+  window._fateCardFlashPitchStep = Math.max(0, Number(opts.pitchStep) || 0);
+  playSfx(type);
+  return true;
+}
+window.playCardEffectFlashSfx = playCardEffectFlashSfx;
+
 function playSfx(type) {
   if(_masterVol<=0) return;
   if(type === 'effectNegated'){
@@ -1315,6 +1339,24 @@ function playSfx(type) {
       });
     }
 
+    else if(type.indexOf('cardFlash') === 0){
+      const tone = function(freq, delay, duration, gain, wave){
+        const o=ctx.createOscillator();o.type=wave||'sine';o.frequency.value=freq;
+        const g=ctx.createGain();g.gain.setValueAtTime(Math.max(.001,gain||.06),now+(delay||0));
+        g.gain.exponentialRampToValueAtTime(.001,now+(delay||0)+(duration||.24));
+        o.connect(g);g.connect(vol);o.start(now+(delay||0));o.stop(now+(delay||0)+(duration||.24)+.03);
+      };
+      if(type==='cardFlashKvetka'){
+        const step=Math.min(18,Math.max(0,Number(window._fateCardFlashPitchStep)||0));
+        const base=523.25*Math.pow(2,step/12);
+        tone(base,0,.52,.11,'sine');tone(base*2,.025,.34,.045,'triangle');
+        tone(base*1.5,.11,.36,.055,'sine');
+      } else if(type==='cardFlashCoordinator'){
+        [329.63,493.88,659.25].forEach((f,i)=>tone(f,i*.045,.28,.055,'triangle'));
+        noiseBurst(.025,2.4,.12,'bandpass',1250,1.2).start(now+.015);
+      }
+    }
+
     else if(type==='statusMarked'){
       // Muted target lock: soft wooden tick with a short gray shimmer.
       const tick=ctx.createOscillator();tick.type='triangle';
@@ -1764,7 +1806,7 @@ const CARD_SOUNDS = {
   '81': '../new voices/81set', '82': '../new voices/82set', '83': '../new voices/83set',
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
-  '90': '../new voices/90set',
+  '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
   'bh01': 'horizons1set', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:16}, (_,i)=>'board'+(i+1));
@@ -1775,7 +1817,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
   '66set','67set','77set','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
-  '../new voices/89set','../new voices/90set'
+  '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);
 const DEFAULT_AUDIO_SETTINGS = {
   music: 0.20,

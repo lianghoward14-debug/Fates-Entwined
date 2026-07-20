@@ -64,12 +64,9 @@ function getBoardRowOwner(z, r) {
 }
 
 function isZoeBlockTargetAllowed(z, r, c, owner) {
-  const opponent = owner === 0 ? 1 : 0;
-  if (r === 1) return true;
-  if (r >= 3 && !isFullExtraSafeRow(z, r)) {
-    return isMarkSafeSquare(z, r, c, opponent);
-  }
-  return getBoardRowOwner(z, r) === opponent;
+  if (!Number.isInteger(Number(z)) || !Number.isInteger(Number(r)) || !Number.isInteger(Number(c))) return false;
+  if (typeof G === 'undefined' || !G || !Array.isArray(G.board) || !Array.isArray(G.board[z]) || !Array.isArray(G.board[z][r])) return false;
+  return c >= 0 && c < getBoardRowCapacity(z, r);
 }
 
 function ensureMarkSafeSquareState() {

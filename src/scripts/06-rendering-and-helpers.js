@@ -793,10 +793,151 @@ function shouldShowProtectionStatusIcon(card) {
 }
 if(typeof window !== 'undefined') window.shouldShowProtectionStatusIcon = shouldShowProtectionStatusIcon;
 
-let cardStatusVisualTick = 0;
-const cardStatusVisualOrders = new Map();
+const CARD_STATUS_VISUAL_PRIORITY = Object.freeze([
+  'effect_flash',
+  'snowball',
+  'negated',
+  'suppressed',
+  'blocked',
+  'marked',
+  'immune'
+]);
+const cardStatusVisualPrimarySeen = new Map();
 const snowballFightStatusTimers = new Map();
-const SNOWBALL_FIGHT_STATUS_MS = 3000;
+const cardEffectFlashTimers = new Map();
+const TEMPORARY_CARD_OVERLAY_MS = 3500;
+
+function temporaryCardOverlayDurationMs(kind) {
+  return TEMPORARY_CARD_OVERLAY_MS;
+}
+
+function sanitizeCardEffectFlashKind(kind) {
+  return String(kind || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
+
+function markCardEffectFlash(card, kind, options) {
+  if(!card) return false;
+  const opts = options || {};
+  const cleanKind = sanitizeCardEffectFlashKind(kind);
+  if(!cleanKind) return false;
+  const at = Date.now();
+  card._effectFlash = {
+    kind:cleanKind,
+    at,
+    duration:cleanKind === 'kvetka_ballad' ? 0 : temporaryCardOverlayDurationMs(cleanKind),
+    turn:cleanKind === 'kvetka_ballad' && typeof G !== 'undefined' && G ? Number(G.turn) || 0 : null,
+    visibleAt:opts.waitForConsolidationCinematic ? at + 90 : at,
+    waitForConsolidationCinematic:!!opts.waitForConsolidationCinematic,
+    soundKey:String(opts.soundKey || (cleanKind + ':' + String(card.iid || card.id || 'card') + ':' + at)),
+    pitchStep:Math.max(0, Number(opts.pitchStep) || 0),
+    label:String(opts.label || cleanKind.replace(/[_-]+/g, ' '))
+  };
+  return true;
+}
+if(typeof window !== 'undefined') window.markCardEffectFlash = markCardEffectFlash;
+
+function scheduleCardEffectFlashExpiry(card, flash) {
+  if(typeof window === 'undefined' || !card || !flash || !flash.at) return;
+  const key = String(card.iid || card.id || 'card');
+  const previous = cardEffectFlashTimers.get(key);
+  if(previous && previous.at === flash.at) return;
+  if(previous && previous.timer) clearTimeout(previous.timer);
+  if(sanitizeCardEffectFlashKind(flash.kind) === 'kvetka_ballad') {
+    const flashTurn = Number(flash.turn) || 0;
+    const pollMs = flash.waitForConsolidationCinematic ? 120 : 650;
+    const timer = setInterval(function(){
+      const current = cardEffectFlashTimers.get(key);
+      const sameFlash = current && current.at === flash.at && card._effectFlash && card._effectFlash.at === flash.at;
+      const sameTurn = typeof G !== 'undefined' && G && (Number(G.turn) || 0) === flashTurn;
+      if(!sameFlash || !sameTurn) {
+        clearInterval(timer);
+        if(current && current.at === flash.at) cardEffectFlashTimers.delete(key);
+        try { renderGame({board:true}); } catch(e) {}
+        return;
+      }
+      try {
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+          window.FateMatchRendererAdapter.scheduleRender('kvetka-ballad-overlay-pulse');
+        }
+      } catch(e) {}
+    }, pollMs);
+    cardEffectFlashTimers.set(key, {at:flash.at, timer, turn:flashTurn, persistentForTurn:true});
+    return;
+  }
+  const remaining = Math.max(0, Number(flash.at) + temporaryCardOverlayDurationMs(flash.kind) - Date.now());
+  const timer = setTimeout(function(){
+    const current = cardEffectFlashTimers.get(key);
+    if(!current || current.at !== flash.at) return;
+    cardEffectFlashTimers.delete(key);
+    try { renderGame({board:true}); } catch(e) {}
+    try {
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+        window.FateMatchRendererAdapter.scheduleRender('card-effect-flash-expired');
+      }
+    } catch(e) {}
+  }, remaining);
+  cardEffectFlashTimers.set(key, {at:flash.at, timer});
+}
+
+function scheduleCardEffectFlashVisibilityPoll(card, flash) {
+  if(typeof window === 'undefined' || !card || !flash || !flash.at) return;
+  const key = String(card.iid || card.id || 'card');
+  const previous = cardEffectFlashTimers.get(key);
+  if(previous && previous.at === flash.at && previous.waitingForCinematic) return;
+  if(previous && previous.timer) {
+    if(previous.persistentForTurn) clearInterval(previous.timer);
+    else clearTimeout(previous.timer);
+  }
+  const timer = setTimeout(function(){
+    const current = cardEffectFlashTimers.get(key);
+    if(!current || current.at !== flash.at || !current.waitingForCinematic) return;
+    cardEffectFlashTimers.delete(key);
+    try {
+      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+        window.FateMatchRendererAdapter.scheduleRender('card-effect-flash-cinematic-wait');
+      } else if(typeof renderGame === 'function') {
+        renderGame({board:true});
+      }
+    } catch(e) {}
+  }, 120);
+  cardEffectFlashTimers.set(key, {at:flash.at, timer, waitingForCinematic:true});
+}
+
+function getActiveCardEffectFlash(card) {
+  const flash = card && card._effectFlash;
+  if(!flash || !flash.at || !flash.kind) return null;
+  const cleanKind = sanitizeCardEffectFlashKind(flash.kind);
+  if(cleanKind === 'kvetka_ballad' && (typeof G === 'undefined' || !G || (Number(G.turn) || 0) !== (Number(flash.turn) || 0))) return null;
+  if(flash.waitForConsolidationCinematic) {
+    const now = Date.now();
+    const actionPresentationActive = typeof G !== 'undefined' && G && (Number(G._actionPresentationLockUntil) || 0) > now;
+    const cinematicLockActive = typeof G !== 'undefined' && G && (Number(G._cinematicUiLockUntil) || 0) > now;
+    const cinematicDomActive = typeof document !== 'undefined' && !!document.body?.classList.contains('cinematic-lock');
+    if(now < (Number(flash.visibleAt) || 0) || actionPresentationActive || cinematicLockActive || cinematicDomActive) {
+      scheduleCardEffectFlashVisibilityPoll(card, flash);
+      return null;
+    }
+    const oldAt = flash.at;
+    flash.waitForConsolidationCinematic = false;
+    flash.visibleAt = now;
+    if(cleanKind !== 'kvetka_ballad') flash.at = now;
+    const key = String(card.iid || card.id || 'card');
+    const pending = cardEffectFlashTimers.get(key);
+    if(pending && pending.at === oldAt && pending.timer) {
+      if(pending.persistentForTurn) clearInterval(pending.timer);
+      else clearTimeout(pending.timer);
+    }
+    if(pending && pending.at === oldAt) cardEffectFlashTimers.delete(key);
+  }
+  if(cleanKind === 'kvetka_ballad') {
+    scheduleCardEffectFlashExpiry(card, flash);
+    return flash;
+  }
+  if(Date.now() >= Number(flash.at) + temporaryCardOverlayDurationMs(flash.kind)) return null;
+  scheduleCardEffectFlashExpiry(card, flash);
+  return flash;
+}
+if(typeof window !== 'undefined') window.getActiveCardEffectFlash = getActiveCardEffectFlash;
 
 function scheduleSnowballFightStatusExpiry(card, hitAt) {
   if(typeof window === 'undefined' || !card || !hitAt) return;
@@ -804,7 +945,7 @@ function scheduleSnowballFightStatusExpiry(card, hitAt) {
   const previous = snowballFightStatusTimers.get(key);
   if(previous && previous.hitAt === hitAt) return;
   if(previous && previous.timer) clearTimeout(previous.timer);
-  const remaining = Math.max(0, hitAt + SNOWBALL_FIGHT_STATUS_MS - Date.now());
+  const remaining = Math.max(0, hitAt + TEMPORARY_CARD_OVERLAY_MS - Date.now());
   const timer = setTimeout(function(){
     const current = snowballFightStatusTimers.get(key);
     if(!current || current.hitAt !== hitAt) return;
@@ -815,21 +956,33 @@ function scheduleSnowballFightStatusExpiry(card, hitAt) {
         window.FateMatchRendererAdapter.scheduleRender('snowball-fight-status-expired');
       }
     } catch(e) {}
-  }, remaining + 24);
+  }, remaining);
   snowballFightStatusTimers.set(key, {hitAt, timer});
 }
 
 function isSnowballFightHitActive(card) {
   const hitAt = Number(card && card._snowballFightHitAt) || 0;
-  if(!hitAt || Date.now() >= hitAt + SNOWBALL_FIGHT_STATUS_MS) return false;
+  if(!hitAt || Date.now() >= hitAt + TEMPORARY_CARD_OVERLAY_MS) return false;
   scheduleSnowballFightStatusExpiry(card, hitAt);
   return true;
 }
 if(typeof window !== 'undefined') window.isSnowballFightHitActive = isSnowballFightHitActive;
 
-function queueCardStatusIconSfx(kind, cardKey) {
-  if(kind !== 'immune' && kind !== 'marked' && kind !== 'blocked' && kind !== 'snowball') return;
+function queueCardStatusIconSfx(kind, cardKey, effectFlash) {
+  if(kind !== 'immune' && kind !== 'marked' && kind !== 'blocked' && kind !== 'snowball' && kind !== 'effect_flash') return;
   if(typeof window === 'undefined') return;
+  if(kind === 'effect_flash') {
+    const flash = effectFlash || {};
+    setTimeout(function(){
+      try {
+        if(typeof window.playCardEffectFlashSfx === 'function') window.playCardEffectFlashSfx(flash.kind, {
+          key:flash.soundKey || ('effect-flash-' + String(cardKey || 'card') + '-' + String(flash.at || '')),
+          pitchStep:flash.pitchStep
+        });
+      } catch(e) {}
+    }, 0);
+    return;
+  }
   const type = kind === 'immune' ? 'immuneShield'
     : (kind === 'marked' ? 'statusMarked' : (kind === 'snowball' ? 'snowballFight' : 'statusBlocked'));
   const key = 'status-icon-' + kind + '-' + String(cardKey || 'card');
@@ -849,51 +1002,34 @@ function getBoardCardStatusEligibility(card, z, r, c, isHidden) {
     snowball:!hidden && isSnowballFightHitActive(card),
     marked:!hidden && !!card._markedForDeath,
     blocked:!hidden && !!((G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c && b.type === 'zoe'; })),
-    immune:!hidden && shouldShowProtectionStatusIcon(card)
+    immune:!hidden && shouldShowProtectionStatusIcon(card),
+    effectFlash:!hidden ? getActiveCardEffectFlash(card) : null
   };
 }
 
 function getCardStatusVisualState(card, statuses) {
   const active = statuses || {};
   const key = String(card && (card.iid || card.id) || '');
-  const order = key ? (cardStatusVisualOrders.get(key) || {}) : {};
-  const appeared = [];
-  ['negated','suppressed','snowball','marked','blocked'].forEach(function(kind){
-    if(active[kind]) {
-      if(!order[kind]) {
-        order[kind] = ++cardStatusVisualTick;
-        appeared.push(kind);
-      }
-    } else {
-      delete order[kind];
-    }
-  });
-  if(active.immune) {
-    if(!order.immune) {
-      order.immune = ++cardStatusVisualTick;
-      appeared.push('immune');
-    }
-  } else {
-    delete order.immune;
-  }
-  if(key) cardStatusVisualOrders.set(key, order);
+  const flash = active.effectFlash && active.effectFlash.kind ? active.effectFlash : null;
   let primary = '';
-  let latest = -1;
-  ['negated','suppressed','snowball','marked','blocked'].forEach(function(kind){
-    if(active[kind] && order[kind] > latest) {
-      latest = order[kind];
+  for(let i = 0; i < CARD_STATUS_VISUAL_PRIORITY.length; i++) {
+    const kind = CARD_STATUS_VISUAL_PRIORITY[i];
+    if((kind === 'effect_flash' && flash) || (kind !== 'effect_flash' && active[kind])) {
       primary = kind;
+      break;
     }
-  });
-  // Snowball Fight is deliberately transient and must be visible even when the
-  // target already carries a persistent suppression, negation, or mark icon.
-  if(active.snowball) primary = 'snowball';
-  if(!primary && active.immune) primary = 'immune';
-  if(key) {
-    if(appeared.includes('immune')) queueCardStatusIconSfx('immune', key);
-    if(appeared.includes(primary) && primary !== 'negated' && primary !== 'suppressed') queueCardStatusIconSfx(primary, key);
   }
-  return { primary, immune:!!active.immune };
+  if(key) {
+    const signature = primary === 'effect_flash'
+      ? primary + ':' + String(flash && flash.at || '') + ':' + String(flash && flash.kind || '')
+      : primary;
+    if(cardStatusVisualPrimarySeen.get(key) !== signature) {
+      cardStatusVisualPrimarySeen.set(key, signature);
+      if(primary === 'effect_flash') queueCardStatusIconSfx(primary, key, flash);
+      else if(primary && primary !== 'negated' && primary !== 'suppressed') queueCardStatusIconSfx(primary, key);
+    }
+  }
+  return { primary, immune:primary === 'immune', flashKind:flash ? flash.kind : '' };
 }
 if(typeof window !== 'undefined') window.getCardStatusVisualState = getCardStatusVisualState;
 
@@ -906,6 +1042,7 @@ function cardRenderSignature(card, z, r, c) {
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0,
     Number(card._snowballFightHitAt) || 0,
+    card._effectFlash ? [card._effectFlash.kind, card._effectFlash.at, card._effectFlash.duration, card._effectFlash.pitchStep].join(',') : '',
     shouldShowProtectionStatusIcon(card) ? 1 : 0,
     isCardVisuallySuppressed(card, z, r, c) ? 1 : 0,
     isCardVisuallyNegated(card) ? 1 : 0,
@@ -1128,14 +1265,9 @@ function applyOpponentHandDensity(container, count) {
   const large = handCount > 0 && handCount <= 4;
   const medium = handCount >= 5 && handCount <= 8;
   const compact = handCount >= 9;
-  const nineOnly = handCount === 9;
   container.classList.toggle('opp-hand-large', large);
   container.classList.toggle('opp-hand-medium', medium);
   container.classList.toggle('opp-hand-compact', compact);
-  container.classList.toggle('opp-hand-nine-only', nineOnly);
-  container.classList.toggle('opp-hand-nine-plus', handCount >= 9);
-  container.classList.toggle('opp-hand-ten-plus', handCount >= 10);
-  container.classList.toggle('opp-hand-twelve-plus', handCount >= 12);
   if(large) {
     container.style.setProperty('--opp-hand-card-w', '68px');
     container.style.setProperty('--opp-hand-card-h', '95px');
@@ -1143,10 +1275,8 @@ function applyOpponentHandDensity(container, count) {
     container.style.setProperty('--opp-hand-card-w', '56px');
     container.style.setProperty('--opp-hand-card-h', '78px');
   } else if(compact) {
-    const twelvePlus = handCount >= 12;
-    const tenPlus = handCount >= 10;
-    container.style.setProperty('--opp-hand-card-w', nineOnly ? '56px' : (twelvePlus ? '50px' : (tenPlus ? '52px' : '56px')));
-    container.style.setProperty('--opp-hand-card-h', nineOnly ? '78px' : (twelvePlus ? '70px' : (tenPlus ? '73px' : '78px')));
+    container.style.setProperty('--opp-hand-card-w', '50px');
+    container.style.setProperty('--opp-hand-card-h', '70px');
   } else {
     container.style.removeProperty('--opp-hand-card-w');
     container.style.removeProperty('--opp-hand-card-h');
@@ -2753,7 +2883,10 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
   const boardPos = options.boardPos || getBoardCardPosition(card);
   const hiddenOnBoard = !!(boardPos && isFaceDownCard(card) && (options.forceBoardHidden || card.owner !== viewerP));
   if(!hiddenOnBoard){
-    const handCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : card.cost;
+    const displayedCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : card.cost;
+    // Zoe's information copy follows her printed Initiator (2) art. Match-wide
+    // consolidation modifiers still apply when the player actually sets her.
+    const handCost = String(card.id || '') === '04' ? Math.max(0, Number(card.cost) || 0) : displayedCost;
     const immutable = typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card);
     const handBonusFate = card._wciBonus && !immutable ? 2 : 0;
     const liveFate = (immutable && !boardPos ? (Number(card.fate) || 0) : getLiveCardFate(card)) + (!boardPos ? handBonusFate : 0);
@@ -2818,23 +2951,25 @@ function getStatusEffectIcon(kind) {
     house: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 31L32 13l22 18"/><path d="M17 29v24h30V29"/><path d="M27 53V38h10v15"/><path d="M24 26h16" opacity=".45"/></g></svg>`,
     semper: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18h40M12 46h40" stroke-width="4"/><path d="M22 26h20v12H22z" stroke-width="3.4"/><path d="M28 32h8" stroke-width="5"/><path d="M20 12l24 40" stroke-width="2.5" opacity=".38"/></g></svg>`,
     carolyn_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="32" height="32" rx="4" stroke-width="3.5"/><path d="M24 24h16v16H24z" stroke-width="3"/><path d="M20 32h24M32 20v24" stroke-width="2.6" opacity=".45"/></g></svg>`,
-    zoe_block: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16h32v32H16z" stroke-width="3.5"/><path d="M12 52L52 12" stroke-width="5"/><path d="M24 12v8M40 44v8M12 24h8M44 40h8" stroke-width="2.7" opacity=".55"/></g></svg>`,
-    wci_bonus: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 48h28" stroke-width="4"/><path d="M24 48V24l8-8 8 8v24" stroke-width="4"/><path d="M25 32h14M25 40h14" stroke-width="2.8" opacity=".62"/></g></svg>`,
+    zoe_block: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 25V14h11M52 25V14H41M12 39v11h11M52 39v11H41" stroke-width="4"/><path d="M17 32c5-7 10-10 15-10s10 3 15 10c-5 7-10 10-15 10s-10-3-15-10z" stroke-width="3.5"/><circle cx="32" cy="32" r="4" stroke-width="3"/></g></svg>`,
+    wci_bonus: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="14" stroke-width="4"/><circle cx="32" cy="32" r="5" stroke-width="3.5"/><path d="M32 8v10M32 46v10M8 32h10M46 32h10M15 15l7 7M42 42l7 7M49 15l-7 7M22 42l-7 7" stroke-width="3.5"/></g></svg>`,
     shield_wall: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8l18 8v14c0 12-7.2 20.4-18 26-10.8-5.6-18-14-18-26V16l18-8z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M21 30h22M24 39h16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`,
-    maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M9 37c4-9 10-13 16-13 8 0 10 8 16 8 4 0 8-2 14-9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 27c4 9 10 13 16 13 8 0 10-8 16-8 4 0 8 2 14 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 14v8M32 42v8" fill="none" stroke="currentColor" stroke-width="2.7" opacity=".45"/></svg>`,
+    maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 46l14-14-14-14M24 46l14-14-14-14M38 46l14-14-14-14" stroke-width="4"/></g></svg>`,
     fort_calvin: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="27" cy="27" r="12"/><path d="M36 36l14 14"/><path d="M24 27h6M27 24v6" opacity=".7"/><path d="M12 50h14" stroke-width="2.8" opacity=".45"/></g></svg>`,
     berkeley_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 43h25l14-14" stroke-width="4"/><path d="M20 43l-5 9M34 43l5 9" stroke-width="3"/><rect x="42" y="16" width="12" height="12" rx="2" stroke-width="3.5"/><path d="M16 34h14" stroke-width="3.5"/></g></svg>`,
     erbs_ready: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M24 31c-6-6-6-15 0-21 6-6 16-6 22 0l4 4" stroke-width="4.2"/><path d="M40 33c6 6 6 15 0 21-6 6-16 6-22 0l-4-4" stroke-width="4.2"/><path d="M23 42L42 23" stroke-width="5"/><path d="M18 20l-5-5M46 49l5 5" stroke-width="2.8" opacity=".48"/></g></svg>`,
-    selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 44c6-4 12-6 19-6s13 2 19 6" fill="none" stroke-width="4.5"/><path d="M14 51c6 2 12 2 18 0s12-2 18 0" fill="none" stroke-width="3" opacity=".55"/><path d="M32 15v28" fill="none" stroke-width="4"/><path d="M30 18c-7 3-12 9-15 18h15V18z" fill="currentColor" stroke="none"/><path d="M36 20c6 4 10 9 12 16H36V20z" fill="currentColor" stroke="none" opacity=".62"/><circle cx="48" cy="16" r="4" fill="currentColor" stroke="none" opacity=".75"/></g></svg>`,
+    selva: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 40a17 17 0 0 1 34 0" stroke-width="4"/><path d="M32 9v8M13 17l6 6M51 17l-6 6M16 35l-7-5M48 35l7-5" stroke-width="3.5"/><path d="M9 43c6-3 11-3 17 0s11 3 17 0 9-3 12-2M11 51c6-3 11-3 17 0s11 3 17 0 7-2 10-2" stroke-width="3"/></g></svg>`,
     guerilla: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27h28l7 4-7 4H16z" stroke-width="2.8"/><path d="M16 28l-6-4v13l6-4" stroke-width="2.6"/><path d="M46 31h9" stroke-width="2.6"/><path d="M24 23h17" stroke-width="2.4"/><path d="M30 36h7l-2 10h-9z" stroke-width="2.6"/><path d="M40 36l7 8" stroke-width="2.6"/><circle cx="24" cy="31" r="1.8" stroke-width="2.4"/></g></svg>`,
-    ballad: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M38 12v32" stroke-width="4"/><path d="M38 12l14 5v10l-14-5" stroke-width="4"/><ellipse cx="25" cy="46" rx="11" ry="7" stroke-width="4"/><path d="M14 20c4-4 8-4 12 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
-    mail_delivery: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"><rect x="10" y="18" width="44" height="30" rx="4"/><path d="M12 21l20 16 20-16"/><path d="M43 10v12M37 16h12" stroke-linecap="round"/></g></svg>`,
+    ballad: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M38 12v32" stroke-width="4"/><path d="M38 12l14 5v10l-14-5" stroke-width="4"/><ellipse cx="25" cy="46" rx="11" ry="7" stroke-width="4"/></g></svg>`,
+    mail_delivery: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"><rect x="10" y="18" width="44" height="30" rx="4"/><path d="M12 21l20 16 20-16"/></g></svg>`,
     village_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 31L32 13l22 18"/><path d="M17 29v24h30V29"/><path d="M27 53V38h10v15"/><path d="M19 18h10" opacity=".45"/></g></svg>`,
     rivera_aff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="18"/><path d="M32 18v28M18 32h28"/><path d="M22 22l20 20M42 22L22 42" opacity=".35"/></g></svg>`,
     wojciech: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 40c0 8 7 13 15 13s15-5 15-13" stroke-width="4"/><path d="M17 40c5-9 25-9 30 0" stroke-width="4"/><path d="M22 31c1-8 7-13 14-13 5 0 9 2 12 6" stroke-width="3"/><path d="M21 40c4 3 18 3 22 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
     lydia: `<svg class="lydia-berknomaly-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 27) scale(.48)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M-45 11C-37-31-8-47 0-47C8-47 37-31 45 11" stroke-width="7.5"/><path d="M-30 32L-47 50L-30 67" stroke-width="7.5"/><path d="M30 32L47 50L30 67" stroke-width="7.5"/><path d="M-17 5L0-14L17 5L0 24Z" stroke-width="6"/><path d="M0 31V76" stroke-width="7.5"/></g></svg>`,
     secules: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20h28M14 32h36M20 44h24" stroke-width="4"/><path d="M48 16L16 48" stroke-width="4"/><circle cx="32" cy="32" r="21" stroke-width="2.5" opacity=".38"/></g></svg>`,
-    blame_game: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18h22c7 0 12 5 12 12s-5 12-12 12H22" stroke-width="4"/><path d="M24 30h18M30 22l-8 8 8 8" stroke-width="3.5"/><path d="M15 47c8-4 17-4 25 0" stroke-width="3" opacity=".45"/></g></svg>`,
+    administrative_bloat: `<svg class="administrative-bloat-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M19 11h20l9 9v33H19z" fill="currentColor" opacity=".12"/><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11h20l9 9v33H19z" stroke-width="4"/><path d="M39 11v10h9" stroke-width="4"/><path d="M25 29h17M25 36h17M25 43h12" stroke-width="3.5"/></g></svg>`,
+    blame_game: `<svg class="blame-game-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="22" stroke-width="3.5"/><path d="M32 5v9M32 50v9M5 32h9M50 32h9" stroke-width="3.5"/><circle cx="32" cy="25" r="6" stroke-width="3.5"/><path d="M21 46c1-10 5-15 11-15s10 5 11 15" stroke-width="4"/></g></svg>`,
+    busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
     marie_deterrence: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36v12c0 11-7 20-18 26-11-6-18-15-18-26V18z" stroke-width="4"/><path d="M22 35h20" stroke-width="5"/><path d="M20 13h24" stroke-width="3" opacity=".5"/></g></svg>`
   };
   return icons[kind] || icons.buff;
@@ -2870,12 +3005,16 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const statusState = getCardStatusVisualState(card, statusEligibility);
   const isSuppressed = statusState.primary === 'suppressed';
   const isNegated = statusState.primary === 'negated';
-  const isImmune = !!statusState.immune;
+  const isImmune = statusState.primary === 'immune';
   const isSnowballHit = statusState.primary === 'snowball';
+  const isEffectFlash = statusState.primary === 'effect_flash';
+  const effectFlashKind = sanitizeCardEffectFlashKind(statusState.flashKind);
+  const effectFlashLabel = statusEligibility.effectFlash && statusEligibility.effectFlash.label
+    ? statusEligibility.effectFlash.label
+    : effectFlashKind.replace(/[_-]+/g, ' ');
   const isMarkedForDeath = !!statusEligibility.marked;
   const showMarkedIcon = statusState.primary === 'marked';
   const isZoeBlocked = statusState.primary === 'blocked';
-  const hasPrimaryStatus = !!(statusState.primary && statusState.primary !== 'immune');
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -2888,7 +3027,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
       existing.dataset.z = String(z);
       existing.dataset.r = String(r);
       existing.dataset.c = String(c);
-      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : '')))))));
+      existing.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isEffectFlash ? ', ' + effectFlashLabel + ' activated' : (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))))));
       existing.classList.toggle('sel', selected);
       return existing;
     }
@@ -2900,7 +3039,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.dataset.r=String(r);
   el.dataset.c=String(c);
   el.dataset.boardCardSig=domSig;
-  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : '')))))));
+  el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isEffectFlash ? ', ' + effectFlashLabel + ' activated' : (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))))));
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(isHidden?' face-down-card':'')
     +(card.immuneFlag?' immune':'')
@@ -2911,10 +3050,10 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(isNegated?' fate-negated':'')
     +(isSuppressed?' fate-suppressed':'')
     +(isSnowballHit?' fate-snowball-hit':'')
+    +(isEffectFlash?' fate-effect-flash effect-flash-'+effectFlashKind:'')
     +(showMarkedIcon?' fate-marked-death':'')
     +(isZoeBlocked?' fate-blocked-action':'')
-    +(isImmune?' fate-immune':'')
-    +(hasPrimaryStatus?' fate-has-primary-status':'');
+    +(isImmune?' fate-immune':'');
   if(selected) el.classList.add('sel');
   const eff=isHidden ? 0 : getCachedEffectiveFate(card,z);
   // Determine buff/debuff state — compare effective fate vs base (printed) fate
@@ -2941,7 +3080,6 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.innerHTML=`
     <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
     ${affBadge}
-    ${isImmune && hasPrimaryStatus ? '<div class="bc-protection-status-glyph" aria-hidden="true"></div>' : ''}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
   if(changed && !shouldUseCanvasBoardVisuals()){
@@ -3414,7 +3552,9 @@ function coerceStatusOwner(value, fallback) {
 let _topbarEffectsLastHtml = null;
 let _effectTooltipPortal = null;
 let _effectTooltipGlobalCleanupBound = false;
-const TOPBAR_STATUS_VISIBLE_LIMIT = 5;
+const TOPBAR_STATUS_TARGET_VISIBLE = 4;
+const TOPBAR_STATUS_OVERFLOW_WIDTH = 116;
+const TOPBAR_STATUS_FLEX_MIN_WIDTH = 92;
 
 function clearNodeChildren(node) {
   if(!node) return;
@@ -3478,6 +3618,10 @@ function ensureEffectTooltipPositioning(container) {
   container.addEventListener('mouseover', function(ev) {
     var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
     if(!pill || !container.contains(pill)) return;
+    if(pill.classList.contains('effect-pill-overflow')) {
+      hideEffectTooltipPortal();
+      return;
+    }
     var tip = pill.querySelector('.effect-pill-tooltip');
     if(!tip || !tip.textContent.trim()) {
       hideEffectTooltipPortal();
@@ -3496,6 +3640,10 @@ function ensureEffectTooltipPositioning(container) {
   container.addEventListener('mousemove', function(ev) {
     var pill = ev.target && ev.target.closest ? ev.target.closest('.effect-pill') : null;
     if(!pill || !container.contains(pill) || !_effectTooltipPortal || _effectTooltipPortal.style.display === 'none') return;
+    if(pill.classList.contains('effect-pill-overflow')) {
+      hideEffectTooltipPortal();
+      return;
+    }
     positionEffectTooltipPortal(_effectTooltipPortal, pill, container);
   });
   container.addEventListener('mouseout', function(ev) {
@@ -3550,7 +3698,11 @@ function formatStatusOverflowEffects(effects) {
       e && e.cardName || '',
       e && e.cardAbility || '',
       e && e.cardEffect || '',
+      e && e.printedEffect || '',
       e && e.extraClass || '',
+      e && e.icon || '',
+      e && e.sourceIid || '',
+      e && e.statusInstanceKey || '',
       e && e.turnsLeft || ''
     ].join('|');
   }).join('||');
@@ -3571,11 +3723,123 @@ function formatStatusEffectCopyForSide(text, side) {
   return value;
 }
 
-function compactTopbarStatusEffects(effects, side) {
+function findStatusEffectSourceCard(entry) {
+  if(!entry || !Array.isArray(CARDS)) return null;
+  const cardName = String(entry.cardName || '');
+  const ability = String(entry.cardAbility || entry.label || '');
+  return CARDS.find(function(card) {
+    return card && ((cardName && card.name === cardName) || (ability && card.ability === ability));
+  }) || null;
+}
+
+function getStatusEntryPrintedEffect(entry) {
+  const explicit = entry && entry.printedEffect ? String(entry.printedEffect) : '';
+  if(explicit) return explicit;
+  const sourceCard = findStatusEffectSourceCard(entry);
+  return sourceCard && sourceCard.effect ? String(sourceCard.effect) : '';
+}
+
+function normalizeStatusEffectText(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+function measuredTopbarStatusWidth(container, count) {
+  if(!container || count <= 0) return 0;
+  const children = Array.from(container.children || []).slice(0, count);
+  const style = typeof getComputedStyle === 'function' ? getComputedStyle(container) : null;
+  const gap = style ? (parseFloat(style.columnGap || style.gap) || 0) : 0;
+  return children.reduce(function(total, child) {
+    const rect = child && child.getBoundingClientRect ? child.getBoundingClientRect() : null;
+    return total + Math.ceil(rect && rect.width ? rect.width : (child && child.offsetWidth ? child.offsetWidth : 142));
+  }, 0) + Math.max(0, children.length - 1) * gap;
+}
+
+function measuredTopbarStatusGap(container) {
+  const style = container && typeof getComputedStyle === 'function' ? getComputedStyle(container) : null;
+  return style ? (parseFloat(style.columnGap || style.gap) || 0) : 0;
+}
+
+function measuredTopbarChildWidth(container, index) {
+  const child = container && container.children ? container.children[index] : null;
+  if(!child) return 142;
+  const rect = child.getBoundingClientRect ? child.getBoundingClientRect() : null;
+  return Math.ceil(rect && rect.width ? rect.width : (child.offsetWidth || 142));
+}
+
+function getTopbarStatusAvailableWidth(container, side, horizontalPadding) {
+  if(!container) return 0;
+  const base = Math.max(0, Math.floor(container.clientWidth - (Number(horizontalPadding) || 0)));
+  if(!container.getBoundingClientRect || typeof window === 'undefined') return base;
+  const rect = container.getBoundingClientRect();
+  const safeMargin = 8;
+  const viewportWidth = Math.max(0, Number(window.innerWidth) || 0);
+  const viewportRoom = side === 'left'
+    ? Math.max(0, Math.floor(rect.right - safeMargin))
+    : Math.max(0, Math.floor(viewportWidth - rect.left - safeMargin));
+  return Math.max(0, Math.min(base, viewportRoom));
+}
+
+function cloneTopbarStatusEffect(entry, extra) {
+  return Object.assign({}, entry || {}, extra || {});
+}
+
+function fitTopbarStatusTail(effects, container, visibleCount, availableWidth, includeOverflow) {
+  if(!visibleCount) {
+    const width = includeOverflow ? TOPBAR_STATUS_OVERFLOW_WIDTH : 0;
+    return width <= availableWidth ? [] : null;
+  }
+  const gap = measuredTopbarStatusGap(container);
+  const prefixCount = Math.max(0, visibleCount - 1);
+  const prefixWidth = measuredTopbarStatusWidth(container, prefixCount);
+  const gapBeforeTail = prefixCount > 0 ? gap : 0;
+  const gapBeforeOverflow = includeOverflow ? gap : 0;
+  const reservedOverflow = includeOverflow ? TOPBAR_STATUS_OVERFLOW_WIDTH : 0;
+  const remainingForTail = Math.floor(availableWidth - prefixWidth - gapBeforeTail - gapBeforeOverflow - reservedOverflow);
+  if(remainingForTail < TOPBAR_STATUS_FLEX_MIN_WIDTH) return null;
+  const shown = effects.slice(0, visibleCount).map(function(e){ return cloneTopbarStatusEffect(e); });
+  const tail = shown[shown.length - 1];
+  const measuredTail = measuredTopbarChildWidth(container, visibleCount - 1);
+  if(tail && measuredTail > remainingForTail) {
+    tail.extraClass = String(tail.extraClass || '').replace(/\s*effect-pill-flex-tail\b/g, '') + ' effect-pill-flex-tail';
+    tail.maxWidth = remainingForTail;
+    tail.flexTail = true;
+  }
+  return shown;
+}
+
+function compactTopbarStatusEffects(effects, side, container) {
   const list = Array.isArray(effects) ? effects : [];
-  if(list.length <= TOPBAR_STATUS_VISIBLE_LIMIT) return list.slice();
-  const visibleCount = Math.max(1, TOPBAR_STATUS_VISIBLE_LIMIT - 1);
-  const shown = list.slice(0, visibleCount);
+  if(list.length <= 1) return list.slice();
+
+  const containerStyle = container && typeof getComputedStyle === 'function' ? getComputedStyle(container) : null;
+  const horizontalPadding = containerStyle
+    ? (parseFloat(containerStyle.paddingLeft) || 0) + (parseFloat(containerStyle.paddingRight) || 0)
+    : 0;
+  const availableWidth = container
+    ? getTopbarStatusAvailableWidth(container, side, horizontalPadding)
+    : 0;
+  const allWidth = measuredTopbarStatusWidth(container, list.length);
+  if(availableWidth > 0 && allWidth <= availableWidth) return list.slice();
+
+  if(availableWidth > 0) {
+    const allWithFlexibleTail = fitTopbarStatusTail(list, container, list.length, availableWidth, false);
+    if(allWithFlexibleTail) return allWithFlexibleTail;
+  }
+
+  let visibleCount = Math.min(TOPBAR_STATUS_TARGET_VISIBLE, list.length - 1);
+  if(availableWidth > 0) {
+    while(visibleCount > 0) {
+      const flexibleShown = fitTopbarStatusTail(list, container, visibleCount, availableWidth, true);
+      if(flexibleShown) break;
+      visibleCount--;
+    }
+    while(visibleCount < list.length - 1) {
+      const nextFlexibleShown = fitTopbarStatusTail(list, container, visibleCount + 1, availableWidth, true);
+      if(!nextFlexibleShown) break;
+      visibleCount++;
+    }
+  }
+  const shown = (availableWidth > 0 && fitTopbarStatusTail(list, container, visibleCount, availableWidth, true)) || list.slice(0, visibleCount);
   const hidden = list.slice(visibleCount);
   shown.push({
     isOverflow: true,
@@ -3593,34 +3857,127 @@ function compactTopbarStatusEffects(effects, side) {
   return shown;
 }
 
-function showStatusEffectOverflowModal(effects, side) {
+let _statusEffectOverflowDropdown = null;
+let _statusEffectOverflowAnchor = null;
+let _statusEffectOverflowCloseTimer = 0;
+
+function closeStatusEffectOverflowDropdown() {
+  if(_statusEffectOverflowCloseTimer) {
+    clearTimeout(_statusEffectOverflowCloseTimer);
+    _statusEffectOverflowCloseTimer = 0;
+  }
+  if(_statusEffectOverflowAnchor) _statusEffectOverflowAnchor.setAttribute('aria-expanded', 'false');
+  if(_statusEffectOverflowDropdown) _statusEffectOverflowDropdown.remove();
+  _statusEffectOverflowDropdown = null;
+  _statusEffectOverflowAnchor = null;
+}
+
+function cancelStatusEffectOverflowClose() {
+  if(_statusEffectOverflowCloseTimer) {
+    clearTimeout(_statusEffectOverflowCloseTimer);
+    _statusEffectOverflowCloseTimer = 0;
+  }
+}
+
+function scheduleStatusEffectOverflowClose() {
+  cancelStatusEffectOverflowClose();
+  _statusEffectOverflowCloseTimer = setTimeout(function(){
+    _statusEffectOverflowCloseTimer = 0;
+    closeStatusEffectOverflowDropdown();
+  }, 140);
+}
+
+function positionStatusEffectOverflowDropdown(dropdown, anchor, side) {
+  if(!dropdown || !anchor || !anchor.isConnected) return;
+  const anchorRect = anchor.getBoundingClientRect();
+  const width = Math.min(430, Math.max(300, window.innerWidth - 24));
+  dropdown.style.width = width + 'px';
+  const measured = dropdown.getBoundingClientRect();
+  let left = side === 'right' ? anchorRect.right - width : anchorRect.left;
+  left = Math.max(12, Math.min(window.innerWidth - width - 12, left));
+  let top = anchorRect.bottom + 9;
+  if(top + measured.height > window.innerHeight - 12) top = Math.max(12, anchorRect.top - measured.height - 9);
+  dropdown.style.left = Math.round(left) + 'px';
+  dropdown.style.top = Math.round(top) + 'px';
+}
+
+function trimStatusOverflowActiveLead(effect, effectName) {
+  let text = String(effect || '').trim();
+  const name = String(effectName || '').trim();
+  if(!text || !name) return text;
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp('^' + escapedName + '\\s+is\\s+active\\s*:\\s*', 'i'), '').trim();
+}
+
+function showStatusEffectOverflowDropdown(effects, side, anchor) {
   const list = Array.isArray(effects) ? effects : [];
-  const ownerLabel = side === 'left' ? 'Your effects' : "Opponent's effects";
+  if(!list.length || !anchor) return;
+  cancelStatusEffectOverflowClose();
+  if(_statusEffectOverflowAnchor === anchor && _statusEffectOverflowDropdown) {
+    positionStatusEffectOverflowDropdown(_statusEffectOverflowDropdown, anchor, side);
+    return;
+  }
+  closeStatusEffectOverflowDropdown();
+  const ownerLabel = side === 'left' ? 'Your additional effects' : "Opponent's additional effects";
+  const sideClass = side === 'left' ? 'effect-pill-mine' : 'effect-pill-opp';
   const rows = list.map(function(e) {
     const icon = e && e.icon ? e.icon : getStatusOverflowIcon();
-    const name = e && e.cardName ? e.cardName : (e && e.label ? e.label : 'Active Effect');
-    const ability = e && e.cardAbility ? e.cardAbility : (e && e.label ? e.label : '');
-    const effect = e && e.cardEffect ? formatStatusEffectCopyForSide(e.cardEffect, side) : '';
-    return '<button type="button" class="status-overflow-row">' +
-      '<span class="status-overflow-row-icon">' + icon + '</span>' +
-      '<span class="status-overflow-row-copy">' +
-        '<b>' + escapeHtml(name) + '</b>' +
-        (ability ? '<em>' + escapeHtml(ability) + '</em>' : '') +
-        (effect ? '<small>' + escapeHtml(effect) + '</small>' : '') +
-      '</span>' +
-    '</button>';
+    const effectName = e && (e.cardAbility || e.label) ? (e.cardAbility || e.label) : 'Active Effect';
+    const sourceName = e && e.cardName ? e.cardName : 'Card Effect';
+    const formattedEffect = e && (e.cardEffect || e.label)
+      ? formatStatusEffectCopyForSide(e.cardEffect || e.label, side)
+      : 'This effect is currently active.';
+    const effect = trimStatusOverflowActiveLead(formattedEffect, effectName);
+    const printedEffect = formatStatusEffectCopyForSide(getStatusEntryPrintedEffect(e), side);
+    const showPrinted = printedEffect && normalizeStatusEffectText(printedEffect) !== normalizeStatusEffectText(effect);
+    const turnsLeft = e && e.turnsLeft != null && e.turnsLeft !== ''
+      ? String(e.turnsLeft) + ' turn' + (Number(e.turnsLeft) === 1 ? '' : 's') + ' left'
+      : '';
+    const extraClass = e && e.extraClass ? String(e.extraClass) : '';
+    return '<div class="status-overflow-dropdown-row">' +
+      '<div class="status-overflow-banner effect-pill ' + sideClass + (extraClass ? ' ' + extraClass : '') + '">' +
+        '<span class="effect-pill-icon status-overflow-dropdown-icon">' + icon + '</span>' +
+        '<span class="status-overflow-title">' + escapeHtml(effectName) + '</span>' +
+        (turnsLeft ? '<span class="status-overflow-duration">' + escapeHtml(turnsLeft) + '</span>' : '') +
+        '<div class="status-overflow-dropdown-effect">' + escapeHtml(effect) + '</div>' +
+        (showPrinted ? '<div class="status-overflow-dropdown-printed" title="' + escapeHtml(printedEffect) + '"></div>' : '') +
+      '</div>' +
+    '</div>';
   }).join('');
-  showModal('Active Effects', '<div class="status-overflow-shell">' +
-    '<div class="status-overflow-head">' +
-      '<span>' + escapeHtml(ownerLabel) + '</span>' +
-      '<b>' + list.length + ' hidden</b>' +
-    '</div>' +
-    '<div class="status-overflow-list">' + rows + '</div>' +
-  '</div>', [
-    {label:'Close', pri:true, action:function(){ closeModal(); }}
-  ], {immediate:true, skipDecorate:true});
-  const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('status-overflow-modal');
+  const dropdown = document.createElement('div');
+  dropdown.id = 'status-effect-overflow-dropdown';
+  dropdown.className = 'status-overflow-dropdown status-overflow-dropdown-' + side;
+  dropdown.setAttribute('role', 'dialog');
+  dropdown.setAttribute('aria-label', ownerLabel);
+  dropdown.innerHTML = '<div class="status-overflow-dropdown-head"><span>' + escapeHtml(ownerLabel) + '</span><b>' + list.length + '</b></div>' +
+    '<div class="status-overflow-dropdown-list">' + rows + '</div>';
+  dropdown.addEventListener('mouseenter', cancelStatusEffectOverflowClose);
+  dropdown.addEventListener('mouseleave', scheduleStatusEffectOverflowClose);
+  document.body.appendChild(dropdown);
+  _statusEffectOverflowDropdown = dropdown;
+  _statusEffectOverflowAnchor = anchor;
+  anchor.setAttribute('aria-expanded', 'true');
+  positionStatusEffectOverflowDropdown(dropdown, anchor, side);
+  requestAnimationFrame(function(){ if(dropdown.isConnected) dropdown.classList.add('is-open'); });
+}
+
+if(typeof document !== 'undefined' && !window.__fateStatusOverflowDropdownBound) {
+  window.__fateStatusOverflowDropdownBound = true;
+  document.addEventListener('pointerdown', function(ev){
+    if(!_statusEffectOverflowDropdown) return;
+    if(_statusEffectOverflowDropdown.contains(ev.target) || (_statusEffectOverflowAnchor && _statusEffectOverflowAnchor.contains(ev.target))) return;
+    closeStatusEffectOverflowDropdown();
+  }, true);
+  let statusResizeFrame = 0;
+  window.addEventListener('resize', function(){
+    closeStatusEffectOverflowDropdown();
+    if(statusResizeFrame) cancelAnimationFrame(statusResizeFrame);
+    statusResizeFrame = requestAnimationFrame(function(){
+      statusResizeFrame = 0;
+      _topbarEffectsLastHtml = null;
+      if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+    });
+  }, {passive:true});
 }
 
 function syncEffectPills(container, effects, side) {
@@ -3640,8 +3997,12 @@ function syncEffectPills(container, effects, side) {
       e.cardName || '',
       e.cardAbility || '',
       displayEffect,
+      e.sourceIid || '',
+      e.statusInstanceKey || '',
       e.isOverflow ? 'overflow' : '',
-      e.overflowSig || ''
+      e.overflowSig || '',
+      e.flexTail ? 'flex-tail' : '',
+      e.maxWidth || ''
     ].join('|');
     signatureParts.push(sig);
     var pill = container.children[i];
@@ -3655,15 +4016,23 @@ function syncEffectPills(container, effects, side) {
       pill._statusOverflowSide = side;
       pill.setAttribute('role', 'button');
       pill.setAttribute('tabindex', '0');
-      pill.setAttribute('aria-label', 'Show hidden active effects');
-      pill.onclick = function() {
+      pill.setAttribute('aria-label', 'Additional active effects');
+      pill.setAttribute('aria-haspopup', 'dialog');
+      pill.setAttribute('aria-expanded', 'false');
+      pill.onmouseenter = function() {
         hideEffectTooltipPortal();
-        showStatusEffectOverflowModal(this._statusOverflowEffects || [], this._statusOverflowSide || side);
+        showStatusEffectOverflowDropdown(this._statusOverflowEffects || [], this._statusOverflowSide || side, this);
       };
+      pill.onmouseleave = scheduleStatusEffectOverflowClose;
+      pill.onfocus = pill.onmouseenter;
+      pill.onblur = scheduleStatusEffectOverflowClose;
+      pill.onclick = null;
       pill.onkeydown = function(ev) {
         if(ev && (ev.key === 'Enter' || ev.key === ' ')) {
           ev.preventDefault();
-          this.click();
+          showStatusEffectOverflowDropdown(this._statusOverflowEffects || [], this._statusOverflowSide || side, this);
+        } else if(ev && ev.key === 'Escape') {
+          closeStatusEffectOverflowDropdown();
         }
       };
     } else {
@@ -3672,6 +4041,12 @@ function syncEffectPills(container, effects, side) {
       pill.removeAttribute('role');
       pill.removeAttribute('tabindex');
       pill.removeAttribute('aria-label');
+      pill.removeAttribute('aria-haspopup');
+      pill.removeAttribute('aria-expanded');
+      pill.onmouseenter = null;
+      pill.onmouseleave = null;
+      pill.onfocus = null;
+      pill.onblur = null;
       pill.onclick = null;
       pill.onkeydown = null;
     }
@@ -3696,6 +4071,11 @@ function syncEffectPills(container, effects, side) {
     }
     if(effectEl) effectEl.textContent = displayEffect;
     if(ownerEl) ownerEl.textContent = side === 'left' ? 'Your effect' : "Opponent's effect";
+    if(e.maxWidth) {
+      pill.style.maxWidth = Math.max(TOPBAR_STATUS_FLEX_MIN_WIDTH, Number(e.maxWidth) || TOPBAR_STATUS_FLEX_MIN_WIDTH) + 'px';
+    } else {
+      pill.style.maxWidth = '';
+    }
   }
   while(container.children.length > effects.length) {
     container.removeChild(container.lastElementChild);
@@ -3846,14 +4226,18 @@ function renderTopbarEffects() {
       });
     }
     if(zoeBlocks.length > 0) {
-      let zOwner = typeof zoeBlocks[0].owner === 'number' ? zoeBlocks[0].owner : oppP;
       const card = CARDS.find(c => c.id === '04');
-      allEffects.push({
-        icon: getStatusEffectIcon('zoe_block'), label: card ? card.ability : 'INTJ Stare',
-        cardName: card ? card.name : 'Zoe',
-        cardAbility: card ? card.ability : 'INTJ Stare',
-        cardEffect: card ? card.effect : 'Consolidation blocked on these cells.',
-        owner: zOwner
+      zoeBlocks.forEach(function(block, index){
+        const zOwner = typeof block.owner === 'number' ? block.owner : oppP;
+        allEffects.push({
+          icon: getStatusEffectIcon('zoe_block'), label: card ? card.ability : 'INTJ Stare',
+          cardName: card ? card.name : 'Zoe',
+          cardAbility: card ? card.ability : 'INTJ Stare',
+          cardEffect: card ? card.effect : 'Opponent cannot consolidate on or from the selected square.',
+          owner: zOwner,
+          sourceIid:block.sourceIid,
+          statusInstanceKey:'zoe:' + (block.sourceIid || [block.z, block.r, block.c, index].join(':'))
+        });
       });
     }
   }
@@ -4008,84 +4392,99 @@ function renderTopbarEffects() {
   }
 
   // Rivera — 3 of owner's turns affiliation buff
-  const wojciechZonesByOwner = {0:[], 1:[]};
-  const lydiaUsesByOwner = {0:0, 1:0};
-  const securesReadyByOwner = {0:0, 1:0};
+  const wojciechStatusesByOwner = {0:[], 1:[]};
+  const lydiaStatusesByOwner = {0:[], 1:[]};
+  const securesStatusesByOwner = {0:[], 1:[]};
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z){
       if(!c || isFaceDownCard(c)) return;
       if(c.id === '81' && !(typeof isCardEffectSuppressed === 'function' ? isCardEffectSuppressed(c) : (c._lydiaSuppressed || c._reactionSuppressed))) {
-        if(!wojciechZonesByOwner[c.owner]) wojciechZonesByOwner[c.owner] = [];
-        if(!wojciechZonesByOwner[c.owner].includes(z + 1)) wojciechZonesByOwner[c.owner].push(z + 1);
+        if(!wojciechStatusesByOwner[c.owner]) wojciechStatusesByOwner[c.owner] = [];
+        wojciechStatusesByOwner[c.owner].push({ card: c, zone: z + 1 });
       }
       if(c.id === '56' && !c.immuneFlag) {
         const uses = Math.max(0, Number(c.usesLeft == null ? 5 : c.usesLeft) || 0);
-        lydiaUsesByOwner[c.owner] = (Number(lydiaUsesByOwner[c.owner]) || 0) + uses;
+        if(uses > 0) {
+          if(!lydiaStatusesByOwner[c.owner]) lydiaStatusesByOwner[c.owner] = [];
+          lydiaStatusesByOwner[c.owner].push({ card: c, uses: uses });
+        }
       }
       if(c.id === '67' && !c.immuneFlag) {
         const uses = Math.max(0, Number(c.usesLeft == null ? (c._seculesUsed ? 0 : 1) : c.usesLeft) || 0);
-        if(uses > 0) securesReadyByOwner[c.owner] = (Number(securesReadyByOwner[c.owner]) || 0) + uses;
+        if(uses > 0) {
+          if(!securesStatusesByOwner[c.owner]) securesStatusesByOwner[c.owner] = [];
+          securesStatusesByOwner[c.owner].push({ card: c, uses: uses });
+        }
       }
     });
   }
   const wojciechCard = CARDS.find(c => c.id === '81');
   [0,1].forEach(function(owner){
-    const zones = (wojciechZonesByOwner[owner] || []).sort();
-    if(!zones.length) return;
-    allEffects.push({
-      icon: getStatusEffectIcon('wojciech'),
-      label: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
-      cardName: wojciechCard ? wojciechCard.name : 'Wojciech',
-      cardAbility: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
-      cardEffect: wojciechCard ? wojciechCard.effect : 'Character cards in this card\'s zone that cost 2 or more Reinforcement cost 1 less.',
-      owner: owner,
-      extraClass: 'effect-pill-wojciech'
+    (wojciechStatusesByOwner[owner] || []).forEach(function(entry){
+      allEffects.push({
+        icon: getStatusEffectIcon('wojciech'),
+        label: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
+        cardName: wojciechCard ? wojciechCard.name : 'Wojciech',
+        cardAbility: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
+        cardEffect: wojciechCard ? wojciechCard.effect : 'Character cards in this card\'s zone that cost 2 or more Reinforcement cost 1 less.',
+        owner: owner,
+        extraClass: 'effect-pill-wojciech',
+        sourceIid: entry.card && entry.card.iid,
+        statusInstanceKey: 'wojciech:' + (entry.card && entry.card.iid ? entry.card.iid : entry.zone)
+      });
     });
   });
   const lydiaCard = CARDS.find(c => c.id === '56');
   [0,1].forEach(function(owner){
-    const uses = Math.max(0, Number(lydiaUsesByOwner[owner]) || 0);
-    if(!uses) return;
-    allEffects.push({
-      icon: getStatusEffectIcon('lydia'),
-      label: lydiaCard ? lydiaCard.ability : 'Berknomaly!?@#',
-      cardName: lydiaCard ? lydiaCard.name : 'Lydia',
-      cardAbility: lydiaCard ? lydiaCard.ability : 'Berknomaly!?@#',
-      cardEffect: lydiaCard ? lydiaCard.effect : 'Can negate or suppress opponent Supporter effect activations.',
-      owner: owner,
-      extraClass: 'effect-pill-lydia'
+    (lydiaStatusesByOwner[owner] || []).forEach(function(entry){
+      allEffects.push({
+        icon: getStatusEffectIcon('lydia'),
+        label: lydiaCard ? lydiaCard.ability : 'Berknomaly!?@#',
+        cardName: lydiaCard ? lydiaCard.name : 'Lydia',
+        cardAbility: lydiaCard ? lydiaCard.ability : 'Berknomaly!?@#',
+        cardEffect: lydiaCard ? lydiaCard.effect : 'Can negate or suppress opponent Supporter effect activations.',
+        owner: owner,
+        extraClass: 'effect-pill-lydia',
+        sourceIid: entry.card && entry.card.iid,
+        statusInstanceKey: 'lydia:' + (entry.card && entry.card.iid ? entry.card.iid : entry.uses)
+      });
     });
   });
   const seculesCard = CARDS.find(c => c.id === '67');
   [0,1].forEach(function(owner){
-    const ready = Math.max(0, Number(securesReadyByOwner[owner]) || 0);
-    if(!ready) return;
-    allEffects.push({
-      icon: getStatusEffectIcon('secules'),
-      label: seculesCard ? seculesCard.ability : '"You Just Said Nothing"',
-      cardName: seculesCard ? seculesCard.name : 'Mr. Secules',
-      cardAbility: seculesCard ? seculesCard.ability : '"You Just Said Nothing"',
-      cardEffect: seculesCard ? seculesCard.effect : 'One-use negation is ready.',
-      owner: owner,
-      extraClass: 'effect-pill-secules'
+    (securesStatusesByOwner[owner] || []).forEach(function(entry){
+      allEffects.push({
+        icon: getStatusEffectIcon('secules'),
+        label: seculesCard ? seculesCard.ability : '"You Just Said Nothing"',
+        cardName: seculesCard ? seculesCard.name : 'Mr. Secules',
+        cardAbility: seculesCard ? seculesCard.ability : '"You Just Said Nothing"',
+        cardEffect: seculesCard ? seculesCard.effect : 'One-use negation is ready.',
+        owner: owner,
+        extraClass: 'effect-pill-secules',
+        sourceIid: entry.card && entry.card.iid,
+        statusInstanceKey: 'secules:' + (entry.card && entry.card.iid ? entry.card.iid : entry.uses)
+      });
     });
   });
 
   if(Array.isArray(G._balladEffects)) {
-    G._balladEffects.forEach(function(fx, owner){
-      if(!fx || !fx.active || fx.ended) return;
+    G._balladEffects.forEach(function(ownerEffects, owner){
+      const effects = Array.isArray(ownerEffects) ? ownerEffects : (ownerEffects ? [ownerEffects] : []);
+      effects.forEach(function(fx, index){
+        if(!fx || !fx.active || fx.ended) return;
       const card = CARDS.find(c => c.id === '87');
-      const waiting = G.turn < Number(fx.startTurn || 0);
       allEffects.push({
         icon: getStatusEffectIcon('ballad'),
         label: card ? card.ability : 'A Noble Effort at a Ballad',
         cardName: card ? card.name : 'Kvetka Svoboda',
         cardAbility: card ? card.ability : 'A Noble Effort at a Ballad',
-        cardEffect: waiting
-          ? 'Starting next turn, consolidations can gain 4 Fate if no Supporter is set.'
-          : 'Consolidations this turn gain 4 Fate at end turn if no Supporter is set.',
+        cardEffect: 'A Noble Effort at a Ballad is active: your consolidations gain 3 Fate until you set a Supporter.',
+        printedEffect: card ? card.effect : 'Starting now, when you would consolidate a card, it gains 3 Fate, and this bonus continues until you set a Supporter.',
         owner: owner,
-        extraClass: 'effect-pill-music'
+        extraClass: 'effect-pill-music',
+        sourceIid: fx.sourceIid,
+        statusInstanceKey: 'ballad:' + (fx.sourceIid || index)
+      });
       });
     });
   }
@@ -4167,15 +4566,18 @@ function renderTopbarEffects() {
     const card = CARDS.find(c => c.id === '97');
     G._administrativeBloatEffects.forEach(function(fx){
       if(!fx || (Number(fx.remaining) || 0) <= 0) return;
+      const remaining = Math.max(0, Number(fx.remaining) || 0);
       allEffects.push({
-        icon:getStatusEffectIcon('debuff'),
+        icon:getStatusEffectIcon('administrative_bloat'),
         label:card ? card.ability : 'Administrative Bloat',
         cardName:card ? card.name : 'Visegrad Politician',
         cardAbility:card ? card.ability : 'Administrative Bloat',
-        cardEffect:'The opponent\'s next ' + Math.max(0, Number(fx.remaining) || 0) + ' consolidation' + ((Number(fx.remaining) || 0) === 1 ? '' : 's') + ' cost 1 extra Reinforcement.',
+        cardEffect:remaining === 1
+          ? 'The opponent\'s next consolidation costs 1 extra Reinforcement.'
+          : 'The opponent\'s next ' + remaining + ' consolidations cost 1 extra Reinforcement.',
         owner:coerceStatusOwner(fx.sourceOwner, myP),
-        extraClass:'effect-pill-debuff',
-        turnsLeft:Math.max(0, Number(fx.remaining) || 0)
+        extraClass:'effect-pill-administrative-bloat',
+        turnsLeft:remaining
       });
     });
   }
@@ -4196,7 +4598,7 @@ function renderTopbarEffects() {
     const moves = Math.max(0, Number(busserMovesByOwner[owner]) || 0);
     if(!moves) return;
     allEffects.push({
-      icon: getStatusEffectIcon('movement'),
+      icon: getStatusEffectIcon('busser_boot'),
       label: busserCard ? busserCard.ability : 'Corner! Behind!',
       cardName: busserCard ? busserCard.name : 'Breakfast Republic Busser',
       cardAbility: busserCard ? busserCard.ability : 'Corner! Behind!',
@@ -4210,16 +4612,17 @@ function renderTopbarEffects() {
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
-  const myVisibleEffects = compactTopbarStatusEffects(myEffects, 'left');
-  const oppVisibleEffects = compactTopbarStatusEffects(oppEffects, 'right');
-
-  const mySig = myEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || ''].join('|')).join('||');
-  const oppSig = oppEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || ''].join('|')).join('||');
+  const mySig = myEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
+  const oppSig = oppEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
   const nextHtml = mySig + '::' + oppSig;
   if(_topbarEffectsLastHtml === nextHtml) {
     return;
   }
   _topbarEffectsLastHtml = nextHtml;
+  syncEffectPills(leftBar, myEffects, 'left');
+  syncEffectPills(rightBar, oppEffects, 'right');
+  const myVisibleEffects = compactTopbarStatusEffects(myEffects, 'left', leftBar);
+  const oppVisibleEffects = compactTopbarStatusEffects(oppEffects, 'right', rightBar);
   leftBar.dataset.effectPillsSig = syncEffectPills(leftBar, myVisibleEffects, 'left');
   rightBar.dataset.effectPillsSig = syncEffectPills(rightBar, oppVisibleEffects, 'right');
 
@@ -4742,18 +5145,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let value = '';
   let sub = '';
 
-  if(card.id === '15') {
-    const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
-    let coordinators = 0;
-    if(pos && G.board && G.board[pos.z]) {
-      G.board[pos.z].forEach((row, r)=>row && row.forEach((cell, c)=>{
-        if(cell && cell.owner === owner && cell.type === 'Coordinator' && !isFaceDownCard(cell) && !(typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(pos.z, r, c))) coordinators++;
-      }));
-    }
-    label = 'Blue Danube Waltz';
-    value = 'Bonus Active';
-    sub = '+' + Math.min(3, coordinators) + ' Fate in this zone';
-  } else if(card.id === '88') {
+  if(card.id === '88') {
     let charCount = 0;
     if(typeof forEachBoardCard === 'function') {
       forEachBoardCard(function(cell){
@@ -4825,16 +5217,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Snowy Village Uses';
     value = used + ' / 2';
     sub = used < 2 ? 'landscape lock available' : 'landscape lock exhausted';
-  } else if(card.id === '97') {
-    let remaining = 0;
-    if(Array.isArray(G._administrativeBloatEffects)) {
-      G._administrativeBloatEffects.forEach(function(fx){
-        if(fx && Number(fx.sourceOwner) === Number(owner)) remaining += Math.max(0, Number(fx.remaining) || 0);
-      });
-    }
-    label = 'Administrative Bloat';
-    value = remaining ? String(remaining) : 'Inactive';
-    sub = remaining ? 'Opponent consolidations cost +1' : 'Activate to tax the next 2 consolidations';
+  } else if(card.id === '100') {
+    const triggers = Math.max(0, Number(card._wintertideTriggerCount) || 0);
+    label = 'Snow on the Carpathians:';
+    value = triggers + ' Trigger' + (triggers === 1 ? '' : 's');
+    sub = '+' + (triggers * 2) + ' Fate gained this match';
   } else if(card.id === '99') {
     const fx = Array.isArray(G._blameGameEffects) ? G._blameGameEffects[owner] : null;
     const turns = fx && fx.active ? Math.max(0, Number(fx.turnsLeft) || 0) : 0;
@@ -5217,7 +5604,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         }
         if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
           const snowBtn=document.createElement('button');
-          snowBtn.className='btn sm pri';snowBtn.textContent='Activate Effect';
+          snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
           snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
           acts.appendChild(snowBtn);
         }
@@ -6728,13 +7115,15 @@ window.doMove=function(i){
   if(window._moveCard.cantBeMoved){toast('This card cannot be moved');closeModal();return;}
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;
+  if(typeof window.markMovementEffectFlash === 'function') window.markMovementEffectFlash(window._moveCard, 'movement:target-picker:' + String(window._moveCard.iid || window._moveCard.id) + ':' + String(G.turn || 0));
+  if(typeof triggerRozsiPassive === 'function') triggerRozsiPassive(window._moveCard, window._moveTargetZ);
   if(window._moveSourceCard && typeof markInitialEffectResolved === 'function') markInitialEffectResolved(window._moveSourceCard);
   closeModal();toast('Card moved');renderBoardActionForPlayer(window._moveCard && typeof window._moveCard.owner === 'number' ? window._moveCard.owner : G.currentPlayer, {hand:false});
 };
 
 function highlightForBlock(z, sourceCard) {
   const anyZone = Number(z) === -1;
-  toast(anyZone ? 'Click any valid empty square to lock it permanently' : 'Click a contested or opponent-side square in this zone to block consolidation on it');
+  toast(anyZone ? 'Click any valid empty square to lock it permanently' : 'Click any square in this zone to stop your opponent consolidating on or from it');
   G.placing=true;
   G.blockingCell=true;
   G._blockingEffectSourceIid = sourceCard && sourceCard.iid;
@@ -7425,7 +7814,9 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "87": "Ready to be serenaded?",
   "88": "The next time Zsofia even thinks about touching my waffles, im stabbing her!",
   "89": "Daaaad! Rozsi is annoying me again!",
-  "90": "Fishing - it is what all men secretly desire!"
+  "90": "Fishing - it is what all men secretly desire!",
+  "99": "He's the one that started it first!\nWell Zsofia shouldn't have been putting her feet on my sword!",
+  "100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived"
 });
 
 function getCinematicVoiceline(card) {
@@ -7455,9 +7846,11 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   const el = document.createElement('div');
   el.className = 'cinematic-subtitle-live rarity-' + String(rarity || (cardOrLine && cardOrLine.rarity) || 'circle').toLowerCase();
   el.setAttribute('aria-live', 'polite');
+  const hasManualLineBreak = /\r?\n/.test(line);
   el.textContent = '“' + line + '”';
+  if(hasManualLineBreak) el.classList.add('multi-line', 'dialogue-linebreak');
   // Inline visibility is intentional: older patches hide cinematic text elements.
-  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;';
+  el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;white-space:pre-line!important;';
   document.body.appendChild(el);
   try {
     const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
@@ -7521,12 +7914,14 @@ if(typeof window !== 'undefined') {
 let _consolidationCinematicQueue = [];
 let _consolidationCinematicShowing = false;
 let _lastConsolidationCinematicEndedAt = 0;
+const _characterSetCinematicKeys = new Set();
 if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanupInstalled) {
   const previousConsolidationQueueCleanup = window.clearConsolidationCinematicQueues;
   window.clearConsolidationCinematicQueues = function(){
     if(typeof previousConsolidationQueueCleanup === 'function') previousConsolidationQueueCleanup();
     _consolidationCinematicQueue.length = 0;
     _consolidationCinematicShowing = false;
+    _characterSetCinematicKeys.clear();
   };
   window.__fateLegacyConsolidationQueueCleanupInstalled = true;
 }
@@ -7552,10 +7947,14 @@ function showConsolidationCinematic(card, opts) {
     return true;
   }
   _consolidationCinematicShowing = true;
-  var rarity = String(card.rarity || 'circle').toLowerCase();
+  var catalogCard = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
+    ? CARDS.find(function(item){ return item && String(item.id || '') === String(card.id || ''); })
+    : null;
+  var rarity = String(card.rarity || (catalogCard && catalogCard.rarity) || 'circle').toLowerCase();
   var colorMap = { star:'#fff05a', square:'#d67fff', triangle:'#5ee37a', circle:'#f7f3e8' };
   var color = colorMap[rarity] || colorMap.circle;
-  var imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
+  var cinematicImage = card.img || (catalogCard && catalogCard.img) || (card.id ? String(card.id) + '.png' : '');
+  var imgSrc = cinematicImage ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(cinematicImage, 'board') : cinematicImage) : '';
   var subtitle = getCinematicVoiceline(card);
 
   // Sigil shape: each rarity gets a unique outline —
@@ -7621,12 +8020,12 @@ function showConsolidationCinematic(card, opts) {
   if(imgSrc){
     var imgEl = document.createElement('img');
     imgEl.src = imgSrc;
-    imgEl.alt = card.name || 'Consolidated card';
-    imgEl.setAttribute('style','max-width:100%;max-height:100%;object-fit:contain;display:block;border-radius:10px;');
+    imgEl.alt = card.name || (catalogCard && catalogCard.name) || 'Consolidated card';
+    imgEl.setAttribute('style','max-width:100%!important;max-height:100%!important;object-fit:contain!important;display:block!important;visibility:visible!important;opacity:1!important;border-radius:10px;');
     imgEl.onerror = function(){
-      if(card.img && imgEl.src.indexOf(card.img) === -1){
+      if(cinematicImage && imgEl.src.indexOf(cinematicImage) === -1){
         imgEl.onerror = function(){ imgEl.style.display='none'; };
-        imgEl.src = card.img;
+        imgEl.src = cinematicImage;
       } else { imgEl.style.display='none'; }
     };
     cardWrap.appendChild(imgEl);
@@ -7646,13 +8045,17 @@ function showConsolidationCinematic(card, opts) {
   function triggerEntrance(){
     if(_entranceTriggered) return;
     _entranceTriggered = true;
-    overlay.style.opacity = '1';
+    overlay.style.setProperty('display', 'flex', 'important');
+    overlay.style.setProperty('visibility', 'visible', 'important');
+    overlay.style.setProperty('opacity', '1', 'important');
     if(!perfLite){
       sigil.style.transform = 'translate(-50%,-50%) scale(' + (rarity === 'square' ? '1' : '1.15') + ') rotate(25deg)';
       sigil.style.opacity = rarity === 'star' ? '.48' : '.28';
     }
-    cardWrap.style.transform = 'translateY(0) scale(1)';
-    cardWrap.style.opacity = '1';
+    cardWrap.style.setProperty('display', 'flex', 'important');
+    cardWrap.style.setProperty('visibility', 'visible', 'important');
+    cardWrap.style.setProperty('transform', 'translateY(0) scale(1)', 'important');
+    cardWrap.style.setProperty('opacity', '1', 'important');
   }
   requestAnimationFrame(function(){ requestAnimationFrame(triggerEntrance); });
   setTimeout(triggerEntrance, 40); // Fallback: guaranteed to fire even if rAF is starved
@@ -7687,7 +8090,10 @@ function showConsolidationCinematic(card, opts) {
   }
 
   // Fade-out: smooth transition so card + subtitle dissolve together
-  setTimeout(function(){ overlay.style.opacity = '0'; overlay.style.transition = 'opacity '+(timing.fadeMs / 1000).toFixed(2)+'s ease-in-out'; }, timing.overlayFadeAt);
+  setTimeout(function(){
+    overlay.style.setProperty('transition', 'opacity '+(timing.fadeMs / 1000).toFixed(2)+'s ease-in-out', 'important');
+    overlay.style.setProperty('opacity', '0', 'important');
+  }, timing.overlayFadeAt);
   setTimeout(function(){
     overlay.remove();
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
@@ -7712,6 +8118,31 @@ function showConsolidationCinematic(card, opts) {
   }, timing.safetyAt);
   return true;
 }
+
+function requestCharacterSetCinematic(card, opts) {
+  if(!card || card.faceDown || String(card.type || '') === 'Supporter') return false;
+  const options = opts || {};
+  const identity = String(card.iid || [card.id || '', card.owner ?? '', options.z ?? '', options.r ?? '', options.c ?? ''].join(':'));
+  const key = 'character-set:' + identity;
+  if(_characterSetCinematicKeys.has(key)) return false;
+  _characterSetCinematicKeys.add(key);
+  const delayMs = Math.max(0, Number(options.delayMs) || 90);
+  try {
+    if(typeof G !== 'undefined' && G) {
+      G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + delayMs + getConsolidationCinematicTotalMs());
+    }
+  } catch(e) {}
+  setTimeout(function(){
+    const shown = showConsolidationCinematic(card, {
+      playVoice:options.playVoice !== false,
+      playSfx:options.playSfx !== false,
+      allowRenderV2Cinematic:true
+    });
+    if(shown === false) _characterSetCinematicKeys.delete(key);
+  }, delayMs);
+  return true;
+}
+if(typeof window !== 'undefined') window.requestCharacterSetCinematic = requestCharacterSetCinematic;
 
 // Effect activation glow — subtle on-field pulse for manually/reactively activated characters.
 function showEffectActivationGlow(z, r, c, card) {

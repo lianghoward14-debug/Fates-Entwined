@@ -205,7 +205,7 @@ function buildInitialAuthorityState(input){
     _supporterEffectsActivatedP:[0, 0],
     _snowyVillageUses:[0, 0],
     _landscapeChangeLocks:[0, 0],
-    _balladEffects:[null, null],
+    _balladEffects:[[], []],
     _mailDeliveries:[],
     _blameGameEffects:[null, null],
     _administrativeBloatEffects:[],

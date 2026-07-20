@@ -176,10 +176,31 @@ function isBlockedAuthorityCell(state, z, r, c){
   if(Array.isArray(blocked)) {
     return blocked.some(item=>{
       if(Array.isArray(item)) return Number(item[0]) === z && Number(item[1]) === r && Number(item[2]) === c;
-      return Number(item && item.z) === z && Number(item && item.r) === r && Number(item && item.c) === c;
+      return Number(item && item.z) === z && Number(item && item.r) === r && Number(item && item.c) === c && String(item && item.type || 'carolyn') !== 'zoe';
     });
   }
   return !!blocked[key];
+}
+
+function authorityConsolidationBlockedAt(state, z, r, c, playerIndex){
+  const blocked = state && (state.blockedCells || state._blockedCells || state.blocked);
+  if(!blocked) return false;
+  const matchesPlayer = item=>{
+    if(!item || Array.isArray(item)) return true;
+    if(String(item.type || 'carolyn') !== 'zoe') return true;
+    if(typeof item.blockedPlayer === 'number' && Number.isInteger(item.blockedPlayer)) return item.blockedPlayer === Number(playerIndex);
+    if(typeof item.owner === 'number' && Number.isInteger(item.owner)) return item.owner !== Number(playerIndex);
+    return true;
+  };
+  if(Array.isArray(blocked)) {
+    return blocked.some(item=>{
+      const matchesCell = Array.isArray(item)
+        ? Number(item[0]) === z && Number(item[1]) === r && Number(item[2]) === c
+        : Number(item && item.z) === z && Number(item && item.r) === r && Number(item && item.c) === c;
+      return matchesCell && matchesPlayer(item);
+    });
+  }
+  return !!blocked[[z, r, c].join(':')];
 }
 
 function authorityPlacementOptionsForCard(state, playerIndex, card){
@@ -547,18 +568,43 @@ function consolidationPostStateLeftConsumedSupporter(room, payload, postState, r
   return expectedId ? String(card.id || '') === expectedId : !!source;
 }
 
+function authorityBlameGameActive(state, owner){
+  const effects = state && Array.isArray(state._blameGameEffects) ? state._blameGameEffects : [];
+  const effect = effects[owner];
+  return !!(effect && effect.active && (Number(effect.turnsLeft) || 0) > 0);
+}
+
+function authorityCardIsCharacterForRules(state, card, owner){
+  if(!card) return false;
+  if(String(card.type || '') !== 'Supporter') return true;
+  return authorityBlameGameActive(state, owner);
+}
+
 function validateConsolidationPostState(room, payload, postState){
   const refs = collectConsolidationTributeRefs(payload);
   if(!refs.length) return '';
   const playerIndex = Number(payload.playerIndex);
   if(!Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return 'consolidation requires playerIndex';
+  const preState = room && room.canonicalState;
   const declaredTarget = payload && payload.consolidationPresentation && payload.consolidationPresentation.target || payload || {};
   const targetZ = Number(declaredTarget.z), targetR = Number(declaredTarget.r), targetC = Number(declaredTarget.c);
+  if(authorityConsolidationBlockedAt(preState, targetZ, targetR, targetC, playerIndex)) {
+    return 'consolidation cannot be placed onto a square blocked by Zoe or Carolyn';
+  }
   const targetCard = Number.isInteger(targetZ) && Number.isInteger(targetR) && Number.isInteger(targetC)
     ? boardEntryAt(postState, targetZ, targetR, targetC)
     : null;
   if(!targetCard) return 'consolidation result card is missing from target square';
+  const resultUsesCharacterTributes = String(targetCard.id || '') === '99' || String(targetCard.id || '') === '100';
   for(const ref of refs){
+    if(authorityConsolidationBlockedAt(preState, Number(ref.z), Number(ref.r), Number(ref.c), playerIndex)) {
+      return 'consolidation cannot use a card from a square blocked by Zoe or Carolyn';
+    }
+    if(resultUsesCharacterTributes){
+      const source = consolidationSourceEntry(preState, ref);
+      if(!source || Number(source.card && source.card.owner) !== playerIndex) return '99 and 100 require the player\'s own Character tributes';
+      if(!authorityCardIsCharacterForRules(room && room.canonicalState, source.card, playerIndex)) return '99 and 100 can only consume Character tributes';
+    }
     const sameTarget = Number(ref.z) === targetZ && Number(ref.r) === targetR && Number(ref.c) === targetC;
     if(ref.iid && String(targetCard.iid || '') === ref.iid) return 'consolidation target still contains a consumed supporter';
     if(consolidationPostStateLeftConsumedSupporter(room, payload, postState, ref)) return 'consolidation left a consumed supporter on the board';

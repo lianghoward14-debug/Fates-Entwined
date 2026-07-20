@@ -399,11 +399,11 @@ async function nextPlayerTurn() {
   renderHand();
 
   // Draw 1 card
-  await drawCard(G.currentPlayer, 1, { drawPhase: true, skipPresentationWait: !!G._onlineRoomCode });
+  await drawCard(currentPlayer, 1, { drawPhase: true, skipPresentationWait: !!G._onlineRoomCode });
 
   // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set
   forEachBoardCard((card)=>{
-    if(card.id==='46' && card.owner===G.currentPlayer && typeof card._philSetTurn==='number') {
+    if(card.id==='46' && card.owner===currentPlayer && typeof card._philSetTurn==='number') {
       card.currentFate += 2;
       // Visual sparkle on Phil
       const cellEl = document.querySelector(`[data-z][data-r][data-c]`);
@@ -1185,7 +1185,7 @@ async function clickCell(z,r,c) {
   // Supporter limit re-check (skip for Lina free-set cards)
   const isLinaFree = G._linaFreeIids && G._linaFreeIids.has(card.iid);
   const freePlacementCinematicKind = card.type !== 'Supporter' ? String(card._freePlacementCinematicKind || '') : '';
-  const shouldPlayFreePlacementCinematic = !G._onlineRoomCode && !!(isLinaFree || freePlacementCinematicKind) && card.type !== 'Supporter' && typeof showConsolidationCinematic === 'function';
+  const shouldPlayCharacterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
   if(!isLinaFree && card.type==='Supporter'){
     const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn >= maxSup){
@@ -1206,10 +1206,9 @@ async function clickCell(z,r,c) {
   G.board[z][r][c] = inst;
   applyRiveraBuffToPlacedCard(inst, inst.owner);
   triggerPlacementAnimation(inst, z, r, c);
-  if(shouldPlayFreePlacementCinematic) {
-    inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || freePlacementCinematicKind || 'linaFreeSet');
-    G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + 90 + 2350);
-    setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true}); }, 90);
+  if(shouldPlayCharacterSetCinematic) {
+    if(isLinaFree || freePlacementCinematicKind) inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || freePlacementCinematicKind || 'linaFreeSet');
+    requestCharacterSetCinematic(inst, {z:z, r:r, c:c, delayMs:90, source:freePlacementCinematicKind || 'normal-set-v2'});
   }
   player.hand.splice(G.selectedHandCard, 1);
 
@@ -1222,7 +1221,7 @@ async function clickCell(z,r,c) {
   }));
 
   // Play card placement sound (rarity-based)
-  if(!shouldPlayFreePlacementCinematic) {
+  if(!shouldPlayCharacterSetCinematic) {
     playCardSound(card.id);
     const rarSfx = card.rarity==='star'?'starPlace':card.rarity==='square'?'squarePlace':card.rarity==='triangle'?'trianglePlace':'place';
     playSfx(rarSfx);
@@ -1240,7 +1239,7 @@ async function clickCell(z,r,c) {
     triggerAIDialogue('aiPlacedCard');
   }
   // Affiliation-specific placement layer
-  if(inst.aff && !shouldPlayFreePlacementCinematic) playSfx('affPlace_'+inst.aff);
+  if(inst.aff && !shouldPlayCharacterSetCinematic) playSfx('affPlace_'+inst.aff);
   // Count for supporter limit (but not Lina free-set)
   if(card.type==='Supporter' && !isLinaFree) G.supportsPlacedThisTurn++;
   // Clear Lina free flag after use
@@ -1248,7 +1247,7 @@ async function clickCell(z,r,c) {
   if(isLinaFree) delete card._linaFree;
   if(freePlacementCinematicKind) delete card._freePlacementCinematicKind;
   
-  if(!shouldPlayFreePlacementCinematic && typeof playSfx === 'function') playSfx('cardSet');
+  if(!shouldPlayCharacterSetCinematic && typeof playSfx === 'function') playSfx('cardSet');
   log(G.currentPlayer===0?'p1':'p2', `${player.name} placed ${card.name} in Zone ${z+1}`);
 
   G.placing = false;
@@ -1326,8 +1325,42 @@ function beginImmediateFreePlacement(player, card, message) {
   setHint(message || ('Place ' + card.name + ' for free.'));
 }
 
+function scheduleCoordinatorPlacementFlashV2(card, options) {
+  if(!card || card.faceDown) return false;
+  if(typeof window !== 'undefined' && typeof window.scheduleCoordinatorPlacementFlash === 'function') {
+    return window.scheduleCoordinatorPlacementFlash(card, options || {});
+  }
+  const kindById = {
+    '01':'coord_felicyta_eagle',
+    '10':'coord_postmodern_dylan',
+    '11':'coord_anne_trio',
+    '15':'coord_zsofia_river',
+    '19':'coord_kvetka_bloom',
+    '23':'coord_cathy_cardigan',
+    '57':'coord_jeremiah_snowseal'
+  };
+  const kind = kindById[String(card.id || '')];
+  if(!kind || card._coordinatorPlacementFlashPlayed || typeof flashCardEffect !== 'function') return false;
+  card._coordinatorPlacementFlashPlayed = true;
+  const opts = options || {};
+  const lockDelay = Math.max(0, Number(G && G._cinematicUiLockUntil || 0) - Date.now());
+  const delayMs = Number.isFinite(Number(opts.delayMs)) ? Math.max(0, Number(opts.delayMs)) : Math.max(lockDelay + 90, 160);
+  setTimeout(function(){
+    if(!card || card.faceDown) return;
+    flashCardEffect(card, kind, {
+      label:opts.label || 'coordinator sigil',
+      soundKey:(opts.soundKey || ('coord:' + String(card.iid || card.id || 'card') + ':' + String(G.turn || 0)))
+    });
+  }, delayMs);
+  return true;
+}
+if(typeof window !== 'undefined' && typeof window.scheduleCoordinatorPlacementFlash !== 'function') {
+  window.scheduleCoordinatorPlacementFlash = scheduleCoordinatorPlacementFlashV2;
+}
+
 async function resolveSetCardAfterPlacement(inst, z, r, c) {
   if(!inst || isFaceDownCard(inst)) return;
+  scheduleCoordinatorPlacementFlashV2(inst, {z:z, r:r, c:c, source:'resolve-set-card-v2'});
   if(Array.isArray(G.shieldWallZones) && G.shieldWallZones.includes(z)) inst.cantBeMoved = true;
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
     await aiTriggerWhenSet(inst, z, r, c);
@@ -1390,7 +1423,9 @@ function initiateConsolidate() {
   if(actualCost <= 0) {
     closeModal();
     G.placing = true;
-    if(card.type !== 'Supporter') card._freePlacementCinematicKind = card._freePlacementCinematicKind || 'costReducedFreeSet';
+    if(card.type !== 'Supporter') {
+      card._freePlacementCinematicKind = card._freePlacementCinematicKind || 'costReducedFreeSet';
+    }
     highlightValidCells(card);
     setHint('Place ' + card.name + ' for free (cost reduced to 0)');
     return;
@@ -1947,6 +1982,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           return;
         }
         log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
+        flashCardEffect(tgt, 'oathbound_crescent', {
+          label:'oathbound blade',
+          soundKey:'oathbound:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
+        });
         renderGame();
       }, function(cell){ return !!cell && !cell.immuneFlag && cell.id !== '76'; }); break;
     case '16': // MINAE Death Squad: discard opponent supporter in zone
@@ -2008,6 +2047,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         inst._declaredAff = aff;
         // Show affiliation icon flash on Duncan
         if(typeof showAffChangeOverlay==='function') showAffChangeOverlay(inst, aff);
+        if(typeof flashCardEffect === 'function') flashCardEffect(inst, 'coord_heyward_compass', {
+          label:'declared affiliation',
+          soundKey:'heyward-v2:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(G.turn || 0)
+        });
         toast('Duncan Heyward declared '+AFF_LABEL[aff]+'! All '+AFF_LABEL[aff]+' cards in zone gain 4 Fate.');
         log(cp===0?'p1':'p2','Duncan Heyward declared '+AFF_LABEL[aff]);
         renderGame();
@@ -2491,6 +2534,17 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         });
         G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + adj;
         const maxSup = (Number(G.maxSupportsPerTurn) || 0) + (Number(G.extraSupportsThisTurn) || 0);
+        if(typeof flashCardEffect === 'function') {
+          [[-1,0],[1,0],[0,-1],[0,1]].forEach(function(offset, idx){
+            const nr = r + offset[0], nc = c + offset[1];
+            const rowCapacity = G.board[z] && G.board[z][nr] ? G.board[z][nr].length : 3;
+            const neighbor = (nr >= 0 && nr < maxRow && nc >= 0 && nc < rowCapacity && G.board[z][nr]) ? G.board[z][nr][nc] : null;
+            if(neighbor && neighbor.iid !== card.iid) flashCardEffect(neighbor, 'isaac_beaker', {
+              label:'scientific inquiry',
+              soundKey:'isaac-v2:' + String(card && (card.iid || card.id) || 'card') + ':' + String(neighbor.iid || neighbor.id || idx) + ':' + String(G.turn || 0)
+            });
+          });
+        }
         toast(`${adj} adjacent card${adj===1?'':'s'} — supporter limit is now ${maxSup} this turn.`);
         renderHand();
         updateTopBar();
@@ -2876,8 +2930,8 @@ function getEffectiveFate(card, z) {
     }
     if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
     if(cell.owner!==card.owner) return;
-    // Felicyta (01): +3 to adjacent friendly cards
-    if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 3 + jeremiahBoost;
+    // Felicyta (01): +4 to adjacent friendly cards
+    if(cell.id==='01' && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 4 + jeremiahBoost;
     // Phil (46): no zone aura
     // Anne Stone (11): +3 to supporters in zone
     if(cell.id==='11' && card.type==='Supporter') bonus += 3 + jeremiahBoost;

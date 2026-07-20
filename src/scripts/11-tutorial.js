@@ -1428,6 +1428,7 @@ async function tutorialForcePlaceCard(playerIdx, action) {
   const inst = newInstance(source);
   inst.owner = playerIdx;
   inst.currentFate = typeof getPlacedCardFate === 'function' ? getPlacedCardFate(source, {bonusFate:0}) : (source.currentFate || source.fate || 0);
+  if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, source, 'set');
   if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, playerIdx);
   if(typeof consumePendingPlacementFlags === 'function') consumePendingPlacementFlags(source, inst);
   const commitPlacement = function(){
@@ -1475,6 +1476,7 @@ async function tutorialForceConsolidateCard(playerIdx, action) {
   inst.currentFate = typeof getPlacedCardFate === 'function'
     ? getPlacedCardFate(source, {bonusFate:0, tributeCount:tributes.length})
     : (source.currentFate || source.fate || 0);
+  if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, source, 'consolidation');
   if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, playerIdx);
   G.board[action.z][action.r][action.c] = inst;
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, action.z, action.r, action.c);

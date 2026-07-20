@@ -209,8 +209,18 @@ function isPlainSupporter(card) {
   );
 }
 
-function profile(username) {
-  return {username, avatarUrl:'', characterTitle:'Footman', challengerElo:600, challengerWins:0, challengerLosses:0};
+function profile(username, options = {}) {
+  const inlinePhoto = options.inlinePhoto ? `data:image/png;base64,${'A'.repeat(50000)}` : '';
+  return {
+    username,
+    avatarUrl:'',
+    characterTitle:'Footman',
+    challengerElo:600,
+    challengerWins:0,
+    challengerLosses:0,
+    photoURL:inlinePhoto,
+    profileImg:inlinePhoto
+  };
 }
 
 function deckChoice(name) {
@@ -450,17 +460,23 @@ async function run() {
   const created = await fetchJson('/api/rooms', {
     method:'POST',
     idToken:users.host.idToken,
-    body:{uid:users.host.uid, mode:'freeplay', profile:profile('Fly Smoke Host'), deckChoice:reactionDeckChoice('Fly Smoke Host Deck', smokeDeck)}
+    body:{uid:users.host.uid, mode:'freeplay', profile:profile('Fly Smoke Host', {inlinePhoto:true}), deckChoice:reactionDeckChoice('Fly Smoke Host Deck', smokeDeck)}
   });
   const code = String(created.room?.roomCode || created.room?.code || '');
   if(!/^[A-Z0-9]{6}$/.test(code)) throw new Error(`created room has invalid code: ${code}`);
+  if(JSON.stringify(created.room || {}).includes('data:image/')){
+    throw new Error('high-frequency room response leaked an embedded host profile image');
+  }
 
   const joined = await fetchJson(`/api/rooms/${encodeURIComponent(code)}/join`, {
     method:'POST',
     idToken:users.guest.idToken,
-    body:{uid:users.guest.uid, profile:profile('Fly Smoke Guest'), deckChoice:reactionDeckChoice('Fly Smoke Guest Deck', smokeDeck)}
+    body:{uid:users.guest.uid, profile:profile('Fly Smoke Guest', {inlinePhoto:true}), deckChoice:reactionDeckChoice('Fly Smoke Guest Deck', smokeDeck)}
   });
   if(joined.room?.guestUid !== users.guest.uid) throw new Error('guest did not join Fly room');
+  if(JSON.stringify(joined.room || {}).includes('data:image/')){
+    throw new Error('high-frequency room response leaked an embedded guest profile image');
+  }
   if(JOIN_ONLY){
     console.log(JSON.stringify({
       ok:true,

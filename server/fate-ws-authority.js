@@ -69,6 +69,8 @@ const LANDING_WEBSITE_DIR = process.env.FATE_LANDING_WEBSITE_DIR
   : path.join(APP_ROOT, 'fates-entwined-website');
 const DIST_DIR = path.join(APP_ROOT, 'dist');
 const INSTALLER_PUBLIC_PATH = '/installer/Fates-Entwined-Installer.exe';
+const INSTALLER_RELEASE_URL = String(process.env.FATE_INSTALLER_RELEASE_URL ||
+  'https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe').trim();
 const STATIC_OVERRIDE_DIR = FLY_DATA_DIR ? path.join(FLY_DATA_DIR, 'static-overrides') : '';
 const SHARED_AI_RECORD_SCHEMA_VERSION = 5;
 const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
@@ -736,13 +738,11 @@ function serveWebsiteRequest(req, res){
     return serveStaticFileWithOverride(res, LANDING_WEBSITE_DIR, normalizedLanding, pathname);
   }
   if(pathname === INSTALLER_PUBLIC_PATH){
-    const installerPath = latestInstallerPath();
-    if(!installerPath){
-      res.writeHead(503, {'content-type':'text/plain; charset=utf-8'});
-      res.end('Installer has not been built for this deployment.\n');
-      return true;
-    }
-    serveFile(res, installerPath, 'Fates-Entwined-Installer.exe');
+    res.writeHead(302, {
+      location:INSTALLER_RELEASE_URL,
+      'cache-control':'public, max-age=300'
+    });
+    res.end();
     return true;
   }
   if(WEB_GAME_DISABLED){
@@ -902,6 +902,17 @@ function sanitizeProfile(value){
   };
 }
 
+function sanitizeRoomProfile(value){
+  const profile = sanitizeProfile(value);
+  // Room state is polled frequently for lobby/presence updates. Embedded
+  // profile pictures can be tens or hundreds of kilobytes and were previously
+  // duplicated in both fields on every response. Profile subscriptions fetch
+  // those images separately, so keep high-frequency room payloads lightweight.
+  if(/^data:image\//i.test(profile.photoURL || '')) profile.photoURL = '';
+  if(/^data:image\//i.test(profile.profileImg || '')) profile.profileImg = '';
+  return profile;
+}
+
 function profileWithServerRank(uid, value){
   const clean = sanitizeProfile(value);
   const server = publicFlyProfile(flyPlayerStats.get(String(uid || '').slice(0, 128)) || {uid:String(uid || '').slice(0, 128)}) || {};
@@ -978,7 +989,7 @@ function publicPlayer(player){
     connected:!!player.connected,
     joinedAt:player.joinedAt || 0,
     lastSeen:player.lastSeen || 0,
-    profile:player.profile || sanitizeProfile(null),
+    profile:sanitizeRoomProfile(player.profile),
     deckChoice:{
       name:String(deckChoice.name || '').slice(0, 80),
       selectedDeckKey:String(deckChoice.selectedDeckKey || '').slice(0, 120),

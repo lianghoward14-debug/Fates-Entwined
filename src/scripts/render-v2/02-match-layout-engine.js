@@ -217,47 +217,61 @@
     const largeOppHand = oppCount <= 4;
     const mediumOppHand = oppCount >= 5 && oppCount <= 8;
     const packedOppHand = oppCount >= 9;
-    const fullOppHand = oppCount >= 12;
-    const nineCardHand = oppCount === 9;
+    const packedOppCardW = 50;
+    const packedOppCardH = 70;
+    const packedOppRowStep = 65;
     const oppCols = largeOppHand
       ? Math.min(4, Math.max(1, oppCount || 1))
-      : (nineCardHand ? 3 : 4);
+      : 4;
     const oppRows = Math.max(1, Math.ceil(Math.max(1, oppCount) / oppCols));
-    const oppGap = largeOppHand ? 7 : (mediumOppHand ? 6 : (fullOppHand ? 5 : 6));
-    const tierOppCardMinW = largeOppHand ? 58 : (mediumOppHand ? 50 : (fullOppHand ? 50 : (oppCount >= 10 ? 52 : 56)));
-    const tierOppCardMaxW = largeOppHand ? 70 : (mediumOppHand ? 58 : (fullOppHand ? 52 : (oppCount >= 10 ? 54 : 56)));
-    const tierOppCardScale = largeOppHand ? 0.041 : (mediumOppHand ? 0.033 : (fullOppHand ? 0.03 : 0.033));
+    const oppColGap = largeOppHand ? 7 : 6;
+    const oppRowGap = largeOppHand ? 7 : (mediumOppHand ? 6 : 4);
+    const tierOppCardMinW = largeOppHand ? 58 : (mediumOppHand ? 50 : packedOppCardW);
+    const tierOppCardMaxW = largeOppHand ? 70 : (mediumOppHand ? 58 : packedOppCardW);
+    const tierOppCardScale = largeOppHand ? 0.041 : (mediumOppHand ? 0.033 : 0.031);
     const baseOppCardW = clamp(winW * tierOppCardScale, tierOppCardMinW, tierOppCardMaxW);
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
-    const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppGap * Math.max(0, oppCols - 1) + 16);
-    const oppFallbackH = baseOppCardH * oppRows + oppGap * Math.max(0, oppRows - 1) + 14;
+    const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppColGap * Math.max(0, oppCols - 1) + 16);
+    const oppFallbackH = baseOppCardH * oppRows + oppRowGap * Math.max(0, oppRows - 1) + 14;
     const oppFallback = rect(22, packedOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
-    if(packedOppHand) {
-      const denseInsetY = 6;
-      oppRect = rect(oppRect.x, oppRect.y + denseInsetY, oppRect.w, Math.max(1, oppRect.h - denseInsetY));
-    } else if(oppRows > 1 && oppRect.h < oppFallbackH) {
-      oppRect = rect(oppRect.x, oppRect.y, oppRect.w, oppFallbackH);
+    if(oppRows > 1) {
+      // The canvas-owned hand leaves an almost empty DOM proxy. Never use that
+      // proxy's few pixels as the row-layout height: it collapses 9+ cards into
+      // one overlapping line. Four-column packed hands use a stable 65px row
+      // step, matching the snug spacing of the 5-8 card grid.
+      const requiredOppH = packedOppHand
+        ? packedOppCardH + packedOppRowStep * Math.max(0, oppRows - 1)
+        : oppFallbackH;
+      if(oppRect.h < requiredOppH) {
+        oppRect = rect(oppRect.x, oppRect.y, oppRect.w, requiredOppH);
+      }
     }
     const fitOppCardW = oppCount
-      ? Math.max(30, Math.floor((oppRect.w - 16 - oppGap * Math.max(0, oppCols - 1)) / oppCols))
+      ? Math.max(30, Math.floor((oppRect.w - 16 - oppColGap * Math.max(0, oppCols - 1)) / oppCols))
       : baseOppCardW;
-    // The canvas owns this surface, so its empty DOM proxy has no useful content
-    // height. Crowded hands use a stable size instead of collapsing against it.
-    const packedOppCardW = fullOppHand ? 48 : 50;
     const oppCardW = packedOppHand
       ? Math.min(packedOppCardW, fitOppCardW)
       : Math.min(baseOppCardW, fitOppCardW);
     const oppCardH = Math.round(oppCardW * 1.4);
-    const totalOppH = oppRows * oppCardH + oppGap * Math.max(0, oppRows - 1);
+    const naturalOppRowStep = oppCardH + oppRowGap;
+    const fitOppRowStep = oppRows > 1
+      ? Math.max(1, (oppRect.h - oppCardH) / (oppRows - 1))
+      : naturalOppRowStep;
+    const oppRowStep = packedOppHand
+      ? Math.min(packedOppRowStep, naturalOppRowStep, fitOppRowStep)
+      : naturalOppRowStep;
+    const totalOppH = oppCardH + oppRowStep * Math.max(0, oppRows - 1);
     const oppStartY = oppRect.y + Math.max(0, (oppRect.h - totalOppH) / 2);
     const opponentHand = {
       rect:oppRect,
+      columns:oppCols,
+      rows:oppRows,
       cards:oppCards.map(function(card, index){
         const row = Math.floor(index / oppCols);
         const col = index % oppCols;
         const rowCount = row === oppRows - 1 ? (oppCount - row * oppCols) : oppCols;
-        const totalRowW = oppCardW * rowCount + oppGap * Math.max(0, rowCount - 1);
+        const totalRowW = oppCardW * rowCount + oppColGap * Math.max(0, rowCount - 1);
         const rowStartX = oppRect.x + Math.max(0, (oppRect.w - totalRowW) / 2);
         return {
           index,
@@ -265,7 +279,7 @@
           card,
           playerIndex:opponent,
           faceDown:!(card && card.revealed),
-          rect:rect(rowStartX + col * (oppCardW + oppGap), oppStartY + row * (oppCardH + oppGap), oppCardW, oppCardH)
+          rect:rect(rowStartX + col * (oppCardW + oppColGap), oppStartY + row * oppRowStep, oppCardW, oppCardH)
         };
       })
     };

@@ -1305,23 +1305,6 @@ html body #s-game .zone.final-zone-board-flash::after{
   z-index:5;
   pointer-events:none;
 }
-.bc .bc-protection-status-glyph{
-  display:none;
-}
-.bc.fate-immune.fate-has-primary-status .bc-protection-status-glyph{
-  display:block;
-  position:absolute;
-  left:7%;
-  bottom:7%;
-  width:clamp(36px,52%,60px);
-  aspect-ratio:1;
-  z-index:6;
-  pointer-events:none;
-  background:rgba(214,246,255,.96);
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l17 8v14c0 12-7 20-17 25-10-5-17-13-17-25V17l17-8z'/%3E%3Cpath d='M24 33l6 6 12-13'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
-  filter:drop-shadow(0 1px 5px rgba(6,28,42,.7)) drop-shadow(0 0 8px rgba(108,208,226,.32));
-}
 .bc.fate-suppressed > :not(.fate-svg-corners):not(.bc-fate){
   filter:saturate(.58) brightness(.82) contrast(.92)!important;
 }
@@ -1487,8 +1470,8 @@ html body #s-game .bc.vigilante-muted.fate-marked-death .bc-fate{
   border:0;
   border-radius:0;
   background:rgba(238,222,255,.96);
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='21' stroke-width='3.8'/%3E%3Cpath d='M24 24L40 40M40 24L24 40' stroke-width='6.4'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='21' stroke-width='3.8'/%3E%3Cpath d='M24 24L40 40M40 24L24 40' stroke-width='6.4'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
   filter:drop-shadow(0 2px 7px rgba(24,8,42,.66)) drop-shadow(0 0 9px rgba(154,108,218,.32));
 }
 html body #s-game .bc.fate-blocked-action:not(.fate-negated):not(.fate-suppressed):not(.fate-marked-death)::after{
@@ -1501,8 +1484,8 @@ html body #s-game .bc.fate-blocked-action:not(.fate-negated):not(.fate-suppresse
   border:0!important;
   border-radius:0!important;
   background:rgba(238,222,255,.96)!important;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 24v-7h8M39 17h8v8M47 39v8h-8M25 47h-8v-8M18 48L48 18'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='21' stroke-width='3.8'/%3E%3Cpath d='M24 24L40 40M40 24L24 40' stroke-width='6.4'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='21' stroke-width='3.8'/%3E%3Cpath d='M24 24L40 40M40 24L24 40' stroke-width='6.4'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
   filter:drop-shadow(0 2px 7px rgba(24,8,42,.66)) drop-shadow(0 0 9px rgba(154,108,218,.32))!important;
 }
 
@@ -1542,7 +1525,160 @@ html body #s-game .bc.fate-snowball-hit::after{
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 7v50M10 20l44 24M10 44l44-24'/%3E%3Cpath d='M32 7l-7 8M32 7l7 8M32 57l-7-8M32 57l7-8M10 20l11 2M10 20l4 10M54 44l-11-2M54 44l-4-10M10 44l11-2M10 44l4-10M54 20l-11 2M54 20l-4 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='3.2' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 7v50M10 20l44 24M10 44l44-24'/%3E%3Cpath d='M32 7l-7 8M32 7l7 8M32 57l-7-8M32 57l7-8M10 20l11 2M10 20l4 10M54 44l-11-2M54 44l-4-10M10 44l11-2M10 44l4-10M54 20l-11 2M54 20l-4 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='3.2' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
   filter:drop-shadow(0 2px 7px rgba(7,37,58,.68)) drop-shadow(0 0 12px rgba(138,224,255,.52))!important;
-  animation:fate-snowball-status-flash 3s ease-out both;
+  animation:fate-snowball-status-flash 3.5s ease-out both;
+}
+
+/* Card-specific transient effect flashes. These intentionally share the large,
+   bare-glyph language of Snowball Fight. Kvetka's Ballad is the shorter exception. */
+html body #s-game .bc.fate-effect-flash{
+  --effect-flash-color:rgba(255,246,210,.98);
+  --effect-flash-glow:rgba(235,194,92,.52);
+  --effect-flash-tint:rgba(210,174,82,.13);
+  --effect-flash-inset:rgba(255,235,158,.1);
+  --effect-flash-duration:3.5s;
+  filter:none!important;
+  opacity:1!important;
+}
+html body #s-game #board .bc.fate-effect-flash::before,
+html body #s-game .bc.fate-effect-flash::before,
+html body #s-game #board .bc.fate-effect-flash::after,
+html body #s-game .bc.fate-effect-flash::after{
+  content:''!important;
+  display:block!important;
+  position:absolute!important;
+  pointer-events:none!important;
+  box-sizing:border-box!important;
+}
+html body #s-game .bc.fate-effect-flash::before{
+  inset:0!important;
+  z-index:5!important;
+  border-radius:inherit!important;
+  background:var(--effect-flash-tint)!important;
+  box-shadow:inset 0 0 20px var(--effect-flash-inset)!important;
+}
+html body #s-game .bc.fate-effect-flash::after{
+  inset:auto!important;
+  left:50%!important;
+  top:50%!important;
+  width:clamp(60px,88%,104px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  z-index:6!important;
+  border:0!important;
+  border-radius:0!important;
+  background:var(--effect-flash-color)!important;
+  -webkit-mask:var(--effect-flash-mask) center/contain no-repeat!important;
+  mask:var(--effect-flash-mask) center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(31,20,4,.7)) drop-shadow(0 0 12px var(--effect-flash-glow))!important;
+  animation:fate-card-effect-icon-flash var(--effect-flash-duration) ease-out both!important;
+}
+html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!important;filter:none!important;}
+
+.bc.effect-flash-specter_ghost{
+  --effect-flash-color:rgba(224,239,255,.98);--effect-flash-glow:rgba(140,184,255,.58);
+  --effect-flash-tint:rgba(104,126,174,.16);--effect-flash-inset:rgba(176,205,255,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 50V29c0-13 7-20 15-20 9 0 16 8 16 20v21l-7-6-6 7-6-7-6 7z'/%3E%3Ccircle cx='27' cy='28' r='2' fill='black'/%3E%3Ccircle cx='38' cy='28' r='2' fill='black'/%3E%3Cpath d='M26 37l6-3 7 3'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-kvetka_ballad{
+  --effect-flash-color:rgba(255,202,238,.98);--effect-flash-glow:rgba(244,94,184,.60);
+  --effect-flash-tint:rgba(142,42,104,.16);--effect-flash-inset:rgba(255,170,224,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M38 11v35M38 12l14 4v11l-14-4'/%3E%3Cellipse cx='25' cy='46' rx='11' ry='7' transform='rotate(-8 25 46)'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-marie_deterrence{
+  --effect-flash-color:rgba(255,225,211,.98);--effect-flash-glow:rgba(225,105,78,.52);
+  --effect-flash-tint:rgba(170,78,64,.14);--effect-flash-inset:rgba(255,164,138,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 15h36v15c0 11-7 19-18 25-11-6-18-14-18-25z'/%3E%3Cpath d='M21 34h22M25 26h14M32 18v29'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-movement_boot{
+  --effect-flash-color:rgba(255,224,166,.98);--effect-flash-glow:rgba(255,158,61,.60);
+  --effect-flash-tint:rgba(172,91,24,.15);--effect-flash-inset:rgba(255,194,109,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M25 15h18c-3 10-3 18 0 26l14 4c4 1 6 4 6 8v5H12v-8h12V38c0-7 0-14 1-23z'/%3E%3Cpath d='M28 25h11M14 58h48'/%3E%3Cpath stroke-width='2.75' d='M17 50h9v8M8 24H1M11 32H1M13 40H4'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-rozsi_dance{
+  --effect-flash-color:rgba(255,208,242,.98);--effect-flash-glow:rgba(246,108,203,.60);
+  --effect-flash-tint:rgba(142,51,119,.15);--effect-flash-inset:rgba(255,171,229,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M25 15h18c-3 10-3 18 0 26l14 4c4 1 6 4 6 8v5H12v-8h12V38c0-7 0-14 1-23z'/%3E%3Cpath d='M28 25h11M14 58h48'/%3E%3Cpath stroke-width='2.75' d='M17 50h9v8M8 24H1M11 32H1M13 40H4'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-british_union_jack{
+  --effect-flash-color:rgba(232,246,255,.98);--effect-flash-glow:rgba(126,183,255,.62);
+  --effect-flash-tint:rgba(48,91,168,.16);--effect-flash-inset:rgba(139,190,255,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='28' stroke-width='3.2'/%3E%3Cpath d='M19 52V12M19 16C28 11 38 20 50 14V35C40 41 30 29 19 38Z' stroke-width='3.2'/%3E%3Cpath d='M22 18C29 22 39 30 47 33M47 17C39 20 29 29 22 35' stroke-width='2.4'/%3E%3Cpath d='M21 26C29 23 39 29 48 24M35 16C34 22 34 29 34 36' stroke-width='4'/%3E%3Cpath d='M19 10L15 14L19 18L23 14Z' stroke-width='3.2'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-oathbound_crescent{
+  --effect-flash-color:rgba(255,185,177,.98);--effect-flash-glow:rgba(240,93,82,.60);
+  --effect-flash-tint:rgba(146,36,40,.17);--effect-flash-inset:rgba(255,127,116,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 0l7 10-3 31h-8l-3-31z'/%3E%3Cpath d='M17 47c8 8 22 8 30 0'/%3E%3Cpath d='M17 47c5-7 25-7 30 0'/%3E%3Cpath d='M27 52h10v15H27z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-isaac_beaker{
+  --effect-flash-color:rgba(220,252,255,.98);--effect-flash-glow:rgba(106,222,244,.58);
+  --effect-flash-tint:rgba(34,128,148,.15);--effect-flash-inset:rgba(116,231,250,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 9h16M27 9v17L15 49c-2 4 1 7 6 7h22c5 0 8-3 6-7L37 26V9'/%3E%3Cpath d='M19 43c8-3 17 3 26 0'/%3E%3Ccircle cx='28' cy='47' r='2' fill='black' stroke='none'/%3E%3Ccircle cx='39' cy='38' r='2' fill='black' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_anne_trio{
+  --effect-flash-color:rgba(255,233,168,.98);--effect-flash-glow:rgba(240,190,82,.58);
+  --effect-flash-tint:rgba(164,116,30,.15);--effect-flash-inset:rgba(255,213,121,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='13' r='6'/%3E%3Ccircle cx='13' cy='47' r='6'/%3E%3Ccircle cx='51' cy='47' r='6'/%3E%3Cpath d='M29 19L16 41M35 19l13 22M19 47h26'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_kvetka_bloom{
+  --effect-flash-color:rgba(226,255,224,.98);--effect-flash-glow:rgba(118,232,126,.56);
+  --effect-flash-tint:rgba(44,134,63,.15);--effect-flash-inset:rgba(132,242,142,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='6'/%3E%3Cpath d='M32 26c-5-10-2-17 0-19 5 5 7 12 0 19zM38 32c10-5 17-2 19 0-5 5-12 7-19 0zM32 38c5 10 2 17 0 19-5-5-7-12 0-19zM26 32c-10 5-17 2-19 0 5-5 12-7 19 0z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_cathy_cardigan{
+  --effect-flash-color:rgba(199,255,231,.98);--effect-flash-glow:rgba(100,214,176,.58);
+  --effect-flash-tint:rgba(42,130,105,.15);--effect-flash-inset:rgba(117,232,196,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M23 10l9 8 9-8 12 8-6 12v26H17V30l-6-12zM23 10l-2 14 11-6 11 6-2-14'/%3E%3Cpath d='M32 18v38'/%3E%3Ccircle cx='36' cy='31' r='1.8' fill='black' stroke='none'/%3E%3Ccircle cx='36' cy='40' r='1.8' fill='black' stroke='none'/%3E%3Ccircle cx='36' cy='49' r='1.8' fill='black' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_felicyta_eagle{
+  --effect-flash-color:rgba(255,239,224,.98);--effect-flash-glow:rgba(240,123,91,.56);
+  --effect-flash-tint:rgba(163,67,38,.15);--effect-flash-inset:rgba(255,151,112,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 29c10-1 16 3 22 12 6-9 12-13 22-12-4 10-11 17-22 23-11-6-18-13-22-23z'/%3E%3Cpath d='M18 25C23 18 28 15 32 11C36 15 41 18 46 25M18 25v4M46 25v4M29 28l3-3 3 3'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_zsofia_river{
+  --effect-flash-color:rgba(224,249,255,.98);--effect-flash-glow:rgba(106,205,238,.56);
+  --effect-flash-tint:rgba(38,121,159,.15);--effect-flash-inset:rgba(115,215,244,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='24'/%3E%3Cpath d='M11 20c7-6 14 6 21 0s14 6 21 0'/%3E%3Cpath d='M11 32c7-6 14 6 21 0s14 6 21 0'/%3E%3Cpath d='M11 44c7-6 14 6 21 0s14 6 21 0'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_jeremiah_snowseal{
+  --effect-flash-color:rgba(235,247,255,.98);--effect-flash-glow:rgba(164,214,255,.56);
+  --effect-flash-tint:rgba(72,119,157,.14);--effect-flash-inset:rgba(175,222,255,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='24'/%3E%3Cpath d='M13 47L32 13l19 34'/%3E%3Cpath d='M17.5 39c3.5-4 6.5 5 10.5 0 3-5 6 6 10 0 3-4 6 3 8.5 0'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_heyward_compass{
+  --effect-flash-color:rgba(232,238,255,.98);--effect-flash-glow:rgba(156,170,255,.56);
+  --effect-flash-tint:rgba(65,69,152,.16);--effect-flash-inset:rgba(151,162,255,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='23'/%3E%3Cpath d='M32 15l6 11 11 6-11 6-6 11-6-11-11-6 11-6z'/%3E%3Ccircle cx='32' cy='32' r='5'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-coord_postmodern_dylan{
+  --effect-flash-color:rgba(242,226,255,.98);--effect-flash-glow:rgba(182,126,255,.56);
+  --effect-flash-tint:rgba(94,50,154,.16);--effect-flash-inset:rgba(191,138,255,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 9l22 23-22 23L10 32zM32 19l12 13-12 13-12-13z'/%3E%3Cpath d='M10 32h10M44 32h10'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-rivera_crest{
+  --effect-flash-color:rgba(204,255,216,.98);--effect-flash-glow:rgba(99,219,132,.60);
+  --effect-flash-tint:rgba(40,126,65,.15);--effect-flash-inset:rgba(119,232,145,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round'%3E%3Ccircle cx='32' cy='32' r='21'/%3E%3Cpath d='M32 14v36M14 32h36M21 21l22 22M43 21L21 43'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-phil_crown{
+  --effect-flash-color:rgba(255,224,138,.98);--effect-flash-glow:rgba(255,199,79,.62);
+  --effect-flash-tint:rgba(154,105,18,.15);--effect-flash-inset:rgba(255,213,104,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21l10 19 10-22 10 22 10-19-4 28H16zM17 43h30'/%3E%3Ccircle cx='12' cy='19' r='2' fill='black'/%3E%3Ccircle cx='32' cy='16' r='2' fill='black'/%3E%3Ccircle cx='52' cy='19' r='2' fill='black'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-wintertide{
+  --effect-flash-color:rgba(224,249,255,.98);--effect-flash-glow:rgba(110,214,246,.58);
+  --effect-flash-tint:rgba(92,174,210,.14);--effect-flash-inset:rgba(145,225,249,.11);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Cpath transform='rotate(60 32 32)' d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Cpath transform='rotate(120 32 32)' d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Cpath transform='rotate(180 32 32)' d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Cpath transform='rotate(240 32 32)' d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Cpath transform='rotate(300 32 32)' d='M32 32V5M32 11l-4 5M32 11l4 5M32 20l-3.5 4M32 20l3.5 4'/%3E%3Ccircle cx='32' cy='32' r='3.2' fill='black' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-maria_target{
+  --effect-flash-color:rgba(255,226,220,.98);--effect-flash-glow:rgba(235,92,72,.56);
+  --effect-flash-tint:rgba(164,48,48,.16);--effect-flash-inset:rgba(255,130,119,.12);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round'%3E%3Ccircle cx='32' cy='32' r='16'/%3E%3Ccircle cx='32' cy='32' r='6'/%3E%3Cpath d='M32 7v12M32 45v12M7 32h12M45 32h12'/%3E%3C/g%3E%3C/svg%3E");
+}
+@keyframes fate-card-effect-icon-flash{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.58) rotate(-18deg)}
+  12%{opacity:1;transform:translate(-50%,-50%) scale(1.08) rotate(2deg)}
+  24%,78%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.04) rotate(5deg)}
 }
 .bc.fate-snowball-hit .bc-fate{
   z-index:7!important;
@@ -12747,65 +12883,7 @@ html.fate-animations-off body :is(.online-lag-spinner,.timer-pulse,.badge-pulse,
   animation:none!important;
 }
 
-/* Codex 2026-06-12: crowded opponent hands should stay inside the left panel. */
-html body #s-game #opp-hand.opp-hand-compact{
-  --opp-hand-card-w:52px;
-  --opp-hand-card-h:73px;
-  display:grid!important;
-  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
-  grid-auto-rows:var(--opp-hand-card-h)!important;
-  justify-content:center!important;
-  align-content:start!important;
-  gap:.34rem!important;
-  flex:0 0 auto!important;
-  max-height:226px!important;
-  min-height:0!important;
-  overflow:hidden!important;
-  padding:.16rem .08rem .2rem!important;
-}
-
-html body #s-game #opp-hand.opp-hand-nine-plus{
-  --opp-hand-card-w:56px;
-  --opp-hand-card-h:78px;
-  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
-  gap:.38rem .46rem!important;
-  max-height:258px!important;
-}
-
-html body #s-game #opp-hand.opp-hand-ten-plus{
-  --opp-hand-card-w:52px;
-  --opp-hand-card-h:73px;
-  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
-  gap:.34rem .4rem!important;
-  max-height:246px!important;
-}
-
-html body #s-game #opp-hand.opp-hand-twelve-plus{
-  --opp-hand-card-w:50px;
-  --opp-hand-card-h:70px;
-  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
-  gap:.3rem .36rem!important;
-  max-height:244px!important;
-}
-
-html body #s-game #opp-hand.opp-hand-compact .opp-card-back{
-  width:var(--opp-hand-card-w)!important;
-  height:var(--opp-hand-card-h)!important;
-  min-width:var(--opp-hand-card-w)!important;
-  min-height:var(--opp-hand-card-h)!important;
-  border-radius:4px!important;
-  flex:0 0 auto!important;
-}
-
-html body #s-game #opp-hand.opp-hand-compact .opp-card-back.opp-revealed{
-  box-shadow:0 2px 8px rgba(0,0,0,.55),0 0 7px rgba(255,180,50,.2)!important;
-}
-
-html body #s-game #opp-hand.opp-hand-compact .opp-card-back:hover{
-  transform:translateY(-2px)!important;
-}
-
-/* Codex 2026-06-18: subtle hand-card effect modifier marker. */
+/* Hand-card effect modifier information badge. This is informational UI, not a status overlay. */
 html body #s-game .hc{
   position:relative!important;
 }
@@ -12819,10 +12897,10 @@ html body #s-game .hand-effect-marker{
   position:absolute!important;
   left:auto!important;
   right:5px!important;
-  top:13px!important;
+  top:7px!important;
   z-index:8!important;
-  width:17px!important;
-  height:17px!important;
+  width:21px!important;
+  height:21px!important;
   border-radius:999px!important;
   display:flex!important;
   align-items:center!important;
@@ -12838,7 +12916,7 @@ html body #s-game .hand-effect-marker-icon{
   align-items:center!important;
   justify-content:center!important;
   font-family:Cinzel,serif!important;
-  font-size:10px!important;
+  font-size:13px!important;
   font-weight:900!important;
   line-height:1!important;
   color:#daf4ff!important;
@@ -14496,36 +14574,6 @@ html body #modal .modal.cdb-save-modal .cdb-save-form:has(.deck-theme-select-wra
 html body #modal .modal.cdb-save-modal .cdb-save-top:has(.deck-theme-select-wrap.is-open){
   z-index:12000!important;
 }
-html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus){
-  --opp-hand-card-w:50px!important;
-  --opp-hand-card-h:70px!important;
-  grid-template-columns:repeat(3, var(--opp-hand-card-w))!important;
-  gap:.38rem .46rem!important;
-  max-height:258px!important;
-  padding:.18rem .08rem .24rem!important;
-}
-html body #s-game #opp-hand.opp-hand-nine-plus:not(.opp-hand-ten-plus) .opp-card-back{
-  width:var(--opp-hand-card-w)!important;
-  height:var(--opp-hand-card-h)!important;
-  min-width:var(--opp-hand-card-w)!important;
-  min-height:var(--opp-hand-card-h)!important;
-}
-html body #s-game #opp-hand.opp-hand-ten-plus{
-  --opp-hand-card-w:50px!important;
-  --opp-hand-card-h:70px!important;
-  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
-  gap:.34rem .4rem!important;
-  max-height:246px!important;
-}
-
-html body #s-game #opp-hand.opp-hand-twelve-plus{
-  --opp-hand-card-w:48px!important;
-  --opp-hand-card-h:67px!important;
-  grid-template-columns:repeat(4, var(--opp-hand-card-w))!important;
-  gap:.3rem .36rem!important;
-  max-height:244px!important;
-}
-
 /* Codex 2026-06-30: tiny HUD alignment nudge without moving the topbar frame. */
 html body #s-game .tp-mid #tp-cur{
   position:relative!important;
@@ -19512,4 +19560,749 @@ html body #s-game .bc.fate-snowball-hit::after{
   left:50%!important;
   top:50%!important;
   transform:translate(-50%,-50%)!important;
+}
+
+/* Snow on the Carpathians polish: keep the desktop store in one viewport and
+   size the square profile-booster artwork to its actual aspect ratio. */
+@media (min-width:1181px) and (min-height:720px){
+  html body #s-challenger .ch-content.ch-store-content{
+    overflow:hidden!important;
+    padding:.65rem 1rem!important;
+  }
+  html body #s-challenger .ch-content.ch-store-content > .ch-tab-pane[data-tab="store"].active{
+    height:100%!important;
+    overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-v3{
+    height:100%!important;
+    gap:.55rem!important;
+    overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-hero{
+    padding:.66rem .78rem!important;
+    gap:.7rem!important;
+  }
+  html body #s-challenger .ch-store-hero h2{
+    font-size:clamp(1.7rem,2.8vw,2.8rem)!important;
+  }
+  html body #s-challenger .ch-store-bank{
+    min-height:92px!important;
+    padding:.62rem .8rem!important;
+  }
+  html body #s-challenger .ch-store-bank-value{
+    font-size:1.8rem!important;
+  }
+  html body #s-challenger .ch-store-unopened{
+    padding:.48rem .72rem!important;
+  }
+  html body #s-challenger .ch-store-layout{
+    gap:.7rem!important;
+    min-height:0!important;
+  }
+  html body #s-challenger .store-grid{
+    gap:.7rem!important;
+  }
+  html body #s-challenger .ch-store-market{
+    min-height:0!important;
+    padding:.7rem!important;
+  }
+  html body #s-challenger .ch-store-market #marketplace-listings{
+    min-height:130px!important;
+    max-height:min(25vh,230px)!important;
+  }
+}
+
+/* The store heading keeps only its outer frame; the nested ornamental frame
+   and underline were visually reading as duplicate rules. */
+html body #s-challenger .ch-store-hero::before,
+html body #s-challenger .ch-store-hero::after{
+  content:none!important;
+  display:none!important;
+}
+
+html body #pack-opening-overlay .pack-art.profile-pack-art{
+  width:min(300px,70vw)!important;
+  height:min(300px,52vh)!important;
+  aspect-ratio:1/1!important;
+}
+
+html body #pack-opening-overlay .pack-art.profile-pack-art img{
+  object-fit:cover!important;
+  object-position:center center!important;
+}
+
+/* Keep the discard picker hover/selection ring inside its own card artwork so
+   it cannot cross the label in the next grid row. */
+html body #modal button.hand-limit-card:hover,
+html body #modal button.hand-limit-card:focus-visible{
+  transform:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+html body #modal .hand-limit-card:hover .hand-limit-art,
+html body #modal .hand-limit-card:focus-visible .hand-limit-art,
+html body #modal .hand-limit-card.is-selected .hand-limit-art{
+  outline:2px solid rgba(238,205,105,.96)!important;
+  outline-offset:-2px!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,190,.22)!important;
+}
+
+html body #modal .hand-limit-name{
+  position:relative!important;
+  z-index:1!important;
+  margin-top:2px!important;
+}
+
+/* Card information: nudge only the displayed card art right, leaving copy/actions fixed. */
+html body #modal.card-detail-overlay .modal.card-detail-modal .cd-img,
+html body .card-info-overlay .cd-img{
+  position:relative!important;
+  left:3px!important;
+}
+
+/* Kvetka's note is a turn-long musical status, not a short activation flash. */
+@keyframes fate-kvetka-ballad-turn-pulse{
+  0%,100%{opacity:.76;transform:translate(-50%,-50%) scale(.98);}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.045);}
+}
+html body #s-game .bc.fate-effect-flash.effect-flash-kvetka_ballad::after{
+  animation:fate-kvetka-ballad-turn-pulse 1.7s ease-in-out infinite!important;
+}
+
+/* Distinct but related line-art crests for the new persistent statuses. */
+html body #s-game .effect-pill-administrative-bloat .effect-pill-icon{
+  color:#f1c878!important;
+}
+html body #s-game .effect-pill-blame-game .effect-pill-icon{
+  color:#d9c8ff!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+html body #s-game .effect-pill-blame-game .effect-pill-icon svg.blame-game-icon,
+html body #s-game .effect-pill-administrative-bloat .effect-pill-icon svg.administrative-bloat-icon,
+html body #s-game .effect-pill-busser .effect-pill-icon svg.busser-boot-icon{
+  width:18px!important;
+  height:18px!important;
+  overflow:visible!important;
+}
+
+/* Keep every store product's Starlight value and purchase action on one shared
+   baseline, regardless of how much descriptive copy appears above it. */
+html body #s-challenger .ch-store-products .store-grid{
+  align-items:stretch!important;
+}
+html body #s-challenger .ch-store-products .ch-store-product{
+  display:flex!important;
+  flex-direction:column!important;
+}
+html body #s-challenger .ch-store-products .ch-store-product-info{
+  display:flex!important;
+  flex:1 1 auto!important;
+  flex-direction:column!important;
+}
+html body #s-challenger .ch-store-products .booster-price-row{
+  margin-top:auto!important;
+}
+
+/* Status banners show complete effect names; the measured overflow system moves
+   extra banners into the dropdown instead of truncating labels. */
+html body #s-game #tp-status-left,
+html body #s-game #tp-status-right{
+  flex-wrap:nowrap!important;
+  align-content:center!important;
+  min-height:42px!important;
+  max-height:42px!important;
+  overflow:visible!important;
+}
+html body #s-game #tp-status-left,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-left{
+  top:7px!important;
+  transform:translateX(14px)!important;
+}
+html body #s-game #tp-status-right,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-right{
+  top:7px!important;
+  transform:translateX(-14px)!important;
+}
+html body #s-game #tp-status-left .effect-pill,
+html body #s-game #tp-status-right .effect-pill{
+  flex:0 0 auto!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  padding:.3rem .72rem .3rem .48rem!important;
+  gap:.46rem!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.065em!important;
+  white-space:nowrap!important;
+  width:auto!important;
+  max-width:none!important;
+  box-sizing:border-box!important;
+}
+html body #s-game #tp-status-left .effect-pill-label,
+html body #s-game #tp-status-right .effect-pill-label{
+  min-width:max-content!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:nowrap!important;
+}
+html body #s-game .effect-pill .effect-pill-icon{
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-sizing:border-box!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+}
+html body #s-game .effect-pill .effect-pill-icon svg,
+html body #s-game .effect-pill .effect-pill-icon svg.blame-game-icon,
+html body #s-game .effect-pill .effect-pill-icon svg.busser-boot-icon{
+  display:block!important;
+  width:22px!important;
+  height:22px!important;
+  max-width:22px!important;
+  max-height:22px!important;
+  transform:none!important;
+  overflow:hidden!important;
+}
+html body #s-game .effect-pill .effect-pill-icon img,
+html body .status-overflow-dropdown .effect-pill .effect-pill-icon img{
+  display:block!important;
+  width:22px!important;
+  height:22px!important;
+  max-width:22px!important;
+  max-height:22px!important;
+  object-fit:contain!important;
+  border-radius:50%!important;
+}
+html body #s-game .effect-pill .effect-pill-icon svg.administrative-bloat-icon{
+  width:21px!important;
+  height:21px!important;
+  max-width:21px!important;
+  max-height:21px!important;
+  transform:none!important;
+  overflow:visible!important;
+}
+html body #s-game .effect-pill.effect-pill-overflow{
+  width:116px!important;
+  max-width:116px!important;
+  cursor:pointer!important;
+  border-color:rgba(226,195,99,.52)!important;
+  background:linear-gradient(180deg,rgba(24,30,43,.96),rgba(7,10,17,.98))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 16px rgba(0,0,0,.34)!important;
+}
+html body #s-game .effect-pill.effect-pill-overflow:hover,
+html body #s-game .effect-pill.effect-pill-overflow[aria-expanded="true"]{
+  border-color:rgba(246,216,119,.92)!important;
+  background:linear-gradient(180deg,rgba(42,43,46,.98),rgba(10,13,20,.99))!important;
+}
+html body #s-game .effect-pill.effect-pill-overflow .effect-overflow-icon path{
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-width:2!important;
+  stroke-linecap:round!important;
+}
+
+html body .status-overflow-dropdown{
+  position:fixed!important;
+  z-index:13050!important;
+  overflow:hidden!important;
+  border:1px solid rgba(230,198,96,.58)!important;
+  border-radius:8px!important;
+  background:linear-gradient(165deg,rgba(17,23,35,.985),rgba(5,8,14,.995))!important;
+  box-shadow:0 22px 58px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,247,201,.05)!important;
+  color:#f3e9ce!important;
+  opacity:0!important;
+  transform:translateY(-6px) scale(.985)!important;
+  transform-origin:top center!important;
+  transition:opacity .16s ease,transform .16s ease!important;
+}
+html body .status-overflow-dropdown.is-open{
+  opacity:1!important;
+  transform:translateY(0) scale(1)!important;
+}
+html body .status-overflow-dropdown-head{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.7rem!important;
+  padding:.68rem .8rem!important;
+  border-bottom:1px solid rgba(224,193,95,.23)!important;
+  background:linear-gradient(90deg,rgba(211,174,67,.12),transparent)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.7rem!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+  color:#f0d98c!important;
+}
+html body .status-overflow-dropdown-head b{
+  display:inline-flex!important;
+  min-width:24px!important;
+  height:20px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid rgba(235,205,111,.5)!important;
+  border-radius:999px!important;
+  background:rgba(0,0,0,.3)!important;
+  font-size:.64rem!important;
+}
+html body .status-overflow-dropdown-list{
+  max-height:min(52vh,390px)!important;
+  overflow:auto!important;
+  padding:.45rem!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.42rem!important;
+}
+html body .status-overflow-dropdown-row{
+  display:flex!important;
+  min-width:0!important;
+  flex-direction:column!important;
+  gap:.34rem!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+}
+html body .status-overflow-dropdown-row + .status-overflow-dropdown-row{
+  border-top:0!important;
+}
+html body .status-overflow-dropdown-row:hover{
+  background:transparent!important;
+}
+html body .status-overflow-banner.effect-pill{
+  width:100%!important;
+  max-width:none!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  box-sizing:border-box!important;
+  padding:.3rem .72rem .3rem .48rem!important;
+  gap:.46rem!important;
+  cursor:default!important;
+}
+html body .status-overflow-banner .effect-pill-label{
+  min-width:max-content!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:nowrap!important;
+}
+html body .status-overflow-dropdown-icon{
+  display:inline-flex!important;
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+}
+html body .status-overflow-dropdown-icon svg,
+html body .status-overflow-dropdown-icon img{
+  width:22px!important;
+  height:22px!important;
+  max-width:22px!important;
+  max-height:22px!important;
+  display:block!important;
+  object-fit:contain!important;
+  overflow:hidden!important;
+}
+html body .status-overflow-dropdown-copy{
+  display:flex!important;
+  min-width:0!important;
+  flex-direction:column!important;
+  gap:.22rem!important;
+  padding:.02rem .44rem .32rem calc(30px + .9rem)!important;
+}
+html body .status-overflow-dropdown-title{
+  font-family:'Cinzel',serif!important;
+  font-size:.76rem!important;
+  line-height:1.15!important;
+  color:#fff0ba!important;
+}
+html body .status-overflow-dropdown-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:.28rem .68rem!important;
+  color:#c8a95b!important;
+  font-size:.62rem!important;
+  line-height:1.25!important;
+}
+html body .status-overflow-dropdown-meta b,
+html body .status-overflow-dropdown-effect b,
+html body .status-overflow-dropdown-printed b{
+  margin-right:.24rem!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.58rem!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+  color:#f0d586!important;
+}
+html body .status-overflow-dropdown-effect,
+html body .status-overflow-dropdown-printed{
+  margin-top:.08rem!important;
+  padding:.36rem .42rem!important;
+  border:1px solid rgba(232,196,82,.16)!important;
+  border-radius:6px!important;
+  background:rgba(0,0,0,.2)!important;
+  font-size:.7rem!important;
+  line-height:1.38!important;
+  color:#eee4c9!important;
+}
+html body .status-overflow-dropdown-printed{
+  background:rgba(0,0,0,.12)!important;
+  border-color:rgba(143,207,255,.14)!important;
+  color:#d8dff0!important;
+}
+
+/* Final status rail pass: hover-only overflow tray, flex-tail ellipsis, and two-pixel lower rail. */
+html body #s-game #tp-status-left,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-left{
+  top:8px!important;
+}
+html body #s-game #tp-status-right,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #tp-status-right{
+  top:8px!important;
+}
+html body #s-game #tp-status-left .effect-pill.effect-pill-flex-tail,
+html body #s-game #tp-status-right .effect-pill.effect-pill-flex-tail{
+  min-width:92px!important;
+  overflow:hidden!important;
+}
+html body #s-game #tp-status-left .effect-pill.effect-pill-flex-tail .effect-pill-label,
+html body #s-game #tp-status-right .effect-pill.effect-pill-flex-tail .effect-pill-label{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #s-game .effect-pill.effect-pill-overflow{
+  width:116px!important;
+  max-width:116px!important;
+  cursor:default!important;
+}
+html body .status-overflow-dropdown{
+  width:min(430px,calc(100vw - 24px))!important;
+  border-radius:10px!important;
+  pointer-events:auto!important;
+  background:linear-gradient(165deg,rgba(13,18,29,.985),rgba(4,6,12,.995))!important;
+  box-shadow:0 20px 48px rgba(0,0,0,.68),inset 0 0 0 1px rgba(255,247,201,.05)!important;
+}
+html body .status-overflow-dropdown-head{
+  padding:.48rem .62rem!important;
+  font-size:.62rem!important;
+  letter-spacing:.13em!important;
+}
+html body .status-overflow-dropdown-head b{
+  min-width:21px!important;
+  height:18px!important;
+  font-size:.58rem!important;
+}
+html body .status-overflow-dropdown-list{
+  max-height:min(46vh,330px)!important;
+  padding:.38rem!important;
+  gap:.34rem!important;
+}
+html body .status-overflow-dropdown-row{
+  gap:.18rem!important;
+}
+html body .status-overflow-banner.effect-pill{
+  min-height:34px!important;
+  max-height:none!important;
+  width:100%!important;
+  padding:.22rem .44rem .22rem .38rem!important;
+  gap:.36rem!important;
+  display:grid!important;
+  grid-template-columns:28px minmax(0,1fr) auto!important;
+  grid-template-areas:"icon name duration" "icon source duration"!important;
+  align-items:center!important;
+}
+html body .status-overflow-banner .status-overflow-dropdown-icon{
+  grid-area:icon!important;
+  width:28px!important;
+  min-width:28px!important;
+  height:28px!important;
+}
+html body .status-overflow-banner .effect-pill-label{
+  grid-area:name!important;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  line-height:1.02!important;
+}
+html body .status-overflow-source{
+  grid-area:source!important;
+  display:block!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:rgba(238,222,169,.68)!important;
+  font-family:'Crimson Pro',Georgia,serif!important;
+  font-size:.62rem!important;
+  line-height:1.05!important;
+  letter-spacing:.02em!important;
+  text-transform:none!important;
+}
+html body .status-overflow-duration{
+  grid-area:duration!important;
+  align-self:center!important;
+  padding:.11rem .34rem!important;
+  border:1px solid rgba(236,205,112,.35)!important;
+  border-radius:999px!important;
+  background:rgba(0,0,0,.22)!important;
+  color:#efd988!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.5rem!important;
+  line-height:1!important;
+  letter-spacing:.08em!important;
+  white-space:nowrap!important;
+}
+html body .status-overflow-dropdown-copy{
+  padding:0 .36rem .28rem calc(28px + .82rem)!important;
+  gap:.14rem!important;
+}
+html body .status-overflow-dropdown-meta:empty{
+  display:none!important;
+}
+html body .status-overflow-dropdown-effect,
+html body .status-overflow-dropdown-printed{
+  margin-top:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  font-size:.68rem!important;
+  line-height:1.28!important;
+}
+html body .status-overflow-dropdown-effect{
+  color:#efe7d4!important;
+}
+html body .status-overflow-dropdown-printed{
+  color:rgba(216,223,240,.72)!important;
+  font-style:italic!important;
+}
+
+/* Overflow tray v2: compact effect cards, no duplicate generic tooltip, no text wall. */
+html body .status-overflow-dropdown{
+  width:min(388px,calc(100vw - 24px))!important;
+  border-radius:12px!important;
+  background:
+    radial-gradient(circle at 12% 0%,rgba(91,136,210,.12),transparent 42%),
+    linear-gradient(160deg,rgba(10,14,24,.985),rgba(3,5,11,.995))!important;
+  border:1px solid rgba(218,186,88,.48)!important;
+  box-shadow:0 18px 42px rgba(0,0,0,.7),inset 0 0 0 1px rgba(255,247,201,.045)!important;
+}
+html body .status-overflow-dropdown-head{
+  padding:.42rem .56rem .36rem!important;
+  border-bottom:1px solid rgba(218,186,88,.18)!important;
+  background:linear-gradient(90deg,rgba(218,186,88,.11),transparent 68%)!important;
+  font-size:.58rem!important;
+}
+html body .status-overflow-dropdown-list{
+  max-height:min(44vh,306px)!important;
+  padding:.36rem!important;
+  gap:.28rem!important;
+}
+html body .status-overflow-dropdown-row{
+  display:block!important;
+}
+html body .status-overflow-banner.effect-pill{
+  position:relative!important;
+  width:100%!important;
+  min-height:58px!important;
+  max-height:none!important;
+  display:grid!important;
+  grid-template-columns:36px minmax(0,1fr) auto!important;
+  grid-template-areas:
+    "icon title duration"
+    "icon effect effect"!important;
+  align-items:center!important;
+  column-gap:.48rem!important;
+  row-gap:.08rem!important;
+  padding:.42rem .5rem .42rem .44rem!important;
+  border-radius:10px!important;
+  border-color:rgba(87,138,214,.45)!important;
+  background:linear-gradient(180deg,rgba(16,31,56,.78),rgba(8,11,19,.94))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 18px rgba(0,0,0,.32)!important;
+}
+html body .status-overflow-banner .status-overflow-dropdown-icon{
+  grid-area:icon!important;
+  width:34px!important;
+  min-width:34px!important;
+  height:34px!important;
+  align-self:start!important;
+  margin-top:.05rem!important;
+  transform:translate(1px,6px)!important;
+  border:1px solid rgba(126,183,255,.62)!important;
+  border-radius:50%!important;
+  background:radial-gradient(circle,rgba(71,122,190,.24),rgba(7,14,27,.72))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 7px rgba(77,141,225,.16)!important;
+  box-sizing:border-box!important;
+}
+html body .status-overflow-banner .status-overflow-dropdown-icon svg,
+html body .status-overflow-banner .status-overflow-dropdown-icon img{
+  width:25px!important;
+  height:25px!important;
+  max-width:25px!important;
+  max-height:25px!important;
+}
+html body .status-overflow-title{
+  grid-area:title!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#fff0ba!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.66rem!important;
+  line-height:1.05!important;
+  letter-spacing:.075em!important;
+  text-transform:uppercase!important;
+  padding-left:.34rem!important;
+  box-sizing:border-box!important;
+}
+html body .status-overflow-duration{
+  grid-area:duration!important;
+  align-self:start!important;
+  margin-top:.03rem!important;
+  padding:.11rem .32rem!important;
+  font-size:.47rem!important;
+  opacity:.95!important;
+}
+html body .status-overflow-dropdown-effect{
+  grid-area:effect!important;
+  min-width:0!important;
+  margin-top:.22rem!important;
+  padding:.28rem .34rem!important;
+  border:1px solid rgba(255,255,255,.055)!important;
+  border-radius:7px!important;
+  background:rgba(0,0,0,.18)!important;
+  color:#e9e1ca!important;
+  font-size:.66rem!important;
+  line-height:1.22!important;
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+}
+html body .status-overflow-dropdown-printed{
+  display:none!important;
+}
+
+/* Canonical 9-12 opponent-hand grid. Keep this in sync with the canvas layout. */
+html body #s-game #opp-hand.opp-hand-compact{
+  --opp-hand-card-w:50px!important;
+  --opp-hand-card-h:70px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,var(--opp-hand-card-w))!important;
+  grid-template-rows:repeat(3,65px)!important;
+  grid-auto-flow:row!important;
+  grid-auto-rows:65px!important;
+  column-gap:6px!important;
+  row-gap:0!important;
+  justify-content:center!important;
+  align-content:start!important;
+  width:100%!important;
+  min-height:0!important;
+  max-height:200px!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back{
+  width:var(--opp-hand-card-w)!important;
+  height:var(--opp-hand-card-h)!important;
+  min-width:var(--opp-hand-card-w)!important;
+  min-height:var(--opp-hand-card-h)!important;
+  margin:0!important;
+  translate:none!important;
+  border-radius:4px!important;
+  flex:0 0 auto!important;
+}
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back.opp-revealed{
+  box-shadow:0 2px 8px rgba(0,0,0,.55),0 0 7px rgba(255,180,50,.2)!important;
+}
+html body #s-game #opp-hand.opp-hand-compact .opp-card-back:hover{
+  transform:translateY(-2px)!important;
+}
+html body #s-game #opp-hand[data-count="9"] > .opp-card-back:nth-child(9):last-child{
+  grid-column:2 / span 2!important;
+  grid-row:3!important;
+  justify-self:center!important;
+}
+html body #s-game #opp-hand[data-count="10"] > .opp-card-back:nth-child(9){grid-column:2!important;grid-row:3!important;}
+html body #s-game #opp-hand[data-count="10"] > .opp-card-back:nth-child(10){grid-column:3!important;grid-row:3!important;}
+html body #s-game #opp-hand[data-count="11"] > .opp-card-back:nth-child(n+9){translate:29px 0!important;}
+
+/* Store-only 110% presentation: match the preferred browser-zoom scale while
+   keeping the surrounding Challenger shell and the match screen unchanged. */
+@media (min-width:901px){
+  html body #s-challenger .ch-content.ch-store-content{
+    overflow:auto!important;
+  }
+  html body #s-challenger .ch-store-v3{
+    zoom:1.1!important;
+    width:min(1320px,calc(90.909vw - 4rem))!important;
+    height:auto!important;
+    min-height:90.909%!important;
+  }
+}
+
+/* Save as Preset: keep both card pickers scrollable without drawing their
+   scrollbars. Scope this to the title-screen picker so other card grids retain
+   their own scrollbar treatment. */
+html body #modal .modal.cdb-save-modal.title-preset-save-modal :is(
+  #title-save-face-picker,
+  #title-save-display-picker
+){
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+  scrollbar-gutter:auto!important;
+}
+html body #modal .modal.cdb-save-modal.title-preset-save-modal :is(
+  #title-save-face-picker,
+  #title-save-display-picker
+)::-webkit-scrollbar{
+  width:0!important;
+  height:0!important;
+  display:none!important;
+}
+
+/* Let the two picker sections hug their one-row viewport instead of inheriting
+   the modal's old fractional row height and leaving blank space underneath. */
+html body #modal .modal.cdb-save-modal.title-preset-save-modal{
+  height:auto!important;
+}
+html body #modal .modal.cdb-save-modal.title-preset-save-modal #modal-body,
+html body #modal .modal.cdb-save-modal.title-preset-save-modal .modal-body{
+  flex:0 1 auto!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.cdb-save-modal.title-preset-save-modal .cdb-save-shell{
+  grid-template-rows:auto auto auto!important;
+  height:auto!important;
+}
+html body #modal .modal.cdb-save-modal.title-preset-save-modal .cdb-save-section{
+  height:auto!important;
+  min-height:0!important;
+  flex:0 0 auto!important;
+}
+
+/* Title deck preview: remove only the footer separator below the card grid.
+   The modal class and footer id keep this from affecting shared modal chrome. */
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-acts{
+  border-top:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  background:none!important;
+}
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-acts::before,
+html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-acts::after{
+  content:none!important;
+  display:none!important;
 }

@@ -711,9 +711,9 @@
     if(typeof window !== 'undefined' && typeof window.getCardStatusVisualState === 'function') {
       try { state = window.getCardStatusVisualState(card, statuses); } catch(e) {}
     }
-    if(!state) state = {primary:statuses.marked ? 'marked' : (statuses.blocked ? 'blocked' : (statuses.immune ? 'immune' : '')), immune:statuses.immune};
+    if(!state) state = {primary:statuses.blocked ? 'blocked' : (statuses.marked ? 'marked' : (statuses.immune ? 'immune' : '')), immune:false};
     const kind = state.primary || '';
-    if(!kind && !state.immune) return;
+    if(!kind) return;
     const radius = Math.max(3, Math.min(8, rect.w * .08));
     const fill = kind === 'marked' ? 'rgba(118,44,54,.16)' : (kind === 'blocked' ? 'rgba(70,42,120,.16)' : 'rgba(32,95,124,.12)');
     if(kind) {
@@ -725,7 +725,6 @@
       drawStatusGlyph(ctx, rect, kind);
       ctx.restore();
     }
-    if(state.immune && kind && kind !== 'immune') drawMiniProtectionGlyph(ctx, rect);
   }
 
   function drawStatusGlyph(ctx, rect, kind){
@@ -798,12 +797,6 @@
       ctx.stroke();
     }
     ctx.restore();
-  }
-
-  function drawMiniProtectionGlyph(ctx, rect){
-    const size = Math.max(18, Math.min(30, rect.w * .26));
-    const miniRect = {x:rect.x + rect.w * .20 - size / 2, y:rect.y + rect.h * .82 - size / 2, w:size, h:size, _fixedSize:size};
-    drawStatusGlyph(ctx, miniRect, 'immune');
   }
 
   function getVisual(card, z, r, c, viewerP){
