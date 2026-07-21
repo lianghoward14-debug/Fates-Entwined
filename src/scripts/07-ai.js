@@ -197,6 +197,9 @@ async function runAITurn() {
     try {
       const settings = getAIDifficultySettings();
       aiObserveOpponentAndPlan();
+      if(typeof activateWhisperOfTheHeartLandscape === 'function') {
+        await activateWhisperOfTheHeartLandscape({auto:true, playerIndex:G.aiPlayer});
+      }
     const thinkTime = G.aiDifficulty==='extreme'?280:G.aiDifficulty==='hard'?240:G.aiDifficulty==='easy'?380:320;
     let actionsThisTurn = 0;
     const maxActions = 15;
@@ -578,6 +581,13 @@ function aiGenerateAllMoves() {
   const canPlaceSup = G.majaEffectThisTurn || G.supportsPlacedThisTurn < maxSup;
   const isArtilleryLockedForAI = (z) => typeof G._artilleryLockedZone === 'number' && G._artilleryLockedZone === z && G._artilleryLockOwner === cp && G._artilleryLockTurnsLeft > 0;
 
+  hand.filter(function(card){ return typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card); }).forEach(function(counter){
+    const options = typeof getValidPlacementOptionsForCard === 'function' ? getValidPlacementOptionsForCard(counter, cp) : [];
+    options.forEach(function(option){
+      moves.push({type:'place', card:counter, z:option.z, r:option.r, c:option.c, contested:option.r===1, pierogiCounter:true});
+    });
+  });
+
   // Maja Kaminska can be set directly from the deck at no cost.
   const majaFromDeck = G.players[cp].deck.find(c=>c.id==='07');
   if(majaFromDeck){
@@ -655,7 +665,7 @@ function aiGenerateAllMoves() {
       const ralphBonus = typeof countFriendlyRalphAdjacency === 'function' ? countFriendlyRalphAdjacency(z, r, c, cp) : 0;
       const reinforcement = getSupportReinforcementValue(card) + ralphBonus;
       const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, cp) : card.type !== 'Supporter';
-      if(card.type === 'Supporter' || card.id === '86') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
+      if(card.type === 'Supporter') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
       if(isCharacter) mySups.push({card,z,r,c,reinforcement, kind:'character'});
     });
 
@@ -896,6 +906,7 @@ function aiEvaluateMove(move) {
   let score = 0;
   if(move.type==='place'){
     const card = move.card;
+    if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) score += 45;
     score += (card.currentFate||card.fate||1);
     // HUGE bonus for contested row — this is the key to winning
     if(move.contested) score += 8;
@@ -1437,7 +1448,7 @@ function aiDeckStrategyBonus(move, deckId) {
         bonus += namedPieceReady ? 310 : 145;
       }
       if(move.card.id === '88') bonus += 190;
-      if(move.card.id === '86') bonus += 130;
+      if(move.card.id === '86') bonus += 185;
       if(move.card.id === '81') bonus += 115;
       if(move.card.id === '03') {
         const hasPayoff = aiCountOwnCardsInZone(move.z, c => ['100','88','84'].includes(c.id)) > 0;
@@ -1965,6 +1976,11 @@ async function aiDoPlace(choice) {
   const idx = sourceList.indexOf(choice.card);
   if(idx<0) return;
   const card = sourceList[idx];
+  if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) {
+    placeWojciechPierogiCounter(card, choice.z, choice.r, choice.c, cp);
+    await aiSleep(AI_VISUAL_PAUSE_PLACE);
+    return;
+  }
   const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(card.iid));
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const inst = newInstance(card);
@@ -1975,6 +1991,7 @@ async function aiDoPlace(choice) {
   consumePendingPlacementFlags(card, inst);
   const commitAiPlace = function(){
     G.board[choice.z][choice.r][choice.c] = inst;
+    if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
     if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:90, source:'ai-set'});
@@ -2086,7 +2103,6 @@ async function aiDoConsolidate(choice) {
   let bonusFate = 0;
   choice.tributes.forEach(t=>{
     if(t.card.id==='47') bonusFate+=3;
-    if(t.card.id==='86') bonusFate+=4;
   });
 
   const inst = newInstance(choice.card);
@@ -2113,6 +2129,7 @@ async function aiDoConsolidate(choice) {
     } finally {
       G.board[target.z][target.r][target.c] = inst;
     }
+    if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
@@ -2285,6 +2302,15 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '81': { // Wojciech: counters equal opponent placements last turn
+      if(typeof ensureWojciechPlacementCounts === 'function') ensureWojciechPlacementCounts();
+      const count = Math.max(0, Number(G._wojciechLastTurnPlacementCounts && G._wojciechLastTurnPlacementCounts[opp]) || 0);
+      const added = typeof grantWojciechPierogiCounters === 'function' ? grantWojciechPierogiCounters(cp, count, inst) : 0;
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      log('p2','AI: Wojciech created ' + added + ' Pierogi Counter' + (added === 1 ? '' : 's'));
+      break;
+    }
     case '82': { // Felicyta Janowicz (Youth): choose a legal replacement landscape
       const currentId = String(G.landscapeId || '');
       const leavingBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
@@ -2647,6 +2673,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       } break;
     }
     case '60': { // IB Student: search deck for supporter
+      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'60'});
       const sups = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
       if(sups.length){
         const strat = G._selectedAI?._deckStrategy || '';
@@ -2662,38 +2689,31 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         shuffle(G.players[cp].deck);
       } break;
     }
-    case '61': { // Maria Song: pick highest-fate opp card, discard copies
-      let best=null, bestFate=-1;
-      G.board.forEach((zone,zi)=>zone.forEach(row=>row.forEach(cell=>{
-        const decisionFate = cell && cell.owner===opp ? aiOpponentCardDecisionFate(cell,zi) : -1;
-        if(cell && cell.owner===opp && decisionFate > bestFate){
-          bestFate = decisionFate;
-          best = cell;
-        }
-      })));
-      if(best){
-        if(typeof flashCardEffect === 'function') flashCardEffect(best, 'maria_target', {
-          label:'Precise Shot target',
-          soundKey:'maria-ai:' + String(inst.iid || inst.id) + ':' + String(best.iid || best.id) + ':' + String(G.turn || 0)
-        });
-        const targetId = best.id;
-        let discarded = 0;
-        ['hand','deck'].forEach(zone=>{
-          const list = G.players[opp][zone];
-          const stillThere = [];
-          list.forEach(c=>{
-            if(c.id===targetId){ fatePushDiscard(opp, c); discarded++; }
-            else stillThere.push(c);
+    case '61': { // Maria Song: choose a revealed Character family and reduce every copy
+      const candidates = G.players[opp].hand.filter(function(target){
+        return typeof isMariaSongHandCandidate === 'function'
+          ? isMariaSongHandCandidate(target, opp, cp)
+          : target && target.type !== 'Supporter' && !target.immuneFlag;
+      });
+      const familyValue = function(target){
+        let value = 0;
+        ['hand','deck'].forEach(function(location){
+          G.players[opp][location].forEach(function(copy){
+            if(copy && copy.id === target.id && !copy.immuneFlag) value += Math.min(6, Math.max(0, Number(copy.currentFate ?? copy.fate) || 0));
           });
-          G.players[opp][zone] = stillThere;
         });
-        if(typeof showMariaDiscardBadge === 'function') {
-          let pos = null;
-          if(typeof forEachBoardCard === 'function') forEachBoardCard(function(cell,z,r,c){ if(!pos && cell && cell.iid === best.iid) pos = {z,r,c}; });
-          showMariaDiscardBadge(best, discarded, pos && pos.z, pos && pos.r, pos && pos.c);
-        }
-        if(discarded) log('p2',`AI: Maria Song discarded ${discarded} ${best.name}`);
-      } break;
+        forEachBoardCard(function(copy, zone){
+          if(copy && copy.owner === opp && copy.id === target.id && !copy.immuneFlag) value += Math.min(6, aiOpponentCardDecisionFate(copy, zone));
+        });
+        return value;
+      };
+      candidates.sort(function(a,b){ return familyValue(b) - familyValue(a); });
+      const best = candidates[0];
+      if(best && typeof applyMariaSongPreciseShot === 'function') {
+        const result = applyMariaSongPreciseShot(inst, best, cp);
+        log('p2','AI: Maria Song reduced ' + result.affected + ' copies of ' + best.name + ' by 6 Fate');
+      }
+      break;
     }
     case '62': // Berkeley Homeless: pick any open cell
       inst.noConsolidate = true;
@@ -2784,10 +2804,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
     case '71': // Fort Calvin Watcher: set reveal flag
       if(!G._fortCalvinActive) G._fortCalvinActive=[];
-      G._fortCalvinActive.push({owner:cp,remaining:3}); break;
-    case '72': { // Robo: steal random card from opp hand
+      G._fortCalvinActive.push({owner:cp,remaining:3,characterSent:false,sourceIid:card.iid||null,lastRevealedName:null,lastRevealedWasCharacter:false,sentCharacterName:null}); break;
+    case '72': { // Robo: steal random eligible card from opp hand
       const oh=G.players[opp].hand;
-      if(oh.length){const i=Math.floor(Math.random()*oh.length);const s=oh.splice(i,1)[0];s._stolenByRobo=true;s._roboOrigOwner=opp;if(typeof addCardToHand==='function') addCardToHand(cp,s,{announce:false});else G.players[cp].hand.push(s);log('p2',`AI: Robo stole ${s.name}`);}
+      const eligible=oh.filter(function(target){ return !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)); });
+      if(eligible.length){const i=Math.floor(Math.random()*eligible.length);const s=eligible[i];oh.splice(oh.indexOf(s),1);s._stolenByRobo=true;s._roboOrigOwner=opp;if(typeof addCardToHand==='function') addCardToHand(cp,s,{announce:false});else G.players[cp].hand.push(s);log('p2',`AI: Robo stole ${s.name}`);}
       break;
     }
     case '73': { // ALPINE Expeditionary: discard non-Dauntless/Coordinator chars
@@ -2904,7 +2925,7 @@ async function aiActivateEffects() {
     }
   });
   // Sort: activate high-impact effects first (doublers, halvers, buff-all)
-  const effectPriority = {'40':13,'07':12,'21':11,'03':10,'30':9,'01':8,'46':8,'57':8,'29':7,'27':7,'08':7,'06':7,'38':7,'23':6,'11':6,'15':6,'19':6,'10':5,'bh25':9};
+  const effectPriority = {'40':13,'07':12,'21':11,'03':10,'bh01':10,'30':9,'01':8,'46':8,'57':8,'29':7,'27':7,'08':7,'06':7,'38':7,'23':6,'11':6,'15':6,'19':6,'10':5,'bh25':9};
   // Easier AIs process in random order (miss optimal sequencing)
   if(Math.random() < settings.mistakeChance){
     toActivate.sort(()=>Math.random()-0.5);
@@ -2966,12 +2987,11 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   }
   if(card.id==='52' && card._pendingWhenSetEffect && card.whenSetActivated !== true){
     const targets = [];
-    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, opp) : bc.type==='Supporter') && !bc.immuneFlag && bc.id!=='76') targets.push({card:bc,z,br,c:bc2}); }));
+    G.board[z].forEach((row,br)=>row.forEach((bc,bc2)=>{ if(bc && bc.owner===opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(bc, cp) : (bc.immuneFlag || bc.id==='76'))) targets.push({card:bc,z,br,c:bc2}); }));
     if(!targets.length) return;
     targets.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
     const target = targets[0];
-    target.card._markedForDeath = true;
-    target.card._reinforcementOverride = 0;
+    if(typeof markCardForVigilantes === 'function') markCardForVigilantes(target.card, card, cp);
     card.vigilanteUsed = true;
     log('p2','AI: Vigilantes marked '+target.card.name+' for death');
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:false, blocks:false, topbar:false, effects:false, hover:false});
@@ -3087,6 +3107,7 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case '06': { // Jorge: search deck for a non-star card
+      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'06'});
       const deckCards = G.players[cp].deck.filter(c=>c.rarity!=='star');
       if(deckCards.length){
         const strat = G._selectedAI?._deckStrategy || '';
@@ -3283,6 +3304,7 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case '08': { // Lina: search for a Reality card from deck/discard, set for free
+      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'08'});
       // Deck strategy: Incel deck always searches for Jimmy (41)
       const recoverableReality = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.aff==='reality') : G.players[cp].discard.filter(c=>c.aff==='reality');
       const sources = [...G.players[cp].deck.filter(c=>c.aff==='reality'), ...recoverableReality];
@@ -3350,6 +3372,7 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case '13': { // Johnathan Kirby: search deck for 2 supporters
+      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'13'});
       const deckSups = G.players[cp].deck.filter(c=>c.type==='Supporter');
       // Deck strategy: Maelstrom prioritizes Great Oak Infantry (47) for consolidation fodder
       // Incel prioritizes Oathbound Noble Fighter (31)
@@ -3387,17 +3410,37 @@ async function aiRunEffect(card, z, r, c) {
       }
       break;
     }
-    case '38': { // Jake: discard a supporter once per turn for +5 Fate
+    case '38': { // Jake: discard a field Supporter once per turn for +4 Fate
       if(card.effectUsedThisTurn) break;
-      const supporters = G.players[cp].hand.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
+      const supporters = [];
+      (G.board || []).forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((fieldCard,c)=>{
+        if(!fieldCard || fieldCard.owner !== cp || String(fieldCard.id || '') === '76') return;
+        if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(fieldCard, cp) : fieldCard.type === 'Supporter') supporters.push({card:fieldCard,z,r,c});
+      })));
       if(!supporters.length) break;
-      supporters.sort((a,b)=>(a.fate||0)-(b.fate||0));
+      supporters.sort((a,b)=>(getEffectiveFate(a.card,a.z)||0)-(getEffectiveFate(b.card,b.z)||0));
       const spent = supporters[0];
-      G.players[cp].hand = G.players[cp].hand.filter(c=>c.iid!==spent.iid);
-      fatePushDiscard(cp, spent);
-      card.currentFate += 5;
+      discardBoardCard(spent.card, spent.z, spent.r, spent.c);
+      modifyFate(card, 4, 'permanent', cp);
       card.effectUsedThisTurn = true;
-      log('p2','AI: Jake discarded '+spent.name+' and gained 5 Fate');
+      log('p2','AI: Jake discarded '+spent.card.name+' from Zone '+(spent.z+1)+' and gained 4 Fate');
+      break;
+    }
+    case 'bh01': { // Ani\u010dka Voyager: reposition anywhere and take the optional draw
+      if(typeof hasAnickaVoyagerMovedThisTurn !== 'function' || hasAnickaVoyagerMovedThisTurn(card)) break;
+      const options = typeof getAnickaVoyagerMoveOptions === 'function' ? getAnickaVoyagerMoveOptions(card, z, r, c) : [];
+      if(!options.length) break;
+      options.sort(function(a, b){
+        const aNeed = (getZoneScore(a.z, opp) || 0) - (getZoneScore(a.z, cp) || 0) + (a.r === 1 ? 2 : 0) + (a.c === 1 ? 1 : 0);
+        const bNeed = (getZoneScore(b.z, opp) || 0) - (getZoneScore(b.z, cp) || 0) + (b.r === 1 ? 2 : 0) + (b.c === 1 ? 1 : 0);
+        return bNeed - aNeed;
+      });
+      const destination = options[0];
+      if(typeof beginAnickaVoyagerMove === 'function' && beginAnickaVoyagerMove(card, z, r, c)) {
+        const hadCardToDraw = Array.isArray(G.players?.[cp]?.deck) && G.players[cp].deck.length > 0;
+        await resolveAnickaVoyagerMove(destination.z, destination.r, destination.c);
+        log('p2','AI: Ani\u010dka crossed to Zone '+(destination.z+1)+(hadCardToDraw ? ' and drew 1 card' : ''));
+      }
       break;
     }
     case '40': { // Christopher Erbs: arm the next draw for +4 Fate

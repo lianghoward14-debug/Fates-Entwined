@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="140" viewBox="0 0 780 140">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .icon{fill:none;stroke:#eff8ff;stroke-linecap:round;stroke-linejoin:round;filter:url(#softGlow)}
+      .frame{stroke-width:3.5}
+      .main{stroke-width:5}
+      .detail{stroke-width:3.3}
+      .thin{stroke-width:2.45}
+    </style>
+  </defs>
+
+  <g class="icon" transform="translate(10 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M60 29L84 47L75 91H45L36 47Z"/>
+    <path class="detail" d="M45 53H75"/>
+    <path class="detail" d="M49 68H71"/>
+    <path class="thin" d="M60 29V91"/>
+  </g>
+
+  <g class="icon" transform="translate(140 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M32 80L60 31L88 80L60 101Z"/>
+    <path class="detail" d="M46 76L60 52L74 76"/>
+    <path class="detail" d="M44 86H76"/>
+    <path class="thin" d="M60 31V101"/>
+  </g>
+
+  <g class="icon" transform="translate(270 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M36 88V38H84V88"/>
+    <path class="main" d="M31 88H89"/>
+    <path class="detail" d="M45 38V88M60 38V88M75 38V88"/>
+    <path class="thin" d="M42 30H78"/>
+  </g>
+
+  <g class="icon" transform="translate(400 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M60 30C76 41 85 56 85 73C85 88 75 99 60 104C45 99 35 88 35 73C35 56 44 41 60 30Z"/>
+    <path class="detail" d="M44 67H76"/>
+    <path class="detail" d="M50 80H70"/>
+    <path class="detail" d="M60 44V95"/>
+  </g>
+
+  <g class="icon" transform="translate(530 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M35 83L60 31L85 83"/>
+    <path class="main" d="M42 83H78"/>
+    <path class="detail" d="M45 70H75"/>
+    <path class="detail" d="M50 58H70"/>
+    <path class="thin" d="M52 96H68"/>
+  </g>
+
+  <g class="icon" transform="translate(660 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M60 27L78 42V74L60 101L42 74V42Z"/>
+    <path class="detail" d="M42 55H78"/>
+    <path class="detail" d="M42 70H78"/>
+    <path class="detail" d="M60 27V101"/>
+  </g>
+</svg>

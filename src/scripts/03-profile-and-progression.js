@@ -1490,6 +1490,7 @@ function openTitlePresetSaveDialog(deck) {
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('cdb-save-modal','title-preset-save-modal');
   const body = document.createElement('div');
+  body.className = 'preset-order-editor';
   body.className = 'cdb-save-shell';
   body.innerHTML = `
     <div class="cdb-save-top">
@@ -1797,39 +1798,34 @@ window.movePresetOrder = function(pid, dir){
 function renderPresetOrderEditor() {
   const ordered = getOrderedPresetKeys();
   const body = document.createElement('div');
+  body.className = 'preset-order-editor';
   if(!ordered.length){
-    body.innerHTML = `<div style="text-align:center;padding:1.6rem;color:var(--dim);font-style:italic;">No presets available to reorder.</div>`;
+    body.innerHTML = `<div class="preset-order-empty">No presets available to reorder.</div>`;
   } else {
-    body.innerHTML = `<p style="font-size:.84rem;color:var(--dim);font-style:italic;margin-bottom:.8rem;">Choose which presets appear first. Higher entries show up earlier in your deck selection screens.</p>`;
+    body.innerHTML = `<p class="preset-order-help">Choose which presets appear first. Higher entries show up earlier in your deck selection screens.</p>`;
     const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '.65rem';
+    list.className = 'preset-order-list';
     ordered.forEach((pid, index)=>{
       const preset = PRESET_DECKS[pid];
       const sampleIds = [...new Set(preset.ids)];
       const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
       const hero = preset.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
+      const heroImg = hero?.img
+        ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'detail') : hero.img)
+        : '';
+      const heroFallbackImg = hero?.img && typeof getFullCardImageFallbackSrc === 'function' ? getFullCardImageFallbackSrc(heroImg) : heroImg;
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.gap = '.8rem';
-      row.style.padding = '.7rem .8rem';
-      row.style.border = '1px solid var(--border)';
-      row.style.borderRadius = '10px';
-      row.style.background = 'rgba(0,0,0,.28)';
+      row.className = 'preset-order-row';
       row.innerHTML = `
-        <div style="width:72px;height:96px;border-radius:8px;overflow:hidden;background:#0a0a0f;flex-shrink:0;border:1px solid rgba(255,255,255,.08);">
-          ${hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" loading="lazy" decoding="async" draggable="false" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">` : ''}
+        <div class="preset-order-art">
+          ${heroImg ? `<img src="${escapeHtml(heroImg)}" data-full-src="${escapeHtml(heroFallbackImg)}" alt="${escapeHtml(hero.name)}" loading="eager" decoding="async" draggable="false" onerror="this.onerror=null;this.src=this.dataset.fullSrc||this.src;">` : ''}
         </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(preset.name)}</div>
-          <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">Position ${index + 1}</div>
+        <div class="preset-order-copy">
+          <div class="preset-order-name">${escapeHtml(preset.name)}</div>
+          <div class="preset-order-pos">Position ${index + 1}</div>
         </div>`;
       const moveWrap = document.createElement('div');
-      moveWrap.style.display = 'flex';
-      moveWrap.style.gap = '.35rem';
-      moveWrap.style.flexShrink = '0';
+      moveWrap.className = 'preset-order-actions';
       const earlierBtn = document.createElement('button');
       earlierBtn.className = 'btn sm';
       earlierBtn.textContent = 'Earlier';
@@ -1850,6 +1846,19 @@ function renderPresetOrderEditor() {
   document.getElementById('modal-body').innerHTML = '';
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent = 'Edit Preset Order';
+  const modalRoot = document.getElementById('modal');
+  modalRoot.classList.add('preset-order-modal');
+  const modalBox = modalRoot.querySelector('.modal');
+  if(modalBox){
+    modalBox.querySelectorAll('.preset-order-top-close').forEach(btn=>btn.remove());
+    const topClose = document.createElement('button');
+    topClose.type = 'button';
+    topClose.className = 'preset-order-top-close';
+    topClose.textContent = 'Close';
+    topClose.setAttribute('aria-label', 'Close preset order');
+    topClose.onclick = closeModal;
+    modalBox.appendChild(topClose);
+  }
   const acts = document.getElementById('modal-acts');
   acts.innerHTML = '';
   const back = document.createElement('button');
@@ -1898,6 +1907,7 @@ function browsePresets(page=0) {
     return;
   }
   const body = document.createElement('div');
+  body.className = 'preset-order-editor';
   const pageSize = 3;
   const totalPages = Math.max(1, Math.ceil(keys.length / pageSize));
   _presetBrowsePage = Math.max(0, Math.min(page, totalPages - 1));
@@ -2029,6 +2039,7 @@ function viewPresetContents(pid, returnMode='browser') {
     : ([...entries].map(e=>e.card).sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || entries[0]?.card || null);
 
   const body = document.createElement('div');
+  body.className = 'preset-order-editor';
   body.className = 'deck-inspect-view title-deck-inspect-view';
   body.innerHTML = `
     <div class="deck-inspect-summary">

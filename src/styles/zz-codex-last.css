@@ -443,7 +443,7 @@ html body #s-game .zone-score-vs{
   align-self:center!important;
   font-size:.48rem!important;
   line-height:1!important;
-  transform:none!important;
+  transform:translateY(4px)!important;
 }
 
 html body #s-game .zone-score-bar{
@@ -1602,7 +1602,7 @@ html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!i
 .bc.effect-flash-british_union_jack{
   --effect-flash-color:rgba(232,246,255,.98);--effect-flash-glow:rgba(126,183,255,.62);
   --effect-flash-tint:rgba(48,91,168,.16);--effect-flash-inset:rgba(139,190,255,.12);
-  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='28' stroke-width='3.2'/%3E%3Cpath d='M19 52V12M19 16C28 11 38 20 50 14V35C40 41 30 29 19 38Z' stroke-width='3.2'/%3E%3Cpath d='M22 18C29 22 39 30 47 33M47 17C39 20 29 29 22 35' stroke-width='2.4'/%3E%3Cpath d='M21 26C29 23 39 29 48 24M35 16C34 22 34 29 34 36' stroke-width='4'/%3E%3Cpath d='M19 10L15 14L19 18L23 14Z' stroke-width='3.2'/%3E%3C/g%3E%3C/svg%3E");
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 14H51V38C47 48 40 55 32 59C24 55 17 48 13 38Z' stroke-width='3.15'/%3E%3Cpath d='M15 33L32 19L49 33M16 44L32 31L48 44' stroke-width='4.2'/%3E%3Cpath d='M24 52H40' stroke-width='2.25'/%3E%3C/g%3E%3C/svg%3E");
 }
 .bc.effect-flash-oathbound_crescent{
   --effect-flash-color:rgba(255,185,177,.98);--effect-flash-glow:rgba(240,93,82,.60);
@@ -5070,14 +5070,17 @@ html body .title-version-label{
   pointer-events:none!important;
 }
 
+html body #s-title .title-version-badge{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  pointer-events:none!important;
+  cursor:default!important;
+  user-select:none!important;
+}
+
 html body #s-social .social-version-label{
-  position:absolute!important;
-  left:18px!important;
-  bottom:14px!important;
-  z-index:5!important;
-  text-align:left!important;
-  color:rgba(255,255,255,.78)!important;
-  text-shadow:0 1px 2px rgba(0,0,0,.7)!important;
+  display:none!important;
 }
 
 html body #s-social{
@@ -5463,6 +5466,25 @@ html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone{
 
 html body #modal .board-target-zone-title{
   display:none!important;
+}
+
+html body #modal .board-target-picker.show-zone-titles .board-target-zone-title{
+  display:block!important;
+  margin:-.08rem -.08rem .36rem!important;
+  padding:.28rem .4rem!important;
+  border-bottom:1px solid rgba(201,168,76,.38)!important;
+  color:var(--gold)!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  font-weight:700!important;
+  letter-spacing:.12em!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal .board-target-picker.jake-field-picker .board-target-zone{
+  border-color:rgba(201,168,76,.62)!important;
+  box-shadow:inset 0 0 20px rgba(0,0,0,.48),0 0 12px rgba(201,168,76,.07)!important;
 }
 
 html body #modal .board-target-row{
@@ -7425,8 +7447,13 @@ html body .card-info-overlay .cd-flavor{
 
 /* Codex 2026-05-26: the active consolidation cinematic is cc-overlay-v2, not the older consolidation-cinematic-card path. */
 html body .cc-overlay-v2 .cc-card-wrap-v2{
-  width:min(74vw,800px)!important;
-  height:min(94vh,980px)!important;
+  width:min(30vw,320px)!important;
+  height:min(52vh,460px)!important;
+}
+
+html body .cc-overlay-v2 .cc-card-wrap-v2.cc-card-id-81{
+  width:min(24vw,260px)!important;
+  height:min(43vh,364px)!important;
 }
 
 html body .cc-overlay-v2 .cc-card-wrap-v2 img{
@@ -7464,6 +7491,101 @@ html body #s-game .landscape-panel .landscape-note{
   font-size:.58rem!important;
   margin-top:.02rem!important;
   padding-top:.16rem!important;
+}
+
+html body #s-game .landscape-panel .landscape-supporter-limit{
+  width:auto!important;
+  margin:.12rem auto 0!important;
+  padding:.06rem 0 0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:none!important;
+  box-shadow:none!important;
+  display:block!important;
+  text-align:center!important;
+  color:#9bdcff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.58rem!important;
+  line-height:1.12!important;
+  letter-spacing:.055em!important;
+  text-transform:uppercase!important;
+}
+html body #s-game .landscape-panel .landscape-supporter-limit.is-spent{
+  color:#9a2f3f!important;
+  font-weight:700!important;
+  text-shadow:0 0 8px rgba(154,47,63,.28)!important;
+}
+html body #s-game #landscape-panel.landscape-panel .landscape-supporter-limit.is-spent{
+  color:#9a2f3f!important;
+  font-weight:700!important;
+}
+
+html body #s-game .landscape-panel .landscape-whisper-action{
+  transform:translateY(6px);
+  width:min(96%,13.5rem);
+  margin:.02rem auto 0;
+  display:grid;
+  gap:0;
+  justify-items:center;
+}
+
+html body #s-game .landscape-panel .landscape-whisper-status{
+  color:#9bdcff;
+  font-family:'Cinzel',serif;
+  font-size:.52rem;
+  line-height:1.12;
+  letter-spacing:.055em;
+  text-align:center;
+  text-transform:uppercase;
+}
+
+html body #s-game .landscape-panel .landscape-whisper-action.is-spent .landscape-whisper-status{
+  color:#ff7272;
+}
+
+html body #s-game .landscape-panel .landscape-whisper-button{
+  min-height:1.45rem;
+  padding:.2rem .48rem;
+  border:1px solid rgba(218,185,82,.58);
+  border-radius:3px;
+  background:linear-gradient(180deg,rgba(28,24,14,.9),rgba(8,9,13,.96));
+  color:#f0d77f;
+  font-family:'Cinzel',serif;
+  font-size:.5rem;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+
+html body #s-game .landscape-panel .landscape-whisper-button:hover:not(:disabled){
+  border-color:#ffe49a;
+  color:#fff0b3;
+  box-shadow:0 0 10px rgba(218,185,82,.2);
+}
+
+html body #s-game .landscape-panel .landscape-whisper-button:disabled{
+  opacity:.42;
+  cursor:default;
+}
+
+#modal .whisper-token-copy-banner.cd-live-tracker,
+.card-info-overlay .whisper-token-copy-banner.cd-live-tracker{
+  border-color:rgba(117,188,255,.48);
+  background:linear-gradient(180deg,rgba(10,27,44,.9),rgba(4,8,17,.96));
+  margin-bottom:.34rem;
+  padding:.36rem .54rem;
+}
+
+#modal .whisper-token-copy-banner .cd-live-tracker-label,
+#modal .whisper-token-copy-banner .cd-live-tracker-value,
+.card-info-overlay .whisper-token-copy-banner .cd-live-tracker-label,
+.card-info-overlay .whisper-token-copy-banner .cd-live-tracker-value{
+  transform:translateY(-3px);
+}
+
+#modal .cd-fort-calvin-tracker .cd-live-tracker-sub,
+.card-info-overlay .cd-fort-calvin-tracker .cd-live-tracker-sub{
+  transform:translateY(-2px);
 }
 
 html body #s-game .game-left::before{
@@ -12307,8 +12429,7 @@ html body #s-title #title-free-play-btn,
 html body #s-title #title-challenger-btn,
 html body #s-title #title-mission-control-btn,
 html body #s-title #title-exit-game-btn,
-html body #s-title #music-toggle-btn,
-html body #s-title #enhanced-fx-toggle-btn{
+html body #s-title #music-toggle-btn{
   border-color:rgba(255,255,255,.14)!important;
   box-shadow:none!important;
 }
@@ -12322,8 +12443,7 @@ html body #s-title #title-free-play-btn:hover,
 html body #s-title #title-challenger-btn:hover,
 html body #s-title #title-mission-control-btn:hover,
 html body #s-title #title-exit-game-btn:hover,
-html body #s-title #music-toggle-btn:hover,
-html body #s-title #enhanced-fx-toggle-btn:hover{
+html body #s-title #music-toggle-btn:hover{
   border-color:rgba(255,255,255,.24)!important;
 }
 
@@ -12519,6 +12639,13 @@ html body #s-game .landscape-panel .landscape-desc,
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-desc{
   font-size:.72rem!important;
   line-height:1.28!important;
+}
+
+html body #s-game .landscape-panel.landscape-id-igb17 .landscape-desc,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel.landscape-id-igb17 .landscape-desc{
+  font-size:.62rem!important;
+  line-height:1.18!important;
+  max-width:96%!important;
 }
 
 /* Codex 2026-06-08c: status pills lightly nudged toward center; hover tooltip must not hide the pill. */
@@ -19319,7 +19446,7 @@ html body #opponent-found-overlay .ai-found-label{
   line-height:1!important;
   letter-spacing:.24em!important;
   text-align:center!important;
-  transform:translateY(4px)!important;
+  transform:translateY(2px)!important;
 }
 
 html body #opponent-found-overlay .ai-found-pic{
@@ -19510,6 +19637,23 @@ html body #online-improvisor-reaction-root .reaction-choice-copy em::first-lette
   color:#ffe58c!important;
 }
 
+/* Online Improvisor prompt: keep the sentence readable instead of splitting
+   "Opponent played / card / Choose who responds" into separate columns. */
+html body #online-improvisor-reaction-root .reaction-prompt{
+  display:block!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+html body #online-improvisor-reaction-root .reaction-prompt span,
+html body #online-improvisor-reaction-root .reaction-prompt strong{
+  display:inline!important;
+  vertical-align:baseline!important;
+}
+html body #online-improvisor-reaction-root .reaction-prompt strong{
+  margin:0 .24rem!important;
+  overflow-wrap:break-word!important;
+}
+
 /* Deck builders keep wheel/touch scrolling without visible scrollbar chrome. */
 html body #s-deck #db-collection,
 html body #s-deck #db-deck-list,
@@ -19621,14 +19765,56 @@ html body #s-challenger .ch-store-hero::after{
 }
 
 html body #pack-opening-overlay .pack-art.profile-pack-art{
-  width:min(300px,70vw)!important;
-  height:min(300px,52vh)!important;
-  aspect-ratio:1/1!important;
+  width:min(300px,70vw,37vh)!important;
+  height:auto!important;
+  aspect-ratio:5/7!important;
 }
 
 html body #pack-opening-overlay .pack-art.profile-pack-art img{
-  object-fit:cover!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
   object-position:center center!important;
+}
+
+html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{
+  width:min(340px,42vw)!important;
+  height:auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.5rem!important;
+}
+
+html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art .pack-card-face{
+  position:relative!important;
+  inset:auto!important;
+  width:100%!important;
+  aspect-ratio:591/453!important;
+  border-radius:8px!important;
+}
+
+html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+}
+
+html body #pack-opening-overlay .profile-pack-reward-name{
+  color:#d9ecff!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.72rem!important;
+  letter-spacing:.06em!important;
+  text-align:center!important;
+  text-shadow:0 1px 5px rgba(0,0,0,.8)!important;
+}
+
+html body #s-game .cell.placeable.brave-horizons-target{
+  outline:1px solid rgba(116,207,237,.62)!important;
+  outline-offset:-2px!important;
+  background:rgba(93,190,224,.025)!important;
+  box-shadow:none!important;
+  animation:none!important;
 }
 
 /* Keep the discard picker hover/selection ring inside its own card artwork so
@@ -19704,6 +19890,20 @@ html body #s-challenger .ch-store-products .ch-store-product-info{
 }
 html body #s-challenger .ch-store-products .booster-price-row{
   margin-top:auto!important;
+}
+html body #s-challenger .ch-store-products .booster-price-row .btn-buy{
+  position:relative!important;
+  top:-4px!important;
+}
+html body #s-challenger .ch-store-market-actions .btn:last-child{
+  position:relative!important;
+  top:-6px!important;
+  width:72%!important;
+  max-width:320px!important;
+  justify-self:center!important;
+}
+html body #s-challenger .ch-store-market h3{
+  transform:translate(9px,3px)!important;
 }
 
 /* Status banners show complete effect names; the measured overflow system moves
@@ -19786,6 +19986,22 @@ html body #s-game .effect-pill .effect-pill-icon svg.administrative-bloat-icon{
   max-width:21px!important;
   max-height:21px!important;
   transform:none!important;
+  overflow:visible!important;
+}
+
+/* Wojciech Pierogi lifetime status: warm food-gold, separate from generic buffs. */
+html body #s-game .effect-pill.effect-pill-pierogi{
+  border-color:rgba(224,177,76,.62)!important;
+  background:linear-gradient(180deg,rgba(62,42,16,.94),rgba(16,11,8,.97))!important;
+  color:#ffe2a0!important;
+  box-shadow:inset 0 1px 0 rgba(255,247,211,.1),0 5px 16px rgba(0,0,0,.32),0 0 12px rgba(215,151,48,.12)!important;
+}
+html body #s-game .effect-pill.effect-pill-pierogi .effect-pill-icon{
+  color:#ffd26f!important;
+  background:radial-gradient(circle,rgba(255,215,128,.18),rgba(77,45,12,.1))!important;
+  border:1px solid rgba(245,199,99,.3)!important;
+}
+html body #s-game .effect-pill.effect-pill-pierogi .effect-pill-icon svg{
   overflow:visible!important;
 }
 html body #s-game .effect-pill.effect-pill-overflow{
@@ -20211,6 +20427,7 @@ html body #s-game #opp-hand.opp-hand-compact{
   max-height:194px!important;
   padding:0!important;
   overflow:hidden!important;
+  transform:translateY(4px)!important;
 }
 html body #s-game #opp-hand.opp-hand-compact .opp-card-back{
   width:var(--opp-hand-card-w)!important;
@@ -20306,4 +20523,163 @@ html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #mod
 html body #modal .modal.deck-inspect-compact-modal.title-deck-preview-modal #modal-acts::after{
   content:none!important;
   display:none!important;
+}
+
+/* Edit Preset Order: compact, readable list instead of oversized full-width rows. */
+html body #modal.preset-order-modal .modal{
+  position:relative!important;
+  width:min(900px,calc(100vw - 120px))!important;
+  max-height:min(84vh,820px)!important;
+  padding-left:1.15rem!important;
+  padding-right:1.15rem!important;
+}
+html body #modal.preset-order-modal #modal-body{
+  overflow:hidden!important;
+  padding-left:.65rem!important;
+  padding-right:.65rem!important;
+}
+html body #modal.preset-order-modal .preset-order-editor{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.85rem!important;
+  min-height:0!important;
+}
+html body #modal.preset-order-modal .preset-order-top-close{
+  position:absolute!important;
+  top:1rem!important;
+  right:1rem!important;
+  z-index:4!important;
+  min-width:76px!important;
+  padding:.36rem .72rem!important;
+  border:1px solid rgba(201,168,76,.52)!important;
+  border-radius:8px!important;
+  background:rgba(2,4,10,.86)!important;
+  color:#efd572!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.68rem!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+  cursor:pointer!important;
+}
+html body #modal.preset-order-modal .preset-order-top-close:hover{
+  border-color:rgba(255,226,116,.86)!important;
+  color:#fff0a0!important;
+}
+html body #modal.preset-order-modal .preset-order-help{
+  margin:0 .4rem!important;
+  padding:.62rem .8rem!important;
+  border:1px solid rgba(154,135,255,.18)!important;
+  border-radius:10px!important;
+  background:rgba(24,24,42,.42)!important;
+  color:#b8addd!important;
+  font-size:.82rem!important;
+  line-height:1.35!important;
+  font-style:italic!important;
+}
+html body #modal.preset-order-modal .preset-order-list{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(330px,1fr))!important;
+  gap:.72rem!important;
+  overflow:auto!important;
+  max-height:min(58vh,560px)!important;
+  padding:.12rem .55rem .42rem!important;
+  scrollbar-width:thin!important;
+}
+html body #modal.preset-order-modal .preset-order-row{
+  display:grid!important;
+  grid-template-columns:66px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:.82rem!important;
+  min-height:96px!important;
+  padding:.7rem .78rem!important;
+  border:1px solid rgba(201,168,76,.28)!important;
+  border-radius:12px!important;
+  background:linear-gradient(135deg,rgba(10,12,22,.9),rgba(4,6,12,.72))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),0 12px 28px rgba(0,0,0,.24)!important;
+}
+html body #modal.preset-order-modal .preset-order-art{
+  width:66px!important;
+  height:88px!important;
+  border-radius:8px!important;
+  overflow:hidden!important;
+  background:#080a10!important;
+  border:1px solid rgba(255,255,255,.12)!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.42)!important;
+}
+html body #modal.preset-order-modal .preset-order-art img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center 20%!important;
+  display:block!important;
+  image-rendering:auto!important;
+  transform:translateZ(0)!important;
+  backface-visibility:hidden!important;
+}
+html body #modal.preset-order-modal .preset-order-copy{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:.2rem!important;
+}
+html body #modal.preset-order-modal .preset-order-name{
+  font-family:'Cinzel',serif!important;
+  color:#f2d36a!important;
+  font-size:.95rem!important;
+  line-height:1.16!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+html body #modal.preset-order-modal .preset-order-pos{
+  color:#a99ee5!important;
+  font-size:.68rem!important;
+  letter-spacing:.11em!important;
+  text-transform:uppercase!important;
+}
+html body #modal.preset-order-modal .preset-order-actions{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:.34rem!important;
+  justify-items:stretch!important;
+}
+html body #modal.preset-order-modal .preset-order-actions .btn{
+  min-width:74px!important;
+  padding:.36rem .55rem!important;
+  font-size:.68rem!important;
+}
+html body #modal.preset-order-modal .preset-order-empty{
+  text-align:center!important;
+  padding:1.6rem!important;
+  color:var(--dim)!important;
+  font-style:italic!important;
+}
+@media (max-width:720px){
+  html body #modal.preset-order-modal .preset-order-list{
+    grid-template-columns:1fr!important;
+  }
+  html body #modal.preset-order-modal .preset-order-row{
+    grid-template-columns:58px minmax(0,1fr)!important;
+  }
+  html body #modal.preset-order-modal .preset-order-art{
+    width:58px!important;
+    height:77px!important;
+  }
+  html body #modal.preset-order-modal .preset-order-actions{
+    grid-column:1 / -1!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+}
+
+/* Keep the paired title-screen actions optically and geometrically aligned. */
+html body #s-title .title-menu-stack > #title-deck-builder-btn,
+html body #s-title .title-menu-stack > #title-mission-control-btn{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  align-self:stretch!important;
+  justify-self:stretch!important;
+  width:100%!important;
+  margin:0!important;
+  box-sizing:border-box!important;
 }

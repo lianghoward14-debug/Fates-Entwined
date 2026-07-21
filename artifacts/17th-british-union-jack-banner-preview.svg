@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="70%">
+      <stop offset="0" stop-color="#172a48"/>
+      <stop offset="0.62" stop-color="#090f1e"/>
+      <stop offset="1" stop-color="#03060c"/>
+    </radialGradient>
+    <radialGradient id="disc" cx="46%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#254f80" stop-opacity="0.72"/>
+      <stop offset="0.72" stop-color="#0a182c" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#050b15"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="flagClip">
+      <path d="M346 116C407 81 477 151 552 104V237C489 281 414 195 346 254Z"/>
+    </clipPath>
+    <clipPath id="flagClipSmall">
+      <path d="M712 168C730 158 751 178 774 164V204C755 217 733 191 712 209Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="900" height="420" rx="24" fill="url(#bg)"/>
+  <path d="M34 30H866M34 390H866" stroke="#d4b84b" stroke-opacity="0.56"/>
+  <text x="450" y="54" text-anchor="middle" fill="#f3dc80" font-family="Georgia, serif" font-size="20" letter-spacing="3">17TH BRITISH REGIMENT</text>
+  <text x="450" y="82" text-anchor="middle" fill="#91b8e8" font-family="Georgia, serif" font-size="13" letter-spacing="2">UNION JACK WAR BANNER OVERLAY</text>
+
+  <circle cx="430" cy="211" r="143" fill="#0b1424" stroke="#75b6ff" stroke-opacity="0.22"/>
+  <circle cx="430" cy="211" r="127" fill="url(#disc)" stroke="#dfeeff" stroke-width="6" filter="url(#glow)"/>
+
+  <g transform="translate(-14 15)" fill="none" stroke="#eff8ff" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M346 313V93" stroke-width="10"/>
+    <path d="M346 116C407 81 477 151 552 104V237C489 281 414 195 346 254Z" stroke-width="10"/>
+    <g clip-path="url(#flagClip)">
+      <path d="M343 103C408 142 477 211 561 258M560 88C489 133 413 203 338 270" stroke-width="13"/>
+      <path d="M338 182C407 157 479 211 561 173M453 90C446 149 445 210 445 268" stroke-width="21"/>
+    </g>
+    <path d="M346 79L327 98L346 117L365 98Z" stroke-width="9"/>
+  </g>
+
+  <g>
+    <text x="743" y="120" text-anchor="middle" fill="#b5c8df" font-family="Georgia, serif" font-size="14" letter-spacing="1.5">ACTUAL OVERLAY SIZE</text>
+    <circle cx="743" cy="192" r="57" fill="url(#disc)" stroke="#dfeeff" stroke-width="3"/>
+    <g transform="translate(1 0)" fill="none" stroke="#eff8ff" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M712 231V161" stroke-width="4"/>
+      <path d="M712 168C730 158 751 178 774 164V204C755 217 733 191 712 209Z" stroke-width="4"/>
+      <g clip-path="url(#flagClipSmall)">
+        <path d="M711 164C731 176 751 197 777 212M777 159C755 173 733 194 710 213" stroke-width="4"/>
+        <path d="M709 187C730 180 752 196 777 185M745 160C743 178 743 196 743 213" stroke-width="6"/>
+      </g>
+      <path d="M712 156L706 162L712 168L718 162Z" stroke-width="3.5"/>
+    </g>
+    <text x="743" y="273" text-anchor="middle" fill="#91b8e8" font-family="Georgia, serif" font-size="13">Circular frame + waving colors</text>
+  </g>
+
+  <g transform="translate(80 150)">
+    <path d="M0 0H128M0 38H92M0 76H110" stroke="#75b6ff" stroke-opacity="0.26" stroke-width="2"/>
+    <text x="0" y="112" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Strong silhouette</text>
+    <text x="0" y="137" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Readable Union Jack</text>
+    <text x="0" y="162" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Diamond finial</text>
+  </g>
+</svg>

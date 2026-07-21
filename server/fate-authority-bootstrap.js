@@ -59,6 +59,10 @@ function compactStateCard(meta, owner, iid){
   if(card.cantBeReduced === undefined) card.cantBeReduced = false;
   if(card.cantBeMoved === undefined) card.cantBeMoved = false;
   if(card.faceDown === undefined) card.faceDown = false;
+  if(String(card.id || '') === 'bh01'){
+    card.immuneFlag = true;
+    card.cantBeReduced = true;
+  }
   return card;
 }
 
@@ -129,7 +133,7 @@ function queueOpeningHandSelvaBoosts(state){
 function landscapeBgNumFromSong(song){
   const match = String(song || 'board1').match(/board\s*(\d+)/i);
   const n = match ? Number(match[1]) : 1;
-  return Math.max(1, Math.min(16, Number.isInteger(n) ? n : 1));
+  return Math.max(1, Math.min(19, Number.isInteger(n) ? n : 1));
 }
 
 function makeInitialLandscapeState(id, rng){
@@ -142,7 +146,10 @@ function makeInitialLandscapeState(id, rng){
     resolvedTurns:{},
     eventideMovedIids:{},
     drawPhaseCounts:[0, 0],
-    supporterEffectsThisTurn:[0, 0]
+    supporterEffectsThisTurn:[0, 0],
+    handTurnCounts:[0, 0],
+    handLastResolvedGameTurns:[null, null],
+    rotationStartedAt:id === 'igb17' ? Date.now() : null
   };
 }
 
@@ -164,6 +171,17 @@ function buildInitialAuthorityState(input){
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
+  if(landscapeId === 'igb19'){
+    [p0, p1].forEach((player, playerIndex)=>{
+      player.hand.forEach(card=>{
+        const type = String(card && card.type || '');
+        if(!card || !type || type === 'Supporter' || type === 'Counter' || String(card.id || '') === 'token1') return;
+        card._igb19HandTurnsRemaining = 3;
+        card._igb19HandOwner = playerIndex;
+        card._igb19LastCountedHandTurn = 0;
+      });
+    });
+  }
   const currentPlayer = Number(input && input.currentPlayer);
   const firstPlayer = Number.isInteger(currentPlayer) && currentPlayer >= 0 && currentPlayer <= 1 ? currentPlayer : 0;
   const state = {
@@ -209,6 +227,9 @@ function buildInitialAuthorityState(input){
     _mailDeliveries:[],
     _blameGameEffects:[null, null],
     _administrativeBloatEffects:[],
+    _wojciechTurnPlacementCounts:[0, 0],
+    _wojciechLastTurnPlacementCounts:[0, 0],
+    _whisperLandscapeUses:[0, 0],
     _serverRngCounter:0,
     usMarinesUses:[0, 0],
     polishArmyUses:[0, 0],

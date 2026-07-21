@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="620" viewBox="0 0 1080 620">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .icon{fill:none;stroke:#eff8ff;stroke-linecap:round;stroke-linejoin:round;filter:url(#softGlow)}
+      .main{stroke-width:4.2}
+      .detail{stroke-width:3}
+      .thin{stroke-width:2.25}
+      .num{fill:#91b8e8;font:12px Georgia,serif}
+    </style>
+  </defs>
+
+  <g transform="translate(30 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M13 45c6-13 12-24 19-34 7 10 13 21 19 34-5 6-11 10-19 12-8-2-14-6-19-12z"/>
+      <path class="detail" d="M24 34l8-9 8 9M24 45h16"/>
+      <path class="thin" d="M32 11v46"/>
+    </g><text class="num" x="0" y="92">1</text>
+  </g>
+
+  <g transform="translate(200 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M17 52V16"/>
+      <path class="main" d="M17 20c10-7 21 6 33-1v23c-12 7-23-6-33 1z"/>
+      <path class="detail" d="M25 27h20M25 36h19"/>
+    </g><text class="num" x="0" y="92">2</text>
+  </g>
+
+  <g transform="translate(370 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M32 9l22 25-22 23-22-23z"/>
+      <path class="detail" d="M20 34h24M32 20v27"/>
+      <path class="thin" d="M24 26l16 16M40 26L24 42"/>
+    </g><text class="num" x="0" y="92">3</text>
+  </g>
+
+  <g transform="translate(540 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M13 45c4-12 11-23 19-34 8 11 15 22 19 34-7 7-31 7-38 0z"/>
+      <path class="detail" d="M20 37c8-4 16-4 24 0M24 48c5 2 11 2 16 0"/>
+    </g><text class="num" x="0" y="92">4</text>
+  </g>
+
+  <g transform="translate(710 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M12 48l20-37 20 37c-5 5-12 8-20 8s-15-3-20-8z"/>
+      <path class="detail" d="M24 45l8-18 8 18"/>
+      <path class="thin" d="M20 52h24"/>
+    </g><text class="num" x="0" y="92">5</text>
+  </g>
+
+  <g transform="translate(880 20)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M16 18h32v28c-7 7-25 7-32 0z"/>
+      <path class="detail" d="M16 29h32M24 18v35M40 18v35"/>
+      <path class="thin" d="M23 12h18"/>
+    </g><text class="num" x="0" y="92">6</text>
+  </g>
+
+  <g transform="translate(30 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M32 10c12 8 18 18 18 30-6 9-30 9-36 0 0-12 6-22 18-30z"/>
+      <path class="detail" d="M21 39h22M25 29h14"/>
+      <path class="thin" d="M32 10v42"/>
+    </g><text class="num" x="0" y="92">7</text>
+  </g>
+
+  <g transform="translate(200 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M14 43l18-30 18 30-18 14z"/>
+      <path class="detail" d="M23 41h18M27 31h10"/>
+      <path class="thin" d="M18 52h28"/>
+    </g><text class="num" x="0" y="92">8</text>
+  </g>
+
+  <g transform="translate(370 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M13 36c8-4 14-2 19 7 5-9 11-11 19-7-3 10-9 17-19 21-10-4-16-11-19-21z"/>
+      <path class="main" d="M20 28c5-6 9-10 12-17 3 7 7 11 12 17"/>
+      <path class="thin" d="M25 37h14"/>
+    </g><text class="num" x="0" y="92">9</text>
+  </g>
+
+  <g transform="translate(540 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M19 52V18h26v34"/>
+      <path class="main" d="M13 52h38"/>
+      <path class="detail" d="M25 18v34M39 18v34M19 31h26"/>
+    </g><text class="num" x="0" y="92">10</text>
+  </g>
+
+  <g transform="translate(710 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M17 17l30 30M47 17L17 47"/>
+      <path class="detail" d="M21 21h18v13H21zM25 37h18v13H25z"/>
+      <path class="thin" d="M23 55h18"/>
+    </g><text class="num" x="0" y="92">11</text>
+  </g>
+
+  <g transform="translate(880 140)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M16 46c4-14 9-25 16-35 7 10 12 21 16 35-4 6-10 10-16 12-6-2-12-6-16-12z"/>
+      <path class="detail" d="M24 26c5 4 11 4 16 0M24 39c5 4 11 4 16 0"/>
+    </g><text class="num" x="0" y="92">12</text>
+  </g>
+
+  <g transform="translate(30 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M11 48c7-12 14-23 21-37 7 14 14 25 21 37-6 5-13 8-21 8s-15-3-21-8z"/>
+      <path class="detail" d="M22 35h20M26 45h12"/>
+      <path class="thin" d="M32 11v45"/>
+    </g><text class="num" x="0" y="92">13</text>
+  </g>
+
+  <g transform="translate(200 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M32 10l8 11 13 4-8 11 1 14-14-5-14 5 1-14-8-11 13-4z"/>
+      <path class="thin" d="M32 21v24M24 33h16"/>
+    </g><text class="num" x="0" y="92">14</text>
+  </g>
+
+  <g transform="translate(370 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M16 51c5-16 10-29 16-40 6 11 11 24 16 40-5 4-11 6-16 6s-11-2-16-6z"/>
+      <path class="detail" d="M24 49c2-8 5-15 8-23 3 8 6 15 8 23"/>
+    </g><text class="num" x="0" y="92">15</text>
+  </g>
+
+  <g transform="translate(540 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M32 11c11 9 17 19 18 31-5 8-13 13-18 15-5-2-13-7-18-15 1-12 7-22 18-31z"/>
+      <path class="detail" d="M22 38c6-5 14-5 20 0M26 28c4-3 8-3 12 0"/>
+    </g><text class="num" x="0" y="92">16</text>
+  </g>
+
+  <g transform="translate(710 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M18 51V16"/>
+      <path class="main" d="M18 20h31l-7 8 7 8H18"/>
+      <path class="detail" d="M25 25h18M25 33h16"/>
+      <path class="thin" d="M18 12l-5 5 5 5 5-5z"/>
+    </g><text class="num" x="0" y="92">17</text>
+  </g>
+
+  <g transform="translate(880 260)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M12 45c8-16 14-27 20-34 6 7 12 18 20 34-6 7-34 7-40 0z"/>
+      <path class="detail" d="M23 34l9-11 9 11M22 46h20"/>
+    </g><text class="num" x="0" y="92">18</text>
+  </g>
+
+  <g transform="translate(30 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M13 37c8-5 14-3 19 6 5-9 11-11 19-6-3 9-9 16-19 20-10-4-16-11-19-20z"/>
+      <path class="detail" d="M18 30h28M23 24l9-10 9 10"/>
+      <path class="thin" d="M32 14v39"/>
+    </g><text class="num" x="0" y="92">19</text>
+  </g>
+
+  <g transform="translate(200 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M13 49c6-14 13-27 19-38 6 11 13 24 19 38-5 5-12 8-19 8s-14-3-19-8z"/>
+      <path class="detail" d="M23 44l9-21 9 21"/>
+      <path class="thin" d="M27 53h10"/>
+    </g><text class="num" x="0" y="92">20</text>
+  </g>
+
+  <g transform="translate(370 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M15 18h34v20c-5 11-12 17-17 20-5-3-12-9-17-20z"/>
+      <path class="detail" d="M23 18v31M32 18v40M41 18v31"/>
+      <path class="thin" d="M22 12h20"/>
+    </g><text class="num" x="0" y="92">21</text>
+  </g>
+
+  <g transform="translate(540 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M32 10l19 19-7 23H20l-7-23z"/>
+      <path class="detail" d="M22 30h20M25 42h14"/>
+      <path class="thin" d="M32 18v34"/>
+    </g><text class="num" x="0" y="92">22</text>
+  </g>
+
+  <g transform="translate(710 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M16 44c4-11 9-21 16-33 7 12 12 22 16 33-6 7-26 7-32 0z"/>
+      <path class="detail" d="M23 31h18M25 42h14M32 17v35"/>
+    </g><text class="num" x="0" y="92">23</text>
+  </g>
+
+  <g transform="translate(880 380)">
+    <g class="icon" transform="scale(1.55)">
+      <path class="main" d="M15 47c5-13 11-24 17-36 6 12 12 23 17 36-5 6-29 6-34 0z"/>
+      <path class="detail" d="M23 35c6 4 12 4 18 0M23 45c6 3 12 3 18 0"/>
+      <path class="thin" d="M22 23h20"/>
+    </g><text class="num" x="0" y="92">24</text>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 //  BUILT-IN STARTER PRESET DECKS
 // ═══════════════════════════════════════════════════════
-const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh01','bh25']);
+const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh25']);
 
 function isRetiredChallengerCard(cardOrId) {
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
@@ -2146,7 +2146,7 @@ function showProfilePackOpening(pfpIds) {
     <div class="pack-stage">
       <div class="pack-art-container">
         <div class="pack-art profile-pack-art" id="profile-pack-art-el" style="border-color:rgba(127,182,255,.75);box-shadow:0 16px 34px rgba(0,0,0,.58);">
-          <img src="booster1.png" alt="Profile Picture Booster" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
+          <img src="booster1.png" alt="Profile Picture Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
         </div>
       </div>
       <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">Rewards opened!</div>
@@ -2461,7 +2461,6 @@ function renderChStoreTab(content) {
         <aside class="marketplace-panel marketplace-pill ch-store-market">
           <div class="ch-store-market-head">
             <div>
-              <div class="ch-store-kicker">Trading Floor</div>
               <h3>Marketplace</h3>
             </div>
             <button class="btn sm" onclick="renderMarketplaceListings()">Refresh</button>
@@ -2612,12 +2611,12 @@ function renderProfilePackReveal(pfpIds) {
   doneBtn.onclick = closePackOpening;
   pfpIds.forEach((pfpId, idx)=>{
     const wrap = document.createElement('div');
-    wrap.className = 'pack-card-wrap profile-pack-card';
+    wrap.className = 'pack-card-wrap profile-pack-card profile-pack-full-art';
     wrap.innerHTML = `
       <div class="pack-card-face pack-card-front rarity-circle" style="border-color:#7fb6ff;box-shadow:0 8px 18px rgba(0,0,0,.42);">
-      <img src="${PFP_PATH(pfpId, 'square')}" alt="Profile picture ${pfpId}" style="object-fit:cover;object-position:center;">
-        <div class="pack-card-name">Profile Picture ${pfpId}</div>
-      </div>`;
+        <img src="${PFP_PATH(pfpId)}" alt="Profile picture ${pfpId} full art">
+      </div>
+      <div class="profile-pack-reward-name">Profile Picture ${pfpId}</div>`;
     setTimeout(()=>wrap.classList.add('show'), 80*idx);
     grid.appendChild(wrap);
     setTimeout(()=>{
@@ -5291,8 +5290,20 @@ function initInGameChat() {
   const p2Name = p2Profile.name || G.players[1].name || 'Player 2';
   const p1Elo = p1Profile.elo || USER_PROFILE.elo || 1000;
   const p2Elo = p2Profile.elo || G._aiOpponentElo || (G._selectedAI ? G._selectedAI.elo : 1000);
-  const p1Img = p1Profile.img || (typeof getProfileImgSrc === 'function' ? getProfileImgSrc() : null);
-  const p2Img = p2Profile.img || (G._selectedAI && typeof getAIProfileImg === 'function' ? getAIProfileImg(G._selectedAI, 'circle') : (G._selectedAI && G._selectedAI.img ? G._selectedAI.img : null));
+  const onlineProfileImg = p => {
+    const src = window.FateOnline?.profilePhoto
+      ? window.FateOnline.profilePhoto(p || {})
+      : (p?.img || p?.photoURL || p?.profileImg || null);
+    return src && src !== 'blank.png' && src !== '[object Object]' ? src : null;
+  };
+  const onlineProfileCrop = p => (
+    p?.crop ||
+    (window.FateOnline?.profilePhotoCropStyle ? window.FateOnline.profilePhotoCropStyle(p || {}, 'center 22%') : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;')
+  );
+  const p1Img = onlineProfileImg(p1Profile) || (typeof getProfileImgSrc === 'function' ? getProfileImgSrc() : null);
+  const p2Img = onlineProfileImg(p2Profile) || (G._selectedAI && typeof getAIProfileImg === 'function' ? getAIProfileImg(G._selectedAI, 'circle') : (G._selectedAI && G._selectedAI.img ? G._selectedAI.img : null));
+  const p1Crop = onlineProfileCrop(p1Profile);
+  const p2Crop = onlineProfileCrop(p2Profile);
 
   widget.innerHTML = `
     <div class="ingame-chat-toggle">
@@ -5313,14 +5324,14 @@ function initInGameChat() {
         <div class="ingame-chat-matchup">
           <div class="ingame-chat-player-card">
             <div class="ingame-chat-pic p1">
-              ${p1Img ? '<img src="'+p1Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
+              ${p1Img ? '<img src="'+p1Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+p1Crop+'" onerror="this.onerror=null;this.src=\'blank.png\';">' : '<span style="font-size:.8rem;color:var(--dim);">P1</span>'}
             </div>
             <div class="ingame-chat-name p1">${escapeHtml(p1Name)}</div>
           </div>
           <div class="ingame-chat-versus">VS</div>
           <div class="ingame-chat-player-card">
             <div class="ingame-chat-pic p2">
-              ${p2Img ? '<img src="'+p2Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;object-position:center 22%;">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
+              ${p2Img ? '<img src="'+p2Img+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+p2Crop+'" onerror="this.onerror=null;this.src=\'blank.png\';">' : '<span style="font-size:.8rem;color:var(--dim);">P2</span>'}
             </div>
             <div class="ingame-chat-name p2">${escapeHtml(p2Name)}</div>
           </div>

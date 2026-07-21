@@ -14,6 +14,7 @@ COPY src ./src
 COPY optimized ./optimized
 COPY titlscreenbackgrounds ./titlscreenbackgrounds
 COPY ingamebackgrouds ./ingamebackgrouds
+COPY igb17 ./igb17
 COPY setvoicelines ./setvoicelines
 COPY ["new voices", "./new voices"]
 COPY soundeffects ./soundeffects

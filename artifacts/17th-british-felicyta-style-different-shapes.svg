@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="140" viewBox="0 0 780 140">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.35" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .icon{fill:none;stroke:#eff8ff;stroke-linecap:round;stroke-linejoin:round;filter:url(#softGlow)}
+      .main{stroke-width:4.2}
+      .detail{stroke-width:3}
+      .thin{stroke-width:2.45}
+    </style>
+  </defs>
+
+  <g class="icon" transform="translate(10 10) scale(1.875)">
+    <path class="main" d="M14 42c6-12 12-21 18-31 6 10 12 19 18 31-5 7-11 11-18 14-7-3-13-7-18-14z"/>
+    <path class="detail" d="M23 41c3-7 6-12 9-18 3 6 6 11 9 18"/>
+    <path class="thin" d="M32 16v35M23 48h18"/>
+  </g>
+
+  <g class="icon" transform="translate(140 10) scale(1.875)">
+    <path class="main" d="M14 43c3-13 9-23 18-31 9 8 15 18 18 31-5 6-11 10-18 13-7-3-13-7-18-13z"/>
+    <path class="detail" d="M20 35c7 4 17 4 24 0"/>
+    <path class="detail" d="M23 45c5 3 13 3 18 0"/>
+    <path class="thin" d="M32 12v42"/>
+  </g>
+
+  <g class="icon" transform="translate(270 10) scale(1.875)">
+    <path class="main" d="M13 43c7-11 13-20 19-31 6 11 12 20 19 31-6 5-12 9-19 12-7-3-13-7-19-12z"/>
+    <path class="detail" d="M21 35h22M24 44h16"/>
+    <path class="thin" d="M25 23c4 3 10 3 14 0M32 13v40"/>
+  </g>
+
+  <g class="icon" transform="translate(400 10) scale(1.875)">
+    <path class="main" d="M15 45c4-9 9-19 17-31 8 12 13 22 17 31-5 5-11 9-17 11-6-2-12-6-17-11z"/>
+    <path class="main" d="M22 28c6-4 14-4 20 0"/>
+    <path class="detail" d="M24 38h16"/>
+    <path class="thin" d="M32 14v38"/>
+  </g>
+
+  <g class="icon" transform="translate(530 10) scale(1.875)">
+    <path class="main" d="M15 42c5-11 10-20 17-30 7 10 12 19 17 30-4 7-10 11-17 14-7-3-13-7-17-14z"/>
+    <path class="detail" d="M23 32c5-4 13-4 18 0"/>
+    <path class="detail" d="M23 42c5 4 13 4 18 0"/>
+    <path class="thin" d="M21 51h22"/>
+  </g>
+
+  <g class="icon" transform="translate(660 10) scale(1.875)">
+    <path class="main" d="M14 43c6-12 12-22 18-31 6 9 12 19 18 31-5 6-11 10-18 13-7-3-13-7-18-13z"/>
+    <path class="detail" d="M24 33l8-8 8 8"/>
+    <path class="detail" d="M24 43l8-8 8 8"/>
+    <path class="thin" d="M32 12v43"/>
+  </g>
+</svg>

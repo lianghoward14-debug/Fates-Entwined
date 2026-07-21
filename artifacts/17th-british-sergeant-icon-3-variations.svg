@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="420" viewBox="0 0 1000 420">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .icon{fill:none;stroke:#eff8ff;stroke-linecap:round;stroke-linejoin:round;filter:url(#softGlow)}
+      .frame{stroke-width:3.15}
+      .main{stroke-width:4.2}
+      .detail{stroke-width:3}
+      .thin{stroke-width:2.25}
+      .num{fill:#91b8e8;font:12px Georgia,serif}
+    </style>
+  </defs>
+
+  <g transform="translate(35 20)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 13h36v26c-5 10-12 16-18 20-6-4-13-10-18-20z"/>
+      <path class="main" d="M15 34l17-15 17 15"/>
+      <path class="main" d="M15 45l17-15 17 15"/>
+    </g><text class="num" x="0" y="96">1</text>
+  </g>
+
+  <g transform="translate(225 20)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M13 14h38v24c-4 10-11 17-19 21-8-4-15-11-19-21z"/>
+      <path class="main" d="M15 33l17-14 17 14"/>
+      <path class="main" d="M16 44l16-13 16 13"/>
+      <path class="thin" d="M24 52h16"/>
+    </g><text class="num" x="0" y="96">2</text>
+  </g>
+
+  <g transform="translate(415 20)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 12h36v29c-6 8-12 14-18 18-6-4-12-10-18-18z"/>
+      <path class="main" d="M16 31l16-13 16 13"/>
+      <path class="main" d="M16 43l16-13 16 13"/>
+      <path class="detail" d="M20 51h24"/>
+    </g><text class="num" x="0" y="96">3</text>
+  </g>
+
+  <g transform="translate(605 20)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M15 15h34v26c-5 9-11 15-17 18-6-3-12-9-17-18z"/>
+      <path class="main" d="M17 34l15-14 15 14"/>
+      <path class="detail" d="M18 45l14-12 14 12"/>
+      <path class="thin" d="M24 11h16"/>
+    </g><text class="num" x="0" y="96">4</text>
+  </g>
+
+  <g transform="translate(795 20)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M12 15h40v22c-4 11-11 18-20 22-9-4-16-11-20-22z"/>
+      <path class="main" d="M15 32l17-13 17 13"/>
+      <path class="main" d="M15 44l17-13 17 13"/>
+      <path class="thin" d="M21 54h22"/>
+    </g><text class="num" x="0" y="96">5</text>
+  </g>
+
+  <g transform="translate(35 145)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 17h36v23c-5 9-12 15-18 19-6-4-13-10-18-19z"/>
+      <path class="main" d="M16 34l16-12 16 12"/>
+      <path class="main" d="M16 45l16-12 16 12"/>
+      <path class="thin" d="M22 12l10-6 10 6"/>
+    </g><text class="num" x="0" y="96">6</text>
+  </g>
+
+  <g transform="translate(225 145)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M15 13h34v28c-4 8-10 14-17 18-7-4-13-10-17-18z"/>
+      <path class="main" d="M17 31l15-13 15 13"/>
+      <path class="main" d="M17 42l15-13 15 13"/>
+      <path class="detail" d="M20 51c7 4 17 4 24 0"/>
+    </g><text class="num" x="0" y="96">7</text>
+  </g>
+
+  <g transform="translate(415 145)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M13 15h38v26c-6 8-13 14-19 18-6-4-13-10-19-18z"/>
+      <path class="main" d="M16 34c6-5 11-10 16-16 5 6 10 11 16 16"/>
+      <path class="main" d="M17 45c6-5 10-9 15-15 5 6 9 10 15 15"/>
+    </g><text class="num" x="0" y="96">8</text>
+  </g>
+
+  <g transform="translate(605 145)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 14h36v25c-4 10-11 16-18 20-7-4-14-10-18-20z"/>
+      <path class="main" d="M16 31l16-12 16 12"/>
+      <path class="main" d="M16 43l16-12 16 12"/>
+      <path class="thin" d="M32 19v34"/>
+    </g><text class="num" x="0" y="96">9</text>
+  </g>
+
+  <g transform="translate(795 145)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 14h36v26c-5 9-11 15-18 19-7-4-13-10-18-19z"/>
+      <path class="main" d="M17 35l15-15 15 15"/>
+      <path class="detail" d="M18 46l14-13 14 13"/>
+      <path class="thin" d="M22 53h20"/>
+    </g><text class="num" x="0" y="96">10</text>
+  </g>
+
+  <g transform="translate(35 270)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M13 13h38v27c-4 8-10 15-19 19-9-4-15-11-19-19z"/>
+      <path class="main" d="M16 30l16-12 16 12"/>
+      <path class="main" d="M16 42l16-12 16 12"/>
+      <path class="detail" d="M20 52h24"/>
+      <path class="thin" d="M24 9h16"/>
+    </g><text class="num" x="0" y="96">11</text>
+  </g>
+
+  <g transform="translate(225 270)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M15 16h34v24c-5 8-11 14-17 18-6-4-12-10-17-18z"/>
+      <path class="main" d="M18 34l14-13 14 13"/>
+      <path class="main" d="M18 44l14-13 14 13"/>
+      <path class="thin" d="M24 12h16M27 8h10"/>
+    </g><text class="num" x="0" y="96">12</text>
+  </g>
+
+  <g transform="translate(415 270)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M13 16h38v23c-5 10-12 16-19 20-7-4-14-10-19-20z"/>
+      <path class="main" d="M16 35l16-14 16 14"/>
+      <path class="main" d="M16 46l16-14 16 14"/>
+      <path class="thin" d="M23 25h18"/>
+    </g><text class="num" x="0" y="96">13</text>
+  </g>
+
+  <g transform="translate(605 270)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M14 13h36v25c-4 10-10 16-18 21-8-5-14-11-18-21z"/>
+      <path class="main" d="M17 33l15-14 15 14"/>
+      <path class="detail" d="M18 44l14-12 14 12"/>
+      <path class="detail" d="M21 51h22"/>
+    </g><text class="num" x="0" y="96">14</text>
+  </g>
+
+  <g transform="translate(795 270)">
+    <g class="icon" transform="scale(1.6)">
+      <path class="frame" d="M12 14h40v24c-5 11-12 17-20 21-8-4-15-10-20-21z"/>
+      <path class="main" d="M15 33l17-15 17 15"/>
+      <path class="main" d="M16 44l16-14 16 14"/>
+      <path class="thin" d="M32 18v36"/>
+    </g><text class="num" x="0" y="96">15</text>
+  </g>
+</svg>

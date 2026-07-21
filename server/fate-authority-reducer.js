@@ -71,6 +71,21 @@ function validateCanonicalState(state){
       if(!Number.isFinite(uses) || uses < 0 || uses > 3) return '1st US Marines uses must be between 0 and 3';
     }
   }
+  for(const key of ['_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts']){
+    if(!Object.prototype.hasOwnProperty.call(state, key)) continue;
+    if(!Array.isArray(state[key]) || state[key].length < 2) return `${key} must be an array`;
+    for(let i = 0; i < 2; i += 1){
+      const count = Number(state[key][i]);
+      if(!Number.isFinite(count) || count < 0 || count > 120) return `${key} contains an invalid count`;
+    }
+  }
+  if(Object.prototype.hasOwnProperty.call(state, '_whisperLandscapeUses')){
+    if(!Array.isArray(state._whisperLandscapeUses) || state._whisperLandscapeUses.length < 2) return '_whisperLandscapeUses must be an array';
+    for(let i = 0; i < 2; i += 1){
+      const uses = Number(state._whisperLandscapeUses[i]);
+      if(!Number.isFinite(uses) || uses < 0 || uses > 1) return 'Concrete Roads can only be used once per player';
+    }
+  }
   if(!Number.isInteger(Number(state.currentPlayer))) return 'currentPlayer must be numeric';
   if(String(state.phase || '').length > 80) return 'phase is invalid';
   return '';
@@ -79,15 +94,21 @@ function validateCanonicalState(state){
 function validateProposedTransition(room, msg, options){
   const payload = msg && msg.payload || {};
   const postState = payload.postState;
-  if(!postState) return {ok:false, reason:'client-resolved action requires postState'};
+  const rejection = reason=>({
+    ok:false,
+    reason,
+    serverStateHash:String(room && room.canonicalHash || ''),
+    serverState:room && room.canonicalState || null
+  });
+  if(!postState) return rejection('client-resolved action requires postState');
   const validationError = validateCanonicalState(postState);
-  if(validationError) return {ok:false, reason:validationError};
+  if(validationError) return rejection(validationError);
   const actionValidationError = validateActionSpecificPostState(room, msg, postState);
-  if(actionValidationError) return {ok:false, reason:actionValidationError};
+  if(actionValidationError) return rejection(actionValidationError);
   const computedHash = canonicalStateHash(postState);
   const providedHash = String(payload.stateHash || '');
   if(providedHash && providedHash !== computedHash){
-    return {ok:false, reason:'stateHash does not match postState', canonicalHash:computedHash};
+    return Object.assign(rejection('stateHash does not match postState'), {canonicalHash:computedHash});
   }
   const expectedBase = String(payload.baseStateHash || '');
   const currentHash = String(room && room.canonicalHash || '');
@@ -150,6 +171,11 @@ function boardEntryAt(state, z, r, c){
 function playerDiscardHasCardRef(state, playerIndex, ref){
   const discard = state && state.players && state.players[playerIndex] && state.players[playerIndex].discard;
   return Array.isArray(discard) && discard.some(card=>cardMatchesRef(card, ref));
+}
+
+function playerPileCardMatchingRef(state, playerIndex, pileName, ref){
+  const pile = state && state.players && state.players[playerIndex] && state.players[playerIndex][pileName];
+  return Array.isArray(pile) ? pile.find(card=>cardMatchesRef(card, ref)) || null : null;
 }
 
 function playerHandEntries(state, playerIndex){
@@ -280,7 +306,7 @@ function inferReactionActionType(msg){
 function actionCanArmImprovisorReaction(type, payload){
   if(payload && payload.skipImprovisorReaction) return false;
   if(payload && payload.postState && payload.postState._serverPendingReaction) return false;
-  return /^(CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|HAND_ACTION|ACTION_RESULT)$/i.test(type);
+  return /^(CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|HAND_ACTION|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|ACTION_RESULT)$/i.test(type);
 }
 
 function isAuthorityEffectImmuneSource(card){
@@ -292,7 +318,7 @@ function isAuthorityEffectImmuneSource(card){
 
 const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91','97']);
 const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
-const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','bh25']);
+const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','61','bh25']);
 const AUTHORITY_CHARACTER_AFFECTS_BOTH = new Set(['12','17','34','40']);
 const AUTHORITY_HAVANO_REACTION_SOURCE_IDS = new Set([
   '04', // Zoe
@@ -318,12 +344,13 @@ const AUTHORITY_HAVANO_REACTION_SOURCE_IDS = new Set([
   '97' // Visegrad Politician
 ]);
 const AUTHORITY_SECULES_WHEN_SET_IDS = new Set([
-  '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh01','bh25'
+  '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh25'
 ]);
 const AUTHORITY_ONGOING_FIRST_SET_EFFECT_IDS = new Set([
   '10','14','21','36','53','62','64',
   '33','40','47','54','68','69','71','73','78','91','94'
 ]);
+const AUTHORITY_CARD_SEARCH_SOURCE_IDS = new Set(['06','08','13','60']);
 const CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2 = true;
 
 function authorityFirstSetOptionEligible(kind, sourceCard){
@@ -468,23 +495,90 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
   };
 }
 
+function authorityCardIsReadyBoleslaw(card, owner){
+  if(!card || String(card.id || '') !== '86' || Number(card.owner) !== Number(owner)) return false;
+  if(isFaceDownAuthorityCard(card)) return false;
+  return !(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed);
+}
+
+function resolveAuthorityBoleslawSearch(preState, msg, postState){
+  const payload = msg && msg.payload || {};
+  const type = effectiveAuthorityActionType(msg);
+  if(type !== 'RESOLVE_CARD_PICK' && type !== 'PICK_CARDS_VISUAL') return null;
+  if(payload.opponentSearch !== true) return null;
+  const searchingPlayer = Number(payload.playerIndex);
+  if(!Number.isInteger(searchingPlayer) || searchingPlayer < 0 || searchingPlayer > 1) return null;
+  const sourceId = String(payload.searchSourceCardId || '');
+  if(!AUTHORITY_CARD_SEARCH_SOURCE_IDS.has(sourceId)) return null;
+  const sourceEntry = boardEntries(preState).find(entry=>
+    Number(entry.card && entry.card.owner) === searchingPlayer && String(entry.card && entry.card.id || '') === sourceId
+  ) || boardEntries(postState).find(entry=>
+    Number(entry.card && entry.card.owner) === searchingPlayer && String(entry.card && entry.card.id || '') === sourceId
+  ) || null;
+  if(!sourceEntry || isFaceDownAuthorityCard(sourceEntry.card)) return null;
+  const boleslawOwner = 1 - searchingPlayer;
+  const boleslaws = boardEntries(postState)
+    .filter(entry=>authorityCardIsReadyBoleslaw(entry.card, boleslawOwner));
+  if(!boleslaws.length) return null;
+
+  const resolvedState = cloneState(postState);
+  boleslaws.forEach(entry=>{
+    applyBoleslawSearchAuthorityReaction(resolvedState, entry, {playerIndex:boleslawOwner});
+  });
+
+  const lydiaOptions = boardEntries(postState).filter(entry=>{
+    const card = entry.card;
+    if(!card || String(card.id || '') !== '56' || Number(card.owner) !== searchingPlayer) return false;
+    if(isFaceDownAuthorityCard(card) || card.immuneFlag) return false;
+    const usesLeft = card.usesLeft === null || card.usesLeft === undefined ? 3 : Number(card.usesLeft);
+    return usesLeft > 0;
+  }).map(entry=>({kind:'lydia', z:entry.z, r:entry.r, c:entry.c, card:cloneState(entry.card)}));
+  if(!lydiaOptions.length) return {state:resolvedState, pendingBase:null, resolvedPostState:resolvedState};
+
+  // Other copies trigger automatically; Lydia's single reaction window is against the first ready Boleslaw.
+  const baseState = cloneState(postState);
+  boleslaws.slice(1).forEach(entry=>{
+    applyBoleslawSearchAuthorityReaction(baseState, entry, {playerIndex:boleslawOwner});
+  });
+  const boleslawSource = boleslaws[0];
+  return {
+    state:baseState,
+    resolvedPostState:resolvedState,
+    pendingBase:{
+      kind:'reaction',
+      playerIndex:searchingPlayer,
+      sourcePlayerIndex:boleslawOwner,
+      sourceName:String(boleslawSource.card.name || 'Boleslaw Kopewicz'),
+      source:sourceRefFromEntry(boleslawSource),
+      resolutionMode:'suppressed',
+      actionType:'boleslaw_trigger',
+      timeoutMs:15000,
+      options:lydiaOptions
+    }
+  };
+}
+
 function maybeArmAuthorityImprovisorReaction(room, msg, postState){
   const type = String(msg && msg.type || '').toUpperCase();
   const payload = msg && msg.payload || {};
   const preState = room && room.canonicalState;
   if(!preState || preState._serverPendingReaction) return null;
   if(!actionCanArmImprovisorReaction(type, payload)) return null;
-  const pendingBase = collectAuthorityImprovisorOptions(preState, msg, postState);
+  const boleslawResolution = resolveAuthorityBoleslawSearch(preState, msg, postState);
+  if(boleslawResolution && !boleslawResolution.pendingBase) return boleslawResolution.state;
+  const pendingBase = boleslawResolution && boleslawResolution.pendingBase
+    ? boleslawResolution.pendingBase
+    : collectAuthorityImprovisorOptions(preState, msg, postState);
   if(!pendingBase) return null;
   const firstSetReaction = String(pendingBase.actionType || '') === 'first_set_effect';
-  const state = cloneState(firstSetReaction ? postState : preState);
-  if(!firstSetReaction) copySourceSpentFlagsFromResolved(state, postState, pendingBase);
+  const state = cloneState(boleslawResolution ? boleslawResolution.state : (firstSetReaction ? postState : preState));
+  if(!firstSetReaction && !boleslawResolution) copySourceSpentFlagsFromResolved(state, postState, pendingBase);
   const seq = Number(state._serverReactionSeq || 0) + 1;
   state._serverReactionSeq = seq;
   state._serverPendingReaction = Object.assign({}, pendingBase, {
     promptId:['improvisor', Date.now().toString(36), seq.toString(36), onlineStableHash(payload.clientActionId || payload.stateHash || postState)].join(':'),
     openedAt:Date.now(),
-    resolvedPostState:cloneState(postState)
+    resolvedPostState:cloneState(boleslawResolution ? boleslawResolution.resolvedPostState : postState)
   });
   return state;
 }
@@ -545,6 +639,31 @@ function consolidationSourceEntry(preState, ref){
   return null;
 }
 
+function consolidationConsumedCardReachedLegalDestination(preState, postState, playerIndex, ref){
+  if(playerDiscardHasCardRef(postState, playerIndex, ref)) return true;
+  const source = consolidationSourceEntry(preState, ref);
+  const sourceCard = source && source.card;
+  if(!sourceCard) return false;
+
+  if(String(sourceCard.id || '') === '70'){
+    const infiltrating = playerPileCardMatchingRef(postState, 1 - playerIndex, 'hand', ref);
+    if(infiltrating
+      && infiltrating.guerilla_transferred === true
+      && Number(infiltrating.guerilla_owner) === playerIndex){
+      return true;
+    }
+  }
+
+  if(sourceCard._stolenByRobo){
+    const originalOwner = Number(sourceCard._roboOrigOwner);
+    if((originalOwner === 0 || originalOwner === 1)
+      && playerPileCardMatchingRef(postState, originalOwner, 'deck', ref)){
+      return true;
+    }
+  }
+  return false;
+}
+
 function consolidationPostStateLeftConsumedSupporter(room, payload, postState, ref){
   if(!CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2){
     return !!(ref.iid && boardHasCardRef(postState, ref));
@@ -576,6 +695,7 @@ function authorityBlameGameActive(state, owner){
 
 function authorityCardIsCharacterForRules(state, card, owner){
   if(!card) return false;
+  if(card.pierogiCounter === true || String(card.id || '') === 'token1' || String(card.type || '') === 'Counter') return false;
   if(String(card.type || '') !== 'Supporter') return true;
   return authorityBlameGameActive(state, owner);
 }
@@ -611,14 +731,35 @@ function validateConsolidationPostState(room, payload, postState){
     if(!CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2 && !ref.iid && Number.isInteger(ref.z) && Number.isInteger(ref.r) && Number.isInteger(ref.c) && !sameTarget && boardEntryAt(postState, ref.z, ref.r, ref.c)){
       return 'consolidation left a selected support square occupied';
     }
-    if(ref.iid && !playerDiscardHasCardRef(postState, playerIndex, ref)){
-      return 'consolidation did not move every consumed supporter to discard';
+    if(ref.iid && !consolidationConsumedCardReachedLegalDestination(preState, postState, playerIndex, ref)){
+      return 'consolidation did not move every consumed supporter to discard or its required destination';
     }
   }
   return '';
 }
 
-function validatePlacementPostState(payload, postState){
+function authorityPierogiPlacementSquareAllowed(state, z, r, c, playerIndex){
+  if(!state || !Number.isInteger(playerIndex) || playerIndex < 0 || playerIndex > 1) return false;
+  const row = state.board && state.board[z] && state.board[z][r];
+  if(!Array.isArray(row) || c < 0 || c >= row.length || row[c] !== null) return false;
+  const host = 1 - playerIndex;
+  if(r === 1) return true;
+  if(r === 0 || r === 2) return (r === 0 ? 1 : 0) === host;
+  if(r < 3) return false;
+  const rawCanonicalOwner = state.extraRowOwners && state.extraRowOwners[z] && state.extraRowOwners[z][r - 3];
+  const canonicalOwner = Number(rawCanonicalOwner);
+  if(rawCanonicalOwner !== null && rawCanonicalOwner !== undefined && Number.isInteger(canonicalOwner)) return canonicalOwner === host;
+  const markSquare = Array.isArray(state.markSafeSquares) && state.markSafeSquares.some(square=>square
+    && Number(square.z) === z && Number(square.r) === r && Number(square.c) === c && Number(square.owner) === host);
+  if(markSquare) return true;
+  const rowHasMarkSquares = Array.isArray(state.markSafeSquares) && state.markSafeSquares.some(square=>square
+    && Number(square.z) === z && Number(square.r) === r);
+  const rawLegacyOwner = r === 3 && state.extraRowFullOwners && state.extraRowFullOwners[z];
+  const legacyOwner = Number(rawLegacyOwner);
+  return !rowHasMarkSquares && rawLegacyOwner !== null && rawLegacyOwner !== undefined && Number.isInteger(legacyOwner) && legacyOwner === host;
+}
+
+function validatePlacementPostState(room, payload, postState){
   const selected = payload.selectedHand || payload.card || null;
   const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
   if(!selected || !Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return '';
@@ -631,10 +772,121 @@ function validatePlacementPostState(payload, postState){
     const safeRow = playerIndex === 0 ? 2 : (playerIndex === 1 ? 0 : null);
     if(safeRow === null || r !== safeRow) return 'Maja Kaminska can only be placed in her owner safe row';
   }
+  if(String(selected.id || target.id || '') === 'token1'){
+    const playerIndex = Number(payload.playerIndex);
+    if(!authorityPierogiPlacementSquareAllowed(room && room.canonicalState, z, r, c, playerIndex)) return 'Pierogi Counters can only be placed in a contested or opponent-owned square';
+    if(Number(target.owner) !== (1 - playerIndex)) return 'Pierogi Counter field ownership must belong to the opponent';
+    if(target.pierogiCounter !== true || target.immuneFlag !== true || Number(target._pierogiTurnsRemaining) !== 3) return 'Pierogi Counter placement state is invalid';
+  }
+  if(String(selected.id || target.id || '') === 'whisper17'){
+    const copiedId = String(target._whisperCopiedEffectId || selected._whisperCopiedEffectId || '');
+    if(Number(target.owner) !== Number(payload.playerIndex)) return 'Whisper token field ownership must belong to the acting player';
+    if(target.whisperLandscapeToken !== true || target.type !== 'Coordinator' || Number(target.currentFate ?? target.fate) !== 5) return 'Whisper token placement state is invalid';
+    if(!/^(?:10|11|15|19|23|57|77)$/.test(copiedId)) return 'Whisper token copied an invalid Coordinator effect';
+  }
+  return '';
+}
+
+function authorityCardIdentity(card){
+  if(!card) return '';
+  const iid = String(card.iid == null ? '' : card.iid);
+  return iid ? `iid:${iid}` : `id:${String(card.id || '')}`;
+}
+
+function authorityCardSequenceMatches(actual, expected){
+  if(!Array.isArray(actual) || !Array.isArray(expected) || actual.length !== expected.length) return false;
+  return actual.every((card, index)=>authorityCardIdentity(card) === authorityCardIdentity(expected[index]));
+}
+
+function authorityAnickaVoyagerMoveOptions(state, source){
+  const options = [];
+  if(!state || !source) return options;
+  (state.board || []).forEach((zone, z)=>{
+    (zone || []).forEach((row, r)=>{
+      (row || []).forEach((card, c)=>{
+        if(card !== null && card !== undefined) return;
+        if(isBlockedAuthorityCell(state, z, r, c)) return;
+        options.push({z, r, c});
+      });
+    });
+  });
+  return options;
+}
+
+function authorityMoveOptionsMatch(actual, expected){
+  if(!Array.isArray(actual) || actual.length !== expected.length) return false;
+  const keys = new Set(actual.map(option=>`${Number(option && option.z)}:${Number(option && option.r)}:${Number(option && option.c)}`));
+  return expected.every(option=>keys.has(`${option.z}:${option.r}:${option.c}`));
+}
+
+function validateAnickaVoyagerMovePostState(room, payload, postState){
+  const preState = room && room.canonicalState;
+  const pending = preState && preState._bh01Moving;
+  if(!pending || String(pending.kind || '') !== 'anickaVoyagerMove') return '';
+  const playerIndex = Number(payload.playerIndex);
+  if(playerIndex !== Number(preState.currentPlayer) || playerIndex !== Number(pending.playerIndex)) return 'Brave Horizons move belongs to the active player';
+  if(Number(postState.currentPlayer) !== Number(preState.currentPlayer) || Number(postState.turn) !== Number(preState.turn)) return 'Brave Horizons cannot advance the turn';
+  const fromZ = Number(pending.fromZ), fromR = Number(pending.fromR), fromC = Number(pending.fromC);
+  const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
+  if(![fromZ, fromR, fromC, z, r, c].every(Number.isInteger)) return 'Brave Horizons move coordinates are invalid';
+  const source = boardEntryAt(preState, fromZ, fromR, fromC);
+  if(!source || String(source.id || '') !== 'bh01' || Number(source.owner) !== playerIndex) return 'Brave Horizons source is missing or uncontrolled';
+  if(String(pending.sourceIid || '') && String(source.iid || '') !== String(pending.sourceIid)) return 'Brave Horizons source identity changed';
+  if(source.bh01MovedThisTurn === true || Number(source._braveHorizonsLastMoveTurn) === Number(preState.turn)) return 'Brave Horizons was already used this turn';
+  const legalOptions = authorityAnickaVoyagerMoveOptions(preState, source);
+  if(!legalOptions.some(option=>option.z === z && option.r === r && option.c === c)) return 'Brave Horizons target is not an open square';
+  if(Array.isArray(pending.options) && !authorityMoveOptionsMatch(pending.options, legalOptions)) return 'Brave Horizons move options are stale';
+  const moved = boardEntryAt(postState, z, r, c);
+  if(!moved || !cardMatchesRef(moved, source)) return 'Brave Horizons result card is missing from target square';
+  if(Number(moved.owner) !== playerIndex || moved.bh01MovedThisTurn !== true || Number(moved._braveHorizonsLastMoveTurn) !== Number(preState.turn)) return 'Brave Horizons result did not record its once-per-turn use';
+  if(Number(moved.currentFate ?? moved.fate) !== Number(source.currentFate ?? source.fate)) return 'Brave Horizons cannot change Ani\u010dka\'s Fate';
+  const oldSquare = boardEntryAt(postState, fromZ, fromR, fromC);
+  if(oldSquare && cardMatchesRef(oldSquare, source)) return 'Brave Horizons left Ani\u010dka in her source square';
+  if(postState._bh01Moving) return 'Brave Horizons move remained pending after resolution';
+  if(postState.placing) return 'Brave Horizons left placement mode active';
+
+  const preBoard = preState.board || [];
+  const postBoard = postState.board || [];
+  if(preBoard.length !== postBoard.length) return 'Brave Horizons cannot resize the board';
+  for(let bz = 0; bz < preBoard.length; bz += 1){
+    if(!Array.isArray(preBoard[bz]) || !Array.isArray(postBoard[bz]) || preBoard[bz].length !== postBoard[bz].length) return 'Brave Horizons cannot resize board zones';
+    for(let br = 0; br < preBoard[bz].length; br += 1){
+      if(!Array.isArray(preBoard[bz][br]) || !Array.isArray(postBoard[bz][br]) || preBoard[bz][br].length !== postBoard[bz][br].length) return 'Brave Horizons cannot resize board rows';
+      for(let bc = 0; bc < preBoard[bz][br].length; bc += 1){
+        if(bz === fromZ && br === fromR && bc === fromC){
+          if(postBoard[bz][br][bc] !== null) return 'Brave Horizons source square must become empty';
+          continue;
+        }
+        if(bz === z && br === r && bc === c) continue;
+        if(authorityCardIdentity(preBoard[bz][br][bc]) !== authorityCardIdentity(postBoard[bz][br][bc])) return 'Brave Horizons moved an unrelated board card';
+      }
+    }
+  }
+
+  const beforePlayer = preState.players && preState.players[playerIndex];
+  const afterPlayer = postState.players && postState.players[playerIndex];
+  if(!beforePlayer || !afterPlayer) return 'Brave Horizons player state is invalid';
+  if(!authorityCardSequenceMatches(afterPlayer.discard || [], beforePlayer.discard || [])) return 'Brave Horizons cannot change the discard pile';
+  const beforeDeck = beforePlayer.deck || [];
+  const beforeHand = beforePlayer.hand || [];
+  const drewOne = beforeDeck.length > 0
+    && authorityCardSequenceMatches(afterPlayer.deck || [], beforeDeck.slice(1))
+    && authorityCardSequenceMatches(afterPlayer.hand || [], beforeHand.concat([beforeDeck[0]]));
+  const emptyDeckNoDraw = beforeDeck.length === 0
+    && authorityCardSequenceMatches(afterPlayer.deck || [], beforeDeck)
+    && authorityCardSequenceMatches(afterPlayer.hand || [], beforeHand);
+  if(!drewOne && !emptyDeckNoDraw) return 'Brave Horizons must automatically draw exactly the top card of the deck';
+  const other = 1 - playerIndex;
+  for(const pile of ['deck','hand','discard']){
+    if(!authorityCardSequenceMatches(postState.players?.[other]?.[pile] || [], preState.players?.[other]?.[pile] || [])) return 'Brave Horizons changed the opponent\'s cards';
+  }
   return '';
 }
 
 function validatePendingMovePostState(room, payload, postState){
+  const anickaError = validateAnickaVoyagerMovePostState(room, payload, postState);
+  if(anickaError) return anickaError;
+  if(room && room.canonicalState && room.canonicalState._bh01Moving) return '';
   const pending = room && room.canonicalState && room.canonicalState._serverPendingMove;
   if(!pending || typeof pending !== 'object') return '';
   const z = Number(payload.z), r = Number(payload.r), c = Number(payload.c);
@@ -673,6 +925,46 @@ function validateUsMarinesUsesTransition(room, postState){
   return '';
 }
 
+function validateWhisperLandscapeUsesTransition(room, msg, postState){
+  const baseState = room && room.canonicalState;
+  if(!baseState || !postState) return '';
+  const before = Array.isArray(baseState._whisperLandscapeUses) ? baseState._whisperLandscapeUses : [0, 0];
+  const after = Array.isArray(postState._whisperLandscapeUses) ? postState._whisperLandscapeUses : [0, 0];
+  for(let player = 0; player < 2; player += 1){
+    const oldUses = Math.max(0, Number(before[player]) || 0);
+    const newUses = Math.max(0, Number(after[player]) || 0);
+    if(newUses < oldUses) return 'Concrete Roads uses cannot decrease during a match';
+    if(newUses - oldUses > 1) return 'Concrete Roads can only spend one use at a time';
+    if(newUses === oldUses) continue;
+    if(String(baseState.landscapeId || '') !== 'igb17') return 'Concrete Roads is not the current landscape';
+    if(Number(msg && msg.payload && msg.payload.playerIndex) !== player) return 'Concrete Roads use belongs to the acting player';
+    const beforeHand = playerHandEntries(baseState, player);
+    const afterHand = playerHandEntries(postState, player);
+    const beforeTokens = beforeHand.filter(entry=>String(entry.card.id || '') === 'whisper17').length;
+    const afterTokens = afterHand.filter(entry=>String(entry.card.id || '') === 'whisper17');
+    if(afterTokens.length !== beforeTokens + 1) return 'Concrete Roads must create exactly one Whisper token';
+    const token = afterTokens.find(entry=>!beforeHand.some(old=>String(old.card.iid || '') === String(entry.card.iid || '')))?.card;
+    if(!token || token.type !== 'Coordinator' || Number(token.currentFate ?? token.fate) !== 5 || token.whisperLandscapeToken !== true) return 'Concrete Roads created an invalid Whisper token';
+    if(!/^(?:10|11|15|19|23|57|77)$/.test(String(token._whisperCopiedEffectId || ''))) return 'Whisper token copied an invalid Coordinator effect';
+    const beforeBoard = boardEntries(baseState).filter(entry=>Number(entry.card.owner) === player);
+    const afterBoard = boardEntries(postState).filter(entry=>Number(entry.card.owner) === player);
+    const removedBoard = beforeBoard.filter(entry=>!afterBoard.some(next=>String(next.card.iid || '') === String(entry.card.iid || '')));
+    if(removedBoard.length !== 1) return 'Concrete Roads must discard exactly one controlled Coordinator';
+    const source = removedBoard[0].card;
+    if(source.type !== 'Coordinator' || source.faceDown === true || String(source.id || '') === 'whisper17') return 'Concrete Roads source must be a face-up non-token Coordinator';
+    if(String(source.id || '') !== String(token._whisperCopiedEffectId || '')) return 'Whisper token must copy the discarded Coordinator';
+    const removedHand = beforeHand.filter(entry=>!afterHand.some(next=>String(next.card.iid || '') === String(entry.card.iid || '')));
+    if(removedHand.length !== 2) return 'Concrete Roads must discard exactly two cards from hand';
+    const postDiscard = postState.players?.[player]?.discard;
+    if(!Array.isArray(postDiscard)) return 'Concrete Roads discard pile is invalid';
+    const allDiscarded = [source].concat(removedHand.map(entry=>entry.card));
+    if(!allDiscarded.every(card=>postDiscard.some(discarded=>String(discarded && discarded.iid || '') === String(card && card.iid || '')))) {
+      return 'Concrete Roads costs must reach the acting player discard pile';
+    }
+  }
+  return '';
+}
+
 function isBoardEffectActivation(payload){
   const fn = String(payload && payload.fn || '');
   return /^(triggerCharacterEffect|activatePendingWhenSetEffect)$/i.test(fn);
@@ -695,6 +987,19 @@ function validateBoardEffectActivationPostState(room, payload, postState){
   const fn = String(payload.fn || '');
   const sourceRef = actionSourceRef(payload);
   const baseEntry = findBoardEntryByRef(room && room.canonicalState, sourceRef);
+  if(baseEntry && String(baseEntry.card && baseEntry.card.id || '') === 'bh01' && String(fn) === 'triggerCharacterEffect'){
+    const preState = room && room.canonicalState;
+    const playerIndex = Number(payload.playerIndex);
+    if(playerIndex !== Number(preState && preState.currentPlayer) || playerIndex !== Number(baseEntry.card.owner)) return 'Only Ani\u010dka\'s controller can activate Brave Horizons';
+    if(Number(postState.currentPlayer) !== Number(preState.currentPlayer) || Number(postState.turn) !== Number(preState.turn)) return 'Brave Horizons activation cannot advance the turn';
+    if(baseEntry.card.bh01MovedThisTurn === true || Number(baseEntry.card._braveHorizonsLastMoveTurn) === Number(preState.turn)) return 'Brave Horizons was already used this turn';
+    const pending = postState && postState._bh01Moving;
+    if(!pending || String(pending.kind || '') !== 'anickaVoyagerMove') return 'Brave Horizons activation did not create a movement choice';
+    if(Number(pending.playerIndex) !== playerIndex || Number(pending.fromZ) !== baseEntry.z || Number(pending.fromR) !== baseEntry.r || Number(pending.fromC) !== baseEntry.c) return 'Brave Horizons movement source is invalid';
+    if(String(pending.sourceIid || '') !== String(baseEntry.card.iid || '')) return 'Brave Horizons movement source identity is invalid';
+    const legalOptions = authorityAnickaVoyagerMoveOptions(preState, baseEntry.card);
+    if(!legalOptions.length || !authorityMoveOptionsMatch(pending.options, legalOptions)) return 'Brave Horizons movement choices are invalid';
+  }
   if(baseEntry && isSpentBoardEffectSource(fn, baseEntry.card)){
     return 'effect already activated';
   }
@@ -712,6 +1017,63 @@ function validateBoardEffectActivationPostState(room, payload, postState){
   return '';
 }
 
+function isCaliforniqueAuthorityCharacter(card){
+  if(!card || card.pierogiCounter === true || String(card.id || '') === 'token1') return false;
+  const type = String(card.type || '');
+  return !!type && type !== 'Supporter' && type !== 'Counter';
+}
+
+function validateCaliforniqueEndTurnTransition(preState, postState){
+  if(!preState || !postState || String(preState.landscapeId || '') !== 'igb19') return '';
+  const player = Number(preState.currentPlayer);
+  if(player !== 0 && player !== 1) return 'Californique ending player is invalid';
+  const beforeLandscape = preState._landscapeState || {};
+  const afterLandscape = postState._landscapeState || {};
+  const beforeCounts = Array.isArray(beforeLandscape.handTurnCounts) ? beforeLandscape.handTurnCounts : [0, 0];
+  const afterCounts = Array.isArray(afterLandscape.handTurnCounts) ? afterLandscape.handTurnCounts : [];
+  const beforeOwnerTurns = Math.max(0, Number(beforeCounts[player]) || 0);
+  const completedOwnerTurn = beforeOwnerTurns + 1;
+  if(Number(afterCounts[player]) !== completedOwnerTurn) return 'Californique player hand-turn count is invalid';
+  if((Number(afterCounts[1 - player]) || 0) !== (Number(beforeCounts[1 - player]) || 0)) return 'Californique counted the wrong player turn';
+  const afterResolvedTurns = Array.isArray(afterLandscape.handLastResolvedGameTurns) ? afterLandscape.handLastResolvedGameTurns : [];
+  if(Number(afterResolvedTurns[player]) !== Math.max(1, Number(preState.turn) || 1)) return 'Californique resolved against the wrong game turn';
+  const beforeHand = playerHandEntries(preState, player);
+  const afterHand = playerHandEntries(postState, player);
+  for(const entry of beforeHand){
+    const card = entry.card;
+    if(!isCaliforniqueAuthorityCharacter(card)) continue;
+    const sameOwner = Number(card._igb19HandOwner) === player;
+    const stored = Number(card._igb19HandTurnsRemaining);
+    const remaining = sameOwner && Number.isFinite(stored)
+      ? Math.max(1, Math.min(3, Math.floor(stored)))
+      : 3;
+    const lastCountedOwnerTurn = sameOwner
+      ? Math.max(0, Number(card._igb19LastCountedHandTurn) || 0)
+      : beforeOwnerTurns;
+    const expected = lastCountedOwnerTurn < completedOwnerTurn ? remaining - 1 : remaining;
+    const after = afterHand.find(next=>String(next.card.iid || '') === String(card.iid || ''));
+    if(expected <= 0){
+      if(after) return 'Californique expired Character remained in hand';
+      const wineCountryTransfer = String(card.id || '') === '70'
+        ? playerPileCardMatchingRef(postState, 1 - player, 'hand', card)
+        : null;
+      const reachedRequiredDestination = playerDiscardHasCardRef(postState, player, card)
+        || !!(wineCountryTransfer
+          && wineCountryTransfer.guerilla_transferred === true
+          && Number(wineCountryTransfer.guerilla_owner) === player);
+      if(!reachedRequiredDestination) return 'Californique expired Character did not reach discard or its required destination';
+      continue;
+    }
+    if(!after) return 'Californique Character left hand before its countdown expired';
+    if(Number(after.card._igb19HandTurnsRemaining) !== expected
+      || Number(after.card._igb19HandOwner) !== player
+      || Number(after.card._igb19LastCountedHandTurn) !== completedOwnerTurn){
+      return 'Californique Character countdown is invalid';
+    }
+  }
+  return '';
+}
+
 function validateActionSpecificPostState(room, msg, postState){
   const type = effectiveAuthorityActionType(msg);
   const payload = msg && msg.payload || {};
@@ -719,11 +1081,17 @@ function validateActionSpecificPostState(room, msg, postState){
   if(timedLandscapeErr) return timedLandscapeErr;
   const usMarinesErr = validateUsMarinesUsesTransition(room, postState);
   if(usMarinesErr) return usMarinesErr;
+  const whisperErr = validateWhisperLandscapeUsesTransition(room, msg, postState);
+  if(whisperErr) return whisperErr;
+  if(type === 'END_TURN'){
+    const californiqueErr = validateCaliforniqueEndTurnTransition(room && room.canonicalState, postState);
+    if(californiqueErr) return californiqueErr;
+  }
   if(type === 'SELECT_CONSOLIDATION_TRIBUTE' || payload.consolidationPresentation || collectConsolidationTributeRefs(payload).length){
     return validateConsolidationPostState(room, payload, postState);
   }
   if(type === 'PLACE_CARD' || (type === 'CLICK_CELL' && payload.placing)){
-    return validatePlacementPostState(payload, postState);
+    return validatePlacementPostState(room, payload, postState);
   }
   if(type === 'SELECT_PENDING_MOVE_CELL' || payload.pendingMove === true){
     return validatePendingMovePostState(room, payload, postState);
@@ -940,6 +1308,27 @@ function applyHavanoAuthorityReaction(state, option, payload, pending){
   return '';
 }
 
+function applyBoleslawSearchAuthorityReaction(state, option, pending){
+  const playerIndex = Number(pending && pending.playerIndex);
+  const player = state && state.players && state.players[playerIndex];
+  if(!player || !Array.isArray(player.deck) || !Array.isArray(player.hand)) return 'Boleslaw owner is invalid';
+  const entry = findBoardEntryByRef(state, option);
+  if(!entry || !authorityCardIsReadyBoleslaw(entry.card, playerIndex)) return 'Boleslaw is no longer ready on the board';
+  const before = Number(entry.card.currentFate ?? entry.card.fate ?? 0) || 0;
+  entry.card.currentFate = before + 3;
+  const drawn = player.deck.shift() || null;
+  if(drawn){
+    if(String(state.landscapeId || '') === 'igb19' && String(drawn.type || '') !== 'Supporter' && String(drawn.type || '') !== 'Counter'){
+      const landscapeState = state._landscapeState || {};
+      drawn._igb19HandTurnsRemaining = 3;
+      drawn._igb19HandOwner = playerIndex;
+      drawn._igb19LastCountedHandTurn = Math.max(0, Number(landscapeState.handTurnCounts && landscapeState.handTurnCounts[playerIndex]) || 0);
+    }
+    player.hand.push(drawn);
+  }
+  return '';
+}
+
 function reduceReactionChoice(room, msg){
   const current = cloneState(room && room.canonicalState);
   const pending = current && current._serverPendingReaction;
@@ -1037,7 +1426,7 @@ function reduceServerAction(room, msg, opts){
       canonicalHash:canonicalStateHash(reactionState),
       baseStateHash:result.baseStateHash,
       serverReduced:true,
-      reactionArmed:true
+      reactionArmed:!!reactionState._serverPendingReaction
     };
   }
   return result;

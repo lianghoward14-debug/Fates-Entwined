@@ -13,13 +13,14 @@ const snapshot = read('src/scripts/render-v2/01-render-snapshot.js');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 const css = read('src/styles/zz-codex-last.css');
 const rooms = read('src/scripts/18-online-rooms.js');
+const authorityReducer = read('server/fate-authority-reducer.js');
 
-assert.match(core, /case '38': \{[\s\S]*await new Promise[\s\S]*pickCardsVisual\(supporters[\s\S]*modifyFate\(card, 5, 'permanent', cp\)[\s\S]*card\.effectUsedThisTurn = true/, 'Jake must resolve the Supporter discard and +5 Fate atomically before multiplayer captures the board action');
+assert.match(core, /case '38': \{[\s\S]*G\.board[\s\S]*showBoardTargetPicker\([\s\S]*zones:\[0,1,2\][\s\S]*discardBoardCard\(liveSpent, spent\.z, spent\.r, spent\.c\)[\s\S]*modifyFate\(jake, 4, 'permanent', cp\)[\s\S]*jake\.effectUsedThisTurn = true/, 'Jake must use the three-zone field picker, discard the chosen live Supporter, and resolve +4 Fate atomically');
 assert.match(core, /_onlineSetResolutionPending = true[\s\S]*async function resolveSetCardAfterPlacement[\s\S]*_onlineSetResolutionInFlight = true[\s\S]*await triggerWhenSet[\s\S]*delete inst\._onlineSetResolutionPending/, 'placements must expose an in-flight marker until automatic when-set effects such as Alondra finish');
 assert.match(rooms, /function waitForOnlineSetResolution[\s\S]*_onlineSetResolutionPending[\s\S]*_onlineSetResolutionInFlight[\s\S]*await waitForOnlineSetResolution\(outbound\)/, 'multiplayer placement capture must wait for automatic when-set mutations');
 assert.match(rooms, /authority rejection resync\|rejected action rollback\|fly rejected action rollback[\s\S]*onlineIntentionalBoardRemovalKeys\.clear\(\)[\s\S]*return incomingState/, 'authoritative rejection rollback must restore the exact board instead of preserving a locally removed Supporter');
 assert.match(rooms, /function canCaptureClientResolvedBeforeLocalPromise[\s\S]*return actionType === 'CHOOSE_TURN'/, 'async draw and effect actions must not be captured before their local promise settles');
-assert.match(core, /case '42'[\s\S]*onlineParentAction: true[\s\S]*case '38'[\s\S]*onlineParentAction:true/, 'West German Soldier and Jake must explicitly keep their awaited picker inside the parent multiplayer action');
+assert.match(core, /case '42'[\s\S]*onlineParentAction: true[\s\S]*case '38'[\s\S]*await new Promise[\s\S]*showBoardTargetPicker/, 'West German Soldier and Jake must keep their awaited picker inside the parent multiplayer action');
 assert.match(rooms, /_onlineClientOwnedBoardActionPickerDepth > 0 && opts\?\.onlineParentAction === true[\s\S]*originals\.pickCardsVisual/, 'only explicitly awaited pickers may bypass the nested multiplayer picker action');
 
 assert.match(rendering, /function markCardEffectFlash[\s\S]*card\._effectFlash[\s\S]*function getActiveCardEffectFlash/, 'shared card-effect flash lifecycle must exist');
@@ -62,12 +63,13 @@ assert.match(core, /const currentPlayer = G\.currentPlayer[\s\S]*await drawCard\
 assert.match(core, /tickWintertideForCurrentPlayer[\s\S]*'wintertide'/, 'Wintertide must use its distinct snowflake');
 assert.match(css, /effect-flash-wintertide[\s\S]*M32 32V5M32 11l-4 5[\s\S]*rotate\(300 32 32\)[\s\S]*circle cx='32' cy='32' r='3\.2'/, 'Wintertide DOM overlay must use the open six-arm snowflake without a web-like center');
 assert.match(adapter, /kind === 'wintertide'[\s\S]*arm<6[\s\S]*arm\*Math\.PI\/3[\s\S]*\[\[0,-21\],\[-4,-16\]\][\s\S]*arc\(32,32,3\.2/, 'Wintertide canvas overlay must match the open six-arm snowflake');
-assert.match(core, /case '61'[\s\S]*'maria_target'/, 'Maria Song must mark the selected target');
+assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 6, sourceOwner\)[\s\S]*'maria_target'/, 'Maria Song must reduce every matching copy and flash matching board cards');
+assert.match(authorityReducer, /AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set\(\[[^\]]*'61'/, 'Maria Song must be classified as opponent-affecting by the authority reducer');
 assert.match(core, /markMovementEffectFlash[\s\S]*movement_boot/, 'effect movement must use the shared boot flash');
-assert.match(core, /case '05'[\s\S]*modifyFate\(tgt,3,'permanent'\)[\s\S]*flashCardEffect\(tgt, 'british_union_jack'[\s\S]*label:'Liberators of Rwanda'/, '17th British Regiment must play the ordinary Fate-gain sound and place the silent Union Jack overlay on its recipient');
-assert.match(css, /effect-flash-british_union_jack[\s\S]*circle cx='32' cy='32' r='28'[\s\S]*M19 16C28 11 38 20 50 14V35C40 41 30 29 19 38Z[\s\S]*M21 26C29 23 39 29 48 24/, 'the DOM Union Jack overlay must use the approved centered circular war-banner design');
+assert.match(core, /case '05'[\s\S]*modifyFate\(tgt,3,'permanent'\)[\s\S]*flashCardEffect\(tgt, 'british_union_jack'[\s\S]*label:'Liberators of Rwanda'/, '17th British Regiment must play the ordinary Fate-gain sound and place the silent regiment overlay on its recipient');
+assert.match(css, /effect-flash-british_union_jack[\s\S]*M13 14H51V38C47 48 40 55 32 59C24 55 17 48 13 38Z[\s\S]*M15 33L32 19L49 33M16 44L32 31L48 44[\s\S]*M24 52H40/, 'the DOM 17th British overlay must use the approved framed sergeant insignia design');
 assert.match(adapter, /movement_boot'[\s\S]*moveTo\(25,15\)[\s\S]*bezierCurveTo\(40,25,40,33,43,41\)[\s\S]*line\(\[\[8,24\],\[1,24\]\]/, 'movement feedback must use the approved outline wing-boot icon');
-assert.match(adapter, /kind === 'british_union_jack'[\s\S]*circle\(32,32,28\)[\s\S]*moveTo\(19,16\)[\s\S]*bezierCurveTo\(28,11,38,20,50,14\)[\s\S]*bezierCurveTo\(29,23,39,29,48,24\)/, 'the canvas Union Jack overlay must match the approved centered circular war-banner design');
+assert.match(adapter, /kind === 'british_union_jack'[\s\S]*moveTo\(13,14\)[\s\S]*lineTo\(51,38\)[\s\S]*bezierCurveTo\(47,48,40,55,32,59\)[\s\S]*line\(\[\[15,33\],\[32,19\],\[49,33\]\][\s\S]*line\(\[\[24,52\],\[40,52\]\]/, 'the canvas 17th British overlay must match the approved framed sergeant insignia design');
 assert.match(core, /case '31'[\s\S]*pickCardInZone[\s\S]*flashCardEffect\(tgt, 'oathbound_crescent'/, 'Oathbound must flash the approved sword icon on the selected target');
 assert.match(adapter, /kind === 'oathbound_crescent'[\s\S]*moveTo\(32,0\)[\s\S]*bezierCurveTo\(22,40,42,40,47,47\)/, 'Oathbound canvas overlay must use the approved raised crescent-guard sword');
 assert.match(core, /COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID[\s\S]*'01':'coord_felicyta_eagle'[\s\S]*'10':'coord_postmodern_dylan'[\s\S]*'57':'coord_jeremiah_snowseal'[\s\S]*function getCoordinatorPlacementFlashTargets[\s\S]*scheduleCoordinatorPlacementFlash\(inst/, 'approved coordinator placement overlays must be scheduled from the shared placement-resolution path onto affected cards');
@@ -164,7 +166,7 @@ const incomingSourceKinds = (target, board, r=1, c=1)=>{
   );
 }
 const coordinatorFlashMap = (core.match(/COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID = Object\.freeze\(\{[\s\S]*?\}\);/) || [''])[0];
-assert.doesNotMatch(coordinatorFlashMap, /'34':|'12':|'81':/, 'Rozsi, Makenna, and Wojciech must remain excluded from automatic coordinator placement flashes');
+assert.doesNotMatch(coordinatorFlashMap, /'34':|'12':|'81':/, 'Rozsi, Makenna, and the reworked Initiator Wojciech must remain excluded from automatic coordinator placement flashes');
 assert.doesNotMatch(core + css + adapter + audio, /leader_free_world|dylan_annihilation/, 'Post-Modernist Dylan overlay must not use the Dylan Kirby/preview-label name');
 assert.match(core, /case '22'[\s\S]*const isaacTargets = \[\][\s\S]*modifyFate\(target,3,'permanent'\)[\s\S]*flashCardEffect\(target, 'isaac_beaker'[\s\S]*soundKey:'isaac:' \+ String\(card[\s\S]*renderEffectResolutionForPlayer\(cp, \{hand:false\}\)/, 'Isaac must apply Fate with the ordinary gain chime, then apply the silent beaker overlay in the same per-target moment');
 assert.doesNotMatch(core, /soundKey:'isaac:' \+ String\(inst/, 'Isaac must not reference an undefined inst variable while resolving its targets');

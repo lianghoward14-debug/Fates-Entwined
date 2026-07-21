@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateActionPresentation) return;
 
-  const VERSION = 24;
+  const VERSION = 27;
   const MATCH_ACTION_MOTION_DISABLED = false;
   const SIMPLE_SET_CARD_MOTION_ENABLED = false;
   const SET_CARD_MOTION_MODE = 'disabled';
@@ -81,8 +81,9 @@
   window.setFateNormalSetAnimationEnabled = function(enabled){
     window.FATE_ENABLE_NORMAL_SET_ANIMATION = !!enabled;
     try {
-      if(enabled) localStorage.setItem('fateEnableNormalSetAnimation', '1');
-      else localStorage.removeItem('fateEnableNormalSetAnimation');
+      if(enabled) localStorage.removeItem('fateDisableNormalSetAnimation');
+      else localStorage.setItem('fateDisableNormalSetAnimation', '1');
+      localStorage.removeItem('fateEnableNormalSetAnimation');
     } catch(e) {}
   };
 
@@ -561,27 +562,6 @@
     try { return Number(window.G && window.G.currentPlayer) || 0; } catch(e) { return 0; }
   }
 
-  function currentViewer(){
-    try {
-      if(typeof window.getPerspectivePlayerIndex === 'function') return Number(window.getPerspectivePlayerIndex());
-    } catch(e) {}
-    try { return Number(window.G && window.G.currentPlayer) || 0; } catch(e) { return 0; }
-  }
-
-  function topScreenSetOrigin(targetRect){
-    if(!targetRect) return null;
-    const w = Math.max(42, Math.min(92, Number(targetRect.w) || 70));
-    const h = Math.max(58, Math.min(128, Number(targetRect.h) || Math.round(w * 1.38)));
-    const vw = Math.max(320, window.innerWidth || 1280);
-    const tx = (Number(targetRect.x) || 0) + (Number(targetRect.w) || w) / 2 - w / 2;
-    return {
-      x:Math.max(12, Math.min(vw - w - 12, tx)),
-      y:Math.max(18, Math.min(82, (Number(targetRect.y) || 120) - h - 42)),
-      w,
-      h
-    };
-  }
-
   function scopedSourceRender(opts, options){
     const o = options || {};
     const owner = actionSourceOwner(opts || {});
@@ -590,33 +570,6 @@
     if(o.piles) parts.piles = true;
     if(o.scores) parts.scores = true;
     scopedRender(parts);
-  }
-
-  function sourceRectForBoardPlacement(opts, targetRect){
-    const fx = motionFx();
-    if(opts.fromRect) return opts.fromRect;
-    if(opts.sourceCard && fx && typeof fx.handRectForCard === 'function') {
-      const handRect = fx.handRectForCard(opts.sourceCard);
-      if(handRect) return handRect;
-    }
-    const owner = opts.owner != null ? opts.owner : opts.inst && opts.inst.owner;
-    const source = String(opts.source || opts.sourceKind || '').toLowerCase();
-    try {
-      if(fx && source === 'discard' && typeof fx.pileRect === 'function') return fx.pileRect(owner, 'discard') || fx.pileRect(null, 'discard');
-      if(fx && (source === 'deck' || source === 'search' || source === 'effect') && typeof fx.pileRect === 'function') return fx.pileRect(owner, 'deck') || fx.pileRect(null, 'deck');
-    } catch(e) {}
-    if(targetRect) {
-      const w = Math.max(42, Math.min(86, targetRect.w || 70));
-      const h = Math.max(58, Math.min(120, targetRect.h || Math.round(w * 1.38)));
-      const fromLeft = Number(owner) === 1;
-      return {
-        x:fromLeft ? 38 : Math.max(38, (window.innerWidth || 1280) - w - 38),
-        y:Math.max(70, Math.min((window.innerHeight || 720) - h - 70, targetRect.y - h * .35)),
-        w,
-        h
-      };
-    }
-    return null;
   }
 
   function targetRectForBoardTarget(target){
@@ -656,12 +609,8 @@
       return revealAt + (n > 1 ? 760 : 590);
     }
     if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
-      if(String(p.placementStyle || '') === 'local-square') {
-        const visibleMs = Math.max(360, Math.min(520, Number(p.duration) || 380));
-        return visibleMs + 92;
-      }
-      const visibleMs = Math.max(560, Math.min(760, Number(p.duration) || 560));
-      return visibleMs + 54;
+      const visibleMs = Math.max(360, Math.min(520, Number(p.duration) || 380));
+      return visibleMs + 92;
     }
     if(type === 'SET_CONFIRM') return 220;
     if(type === 'SET_DRAG_LAND') return 360;

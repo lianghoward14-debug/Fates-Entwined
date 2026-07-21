@@ -116,6 +116,42 @@
   function pName(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
   function pPhoto(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
   async function profile(){ return await FO.syncPublicProfile().catch(()=>window.FATE_ONLINE?.profile || {}); }
+  function hasUsableProfilePhoto(p){
+    const src = pPhoto(p || {});
+    return !!(src && src !== 'blank.png' && src !== '[object Object]');
+  }
+  function mergeRoomPublicProfile(uid){
+    const out = {};
+    for(let i=1;i<arguments.length;i++){
+      const p = arguments[i];
+      if(!p || typeof p !== 'object') continue;
+      Object.assign(out, p);
+      if((!out.photoURL || out.photoURL === 'blank.png') && p.photoURL && p.photoURL !== 'blank.png') out.photoURL = p.photoURL;
+      if((!out.profileImg || out.profileImg === 'blank.png') && p.profileImg && p.profileImg !== 'blank.png') out.profileImg = p.profileImg;
+      if((!out.img || out.img === 'blank.png') && p.img && p.img !== 'blank.png') out.img = p.img;
+    }
+    if(uid && !out.uid) out.uid = uid;
+    return out;
+  }
+  async function hydrateRoomPublicProfile(uid, fallback){
+    if(!uid) return fallback || {};
+    const current = mergeRoomPublicProfile(uid, fallback, liveProfiles.get(uid));
+    if(hasUsableProfilePhoto(current) || !FO.getPublicProfile){
+      if(current && Object.keys(current).length) liveProfiles.set(uid, current);
+      return current;
+    }
+    try{
+      const fresh = await FO.getPublicProfile(uid);
+      if(fresh){
+        const merged = mergeRoomPublicProfile(uid, current, fresh);
+        liveProfiles.set(uid, merged);
+        return merged;
+      }
+    }catch(e){
+      console.warn('Online room profile hydration failed', uid, e);
+    }
+    return current;
+  }
   function hashSeed(str){
     let h = 2166136261;
     const s = String(str || 'fates');
@@ -184,7 +220,7 @@
     Object.keys(card).forEach(function(k){
       const v = card[k];
       if(typeof v === 'function') return;
-      if(k === 'effect' || k === 'flavor') return;
+      if((k === 'effect' || k === 'flavor') && !['token1','whisper17'].includes(String(card.id || ''))) return;
       if(k === '_effectActivationInFlight' || k === '_pendingWhenSetActivationInFlight' || k === '_busserGrantPending') return;
       if(k === '_onlineSetResolutionPending' || k === '_onlineSetResolutionInFlight') return;
       if(k === '_effectFlash' || k === '_coordinatorPlacementFlashPlayed') return;
@@ -198,7 +234,9 @@
     const base = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
       ? CARDS.find(c => c && String(c.id) === String(card.id))
       : null;
-    return Object.assign({}, base || {}, cloneOnlinePlain(card) || {});
+    const expanded = Object.assign({}, base || {}, cloneOnlinePlain(card) || {});
+    if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(expanded);
+    return expanded;
   }
   function compactOnlineCardList(list){
     return Array.isArray(list) ? list.map(compactOnlineCard).filter(Boolean) : [];
@@ -333,11 +371,14 @@
       _selvaSupportBoosts:cloneOnlinePlain(g._selvaSupportBoosts),
       _supporterEffectsActivatedP:cloneOnlinePlain(g._supporterEffectsActivatedP),
       _snowyVillageUses:cloneOnlinePlain(g._snowyVillageUses),
+      _whisperLandscapeUses:cloneOnlinePlain(Array.isArray(g._whisperLandscapeUses) ? g._whisperLandscapeUses : [0, 0]),
       _landscapeChangeLocks:cloneOnlinePlain(g._landscapeChangeLocks),
       _balladEffects:cloneOnlinePlain(g._balladEffects),
       _mailDeliveries:cloneOnlinePlain(g._mailDeliveries),
       _blameGameEffects:cloneOnlinePlain(g._blameGameEffects),
       _administrativeBloatEffects:cloneOnlinePlain(g._administrativeBloatEffects),
+      _wojciechTurnPlacementCounts:cloneOnlinePlain(Array.isArray(g._wojciechTurnPlacementCounts) ? g._wojciechTurnPlacementCounts : [0, 0]),
+      _wojciechLastTurnPlacementCounts:cloneOnlinePlain(Array.isArray(g._wojciechLastTurnPlacementCounts) ? g._wojciechLastTurnPlacementCounts : [0, 0]),
       _serverRngCounter:Math.max(0, Number(g._serverRngCounter) || 0),
       usMarinesUses:cloneOnlinePlain(g.usMarinesUses),
       polishArmyUses:cloneOnlinePlain(g.polishArmyUses),
@@ -1312,11 +1353,15 @@
   function onlineCardType(card){
     return String(card?.type || onlineCardCatalogMatch(card)?.type || '');
   }
+  function onlineCardIsCharacter(card){
+    const type = onlineCardType(card);
+    return !!type && type !== 'Supporter' && type !== 'Counter';
+  }
   const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
     '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
   ]);
   const ONLINE_SECULES_WHEN_SET_IDS = new Set([
-    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh01','bh25'
+    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh25'
   ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
 
@@ -1494,42 +1539,59 @@
     const card = entry.card;
     const delayMs = Math.max(0, Number(options?.delayMs) || 0);
     const source = String(options?.source || 'online-automatic-placement');
-    if(onlineCardType(card) === 'Supporter'){
-      playOnlineRemotePlacementAudio(card, delayMs);
-      return true;
-    }
-    try{
-      if(typeof window.requestCharacterSetCinematic === 'function'){
-        window.requestCharacterSetCinematic(card, {
+    const isSupporter = onlineCardType(card) === 'Supporter';
+    const isCharacter = onlineCardIsCharacter(card);
+    if(!isSupporter && !isCharacter) return false;
+    setTimeout(function(){
+      try{
+        const targetRect = onlineBoardCellRect(entry.z, entry.r, entry.c);
+        const placementShown = emitOnlineAcceptedPresentation('PLAY_CARD', {
+          iid:card.iid || '',
+          card,
+          faceDown:false,
           z:entry.z,
           r:entry.r,
           c:entry.c,
-          delayMs,
-          source
-        });
-        // A false return means this exact card already has a queued cinematic.
-        // This placement still owns the automatic presentation and must remain
-        // deduplicated against the authoritative fallback paths.
-        return true;
-      }
-      if(typeof window.showConsolidationCinematic === 'function'){
-        g._cinematicUiLockUntil = Math.max(
-          g._cinematicUiLockUntil || 0,
-          Date.now() + delayMs + onlineConsolidationCinematicTotalMs()
-        );
-        setTimeout(function(){
-          window.showConsolidationCinematic(card, {
-            playVoice:true,
-            playSfx:true,
-            allowRenderV2Cinematic:true
+          fromRect:targetRect,
+          toRect:targetRect,
+          targetRect,
+          placementStyle:'local-square',
+          duration:340,
+          suppressMotionAudio:true
+        }, action, 'automatic-placement');
+        const followDelay = placementShown ? 440 : 0;
+        if(isSupporter){
+          playOnlineRemotePlacementAudio(card, followDelay);
+          return;
+        }
+        if(typeof window.requestCharacterSetCinematic === 'function'){
+          window.requestCharacterSetCinematic(card, {
+            z:entry.z,
+            r:entry.r,
+            c:entry.c,
+            delayMs:followDelay,
+            source
           });
-        }, delayMs);
-        return true;
+          return;
+        }
+        if(typeof window.showConsolidationCinematic === 'function'){
+          g._cinematicUiLockUntil = Math.max(
+            g._cinematicUiLockUntil || 0,
+            Date.now() + followDelay + onlineConsolidationCinematicTotalMs()
+          );
+          setTimeout(function(){
+            window.showConsolidationCinematic(card, {
+              playVoice:true,
+              playSfx:true,
+              allowRenderV2Cinematic:true
+            });
+          }, followDelay);
+        }
+      }catch(e){
+        console.warn('Online automatic placement presentation failed', e);
       }
-    }catch(e){
-      console.warn('Online automatic placement presentation failed', e);
-    }
-    return false;
+    }, delayMs);
+    return true;
   }
   function maybePlayOnlineNewCharacterCinematic(g, previousBoard, action, reason){
     if(!g || !isOnlineMatchState(g) || typeof window.showConsolidationCinematic !== 'function') return false;
@@ -1544,7 +1606,7 @@
       return false;
     }
     const added = onlineBoardAddedEntries(previousBoard, g.board).filter(function(entry){
-      return entry && entry.card && !entry.card.faceDown && onlineCardType(entry.card) !== 'Supporter';
+      return entry && entry.card && !entry.card.faceDown && onlineCardIsCharacter(entry.card);
     });
     if(!added.length) return false;
     const played = g._onlineNewCharacterCinematicsPlayed instanceof Set ? g._onlineNewCharacterCinematicsPlayed : new Set();
@@ -1632,7 +1694,7 @@
       };
     });
     const addedCharacters = added.filter(function(entry){
-      return onlineCardType(entry.card) !== 'Supporter';
+      return onlineCardIsCharacter(entry.card);
     });
     if(!addedCharacters.length) return true;
     let preCinematicMs = 120;
@@ -1713,7 +1775,7 @@
     collectOnlineBoardSnapshot(g.board).forEach(function(entry){
       if(found || !entry || !entry.card) return;
       const card = entry.card;
-      if(card.faceDown || onlineCardType(card) === 'Supporter') return;
+      if(card.faceDown || !onlineCardIsCharacter(card)) return;
       if(Number.isInteger(owner) && Number(card.owner) !== owner) return;
       if(boardSnapshotHasCard(previousBoard, card)) return;
       found = entry;
@@ -1731,7 +1793,7 @@
     return raw ? expandOnlineCard(raw) : null;
   }
   function isLikelyOnlineConsolidationResult(action, card){
-    if(!action || !card || card.faceDown || onlineCardType(card) === 'Supporter') return false;
+    if(!action || !card || card.faceDown || !onlineCardIsCharacter(card)) return false;
     const type = onlineEffectiveActionType(action);
     const payload = action.payload || {};
     if(type === 'SELECT_CONSOLIDATION_TRIBUTE') return true;
@@ -1847,7 +1909,7 @@
       const ownerMatches = !Number.isInteger(Number(payload.playerIndex)) || Number(cardAtTarget?.owner) === Number(payload.playerIndex);
       const prior = boardSnapshotEntryAt(previousBoard, z, r, c);
       const isSamePriorCard = prior && prior.card && String(prior.card.iid || '') === String(cardAtTarget?.iid || '');
-      if(cardAtTarget && !cardAtTarget.faceDown && onlineCardType(cardAtTarget) !== 'Supporter' && ownerMatches && !isSamePriorCard) {
+      if(cardAtTarget && !cardAtTarget.faceDown && onlineCardIsCharacter(cardAtTarget) && ownerMatches && !isSamePriorCard) {
         entry = {z, r, c, card:cardAtTarget};
       }
     }
@@ -2025,7 +2087,7 @@
     const z = Number(target.z), r = Number(target.r), c = Number(target.c);
     if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
     const resultCard = onlineStateBoardCard(postState, z, r, c) || expandOnlineCard(hint.resultCard || null);
-    if(!resultCard || onlineCardType(resultCard) === 'Supporter') return false;
+    if(!resultCard || !onlineCardIsCharacter(resultCard)) return false;
     const existing = Array.isArray(payload.presentationEvents) ? payload.presentationEvents : [];
     if(existing.some(event=>String(event?.type || '').toUpperCase() === 'CONSOLIDATION_COMPLETED')) return false;
     const event = {
@@ -2166,7 +2228,7 @@
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
-      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
+      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
@@ -2959,7 +3021,7 @@
     if(pending.filterRarity && String(card.rarity || '') !== String(pending.filterRarity)) return false;
     if(pending.excludeRarity && String(card.rarity || '') === String(pending.excludeRarity)) return false;
     if(pending.excludeId && String(card.id || '') === String(pending.excludeId)) return false;
-    if(pending.characterOnly && onlineCardType(card) === 'Supporter') return false;
+    if(pending.characterOnly && !onlineCardIsCharacter(card)) return false;
     return true;
   }
   function serverPendingCardPickCandidate(card, source, index){
@@ -3154,8 +3216,8 @@
     const kind = String(pending?.kind || '');
     if(kind === 'ledgerKeepersCopyWhenSet') return 'Choose a Supporter effect to copy';
     if(kind === 'frenchFusiliersCopyPassive') return 'Choose a Supporter passive to copy';
-    if(kind === 'mariaSongCopies') return 'Choose an opponent card';
-    if(kind === 'vigilantesMark') return 'Choose an opponent Supporter in this zone';
+    if(kind === 'mariaSongCopies') return 'Choose a revealed opponent Character';
+    if(kind === 'vigilantesMark') return 'Choose an opponent card in this zone';
     if(kind === 'wolfCreekSelectMoveTarget') return 'Choose a highlighted friendly card in this zone';
     if(kind === 'juanCarlosSelectMoveTarget') return 'Choose an opponent card to move';
     if(kind === 'breakfastBusserGrantMove') return 'Choose a friendly card to gain movement';
@@ -3181,10 +3243,10 @@
     if(kind === 'howardFateDouble') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'hemorrhagingWound') return card.immuneFlag !== true && String(card.id || '') !== '76';
     if(kind === 'santiagoHalveFate') return Number(card.owner) === opponent && Number(r) === 1 && card.immuneFlag !== true && String(card.id || '') !== '76';
-    if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && onlineCardType(card) !== 'Supporter' && (!sourceIid || String(card.iid || '') !== sourceIid);
+    if(kind === 'apparitionDiscardDraw') return Number(card.owner) === playerIndex && onlineCardIsCharacter(card) && (!sourceIid || String(card.iid || '') !== sourceIid);
     if(kind === 'minaeDiscardSupporter') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter' && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, playerIndex));
-    if(kind === 'mariaSongCopies') return Number(card.owner) === opponent;
-    if(kind === 'vigilantesMark') return Number(card.owner) === opponent && onlineCardType(card) === 'Supporter' && card.immuneFlag !== true && String(card.id || '') !== '76';
+    if(kind === 'mariaSongCopies') return Number(card.owner) === opponent && onlineCardIsCharacter(card) && card.immuneFlag !== true;
+    if(kind === 'vigilantesMark') return Number(card.owner) === opponent && card.immuneFlag !== true && String(card.id || '') !== '76' && String(card.id || '') !== 'token1';
     if(kind === 'wolfCreekSelectMoveTarget') return Number(z) === Number(pending?.z) && Number(card.owner) === playerIndex && card.cantBeMoved !== true;
     if(kind === 'juanCarlosSelectMoveTarget') return Number(card.owner) === opponent && card.cantBeMoved !== true;
     if(kind === 'breakfastBusserGrantMove') return Number(card.owner) === playerIndex && card.faceDown !== true && card.cantBeMoved !== true && card.immuneFlag !== true && String(card.id || '') !== '76';
@@ -3314,7 +3376,7 @@
     try{
       window.showLandscapeChoiceModal(0, function(song, landscape, bgNum){
         const latest = gameState();
-        const n = Math.max(1, Math.min(16, Number(bgNum || String(song || '').replace('board', '')) || 0));
+        const n = Math.max(1, Math.min(19, Number(bgNum || String(song || '').replace('board', '')) || 0));
         const payload = {
           playerIndex:localIndex,
           turn:latest?.turn || g.turn || 0,
@@ -3478,7 +3540,7 @@
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
-    return 'board' + (Math.floor(rng() * 12) + 1);
+    return 'board' + (Math.floor(rng() * 19) + 1);
   }
   function gameState(){
     if(typeof window.getFateGameState === 'function') return window.getFateGameState();
@@ -4234,7 +4296,8 @@
   }
   function emitOnlineAcceptedPresentation(recipe, payload, action, suffix){
     const type = String(recipe || '').toUpperCase();
-    if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD' || type === 'SET_CONFIRM' || type === 'SET_DRAG_LAND') return false;
+    const boardPlacement = type === 'PLAY_CARD' || type === 'DECK_TO_BOARD' || type === 'SET_CONFIRM' || type === 'SET_DRAG_LAND';
+    if(boardPlacement) return false;
     const eventPayload = Object.assign({remote:true, online:true}, payload || {});
     const eventOptions = {
       remote:true,
@@ -4457,7 +4520,7 @@
       return false;
     }
     let cinematic = false;
-    if(!resultCard.faceDown && onlineCardType(resultCard) !== 'Supporter'){
+    if(!resultCard.faceDown && onlineCardIsCharacter(resultCard)){
       const estimatedMotionMs = estimateOnlineConsolidationMotionMs({tributes:removedEntries});
       cinematic = showOnlineRemoteConsolidationCinematicForEntry(g, resultEntry, action, 'presentation-event-consolidate', {
         force:true,
@@ -4711,7 +4774,7 @@
             window.FateV2CardMotionFx.flipBoardCard(entry.card, entry.z, entry.r, entry.c);
           }
           if(typeof window.playSfx === 'function') window.playSfx('cardFlip');
-          if(entry.card && onlineCardType(entry.card) !== 'Supporter' && typeof window.showConsolidationCinematic === 'function') {
+          if(entry.card && onlineCardIsCharacter(entry.card) && typeof window.showConsolidationCinematic === 'function') {
             try{
               if(typeof window.requestCharacterSetCinematic === 'function') {
                 window.requestCharacterSetCinematic(entry.card, {z:entry.z, r:entry.r, c:entry.c, delayMs:650, source:'online-card-flip'});
@@ -4735,7 +4798,7 @@
     const key = onlineRemotePresentationKey(action, signature || reason || 'board');
     if(!markOnlineRemotePresentation(g, key)) return false;
     const hasNewCharacter = added.some(function(entry){
-      return entry && entry.card && !entry.card.faceDown && onlineCardType(entry.card) !== 'Supporter';
+      return entry && entry.card && !entry.card.faceDown && onlineCardIsCharacter(entry.card);
     });
     const consolidation = hasNewCharacter && removed.length > 0 && (
       isOnlineConsolidationCompletionAction(action) ||
@@ -4743,7 +4806,7 @@
     );
     if(consolidation){
       const resultEntry = added.find(function(entry){
-        return entry && entry.card && !entry.card.faceDown && onlineCardType(entry.card) !== 'Supporter';
+        return entry && entry.card && !entry.card.faceDown && onlineCardIsCharacter(entry.card);
       }) || added[0] || null;
       const targetRect = resultEntry ? onlineBoardCellRect(resultEntry.z, resultEntry.r, resultEntry.c) : null;
       const tributePayload = removed.map(function(entry, index){
@@ -4830,7 +4893,8 @@
   function maybeShowOnlineEffectNegatedBanner(action, reason){
     const type = String(action?.type || '').toUpperCase();
     const payload = action?.payload || {};
-    if(type !== 'REACTION_CHOICE' || String(payload.choice || '').toLowerCase() !== 'negate') return false;
+    const choice = String(payload.choice || '').toLowerCase();
+    if(type !== 'REACTION_CHOICE' || choice !== 'negate') return false;
     const g = gameState();
     const resolutionMode = String(payload.reactionResolution?.mode || 'negated') === 'suppressed' ? 'suppressed' : 'negated';
     const resolutionPromptId = String(payload.promptId || '') || ('seq:' + String(action?.seq || payload.clientActionId || ''));
@@ -4847,7 +4911,7 @@
       String(payload.reaction?.kind || '')
     ].join(':'));
     if(g && !markOnlineRemotePresentation(g, key)) return false;
-    const kind = String(payload.reaction?.kind || '');
+    const kind = String(payload.reaction?.kind || payload.reactionResolution?.kind || '');
     const label = kind === 'havano' ? 'Havano Citizen'
       : kind === 'lydia' ? 'Lydia'
       : kind === 'secules' ? 'Mr. Secules'
@@ -6896,10 +6960,18 @@
   }
   function gameProfileFromPublic(prof, fallbackName){
     const elo = Number(prof?.challengerElo || prof?.elo || 600) || 600;
+    const photo = pPhoto(prof);
+    const crop = FO.profilePhotoCropStyle
+      ? FO.profilePhotoCropStyle(prof || {}, 'center 22%')
+      : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;';
     return {
       name: pName(prof) || fallbackName || 'Player',
-      img: pPhoto(prof),
-      crop: 'object-fit:cover;object-position:center 22%;',
+      img: photo,
+      photoURL: prof?.photoURL || photo,
+      profileImg: prof?.profileImg || prof?.photoURL || photo,
+      pfp: prof?.pfp || '',
+      uid: prof?.uid || '',
+      crop,
       elo,
       wins: Number(prof?.wins || prof?.challengerWins || 0) || 0,
       losses: Number(prof?.losses || prof?.challengerLosses || 0) || 0,
@@ -6910,13 +6982,36 @@
   function applyOnlineRoomIdentity(room, players){
     const g = gameState();
     if(!room || !g) return;
-    const hostP = liveProfiles.get(room.hostUid) || players?.[room.hostUid]?.profileSnapshot || {};
-    const guestP = liveProfiles.get(room.guestUid) || players?.[room.guestUid]?.profileSnapshot || {};
+    const hostNode = players?.[room.hostUid] || {};
+    const guestNode = players?.[room.guestUid] || {};
+    const hostP = mergeRoomPublicProfile(room.hostUid, hostNode.profileSnapshot, hostNode.profile, liveProfiles.get(room.hostUid));
+    const guestP = mergeRoomPublicProfile(room.guestUid, guestNode.profileSnapshot, guestNode.profile, liveProfiles.get(room.guestUid));
     const hostGame = gameProfileFromPublic(hostP, 'Host');
     const guestGame = gameProfileFromPublic(guestP, 'Guest');
     g.playerProfiles = { 0: hostGame, 1: guestGame };
     if(g.players && g.players[0]) g.players[0].name = hostGame.name;
     if(g.players && g.players[1]) g.players[1].name = guestGame.name;
+  }
+  function refreshOnlineRoomIdentity(reason){
+    const g = gameState();
+    const room = lastLobbyRoom || {};
+    const players = lastLobbyPlayers || room.players || {};
+    if(!g || !room.roomCode) return;
+    applyOnlineRoomIdentity(room, players);
+    try{ if(typeof window.updatePlayerBanners === 'function') window.updatePlayerBanners(); }catch(e){}
+    try{
+      const profiles = g.playerProfiles || {};
+      [0, 1].forEach(idx=>{
+        const p = profiles[idx] || {};
+        const slot = document.querySelector('#ingame-chat-widget .ingame-chat-pic.p' + (idx + 1));
+        if(!slot) return;
+        const src = p.img || (FO.profilePhoto ? FO.profilePhoto(p) : (p.photoURL || p.profileImg || 'blank.png'));
+        const style = p.crop || (FO.profilePhotoCropStyle ? FO.profilePhotoCropStyle(p, 'center 22%') : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;');
+        if(src && src !== 'blank.png') slot.innerHTML = '<img src="'+esc(src)+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+esc(style)+'" onerror="this.onerror=null;this.src=&quot;blank.png&quot;;">';
+      });
+    }catch(e){
+      console.warn('Online profile UI refresh failed', reason || '', e);
+    }
   }
   function cleanupRoomProfileSubs(keep){
     for(const [uid, unsub] of roomProfileUnsubs.entries()){
@@ -6937,12 +7032,17 @@
     roomProfileUnsubs.set(uid, ()=>{});
     if(FO.subscribeProfile){
       const unsub = FO.subscribeProfile(uid, p=>{
-        liveProfiles.set(uid, p || {});
+        liveProfiles.set(uid, mergeRoomPublicProfile(uid, liveProfiles.get(uid), p || {}));
+        refreshOnlineRoomIdentity('profile subscription');
         scheduleLobbyRender();
       });
       roomProfileUnsubs.set(uid, unsub || (()=>{}));
     }else if(FO.getPublicProfile){
-      FO.getPublicProfile(uid).then(p=>{ liveProfiles.set(uid,p||{}); scheduleLobbyRender(); }).catch(()=>{});
+      FO.getPublicProfile(uid).then(p=>{
+        liveProfiles.set(uid, mergeRoomPublicProfile(uid, liveProfiles.get(uid), p || {}));
+        refreshOnlineRoomIdentity('profile fetch');
+        scheduleLobbyRender();
+      }).catch(()=>{});
     }
   }
   function clearRoomWatchers(){
@@ -8009,12 +8109,8 @@
     const hostActive = isConnectedPlayer(hostNode);
     const keep = new Set([current.hostUid]);
     if(current.guestUid) keep.add(current.guestUid);
-    if(current._flyRoom){
-      cleanupRoomProfileSubs(null);
-    }else{
-      keep.forEach(ensureRoomProfile);
-      cleanupRoomProfileSubs(keep);
-    }
+    keep.forEach(ensureRoomProfile);
+    cleanupRoomProfileSubs(keep);
 
     const u = getUser();
     const isHost = u && current.hostUid === u.uid;
@@ -8215,6 +8311,12 @@
       g._onlineGameSong = song;
       g._onlineRng = makeSeededRng(seed);
       g._onlineActionLogMode = true;
+      const hostNode = players?.[room.hostUid] || {};
+      const guestNode = players?.[room.guestUid] || {};
+      await Promise.all([
+        hydrateRoomPublicProfile(room.hostUid, mergeRoomPublicProfile(room.hostUid, startPayload.profiles?.[0], hostNode.profileSnapshot, hostNode.profile)),
+        hydrateRoomPublicProfile(room.guestUid, mergeRoomPublicProfile(room.guestUid, startPayload.profiles?.[1], guestNode.profileSnapshot, guestNode.profile))
+      ]);
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       applyOnlineRoomIdentity(room, players);
 
@@ -9997,6 +10099,7 @@
         ensureOnlineBoardShape(g);
         const args = arguments;
         const pendingMove = g._serverPendingMove || null;
+        const anickaVoyagerMove = g._bh01Moving && g._bh01Moving.kind === 'anickaVoyagerMove' ? g._bh01Moving : null;
         const pendingConsolidation = g._consolidating || null;
         const finalConsolidationClick = pendingConsolidation && isOnlineFinalConsolidationClick(pendingConsolidation, z, r, c);
         const consolidationPresentation = pendingConsolidation
@@ -10024,6 +10127,28 @@
             tributeCount:Array.isArray(latest?._consolidating?.chosenIdxs) ? latest._consolidating.chosenIdxs.length : 0
           });
           return handled;
+        }
+        if(anickaVoyagerMove){
+          if(!canSendLocalAction(g, 'SELECT_PENDING_MOVE_CELL')) return;
+          const sourceCard = g.board?.[anickaVoyagerMove.fromZ]?.[anickaVoyagerMove.fromR]?.[anickaVoyagerMove.fromC] || null;
+          noteOnlineMoreBoardPreference('movement', 'brave-horizons-move-click', 30000);
+          return sendOptimisticAction('SELECT_PENDING_MOVE_CELL', {
+            playerIndex:g.currentPlayer,
+            turn:g.turn,
+            z,r,c,
+            pendingMove:true,
+            moveKind:'anickaVoyagerMove',
+            fromZ:anickaVoyagerMove.fromZ,
+            fromR:anickaVoyagerMove.fromR,
+            fromC:anickaVoyagerMove.fromC,
+            source:boardSelectionPayload({
+              z:anickaVoyagerMove.fromZ,
+              r:anickaVoyagerMove.fromR,
+              c:anickaVoyagerMove.fromC,
+              card:sourceCard
+            }),
+            placing:false
+          }, ()=>originals.clickCell.apply(this, args));
         }
         if(pendingMove){
           if(!canSendLocalAction(g, 'SELECT_PENDING_MOVE_CELL')) return;
@@ -10207,12 +10332,17 @@
           if(latest?._onlineApplyingRemoteAction) return onConfirm(chosen);
           if(!canSendLocalAction(latest, 'PICK_CARDS_VISUAL')) return;
           const pendingPick = latest?._serverPendingCardPick || null;
-          return sendOptimisticAction('PICK_CARDS_VISUAL', attachOnlinePendingEffectSource({
+          const pickPayload = attachOnlinePendingEffectSource({
             playerIndex:latest.currentPlayer,
             turn:latest.turn,
             promptId:pendingPick && pendingPick.promptId || '',
             selectedCards:(chosen || []).map(cardIdentity)
-          }, latest, pendingPick), ()=>runWithOnlinePickerResolution(latest, ()=>onConfirm(chosen)));
+          }, latest, pendingPick);
+          if(opts && opts.opponentSearch === true){
+            pickPayload.opponentSearch = true;
+            pickPayload.searchSourceCardId = String(opts.searchSourceCardId || '');
+          }
+          return sendOptimisticAction('PICK_CARDS_VISUAL', pickPayload, ()=>runWithOnlinePickerResolution(latest, ()=>onConfirm(chosen)));
         };
         return originals.pickCardsVisual.call(this, cards, opts, wrappedConfirm);
       };
@@ -10587,6 +10717,44 @@
 
     if(typeof window.activateSantaAnnaProsperityFromHand === 'function' && !originals.activateSantaAnnaProsperityFromHand){
       originals.activateSantaAnnaProsperityFromHand = window.activateSantaAnnaProsperityFromHand;
+    }
+    if(typeof window.activateWhisperOfTheHeartLandscape === 'function' && !originals.activateWhisperOfTheHeartLandscape){
+      originals.activateWhisperOfTheHeartLandscape = window.activateWhisperOfTheHeartLandscape;
+      window.activateWhisperOfTheHeartLandscape = function(options){
+        const g = gameState();
+        if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
+          return originals.activateWhisperOfTheHeartLandscape.apply(this, arguments);
+        }
+        if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
+          if(window.toast) toast('Spectators cannot take game actions.');
+          return Promise.resolve(false);
+        }
+        const args = arguments;
+        return sendOptimisticAction('HAND_ACTION', {
+          fn:'activateWhisperOfTheHeartLandscape',
+          playerIndex:g._onlinePlayerIndex,
+          turn:g.turn,
+          landscapeId:String(g.landscapeId || '')
+        }, ()=>{
+          const activeState = gameState() || g;
+          activeState._onlineClientOwnedBoardActionPickerDepth = Math.max(0, Number(activeState._onlineClientOwnedBoardActionPickerDepth || 0) || 0) + 1;
+          const finish = ()=>{
+            const latest = gameState() || activeState;
+            latest._onlineClientOwnedBoardActionPickerDepth = Math.max(0, (Number(latest._onlineClientOwnedBoardActionPickerDepth || 0) || 0) - 1);
+            if(!latest._onlineClientOwnedBoardActionPickerDepth) delete latest._onlineClientOwnedBoardActionPickerDepth;
+          };
+          let result;
+          try{
+            result = originals.activateWhisperOfTheHeartLandscape.apply(this, args);
+          }catch(e){
+            finish();
+            throw e;
+          }
+          if(result && typeof result.then === 'function') return result.finally(finish);
+          finish();
+          return result;
+        });
+      };
     }
     window.__fateSendSantaAnnaAction = function(selectedHand, target){
       const g = gameState();

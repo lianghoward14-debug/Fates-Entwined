@@ -19,12 +19,17 @@ const profileSource = read('src/scripts/03-profile-and-progression.js');
 const challengerSource = read('src/scripts/09-challenger-mode.js');
 const challengerV2Source = read('src/scripts/09-challenger-v2.js');
 const indexSource = read('index.html');
+const finalCss = read('src/styles/zz-codex-last.css');
 
 assert.match(profileSource, /const ALL_PFP_IDS = Array\.from\(\{length:100\}/, 'profile booster pool must include IDs 1-100');
 assert.match(profileSource, /filter\(n=>n>=1 && n<=100\)/, 'owned profile normalization must retain IDs 81-100');
 assert.match(challengerSource, /generateProfilePack\(\)[\s\S]*grantProfilePictures\(pack\)/, 'store booster must draw and grant from the shared profile pool');
+assert.match(challengerSource, /profile-pack-full-art[\s\S]*PFP_PATH\(pfpId\)[\s\S]*full art/, 'profile booster rewards must display their complete rectangular artwork');
+assert.doesNotMatch(challengerSource, /renderProfilePackReveal\(pfpIds\)[\s\S]{0,1600}PFP_PATH\(pfpId, 'square'\)/, 'profile booster reveal must not request a square crop');
+assert.match(finalCss, /profile-pack-art[\s\S]*aspect-ratio:5\/7[\s\S]*object-fit:contain/, 'profile booster pack art must retain its complete portrait artwork');
+assert.match(finalCss, /profile-pack-full-art[\s\S]*aspect-ratio:591\/453[\s\S]*object-fit:contain/, 'profile picture rewards must retain their complete landscape artwork');
 assert.match(challengerV2Source, /generateProfilePack\(\)[\s\S]*grantProfilePictures\(pack\)/, 'alternate store renderer must draw and grant from the shared profile pool');
-assert.match(indexSource, /03-profile-and-progression\.js\?v=1784390001/, 'profile pool release must be cache-busted');
+assert.match(indexSource, /03-profile-and-progression\.js\?v=1784390004/, 'profile pool release and preset order polish must be cache-busted');
 
 for(let id = 80; id <= 100; id += 1) {
   const cardPath = `${id}.png`;

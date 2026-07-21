@@ -783,7 +783,12 @@ async function signIn(){
 async function signOutNow(){
   const oldUser = auth.currentUser;
   try{
-    if(oldUser && !flyProfilesEnabled() && rtdbAvailable()){
+    if(oldUser && flyProfilesEnabled()){
+      await flyApiRequest('/api/social/presence', {
+        method:'POST',
+        body:{uid:oldUser.uid, online:false}
+      }).catch(()=>{});
+    }else if(oldUser && rtdbAvailable()){
       await update(ref(rtdb, `presence/${oldUser.uid}`), { online:false, lastSeen:serverTimestamp() }).catch(()=>{});
     }
     state.unsubs.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });

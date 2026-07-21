@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 8;
+  const ADAPTER_VERSION = 10;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -13,6 +13,7 @@
   const topEffectCanvasId = 'fate-match-v2-top-effect-canvas';
   const uiCanvasId = 'fate-match-v2-ui-canvas';
   const hoverCanvasId = 'fate-match-v2-hover-canvas';
+  const fateNumberLayerId = 'fate-match-v2-fate-number-layer';
   const layerIds = [backgroundCanvasId, cardCanvasId, effectCanvasId, particleCanvasId, topEffectCanvasId, uiCanvasId, hoverCanvasId];
   let drawCount = 0;
   let lastReport = {available:false, reason:'not-rendered', version:ADAPTER_VERSION};
@@ -65,6 +66,10 @@
   let activeActivationCinematics = [];
   let pendingWhenSetPulseRaf = 0;
   let pendingWhenSetGlowStartedAtByKey = new Map();
+  let fateNumberNodesByKey = new Map();
+  let fateNumberTimersByKey = new Map();
+  let recentFateNumbersByKey = new Map();
+  let nextFateNumberId = 1;
   let stableBoardViewport = null;
   const zoneScroll = {};
   let renderScale = 1;
@@ -98,6 +103,9 @@
     postActionDeferredFrames:0,
     hoverDuringActionSkips:0,
     pendingWhenSetPulseSkips:0,
+    fateNumberPresentations:0,
+    fateNumberDuplicatesSuppressed:0,
+    fateNumberMainThreadFramesAvoided:0,
     lastVfxLayerOnly:false,
     lastDirtyMask:0,
     lastDirtySource:''
@@ -505,6 +513,7 @@
     });
     deferredPlacementFatePulseByIid.clear();
     completedPlacementFateRevealAtByIid.clear();
+    clearFateNumberPresentations();
     if(input && typeof input.detach === 'function') input.detach();
     hoverHit = null;
     lastHitMap = {cards:[], cells:[], handCards:[], handEffectIcons:[], opponentHandCards:[], piles:[], uiCommands:[]};
@@ -575,6 +584,108 @@
     return canvas;
   }
 
+  function clearFateNumberPresentation(key){
+    const node = fateNumberNodesByKey.get(key);
+    if(node && node.parentNode) node.remove();
+    fateNumberNodesByKey.delete(key);
+    const timer = fateNumberTimersByKey.get(key);
+    if(timer) clearTimeout(timer);
+    fateNumberTimersByKey.delete(key);
+  }
+
+  function clearFateNumberPresentations(){
+    Array.from(fateNumberNodesByKey.keys()).forEach(clearFateNumberPresentation);
+    fateNumberNodesByKey.clear();
+    fateNumberTimersByKey.clear();
+    recentFateNumbersByKey.clear();
+    const layer = document.getElementById(fateNumberLayerId);
+    if(layer) layer.remove();
+  }
+
+  function ensureFateNumberLayer(board){
+    if(!board) return null;
+    let layer = document.getElementById(fateNumberLayerId);
+    if(!layer){
+      layer = document.createElement('div');
+      layer.id = fateNumberLayerId;
+      layer.setAttribute('aria-hidden', 'true');
+    }
+    layer.style.display = 'block';
+    if(layer.parentNode !== board) board.appendChild(layer);
+    return layer;
+  }
+
+  function fateNumberTargetRect(payload){
+    const p = payload || {};
+    const direct = p.rect || p.targetRect || p.cardRect;
+    if(direct && Number(direct.w) > 0 && Number(direct.h) > 0) return direct;
+    const iid = String(p.iid || p.targetIid || '');
+    const cards = lastHitMap && Array.isArray(lastHitMap.cards) ? lastHitMap.cards : [];
+    if(iid){
+      const hit = cards.find(function(entry){
+        return String(entry && (entry.iid || entry.card && entry.card.iid) || '') === iid;
+      });
+      if(hit && hit.rect) return hit.rect;
+    }
+    if(Number.isInteger(Number(p.z)) && Number.isInteger(Number(p.r)) && Number.isInteger(Number(p.c))){
+      const hit = cards.find(function(entry){
+        return entry && Number(entry.z) === Number(p.z) && Number(entry.r) === Number(p.r) && Number(entry.c) === Number(p.c);
+      });
+      if(hit && hit.rect) return hit.rect;
+    }
+    return null;
+  }
+
+  function presentFateDelta(payload){
+    if(animationsOff()) return false;
+    const p = payload || {};
+    const delta = Number(p.delta != null ? p.delta : p.fateDelta != null ? p.fateDelta : p.amount);
+    if(!Number.isFinite(delta) || delta === 0) return false;
+    const board = document.getElementById('board');
+    const layer = ensureFateNumberLayer(board);
+    if(!layer) return false;
+    const iid = String(p.iid || p.targetIid || '');
+    const positionKey = Number.isInteger(Number(p.z)) && Number.isInteger(Number(p.r)) && Number.isInteger(Number(p.c))
+      ? [p.z, p.r, p.c].join(':')
+      : '';
+    const key = iid ? 'iid:' + iid : positionKey ? 'cell:' + positionKey : 'global';
+    const signature = (delta > 0 ? '+' : '') + String(delta);
+    const now = Date.now();
+    const recent = recentFateNumbersByKey.get(key);
+    if(recent && recent.signature === signature && now - recent.at < 320){
+      renderCounters.fateNumberDuplicatesSuppressed++;
+      return true;
+    }
+    recentFateNumbersByKey.set(key, {signature, at:now});
+    clearFateNumberPresentation(key);
+
+    const target = fateNumberTargetRect(p);
+    const fallbackW = Math.max(1, board.clientWidth || 960);
+    const x = (target ? Number(target.x) + Number(target.w) - Math.max(4, Number(target.w) * .08) : fallbackW / 2) - 10;
+    const fontSize = target ? Math.max(16, Math.min(25, Math.round(Number(target.w) * .20))) : 20;
+    const y = target ? Math.max(4, Number(target.y) - Math.max(18, Number(target.h) * .11)) : 28;
+    const duration = Math.max(640, Math.min(2531, Number(p.visualDuration) || 1860));
+    const node = document.createElement('div');
+    node.className = 'fate-number-pop ' + (delta < 0 ? 'is-loss' : 'is-gain');
+    node.dataset.fateNumberId = String(nextFateNumberId++);
+    node.textContent = signature;
+    node.style.left = Math.round(x) + 'px';
+    node.style.top = Math.round(y) + 'px';
+    node.style.fontSize = fontSize + 'px';
+    node.style.animationDuration = duration + 'ms';
+    fateNumberNodesByKey.set(key, node);
+    layer.appendChild(node);
+    const finish = function(){
+      if(fateNumberNodesByKey.get(key) === node) clearFateNumberPresentation(key);
+      node.removeEventListener('animationend', finish);
+    };
+    node.addEventListener('animationend', finish, {once:true});
+    fateNumberTimersByKey.set(key, setTimeout(finish, duration + 120));
+    renderCounters.fateNumberPresentations++;
+    renderCounters.fateNumberMainThreadFramesAvoided += Math.ceil(duration / 16.67);
+    return true;
+  }
+
   function ensureCanvas(board){
     if(!board) return null;
     if(!isActiveMatchScreen()) return null;
@@ -598,11 +709,12 @@
     const topEffectCanvas = makeLayerCanvas(topEffectCanvasId);
     const uiCanvas = makeLayerCanvas(uiCanvasId);
     const hoverCanvas = makeLayerCanvas(hoverCanvasId);
+    const fateNumberLayer = ensureFateNumberLayer(board);
     const viewportW = Math.max(1, window.innerWidth || 1280);
     const viewportH = Math.max(1, window.innerHeight || 720);
     const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas];
     Array.from(board.children).forEach(function(child){
-      if(boardLayers.indexOf(child) < 0) child.remove();
+      if(boardLayers.indexOf(child) < 0 && child !== fateNumberLayer) child.remove();
     });
     boardLayers.forEach(function(layer){
       if(layer.parentNode !== board) board.appendChild(layer);
@@ -1203,12 +1315,8 @@
       if(!timeline || !Number.isFinite(Number(pending.delta)) || Number(pending.delta) === 0) return;
       if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(key, 'fate-pulse');
       else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(key, 'fate-pulse');
-      timeline.add({
-        kind:'fate-pulse',
+      presentFateDelta({
         iid:key,
-        start:nowMs(),
-        duration:1860,
-        easing:'out-cubic',
         fromValue:pending.fromValue,
         toValue:pending.toValue,
         delta:pending.delta
@@ -1291,12 +1399,8 @@
       if(timeline && Number.isFinite(delta) && delta !== 0) {
         if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(record.iid, 'fate-pulse');
         else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(record.iid, 'fate-pulse');
-        timeline.add({
-          kind:'fate-pulse',
+        presentFateDelta({
           iid:record.iid,
-          start:nowMs(),
-          duration:1860,
-          easing:'out-cubic',
           fromValue:pending.fromValue,
           toValue:pending.toValue,
           delta
@@ -1399,12 +1503,8 @@
         if(delta){
           if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
           else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'fate-pulse');
-          timeline.add({
-            kind:'fate-pulse',
+          presentFateDelta({
             iid,
-            start:nowMs(),
-            duration:2531,
-            easing:'out-cubic',
             fromValue:prev,
             toValue:fateValue,
             delta,
@@ -1429,12 +1529,9 @@
       if(delta){
         if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'fate-pulse');
         else timeline.clearForCard(iid, 'fate-pulse');
-        timeline.add({
-          kind:'fate-pulse',
+        presentFateDelta({
           iid,
-          start:nowMs(),
-          duration:1860,
-          easing:'out-cubic',
+          rect:cardRect,
           fromValue:prev,
           toValue:fateValue,
           delta
@@ -1442,43 +1539,6 @@
       }
     }
     lastCardFateByIid.set(iid, fateValue);
-  }
-
-  function drawFatePulse(ctx, card, r){
-    const timeline = getTimeline();
-    const iid = getCardIid(card);
-    if(!timeline || !iid || typeof timeline.getForCard !== 'function') return;
-    const anim = timeline.getForCard(iid, 'fate-pulse');
-    if(!anim) return;
-    const progress = Math.max(0, Math.min(1, Number(anim.progress) || 0));
-    const fadeStart = .82;
-    const t = progress < fadeStart ? 1 : Math.max(0, 1 - ((progress - fadeStart) / (1 - fadeStart)));
-    const enter = Math.min(1, progress / .06);
-    const alpha = Math.max(0, Math.min(1, t * enter));
-    ctx.save();
-    if(anim.delta){
-      const isLoss = Number(anim.delta) < 0;
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = isLoss ? 'rgba(255,96,96,.98)' : 'rgba(127,255,144,.98)';
-      ctx.font = '950 ' + Math.max(16, Math.round(r.w * .18)) + 'px Cinzel, Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = Math.max(2, Math.round(r.w * .018));
-      ctx.strokeStyle = 'rgba(0,0,0,.88)';
-      ctx.shadowBlur = 0;
-      const deltaText = Number(anim.delta) > 0 ? '+' + anim.delta : String(anim.delta);
-      const fateText = getCardFateValue(card) || '';
-      const badgeH = Math.max(24, Math.min(34, r.w * .255));
-      const badgeW = Math.max(badgeH, Math.min(43, badgeH + Math.max(0, fateText.length - 1) * 5.4));
-      const bx = r.x + r.w - badgeW - Math.max(1, badgeH * .04);
-      const by = r.y + Math.max(1, badgeH * .035);
-      const tx = bx + badgeW / 2;
-      const drift = Math.max(9, r.h * .045);
-      const ty = by - Math.max(13, badgeH * .52) - (progress * drift);
-      ctx.strokeText(deltaText, tx, ty);
-      ctx.fillText(deltaText, tx, ty);
-    }
-    ctx.restore();
   }
 
   function getTributeState(entry){
@@ -1566,6 +1626,12 @@
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.restore();
+  }
+
+  function scheduleNonFateTimelineFrame(){
+    const timeline = getTimeline();
+    if(!timeline || typeof timeline.hasActiveAnimations !== 'function') return;
+    if(timeline.hasActiveAnimations('card-move')) scheduleRender('animation');
   }
 
   function drawBlockOverlay(ctx, r, block){
@@ -1768,6 +1834,7 @@
         return mv === G._wolfCreekMoving && kind !== 'swap' ? 'wolf-creek-move' : kind;
       }
     }
+    if(G._bh01Moving) return 'brave-horizons-move';
     return getBoardCell(z, r, c) ? 'card' : 'move';
   }
 
@@ -1809,6 +1876,17 @@
   }
 
   function drawSquareSelectionCue(ctx, r, kind){
+    if(String(kind || '') === 'brave-horizons-move') {
+      ctx.save();
+      roundedPath(ctx, r.x + 2, r.y + 2, Math.max(0, r.w - 4), Math.max(0, r.h - 4), 5);
+      ctx.fillStyle = 'rgba(93,190,224,.025)';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(116,207,237,.62)';
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
     if(String(kind || '') === 'wolf-creek-move') {
       drawWolfCreekOpenSquareCue(ctx, r);
       return;
@@ -2125,7 +2203,6 @@
     }
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     drawTributeCue(ctx, r, opts.tributeState || '');
-    if(opts.pulse !== false) drawFatePulse(ctx, entry.card, r);
   }
 
   function stableCardTilt(entry){
@@ -2735,24 +2812,20 @@
       line([[17,50],[26,50],[26,58]],false); line([[8,24],[1,24]],false); line([[11,32],[1,32]],false); line([[13,40],[4,40]],false);
       ctx.lineWidth = 4.4;
     } else if(kind === 'british_union_jack') {
-      ctx.lineWidth = 3.2;
-      circle(32,32,28);
-      line([[19,52],[19,12]],false);
+      ctx.lineWidth = 3.15;
       ctx.beginPath();
-      ctx.moveTo(19,16);
-      ctx.bezierCurveTo(28,11,38,20,50,14);
-      ctx.lineTo(50,35);
-      ctx.bezierCurveTo(40,41,30,29,19,38);
+      ctx.moveTo(13,14);
+      ctx.lineTo(51,14);
+      ctx.lineTo(51,38);
+      ctx.bezierCurveTo(47,48,40,55,32,59);
+      ctx.bezierCurveTo(24,55,17,48,13,38);
       ctx.closePath();
       ctx.stroke();
-      ctx.lineWidth = 2.4;
-      ctx.beginPath(); ctx.moveTo(22,18); ctx.bezierCurveTo(29,22,39,30,47,33); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(47,17); ctx.bezierCurveTo(39,20,29,29,22,35); ctx.stroke();
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(21,26); ctx.bezierCurveTo(29,23,39,29,48,24); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(35,16); ctx.bezierCurveTo(34,22,34,29,34,36); ctx.stroke();
-      ctx.lineWidth = 3.2;
-      line([[19,10],[15,14],[19,18],[23,14],[19,10]],false);
+      ctx.lineWidth = 4.2;
+      line([[15,33],[32,19],[49,33]],false);
+      line([[16,44],[32,31],[48,44]],false);
+      ctx.lineWidth = 2.25;
+      line([[24,52],[40,52]],false);
     } else if(kind === 'oathbound_crescent') {
       ctx.lineWidth = 4.2;
       ctx.beginPath(); ctx.moveTo(32,0); ctx.lineTo(39,10); ctx.lineTo(36,41); ctx.lineTo(28,41); ctx.lineTo(25,10); ctx.closePath(); ctx.stroke();
@@ -4843,7 +4916,7 @@
         source
       });
       if(maybeAdaptRenderScale()) scheduleRender('adaptive-render-scale');
-      if(getTimeline() && getTimeline().hasActiveAnimations && getTimeline().hasActiveAnimations()) scheduleRender('animation');
+      scheduleNonFateTimelineFrame();
       return lastReport;
     }
 
@@ -4982,7 +5055,7 @@
       source
     };
     if(maybeAdaptRenderScale()) scheduleRender('adaptive-render-scale');
-    if(getTimeline() && getTimeline().hasActiveAnimations && getTimeline().hasActiveAnimations()) scheduleRender('animation');
+    scheduleNonFateTimelineFrame();
     return lastReport;
   }
 
@@ -5094,7 +5167,14 @@
       enableFlag:localGet('fateEnableMatchRendererV2') === '1',
       defaultEnabled:true,
       disabled:localGet('fateDisableMatchRendererV2') === '1'
-    }, lastReport || {});
+    }, lastReport || {}, {
+      fateNumberPerformance:{
+        presentations:renderCounters.fateNumberPresentations,
+        duplicatesSuppressed:renderCounters.fateNumberDuplicatesSuppressed,
+        mainThreadFramesAvoided:renderCounters.fateNumberMainThreadFramesAvoided,
+        renderer:'css-compositor'
+      }
+    });
   }
 
   function getHitMap(){
@@ -5228,6 +5308,7 @@
     renderFromGameState,
     scheduleRender,
     scheduleVfxFrame,
+    presentFateDelta,
     getHitMap,
     setHoverHit,
     setViewportHoverHit,

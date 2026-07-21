@@ -752,6 +752,7 @@ function performGameRender(parts) {
     if(localConsolidationActive) timed('highlightTributeCards', highlightTributeCards);
     if(dirty.blocks && typeof refreshBlockOverlays === 'function') timed('refreshBlockOverlays', refreshBlockOverlays);
     if(dirty.topbar && typeof updateTopBar === 'function') timed('updateTopBar', updateTopBar);
+    if(typeof refreshWojciechInformationBanners === 'function') timed('refreshWojciechInformationBanners', refreshWojciechInformationBanners);
     timed('restoreViewportLock', restoreBoardViewportLockSoon);
   } finally {
     _renderCalcCache = null;
@@ -788,6 +789,7 @@ function isInnateProtectionIconHiddenCard(card) {
 
 function shouldShowProtectionStatusIcon(card) {
   if(!card || isFaceDownCard(card) || isInnateProtectionIconHiddenCard(card)) return false;
+  if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return false;
   if(typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '20')) return true;
   return !!(card.immuneFlag || card.opponentEffectImmune);
 }
@@ -1038,9 +1040,9 @@ function cardRenderSignature(card, z, r, c) {
   let eff = '';
   try{ eff = z == null ? getLiveCardFate(card) : getCachedEffectiveFate(card, z); }catch(e){}
   return [
-    card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
+    card.iid, card.id, card.img || '', card.owner, card.type, card.rarity, card.aff,
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
-    card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0,
+    card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0, Number(card._pierogiTurnsRemaining) || 0,
     Number(card._snowballFightHitAt) || 0,
     card._effectFlash ? [card._effectFlash.kind, card._effectFlash.at, card._effectFlash.duration, card._effectFlash.pitchStep].join(',') : '',
     shouldShowProtectionStatusIcon(card) ? 1 : 0,
@@ -1542,8 +1544,12 @@ function renderLandscapePanel() {
     panel.innerHTML = '';
     panel.classList.add('empty');
     panel.classList.remove('tutorial-landscape');
+    Array.from(panel.classList).forEach(function(cls){
+      if(/^landscape-id-/.test(cls)) panel.classList.remove(cls);
+    });
     return;
   }
+  const perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);
   let note = '';
   if((landscape.id === 'igb3' || landscape.id === 'igb8') && st && typeof st.targetZone === 'number') {
     note = 'Chosen Zone: Zone ' + (st.targetZone + 1);
@@ -1555,17 +1561,51 @@ function renderLandscapePanel() {
     const oppTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(1 - perspective) : 0;
     note = 'Total Fate: You ' + myTotal + ' / Opp ' + oppTotal;
   }
-  const sig = [landscape.id, landscape.name, landscape.description, note, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
+  let snowLimitHtml = '';
+  let snowLimitSig = '';
+  if(landscape.id === 'igb15' && !tutorialLandscapeDisplay) {
+    const counts = st && Array.isArray(st.supporterEffectsThisTurn) ? st.supporterEffectsThisTurn : [0,0];
+    const used = Math.max(0, Number(counts[perspectivePlayer]) || 0);
+    const spent = used >= 1;
+    snowLimitSig = perspectivePlayer + ':' + used + ':' + (spent ? 'spent' : 'ready');
+    snowLimitHtml =
+      '<div class="landscape-note landscape-supporter-limit ' + (spent ? 'is-spent' : 'is-ready') + '" style="' + (spent ? 'color:#9a2f3f!important;font-weight:700!important;' : 'color:#9bdcff!important;') + '">' +
+        (spent ? 'Supporter Effect Blocked' : 'Supporter Effect Available') +
+      '</div>';
+  }
+  let whisperActionHtml = '';
+  let whisperActionSig = '';
+  if(landscape.id === 'igb17' && !tutorialLandscapeDisplay) {
+    const uses = Array.isArray(G && G._whisperLandscapeUses) ? G._whisperLandscapeUses : [0,0];
+    const spent = (Number(uses[perspectivePlayer]) || 0) >= 1;
+    const isLocalTurn = G && G.currentPlayer === perspectivePlayer && G.phase === 'main' && !G._isSpectator && G._onlineRole !== 'spectator';
+    const hasCoordinator = typeof getWhisperCoordinatorEntries === 'function' ? getWhisperCoordinatorEntries(perspectivePlayer).length > 0 : true;
+    const hasHandCost = typeof getWhisperDiscardableHandCards === 'function' ? getWhisperDiscardableHandCards(perspectivePlayer).length >= 2 : true;
+    const enabled = !spent && isLocalTurn && hasCoordinator && hasHandCost;
+    const buttonText = spent ? 'Token Created' : 'Create Whisper Token';
+    whisperActionSig = [perspectivePlayer, spent ? 1 : 0, enabled ? 1 : 0, buttonText, hasCoordinator ? 1 : 0, hasHandCost ? 1 : 0, isLocalTurn ? 1 : 0].join(':');
+    whisperActionHtml =
+      '<div class="landscape-whisper-action ' + (spent ? 'is-spent' : 'is-ready') + '">' +
+        '<button type="button" class="landscape-whisper-button" onclick="activateWhisperOfTheHeartLandscape()"' + (enabled ? '' : ' disabled') + '>' + escapeHtml(buttonText) + '</button>' +
+      '</div>';
+  }
+  const sig = [landscape.id, landscape.name, landscape.description, note, snowLimitSig, whisperActionSig, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
   if(sig === _lastLandscapeRenderSignature && panel.children.length) return;
   _lastLandscapeRenderSignature = sig;
   panel.classList.remove('empty');
   panel.classList.toggle('tutorial-landscape', !!tutorialLandscapeDisplay);
+  Array.from(panel.classList).forEach(function(cls){
+    if(/^landscape-id-/.test(cls)) panel.classList.remove(cls);
+  });
+  panel.classList.add('landscape-id-' + landscape.id);
   const landscapeNameHtml = escapeHtml(landscape.name).replace(/:\s+/, ':<br>');
   panel.innerHTML =
     '<div class="landscape-kicker">Landscape</div>' +
     '<div class="landscape-name">' + landscapeNameHtml + '</div>' +
     '<div class="landscape-desc">' + escapeHtml(landscape.description) + '</div>' +
-    (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '');
+    (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '') +
+    snowLimitHtml +
+    whisperActionHtml;
 }
 
 function showLandscapeChoiceModal(page, onChoose, promptState) {
@@ -1573,13 +1613,13 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   const entries = Object.keys(LANDSCAPES || {}).sort(function(a,b){
     return (parseInt(a.replace('igb',''),10)||0) - (parseInt(b.replace('igb',''),10)||0);
   }).map(function(id){
-    const n = Math.max(1, Math.min(16, parseInt(id.replace('igb',''), 10) || 1));
+    const n = Math.max(1, Math.min(19, parseInt(id.replace('igb',''), 10) || 1));
     return {
       id:id,
       num:n,
       song:'board' + n,
       landscape:LANDSCAPES[id],
-      img:(typeof INGAME_BG_PATH === 'function') ? INGAME_BG_PATH(n) : ('optimized/backgrounds/ingamebackgrouds_igb' + n + '.jpg')
+      img:(typeof getGameLandscapeBackgroundPath === 'function') ? getGameLandscapeBackgroundPath(n) : ((typeof INGAME_BG_PATH === 'function') ? INGAME_BG_PATH(n) : ('optimized/backgrounds/ingamebackgrouds_igb' + n + '.jpg'))
     };
   });
   if(!entries.length){ toast('No landscapes available.'); return; }
@@ -1713,10 +1753,10 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
   }
   const discarded = hand.splice(handIndex, 1)[0];
   fatePushDiscard(player, discarded);
-  modifyFate(target.card, 3, 'permanent');
+  modifyFate(target.card, 4, 'permanent');
   G.selectedHandCard = null;
   if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Santa Anna: Prosperity of a Treasure Port', 'minor');
-  toast('Santa Anna: ' + discarded.name + ' was discarded. ' + target.card.name + ' gains 3 Fate.');
+  toast('Santa Anna: ' + discarded.name + ' was discarded. ' + target.card.name + ' gains 4 Fate.');
   renderGame({board:true, hand:true, scores:true, piles:true, landscape:true, topbar:true});
   return true;
 }
@@ -1746,8 +1786,8 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
   closeModal();
   showBoardTargetPicker({
     title:'Prosperity of a Treasure Port',
-    prompt:'Select one card you control to gain 3 Fate.',
-    confirmLabel:'+3 Fate',
+    prompt:'Select one card you control to gain 4 Fate.',
+    confirmLabel:'+4 Fate',
     maxCount:1,
     viewerPlayerIndex:player,
     zones:[0,1,2],
@@ -2395,7 +2435,7 @@ function renderOppHand() {
     container.style.cursor = '';
     container.onclick = null;
     const lbl=document.getElementById('opp-hand-lbl');
-    if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+    if(lbl) lbl.textContent=G.players[oppP].name+"'s Hand";
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderOppHand');
     else window.FateMatchRendererAdapter.renderFromGameState({opponentHand:true, source:'renderOppHand'});
     return;
@@ -2458,7 +2498,7 @@ function renderOppHand() {
   }
   // Update label
   const lbl=document.getElementById('opp-hand-lbl');
-  if(lbl) lbl.innerHTML=G.players[oppP].name+"'s Hand <span style='color:var(--dim);font-family:\"Crimson Pro\",serif;font-weight:400;font-size:.65rem;'>("+oppHand.length+")</span>";
+  if(lbl) lbl.textContent=G.players[oppP].name+"'s Hand";
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
@@ -3014,6 +3054,11 @@ function getStatusEffectIcon(kind) {
     village_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 31L32 13l22 18"/><path d="M17 29v24h30V29"/><path d="M27 53V38h10v15"/><path d="M19 18h10" opacity=".45"/></g></svg>`,
     rivera_aff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="18"/><path d="M32 18v28M18 32h28"/><path d="M22 22l20 20M42 22L22 42" opacity=".35"/></g></svg>`,
     wojciech: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 40c0 8 7 13 15 13s15-5 15-13" stroke-width="4"/><path d="M17 40c5-9 25-9 30 0" stroke-width="4"/><path d="M22 31c1-8 7-13 14-13 5 0 9 2 12 6" stroke-width="3"/><path d="M21 40c4 3 18 3 22 0" stroke-width="2.5" opacity=".5"/></g></svg>`,
+    pierogi_timer: `<svg class="pierogi-timer-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M29 9h10M34 9v6M47 15l4 4" stroke-width="3.4"/><circle cx="34" cy="35" r="20" stroke-width="3.5"/><path d="M34 22v13l8 5" stroke-width="3.5"/><path d="M18 43c5-8 17-8 22 0-1 7-6 11-11 11s-10-4-11-11z" fill="currentColor" fill-opacity=".13" stroke-width="3"/><path d="M21 43c4 3 12 3 16 0" stroke-width="2" opacity=".62"/></g></svg>`,
+    pierogi_fold: `<svg class="pierogi-fold-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 40c7-14 33-14 40 0-1 10-9 16-20 16S13 50 12 40z" stroke-width="4"/><path d="M16 40c7 5 25 5 32 0" stroke-width="3"/><path d="M22 36l3 4M31 33v6M40 36l-3 4" stroke-width="2.6"/><path d="M19 18l4 5M32 12v7M45 18l-4 5" stroke-width="3" opacity=".72"/></g></svg>`,
+    pierogi_clock: `<svg class="pierogi-clock-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="23" stroke-width="3.5"/><path d="M32 15v5M49 32h-5M32 49v-5M15 32h5" stroke-width="2.8"/><path d="M18 37c5-10 23-10 28 0-1 8-6 12-14 12s-13-4-14-12z" stroke-width="3.5"/><path d="M21 37c5 4 17 4 22 0" stroke-width="2.4"/><path d="M32 20v10l7 4" stroke-width="3" opacity=".74"/></g></svg>`,
+    pierogi_hourglass: `<svg class="pierogi-hourglass-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10h30M17 54h30M21 11c0 12 4 16 11 21-7 5-11 9-11 21M43 11c0 12-4 16-11 21 7 5 11 9 11 21" stroke-width="3.6"/><path d="M23 45c4-7 14-7 18 0-2 5-5 7-9 7s-7-2-9-7z" fill="currentColor" fill-opacity=".15" stroke-width="2.8"/><path d="M25 20h14l-7 9z" fill="currentColor" fill-opacity=".18" stroke-width="2.5"/></g></svg>`,
+    pierogi_trio: `<svg class="pierogi-trio-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 43c3-7 13-7 16 0-1 6-4 9-8 9s-7-3-8-9zM24 32c3-8 13-8 16 0-1 7-4 10-8 10s-7-3-8-10zM41 20c3-7 13-7 16 0-1 6-4 9-8 9s-7-3-8-9z" stroke-width="3"/><path d="M10 43c3 2 7 2 10 0M27 32c3 2 7 2 10 0M44 20c3 2 7 2 10 0" stroke-width="2" opacity=".66"/><path d="M48 34v15M42 43l6 6 7-7" stroke-width="3.2"/></g></svg>`,
     lydia: `<svg class="lydia-berknomaly-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 27) scale(.48)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M-45 11C-37-31-8-47 0-47C8-47 37-31 45 11" stroke-width="7.5"/><path d="M-30 32L-47 50L-30 67" stroke-width="7.5"/><path d="M30 32L47 50L30 67" stroke-width="7.5"/><path d="M-17 5L0-14L17 5L0 24Z" stroke-width="6"/><path d="M0 31V76" stroke-width="7.5"/></g></svg>`,
     secules: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20h28M14 32h36M20 44h24" stroke-width="4"/><path d="M48 16L16 48" stroke-width="4"/><circle cx="32" cy="32" r="21" stroke-width="2.5" opacity=".38"/></g></svg>`,
     administrative_bloat: `<svg class="administrative-bloat-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M19 11h20l9 9v33H19z" fill="currentColor" opacity=".12"/><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11h20l9 9v33H19z" stroke-width="4"/><path d="M39 11v10h9" stroke-width="4"/><path d="M25 29h17M25 36h17M25 43h12" stroke-width="3.5"/></g></svg>`,
@@ -3091,7 +3136,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.setAttribute('aria-label', (visual.name || card.name || 'Card') + (isEffectFlash ? ', ' + effectFlashLabel + ' activated' : (isNegated ? ', negated' : (isSuppressed ? ', suppressed' : (isSnowballHit ? ', hit by Snowball Fight' : (isMarkedForDeath ? ', marked for death' : (isZoeBlocked ? ', blocked action' : (isImmune ? ', protected' : ''))))))));
   el.className='bc own-'+(card.owner===0?'p1':'p2')
     +(isHidden?' face-down-card':'')
-    +(card.immuneFlag?' immune':'')
+    +(card.immuneFlag && !(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))?' immune':'')
     +(card.type==='Supporter'?' supporter-card':'')
     +(rarity==='star'?' star-card':'')
     +(rarity==='square'?' square-card':'')
@@ -4188,8 +4233,8 @@ function getTopBarEffectsSourceSignature() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z, r, col){
       if(!c) return;
-      if(c.id === '20' || c.id === '07' || c.id === '50' || c.id === '51' || c.id === '56' || c.id === '67' || c.id === '71' || c.id === '81' || c.id === '87' || c.id === '99'){
-        boardBits.push([c.iid, c.id, c.owner, c.faceDown ? 1 : 0, z, r, col, c.usesLeft ?? '', c._seculesUsed ? 1 : 0].join(':'));
+      if(c.id === '20' || c.id === '07' || c.id === '50' || c.id === '51' || c.id === '56' || c.id === '67' || c.id === '71' || c.id === '87' || c.id === '99' || c.id === 'token1'){
+        boardBits.push([c.iid, c.id, c.owner, c.faceDown ? 1 : 0, z, r, col, c.usesLeft ?? '', c._seculesUsed ? 1 : 0, c._pierogiTurnsRemaining ?? '', c._pierogiCreator ?? '', c._pierogiHost ?? ''].join(':'));
       }
     });
   }
@@ -4399,11 +4444,14 @@ function renderTopbarEffects() {
   if(G._fortCalvinActive && G._fortCalvinActive.length > 0) {
     G._fortCalvinActive.filter(w => w.remaining > 0).forEach(w => {
       const card = CARDS.find(c => c.id === '71');
+      const limitText = w.characterSent
+        ? 'Its one Character redirect has already been used.'
+        : 'The next revealed Character is sent to the bottom of the deck.';
       allEffects.push({
         icon: getStatusEffectIcon('fort_calvin'), label: card ? card.ability : 'All Eyes on the I-15',
         cardName: card ? card.name : 'Fort Calvin Watcher',
         cardAbility: card ? card.ability : 'All Eyes on the I-15',
-        cardEffect:'Reveals the next ' + w.remaining + ' eligible opponent Draw Phase card' + (w.remaining === 1 ? '' : 's') + '. Characters may be sent to the bottom of that opponent\'s deck. This effect expires after ' + w.remaining + ' more eligible draw' + (w.remaining === 1 ? '' : 's') + '.',
+        cardEffect:'Reveals the next ' + w.remaining + ' eligible opponent Draw Phase card' + (w.remaining === 1 ? '' : 's') + '. ' + limitText + ' This effect expires after ' + w.remaining + ' more eligible draw' + (w.remaining === 1 ? '' : 's') + '.',
         owner: w.owner
       });
     });
@@ -4441,16 +4489,11 @@ function renderTopbarEffects() {
   }
 
   // Rivera — 3 of owner's turns affiliation buff
-  const wojciechStatusesByOwner = {0:[], 1:[]};
   const lydiaStatusesByOwner = {0:[], 1:[]};
   const securesStatusesByOwner = {0:[], 1:[]};
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z){
       if(!c || isFaceDownCard(c)) return;
-      if(c.id === '81' && !(typeof isCardEffectSuppressed === 'function' ? isCardEffectSuppressed(c) : (c._lydiaSuppressed || c._reactionSuppressed))) {
-        if(!wojciechStatusesByOwner[c.owner]) wojciechStatusesByOwner[c.owner] = [];
-        wojciechStatusesByOwner[c.owner].push({ card: c, zone: z + 1 });
-      }
       if(c.id === '56' && !c.immuneFlag) {
         const uses = Math.max(0, Number(c.usesLeft == null ? 5 : c.usesLeft) || 0);
         if(uses > 0) {
@@ -4467,22 +4510,6 @@ function renderTopbarEffects() {
       }
     });
   }
-  const wojciechCard = CARDS.find(c => c.id === '81');
-  [0,1].forEach(function(owner){
-    (wojciechStatusesByOwner[owner] || []).forEach(function(entry){
-      allEffects.push({
-        icon: getStatusEffectIcon('wojciech'),
-        label: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
-        cardName: wojciechCard ? wojciechCard.name : 'Wojciech',
-        cardAbility: wojciechCard ? wojciechCard.ability : 'Warm Pierogi',
-        cardEffect: wojciechCard ? wojciechCard.effect : 'Character cards in this card\'s zone that cost 2 or more Reinforcement cost 1 less.',
-        owner: owner,
-        extraClass: 'effect-pill-wojciech',
-        sourceIid: entry.card && entry.card.iid,
-        statusInstanceKey: 'wojciech:' + (entry.card && entry.card.iid ? entry.card.iid : entry.zone)
-      });
-    });
-  });
   const lydiaCard = CARDS.find(c => c.id === '56');
   [0,1].forEach(function(owner){
     (lydiaStatusesByOwner[owner] || []).forEach(function(entry){
@@ -4497,6 +4524,40 @@ function renderTopbarEffects() {
         sourceIid: entry.card && entry.card.iid,
         statusInstanceKey: 'lydia:' + (entry.card && entry.card.iid ? entry.card.iid : entry.uses)
       });
+    });
+  });
+
+  // Wojciech's Pierogi Counters — shown on their creator's side and grouped by lifetime.
+  const pierogiLifetimeGroups = {0:{}, 1:{}};
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(c){
+      if(!c || !(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(c))) return;
+      const turns = Math.max(0, Number(c._pierogiTurnsRemaining) || 0);
+      const host = Number(c._pierogiHost == null ? c.owner : c._pierogiHost);
+      const creator = Number(c._pierogiCreator == null ? ((host === 0 || host === 1) ? 1 - host : null) : c._pierogiCreator);
+      if(turns <= 0 || (creator !== 0 && creator !== 1)) return;
+      if(!pierogiLifetimeGroups[creator][turns]) pierogiLifetimeGroups[creator][turns] = [];
+      pierogiLifetimeGroups[creator][turns].push(c);
+    });
+  }
+  [0,1].forEach(function(creator){
+    const lifetimeKeys = Object.keys(pierogiLifetimeGroups[creator]).sort(function(a,b){ return Number(a) - Number(b); });
+    const total = lifetimeKeys.reduce(function(sum, turnKey){ return sum + pierogiLifetimeGroups[creator][turnKey].length; }, 0);
+    if(!total) return;
+    const lifetimeDetails = lifetimeKeys.map(function(turnKey){
+      const turns = Number(turnKey);
+      const count = pierogiLifetimeGroups[creator][turnKey].length;
+      return count + ' ' + (count === 1 ? 'counter expires' : 'counters expire') + ' after ' + turns + ' more turn' + (turns === 1 ? '' : 's') + ' of that field\'s owner';
+    });
+    allEffects.push({
+      icon:getStatusEffectIcon('pierogi_fold'),
+      label:'Pierogi Barrage',
+      cardName:'Wojciech',
+      cardAbility:'Pierogi Barrage',
+      cardEffect:total + ' Pierogi Counter' + (total === 1 ? ' created by this Wojciech occupies' : 's created by this Wojciech occupy') + ' the other player\'s field: ' + lifetimeDetails.join('; ') + '. Countdown advances only when that field\'s owner finishes a turn.',
+      owner:creator,
+      extraClass:'effect-pill-pierogi',
+      statusInstanceKey:'pierogi:' + creator
     });
   });
   const seculesCard = CARDS.find(c => c.id === '67');
@@ -4690,8 +4751,9 @@ function applyWinScreenGameBackground() {
   let gameBgVar = gameScreen ? gameScreen.style.getPropertyValue('--game-bg-img') : '';
   const lastBg = window.__fateLastGameBackground || null;
   if(!gameBgVar && typeof _lastGameSong !== 'undefined' && typeof INGAME_BG_PATH === 'function') {
-    const bgNum = Math.max(1, Math.min(16, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
-    gameBgVar = `url(${INGAME_BG_PATH(bgNum)})`;
+    const bgNum = Math.max(1, Math.min(19, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
+    const bgPath = typeof getGameLandscapeBackgroundPath === 'function' ? getGameLandscapeBackgroundPath(bgNum) : INGAME_BG_PATH(bgNum);
+    gameBgVar = `url(${bgPath})`;
   }
   if(!gameBgVar && lastBg?.cssVar) gameBgVar = lastBg.cssVar;
   if(gameBgVar) {
@@ -5277,15 +5339,52 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'The Blame Game';
     value = turns ? turns + ' Turn' + (turns === 1 ? '' : 's') : 'Inactive';
     sub = turns ? 'Supporters count as Characters' : 'Activate to classify Supporters as Characters';
+  } else if(String(card.id || '') === '81') {
+    const counts = Array.isArray(G._wojciechLastTurnPlacementCounts) ? G._wojciechLastTurnPlacementCounts : [0, 0];
+    const opponentPlacements = Math.max(0, Math.floor(Number(counts[1 - owner]) || 0));
+    label = 'Opponent Sets / Consolidations';
+    value = String(opponentPlacements);
+    sub = 'Previous turn - ' + opponentPlacements + ' Pierogi Counter' + (opponentPlacements === 1 ? '' : 's');
+  } else if(String(card.id || '') === '71') {
+    const active = Array.isArray(G._fortCalvinActive)
+      ? G._fortCalvinActive.find(function(w){ return w && String(w.sourceIid || '') === String(card.iid || ''); })
+      : null;
+    const remaining = Math.max(0, Number(active ? active.remaining : card._fortCalvinRemaining) || 0);
+    const sentName = String((active && active.sentCharacterName) || card._fortCalvinSentCharacterName || '');
+    const lastName = String((active && active.lastRevealedName) || card._fortCalvinLastRevealedName || '');
+    const limitReached = !!((active && active.characterSent) || card._fortCalvinCharacterLimitReached || sentName);
+    label = 'Card Revealed';
+    value = sentName || lastName || 'None';
+    sub = sentName
+      ? 'Sent to Bottom: ' + sentName
+      : (lastName ? 'Last Revealed: ' + lastName : 'Waiting for Opponent\'s Draw Phase');
   }
 
   if(!label) return '';
-  return '<div class="cd-live-tracker">' +
+  const trackerClass = String(card.id || '') === '81'
+    ? ' cd-wojciech-turn-tracker'
+    : (String(card.id || '') === '71' ? ' cd-fort-calvin-tracker' : '');
+  const trackerOwner = String(card.id || '') === '81' ? ' data-wojciech-owner="' + owner + '"' : '';
+  return '<div class="cd-live-tracker' + trackerClass + '"' + trackerOwner + '>' +
     '<span class="cd-live-tracker-kicker">Match Tracker</span>' +
     '<span class="cd-live-tracker-label">' + escapeHtml(label) + '</span>' +
     '<span class="cd-live-tracker-value">' + escapeHtml(value) + '</span>' +
     (sub ? '<span class="cd-live-tracker-sub">' + escapeHtml(sub) + '</span>' : '') +
   '</div>';
+}
+
+function refreshWojciechInformationBanners() {
+  if(typeof document === 'undefined' || typeof G === 'undefined' || !G) return;
+  const counts = Array.isArray(G._wojciechLastTurnPlacementCounts) ? G._wojciechLastTurnPlacementCounts : [0, 0];
+  document.querySelectorAll('.cd-wojciech-turn-tracker[data-wojciech-owner]').forEach(function(banner){
+    const owner = Number(banner.getAttribute('data-wojciech-owner'));
+    if(owner !== 0 && owner !== 1) return;
+    const opponentPlacements = Math.max(0, Math.floor(Number(counts[1 - owner]) || 0));
+    const valueEl = banner.querySelector('.cd-live-tracker-value');
+    const subEl = banner.querySelector('.cd-live-tracker-sub');
+    if(valueEl) valueEl.textContent = String(opponentPlacements);
+    if(subEl) subEl.textContent = 'Previous turn - ' + opponentPlacements + ' Pierogi Counter' + (opponentPlacements === 1 ? '' : 's');
+  });
 }
 
 function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) {
@@ -5295,6 +5394,17 @@ function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffe
     '<span class="cd-live-tracker-label">' + escapeHtml(copiedPassiveName) + '</span>' +
     '<span class="cd-live-tracker-value">Active</span>' +
     (copiedPassiveEffect ? '<span class="cd-live-tracker-sub">' + escapeHtml(copiedPassiveEffect) + '</span>' : '') +
+  '</div>';
+}
+
+function buildWhisperTokenCopyBannerHTML(card) {
+  if(!(card && typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card))) return '';
+  const sourceName = String(card._whisperCopiedSourceName || 'Coordinator');
+  const ability = String(card._whisperCopiedAbility || 'Copied Effect');
+  return '<div class="cd-live-tracker french-fusiliers-copy-banner whisper-token-copy-banner">' +
+    '<span class="cd-live-tracker-kicker">Copied Effect</span>' +
+    '<span class="cd-live-tracker-label">' + escapeHtml(sourceName + ' - ' + ability) + '</span>' +
+    '<span class="cd-live-tracker-value">Field-wide</span>' +
   '</div>';
 }
 
@@ -5423,7 +5533,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const trackerHtml = buildCardDetailTrackerHTML(card, viewerP, hideCard);
   const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
-  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
+  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) : '');
   body.innerHTML=`
     <div class="cd-wrap">
       <div class="cd-img">
@@ -5510,7 +5620,10 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       document.getElementById('modal').classList.add('on');
       return;
     }
-    if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter'){
+    const isDirectSetCard = (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter')
+      || (typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
+      || (typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card));
+    if(isDirectSetCard){
       // Selva Islands Pirate (74) triggers on hand arrival; no manual action button.
       if(false && card.id==='74' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))){
         const selva=document.createElement('button');
@@ -5619,7 +5732,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
-        act.className='btn sm pri';act.textContent='Activate Effect';
+        act.className='btn sm pri';act.textContent=String(bc.id || '') === 'bh01' ? 'Brave Horizons' : 'Activate Effect';
         act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
@@ -5714,12 +5827,13 @@ window.openCardDetailFromDeckPreview = openCardDetailFromDeckPreview;
 function resetModalChrome() {
   const modalEl = document.getElementById('modal');
   if(modalEl) {
-    modalEl.classList.remove('match-overview-modal', 'online-match-overview-modal', 'no-edge-corners-modal', 'card-detail-overlay');
+    modalEl.classList.remove('match-overview-modal', 'online-match-overview-modal', 'no-edge-corners-modal', 'card-detail-overlay', 'preset-order-modal');
     delete modalEl.dataset.chooseDeckOpen;
   }
   if(document.body) document.body.classList.remove('choose-deck-open');
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox){
+    modalBox.querySelectorAll('.preset-order-top-close').forEach(function(el){ el.remove(); });
     modalBox.classList.remove(
       'leaderboard-modal',
       'recent-matches-modal',
@@ -6020,6 +6134,8 @@ function showBoardTargetPicker(opts, onConfirm) {
   const body = document.createElement('div');
   body.className = 'board-target-picker' + (zones.length > 1 ? ' is-multi-zone' : '');
   if(opts.showOpponentOverlay) body.classList.add('show-opponent-overlay');
+  if(opts.showZoneTitles) body.classList.add('show-zone-titles');
+  if(opts.pickerClass) String(opts.pickerClass).split(/\s+/).filter(Boolean).forEach(function(className){ body.classList.add(className); });
 
   const promptEl = document.createElement('div');
   promptEl.className = 'board-target-prompt';
@@ -6038,6 +6154,10 @@ function showBoardTargetPicker(opts, onConfirm) {
   zones.forEach(function(z){
     const panel = document.createElement('section');
     panel.className = 'board-target-zone';
+    const zoneTitle = document.createElement('div');
+    zoneTitle.className = 'board-target-zone-title';
+    zoneTitle.textContent = 'Zone ' + (z + 1);
+    panel.appendChild(zoneTitle);
     let scrollIdleTimer = 0;
     panel.addEventListener('scroll', function(){
       panel.classList.add('is-scrolling');
@@ -6691,9 +6811,9 @@ function queueSearchToHandMotion(player, card, source, handIndex, sequenceIndex,
   });
 }
 
-function searchDeckForType(player, type, prompt, maxCount=1) {
+function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
   const matches=G.players[player].deck.filter(c=>type === 'Supporter' && typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, player) : c.type===type);
-  pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand', immediate:true},
+  const openSearch = function(){ pickCardsVisual(matches, {title:prompt, subtitle:`From your deck — up to ${maxCount} ${type}(s)`, maxCount, confirmLabel:'Add to Hand', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
       const baseHandIndex = G.players[player].hand.length;
       chosen.forEach((c, idx)=>{
@@ -6707,12 +6827,14 @@ function searchDeckForType(player, type, prompt, maxCount=1) {
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
       if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
-    });
+    }); };
+  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
+  return openSearch();
 }
 
-function searchDeckForCard(player, filter, prompt, callback) {
+function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
   const matches=G.players[player].deck.filter(filter);
-  pickCardsVisual(matches, {title:prompt, subtitle:'Search your deck', maxCount:1, confirmLabel:'Choose', immediate:true},
+  const openSearch = function(){ pickCardsVisual(matches, {title:prompt, subtitle:'Search your deck', maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
@@ -6722,13 +6844,15 @@ function searchDeckForCard(player, filter, prompt, callback) {
       if(typeof playSfx === 'function') playSfx('searchFound');
       if(callback) callback(c, 'deck');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
-    });
+    }); };
+  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
+  return openSearch();
 }
 
-function searchAnySource(player, filter, prompt, callback) {
+function searchAnySource(player, filter, prompt, callback, searchOptions={}) {
   const recoverableDiscard = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, filter) : G.players[player].discard.filter(filter);
   const matches=[...G.players[player].deck.filter(filter),...recoverableDiscard];
-  pickCardsVisual(matches, {title:prompt, subtitle:'Search deck and discard', maxCount:1, confirmLabel:'Choose', immediate:true},
+  const openSearch = function(){ pickCardsVisual(matches, {title:prompt, subtitle:'Search deck and discard', maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
@@ -6738,7 +6862,9 @@ function searchAnySource(player, filter, prompt, callback) {
       G.players[player].discard = G.players[player].discard.filter(x=>x.iid!==c.iid);
       if(typeof playSfx === 'function') playSfx('searchFound');
       if(callback) callback(c, source);
-    });
+    }); };
+  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
+  return openSearch();
 }
 
 function pickFromDiscard(player, type, prompt, callback) {
@@ -7032,7 +7158,7 @@ function showAffChangeOverlay(cardInstance, newAff) {
   document.head.appendChild(style);
 })();
 
-function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporterInfo) {
+async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporterInfo) {
   const sourceSupporter = sourceSupporterInfo?.card || sourceSupporterInfo;
   if(!sourceSupporter) return;
   let ledger = null, ledgerRow = -1, ledgerCol = -1;
@@ -7049,16 +7175,20 @@ function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporter
   const previousSuppressPrompt = !!G._suppressEffectPrompt;
   const originalId = ledger.id;
   const originalWhenSetActivated = ledger.whenSetActivated;
+  const originalLedgerCopiedSupporterEffect = ledger._ledgerCopiedSupporterEffect;
 
   G.currentPlayer = player;
   G._suppressEffectPrompt = true;
   try {
     ledger.id = sourceSupporter.id;
     ledger.whenSetActivated = false;
-    runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
+    ledger._ledgerCopiedSupporterEffect = true;
+    await runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
   } finally {
     ledger.id = originalId;
     ledger.whenSetActivated = originalWhenSetActivated;
+    if(originalLedgerCopiedSupporterEffect === undefined) delete ledger._ledgerCopiedSupporterEffect;
+    else ledger._ledgerCopiedSupporterEffect = originalLedgerCopiedSupporterEffect;
     G._suppressEffectPrompt = previousSuppressPrompt;
     G.currentPlayer = previousPlayer;
   }
@@ -7216,6 +7346,20 @@ function highlightAllOpenCells() {
       }
     }
   }
+}
+
+function highlightAnickaVoyagerMoveCells(options) {
+  clearPlaceHighlights();
+  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+    if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      window.FateMatchRendererAdapter.scheduleRender('brave-horizons-targets');
+    }
+    return;
+  }
+  (Array.isArray(options) ? options : []).forEach(function(option){
+    const el = document.querySelector(`#board .cell[data-z="${option.z}"][data-r="${option.r}"][data-c="${option.c}"]`);
+    if(el) el.classList.add('placeable', 'brave-horizons-target');
+  });
 }
 
 function renderHandPreview(player) {
@@ -7436,6 +7580,7 @@ function setHint(msg) {
 function discardBoardCard(card, z, r, c) {
   if(G._aiAbort) return;
   if(!card) return;
+  if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)){toast(card.name+' cannot be discarded');return;}
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
   if(discardBerkeleyHomelessWithHandCost(card, z, r, c)) return;
@@ -7456,6 +7601,7 @@ function discardBoardCard(card, z, r, c) {
     }
   }
   G.board[z][r][c] = null;
+  if(typeof resolveVigilantesMarkedCardDeparture === 'function') resolveVigilantesMarkedCardDeparture(card, {force:true, reason:'discardBoardCard'});
   if(suppressDiscardVfx) delete card._suppressDiscardVfx;
   playDiscardSfx();
   // Berkeley CS Major (50): zone lock (set/consolidate block) persists for its duration,
@@ -7595,7 +7741,8 @@ function showCardInfoOverlay(card) {
   var affLabel = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[visual.aff]) ? AFF_LABEL[visual.aff] : visual.aff;
   var copiedPassiveName = (String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   var copiedPassiveEffect = (String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
-  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect);
+  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + buildWhisperTokenCopyBannerHTML(card);
+  var trackerHtml = buildCardDetailTrackerHTML(card, typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0, false);
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
   overlay.innerHTML =
@@ -7612,6 +7759,7 @@ function showCardInfoOverlay(card) {
             '<span class="pill fate">'+visual.fate+' Fate</span>'+
             '<span class="pill">'+affLabel+'</span>'+
           '</div>'+
+          trackerHtml+
           copiedPassiveBanner+
           '<div class="cd-eff">'+visual.effect+'</div>'+
           (card.flavor ? '<div class="cd-flavor">'+card.flavor+'</div>' : '')+
@@ -7866,7 +8014,9 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "89": "Daaaad! Rozsi is annoying me again!",
   "90": "Fishing - it is what all men secretly desire!",
   "99": "He's the one that started it first!\nWell Zsofia shouldn't have been putting her feet on my sword!",
-  "100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived"
+  "100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived",
+  "bh01": "In another time, in another place, these seas were once called Pacifique"
+  ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 
 function getCinematicVoiceline(card) {
@@ -8018,6 +8168,8 @@ function showConsolidationCinematic(card, opts) {
   var enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
   var perfLite = isConsolidationCinematicPerfLite();
   var timing = getConsolidationCinematicTiming(perfLite);
+  var cardShowcaseWidth = String(card.id || '') === '81' ? 'min(28vw,300px)' : 'min(30vw,320px)';
+  var cardShowcaseHeight = String(card.id || '') === '81' ? 'min(49vh,435px)' : 'min(52vh,460px)';
 
   var overlay = document.createElement('div');
   overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '');
@@ -8061,8 +8213,9 @@ function showConsolidationCinematic(card, opts) {
 
   var cardWrap = document.createElement('div');
   cardWrap.className = 'cc-card-wrap-v2' + (enhancedFx ? ' fx-cine-card-wrap' : '');
+  cardWrap.classList.add('cc-card-id-' + String(card.id || '').replace(/[^a-z0-9_-]/gi, ''));
   cardWrap.setAttribute('style',
-    'position:relative;z-index:2;width:min(74vw,800px);height:min(94vh,980px);' +
+    'position:relative;z-index:2;width:'+cardShowcaseWidth+';height:'+cardShowcaseHeight+';' +
     'display:flex;align-items:center;justify-content:center;' +
     'transform:'+(perfLite ? 'translateY(18px) scale(.94)' : 'translateY(70px) scale(.45)')+';opacity:0;' +
     'transition:transform '+(perfLite ? '.28s ease-out' : '.72s cubic-bezier(.16,.88,.2,1)')+',opacity '+(perfLite ? '.14s' : '.28s')+' ease-out;will-change:transform,opacity;'
@@ -8135,7 +8288,7 @@ function showConsolidationCinematic(card, opts) {
   if(typeof G !== 'undefined' && G) G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + timing.lockMs);
 
   if(opts.playVoice !== false && typeof playCardSound === 'function') playCardSound(card.id);
-  if(opts.playSfx !== false && typeof playSfx === 'function') {
+  if(opts.playSfx !== false && String(card && card.id || '') !== 'whisper17' && typeof playSfx === 'function') {
     playSfx(typeof getCharacterSetSfxType === 'function' ? getCharacterSetSfxType(card) : 'characterSet');
   }
 
@@ -8292,6 +8445,7 @@ function showEffectActivationCinematic(card, opts) {
     const rarity = String((card && card.rarity) || 'circle').toLowerCase();
     const color = '#ffd966';
     const imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
+    const activationCardSize = {w:'min(24vw,260px)', h:'min(43vh,364px)', frameScale:'1.18'};
     const overlay = document.createElement('div');
     overlay.className = 'cc-overlay-v2 effect-activation-cinematic rarity-' + rarity + (perfLite ? ' perf-lite' : '');
     overlay.setAttribute('style',
@@ -8309,7 +8463,7 @@ function showEffectActivationCinematic(card, opts) {
     overlay.appendChild(sigil);
     const cardWrap = document.createElement('div');
     cardWrap.setAttribute('style',
-      'position:relative;z-index:2;width:min(46vw,360px);height:min(76vh,500px);display:flex;align-items:center;justify-content:center;' +
+      'position:relative;z-index:2;width:'+activationCardSize.w+';height:'+activationCardSize.h+';display:flex;align-items:center;justify-content:center;' +
       'transform:translateY(0) scale(.72);opacity:0;transition:transform ' + (perfLite ? '.22s' : '.36s') + ' cubic-bezier(.14,.95,.18,1.03),opacity .16s ease-out;' +
       'filter:drop-shadow(0 0 18px rgba(255,217,102,.55));'
     );
@@ -8350,7 +8504,7 @@ function showEffectActivationCinematic(card, opts) {
     }
     const cardSquare = document.createElement('div');
     cardSquare.setAttribute('style',
-      'position:absolute;left:50%;top:50%;width:min(46vw,360px);height:min(76vh,500px);' +
+      'position:absolute;left:50%;top:50%;width:'+activationCardSize.w+';height:'+activationCardSize.h+';' +
       'transform:translate(-50%,-50%) scale(.88);opacity:0;border:2px solid rgba(255,217,102,.96);border-radius:6px;' +
       'box-shadow:0 0 18px rgba(255,217,102,.72),inset 0 0 16px rgba(255,217,102,.18);' +
       'transition:transform ' + Math.max(1.05, (duration - (perfLite ? 120 : 160)) / 1000).toFixed(2) + 's cubic-bezier(.18,.82,.18,1),opacity ' + Math.max(.65, (duration - (perfLite ? 360 : 480)) / 1000).toFixed(2) + 's ease-out;'
@@ -8358,7 +8512,7 @@ function showEffectActivationCinematic(card, opts) {
     cardWrap.appendChild(cardSquare);
     const label = document.createElement('div');
     label.setAttribute('style',
-      'position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
+      'position:absolute;left:50%;bottom:-86px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
       'font-family:var(--serif,serif);letter-spacing:.12em;text-transform:uppercase;text-shadow:0 0 14px rgba(255,217,102,.65);' +
       'font-size:clamp(17px,2.1vw,28px);line-height:1;white-space:nowrap;opacity:0;transition:opacity .2s ease-out;'
     );
@@ -8391,7 +8545,7 @@ function showEffectActivationCinematic(card, opts) {
         cardWrap.style.opacity = '1';
         cardWrap.style.transform = 'translateY(0) scale(1)';
         cardSquare.style.opacity = '1';
-        cardSquare.style.transform = 'translate(-50%,-50%) scale(1.62)';
+        cardSquare.style.transform = 'translate(-50%,-50%) scale('+activationCardSize.frameScale+')';
         label.style.opacity = perfLite ? '.78' : '1';
         });
       });

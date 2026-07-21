@@ -125,9 +125,11 @@ const FATE_SAMPLE_SFX = {
   characterSet_Initiator: {src:'soundeffects/codex-redesign/character_initiator_celestial_summon.wav', gain:0.9},
   characterSet_Coordinator: {src:'soundeffects/codex-redesign/character_coordinator_oceanic_arrival.wav', gain:0.9},
   characterSet_Dauntless: {src:'soundeffects/codex-redesign/character_dauntless_impact.wav', gain:0.9},
-  characterSet_Improvisor: {src:'soundeffects/codex-redesign/character_improvisor_future_drop.wav', gain:0.9}
+  characterSet_Improvisor: {src:'soundeffects/codex-redesign/character_improvisor_future_drop.wav', gain:0.9},
+  whisperConsolidation: {src:'setvoicelines/whisper.mp3', gain:0.95}
 };
 const _fateSampleAudioCache = new Map();
+let _lastWhisperConsolidationSfxAt = 0;
 
 function getCharacterSetSfxType(cardOrType) {
   const raw = typeof cardOrType === 'string' ? cardOrType : (cardOrType && cardOrType.type);
@@ -153,7 +155,15 @@ function playFateSampleSfx(type, isMenuSound, effectiveVol) {
     const audio = base.cloneNode(true);
     const gain = typeof spec.gain === 'number' ? spec.gain : 0.85;
     audio.volume = Math.max(0, Math.min(1, _masterVol * effectiveVol * gain * (isMenuSound ? 1.1 : 1)));
-    audio.play().catch(()=>{});
+    let fallbackPlayed = false;
+    const playFallback = function(){
+      if(fallbackPlayed || spec.fallbackTone !== 'whisper' || typeof playWhisperTokenTone !== 'function') return;
+      fallbackPlayed = true;
+      playWhisperTokenTone(effectiveVol);
+    };
+    audio.onerror = playFallback;
+    const attempt = audio.play();
+    if(attempt && typeof attempt.catch === 'function') attempt.catch(playFallback);
   } catch(e) {}
   return true;
 }
@@ -273,6 +283,32 @@ function playCardEffectFlashSfx(kind, options) {
 }
 window.playCardEffectFlashSfx = playCardEffectFlashSfx;
 
+function playWhisperTokenTone(effectiveVol) {
+  try {
+    const ctx = getAudioCtx();
+    const bus = getSfxBus(ctx);
+    const now = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.value = _masterVol * effectiveVol * 0.9;
+    out.connect(bus.input);
+    [0, 7, 12].forEach(function(step, index){
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = index === 0 ? 'sine' : 'triangle';
+      const freq = 392 * Math.pow(2, step / 12);
+      osc.frequency.setValueAtTime(freq, now + index * 0.035);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.18, now + 0.42 + index * 0.035);
+      gain.gain.setValueAtTime(0.001, now + index * 0.035);
+      gain.gain.exponentialRampToValueAtTime(0.055 / (index + 1), now + 0.08 + index * 0.035);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.62 + index * 0.04);
+      osc.connect(gain);
+      gain.connect(out);
+      osc.start(now + index * 0.035);
+      osc.stop(now + 0.7 + index * 0.04);
+    });
+  } catch(e) {}
+}
+
 function playSfx(type) {
   if(_masterVol<=0) return;
   if(type === 'effectNegated'){
@@ -290,6 +326,13 @@ function playSfx(type) {
   const effectiveVol = isMenuSound ? _menuVol : _sfxVol;
   if(effectiveVol<=0) return;
   if(isTurnChangeSound && !shouldPlayTurnChangeSfx()) return;
+  if(type === 'whisperConsolidation') {
+    const nowMs = Date.now();
+    if(nowMs - _lastWhisperConsolidationSfxAt < 900) return;
+    _lastWhisperConsolidationSfxAt = nowMs;
+    if(!playFateSampleSfx(type, isMenuSound, effectiveVol)) playWhisperTokenTone(effectiveVol);
+    return;
+  }
   if(type === 'fateLose') playFateLossTone(effectiveVol);
   if(playFateSampleSfx(type, isMenuSound, effectiveVol)) return;
   try {
@@ -1807,15 +1850,22 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'horizons1set', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh25': 'bh25set'
 };
-const GAME_SONGS = Array.from({length:16}, (_,i)=>'board'+(i+1));
-const GAME_AUDIO_FALLBACKS = {};
+const GAME_SONGS = Array.from({length:19}, (_,i)=>'board'+(i+1));
+const GAME_AUDIO_FALLBACKS = {
+  board17:'../igb17/board17'
+};
+const IGB17_BACKGROUND_FILES = Object.freeze([
+  'igb17/1.png','igb17/2.png','igb17/3.png','igb17/4.png',
+  'igb17/5.png','igb17/6.png','igb17/7.png','igb17/8.png',
+  'igb17/9.png','igb17/10.png'
+]);
 const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);
@@ -1863,21 +1913,175 @@ function getGameAudioSong(song) {
   return GAME_AUDIO_FALLBACKS[song] || song;
 }
 
+let _igb17RotationTimer = null;
+let _igb17LastRotationIndex = -1;
+let _igb17FadeLayerSeq = 0;
+
+function getLandscapeClockNow() {
+  if(typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function') {
+    const serverNow = Number(window.fateAuthorityServerNow());
+    if(Number.isFinite(serverNow)) return serverNow;
+  }
+  return Date.now();
+}
+
+function getIgb17RotationIndex() {
+  const state = typeof getLandscapeState === 'function' ? getLandscapeState() : (typeof G !== 'undefined' && G ? G._landscapeState : null);
+  const startedAt = Number(state && state.rotationStartedAt);
+  const start = Number.isFinite(startedAt) ? startedAt : getLandscapeClockNow();
+  const elapsed = Math.max(0, getLandscapeClockNow() - start);
+  return Math.floor(elapsed / 30000) % IGB17_BACKGROUND_FILES.length;
+}
+
+function getGameLandscapeBackgroundPath(bgNum) {
+  const n = Math.max(1, Math.min(19, Number(bgNum) || 1));
+  let path = '';
+  if(n === 17) path = IGB17_BACKGROUND_FILES[getIgb17RotationIndex()] || IGB17_BACKGROUND_FILES[0];
+  else if(n === 18) path = 'ingamebackgrouds/igb18.png';
+  else if(n === 19) path = 'ingamebackgrouds/igb19.png';
+  else if(typeof INGAME_BG_PATH === 'function') return INGAME_BG_PATH(n);
+  else path = `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`;
+  return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(path) : path;
+}
+window.getGameLandscapeBackgroundPath = getGameLandscapeBackgroundPath;
+
+function igb17BackgroundImageCss(bgImg, coin) {
+  return coin
+    ? `linear-gradient(180deg,rgba(6,8,14,.16),rgba(6,8,14,.28)), url(${bgImg})`
+    : `linear-gradient(180deg,rgba(6,8,14,.04),rgba(6,8,14,.12)), url(${bgImg})`;
+}
+
+function applyLandscapeBackgroundToScreen(screen, bgImg, coin) {
+  if(!screen) return;
+  screen.style.setProperty('--game-bg-img', `url(${bgImg})`);
+  screen.style.backgroundImage = igb17BackgroundImageCss(bgImg, coin);
+  screen.style.backgroundSize = 'cover, cover';
+  screen.style.backgroundPosition = 'center, center';
+  screen.style.backgroundRepeat = 'no-repeat, no-repeat';
+}
+
+function prepareIgb17FadeTarget(screen) {
+  if(!screen) return;
+  if(getComputedStyle(screen).position === 'static') screen.style.position = 'relative';
+  screen.style.isolation = 'isolate';
+  screen.style.overflow = 'hidden';
+  Array.from(screen.children).forEach(function(child){
+    if(child.classList && child.classList.contains('igb17-bg-fade-layer')) return;
+    if(getComputedStyle(child).position === 'static') child.style.position = 'relative';
+    if(!child.style.zIndex) child.style.zIndex = '1';
+  });
+}
+
+function removeIgb17FadeLayers() {
+  document.querySelectorAll('.igb17-bg-fade-layer').forEach(function(layer){
+    try { layer.remove(); } catch(e) {}
+  });
+}
+
+function crossfadeIgb17ScreenBackground(screen, bgImg, coin, force) {
+  if(!screen) return;
+  prepareIgb17FadeTarget(screen);
+  const nextImage = igb17BackgroundImageCss(bgImg, coin);
+  if(force || !screen.dataset.igb17BgReady) {
+    applyLandscapeBackgroundToScreen(screen, bgImg, coin);
+    screen.dataset.igb17BgReady = '1';
+    screen.dataset.igb17BgImage = nextImage;
+    screen.querySelectorAll(':scope > .igb17-bg-fade-layer').forEach(function(layer){ layer.remove(); });
+    return;
+  }
+  if(screen.dataset.igb17BgImage === nextImage) return;
+  const layer = document.createElement('div');
+  layer.className = 'igb17-bg-fade-layer';
+  layer.dataset.seq = String(++_igb17FadeLayerSeq);
+  layer.style.cssText = [
+    'position:absolute',
+    'inset:0',
+    'z-index:0',
+    'pointer-events:none',
+    'opacity:0',
+    'background-image:' + nextImage,
+    'background-size:cover,cover',
+    'background-position:center,center',
+    'background-repeat:no-repeat,no-repeat',
+    'transition:opacity 1400ms ease-in-out',
+    'will-change:opacity'
+  ].join(';');
+  screen.appendChild(layer);
+  requestAnimationFrame(function(){ layer.style.opacity = '1'; });
+  screen.dataset.igb17BgImage = nextImage;
+  setTimeout(function(){
+    applyLandscapeBackgroundToScreen(screen, bgImg, coin);
+    if(layer.parentNode) layer.remove();
+    screen.querySelectorAll(':scope > .igb17-bg-fade-layer').forEach(function(other){
+      if(other !== layer && Number(other.dataset.seq || 0) < Number(layer.dataset.seq || 0)) other.remove();
+    });
+  }, 1500);
+}
+
+function applyIgb17RotatingBackground(force) {
+  const active = typeof G !== 'undefined' && G && String(G.landscapeId || '') === 'igb17';
+  if(!active) {
+    removeIgb17FadeLayers();
+    return false;
+  }
+  const index = getIgb17RotationIndex();
+  if(!force && index === _igb17LastRotationIndex) return false;
+  _igb17LastRotationIndex = index;
+  const bgImg = getGameLandscapeBackgroundPath(17);
+  const gameScreen = document.getElementById('s-game');
+  const coinScreen = document.getElementById('s-coin');
+  crossfadeIgb17ScreenBackground(gameScreen, bgImg, false, force);
+  crossfadeIgb17ScreenBackground(coinScreen, bgImg, true, force);
+  window.__fateLastGameBackground = {
+    song:'board17',
+    cssVar:`url(${bgImg})`,
+    backgroundImage:igb17BackgroundImageCss(bgImg, false),
+    backgroundSize:'cover, cover',
+    backgroundPosition:'center, center',
+    backgroundRepeat:'no-repeat, no-repeat'
+  };
+  return true;
+}
+
+function scheduleIgb17BackgroundRotation(song, options) {
+  options = options || {};
+  if(_igb17RotationTimer) clearTimeout(_igb17RotationTimer);
+  _igb17RotationTimer = null;
+  if(String(song || '') !== 'board17') {
+    _igb17LastRotationIndex = -1;
+    removeIgb17FadeLayers();
+    return;
+  }
+  if(!options.skipApply) applyIgb17RotatingBackground(false);
+  const state = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
+  const startedAt = Number(state && state.rotationStartedAt);
+  const elapsed = Math.max(0, getLandscapeClockNow() - (Number.isFinite(startedAt) ? startedAt : getLandscapeClockNow()));
+  const wait = Math.max(250, 30000 - (elapsed % 30000) + 30);
+  _igb17RotationTimer = setTimeout(function(){
+    scheduleIgb17BackgroundRotation('board17');
+  }, wait);
+}
+window.applyIgb17RotatingBackground = applyIgb17RotatingBackground;
+
 function applyGameBackground(song=null) {
   const tutorialRunning = (typeof _tutorialActive !== 'undefined' && _tutorialActive) || (typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial');
   const pickedSong = tutorialRunning ? 'board1' : ((song && GAME_SONGS.includes(song)) ? song : pickGameSong());
   const board = document.getElementById('board');
   const gameScreen = document.getElementById('s-game');
   const coinScreen = document.getElementById('s-coin');
-  const bgNum = Math.max(1, Math.min(16, parseInt(String(pickedSong).replace('board',''), 10) || 1));
-  const bgImg = (typeof INGAME_BG_PATH === 'function')
-    ? INGAME_BG_PATH(bgNum)
-    : (typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(`optimized/backgrounds/ingamebackgrouds_igb${bgNum}.jpg`) : `optimized/backgrounds/ingamebackgrouds_igb${bgNum}.jpg`);
+  const bgNum = Math.max(1, Math.min(19, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  if(typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
+  const bgImg = getGameLandscapeBackgroundPath(bgNum);
   if(board){
     board.style.backgroundImage = 'none';
     board.style.backgroundSize = '';
     board.style.backgroundPosition = '';
     board.style.backgroundColor = 'transparent';
+  }
+  if(bgNum === 17) {
+    applyIgb17RotatingBackground(false);
+    scheduleIgb17BackgroundRotation(pickedSong, {skipApply:true});
+    return pickedSong;
   }
   if(gameScreen){
     gameScreen.style.setProperty('--game-bg-img', `url(${bgImg})`);
@@ -1894,7 +2098,6 @@ function applyGameBackground(song=null) {
     backgroundPosition:'center, center',
     backgroundRepeat:'no-repeat, no-repeat'
   };
-  if(typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
   if(coinScreen){
     coinScreen.style.setProperty('--game-bg-img', `url(${bgImg})`);
     coinScreen.style.backgroundImage = `linear-gradient(180deg,rgba(6,8,14,.16),rgba(6,8,14,.28)), url(${bgImg})`;
@@ -1902,12 +2105,13 @@ function applyGameBackground(song=null) {
     coinScreen.style.backgroundPosition = 'center, center';
     coinScreen.style.backgroundRepeat = 'no-repeat, no-repeat';
   }
+  scheduleIgb17BackgroundRotation(pickedSong);
   return pickedSong;
 }
 
 function transitionGameLandscape(song, opts = {}) {
   const pickedSong = (song && GAME_SONGS.includes(song)) ? song : pickGameSong();
-  const bgNum = Math.max(1, Math.min(16, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(19, parseInt(String(pickedSong).replace('board',''), 10) || 1));
   if(!opts.remote && opts.sourceCard && String(opts.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
     const reason = getFelicitaLandscapeChangeBlockReason('igb' + bgNum);
     if(reason) {
@@ -1929,9 +2133,7 @@ function transitionGameLandscape(song, opts = {}) {
   }
 
   const gameScreen = document.getElementById('s-game');
-  const bgImg = (typeof INGAME_BG_PATH === 'function')
-    ? INGAME_BG_PATH(bgNum)
-    : (typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(`optimized/backgrounds/ingamebackgrouds_igb${bgNum}.jpg`) : `optimized/backgrounds/ingamebackgrouds_igb${bgNum}.jpg`);
+  const bgImg = getGameLandscapeBackgroundPath(bgNum);
   let layer = null;
   if(gameScreen) {
     layer = document.createElement('div');
@@ -1957,6 +2159,7 @@ function transitionGameLandscape(song, opts = {}) {
   }
 
   _lastGameSong = pickedSong;
+  scheduleIgb17BackgroundRotation(pickedSong);
   setTimeout(function(){
     applyGameBackground(pickedSong);
     if(!opts.remote && typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
@@ -1990,6 +2193,10 @@ function transitionGameLandscape(song, opts = {}) {
 window.transitionGameLandscape = transitionGameLandscape;
 
 function playCardSound(cardId) {
+  if(String(cardId || '') === 'whisper17') {
+    if(typeof playSfx === 'function') playSfx('whisperConsolidation');
+    return;
+  }
   const soundFile = CARD_SOUNDS[cardId];
   if(!soundFile) return;
   if(AVAILABLE_CARD_SOUND_FILES && !AVAILABLE_CARD_SOUND_FILES.has(soundFile)) return;
@@ -2396,8 +2603,8 @@ function confirmEndGame() {
         const forfeitBgVar = gameScreen ? gameScreen.style.getPropertyValue('--game-bg-img') : '';
         const forfeitBgImage = gameScreen ? getComputedStyle(gameScreen).backgroundImage : '';
         const lastBg = window.__fateLastGameBackground || null;
-        const forfeitFallbackBg = (!forfeitBgVar && typeof _lastGameSong !== 'undefined' && typeof INGAME_BG_PATH === 'function')
-          ? `url(${INGAME_BG_PATH(Math.max(1, Math.min(16, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
+        const forfeitFallbackBg = (!forfeitBgVar && typeof _lastGameSong !== 'undefined' && typeof getGameLandscapeBackgroundPath === 'function')
+          ? `url(${getGameLandscapeBackgroundPath(Math.max(1, Math.min(19, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
           : (lastBg?.cssVar || '');
         let eloChange = 0;
         if(G.aiEnabled){

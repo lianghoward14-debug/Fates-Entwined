@@ -286,7 +286,7 @@ function isRetiredCardForBuilder(cardOrId) {
   if(typeof isRetiredChallengerCard === 'function') return isRetiredChallengerCard(cardOrId);
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
   if(typeof TEMP_DISABLED_CARD_IDS !== 'undefined' && TEMP_DISABLED_CARD_IDS.has(String(id))) return true;
-  return id === 'bh01' || id === 'bh25' || !!cardOrId?.retired;
+  return id === 'bh25' || !!cardOrId?.retired;
 }
 
 function getActiveCardIdsForDeck(ids, targetCount = 40) {

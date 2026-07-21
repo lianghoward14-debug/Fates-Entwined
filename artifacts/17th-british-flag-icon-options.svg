@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .icon{fill:none;stroke:#eff8ff;stroke-linecap:round;stroke-linejoin:round;filter:url(#softGlow)}
+      .frame{stroke-width:3.5}
+      .main{stroke-width:5}
+      .detail{stroke-width:3.5}
+      .tiny{stroke-width:2.75}
+    </style>
+  </defs>
+
+  <g class="icon" transform="translate(10 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M38 96V27"/>
+    <path class="main" d="M38 32H91V70H38Z"/>
+    <path class="detail" d="M38 45H91M38 58H91"/>
+    <path class="detail" d="M51 32V70"/>
+  </g>
+
+  <g class="icon" transform="translate(140 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M35 96V25"/>
+    <path class="main" d="M35 34C53 25 72 42 92 32V72C73 82 54 64 35 74Z"/>
+    <path class="detail" d="M35 47C53 39 72 55 92 45"/>
+    <path class="detail" d="M35 61C53 53 72 69 92 59"/>
+    <path class="detail" d="M49 30V71"/>
+  </g>
+
+  <g class="icon" transform="translate(270 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M35 98V25"/>
+    <path class="main" d="M35 33H88L96 43V75H35Z"/>
+    <path class="detail" d="M35 48H94M35 62H96"/>
+    <path class="detail" d="M50 33V75"/>
+    <path class="tiny" d="M88 33V43H96"/>
+  </g>
+
+  <g class="icon" transform="translate(400 10)">
+    <circle class="frame" cx="60" cy="60" r="53"/>
+    <path class="main" d="M38 98V24"/>
+    <path class="main" d="M38 32H91V72H38Z"/>
+    <path class="detail" d="M38 52H91"/>
+    <path class="detail" d="M58 32V72"/>
+    <path class="tiny" d="M38 32L58 52M58 32L38 52"/>
+  </g>
+</svg>

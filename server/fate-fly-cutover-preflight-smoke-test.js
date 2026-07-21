@@ -49,6 +49,7 @@ const requiredScripts = [
   'smoke:authority-bootstrap',
   'smoke:client-resolved-action-result',
   'smoke:client-resolved-ws',
+  'smoke:landscapes-17-18',
   'smoke:card-catalog',
   'smoke:ai-intelligence',
   'smoke:ai-learning',
@@ -74,6 +75,7 @@ runNode('WebSocket authority multiplayer smoke', 'server/local-multiplayer-smoke
 runNode('authority bootstrap', 'server/fate-authority-bootstrap-smoke-test.js');
 runNode('client-resolved action result', 'server/fate-client-resolved-action-result-smoke-test.js');
 runNode('client-resolved WebSocket', 'server/fate-client-resolved-ws-smoke-test.js');
+runNode('landscapes 17 and 18', 'server/fate-landscapes-17-18-smoke-test.js');
 runNode('card catalog', 'server/fate-card-catalog-smoke-test.js');
 runNode('AI intelligence leakage audit', 'server/fate-ai-intelligence-smoke-test.js');
 runNode('AI imitation and self-play', 'server/fate-ai-learning-smoke-test.js');

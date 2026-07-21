@@ -123,6 +123,7 @@
     subscribeProfile,
     profileName,
     profilePhoto,
+    profilePhotoCropStyle,
     renderTinyProfile(p){
       return `<div class="fo-profile-tiny"><img src="${esc(profilePhoto(p))}" onerror="this.onerror=null;this.src='blank.png';"><span>${esc(profileName(p))}</span></div>`;
     }

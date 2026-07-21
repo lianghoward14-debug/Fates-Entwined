@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 8;
+  const VERSION = 9;
   const VFX_BUDGET = {
     maxActiveParticles:0,
     maxActiveParticlesLow:0,
@@ -490,10 +490,21 @@
 
   function play(type, payload, options){
     const recipeType = String(type || '').toUpperCase();
-    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return null;
     if(animationsOff() && !actionRecipeAllowedWhileAnimationsOff(recipeType, options || {})) return null;
     const recipes = window.FateVfxRecipes;
     if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
+    if(recipeType === 'FATE_GAIN' || recipeType === 'FATE_LOSS'){
+      const p = payload || {};
+      const rawDelta = Number(p.fateDelta != null ? p.fateDelta : p.delta);
+      const amount = Math.max(1, Math.abs(Number(p.amount) || rawDelta || 1));
+      const delta = Number.isFinite(rawDelta) && rawDelta !== 0
+        ? rawDelta
+        : recipeType === 'FATE_LOSS' ? -amount : amount;
+      const adapter = window.FateMatchRendererAdapter;
+      if(adapter && typeof adapter.presentFateDelta === 'function') {
+        adapter.presentFateDelta(Object.assign({}, p, {delta}));
+      }
+    }
     const now = nowMs();
     const id = 'vfx:' + recipeType + ':' + (nextId++);
     let primitives = recipes.expand(recipeType, payload || {}) || [];
@@ -522,8 +533,11 @@
         });
       }
     });
-    activeRecipes.push({id, type:recipeType, startedAt:now, payload:payload || {}, primitiveCount:normalized.length});
-    activePrimitives = activePrimitives.concat(normalized);
+    const visualPrimitives = normalized.filter(function(p){ return p.kind !== 'soundCue'; });
+    if(visualPrimitives.length){
+      activeRecipes.push({id, type:recipeType, startedAt:now, payload:payload || {}, primitiveCount:visualPrimitives.length});
+      activePrimitives = activePrimitives.concat(visualPrimitives);
+    }
     recentRecipes.unshift({
       id,
       type:recipeType,
@@ -532,7 +546,7 @@
       payloadSummary:summarizePayload(payload)
     });
     recentRecipes = recentRecipes.slice(0, 18);
-    scheduleRender('vfx-' + recipeType.toLowerCase());
+    if(visualPrimitives.length) scheduleRender('vfx-' + recipeType.toLowerCase());
     return id;
   }
 
@@ -1513,7 +1527,10 @@
 
   function suppressAcceptedBridgeMotion(type, options){
     const recipeType = String(type || '').toUpperCase();
-    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return true;
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) {
+      const opts = options || {};
+      return !(opts.forceBridgeVfx || opts.allowBridgeVfx || opts.allowMatchActionMotion);
+    }
     if(!BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
     const opts = options || {};
     if(opts.forceBridgeVfx || opts.allowBridgeVfx) return false;

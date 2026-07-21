@@ -233,7 +233,7 @@
     const baseOppCardH = Math.round(baseOppCardW * 1.4);
     const oppFallbackW = Math.max(190, baseOppCardW * oppCols + oppColGap * Math.max(0, oppCols - 1) + 16);
     const oppFallbackH = baseOppCardH * oppRows + oppRowGap * Math.max(0, oppRows - 1) + 14;
-    const oppFallback = rect(22, packedOppHand ? 134 : 146, oppFallbackW, oppFallbackH);
+    const oppFallback = rect(22, packedOppHand ? 138 : 146, oppFallbackW, oppFallbackH);
     let oppRect = elementViewportRect('#opp-hand', oppFallback);
     if(oppRows > 1) {
       // The canvas-owned hand leaves an almost empty DOM proxy. Never use that

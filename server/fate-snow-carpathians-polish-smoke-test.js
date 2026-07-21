@@ -34,10 +34,12 @@ assert.match(core, /function applyWodnyPotokLumberjackSuppression[\s\S]*inst\.ty
 assert.match(core, /function isSupporterEffectSuppressed\(card\)[\s\S]*card\._lumberjackSuppressed[\s\S]*isCardSupporterForRules/,
   'Lumberjack suppression must remain visible during Blame Game');
 
-assert.match(core, /const cellIsPrintedSupporter = !!\(cell && cell\.type === 'Supporter'\)[\s\S]*cellIsPrintedSupporter \|\| cell\.id==='86'/,
-  'printed Supporters must remain reinforcement sources during Blame Game');
-assert.match(ai, /if\(card\.type === 'Supporter' \|\| card\.id === '86'\) mySups\.push/,
-  'AI consolidation must retain printed Supporter reinforcement sources');
+assert.match(core, /const cellIsPrintedSupporter = !!\(cell && cell\.type === 'Supporter'\)[\s\S]*: \(cell && cellIsPrintedSupporter\)/,
+  'only printed Supporters must remain normal reinforcement sources during Blame Game');
+assert.match(core, /function tickWintertideForCurrentPlayer\(\)[\s\S]{0,900}playFateChangeSound\(card, before, card\.currentFate, G\.currentPlayer\)/,
+  'Wintertide must use the live current player instead of an out-of-scope variable');
+assert.match(ai, /if\(card\.type === 'Supporter'\) mySups\.push/,
+  'AI consolidation must retain printed Supporter reinforcement sources without old Boleslaw exceptions');
 
 assert.match(data, /id:'84'[\s\S]{0,300}excluding copies of this card\.'/,
   'Kvetka catalog text must allow Star cards');

@@ -159,7 +159,7 @@ const CARDS = [
     flavor:'"Thanks to their adaptive defensive doctrine, the 6th French Fusiliers held off the German advance at Verdun for 67 days"',img:'37.png'},
   {id:'38',name:'Jake',ability:'I\'m Fat',type:'Dauntless',aff:'reality',
     fate:1,cost:3,rarity:'triangle',
-    effect:'Once a turn, you can send a Supporter from your hand to the discard to permanently increase this card\'s Fate by 5.',
+    effect:'Once a turn, you can send a Supporter from your field to the discard to permanently increase this card\'s Fate by 4.',
     flavor:'"Let my body become a totem to Bacchus"',img:'38.png'},
   {id:'39',name:'Juan Carlos',ability:'Costa Rica\'s Finest Abs',type:'Initiator',aff:'expanded_worlds',
     fate:3,cost:2,rarity:'square',
@@ -215,7 +215,7 @@ const CARDS = [
     flavor:'"Everything that Rivera fights for is to ensure his daughter a bright future in West Caribbea"',img:'51.png'},
   {id:'52',name:'The Vigilantes',ability:'Marked for Death',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, select any Supporter your opponent controls in this zone; make its Reinforcement value 0.',
+    effect:'When set, select one card your opponent controls in this zone. When it leaves the field, discard one random card from your opponent\'s hand.',
     flavor:'"One with the Sea... One with the Sea..."',img:'52.png'},
   {id:'53',name:'Colombo Thug',ability:'Thieves and Bullies',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
@@ -223,7 +223,7 @@ const CARDS = [
     flavor:'"Everyone in Colombo is poor, but only some are morally bankrupt"',img:'53.png'},
   {id:'54',name:'Wolf Creek Light Infantry',ability:'Elusive Movements',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, you can select one card you control in this zone and move it to any open square in any zone you control, or swap its location with any card you control on the field.',
+    effect:'When set, you can select one card you control in this zone and move it to any open square on your side of the field, or swap its location with any card you control on the field.',
     flavor:'"The motto of the Light Infantry is simple - When in doubt, run away"',img:'54.png'},
   {id:'55',name:'Bobby Jones',ability:'Cosmic Convergence',type:'Dauntless',aff:'expanded_worlds',
     fate:5,cost:1,rarity:'triangle',
@@ -251,7 +251,7 @@ const CARDS = [
     flavor:'"Maybe the true benefit of IB was the 4000 word essay we wrote along the way"',img:'60.png'},
   {id:'61',name:'Maria Song',ability:'Precise Shot',type:'Dauntless',aff:'eventide',
     fate:9,cost:3,rarity:'triangle',
-    effect:'When set, select any of your opponent\'s card on the field. Any other copy of that card in your opponent\'s hand or deck are discarded.',
+    effect:'When set, reveal all Character cards in your opponent\'s hand and select one. All copies of that card in their hand, deck, and on the field lose 6 Fate.',
     flavor:'"That giant cleaver is cool and all but what\'s the point if I just blow your brains out from over here?"',img:'61.png'},
   {id:'62',name:'Berkeley Homeless',ability:'People\'s Park',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
@@ -287,7 +287,7 @@ const CARDS = [
     flavor:'"Jorge\'s Personal Soldiers - Can they hold back the forces of Shenck?"',img:'70.png'},
   {id:'71',name:'Fort Calvin Watcher',ability:'All Eyes on the I-15',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, reveal the next 3 cards your opponent draws during only the Draw Phase. If any are characters, you may send them to the bottom of your opponent\'s deck. This effect expires after the third eligible draw.',
+    effect:'When set, reveal the next 3 cards your opponent draws during only the Draw Phase. On the next revealed Character, send it to the bottom of the deck. This effect expires after the third eligible draw.',
     flavor:'"These men only have one job - To monitor the flow of traffic on the I-15"',img:'71.png'},
   {id:'72',name:'Robo en la Noche',ability:'Bane of Birds',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
@@ -317,12 +317,12 @@ const CARDS = [
     fate:1,cost:0,rarity:'circle',
     effect:'When set, you can discard any Character card you control in this zone to draw 2 cards.',
     flavor:'"You\'d think that wrathful apparitions would be a cause for concern, but all they do is ramble about neo-liberalism"',img:'80.png'},
-  {id:'81',name:'Wojciech',ability:'Warm Pierogi',type:'Coordinator',aff:'expanded_worlds',
+  {id:'81',name:'Wojciech',ability:'Pierogi Barrage',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
-    effect:'Character cards in this card\'s zone that cost 2 or more Reinforcement now cost 1 less.',
+    effect:'For each card your opponent set or consolidated last turn, add a Pierogi Counter to your hand. Pierogi Counters stay in your hand for 1 turn, are immune to all effects, and cannot be discarded by your opponent. They can be placed in contested squares or any square your opponent owns, including added squares, and stay there for 3 of their turns.',
     flavor:'"Wojciech\'s advanced age has given him ample time to refine his pierogi craft - He is a true artist!"',img:'81.png'},
   {id:'82',name:'Felicyta Janowicz (Youth)',ability:'A Quaint Polish Village',type:'Initiator',aff:'expanded_worlds',
-    fate:4,cost:2,rarity:'square',
+    fate:4,cost:3,rarity:'square',
     effect:'Change the landscape to any of your choice.',
     flavor:'"Snow-capped peaks, picturesque rivers, and pine trees as far as the horizon..."',img:'82.png'},
   {id:'83',name:'Sebastyen Janowicz',ability:'Visegrad',type:'Initiator',aff:'expanded_worlds',
@@ -334,12 +334,12 @@ const CARDS = [
     effect:'When set, add any Expanded Worlds Character card from the deck to the hand and set it at no cost, excluding copies of this card.',
     flavor:'"Felicytaaa! Look outside, its snowing, its snowing! Hurry up and wake up we have to go play with everyone!"',img:'84.png'},
   {id:'85',name:'Felicyta Janowicz (Specters)',ability:'A Specter\'s Lament',type:'Dauntless',aff:'expanded_worlds',
-    fate:1,cost:3,rarity:'square',
+    fate:1,cost:4,rarity:'square',
     effect:'This card gains 1 Fate for the total amount of times your opponent set a Supporter this game.',
     flavor:'"A blood-stained axe, a shattered bayonet, a burning flag - I saw the last thing they saw in the fleeting moments of their lives"',img:'85.png'},
-  {id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Initiator',aff:'expanded_worlds',
+  {id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Improvisor',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
-    effect:'This card can be set at no cost from the hand if you have more Character cards than Supporters in your hand. This card counts as 3 Reinforcement, and any consolidation with this card gains 4 Fate.',
+    effect:'Whenever your opponent would search for a card, you can draw 1 card, and this card gains 3 Fate.',
     flavor:'"Boleslaw is the de-facto uncle of the Janowicz family - controversial and disruptive, but charismatic and amusing"',img:'86.png'},
   {id:'87',name:'Kv\u011btka Svoboda (Ukulele)',ability:'A Noble Effort at a Ballad',type:'Initiator',aff:'expanded_worlds',
     fate:3,cost:2,rarity:'triangle',
@@ -379,11 +379,11 @@ const CARDS = [
     flavor:'"The shadows of those who fell in forgotten battles, condemned to an eternity of lamentation"',img:'95.png'},
   {id:'96',name:'Wodny Potok Snow Shoveler',ability:'Shovel',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'Return four random cards in your discard pile to your deck.',
+    effect:'When set, return four random cards in your discard pile to your deck.',
     flavor:'"Maybe the real Christmas miracle is how Sebastyen is able to convince a group of grown adults to shovel snow for minimum wage"',img:'96.png'},
   {id:'97',name:'Visegrad Politician',ability:'Administrative Bloat',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'Your opponent\'s next two consolidations cost 1 extra Reinforcement.',
+    effect:'When set, your opponent\'s next two consolidations cost 1 more Reinforcement.',
     flavor:'"Every week, these fat men in suits come to have dinner parties with dad - they are all so boring!!!"',img:'97.png'},
   {id:'98',name:'Wodny Potok Skier',ability:'Avalanche Escape',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
@@ -410,15 +410,29 @@ const CARDS = [
     effect:'When set, this card gains 4 Fate. However this card cannot count for any bonuses, is immune to all effects and cannot be used for Consolidation.',
     flavor:'"A mere company of these futuristic soldiers could overthrow a small country"',img:'76.png'},
   // Brave Horizons
-  {id:'bh01',name:'Anicka (Voyager)',ability:'Brave Horizons',type:'Dauntless',aff:'eventide',
-    fate:8,cost:3,rarity:'star',set:'brave_horizons',retired:true,
-    effect:'Once a turn, you can move this card to any open square in any zone. If you do so, you may draw 1 card. This card is immune to all effects.',
-    flavor:'"Infinity beckons, but I already See all Ends"',img:''},
+  {id:'bh01',name:'Ani\u010dka Konvi\u010dka (Voyager)',ability:'Brave Horizons',type:'Dauntless',aff:'eventide',
+    fate:12,cost:3,rarity:'star',set:'brave_horizons',
+    effect:'Once a turn, you can move this card to any open square in any zone. If you do so, draw 1 card. This card is immune to all effects.',
+    flavor:'"Infinity beckons, but I already see all Ends"',img:'bh1.png'},
   {id:'bh25',name:'Jimmy (Viltrumite)',ability:'Left Hook of the Incel',type:'Dauntless',aff:'reality',
     fate:8,cost:3,rarity:'square',set:'brave_horizons',retired:true,
     effect:'When set, discard any card on the field.',
     flavor:'"I will burn this planet down before I spend another minute among these foids"',img:''},
 ];
+
+const WOJCIECH_PIEROGI_COUNTER = Object.freeze({
+  id:'token1',name:'Wojciech\'s Pierogi',ability:'A Fine Delicacy',type:'Counter',aff:'expanded_worlds',
+  fate:0,cost:0,rarity:'circle',
+  effect:'This Card is a Counter',
+  flavor:'',img:'token1.png',pierogiCounter:true
+});
+
+const WHISPER_OF_THE_HEART_TOKEN = Object.freeze({
+  id:'whisper17',name:'Whisper of the Heart',ability:'Concrete Roads',type:'Coordinator',aff:'expanded_worlds',
+  fate:5,cost:0,rarity:'star',
+  effect:'Set this token at no cost. It carries the copied Coordinator effect.',
+  flavor:'',img:'whisper.png',whisperLandscapeToken:true
+});
 
 // Cards 80-100 are released into every normal card pool. Keep this shared set
 // available for any future temporary holds without marking released cards retired.
@@ -543,7 +557,25 @@ const LANDSCAPES = {
     id:'igb16',
     name:'Santa Anna: Prosperity of a Treasure Port',
     shortName:'Prosperity of a Treasure Port',
-    description:'At any time, you may discard a card in your hand to increase Fate of any card on your side of the field by 3.'
+    description:'At any time, you may discard a card in your hand to increase Fate of any card on your side of the field by 4.'
+  },
+  igb17: {
+    id:'igb17',
+    name:'Tama City: Concrete Roads',
+    shortName:'Concrete Roads',
+    description:'Once per game, discard a Coordinator you control and 2 cards from your hand. Add a 5 Fate Whisper token to your hand that copies that Coordinator\'s effect and applies it to your whole field. Some Coordinators are not eligible.'
+  },
+  igb18: {
+    id:'igb18',
+    name:'Wodny Potok: An Idyllic Polish Village',
+    shortName:'An Idyllic Polish Village',
+    description:'Expanded Worlds Character cards you control gain 1 Fate at the start of each of your Draw Phases.'
+  },
+  igb19: {
+    id:'igb19',
+    name:'Californique: Lost Civilization of the Old Age',
+    shortName:'Lost Civilization of the Old Age',
+    description:'Character cards are discarded after remaining in the same player\'s hand for 3 of that player\'s turns.'
   }
 };
 window.LANDSCAPES = LANDSCAPES;
@@ -602,6 +634,9 @@ let G = {
   polishArmyUses: [0, 0],
   _blameGameEffects: [null, null],
   _administrativeBloatEffects: [],
+  _wojciechTurnPlacementCounts: [0, 0],
+  _wojciechLastTurnPlacementCounts: [0, 0],
+  _whisperLandscapeUses: [0, 0],
   _serverRngCounter: 0,
   // opponent suppressed effects
   oppSuppressedNextTurn: false,

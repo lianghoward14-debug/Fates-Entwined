@@ -241,7 +241,7 @@ function initLandscapeForSong(song) {
     if (typeof renderLandscapePanel === 'function') renderLandscapePanel();
     return null;
   }
-  const bgNum = Math.max(1, Math.min(16, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(19, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
   const id = 'igb' + bgNum;
   const landscape = (typeof LANDSCAPES !== 'undefined' && LANDSCAPES) ? LANDSCAPES[id] : null;
   G.landscapeId = id;
@@ -257,8 +257,17 @@ function initLandscapeForSong(song) {
       resolvedTurns: {},
       eventideMovedIids: {},
       drawPhaseCounts: [0, 0],
-      supporterEffectsThisTurn: [0, 0]
+      supporterEffectsThisTurn: [0, 0],
+      handTurnCounts: [0, 0],
+      handLastResolvedGameTurns: [null, null],
+      rotationStartedAt: id === 'igb17' ? Date.now() : null
     };
+    if (id === 'igb19' && Array.isArray(G.players)) {
+      G.players.forEach(function(player, playerIndex){
+        if (!player || !Array.isArray(player.hand)) return;
+        player.hand.forEach(function(card){ resetCaliforniqueHandTenure(card, playerIndex); });
+      });
+    }
   }
   if (typeof applyContinuousEffects === 'function') applyContinuousEffects();
   if (typeof renderLandscapePanel === 'function') renderLandscapePanel();
@@ -286,7 +295,12 @@ function getLandscapeState() {
   if (!G._landscapeState.eventideMovedIids) G._landscapeState.eventideMovedIids = {};
   if (!Array.isArray(G._landscapeState.drawPhaseCounts)) G._landscapeState.drawPhaseCounts = [0,0];
   if (!Array.isArray(G._landscapeState.supporterEffectsThisTurn)) G._landscapeState.supporterEffectsThisTurn = [0,0];
+  if (!Array.isArray(G._landscapeState.handTurnCounts)) G._landscapeState.handTurnCounts = [0,0];
+  if (!Array.isArray(G._landscapeState.handLastResolvedGameTurns)) G._landscapeState.handLastResolvedGameTurns = [null,null];
   const landscape = getCurrentLandscape();
+  if (landscape && landscape.id === 'igb17' && !Number.isFinite(Number(G._landscapeState.rotationStartedAt))) {
+    G._landscapeState.rotationStartedAt = Date.now();
+  }
   if (landscape && landscape.needsTargetZone && typeof G._landscapeState.targetZone !== 'number') {
     G._landscapeState.targetZone = Math.floor(getFateRng() * 3);
   }
@@ -464,8 +478,24 @@ function isSouthWindSpearmanCard(card) {
   return !!(card && (String(card.id || '') === '20' || (typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '20'))));
 }
 
+function isAnickaVoyagerCard(card) {
+  return !!(card && String(card.id || '') === 'bh01');
+}
+
+function isInnatelyFullyEffectImmuneCard(card) {
+  return isAnickaVoyagerCard(card);
+}
+
+function isWojciechPierogiCounter(card) {
+  return !!(card && (card.pierogiCounter === true || String(card.id || '') === 'token1'));
+}
+
+function isWhisperOfTheHeartToken(card) {
+  return !!(card && (card.whisperLandscapeToken === true || String(card.id || '') === 'whisper17'));
+}
+
 function isCardEffectImmutable(card) {
-  return isAlpineInfantryCard(card);
+  return isAlpineInfantryCard(card) || isWojciechPierogiCounter(card);
 }
 
 function isOpponentEffectOnlyImmuneCard(card) {
@@ -474,22 +504,26 @@ function isOpponentEffectOnlyImmuneCard(card) {
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
   if (!card || isFaceDownCard(card)) return false;
-  if (isCardEffectImmutable(card) || card.immuneFlag === true || card.opponentEffectImmune === true) return true;
+  if (isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true) return true;
   return isOpponentEffectOnlyImmuneCard(card) && typeof effectOwner === 'number' && Number(card.owner) !== Number(effectOwner);
 }
 
 function isFullyEffectImmuneCard(card) {
   if (!card || isFaceDownCard(card)) return false;
-  return isCardEffectImmutable(card) || card.immuneFlag === true || card.opponentEffectImmune === true;
+  return isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true;
 }
 
 function applyPermanentEffectImmunity(card) {
-  if (!isCardEffectImmutable(card)) return false;
+  const immutable = isCardEffectImmutable(card);
+  const innatelyImmune = isInnatelyFullyEffectImmuneCard(card);
+  if (!immutable && !innatelyImmune) return false;
   card.immuneFlag = true;
-  card.noBonus = true;
-  card.noConsolidate = true;
   card.cantBeReduced = true;
-  card._effectImmutable = true;
+  if (immutable) {
+    card.noBonus = true;
+    card.noConsolidate = true;
+    card._effectImmutable = true;
+  }
   delete card._wciBonus;
   delete card._handCostDelta;
   delete card._reinforcementBonus;
@@ -588,16 +622,52 @@ function isBlameGameActive(owner) {
 }
 
 function isCardSupporterForRules(card, owner) {
-  if(!card || card.type !== 'Supporter') return false;
+  if(!card || isWojciechPierogiCounter(card) || card.type !== 'Supporter') return false;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
   return !isBlameGameActive(resolvedOwner);
 }
 
 function isCardCharacterForRules(card, owner) {
-  if(!card) return false;
+  if(!card || isWojciechPierogiCounter(card)) return false;
   if(card.type !== 'Supporter') return true;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
   return isBlameGameActive(resolvedOwner);
+}
+
+const CALIFORNIQUE_HAND_TURN_LIMIT = 3;
+
+function isCaliforniqueCharacterCard(card) {
+  if (!card || isWojciechPierogiCounter(card)) return false;
+  const type = String(card.type || '');
+  return !!type && type !== 'Supporter' && type !== 'Counter';
+}
+
+function resetCaliforniqueHandTenure(card, handOwner) {
+  if (!card) return false;
+  delete card._igb19HandTurnsRemaining;
+  delete card._igb19HandOwner;
+  delete card._igb19LastCountedHandTurn;
+  if (!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb19'))) return false;
+  if (!isCaliforniqueCharacterCard(card)) return false;
+  const owner = handOwner === 0 || handOwner === 1 ? handOwner : getPlayerForHandCard(card);
+  card._igb19HandTurnsRemaining = CALIFORNIQUE_HAND_TURN_LIMIT;
+  card._igb19HandOwner = owner;
+  const state = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
+  card._igb19LastCountedHandTurn = Math.max(0, Number(state && state.handTurnCounts && state.handTurnCounts[owner]) || 0);
+  return true;
+}
+
+function getCaliforniqueHandTurnsRemaining(card) {
+  if (!card || !(typeof isLandscapeActive === 'function' && isLandscapeActive('igb19'))) return null;
+  if (!isCaliforniqueCharacterCard(card) || typeof G === 'undefined' || !G || !Array.isArray(G.players)) return null;
+  const owner = getPlayerForHandCard(card);
+  const hand = G.players[owner] && G.players[owner].hand;
+  if (!Array.isArray(hand) || !hand.some(function(entry){
+    return entry === card || String(entry && entry.iid || '') === String(card.iid || '');
+  })) return null;
+  if (Number(card._igb19HandOwner) !== Number(owner)) return CALIFORNIQUE_HAND_TURN_LIMIT;
+  const stored = Number(card._igb19HandTurnsRemaining);
+  return Number.isFinite(stored) ? Math.max(1, Math.min(CALIFORNIQUE_HAND_TURN_LIMIT, Math.floor(stored))) : CALIFORNIQUE_HAND_TURN_LIMIT;
 }
 
 const FELICYTA_TIMED_LANDSCAPE_TURNS = Object.freeze({igb2:14, igb8:10});
@@ -702,8 +772,7 @@ function getDisplayedCardCost(card) {
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   const owner = getPlayerForHandCard(card);
-  const hasConditionalFreeCost = (card.id === '86' && playerHasMoreCharactersThanSupportersInHand(owner)) ||
-    (card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia']));
+  const hasConditionalFreeCost = card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia']);
   const bloatPenalty = isCardCharacterForRules(card, owner) ? getAdministrativeBloatCostPenalty(owner) : 0;
   const printedCost = hasConditionalFreeCost ? 0 : (typeof card.cost === 'number' ? card.cost : 0);
   if (isCardEffectImmutable(card)) return Math.max(0, printedCost + bloatPenalty);
@@ -734,7 +803,7 @@ function recordHandCardEffectModifier(card, effect) {
 }
 
 function getHandCardEffectModifiers(card) {
-  if (!card || isCardEffectImmutable(card)) return [];
+  if (!card) return [];
   const rows = [];
   const seen = new Set();
   function addRow(row) {
@@ -751,6 +820,15 @@ function getHandCardEffectModifiers(card) {
     if (!text) text = parts.join(', ') || 'Card modified.';
     rows.push({ key, name:String(row.name || 'Effect'), text, fateDelta, costDelta });
   }
+  const californiqueTurns = getCaliforniqueHandTurnsRemaining(card);
+  if (californiqueTurns !== null) {
+    addRow({
+      key:'igb19-hand-expiry',
+      name:'Californique',
+      text:californiqueTurns + ' turn' + (californiqueTurns === 1 ? '' : 's') + ' left in hand before this Character is discarded.'
+    });
+  }
+  if (isCardEffectImmutable(card)) return rows;
   if (Array.isArray(card._handEffectModifiers)) card._handEffectModifiers.forEach(addRow);
   if (card._wciBonus || Number(card._handCostDelta)) {
     addRow({
@@ -778,14 +856,11 @@ function getSupportReinforcementValue(card) {
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   if (isCardEffectImmutable(card)) {
-    if (card.id === '86') return 3;
     if (card.id === '09') return 2;
     if (card.id === '37' && card._returnUsed) return 0.5;
     return 1;
   }
-  if (card._markedForDeath) return 0; // Vigilantes: marked cards have 0 reinforcement
   let value = 1;
-  if (card.id === '86') value = 3;
   if (card.id === '09') value = 2;
   if (card.id === '37' && card._returnUsed) value = 0.5;
   if (Number(card._reinforcementBonus)) value += Number(card._reinforcementBonus);
@@ -838,18 +913,35 @@ function consumePendingPlacementFlags(sourceCard, placedCard) {
   if (placedCard && placedCard._handCostDelta) delete placedCard._handCostDelta;
   if (sourceCard && sourceCard._handEffectModifiers) delete sourceCard._handEffectModifiers;
   if (placedCard && placedCard._handEffectModifiers) delete placedCard._handEffectModifiers;
+  if (sourceCard) {
+    delete sourceCard._igb19HandTurnsRemaining;
+    delete sourceCard._igb19HandOwner;
+    delete sourceCard._igb19LastCountedHandTurn;
+  }
+  if (placedCard) {
+    delete placedCard._igb19HandTurnsRemaining;
+    delete placedCard._igb19HandOwner;
+    delete placedCard._igb19LastCountedHandTurn;
+  }
 }
 
 if (typeof window !== 'undefined') {
   window.isAlpineInfantryCard = isAlpineInfantryCard;
   window.isSouthWindSpearmanCard = isSouthWindSpearmanCard;
+  window.isAnickaVoyagerCard = isAnickaVoyagerCard;
+  window.isInnatelyFullyEffectImmuneCard = isInnatelyFullyEffectImmuneCard;
   window.isCardEffectImmutable = isCardEffectImmutable;
+  window.isWojciechPierogiCounter = isWojciechPierogiCounter;
+  window.isWhisperOfTheHeartToken = isWhisperOfTheHeartToken;
   window.isOpponentEffectOnlyImmuneCard = isOpponentEffectOnlyImmuneCard;
   window.isTargetImmuneToEffectOwner = isTargetImmuneToEffectOwner;
   window.isFullyEffectImmuneCard = isFullyEffectImmuneCard;
   window.applyPermanentEffectImmunity = applyPermanentEffectImmunity;
   window.recordHandCardEffectModifier = recordHandCardEffectModifier;
   window.getHandCardEffectModifiers = getHandCardEffectModifiers;
+  window.isCaliforniqueCharacterCard = isCaliforniqueCharacterCard;
+  window.resetCaliforniqueHandTenure = resetCaliforniqueHandTenure;
+  window.getCaliforniqueHandTurnsRemaining = getCaliforniqueHandTurnsRemaining;
   window.isCardSupporterForRules = isCardSupporterForRules;
   window.isCardCharacterForRules = isCardCharacterForRules;
   window.getFelicitaLandscapeChangeBlockReason = getFelicitaLandscapeChangeBlockReason;
@@ -939,12 +1031,21 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
   if(!Array.isArray(G.players[playerIndex].discard)) G.players[playerIndex].discard = [];
   const discarded = [];
   cards.forEach(function(card){
+    if(card) {
+      delete card._igb19HandTurnsRemaining;
+      delete card._igb19HandOwner;
+      delete card._igb19LastCountedHandTurn;
+    }
+    if(options.skipVigilantesDeparture !== true && typeof resolveVigilantesMarkedCardDeparture === 'function') {
+      resolveVigilantesMarkedCardDeparture(card, {reason:'discard'});
+    }
     if(card && String(card.id || '') === '70' && card.guerilla_transferred !== true && options.wineCountryReturn !== true){
       const holder = Number(playerIndex) === 0 ? 1 : 0;
       if(G.players[holder] && Array.isArray(G.players[holder].hand)){
         card.guerilla_transferred = true;
         card.guerilla_turnsLeft = 5;
         card.guerilla_owner = Number(playerIndex);
+        if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, holder);
         G.players[holder].hand.push(card);
         showWineCountryGuerillaSentBanner();
         return;
@@ -1092,6 +1193,9 @@ function resetMatchTransientState() {
   G._mailDeliveries = [];
   G._blameGameEffects = [null, null];
   G._administrativeBloatEffects = [];
+  G._wojciechTurnPlacementCounts = [0, 0];
+  G._wojciechLastTurnPlacementCounts = [0, 0];
+  G._whisperLandscapeUses = [0, 0];
   G._serverRngCounter = 0;
   G.usMarinesUses = [0, 0];
   G.polishArmyUses = [0, 0];

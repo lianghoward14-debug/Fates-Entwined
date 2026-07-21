@@ -41,6 +41,7 @@ const ROOM_IDLE_MS = Number(process.env.FATE_WS_ROOM_IDLE_MS || 1000 * 60 * 90);
 const PING_MS = Number(process.env.FATE_WS_PING_MS || 45000);
 const DISCONNECT_TIMEOUT_MS = Number(process.env.FATE_WS_DISCONNECT_TIMEOUT_MS || 30000);
 const SPECTATOR_STALE_MS = Math.max(30000, Number(process.env.FATE_WS_SPECTATOR_STALE_MS || 45000) || 45000);
+const SOCIAL_PRESENCE_TTL_MS = Math.max(100, Math.min(5 * 60 * 1000, Number(process.env.FATE_WS_SOCIAL_PRESENCE_TTL_MS || 15000) || 15000));
 const REACTION_TIMEOUT_MS = Number(process.env.FATE_WS_REACTION_TIMEOUT_MS || 16000);
 const SHUTDOWN_GRACE_MS = Number(process.env.FATE_WS_SHUTDOWN_GRACE_MS || 4500);
 const FLY_PERSIST_DEBOUNCE_MS = Math.max(50, Number(process.env.FATE_WS_PERSIST_DEBOUNCE_MS || 750) || 750);
@@ -82,6 +83,7 @@ const rooms = new Map();
 const sockets = new Set();
 const matchmaking = new Map();
 const flyPlayerStats = new Map();
+const flySocialPresence = new Map();
 const flyMatchResults = new Map();
 const flyAIRecords = new Map();
 const flyAISimMatches = [];
@@ -1170,11 +1172,12 @@ function flySocialState(uid){
   for(const invite of flyPartyInvites.values()){
     if(invite.toUid === safeUid) invites[invite.fromUid] = publicFlyPartyInvite(invite);
   }
-  const onlineProfiles = [...flyPlayerStats.values()]
-    .map(publicFlyProfile)
+  pruneStaleFlySocialPresence();
+  const onlineProfiles = [...flySocialPresence.entries()]
+    .sort((a,b)=>b[1] - a[1])
+    .map(([onlineUid])=>publicFlyProfile(flyPlayerStats.get(onlineUid) || {uid:onlineUid}))
     .filter(Boolean)
     .filter(profile=>!isFlyInternalProfile(profile))
-    .sort((a,b)=>(Number(b.updatedAt || 0) || 0) - (Number(a.updatedAt || 0) || 0))
     .slice(0, 40);
   const profiles = {};
   onlineProfiles.forEach(profile=>{ profiles[profile.uid] = profile; });
@@ -1524,6 +1527,28 @@ function publicFlyPublicDeckSummary(deck){
     ratings:[],
     comments:[]
   });
+}
+
+function touchFlySocialPresence(uid, at = now()){
+  const safeUid = String(uid || '').slice(0, 128);
+  if(!safeUid) return false;
+  flySocialPresence.set(safeUid, Number(at || 0) || now());
+  return true;
+}
+
+function clearFlySocialPresence(uid){
+  return flySocialPresence.delete(String(uid || '').slice(0, 128));
+}
+
+function pruneStaleFlySocialPresence(at = now()){
+  const cutoff = at - SOCIAL_PRESENCE_TTL_MS;
+  let removed = 0;
+  for(const [uid, lastSeen] of flySocialPresence.entries()){
+    if(Number(lastSeen || 0) > cutoff) continue;
+    flySocialPresence.delete(uid);
+    removed += 1;
+  }
+  return removed;
 }
 
 function sanitizeLoreText(value, maxLen){
@@ -4565,6 +4590,7 @@ async function verifyRequestUser(req, body){
   const uid = String(body?.uid || verified.uid || '');
   if(verified.uid !== 'dev-token-disabled' && uid !== verified.uid) throw new Error('uid does not match Firebase token');
   if(!uid) throw new Error('missing uid');
+  touchFlySocialPresence(uid);
   return uid;
 }
 
@@ -4827,6 +4853,14 @@ async function handleApiRequest(req, res, url){
       const uidParam = String(url.searchParams.get('uid') || '');
       const uid = await verifyRequestUser(req, {uid:uidParam});
       writeJson(res, 200, Object.assign({ok:true}, flySocialStateFor(uid)));
+      return true;
+    }
+    if(req.method === 'POST' && parts[1] === 'social' && parts[2] === 'presence'){
+      const body = await readJsonBody(req);
+      const uid = await verifyRequestUser(req, body);
+      if(body.online === false) clearFlySocialPresence(uid);
+      else touchFlySocialPresence(uid);
+      writeJson(res, 200, {ok:true, uid, online:flySocialPresence.has(uid)});
       return true;
     }
     if(req.method === 'GET' && parts[1] === 'social' && parts[2] === 'lookup'){

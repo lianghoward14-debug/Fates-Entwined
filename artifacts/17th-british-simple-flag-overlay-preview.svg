@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="70%">
+      <stop offset="0" stop-color="#172a48"/>
+      <stop offset="0.62" stop-color="#090f1e"/>
+      <stop offset="1" stop-color="#03060c"/>
+    </radialGradient>
+    <radialGradient id="disc" cx="46%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#254f80" stop-opacity="0.62"/>
+      <stop offset="0.72" stop-color="#0a182c" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#050b15"/>
+    </radialGradient>
+    <filter id="glow" x="-45%" y="-45%" width="190%" height="190%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="900" height="420" rx="24" fill="url(#bg)"/>
+  <path d="M34 30H866M34 390H866" stroke="#d4b84b" stroke-opacity="0.5"/>
+  <text x="450" y="54" text-anchor="middle" fill="#f3dc80" font-family="Georgia, serif" font-size="20" letter-spacing="3">17TH BRITISH REGIMENT</text>
+  <text x="450" y="82" text-anchor="middle" fill="#91b8e8" font-family="Georgia, serif" font-size="13" letter-spacing="2">SIMPLE FLAG OVERLAY</text>
+
+  <circle cx="430" cy="211" r="143" fill="#0b1424" stroke="#75b6ff" stroke-opacity="0.2"/>
+  <circle cx="430" cy="211" r="127" fill="url(#disc)" stroke="#dfeeff" stroke-width="6" filter="url(#glow)"/>
+
+  <g transform="translate(0 6)" fill="none" stroke="#eff8ff" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M348 296V112" stroke-width="12"/>
+    <path d="M348 120H542V240H348Z" stroke-width="12"/>
+    <path d="M348 158H542M348 202H542" stroke-width="11"/>
+    <path d="M392 120V240" stroke-width="11"/>
+    <path d="M348 104L333 119L348 134L363 119Z" stroke-width="9"/>
+  </g>
+
+  <g>
+    <text x="743" y="120" text-anchor="middle" fill="#b5c8df" font-family="Georgia, serif" font-size="14" letter-spacing="1.5">ACTUAL OVERLAY SIZE</text>
+    <circle cx="743" cy="192" r="57" fill="url(#disc)" stroke="#dfeeff" stroke-width="3"/>
+    <g fill="none" stroke="#eff8ff" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M714 229V158" stroke-width="4"/>
+      <path d="M714 162H773V205H714Z" stroke-width="4"/>
+      <path d="M714 176H773M714 191H773" stroke-width="3.75"/>
+      <path d="M727 162V205" stroke-width="3.75"/>
+      <path d="M714 153L708 159L714 165L720 159Z" stroke-width="3.25"/>
+    </g>
+    <text x="743" y="273" text-anchor="middle" fill="#91b8e8" font-family="Georgia, serif" font-size="13">Flat flag + bold canton</text>
+  </g>
+
+  <g transform="translate(80 150)">
+    <path d="M0 0H128M0 38H92M0 76H110" stroke="#75b6ff" stroke-opacity="0.26" stroke-width="2"/>
+    <text x="0" y="112" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Plain rectangular flag</text>
+    <text x="0" y="137" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Fewer interior lines</text>
+    <text x="0" y="162" fill="#b5c8df" font-family="Georgia, serif" font-size="14">Clear at small size</text>
+  </g>
+</svg>

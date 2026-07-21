@@ -1674,7 +1674,7 @@ function findLiveConsolidationTributeEntry(tribute) {
 }
 
 function sendConsolidationTributeToDiscard(card, cp) {
-  if(!card) return;
+  if(!card) return false;
   if(card.id==='50' && typeof G._artilleryLockTurnsLeft==='number' && G._artilleryLockTurnsLeft>0){
     G._artilleryEffectBlockLifted = true;
     toast('Berkeley CS Major left the field - effect suppression lifted, but zone lock remains.');
@@ -1690,32 +1690,64 @@ function sendConsolidationTributeToDiscard(card, cp) {
     if(unsuppressCount > 0) toast('Lydia left the field - '+unsuppressCount+' Supporter aura(s) restored');
   }
   if(card._stolenByRobo) {
-    const origOwner = card._roboOrigOwner;
+    const origOwner = Number(card._roboOrigOwner);
+    if((origOwner !== 0 && origOwner !== 1) || !G.players?.[origOwner] || !Array.isArray(G.players[origOwner].deck)) return false;
     card._stolenByRobo = false;
     G.players[origOwner].deck.push(card);
     shuffleDeck(origOwner);
     toast(`${card.name} returned to opponent's deck`);
-    return;
+    return true;
   }
-  fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : cp, card, {sound:false});
+  return fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : cp, card, {sound:false}) === true;
 }
 
 function spendConsolidationTributesAtomically(tributes, cp) {
-  const removed = [];
+  const selected = Array.isArray(tributes) ? tributes : [];
+  const entries = [];
   const seen = new Set();
-  (Array.isArray(tributes) ? tributes : []).forEach(function(tribute){
+  for(const tribute of selected){
     const entry = findLiveConsolidationTributeEntry(tribute);
-    if(!entry || !entry.card) return;
+    if(!entry || !entry.card) return [];
     const key = entry.card.iid ? 'iid:' + String(entry.card.iid) : ['slot', entry.z, entry.r, entry.c].join(':');
-    if(seen.has(key)) return;
+    if(seen.has(key)) return [];
     seen.add(key);
-    G.board[entry.z][entry.r][entry.c] = null;
-    if(entry.card._suppressDiscardVfx) delete entry.card._suppressDiscardVfx;
-    sendConsolidationTributeToDiscard(entry.card, cp);
-    removed.push(entry);
+    entries.push(entry);
+  }
+  if(entries.length !== selected.length) return [];
+
+  const pileSnapshots = (Array.isArray(G.players) ? G.players : []).map(function(player){
+    return {
+      hand:Array.isArray(player?.hand) ? player.hand.slice() : [],
+      deck:Array.isArray(player?.deck) ? player.deck.slice() : [],
+      discard:Array.isArray(player?.discard) ? player.discard.slice() : []
+    };
   });
-  if(removed.length && typeof playDiscardSfx === 'function') playDiscardSfx();
-  return removed;
+  const cardSnapshots = entries.map(entry=>({card:entry.card, state:Object.assign({}, entry.card)}));
+  try {
+    entries.forEach(function(entry){
+      G.board[entry.z][entry.r][entry.c] = null;
+      if(entry.card._suppressDiscardVfx) delete entry.card._suppressDiscardVfx;
+    });
+    entries.forEach(function(entry){
+      if(!sendConsolidationTributeToDiscard(entry.card, cp)) throw new Error('tribute destination was unavailable');
+    });
+  } catch(err) {
+    pileSnapshots.forEach(function(snapshot, playerIndex){
+      if(!G.players?.[playerIndex]) return;
+      G.players[playerIndex].hand = snapshot.hand;
+      G.players[playerIndex].deck = snapshot.deck;
+      G.players[playerIndex].discard = snapshot.discard;
+    });
+    cardSnapshots.forEach(function(snapshot){
+      Object.keys(snapshot.card).forEach(key=>{ if(!Object.prototype.hasOwnProperty.call(snapshot.state, key)) delete snapshot.card[key]; });
+      Object.assign(snapshot.card, snapshot.state);
+    });
+    entries.forEach(function(entry){ G.board[entry.z][entry.r][entry.c] = entry.card; });
+    console.error('Consolidation tribute transaction rolled back', err);
+    return [];
+  }
+  if(entries.length && typeof playDiscardSfx === 'function') playDiscardSfx();
+  return entries;
 }
 
 function finalizeConsolidate(card, tributes, targetIdx) {
@@ -1750,10 +1782,13 @@ function finalizeConsolidate(card, tributes, targetIdx) {
     });
     const removedTributes = spendConsolidationTributesAtomically(tributes, cp);
     if(removedTributes.length !== tributes.length) {
-      console.warn('Consolidation tribute cleanup removed fewer cards than selected', {
+      console.warn('Consolidation tribute cleanup was rolled back', {
         expected:tributes.length,
         removed:removedTributes.length
       });
+      toast('Consolidation cancelled - the selected supporters changed.');
+      renderGame();
+      return;
     }
 
     const inst = newInstance(card);
@@ -2203,10 +2238,18 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, cell=>cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76');
       break;
     }
-    case '71': { // Fort Calvin Watcher: reveal next 3 opp draw-phase cards, send characters to bottom
+    case '71': { // Fort Calvin Watcher: reveal three draws, redirect only the first Character
       // Flag: next 3 draws by opponent during draw phase are revealed
       if(!G._fortCalvinActive) G._fortCalvinActive = [];
-      G._fortCalvinActive.push({owner:cp, remaining:3});
+      G._fortCalvinActive.push({
+        owner:cp,
+        remaining:3,
+        characterSent:false,
+        sourceIid:inst.iid || null,
+        lastRevealedName:null,
+        lastRevealedWasCharacter:false,
+        sentCharacterName:null
+      });
       toast('Fort Calvin Watcher active — next 3 opponent draws will be revealed!');
       break;
     }
@@ -2688,17 +2731,37 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast(`Henry Dong gained ${cards.length*3} Fate!`);
         renderGame();
       }); break;
-    case '38': // Jake: discard supporter, +5 Fate (once per turn)
+    case '38': { // Jake: discard a field Supporter, +4 Fate (once per turn)
       if(card.effectUsedThisTurn){toast('Jake can only use this effect once per turn');break;}
-      pickCardsFromHand(cp,1,'Discard a Supporter for +5 Fate:',(cards)=>{
-        if(!cards[0]||cards[0].type!=='Supporter'){toast('Must be a Supporter');return;}
-        G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==cards[0].iid);
-        G.players[cp].discard.push(cards[0]);
-        card.currentFate+=5;
-        card.effectUsedThisTurn=true;
-        toast('Jake gained 5 Fate!');
+      const supporters=[];
+      (G.board||[]).forEach((zone,tz)=>(zone||[]).forEach((row,tr)=>(row||[]).forEach((fieldCard,tc)=>{
+        if(!fieldCard || fieldCard.owner!==cp || String(fieldCard.id||'')==='76') return;
+        const validSupporter=typeof isCardSupporterForRules==='function' ? isCardSupporterForRules(fieldCard,cp) : fieldCard.type==='Supporter';
+        if(validSupporter) supporters.push({card:fieldCard,z:tz,r:tr,c:tc});
+      })));
+      if(!supporters.length){toast('No Supporter on your field to discard');break;}
+      await new Promise(resolve=>showBoardTargetPicker({
+        title:'Jake — I\'m Fat',
+        prompt:'Choose one of your Supporters on the field to discard. Jake permanently gains 4 Fate.',
+        entries:supporters,zones:[0,1,2],maxCount:1,confirmLabel:'Discard Supporter',showZoneTitles:true,pickerClass:'jake-field-picker',onCancel:resolve
+      },(chosen)=>{
+        const spent=chosen&&chosen[0];
+        if(!spent||!spent.card){resolve();return;}
+        const liveSpent=G.board?.[spent.z]?.[spent.r]?.[spent.c]||null;
+        if(!liveSpent || (spent.card.iid&&liveSpent.iid!==spent.card.iid) || liveSpent.owner!==cp){toast('That Supporter is no longer on the field.');resolve();return;}
+        const liveJake = G.board?.[z]?.[r]?.[c] || null;
+        const jake = liveJake && String(liveJake.id || '') === '38' && (!card.iid || !liveJake.iid || String(liveJake.iid) === String(card.iid))
+          ? liveJake
+          : card;
+        discardBoardCard(liveSpent,spent.z,spent.r,spent.c);
+        modifyFate(jake,4,'permanent',cp);
+        jake.effectUsedThisTurn=true;
+        if(jake !== card) card.effectUsedThisTurn=true;
+        toast('Jake gained 4 Fate!');
         renderGame();
-      }); break;
+        resolve();
+      })); break;
+    }
     case 'bh25': // Jimmy Viltrumite: discard any card on field
       showModal('Left Hook of the Incel','Select any card on the field to discard:',
         [{label:'Choose Target',action:()=>{closeModal();pickAnyBoardCard(cp,(tgt,tz,tr,tc)=>{

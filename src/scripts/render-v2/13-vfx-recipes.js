@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxRecipes) return;
 
-  const VERSION = 50;
+  const VERSION = 51;
   const STYLE_VERSION = 'professional-tcg-motion-v47-large-draw';
   const MOTION = {
     micro:96,
@@ -17,29 +17,6 @@
     stagger:72
   };
   const MOTION_PROFILES = {
-    setShowcase:{
-      path:'showcase',
-      easing:'out-expo-soft',
-      arc:.34,
-      lift:.42,
-      scale:1.18,
-      endScale:1.10,
-      textureScale:1.72,
-      overshoot:.038,
-      launchSquash:.030,
-      skewX:.7,
-      settleMs:76
-    },
-    setLanding:{
-      path:'slam',
-      easing:'snap-settle',
-      scale:1.028,
-      endScale:1,
-      textureScale:1.10,
-      landSquash:.040,
-      wobble:1.8,
-      settleMs:82
-    },
     tributeStrike:{
       path:'s-curve',
       easing:'in-out-cubic',
@@ -276,10 +253,6 @@
     }, opts || {}));
   }
 
-  function profiledMove(profileName, opts){
-    return cardMove(Object.assign({}, MOTION_PROFILES[profileName] || {}, opts || {}));
-  }
-
   function snapMove(opts){
     return P().cardMove(Object.assign({
       duration:MOTION.snap,
@@ -305,35 +278,49 @@
     });
   }
 
-  function fateDeltaText(payload, sign){
+  function playCard(payload){
     const p = payload || {};
-    if(p.text != null) return String(p.text).replace(/\s*Fate\b/ig, '').trim();
-    return sign + (p.amount || 1);
-  }
-
-  function fateNumberPop(payload, sign, color, theme){
-    const p = payload || {};
-    const amount = Math.max(1, Math.abs(Number(p.amount != null ? p.amount : p.fateDelta) || 1));
-    const countMs = 1;
-    const holdMs = 760;
-    const exitMs = 320;
-    const duration = countMs + holdMs + exitMs;
-    return P().numberPop({
-      text:fateDeltaText(p, sign),
-      sign,
-      endValue:amount,
-      rect:payloadRect(p, ['rect', 'targetRect', 'cardRect']),
-      startOffset:18,
-      duration,
-      rise:Math.max(10, (Number((payloadRect(p, ['rect', 'targetRect', 'cardRect']) || {}).h) || 90) * .10),
-      countPortion:countMs / duration,
-      holdEnd:(countMs + holdMs) / duration,
-      emphasisPortion:.01,
-      color,
-      theme,
-      fontScale:1.24,
-      priority:'high'
-    });
+    const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
+    if(!to) return [];
+    const duration = Math.max(300, Math.min(420, Number(p.duration) || 340));
+    const hover = scaleRect(liftRect(to, .20), 1.10);
+    const list = [
+      cardMove({
+        iid:p.iid,
+        card:p.card,
+        faceDown:p.faceDown,
+        fromRect:hover || to,
+        toRect:to,
+        targetRect:to,
+        startOffset:0,
+        duration,
+        easing:'out-expo-soft',
+        path:'direct',
+        rotate:-1.8,
+        startScale:1.10,
+        scale:1.055,
+        endScale:1,
+        textureScale:1.22,
+        fadeIn:true,
+        holdMs:18,
+        landSquash:.012,
+        wobble:.22,
+        settleMs:58,
+        priority:'high'
+      }),
+      P().cardImpact({
+        iid:p.iid,
+        card:p.card || null,
+        faceDown:p.faceDown,
+        rect:to,
+        startOffset:Math.max(210, duration - 40),
+        duration:112,
+        amplitude:.006,
+        priority:'high'
+      })
+    ];
+    if(!p.suppressMotionAudio) list.push(P().soundCue({cue:'card_play_land', startOffset:Math.max(190, duration - 44), priority:'high'}));
+    return list;
   }
 
   function clampRectToViewportMargins(rect, margins){
@@ -461,17 +448,13 @@
   }
 
   function fateGain(payload){
-    const p = payload || {};
     return [
-      fateNumberPop(p, '+', '#55e68a', 'fate-delta'),
       P().soundCue({cue:'fate_gain', startOffset:90})
     ];
   }
 
   function fateLoss(payload){
-    const p = payload || {};
     return [
-      fateNumberPop(p, '-', '#ff6f7d', 'fate-loss'),
       P().soundCue({cue:'fate_loss', startOffset:72})
     ];
   }
@@ -508,6 +491,8 @@
     const tributes = Array.isArray(p.tributes) ? p.tributes : [];
     const resultCard = p.resultCard || p.targetCard || null;
     const resultIid = p.resultMotionIid || p.targetIid || p.resultCardIid;
+    const resultIsWhisper = String(resultCard && resultCard.id || '') === 'whisper17';
+    const resultIsWojciech = String(resultCard && resultCard.id || '') === '81';
     const list = [P().soundCue({cue:'consolidate_charge', startOffset:42, priority:'high'})];
     const gap = tributes.length <= 1 ? 0 : 390;
     const firstStart = 90;
@@ -570,10 +555,11 @@
       path:'direct',
       rotate:tributes.length > 1 ? -6.4 : -9.5,
       bank:0,
-      startScale:tributes.length > 1 ? 1.28 : 1.58,
-      scale:tributes.length > 1 ? 1.36 : 1.48,
+      startScale:resultIsWojciech ? 1.02 : (tributes.length > 1 ? 1.18 : 1.34),
+      scale:resultIsWojciech ? 1.06 : (tributes.length > 1 ? 1.20 : 1.26),
       endScale:1,
-      textureScale:tributes.length > 1 ? 1.62 : 1.86,
+      textureScale:resultIsWojciech ? 1.08 : (tributes.length > 1 ? 1.32 : 1.42),
+      fitMode:'contain',
       holdMs:tributes.length > 1 ? 210 : 44,
       landSquash:tributes.length > 1 ? .068 : .118,
       wobble:tributes.length > 1 ? 2.55 : 4.10,
@@ -581,7 +567,7 @@
       priority:'high'
     }));
     list.push(P().cardImpact({iid:resultIid, card:resultCard, faceDown:p.faceDown, rect:targetRect, startOffset:revealAt + (tributes.length > 1 ? 430 : 292), duration:tributes.length > 1 ? 178 : 190, amplitude:tributes.length > 1 ? .020 : .034, priority:'high'}));
-    list.push(P().soundCue({cue:'consolidate_impact', startOffset:revealAt + (tributes.length > 1 ? 394 : 270), priority:'high'}));
+    list.push(P().soundCue({cue:resultIsWhisper ? 'whisper_consolidate' : 'consolidate_impact', startOffset:revealAt + (tributes.length > 1 ? 394 : 270), priority:'high'}));
     return list;
   }
 
@@ -661,6 +647,7 @@
         P().soundCue({cue:'card_flip', startOffset:250})
       ];
     },
+    PLAY_CARD:playCard,
     SET_CONFIRM:setConfirm,
     SET_DRAG_LAND:setDragLand,
     DRAW_CARD:drawCard,
@@ -670,6 +657,7 @@
     SWAP_CARDS:swapCards,
     RETURN_TO_HAND:function(payload){ return moveCard(Object.assign({cue:'return_to_hand', path:'withdraw', rotate:-2.0, scale:1, duration:MOTION.normal}, payload || {})); },
     HAND_DISCARD:discardCard,
+    DECK_TO_BOARD:playCard,
     DECK_TO_HAND:drawCard,
     DISCARD_TO_HAND:function(payload){ return drawCard(Object.assign({cue:'discard_to_hand'}, payload || {})); },
     SEARCH_TO_HAND:searchToHand,

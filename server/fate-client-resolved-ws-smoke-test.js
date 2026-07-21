@@ -285,6 +285,20 @@ async function run(){
     assert.strictEqual(accepted.roomPatch?.currentTurnUid, nextUid, 'expected ACTION_RESULT end turn to move room turn');
     await waitForMessage(observer, msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === Number(accepted.action?.seq || 0), 'observer ACTION_RESULT broadcast');
 
+    const invalidPostState = clone(postState);
+    invalidPostState.turn += 1;
+    const rollbackRequestId = sendIntent(observer, roomCode, 'ACTION_RESULT', {
+      playerIndex:Number(postState.currentPlayer),
+      turn:postState.turn,
+      actionKind:'END_TURN',
+      baseStateHash:postHash,
+      postState:invalidPostState,
+      stateHash:'invalid-client-state-hash'
+    });
+    const rollbackRejection = await expectRejected(observer, rollbackRequestId, /stateHash does not match postState/, 'invalid client-resolved state');
+    assert.strictEqual(rollbackRejection.serverStateHash, postHash, 'WebSocket rejection must include the canonical rollback hash');
+    assert.deepStrictEqual(rollbackRejection.serverState, postState, 'WebSocket rejection must include the canonical rollback state');
+
     const reactionActor = Number(postState.currentPlayer);
     const reactionReactor = reactionActor === 0 ? 1 : 0;
     const reactionActorClient = reactionActor === activePlayer ? activeClient : observer;

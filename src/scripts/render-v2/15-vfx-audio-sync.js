@@ -47,6 +47,7 @@
       search_found:'searchFound',
       consolidate_charge:'consolidate',
       consolidate_impact:'characterSet',
+      whisper_consolidate:'whisperConsolidation',
       card_flip:'cardFlip',
       card_reveal:'cardPreview',
       supporter_activate:'effectActivate',

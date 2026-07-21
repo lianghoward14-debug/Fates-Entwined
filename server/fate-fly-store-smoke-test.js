@@ -168,6 +168,7 @@ function startServer(dataDir){
       FATE_WS_REDUCER_MODE:'client-resolved',
       FATE_WS_DISABLE_FIREBASE_RTDB:'1',
       FATE_WS_DISCONNECT_TIMEOUT_MS:'1000',
+      FATE_WS_SOCIAL_PRESENCE_TTL_MS:'250',
       FATE_WS_PING_MS:'60000',
       FATE_WS_FLY_STORE:'1',
       FATE_WS_REQUIRE_FLY_STORE:'1',
@@ -295,6 +296,18 @@ async function exerciseFlySocial(){
     uid:'social-guest',
     profile:{uid:'social-guest', displayName:'Social Guest', baseCode:'SGUEST1', challengerElo:730}
   });
+  let presenceState = await requestJson('GET', '/api/social/state?uid=social-host');
+  assert.ok(presenceState.onlineUids.includes('social-host'), 'requesting social state should heartbeat the current player');
+  assert.ok(presenceState.onlineUids.includes('social-guest'), 'recent authenticated activity should list another player online');
+  await requestJson('POST', '/api/social/presence', {uid:'social-guest', online:false});
+  presenceState = await requestJson('GET', '/api/social/state?uid=social-host');
+  assert.ok(!presenceState.onlineUids.includes('social-guest'), 'explicit offline presence should remove a player immediately');
+  const durableGuestProfile = await requestJson('GET', '/api/profiles/social-guest');
+  assert.strictEqual(durableGuestProfile.profile.displayName, 'Social Guest', 'clearing presence must retain the durable profile');
+  await requestJson('POST', '/api/social/presence', {uid:'social-guest', online:true});
+  await delay(325);
+  presenceState = await requestJson('GET', '/api/social/state?uid=social-host');
+  assert.ok(!presenceState.onlineUids.includes('social-guest'), 'expired presence heartbeat should be pruned from online players');
   const created = await requestJson('POST', '/api/parties', {
     uid:'social-host',
     profile:{displayName:'Social Host', baseCode:'SHOST1'}

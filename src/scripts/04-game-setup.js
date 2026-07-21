@@ -1266,7 +1266,7 @@ function buildDefaultDecks() {
     const deck = [];
     const activeCards = CARDS.filter(c=>typeof isRetiredCardForBuilder === 'function'
       ? !isRetiredCardForBuilder(c)
-      : (c.id!=='bh01' && c.id!=='bh25' && !c.retired));
+      : (c.id!=='bh25' && !c.retired));
     const sup = activeCards.filter(c=>c.type==='Supporter');
     const chr = activeCards.filter(c=>c.type!=='Supporter');
     for(const c of sup){
@@ -1434,23 +1434,51 @@ async function drawCard(player, count=1, options = {}) {
     }
     const card = G.players[player].deck.shift();
     if(!addCardToHand(player, card, { openingHand: !!options.openingHand })) continue;
-    // Fort Calvin Watcher (71): reveal opponent's drawn cards, send characters to deck bottom
+    // Fort Calvin Watcher (71): reveal three opponent draw-phase cards and redirect only the first Character.
     if(options.drawPhase && G._fortCalvinActive && G._fortCalvinActive.length > 0){
       G._fortCalvinActive = G._fortCalvinActive.filter(w => !(w && w.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(w.sourceIid)));
       const activeWatchers = G._fortCalvinActive.filter(w => w.remaining > 0 && w.owner !== player);
       if(activeWatchers.length > 0){
         const watcher = activeWatchers[0];
         watcher.remaining--;
+        watcher.lastRevealedName = card.name || 'Unknown card';
+        watcher.lastRevealedId = card.id || null;
+        watcher.lastRevealedIid = card.iid || null;
+        const updateFortCalvinSourceTracker = function(){
+          if(!watcher.sourceIid || typeof forEachBoardCard !== 'function') return;
+          forEachBoardCard(function(source){
+            if(!source || String(source.iid || '') !== String(watcher.sourceIid)) return;
+            source._fortCalvinLastRevealedName = watcher.lastRevealedName || null;
+            source._fortCalvinLastRevealedWasCharacter = !!watcher.lastRevealedWasCharacter;
+            source._fortCalvinSentCharacterName = watcher.sentCharacterName || null;
+            source._fortCalvinCharacterLimitReached = !!watcher.characterSent;
+            source._fortCalvinRemaining = Math.max(0, Number(watcher.remaining) || 0);
+          });
+        };
         toast('Fort Calvin revealed: ' + card.name + '!');
         if(!G._revealedCards) G._revealedCards = {};
         G._revealedCards[card.iid] = true;
         log(player===0?'p1':'p2', 'Fort Calvin Watcher revealed: '+card.name);
-        if(card.type !== 'Supporter'){
+        const revealedCharacter = typeof isCardCharacterForRules === 'function'
+          ? isCardCharacterForRules(card, player)
+          : card.type !== 'Supporter';
+        watcher.lastRevealedWasCharacter = !!revealedCharacter;
+        if(revealedCharacter && !watcher.characterSent){
+          watcher.characterSent = true;
+          watcher.sentCharacterName = card.name || 'Unknown Character';
+          watcher.sentCharacterId = card.id || null;
+          watcher.sentCharacterIid = card.iid || null;
           G.players[player].hand = G.players[player].hand.filter(c => c.iid !== card.iid);
+          delete card._igb19HandTurnsRemaining;
+          delete card._igb19HandOwner;
+          delete card._igb19LastCountedHandTurn;
           G.players[player].deck.push(card);
           toast(card.name + ' sent to bottom of deck by Fort Calvin Watcher!');
           log(player===0?'p1':'p2', card.name+' redirected to deck bottom');
+        } else if(revealedCharacter) {
+          log(player===0?'p1':'p2', card.name+' was revealed; Fort Calvin Watcher already redirected a Character');
         }
+        updateFortCalvinSourceTracker();
         G._fortCalvinActive = G._fortCalvinActive.filter(w => w.remaining > 0);
       }
     }
@@ -1507,6 +1535,7 @@ function addCardToHand(player, card, options = {}) {
   if(!card) return false;
   const announce = options.announce !== false;
   const targetPlayer = typeof options.forceHandOwner === 'number' ? options.forceHandOwner : player;
+  if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, targetPlayer);
   if(options.animate !== false){
     if(!G._forceHandEnterIids) G._forceHandEnterIids = new Set();
     G._forceHandEnterIids.add(card.iid);
@@ -1514,7 +1543,9 @@ function addCardToHand(player, card, options = {}) {
 
   // Wine Country Guerilla (70) infiltrates after being discarded by any method.
 
-  const isCharacterCard = card.type !== 'Supporter';
+  const isCharacterCard = typeof isCardCharacterForRules === 'function'
+    ? isCardCharacterForRules(card, targetPlayer)
+    : card.type !== 'Supporter' && String(card.type || '') !== 'Counter';
   const westCaribOwner = typeof G._westCaribNext === 'object' ? G._westCaribNext.owner : (G._westCaribNext ? player : null);
   if(G._westCaribNext && typeof G._westCaribNext === 'object' && G._westCaribNext.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(G._westCaribNext.sourceIid)) {
     G._westCaribNext = false;

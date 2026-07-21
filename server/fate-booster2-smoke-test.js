@@ -102,6 +102,6 @@ assert.match(profileSource, /unopenedBooster2Packs:\s*0/, 'new profiles must ini
 assert.match(profileSource, /USER_PROFILE\.unopenedBooster2Packs\s*=\s*0/, 'profile reset must clear the Booster 2 counter');
 assert.match(indexSource, /99-ui-final\.css\?v=1784660001/, 'full-art booster store CSS must be cache-busted');
 assert.match(finalUiCss, /ch-store-product \.booster-desc::first-line\{[\s\S]*line-height:1\.24!important;/, 'booster descriptions must optically tighten the first-to-second line gap');
-assert.match(indexSource, /09-challenger-mode\.js\?v=1784652003/, 'case-correct booster art mapping, copy, and card-pool restrictions must be cache-busted');
+assert.match(indexSource, /09-challenger-mode\.js\?v=1785021020/, 'booster art mapping, profile reveals, card-pool restrictions, and Brave Horizons availability must be cache-busted');
 
 console.log('fate Booster 2 smoke passed (cards 80-100, 75/25 composition, store purchase/open flow)');

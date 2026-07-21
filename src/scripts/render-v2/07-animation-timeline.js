@@ -92,8 +92,9 @@
       };
     }
 
-    hasActiveAnimations(){
-      return this.animations.length > 0;
+    hasActiveAnimations(kind){
+      if(!kind) return this.animations.length > 0;
+      return this.animations.some(function(animation){ return animation && animation.kind === kind; });
     }
 
     clearForCard(iid, kind){

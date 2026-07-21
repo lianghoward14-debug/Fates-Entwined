@@ -1436,3 +1436,42 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .playe
 html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .player-banner .pb-stat.in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.in-game-rank-adaptive-v2 .rank-badge-icon .rank-icon-4 {
   transform: translateX(var(--rank-fit-icon-shift, 0px)) translateZ(0) scale(1.12) !important;
 }
+/* Fate deltas are isolated compositor animations: no canvas or JS frame loop. */
+#fate-match-v2-fate-number-layer{
+  position:absolute;
+  inset:0;
+  z-index:4;
+  overflow:hidden;
+  pointer-events:none;
+  contain:strict;
+}
+
+#fate-match-v2-fate-number-layer .fate-number-pop{
+  position:absolute;
+  color:#62ef82;
+  font-family:Arial,Helvetica,sans-serif;
+  font-weight:900;
+  -webkit-text-stroke:3px #050505;
+  paint-order:stroke fill;
+  line-height:1;
+  letter-spacing:0;
+  text-align:center;
+  white-space:nowrap;
+  user-select:none;
+  contain:layout paint style;
+  will-change:transform,opacity;
+  animation-name:fateNumberCompositorPop;
+  animation-timing-function:cubic-bezier(.22,.7,.25,1);
+  animation-fill-mode:both;
+}
+
+#fate-match-v2-fate-number-layer .fate-number-pop.is-loss{
+  color:#ff6572;
+}
+
+@keyframes fateNumberCompositorPop{
+  0%{opacity:0;transform:translate3d(-50%,6px,0) scale(.94);}
+  7%{opacity:1;transform:translate3d(-50%,0,0) scale(1);}
+  82%{opacity:1;transform:translate3d(-50%,-12px,0) scale(1);}
+  100%{opacity:0;transform:translate3d(-50%,-22px,0) scale(.98);}
+}

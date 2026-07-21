@@ -170,6 +170,8 @@ const rejectedConsolidation = reduceServerAction({
 });
 assert.strictEqual(rejectedConsolidation.ok, false);
 assert.match(rejectedConsolidation.reason, /consolidation left a consumed supporter on the board|consolidation did not move every consumed supporter to discard/);
+assert.strictEqual(rejectedConsolidation.serverStateHash, consolidationBaseHash, 'rejected client transitions must include the rollback hash');
+assert.deepStrictEqual(rejectedConsolidation.serverState, consolidationBase, 'rejected client transitions must include the rollback state');
 
 const goodConsolidation = clone(consolidationBase);
 goodConsolidation.players[0].hand = [];
@@ -198,6 +200,78 @@ const acceptedConsolidation = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(acceptedConsolidation.ok, true, acceptedConsolidation.reason);
+
+const guerillaConsolidationBase = baseState();
+const guerillaResult = card('hero', 0, 'hero-guerilla-1', 'Character');
+const guerillaTribute = card('70', 0, 'guerilla-tribute-1');
+guerillaConsolidationBase.players[0].hand = [guerillaResult];
+guerillaConsolidationBase.board[0][2][0] = guerillaTribute;
+const guerillaConsolidationBaseHash = canonicalStateHash(guerillaConsolidationBase);
+const guerillaConsolidationPost = clone(guerillaConsolidationBase);
+const infiltratingGuerilla = clone(guerillaTribute);
+infiltratingGuerilla.guerilla_transferred = true;
+infiltratingGuerilla.guerilla_turnsLeft = 5;
+infiltratingGuerilla.guerilla_owner = 0;
+guerillaConsolidationPost.players[0].hand = [];
+guerillaConsolidationPost.players[1].hand.push(infiltratingGuerilla);
+guerillaConsolidationPost.board[0][2][0] = guerillaResult;
+const acceptedGuerillaConsolidation = reduceServerAction({
+  canonicalState:guerillaConsolidationBase,
+  canonicalHash:guerillaConsolidationBaseHash
+}, {
+  type:'SELECT_CONSOLIDATION_TRIBUTE',
+  payload:{
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    chosenTributes:[{iid:guerillaTribute.iid, id:guerillaTribute.id, z:0, r:2, c:0, card:guerillaTribute}],
+    postState:guerillaConsolidationPost,
+    stateHash:canonicalStateHash(guerillaConsolidationPost),
+    baseStateHash:guerillaConsolidationBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(acceptedGuerillaConsolidation.ok, true, acceptedGuerillaConsolidation.reason);
+
+const roboConsolidationBase = baseState();
+const roboResult = card('hero', 0, 'hero-robo-1', 'Character');
+const roboTribute = card('sup-robo', 0, 'robo-tribute-1');
+roboTribute._stolenByRobo = true;
+roboTribute._roboOrigOwner = 1;
+roboConsolidationBase.players[0].hand = [roboResult];
+roboConsolidationBase.board[0][2][0] = roboTribute;
+const roboConsolidationBaseHash = canonicalStateHash(roboConsolidationBase);
+const roboConsolidationPost = clone(roboConsolidationBase);
+const returnedRoboTribute = clone(roboTribute);
+returnedRoboTribute._stolenByRobo = false;
+roboConsolidationPost.players[0].hand = [];
+roboConsolidationPost.players[1].deck.push(returnedRoboTribute);
+roboConsolidationPost.board[0][2][0] = roboResult;
+const acceptedRoboConsolidation = reduceServerAction({
+  canonicalState:roboConsolidationBase,
+  canonicalHash:roboConsolidationBaseHash
+}, {
+  type:'SELECT_CONSOLIDATION_TRIBUTE',
+  payload:{
+    playerIndex:0,
+    turn:1,
+    z:0,
+    r:2,
+    c:0,
+    chosenTributes:[{iid:roboTribute.iid, id:roboTribute.id, z:0, r:2, c:0, card:roboTribute}],
+    postState:roboConsolidationPost,
+    stateHash:canonicalStateHash(roboConsolidationPost),
+    baseStateHash:roboConsolidationBaseHash
+  }
+}, {
+  mode:'client-resolved',
+  requireBaseHash:true
+});
+assert.strictEqual(acceptedRoboConsolidation.ok, true, acceptedRoboConsolidation.reason);
 
 const duplicateTributeBase = baseState();
 const duplicateResultCard = card('hero', 0, 'hero-duplicate-1', 'Character');

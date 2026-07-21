@@ -37,17 +37,41 @@ function safeRenderTitleProfile(){
   }
 }
 
-function isPerformanceModeEnabled(){
-  // Always on — button hidden, perf mode is the default for all players
+// Restore the match animation pipeline once for installs that inherited the
+// retired performance/safe-mode animation switches. Those values predate the
+// current renderer-v2 compositor and can otherwise leave every action
+// transaction completing with `fate-animations-off` and zero rendered frames.
+function restoreMatchAnimationDefaults(){
+  const migrationKey = 'fate_animation_pipeline_restore_20260721';
+  let shouldMigrate = true;
+  try { shouldMigrate = localStorage.getItem(migrationKey) !== '1'; } catch(e) {}
+  if(!shouldMigrate) return false;
+  try {
+    localStorage.setItem('fateEnhancedVisualFx', '1');
+    localStorage.removeItem('fateDisableMatchActionMotion');
+    localStorage.removeItem('fateDisableConsolidationMotion');
+    localStorage.removeItem('fateDisableNormalSetAnimation');
+    localStorage.removeItem('fateEnableNormalSetAnimation');
+    localStorage.setItem(migrationKey, '1');
+  } catch(e) {}
+  try {
+    if(typeof window.applyEnhancedVisualFxState === 'function') window.applyEnhancedVisualFxState();
+  } catch(e) {}
   return true;
+}
+
+restoreMatchAnimationDefaults();
+
+function isPerformanceModeEnabled(){
+  try { return localStorage.getItem('fate_performance_mode_opt_in') === '1'; } catch(e) { return false; }
 }
 
 function applyPerformanceMode(enabled){
   const plusOn = !!enabled;
-  document.documentElement.classList.add('fate-performance-mode');
+  document.documentElement.classList.toggle('fate-performance-mode', plusOn);
   document.documentElement.classList.toggle('fate-performance-plus-mode', plusOn);
   if(document.body) {
-    document.body.classList.add('fate-performance-mode');
+    document.body.classList.toggle('fate-performance-mode', plusOn);
     document.body.classList.toggle('fate-performance-plus-mode', plusOn);
   }
   const btn = document.getElementById('title-performance-toggle');
@@ -64,17 +88,21 @@ function applyPerformanceMode(enabled){
 
 function togglePerformanceMode(){
   const next = !isPerformanceModeEnabled();
-  try{ localStorage.setItem('fate_perf_plus_mode', next ? '1' : '0'); }catch(e){}
+  try{
+    localStorage.setItem('fate_performance_mode_opt_in', next ? '1' : '0');
+    localStorage.removeItem('fate_perf_plus_mode');
+  }catch(e){}
   applyPerformanceMode(next);
   if(typeof toast === 'function') toast(next ? 'Performance Boost on' : 'Performance Boost off');
 }
 
 function initPerformanceModeToggle(){
-  // Button removed — perf mode is always on for all players.
-  // Remove any leftover button from earlier sessions.
+  // Performance mode is an explicit fallback. Clear the retired forced-on key
+  // so normal launches retain gameplay motion and cinematics.
+  try { localStorage.removeItem('fate_perf_plus_mode'); } catch(e) {}
   var btn = document.getElementById('title-performance-toggle');
   if(btn) btn.remove();
-  applyPerformanceMode(true);
+  applyPerformanceMode(isPerformanceModeEnabled());
 }
 
 if(typeof window !== 'undefined'){
@@ -85,29 +113,33 @@ if(typeof window !== 'undefined'){
 applyPerformanceMode(isPerformanceModeEnabled());
 
 function isSuperPerformanceModeEnabled(){
-  return true;
+  try { return localStorage.getItem('fate_super_perf_mode_opt_in') === '1'; } catch(e) { return false; }
 }
 
 function applySuperPerformanceMode(enabled){
-  const on = true;
+  const on = !!enabled;
   document.documentElement.classList.toggle('fate-super-performance-mode', on);
   if(document.body) document.body.classList.toggle('fate-super-performance-mode', on);
   const btn = document.getElementById('title-super-performance-toggle');
   if(btn){
-    btn.remove();
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 }
 
 function toggleSuperPerformanceMode(){
-  localStorage.setItem('fate_super_perf_mode', '1');
-  applySuperPerformanceMode(true);
+  const next = !isSuperPerformanceModeEnabled();
+  try {
+    localStorage.setItem('fate_super_perf_mode_opt_in', next ? '1' : '0');
+    localStorage.removeItem('fate_super_perf_mode');
+  } catch(e) {}
+  applySuperPerformanceMode(next);
+  if(typeof toast === 'function') toast(next ? 'Super Performance on' : 'Super Performance off');
 }
 
 function initSuperPerformanceModeToggle(){
-  localStorage.setItem('fate_super_perf_mode', '1');
-  const btn = document.getElementById('title-super-performance-toggle');
-  if(btn) btn.remove();
-  applySuperPerformanceMode(true);
+  try { localStorage.removeItem('fate_super_perf_mode'); } catch(e) {}
+  applySuperPerformanceMode(isSuperPerformanceModeEnabled());
 }
 
 if(typeof window !== 'undefined'){
@@ -115,7 +147,7 @@ if(typeof window !== 'undefined'){
   window.applySuperPerformanceMode = applySuperPerformanceMode;
 }
 
-applySuperPerformanceMode(true);
+applySuperPerformanceMode(isSuperPerformanceModeEnabled());
 
 function initCtrlWheelZoom(){
   if(window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED) return;

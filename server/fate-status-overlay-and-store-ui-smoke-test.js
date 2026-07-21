@@ -14,6 +14,7 @@ const css = read('src/styles/zz-codex-last.css');
 const matchCss = read('src/styles/match-scene-v2.css');
 const handBridge = read('src/scripts/render-v2/09-hand-drag-bridge.js');
 const store = read('src/scripts/09-challenger-mode.js');
+const storeV2 = read('src/scripts/09-challenger-v2.js');
 const index = read('index.html');
 
 assert.match(renderer, /CARD_STATUS_VISUAL_PRIORITY = Object\.freeze\(\[\s*'effect_flash',\s*'snowball',\s*'negated',\s*'suppressed',\s*'blocked',\s*'marked',\s*'immune'\s*\]\)/, 'board statuses must use the fixed one-icon priority');
@@ -61,10 +62,21 @@ assert.match(renderer, /busser_boot:[\s\S]*busser-boot-icon[\s\S]*M11 40h42[\s\S
 
 assert.match(css, /#s-challenger \.ch-store-v3\{\s*zoom:1\.1!important;/, 'desktop store content must render at the requested 110% scale');
 assert.match(store, /<em>Unlock two profile pictures for your account, sourced from every card art in the game<\/em>/, 'profile booster copy must match the requested text');
-assert.match(index, /zz-codex-last\.css\?v=1784661006/, 'store, overlay, isolated preset picker, and lowered compact opponent hand stylesheet must be cache-busted');
-assert.match(index, /match-scene-v2\.css\?v=1784654001/, 'hand organizer stylesheet must be cache-busted');
-assert.match(index, /06-rendering-and-helpers\.js\?v=1784676001/, 'legacy renderer must be cache-busted');
-assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1784667001/, 'canvas renderer must be cache-busted');
-assert.match(index, /render-v2\/09-hand-drag-bridge\.js\?v=1784654001/, 'hand organizer bridge must be cache-busted');
+assert.doesNotMatch(store + storeV2, /ch-store-kicker">Trading Floor/, 'store marketplace panel must not show the Trading Floor kicker');
+assert.match(css, /ch-store-products \.booster-price-row \.btn-buy\{[\s\S]*top:-4px!important;/, 'all three store pack buttons must be raised four pixels total');
+assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*top:-6px!important;/, 'store Transactions button must be raised six pixels total');
+assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*width:72%!important;[\s\S]*max-width:320px!important;[\s\S]*justify-self:center!important;/, 'store Transactions button must be narrower and centered');
+assert.match(css, /ch-store-market h3\{[\s\S]*translate\(9px,3px\)!important;/, 'store Marketplace heading must move nine pixels right and three pixels down');
+assert.match(index, /zz-codex-last\.css\?v=1785021020/, 'store, overlay, full profile booster art, and gameplay status stylesheet must be cache-busted');
+assert.match(index, /id="title-deck-builder-btn"[^>]*>Deck Builder<\/button>[\s\S]*id="title-mission-control-btn"/, 'Deck Builder and Mission Control must expose stable paired title-menu hooks');
+assert.match(css, /#title-deck-builder-btn,[\s\S]*#title-mission-control-btn\{[\s\S]*display:flex!important;[\s\S]*align-items:center!important;[\s\S]*justify-content:center!important;[\s\S]*align-self:stretch!important;[\s\S]*justify-self:stretch!important;[\s\S]*width:100%!important;/, 'Mission Control must share Deck Builder geometry and label centering');
+assert.doesNotMatch(index, /enhanced-fx-toggle-btn|data-enhanced-fx-toggle|Animations On|Animations Off/, 'title screen must replace the animations toggle button with a passive version badge');
+assert.match(index, /<div id="game-version" class="btn sm title-version-badge" aria-label="Version" style="margin-top:\.2rem;">Version 1\.39\.0<\/div>/, 'title screen must show the version number in the old animation-toggle slot with button styling');
+assert.doesNotMatch(index, /social-version-label/, 'Social tab must not contain the version label');
+assert.match(css, /#s-title \.title-version-badge\{[\s\S]*display:inline-flex!important;[\s\S]*pointer-events:none!important;[\s\S]*cursor:default!important;/, 'title version badge must remain visually button-like but passive');
+assert.match(index, /match-scene-v2\.css\?v=17850210\d+/, 'hand organizer stylesheet must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=17850210\d+/, 'legacy renderer must be cache-busted');
+assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=17850210\d+/, 'canvas renderer must be cache-busted');
+assert.match(index, /render-v2\/09-hand-drag-bridge\.js\?v=1785021017/, 'hand organizer bridge must be cache-busted');
 
 console.log('Status overlay and store UI smoke test passed.');

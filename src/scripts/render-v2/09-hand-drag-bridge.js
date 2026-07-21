@@ -103,9 +103,18 @@
     return (window.performance && performance.now) ? performance.now() : Date.now();
   }
 
+  function isDirectSetCard(card){
+    if(!card) return false;
+    if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return true;
+    if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) return true;
+    return typeof isCardSupporterForRules === 'function'
+      ? isCardSupporterForRules(card, typeof G !== 'undefined' && G ? G.currentPlayer : card.owner)
+      : card.type === 'Supporter';
+  }
+
   function isOnlineCharacterConsolidationDrag(card){
     return !!(card
-      && card.type !== 'Supporter'
+      && !isDirectSetCard(card)
       && typeof G !== 'undefined'
       && G
       && G._onlineRoomCode
@@ -207,7 +216,7 @@
   }
 
   function availableReinforcementFor(card){
-    if(!card || card.type === 'Supporter' || typeof G === 'undefined' || !G || !G.board) return Infinity;
+    if(!card || isDirectSetCard(card) || typeof G === 'undefined' || !G || !G.board) return Infinity;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return Infinity;
     const cp = G.currentPlayer;
     const usesCharacterTributes = typeof cardUsesCharacterConsolidationTributes === 'function'
@@ -221,7 +230,7 @@
             if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(cell, cp, z, r, c)) return;
             const eligibleTribute = usesCharacterTributes
               ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')
-              : (cell.type === 'Supporter' || cell.id === '86');
+              : cell.type === 'Supporter';
             if(eligibleTribute){
               let value = 1;
               try {
@@ -577,6 +586,10 @@
     const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
     if(!ignoresOpponentPlacementLocks && typeof isBlocked === 'function' && isBlocked(Number(hit.z), Number(hit.r), Number(hit.c))) return false;
     const cp = typeof G !== 'undefined' && G ? G.currentPlayer : 0;
+    if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) {
+      const options = typeof getValidPlacementOptionsForCard === 'function' ? getValidPlacementOptionsForCard(card, cp) : [];
+      return options.some(function(option){ return Number(option.z) === Number(hit.z) && Number(option.r) === Number(hit.r) && Number(option.c) === Number(hit.c); });
+    }
     if(typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
     if(card.contestedOnly && Number(hit.r) !== 1) return false;
     if(!ignoresOpponentPlacementLocks && card.type === 'Supporter' && card.id !== '76' && typeof isBlockedByAlondra === 'function' && isBlockedByAlondra(Number(hit.z), Number(hit.r), Number(hit.c), cp)) return false;
@@ -588,7 +601,7 @@
     if(isBlockedHandSetCard(card)) return 'invalid';
     const boardCard = boardCardAt(hit);
     if(isFreeSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
-    if(card.type === 'Supporter') return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
+    if(isDirectSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
     if(!boardCard || boardCard.owner !== G.currentPlayer || boardCard.noConsolidate) return 'invalid';
@@ -597,7 +610,7 @@
       && cardUsesCharacterConsolidationTributes(card);
     const eligibleTribute = usesCharacterTributes
       ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(boardCard, G.currentPlayer) : boardCard.type !== 'Supporter')
-      : (boardCard.type === 'Supporter' || boardCard.id === '86');
+      : boardCard.type === 'Supporter';
     return eligibleTribute ? 'valid' : 'invalid';
   }
 
@@ -900,7 +913,7 @@
     const cache = buildDragCache();
     state.boardCache = cache;
     state.hitMap = cache.hitMap;
-    state.canPayReinforcement = state.card && state.card.type !== 'Supporter' ? hasEnoughReinforcement(state.card) : true;
+    state.canPayReinforcement = state.card && !isDirectSetCard(state.card) ? hasEnoughReinforcement(state.card) : true;
     state.ghost = makeGhost(state.el, ev);
     if(state.el) state.el.classList.add('fate-v2-drag-source');
     setDraggingFlag(true);
@@ -1034,12 +1047,12 @@
     const dragState = preview ? preview.dragState : hitDropState(state.card, hit);
     if(!hit || dragState === 'invalid'){
       if(typeof toast === 'function') {
-        if(state.card && state.card.type !== 'Supporter' && !hasEnoughReinforcement(state.card)){
+        if(state.card && !isDirectSetCard(state.card) && !hasEnoughReinforcement(state.card)){
           toast('Not enough reinforcement to consolidate ' + (state.card.name || 'that card') + '.');
         } else {
           const usesCharacterTributes = state.card && typeof cardUsesCharacterConsolidationTributes === 'function'
             && cardUsesCharacterConsolidationTributes(state.card);
-          toast(state.card && state.card.type === 'Supporter'
+          toast(state.card && isDirectSetCard(state.card)
             ? (supporterDropBlockReason(state.card, hit) || 'Drop on an empty cell.')
             : ('Drop on one of your ' + (usesCharacterTributes ? 'Characters' : 'Supporters') + ' to consolidate.'));
         }
@@ -1047,7 +1060,7 @@
       cleanup({clearPlacement:true});
       return;
     }
-    if(state.card.type === 'Supporter' || isFreeSetCard(state.card)) finishSupporterDrop(hit);
+    if(isDirectSetCard(state.card) || isFreeSetCard(state.card)) finishSupporterDrop(hit);
     else finishConsolidationDrop(hit);
   }
 
