@@ -338,7 +338,7 @@ window.fateResetLocalLeaderboardData = resetStoredLeaderboardDataIfNeeded;
 window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 
 
-const FATE_BACKGROUND_ASSET_VERSION = 'bg20260628a';
+const FATE_BACKGROUND_ASSET_VERSION = 'bg20260722a';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
   if(path.includes('v=' + FATE_BACKGROUND_ASSET_VERSION)) return path;
@@ -346,7 +346,7 @@ function FATE_BACKGROUND_URL(path){
 }
 window.FATE_BACKGROUND_URL = FATE_BACKGROUND_URL;
 const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreenbackgrounds_bg${n}.jpg`);
-const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`);
+const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : (Number(n) === 15 ? 'ingamebackgrouds/igb15.png' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
   return `pfp/pfp${id}.png`;
@@ -1331,12 +1331,16 @@ function recordGameResult(didWin, opponentElo=1000) {
 }
 
 function getCardOrderNumber(card){
+  const id = String(card?.id || '');
   const img = String(card?.img || '');
+  const isBraveHorizons = String(card?.set || '') === 'brave_horizons' || /^bh\d+/i.test(id) || /(?:^|\/)bh\d+\./i.test(img);
   const m = img.match(/(\d+)/);
-  if(m) return parseInt(m[1],10);
-  const idm = String(card?.id || '').match(/(\d+)/);
-  if(idm) return parseInt(idm[1],10);
-  return 9999;
+  const imgNum = m ? parseInt(m[1],10) : NaN;
+  const idm = id.match(/(\d+)/);
+  const idNum = idm ? parseInt(idm[1],10) : NaN;
+  const n = Number.isFinite(imgNum) ? imgNum : (Number.isFinite(idNum) ? idNum : 9999);
+  if(isBraveHorizons) return 1000 + n;
+  return n;
 }
 
 function sortCardsByArtNumber(cards){

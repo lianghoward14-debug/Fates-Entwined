@@ -2629,6 +2629,8 @@
     kvetka_ballad:{color:'rgba(255,202,238,.98)',glow:'rgba(244,94,184,.60)',tint:'rgba(142,42,104,.16)'},
     marie_deterrence:{color:'rgba(255,225,211,.98)',glow:'rgba(225,105,78,.52)',tint:'rgba(170,78,64,.14)'},
     movement_boot:{color:'rgba(255,224,166,.98)',glow:'rgba(255,158,61,.60)',tint:'rgba(172,91,24,.15)'},
+    anicka_voyager_boat:{color:'rgba(142,231,255,.98)',glow:'rgba(62,190,255,.62)',tint:'rgba(30,126,172,.16)'},
+    joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
@@ -2644,6 +2646,7 @@
     rivera_crest:{color:'rgba(204,255,216,.98)',glow:'rgba(99,219,132,.60)',tint:'rgba(40,126,65,.15)'},
     phil_crown:{color:'rgba(255,224,138,.98)',glow:'rgba(255,199,79,.62)',tint:'rgba(154,105,18,.15)'},
     wintertide:{color:'rgba(224,249,255,.98)',glow:'rgba(110,214,246,.58)',tint:'rgba(92,174,210,.14)'},
+    idyllic_polish_village:{color:'rgba(214,248,255,.99)',glow:'rgba(92,213,248,.62)',tint:'rgba(54,151,195,.16)'},
     maria_target:{color:'rgba(255,226,220,.98)',glow:'rgba(235,92,72,.56)',tint:'rgba(164,48,48,.16)'}
   });
   const DEFAULT_EFFECT_FLASH_PALETTE = Object.freeze({
@@ -2666,7 +2669,8 @@
     ctx.clip();
     ctx.fillStyle = palette.tint;
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    drawEffectFlashIcon(ctx, r.x + r.w / 2, r.y + r.h / 2, Math.max(60, Math.min(104, r.w * .88)), kind);
+    const iconYOffset = kind === 'anicka_voyager_boat' ? -15 : 0;
+    drawEffectFlashIcon(ctx, r.x + r.w / 2, r.y + r.h / 2 + iconYOffset, Math.max(60, Math.min(104, r.w * .88)), kind);
     ctx.restore();
   }
 
@@ -2800,6 +2804,47 @@
     } else if(kind === 'marie_deterrence') {
       line([[14,15],[50,15],[50,30],[47,40],[40,49],[32,55],[24,49],[17,40],[14,30]],true);
       line([[21,34],[43,34]],false); line([[25,26],[39,26]],false); line([[32,18],[32,47]],false);
+    } else if(kind === 'anicka_voyager_boat') {
+      ctx.lineWidth = 3.35;
+      line([[25,20],[13,49],[25,49]],false);
+      line([[40,26],[51,49],[40,49]],false);
+      ctx.lineWidth = 3.25;
+      line([[23,51],[45,51]],false);
+      ctx.lineWidth = 4.25;
+      ctx.beginPath();
+      ctx.moveTo(9,61);
+      ctx.bezierCurveTo(21,68,44,68,56,61);
+      ctx.lineTo(47,71);
+      ctx.lineTo(18,71);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(190,246,255,.98)';
+      ctx.fillRect(29.2,13,6.6,47);
+      ctx.fillStyle = 'rgba(228,253,255,.82)';
+      ctx.fillRect(31.1,15,2.8,43);
+      ctx.lineWidth = 2.35;
+      ctx.strokeStyle = 'rgba(142,231,255,.88)';
+      ctx.beginPath();
+      ctx.moveTo(14,76);
+      ctx.bezierCurveTo(20,78,26,78,32,76);
+      ctx.bezierCurveTo(38,74,44,74,50,76);
+      ctx.stroke();
+      ctx.lineWidth = 1.95;
+      ctx.strokeStyle = 'rgba(142,231,255,.72)';
+      ctx.beginPath();
+      ctx.moveTo(20,81);
+      ctx.bezierCurveTo(24,82,28,82,32,81);
+      ctx.bezierCurveTo(36,80,40,80,44,81);
+      ctx.stroke();
+      ctx.strokeStyle = palette.color;
+      ctx.fillStyle = palette.color;
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'joie_thousand_reel') {
+      ctx.lineWidth = 4.2;
+      roundedPath(ctx, 10, 10, 44, 44, 9);
+      ctx.stroke();
+      circle(32,32,11);
+      dot(45,19,3.2);
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
       ctx.beginPath();
@@ -2900,6 +2945,18 @@
         ctx.restore();
       }
       ctx.beginPath(); ctx.arc(32,32,3.2,0,Math.PI*2); ctx.fill();
+    } else if(kind === 'idyllic_polish_village') {
+      ctx.lineWidth = 3.2;
+      for(let arm=0;arm<8;arm++){
+        ctx.save();
+        ctx.translate(32,32);
+        ctx.rotate(arm*Math.PI/4);
+        line([[0,-6],[0,-24]],false);
+        line([[0,-20],[-4,-15]],false);
+        line([[0,-20],[4,-15]],false);
+        ctx.restore();
+      }
+      line([[32,25],[39,32],[32,39],[25,32],[32,25]],true);
     } else if(kind === 'maria_target') {
       circle(32,32,16); circle(32,32,6);
       line([[32,8],[32,19]],false); line([[32,45],[32,56]],false); line([[8,32],[19,32]],false); line([[45,32],[56,32]],false);

@@ -35,11 +35,11 @@ assert.match(adapter, /drawEffectFlashCardOverlay[\s\S]*drawEffectFlashIcon/, 'r
 
 const allOverlayKinds = [
   'specter_ghost', 'kvetka_ballad', 'marie_deterrence',
-  'rozsi_dance', 'rivera_crest', 'movement_boot',
+  'rozsi_dance', 'rivera_crest', 'movement_boot', 'anicka_voyager_boat',
   'oathbound_crescent', 'isaac_beaker',
   'coord_anne_trio', 'coord_postmodern_dylan', 'coord_kvetka_bloom', 'coord_cathy_cardigan',
   'coord_felicyta_eagle', 'coord_zsofia_river', 'coord_jeremiah_snowseal',
-  'coord_heyward_compass', 'phil_crown', 'wintertide', 'maria_target'
+  'coord_heyward_compass', 'phil_crown', 'wintertide', 'idyllic_polish_village', 'maria_target'
 ];
 allOverlayKinds.forEach(kind => {
   assert.match(css, new RegExp('effect-flash-' + kind), `${kind} DOM overlay must be styled`);
@@ -63,12 +63,18 @@ assert.match(core, /const currentPlayer = G\.currentPlayer[\s\S]*await drawCard\
 assert.match(core, /tickWintertideForCurrentPlayer[\s\S]*'wintertide'/, 'Wintertide must use its distinct snowflake');
 assert.match(css, /effect-flash-wintertide[\s\S]*M32 32V5M32 11l-4 5[\s\S]*rotate\(300 32 32\)[\s\S]*circle cx='32' cy='32' r='3\.2'/, 'Wintertide DOM overlay must use the open six-arm snowflake without a web-like center');
 assert.match(adapter, /kind === 'wintertide'[\s\S]*arm<6[\s\S]*arm\*Math\.PI\/3[\s\S]*\[\[0,-21\],\[-4,-16\]\][\s\S]*arc\(32,32,3\.2/, 'Wintertide canvas overlay must match the open six-arm snowflake');
-assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 6, sourceOwner\)[\s\S]*'maria_target'/, 'Maria Song must reduce every matching copy and flash matching board cards');
+assert.match(core, /function applyIdyllicPolishVillageDrawPhase[\s\S]*modifyFate\(card, 1, 'permanent', player\)[\s\S]*flashCardEffect\(card, 'idyllic_polish_village'/, 'Wodny Potok landscape Fate gains must flash the synced village snowflake on affected Expanded Worlds Characters');
+assert.match(css, /effect-flash-idyllic_polish_village[\s\S]*M32 8v48M8 32h48[\s\S]*M32 25l7 7-7 7-7-7z/, 'Wodny Potok DOM overlay must use the compact eight-arm village snowflake variant');
+assert.match(adapter, /kind === 'idyllic_polish_village'[\s\S]*arm<8[\s\S]*arm\*Math\.PI\/4[\s\S]*\[\[32,25\],\[39,32\],\[32,39\],\[25,32\],\[32,25\]\]/, 'Wodny Potok canvas overlay must match the compact eight-arm village snowflake variant');
+assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 7, sourceOwner\)[\s\S]*'maria_target'/, 'Maria Song must reduce every matching copy and flash matching board cards');
 assert.match(authorityReducer, /AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set\(\[[^\]]*'61'/, 'Maria Song must be classified as opponent-affecting by the authority reducer');
 assert.match(core, /markMovementEffectFlash[\s\S]*movement_boot/, 'effect movement must use the shared boot flash');
+assert.match(core, /resolveAnickaVoyagerMove[\s\S]*flashCardEffect\(card, 'anicka_voyager_boat'[\s\S]*label:'Brave Horizons'/, 'Brave Horizons must use the selected 77A boat movement overlay');
+assert.match(css, /effect-flash-anicka_voyager_boat[\s\S]*--effect-flash-color:rgba\(142,231,255,\.98\)[\s\S]*--effect-flash-glow:rgba\(62,190,255,\.62\)/, 'Brave Horizons 77A overlay must use the selected sea-blue styling');
 assert.match(core, /case '05'[\s\S]*modifyFate\(tgt,3,'permanent'\)[\s\S]*flashCardEffect\(tgt, 'british_union_jack'[\s\S]*label:'Liberators of Rwanda'/, '17th British Regiment must play the ordinary Fate-gain sound and place the silent regiment overlay on its recipient');
 assert.match(css, /effect-flash-british_union_jack[\s\S]*M13 14H51V38C47 48 40 55 32 59C24 55 17 48 13 38Z[\s\S]*M15 33L32 19L49 33M16 44L32 31L48 44[\s\S]*M24 52H40/, 'the DOM 17th British overlay must use the approved framed sergeant insignia design');
 assert.match(adapter, /movement_boot'[\s\S]*moveTo\(25,15\)[\s\S]*bezierCurveTo\(40,25,40,33,43,41\)[\s\S]*line\(\[\[8,24\],\[1,24\]\]/, 'movement feedback must use the approved outline wing-boot icon');
+assert.match(adapter, /anicka_voyager_boat:\{color:'rgba\(142,231,255,\.98\)'[\s\S]*fillRect\(29\.2,13,6\.6,47\)[\s\S]*bezierCurveTo\(20,78,26,78,32,76\)/, 'Brave Horizons canvas overlay must use the selected sea-blue 77A short-mast soft-water boat icon');
 assert.match(adapter, /kind === 'british_union_jack'[\s\S]*moveTo\(13,14\)[\s\S]*lineTo\(51,38\)[\s\S]*bezierCurveTo\(47,48,40,55,32,59\)[\s\S]*line\(\[\[15,33\],\[32,19\],\[49,33\]\][\s\S]*line\(\[\[24,52\],\[40,52\]\]/, 'the canvas 17th British overlay must match the approved framed sergeant insignia design');
 assert.match(core, /case '31'[\s\S]*pickCardInZone[\s\S]*flashCardEffect\(tgt, 'oathbound_crescent'/, 'Oathbound must flash the approved sword icon on the selected target');
 assert.match(adapter, /kind === 'oathbound_crescent'[\s\S]*moveTo\(32,0\)[\s\S]*bezierCurveTo\(22,40,42,40,47,47\)/, 'Oathbound canvas overlay must use the approved raised crescent-guard sword');
@@ -195,7 +201,7 @@ assert.match(rooms, /function reconcileOnlinePostState[\s\S]*collectOnlineFateSn
 assert.match(rooms, /scheduleCoordinatorPlacementFlash\(card, \{[\s\S]*z:entry\.z[\s\S]*r:entry\.r[\s\S]*c:entry\.c[\s\S]*onlineConsolidationCinematicTotalMs\(\) \+ 90/, 'remote coordinator aura overlays must receive the placed coordinates and wait for the character cinematic');
 assert.match(rooms, /function maybePlayOnlineRemoteBoardChangeAudio[\s\S]*kvetkaCoordinatorGain[\s\S]*String\(entry\.card\.id \|\| ''\) === '19'[\s\S]*if\(fateUp && !kvetkaCoordinatorGain\)[\s\S]*'FATE_GAIN'/, 'multiplayer must retain generic Fate-gain audio for non-Kvetka overlays while suppressing it for Kvetka coordinator gains');
 assert.match(rooms, /primeOnlineCharacterFatePresentationLock[\s\S]*estimateOnlineConsolidationMotionMs[\s\S]*_cinematicUiLockUntil[\s\S]*primeOnlineCharacterFatePresentationLock\(g, previousBoard, action, previousHandFateByIid\)[\s\S]*renderOnlineAuthoritativeState/, 'multiplayer must establish the cinematic lock before rendering authoritative coordinator Fate changes');
-assert.match(rooms, /function maybeFlashOnlineAutomaticEffectDeltas[\s\S]*after\.id === '77'[\s\S]*getCoordinatorPlacementFlashTargets\(after\.card, after\.z, after\.r, after\.c\)[\s\S]*scheduleOnlineClientCardFlash\(\s*target,\s*'coord_heyward_compass'[\s\S]*movement_boot[\s\S]*specter_ghost[\s\S]*wintertide[\s\S]*phil_crown[\s\S]*maybeFlashOnlineAutomaticEffectDeltas\(action, previousFate/, 'multiplayer clients must reconstruct Heyward on every aura recipient plus movement, recurring Fate, and owner-only Phil flashes from accepted state deltas');
+assert.match(rooms, /function maybeFlashOnlineAutomaticEffectDeltas[\s\S]*after\.id === '77'[\s\S]*getCoordinatorPlacementFlashTargets\(after\.card, after\.z, after\.r, after\.c\)[\s\S]*scheduleOnlineClientCardFlash\(\s*target,\s*'coord_heyward_compass'[\s\S]*movement_boot[\s\S]*specter_ghost[\s\S]*wintertide[\s\S]*idyllic_polish_village[\s\S]*phil_crown[\s\S]*maybeFlashOnlineAutomaticEffectDeltas\(action, previousFate/, 'multiplayer clients must reconstruct Heyward on every aura recipient plus movement, recurring Fate, Wodny Potok, and owner-only Phil flashes from accepted state deltas');
 assert.match(rooms, /online-consolidation-completed[\s\S]*onlineConsolidationCinematicTotalMs\(\) \+ 260[\s\S]*kvetka_ballad[\s\S]*waitForConsolidationCinematic:true/, 'remote consolidation must locally schedule coordinator aura flashes and the persistent Kvetka Ballad overlay after its cinematic');
 assert.match(ai, /marie_deterrence/, 'AI consolidation must emit Marie feedback');
 ['sebastyen', 'great_oak_sword', 'un_globe'].forEach(kind => {

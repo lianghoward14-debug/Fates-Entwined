@@ -98,6 +98,7 @@ const FATE_SAMPLE_SFX = {
   landscapeMajor: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.86},
   effect: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.88},
   effectActivate: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.88},
+  sailingMove: {src:'soundeffects/codex-redesign/character_coordinator_oceanic_arrival.wav', gain:0.78},
   immuneShield: {src:'soundeffects/codex-redesign/immune_glass_ward.wav', gain:0.92},
   reactionTrigger: {src:'soundeffects/codex-redesign/reaction_interrupt_sting.wav', gain:0.92},
   cardMove: {src:'soundeffects/codex-redesign/card_move_board_slide.wav', gain:0.86},
@@ -258,6 +259,11 @@ function playEndTurnSfxOnce(key) {
   return playFateSfxOnce('endTurn', dedupeKey, 700);
 }
 window.playEndTurnSfxOnce = playEndTurnSfxOnce;
+
+function playSailingMovementSfx() {
+  return playFateSfxOnce('sailingMove', 'sailing-movement', 900);
+}
+window.playSailingMovementSfx = playSailingMovementSfx;
 
 const _cardEffectFlashSfxKeys = new Map();
 function playCardEffectFlashSfx(kind, options) {
@@ -1850,9 +1856,9 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'bh1', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh02': 'bh2', 'bh25': 'bh25set'
 };
-const GAME_SONGS = Array.from({length:19}, (_,i)=>'board'+(i+1));
+const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
   board17:'../igb17/board17'
 };
@@ -1865,7 +1871,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','bh2','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);
@@ -1934,11 +1940,13 @@ function getIgb17RotationIndex() {
 }
 
 function getGameLandscapeBackgroundPath(bgNum) {
-  const n = Math.max(1, Math.min(19, Number(bgNum) || 1));
+  const n = Math.max(1, Math.min(20, Number(bgNum) || 1));
   let path = '';
   if(n === 17) path = IGB17_BACKGROUND_FILES[getIgb17RotationIndex()] || IGB17_BACKGROUND_FILES[0];
+  else if(n === 15) path = 'ingamebackgrouds/igb15.png';
   else if(n === 18) path = 'ingamebackgrouds/igb18.png';
   else if(n === 19) path = 'ingamebackgrouds/igb19.png';
+  else if(n === 20) path = 'ingamebackgrouds/igb20.png';
   else if(typeof INGAME_BG_PATH === 'function') return INGAME_BG_PATH(n);
   else path = `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`;
   return typeof FATE_BACKGROUND_URL === 'function' ? FATE_BACKGROUND_URL(path) : path;
@@ -2069,7 +2077,7 @@ function applyGameBackground(song=null) {
   const board = document.getElementById('board');
   const gameScreen = document.getElementById('s-game');
   const coinScreen = document.getElementById('s-coin');
-  const bgNum = Math.max(1, Math.min(19, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(20, parseInt(String(pickedSong).replace('board',''), 10) || 1));
   if(typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
   const bgImg = getGameLandscapeBackgroundPath(bgNum);
   if(board){
@@ -2111,7 +2119,7 @@ function applyGameBackground(song=null) {
 
 function transitionGameLandscape(song, opts = {}) {
   const pickedSong = (song && GAME_SONGS.includes(song)) ? song : pickGameSong();
-  const bgNum = Math.max(1, Math.min(19, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(20, parseInt(String(pickedSong).replace('board',''), 10) || 1));
   if(!opts.remote && opts.sourceCard && String(opts.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
     const reason = getFelicitaLandscapeChangeBlockReason('igb' + bgNum);
     if(reason) {
@@ -2604,7 +2612,7 @@ function confirmEndGame() {
         const forfeitBgImage = gameScreen ? getComputedStyle(gameScreen).backgroundImage : '';
         const lastBg = window.__fateLastGameBackground || null;
         const forfeitFallbackBg = (!forfeitBgVar && typeof _lastGameSong !== 'undefined' && typeof getGameLandscapeBackgroundPath === 'function')
-          ? `url(${getGameLandscapeBackgroundPath(Math.max(1, Math.min(19, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
+          ? `url(${getGameLandscapeBackgroundPath(Math.max(1, Math.min(20, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
           : (lastBg?.cssVar || '');
         let eloChange = 0;
         if(G.aiEnabled){
@@ -2953,8 +2961,21 @@ function getProfileCropStyle(){
 //  PROFILE IMAGE EDITOR (card picker + cropper)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 let _cropState = null;
+let _profilePickerObserver = null;
+
+function stopProfilePickerObserver() {
+  if(_profilePickerObserver){
+    _profilePickerObserver.disconnect();
+    _profilePickerObserver = null;
+  }
+}
+
+function profilePickerThumbSrc(pfpId) {
+  return `optimized/pfp-thumbs/pfp${Math.max(1, parseInt(pfpId, 10) || 1)}.jpg?v=pfp-picker-20260722a`;
+}
 
 function openProfileImageEditor() {
+  stopProfilePickerObserver();
   const ownedPfps = normalizeOwnedPfps();
   const body = document.createElement('div');
   body.innerHTML = `
@@ -2962,36 +2983,96 @@ function openProfileImageEditor() {
     <div class="cropper-picker" id="pfp-picker-grid"></div>
     ${ownedPfps.length ? '' : '<p style="font-size:.82rem;color:var(--dim);line-height:1.5;text-align:center;margin-top:.8rem;">You only have the default blank icon right now. Open Profile Picture Boosters in the store to unlock more profile pictures.</p>'}`;
   const grid = body.querySelector('#pfp-picker-grid');
-  const defaultEl = document.createElement('div');
-  defaultEl.className = 'cropper-pick-card';
-  defaultEl.innerHTML = `<img src="${typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png'}" alt="Default profile picture" onerror="this.style.display='none'">`;
+  const defaultEl = document.createElement('button');
+  defaultEl.type = 'button';
+  defaultEl.className = 'cropper-pick-card pfp-picker-card';
+  defaultEl.dataset.pfpId = '0';
+  defaultEl.innerHTML = `<img src="${typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png'}" alt="Default profile picture" decoding="async" draggable="false">`;
   defaultEl.title = 'Default Profile Picture';
-  defaultEl.onclick = ()=>{
-    USER_PROFILE.profileImg = typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png';
-    saveProfile();
-    renderProfileModal(false);
-    toast('Default profile picture equipped');
-  };
-  grid.appendChild(defaultEl);
+  const selectedPfpId = USER_PROFILE.profileImg && typeof USER_PROFILE.profileImg === 'object'
+    ? Number(USER_PROFILE.profileImg.pfpId || 0)
+    : 0;
+  if(!selectedPfpId) defaultEl.classList.add('sel');
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(defaultEl);
   ownedPfps.forEach(pfpId=>{
-    const el = document.createElement('div');
-    el.className='cropper-pick-card';
-    el.innerHTML = `<img src="${PFP_PATH(pfpId, 'square')}" alt="Profile picture ${pfpId}" onerror="this.style.display='none'">`;
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className='cropper-pick-card pfp-picker-card';
+    el.dataset.pfpId = String(pfpId);
+    if(selectedPfpId === Number(pfpId)) el.classList.add('sel');
+    el.innerHTML = `<img data-src="${profilePickerThumbSrc(pfpId)}" data-fallback="${PFP_PATH(pfpId, 'square')}" alt="Profile picture ${pfpId}" width="160" height="160" loading="lazy" decoding="async" fetchpriority="low" draggable="false">`;
     el.title = `Profile Picture ${pfpId}`;
-    el.onclick = ()=>openImageCropper({ img:PFP_PATH(pfpId, 'square'), pfpId, id:`pfp-${pfpId}`, name:`Profile Picture ${pfpId}` });
-    grid.appendChild(el);
+    fragment.appendChild(el);
+  });
+  grid.appendChild(fragment);
+
+  // One delegated handler avoids creating up to 100 closures every time the picker opens.
+  grid.addEventListener('click', e=>{
+    const el = e.target.closest('.pfp-picker-card');
+    if(!el || !grid.contains(el)) return;
+    const pfpId = Number(el.dataset.pfpId || 0);
+    stopProfilePickerObserver();
+    if(!pfpId){
+      USER_PROFILE.profileImg = typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png';
+      saveProfile();
+      renderProfileModal(false);
+      toast('Default profile picture equipped');
+      return;
+    }
+    openImageCropper({ img:PFP_PATH(pfpId, 'square'), pfpId, id:`pfp-${pfpId}`, name:`Profile Picture ${pfpId}` });
   });
 
+  // Only decode thumbnails close to the picker's viewport. The full-resolution
+  // source is loaded later, for the one picture the player actually crops.
+  const lazyImages = Array.from(grid.querySelectorAll('img[data-src]'));
+  const loadThumb = img=>{
+    if(!img?.dataset?.src) return;
+    img.src = img.dataset.src;
+    delete img.dataset.src;
+  };
+  grid.addEventListener('error', e=>{
+    const img = e.target;
+    if(!(img instanceof HTMLImageElement)) return;
+    const fallback = img.dataset.fallback;
+    if(fallback){
+      delete img.dataset.fallback;
+      img.src = fallback;
+    } else {
+      img.style.visibility = 'hidden';
+    }
+  }, true);
   document.getElementById('modal-body').innerHTML='';
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent='Select a Profile Picture';
   document.getElementById('modal-acts').innerHTML='';
   const back=document.createElement('button');back.className='btn sm';back.textContent='Back';
-  back.onclick=()=>renderProfileModal(false);
+  back.onclick=()=>{ stopProfilePickerObserver(); renderProfileModal(false); };
   document.getElementById('modal-acts').appendChild(back);
+
+  // Let the modal paint before registering its lazy images. This keeps opening
+  // immediate even for profiles that own all 100 pictures.
+  const startLazyLoading = ()=>{
+    if(!grid.isConnected) return;
+    if('IntersectionObserver' in window){
+      _profilePickerObserver = new IntersectionObserver(entries=>{
+        entries.forEach(entry=>{
+          if(!entry.isIntersecting) return;
+          loadThumb(entry.target);
+          _profilePickerObserver?.unobserve(entry.target);
+        });
+      }, { root:grid, rootMargin:'96px 0px', threshold:0.01 });
+      lazyImages.forEach(img=>_profilePickerObserver.observe(img));
+    } else {
+      lazyImages.forEach(loadThumb);
+    }
+  };
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(startLazyLoading);
+  else setTimeout(startLazyLoading, 0);
 }
 
 function openImageCropper(card) {
+  stopProfilePickerObserver();
   const body = document.createElement('div');
   body.innerHTML = `
     <div class="cropper-wrap">

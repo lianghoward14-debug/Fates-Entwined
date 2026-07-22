@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <radialGradient id="cardShade" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#2b2424"/>
+      <stop offset="58%" stop-color="#171316"/>
+      <stop offset="100%" stop-color="#0c0a0d"/>
+    </radialGradient>
+    <linearGradient id="cardEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#856437"/>
+      <stop offset="54%" stop-color="#33271d"/>
+      <stop offset="100%" stop-color="#b98b42"/>
+    </linearGradient>
+    <filter id="boatGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.56 0 0 0.42  0 0 0.18 0 0.12  0 0 0 0.82 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .page{fill:#100d11}
+      .card{fill:url(#cardShade);stroke:url(#cardEdge);stroke-width:1.7}
+      .cellGlow{fill:rgba(172,91,24,.15)}
+      .corner{fill:none;stroke:rgba(255,224,166,.23);stroke-width:1.15}
+      .mark{fill:none;stroke:rgba(255,224,166,.98);stroke-width:4.15;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .mast{fill:none;stroke:rgba(255,224,166,.98);stroke-width:4.8;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .thin{fill:none;stroke:rgba(255,224,166,.90);stroke-width:2.45;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .fill{fill:rgba(255,224,166,.98);filter:url(#boatGlow)}
+      .sampleNum{fill:#f0c979;font:700 18px Georgia,serif;text-anchor:middle}
+      .sampleName{fill:rgba(255,236,191,.82);font:12px Georgia,serif;text-anchor:middle}
+      .note{fill:rgba(255,236,191,.58);font:14px Georgia,serif}
+      .title{fill:#ffe5aa;font:700 24px Georgia,serif}
+    </style>
+    <g id="previewCard">
+      <rect class="card" x="0" y="0" width="118" height="162" rx="8"/>
+      <rect class="cellGlow" x="4" y="4" width="110" height="154" rx="6"/>
+      <path class="corner" d="M14 21h20M14 21v20M104 21H84M104 21v20M14 141h20M14 141v-20M104 141H84M104 141v-20"/>
+    </g>
+  </defs>
+
+  <rect class="page" width="1280" height="760"/>
+  <text class="title" x="54" y="46">Anička Voyager visible mast connector samples</text>
+  <text class="note" x="54" y="70">These leave an open vertical mast segment between the sails and hull, so the sails visibly connect to the boat.</text>
+
+  <g transform="translate(54 110)">
+    <g transform="translate(0 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">29</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 12V68"/>
+        <path class="mark" d="M29 16L14 48H29z"/>
+        <path class="thin" d="M36 24L50 48H36z"/>
+        <path class="mark" d="M8 61c12 8 37 8 49 0l-9 9H17z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">straight connector</text>
+    </g>
+
+    <g transform="translate(144 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">30</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V70"/>
+        <path class="mark" d="M29 15L12 47H29z"/>
+        <path class="thin" d="M36 22L50 47H36z"/>
+        <path class="mark" d="M7 62c13 8 38 8 51 0l-10 10H16z"/>
+        <path class="thin" d="M19 66h26"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deck foot</text>
+    </g>
+
+    <g transform="translate(288 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">31</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M33 12V69"/>
+        <path class="mark" d="M30 16L14 48H30z"/>
+        <path class="thin" d="M37 24L49 48H37z"/>
+        <path class="mark" d="M9 61c12 8 35 8 47 0l-9 10H18z"/>
+        <circle class="fill" cx="33" cy="60" r="2.3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">mast peg</text>
+    </g>
+
+    <g transform="translate(432 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">32</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 12V68"/>
+        <path class="mark" d="M29 16L13 47H29z"/>
+        <path class="thin" d="M36 23L50 47H36z"/>
+        <path class="mark" d="M8 61h49c-5 7-14 10-25 10S13 68 8 61z"/>
+        <path class="thin" d="M8 75c8 3 16 3 24 0 8-3 16-3 24 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">open cabin gap</text>
+    </g>
+
+    <g transform="translate(576 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">33</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V69"/>
+        <path class="mark" d="M28 16L12 49H28z"/>
+        <path class="mark" d="M36 23L51 49H36z"/>
+        <path class="mark" d="M8 62c12 8 38 8 50 0l-10 9H16z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">bold sails</text>
+    </g>
+
+    <g transform="translate(720 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">34</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 11V70"/>
+        <path class="mark" d="M29 16L15 47H29z"/>
+        <path class="thin" d="M36 24L49 47H36z"/>
+        <path class="mark" d="M8 62c12 8 37 8 49 0l-9 9H17z"/>
+        <path class="thin" d="M34 14l11-6 7 10"/>
+      </g>
+      <text class="sampleName" x="59" y="188">flag connector</text>
+    </g>
+
+    <g transform="translate(864 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">35</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 12V68"/>
+        <path class="mark" d="M29 16L13 48H29z"/>
+        <path class="thin" d="M36 23L50 48H36z"/>
+        <path class="mark" d="M8 61c12 8 37 8 49 0l-9 10H17z"/>
+        <path class="thin" d="M8 42H1M10 51H3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">moving boat</text>
+    </g>
+
+    <g transform="translate(1008 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">36</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M31 10V70"/>
+        <path class="mark" d="M28 15L12 48H28z"/>
+        <path class="thin" d="M35 22L50 48H35z"/>
+        <path class="mark" d="M7 62h51c-5 7-14 10-26 10S12 69 7 62z"/>
+        <path class="thin" d="M18 67h29"/>
+      </g>
+      <text class="sampleName" x="59" y="188">wide deck join</text>
+    </g>
+
+    <g transform="translate(144 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">37</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V71"/>
+        <path class="mark" d="M29 15L13 48H29z"/>
+        <path class="thin" d="M36 23L50 48H36z"/>
+        <path class="mark" d="M8 62c12 8 37 8 49 0l-10 10H17z"/>
+        <path class="thin" d="M17 70l-7 6M32 71l-3 7M47 70l7 6"/>
+      </g>
+      <text class="sampleName" x="59" y="188">keel sparks</text>
+    </g>
+
+    <g transform="translate(288 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">38</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 11V70"/>
+        <path class="mark" d="M29 16L14 47H29z"/>
+        <path class="thin" d="M36 24L49 47H36z"/>
+        <path class="mark" d="M8 62c12 7 37 7 49 0l-9 9H17z"/>
+        <path class="thin" d="M18 73c8 3 19 3 28 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">clean readable</text>
+    </g>
+
+    <g transform="translate(432 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">39</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 9V71"/>
+        <path class="mark" d="M29 15L14 47H29z"/>
+        <path class="mark" d="M36 22L50 47H36z"/>
+        <path class="mark" d="M8 62c12 8 37 8 49 0l-9 10H17z"/>
+        <circle class="fill" cx="32" cy="9" r="2.3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">strong simple</text>
+    </g>
+
+    <g transform="translate(626 258)">
+      <rect x="0" y="0" width="440" height="146" rx="8" fill="rgba(255,224,166,.055)" stroke="rgba(255,224,166,.18)"/>
+      <text class="note" x="24" y="36">This time the key line is intentionally visible:</text>
+      <text class="note" x="24" y="66">mast top -> between sails -> down through open gap -> hull.</text>
+      <text class="note" x="24" y="94">Best picks: 29, 33, 38, 39.</text>
+      <text class="note" x="24" y="122">29 is the plainest and least ambiguous.</text>
+    </g>
+  </g>
+</svg>

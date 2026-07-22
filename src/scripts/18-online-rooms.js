@@ -348,6 +348,8 @@
       fateModifiers:cloneOnlinePlain(g.fateModifiers),
       landscapeId:g.landscapeId || null,
       landscapeBgNum:g.landscapeBgNum || null,
+      _turnTimerSeconds:g._turnTimerSeconds,
+      _freePlayGameSettings:cloneOnlinePlain(g._freePlayGameSettings),
       _landscapeState:cloneOnlinePlain(g._landscapeState),
       currentPlayer:g.currentPlayer,
       turn:g.turn,
@@ -604,6 +606,15 @@
       });
     });
   }
+  function isOnlinePanaceaSailorsMoveAction(action){
+    const payload = action?.payload || {};
+    const moveKind = String(payload.moveKind || payload.kind || payload.pendingKind || '');
+    if(/^(landscapeEventideMove|panaceaSailorsMove)$/i.test(moveKind)) return true;
+    const actionType = onlineEffectiveActionType(action);
+    return actionType === 'SELECT_PENDING_MOVE_CELL'
+      && payload.pendingMove === true
+      && /panacea|landscapeEventideMove|panaceaSailorsMove/i.test(String(payload.promptId || ''));
+  }
   function maybeFlashOnlineAutomaticEffectDeltas(action, beforeFateSnapshot, reason){
     if(!(beforeFateSnapshot instanceof Map) || typeof window.flashCardEffect !== 'function') return false;
     const current = collectOnlineFateSnapshot(gameState()?.board);
@@ -632,14 +643,35 @@
         });
       }
       if(moved){
-        kind = onlineZoneHasActiveFriendlyRozsi(after.card, after.z) ? 'rozsi_dance' : 'movement_boot';
-        label = kind === 'rozsi_dance' ? 'Hungarian Dance' : 'effect movement';
+        const braveHorizonsMove = String(action?.payload?.moveKind || '') === 'anickaVoyagerMove'
+          || (onlineEffectiveActionType(action) === 'SELECT_PENDING_MOVE_CELL' && String(action?.payload?.source?.id || '') === 'bh01');
+        const panaceaSailorsMove = isOnlinePanaceaSailorsMoveAction(action);
+        const rozsiMove = onlineZoneHasActiveFriendlyRozsi(after.card, after.z);
+        kind = (String(after.id || '') === 'bh01' && braveHorizonsMove) || panaceaSailorsMove ? 'anicka_voyager_boat'
+          : (rozsiMove ? 'rozsi_dance' : 'movement_boot');
+        label = panaceaSailorsMove && kind === 'anicka_voyager_boat' ? 'Panacea Sailors'
+          : kind === 'rozsi_dance' ? 'Hungarian Dance'
+          : kind === 'anicka_voyager_boat' ? 'Brave Horizons'
+          : 'effect movement';
+        if(kind === 'anicka_voyager_boat' && (braveHorizonsMove || panaceaSailorsMove)) {
+          if(typeof window.playSailingMovementSfx === 'function') window.playSailingMovementSfx();
+          else if(typeof window.playSfx === 'function') window.playSfx('sailingMove');
+        }
       } else if(after.id === '95' && after.specterFateGains > before.specterFateGains) {
         kind = 'specter_ghost';
         label = 'Thousand Year Sorrow';
       } else if(after.id === '100' && after.wintertideTriggerCount > before.wintertideTriggerCount) {
         kind = 'wintertide';
         label = 'Wintertide';
+      } else if(
+        actionType === 'END_TURN'
+        && String(gameState()?.landscapeId || '') === 'igb18'
+        && after.owner === currentPlayer
+        && after.fate > before.fate
+        && String(after.card?.aff || '') === 'expanded_worlds'
+      ) {
+        kind = 'idyllic_polish_village';
+        label = 'An Idyllic Polish Village';
       } else if(
         after.id === '46'
         && actionType === 'END_TURN'
@@ -2226,7 +2258,7 @@
     g.board = syncOnlineBoardInPlace(g.board, state.board, state);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
-      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
+      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_turnTimerSeconds','_freePlayGameSettings','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
       'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
@@ -3144,6 +3176,7 @@
     }, extra || {});
     if(/^(CLICK_CELL|SELECT_PENDING_MOVE_CELL)$/i.test(String(type || '')) && /move|pickMove/i.test(String(pending?.kind || ''))){
       payload.pendingMove = true;
+      payload.pendingKind = String(pending?.kind || '');
       noteOnlineMoreBoardPreference('movement', 'server-pending-move-choice', 30000);
     }
     sendAction(type, payload).catch(err=>{
@@ -3376,7 +3409,7 @@
     try{
       window.showLandscapeChoiceModal(0, function(song, landscape, bgNum){
         const latest = gameState();
-        const n = Math.max(1, Math.min(19, Number(bgNum || String(song || '').replace('board', '')) || 0));
+        const n = Math.max(1, Math.min(20, Number(bgNum || String(song || '').replace('board', '')) || 0));
         const payload = {
           playerIndex:localIndex,
           turn:latest?.turn || g.turn || 0,
@@ -3540,7 +3573,7 @@
   }
   function pickSongForSeed(seed){
     const rng = makeSeededRng(String(seed || 'online') + ':song');
-    return 'board' + (Math.floor(rng() * 19) + 1);
+    return 'board' + (Math.floor(rng() * 20) + 1);
   }
   function gameState(){
     if(typeof window.getFateGameState === 'function') return window.getFateGameState();
@@ -4654,10 +4687,13 @@
     if(!handDelta && !deckDelta && !discardDelta) return false;
     if(!markOnlineRemotePresentation(g, key)) return false;
     if(handDelta > 0 && deckDelta < 0){
+      const braveHorizonsMove = String(action?.payload?.moveKind || '') === 'anickaVoyagerMove'
+        || (onlineEffectiveActionType(action) === 'SELECT_PENDING_MOVE_CELL' && String(action?.payload?.source?.id || '') === 'bh01');
+      const drawAfterMoveDelay = braveHorizonsMove ? 360 : 0;
       for(let i = 0; i < Math.min(handDelta, 3); i++){
         setTimeout(function(){
           if(!emitOnlineAcceptedPresentation('DRAW_CARD', {drawIndex:i, drawCount:handDelta, count:handDelta}, action, 'draw') && typeof window.playSfx === 'function') window.playSfx('draw');
-        }, i * 95);
+        }, drawAfterMoveDelay + i * 95);
       }
     } else if(handDelta > 0){
       if(!emitOnlineAcceptedPresentation('SEARCH_TO_HAND', {count:handDelta}, action, 'search') && typeof window.playSfx === 'function') window.playSfx('searchFound');
@@ -7365,6 +7401,29 @@
     const raw = String(mode || 'freeplay').toLowerCase();
     return raw === 'ranked' || raw === 'challenger' ? 'ranked' : 'freeplay';
   }
+  function normalizeOnlineFreePlayGameSettings(value){
+    const source = value && typeof value === 'object' ? value : {};
+    const landscapeMode = source.landscapeMode === 'selected' ? 'selected' : 'random';
+    const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
+    const landscapeId = match ? 'igb' + Number(match[1]) : 'igb1';
+    const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || 3)));
+    return {landscapeMode, landscapeId, turnTimerMinutes};
+  }
+  function pendingFreePlayRoomGameSettings(mode){
+    if(normalizeRoomMode(mode) !== 'freeplay') return normalizeOnlineFreePlayGameSettings(null);
+    const value = typeof window.fateGetFreePlayGameSettings === 'function'
+      ? window.fateGetFreePlayGameSettings()
+      : window.FATE_FREE_PLAY_GAME_SETTINGS;
+    return normalizeOnlineFreePlayGameSettings(value);
+  }
+  function songForOnlineRoomGameSettings(room, seed){
+    const settings = normalizeOnlineFreePlayGameSettings(room && room.gameSettings);
+    if(settings.landscapeMode === 'selected') return 'board' + Number(settings.landscapeId.replace('igb', ''));
+    return pickSongForSeed(seed);
+  }
+  function turnTimerSecondsForOnlineRoomGameSettings(room, song){
+    return normalizeOnlineFreePlayGameSettings(room && room.gameSettings).turnTimerMinutes * 60;
+  }
   function queueKeyFor(mode, status='waiting', targetUid=''){
     const m = normalizeRoomMode(mode);
     const s = String(status || 'waiting').toLowerCase();
@@ -7549,7 +7608,8 @@
         uid:u.uid,
         mode,
         profile:prof,
-        deckChoice:flyDeckChoiceFromRoomDeck(pendingDeck)
+        deckChoice:flyDeckChoiceFromRoomDeck(pendingDeck),
+        gameSettings:pendingFreePlayRoomGameSettings(mode)
       }
     });
     const room = normalizeFlyRoom(data.room);
@@ -7705,7 +7765,7 @@
     let created = false;
     for(let i=0;i<12;i++){
       code = makeCode();
-      const roomPayload = { roomCode:code, mode, status:'lobby', hostUid:u.uid, guestUid:null, createdAt:now, updatedAt:now, lastActionSeq:0, schemaVersion:1 };
+      const roomPayload = { roomCode:code, mode, gameSettings:pendingFreePlayRoomGameSettings(mode), status:'lobby', hostUid:u.uid, guestUid:null, createdAt:now, updatedAt:now, lastActionSeq:0, schemaVersion:1 };
       if(FO.runTransaction){
         const claim = await FO.runTransaction(FO.ref(FO.rtdb, `rooms/${code}`), current => current ? undefined : roomPayload).catch(e=>{ console.error('Room create transaction failed', e); return null; });
         if(claim && claim.committed){ created = true; break; }
@@ -8133,6 +8193,13 @@
     const startInline = isHost
       ? `<button class="btn pri online-room-start-btn" ${canStart?'':'disabled'} onclick="window.fateHostStartRoom('${esc(current.roomCode)}')">Start Game</button>`
       : `<div class="online-room-countdown">Waiting for host to start...</div>`;
+    const roomSettings = normalizeOnlineFreePlayGameSettings(current.gameSettings);
+    const roomLandscapeLabel = roomSettings.landscapeMode === 'selected'
+      ? (typeof LANDSCAPES !== 'undefined' && LANDSCAPES?.[roomSettings.landscapeId]?.shortName || roomSettings.landscapeId.toUpperCase())
+      : 'Random landscape';
+    const roomTimerLabel = roomSettings.landscapeMode === 'selected' && roomSettings.landscapeId === 'igb14'
+      ? '30 seconds (Lone Pine locked)'
+      : roomSettings.turnTimerMinutes + ' minute' + (roomSettings.turnTimerMinutes === 1 ? '' : 's');
     const html = `
       <div class="online-room-lobby online-room-lobby-v15 online-room-lobby-v21">
         <div class="online-room-code">${esc(current.roomCode)}</div>
@@ -8145,6 +8212,7 @@
             <span>Guest: ${esc(guestActive ? selectedDeckName(guestNode) : 'Waiting')}</span>
           </div>
         </div>
+        ${isRanked ? '' : `<div class="online-room-note online-room-settings-note"><b>First-player room settings:</b> ${esc(roomLandscapeLabel)} · ${esc(roomTimerLabel)}. These settings take precedence for both players.</div>`}
         <div class="online-room-start-row">${guestActive ? startInline : '<div class="online-room-note online-room-wait-note">Waiting for a second player.</div>'}</div>
         <div class="online-room-note">Host starts after both players choose decks. The versus screen then advances by countdown on both clients.</div>
       </div>`;
@@ -8165,7 +8233,7 @@
     if(!room.guestUid || !guest){ if(window.toast) toast('Waiting for guest'); return false; }
     if(!hasValidDeck(hostNode) || !hasValidDeck(guest)){ if(window.toast) toast('Both players need a 40-card deck'); return false; }
     const seed = `${code}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const song = pickSongForSeed(seed);
+    const song = songForOnlineRoomGameSettings(room, seed);
     try{
       const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/start`, {
         method:'POST',
@@ -8229,7 +8297,9 @@
       if(!Array.isArray(hostNode?.deckIds) || hostNode.deckIds.length !== 40 || !Array.isArray(guest.deckIds) || guest.deckIds.length !== 40){ if(window.toast) toast('Both players need a 40-card deck'); return; }
       const seed = `${code}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const roomMode = normalizeRoomMode(room.mode);
-      const song = pickSongForSeed(seed);
+      const gameSettings = normalizeOnlineFreePlayGameSettings(room.gameSettings);
+      const song = songForOnlineRoomGameSettings(room, seed);
+      const turnTimerSeconds = turnTimerSecondsForOnlineRoomGameSettings(room, song);
       const hostProf = liveProfiles.get(room.hostUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.hostUid}`))).val() || {};
       const guestProf = liveProfiles.get(room.guestUid) || (await FO.get(FO.ref(FO.rtdb, `publicProfiles/${room.guestUid}`))).val() || {};
       if(!isConnectedPlayer(hostNode) || !isConnectedPlayer(guest)){ if(window.toast) toast('Both players must be connected'); return; }
@@ -8249,7 +8319,7 @@
           seq:1,
           uid:u.uid,
           type:'MATCH_START',
-          payload:{ seed, song, hostUid:room.hostUid, guestUid:room.guestUid, mode:roomMode, profiles:{0:hostProf,1:guestProf}, decks:{0:hostNode.deckIds,1:guest.deckIds}, deckNames:{0:hostNode.selectedDeckName||'Host Deck',1:guest.selectedDeckName||'Guest Deck'} },
+          payload:{ seed, song, gameSettings, turnTimerSeconds, hostUid:room.hostUid, guestUid:room.guestUid, mode:roomMode, profiles:{0:hostProf,1:guestProf}, decks:{0:hostNode.deckIds,1:guest.deckIds}, deckNames:{0:hostNode.selectedDeckName||'Host Deck',1:guest.selectedDeckName||'Guest Deck'} },
           createdAt:FO.serverTimestamp()
         }
       });
@@ -8294,6 +8364,8 @@
       const seed = room.seed || startPayload.seed || `${room.roomCode}_fallback_seed`;
       const song = room.song || startPayload.song || pickSongForSeed(seed);
       const roomMode = normalizeRoomMode(room.mode || startPayload.mode);
+      const gameSettings = normalizeOnlineFreePlayGameSettings(startPayload.gameSettings || room.gameSettings);
+      const turnTimerSeconds = Math.max(30, Math.min(600, Math.round(Number(startPayload.turnTimerSeconds) || turnTimerSecondsForOnlineRoomGameSettings({gameSettings}, song))));
       const decks = startPayload.decks || {};
       if(Array.isArray(decks[0]) && decks[0].length === 40) g.p1Deck = [...decks[0]];
       if(Array.isArray(decks[1]) && decks[1].length === 40) g.p2Deck = [...decks[1]];
@@ -8309,6 +8381,8 @@
       g._onlineSeed = seed;
       g._onlineRoomMode = roomMode;
       g._onlineGameSong = song;
+      g._freePlayGameSettings = gameSettings;
+      g._turnTimerSeconds = turnTimerSeconds;
       g._onlineRng = makeSeededRng(seed);
       g._onlineActionLogMode = true;
       const hostNode = players?.[room.hostUid] || {};
@@ -8332,6 +8406,8 @@
       g._onlineSeed = seed;
       g._onlineRoomMode = roomMode;
       g._onlineGameSong = song;
+      g._freePlayGameSettings = gameSettings;
+      g._turnTimerSeconds = turnTimerSeconds;
       if(typeof window.setFateCurrentMode === 'function') window.setFateCurrentMode(roomMode === 'ranked' ? 'challenger' : 'free');
       if(typeof window.applyGameBackground === 'function') window.applyGameBackground(song);
       if(typeof window._lastGameSong !== 'undefined') window._lastGameSong = song;
@@ -8961,6 +9037,7 @@
       canonicalHash:room.canonicalHash || room.serverStateHash || '',
       seed:room.seed || '',
       song:room.song || '',
+      gameSettings:normalizeOnlineFreePlayGameSettings(room.gameSettings),
       startedAt:room.startedAt || 0,
       endedAt:room.endedAt || 0,
       endedBy:room.endedBy || '',
@@ -11029,6 +11106,7 @@
         mode,
         profile:prof,
         deckChoice:flyDeckChoiceFromRoomDeck(deck),
+        gameSettings:pendingFreePlayRoomGameSettings(mode),
         partyTargetUid:partyTargetUid || '',
         clientSession:matchmakingClientSession()
       }
@@ -11074,7 +11152,7 @@
     let created = false;
     for(let i=0;i<14;i++){
       code = makeCode();
-      const roomPayload = { roomCode:code, mode, status:'lobby', hostUid:u.uid, guestUid:null, createdAt:now, updatedAt:now, lastActionSeq:0, schemaVersion:1, matchmaking:true };
+      const roomPayload = { roomCode:code, mode, gameSettings:pendingFreePlayRoomGameSettings(mode), status:'lobby', hostUid:u.uid, guestUid:null, createdAt:now, updatedAt:now, lastActionSeq:0, schemaVersion:1, matchmaking:true };
       if(FO.runTransaction){
         const claim = await FO.runTransaction(FO.ref(FO.rtdb, `rooms/${code}`), current => current ? undefined : roomPayload).catch(e=>{ console.error('Queue room create transaction failed', e); return null; });
         if(claim && claim.committed){ created = true; break; }

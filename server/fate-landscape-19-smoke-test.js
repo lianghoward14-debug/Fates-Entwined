@@ -26,16 +26,18 @@ for(const asset of ['ingamebackgrouds/igb19.png', 'setvoicelines/board19.mp3']){
 }
 
 assert.match(data, /igb19:\s*\{[\s\S]{0,260}Californique: Lost Civilization of the Old Age[\s\S]{0,260}3 of that player\\'s turns/);
+assert.doesNotMatch(data, /igb19:\s*\{[\s\S]{0,360}first player to reach 20, 35, and 50 total Fate/);
 assert.match(structural, /CALIFORNIQUE_HAND_TURN_LIMIT = 3/);
 assert.match(structural, /function getCaliforniqueHandTurnsRemaining[\s\S]{0,1400}_igb19HandTurnsRemaining/);
 assert.match(structural, /key:'igb19-hand-expiry'[\s\S]{0,260}turn[\s\S]{0,260}before this Character is discarded/);
 assert.match(setup, /function addCardToHand[\s\S]{0,320}resetCaliforniqueHandTenure\(card, targetPlayer\)/);
 assert.match(core, /function resolveCaliforniqueHandExpiryForPlayer[\s\S]{0,2200}remaining - 1[\s\S]{0,900}fatePushDiscard\(player, card/);
 assert.match(core, /async function nextPlayerTurn\(\)[\s\S]{0,180}resolveCaliforniqueHandExpiryForPlayer\(endingPlayer\)/);
-assert.match(audio, /GAME_SONGS = Array\.from\(\{length:19\}/);
+assert.match(audio, /GAME_SONGS = Array\.from\(\{length:20\}/);
 assert.match(audio, /n === 19\) path = 'ingamebackgrouds\/igb19\.png'/);
-assert.match(rendering, /Math\.min\(19, parseInt\(id\.replace\('igb',''\)/);
-assert.match(online, /function pickSongForSeed[\s\S]{0,180}Math\.floor\(rng\(\) \* 19\) \+ 1/);
+assert.match(rendering, /Math\.min\(20, parseInt\(id\.replace\('igb',''\)/);
+assert.doesNotMatch(rendering, /getActiveLandscapeFateDiscardConfig[\s\S]{0,520}id:'igb19'[\s\S]{0,220}thresholds:/);
+assert.match(online, /function pickSongForSeed[\s\S]{0,180}Math\.floor\(rng\(\) \* 20\) \+ 1/);
 assert.match(reducer, /function validateCaliforniqueEndTurnTransition[\s\S]{0,2800}expired Character did not reach discard/);
 
 const catalog = getCardCatalog();

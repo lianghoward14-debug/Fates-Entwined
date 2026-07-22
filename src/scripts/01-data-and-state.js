@@ -46,8 +46,8 @@ const CARDS = [
     effect:'This card counts as 2 Reinforcement',
     flavor:'"Led under the command of Maja Kaminska, the 5th Army of the United Nations have won dazzling victories in the European theatre"',img:'9.png'},
   {id:'10',name:'Post-Modernist Dylan',ability:'Esoteric Annihilation',type:'Coordinator',aff:'expanded_worlds',
-    fate:3,cost:2,rarity:'triangle',
-    effect:'While on the field: all of your opponent\'s cards in this zone lose 2 Fate.',
+    fate:5,cost:2,rarity:'triangle',
+    effect:'While on the field: all of your opponent\'s cards in this zone lose 3 Fate.',
     flavor:'"Destroy. Obliterate. Exterminate. Eradicate. Annihilate. End all"',img:'10.png'},
   {id:'11',name:'Anne Stone',ability:'Coordination',type:'Coordinator',aff:'eventide',
     fate:6,cost:2,rarity:'triangle',
@@ -91,7 +91,7 @@ const CARDS = [
     flavor:'"In Pacifica, the South Wind Spearmen are the textbook definition of a disciplined and well organized army"',img:'20.png'},
   {id:'21',name:'Henry Dong',ability:'The Last Revolution',type:'Dauntless',aff:'third_great_war',
     fate:10,cost:3,rarity:'triangle',
-    effect:'While this card is on the field, Select up to two squares adjacent to this card and suppress any of your opponent\'s coordinator effects on them',
+    effect:'While this card is on the field, Select up to two squares adjacent to this card and suppress any of your opponent\'s Coordinator effects on them',
     flavor:'"Our workers\' revolution, this final revolution to usurp Capitalism\'s golden throne - will bring the end of history"',img:'21.png'},
   {id:'22',name:'Isaac Perez',ability:'A Scientist\'s Inquiry',type:'Initiator',aff:'expanded_worlds',
     fate:1,cost:1,rarity:'triangle',
@@ -251,7 +251,7 @@ const CARDS = [
     flavor:'"Maybe the true benefit of IB was the 4000 word essay we wrote along the way"',img:'60.png'},
   {id:'61',name:'Maria Song',ability:'Precise Shot',type:'Dauntless',aff:'eventide',
     fate:9,cost:3,rarity:'triangle',
-    effect:'When set, reveal all Character cards in your opponent\'s hand and select one. All copies of that card in their hand, deck, and on the field lose 6 Fate.',
+    effect:'When set, reveal all Character cards in your opponent\'s hand and select one. All copies of that card in their hand, deck, and on the field lose 7 Fate.',
     flavor:'"That giant cleaver is cool and all but what\'s the point if I just blow your brains out from over here?"',img:'61.png'},
   {id:'62',name:'Berkeley Homeless',ability:'People\'s Park',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
@@ -414,6 +414,10 @@ const CARDS = [
     fate:12,cost:3,rarity:'star',set:'brave_horizons',
     effect:'Once a turn, you can move this card to any open square in any zone. If you do so, draw 1 card. This card is immune to all effects.',
     flavor:'"Infinity beckons, but I already see all Ends"',img:'bh1.png'},
+  {id:'bh02',name:'Joie',ability:'Thousand Reel Stare',type:'Coordinator',aff:'reality',
+    fate:1,cost:5,rarity:'square',set:'brave_horizons',
+    effect:'Each time you activate a draw effect in this card\'s zone, all cards you control in this zone gain 1 Fate.',
+    flavor:'"You\'re so fake"',img:'bh2.png'},
   {id:'bh25',name:'Jimmy (Viltrumite)',ability:'Left Hook of the Incel',type:'Dauntless',aff:'reality',
     fate:8,cost:3,rarity:'square',set:'brave_horizons',retired:true,
     effect:'When set, discard any card on the field.',
@@ -428,7 +432,7 @@ const WOJCIECH_PIEROGI_COUNTER = Object.freeze({
 });
 
 const WHISPER_OF_THE_HEART_TOKEN = Object.freeze({
-  id:'whisper17',name:'Whisper of the Heart',ability:'Concrete Roads',type:'Coordinator',aff:'expanded_worlds',
+  id:'whisper17',name:'Shizuku',ability:'Concrete Roads',type:'Coordinator',aff:'expanded_worlds',
   fate:5,cost:0,rarity:'star',
   effect:'Set this token at no cost. It carries the copied Coordinator effect.',
   flavor:'',img:'whisper.png',whisperLandscapeToken:true
@@ -563,7 +567,7 @@ const LANDSCAPES = {
     id:'igb17',
     name:'Tama City: Concrete Roads',
     shortName:'Concrete Roads',
-    description:'Once per game, discard a Coordinator you control and 2 cards from your hand. Add a 5 Fate Whisper token to your hand that copies that Coordinator\'s effect and applies it to your whole field. Some Coordinators are not eligible.'
+    description:'Once per game, discard a Coordinator you control and 2 cards from your hand. Add a 5 Fate Shizuku Token to your hand that copies that Coordinator\'s effect and applies it to your whole field. Some Coordinators are not eligible.'
   },
   igb18: {
     id:'igb18',
@@ -576,6 +580,12 @@ const LANDSCAPES = {
     name:'Californique: Lost Civilization of the Old Age',
     shortName:'Lost Civilization of the Old Age',
     description:'Character cards are discarded after remaining in the same player\'s hand for 3 of that player\'s turns.'
+  },
+  igb20: {
+    id:'igb20',
+    name:'The Battle of Pella, 2052',
+    shortName:'The Battle of Pella, 2052',
+    description:'The first player to reach 20, 35, and 50 total Fate can discard any one card on the field of their choice.'
   }
 };
 window.LANDSCAPES = LANDSCAPES;

@@ -580,6 +580,7 @@ function applyAcceptedEventFromFlyLog(code, accepted){
   if(action.type === 'MATCH_START'){
     room.seed = String(action.payload?.seed || room.seed || '').slice(0, 160);
     room.song = String(action.payload?.song || room.song || '').slice(0, 160);
+    room.gameSettings = sanitizeFreePlayGameSettings(action.payload?.gameSettings || room.gameSettings);
     room.hostUid = String(action.payload?.hostUid || room.hostUid || '').slice(0, 128);
     room.guestUid = String(action.payload?.guestUid || room.guestUid || '').slice(0, 128);
     if(room.hostUid) room.playerOrder[0] = room.hostUid;
@@ -861,6 +862,7 @@ function makeRoom(code){
     playerOrder:{0:'', 1:''},
     players:{},
     mode:'freeplay',
+    gameSettings:sanitizeFreePlayGameSettings(null),
     status:'lobby',
     phase:'lobby',
     currentTurnUid:'',
@@ -980,6 +982,27 @@ function sanitizeDeckChoice(value){
 function normalizeRoomMode(mode){
   const raw = String(mode || 'freeplay').toLowerCase();
   return raw === 'ranked' || raw === 'challenger' ? 'ranked' : 'freeplay';
+}
+
+function sanitizeFreePlayGameSettings(value){
+  const source = value && typeof value === 'object' ? value : {};
+  const landscapeMode = source.landscapeMode === 'selected' ? 'selected' : 'random';
+  const landscapeMatch = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
+  const landscapeId = landscapeMatch ? 'igb' + Number(landscapeMatch[1]) : 'igb1';
+  const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || 3)));
+  return {landscapeMode, landscapeId, turnTimerMinutes};
+}
+
+function gameSongForRoomSettings(room, seed, requestedSong){
+  const settings = sanitizeFreePlayGameSettings(room && room.gameSettings);
+  if(settings.landscapeMode === 'selected') return 'board' + Number(settings.landscapeId.replace('igb', ''));
+  const rng = makeSeededRng(String(seed || 'freeplay') + ':landscape');
+  return 'board' + (Math.floor(rng() * 20) + 1);
+}
+
+function turnTimerSecondsForRoomSettings(room, song){
+  const settings = sanitizeFreePlayGameSettings(room && room.gameSettings);
+  return settings.turnTimerMinutes * 60;
 }
 
 function matchmakingQueueKey(mode, status = 'waiting', targetUid = ''){
@@ -1997,6 +2020,7 @@ function publicRoom(room){
     canonicalHash:room.canonicalHash || '',
     seed:room.seed || '',
     song:room.song || '',
+    gameSettings:sanitizeFreePlayGameSettings(room.gameSettings),
     startedAt:room.startedAt || 0,
     endedAt:room.endedAt || 0,
     endedBy:room.endedBy || '',
@@ -2970,6 +2994,7 @@ function createMatchmakingHostRoom(uid, body, profile, deckChoice, mode){
   room.guestUid = '';
   room.playerOrder[0] = uid;
   room.matchmaking = true;
+  room.gameSettings = sanitizeFreePlayGameSettings(body.gameSettings);
   const player = upsertRoomPlayer(room, uid, 'host', profile, deckChoice);
   if(player) player.connected = true;
   const entry = publicMatchmakingEntry({
@@ -4107,8 +4132,10 @@ async function startRoomOnFlyQueued(room, uid, body){
   }
   const seq = room.lastSeq + 1;
   const seed = String(body?.seed || `${room.code}_${now()}_${crypto.randomBytes(4).toString('hex')}`).slice(0, 160);
-  const song = String(body?.song || '').slice(0, 160);
+  const song = gameSongForRoomSettings(room, seed, body?.song);
   const roomMode = String(room.mode || body?.mode || 'freeplay').slice(0, 32);
+  const gameSettings = sanitizeFreePlayGameSettings(room.gameSettings);
+  const turnTimerSeconds = turnTimerSecondsForRoomSettings(room, song);
   const coinWinnerRng = makeSeededRng(seed + ':first-player');
   const coinWinner = Math.floor(coinWinnerRng() * 2) === 1 ? 1 : 0;
   const initial = buildInitialAuthorityState({
@@ -4117,6 +4144,8 @@ async function startRoomOnFlyQueued(room, uid, body){
     song,
     decks:{0:hostDeck, 1:guestDeck},
     mode:roomMode,
+    gameSettings,
+    turnTimerSeconds,
     currentPlayer:coinWinner,
     phase:'draw'
   });
@@ -4139,6 +4168,8 @@ async function startRoomOnFlyQueued(room, uid, body){
       hostUid:room.hostUid,
       guestUid:room.guestUid,
       mode:roomMode,
+      gameSettings,
+      turnTimerSeconds,
       profiles:{0:hostNode.profile || {}, 1:guestNode.profile || {}},
       decks:{0:[...hostDeck], 1:[...guestDeck]},
       deckNames:{0:hostNode.deckChoice?.name || 'Host Deck', 1:guestNode.deckChoice?.name || 'Guest Deck'},
@@ -5089,6 +5120,7 @@ async function handleApiRequest(req, res, url){
       const code = generateRoomCode();
       const room = getRoom(code);
       room.mode = String(body.mode || 'freeplay').slice(0, 32);
+      room.gameSettings = sanitizeFreePlayGameSettings(body.gameSettings);
       room.status = 'lobby';
       room.phase = 'lobby';
       room.hostUid = uid;

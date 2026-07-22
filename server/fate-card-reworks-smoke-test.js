@@ -20,7 +20,7 @@ const bootstrap = read('server/fate-authority-bootstrap.js');
 const {canonicalStateHash, validateProposedTransition, reduceServerAction} = require('./fate-authority-reducer');
 
 assert.match(data, /id:'52'[\s\S]*When it leaves the field, discard one random card from your opponent\\'s hand\./, 'Vigilantes text must describe its departure trigger');
-assert.match(data, /id:'61'[\s\S]*All copies of that card in their hand, deck, and on the field lose 6 Fate\./, 'Maria Song text must describe the copy-wide Fate loss');
+assert.match(data, /id:'61'[\s\S]*All copies of that card in their hand, deck, and on the field lose 7 Fate\./, 'Maria Song text must describe the copy-wide Fate loss');
 assert.match(data, /id:'81',name:'Wojciech',ability:'Pierogi Barrage',type:'Initiator'[\s\S]*stay there for 3 of their turns\./, 'Wojciech must use the new Initiator rules text');
 assert.match(data, /id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Improvisor'[\s\S]*Whenever your opponent would search for a card, you can draw 1 card, and this card gains 3 Fate\./, 'Boleslaw must match the new Improvisor card art');
 assert.match(data, /WOJCIECH_PIEROGI_COUNTER[\s\S]*id:'token1'[\s\S]*img:'token1\.png'/, 'the generated Pierogi Counter must use token1.png');
@@ -30,7 +30,7 @@ assert.doesNotMatch(helpers, /if \(card\._markedForDeath\) return 0/, 'Vigilante
 assert.doesNotMatch(helpers, /card\.id === '86'[\s\S]{0,120}(?:return 3|value = 3|playerHasMoreCharactersThanSupportersInHand)/, 'Boleslaw must not retain the old free-set or three-Reinforcement rules');
 assert.match(core, /function resolveVigilantesMarkedCardDeparture[\s\S]*deterministicOnlineRandomIndex[\s\S]*fatePushDiscard\(targetOwner, selected/, 'Vigilantes must resolve its random hand discard deterministically online');
 assert.match(core, /case '52': \{[\s\S]*activateVigilantes\(inst, z, r, c, \{activationAlreadyCounted:true\}\)[\s\S]*async function activateVigilantes\(card, z, r, c, options\)[\s\S]*activationAlreadyCounted === true[\s\S]*beginManualSupporterEffectActivation/, 'Vigilantes must not count twice when Snow on the Carpathians has already counted its when-set activation');
-assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 6, sourceOwner\)[\s\S]*\['hand','deck'\][\s\S]*forEachBoardCard/, 'Maria Song must hit matching copies in all three locations');
+assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 7, sourceOwner\)[\s\S]*\['hand','deck'\][\s\S]*forEachBoardCard/, 'Maria Song must hit matching copies in all three locations');
 assert.match(core, /function finishWojciechTurnState[\s\S]*_wojciechLastTurnPlacementCounts[\s\S]*_pierogiHandExpiresAfterTurn[\s\S]*_pierogiTurnsRemaining <= 0/, 'Wojciech must snapshot placements and expire hand and board counters');
 assert.match(core, /function placeWojciechPierogiCounter[\s\S]*_pierogiTurnsRemaining = 3[\s\S]*G\.players\[creator\]\.hand =/, 'Pierogi placement must create a three-turn counter and remove it from hand');
 assert.match(core, /function isWojciechPierogiPlacementSquare[\s\S]*r === 1\) return true[\s\S]*isPlayableSafeSquare\(z, r, c, host\)[\s\S]*getSquareRowOwner\(z, r\) === host/, 'client Pierogi placement must allow contested and exact opponent-owned generated squares');

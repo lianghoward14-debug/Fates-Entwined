@@ -87,7 +87,7 @@
     chapter: 'Snow on the Carpathians',
     scene: 'The Lament of a Thousand Years',
     place: 'Poznan, Poland - September 23, 2042',
-    background: 'optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260510d',
+    background: 'ingamebackgrouds/igb15.png?v=bg20260722a',
     enemyName: 'Carpathian Specters',
     enemyCardId: '95',
     enemyHealth: 84,

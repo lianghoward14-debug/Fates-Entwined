@@ -1602,14 +1602,16 @@ function showProfilePackOpening(pfpIds) {
           <img src="booster1.png" alt="Profile Picture Booster" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
         </div>
       </div>
-      <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">Rewards opened!</div>
+      <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">CLICK TO OPEN</div>
     </div>`;
   const packEl = document.getElementById('profile-pack-art-el');
-  setTimeout(()=>{
+  const onClick = ()=>{
     packEl.classList.add('opening');
     playSfx('effect');
-    setTimeout(()=>renderProfilePackReveal(pfpIds), 760);
-  }, 480);
+    setTimeout(()=>renderProfilePackReveal(pfpIds), 1180);
+    packEl.removeEventListener('click', onClick);
+  };
+  packEl.addEventListener('click', onClick);
 }
 
 function buyProfilePack() {
@@ -2075,14 +2077,14 @@ function renderProfilePackReveal(pfpIds) {
       <img src="${PFP_PATH(pfpId, 'square')}" alt="Profile picture ${pfpId}" style="object-fit:cover;object-position:center;">
         <div class="pack-card-name">Profile Picture ${pfpId}</div>
       </div>`;
-    setTimeout(()=>wrap.classList.add('show'), 80*idx);
+    setTimeout(()=>wrap.classList.add('show'), 180*idx);
     grid.appendChild(wrap);
     setTimeout(()=>{
       playSfx('trianglePlace');
       if(idx === pfpIds.length - 1){
-        setTimeout(()=>{ doneBtn.style.display = 'inline-block'; }, 260);
+        setTimeout(()=>{ doneBtn.style.display = 'inline-block'; }, 560);
       }
-    }, 360 + idx*180);
+    }, 620 + idx*360);
   });
 }
 

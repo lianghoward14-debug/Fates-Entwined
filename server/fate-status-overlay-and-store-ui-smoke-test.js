@@ -3,9 +3,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
+const structural = read('src/scripts/00-structural-helpers.js');
 const renderer = read('src/scripts/06-rendering-and-helpers.js');
 const snapshot = read('src/scripts/render-v2/01-render-snapshot.js');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
@@ -31,6 +33,25 @@ assert.match(adapter, /function drawHandEffectIcon\([\s\S]*fillText\('i'/, 'canv
 assert.match(css, /\.hand-effect-marker\{[\s\S]*top:7px!important;[\s\S]*width:21px!important;[\s\S]*height:21px!important;/, 'legacy hand info badge must be raised and enlarged');
 assert.match(css, /\.hand-effect-marker-icon\{[\s\S]*font-size:13px!important;/, 'legacy hand info badge letter must scale with the larger badge');
 assert.match(adapter, /const size = Math\.max\(17, Math\.min\(22, cardRect\.w \* \.21\)\);[\s\S]*cardRect\.y \+ Math\.max\(4, cardRect\.w \* \.055\) \+ 2/, 'canvas hand info badge must be raised and enlarged');
+assert.match(structural, /key:'permanent-fate-reduction'[\s\S]{0,260}name:'Permanent Fate Reduction'[\s\S]{0,320}This reduction remains if this card is discarded, recovered, or set again\./, 'recovered cards below printed Fate must explain their persistent permanent reduction');
+
+const modifierStart = structural.indexOf('function getHandCardEffectModifiers(card)');
+const modifierEnd = structural.indexOf('\nfunction ', modifierStart + 20);
+assert.ok(modifierStart >= 0 && modifierEnd > modifierStart, 'hand modifier helper must be extractable');
+const modifierSandbox = {
+  getCaliforniqueHandTurnsRemaining:()=>null,
+  isCardEffectImmutable:()=>false
+};
+vm.runInNewContext(structural.slice(modifierStart, modifierEnd) + '\nthis.getRows = getHandCardEffectModifiers;', modifierSandbox);
+const reducedRows = modifierSandbox.getRows({
+  fate:6,
+  currentFate:4,
+  _handEffectModifiers:[{key:'other-fate-effect', name:'Other Fate Effect', text:'+1 Fate from another effect.', fateDelta:1}]
+});
+const permanentReduction = reducedRows.find(row=>row && row.key === 'permanent-fate-reduction');
+assert.ok(permanentReduction, 'permanent reduction must remain visible even alongside another Fate modifier');
+assert.equal(permanentReduction.fateDelta, -2);
+assert.match(permanentReduction.text, /discarded, recovered, or set again/);
 
 assert.match(renderer, /TOPBAR_STATUS_TARGET_VISIBLE = 4[\s\S]*TOPBAR_STATUS_FLEX_MIN_WIDTH = 92[\s\S]*function getTopbarStatusAvailableWidth[\s\S]*viewportRoom[\s\S]*fitTopbarStatusTail\(list, container, visibleCount, availableWidth, true\)[\s\S]*if\(flexibleShown\) break;[\s\S]*visibleCount--/, 'status banners must target four visible effects, use viewport-aware room, and allow the last fitted banner to ellipsize before overflowing');
 assert.match(renderer, /classList\.contains\('effect-pill-overflow'\)[\s\S]*hideEffectTooltipPortal\(\)[\s\S]*onmouseenter = function\(\)[\s\S]*showStatusEffectOverflowDropdown[\s\S]*onmouseleave = scheduleStatusEffectOverflowClose[\s\S]*onclick = null/, 'status overflow must open from hover or focus and suppress the duplicate generic tooltip');
@@ -67,7 +88,7 @@ assert.match(css, /ch-store-products \.booster-price-row \.btn-buy\{[\s\S]*top:-
 assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*top:-6px!important;/, 'store Transactions button must be raised six pixels total');
 assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*width:72%!important;[\s\S]*max-width:320px!important;[\s\S]*justify-self:center!important;/, 'store Transactions button must be narrower and centered');
 assert.match(css, /ch-store-market h3\{[\s\S]*translate\(9px,3px\)!important;/, 'store Marketplace heading must move nine pixels right and three pixels down');
-assert.match(index, /zz-codex-last\.css\?v=1785021020/, 'store, overlay, full profile booster art, and gameplay status stylesheet must be cache-busted');
+assert.match(index, /zz-codex-last\.css\?v=1785023121/, 'store, profile booster art, Brave Horizons overlays, and Free Play settings must be cache-busted');
 assert.match(index, /id="title-deck-builder-btn"[^>]*>Deck Builder<\/button>[\s\S]*id="title-mission-control-btn"/, 'Deck Builder and Mission Control must expose stable paired title-menu hooks');
 assert.match(css, /#title-deck-builder-btn,[\s\S]*#title-mission-control-btn\{[\s\S]*display:flex!important;[\s\S]*align-items:center!important;[\s\S]*justify-content:center!important;[\s\S]*align-self:stretch!important;[\s\S]*justify-self:stretch!important;[\s\S]*width:100%!important;/, 'Mission Control must share Deck Builder geometry and label centering');
 assert.doesNotMatch(index, /enhanced-fx-toggle-btn|data-enhanced-fx-toggle|Animations On|Animations Off/, 'title screen must replace the animations toggle button with a passive version badge');
@@ -75,8 +96,8 @@ assert.match(index, /<div id="game-version" class="btn sm title-version-badge" a
 assert.doesNotMatch(index, /social-version-label/, 'Social tab must not contain the version label');
 assert.match(css, /#s-title \.title-version-badge\{[\s\S]*display:inline-flex!important;[\s\S]*pointer-events:none!important;[\s\S]*cursor:default!important;/, 'title version badge must remain visually button-like but passive');
 assert.match(index, /match-scene-v2\.css\?v=17850210\d+/, 'hand organizer stylesheet must be cache-busted');
-assert.match(index, /06-rendering-and-helpers\.js\?v=17850210\d+/, 'legacy renderer must be cache-busted');
-assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=17850210\d+/, 'canvas renderer must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=178502\d+/, 'legacy renderer must be cache-busted');
+assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=178502\d+/, 'canvas renderer must be cache-busted');
 assert.match(index, /render-v2\/09-hand-drag-bridge\.js\?v=1785021017/, 'hand organizer bridge must be cache-busted');
 
 console.log('Status overlay and store UI smoke test passed.');

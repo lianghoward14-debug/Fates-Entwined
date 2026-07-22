@@ -316,6 +316,17 @@ function isAuthorityEffectImmuneSource(card){
   return id === '20' || id === '70' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
 }
 
+function isAuthorityFullyEffectImmuneCard(card){
+  if(!card || isFaceDownAuthorityCard(card)) return false;
+  const id = String(card.id || '');
+  return id === '76'
+    || id === 'bh01'
+    || id === 'token1'
+    || card.pierogiCounter === true
+    || card.immuneFlag === true
+    || card.opponentEffectImmune === true;
+}
+
 const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','53','61','62','71','72','73','75','76','77','80','91','97']);
 const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
 const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','61','bh25']);
@@ -499,6 +510,62 @@ function authorityCardIsReadyBoleslaw(card, owner){
   if(!card || String(card.id || '') !== '86' || Number(card.owner) !== Number(owner)) return false;
   if(isFaceDownAuthorityCard(card)) return false;
   return !(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed);
+}
+
+function authorityCardEffectIsSuppressed(card){
+  return !!(card && (card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed));
+}
+
+function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
+  if(!state || !Array.isArray(state.board) || (playerIndex !== 0 && playerIndex !== 1)) return 0;
+  const entries = boardEntries(state);
+  const drawSourceEntry = findBoardEntryByRef(state, sourceCard);
+  if(!drawSourceEntry) return 0;
+  const whisperJeremiah = entries.filter(entry=>
+    Number(entry.card && entry.card.owner) === playerIndex &&
+    String(entry.card && entry.card._whisperCopiedEffectId || '') === '57' &&
+    !isFaceDownAuthorityCard(entry.card) &&
+    !authorityCardEffectIsSuppressed(entry.card)
+  ).length;
+  const sources = entries.filter(entry=>{
+    const card = entry.card;
+    if(!card || Number(card.owner) !== playerIndex || isFaceDownAuthorityCard(card) || authorityCardEffectIsSuppressed(card)) return false;
+    if(entry.z !== drawSourceEntry.z) return false;
+    return String(card.id || '') === 'bh02' || String(card._whisperCopiedEffectId || '') === 'bh02';
+  });
+  if(!sources.length) return 0;
+  const at = Date.now();
+  const eventKey = ['joie-authority', playerIndex, Number(state.turn) || 0, String(sourceCard && (sourceCard.iid || sourceCard.id) || 'draw')].join(':');
+  let total = 0;
+  sources.forEach(source=>{
+    const fieldWide = String(source.card._whisperCopiedEffectId || '') === 'bh02';
+    const localJeremiah = entries.filter(entry=>
+      entry.z === source.z &&
+      Number(entry.card && entry.card.owner) === playerIndex &&
+      String(entry.card && entry.card.id || '') === '57' &&
+      !isFaceDownAuthorityCard(entry.card) &&
+      !authorityCardEffectIsSuppressed(entry.card)
+    ).length;
+    const amount = 1 + whisperJeremiah + localJeremiah;
+    entries.forEach(target=>{
+      if(!target.card || Number(target.card.owner) !== playerIndex || (!fieldWide && target.z !== source.z)) return;
+      if(isAuthorityEffectImmuneSource(target.card)) return;
+      target.card.currentFate = (Number(target.card.currentFate ?? target.card.fate) || 0) + amount;
+      target.card._effectFlash = {
+        kind:'joie_thousand_reel',
+        at,
+        duration:3500,
+        turn:Number(state.turn) || 0,
+        visibleAt:at,
+        waitForConsolidationCinematic:false,
+        soundKey:eventKey,
+        pitchStep:0,
+        label:'Thousand Reel Stare'
+      };
+      total += amount;
+    });
+  });
+  return total;
 }
 
 function resolveAuthorityBoleslawSearch(preState, msg, postState){
@@ -780,9 +847,9 @@ function validatePlacementPostState(room, payload, postState){
   }
   if(String(selected.id || target.id || '') === 'whisper17'){
     const copiedId = String(target._whisperCopiedEffectId || selected._whisperCopiedEffectId || '');
-    if(Number(target.owner) !== Number(payload.playerIndex)) return 'Whisper token field ownership must belong to the acting player';
-    if(target.whisperLandscapeToken !== true || target.type !== 'Coordinator' || Number(target.currentFate ?? target.fate) !== 5) return 'Whisper token placement state is invalid';
-    if(!/^(?:10|11|15|19|23|57|77)$/.test(copiedId)) return 'Whisper token copied an invalid Coordinator effect';
+    if(Number(target.owner) !== Number(payload.playerIndex)) return 'Shizuku Token field ownership must belong to the acting player';
+    if(target.whisperLandscapeToken !== true || target.type !== 'Coordinator' || Number(target.currentFate ?? target.fate) !== 5) return 'Shizuku Token placement state is invalid';
+    if(!/^(?:10|11|15|19|23|57|77|bh02)$/.test(copiedId)) return 'Shizuku Token copied an invalid Coordinator effect';
   }
   return '';
 }
@@ -893,6 +960,8 @@ function validatePendingMovePostState(room, payload, postState){
   if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return '';
   const movingRef = {iid:String(pending.movingIid || pending.sourceIid || '')};
   if(!movingRef.iid) return '';
+  const preMoveEntry = findBoardEntryByRef(room && room.canonicalState, movingRef);
+  if(preMoveEntry && isAuthorityFullyEffectImmuneCard(preMoveEntry.card)) return 'Fully immune cards cannot be moved by Panacea or another landscape effect';
   const target = boardEntryAt(postState, z, r, c);
   if(!target || !cardMatchesRef(target, movingRef)) return 'movement result card is missing from target square';
   const fromZ = Number(pending.fromZ), fromR = Number(pending.fromR), fromC = Number(pending.fromC);
@@ -942,17 +1011,17 @@ function validateWhisperLandscapeUsesTransition(room, msg, postState){
     const afterHand = playerHandEntries(postState, player);
     const beforeTokens = beforeHand.filter(entry=>String(entry.card.id || '') === 'whisper17').length;
     const afterTokens = afterHand.filter(entry=>String(entry.card.id || '') === 'whisper17');
-    if(afterTokens.length !== beforeTokens + 1) return 'Concrete Roads must create exactly one Whisper token';
+    if(afterTokens.length !== beforeTokens + 1) return 'Concrete Roads must create exactly one Shizuku Token';
     const token = afterTokens.find(entry=>!beforeHand.some(old=>String(old.card.iid || '') === String(entry.card.iid || '')))?.card;
-    if(!token || token.type !== 'Coordinator' || Number(token.currentFate ?? token.fate) !== 5 || token.whisperLandscapeToken !== true) return 'Concrete Roads created an invalid Whisper token';
-    if(!/^(?:10|11|15|19|23|57|77)$/.test(String(token._whisperCopiedEffectId || ''))) return 'Whisper token copied an invalid Coordinator effect';
+    if(!token || token.type !== 'Coordinator' || Number(token.currentFate ?? token.fate) !== 5 || token.whisperLandscapeToken !== true) return 'Concrete Roads created an invalid Shizuku Token';
+    if(!/^(?:10|11|15|19|23|57|77|bh02)$/.test(String(token._whisperCopiedEffectId || ''))) return 'Shizuku Token copied an invalid Coordinator effect';
     const beforeBoard = boardEntries(baseState).filter(entry=>Number(entry.card.owner) === player);
     const afterBoard = boardEntries(postState).filter(entry=>Number(entry.card.owner) === player);
     const removedBoard = beforeBoard.filter(entry=>!afterBoard.some(next=>String(next.card.iid || '') === String(entry.card.iid || '')));
     if(removedBoard.length !== 1) return 'Concrete Roads must discard exactly one controlled Coordinator';
     const source = removedBoard[0].card;
     if(source.type !== 'Coordinator' || source.faceDown === true || String(source.id || '') === 'whisper17') return 'Concrete Roads source must be a face-up non-token Coordinator';
-    if(String(source.id || '') !== String(token._whisperCopiedEffectId || '')) return 'Whisper token must copy the discarded Coordinator';
+    if(String(source.id || '') !== String(token._whisperCopiedEffectId || '')) return 'Shizuku Token must copy the discarded Coordinator';
     const removedHand = beforeHand.filter(entry=>!afterHand.some(next=>String(next.card.iid || '') === String(entry.card.iid || '')));
     if(removedHand.length !== 2) return 'Concrete Roads must discard exactly two cards from hand';
     const postDiscard = postState.players?.[player]?.discard;
@@ -1018,7 +1087,7 @@ function validateBoardEffectActivationPostState(room, payload, postState){
 }
 
 function isCaliforniqueAuthorityCharacter(card){
-  if(!card || card.pierogiCounter === true || String(card.id || '') === 'token1') return false;
+  if(!card || isAuthorityFullyEffectImmuneCard(card)) return false;
   const type = String(card.type || '');
   return !!type && type !== 'Supporter' && type !== 'Counter';
 }
@@ -1077,6 +1146,18 @@ function validateCaliforniqueEndTurnTransition(preState, postState){
 function validateActionSpecificPostState(room, msg, postState){
   const type = effectiveAuthorityActionType(msg);
   const payload = msg && msg.payload || {};
+  const preState = room && room.canonicalState;
+  if(preState && postState){
+    const braveHorizonsMove = !!preState._bh01Moving || String(payload.moveKind || '') === 'anickaVoyagerMove';
+    for(const beforeEntry of boardEntries(preState).filter(entry=>isAuthorityFullyEffectImmuneCard(entry.card))){
+      const afterEntry = findBoardEntryByRef(postState, beforeEntry.card);
+      if(!afterEntry) return 'Fully immune cards cannot be discarded or removed by landscape effects';
+      if(Number(afterEntry.card.currentFate ?? afterEntry.card.fate) !== Number(beforeEntry.card.currentFate ?? beforeEntry.card.fate)) return 'Fully immune cards cannot gain or lose Fate from landscape effects';
+      const moved = afterEntry.z !== beforeEntry.z || afterEntry.r !== beforeEntry.r || afterEntry.c !== beforeEntry.c;
+      const isAnicka = String(beforeEntry.card && beforeEntry.card.id || '') === 'bh01';
+      if(moved && !(isAnicka && braveHorizonsMove)) return 'Fully immune cards cannot be moved by landscape effects';
+    }
+  }
   const timedLandscapeErr = validateTimedLandscapeTransition(room && room.canonicalState, postState);
   if(timedLandscapeErr) return timedLandscapeErr;
   const usMarinesErr = validateUsMarinesUsesTransition(room, postState);
@@ -1316,9 +1397,10 @@ function applyBoleslawSearchAuthorityReaction(state, option, pending){
   if(!entry || !authorityCardIsReadyBoleslaw(entry.card, playerIndex)) return 'Boleslaw is no longer ready on the board';
   const before = Number(entry.card.currentFate ?? entry.card.fate ?? 0) || 0;
   entry.card.currentFate = before + 3;
+  applyAuthorityJoieDrawEffectPassive(state, playerIndex, entry.card);
   const drawn = player.deck.shift() || null;
   if(drawn){
-    if(String(state.landscapeId || '') === 'igb19' && String(drawn.type || '') !== 'Supporter' && String(drawn.type || '') !== 'Counter'){
+    if(String(state.landscapeId || '') === 'igb19' && !isAuthorityFullyEffectImmuneCard(drawn) && String(drawn.type || '') !== 'Supporter' && String(drawn.type || '') !== 'Counter'){
       const landscapeState = state._landscapeState || {};
       drawn._igb19HandTurnsRemaining = 3;
       drawn._igb19HandOwner = playerIndex;

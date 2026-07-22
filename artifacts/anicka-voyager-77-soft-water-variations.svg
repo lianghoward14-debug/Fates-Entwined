@@ -1,0 +1,278 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900">
+  <defs>
+    <radialGradient id="cardShade" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#2b2424"/>
+      <stop offset="58%" stop-color="#171316"/>
+      <stop offset="100%" stop-color="#0c0a0d"/>
+    </radialGradient>
+    <linearGradient id="cardEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#856437"/>
+      <stop offset="54%" stop-color="#33271d"/>
+      <stop offset="100%" stop-color="#b98b42"/>
+    </linearGradient>
+    <filter id="boatGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.0" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.56 0 0 0.42  0 0 0.18 0 0.10  0 0 0 0.78 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .page{fill:#100d11}
+      .card{fill:url(#cardShade);stroke:url(#cardEdge);stroke-width:1.7}
+      .cellGlow{fill:rgba(172,91,24,.15)}
+      .corner{fill:none;stroke:rgba(255,224,166,.23);stroke-width:1.15}
+      .sail{fill:none;stroke:rgba(255,224,166,.96);stroke-width:3.35;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .boom{fill:none;stroke:#fff2bf;stroke-width:3.25;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .hull{fill:none;stroke:rgba(255,224,166,.98);stroke-width:4.25;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .water{fill:none;stroke:rgba(255,224,166,.88);stroke-width:2.35;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .water2{fill:none;stroke:rgba(255,224,166,.72);stroke-width:1.95;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .mastPost{fill:#fff2bf;filter:url(#boatGlow)}
+      .mastCore{fill:#fff8d8}
+      .sampleNum{fill:#f0c979;font:700 18px Georgia,serif;text-anchor:middle}
+      .sampleName{fill:rgba(255,236,191,.82);font:12px Georgia,serif;text-anchor:middle}
+      .note{fill:rgba(255,236,191,.58);font:14px Georgia,serif}
+      .title{fill:#ffe5aa;font:700 24px Georgia,serif}
+    </style>
+    <g id="previewCard">
+      <rect class="card" x="0" y="0" width="118" height="162" rx="8"/>
+      <rect class="cellGlow" x="4" y="4" width="110" height="154" rx="6"/>
+      <path class="corner" d="M14 21h20M14 21v20M104 21H84M104 21v20M14 141h20M14 141v-20M104 141H84M104 141v-20"/>
+    </g>
+    <g id="shortPost">
+      <rect class="mastPost" x="29.2" y="13" width="6.6" height="47" rx="3.3"/>
+      <rect class="mastCore" x="31.1" y="15" width="2.8" height="43" rx="1.4" opacity=".82"/>
+    </g>
+    <g id="tinyPost">
+      <rect class="mastPost" x="29.4" y="16" width="6.2" height="43" rx="3.1"/>
+      <rect class="mastCore" x="31.2" y="18" width="2.6" height="39" rx="1.3" opacity=".82"/>
+    </g>
+    <g id="leftSails">
+      <path class="sail" d="M25 20L13 49L25 49"/>
+      <path class="sail" d="M40 26L51 49L40 49"/>
+      <path class="boom" d="M23 51H45"/>
+    </g>
+    <g id="wideSails">
+      <path class="sail" d="M24 20L11 50L24 50"/>
+      <path class="sail" d="M41 26L53 50L41 50"/>
+      <path class="boom" d="M22 51H46"/>
+    </g>
+    <g id="tallSails">
+      <path class="sail" d="M25 18L12 49L25 49"/>
+      <path class="sail" d="M40 25L52 49L40 49"/>
+      <path class="boom" d="M23 51H45"/>
+    </g>
+  </defs>
+
+  <rect class="page" width="1280" height="900"/>
+  <text class="title" x="54" y="46">Anička Voyager 77 soft-water variations</text>
+  <text class="note" x="54" y="70">These riff on 77: compact mast, readable boat, and softer layered water underneath.</text>
+
+  <g transform="translate(54 110)">
+    <g transform="translate(0 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77A</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M14 76c6 2 12 2 18 0 6-2 12-2 18 0"/>
+        <path class="water2" d="M20 81c4 1 8 1 12 0 4-1 8-1 12 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">original soft</text>
+    </g>
+
+    <g transform="translate(144 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77B</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M11 75c7 3 14 3 21 0 7-3 14-3 21 0"/>
+        <path class="water2" d="M18 81h28"/>
+      </g>
+      <text class="sampleName" x="59" y="188">long soft wake</text>
+    </g>
+
+    <g transform="translate(288 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77C</text>
+      <g transform="translate(27 48)">
+        <use href="#wideSails"/>
+        <path class="hull" d="M7 62h51c-6 7-15 10-26 10S13 69 7 62z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M14 76h36"/>
+        <path class="water2" d="M21 81h22"/>
+      </g>
+      <text class="sampleName" x="59" y="188">calm bands</text>
+    </g>
+
+    <g transform="translate(432 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77D</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M8 61c12 8 37 8 49 0l-10 11H17z"/>
+        <use href="#tinyPost"/>
+        <path class="water" d="M13 75c5 3 10 3 15 0 5-3 10-3 15 0 5 3 10 3 15 0"/>
+        <path class="water2" d="M19 81c4 1 8 1 12 0 4-1 8-1 12 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">triple curl</text>
+    </g>
+
+    <g transform="translate(576 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77E</text>
+      <g transform="translate(27 48)">
+        <use href="#tallSails"/>
+        <path class="hull" d="M8 61c12 7 37 7 49 0l-9 10H17z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M10 76c7 3 14 3 21 0 7-3 14-3 21 0"/>
+        <path class="water2" d="M22 82h20"/>
+      </g>
+      <text class="sampleName" x="59" y="188">balanced curl</text>
+    </g>
+
+    <g transform="translate(720 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77F</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M9 75c5 2 10 2 15 0M28 78c5 2 10 2 15 0M47 75c3 1 6 1 9 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">broken ripples</text>
+    </g>
+
+    <g transform="translate(864 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77G</text>
+      <g transform="translate(27 48)">
+        <use href="#wideSails"/>
+        <path class="hull" d="M8 61c12 8 37 8 49 0l-10 10H17z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M12 76c7 3 14 3 21 0 7-3 14-3 21 0"/>
+        <path class="water2" d="M12 82c7 2 14 2 21 0 7-2 14-2 21 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">stacked waves</text>
+    </g>
+
+    <g transform="translate(1008 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77H</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M8 61c12 7 37 7 49 0l-10 9H17z"/>
+        <use href="#tinyPost"/>
+        <path class="water" d="M10 76h16M38 76h16"/>
+        <path class="water2" d="M18 82h28"/>
+      </g>
+      <text class="sampleName" x="59" y="188">split wake</text>
+    </g>
+
+    <g transform="translate(0 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77I</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <path class="water" d="M8 42H1M10 51H3"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M14 76c6 2 12 2 18 0 6-2 12-2 18 0"/>
+        <path class="water2" d="M20 82c4 1 8 1 12 0 4-1 8-1 12 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">motion soft</text>
+    </g>
+
+    <g transform="translate(144 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77J</text>
+      <g transform="translate(27 48)">
+        <use href="#wideSails"/>
+        <path class="hull" d="M7 62h51c-6 7-15 10-26 10S13 69 7 62z"/>
+        <path class="boom" d="M18 66H47"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M12 78c7 3 14 3 21 0 7-3 14-3 21 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deck ripple</text>
+    </g>
+
+    <g transform="translate(288 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77K</text>
+      <g transform="translate(27 48)">
+        <use href="#tallSails"/>
+        <path class="hull" d="M8 61c12 8 37 8 49 0l-10 11H17z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M17 73l-7 6M32 74l-3 7M47 73l7 6"/>
+        <path class="water2" d="M19 82h26"/>
+      </g>
+      <text class="sampleName" x="59" y="188">soft splash</text>
+    </g>
+
+    <g transform="translate(432 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77L</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M11 76c7 2 14 2 21 0 7-2 14-2 21 0"/>
+        <path class="water2" d="M18 80c5 2 10 2 15 0 5-2 10-2 15 0"/>
+        <path class="water2" d="M24 84h16"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deep soft</text>
+    </g>
+
+    <g transform="translate(576 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77M</text>
+      <g transform="translate(27 48)">
+        <use href="#wideSails"/>
+        <path class="hull" d="M8 61c12 8 37 8 49 0l-10 10H17z"/>
+        <path class="water" d="M36 13l10-7 7 10"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M13 76c6 2 12 2 18 0 6-2 12-2 18 0"/>
+        <path class="water2" d="M21 82h22"/>
+      </g>
+      <text class="sampleName" x="59" y="188">flag soft</text>
+    </g>
+
+    <g transform="translate(720 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77N</text>
+      <g transform="translate(27 48)">
+        <use href="#leftSails"/>
+        <path class="hull" d="M9 61c12 7 35 7 47 0l-9 10H18z"/>
+        <use href="#tinyPost"/>
+        <path class="water" d="M15 76c5 1 10 1 15 0 5-1 10-1 15 0"/>
+        <path class="water2" d="M13 82h38"/>
+      </g>
+      <text class="sampleName" x="59" y="188">low ripple</text>
+    </g>
+
+    <g transform="translate(864 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">77O</text>
+      <g transform="translate(27 48)">
+        <use href="#tallSails"/>
+        <path class="hull" d="M8 61c12 7 37 7 49 0l-10 9H17z"/>
+        <use href="#shortPost"/>
+        <path class="water" d="M10 76c7 3 14 3 21 0 7-3 14-3 21 0"/>
+        <path class="water2" d="M19 81c4 1 8 1 12 0 4-1 8-1 12 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">final soft</text>
+    </g>
+
+    <g transform="translate(1008 258)">
+      <rect x="0" y="0" width="172" height="154" rx="8" fill="rgba(255,224,166,.055)" stroke="rgba(255,224,166,.18)"/>
+      <text class="note" x="18" y="35">Best picks:</text>
+      <text class="note" x="18" y="65">77E balanced</text>
+      <text class="note" x="18" y="92">77G wavier</text>
+      <text class="note" x="18" y="119">77O clean</text>
+    </g>
+  </g>
+</svg>

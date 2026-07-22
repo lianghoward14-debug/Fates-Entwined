@@ -844,6 +844,204 @@ try {
 let _freePlayMenuOpeningAt = 0;
 let _freePlayMenuHtmlCache = '';
 let _freePlayWarmupPromise = null;
+let _freePlaySettingsDraft = null;
+let _freePlaySettingsNotice = null;
+let _freePlaySettingsNoticeTimer = 0;
+
+const FREE_PLAY_SETTINGS_STORAGE_KEY = 'fateFreePlayGameSettingsV1';
+const FREE_PLAY_DEFAULT_GAME_SETTINGS = Object.freeze({
+  landscapeMode:'random',
+  landscapeId:'igb1',
+  turnTimerMinutes:3
+});
+
+function normalizeFreePlayGameSettings(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const landscapeMode = source.landscapeMode === 'selected' ? 'selected' : 'random';
+  const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
+  const landscapeId = match ? 'igb' + Number(match[1]) : FREE_PLAY_DEFAULT_GAME_SETTINGS.landscapeId;
+  const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || FREE_PLAY_DEFAULT_GAME_SETTINGS.turnTimerMinutes)));
+  return {landscapeMode, landscapeId, turnTimerMinutes};
+}
+
+function readFreePlayGameSettings() {
+  if(window.FATE_FREE_PLAY_GAME_SETTINGS) return normalizeFreePlayGameSettings(window.FATE_FREE_PLAY_GAME_SETTINGS);
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(FREE_PLAY_SETTINGS_STORAGE_KEY) || 'null'); } catch(e) {}
+  window.FATE_FREE_PLAY_GAME_SETTINGS = normalizeFreePlayGameSettings(stored);
+  return {...window.FATE_FREE_PLAY_GAME_SETTINGS};
+}
+
+function saveFreePlayGameSettings(settings) {
+  const normalized = normalizeFreePlayGameSettings(settings);
+  window.FATE_FREE_PLAY_GAME_SETTINGS = normalized;
+  try { localStorage.setItem(FREE_PLAY_SETTINGS_STORAGE_KEY, JSON.stringify(normalized)); } catch(e) {}
+  return {...normalized};
+}
+
+function freePlayLandscapeNumber(id) {
+  return Math.max(1, Math.min(20, Number(String(id || '').replace('igb', '')) || 1));
+}
+
+function freePlayLandscapeForId(id) {
+  const safeId = 'igb' + freePlayLandscapeNumber(id);
+  return typeof LANDSCAPES !== 'undefined' && LANDSCAPES ? (LANDSCAPES[safeId] || null) : null;
+}
+
+function freePlayPrimaryLandscapeName(landscape) {
+  const fullName = String(landscape && (landscape.name || landscape.shortName) || '').trim();
+  const primaryName = fullName.split(':')[0].replace(/,\s*\d{4}\s*$/, '').trim();
+  return primaryName || 'Unknown Landscape';
+}
+
+function freePlaySettingsLandscapeSummary(settings) {
+  const normalized = normalizeFreePlayGameSettings(settings);
+  if(normalized.landscapeMode === 'random') return 'Random landscape';
+  const landscape = freePlayLandscapeForId(normalized.landscapeId);
+  return landscape ? freePlayPrimaryLandscapeName(landscape) : 'Landscape ' + freePlayLandscapeNumber(normalized.landscapeId);
+}
+
+function freePlaySettingsTimerSummary(settings) {
+  const normalized = normalizeFreePlayGameSettings(settings);
+  if(normalized.landscapeMode === 'selected' && normalized.landscapeId === 'igb14') return '30 seconds (Lone Pine locked)';
+  return normalized.turnTimerMinutes + ' minute' + (normalized.turnTimerMinutes === 1 ? '' : 's');
+}
+
+function freePlayRoomGameSettings() {
+  return normalizeFreePlayGameSettings(readFreePlayGameSettings());
+}
+
+function prepareLocalFreePlayGameSettings() {
+  if(typeof G === 'undefined' || !G) return null;
+  const settings = freePlayRoomGameSettings();
+  G._freePlayGameSettings = {...settings};
+  G._turnTimerSeconds = settings.turnTimerMinutes * 60;
+  G._onlineGameSong = settings.landscapeMode === 'selected'
+    ? 'board' + freePlayLandscapeNumber(settings.landscapeId)
+    : null;
+  return settings;
+}
+
+function freePlaySettingsModalHtml(settings) {
+  const normalized = normalizeFreePlayGameSettings(settings);
+  const n = freePlayLandscapeNumber(normalized.landscapeId);
+  const landscape = freePlayLandscapeForId(normalized.landscapeId) || {name:'Landscape ' + n, shortName:'Landscape ' + n, description:''};
+  const bg = n === 17
+    ? getFreePlayImageSrc('igb17/1.png')
+    : (typeof getGameLandscapeBackgroundPath === 'function'
+      ? getGameLandscapeBackgroundPath(n)
+      : (typeof INGAME_BG_PATH === 'function' ? INGAME_BG_PATH(n) : 'ingamebackgrouds/igb' + n + '.png'));
+  const selectedMode = normalized.landscapeMode === 'selected';
+  const lonePineLocked = selectedMode && normalized.landscapeId === 'igb14';
+  const noticeText = _freePlaySettingsNotice === 'selected'
+    ? 'Choose Landscape enabled — use the arrows to set the room.'
+    : (_freePlaySettingsNotice === 'random'
+      ? 'Random Landscape enabled — the room will roll the setting.'
+      : '');
+  return `<div class="freeplay-settings-shell">
+    <section class="freeplay-settings-heading">
+      <div class="freeplay-mode-kicker">Match Rules</div>
+      <h2>Create Your Game Settings</h2>
+      <p>Choose one landscape or let the room roll one at random.</p>
+    </section>
+    <div class="freeplay-settings-selection-notice ${noticeText ? 'is-visible' : ''}" role="status" aria-live="polite">
+      <span class="freeplay-settings-selection-notice-mark" aria-hidden="true"></span>
+      <span>${escapeHtml(noticeText)}</span>
+    </div>
+    <div class="freeplay-settings-mode" role="group" aria-label="Landscape selection mode">
+      <button type="button" class="btn sm ${normalized.landscapeMode === 'random' ? 'pri' : ''}" data-freeplay-landscape-mode="random">Random Landscape</button>
+      <button type="button" class="btn sm ${selectedMode ? 'pri' : ''}" data-freeplay-landscape-mode="selected">Choose Landscape</button>
+    </div>
+    <div class="freeplay-landscape-carousel ${selectedMode ? '' : 'is-random'}">
+      <button type="button" class="freeplay-landscape-arrow" data-freeplay-landscape-step="-1" aria-label="Previous landscape">&#10094;</button>
+      <article class="freeplay-landscape-card">
+        <div class="freeplay-landscape-art"><img src="${bg}" alt="${escapeHtml(landscape.name || '')}" draggable="false"></div>
+        <div class="freeplay-landscape-count">${n} / 20</div>
+        <h3>${escapeHtml(landscape.name || '')}</h3>
+        <p>${escapeHtml(landscape.description || '')}</p>
+        ${normalized.landscapeMode === 'random' ? '<div class="freeplay-random-banner">The displayed card is only a preview. The room will roll from all landscapes.</div>' : ''}
+      </article>
+      <button type="button" class="freeplay-landscape-arrow" data-freeplay-landscape-step="1" aria-label="Next landscape">&#10095;</button>
+    </div>
+    <section class="freeplay-timer-settings ${lonePineLocked ? 'is-locked' : ''}">
+      <div class="freeplay-timer-heading"><span>Turn Timer</span><strong id="freeplay-timer-value">${lonePineLocked ? '30 seconds — locked' : normalized.turnTimerMinutes + ' minute' + (normalized.turnTimerMinutes === 1 ? '' : 's')}</strong></div>
+      <input id="freeplay-turn-timer" type="range" min="1" max="10" step="1" value="${normalized.turnTimerMinutes}" ${lonePineLocked ? 'disabled' : ''} aria-label="Turn timer in minutes">
+      <div class="freeplay-timer-scale"><span>1 min</span><span>10 min</span></div>
+      <p>${lonePineLocked ? 'Lone Pine always uses its 30-second turn timer.' : (normalized.landscapeMode === 'random' ? 'If Random selects Lone Pine, this timer is overridden and turns become 30 seconds.' : 'This duration applies to both players.')}</p>
+    </section>
+    <aside class="freeplay-settings-precedence-note"><b>Room settings note:</b> The first player to enter a Free Play room sets the landscape and timer. Their settings take precedence for everyone who joins.</aside>
+  </div>`;
+}
+
+function refreshFreePlaySettingsModal() {
+  const body = document.getElementById('modal-body');
+  if(!body || !_freePlaySettingsDraft) return;
+  body.innerHTML = freePlaySettingsModalHtml(_freePlaySettingsDraft);
+  bindFreePlaySettingsModal();
+}
+
+function bindFreePlaySettingsModal() {
+  document.querySelectorAll('[data-freeplay-landscape-mode]').forEach(function(button){
+    button.onclick = function(){
+      const mode = button.dataset.freeplayLandscapeMode === 'selected' ? 'selected' : 'random';
+      _freePlaySettingsDraft.landscapeMode = mode;
+      _freePlaySettingsNotice = mode;
+      clearTimeout(_freePlaySettingsNoticeTimer);
+      if(typeof playMenuSfx === 'function') playMenuSfx();
+      else if(typeof playSfx === 'function') playSfx('modalConfirm');
+      refreshFreePlaySettingsModal();
+      _freePlaySettingsNoticeTimer = setTimeout(function(){
+        _freePlaySettingsNotice = null;
+        const notice = document.querySelector('.freeplay-settings-selection-notice');
+        if(notice) notice.classList.remove('is-visible');
+      }, 1900);
+    };
+  });
+  document.querySelectorAll('[data-freeplay-landscape-step]').forEach(function(button){
+    button.onclick = function(){
+      if(typeof playMenuSfx === 'function') playMenuSfx();
+      else if(typeof playSfx === 'function') playSfx('button');
+      const current = freePlayLandscapeNumber(_freePlaySettingsDraft.landscapeId);
+      const step = Number(button.dataset.freeplayLandscapeStep) < 0 ? -1 : 1;
+      const next = ((current - 1 + step + 20) % 20) + 1;
+      _freePlaySettingsDraft.landscapeMode = 'selected';
+      _freePlaySettingsDraft.landscapeId = 'igb' + next;
+      refreshFreePlaySettingsModal();
+    };
+  });
+  const timer = document.getElementById('freeplay-turn-timer');
+  if(timer && !timer.disabled) timer.oninput = function(){
+    _freePlaySettingsDraft.turnTimerMinutes = Math.max(1, Math.min(10, Number(timer.value) || 3));
+    const label = document.getElementById('freeplay-timer-value');
+    if(label) label.textContent = _freePlaySettingsDraft.turnTimerMinutes + ' minute' + (_freePlaySettingsDraft.turnTimerMinutes === 1 ? '' : 's');
+  };
+}
+
+function saveFreePlaySettingsAndReturn() {
+  saveFreePlayGameSettings(_freePlaySettingsDraft || FREE_PLAY_DEFAULT_GAME_SETTINGS);
+  _freePlaySettingsDraft = null;
+  _freePlaySettingsNotice = null;
+  clearTimeout(_freePlaySettingsNoticeTimer);
+  closeModal();
+  setTimeout(function(){ openFreePlayMenu({force:true}); }, 100);
+}
+
+function openFreePlaySettings() {
+  _freePlaySettingsDraft = readFreePlayGameSettings();
+  _freePlaySettingsNotice = null;
+  clearTimeout(_freePlaySettingsNoticeTimer);
+  showModal('Free Play Settings', freePlaySettingsModalHtml(_freePlaySettingsDraft), [
+    {label:'Back', action:function(){ _freePlaySettingsDraft = null; _freePlaySettingsNotice = null; clearTimeout(_freePlaySettingsNoticeTimer); closeModal(); setTimeout(function(){ openFreePlayMenu({force:true}); }, 100); }},
+    {label:'Save Settings', pri:true, action:saveFreePlaySettingsAndReturn}
+  ], {immediate:true, skipDecorate:true});
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('freeplay-settings-modal');
+  bindFreePlaySettingsModal();
+}
+
+window.fateGetFreePlayGameSettings = freePlayRoomGameSettings;
+window.fatePrepareLocalFreePlayGameSettings = prepareLocalFreePlayGameSettings;
+window.openFreePlaySettings = openFreePlaySettings;
 
 const FREE_PLAY_MENU_IMAGES = [
   {
@@ -877,7 +1075,7 @@ function renderFreePlayArt(key) {
 }
 
 function buildFreePlayMenuHtml() {
-  if(_freePlayMenuHtmlCache) return _freePlayMenuHtmlCache;
+  const settings = readFreePlayGameSettings();
   _freePlayMenuHtmlCache = `<div class="freeplay-mode-shell">
       <section class="freeplay-mode-hero">
         <div>
@@ -887,6 +1085,18 @@ function buildFreePlayMenuHtml() {
         </div>
         <div class="freeplay-mode-mark"><img class="freeplay-mode-mark-icon" src="blank.png" alt="" loading="eager" decoding="async" draggable="false"></div>
       </section>
+      <button class="freeplay-settings-open" type="button" onclick="closeModal();setTimeout(()=>openFreePlaySettings(),100);">
+        <span class="freeplay-settings-open-seal" aria-hidden="true"><i></i></span>
+        <span class="freeplay-settings-open-copy">
+          <small>Room Configuration</small>
+          <b>Game Settings</b>
+          <em>
+            <span class="freeplay-settings-rule"><small>Landscape</small><strong>${escapeHtml(freePlaySettingsLandscapeSummary(settings))}</strong></span>
+            <span class="freeplay-settings-rule"><small>Turn Timer</small><strong>${escapeHtml(freePlaySettingsTimerSummary(settings))}</strong></span>
+          </em>
+        </span>
+      </button>
+      <div class="freeplay-settings-inline-note">Room settings note: the first player to enter a Free Play room sets the landscape and timer for both players.</div>
       <div class="freeplay-mode-grid">
         <button class="freeplay-mode-card chosen" type="button" onclick="closeModal();setTimeout(()=>showAIDifficultyPicker(),140);">
           ${renderFreePlayArt('chosen')}
@@ -1606,7 +1816,7 @@ function openDeckPickModalChrome(title, actions, extraClasses) {
     });
   }
   if(modalBox){
-    modalBox.classList.add('title-my-decks-modal', 'choose-deck-canonical-modal', 'choose-deck-runtime-modal', ...(extraClasses || []));
+    modalBox.classList.add(...(extraClasses || []));
     modalBox.dataset.chooseDeckModal = '1';
   }
   if(modalEl){
@@ -2149,14 +2359,16 @@ function showProfilePackOpening(pfpIds) {
           <img src="booster1.png" alt="Profile Picture Booster" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.12),transparent 36%),linear-gradient(160deg,rgba(74,138,212,.92),rgba(36,94,168,.94));font-family:Cinzel,serif;font-size:1.1rem;letter-spacing:.14em;color:#eff6ff;text-align:center;padding:0 1rem;&quot;>PROFILE PICTURE BOOSTER</div>'">
         </div>
       </div>
-      <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">Rewards opened!</div>
+      <div class="pack-prompt" style="color:#7fb6ff;text-shadow:0 0 24px rgba(127,182,255,.75);">CLICK TO OPEN</div>
     </div>`;
   const packEl = document.getElementById('profile-pack-art-el');
-  setTimeout(()=>{
+  const onClick = ()=>{
     packEl.classList.add('opening');
     playSfx('effect');
-    setTimeout(()=>renderProfilePackReveal(pfpIds), 760);
-  }, 480);
+    setTimeout(()=>renderProfilePackReveal(pfpIds), 1180);
+    packEl.removeEventListener('click', onClick);
+  };
+  packEl.addEventListener('click', onClick);
 }
 
 function buyProfilePack() {
@@ -2617,14 +2829,14 @@ function renderProfilePackReveal(pfpIds) {
         <img src="${PFP_PATH(pfpId)}" alt="Profile picture ${pfpId} full art">
       </div>
       <div class="profile-pack-reward-name">Profile Picture ${pfpId}</div>`;
-    setTimeout(()=>wrap.classList.add('show'), 80*idx);
+    setTimeout(()=>wrap.classList.add('show'), 180*idx);
     grid.appendChild(wrap);
     setTimeout(()=>{
       playSfx('trianglePlace');
       if(idx === pfpIds.length - 1){
-        setTimeout(()=>{ doneBtn.style.display = 'inline-block'; }, 260);
+        setTimeout(()=>{ doneBtn.style.display = 'inline-block'; }, 560);
       }
-    }, 360 + idx*180);
+    }, 620 + idx*360);
   });
 }
 

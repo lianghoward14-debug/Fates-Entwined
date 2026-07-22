@@ -854,6 +854,12 @@ function aiPersonalityMoveBonus(move, mods) {
     if(['31','50','61','72','16','30','10','17','04','56','67'].includes(card.id)) bonus += 3.4 * (mods.debuffBonus || 0);
     if(['13','27','29','32','42','58','60','68','75'].includes(card.id)) bonus += 3.0 * (mods.futureValueBonus || 0);
     if(['05','09','28','59','63','76'].includes(card.id)) bonus += 2.2 * (mods.tempoBonus || 0);
+    if(String(card.id || '') === 'bh02') {
+      const futureDrawEffects = (G.players?.[cp]?.hand || []).concat(G.players?.[cp]?.deck || []).filter(function(candidate){
+        return candidate && /\bdraw\b/i.test(String(candidate.effect || ''));
+      }).length;
+      bonus += ownCardsHere * 3 + Math.min(9, futureDrawEffects * .75);
+    }
   } else if(move.type === 'consolidate') {
     bonus += 3.0 * (mods.consolidateBonus || 0);
     bonus += projected * 0.35 * (mods.highFateBonus || 0);
@@ -2356,6 +2362,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '90': { // Wojciech Fisherman: choose the affiliation with the largest deck pool and give those cards +3 Fate
+      if(typeof triggerJoieDrawEffectPassive === 'function') triggerJoieDrawEffectPassive(cp, {sourceCard:inst});
       const pools = {};
       G.players[cp].deck.forEach(function(deckCard){ if(deckCard && deckCard.aff) (pools[deckCard.aff] || (pools[deckCard.aff] = [])).push(deckCard); });
       const affiliation = Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
@@ -2525,9 +2532,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       await aiTriggerWhenSet(extra, slot.z, slot.r, slot.c);
       break;
     }
-    case '32': await drawCard(cp,1,{afterSetOrCinematic:true}); break;
+    case '32': await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst}); break;
     case '42': { // draw 2, discard 2
-      await drawCard(cp,2,{afterSetOrCinematic:true});
+      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
       const h = G.players[cp].hand;
       // Discard worst 2 cards (lowest fate supporters)
       const sorted = [...h].sort((a,b)=>(a.fate||0)-(b.fate||0));
@@ -2699,11 +2706,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         let value = 0;
         ['hand','deck'].forEach(function(location){
           G.players[opp][location].forEach(function(copy){
-            if(copy && copy.id === target.id && !copy.immuneFlag) value += Math.min(6, Math.max(0, Number(copy.currentFate ?? copy.fate) || 0));
+            if(copy && copy.id === target.id && !copy.immuneFlag) value += Math.min(7, Math.max(0, Number(copy.currentFate ?? copy.fate) || 0));
           });
         });
         forEachBoardCard(function(copy, zone){
-          if(copy && copy.owner === opp && copy.id === target.id && !copy.immuneFlag) value += Math.min(6, aiOpponentCardDecisionFate(copy, zone));
+          if(copy && copy.owner === opp && copy.id === target.id && !copy.immuneFlag) value += Math.min(7, aiOpponentCardDecisionFate(copy, zone));
         });
         return value;
       };
@@ -2711,7 +2718,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const best = candidates[0];
       if(best && typeof applyMariaSongPreciseShot === 'function') {
         const result = applyMariaSongPreciseShot(inst, best, cp);
-        log('p2','AI: Maria Song reduced ' + result.affected + ' copies of ' + best.name + ' by 6 Fate');
+        log('p2','AI: Maria Song reduced ' + result.affected + ' copies of ' + best.name + ' by 7 Fate');
       }
       break;
     }
@@ -2852,7 +2859,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell&&cell.owner===cp&&(typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter')&&cell.iid!==inst.iid) chars.push({r:ri,c:ci,card:cell});
       }));
-      if(chars.length){const t=chars[0];G.board[z][t.r][t.c]=null;fatePushDiscard(cp, t.card);await drawCard(cp,2);log('p2',`AI: Apparition discarded ${t.card.name}, drew 2`);}
+      if(chars.length){const t=chars[0];G.board[z][t.r][t.c]=null;fatePushDiscard(cp, t.card);await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});log('p2',`AI: Apparition discarded ${t.card.name}, drew 2`);}
       break;
     }
     case '84': { // Kvetka Svoboda: set an Expanded Worlds character from deck for free
@@ -3223,7 +3230,7 @@ async function aiRunEffect(card, z, r, c) {
       }
       break;
     }
-    case '27': await drawCard(cp,3,{afterSetOrCinematic:true}); log('p2','AI: Kazumi drew 3'); break;
+    case '27': await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:card}); log('p2','AI: Kazumi drew 3'); break;
     case '07': { // Maja Kaminska: search up to 3 deck supporters, buff them, then +2 supporter plays
       const sources = G.players[cp].deck.filter(c=>c.type==='Supporter');
       const strat = G._selectedAI?._deckStrategy || '';

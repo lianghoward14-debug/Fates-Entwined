@@ -1073,9 +1073,17 @@ async function clickCell(z,r,c) {
     G._bh01Moving = null;
     G.placing = false;
     clearPlaceHighlights();
-    await drawCard(G.currentPlayer, 1);
-    toast('Anicka moved! Drew 1 card.');
-    renderGame();
+    if(typeof playSailingMovementSfx === 'function') playSailingMovementSfx();
+    else if(typeof playSfx === 'function') playSfx('sailingMove');
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:false, piles:false, scores:true});
+    else renderGame({board:true, hand:false, scores:true, blocks:true, topbar:true});
+    if(typeof requestAnimationFrame === 'function') {
+      await new Promise(function(resolve){ requestAnimationFrame(function(){ requestAnimationFrame(resolve); }); });
+    }
+    const drewCard = Array.isArray(G.players?.[G.currentPlayer]?.deck) && G.players[G.currentPlayer].deck.length > 0;
+    if(drewCard) await drawCard(G.currentPlayer, 1, {activatedDrawEffect:true, effectSource:mv.card});
+    toast(drewCard ? 'Anicka moved! Drew 1 card.' : 'Anicka moved!');
+    renderGame({board:true, hand:drewCard, piles:drewCard, scores:true});
     return;
   }
   // Handle Wolf Creek (54) movement
@@ -1983,11 +1991,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '32': // Temecula Resident: draw 1
-      await drawCard(cp,1);
+      await drawCard(cp,1,{activatedDrawEffect:true, effectSource:inst});
       toast('Drew 1 card');
       renderHand(); break;
     case '42': // West German Soldier: draw 2, discard 2 (FORCED)
-      await drawCard(cp,2);
+      await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});
       toast('Drew 2 cards. You must discard 2.');
       renderHand();
       {
@@ -2306,7 +2314,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         if(src){
           G.board[z][src.r][src.c] = null;
           G.players[cp].discard.push(target);
-          await drawCard(cp,2);
+          await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});
           toast(`Discarded ${target.name}, drew 2 cards`);
           renderGame();
         }
@@ -2596,7 +2604,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '27': // Kazumi: draw 3
       card.effectUsedInitial = true;
       card._effectTurnLocked = true;
-      await drawCard(cp,3);
+      await drawCard(cp,3,{activatedDrawEffect:true, effectSource:card});
       toast('Drew 3 cards');
       renderHand(); break;
     case '29': // Dylan Kirby: choose up to 2 Third Great War from deck or discard
@@ -2988,7 +2996,7 @@ function getEffectiveFate(card, z) {
     if(cell.id==='10' && cell.owner!==card.owner) {
       if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
       G._continuousDamageSources.add(cell.owner+':10:'+cell.iid);
-      bonus -= 2;
+      bonus -= 3;
       return;
     }
     if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
@@ -3001,7 +3009,7 @@ function getEffectiveFate(card, z) {
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
-    // Post-Modernist Dylan (10): -2 to all opponent cards in zone (continuous)
+    // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
     // Dylan Kirby (29): Initiator — no continuous effect (search only)
     // Cathy (23): +2 to all owned characters in zone

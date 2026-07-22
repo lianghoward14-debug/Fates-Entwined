@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700">
+  <defs>
+    <radialGradient id="cardShade" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#2b2424"/>
+      <stop offset="58%" stop-color="#171316"/>
+      <stop offset="100%" stop-color="#0c0a0d"/>
+    </radialGradient>
+    <linearGradient id="cardEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#856437"/>
+      <stop offset="54%" stop-color="#33271d"/>
+      <stop offset="100%" stop-color="#b98b42"/>
+    </linearGradient>
+    <filter id="boatGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.4" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.56 0 0 0.42  0 0 0.18 0 0.12  0 0 0 0.82 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .page{fill:#100d11}
+      .card{fill:url(#cardShade);stroke:url(#cardEdge);stroke-width:1.7}
+      .cellGlow{fill:rgba(172,91,24,.15)}
+      .corner{fill:none;stroke:rgba(255,224,166,.23);stroke-width:1.15}
+      .sail{fill:none;stroke:rgba(255,224,166,.98);stroke-width:3.8;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .mast{fill:none;stroke:rgba(255,242,197,.99);stroke-width:5.4;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .boom{fill:none;stroke:rgba(255,242,197,.96);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .hull{fill:none;stroke:rgba(255,224,166,.98);stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .thin{fill:none;stroke:rgba(255,224,166,.88);stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .dot{fill:rgba(255,242,197,.99);filter:url(#boatGlow)}
+      .sampleNum{fill:#f0c979;font:700 18px Georgia,serif;text-anchor:middle}
+      .sampleName{fill:rgba(255,236,191,.82);font:12px Georgia,serif;text-anchor:middle}
+      .note{fill:rgba(255,236,191,.58);font:14px Georgia,serif}
+      .title{fill:#ffe5aa;font:700 24px Georgia,serif}
+    </style>
+    <g id="previewCard">
+      <rect class="card" x="0" y="0" width="118" height="162" rx="8"/>
+      <rect class="cellGlow" x="4" y="4" width="110" height="154" rx="6"/>
+      <path class="corner" d="M14 21h20M14 21v20M104 21H84M104 21v20M14 141h20M14 141v-20M104 141H84M104 141v-20"/>
+    </g>
+  </defs>
+
+  <rect class="page" width="1280" height="700"/>
+  <text class="title" x="54" y="46">Anička Voyager real mast redesigns</text>
+  <text class="note" x="54" y="70">These are rebuilt with an independent mast: one clear vertical line from sail rigging into the hull, not a sail edge pretending to be a mast.</text>
+
+  <g transform="translate(54 110)">
+    <g transform="translate(0 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">40</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V68"/>
+        <path class="sail" d="M27 18L13 49L27 49"/>
+        <path class="sail" d="M38 24L50 49L38 49"/>
+        <path class="boom" d="M27 49H43"/>
+        <path class="hull" d="M8 62c12 8 37 8 49 0l-10 10H17z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">plain mast</text>
+    </g>
+
+    <g transform="translate(144 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">41</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 9V70"/>
+        <path class="sail" d="M26 16L12 49L26 49"/>
+        <path class="sail" d="M39 23L51 49L39 49"/>
+        <path class="boom" d="M25 50H45"/>
+        <path class="boom" d="M24 63H41"/>
+        <path class="hull" d="M7 62c13 9 38 9 51 0l-10 11H16z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deck mast</text>
+    </g>
+
+    <g transform="translate(288 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">42</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 9V69"/>
+        <path class="sail" d="M26 16L13 48L26 48"/>
+        <path class="sail" d="M39 22L50 48L39 48"/>
+        <path class="boom" d="M25 49H44"/>
+        <circle class="dot" cx="32" cy="61" r="2.8"/>
+        <path class="hull" d="M9 61c12 8 35 8 47 0l-9 10H18z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">mast peg</text>
+    </g>
+
+    <g transform="translate(432 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">43</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M31 10V69"/>
+        <path class="sail" d="M25 16L12 48L25 48"/>
+        <path class="sail" d="M38 23L51 48L38 48"/>
+        <path class="boom" d="M25 48H44"/>
+        <path class="hull" d="M8 61h50c-6 8-15 11-26 11S13 69 8 61z"/>
+        <path class="thin" d="M9 75c8 3 16 3 24 0 8-3 16-3 24 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">visible gap</text>
+    </g>
+
+    <g transform="translate(576 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">44</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 8V70"/>
+        <path class="sail" d="M26 15L11 50L26 50"/>
+        <path class="sail" d="M39 22L52 50L39 50"/>
+        <path class="boom" d="M25 50H45"/>
+        <path class="hull" d="M7 63c13 8 38 8 51 0l-10 10H16z"/>
+        <circle class="dot" cx="32" cy="8" r="2.4"/>
+      </g>
+      <text class="sampleName" x="59" y="188">strong mast</text>
+    </g>
+
+    <g transform="translate(720 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">45</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V69"/>
+        <path class="sail" d="M26 16L13 48L26 48"/>
+        <path class="sail" d="M39 24L50 48L39 48"/>
+        <path class="boom" d="M25 49H44"/>
+        <path class="thin" d="M34 13l11-6 7 10"/>
+        <path class="hull" d="M8 62c12 8 37 8 49 0l-9 10H17z"/>
+      </g>
+      <text class="sampleName" x="59" y="188">flag mast</text>
+    </g>
+
+    <g transform="translate(864 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">46</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V70"/>
+        <path class="sail" d="M26 16L13 48L26 48"/>
+        <path class="sail" d="M39 23L50 48L39 48"/>
+        <path class="boom" d="M25 49H44"/>
+        <path class="hull" d="M8 62c12 8 37 8 49 0l-10 11H17z"/>
+        <path class="thin" d="M8 42H1M10 51H3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">motion mast</text>
+    </g>
+
+    <g transform="translate(1008 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">47</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M31 9V70"/>
+        <path class="sail" d="M25 15L12 49L25 49"/>
+        <path class="sail" d="M38 22L51 49L38 49"/>
+        <path class="boom" d="M24 50H45"/>
+        <path class="hull" d="M7 63h51c-6 7-15 10-26 10S13 70 7 63z"/>
+        <path class="thin" d="M18 68h28"/>
+      </g>
+      <text class="sampleName" x="59" y="188">wide boat</text>
+    </g>
+
+    <g transform="translate(216 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">48</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V71"/>
+        <path class="sail" d="M26 16L13 49L26 49"/>
+        <path class="sail" d="M39 24L50 49L39 49"/>
+        <path class="boom" d="M25 50H45"/>
+        <path class="hull" d="M8 62c12 8 37 8 49 0l-10 11H17z"/>
+        <path class="thin" d="M17 70l-7 6M32 71l-3 7M47 70l7 6"/>
+      </g>
+      <text class="sampleName" x="59" y="188">keel mast</text>
+    </g>
+
+    <g transform="translate(360 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">49</text>
+      <g transform="translate(27 48)">
+        <path class="mast" d="M32 10V69"/>
+        <path class="sail" d="M26 16L14 48L26 48"/>
+        <path class="sail" d="M39 24L49 48L39 48"/>
+        <path class="boom" d="M25 49H44"/>
+        <path class="hull" d="M8 62c12 7 37 7 49 0l-9 9H17z"/>
+        <path class="thin" d="M18 73c8 3 19 3 28 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">clean mast</text>
+    </g>
+
+    <g transform="translate(554 258)">
+      <rect x="0" y="0" width="458" height="146" rx="8" fill="rgba(255,224,166,.055)" stroke="rgba(255,224,166,.18)"/>
+      <text class="note" x="24" y="36">Actual construction now:</text>
+      <text class="note" x="24" y="66">1. thick mast drawn as its own central line</text>
+      <text class="note" x="24" y="94">2. sails offset from the mast instead of covering it</text>
+      <text class="note" x="24" y="122">3. mast continues below sail bottoms into the hull</text>
+    </g>
+  </g>
+</svg>

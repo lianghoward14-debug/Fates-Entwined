@@ -37,19 +37,34 @@ const audio = read('src/scripts/08-audio-and-meta-ui.js');
 const renderer = read('src/scripts/06-rendering-and-helpers.js');
 const renderAdapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 const finalCss = read('src/styles/zz-codex-last.css');
+const profile = read('src/scripts/03-profile-and-progression.js');
 assert.match(structural, /function isAnickaVoyagerCard[\s\S]*function isInnatelyFullyEffectImmuneCard/);
 assert.match(structural, /innatelyImmune[\s\S]*card\.immuneFlag = true/);
 assert.match(gameplay, /function beginAnickaVoyagerMove[\s\S]*function resolveAnickaVoyagerMove/);
 assert.doesNotMatch(gameplay, /function chooseAnickaVoyagerDraw|Skip Draw/, 'Brave Horizons must draw automatically without a prompt');
-assert.match(gameplay, /const drewCard =[\s\S]*await drawCard\(G\.currentPlayer, 1\)/);
+assert.match(gameplay, /function resolveAnickaVoyagerMove[\s\S]*renderBoardActionForPlayer\(G\.currentPlayer, \{hand:false[\s\S]*if\(drewCard\) await drawCard\(G\.currentPlayer, 1(?:,[\s\S]*?)?\)/, 'Brave Horizons must visibly move before its automatic draw');
+assert.match(gameplay, /resolveAnickaVoyagerMove[\s\S]*flashCardEffect\(card, 'anicka_voyager_boat'[\s\S]*label:'Brave Horizons'/, 'Brave Horizons must use the selected 77A boat overlay instead of the default movement boot');
+assert.match(gameplay, /resolveAnickaVoyagerMove[\s\S]*playSailingMovementSfx\(\)[\s\S]*flashCardEffect\(card, 'anicka_voyager_boat'/, 'Brave Horizons movement must play the sailing cue');
+assert.match(gameplay, /G\._landscapeMoving[\s\S]*flashCardEffect\(mv\.card, 'anicka_voyager_boat'[\s\S]*label:'Panacea Sailors'/, 'Panacea Sailors landscape movement must reuse the selected sailing overlay');
+assert.match(gameplay, /G\._landscapeMoving[\s\S]*playSailingMovementSfx\(\)[\s\S]*triggerLandscapeFlash\('Panacea movement', 'none'\)/, 'Panacea Sailors must use the sailing cue without the default landscape sound');
+assert.match(gameplay, /const drewCard =[\s\S]*await drawCard\(G\.currentPlayer, 1(?:,[\s\S]*?)?\)/);
 assert.match(ai, /case 'bh01'[\s\S]*beginAnickaVoyagerMove[\s\S]*resolveAnickaVoyagerMove/);
+assert.match(online, /braveHorizonsMove[\s\S]*drawAfterMoveDelay[\s\S]*360/, 'multiplayer must delay the Brave Horizons draw until after movement presentation');
+assert.match(online, /braveHorizonsMove[\s\S]*anicka_voyager_boat[\s\S]*Brave Horizons/, 'multiplayer must reconstruct Brave Horizons with the selected boat overlay');
+assert.match(online, /isOnlinePanaceaSailorsMoveAction[\s\S]*landscapeEventideMove\|panaceaSailorsMove[\s\S]*Panacea Sailors/, 'multiplayer must reconstruct Panacea Sailors with the selected sailing overlay');
+assert.match(online, /kind === 'anicka_voyager_boat'[\s\S]*braveHorizonsMove \|\| panaceaSailorsMove[\s\S]*playSailingMovementSfx/, 'multiplayer must reconstruct the deduplicated sailing cue for both sailing moves');
 assert.match(online, /anickaVoyagerMove[\s\S]*SELECT_PENDING_MOVE_CELL/);
 assert.match(audio, /'bh01': 'bh1'/);
+assert.match(audio, /sailingMove: \{src:'soundeffects\/codex-redesign\/character_coordinator_oceanic_arrival\.wav'[\s\S]*function playSailingMovementSfx[\s\S]*playFateSfxOnce\('sailingMove', 'sailing-movement', 900\)/);
 assert.match(renderer, /"bh01": "In another time, in another place, these seas were once called Pacifique"/);
 assert.match(renderer, /textContent=String\(bc\.id \|\| ''\) === 'bh01' \? 'Brave Horizons' : 'Activate Effect'/);
 assert.match(renderer, /function highlightAnickaVoyagerMoveCells[\s\S]*brave-horizons-target/);
 assert.match(renderAdapter, /brave-horizons-move[\s\S]*rgba\(116,207,237,\.62\)/);
+assert.match(renderAdapter, /anicka_voyager_boat:\{color:'rgba\(142,231,255,\.98\)'[\s\S]*fillRect\(29\.2,13,6\.6,47\)[\s\S]*bezierCurveTo\(20,78,26,78,32,76\)/);
+assert.match(renderAdapter, /iconYOffset = kind === 'anicka_voyager_boat' \? -15 : 0/, 'shared sailing overlay should render about 15px higher on canvas');
+assert.match(finalCss, /effect-flash-anicka_voyager_boat::after[\s\S]*top:calc\(50% - 15px\)/, 'shared sailing overlay should render about 15px higher in the CSS fallback');
 assert.match(finalCss, /\.cell\.placeable\.brave-horizons-target[\s\S]*outline:1px solid rgba\(116,207,237,\.62\)[\s\S]*animation:none/);
+assert.match(profile, /function getCardOrderNumber\(card\)[\s\S]*isBraveHorizons[\s\S]*return 1000 \+ n/, 'deck builders and collections must sort Brave Horizons cards below the Snow on the Carpathians card range');
 
 const boot = buildInitialAuthorityState({
   catalog:getCardCatalog(),

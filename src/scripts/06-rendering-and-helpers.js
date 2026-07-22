@@ -146,6 +146,7 @@ function getBoardActionRenderPartsForPlayer(player, options) {
 }
 function renderBoardActionForPlayer(player, options) {
   const parts = getBoardActionRenderPartsForPlayer(player, options);
+  if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck();
   if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()){
     const partSource = renderPartSource(parts);
     try {
@@ -756,6 +757,9 @@ function performGameRender(parts) {
     timed('restoreViewportLock', restoreBoardViewportLockSoon);
   } finally {
     _renderCalcCache = null;
+    if((dirty.board || dirty.scores || dirty.landscape) && typeof scheduleBattleOfPellaThresholdCheck === 'function') {
+      scheduleBattleOfPellaThresholdCheck();
+    }
     if(collectDiagnostics) noteRenderBreakdown(performance.now() - renderStart, breakdown);
   }
 }
@@ -1551,6 +1555,7 @@ function renderLandscapePanel() {
   }
   const perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);
   let note = '';
+  let noteHtml = '';
   if((landscape.id === 'igb3' || landscape.id === 'igb8') && st && typeof st.targetZone === 'number') {
     note = 'Chosen Zone: Zone ' + (st.targetZone + 1);
   } else if(landscape.id === 'igb2' && st && Array.isArray(st.consolidations)) {
@@ -1560,6 +1565,9 @@ function renderLandscapePanel() {
     const myTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(perspective) : 0;
     const oppTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(1 - perspective) : 0;
     note = 'Total Fate: You ' + myTotal + ' / Opp ' + oppTotal;
+  } else if(landscape.id === 'igb20') {
+    const thresholdNote = typeof getBattleOfPellaFateThresholdPanelNote === 'function' ? getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) : '';
+    if(thresholdNote) noteHtml = thresholdNote;
   }
   let snowLimitHtml = '';
   let snowLimitSig = '';
@@ -1582,14 +1590,14 @@ function renderLandscapePanel() {
     const hasCoordinator = typeof getWhisperCoordinatorEntries === 'function' ? getWhisperCoordinatorEntries(perspectivePlayer).length > 0 : true;
     const hasHandCost = typeof getWhisperDiscardableHandCards === 'function' ? getWhisperDiscardableHandCards(perspectivePlayer).length >= 2 : true;
     const enabled = !spent && isLocalTurn && hasCoordinator && hasHandCost;
-    const buttonText = spent ? 'Token Created' : 'Create Whisper Token';
+    const buttonText = spent ? 'Token Created' : 'Create Shizuku Token';
     whisperActionSig = [perspectivePlayer, spent ? 1 : 0, enabled ? 1 : 0, buttonText, hasCoordinator ? 1 : 0, hasHandCost ? 1 : 0, isLocalTurn ? 1 : 0].join(':');
     whisperActionHtml =
       '<div class="landscape-whisper-action ' + (spent ? 'is-spent' : 'is-ready') + '">' +
         '<button type="button" class="landscape-whisper-button" onclick="activateWhisperOfTheHeartLandscape()"' + (enabled ? '' : ' disabled') + '>' + escapeHtml(buttonText) + '</button>' +
       '</div>';
   }
-  const sig = [landscape.id, landscape.name, landscape.description, note, snowLimitSig, whisperActionSig, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
+  const sig = [landscape.id, landscape.name, landscape.description, note, noteHtml, snowLimitSig, whisperActionSig, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
   if(sig === _lastLandscapeRenderSignature && panel.children.length) return;
   _lastLandscapeRenderSignature = sig;
   panel.classList.remove('empty');
@@ -1603,7 +1611,7 @@ function renderLandscapePanel() {
     '<div class="landscape-kicker">Landscape</div>' +
     '<div class="landscape-name">' + landscapeNameHtml + '</div>' +
     '<div class="landscape-desc">' + escapeHtml(landscape.description) + '</div>' +
-    (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '') +
+    (noteHtml ? '<div class="landscape-note landscape-pella-race">' + noteHtml + '</div>' : (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '')) +
     snowLimitHtml +
     whisperActionHtml;
 }
@@ -1613,7 +1621,7 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   const entries = Object.keys(LANDSCAPES || {}).sort(function(a,b){
     return (parseInt(a.replace('igb',''),10)||0) - (parseInt(b.replace('igb',''),10)||0);
   }).map(function(id){
-    const n = Math.max(1, Math.min(19, parseInt(id.replace('igb',''), 10) || 1));
+    const n = Math.max(1, Math.min(20, parseInt(id.replace('igb',''), 10) || 1));
     return {
       id:id,
       num:n,
@@ -1716,11 +1724,277 @@ function getAllBoardCardEntries(filter) {
   return entries;
 }
 
+let _battleOfPellaThresholdTimer = 0;
+let _battleOfPellaPromptWinner = null;
+const BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS = [20, 35, 50];
+
+function isBattleOfPellaDiscardableCard(card) {
+  if(!card) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
+  if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return false;
+  return String(card.id || '') !== '76';
+}
+
+function getBattleOfPellaTotalFate(player) {
+  return typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(player) : 0;
+}
+
+function isLandscapeFateDiscardRaceActive() {
+  return !!(G && String(G.landscapeId || '') === 'igb20');
+}
+
+function getActiveLandscapeFateDiscardConfig() {
+  const id = String(G && G.landscapeId || '');
+  if(id === 'igb20') {
+    return {
+      id:'igb20',
+      title:'The Battle of Pella, 2052',
+      shortName:'The Battle of Pella, 2052',
+      thresholds:BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS,
+      flashLabel:'Charge of the Greek War Carts'
+    };
+  }
+  return null;
+}
+
+function getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) {
+  const myTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(perspectivePlayer) : 0;
+  const oppTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(1 - perspectivePlayer) : 0;
+  const pending = st && Number(st.igb20PendingFateThreshold);
+  const claims = st && st.igb20FateThresholdClaims && typeof st.igb20FateThresholdClaims === 'object' ? st.igb20FateThresholdClaims : {};
+  const thresholdHtml = BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.map(function(threshold){
+    const claim = claims[String(threshold)] || {};
+    const winner = Number(claim.winner);
+    const cls = winner === Number(perspectivePlayer)
+      ? 'is-you'
+      : winner === 1 - Number(perspectivePlayer) ? 'is-opponent' : 'is-unclaimed';
+    return '<span class="pella-fate-threshold ' + cls + '">' + threshold + '</span>';
+  }).join('<span class="pella-fate-separator">/</span>');
+  let note = 'Fate races ' + thresholdHtml + ':<br>Your Fate: ' + myTotal + ' / Opp: ' + oppTotal;
+  if(BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.includes(pending)) {
+    const claim = claims[String(pending)] || {};
+    const winnerName = G && G.players && G.players[claim.winner] ? G.players[claim.winner].name : 'The first player';
+    note += '<br>' + escapeHtml(winnerName) + ' is choosing a card.';
+  }
+  return note;
+}
+window.getBattleOfPellaFateThresholdPanelNote = getBattleOfPellaFateThresholdPanelNote;
+
+function getLandscapeFateThresholdClaim(st, threshold) {
+  if(!st) return null;
+  if(String(G && G.landscapeId || '') === 'igb20') {
+    if(!st.igb20FateThresholdClaims || typeof st.igb20FateThresholdClaims !== 'object') st.igb20FateThresholdClaims = {};
+    const claim = st.igb20FateThresholdClaims[String(threshold)];
+    if(claim) return claim;
+    if(Number(threshold) !== 50) return null;
+    return {
+      winner:st.igb20Winner,
+      winningTotal:st.igb20WinningTotal,
+      choiceResolved:!!st.igb20ChoiceResolved,
+      declined:!!st.igb20Declined,
+      discardedIid:st.igb20DiscardedIid
+    };
+  }
+  return null;
+}
+
+function setLandscapeFateThresholdClaim(st, threshold, patch) {
+  if(!st) return null;
+  if(String(G && G.landscapeId || '') === 'igb20') {
+    if(!st.igb20FateThresholdClaims || typeof st.igb20FateThresholdClaims !== 'object') st.igb20FateThresholdClaims = {};
+    const key = String(threshold);
+    const current = st.igb20FateThresholdClaims[key] || {};
+    st.igb20FateThresholdClaims[key] = Object.assign({}, current, patch || {}, {threshold:Number(threshold)});
+    if(Number(threshold) === 50) {
+      if(Object.prototype.hasOwnProperty.call(patch, 'winner')) st.igb20Winner = patch.winner;
+      if(Object.prototype.hasOwnProperty.call(patch, 'winningTotal')) st.igb20WinningTotal = patch.winningTotal;
+      if(Object.prototype.hasOwnProperty.call(patch, 'choiceResolved')) st.igb20ChoiceResolved = !!patch.choiceResolved;
+      if(Object.prototype.hasOwnProperty.call(patch, 'declined')) st.igb20Declined = !!patch.declined;
+      if(Object.prototype.hasOwnProperty.call(patch, 'discardedIid')) st.igb20DiscardedIid = patch.discardedIid;
+    }
+    return st.igb20FateThresholdClaims[key];
+  }
+  return null;
+}
+
+function getPendingLandscapeFateThreshold(st, config) {
+  if(!st || !config) return null;
+  if(config.id === 'igb20') {
+    const pending = Number(st.igb20PendingFateThreshold);
+    return config.thresholds.includes(pending) ? pending : null;
+  }
+  return null;
+}
+
+function isBattleOfPellaBlockedByConsolidation() {
+  if(!G) return false;
+  if(G._consolidating) return true;
+  if(typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive()) return true;
+  if((Number(G._cinematicUiLockUntil) || 0) > Date.now()) return true;
+  const presenter = window.FateActionPresentation;
+  return !!(presenter && typeof presenter.isActive === 'function' && presenter.isActive());
+}
+
+function finishBattleOfPellaChoice(winner, details) {
+  const st = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
+  const config = getActiveLandscapeFateDiscardConfig();
+  const threshold = getPendingLandscapeFateThreshold(st, config);
+  const claim = threshold ? getLandscapeFateThresholdClaim(st, threshold) : null;
+  const storedWinner = claim && (claim.winner === 0 || claim.winner === 1) ? claim.winner : -1;
+  if(!st || !config || !threshold || (claim && claim.choiceResolved) || storedWinner !== Number(winner)) return false;
+  const info = details || {};
+  setLandscapeFateThresholdClaim(st, threshold, {
+    choiceResolved:true,
+    declined:!!info.declined,
+    discardedIid:info.card ? String(info.card.iid || '') : null
+  });
+  if(config.id === 'igb20') st.igb20PendingFateThreshold = null;
+  _battleOfPellaPromptWinner = null;
+  if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash(config.flashLabel, 'major');
+  if(info.declined) {
+    toast(G.players[winner].name + ' declined ' + config.shortName + ' ' + threshold + '-Fate discard.');
+    log('sys', G.players[winner].name + ' declined ' + config.shortName + ' ' + threshold + '-Fate landscape effect.');
+  } else if(info.card) {
+    toast(config.shortName + ': ' + info.card.name + ' was discarded.');
+    log(winner === 0 ? 'p1' : 'p2', config.shortName + ' ' + threshold + '-Fate reward discarded ' + info.card.name + ' from Zone ' + (Number(info.z) + 1));
+  }
+  renderGame({board:true, scores:true, piles:true, landscape:true, topbar:true});
+  scheduleBattleOfPellaThresholdCheck(80);
+  if(typeof window.fatePublishClientOwnedState === 'function') window.fatePublishClientOwnedState(config.id + '-fate-threshold-resolved');
+  return true;
+}
+
+function resolveBattleOfPellaDiscard(winner, choice) {
+  const st = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
+  const config = getActiveLandscapeFateDiscardConfig();
+  const threshold = getPendingLandscapeFateThreshold(st, config);
+  const claim = threshold ? getLandscapeFateThresholdClaim(st, threshold) : null;
+  const storedWinner = claim && (claim.winner === 0 || claim.winner === 1) ? claim.winner : -1;
+  if(!st || !config || !threshold || (claim && claim.choiceResolved) || storedWinner !== Number(winner) || !choice) return false;
+  const z = Number(choice.z), r = Number(choice.r), c = Number(choice.c);
+  const live = G && G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
+  const expectedIid = String(choice.card && choice.card.iid || '');
+  if(!live || (expectedIid && String(live.iid || '') !== expectedIid) || !isBattleOfPellaDiscardableCard(live)) {
+    toast('That card can no longer be discarded. Choose another card.');
+    _battleOfPellaPromptWinner = null;
+    scheduleBattleOfPellaThresholdCheck(80);
+    return false;
+  }
+  G._landscapeFateThresholdResolvingDiscard = true;
+  G._igb20ResolvingDiscard = true;
+  G._onlineResolvingPickerAction = (Number(G._onlineResolvingPickerAction || 0) || 0) + 1;
+  try {
+    discardBoardCard(live, z, r, c);
+  } finally {
+    delete G._landscapeFateThresholdResolvingDiscard;
+    delete G._igb20ResolvingDiscard;
+    G._onlineResolvingPickerAction = Math.max(0, (Number(G._onlineResolvingPickerAction || 0) || 0) - 1);
+    if(!G._onlineResolvingPickerAction) delete G._onlineResolvingPickerAction;
+  }
+  if(G.board && G.board[z] && G.board[z][r] && G.board[z][r][c] === live) {
+    toast(live.name + ' could not be discarded. Choose another card.');
+    _battleOfPellaPromptWinner = null;
+    scheduleBattleOfPellaThresholdCheck(80);
+    return false;
+  }
+  return finishBattleOfPellaChoice(winner, {card:live, z:z, r:r, c:c});
+}
+
+function chooseBattleOfPellaAiTarget(winner, entries) {
+  const opponentCards = entries.filter(function(entry){ return Number(entry.card.owner) !== Number(winner); });
+  const pool = opponentCards.length ? opponentCards : entries;
+  return pool.slice().sort(function(a, b){
+    const av = typeof getEffectiveFate === 'function' ? getEffectiveFate(a.card, a.z) : Number(a.card.currentFate ?? a.card.fate) || 0;
+    const bv = typeof getEffectiveFate === 'function' ? getEffectiveFate(b.card, b.z) : Number(b.card.currentFate ?? b.card.fate) || 0;
+    return opponentCards.length ? bv - av : av - bv;
+  })[0] || null;
+}
+
+function maybeResolveBattleOfPellaThreshold() {
+  const config = getActiveLandscapeFateDiscardConfig();
+  if(!G || !config) return false;
+  if(G.phase === 'ended' || G._isSpectator || G._onlineRole === 'spectator') return false;
+  if(isBattleOfPellaBlockedByConsolidation()) {
+    scheduleBattleOfPellaThresholdCheck(180);
+    return true;
+  }
+  const st = typeof getLandscapeState === 'function' ? getLandscapeState() : null;
+  if(!st) return false;
+  let threshold = getPendingLandscapeFateThreshold(st, config);
+  let claim = threshold ? getLandscapeFateThresholdClaim(st, threshold) : null;
+  let winner = claim && (claim.winner === 0 || claim.winner === 1) ? claim.winner : -1;
+  if(winner !== 0 && winner !== 1) {
+    const totals = [getBattleOfPellaTotalFate(0), getBattleOfPellaTotalFate(1)];
+    threshold = config.thresholds.find(function(candidate){
+      const existing = getLandscapeFateThresholdClaim(st, candidate);
+      if(existing && existing.choiceResolved) return false;
+      return totals[0] >= candidate || totals[1] >= candidate;
+    });
+    if(!threshold) return false;
+    const reached = [0, 1].filter(function(player){ return totals[player] >= threshold; });
+    winner = reached.indexOf(Number(G.currentPlayer)) >= 0 ? Number(G.currentPlayer) : reached[0];
+    setLandscapeFateThresholdClaim(st, threshold, {
+      winner:winner,
+      winningTotal:totals[winner],
+      choiceResolved:false,
+      declined:false,
+      discardedIid:null
+    });
+    if(config.id === 'igb20') st.igb20PendingFateThreshold = threshold;
+    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash(threshold + ' Fate reached', 'major');
+    renderGame({landscape:true});
+  }
+  const entries = getAllBoardCardEntries(function(card){ return isBattleOfPellaDiscardableCard(card); });
+  if(!entries.length) return finishBattleOfPellaChoice(winner, {declined:true});
+  if(G.aiEnabled && Number(G.aiPlayer) === winner) {
+    return resolveBattleOfPellaDiscard(winner, chooseBattleOfPellaAiTarget(winner, entries));
+  }
+  if(G._onlineRoomCode) {
+    const onlinePlayer = G._onlinePlayerIndex;
+    const localPlayer = onlinePlayer === 0 || onlinePlayer === 1 ? onlinePlayer : Number(G.localPlayerIndex);
+    if(localPlayer !== winner || G._onlineApplyingRemoteAction) return true;
+  }
+  if(_battleOfPellaPromptWinner === winner) return true;
+  const presenter = window.FateActionPresentation;
+  if((presenter && typeof presenter.isActive === 'function' && presenter.isActive()) || document.getElementById('modal')?.classList.contains('on')) {
+    scheduleBattleOfPellaThresholdCheck(180);
+    return true;
+  }
+  _battleOfPellaPromptWinner = winner;
+  showBoardTargetPicker({
+    title:config.title,
+    prompt:G.players[winner].name + ' reached ' + threshold + ' total Fate first. Choose any discardable card on the field, or decline.',
+    maxCount:1,
+    confirmLabel:'Discard Card',
+    viewerPlayerIndex:winner,
+    zones:[0,1,2],
+    entries:entries,
+    showOpponentOverlay:true,
+    onlineClientOwnedChoice:true,
+    onCancel:function(){ finishBattleOfPellaChoice(winner, {declined:true}); }
+  }, function(chosen){
+    resolveBattleOfPellaDiscard(winner, chosen && chosen[0]);
+  });
+  return true;
+}
+
+function scheduleBattleOfPellaThresholdCheck(delay) {
+  if(_battleOfPellaThresholdTimer || !G || !isLandscapeFateDiscardRaceActive()) return false;
+  _battleOfPellaThresholdTimer = setTimeout(function(){
+    _battleOfPellaThresholdTimer = 0;
+    maybeResolveBattleOfPellaThreshold();
+  }, Math.max(0, Number(delay) || 0));
+  return true;
+}
+window.maybeResolveBattleOfPellaThreshold = maybeResolveBattleOfPellaThreshold;
+window.resolveBattleOfPellaDiscard = resolveBattleOfPellaDiscard;
+
 function getSantaAnnaProsperityTargets(player) {
   if(player !== 0 && player !== 1) return [];
   if(!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb16'))) return [];
   return getAllBoardCardEntries(function(card, z, r, c){
     if(!card || card.owner !== player || isFaceDownCard(card)) return false;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
     return true;
   });
 }
@@ -1731,6 +2005,7 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
     ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : G._onlinePlayerIndex)
     : getPerspectivePlayerIndex());
   if(player !== 0 && player !== 1 || !card) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
   const hand = G.players && G.players[player] ? G.players[player].hand : null;
   if(!Array.isArray(hand)) return false;
   let handIndex = hand.findIndex(function(c){ return c && card.iid && c.iid === card.iid; });
@@ -1744,6 +2019,7 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
     ? { z:targetPayload.z, r:targetPayload.r, c:targetPayload.c, card:G.board?.[targetPayload.z]?.[targetPayload.r]?.[targetPayload.c] || null }
     : null;
   if(!target || !target.card || target.card.owner !== player || isFaceDownCard(target.card)) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target.card)) return false;
   const legal = getSantaAnnaProsperityTargets(player).some(function(entry){
     return entry.z === target.z && entry.r === target.r && entry.c === target.c && entry.card && entry.card.iid === target.card.iid;
   });
@@ -1767,6 +2043,10 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
     return false;
   }
   if(!card) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) {
+    toast('Fully immune cards cannot be used by landscape effects.');
+    return false;
+  }
   if(targetPayload) return resolveSantaAnnaProsperity(card, targetPayload);
   const player = G._onlineRoomCode
     ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : G._onlinePlayerIndex)
@@ -2143,7 +2423,9 @@ function processLandscapeDrawQueue() {
     return;
   }
   const item = G._landscapeDrawQueue.shift();
-  const entries = getAllBoardCardEntries(function(card){ return card && !isFaceDownCard(card); });
+  const entries = getAllBoardCardEntries(function(card){
+    return card && !isFaceDownCard(card) && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card));
+  });
   if(!entries.length) return;
   G._landscapeDrawPromptOpen = true;
   let drawPromptSettled = false;
@@ -2181,7 +2463,7 @@ function processLandscapeDrawQueue() {
     if(!finish()) return;
     const targetEntry = resolveLiveLandscapeDrawTarget(chosen && chosen[0]);
     const target = targetEntry && targetEntry.card;
-    if(target) {
+    if(target && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target))) {
       modifyFate(target, 3, 'permanent');
       toast('West Coast Dreaming: ' + target.name + ' gains 3 Fate.');
       if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('West Coast Dreaming', 'minor');
@@ -2982,7 +3264,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
     return {
       card,
       isHidden: false,
-      name: card.name,
+      name: String(card.id || '') === 'whisper17' ? 'Shizuku' : card.name,
       ability: card.ability,
       effect: card.effect,
       type:typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner) ? 'Character' : card.type,
@@ -4751,7 +5033,7 @@ function applyWinScreenGameBackground() {
   let gameBgVar = gameScreen ? gameScreen.style.getPropertyValue('--game-bg-img') : '';
   const lastBg = window.__fateLastGameBackground || null;
   if(!gameBgVar && typeof _lastGameSong !== 'undefined' && typeof INGAME_BG_PATH === 'function') {
-    const bgNum = Math.max(1, Math.min(19, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
+    const bgNum = Math.max(1, Math.min(20, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
     const bgPath = typeof getGameLandscapeBackgroundPath === 'function' ? getGameLandscapeBackgroundPath(bgNum) : INGAME_BG_PATH(bgNum);
     gameBgVar = `url(${bgPath})`;
   }
@@ -5460,6 +5742,7 @@ function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
 }
 
 function discardBerkeleyHomelessWithHandCost(card, z, r, c) {
+  if(G && (G._igb20ResolvingDiscard || G._landscapeFateThresholdResolvingDiscard)) return false;
   const actionPlayer = G._onlineRoomCode && typeof window.fateResolveOnlineLocalPlayerIndex === 'function'
     ? Number(window.fateResolveOnlineLocalPlayerIndex('berkeley discard action'))
     : G.currentPlayer;
@@ -5859,6 +6142,7 @@ function resetModalChrome() {
       'market-list-modal',
       'market-purchase-modal',
       'freeplay-mode-modal',
+      'freeplay-settings-modal',
       'freeplay-title-preset-modal',
       'public-decks-modal',
       'public-deck-preview-modal',
@@ -8302,6 +8586,7 @@ function showConsolidationCinematic(card, opts) {
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     _lastConsolidationCinematicEndedAt = Date.now();
+    if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
     scheduleEffectActivationCinematicDrain();
     var next = _consolidationCinematicQueue.shift();
     if(next) setTimeout(function(){ showConsolidationCinematic(next.card, next.opts); }, 45);
@@ -8314,6 +8599,7 @@ function showConsolidationCinematic(card, opts) {
       document.querySelectorAll('.cc-overlay-v2').forEach(function(el){ el.remove(); });
       document.body.classList.remove('cinematic-lock');
       _lastConsolidationCinematicEndedAt = Date.now();
+      if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
       scheduleEffectActivationCinematicDrain();
       var next = _consolidationCinematicQueue.shift();
       if(next) showConsolidationCinematic(next.card, next.opts);

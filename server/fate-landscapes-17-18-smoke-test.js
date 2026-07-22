@@ -40,30 +40,32 @@ assert(pkg.build.files.includes('igb17/**/*'), 'Electron packaging must include 
 assert.match(dockerfile, /COPY igb17 \.\/igb17/, 'Fly deployment must copy the complete IGB17 asset folder');
 assert.match(dockerignore, /!igb17\/\*\*/, 'Fly deployment context must allow IGB17 assets');
 
-assert.match(data, /id:'whisper17',name:'Whisper of the Heart',ability:'Concrete Roads',type:'Coordinator'[^\n]*[\s\S]{0,180}fate:5,cost:0/,
+assert.match(data, /id:'whisper17',name:'Shizuku',ability:'Concrete Roads',type:'Coordinator'[^\n]*[\s\S]{0,180}fate:5,cost:0/,
   'Whisper must be a zero-cost 5 Fate Coordinator token');
+assert.match(rendering, /name: String\(card\.id \|\| ''\) === 'whisper17' \? 'Shizuku' : card\.name/,
+  'the information window must display the token card name as Shizuku, including older live token snapshots');
 assert.match(data, /igb17:\s*\{[\s\S]{0,260}Tama City: Concrete Roads[\s\S]{0,260}Once per game/,
   'IGB17 catalog metadata must rename the landscape to Tama City');
 assert.doesNotMatch(rendering, /Eligible Coordinator Required/,
   'IGB17 landscape panel must not show the old eligible-Coordinator status line');
-assert.match(rendering, /const buttonText = spent \? 'Token Created' : 'Create Whisper Token'/,
+assert.match(rendering, /const buttonText = spent \? 'Token Created' : 'Create Shizuku Token'/,
   'IGB17 action button must change to Token Created after the landscape use is consumed');
 assert.match(css, /landscape-whisper-action[\s\S]{0,120}transform:translateY\(6px\)[\s\S]{0,120}margin:\.02rem auto 0/,
   'IGB17 action pill must sit 6px lower after the latest nudge');
 assert.match(css, /landscape-whisper-button[\s\S]{0,180}padding:\.2rem \.48rem/,
   'IGB17 action button text padding must be restored before moving the whole pill');
 assert.match(rendering, /"whisper17": "Tomorrow, I’ll be the same old me\."/,
-  'Whisper token cinematic must use its requested subtitle');
+  'Shizuku Token cinematic must use its requested subtitle');
 assert.match(data, /igb18:\s*\{[\s\S]{0,260}Wodny Potok: An Idyllic Polish Village[\s\S]{0,260}Draw Phases/,
   'IGB18 catalog metadata must describe its Draw Phase Fate gain');
-assert.match(structural, /Math\.min\(19, parseInt\(String\(song/,
-  'landscape setup must accept boards 17 through 19');
+assert.match(structural, /Math\.min\(20, parseInt\(String\(song/,
+  'landscape setup must accept boards 17 through 20');
 assert.match(structural, /rotationStartedAt: id === 'igb17' \? Date\.now\(\) : null/,
   'landscape setup must initialize the synchronized IGB17 clock');
 assert.match(structural, /function isWhisperOfTheHeartToken[\s\S]{0,180}whisper17/,
-  'Whisper token classification must be shared across gameplay and rendering');
+  'Shizuku Token classification must be shared across gameplay and rendering');
 
-assert.match(audio, /GAME_SONGS = Array\.from\(\{length:19\}/, 'the song pool must include boards 17 through 19');
+assert.match(audio, /GAME_SONGS = Array\.from\(\{length:20\}/, 'the song pool must include boards 17 through 20');
 assert.match(audio, /board17:'\.\.\/igb17\/board17'/, 'board17 must play the music stored in its special asset folder');
 assert.match(audio, /IGB17_BACKGROUND_FILES[\s\S]{0,320}'igb17\/1\.png'[\s\S]{0,320}'igb17\/10\.png'/,
   'IGB17 must enumerate the ten supplied rotating images');
@@ -76,21 +78,21 @@ assert.match(audio, /function crossfadeIgb17ScreenBackground\(screen, bgImg, coi
 assert.match(audio, /if\(bgNum === 17\)[\s\S]{0,220}applyIgb17RotatingBackground\(false\)[\s\S]{0,220}scheduleIgb17BackgroundRotation\(pickedSong, \{skipApply:true\}\)/,
   'board17 must route through the crossfade helper instead of hard-swapping in the generic background path');
 assert.match(audio, /whisperConsolidation:\s*\{src:'setvoicelines\/whisper\.mp3'/,
-  'Whisper token consolidation must have a dedicated whisper.mp3 audio mapping');
+  'Shizuku Token consolidation must have a dedicated whisper.mp3 audio mapping');
 assert.doesNotMatch(audio, /whisperConsolidation:\s*\{src:'setvoicelines\/whisper\.mp3'[\s\S]{0,80}fallbackTone:'whisper'/,
-  'Whisper token consolidation must not layer a generated fallback over whisper.mp3');
+  'Shizuku Token consolidation must not layer a generated fallback over whisper.mp3');
 assert.match(audio, /let _lastWhisperConsolidationSfxAt = 0;/,
-  'Whisper token consolidation audio must keep a de-dupe timestamp');
+  'Shizuku Token consolidation audio must keep a de-dupe timestamp');
 assert.match(audio, /if\(nowMs - _lastWhisperConsolidationSfxAt < 900\) return;/,
-  'Whisper token consolidation audio must be de-duped across placement and cinematic routes');
+  'Shizuku Token consolidation audio must be de-duped across placement and cinematic routes');
 assert.match(audio, /function playWhisperTokenTone[\s\S]{0,900}triangle/,
-  'Whisper token audio must have an audible fallback if whisper.mp3 is missing');
+  'Shizuku Token audio must have an audible fallback if whisper.mp3 is missing');
 assert.doesNotMatch(audio, /if\(type === 'whisperConsolidation'\)[\s\S]{0,180}playFateSampleSfx\(type, isMenuSound, effectiveVol\);\s*playWhisperTokenTone\(effectiveVol\)/,
-  'Whisper token audio must not play the sample and fallback tone at the same time');
+  'Shizuku Token audio must not play the sample and fallback tone at the same time');
 assert.match(audio, /function playCardSound\(cardId\)[\s\S]{0,180}String\(cardId \|\| ''\) === 'whisper17'[\s\S]{0,180}playSfx\('whisperConsolidation'\)/,
-  'the Whisper token information-window audio button must route to Whisper audio');
+  'the Shizuku Token information-window audio button must route to Whisper audio');
 assert.match(rendering, /opts\.playSfx !== false && String\(card && card\.id \|\| ''\) !== 'whisper17' && typeof playSfx === 'function'/,
-  'Whisper token cinematic must not layer the generic Coordinator set SFX over whisper.mp3');
+  'Shizuku Token cinematic must not layer the generic Coordinator set SFX over whisper.mp3');
 assert.match(read('src/scripts/render-v2/15-vfx-audio-sync.js'), /whisper_consolidate:'whisperConsolidation'/,
   'the VFX audio bridge must route the Whisper consolidation cue to whisper.mp3');
 const vfxRecipes = read('src/scripts/render-v2/13-vfx-recipes.js');
@@ -106,6 +108,8 @@ assert.match(core, /function commitWhisperLandscapeConversion[\s\S]{0,1500}chose
   'Concrete Roads must require exactly two hand cards');
 assert.match(core, /fatePushDiscard\(player, liveSource[\s\S]{0,500}hand\.push\(token\)[\s\S]{0,120}ensureWhisperLandscapeUses\(\)\[player\] = 1/,
   'Concrete Roads must discard its Coordinator and hand costs before creating and consuming the token use');
+assert.match(core, /G\.board\[sourceEntry\.z\]\[sourceEntry\.r\]\[sourceEntry\.c\] = null;[\s\S]{0,900}invalidateFateRenderCaches[\s\S]{0,300}renderGameImmediate/,
+  'Concrete Roads must immediately remove and render away its Coordinator when the token is created');
 assert.match(core, /token\.currentFate = 5[\s\S]{0,180}token\.whisperLandscapeToken = true[\s\S]{0,260}_whisperCopiedEffectId/,
   'the created token must retain a validated copied-effect identity at 5 Fate');
 assert.match(core, /function countFieldWideCoordinators[\s\S]{0,350}card\.type !== 'Coordinator'/,
@@ -124,11 +128,11 @@ assert.doesNotMatch(core, /copiedId === '01'/,
 assert.match(core, /function resolveWhisperTokenPlacement[\s\S]{0,3200}copiedId === '77'/,
   'copied Duncan must resolve when the token is set');
 assert.match(core, /function resolveWhisperTokenPlacement[\s\S]{0,1600}playSfx\('whisperConsolidation'\)/,
-  'setting a Whisper token must play its dedicated Whisper audio');
+  'setting a Shizuku Token must play its dedicated Whisper audio');
 assert.match(rendering, /isWhisperOfTheHeartToken\(card\)[\s\S]{0,220}isDirectSetCard/,
   'the token must use direct board placement rather than consolidation');
 assert.match(handDragBridge, /function isDirectSetCard\(card\)[\s\S]{0,260}isWhisperOfTheHeartToken\(card\)/,
-  'dragging a Whisper token must use direct board placement rather than consolidation');
+  'dragging a Shizuku Token must use direct board placement rather than consolidation');
 assert.match(rendering, /function buildWhisperTokenCopyBannerHTML[\s\S]{0,600}Copied Effect[\s\S]{0,220}Field-wide/,
   'the information window must identify copied effects in a field-wide banner');
 assert.doesNotMatch(rendering, /buildWhisperTokenCopyBannerHTML[\s\S]{0,420}_whisperCopiedFieldEffect[\s\S]{0,160}cd-live-tracker-sub/,
@@ -151,17 +155,17 @@ assert.match(ai, /activateWhisperOfTheHeartLandscape\(\{auto:true, playerIndex:G
 assert.match(ai, /const freeCharacters = hand\.filter[\s\S]{0,420}isCardCharacterForRules[\s\S]{0,220}getDisplayedCardCost[\s\S]{0,80}<= 0/,
   'single-player AI must consider the zero-cost Whisper Coordinator token for direct placement');
 assert.match(ai, /async function aiDoPlace[\s\S]{0,7000}await resolveSetCardAfterPlacement\(inst, choice\.z, choice\.r, choice\.c\)/,
-  'single-player AI placement must resolve the Whisper token copied effect');
+  'single-player AI placement must resolve the Shizuku Token copied effect');
 
 assert.match(online, /_whisperLandscapeUses:cloneOnlinePlain[\s\S]{0,700}_wojciechTurnPlacementCounts/,
   'online canonical capture must include Concrete Roads usage');
-assert.match(online, /function pickSongForSeed[\s\S]{0,180}Math\.floor\(rng\(\) \* 19\) \+ 1/,
-  'seeded multiplayer landscape selection must include IGB17 through IGB19');
+assert.match(online, /function pickSongForSeed[\s\S]{0,180}Math\.floor\(rng\(\) \* 20\) \+ 1/,
+  'seeded multiplayer landscape selection must include IGB17 through IGB20');
 assert.match(online, /\['token1','whisper17'\]\.includes\(String\(card\.id \|\| ''\)\)/,
-  'online card compaction must preserve the dynamic Whisper token effect text');
+  'online card compaction must preserve the dynamic Shizuku Token effect text');
 assert.match(online, /window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,1000}sendOptimisticAction\('HAND_ACTION'[\s\S]{0,1000}_onlineClientOwnedBoardActionPickerDepth/,
   'multiplayer must resolve both Concrete Roads choices inside one authoritative action');
-assert.match(index, /00-structural-helpers\.js\?v=1785021018[\s\S]*01-data-and-state\.js\?v=1785021020[\s\S]*05-gameplay-core\.js\?v=1785021020[\s\S]*06-rendering-and-helpers\.js\?v=1785021020[\s\S]*07-ai\.js\?v=1785021018[\s\S]*08-audio-and-meta-ui\.js\?v=1785021018[\s\S]*18-online-rooms\.js\?v=1785021019&sync=1785021019/,
+assert.match(index, /00-structural-helpers\.js\?v=1785023090[\s\S]*01-data-and-state\.js\?v=1785023120[\s\S]*05-gameplay-core\.js\?v=1785023120[\s\S]*06-rendering-and-helpers\.js\?v=1785023120[\s\S]*07-ai\.js\?v=1785023021[\s\S]*08-audio-and-meta-ui\.js\?v=1785023070[\s\S]*18-online-rooms\.js\?v=1785023100&sync=1785023100/,
   'all landscape runtime surfaces must be cache-busted together');
 
 const catalog = getCardCatalog();
@@ -207,7 +211,7 @@ function baseWhisperState(){
 }
 function whisperToken(iid, copiedId='11'){
   return {
-    id:'whisper17',iid,owner:0,name:'Whisper of the Heart',ability:'Concrete Roads',
+    id:'whisper17',iid,owner:0,name:'Shizuku',ability:'Concrete Roads',
     type:'Coordinator',aff:'expanded_worlds',fate:5,currentFate:5,cost:0,
     whisperLandscapeToken:true,_whisperCopiedEffectId:copiedId,
     _whisperCopiedSourceName:'Anne Stone',_whisperCopiedAbility:'Coordination'
@@ -235,6 +239,26 @@ afterUse.players[0].hand.push(whisperToken('whisper-token-1'));
 afterUse._whisperLandscapeUses[0] = 1;
 const acceptedUse = reduce(beforeUse, afterUse);
 assert.strictEqual(acceptedUse.ok, true, acceptedUse.reason);
+
+const delayedCoordinatorPayment = clone(afterUse);
+delayedCoordinatorPayment.board[0][2][0] = clone(source);
+delayedCoordinatorPayment.players[0].discard = delayedCoordinatorPayment.players[0].discard.filter(entry=>entry.iid !== source.iid);
+const rejectedDelayedPayment = reduce(beforeUse, delayedCoordinatorPayment);
+assert.strictEqual(rejectedDelayedPayment.ok, false, 'multiplayer must not defer the Coordinator discard until token placement');
+assert.match(rejectedDelayedPayment.reason, /discard exactly one controlled Coordinator/);
+
+const bh2Before = baseWhisperState();
+bh2Before.board[0][2][0] = card('bh02',0,'joie-source','Coordinator');
+const bh2After = clone(bh2Before);
+const bh2Source = bh2After.board[0][2][0];
+const bh2DiscardA = bh2After.players[0].hand.shift();
+const bh2DiscardB = bh2After.players[0].hand.shift();
+bh2After.board[0][2][0] = null;
+bh2After.players[0].discard.push(bh2Source, bh2DiscardA, bh2DiscardB);
+bh2After.players[0].hand.push(whisperToken('whisper-bh2', 'bh02'));
+bh2After._whisperLandscapeUses[0] = 1;
+const acceptedBh2Use = reduce(bh2Before, bh2After);
+assert.strictEqual(acceptedBh2Use.ok, true, acceptedBh2Use.reason);
 
 for(const blockedCopyId of ['01', '12', '34']) {
   const blockedBefore = baseWhisperState();
@@ -278,6 +302,6 @@ const rejectedPlacement = reduce(beforePlacement, malformedPlacement, 'PLACE_CAR
   z:1,r:2,c:1
 });
 assert.strictEqual(rejectedPlacement.ok, false);
-assert.match(rejectedPlacement.reason, /Whisper token placement state/);
+assert.match(rejectedPlacement.reason, /Shizuku Token placement state/);
 
 console.log('Landscapes 17 and 18 smoke passed.');

@@ -802,13 +802,14 @@ function finishWojciechTurnState(endingPlayer) {
 }
 
 const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
-  '10':'All cards your opponent controls on the field lose 2 Fate.',
+  '10':'All cards your opponent controls on the field lose 3 Fate.',
   '11':'All Supporters you control on the field gain 3 Fate.',
   '15':'All cards you control on the field gain 1 Fate for each Coordinator you control on the field (max 3 Fate).',
   '19':'All Coordinators you control on the field gain 2 Fate.',
   '23':'All Characters you control on the field gain 2 Fate.',
   '57':'All Coordinator auras you control on the field gain 1 Fate in potency.',
-  '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.'
+  '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.',
+  'bh02':'Each time you activate a draw effect in this card\'s zone, all cards you control on the field gain 1 Fate.'
 });
 const WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set(['01', '12', '34']);
 
@@ -836,6 +837,7 @@ function getWhisperCoordinatorEntries(player) {
     (zone || []).forEach(function(row, r){
       (row || []).forEach(function(card, c){
         if(!card || card.owner !== player || card.type !== 'Coordinator' || isFaceDownCard(card)) return;
+        if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
         if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) return;
         if(WHISPER_UNCOPYABLE_COORDINATOR_IDS.has(String(card.id || ''))) return;
         entries.push({card, z, r, c});
@@ -848,7 +850,9 @@ function getWhisperCoordinatorEntries(player) {
 function getWhisperDiscardableHandCards(player) {
   const hand = G && G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
   return hand.filter(function(card){
-    return !!card && !(String(card.id || '') === '70' && card.guerilla_transferred === true);
+    return !!card
+      && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))
+      && !(String(card.id || '') === '70' && card.guerilla_transferred === true);
   });
 }
 
@@ -875,6 +879,7 @@ function commitWhisperLandscapeConversion(player, sourceEntry, handCards) {
   if(!sourceEntry || !sourceEntry.card) return false;
   const liveSource = G.board?.[sourceEntry.z]?.[sourceEntry.r]?.[sourceEntry.c] || null;
   if(!liveSource || liveSource.owner !== player || liveSource.type !== 'Coordinator' || isFaceDownCard(liveSource)) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(liveSource)) return false;
   if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(liveSource)) return false;
   if(WHISPER_UNCOPYABLE_COORDINATOR_IDS.has(String(liveSource.id || ''))) return false;
   const chosen = Array.isArray(handCards) ? handCards.filter(Boolean) : [];
@@ -886,10 +891,12 @@ function commitWhisperLandscapeConversion(player, sourceEntry, handCards) {
     return hand.find(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); });
   });
   if(liveHandCards.some(function(card){ return !card; })) return false;
+  if(liveHandCards.some(function(card){ return typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card); })) return false;
 
   const token = createWhisperOfTheHeartToken(player, liveSource);
   if(!token) return false;
   G.board[sourceEntry.z][sourceEntry.r][sourceEntry.c] = null;
+  if(G.selectedBoardCard && String(G.selectedBoardCard.iid || '') === String(liveSource.iid || '')) G.selectedBoardCard = null;
   fatePushDiscard(player, liveSource, {sound:false});
   liveHandCards.forEach(function(card){
     const index = hand.findIndex(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); });
@@ -901,14 +908,17 @@ function commitWhisperLandscapeConversion(player, sourceEntry, handCards) {
   if(typeof playDiscardSfx === 'function') playDiscardSfx();
   if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Tama City: Concrete Roads', 'major');
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
-  toast('Whisper of the Heart copied ' + liveSource.name + '. The 5 Fate token is now in your hand.');
+  toast('Shizuku copied ' + liveSource.name + '. The 5 Fate token is now in your hand.');
   log(player === 0 ? 'p1' : 'p2', 'Concrete Roads copied ' + liveSource.name + ' as a token effect');
-  renderGame({board:true, hand:true, scores:true, piles:true, landscape:true, topbar:true});
+  if(typeof window !== 'undefined' && typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
+  const renderParts = {board:true, hand:true, oppHand:true, scores:true, piles:true, landscape:true, topbar:true};
+  if(typeof renderGameImmediate === 'function') renderGameImmediate(renderParts);
+  else renderGame(renderParts);
   return token;
 }
 
 function chooseWhisperLandscapeAiCost(player) {
-  const priorities = {'15':16,'11':14,'23':13,'19':12,'10':11,'01':10,'57':9,'77':8,'34':7,'12':6};
+  const priorities = {'bh02':17,'15':16,'11':14,'23':13,'19':12,'10':11,'01':10,'57':9,'77':8,'34':7,'12':6};
   const sources = getWhisperCoordinatorEntries(player).slice().sort(function(a, b){
     const aScore = Number(priorities[String(a.card.id || '')] || 0) - (Number(a.card.currentFate ?? a.card.fate) || 0) * .2;
     const bScore = Number(priorities[String(b.card.id || '')] || 0) - (Number(b.card.currentFate ?? b.card.fate) || 0) * .2;
@@ -1057,8 +1067,8 @@ async function resolveWhisperTokenPlacement(card, z, r, c, opts = {}) {
   }
   card._whisperEffectActivated = true;
   if(typeof playSfx === 'function') playSfx('whisperConsolidation');
-  if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Whisper token activated', 'major');
-  toast('Whisper of the Heart activated ' + String(card._whisperCopiedAbility || 'its copied effect') + ' field-wide.');
+  if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Shizuku Token activated', 'major');
+  toast('Shizuku activated ' + String(card._whisperCopiedAbility || 'its copied effect') + ' field-wide.');
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
   renderGame({board:true, hand:true, scores:true, landscape:true, topbar:true});
   return true;
@@ -1071,9 +1081,18 @@ function applyIdyllicPolishVillageDrawPhase(player) {
   let count = 0;
   forEachBoardCard(function(card){
     if(!card || card.owner !== player || card.aff !== 'expanded_worlds' || isFaceDownCard(card)) return;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
     const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, player) : card.type !== 'Supporter';
     if(!isCharacter || (typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card))) return;
+    const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
     modifyFate(card, 1, 'permanent', player);
+    const after = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+    if(after > before && typeof flashCardEffect === 'function') {
+      flashCardEffect(card, 'idyllic_polish_village', {
+        label:'An Idyllic Polish Village',
+        soundKey:'idyllic-polish-village:' + String(card.iid || card.id || 'card') + ':' + String(G && G.turn || 0)
+      });
+    }
     count++;
   });
   if(count) {
@@ -1103,6 +1122,13 @@ function resolveCaliforniqueHandExpiryForPlayer(player) {
   const expired = [];
   const retained = [];
   hand.forEach(function(card){
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) {
+      delete card._igb19HandTurnsRemaining;
+      delete card._igb19HandOwner;
+      delete card._igb19LastCountedHandTurn;
+      retained.push(card);
+      return;
+    }
     if(!(typeof isCaliforniqueCharacterCard === 'function' && isCaliforniqueCharacterCard(card))) {
       retained.push(card);
       return;
@@ -1361,7 +1387,7 @@ function applyContinuousEffects() {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  TURN TIMER (2 minutes default)
+//  TURN TIMER (3 minutes default; Free Play can choose 1-10 minutes)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const TURN_TIME_LIMIT = 180; // seconds
 let _turnTimerInterval = null;
@@ -1372,7 +1398,9 @@ let _aiTurnVisualSeconds = 0;
 
 function getTurnTimeLimit() {
   if(!_tutorialActive && typeof isLandscapeActive === 'function' && isLandscapeActive('igb14')) return 30;
-  return _tutorialActive ? 300 : TURN_TIME_LIMIT;
+  if(_tutorialActive) return 300;
+  const configured = Math.round(Number(G && G._turnTimerSeconds) || 0);
+  return configured >= 60 && configured <= 600 ? configured : TURN_TIME_LIMIT;
 }
 
 function isOnlineRemoteTurnTimer() {
@@ -2035,6 +2063,7 @@ function coordinatorAuraAffectsTarget(source, sourceZ, sourceR, sourceC, target,
       : target.type !== 'Supporter';
   }
   if(source.id === '77') return !!source._declaredAff && target.aff === source._declaredAff;
+  if(source.id === 'bh02') return true;
   return false;
 }
 
@@ -2241,6 +2270,66 @@ function hasAnickaVoyagerMovedThisTurn(card) {
   return card.bh01MovedThisTurn === true || Number(card._braveHorizonsLastMoveTurn) === Number(G && G.turn);
 }
 
+function triggerJoieDrawEffectPassive(player, context) {
+  if(!G || !Array.isArray(G.board) || (Number(player) !== 0 && Number(player) !== 1)) return 0;
+  const owner = Number(player);
+  const ctx = context || {};
+  const explicitSourceZone = Number(ctx.sourcePosition?.z ?? ctx.z);
+  const drawSourcePosition = Number.isInteger(explicitSourceZone)
+    ? {z:explicitSourceZone}
+    : (ctx.sourceCard && typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(ctx.sourceCard) : null);
+  if(!drawSourcePosition || !Number.isInteger(drawSourcePosition.z)) return 0;
+  const sources = [];
+  G.board.forEach(function(zone, z){
+    (zone || []).forEach(function(row, r){
+      (row || []).forEach(function(card, c){
+        if(!card || card.owner !== owner || String(card.id || '') !== 'bh02' || isFaceDownCard(card)) return;
+        if(typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(z, r, c)) return;
+        sources.push({card, z, r, c, fieldWide:false});
+      });
+    });
+  });
+  if(typeof getActiveWhisperTokens === 'function') {
+    getActiveWhisperTokens(owner, 'bh02').forEach(function(entry){
+      sources.push({card:entry.card, z:entry.z, r:entry.r, c:entry.c, fieldWide:true});
+    });
+  }
+  if(!sources.length) return 0;
+
+  G._joieDrawEffectSeq = (Number(G._joieDrawEffectSeq) || 0) + 1;
+  const eventKey = ['joie-thousand-reel', owner, Number(G.turn) || 0, G._joieDrawEffectSeq].join(':');
+  let totalGains = 0;
+  sources.forEach(function(source){
+    if(source.z !== drawSourcePosition.z) return;
+    const potencyBoost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(source) : 0;
+    const amount = 1 + Math.max(0, Number(potencyBoost) || 0);
+    G.board.forEach(function(zone, z){
+      if(!source.fieldWide && z !== source.z) return;
+      (zone || []).forEach(function(row){
+        (row || []).forEach(function(target){
+          if(!target || target.owner !== owner || isFaceDownCard(target)) return;
+          if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target)) return;
+          if(typeof modifyFate === 'function') modifyFate(target, amount, 'permanent');
+          else target.currentFate = (Number(target.currentFate ?? target.fate) || 0) + amount;
+          totalGains += amount;
+          if(typeof flashCardEffect === 'function') flashCardEffect(target, 'joie_thousand_reel', {
+            label:'Thousand Reel Stare',
+            soundKey:eventKey
+          });
+        });
+      });
+    });
+  });
+  if(totalGains > 0) {
+    const sourceName = String(ctx.sourceCard?.ability || ctx.sourceCard?.name || ctx.sourceId || 'draw effect');
+    toast('Thousand Reel Stare: +' + totalGains + ' total Fate from ' + sourceName + '.');
+    if(typeof renderEffectResolutionForPlayer === 'function') renderEffectResolutionForPlayer(owner, {hand:false, piles:false});
+    else renderGame({board:true, scores:true});
+  }
+  return totalGains;
+}
+window.triggerJoieDrawEffectPassive = triggerJoieDrawEffectPassive;
+
 function getAnickaVoyagerMoveOptions(card, fromZ, fromR, fromC) {
   if(!card || String(card.id || '') !== 'bh01' || card.owner !== G.currentPlayer || hasAnickaVoyagerMovedThisTurn(card)) return [];
   const live = G.board?.[fromZ]?.[fromR]?.[fromC] || null;
@@ -2312,10 +2401,32 @@ async function resolveAnickaVoyagerMove(z, r, c) {
   G._bh01Moving = null;
   G.placing = false;
   clearPlaceHighlights();
-  if(typeof markMovementEffectFlash === 'function') markMovementEffectFlash(card, 'movement:brave-horizons:' + String(card.iid || card.id) + ':' + String(G.turn || 0));
+  if(typeof playSailingMovementSfx === 'function') playSailingMovementSfx();
+  else if(typeof playSfx === 'function') playSfx('sailingMove');
+  if(typeof flashCardEffect === 'function') {
+    flashCardEffect(card, 'anicka_voyager_boat', {
+      label:'Brave Horizons',
+      soundKey:'movement:brave-horizons:' + String(card.iid || card.id) + ':' + String(G.turn || 0)
+    });
+  } else if(typeof markMovementEffectFlash === 'function') {
+    markMovementEffectFlash(card, 'movement:brave-horizons:' + String(card.iid || card.id) + ':' + String(G.turn || 0));
+  }
   if(typeof triggerRozsiPassive === 'function') triggerRozsiPassive(card, z);
+  // Commit the movement to the visible board before starting the draw. Waiting
+  // through two frames lets the scheduled renderer register its move VFX;
+  // drawCard then waits for that presentation to finish before flying the card.
+  if(typeof renderBoardActionForPlayer === 'function') {
+    renderBoardActionForPlayer(G.currentPlayer, {hand:false, piles:false, scores:true});
+  } else {
+    renderGame({board:true, hand:false, scores:true, blocks:true, topbar:true});
+  }
+  if(typeof requestAnimationFrame === 'function') {
+    await new Promise(function(resolve){
+      requestAnimationFrame(function(){ requestAnimationFrame(resolve); });
+    });
+  }
   const drewCard = Array.isArray(G.players?.[G.currentPlayer]?.deck) && G.players[G.currentPlayer].deck.length > 0;
-  if(drewCard) await drawCard(G.currentPlayer, 1);
+  if(drewCard) await drawCard(G.currentPlayer, 1, {activatedDrawEffect:true, effectSource:card});
   toast(drewCard ? 'Ani\u010dka moved and drew 1 card.' : 'Ani\u010dka moved.');
   if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:drewCard, piles:drewCard});
   else renderGame({board:true, hand:drewCard, scores:true, piles:drewCard, blocks:true, topbar:true});
@@ -2524,10 +2635,19 @@ async function clickCell(z,r,c) {
     G._landscapeMoving = null;
     G.placing = false;
     clearPlaceHighlights();
-    markMovementEffectFlash(mv.card, 'movement:landscape:' + String(mv.card.iid || mv.card.id) + ':' + String(G.turn || 0));
+    if(typeof playSailingMovementSfx === 'function') playSailingMovementSfx();
+    else if(typeof playSfx === 'function') playSfx('sailingMove');
+    if(typeof flashCardEffect === 'function') {
+      flashCardEffect(mv.card, 'anicka_voyager_boat', {
+        label:'Panacea Sailors',
+        soundKey:'movement:landscape:' + String(mv.card.iid || mv.card.id) + ':' + String(G.turn || 0)
+      });
+    } else if(typeof markMovementEffectFlash === 'function') {
+      markMovementEffectFlash(mv.card, 'movement:landscape:' + String(mv.card.iid || mv.card.id) + ':' + String(G.turn || 0));
+    }
     triggerRozsiPassive(mv.card, z);
     toast('Landscape movement: ' + mv.card.name + ' moved.');
-    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Panacea movement');
+    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Panacea movement', 'none');
     renderGame({board:true, scores:true, blocks:true, landscape:true, topbar:true});
     return;
   }
@@ -3919,7 +4039,7 @@ async function resolveBoleslawOpponentSearch(searchingPlayer, context = {}) {
     if(typeof playEffectActivationCinematic === 'function') {
       await playEffectActivationCinematic(live, reaction.z, reaction.r, reaction.c, {source:'boleslaw-search-reaction', broadcast:false});
     }
-    await drawCard(reaction.owner, 1, {afterSetOrCinematic:true});
+    await drawCard(reaction.owner, 1, {afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:live});
     const before = Number(live.currentFate ?? live.fate) || 0;
     live.currentFate = before + 3;
     activated++;
@@ -4404,6 +4524,7 @@ function clearStalePendingWhenSetEffects() {
 
 function canUsePanaceaLandscapeMoveCard(card) {
   if(!card || isFaceDownCard(card)) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
   if(card.aff !== 'eventide') return false;
   return !(typeof isSouthWindSpearmanCard === 'function' && isSouthWindSpearmanCard(card));
 }
@@ -4641,7 +4762,7 @@ function applyMariaSongPreciseShot(sourceCard, selectedCard, sourceOwner) {
     if(!target || String(target.id || '') !== targetId) return;
     if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, sourceOwner)) return;
     const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
-    const changed = reduceStoredCardFateBy(target, 6, sourceOwner);
+    const changed = reduceStoredCardFateBy(target, 7, sourceOwner);
     const after = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
     if(!changed && after === before) return;
     affected++;
@@ -4650,7 +4771,7 @@ function applyMariaSongPreciseShot(sourceCard, selectedCard, sourceOwner) {
       recordHandCardEffectModifier(target, {
         key:'maria-song:' + String(sourceCard && (sourceCard.iid || sourceCard.id) || '61'),
         name:'Maria Song',
-        text:'Precise Shot: this card lost 6 Fate.',
+        text:'Precise Shot: this card lost 7 Fate.',
         fateDelta:after - before
       });
     }
@@ -4755,16 +4876,16 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '27': // Kazumi: automatic draw on set
       inst.effectUsedInitial = true;
       inst._effectTurnLocked = true;
-      await drawCard(cp,3,{afterSetOrCinematic:true});
+      await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
       toast('Kazumi: drew 3 cards');
       renderEffectResolutionForPlayer(cp, {hand:true});
       break;
     case '32': // Temecula Resident: draw 1
-      await drawCard(cp,1,{afterSetOrCinematic:true});
+      await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
       toast('Drew 1 card');
       renderHand(); break;
     case '42': // West German Soldier: draw 2, discard 2 (FORCED)
-      await drawCard(cp,2,{afterSetOrCinematic:true});
+      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
       toast('Drew 2 cards. You must discard 2.');
       renderHand();
       {
@@ -4893,12 +5014,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '61': { // Maria Song: reveal opponent Characters, then all copies lose 6 Fate
+    case '61': { // Maria Song: reveal opponent Characters, then all copies lose 7 Fate
       const candidates = G.players[opp].hand.filter(function(target){ return isMariaSongHandCandidate(target, opp, cp); });
       if(!candidates.length){toast('Opponent has no eligible Character cards in hand');break;}
       pickCardsVisual(candidates, {
         title:'Precise Shot',
-        subtitle:'Select a revealed Character. Every copy in hand, deck, and on the field loses 6 Fate.',
+        subtitle:'Select a revealed Character. Every copy in hand, deck, and on the field loses 7 Fate.',
         maxCount:1,
         minCount:1,
         confirmLabel:'Take the Shot',
@@ -4907,8 +5028,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const target = chosen && chosen[0];
         if(!target) return;
         const result = applyMariaSongPreciseShot(inst, target, cp);
-        toast(target.name + ': ' + result.affected + ' cop' + (result.affected === 1 ? 'y' : 'ies') + ' lost 6 Fate.');
-        log(cp===0?'p1':'p2','Maria Song reduced ' + result.affected + ' copies of ' + target.name + ' by 6 Fate');
+        toast(target.name + ': ' + result.affected + ' cop' + (result.affected === 1 ? 'y' : 'ies') + ' lost 7 Fate.');
+        log(cp===0?'p1':'p2','Maria Song reduced ' + result.affected + ' copies of ' + target.name + ' by 7 Fate');
         renderEffectResolutionForPlayer(cp, {bothHands:true, piles:true});
       });
       break;
@@ -5101,7 +5222,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         if(src){
           G.board[z][src.r][src.c] = null;
           fatePushDiscard(cp, target);
-          await drawCard(cp,2);
+          await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});
           toast(`Discarded ${target.name}, drew 2 cards`);
           renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
         }
@@ -5456,7 +5577,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   }
 
   if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) {
-    toast('Whisper of the Heart is already applying ' + String(card._whisperCopiedAbility || 'its copied Coordinator effect') + ' field-wide.');
+    toast('Shizuku is already applying ' + String(card._whisperCopiedAbility || 'its copied Coordinator effect') + ' field-wide.');
     return;
   }
 
@@ -5684,7 +5805,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '27': // Kazumi: draw 3
       card.effectUsedInitial = true;
       card._effectTurnLocked = true;
-      await drawCard(cp,3,{afterSetOrCinematic:true});
+      await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:card});
       toast('Drew 3 cards');
       renderHand(); break;
     case '29': // Dylan Kirby: choose up to 2 Third Great War from deck or discard
@@ -5796,6 +5917,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     }
     case '90': { // Wojciech (Fisherman): declare affiliation, draw 2 random matching cards and give them +3 Fate
       showAffiliationPickerVisual((aff)=>{
+        if(typeof triggerJoieDrawEffectPassive === 'function') triggerJoieDrawEffectPassive(cp, {sourceCard:card});
         const matches = G.players[cp].deck.filter(c=>c.aff===aff);
         const chosen = [];
         const rng = (typeof G._onlineRng === 'function') ? G._onlineRng : Math.random;
@@ -6309,7 +6431,7 @@ function getEffectiveFate(card, z) {
   if(!card) return 0;
   if(isFaceDownCard(card)) return 0;
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
-  if(typeof isInnatelyFullyEffectImmuneCard === 'function' && isInnatelyFullyEffectImmuneCard(card)) {
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) {
     return Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   }
   // ALPINE Infantry: no bonus applies, invisible to other effects
@@ -6403,7 +6525,7 @@ function getEffectiveFate(card, z) {
     if(cell.id==='10' && cell.owner!==card.owner) {
       if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
       G._continuousDamageSources.add(cell.owner+':10:'+cell.iid);
-      bonus -= 2;
+      bonus -= 3;
       return;
     }
     if(cell.owner!==card.owner) return;
@@ -6415,7 +6537,7 @@ function getEffectiveFate(card, z) {
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
-    // Post-Modernist Dylan (10): -2 to all opponent cards in zone (continuous)
+    // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
     // Dylan Kirby (29): Initiator — no continuous effect (search only)
     // Cathy (23): +2 to all owned characters in zone
@@ -6437,7 +6559,7 @@ function getEffectiveFate(card, z) {
       if(copiedId === '10' && source.owner !== card.owner) {
         if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
         G._continuousDamageSources.add(source.owner + ':whisper10:' + source.iid);
-        bonus -= 2 + sourceBoost;
+        bonus -= 3 + sourceBoost;
         return;
       }
       if(source.owner !== card.owner) return;

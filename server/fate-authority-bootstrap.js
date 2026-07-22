@@ -133,7 +133,7 @@ function queueOpeningHandSelvaBoosts(state){
 function landscapeBgNumFromSong(song){
   const match = String(song || 'board1').match(/board\s*(\d+)/i);
   const n = match ? Number(match[1]) : 1;
-  return Math.max(1, Math.min(19, Number.isInteger(n) ? n : 1));
+  return Math.max(1, Math.min(20, Number.isInteger(n) ? n : 1));
 }
 
 function makeInitialLandscapeState(id, rng){
@@ -149,7 +149,13 @@ function makeInitialLandscapeState(id, rng){
     supporterEffectsThisTurn:[0, 0],
     handTurnCounts:[0, 0],
     handLastResolvedGameTurns:[null, null],
-    rotationStartedAt:id === 'igb17' ? Date.now() : null
+    rotationStartedAt:id === 'igb17' ? Date.now() : null,
+    igb20FateThresholdClaims:{},
+    igb20PendingFateThreshold:null,
+    igb20Winner:null,
+    igb20ChoiceResolved:false,
+    igb20Declined:false,
+    igb20DiscardedIid:null
   };
 }
 
@@ -168,6 +174,7 @@ function buildInitialAuthorityState(input){
   const rng = makeSeededRng(seed);
   const landscapeBgNum = landscapeBgNumFromSong(input && input.song);
   const landscapeId = 'igb' + landscapeBgNum;
+  const configuredTurnTimerSeconds = Math.max(60, Math.min(600, Math.round(Number(input && input.turnTimerSeconds) || 180)));
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
@@ -199,6 +206,8 @@ function buildInitialAuthorityState(input){
     fateModifiers:{},
     landscapeId,
     landscapeBgNum,
+    _turnTimerSeconds:configuredTurnTimerSeconds,
+    _freePlayGameSettings:input && input.gameSettings && typeof input.gameSettings === 'object' ? Object.assign({}, input.gameSettings) : null,
     _landscapeState:makeInitialLandscapeState(landscapeId, rng),
     _landscapeDrawQueue:[],
     currentPlayer:firstPlayer,

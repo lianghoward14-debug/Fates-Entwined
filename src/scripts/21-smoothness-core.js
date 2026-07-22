@@ -1369,7 +1369,7 @@
       }
       const modalBox = document.querySelector('#modal .modal');
       if(modalBox) {
-        modalBox.classList.remove('choose-deck-canonical-modal','choose-deck-runtime-modal','freeplay-mode-modal');
+        modalBox.classList.remove('choose-deck-canonical-modal','choose-deck-runtime-modal','freeplay-mode-modal','freeplay-settings-modal');
       }
     }catch(e){}
   }

@@ -162,6 +162,14 @@ function startGame(vsAI=false) {
     G.maxTurns = 20;
     if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') CURRENT_MODE = 'free';
   }
+  if(!tutorialRunning && !keepHowardDevMode && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'free' && !G._onlineRoomCode
+    && typeof window.fatePrepareLocalFreePlayGameSettings === 'function') {
+    window.fatePrepareLocalFreePlayGameSettings();
+  } else if(!tutorialRunning && !keepHowardDevMode && !G._onlineRoomCode && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE !== 'free') {
+    G._turnTimerSeconds = 180;
+    G._freePlayGameSettings = null;
+    G._onlineGameSong = null;
+  }
   const passOverlay = document.getElementById('pt-overlay');
   if(passOverlay) passOverlay.classList.remove('on');
   // New match: prevent menu music from bleeding in and force a fresh in-game bg/song pick.
@@ -1404,6 +1412,12 @@ async function drawCard(player, count=1, options = {}) {
     if(remainingGapMs > 0) {
       await new Promise(function(resolve){ setTimeout(resolve, remainingGapMs); });
     }
+  }
+  if(count > 0 && options.activatedDrawEffect && typeof triggerJoieDrawEffectPassive === 'function') {
+    triggerJoieDrawEffectPassive(player, {
+      sourceCard:options.effectSource || null,
+      sourceId:String(options.effectSourceId || options.effectSource?.id || '')
+    });
   }
   if(!options.drawPhase && !options.suppressDrawSfx && count > 0) playSfx('draw');
   for(let i=0;i<count;i++){

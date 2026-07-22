@@ -1250,12 +1250,37 @@ textarea.profile-input{resize:vertical;min-height:70px;line-height:1.5;}
 .cropper-controls input[type=range]{width:150px;}
 .cropper-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));
   gap:.4rem;max-height:300px;overflow-y:auto;padding:.3rem;
-  border:1px solid var(--border);border-radius:4px;background:rgba(0,0,0,.2);}
+  border:1px solid var(--border);border-radius:4px;background:rgba(0,0,0,.2);
+  contain:layout style paint;overscroll-behavior:contain;}
 .cropper-pick-card{aspect-ratio:2/3;cursor:pointer;border:1.5px solid var(--border);
   border-radius:3px;overflow:hidden;background:#0a0a0f;transition:all .15s;position:relative;}
 .cropper-pick-card:hover{border-color:var(--gold);transform:scale(1.05);}
 .cropper-pick-card.sel{border-color:var(--gold);box-shadow:0 0 10px rgba(201,168,76,.5);}
 .cropper-pick-card img{width:100%;height:100%;object-fit:cover;}
+
+.landscape-pella-race{transform:translateY(3px);}
+.landscape-pella-race{border-top:0!important;}
+.landscape-pella-race::before{content:'';position:absolute;left:.6rem;right:.6rem;top:-4px;border-top:1px solid rgba(218,185,82,.16);pointer-events:none;}
+.landscape-pella-race .pella-fate-threshold{font-weight:800;letter-spacing:.04em;}
+.landscape-pella-race .pella-fate-threshold.is-you{color:#72caff;text-shadow:0 0 8px rgba(55,169,255,.42);}
+.landscape-pella-race .pella-fate-threshold.is-opponent{color:#ff727b;text-shadow:0 0 8px rgba(255,72,91,.4);}
+.landscape-pella-race .pella-fate-threshold.is-unclaimed{color:inherit;opacity:.72;}
+.landscape-pella-race .pella-fate-separator{opacity:.7;padding:0 .04em;}
+
+/* Keep the 100-picture selector cheap to scroll: offscreen tiles skip layout/paint,
+   and picker tiles do not instantiate the shared ornamental avatar layers. */
+#pfp-picker-grid .pfp-picker-card{
+  display:block;width:100%;padding:0;color:inherit;font:inherit;
+  aspect-ratio:1;contain:layout style paint;
+  transition:border-color .12s ease;
+}
+#pfp-picker-grid .pfp-picker-card:hover{transform:none;}
+#pfp-picker-grid .pfp-picker-card::before,
+#pfp-picker-grid .pfp-picker-card::after{content:none!important;display:none!important;}
+#pfp-picker-grid .pfp-picker-card img{
+  display:block;width:100%;height:100%;object-fit:cover;contain:paint;background:#0a0a0f;
+  image-rendering:auto;transform:none;filter:none;
+}
 
 .turn-timer-warning{position:fixed;left:50%;top:20%;transform:translate(-50%,-10px) scale(.96);z-index:5000;
   padding:.9rem 1.35rem;border-radius:12px;border:1px solid rgba(255,120,120,.65);

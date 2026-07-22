@@ -241,7 +241,7 @@ function initLandscapeForSong(song) {
     if (typeof renderLandscapePanel === 'function') renderLandscapePanel();
     return null;
   }
-  const bgNum = Math.max(1, Math.min(19, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(20, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
   const id = 'igb' + bgNum;
   const landscape = (typeof LANDSCAPES !== 'undefined' && LANDSCAPES) ? LANDSCAPES[id] : null;
   G.landscapeId = id;
@@ -260,7 +260,13 @@ function initLandscapeForSong(song) {
       supporterEffectsThisTurn: [0, 0],
       handTurnCounts: [0, 0],
       handLastResolvedGameTurns: [null, null],
-      rotationStartedAt: id === 'igb17' ? Date.now() : null
+      rotationStartedAt: id === 'igb17' ? Date.now() : null,
+      igb20FateThresholdClaims: {},
+      igb20PendingFateThreshold: null,
+      igb20Winner: null,
+      igb20ChoiceResolved: false,
+      igb20Declined: false,
+      igb20DiscardedIid: null
     };
     if (id === 'igb19' && Array.isArray(G.players)) {
       G.players.forEach(function(player, playerIndex){
@@ -297,6 +303,10 @@ function getLandscapeState() {
   if (!Array.isArray(G._landscapeState.supporterEffectsThisTurn)) G._landscapeState.supporterEffectsThisTurn = [0,0];
   if (!Array.isArray(G._landscapeState.handTurnCounts)) G._landscapeState.handTurnCounts = [0,0];
   if (!Array.isArray(G._landscapeState.handLastResolvedGameTurns)) G._landscapeState.handLastResolvedGameTurns = [null,null];
+  if (!G._landscapeState.igb20FateThresholdClaims || typeof G._landscapeState.igb20FateThresholdClaims !== 'object') G._landscapeState.igb20FateThresholdClaims = {};
+  if (typeof G._landscapeState.igb20PendingFateThreshold === 'undefined') G._landscapeState.igb20PendingFateThreshold = null;
+  if (typeof G._landscapeState.igb20ChoiceResolved !== 'boolean') G._landscapeState.igb20ChoiceResolved = false;
+  if (typeof G._landscapeState.igb20Declined !== 'boolean') G._landscapeState.igb20Declined = false;
   const landscape = getCurrentLandscape();
   if (landscape && landscape.id === 'igb17' && !Number.isFinite(Number(G._landscapeState.rotationStartedAt))) {
     G._landscapeState.rotationStartedAt = Date.now();
@@ -383,7 +393,7 @@ function getRecoverableDiscardCards(player, filter) {
 function applyLandscapePlacementBonuses(card, z, r, c) {
   if (!card) return 0;
   if (!Array.isArray(card._landscapeBonusIds)) card._landscapeBonusIds = [];
-  if (isCardEffectImmutable(card)) return 0;
+  if (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isCardEffectImmutable(card)) return 0;
   let bonus = 0;
   let playFeedback = false;
   if (isLandscapeActive('igb6') && card.aff === 'reality' && !card._landscapeBonusIds.includes('igb6')) {
@@ -424,7 +434,7 @@ function trackLandscapeConsolidation(player, card, z) {
   if (!st) return 0;
   st.consolidations[player] = (Number(st.consolidations[player]) || 0) + 1;
   let bonus = 0;
-  if (isLandscapeActive('igb3') && st.targetZone === z && G.turn < 10) {
+  if (isLandscapeActive('igb3') && st.targetZone === z && G.turn < 10 && !(card && typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))) {
     bonus = 4;
     if (card) {
       card._landscapeStaticFateBonus = (Number(card._landscapeStaticFateBonus) || 0) + bonus;
@@ -648,7 +658,7 @@ function resetCaliforniqueHandTenure(card, handOwner) {
   delete card._igb19HandOwner;
   delete card._igb19LastCountedHandTurn;
   if (!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb19'))) return false;
-  if (!isCaliforniqueCharacterCard(card)) return false;
+  if (!isCaliforniqueCharacterCard(card) || (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))) return false;
   const owner = handOwner === 0 || handOwner === 1 ? handOwner : getPlayerForHandCard(card);
   card._igb19HandTurnsRemaining = CALIFORNIQUE_HAND_TURN_LIMIT;
   card._igb19HandOwner = owner;
@@ -659,7 +669,7 @@ function resetCaliforniqueHandTenure(card, handOwner) {
 
 function getCaliforniqueHandTurnsRemaining(card) {
   if (!card || !(typeof isLandscapeActive === 'function' && isLandscapeActive('igb19'))) return null;
-  if (!isCaliforniqueCharacterCard(card) || typeof G === 'undefined' || !G || !Array.isArray(G.players)) return null;
+  if (!isCaliforniqueCharacterCard(card) || (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) || typeof G === 'undefined' || !G || !Array.isArray(G.players)) return null;
   const owner = getPlayerForHandCard(card);
   const hand = G.players[owner] && G.players[owner].hand;
   if (!Array.isArray(hand) || !hand.some(function(entry){
@@ -841,11 +851,19 @@ function getHandCardEffectModifiers(card) {
   }
   const printed = Number(card.fate);
   const current = Number(card.currentFate);
-  if (Number.isFinite(printed) && Number.isFinite(current) && current !== printed && !rows.some(function(row){ return Number(row.fateDelta) !== 0; })) {
+  if (Number.isFinite(printed) && Number.isFinite(current) && current < printed) {
+    const reduction = printed - current;
+    addRow({
+      key:'permanent-fate-reduction',
+      name:'Permanent Fate Reduction',
+      text:'Permanently reduced by ' + reduction + ' Fate. This reduction remains if this card is discarded, recovered, or set again.',
+      fateDelta:-reduction
+    });
+  } else if (Number.isFinite(printed) && Number.isFinite(current) && current > printed && !rows.some(function(row){ return Number(row.fateDelta) !== 0; })) {
     addRow({
       key:'fate-modified',
       name:'Fate Modified',
-      text:(current > printed ? '+' : '') + (current - printed) + ' Fate from an active effect.',
+      text:'+' + (current - printed) + ' Fate from an active effect.',
       fateDelta:current - printed
     });
   }
@@ -864,6 +882,7 @@ function getSupportReinforcementValue(card) {
   if (card.id === '09') value = 2;
   if (card.id === '37' && card._returnUsed) value = 0.5;
   if (Number(card._reinforcementBonus)) value += Number(card._reinforcementBonus);
+  if (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return value;
   if (isLandscapeActive('igb10') && isCardSupporterForRules(card, card.owner) && card.aff === 'third_great_war') value += 1;
   return value;
 }

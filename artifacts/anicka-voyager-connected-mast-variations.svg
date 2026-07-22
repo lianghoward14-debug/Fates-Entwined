@@ -1,0 +1,202 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <radialGradient id="cardShade" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#2b2424"/>
+      <stop offset="58%" stop-color="#171316"/>
+      <stop offset="100%" stop-color="#0c0a0d"/>
+    </radialGradient>
+    <linearGradient id="cardEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#856437"/>
+      <stop offset="54%" stop-color="#33271d"/>
+      <stop offset="100%" stop-color="#b98b42"/>
+    </linearGradient>
+    <filter id="boatGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.56 0 0 0.42  0 0 0.18 0 0.12  0 0 0 0.82 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .page{fill:#100d11}
+      .card{fill:url(#cardShade);stroke:url(#cardEdge);stroke-width:1.7}
+      .cellGlow{fill:rgba(172,91,24,.15)}
+      .corner{fill:none;stroke:rgba(255,224,166,.23);stroke-width:1.15}
+      .mark{fill:none;stroke:rgba(255,224,166,.98);stroke-width:4.15;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .thin{fill:none;stroke:rgba(255,224,166,.90);stroke-width:2.45;stroke-linecap:round;stroke-linejoin:round;filter:url(#boatGlow)}
+      .fill{fill:rgba(255,224,166,.98);filter:url(#boatGlow)}
+      .sampleNum{fill:#f0c979;font:700 18px Georgia,serif;text-anchor:middle}
+      .sampleName{fill:rgba(255,236,191,.82);font:12px Georgia,serif;text-anchor:middle}
+      .note{fill:rgba(255,236,191,.58);font:14px Georgia,serif}
+      .title{fill:#ffe5aa;font:700 24px Georgia,serif}
+    </style>
+    <g id="previewCard">
+      <rect class="card" x="0" y="0" width="118" height="162" rx="8"/>
+      <rect class="cellGlow" x="4" y="4" width="110" height="154" rx="6"/>
+      <path class="corner" d="M14 21h20M14 21v20M104 21H84M104 21v20M14 141h20M14 141v-20M104 141H84M104 141v-20"/>
+    </g>
+  </defs>
+
+  <rect class="page" width="1280" height="760"/>
+  <text class="title" x="54" y="46">Anička Voyager connected-mast boat variations</text>
+  <text class="note" x="54" y="70">These fix the mast/sail relationship: the mast now runs into the hull/deck so the boat reads as one connected object.</text>
+
+  <g transform="translate(54 110)">
+    <g transform="translate(0 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26M</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 7 35 7 46 0l-8 9H17z"/>
+        <path class="mark" d="M32 13v47"/>
+        <path class="mark" d="M32 16l-18 32h18z"/>
+        <path class="thin" d="M35 23l13 25H35z"/>
+        <path class="thin" d="M18 60h29"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deck mast</text>
+    </g>
+
+    <g transform="translate(144 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26N</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M8 57c12 8 37 8 49 0l-9 10H16z"/>
+        <path class="mark" d="M32 12v51"/>
+        <path class="mark" d="M32 15l-20 34h20z"/>
+        <path class="thin" d="M35 21l15 28H35z"/>
+        <path class="thin" d="M15 64h36"/>
+      </g>
+      <text class="sampleName" x="59" y="188">deep mast</text>
+    </g>
+
+    <g transform="translate(288 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26O</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M10 58c10 7 34 7 44 0l-7 9H17z"/>
+        <path class="mark" d="M32 10v51"/>
+        <path class="mark" d="M32 14l-16 34h16z"/>
+        <path class="thin" d="M35 19l13 29H35z"/>
+        <path class="thin" d="M21 61h22"/>
+        <circle class="fill" cx="32" cy="9" r="2.3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">star mast</text>
+    </g>
+
+    <g transform="translate(432 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26P</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 8 35 8 46 0l-8 9H17z"/>
+        <path class="mark" d="M31 13v49"/>
+        <path class="mark" d="M31 16l-17 32h17z"/>
+        <path class="thin" d="M35 24l14 24H35z"/>
+        <path class="thin" d="M17 62h31"/>
+        <path class="thin" d="M9 71c7 3 14 3 21 0M34 74c7 3 14 3 21 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">wake connected</text>
+    </g>
+
+    <g transform="translate(576 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26Q</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 7 35 7 46 0l-6 8H15z"/>
+        <path class="mark" d="M32 13v49"/>
+        <path class="mark" d="M32 16l-18 31h18z"/>
+        <path class="mark" d="M35 23l13 24H35z"/>
+        <path class="thin" d="M19 62h27"/>
+      </g>
+      <text class="sampleName" x="59" y="188">bold connected</text>
+    </g>
+
+    <g transform="translate(720 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26R</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M8 57c11 8 37 8 48 0l-8 10H16z"/>
+        <path class="mark" d="M33 12v51"/>
+        <path class="mark" d="M33 15l-19 33h19z"/>
+        <path class="thin" d="M36 22l13 26H36z"/>
+        <path class="thin" d="M17 63h32"/>
+        <path class="thin" d="M8 40H1M10 49H3"/>
+      </g>
+      <text class="sampleName" x="59" y="188">motion mast</text>
+    </g>
+
+    <g transform="translate(864 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26S</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 7 35 7 46 0l-8 9H17z"/>
+        <path class="mark" d="M32 13v50"/>
+        <path class="mark" d="M32 16l-17 31h17z"/>
+        <path class="thin" d="M36 22l14 25H36z"/>
+        <path class="thin" d="M35 14l11-6 7 10"/>
+        <path class="thin" d="M18 63h31"/>
+      </g>
+      <text class="sampleName" x="59" y="188">flag connected</text>
+    </g>
+
+    <g transform="translate(1008 0)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26T</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M8 58c12 7 36 7 48 0l-9 9H17z"/>
+        <path class="mark" d="M31 13v49"/>
+        <path class="mark" d="M31 16l-18 32h18z"/>
+        <path class="thin" d="M36 23l13 25H36z"/>
+        <path class="mark" d="M15 58h38"/>
+      </g>
+      <text class="sampleName" x="59" y="188">strong deck</text>
+    </g>
+
+    <g transform="translate(144 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26U</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 7 35 7 46 0l-8 9H17z"/>
+        <path class="mark" d="M32 12v52"/>
+        <path class="mark" d="M32 16l-19 32h19z"/>
+        <path class="thin" d="M35 22l14 26H35z"/>
+        <path class="thin" d="M18 64h29"/>
+        <path class="thin" d="M8 74c8 3 16 3 24 0 8-3 16-3 24 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">full connected</text>
+    </g>
+
+    <g transform="translate(288 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26V</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M8 59c11 7 37 7 48 0l-8 8H16z"/>
+        <path class="mark" d="M31 12v50"/>
+        <path class="mark" d="M31 16l-19 33h19z"/>
+        <path class="thin" d="M36 23l14 26H36z"/>
+        <path class="thin" d="M19 62c8 3 18 3 26 0"/>
+      </g>
+      <text class="sampleName" x="59" y="188">smooth connected</text>
+    </g>
+
+    <g transform="translate(432 250)">
+      <use href="#previewCard"/>
+      <text class="sampleNum" x="59" y="-13">26W</text>
+      <g transform="translate(27 48)">
+        <path class="mark" d="M9 58c11 8 35 8 46 0l-8 9H17z"/>
+        <path class="mark" d="M32 11v51"/>
+        <path class="mark" d="M32 15l-17 32h17z"/>
+        <path class="mark" d="M35 21l14 26H35z"/>
+        <path class="thin" d="M15 62h34"/>
+      </g>
+      <text class="sampleName" x="59" y="188">simple joined</text>
+    </g>
+
+    <g transform="translate(626 258)">
+      <rect x="0" y="0" width="398" height="146" rx="8" fill="rgba(255,224,166,.055)" stroke="rgba(255,224,166,.18)"/>
+      <text class="note" x="24" y="36">Best connected versions:</text>
+      <text class="note" x="24" y="66">26Q: boldest and clearest as a tiny overlay.</text>
+      <text class="note" x="24" y="94">26V: cleanest boat silhouette.</text>
+      <text class="note" x="24" y="122">26T: strongest mast-to-hull connection.</text>
+    </g>
+  </g>
+</svg>

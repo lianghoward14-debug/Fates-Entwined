@@ -1032,7 +1032,7 @@
     if(typeof resetModalChrome === 'function') resetModalChrome();
     applyPublicDeckModalChrome();
     const sorted = [...publicDecks].sort((a,b)=>(avgRating(b) - avgRating(a)) || ((b.timestamp || 0) - (a.timestamp || 0)));
-    const pageSize = 4;
+    const pageSize = 6;
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     publicDecksPage = Math.max(0, Math.min(page, totalPages - 1));
     const pageDecks = sorted.slice(publicDecksPage * pageSize, publicDecksPage * pageSize + pageSize);
@@ -1068,6 +1068,10 @@
         const faceCard = d.faceCardId ? cardById(d.faceCardId) : null;
         const faceImg = faceCard && faceCard.img ? esc(faceCard.img) : '';
         const rating = avgRating(d);
+        const ratingCount = Number(d.ratingCount || 0) || (Array.isArray(d.ratings) ? d.ratings.length : 0);
+        const commentCount = Number(d.commentCount || 0) || (Array.isArray(d.comments) ? d.comments.length : 0);
+        const totalCards = Number(d.totalCards || 0) || (Array.isArray(d.ids) ? d.ids.length : 0);
+        const uniqueCount = Number(d.uniqueCards || 0) || (Array.isArray(d.ids) ? new Set(d.ids.map(String)).size : 0);
         const own = ownsPublicDeck(d);
         html += `<div class="pd-hub-card" onclick="viewPublicDeck('${esc(d.id)}')">
           <span class="pd-hub-rank">#${publicDecksPage * pageSize + idx + 1}</span>
@@ -1078,6 +1082,12 @@
             <span class="pd-hub-desc">${esc(d.description || 'No description yet.')}</span>
             <span class="pd-hub-meta">
               <span class="pd-stars">${renderStars(rating)}</span>
+              <span class="pd-hub-rating-copy">${rating.toFixed(1)} avg · ${ratingCount} rating${ratingCount !== 1 ? 's' : ''}</span>
+            </span>
+            <span class="pd-hub-statline">
+              <span><b>${totalCards}</b><em>Cards</em></span>
+              <span><b>${uniqueCount}</b><em>Unique</em></span>
+              <span><b>${commentCount}</b><em>Notes</em></span>
             </span>
           </span>
           <span class="pd-hub-actions">
@@ -1168,10 +1178,18 @@
       window.renderCanvasImage(canvas, faceCard.img, {mode:'cover', parent:poster, background:'transparent', maxDpr:4, cropY:.08});
     }
     const contentsGrid = document.querySelector('#modal-body .pd-detail-card-grid');
-    if(contentsGrid) contentsGrid.classList.toggle('deck-preview-scroll-extra-row', uniqueCards.length >= 15);
+    const previewRows = Math.max(1, Math.ceil(uniqueCards.length / 8));
+    const previewSize = previewRows <= 1
+      ? {w:128, h:180, cls:'pd-detail-card-grid-rows-1'}
+      : (previewRows === 2 ? {w:116, h:163, cls:'pd-detail-card-grid-rows-2'} : {w:96, h:135, cls:'pd-detail-card-grid-rows-3'});
+    if(contentsGrid) {
+      contentsGrid.classList.toggle('deck-preview-scroll-extra-row', uniqueCards.length >= 15);
+      contentsGrid.classList.remove('pd-detail-card-grid-rows-1','pd-detail-card-grid-rows-2','pd-detail-card-grid-rows-3');
+      contentsGrid.classList.add(previewSize.cls);
+      contentsGrid.style.setProperty('--dbcw', previewSize.w + 'px');
+      contentsGrid.style.setProperty('--dbch', previewSize.h + 'px');
+    }
     if(contentsGrid && typeof window.renderCanvasDeckCollection === 'function') {
-      contentsGrid.style.setProperty('--dbcw', '96px');
-      contentsGrid.style.setProperty('--dbch', '135px');
       window.renderCanvasDeckCollection(contentsGrid, uniqueCards.map(({card,count})=>({
         card,
         count: 0,
