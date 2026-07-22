@@ -80,6 +80,16 @@ jobs:
           $stable = Join-Path $installer.DirectoryName 'Fates-Entwined-Installer.exe'
           Copy-Item -LiteralPath $installer.FullName -Destination $stable -Force
           gh release upload "v$env:FATE_RELEASE_VERSION" $stable --clobber
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fates-Entwined-Windows-Installer
+          path: |
+            dist/Fates-Entwined-Setup-*.exe
+            dist/Fates-Entwined-Installer.exe
+            dist/latest.yml
+            dist/*.blockmap
+          if-no-files-found: error
 
   build-macos:
     if: github.event_name != 'push' || github.ref != 'refs/heads/main'
