@@ -58,7 +58,7 @@ assert.match(indexText, /localStorage\.removeItem\('fateRtdbDisabled'\);[\s\S]*l
 assert.match(indexText, /localStorage\.removeItem\('fateWsAuthorityUrl'\);[\s\S]*localStorage\.removeItem\('fateWsAuthorityEnabled'\);/, 'hosted Fly browser clients must clear stale localhost WebSocket authority overrides');
 assert.match(indexText, /game\.css\?v=1785023123/, 'game stylesheet cache bust must include the lightweight square profile-picture selector and adjusted Pella claim status');
 assert.match(indexText, /99-ui-final\.css\?v=1784660001/, 'final UI stylesheet cache bust must include the optically balanced booster descriptions');
-assert.match(indexText, /zz-codex-last\.css\?v=1785023122/, 'last override stylesheet cache bust must include Brave Horizons overlays and redesigned Free Play game settings');
+assert.match(indexText, /zz-codex-last\.css\?v=1785023154/, 'last override stylesheet cache bust must include Public Deck ratings, both Edit Deck Art variants, and symmetric deck action buttons');
 assert.match(indexText, /button-line-cleanup\.css\?v=1784359003/, 'final button cleanup stylesheet cache bust must include the stale placement-class reset');
 assert.match(indexText, /17-online-social\.js\?v=1784195101/, 'social module cache bust must include live Fly DMs and peer avatars');
 assert.match(socialText, /function refreshOpenFlyDm[\s\S]*after=\$\{encodeURIComponent\(flyDmLastSeq\)\}&state=0[\s\S]*function startFlyDmPolling[\s\S]*setTimeout\(poll, 900\)/, 'an open Fly DM must incrementally poll for new messages without downloading full social state');
@@ -75,7 +75,7 @@ assert.match(audioText, /optimized\/pfp-thumbs\/pfp\$\{[\s\S]*requestAnimationFr
 assert.match(gameCssText, /#pfp-picker-grid \.pfp-picker-card\{[\s\S]*aspect-ratio:1;contain:layout style paint;[\s\S]*#pfp-picker-grid \.pfp-picker-card:hover\{transform:none;/, 'profile selection tiles must remain square and avoid scroll-time transform paints');
 assert.match(indexText, /15-online-auth\.js\?v=1785021001/, 'online auth cache bust must include decisive Fly presence cleanup');
 assert.match(indexText, /04-game-setup\.js\?v=1785023110/, 'game setup cache bust must include draw-effect Coordinator triggers and local Free Play settings');
-assert.match(indexText, /06-rendering-and-helpers\.js\?v=1785023122/, 'renderer cache bust must include Pella status copy, picker deferral, and modal-class isolation');
+assert.match(indexText, /06-rendering-and-helpers\.js\?v=1785023125/, 'renderer cache bust must include scoped Public Deck modal cleanup without global modal resets');
 assert.match(indexText, /render-v2\/07-animation-timeline\.js\?v=1784846401/, 'animation timeline cache bust must include kind-filtered frame scheduling');
 assert.match(indexText, /match-scene-v2\.css\?v=1785021008/, 'match stylesheet cache bust must include the three-pixel outlined compositor Fate numbers');
 assert.match(indexText, /render-v2\/13-vfx-recipes\.js\?v=1784932802/, 'VFX recipes cache bust must include canvas-free Fate recipes');
@@ -83,7 +83,7 @@ assert.match(indexText, /render-v2\/01-render-snapshot\.js\?v=1784666001/, 'rend
 assert.match(indexText, /05-gameplay-core\.js\?v=1785023100/, 'gameplay core cache bust must include landscape immunity and configurable Free Play timers');
 assert.match(indexText, /07-ai-learning\.js\?v=1784382001/, 'AI learning cache bust must include the promoted 250,000-game offline policy');
 assert.match(indexText, /07-ai\.js\?v=1785023021/, 'AI cache bust must include Brave Horizons BH2 draw-aura strategy');
-assert.match(indexText, /09-challenger-mode\.js\?v=1785023113/, 'Free Play menu cache bust must include landscape selection feedback and isolated deck-pick modal chrome');
+assert.match(indexText, /09-challenger-mode\.js\?v=1785023146/, 'Challenger deck tools cache bust must include library preview return context and the modern Edit Order renderer');
 assert.match(indexText, /render-v2\/02-match-layout-engine\.js\?v=1784760020/, 'render-v2 layout cache bust must include the lowered non-overlapping 4-by-3 opponent hand layout');
 assert.match(matchLayoutText, /const oppCols = largeOppHand[\s\S]*Math\.min\(4, Math\.max\(1, oppCount \|\| 1\)\)[\s\S]*: 4;/, '9-12 opponent cards must always use four columns');
 assert.match(matchLayoutText, /const packedOppCardW = 44;[\s\S]*const packedOppCardH = 62;[\s\S]*const packedOppRowStep = 66;[\s\S]*oppRowStep = packedOppHand[\s\S]*Math\.min\(packedOppRowStep, naturalOppRowStep, fitOppRowStep\)/, '9-12 opponent cards must fit three rows without overlapping');

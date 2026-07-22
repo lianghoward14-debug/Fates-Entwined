@@ -88,7 +88,7 @@ assert.match(css, /ch-store-products \.booster-price-row \.btn-buy\{[\s\S]*top:-
 assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*top:-6px!important;/, 'store Transactions button must be raised six pixels total');
 assert.match(css, /ch-store-market-actions \.btn:last-child\{[\s\S]*width:72%!important;[\s\S]*max-width:320px!important;[\s\S]*justify-self:center!important;/, 'store Transactions button must be narrower and centered');
 assert.match(css, /ch-store-market h3\{[\s\S]*translate\(9px,3px\)!important;/, 'store Marketplace heading must move nine pixels right and three pixels down');
-assert.match(index, /zz-codex-last\.css\?v=1785023121/, 'store, profile booster art, Brave Horizons overlays, and Free Play settings must be cache-busted');
+assert.match(index, /zz-codex-last\.css\?v=1785023154/, 'store, profile booster art, Brave Horizons overlays, Free Play settings, enlarged Public Deck ratings, and symmetric deck action buttons must be cache-busted');
 assert.match(index, /id="title-deck-builder-btn"[^>]*>Deck Builder<\/button>[\s\S]*id="title-mission-control-btn"/, 'Deck Builder and Mission Control must expose stable paired title-menu hooks');
 assert.match(css, /#title-deck-builder-btn,[\s\S]*#title-mission-control-btn\{[\s\S]*display:flex!important;[\s\S]*align-items:center!important;[\s\S]*justify-content:center!important;[\s\S]*align-self:stretch!important;[\s\S]*justify-self:stretch!important;[\s\S]*width:100%!important;/, 'Mission Control must share Deck Builder geometry and label centering');
 assert.doesNotMatch(index, /enhanced-fx-toggle-btn|data-enhanced-fx-toggle|Animations On|Animations Off/, 'title screen must replace the animations toggle button with a passive version badge');

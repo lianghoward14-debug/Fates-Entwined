@@ -9,6 +9,9 @@
   let publicDeckDetailCache = new Map();
   let marketplaceUnsub = null;
   let publicDecksUnsub = null;
+  let publicDecksRefreshPromise = null;
+  let publicDecksPollTimer = 0;
+  let publicDecksLastRefreshAt = 0;
   let publicDecksPage = 0;
   let marketplaceTxPage = 0;
   let sellCardPage = 0;
@@ -16,7 +19,8 @@
   let marketplaceLoaded = false;
   let publicDecksLoaded = false;
   const MARKETPLACE_FEED_LIMIT = 80;
-  const PUBLIC_DECK_FEED_LIMIT = 40;
+  const PUBLIC_DECK_FEED_LIMIT = 80;
+  const PUBLIC_DECK_ACTIVE_REFRESH_MS = 2000;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function authUser(){ return FO.auth?.currentUser || window.FATE_ONLINE?.user || null; }
@@ -58,14 +62,6 @@
     const modalBox = document.querySelector('#modal .modal');
     if(!modalBox) return;
     modalBox.classList.add('public-decks-modal', ...classes.filter(Boolean));
-    const width = classes.includes('public-deck-preview-modal') ? 'min(1160px,96vw)' : 'min(1240px,96vw)';
-    modalBox.style.width = width;
-    modalBox.style.maxWidth = width;
-    const body = document.getElementById('modal-body');
-    if(body){
-      body.style.overflow = 'hidden';
-      body.style.maxHeight = '';
-    }
   }
   function rarityLabel(rarity){
     const raw = String(rarity || 'card').trim();
@@ -231,6 +227,7 @@
     if(token) headers.authorization = 'Bearer ' + token;
     const method = String(opts.method || 'GET').toUpperCase();
     const init = {method, headers};
+    if(method === 'GET') init.cache = 'no-store';
     if(opts.body !== undefined){
       headers['content-type'] = 'application/json';
       init.body = JSON.stringify(opts.body || {});
@@ -259,14 +256,42 @@
   }
   async function refreshFlyPublicDecks(){
     if(!publicDeckApiEnabled()) return null;
-    const data = await flyApiRequest(`/api/public-decks?limit=${PUBLIC_DECK_FEED_LIMIT}`);
-    publicDecksLoaded = true;
-    publicDecks = (Array.isArray(data?.decks) ? data.decks : []).map(normalizePublicDeck);
-    window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
+    if(publicDecksRefreshPromise) return publicDecksRefreshPromise;
+    publicDecksRefreshPromise = (async function(){
+      const data = await flyApiRequest(`/api/public-decks?limit=${PUBLIC_DECK_FEED_LIMIT}&fresh=${Date.now()}`);
+      publicDecksLoaded = true;
+      publicDecksLastRefreshAt = Date.now();
+      publicDecks = (Array.isArray(data?.decks) ? data.decks : []).map(normalizePublicDeck);
+      window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
+      try{
+        if(publicDecksHubOpen()) showPublicDecks(publicDecksPage);
+      }catch(e){ console.warn('Public decks refresh failed', e); }
+      return data;
+    })();
     try{
-      if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
-    }catch(e){ console.warn('Public decks refresh failed', e); }
-    return data;
+      return await publicDecksRefreshPromise;
+    }finally{
+      publicDecksRefreshPromise = null;
+    }
+  }
+
+  function publicDecksModalOpen(){
+    return !!document.querySelector('#modal.on .modal.public-decks-modal');
+  }
+
+  function publicDecksHubOpen(){
+    return !!document.querySelector('#modal.on .modal.public-decks-modal #modal-body .pd-hub');
+  }
+
+  function schedulePublicDecksPoll(){
+    clearTimeout(publicDecksPollTimer);
+    publicDecksPollTimer = 0;
+    if(!publicDeckApiEnabled() || !publicDecksHubOpen()) return;
+    publicDecksPollTimer = setTimeout(async function(){
+      if(!publicDecksHubOpen()) return;
+      await refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks live refresh failed', e));
+      schedulePublicDecksPoll();
+    }, PUBLIC_DECK_ACTIVE_REFRESH_MS);
   }
   function canUseFirebase(){
     return !flyEconomyEnabled() && !rtdbDisabledMode() && !!(FO.rtdb && FO.ref && FO.onValue && FO.set && FO.update && FO.remove && FO.push);
@@ -302,7 +327,9 @@
   }
   function watchPublicDecks(){
     if(publicDeckApiEnabled()){
-      if(!publicDecksLoaded) refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks refresh failed', e));
+      const stale = !publicDecksLoaded || Date.now() - publicDecksLastRefreshAt >= 1000;
+      if(stale) refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks refresh failed', e));
+      schedulePublicDecksPoll();
       return;
     }
     if(!canUseFirebase() || publicDecksUnsub) return;
@@ -323,6 +350,9 @@
     try{ if(publicDecksUnsub) publicDecksUnsub(); }catch(e){}
     marketplaceUnsub = null;
     publicDecksUnsub = null;
+    clearTimeout(publicDecksPollTimer);
+    publicDecksPollTimer = 0;
+    publicDecksLastRefreshAt = 0;
     marketplaceLoaded = false;
     publicDecksLoaded = false;
     marketplaceListings = [];
@@ -974,6 +1004,9 @@
     if(!ratings.length) return 0;
     return ratings.reduce((sum,r)=>sum + Number(r.stars || 0), 0) / ratings.length;
   }
+  function publicDeckPublishedAt(deck){
+    return Number(deck?.createdAt || deck?.timestamp || deck?.updatedAt || 0) || 0;
+  }
   function renderStars(r){
     const full = Math.max(0, Math.min(5, Math.round(r)));
     return '&#9733;'.repeat(full) + '&#9734;'.repeat(5 - full);
@@ -1031,27 +1064,31 @@
     ensureWatchers('publicDecks');
     if(typeof resetModalChrome === 'function') resetModalChrome();
     applyPublicDeckModalChrome();
-    const sorted = [...publicDecks].sort((a,b)=>(avgRating(b) - avgRating(a)) || ((b.timestamp || 0) - (a.timestamp || 0)));
-    const pageSize = 6;
+    const publicDeckHubModal = document.querySelector('#modal .modal');
+    if(publicDeckHubModal) publicDeckHubModal.classList.add('public-decks-hub-modal');
+    const sorted = [...publicDecks].sort((a,b)=>(publicDeckPublishedAt(b) - publicDeckPublishedAt(a)) || (avgRating(b) - avgRating(a)));
+    const pageSize = 4;
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     publicDecksPage = Math.max(0, Math.min(page, totalPages - 1));
     const pageDecks = sorted.slice(publicDecksPage * pageSize, publicDecksPage * pageSize + pageSize);
     const totalRatings = sorted.reduce((sum,d)=>sum + (Number(d.ratingCount || 0) || (Array.isArray(d.ratings) ? d.ratings.length : 0)), 0);
-    let html = `<div class="pd-hub">
-      <section class="pd-hub-hero">
-        <div class="pd-hub-copy">
-          <div class="pd-hub-kicker">Community Library</div>
+    const firstShown = sorted.length ? (publicDecksPage * pageSize) + 1 : 0;
+    const lastShown = Math.min(sorted.length, (publicDecksPage + 1) * pageSize);
+    let html = `<div class="pd-hub pd-library-v3">
+      <header class="pd-v3-header">
+        <div class="pd-v3-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="pd-v3-heading">
+          <div class="pd-v3-kicker">Community Collection</div>
           <h2>Public Decks</h2>
-          <p>Browse shared builds, inspect every card, rate favorites, and publish your own finished preset.</p>
+          <p>Explore player-built decks and bring a new strategy to your next match.</p>
         </div>
-        <div class="pd-hub-stats">
-          <span><b>${sorted.length}</b><em>Decks</em></span>
-          <span><b>${totalRatings}</b><em>Ratings</em></span>
+        <div class="pd-v3-summary"><span><b>${sorted.length}</b> decks</span><i></i><span><b>${totalRatings}</b> ratings</span></div>
+        <div class="pd-v3-header-actions">
+          <button type="button" class="btn sm pd-v3-publish" onclick="openShareDeckFlow()"><span>+</span> Publish a Deck</button>
+          <button type="button" class="btn sm pd-v3-close" onclick="closeModal()" aria-label="Close Public Decks">&times;</button>
         </div>
-        <div class="pd-hub-hero-actions">
-          <button class="btn pri pd-share-main" onclick="openShareDeckFlow()">Share a Deck</button>
-        </div>
-      </section>`;
+      </header>
+      <div class="pd-v3-toolbar"><div><strong>Latest Decks</strong><span>Newest community uploads</span></div><div class="pd-v3-live"><i></i><span>Live</span><em>Page ${publicDecksPage+1} of ${totalPages}</em></div></div>`;
     if((publicDeckApiEnabled() || canUseFirebase()) && !publicDecksLoaded){
       html += `<div class="pd-empty-state">
         <div class="pd-empty-title">Loading public decks...</div>
@@ -1063,7 +1100,7 @@
         <p>Publish one of your custom presets to start the public library.</p>
       </div>`;
     }else{
-      html += '<div class="pd-list pd-list-page pd-hub-grid">';
+      html += `<div class="pd-v3-grid pd-v3-count-${pageDecks.length}">`;
       pageDecks.forEach((d,idx)=>{
         const faceCard = d.faceCardId ? cardById(d.faceCardId) : null;
         const faceImg = faceCard && faceCard.img ? esc(faceCard.img) : '';
@@ -1072,27 +1109,31 @@
         const commentCount = Number(d.commentCount || 0) || (Array.isArray(d.comments) ? d.comments.length : 0);
         const totalCards = Number(d.totalCards || 0) || (Array.isArray(d.ids) ? d.ids.length : 0);
         const uniqueCount = Number(d.uniqueCards || 0) || (Array.isArray(d.ids) ? new Set(d.ids.map(String)).size : 0);
+        const publishedAt = publicDeckPublishedAt(d);
+        const dateLabel = publishedAt ? new Date(publishedAt).toLocaleDateString([], {month:'short', day:'numeric'}) : 'Recent';
         const own = ownsPublicDeck(d);
-        html += `<div class="pd-hub-card" onclick="viewPublicDeck('${esc(d.id)}')">
-          <span class="pd-hub-rank">#${publicDecksPage * pageSize + idx + 1}</span>
-          <span class="pd-hub-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" draggable="false" onerror="this.style.display='none'">` : '<span>Deck</span>'}</span>
-          <span class="pd-hub-info">
-            <span class="pd-author">Shared by ${esc(d.username)}</span>
+        html += `<div class="pdx-card" onclick="viewPublicDeck('${esc(d.id)}')">
+          <span class="pdx-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" draggable="false" onerror="this.style.display='none'">` : '<span>Deck</span>'}</span>
+          <span class="pdx-info">
+            <span class="pdx-author"><span>By ${esc(d.username)}</span><em class="pdx-date">${esc(dateLabel)}</em></span>
             <strong>${esc(d.name || 'Shared Deck')}</strong>
-            <span class="pd-hub-desc">${esc(d.description || 'No description yet.')}</span>
-            <span class="pd-hub-meta">
-              <span class="pd-stars">${renderStars(rating)}</span>
-              <span class="pd-hub-rating-copy">${rating.toFixed(1)} avg · ${ratingCount} rating${ratingCount !== 1 ? 's' : ''}</span>
+            <span class="pdx-desc">${esc(d.description || 'No description yet.')}</span>
+            <span class="pdx-rating">
+              <span class="pdx-rating-score">${rating.toFixed(1)}</span>
+              <span class="pdx-rating-detail">
+                <span class="pdx-stars">${renderStars(rating)}</span>
+                <span class="pdx-rating-copy">${ratingCount} rating${ratingCount !== 1 ? 's' : ''}</span>
+              </span>
             </span>
-            <span class="pd-hub-statline">
+            <span class="pdx-stats">
               <span><b>${totalCards}</b><em>Cards</em></span>
               <span><b>${uniqueCount}</b><em>Unique</em></span>
               <span><b>${commentCount}</b><em>Notes</em></span>
             </span>
           </span>
-          <span class="pd-hub-actions">
-            ${own ? `<button type="button" class="pd-hub-delete" onclick="event.stopPropagation();deletePublicDeck('${esc(d.id)}')">Remove</button>` : ''}
-            <button type="button" class="pd-hub-open" onclick="event.stopPropagation();viewPublicDeck('${esc(d.id)}')">Open</button>
+          <span class="pdx-actions">
+            ${own ? `<button type="button" class="btn sm pdx-delete" onclick="event.stopPropagation();deletePublicDeck('${esc(d.id)}')">Remove</button>` : ''}
+            <button type="button" class="btn sm pdx-open" onclick="event.stopPropagation();viewPublicDeck('${esc(d.id)}')">Open Deck &rarr;</button>
           </span>
         </div>`;
       });
@@ -1106,13 +1147,9 @@
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
-    const close = document.createElement('button');
-    close.className = 'btn sm';
-    close.textContent = 'Close';
-    close.onclick = closeModal;
-    document.getElementById('modal-acts').appendChild(close);
     applyPublicDeckModalChrome();
     document.getElementById('modal').classList.add('on');
+    schedulePublicDecksPoll();
   };
 
   window.viewPublicDeck = async function viewPublicDeck(id){

@@ -1757,7 +1757,7 @@ function listFlyPublicDecks(limit = 60){
   return [...flyPublicDecks.values()]
     .map(publicFlyPublicDeckSummary)
     .filter(Boolean)
-    .sort((a,b)=>(Number(b.ratingAvg || 0) - Number(a.ratingAvg || 0)) || ((Number(b.updatedAt || b.timestamp || 0) || 0) - (Number(a.updatedAt || a.timestamp || 0) || 0)))
+    .sort((a,b)=>((Number(b.createdAt || b.timestamp || b.updatedAt || 0) || 0) - (Number(a.createdAt || a.timestamp || a.updatedAt || 0) || 0)) || (Number(b.ratingAvg || 0) - Number(a.ratingAvg || 0)))
     .slice(0, max);
 }
 
@@ -4832,6 +4832,7 @@ async function handleApiRequest(req, res, url){
       if(req.method === 'GET' && !parts[2]){
         await verifyFirebaseToken(bearerToken(req, {}));
         const limit = Math.min(80, Math.max(1, Number(url.searchParams.get('limit') || 40) || 40));
+        res.setHeader('cache-control', 'no-store, max-age=0');
         writeJson(res, 200, {ok:true, decks:listFlyPublicDecks(limit)});
         return true;
       }

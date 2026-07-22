@@ -6145,6 +6145,7 @@ function resetModalChrome() {
       'freeplay-settings-modal',
       'freeplay-title-preset-modal',
       'public-decks-modal',
+      'public-decks-hub-modal',
       'public-deck-preview-modal',
       'public-deck-comments-modal',
       'public-deck-import-choice-modal',

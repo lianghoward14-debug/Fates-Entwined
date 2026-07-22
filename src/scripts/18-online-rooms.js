@@ -7247,20 +7247,20 @@
       if(currentPage > 0){
         const prev = document.createElement('button');
         prev.className = 'btn sm';
-        prev.textContent = 'Previous';
+        prev.innerHTML = '<span class="deck-modal-button-text">Previous</span>';
         prev.onclick = ()=>openOnlineDeckPicker(code, currentPage-1);
         acts.appendChild(prev);
       }
       if(currentPage < maxPage){
         const next = document.createElement('button');
         next.className = 'btn sm';
-        next.textContent = 'Next';
+        next.innerHTML = '<span class="deck-modal-button-text">Next</span>';
         next.onclick = ()=>openOnlineDeckPicker(code, currentPage+1);
         acts.appendChild(next);
       }
       const close = document.createElement('button');
       close.className = 'btn sm';
-      close.textContent = 'Close';
+      close.innerHTML = '<span class="deck-modal-button-text">Close</span>';
       close.onclick = ()=>{ deckPickerOpenForRoom = null; closeModal(); renderLobby(null, null, true); };
       acts.appendChild(close);
     }

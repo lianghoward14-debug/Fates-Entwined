@@ -1083,10 +1083,9 @@ function buildFreePlayMenuHtml() {
           <h2>Choose a Free Play Match</h2>
           <p>Pick a controlled AI duel, roll a random opponent, or queue into a human match with your title-screen presets.</p>
         </div>
-        <div class="freeplay-mode-mark"><img class="freeplay-mode-mark-icon" src="blank.png" alt="" loading="eager" decoding="async" draggable="false"></div>
       </section>
       <button class="freeplay-settings-open" type="button" onclick="closeModal();setTimeout(()=>openFreePlaySettings(),100);">
-        <span class="freeplay-settings-open-seal" aria-hidden="true"><i></i></span>
+        <span class="freeplay-settings-open-seal freeplay-settings-open-seal-left" aria-hidden="true"><i></i></span>
         <span class="freeplay-settings-open-copy">
           <small>Room Configuration</small>
           <b>Game Settings</b>
@@ -1095,6 +1094,7 @@ function buildFreePlayMenuHtml() {
             <span class="freeplay-settings-rule"><small>Turn Timer</small><strong>${escapeHtml(freePlaySettingsTimerSummary(settings))}</strong></span>
           </em>
         </span>
+        <span class="freeplay-settings-open-seal freeplay-settings-open-seal-right" aria-hidden="true"><i></i></span>
       </button>
       <div class="freeplay-settings-inline-note">Room settings note: the first player to enter a Free Play room sets the landscape and timer for both players.</div>
       <div class="freeplay-mode-grid">
@@ -1726,63 +1726,85 @@ function renderChallengerDeckOrderEditor() {
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = getOrderedChallengerDeckKeys();
   const body = document.createElement('div');
-  body.innerHTML = `<p style="font-size:.84rem;color:var(--dim);font-style:italic;margin-bottom:.8rem;">Choose which Challenger decks appear first in the deck selection screen.</p>`;
-  const list = document.createElement('div');
-  list.style.display = 'flex';
-  list.style.flexDirection = 'column';
-  list.style.gap = '.65rem';
-  keys.forEach((pid, index)=>{
-    const p = presets[pid];
-    const sampleIds = [...new Set(p.ids)];
-    const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
-    const hero = p.faceCardId ? CARDS.find(c=>c.id===p.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '.8rem';
-    row.style.padding = '.7rem .8rem';
-    row.style.border = '1px solid var(--border)';
-    row.style.borderRadius = '10px';
-    row.style.background = 'rgba(0,0,0,.28)';
-    row.innerHTML = `
-      <div style="width:72px;height:96px;border-radius:8px;overflow:hidden;background:#0a0a0f;flex-shrink:0;border:1px solid rgba(255,255,255,.08);">
-        ${hero?.img ? `<img src="${hero.img}" alt="${escapeHtml(hero.name)}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">` : ''}
-      </div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</div>
-        <div style="font-size:.72rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;">Position ${index + 1}</div>
-      </div>`;
-    const moveWrap = document.createElement('div');
-    moveWrap.style.display = 'flex';
-    moveWrap.style.gap = '.35rem';
-    moveWrap.style.flexShrink = '0';
-    const earlierBtn = document.createElement('button');
-    earlierBtn.className = 'btn sm';
-    earlierBtn.textContent = 'Earlier';
-    earlierBtn.disabled = index === 0;
-    earlierBtn.onclick = ()=>window.moveChallengerDeckOrder(pid,-1);
-    const laterBtn = document.createElement('button');
-    laterBtn.className = 'btn sm';
-    laterBtn.textContent = 'Later';
-    laterBtn.disabled = index === keys.length - 1;
-    laterBtn.onclick = ()=>window.moveChallengerDeckOrder(pid,1);
-    moveWrap.appendChild(earlierBtn);
-    moveWrap.appendChild(laterBtn);
-    row.appendChild(moveWrap);
-    list.appendChild(row);
-  });
-  body.appendChild(list);
+  body.className = 'preset-order-editor';
+  if(!keys.length){
+    body.innerHTML = `<div class="preset-order-empty">No Challenger decks available to reorder.</div>`;
+  } else {
+    body.innerHTML = `<p class="preset-order-help">Choose which Challenger decks appear first. Higher entries show up earlier in your deck selection screens.</p>`;
+    const list = document.createElement('div');
+    list.className = 'preset-order-list';
+    keys.forEach((pid, index)=>{
+      const preset = presets[pid];
+      const sampleIds = [...new Set(preset.ids)];
+      const sampleCards = sampleIds.map(id=>CARDS.find(c=>c.id===id)).filter(Boolean);
+      const hero = preset.faceCardId ? CARDS.find(c=>c.id===preset.faceCardId) : ([...sampleCards].sort((a,b)=>(b.fate||0)-(a.fate||0))[0] || sampleCards[0]);
+      const heroImg = hero?.img
+        ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(hero.img, 'detail') : hero.img)
+        : '';
+      const heroFallbackImg = hero?.img && typeof getFullCardImageFallbackSrc === 'function' ? getFullCardImageFallbackSrc(heroImg) : heroImg;
+      const row = document.createElement('div');
+      row.className = 'preset-order-row';
+      row.innerHTML = `
+        <div class="preset-order-art">
+          ${heroImg ? `<img src="${escapeHtml(heroImg)}" data-full-src="${escapeHtml(heroFallbackImg)}" alt="${escapeHtml(hero.name)}" loading="eager" decoding="async" draggable="false" onerror="this.onerror=null;this.src=this.dataset.fullSrc||this.src;">` : ''}
+        </div>
+        <div class="preset-order-copy">
+          <div class="preset-order-name">${escapeHtml(preset.name)}</div>
+          <div class="preset-order-pos">Position ${index + 1}</div>
+        </div>`;
+      const moveWrap = document.createElement('div');
+      moveWrap.className = 'preset-order-actions';
+      const earlierBtn = document.createElement('button');
+      earlierBtn.className = 'btn sm';
+      earlierBtn.textContent = 'Earlier';
+      earlierBtn.disabled = index === 0;
+      earlierBtn.onclick = ()=>window.moveChallengerDeckOrder(pid,-1);
+      const laterBtn = document.createElement('button');
+      laterBtn.className = 'btn sm';
+      laterBtn.textContent = 'Later';
+      laterBtn.disabled = index === keys.length - 1;
+      laterBtn.onclick = ()=>window.moveChallengerDeckOrder(pid,1);
+      moveWrap.appendChild(earlierBtn);
+      moveWrap.appendChild(laterBtn);
+      row.appendChild(moveWrap);
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  }
   document.getElementById('modal-body').innerHTML = '';
   document.getElementById('modal-body').appendChild(body);
   document.getElementById('modal-title').textContent = 'Edit Challenger Deck Order';
+  const modalRoot = document.getElementById('modal');
+  modalRoot.classList.add('preset-order-modal');
+  const modalBox = modalRoot.querySelector('.modal');
+  if(modalBox){
+    modalBox.querySelectorAll('.preset-order-top-close').forEach(btn=>btn.remove());
+    const topClose = document.createElement('button');
+    topClose.type = 'button';
+    topClose.className = 'preset-order-top-close';
+    topClose.textContent = 'Close';
+    topClose.setAttribute('aria-label', 'Close Challenger deck order');
+    topClose.onclick = closeModal;
+    modalBox.appendChild(topClose);
+  }
   const acts = document.getElementById('modal-acts');
   acts.innerHTML = '';
+  const back = document.createElement('button');
+  back.className = 'btn sm';
+  back.textContent = 'Back';
+  back.onclick = window.returnFromChallengerDeckOrderEditor;
+  const close = document.createElement('button');
+  close.className = 'btn sm';
+  close.textContent = 'Close';
+  close.onclick = closeModal;
   const done = document.createElement('button');
   done.className = 'btn sm pri';
   done.textContent = 'Done';
   done.onclick = window.returnFromChallengerDeckOrderEditor;
+  acts.appendChild(back);
+  acts.appendChild(close);
   acts.appendChild(done);
-  document.getElementById('modal').classList.add('on');
+  modalRoot.classList.add('on');
 }
 
 function openDeckPickModalChrome(title, actions, extraClasses) {
@@ -1816,7 +1838,7 @@ function openDeckPickModalChrome(title, actions, extraClasses) {
     });
   }
   if(modalBox){
-    modalBox.classList.add(...(extraClasses || []));
+    modalBox.classList.add('title-my-decks-modal', 'choose-deck-canonical-modal', 'choose-deck-runtime-modal', ...(extraClasses || []));
     modalBox.dataset.chooseDeckModal = '1';
   }
   if(modalEl){
@@ -1944,12 +1966,12 @@ function renderUnifiedChooseDeckModal(page=0, options={}) {
     <section class="deck-slate-list"></section>
     <footer class="deck-slate-footer">
       <div class="deck-slate-nav">
-        <button class="btn sm" type="button" data-deck-prev ${currentPage<=0?'disabled':''}>Prev</button>
-        <button class="btn sm" type="button" data-deck-next ${currentPage>=totalPages-1?'disabled':''}>Next</button>
+        <button class="btn sm" type="button" data-deck-prev ${currentPage<=0?'disabled':''}><span class="deck-modal-button-text">Prev</span></button>
+        <button class="btn sm" type="button" data-deck-next ${currentPage>=totalPages-1?'disabled':''}><span class="deck-modal-button-text">Next</span></button>
       </div>
       <div class="deck-slate-footer-actions">
         ${(freeMode && !libraryMode) ? '' : `<button class="btn sm" type="button" data-deck-order ${keys.length<=1?'disabled':''}>Edit Order</button>`}
-        ${(freeMode || libraryMode) ? `<button class="btn sm" type="button" data-deck-close>Close</button>` : ''}
+        ${(freeMode || libraryMode) ? `<button class="btn sm" type="button" data-deck-close><span class="deck-modal-button-text">Close</span></button>` : ''}
         ${(!freeMode && !libraryMode && !isRandomCommitted) ? `<button class="btn sm" type="button" data-deck-close>Cancel</button>` : ''}
       </div>
     </footer>`;
@@ -2909,7 +2931,7 @@ function renderChCollectionTab(content) {
       };
     });
     if(renderCanvasDeckCollection(grid, entries, {
-      align:'left',
+      align:'center',
       virtualize:false,
       lowScroll:true,
       maxDpr:1,
@@ -3062,7 +3084,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
       onLoad:(pid)=>{ cdbEditDeck(pid); closeModal(); },
       onEditArt:(pid)=>cdbEditAppearance(pid),
       onOrder:()=>renderChallengerDeckOrderEditor(),
-      onRowClick:(pid)=>viewChallengerDeckContents(pid)
+      onRowClick:(pid)=>viewChallengerDeckContents(pid, {returnToLibrary:true})
     });
     return;
   }
@@ -3128,7 +3150,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
         </div>
       </div>`;
     if(useCanvasPreview) scheduleCanvasDeckPreviewTile(tile, {hero, minis:displayCards});
-    tile.onclick = ()=>viewChallengerDeckContents(pid);
+    tile.onclick = ()=>viewChallengerDeckContents(pid, {returnToLibrary:true});
     grid.appendChild(tile);
   });
   body.appendChild(grid);
@@ -3151,9 +3173,9 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
   footer.style.marginTop = '1rem';
   footer.innerHTML = `
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-      <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage-1})" ${_challengerDeckBrowsePage<=0?'disabled':''}>Prev</button>
+      <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage-1})" ${_challengerDeckBrowsePage<=0?'disabled':''}><span class="deck-modal-button-text">Prev</span></button>
       <button class="btn sm" onclick="renderChallengerDeckOrderEditor()" ${keys.length<=1?'disabled':''}>Edit Order</button>
-      <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage+1})" ${_challengerDeckBrowsePage>=totalPages-1?'disabled':''}>Next</button>
+      <button class="btn sm" onclick="browseChallengerDecks(null, ${_challengerDeckBrowsePage+1})" ${_challengerDeckBrowsePage>=totalPages-1?'disabled':''}><span class="deck-modal-button-text">Next</span></button>
     </div>`;
   body.appendChild(footer);
   document.getElementById('modal-body').innerHTML='';
@@ -3164,7 +3186,7 @@ function browseChallengerDecks(selectedPid=null, page=_challengerDeckBrowsePage)
   document.getElementById('modal-acts').innerHTML='';
   const close=document.createElement('button');
   close.className='btn sm';
-  close.textContent='Close';
+  close.innerHTML='<span class="deck-modal-button-text">Close</span>';
   close.onclick=closeModal;
   document.getElementById('modal-acts').appendChild(close);
   const modalBox = document.querySelector('#modal .modal');
@@ -3183,6 +3205,9 @@ function viewChallengerDeckContents(pid, options={}) {
     CURRENT_MODE === 'free';
   const goBack = ()=>{
     if(typeof options.onBack === 'function') return options.onBack();
+    if(options.returnToLibrary === true && typeof browseChallengerDecks === 'function') {
+      return browseChallengerDecks(pid, _challengerDeckBrowsePage || 0);
+    }
     if(CURRENT_MODE === 'free' && typeof renderFreePlayTitlePresetDeckPickModal === 'function') {
       return renderFreePlayTitlePresetDeckPickModal(_challengerDeckPickPage || 0);
     }
