@@ -2375,7 +2375,7 @@ async function aiDoPlace(choice) {
     }
     // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 4 Fate.
     G.board[choice.z].forEach(row=>row.forEach(cell=>{
-      if(cell && cell.id==='02' && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
+      if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '02') : cell.id==='02') && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
         modifyFate(inst,4,'permanent');
       }
     }));
@@ -2430,7 +2430,7 @@ async function aiDoConsolidate(choice) {
   const affectedZones = [...new Set(choice.tributes.map(t=>t.z))];
   affectedZones.forEach(tz=>{
     G.board[tz].forEach(row=>row.forEach(cell=>{
-      if(cell&&cell.id==='36'&&cell.owner!==cp&&aiIsPublicBoardCard(cell)){
+      if(cell&&(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id==='36')&&cell.owner!==cp&&aiIsPublicBoardCard(cell)){
         G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
         if(typeof flashCardEffect === 'function') flashCardEffect(cell, 'marie_deterrence', {
           label:'Deterrance',
@@ -2872,9 +2872,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       break;
     }
-    case '05': { // Liberators of Rwanda: +3 fate to own card in zone
+    case '05': { // Liberators of Rwanda: +3 Fate to any card; AI prefers its own
       const own = [];
-      G.board[z].forEach((row,rr)=>row.forEach((cell,cc)=>{if(cell&&cell.owner===cp&&cell.iid!==inst.iid) own.push(cell);}));
+      G.board[z].forEach((row,rr)=>row.forEach((cell,cc)=>{
+        if(cell && cell.owner===cp && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) own.push(cell);
+      }));
       if(own.length){
         // Deck-aware: Maelstrom prioritizes Alondra (14)
         const strat = G._selectedAI?._deckStrategy || '';
@@ -2960,12 +2962,17 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       break;
     }
-    case '31': { // Hemorrhaging Wound: -3 fate opp card in zone
-      const opps=[];
-      G.board[z].forEach(row=>row.forEach(cell=>{if(cell&&cell.owner===opp) opps.push(cell);}));
-      if(opps.length){
-      opps.sort((a,b)=>aiOpponentCardDecisionFate(b,z)-aiOpponentCardDecisionFate(a,z));
-        const target = opps[0];
+    case '31': { // Hemorrhaging Wound: -3 Fate to any card; prefer an opponent
+      const opponents=[];
+      const friendly=[];
+      G.board[z].forEach(row=>row.forEach(cell=>{
+        if(!cell || (typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) return;
+        (cell.owner===opp ? opponents : friendly).push(cell);
+      }));
+      opponents.sort((a,b)=>aiOpponentCardDecisionFate(b,z)-aiOpponentCardDecisionFate(a,z));
+      friendly.sort((a,b)=>(Number(a.currentFate ?? a.fate)||0)-(Number(b.currentFate ?? b.fate)||0));
+      const target = opponents[0] || friendly[0];
+      if(target){
         const before = target.currentFate || target.fate || 0;
         const changed = typeof reduceStoredCardFateBy === 'function'
           ? reduceStoredCardFateBy(target, 3, cp, {permanent:true})
@@ -3000,33 +3007,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G._westCaribNext = { owner: cp };
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
-    case '34': { // Rozsi Szocs: declare best affiliation in zone, +2 Fate
-      const counts = {};
-      G.board[z].forEach(row=>row.forEach(cell=>{
-        if(cell && cell.owner===cp) counts[cell.aff] = (counts[cell.aff]||0)+1;
-      }));
-      const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
-      if(best){
-        let boosted = 0;
-        G.board[z].forEach(row=>row.forEach(cell=>{
-          if(cell && cell.owner===cp && cell.aff===best[0]){
-            modifyFate(cell, 2, 'permanent');
-            boosted++;
-          }
-        }));
-        log('p2','AI: Rozsi boosted '+boosted+' '+(AFF_LABEL[best[0]]||best[0])+' card(s)');
-      }
+    case '34': // Rozsi Szocs: passive movement trigger is handled by triggerRozsiPassive.
       break;
-    }
-    case '35': { // Alexander: snapshot Fate from friendly Supporters in zone
-      let total = 0;
-      G.board[z].forEach(row=>row.forEach(cell=>{
-        if(cell && cell.owner===cp && cell.iid!==inst.iid && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type==='Supporter')){
-          total += Number(cell.currentFate ?? cell.fate ?? 0) || 0;
-        }
-      }));
+    case '35': { // Alexander: initialize from the same live effective-Fate total used by all modes
+      const total = typeof getAlexanderSupporterFateTotal === 'function'
+        ? getAlexanderSupporterFateTotal(inst, z)
+        : 0;
       inst.currentFate = total;
-      log('p2','AI: Alexander set with '+total+' Fate from Supporters');
+      log('p2','AI: Alexander entered with '+total+' Fate from Supporters');
       break;
     }
     case '45': { // Chingachlook: placement restriction is enforced before setting.
@@ -3035,12 +3023,15 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '46': // Phil: begins gaining Fate on future draw phases
       inst._philSetTurn = G.turn;
       break;
-    case '48': { // Cosmic GF: add Expanded Worlds from deck and discard
+    case '48': { // Cosmic GF: add Expanded Worlds from deck, then non-Star Expanded Worlds from discard
       const strat = G._selectedAI?._deckStrategy || '';
       const priority = aiDeckSearchPriority(strat, 'character');
+      if(G.players[cp].deck.some(c=>c && c.aff==='expanded_worlds') && typeof resolveBoleslawOpponentSearch === 'function') {
+        await resolveBoleslawOpponentSearch(cp, {sourceCardId:'48'});
+      }
       ['deck','discard'].forEach(zoneName=>{
         const list = G.players[cp][zoneName];
-        const expanded = list.filter(c=>c && c.aff==='expanded_worlds');
+        const expanded = list.filter(c=>c && c.aff==='expanded_worlds' && (zoneName !== 'discard' || String(c.rarity || '').toLowerCase() !== 'star'));
         const pick = aiPickByPriority(expanded, priority) || expanded[0];
         if(!pick) return;
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
@@ -3225,6 +3216,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '68': { // Great Oak High Schooler: add Coordinator from deck
       const coords = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
       if(coords.length){
+        if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'68'});
         const strat = G._selectedAI?._deckStrategy || '';
         const pick = aiPickByPriority(coords, aiDeckSearchPriority(strat, 'coordinator')) || coords[0];
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false });
@@ -3235,37 +3227,27 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       } break;
     }
-    case '69': { // Breakfast Republic Busser: find any friendly supporter, move & re-activate
-      const friendlySupporters = [];
-      G.board.forEach((zone,zi)=>zone.forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(cell, cp) : cell.type==='Supporter') && cell.iid!==inst.iid){
-          friendlySupporters.push({card:cell,z:zi,r:ri,c:ci});
+    case '69': { // Breakfast Republic Busser: grant any controlled card in this zone three turns of movement
+      const friendlyCards = [];
+      (G.board[z] || []).forEach((row,ri)=>row.forEach((cell,ci)=>{
+        if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && String(cell.id || '') !== '76'){
+          friendlyCards.push({card:cell,z:z,r:ri,c:ci});
         }
-      })));
+      }));
       const strat = G._selectedAI?._deckStrategy || '';
       const busserTargets = strat === 'ai_movement'
-        ? friendlySupporters.filter(entry => entry.card.id === '73')
-        : friendlySupporters;
-      if(busserTargets.length){
-        const src = busserTargets[0];
-        // Find an open contested or friendly safe square in this zone
-        const ownerSafeRow = cp === 0 ? 2 : 0;
-        for(let rr=0;rr<G.board[z].length;rr++){
-          if(rr !== 1 && rr !== ownerSafeRow) continue;
-          for(let cc=0;cc<3;cc++){
-            if(!G.board[z][rr][cc] && !G.blockedCells.some(b=>b.z===z&&b.r===rr&&b.c===cc) && !(rr===r&&cc===c)){
-              G.board[src.z][src.r][src.c] = null;
-              G.board[z][rr][cc] = src.card;
-              if(typeof markMovementEffectFlash === 'function') markMovementEffectFlash(src.card, 'movement:busser-reactivate-ai:' + String(src.card.iid || src.card.id) + ':' + String(G.turn || 0));
-              if(typeof triggerRozsiPassive === 'function') triggerRozsiPassive(src.card, z);
-              src.card.whenSetActivated = false;
-              aiTriggerWhenSet(src.card, z, rr, cc);
-              src.card.whenSetActivated = true;
-              log('p2',`AI: Corner! Behind! moved ${src.card.name} and re-activated`);
-              return;
-            }
-          }
-        }
+        ? (friendlyCards.filter(entry => entry.card.id === '73').length ? friendlyCards.filter(entry => entry.card.id === '73') : friendlyCards)
+        : friendlyCards;
+      const target = busserTargets[0];
+      if(target){
+        target.card._busserTurnsLeft = Math.max(3, typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(target.card) : 0);
+        target.card._busserMoves = target.card._busserTurnsLeft;
+        target.card._busserOwner = cp;
+        target.card._busserMovedThisTurn = false;
+        target.card._busserSourceIid = inst.iid || null;
+        inst.effectUsedInitial = true;
+        inst.whenSetActivated = true;
+        log('p2',`AI: Corner! Behind! granted movement to ${target.card.name}`);
       }
       break;
     }
@@ -3306,10 +3288,15 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           const bp = priority.indexOf(b.card.id);
           return (ap<0?999:ap) - (bp<0?999:bp);
         });
-        const originalId = inst.id;
-        inst.id = candidates[0].card.id;
-        aiTriggerWhenSet(inst, z, r, c);
-        inst.id = originalId;
+        if(typeof activateLedgerCopiedSupporterEffect === 'function') {
+          await activateLedgerCopiedSupporterEffect(cp, z, candidates[0], inst);
+        } else {
+          const originalId = inst.id;
+          inst._ledgerCopiedSourceId = String(candidates[0].card.id || '');
+          inst.id = candidates[0].card.id;
+          await aiTriggerWhenSet(inst, z, r, c);
+          inst.id = originalId;
+        }
         log('p2','AI: Ledger-keepers copied '+candidates[0].card.name);
       }
       break;
@@ -3409,7 +3396,11 @@ async function aiActivateEffects() {
   if(Math.random() < settings.mistakeChance){
     toActivate.sort(()=>Math.random()-0.5);
   } else {
-    toActivate.sort((a,b)=>(effectPriority[b.card.id]||0)-(effectPriority[a.card.id]||0));
+    toActivate.sort((a,b)=>{
+      const aId = typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(a.card) : String(a.card.id || '');
+      const bId = typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(b.card) : String(b.card.id || '');
+      return (effectPriority[bId]||0)-(effectPriority[aId]||0);
+    });
   }
   for(const {card,z,r,c} of toActivate){
     activated.add(card.iid);
@@ -3430,11 +3421,21 @@ async function aiActivateEffects() {
 
   const supporterActions = [];
   forEachBoardCard((card,z,r,c)=>{
-    if(card.owner===cp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter') && !isFaceDownCard(card) && ['52','54','73','93'].includes(card.id)){
+    const copiedSnowball = typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '93');
+    const copiedExpeditionary = typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '73');
+    const supporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter';
+    if(card.owner===cp && (supporterForRules || copiedSnowball || copiedExpeditionary) && !isFaceDownCard(card) && (['52','54','73','93'].includes(card.id) || copiedSnowball || copiedExpeditionary)){
       supporterActions.push({card,z,r,c});
     }
   });
-  supporterActions.sort((a,b)=>({'52':4,'93':3,'73':2,'54':1}[b.card.id]||0)-({'52':4,'93':3,'73':2,'54':1}[a.card.id]||0));
+  supporterActions.sort((a,b)=>{
+    const priority = function(entry){
+      if(typeof cardActsAsPassive === 'function' && cardActsAsPassive(entry.card, '93')) return 3;
+      if(typeof cardActsAsPassive === 'function' && cardActsAsPassive(entry.card, '73')) return 2;
+      return ({'52':4,'54':1}[entry.card.id]||0);
+    };
+    return priority(b) - priority(a);
+  });
   for(const action of supporterActions){
     await aiRunSupporterBoardAbility(action.card, action.z, action.r, action.c);
     await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
@@ -3445,12 +3446,16 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   const opp = 1 - cp;
-  if(card.id === '93') {
+  if(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '93') : card.id === '93') {
     if(card.effectUsedThisTurn) return;
     const allowed = typeof beginManualSupporterEffectActivation === 'function' ? await beginManualSupporterEffectActivation(card, z, r, c, [opp]) : true;
     if(!allowed) return;
     const targets = [];
-    forEachBoardCard(function(target, tz){ if(target && target.owner === opp && !isFaceDownCard(target)) targets.push({card:target,z:tz}); });
+    (G.board[z] || []).forEach(function(row){ (row || []).forEach(function(target){
+      if(!target || target.owner !== opp || isFaceDownCard(target)) return;
+      if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)) return;
+      targets.push({card:target,z:z});
+    }); });
     targets.sort(function(a,b){ return aiOpponentCardDecisionFate(b.card,b.z) - aiOpponentCardDecisionFate(a.card,a.z); });
     const target = targets[0] && targets[0].card;
     if(!target) return;
@@ -3477,7 +3482,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
     return;
   }
-  if(card.id==='73' && card._canMoveOncePerTurn && !card._expMoved && !card.cantBeMoved){
+  if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '73') : card.id==='73') && card._canMoveOncePerTurn && !card._expMoved && !card.cantBeMoved){
     const safeRow = getSafeRowForPlayer(cp);
     const open = [];
     for(let zi=0; zi<3; zi++){
@@ -3520,9 +3525,13 @@ async function aiRunEffect(card, z, r, c) {
   const cp = G.aiPlayer;
   const opp = 1-cp;
   let effectNeedsBlocks = false;
+  const effectId = typeof getCardRuntimeEffectId === 'function'
+    ? getCardRuntimeEffectId(card)
+    : String(card.id || '');
+  const reusableCopiedEffect = String(card.id || '') === 'bh05' && (effectId === '38' || effectId === '40');
   // Skip if this character's effect was already used
-  if(String(card.id) === '21' && card.effectUsedInitial) return;
-  if(card.effectUsedInitial && card.type!=='Dauntless' && card.type!=='Improvisor') return;
+  if(effectId === '21' && card.effectUsedInitial) return;
+  if(card.effectUsedInitial && card.type!=='Dauntless' && card.type!=='Improvisor' && !reusableCopiedEffect) return;
   if(card.type==='Initiator' && !G._suppressEffectPrompt){
     const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
       ? getCharacterEffectAffectedOwners(card, z, r, c, cp, opp)
@@ -3534,9 +3543,11 @@ async function aiRunEffect(card, z, r, c) {
       return;
     }
   }
-  switch(card.id){
+  switch(effectId){
     case '03': { // Howard: double highest-fate own card, then +5
-      const own=[]; G.board[z].forEach(row=>row.forEach(cell=>{if(cell&&cell.owner===cp&&cell.iid!==card.iid&&!cell.immuneFlag) own.push(cell);}));
+      const own=[]; G.board[z].forEach(row=>row.forEach(cell=>{
+        if(cell && cell.owner===cp && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) own.push(cell);
+      }));
       if(own.length){
         const strat = G._selectedAI?._deckStrategy || '';
         let target = strat === 'ai_fat_jake' ? own.find(c => c.id === '38') : null;
@@ -3705,6 +3716,7 @@ async function aiRunEffect(card, z, r, c) {
     case '27': await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:card}); log('p2','AI: Kazumi drew 3'); break;
     case '07': { // Maja Kaminska: search up to 3 deck supporters, buff them, then +2 supporter plays
       const sources = G.players[cp].deck.filter(c=>c.type==='Supporter');
+      if(sources.length && typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'07'});
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'supporter');
       sources.sort((a,b)=>{
@@ -3762,6 +3774,9 @@ async function aiRunEffect(card, z, r, c) {
     case '29': { // Dylan Kirby: add 2 Third Great War
       const recoverableTgw = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.aff==='third_great_war') : G.players[cp].discard.filter(c=>c.aff==='third_great_war');
       const from=[...G.players[cp].deck.filter(c=>c.aff==='third_great_war'),...recoverableTgw];
+      if(G.players[cp].deck.some(c=>c.aff==='third_great_war') && typeof resolveBoleslawOpponentSearch === 'function') {
+        await resolveBoleslawOpponentSearch(cp, {sourceCardId:'29'});
+      }
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'dylan');
       from.sort((a,b)=>{

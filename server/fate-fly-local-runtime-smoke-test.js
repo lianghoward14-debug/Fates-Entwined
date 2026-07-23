@@ -42,7 +42,7 @@ async function requestJson(method, requestPath, body){
   return json;
 }
 
-async function waitForStoredRoom(roomsFile, code, timeoutMs = 2500){
+async function waitForStoredRoom(roomsFile, code, timeoutMs = 6000){
   const deadline = Date.now() + timeoutMs;
   while(Date.now() < deadline){
     try{

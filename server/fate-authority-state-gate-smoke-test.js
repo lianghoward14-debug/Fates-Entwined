@@ -187,17 +187,21 @@ async function main(){
 
     const activePlayer = Number(initialState.currentPlayer || 0);
     const nextPlayer = activePlayer === 0 ? 1 : 0;
+    const endedTurnState = JSON.parse(JSON.stringify(initialState));
+    endedTurnState.currentPlayer = nextPlayer;
+    endedTurnState.turn = Math.max(1, Number(initialState.turn || 1)) + 1;
+    const endedTurnHash = canonicalStateHash(endedTurnState);
     ws.send(JSON.stringify({
       kind:'intent',
       requestId:'legal-end',
       roomCode:code,
       type:'END_TURN',
-      payload:{playerIndex:activePlayer, turn:initialState.turn, baseStateHash:initialHash, postState:initialState, stateHash:initialHash}
+      payload:{playerIndex:activePlayer, turn:initialState.turn, baseStateHash:initialHash, postState:endedTurnState, stateHash:endedTurnHash}
     }));
-    const accepted = await waitForKind(ws, 'accepted');
+    const accepted = await waitForAccepted(ws, 'legal-end', 'END_TURN');
     assert.strictEqual(accepted.serverStateHash, canonicalStateHash(accepted.action.payload.postState));
-    assert.strictEqual(accepted.action.payload.serverReduced, true);
-    assert.strictEqual(accepted.action.payload.reducerMode, 'turns');
+    assert.strictEqual(accepted.action.payload.serverReduced, undefined, 'ordinary turn transitions remain client-resolved and authority-validated');
+    assert.strictEqual(accepted.action.payload.reducerMode, undefined);
     assert.strictEqual(accepted.action.payload.postState.currentPlayer, nextPlayer);
 
     const third = state({currentPlayer:0, turn:3});

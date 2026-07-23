@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="blank.png">
-  <link rel="stylesheet" href="src/styles/game.css?v=1785023123">
+  <link rel="stylesheet" href="src/styles/game.css?v=1785072305">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1784660001">
 <link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1785072302">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=1784059902">
@@ -571,17 +571,18 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="src/scripts/00-structural-helpers.js?v=1785032470"></script>
-  <script src="src/scripts/01-data-and-state.js?v=1785032328"></script>
+<script src="src/scripts/00-structural-helpers.js?v=1785160801"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1785160801"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1785021018"></script>
+<script src="src/scripts/02-effect-rule-metadata.js?v=1785160801"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
 <script src="src/scripts/03-profile-and-progression.js?v=1785023062"></script>
-<script src="src/scripts/04-game-setup.js?v=1785032408"></script>
-  <script src="src/scripts/05-gameplay-core.js?v=1785072303"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1785032474"></script>
+<script src="src/scripts/04-game-setup.js?v=1785160801"></script>
+  <script src="src/scripts/05-gameplay-core.js?v=1785160801"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1785160801"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=1784666002"></script>
-<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1784760020"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1785072427"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=1784050601"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
@@ -591,7 +592,7 @@
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1784932803"></script>
   <script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1785032426"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1784650001"></script>
-<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1785021019"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1785072425"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1785032409"></script>
 <script src="src/scripts/render-v2/17-action-presentation.js?v=1784932810"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1785032328"></script>
@@ -599,7 +600,7 @@
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=1784065001"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
-<script src="src/scripts/07-ai.js?v=1785072301"></script>
+<script src="src/scripts/07-ai.js?v=1785072413"></script>
   <script src="src/scripts/08-audio-and-meta-ui.js?v=1785032407"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=1784059901"></script>
 <script src="src/scripts/09-challenger-mode.js?v=1785072301"></script>
@@ -616,7 +617,7 @@
 <!-- Online rebuild v1: Google auth + Fly-first profile/social/rooms foundation -->
 <script>
 (function(){
-  window.__fateClientBuildStamp = 'improvisor-consolidation-source-audio-cleanup-20260713a-1783961406';
+  window.__fateClientBuildStamp = 'effect-transactions-v2-20260724a-1785160801';
   window.FATE_GAMEPLAY_AUTHORITY = window.FATE_GAMEPLAY_AUTHORITY || 'client-resolved';
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
@@ -624,7 +625,8 @@
     './src/scripts/15-online-auth.js?v=1785021001',
     './src/scripts/16-online-core.js?v=1782617501',
     './src/scripts/17-online-social.js?v=1784195101',
-    './src/scripts/18-online-rooms.js?v=1785032329&sync=1785032329',
+    './src/scripts/18-online-rooms.js?v=1785160801&sync=1785160801',
+    './src/scripts/18a-online-effect-transactions.js?v=1785160801',
     './src/scripts/19-online-elo.js?v=1784059901',
     './src/scripts/20-online-economy.js?v=1785023147'
   ];
@@ -705,7 +707,7 @@
 })();
 </script>
 <script src="src/scripts/21-smoothness-core.js?v=1785023112"></script>
-<script src="src/scripts/22-spectator.js?v=1784364004"></script>
+<script src="src/scripts/22-spectator.js?v=1785072425"></script>
 <script>
   (function(){
     const params = new URLSearchParams(location.search);

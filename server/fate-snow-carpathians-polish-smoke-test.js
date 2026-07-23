@@ -16,7 +16,7 @@ const storeV2 = read('src/scripts/09-challenger-v2.js');
 const css = read('src/styles/zz-codex-last.css');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 
-assert.match(rendering, /bc\.id==='93'[\s\S]{0,260}snowBtn\.textContent='Snowball Fight'/,
+assert.match(rendering, /cardActsAsPassive\(bc, '93'\)[\s\S]{0,260}snowBtn\.textContent='Snowball Fight'/,
   'Wodny Potok Youth board action must be labelled Snowball Fight');
 assert.match(data, /For the next five turns, your opponent cannot change the current landscape\. You can only activate this effect twice a game'/,
   'Wodny Potok Villager rules text must match the printed card');
@@ -84,6 +84,16 @@ assert.match(css, /hand-limit-card:hover \.hand-limit-art[\s\S]*outline-offset:-
   'hand-limit hover ring must stay inset and its label must move down two pixels');
 assert.match(css, /#modal\.card-detail-overlay \.modal\.card-detail-modal \.cd-img,[\s\S]*\.card-info-overlay \.cd-img[\s\S]*left:3px!important/,
   'card information artwork must be nudged right by exactly three pixels');
+assert.match(rendering, /function syncGameLandscapeClass\(landscapeId\)[\s\S]*landscape-id-[\s\S]*syncGameLandscapeClass\(landscape\.id\)/,
+  'the game screen must mirror the active landscape id for Alpine-specific board polish');
+assert.match(css, /#s-game\.landscape-id-igb15[\s\S]*bc\.tribute-available:not\(\.opponent-card\)[\s\S]*rgba\(83,176,255,\.88\)[\s\S]*bc\.tribute-available\.opponent-card[\s\S]*rgba\(255,96,108,\.9\)[\s\S]*:has\(\.bc\.opponent-card\)/,
+  'Snow on the Carpathians consolidation cues must split local blue from opponent red in the DOM board');
+assert.match(rendering, /alpineOwnerClass[\s\S]*isLandscapeActive\('igb15'\)[\s\S]*alpine-consolidation-owner-mine[\s\S]*alpine-consolidation-owner-opp[\s\S]*overlay\.className = 'cc-overlay-v2'[\s\S]*alpineOwnerClass/,
+  'Snow on the Carpathians consolidation cinematics must mark local and opponent ownership');
+assert.match(css, /cc-overlay-v2\.alpine-consolidation-owner-mine[\s\S]*cc-card-wrap-v2::after[\s\S]*--alpine-consolidation-owner-color:rgba\(83,176,255,\.92\)[\s\S]*cc-overlay-v2\.alpine-consolidation-owner-opp[\s\S]*--alpine-consolidation-owner-color:rgba\(255,96,108,\.94\)/,
+  'Snow on the Carpathians consolidation cinematics must draw blue local and red opponent rings');
+assert.match(adapter, /function alpineConsolidationTone\(opponent\)[\s\S]*isLandscapeActive\('igb15'\)[\s\S]*rgba\(255,96,108,\.98\)[\s\S]*rgba\(83,176,255,\.98\)[\s\S]*drawTributeCue\(ctx, r, opts\.tributeState \|\| '', opts\.opponent\)[\s\S]*drawConsolidationCardOverlay\(ctx, r, tributeState, entry\.card && entry\.card\.owner !== snapshot\.viewer\)/,
+  'renderer-v2 must tint Alpine consolidation cues blue for local cards and red for opponent cards');
 assert.match(rendering, /String\(card\.id \|\| ''\) === '04'[\s\S]*Number\(card\.cost\)/,
   'Zoe card information must show her printed Initiator cost of 2');
 assert.match(rendering, /TOPBAR_STATUS_TARGET_VISIBLE = 4[\s\S]*TOPBAR_STATUS_FLEX_MIN_WIDTH = 92[\s\S]*function getTopbarStatusAvailableWidth[\s\S]*function fitTopbarStatusTail[\s\S]*effect-pill-flex-tail[\s\S]*visibleCount--[\s\S]*isOverflow: true[\s\S]*function showStatusEffectOverflowDropdown/,

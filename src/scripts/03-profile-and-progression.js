@@ -352,7 +352,14 @@ const PFP_PATH = (n, shape='circle') => {
   return `pfp/pfp${id}.png`;
 };
 const UI_PICTURE_PATH = name => `uipictures/${name}`;
-const SET_VOICELINE_PATH = name => `setvoicelines/${name}.mp3`;
+const SET_VOICELINE_EXTENSIONS = Object.freeze({
+  bh2:'m4a'
+});
+const SET_VOICELINE_PATH = name => {
+  const key = String(name || '');
+  const ext = SET_VOICELINE_EXTENSIONS[key] || 'mp3';
+  return `setvoicelines/${key}.${ext}`;
+};
 const ALL_PFP_IDS = Array.from({length:100}, (_,i)=>i+1);
 const DEFAULT_PROFILE_IMG = 'blank.png';
 

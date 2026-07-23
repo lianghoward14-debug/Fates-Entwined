@@ -7,6 +7,7 @@ const path = require('path');
 const vm = require('vm');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {buildInitialAuthorityState} = require('./fate-authority-bootstrap');
+const {canonicalStateHash, reduceServerAction} = require('./fate-authority-reducer');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -32,9 +33,12 @@ assert.ok(fs.statSync(thumb).size > 1000, 'BH3 optimized thumbnail must not be e
 assert.ok(fs.statSync(thumb).mtimeMs >= fs.statSync(art).mtimeMs, 'BH3 thumbnail must be regenerated from the current PNG');
 
 const setup = read('src/scripts/04-game-setup.js');
+const gameplay = read('src/scripts/05-gameplay-core.js');
 const rendering = read('src/scripts/06-rendering-and-helpers.js');
 const audio = read('src/scripts/08-audio-and-meta-ui.js');
 const authority = read('server/fate-authority-reducer.js');
+const online = read('src/scripts/18-online-rooms.js');
+const wsAuthority = read('server/fate-ws-authority.js');
 const index = read('index.html');
 assert.match(setup, /function transferAliIndomitableToOpponentHand[\s\S]*_bh03OpponentHand = true[\s\S]*immuneFlag = true[\s\S]*cantBeReduced = true[\s\S]*arrivalKind:'ali-transfer'/, 'BH3 transfer must mark the opponent-hand copy immune without recursively transferring it');
 assert.match(setup, /function scheduleAliIndomitableHandTransfer[\s\S]*_bh03TransferPending = true[\s\S]*transferAliIndomitableToOpponentHand[\s\S]*5000/, 'every BH3 arrival must remain visible for five seconds before transferring');
@@ -43,10 +47,22 @@ assert.match(setup, /arrivalKind:'ali-pending-transfer'[\s\S]*deferAliTransfer:f
 assert.match(setup, /playFateSfxOnce\('aliTransfer',[\s\S]*playSfx\('aliTransfer'\)/, 'BH3 must play its dedicated transfer cue when it changes hands');
 assert.match(audio, /aliTransfer:\s*\{src:'soundeffects\/codex-redesign\/character_improvisor_future_drop\.wav', gain:1\.1\}/, 'BH3 transfer audio must use the prominent Improvisor impact sample');
 assert.match(rendering, /Howard Dev Deck List[\s\S]*addCardToHand\(player, moved, \{arrivalKind:'dev-add'\}\)/, 'developer hand additions must use the shared arrival hook');
-assert.match(authority, /String\(drawn\.id \|\| ''\) === 'bh03'[\s\S]*state\.players\[recipient\]\.hand\.push\(drawn\)/, 'server-authoritative draw effects must transfer BH3 to the opponent');
+assert.match(authority, /function authorityResolveDrawnCardArrival[\s\S]*String\(card\.id \|\| ''\) === 'bh03'[\s\S]*state\.players\[recipient\]\.hand\.push\(card\)/, 'server-authoritative draw effects must transfer BH3 to the opponent');
+assert.match(rendering, /ali_indomitable:\s*`<svg class="ali-indomitable-icon"[\s\S]*M18 29V18/, 'BH3 must use the approved gauntlet status-banner icon');
+assert.match(rendering, /handBits\.push\(\['ali', holder, c\.iid \|\| '', c\._bh03TransferredFrom/, 'the top-bar cache signature must track Ali entering and leaving the opponent hand');
+assert.match(rendering, /const aliCard = CARDS\.find\(c => c\.id === 'bh03'\)[\s\S]*_bh03OpponentHand === true[\s\S]*getStatusEffectIcon\('ali_indomitable'\)[\s\S]*statusInstanceKey:'ali-indomitable:'/, 'BH3 must expose a persistent status banner derived from synchronized opponent-hand state');
+assert.match(setup, /G\._onlineRoomCode[\s\S]{0,500}G\._onlineAliTransfersReady !== true[\s\S]{0,500}localPlayer !== Number\(sourcePlayer\)/, 'online Ali timers must wait for both clients and run only on the source player browser');
+assert.match(online, /function resumeOnlinePendingAliTransfers[\s\S]{0,500}_onlineAliTransfersReady !== true[\s\S]{0,500}playerIndex !== localIndex/, 'online Ali recovery must not schedule the same transfer on both clients');
+assert.match(gameplay, /function showAliIndomitableResolvingBanner[\s\S]*Ali is currently resolving its effect, wait less than five seconds[\s\S]*function selectHandCard[\s\S]*_bh03TransferPending === true[\s\S]*showAliIndomitableResolvingBanner\(\)[\s\S]*return;/, 'interacting with pending Ali must show the resolving banner without selecting him');
+assert.doesNotMatch(gameplay, /function showAliIndomitableResolvingBanner[\s\S]{0,900}ali-indomitable-transfer-banner/, 'interacting with pending Ali must not create a second top transfer banner');
+assert.match(online, /function applyOnlineAliTransferByIid[\s\S]*selectedHandCard = null[\s\S]*placing = false[\s\S]*transferAliIndomitableToOpponentHand/, 'Ali transfer must clear a stale local hand selection before publishing its post-state');
+assert.match(online, /sendOptimisticAction\('ALI_INDOMITABLE_TRANSFER'/, 'Ali transfer must use an explicit serialized online action');
+assert.match(online, /sendOptimisticAction\('HAND_LIMIT_DISCARD'/, 'forced hand-limit discard must use an explicit serialized online action');
+assert.match(wsAuthority, /turnAgnosticEffectiveAction[\s\S]{0,180}HAND_LIMIT_DISCARD\|ALI_INDOMITABLE_TRANSFER/, 'the authority must accept validated Ali and forced discard actions from the affected off-turn player');
 const setupVersion = Number((index.match(/04-game-setup\.js\?v=(\d+)/) || [])[1]);
 const audioVersion = Number((index.match(/08-audio-and-meta-ui\.js\?v=(\d+)/) || [])[1]);
-assert.ok(setupVersion >= 1785032325 && audioVersion >= 1785032309, 'BH3 gameplay and audio scripts must be cache-busted');
+const renderingVersion = Number((index.match(/06-rendering-and-helpers\.js\?v=(\d+)/) || [])[1]);
+assert.ok(setupVersion >= 1785032325 && audioVersion >= 1785032309 && renderingVersion >= 1785072425, 'BH3 gameplay, audio, and status-banner scripts must be cache-busted');
 
 const opening = buildInitialAuthorityState({
   catalog:getCardCatalog(),
@@ -54,15 +70,69 @@ const opening = buildInitialAuthorityState({
   mode:'freeplay',
   decks:{0:Array(40).fill('bh03'), 1:Array(40).fill('bh02')}
 }).state;
-assert.strictEqual(opening.players[0].hand.length, 0, 'BH3 cards must leave their owner\'s multiplayer opening hand');
-assert.strictEqual(opening.players[1].hand.length, 12, 'opening-hand BH3 cards must appear in the opponent\'s hand');
-opening.players[1].hand.filter(card=>String(card.id) === 'bh03').forEach(card=>{
-  assert.strictEqual(card.owner, 1);
-  assert.strictEqual(card._bh03OpponentHand, true);
-  assert.strictEqual(card._bh03TransferredFrom, 0);
-  assert.strictEqual(card.immuneFlag, true);
-  assert.strictEqual(card.cantBeReduced, true);
+assert.strictEqual(opening.players[0].hand.length, 6, 'opening-hand BH3 cards must wait with their owner until both clients are loaded');
+assert.strictEqual(opening.players[1].hand.length, 6, 'the opponent opening hand must not receive BH3 before both clients are loaded');
+opening.players[0].hand.filter(card=>String(card.id) === 'bh03').forEach(card=>{
+  assert.strictEqual(card.owner, 0);
+  assert.strictEqual(card._bh03TransferPending, true);
+  assert.strictEqual(card.noConsolidate, true);
 });
+
+const aliBase = JSON.parse(JSON.stringify(opening));
+aliBase.players[0].hand = [aliBase.players[0].hand[0]];
+aliBase.players[1].hand = [];
+aliBase.players[0].discard = [];
+aliBase.players[1].discard = [];
+aliBase.currentPlayer = 1;
+const pendingAli = aliBase.players[0].hand[0];
+const aliPost = JSON.parse(JSON.stringify(aliBase));
+const transferredAli = aliPost.players[0].hand.shift();
+delete transferredAli._bh03TransferPending;
+delete transferredAli.noConsolidate;
+transferredAli.owner = 1;
+transferredAli._bh03OpponentHand = true;
+transferredAli._bh03TransferredFrom = 0;
+transferredAli.immuneFlag = true;
+transferredAli.cantBeReduced = true;
+aliPost.players[1].hand.push(transferredAli);
+const aliBaseHash = canonicalStateHash(aliBase);
+const aliTransferResult = reduceServerAction(
+  {canonicalState:aliBase, canonicalHash:aliBaseHash},
+  {type:'ACTION_RESULT', payload:{
+    playerIndex:0,
+    actionKind:'ALI_INDOMITABLE_TRANSFER',
+    cardIid:String(pendingAli.iid),
+    baseStateHash:aliBaseHash,
+    postState:aliPost,
+    stateHash:canonicalStateHash(aliPost)
+  }},
+  {requireBaseHash:true}
+);
+assert.strictEqual(aliTransferResult.ok, true, 'the source player must be able to publish Ali transfer even while off turn');
+
+const handLimitBase = JSON.parse(JSON.stringify(aliPost));
+for(let i = 0; i < 6; i += 1){
+  handLimitBase.players[1].hand.push({id:'ordinary-' + i, iid:'ordinary-' + i, owner:1, type:'Supporter', name:'Ordinary ' + i});
+}
+handLimitBase.players[1].discard = [];
+handLimitBase.currentPlayer = 0;
+const handLimitPost = JSON.parse(JSON.stringify(handLimitBase));
+const discarded = handLimitPost.players[1].hand.pop();
+handLimitPost.players[1].discard.push(discarded);
+const handLimitBaseHash = canonicalStateHash(handLimitBase);
+const handLimitResult = reduceServerAction(
+  {canonicalState:handLimitBase, canonicalHash:handLimitBaseHash},
+  {type:'ACTION_RESULT', payload:{
+    playerIndex:1,
+    actionKind:'HAND_LIMIT_DISCARD',
+    discardedIids:[String(discarded.iid)],
+    baseStateHash:handLimitBaseHash,
+    postState:handLimitPost,
+    stateHash:canonicalStateHash(handLimitPost)
+  }},
+  {requireBaseHash:true}
+);
+assert.strictEqual(handLimitResult.ok, true, 'the Ali recipient must be able to discard down to six while off turn');
 
 const codeStart = setup.indexOf('function transferAliIndomitableToOpponentHand');
 const codeEnd = setup.indexOf('\nfunction triggerSelvaIslandsPirateHandArrival', codeStart);

@@ -652,6 +652,10 @@ function contentTypeFor(filePath){
   if(ext === '.webp') return 'image/webp';
   if(ext === '.svg') return 'image/svg+xml';
   if(ext === '.ico') return 'image/x-icon';
+  if(ext === '.mp3') return 'audio/mpeg';
+  if(ext === '.m4a') return 'audio/mp4';
+  if(ext === '.wav') return 'audio/wav';
+  if(ext === '.ogg') return 'audio/ogg';
   if(ext === '.exe') return 'application/vnd.microsoft.portable-executable';
   return 'application/octet-stream';
 }
@@ -3371,7 +3375,8 @@ function validateAction(room, ws, msg){
     const pending = room.canonicalState?._serverPendingReaction;
     if(!pending || Number(pending.playerIndex) !== playerIndex) return 'no pending reaction for this player';
   }
-  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN' && type !== 'STATE_SYNC' && type !== 'REACTION_CHOICE' && effectiveType !== 'PICK_LANDSCAPE_ZONE'){
+  const turnAgnosticEffectiveAction = /^(PICK_LANDSCAPE_ZONE|HAND_LIMIT_DISCARD|ALI_INDOMITABLE_TRANSFER|TAYLOR_OPENING_COPY|EFFECT_CINEMATIC)$/i.test(effectiveType);
+  if(type !== 'FORFEIT' && type !== 'CHOOSE_TURN' && type !== 'STATE_SYNC' && type !== 'REACTION_CHOICE' && !turnAgnosticEffectiveAction){
     const turnUid = room.currentTurnUid || room.playerOrder[0];
     if(turnUid && turnUid !== uid) return 'not this player turn';
   }
@@ -3380,14 +3385,14 @@ function validateAction(room, ws, msg){
     if(winner !== playerIndex) return 'coin winner mismatch';
   }
   if(type === 'MATCH_RESULT' && !STATE_GATE_ENABLED) return 'MATCH_RESULT requires server state gate';
-  if(!/^(ACTION_RESULT|STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|EFFECT_CINEMATIC|FORFEIT|MATCH_RESULT)$/i.test(type)){
+  if(!/^(ACTION_RESULT|STATE_SYNC|END_TURN|CHOOSE_TURN|START_CONSOLIDATE|CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|SELECT_PENDING_MOVE_CELL|SELECT_BOARD_TARGET|BOARD_ACTION|HAND_ACTION|MODAL_ACTION|RESOLVE_MODAL|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|PICK_ZONE|PICK_AFFILIATION|PICK_LANDSCAPE_ZONE|RESOLVE_ZONE_PICK|RESOLVE_AFFILIATION_PICK|REACTION_CHOICE|HAND_LIMIT_DISCARD|ALI_INDOMITABLE_TRANSFER|TAYLOR_OPENING_COPY|EFFECT_CINEMATIC|FORFEIT|MATCH_RESULT)$/i.test(type)){
     return 'unknown action type';
   }
   if(type === 'ACTION_RESULT' && !clientResolvedGameplayEnabled()){
     return 'ACTION_RESULT requires client-resolved gameplay authority';
   }
   const compactStrictIntent = STATE_GATE_ENABLED && REDUCER_MODE === 'strict' && type !== 'STATE_SYNC' && type !== 'EFFECT_CINEMATIC';
-  if(!compactStrictIntent && type !== 'FORFEIT' && type !== 'MATCH_RESULT' && type !== 'REACTION_CHOICE' && type !== 'CHOOSE_TURN' && !payload.postState){
+  if(!compactStrictIntent && type !== 'FORFEIT' && type !== 'MATCH_RESULT' && type !== 'REACTION_CHOICE' && type !== 'CHOOSE_TURN' && type !== 'EFFECT_CINEMATIC' && !payload.postState){
     return 'accepted actions must include postState';
   }
   return '';
@@ -4478,6 +4483,9 @@ async function handleIntentQueued(ws, msg){
       reducerMode:REDUCER_MODE
     });
   }
+  if(gateResult.suppressPresentationEvents && action.payload){
+    delete action.payload.presentationEvents;
+  }
   if(gateResult.reactionResolution){
     action.payload = Object.assign({}, action.payload || {}, {
       reactionResolution:gateResult.reactionResolution
@@ -4640,7 +4648,9 @@ async function requireRoomViewerRequestUser(req, room){
   if(!REQUIRE_FIREBASE_TOKEN) return 'dev-token-disabled';
   const uid = await verifyRequestUser(req, {});
   const viewerRole = roomViewerIndexForUid(room, uid);
-  if(!viewerRole) throw new Error('user is not seated or spectating this room');
+  // Only an absent role is invalid; keep the check explicit for every valid
+  // seated-player or spectator role returned by roomViewerIndexForUid.
+  if(viewerRole === null) throw new Error('user is not seated or spectating this room');
   if(viewerRole === 'spectator' && room.spectators?.[uid]){
     room.spectators[uid].lastSeen = now();
   }

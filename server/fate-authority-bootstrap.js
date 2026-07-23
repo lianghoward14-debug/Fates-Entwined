@@ -116,24 +116,29 @@ function makePlayerState(deckIds, playerIndex, catalog, rng, instanceCounter){
   };
 }
 
-function transferOpeningHandAliCards(players){
-  if(!Array.isArray(players) || players.length !== 2) return;
-  const transfers = [[], []];
-  players.forEach((player, sourcePlayer)=>{
+function markOpeningHandTaylorCopiesPending(players){
+  if(!Array.isArray(players)) return;
+  players.forEach((player, playerIndex)=>{
     if(!player || !Array.isArray(player.hand)) return;
-    player.hand = player.hand.filter(card=>{
-      if(!card || String(card.id || '') !== 'bh03') return true;
-      const recipient = 1 - sourcePlayer;
-      card.owner = recipient;
-      card._bh03OpponentHand = true;
-      card._bh03TransferredFrom = sourcePlayer;
-      card.immuneFlag = true;
-      card.cantBeReduced = true;
-      transfers[recipient].push(card);
-      return false;
+    player.hand.forEach(card=>{
+      if(!card || String(card.id || '') !== 'bh05' || card._bh05GeneratedCopy === true) return;
+      card.owner = playerIndex;
+      card._bh05OpeningCopyPending = true;
     });
   });
-  transfers.forEach((cards, recipient)=>players[recipient].hand.push(...cards));
+}
+
+function transferOpeningHandAliCards(players){
+  if(!Array.isArray(players) || players.length !== 2) return;
+  players.forEach((player, sourcePlayer)=>{
+    if(!player || !Array.isArray(player.hand)) return;
+    player.hand.forEach(card=>{
+      if(!card || String(card.id || '') !== 'bh03') return;
+      card.owner = sourcePlayer;
+      card._bh03TransferPending = true;
+      card.noConsolidate = true;
+    });
+  });
 }
 
 function queueOpeningHandSelvaBoosts(state){
@@ -198,6 +203,7 @@ function buildInitialAuthorityState(input){
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
+  markOpeningHandTaylorCopiesPending([p0, p1]);
   transferOpeningHandAliCards([p0, p1]);
   if(landscapeId === 'igb19'){
     [p0, p1].forEach((player, playerIndex)=>{

@@ -530,7 +530,9 @@ function getCachedBaseZoneScore(z, player) {
   });
   const dm = G.fateModifiers?.['deterrance_z'+z] || 0;
   let deterranceOwner = -1;
-  zone.forEach(row=>row && row.forEach(cell=>{ if(cell && cell.id === '36') deterranceOwner = cell.owner; }));
+  zone.forEach(row=>row && row.forEach(cell=>{
+    if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id === '36')) deterranceOwner = cell.owner;
+  }));
   if(deterranceOwner >= 0 && deterranceOwner !== player && dm < 0) score = Math.max(0, score + dm);
   if(typeof getLandscapeZoneFateBonus === 'function') score = Math.max(0, score + getLandscapeZoneFateBonus(player, z));
   _renderCalcCache.baseScores.set(key, score);
@@ -838,6 +840,11 @@ function markCardEffectFlash(card, kind, options) {
     pitchStep:Math.max(0, Number(opts.pitchStep) || 0),
     label:String(opts.label || cleanKind.replace(/[_-]+/g, ' '))
   };
+  try {
+    if(opts.onlineRemote !== true && typeof window !== 'undefined' && typeof window.fateBroadcastOnlineEffectFlash === 'function') {
+      window.fateBroadcastOnlineEffectFlash(card, card._effectFlash, opts);
+    }
+  } catch(e) {}
   return true;
 }
 if(typeof window !== 'undefined') window.markCardEffectFlash = markCardEffectFlash;
@@ -1266,6 +1273,8 @@ function getOppHandRenderSignature() {
   return [oppP, landscapeReveal, oppHand.map(card=>card.iid + ':' + card.id + ':' + (landscapeReveal || revealed[card.iid] ? 1 : 0)).join(',')].join('|');
 }
 
+const OPPONENT_HAND_PANEL_CARD_LIMIT = 12;
+
 function applyOpponentHandDensity(container, count) {
   if(!container) return;
   const handCount = Math.max(0, Number(count) || 0);
@@ -1562,6 +1571,15 @@ function renderPiles() {
   paintDiscardSlot('#opp-discard .pile-cards', oppLastDisc);
 }
 
+function syncGameLandscapeClass(landscapeId) {
+  const gameScreen = document.getElementById('s-game');
+  if(!gameScreen || !gameScreen.classList) return;
+  Array.from(gameScreen.classList).forEach(function(cls){
+    if(/^landscape-id-/.test(cls)) gameScreen.classList.remove(cls);
+  });
+  if(landscapeId) gameScreen.classList.add('landscape-id-' + landscapeId);
+}
+
 function renderLandscapePanel() {
   const panel = document.getElementById('landscape-panel');
   if(!panel) return;
@@ -1576,8 +1594,10 @@ function renderLandscapePanel() {
     Array.from(panel.classList).forEach(function(cls){
       if(/^landscape-id-/.test(cls)) panel.classList.remove(cls);
     });
+    syncGameLandscapeClass('');
     return;
   }
+  syncGameLandscapeClass(landscape.id);
   const perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);
   let note = '';
   let noteHtml = '';
@@ -1696,7 +1716,13 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
     }});
   });
   if(currentPage < maxPage) actions.push({label:'Next', action:function(){ showLandscapeChoiceModal(currentPage + 1, onChoose, choiceState); }});
-  actions.push({label:'Cancel', action:closeModal});
+  actions.push({label:'Cancel', action:function(){
+    if(choiceState.committed) return;
+    choiceState.committed = true;
+    choiceState.cancelled = true;
+    closeModal();
+    if(typeof choiceState.onCancel === 'function') choiceState.onCancel();
+  }});
   showModal('Choose Landscape', body, actions);
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('landscape-choice-modal');
@@ -1790,10 +1816,12 @@ function getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) {
   const thresholdHtml = BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.map(function(threshold){
     const claim = claims[String(threshold)] || {};
     const winner = Number(claim.winner);
-    const cls = winner === Number(perspectivePlayer)
+    const cls = claim.ignored
+      ? 'is-ignored'
+      : winner === Number(perspectivePlayer)
       ? 'is-you'
       : winner === 1 - Number(perspectivePlayer) ? 'is-opponent' : 'is-unclaimed';
-    return '<span class="pella-fate-threshold ' + cls + '">' + threshold + '</span>';
+    return '<span class="pella-fate-threshold ' + cls + '"' + (claim.ignored ? ' title="Ignored because this threshold was already reached before Battle of Pella began"' : '') + '>' + threshold + '</span>';
   }).join('<span class="pella-fate-separator">/</span>');
   let note = 'Fate races ' + thresholdHtml + ':<br>Your Fate: ' + myTotal + ' / Opp: ' + oppTotal;
   if(BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.includes(pending)) {
@@ -2036,7 +2064,7 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
   let handIndex = hand.findIndex(function(c){ return c && card.iid && c.iid === card.iid; });
   if(handIndex < 0) handIndex = hand.findIndex(function(c){ return c && c.id === card.id; });
   if(handIndex < 0) return false;
-  if(card.id==='70' && card.guerilla_transferred){
+  if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred){
     toast('Wine Country Guerilla cannot be discarded while infiltrating.');
     return false;
   }
@@ -2408,6 +2436,7 @@ function queueLandscapeOutsideDrawBonus(player, drawnCard) {
   processLandscapeDrawQueue();
   return true;
 }
+if(typeof window !== 'undefined') window.queueLandscapeOutsideDrawBonus = queueLandscapeOutsideDrawBonus;
 
 function resolveLiveLandscapeDrawTarget(choice) {
   if(!choice || !G || !G.board) return null;
@@ -2737,7 +2766,7 @@ function renderOppHand() {
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsOpponentHand === 'function' && window.FateMatchRendererAdapter.ownsOpponentHand()){
     const oppP = getPerspectiveOpponentIndex();
     const oppHand = G.players[oppP].hand;
-    applyOpponentHandDensity(container, oppHand.length);
+    applyOpponentHandDensity(container, Math.min(oppHand.length, OPPONENT_HAND_PANEL_CARD_LIMIT));
     if(container.firstChild) container.textContent = '';
     container.style.cursor = '';
     container.onclick = null;
@@ -2755,7 +2784,8 @@ function renderOppHand() {
   _lastOppHandRenderSignature = nextSig;
   const oppP = getPerspectiveOpponentIndex();
   const oppHand = G.players[oppP].hand;
-  applyOpponentHandDensity(container, oppHand.length);
+  const visibleOppHand = oppHand.slice(0, OPPONENT_HAND_PANEL_CARD_LIMIT);
+  applyOpponentHandDensity(container, visibleOppHand.length);
   const revealed = G._revealedCards || {};
   const landscapeRevealsHands = typeof isLandscapeActive === 'function' && isLandscapeActive('igb12');
   const hasRevealed = landscapeRevealsHands || oppHand.some(c => revealed[c.iid]);
@@ -2764,7 +2794,7 @@ function renderOppHand() {
     if(child && child.dataset && child.dataset.iid) existingByIid.set(child.dataset.iid, child);
   });
   const frag = document.createDocumentFragment();
-  oppHand.forEach((card,i)=>{
+  visibleOppHand.forEach((card,i)=>{
     const iidKey = String(card.iid);
     let el = existingByIid.get(iidKey);
     if(!el) el = document.createElement('div');
@@ -2796,7 +2826,7 @@ function renderOppHand() {
   });
   container.appendChild(frag);
   Array.from(container.children).forEach(function(child){
-    if(!child.dataset || !oppHand.some(function(card){ return String(card.iid) === child.dataset.iid; })) child.remove();
+    if(!child.dataset || !visibleOppHand.some(function(card){ return String(card.iid) === child.dataset.iid; })) child.remove();
   });
   // Make entire opponent hand area clickable to view revealed cards
   if(hasRevealed) {
@@ -3326,7 +3356,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       isHidden: false,
       name: String(card.id || '') === 'whisper17' ? 'Shizuku' : card.name,
       ability: taylorHasCopiedEffect ? String(card._bh05CopiedAbility || card.ability || '') : card.ability,
-      effect: taylorHasCopiedEffect ? String(card._bh05CopiedPrintedEffect || card.effect || '') : card.effect,
+      effect: taylorHasCopiedEffect ? String(card._bh05CopiedPrintedEffect || card.effect || '') : String(card.effect || ''),
       type:typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner) ? 'Character' : card.type,
       aff: card.aff,
       rarity: card.rarity || 'circle',
@@ -3407,6 +3437,8 @@ function getStatusEffectIcon(kind) {
     secules: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20h28M14 32h36M20 44h24" stroke-width="4"/><path d="M48 16L16 48" stroke-width="4"/><circle cx="32" cy="32" r="21" stroke-width="2.5" opacity=".38"/></g></svg>`,
     administrative_bloat: `<svg class="administrative-bloat-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M19 11h20l9 9v33H19z" fill="currentColor" opacity=".12"/><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11h20l9 9v33H19z" stroke-width="4"/><path d="M39 11v10h9" stroke-width="4"/><path d="M25 29h17M25 36h17M25 43h12" stroke-width="3.5"/></g></svg>`,
     blame_game: `<svg class="blame-game-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="22" stroke-width="3.5"/><path d="M32 5v9M32 50v9M5 32h9M50 32h9" stroke-width="3.5"/><circle cx="32" cy="25" r="6" stroke-width="3.5"/><path d="M21 46c1-10 5-15 11-15s10 5 11 15" stroke-width="4"/></g></svg>`,
+    boleslaw: `<svg class="boleslaw-bombastic-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z" stroke-width="4.2"/><path d="M24 31h22M24 40h18M24 49h10" stroke-width="3.4"/></g></svg>`,
+    ali_indomitable: `<svg class="ali-indomitable-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29V18c0-4 6-4 6 0v8-12c0-4 7-4 7 0v12-14c0-4 7-4 7 0v14-10c0-4 7-4 7 0v18l-5 16H23l-8-13c-3-5 3-9 7-5l5 5" stroke-width="4"/><path d="M23 50h17v7H23z" stroke-width="3.5"/></g></svg>`,
     busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
     marie_deterrence: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36v12c0 11-7 20-18 26-11-6-18-15-18-26V18z" stroke-width="4"/><path d="M22 35h20" stroke-width="5"/><path d="M20 13h24" stroke-width="3" opacity=".5"/></g></svg>`
   };
@@ -3725,7 +3757,7 @@ function enforceHandLimit(player) {
       if(!discardIndex) break;
       const card = G.players[player].hand.splice(discardIndex.index, 1)[0];
       if(card) {
-        G.players[player].discard.push(card);
+        fatePushDiscard(player, card);
         log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
       }
     }
@@ -3786,22 +3818,42 @@ function openHandLimitDiscardModal(player) {
   showModal('Discard Down to ' + handLimit, bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
-    if(selectedIids.length < excess){ toast('Select ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
-    selectedIids.forEach(function(iid){
-      const idx = G.players[player].hand.findIndex(function(card){ return card && String(card.iid || '') === iid; });
-      if(idx < 0) return;
-      const card = G.players[player].hand[idx];
-      if(!card) return;
-      G.players[player].hand.splice(idx, 1);
-      G.players[player].discard.push(card);
-      log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
-    });
-    G._handLimitDiscard = null;
-    closeModal();
-    renderHand();
-    if(typeof updateTopBar === 'function') updateTopBar();
-    if(typeof window.fateOnlineHandLimitResolved === 'function') window.fateOnlineHandLimitResolved(player);
-    if((G.players[player].hand || []).length > handLimit) enforceHandLimit(player);
+    if(selectedIids.length !== excess){ toast('Select exactly ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
+    const applyDiscard = function(){
+      const liveHand = G.players?.[player]?.hand || [];
+      const liveExcess = Math.max(0, liveHand.length - getActiveHandLimit(player));
+      const selectedCards = selectedIids.map(function(iid){
+        return liveHand.find(function(card){ return card && String(card.iid || '') === String(iid); }) || null;
+      });
+      if(liveExcess !== selectedIids.length || selectedCards.some(function(card){
+        return !card || (String(card.id || '') === 'bh03' && card._bh03OpponentHand === true);
+      })) return false;
+      selectedIids.forEach(function(iid){
+        const idx = G.players[player].hand.findIndex(function(card){ return card && String(card.iid || '') === String(iid); });
+        if(idx < 0) return;
+        const card = G.players[player].hand.splice(idx, 1)[0];
+        if(!card) return;
+        fatePushDiscard(player, card);
+        log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
+      });
+      G._handLimitDiscard = null;
+      closeModal();
+      renderHand();
+      if(typeof updateTopBar === 'function') updateTopBar();
+      if((G.players[player].hand || []).length > getActiveHandLimit(player)) enforceHandLimit(player);
+      return true;
+    };
+    if(typeof window.fateResolveOnlineHandLimitDiscard === 'function' && window.fateResolveOnlineHandLimitDiscard(player, {
+      discardedIids:selectedIids,
+      handLimit,
+      applyLocal:applyDiscard
+    })) return;
+    if(!applyDiscard()) {
+      toast('Your hand changed while choosing cards. Choose again.');
+      G._handLimitDiscard = null;
+      closeModal();
+      enforceHandLimit(player);
+    }
   }}], {immediate:true});
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('hand-limit-discard-modal');
@@ -3810,10 +3862,13 @@ function openHandLimitDiscardModal(player) {
   if(okBtn) okBtn.disabled = true;
   document.querySelectorAll('#modal .hand-limit-card').forEach(function(btn){
     btn.onclick = function(){
+      const wasSelected = btn.classList.contains('is-selected');
+      const selectedBefore = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
+      if(!wasSelected && selectedBefore >= needed) return;
       btn.classList.toggle('is-selected');
       const selected = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
       if(countEl) countEl.textContent = selected + '/' + needed + ' selected';
-      if(okBtn) okBtn.disabled = selected < needed;
+      if(okBtn) okBtn.disabled = selected !== needed;
     };
     btn.oncontextmenu = function(ev){
       ev.preventDefault();
@@ -3827,7 +3882,7 @@ window.enforceHandLimit = enforceHandLimit;
 
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
-  if(card && card.id==='70' && card.guerilla_transferred) return false;
+  if(card && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
@@ -4610,8 +4665,13 @@ function getTopBarEffectsSourceSignature() {
     G.players.forEach(function(player, holder){
       const hand = player && Array.isArray(player.hand) ? player.hand : [];
       hand.forEach(function(c){
-        if(!c || String(c.id) !== '70' || !c.guerilla_transferred) return;
-        handBits.push([holder, c.iid || '', c.guerilla_owner ?? '', c.guerilla_turnsLeft ?? 0].join(':'));
+        if(!c) return;
+        if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '70') : String(c.id) === '70') && c.guerilla_transferred) {
+          handBits.push(['guerilla', holder, c.iid || '', c.guerilla_owner ?? '', c.guerilla_turnsLeft ?? 0].join(':'));
+        }
+        if(String(c.id || '') === 'bh03' && c._bh03OpponentHand === true) {
+          handBits.push(['ali', holder, c.iid || '', c._bh03TransferredFrom ?? ''].join(':'));
+        }
       });
     });
   }
@@ -4718,7 +4778,7 @@ function renderTopbarEffects() {
 
   const marieCard = CARDS.find(c => c.id === '36');
   forEachBoardCard((c, z) => {
-    if(c && c.id === '36' && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) {
+    if(c && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '36') : c.id === '36') && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) {
       const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + z] || 0)) / 4));
       allEffects.push({
         icon: getStatusEffectIcon('marie_deterrence'),
@@ -4734,7 +4794,7 @@ function renderTopbarEffects() {
 
   const chaparralCard = CARDS.find(c => c.id === '78');
   forEachBoardCard(function(c, z){
-    if(!c || String(c.id || '') !== '78' || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
+    if(!c || !(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '78') : String(c.id || '') === '78') || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
     if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(c)) return;
     allEffects.push({
       icon:getStatusEffectIcon('chaparral'),
@@ -4788,7 +4848,7 @@ function renderTopbarEffects() {
     G.players.forEach(function(player, holder){
       const hand = player && Array.isArray(player.hand) ? player.hand : [];
       const infiltrators = hand.filter(function(c){
-        return c && String(c.id) === '70' && c.guerilla_transferred && (Number(c.guerilla_turnsLeft) || 0) > 0;
+        return c && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '70') : String(c.id) === '70') && c.guerilla_transferred && (Number(c.guerilla_turnsLeft) || 0) > 0;
       });
       if(!infiltrators.length) return;
       const turns = Math.max(0, Math.max.apply(null, infiltrators.map(function(c){ return Number(c.guerilla_turnsLeft) || 0; })));
@@ -4803,6 +4863,30 @@ function renderTopbarEffects() {
         owner:sourceOwner,
         extraClass:'effect-pill-guerilla',
         turnsLeft:turns
+      });
+    });
+  }
+
+  const aliCard = CARDS.find(c => c.id === 'bh03');
+  if(G && Array.isArray(G.players)) {
+    G.players.forEach(function(player, holder){
+      const hand = player && Array.isArray(player.hand) ? player.hand : [];
+      const transferredAlis = hand.filter(function(c){
+        return c && String(c.id || '') === 'bh03' && c._bh03OpponentHand === true;
+      });
+      if(!transferredAlis.length) return;
+      const sourceOwner = coerceStatusOwner(transferredAlis[0]._bh03TransferredFrom, 1 - holder);
+      const count = transferredAlis.length;
+      allEffects.push({
+        icon:getStatusEffectIcon('ali_indomitable'),
+        label:aliCard ? aliCard.ability : 'He, Who is Unyielding',
+        cardName:aliCard ? aliCard.name : 'Ali, The Indomitable',
+        cardAbility:aliCard ? aliCard.ability : 'He, Who is Unyielding',
+        cardEffect:(count > 1 ? count + ' copies of Ali are' : 'Ali is') + ' in the opponent\'s hand, immune to all effects. That hand cannot exceed 6 cards. This status remains until ' + (count > 1 ? 'they are' : 'he is') + ' set.',
+        owner:sourceOwner,
+        extraClass:'effect-pill-ali',
+        sourceIid:transferredAlis[0].iid,
+        statusInstanceKey:'ali-indomitable:' + sourceOwner
       });
     });
   }
@@ -6000,7 +6084,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const canUseSantaAnnaLandscape = Number.isInteger(handActionPlayer)
     && handActionIndex > -1
     && !fromBoard
-    && !(card.id==='70' && card.guerilla_transferred)
+    && !((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred)
     && !G._isSpectator
     && G._onlineRole !== 'spectator'
     && typeof isLandscapeActive === 'function'
@@ -6013,14 +6097,15 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     acts.appendChild(santa);
   }
   if((fromHand||G.selectedHandCard!==null) && !fromBoard && canUseHandCard){
-    if(card.id==='70' && card.guerilla_transferred){
+    if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred){
       toast(card.name + ' cannot be set - it is debuffing this hand.');
       document.getElementById('modal').classList.add('on');
       return;
     }
     const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
     const isDirectSetCard = isAchillesToken
-      || (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter')
+      // Blame Game Supporters still use normal Supporter placement despite counting as Characters for effects.
+      || card.type==='Supporter'
       || (typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
       || (typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card));
     if(isDirectSetCard){
@@ -6133,7 +6218,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       // Coordinators: passive, no manual activation needed
       if(false){
         // No button needed — coordinators are automatic
-      } else if(bc.type==='Initiator' && bc.effectUsedInitial){
+      } else if(bc.type==='Initiator' && bc.effectUsedInitial && !['38','40'].includes(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(bc) : String(bc.id || ''))){
         // Initiator already fired — no button
       } else if((bc.type==='Improvisor' && String(bc.id || '') !== '40') || bc.id==='89'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
@@ -6156,7 +6241,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         acts.appendChild(busBtn);
       }
       // Supporter active abilities — specific cards with board-activated effects
-      if(!canActivateDeferredSetEffect && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') && !isFaceDownCard(bc)){
+      const copiedExpeditionary = typeof cardActsAsPassive === 'function' && cardActsAsPassive(bc, '73');
+      if(!canActivateDeferredSetEffect && ((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') || copiedExpeditionary) && !isFaceDownCard(bc)){
         // Vigilantes (52): when-set-only; only show if a deferred when-set effect is pending.
         if(!supporterActionsSuppressed && bc.id==='52' && bc._pendingWhenSetEffect && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : bc.whenSetActivated !== true)){
           const vigBtn=document.createElement('button');
@@ -6165,18 +6251,18 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           acts.appendChild(vigBtn);
         }
         // ALPINE Expeditionary (73): move once per turn
-        if(!supporterActionsSuppressed && bc.id==='73' && bc._canMoveOncePerTurn && !bc._expMoved){
+        if(!supporterActionsSuppressed && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(bc, '73') : bc.id==='73') && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
           expBtn.className='btn sm pri';expBtn.textContent='Activate Effect';
           expBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateExpeditionaryMove(bc,z,r,c);};
           acts.appendChild(expBtn);
         }
-        if(!supporterActionsSuppressed && (bc.id==='93' || (typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(bc, '93'))) && !bc.effectUsedThisTurn){
-          const snowBtn=document.createElement('button');
-          snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
-          snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
-          acts.appendChild(snowBtn);
-        }
+      }
+      if(!supporterActionsSuppressed && !isFaceDownCard(bc) && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(bc, '93') : bc.id==='93') && !bc.effectUsedThisTurn){
+        const snowBtn=document.createElement('button');
+        snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
+        snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
+        acts.appendChild(snowBtn);
       }
       if(canUseBoardCard && typeof isLandscapeActive === 'function' && isLandscapeActive('igb7') && typeof canUsePanaceaLandscapeMoveCard === 'function' && canUsePanaceaLandscapeMoveCard(bc) && bc._landscapeEventideMovedTurn !== G.turn && !bc.cantBeMoved){
         const landMove=document.createElement('button');
@@ -7184,6 +7270,9 @@ function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
       if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
+      if(chosen.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+        return resolveBoleslawAfterSearchSelection(player, chosen, searchOptions);
+      }
     }); };
   if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
@@ -7200,8 +7289,14 @@ function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       shuffle(G.players[player].deck);
       if(typeof playSfx === 'function') playSfx('searchFound');
-      if(callback) callback(c, 'deck');
+      const callbackResult = callback ? callback(c, 'deck') : undefined;
       renderBoardActionForPlayer(player, {hand:true, piles:true});
+      if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+        return Promise.resolve(callbackResult).then(function(){
+          return resolveBoleslawAfterSearchSelection(player, [c], searchOptions);
+        });
+      }
+      return callbackResult;
     }); };
   if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
@@ -7220,23 +7315,35 @@ function searchAnySource(player, filter, prompt, callback, searchOptions={}) {
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       G.players[player].discard = G.players[player].discard.filter(x=>x.iid!==c.iid);
       if(typeof playSfx === 'function') playSfx('searchFound');
-      if(callback) callback(c, source);
+      const callbackResult = callback ? callback(c, source) : undefined;
+      if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+        return Promise.resolve(callbackResult).then(function(){
+          return resolveBoleslawAfterSearchSelection(player, [c], searchOptions);
+        });
+      }
+      return callbackResult;
     }); };
   if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
 }
 
-function pickFromDiscard(player, type, prompt, callback) {
+function pickFromDiscard(player, type, prompt, callback, searchOptions={}) {
   const filter = c=>!type||c.type===type;
   const matches=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, filter) : G.players[player].discard.filter(filter);
   if(!matches.length && typeof isDiscardRecoveryBlockedByLandscape === 'function' && isDiscardRecoveryBlockedByLandscape()){
     toast('Zion Canyon prevents recovering discarded cards.');
   }
-  pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose', immediate:true},
+  pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
       if(!chosen.length) return;
       queueSearchToHandMotion(player, chosen[0], 'discard', G.players[player].hand.length, 0, 1);
-      if(callback) callback(chosen[0], 'discard');
+      const callbackResult = callback ? callback(chosen[0], 'discard') : undefined;
+      if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+        return Promise.resolve(callbackResult).then(function(){
+          return resolveBoleslawAfterSearchSelection(player, chosen, searchOptions);
+        });
+      }
+      return callbackResult;
     });
 }
 
@@ -7279,10 +7386,11 @@ function drawSupportersFromDeckOrDiscard(player, count, cb) {
   toast(`Added ${added} supporter(s) to hand`);renderHand();if(cb)cb();
 }
 
-function addAffFromDeckDiscard(player, aff) {
+function addAffFromDeckDiscard(player, aff, searchOptions={}) {
   const affiliationEligible = c=>!!(c && c.aff===aff);
+  const recoverableDiscardEligible = c=>affiliationEligible(c) && String(c.rarity || '').toLowerCase() !== 'star';
   const fromDeck=G.players[player].deck.filter(affiliationEligible);
-  const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, affiliationEligible) : G.players[player].discard.filter(affiliationEligible);
+  const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, recoverableDiscardEligible) : G.players[player].discard.filter(recoverableDiscardEligible);
   const label = AFF_LABEL[aff] || aff;
   let added = 0;
   const baseHandIndex = G.players[player].hand.length;
@@ -7305,7 +7413,7 @@ function addAffFromDeckDiscard(player, aff) {
     if(!fromDiscard.length){ finish(); return; }
     pickCardsVisual(fromDiscard, {
       title:'Cosmic GF - Discard Search',
-      subtitle:`Choose one ${label} card from your discard pile`,
+      subtitle:`Choose one non-Star ${label} card from your discard pile`,
       maxCount:1,
       confirmLabel:'Add to Hand',
       immediate:true
@@ -7315,16 +7423,23 @@ function addAffFromDeckDiscard(player, aff) {
     });
   };
   if(fromDeck.length){
-    pickCardsVisual(fromDeck, {
-      title:'Cosmic GF - Deck Search',
-      subtitle:`Choose one ${label} card from your deck`,
-      maxCount:1,
-      confirmLabel:'Add to Hand',
-      immediate:true
-    }, (picked)=>{
-      if(picked.length) addChosen(picked[0], 'deck');
-      chooseDiscard();
-    });
+    const openDeckSearch = function(){
+      pickCardsVisual(fromDeck, {
+        title:'Cosmic GF - Deck Search',
+        subtitle:`Choose one ${label} card from your deck`,
+        maxCount:1,
+        confirmLabel:'Add to Hand',
+        immediate:true,
+        opponentSearch:true,
+        searchingPlayer:player,
+        searchSourceCardId:String(searchOptions.sourceCardId || '')
+      }, (picked)=>{
+        if(picked.length) addChosen(picked[0], 'deck');
+        chooseDiscard();
+      });
+    };
+    if(typeof withBoleslawOpponentSearch === 'function') withBoleslawOpponentSearch(player, openDeckSearch, searchOptions);
+    else openDeckSearch();
   } else if(fromDiscard.length){
     chooseDiscard();
   } else {
@@ -7518,12 +7633,13 @@ function showAffChangeOverlay(cardInstance, newAff) {
   document.head.appendChild(style);
 })();
 
-async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporterInfo) {
+async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporterInfo, ledgerRef) {
   const sourceSupporter = sourceSupporterInfo?.card || sourceSupporterInfo;
   if(!sourceSupporter) return;
+  const requestedLedgerIid = String(ledgerRef && (ledgerRef.iid || ledgerRef) || '');
   let ledger = null, ledgerRow = -1, ledgerCol = -1;
   G.board[ledgerZone].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell && cell.id === '75' && cell.owner === player){
+    if(cell && cell.id === '75' && cell.owner === player && (!requestedLedgerIid || String(cell.iid || '') === requestedLedgerIid)){
       ledger = cell;
       ledgerRow = r;
       ledgerCol = c;
@@ -7536,6 +7652,9 @@ async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSup
   const originalId = ledger.id;
   const originalWhenSetActivated = ledger.whenSetActivated;
   const originalLedgerCopiedSupporterEffect = ledger._ledgerCopiedSupporterEffect;
+  ledger._ledgerCopiedSourceId = String(sourceSupporter.id || '');
+  ledger._ledgerCopiedSourceName = String(sourceSupporter.name || 'Supporter');
+  ledger._ledgerCopiedSourceAbility = String(sourceSupporter.ability || 'Copied Effect');
 
   G.currentPlayer = player;
   G._suppressEffectPrompt = true;
@@ -7554,7 +7673,7 @@ async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSup
   }
 }
 
-function pickBoardSupporterEffect(player, z) {
+function pickBoardSupporterEffect(player, z, ledgerRef) {
   // Ledger-keepers: copy a supporter effect — visual card picker
   const fallbackWhenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','37','42','43','50','51','52','58','60','62','68','69','71','72','73','76','80','91','94'];
   const whenSetIds = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS && typeof WHEN_SET_IDS.has === 'function')
@@ -7566,7 +7685,7 @@ function pickBoardSupporterEffect(player, z) {
     if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && id !== '75' && whenSetIds.has(id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});
   });
   if(!supporters.length){toast('No supporters on field');return;}
-  window._ledgerSups=supporters;window._ledgerZ=z;window._ledgerPlayer=player;
+  window._ledgerSups=supporters;window._ledgerZ=z;window._ledgerPlayer=player;window._ledgerIid=String(ledgerRef && (ledgerRef.iid || ledgerRef) || '');
   const cards = supporters.map(s=>s.card);
   pickCardsVisual(cards, {
     title:'Ledger-keepers: Copy Effect',
@@ -7578,13 +7697,13 @@ function pickBoardSupporterEffect(player, z) {
     if(!chosen.length) return;
     const idx = cards.indexOf(chosen[0]);
     if(idx<0) return;
-    activateLedgerCopiedSupporterEffect(player, z, supporters[idx]);
+    activateLedgerCopiedSupporterEffect(player, z, supporters[idx], ledgerRef);
   });
 }
 window.ledgerCopy=function(i){
   const s=window._ledgerSups[i];
   closeModal();
-  activateLedgerCopiedSupporterEffect(window._ledgerPlayer, window._ledgerZ, s);
+  activateLedgerCopiedSupporterEffect(window._ledgerPlayer, window._ledgerZ, s, window._ledgerIid);
 };
 
 function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
@@ -7667,6 +7786,7 @@ function highlightForBlock(z, sourceCard) {
   G.placing=true;
   G.blockingCell=true;
   G._blockingEffectSourceIid = sourceCard && sourceCard.iid;
+  G._blockingEffectZone = z;
   window._blockZone=z;
   if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
   const owner = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
@@ -7984,7 +8104,7 @@ function discardBoardCard(card, z, r, c) {
     }
   }
   // Mr. Secules (67): one-use reaction state lives on the card instance.
-  if(card.id==='70' && !card.guerilla_transferred){
+  if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && !card.guerilla_transferred){
     const originalOwner = card.owner;
     const holder = 1 - originalOwner;
     card.guerilla_transferred = true;
@@ -8002,15 +8122,8 @@ function discardBoardCard(card, z, r, c) {
     toast(card.name+' returned to hand! Reinforcement is now 0.5.');
     log(card.owner===0?'p1':'p2', card.name+' returned to hand instead of discard');
     renderHand();
-  } else if(card._stolenByRobo) {
-    // Robo en la Noche stolen cards return to opponent's deck
-    const origOwner = card._roboOrigOwner;
-    card._stolenByRobo = false;
-    G.players[origOwner].deck.push(card);
-    shuffleDeck(origOwner);
-    toast(`${card.name} returned to opponent's deck`);
   } else {
-    fatePushDiscard(card.owner, card, {sound:false});
+    fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : G.currentPlayer, card, {sound:false});
   }
 }
 
@@ -8378,6 +8491,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "99": "He's the one that started it first!\nWell Zsofia shouldn't have been putting her feet on my sword!",
   "100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived",
   "bh01": "In another time, in another place, these seas were once called Pacifique",
+  "bh02": "Fake AF bro",
   "bh03": "Everyone will die one day. Well, except for me.",
   "bh04": "The seas are mine to command.",
   "bh05": "They say I play hard to get...but that just means I do my job well",
@@ -8562,9 +8676,16 @@ function showConsolidationCinematic(card, opts) {
   var timing = getConsolidationCinematicTiming(perfLite);
   var cardShowcaseWidth = String(card.id || '') === '81' ? 'min(28vw,300px)' : 'min(30vw,320px)';
   var cardShowcaseHeight = String(card.id || '') === '81' ? 'min(49vh,435px)' : 'min(52vh,460px)';
+  var alpineOwnerClass = '';
+  if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb15')) {
+    var perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);
+    alpineOwnerClass = Number(card.owner) === Number(perspectivePlayer)
+      ? ' alpine-consolidation-owner-mine'
+      : ' alpine-consolidation-owner-opp';
+  }
 
   var overlay = document.createElement('div');
-  overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '');
+  overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '') + alpineOwnerClass;
   var rgbStr = _hexToRgb(color);
   overlay.setAttribute('style',
     'position:fixed;inset:0;z-index:13000;pointer-events:none;display:flex !important;' +
@@ -8785,6 +8906,22 @@ let _lastEffectActivationCinematicKey = '';
 let _lastEffectActivationCinematicAt = 0;
 let _effectActivationCinematicDrainTimer = 0;
 const EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS = 1000;
+const EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS = 160;
+
+function holdEffectActivationPresentationUntil(until) {
+  if(typeof G === 'undefined' || !G) return 0;
+  G._effectActivationPresentationLockUntil = Math.max(
+    Number(G._effectActivationPresentationLockUntil) || 0,
+    Number(until) || 0
+  );
+  return G._effectActivationPresentationLockUntil;
+}
+
+function finishEffectActivationPresentationHold() {
+  if(typeof G === 'undefined' || !G) return;
+  if(_effectActivationCinematicShowing || _effectActivationCinematicQueue.length) return;
+  G._effectActivationPresentationLockUntil = Date.now() + EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS;
+}
 
 function consolidationCinematicIsActive() {
   return _consolidationCinematicShowing || !!document.querySelector('.cc-overlay-v2:not(.effect-activation-cinematic)');
@@ -8818,6 +8955,7 @@ function queueEffectActivationCinematic(card, options, key) {
   if(alreadyQueued) return Promise.resolve(false);
   return new Promise(function(resolve){
     _effectActivationCinematicQueue.push({card:card, opts:Object.assign({}, options), key:key, resolve:resolve});
+    holdEffectActivationPresentationUntil(Date.now() + 3400 * (_effectActivationCinematicQueue.length + 1));
     scheduleEffectActivationCinematicDrain();
   });
 }
@@ -8842,6 +8980,7 @@ function showEffectActivationCinematic(card, opts) {
       || document.documentElement.classList.contains('fate-super-performance-mode')
       || document.body.classList.contains('fate-super-performance-mode');
     const duration = Math.max(1400, Math.min(2800, Number(options.duration) || (perfLite ? 1800 : 2300)));
+    holdEffectActivationPresentationUntil(Date.now() + duration + (perfLite ? 160 : 220) + EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS);
     const rarity = String((card && card.rarity) || 'circle').toLowerCase();
     const color = '#ffd966';
     const imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
@@ -8932,6 +9071,7 @@ function showEffectActivationCinematic(card, opts) {
         if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
         _effectActivationCinematicShowing = false;
         scheduleEffectActivationCinematicDrain();
+        finishEffectActivationPresentationHold();
         resolve(result);
       }, perfLite ? 160 : 220);
     }

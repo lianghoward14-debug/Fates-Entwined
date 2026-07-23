@@ -1703,16 +1703,31 @@
     }
   }
 
-  function drawTributeCue(ctx, r, state){
+  function alpineConsolidationTone(opponent){
+    const active = typeof isLandscapeActive === 'function'
+      ? isLandscapeActive('igb15')
+      : !!(typeof G !== 'undefined' && G && String(G.landscapeId || '') === 'igb15');
+    if(!active) return null;
+    return opponent
+      ? {line:'rgba(255,96,108,.98)', glow:'rgba(255,58,72,.28)'}
+      : {line:'rgba(83,176,255,.98)', glow:'rgba(47,140,255,.28)'};
+  }
+
+  function drawTributeCue(ctx, r, state, opponent){
     if(!state) return;
     const selected = state === 'selected';
     const placement = state === 'placement';
     const ready = state === 'ready';
     if(!selected && !placement && !ready) return;
-    const color = ready ? 'rgba(146,230,255,.96)' : selected ? 'rgba(255,244,132,.96)' : placement ? 'rgba(255,225,92,.92)' : 'rgba(255,220,72,.86)';
+    const tone = alpineConsolidationTone(opponent);
+    const color = tone ? tone.line : (ready ? 'rgba(146,230,255,.96)' : selected ? 'rgba(255,244,132,.96)' : placement ? 'rgba(255,225,92,.92)' : 'rgba(255,220,72,.86)');
     const radius = Math.max(5, Math.min(10, r.w * .06));
     const inset = 2.4;
     ctx.save();
+    if(tone) {
+      ctx.shadowColor = tone.glow;
+      ctx.shadowBlur = Math.max(3, r.w * .038);
+    }
     roundedPath(ctx, r.x + inset, r.y + inset, Math.max(1, r.w - inset * 2), Math.max(1, r.h - inset * 2), radius);
     ctx.lineWidth = 1.25;
     ctx.strokeStyle = color;
@@ -1720,22 +1735,23 @@
     ctx.restore();
   }
 
-  function drawConsolidationCardOverlay(ctx, r, state){
+  function drawConsolidationCardOverlay(ctx, r, state, opponent){
     if(!ctx || !r || !state) return;
     const selected = state === 'selected';
     const ready = state === 'ready';
     const placement = state === 'placement';
     if(!selected && !ready && !placement) return;
-    const color = selected
+    const tone = alpineConsolidationTone(opponent);
+    const color = tone ? tone.line : (selected
       ? 'rgba(255,244,132,.98)'
       : ready
         ? 'rgba(146,230,255,.96)'
-        : 'rgba(255,225,92,.94)';
-    const glow = selected
+        : 'rgba(255,225,92,.94)');
+    const glow = tone ? tone.glow : (selected
       ? 'rgba(255,215,64,.26)'
       : ready
         ? 'rgba(90,205,255,.22)'
-        : 'rgba(255,205,55,.18)';
+        : 'rgba(255,205,55,.18)');
     const inset = Math.max(2, Math.min(4, r.w * .025));
     const radius = Math.max(6, Math.min(11, r.w * .07));
     ctx.save();
@@ -2324,7 +2340,7 @@
       }
     }
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
-    drawTributeCue(ctx, r, opts.tributeState || '');
+    drawTributeCue(ctx, r, opts.tributeState || '', opts.opponent);
   }
 
   function stableCardTilt(entry){
@@ -2754,6 +2770,7 @@
     anicka_voyager_boat:{color:'rgba(142,231,255,.98)',glow:'rgba(62,190,255,.62)',tint:'rgba(30,126,172,.16)'},
     bh04_selva_paradise:{color:'rgba(255,214,178,.99)',glow:'rgba(255,96,76,.72)',tint:'rgba(165,45,40,.18)'},
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
+    boleslaw_exclaim:{color:'rgba(255,226,130,.99)',glow:'rgba(255,150,54,.68)',tint:'rgba(175,86,24,.17)'},
     bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
@@ -3004,6 +3021,8 @@
       ctx.moveTo(21,38);
       ctx.bezierCurveTo(28,50,41,50,48,38);
       ctx.stroke();
+    } else if(kind === 'boleslaw_exclaim') {
+      // Final three-exclamation overlay art intentionally pending; the shared flash/tint plumbing is active.
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
       ctx.beginPath();
@@ -4415,7 +4434,7 @@
       r.y -= getZoneScroll(zone);
       if(rowClip && !intersects(r, rowClip)) return;
       if(rowClip){ ctx.save(); roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5); ctx.clip(); }
-      drawConsolidationCardOverlay(ctx, r, tributeState);
+      drawConsolidationCardOverlay(ctx, r, tributeState, entry.card && entry.card.owner !== snapshot.viewer);
       if(rowClip) ctx.restore();
     });
     return {cards, zones:zones.length, boardRect, hitMap};

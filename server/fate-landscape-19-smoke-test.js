@@ -30,7 +30,7 @@ assert.doesNotMatch(data, /igb19:\s*\{[\s\S]{0,360}first player to reach 20, 35,
 assert.match(structural, /CALIFORNIQUE_HAND_TURN_LIMIT = 3/);
 assert.match(structural, /function getCaliforniqueHandTurnsRemaining[\s\S]{0,1400}_igb19HandTurnsRemaining/);
 assert.match(structural, /key:'igb19-hand-expiry'[\s\S]{0,260}turn[\s\S]{0,260}before this Character is discarded/);
-assert.match(setup, /function addCardToHand[\s\S]{0,320}resetCaliforniqueHandTenure\(card, targetPlayer\)/);
+assert.match(setup, /function addCardToHand[\s\S]{0,900}resetCaliforniqueHandTenure\(card, targetPlayer\)/);
 assert.match(core, /function resolveCaliforniqueHandExpiryForPlayer[\s\S]{0,2200}remaining - 1[\s\S]{0,900}fatePushDiscard\(player, card/);
 assert.match(core, /async function nextPlayerTurn\(\)[\s\S]{0,180}resolveCaliforniqueHandExpiryForPlayer\(endingPlayer\)/);
 assert.match(audio, /GAME_SONGS = Array\.from\(\{length:20\}/);

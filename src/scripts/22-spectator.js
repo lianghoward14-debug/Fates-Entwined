@@ -28,7 +28,18 @@
   const LIVE_MATCH_STALE_MS = 2 * 60 * 60 * 1000;
 
   function esc(s){ return String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-  function getUser(){ try{ return (FO().requireUser ? FO().requireUser() : null); }catch(e){ return null; } }
+  function getUser(){
+    try{
+      const required = FO().requireUser ? FO().requireUser() : null;
+      if(required) return required;
+    }catch(e){}
+    const signedIn = window.FATE_ONLINE?.user || FO().auth?.currentUser || null;
+    if(signedIn) return signedIn;
+    try{
+      if(typeof FO().getEphemeralMultiplayerGuestUser === 'function') return FO().getEphemeralMultiplayerGuestUser();
+    }catch(e){}
+    return null;
+  }
   function pName(p){ return FO().profileName ? FO().profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
   function pPhoto(p){ return FO().profilePhoto ? FO().profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
   function pCrop(p, fallback='center 22%'){ return FO().profilePhotoCropStyle ? FO().profilePhotoCropStyle(p, fallback) : `width:100%;height:100%;object-fit:cover;object-position:${fallback};`; }
@@ -68,13 +79,17 @@
     const headers = {'accept':'application/json'};
     const init = {method:String(opts.method || 'GET').toUpperCase(), headers, keepalive:opts.keepalive === true};
     try{
-      const user = FO().auth?.currentUser;
+      const user = getUser();
       if(user && typeof user.getIdToken === 'function'){
         const token = await user.getIdToken(false).catch(()=> '');
         if(token){
           headers.authorization = 'Bearer ' + token;
           spectatorCachedAuthToken = token;
         }
+      }
+      if(!headers.authorization && user?.isEphemeralGuest && user.uid){
+        headers['x-fate-guest-session'] = '1';
+        headers['x-fate-guest-uid'] = String(user.uid);
       }
     }catch(e){}
     if(Object.prototype.hasOwnProperty.call(opts, 'body')){

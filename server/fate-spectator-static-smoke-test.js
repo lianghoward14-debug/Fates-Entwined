@@ -38,6 +38,9 @@ assert.match(spectator,
 assert.match(spectator,
   /addEventListener\('pagehide'[\s\S]*signalSpectatorLeave/,
   'browser refresh and close must send a keepalive spectator leave signal');
+assert.match(spectator,
+  /function getUser\(\)[\s\S]*getEphemeralMultiplayerGuestUser[\s\S]*async function flyApiRequest[\s\S]*const user = getUser\(\)[\s\S]*x-fate-guest-session/,
+  'player spectator-count polling must authenticate Electron guest seats instead of repeatedly receiving 403 responses');
 assert.doesNotMatch(spectator, /\bsendAction\s*\(/,
   'spectator transport must never send a gameplay action');
 assert.doesNotMatch(spectator, /applySpectatorAction|__fateOnlineOriginalFns|drainSpectatorActions|spectatorActionReplayQueue/,
@@ -49,6 +52,12 @@ assert.match(rooms,
 assert.match(rooms,
   /if\(!g\._isSpectator && g\._onlineRole !== 'spectator' && typeof window\.startTurnTimer/,
   'authority state must not start a gameplay timer for spectators');
+assert.match(rooms,
+  /function resolvePayloadEffectCinematicCard[\s\S]*expectedIid[\s\S]*expandOnlineCard\(identity\)[\s\S]*function showPayloadEffectCinematic[\s\S]*resolvePayloadEffectCinematicCard/,
+  'remote supporter activation cinematics must survive a newer canonical board snapshot by reconstructing the source card from the presentation payload');
+assert.match(rooms,
+  /function resetClientResolvedActionLocks[\s\S]*clientResolvedLocalCommitPending = 0[\s\S]*onlineLocalActionGate = null[\s\S]*terminal room cleanup:[\s\S]*new room bootstrap:/,
+  'new and completed matches must clear stale resolving-effect locks');
 
 assert.match(spectator,
   /controls\.innerHTML = \[0, 1\]\.map[\s\S]*data-spectator-perspective/,
@@ -82,11 +91,11 @@ assert.match(authority,
   /SPECTATOR_STALE_MS[\s\S]*function pruneStaleRoomSpectators/,
   'the authority must reap spectators whose heartbeat disappeared');
 
-assert.match(index, /06-rendering-and-helpers\.js\?v=1785023003/, 'spectator-safe renderer must be cache-busted');
-assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1785023020/, 'hidden spectator hand renderer and Brave Horizons overlays must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1785160801/, 'spectator-safe renderer must be cache-busted');
+assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1785032426/, 'hidden spectator hand renderer and Brave Horizons overlays must be cache-busted');
 assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1784650001/, 'hidden spectator hand input guard must be cache-busted');
-assert.match(index, /18-online-rooms\.js\?v=1785023005&sync=1785023005/, 'canonical spectator bridge must be cache-busted');
-assert.match(index, /22-spectator\.js\?v=1784364004/, 'spectator runtime must be cache-busted');
+assert.match(index, /18-online-rooms\.js\?v=1785160801&sync=1785160801/, 'canonical spectator bridge must be cache-busted');
+assert.match(index, /22-spectator\.js\?v=1785072425/, 'spectator runtime must be cache-busted');
 
 const spectatorState = {
   _isSpectator:true,

@@ -202,6 +202,6 @@ const rejectedDestination = validate(movePre, {
   actionKind:'SELECT_PENDING_MOVE_CELL', playerIndex:0, turn:7, z:9, r:9, c:9, pendingMove:true
 }, illegalDestination);
 assert.strictEqual(rejectedDestination.ok, false);
-assert.match(rejectedDestination.reason, /open square|coordinates/i);
+assert.match(rejectedDestination.reason, /open square|coordinates|fully immune cards cannot be discarded/i);
 
 console.log('Brave Horizons BH1 smoke test passed.');

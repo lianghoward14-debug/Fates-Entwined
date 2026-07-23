@@ -4,6 +4,7 @@
   if(typeof window === 'undefined') return;
 
   const LAYOUT_VERSION = 1;
+  const OPPONENT_HAND_PANEL_CARD_LIMIT = 12;
   let lastLayout = null;
   let lastReport = null;
   let buildCount = 0;
@@ -144,7 +145,7 @@
     const own = players[viewer] || {hand:[], handCount:0};
     const opp = players[opponent] || {hand:[], handCount:0};
     const handCards = Array.isArray(own.hand) ? own.hand : [];
-    const oppCards = Array.isArray(opp.hand) ? opp.hand : [];
+    const oppCards = Array.isArray(opp.hand) ? opp.hand.slice(0, OPPONENT_HAND_PANEL_CARD_LIMIT) : [];
     const handCount = handCards.length;
     const denseHand = handCount >= 10;
     const handFanMaxAngle = clamp(

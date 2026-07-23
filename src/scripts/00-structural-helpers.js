@@ -527,13 +527,13 @@ function isOpponentEffectOnlyImmuneCard(card) {
 }
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
-  if (!card || isFaceDownCard(card)) return false;
+  if (!card) return false;
   if (isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true) return true;
   return isOpponentEffectOnlyImmuneCard(card) && typeof effectOwner === 'number' && Number(card.owner) !== Number(effectOwner);
 }
 
 function isFullyEffectImmuneCard(card) {
-  if (!card || isFaceDownCard(card)) return false;
+  if (!card) return false;
   return isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true;
 }
 
@@ -602,6 +602,7 @@ function getFateFeedbackPresentationBlockUntil() {
     until = Math.max(
       Number(G._actionPresentationLockUntil) || 0,
       Number(G._cinematicUiLockUntil) || 0,
+      Number(G._effectActivationPresentationLockUntil) || 0,
       Number(G._postConsolidationFateFeedbackUntil) || 0
     );
   }
@@ -1125,6 +1126,18 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
         if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, holder);
         G.players[holder].hand.push(card);
         showWineCountryGuerillaSentBanner();
+        return;
+      }
+    }
+    if(card && card._stolenByRobo === true){
+      const originalOwner = Number(card._roboOrigOwner);
+      if((originalOwner === 0 || originalOwner === 1) && G.players[originalOwner] && Array.isArray(G.players[originalOwner].discard)){
+        delete card._stolenByRobo;
+        delete card._roboOrigOwner;
+        card.owner = originalOwner;
+        G.players[originalOwner].discard.push(card);
+        discarded.push(card);
+        if(typeof toast === 'function') toast(card.name + ' returned to its original owner\'s discard.');
         return;
       }
     }

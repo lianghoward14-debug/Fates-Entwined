@@ -144,17 +144,17 @@ async function waitForStoredDisconnected(roomsFile, code, uid, timeoutMs = 2500)
   throw new Error(`stored room ${code} did not persist ${uid} disconnected`);
 }
 
-async function waitForStoredSpectatorCount(roomsFile, code, expected, timeoutMs = 2500){
+async function waitForStoredRoomSnapshot(roomsFile, code, predicate, label, timeoutMs = 2500){
   const deadline = Date.now() + timeoutMs;
   while(Date.now() < deadline){
     try{
       const latest = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
       const room = latest.rooms.find(item=>item.code === code);
-      if(Object.keys(room?.spectators || {}).length === expected) return latest;
+      if(room && predicate(room)) return latest;
     }catch(e){}
     await delay(50);
   }
-  throw new Error(`stored room ${code} did not persist spectator count ${expected}`);
+  throw new Error(`stored room ${code} did not persist ${label || 'the expected snapshot'}`);
 }
 
 function startServer(dataDir){
@@ -641,7 +641,17 @@ async function main(){
     const spectatorLeave = await requestJson('POST', `/api/rooms/${code}/spectators/leave`, {uid:'spectator-one'});
     assert.strictEqual(spectatorLeave.removed, true);
     assert.strictEqual(spectatorLeave.room.spectatorCount, 0);
-    await waitForStoredSpectatorCount(path.join(dataDir, 'rooms.json'), code, 0);
+    await waitForStoredRoomSnapshot(
+      path.join(dataDir, 'rooms.json'),
+      code,
+      room=>
+        room.guestUid === 'store-guest'
+        && Number(room.chatSeq || 0) === 3
+        && Array.isArray(room.chat)
+        && room.chat.length === 3
+        && Object.keys(room.spectators || {}).length === 0,
+      'the complete post-spectator room state'
+    );
 
     await stopServer(child);
     child = null;

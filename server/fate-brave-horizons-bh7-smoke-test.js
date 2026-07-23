@@ -17,7 +17,7 @@ const index = read('index.html');
 assert.doesNotMatch(rendering, /syncBh07OverclockAuras/, 'ordinary renders must never trigger Agent-K feedback');
 assert.doesNotMatch(core, /function syncBh07OverclockAuras/, 'Agent-K must not use render-polled adjacency timing');
 assert.match(adapter, /String\(source\.type \|\| ''\) !== 'Dauntless'[\s\S]*getBh07OverclockSourcesForPlacedDauntless/, 'a newly placed Dauntless must still start the full Agent-K presentation');
-assert.match(core, /function getIncomingCoordinatorEffectSources[\s\S]*String\(source\.id \|\| ''\) !== 'bh07'[\s\S]*kind:'bh07_overclock'/, 'cards newly placed into an active Agent-K zone must receive the Overclock incoming overlay');
+assert.match(core, /function getIncomingCoordinatorEffectSources[\s\S]*cardActsAsPassive\(source, 'bh07'\)[\s\S]*kind:'bh07_overclock'/, 'cards newly placed into an active Agent-K zone must receive the Overclock incoming overlay');
 assert.match(core, /const targetIsAdjacentDauntless = String\(target\.type \|\| ''\) === 'Dauntless'[\s\S]*if\(targetIsAdjacentDauntless\) return;[\s\S]*kind:'bh07_overclock'/, 'an adjacent Dauntless must be reserved for the shared Overclock reveal instead of receiving a duplicate isolated reveal');
 assert.match(adapter, /overclockUntil = Math\.max\(coordinatorCinematicDelayUntil\(\), placementFateRevealUntil\(source, 0\)\)/, 'Agent-K must wait through the full placement cinematic and Fate reveal');
 assert.match(adapter, /coordinatorAuraFateDelayUntilByIid\.set\(targetIid[\s\S]*scheduleBh07OverclockPresentation\(source, sourceIids, targetIids, overclockUntil\)/, 'all affected Fate badges and overlays must share the Overclock deadline');
@@ -97,6 +97,15 @@ const incomingRuntime = {
   isCardEffectImmutable:()=>false,
   isCardCharacterForRules:card=>card?.type !== 'Supporter',
   isCardSupporterForRules:card=>card?.type === 'Supporter',
+  cardActsAsPassive(card, sourceId){
+    return String(card?.id || '') === String(sourceId)
+      || (String(card?.id || '') === 'bh05' && String(card?._bh05CopiedPassiveId || '') === String(sourceId));
+  },
+  getCardRuntimeEffectId(card){
+    return String(card?.id || '') === 'bh05' && card?._bh05CopiedPassiveId
+      ? String(card._bh05CopiedPassiveId)
+      : String(card?.id || '');
+  },
   getAdjacentCards:zrcRuntimeGetAdjacentCards
 };
 function zrcRuntimeGetAdjacentCards(z,r,c){

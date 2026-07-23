@@ -1264,6 +1264,7 @@ textarea.profile-input{resize:vertical;min-height:70px;line-height:1.5;}
 .landscape-pella-race .pella-fate-threshold{font-weight:800;letter-spacing:.04em;}
 .landscape-pella-race .pella-fate-threshold.is-you{color:#72caff;text-shadow:0 0 8px rgba(55,169,255,.42);}
 .landscape-pella-race .pella-fate-threshold.is-opponent{color:#ff727b;text-shadow:0 0 8px rgba(255,72,91,.4);}
+.landscape-pella-race .pella-fate-threshold.is-ignored{opacity:.38;text-decoration:line-through;text-decoration-thickness:1px;}
 .landscape-pella-race .pella-fate-threshold.is-unclaimed{color:inherit;opacity:.72;}
 .landscape-pella-race .pella-fate-separator{opacity:.7;padding:0 .04em;}
 

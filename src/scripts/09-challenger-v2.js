@@ -3227,6 +3227,17 @@ function queueFunctionForMode(queueMode) {
   return queueMode === 'freeplay' ? window.fateStartFreePlayRandomQueue : window.fateStartChallengerRandomQueue;
 }
 
+function getOnlineQueueUser() {
+  const signedInUser = window.FATE_ONLINE?.user || window.FateOnline?.auth?.currentUser || null;
+  if(signedInUser) return signedInUser;
+  try{
+    if(typeof window.FateOnline?.getEphemeralMultiplayerGuestUser === 'function'){
+      return window.FateOnline.getEphemeralMultiplayerGuestUser();
+    }
+  }catch(e){}
+  return null;
+}
+
 async function getOnlineQueueFunction(queueMode, timeoutMs=20000) {
   if(typeof window.FateOnlineReady === 'function') {
     await window.FateOnlineReady().catch(()=>{});
@@ -3234,7 +3245,7 @@ async function getOnlineQueueFunction(queueMode, timeoutMs=20000) {
   const started = Date.now();
   while(Date.now() - started < Math.max(1500, Number(timeoutMs) || 20000)) {
     const queueFn = queueFunctionForMode(queueMode);
-    if(window.FATE_ONLINE?.user && typeof queueFn === 'function') return queueFn;
+    if(getOnlineQueueUser() && typeof queueFn === 'function') return queueFn;
     await new Promise(resolve=>setTimeout(resolve, 120));
   }
   throw new Error('Online queue did not become ready');

@@ -1,5 +1,7 @@
 'use strict';
 
+const FateEffectRuleMetadata = require('../src/scripts/02-effect-rule-metadata.js');
+
 function onlineStableHash(value){
   const json = typeof value === 'string' ? value : JSON.stringify(value || null);
   let h = 2166136261;
@@ -300,13 +302,19 @@ function inferReactionActionType(msg){
   const payload = msg && msg.payload || {};
   if(payload.deckSetAction === true && type === 'HAND_ACTION') return 'set_from_deck_effect';
   if(type === 'PLACE_CARD' || type === 'SELECT_CONSOLIDATION_TRIBUTE' || (type === 'CLICK_CELL' && (payload.placing || payload.selectedHand || Number.isInteger(Number(payload.handIndex))))) return 'first_set_effect';
+  if(type === 'BOARD_ACTION'){
+    const declared = String(payload.reactionActionType || '');
+    if(/^(?:supporter_effect|initiator_effect)$/i.test(declared)) return declared.toLowerCase();
+    const activationClass = FateEffectRuleMetadata.boardActivationClass(payload.fn);
+    if(activationClass) return activationClass;
+  }
   return '';
 }
 
 function actionCanArmImprovisorReaction(type, payload){
   if(payload && payload.skipImprovisorReaction) return false;
   if(payload && payload.postState && payload.postState._serverPendingReaction) return false;
-  return /^(CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|HAND_ACTION|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|ACTION_RESULT)$/i.test(type);
+  return /^(CLICK_CELL|PLACE_CARD|SELECT_CONSOLIDATION_TRIBUTE|HAND_ACTION|BOARD_ACTION|PICK_CARDS_VISUAL|RESOLVE_CARD_PICK|ACTION_RESULT)$/i.test(type);
 }
 
 function isAuthorityEffectImmuneSource(card){
@@ -317,7 +325,7 @@ function isAuthorityEffectImmuneSource(card){
 }
 
 function isAuthorityFullyEffectImmuneCard(card){
-  if(!card || isFaceDownAuthorityCard(card)) return false;
+  if(!card) return false;
   const id = String(card.id || '');
   return id === '76'
     || id === 'bh01'
@@ -331,29 +339,6 @@ const AUTHORITY_SUPPORTER_AFFECTS_OPPONENT = new Set(['16','20','26','31','50','
 const AUTHORITY_SUPPORTER_AFFECTS_BOTH = new Set(['18']);
 const AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set(['03','04','14','30','39','52','61','bh25']);
 const AUTHORITY_CHARACTER_AFFECTS_BOTH = new Set(['12','17','34','40']);
-const AUTHORITY_HAVANO_REACTION_SOURCE_IDS = new Set([
-  '04', // Zoe
-  '10', // Post-Modernist Dylan
-  '14', // Alondra Hopkins
-  '16', // MINAE Death Squad
-  '17', // Carolyn
-  '18', // 1st US Marines
-  '21', // Henry Dong
-  '26', // UCPD
-  '30', // Santiago
-  '31', // Oathbound Noble Fighter
-  '36', // Marie L'amboure
-  '39', // Juan Carlos
-  '50', // Berkeley CS Major
-  '52', // The Vigilantes
-  '53', // Colombo Thug
-  '61', // Maria Song
-  '62', // Berkeley Homeless
-  '64', // Cook Islands Duelist
-  '71', // Fort Calvin Watcher
-  '72', // Robo en la Noche
-  '97' // Visegrad Politician
-]);
 const AUTHORITY_SECULES_WHEN_SET_IDS = new Set([
   '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh25'
 ]);
@@ -361,7 +346,6 @@ const AUTHORITY_ONGOING_FIRST_SET_EFFECT_IDS = new Set([
   '10','14','21','36','53','62','64',
   '33','40','47','54','68','69','71','73','78','91','94'
 ]);
-const AUTHORITY_CARD_SEARCH_SOURCE_IDS = new Set(['06','08','13','60']);
 const CONSOLIDATION_LEFT_BEHIND_RECOGNITION_V2 = true;
 
 function authorityFirstSetOptionEligible(kind, sourceCard){
@@ -373,7 +357,7 @@ function authorityFirstSetOptionEligible(kind, sourceCard){
   if(kind === 'secules'){
     return type === 'Initiator' || (type === 'Supporter' && AUTHORITY_SECULES_WHEN_SET_IDS.has(id));
   }
-  if(kind === 'havano') return AUTHORITY_HAVANO_REACTION_SOURCE_IDS.has(id);
+  if(kind === 'havano') return FateEffectRuleMetadata.canTriggerHavano(id);
   return false;
 }
 
@@ -399,11 +383,11 @@ function authorityConsolidationSourceRef(payload, postState){
   return sourceRefFromEntry(resultEntry) || (resultRef ? actionSourceRef({card:resultRef}) : null);
 }
 
-function inferAuthorityReactionAffectedOwners(sourceEntry, reactionPlayer){
+function inferAuthorityReactionAffectedOwners(sourceEntry, reactionPlayer, sourceIdOverride, sourceTypeOverride){
   const card = sourceEntry && sourceEntry.card;
   if(!card) return [];
-  const id = String(card.id || '');
-  const type = String(card.type || '');
+  const id = String(sourceIdOverride || card.id || '');
+  const type = String(sourceTypeOverride || card.type || '');
   if(type === 'Supporter'){
     if(AUTHORITY_SUPPORTER_AFFECTS_BOTH.has(id)) return [0, 1];
     if(AUTHORITY_SUPPORTER_AFFECTS_OPPONENT.has(id)) return [reactionPlayer];
@@ -449,7 +433,16 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
   const sourceEntry = placementLike ? (postSourceEntry || preSourceEntry) : (preSourceEntry || postSourceEntry);
   const sourceRef = sourceRefFromEntry(sourceEntry) || payloadSourceRef;
   const sourceCard = sourceEntry && sourceEntry.card || sourceRef && sourceRef.card || sourceRef;
-  const sourceId = String(sourceCard && sourceCard.id || sourceRef && sourceRef.id || '');
+  const transactionalEffect = /^(?:supporter_effect|initiator_effect)$/i.test(actionType);
+  const sourceId = String(
+    transactionalEffect && payload.effectSourceId ||
+    sourceCard && sourceCard.id ||
+    sourceRef && sourceRef.id ||
+    ''
+  );
+  const sourceType = String(sourceCard && sourceCard.type || payload.effectSourceType || '');
+  const effectRuleType = String(transactionalEffect && payload.effectRuleType || sourceType);
+  const manualEffectReaction = transactionalEffect;
   if(isAuthorityEffectImmuneSource(sourceCard)) return null;
   if(sourceCard && (sourceCard._skipOnlinePlacementImprovisorReactionOnce || sourceCard._skipOnlinePlacementImprovisorReactionPromptId)) return null;
   const options = [];
@@ -457,13 +450,13 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
     ? payload.affectedOwners.map(Number).filter(Number.isInteger)
     : [];
   if(!affectedOwners.length){
-    affectedOwners = inferAuthorityReactionAffectedOwners(sourceEntry, reactionPlayer);
+    affectedOwners = inferAuthorityReactionAffectedOwners(sourceEntry, reactionPlayer, sourceId, effectRuleType);
   }
-  const havanoListedSource = AUTHORITY_HAVANO_REACTION_SOURCE_IDS.has(sourceId);
+  const havanoListedSource = FateEffectRuleMetadata.canTriggerHavano(sourceId);
   const affectsReactor = affectedOwners.includes(reactionPlayer) || havanoListedSource;
   const firstSetReaction = actionType === 'first_set_effect';
   const deckSetReaction = actionType === 'set_from_deck_effect';
-  if(firstSetReaction || deckSetReaction){
+  if(firstSetReaction || deckSetReaction || manualEffectReaction){
     boardEntries(preState).forEach(entry=>{
       const card = entry.card;
       if(!card || Number(card.owner) !== reactionPlayer || isFaceDownAuthorityCard(card)) return;
@@ -473,7 +466,7 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
           options.push({kind:'lydia', z:entry.z, r:entry.r, c:entry.c, card:cloneState(card)});
         }
       }
-      const seculesAction = firstSetReaction && authorityFirstSetOptionEligible('secules', sourceCard);
+      const seculesAction = (firstSetReaction || manualEffectReaction) && authorityFirstSetOptionEligible('secules', Object.assign({}, sourceCard, {id:sourceId}));
       if(String(card.id || '') === '67' && seculesAction){
         const usesLeft = card.usesLeft === null || card.usesLeft === undefined ? (card._seculesUsed ? 0 : 1) : Number(card.usesLeft);
         if(usesLeft > 0 && !card.immuneFlag) {
@@ -482,7 +475,7 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
       }
     });
   }
-  if(firstSetReaction && affectsReactor && havanoListedSource && authorityFirstSetOptionEligible('havano', sourceCard)){
+  if((firstSetReaction || manualEffectReaction) && affectsReactor && havanoListedSource && authorityFirstSetOptionEligible('havano', Object.assign({}, sourceCard, {id:sourceId}))){
     playerHandEntries(preState, reactionPlayer).forEach(entry=>{
       const card = entry.card;
       if(String(card.id || '') !== '79') return;
@@ -506,8 +499,22 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
   };
 }
 
+function authorityCardActsAsPassive(card, sourceId){
+  if(!card) return false;
+  const wanted = String(sourceId || '');
+  const id = String(card.id || '');
+  const copiedPassiveId = String(card._copiedPassiveId || card.copiedPassiveId || '');
+  const isFrenchCopyShell = id === '37'
+    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === '37')
+    || (id === '75' && String(card._ledgerCopiedSourceId || '') === '37');
+  return id === wanted
+    || (isFrenchCopyShell && copiedPassiveId === wanted)
+    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === wanted)
+    || (id === '75' && String(card._ledgerCopiedSourceId || '') === wanted);
+}
+
 function authorityCardIsReadyBoleslaw(card, owner){
-  if(!card || String(card.id || '') !== '86' || Number(card.owner) !== Number(owner)) return false;
+  if(!card || !authorityCardActsAsPassive(card, '86') || Number(card.owner) !== Number(owner)) return false;
   if(isFaceDownAuthorityCard(card)) return false;
   return !(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed);
 }
@@ -528,6 +535,7 @@ function authorityZsofiaSetSources(state, owner, z){
 
 function authorityZsofiaSetPotency(state, source){
   if(!state || !source || !source.card) return 1;
+  if(String(source.card.type || '') !== 'Coordinator') return 1;
   const owner = Number(source.card.owner);
   const entries = boardEntries(state);
   const whisperJeremiah = entries.filter(entry=>
@@ -539,11 +547,48 @@ function authorityZsofiaSetPotency(state, source){
   const localJeremiah = entries.filter(entry=>
     Number(entry.z) === Number(source.z) &&
     Number(entry.card && entry.card.owner) === owner &&
-    String(entry.card && entry.card.id || '') === '57' &&
+    authorityCardActsAsPassive(entry.card, '57') &&
     !isFaceDownAuthorityCard(entry.card) &&
     !authorityCardEffectIsSuppressed(entry.card)
   ).length;
   return 1 + whisperJeremiah + localJeremiah;
+}
+
+function appendAuthorityCardEffectFlash(presentationEvents, state, source, target, kind, label, soundKey){
+  if(!Array.isArray(presentationEvents) || !target || !target.card) return false;
+  const sourceKey = String(source && source.card && (source.card.iid || source.card.id) || 'source');
+  const targetKey = String(target.card.iid || target.card.id || [target.z, target.r, target.c].join('-'));
+  presentationEvents.push({
+    type:'CARD_EFFECT_FLASH',
+    eventId:['authority-card-effect', Number(state && state.turn) || 0, sourceKey, targetKey, kind, presentationEvents.length].join(':'),
+    playerIndex:Number(source && source.card && source.card.owner),
+    target:{
+      z:Number(target.z),
+      r:Number(target.r),
+      c:Number(target.c),
+      iid:String(target.card.iid || ''),
+      cardId:String(target.card.id || '')
+    },
+    kind:String(kind || ''),
+    label:String(label || kind || 'card effect'),
+    duration:3500,
+    pitchStep:0,
+    waitForConsolidationCinematic:false,
+    localActorAlreadyPresented:false,
+    soundKey:String(soundKey || '')
+  });
+  return true;
+}
+
+function applyAuthorityPermanentFateGain(card, amount){
+  if(!card || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return 0;
+  const gain = Number(amount);
+  const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  card.currentFate = before + gain;
+  if(Number.isFinite(Number(card._permanentFateCeiling))){
+    card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + gain;
+  }
+  return card.currentFate - before;
 }
 
 function validateAuthorityZsofiaCoordinatorSetTrigger(preState, postState, playerIndex, placedEntry){
@@ -570,7 +615,7 @@ function validateAuthorityZsofiaCoordinatorSetTrigger(preState, postState, playe
   return '';
 }
 
-function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
+function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard, presentationEvents){
   if(!state || !Array.isArray(state.board) || (playerIndex !== 0 && playerIndex !== 1)) return 0;
   const entries = boardEntries(state);
   const whisperJeremiah = entries.filter(entry=>
@@ -582,45 +627,37 @@ function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
   const sources = entries.filter(entry=>{
     const card = entry.card;
     if(!card || Number(card.owner) !== playerIndex || isFaceDownAuthorityCard(card) || authorityCardEffectIsSuppressed(card)) return false;
-    return String(card.id || '') === 'bh02' || String(card._whisperCopiedEffectId || '') === 'bh02';
+    return authorityCardActsAsPassive(card, 'bh02') || String(card._whisperCopiedEffectId || '') === 'bh02';
   });
   if(!sources.length) return 0;
-  const at = Date.now();
   const eventKey = ['joie-authority', playerIndex, Number(state.turn) || 0, String(sourceCard && (sourceCard.iid || sourceCard.id) || 'draw')].join(':');
   let total = 0;
   sources.forEach(source=>{
     source.card._joieProcCount = Math.max(0, Math.floor(Number(source.card._joieProcCount) || 0)) + 1;
     const fieldWide = String(source.card._whisperCopiedEffectId || '') === 'bh02';
-    const localJeremiah = entries.filter(entry=>
-      entry.z === source.z &&
-      Number(entry.card && entry.card.owner) === playerIndex &&
-      String(entry.card && entry.card.id || '') === '57' &&
-      !isFaceDownAuthorityCard(entry.card) &&
-      !authorityCardEffectIsSuppressed(entry.card)
-    ).length;
-    const amount = 1 + whisperJeremiah + localJeremiah;
+    const localJeremiah = String(source.card.type || '') === 'Coordinator'
+      ? entries.filter(entry=>
+        entry.z === source.z &&
+        Number(entry.card && entry.card.owner) === playerIndex &&
+        authorityCardActsAsPassive(entry.card, '57') &&
+        !isFaceDownAuthorityCard(entry.card) &&
+        !authorityCardEffectIsSuppressed(entry.card)
+      ).length
+      : 0;
+    const amount = 1 + (String(source.card.type || '') === 'Coordinator' ? whisperJeremiah : 0) + localJeremiah;
     entries.forEach(target=>{
       if(!target.card || Number(target.card.owner) !== playerIndex || (!fieldWide && target.z !== source.z)) return;
-      if(isAuthorityEffectImmuneSource(target.card)) return;
-      target.card.currentFate = (Number(target.card.currentFate ?? target.card.fate) || 0) + amount;
-      target.card._effectFlash = {
-        kind:'joie_thousand_reel',
-        at,
-        duration:3500,
-        turn:Number(state.turn) || 0,
-        visibleAt:at,
-        waitForConsolidationCinematic:false,
-        soundKey:eventKey,
-        pitchStep:0,
-        label:'Thousand Reel Stare'
-      };
-      total += amount;
+      if(isAuthorityFullyEffectImmuneCard(target.card)) return;
+      const gained = applyAuthorityPermanentFateGain(target.card, amount);
+      if(gained <= 0) return;
+      appendAuthorityCardEffectFlash(presentationEvents, state, source, target, 'joie_thousand_reel', 'Thousand Reel Stare', eventKey);
+      total += gained;
     });
   });
   return total;
 }
 
-function applyAuthorityMajaMischievousActivities(state, playerIndex){
+function applyAuthorityMajaMischievousActivities(state, playerIndex, presentationEvents){
   if(!state || !Array.isArray(state.board) || (playerIndex !== 0 && playerIndex !== 1)) return 0;
   const entries = boardEntries(state);
   const whisperJeremiah = entries.filter(entry=>
@@ -631,31 +668,29 @@ function applyAuthorityMajaMischievousActivities(state, playerIndex){
   ).length;
   const sources = entries.filter(entry=>{
     const card = entry.card;
-    return card && Number(card.owner) === playerIndex && (String(card.id || '') === 'bh08' || String(card._whisperCopiedEffectId || '') === 'bh08') &&
+    return card && Number(card.owner) === playerIndex && (authorityCardActsAsPassive(card, 'bh08') || String(card._whisperCopiedEffectId || '') === 'bh08') &&
       !isFaceDownAuthorityCard(card) && !authorityCardEffectIsSuppressed(card);
   });
   if(!sources.length) return 0;
-  const at = Date.now();
-  const eventKey = ['bh08-authority', playerIndex, Number(state.turn) || 0, at].join(':');
+  const eventKey = ['bh08-authority', playerIndex, Number(state.turn) || 0, Number(state._serverReactionSeq || 0)].join(':');
   let total = 0;
   sources.forEach(source=>{
     source.card._bh08ProcCount = Math.max(0, Math.floor(Number(source.card._bh08ProcCount) || 0)) + 1;
-    const localJeremiah = entries.filter(entry=>
-      entry.z === source.z && Number(entry.card && entry.card.owner) === playerIndex &&
-      String(entry.card && entry.card.id || '') === '57' && !isFaceDownAuthorityCard(entry.card) &&
-      !authorityCardEffectIsSuppressed(entry.card)
-    ).length;
-    const amount = 2 + whisperJeremiah + localJeremiah;
+    const localJeremiah = String(source.card.type || '') === 'Coordinator'
+      ? entries.filter(entry=>
+        entry.z === source.z && Number(entry.card && entry.card.owner) === playerIndex &&
+        authorityCardActsAsPassive(entry.card, '57') && !isFaceDownAuthorityCard(entry.card) &&
+        !authorityCardEffectIsSuppressed(entry.card)
+      ).length
+      : 0;
+    const amount = 2 + (String(source.card.type || '') === 'Coordinator' ? whisperJeremiah : 0) + localJeremiah;
     const fieldWide = String(source.card && source.card._whisperCopiedEffectId || '') === 'bh08';
     entries.forEach(target=>{
-      if(!target.card || (!fieldWide && target.z !== source.z) || isAuthorityFullyEffectImmuneCard(target.card)) return;
-      target.card.currentFate = (Number(target.card.currentFate ?? target.card.fate) || 0) + amount;
-      target.card._effectFlash = {
-        kind:'bh08_mischief', at, duration:3500, turn:Number(state.turn) || 0,
-        visibleAt:at, waitForConsolidationCinematic:false, soundKey:eventKey,
-        pitchStep:0, label:'Mischievous Activities'
-      };
-      total += amount;
+      if(!target.card || Number(target.card.owner) !== playerIndex || (!fieldWide && target.z !== source.z) || isAuthorityFullyEffectImmuneCard(target.card)) return;
+      const gained = applyAuthorityPermanentFateGain(target.card, amount);
+      if(gained <= 0) return;
+      appendAuthorityCardEffectFlash(presentationEvents, state, source, target, 'bh08_mischief', 'Mischievous Activities', eventKey);
+      total += gained;
     });
   });
   return total;
@@ -664,16 +699,27 @@ function applyAuthorityMajaMischievousActivities(state, playerIndex){
 function resolveAuthorityBoleslawSearch(preState, msg, postState){
   const payload = msg && msg.payload || {};
   const type = effectiveAuthorityActionType(msg);
-  if(type !== 'RESOLVE_CARD_PICK' && type !== 'PICK_CARDS_VISUAL') return null;
+  const transactionalSearch = type === 'BOARD_ACTION' && Number(payload.effectTransactionVersion) === 1;
+  if(type !== 'RESOLVE_CARD_PICK' && type !== 'PICK_CARDS_VISUAL' && !transactionalSearch) return null;
   if(payload.opponentSearch !== true) return null;
+  if(payload.searchCompleted === false) return null;
   const searchingPlayer = Number(payload.playerIndex);
   if(!Number.isInteger(searchingPlayer) || searchingPlayer < 0 || searchingPlayer > 1) return null;
   const sourceId = String(payload.searchSourceCardId || '');
-  if(!AUTHORITY_CARD_SEARCH_SOURCE_IDS.has(sourceId)) return null;
+  if(!sourceId) return null;
+  const beforeHand = playerHandEntries(preState, searchingPlayer);
+  const afterHand = playerHandEntries(postState, searchingPlayer);
+  const beforeIids = new Set(beforeHand.map(entry=>String(entry.card && entry.card.iid || '')));
+  const addedToHand = afterHand.filter(entry=>!beforeIids.has(String(entry.card && entry.card.iid || '')));
+  const selectedIids = Array.isArray(payload.searchedCardIids) ? payload.searchedCardIids.map(String).filter(Boolean) : [];
+  const selectedWasAdded = selectedIids.length
+    ? selectedIids.some(iid=>addedToHand.some(entry=>String(entry.card && entry.card.iid || '') === iid))
+    : addedToHand.length > 0;
+  if(!selectedWasAdded) return null;
   const sourceEntry = boardEntries(preState).find(entry=>
-    Number(entry.card && entry.card.owner) === searchingPlayer && String(entry.card && entry.card.id || '') === sourceId
+    Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardActsAsPassive(entry.card, sourceId)
   ) || boardEntries(postState).find(entry=>
-    Number(entry.card && entry.card.owner) === searchingPlayer && String(entry.card && entry.card.id || '') === sourceId
+    Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardActsAsPassive(entry.card, sourceId)
   ) || null;
   if(!sourceEntry || isFaceDownAuthorityCard(sourceEntry.card)) return null;
   const boleslawOwner = 1 - searchingPlayer;
@@ -682,8 +728,9 @@ function resolveAuthorityBoleslawSearch(preState, msg, postState){
   if(!boleslaws.length) return null;
 
   const resolvedState = cloneState(postState);
+  const resolvedPresentationEvents = [];
   boleslaws.forEach(entry=>{
-    applyBoleslawSearchAuthorityReaction(resolvedState, entry, {playerIndex:boleslawOwner});
+    applyBoleslawSearchAuthorityReaction(resolvedState, entry, {playerIndex:boleslawOwner}, resolvedPresentationEvents);
   });
 
   const lydiaOptions = boardEntries(postState).filter(entry=>{
@@ -693,12 +740,18 @@ function resolveAuthorityBoleslawSearch(preState, msg, postState){
     const usesLeft = card.usesLeft === null || card.usesLeft === undefined ? 3 : Number(card.usesLeft);
     return usesLeft > 0;
   }).map(entry=>({kind:'lydia', z:entry.z, r:entry.r, c:entry.c, card:cloneState(entry.card)}));
-  if(!lydiaOptions.length) return {state:resolvedState, pendingBase:null, resolvedPostState:resolvedState};
+  if(!lydiaOptions.length) return {
+    state:resolvedState,
+    pendingBase:null,
+    resolvedPostState:resolvedState,
+    presentationEvents:resolvedPresentationEvents
+  };
 
   // Other copies trigger automatically; Lydia's single reaction window is against the first ready Boleslaw.
   const baseState = cloneState(postState);
+  const negatedPresentationEvents = [];
   boleslaws.slice(1).forEach(entry=>{
-    applyBoleslawSearchAuthorityReaction(baseState, entry, {playerIndex:boleslawOwner});
+    applyBoleslawSearchAuthorityReaction(baseState, entry, {playerIndex:boleslawOwner}, negatedPresentationEvents);
   });
   const boleslawSource = boleslaws[0];
   return {
@@ -713,7 +766,9 @@ function resolveAuthorityBoleslawSearch(preState, msg, postState){
       resolutionMode:'suppressed',
       actionType:'boleslaw_trigger',
       timeoutMs:15000,
-      options:lydiaOptions
+      options:lydiaOptions,
+      allowedPresentationEvents:resolvedPresentationEvents,
+      negatedPresentationEvents
     }
   };
 }
@@ -725,22 +780,41 @@ function maybeArmAuthorityImprovisorReaction(room, msg, postState){
   if(!preState || preState._serverPendingReaction) return null;
   if(!actionCanArmImprovisorReaction(type, payload)) return null;
   const boleslawResolution = resolveAuthorityBoleslawSearch(preState, msg, postState);
-  if(boleslawResolution && !boleslawResolution.pendingBase) return boleslawResolution.state;
+  if(boleslawResolution && !boleslawResolution.pendingBase) {
+    return {
+      state:boleslawResolution.state,
+      presentationEvents:Array.isArray(boleslawResolution.presentationEvents) ? boleslawResolution.presentationEvents : []
+    };
+  }
   const pendingBase = boleslawResolution && boleslawResolution.pendingBase
     ? boleslawResolution.pendingBase
     : collectAuthorityImprovisorOptions(preState, msg, postState);
   if(!pendingBase) return null;
   const firstSetReaction = String(pendingBase.actionType || '') === 'first_set_effect';
-  const state = cloneState(boleslawResolution ? boleslawResolution.state : (firstSetReaction ? postState : preState));
-  if(!firstSetReaction && !boleslawResolution) copySourceSpentFlagsFromResolved(state, postState, pendingBase);
+  const manualEffectReaction = /^(?:supporter_effect|initiator_effect)$/i.test(String(pendingBase.actionType || ''));
+  const state = cloneState(boleslawResolution ? boleslawResolution.state : ((firstSetReaction || manualEffectReaction) ? postState : preState));
+  if(!firstSetReaction && !manualEffectReaction && !boleslawResolution) copySourceSpentFlagsFromResolved(state, postState, pendingBase);
   const seq = Number(state._serverReactionSeq || 0) + 1;
   state._serverReactionSeq = seq;
-  state._serverPendingReaction = Object.assign({}, pendingBase, {
+  const pending = Object.assign({}, pendingBase, {
     promptId:['improvisor', Date.now().toString(36), seq.toString(36), onlineStableHash(payload.clientActionId || payload.stateHash || postState)].join(':'),
-    openedAt:Date.now(),
-    resolvedPostState:cloneState(boleslawResolution ? boleslawResolution.resolvedPostState : postState)
+    openedAt:Date.now()
   });
-  return state;
+  if(manualEffectReaction){
+    pending.preEffectState = cloneState(preState);
+  }else{
+    pending.resolvedPostState = cloneState(boleslawResolution ? boleslawResolution.resolvedPostState : postState);
+  }
+  const clientPresentationEvents = Array.isArray(payload.presentationEvents) ? cloneState(payload.presentationEvents) : [];
+  const allowedAuthorityEvents = Array.isArray(pending.allowedPresentationEvents) ? cloneState(pending.allowedPresentationEvents) : [];
+  const negatedAuthorityEvents = Array.isArray(pending.negatedPresentationEvents) ? cloneState(pending.negatedPresentationEvents) : [];
+  pending.presentationEvents = clientPresentationEvents.concat(allowedAuthorityEvents);
+  // Client-captured overlays describe the effect being challenged. If Lydia
+  // negates that effect, only overlays produced by the reaction itself survive.
+  pending.negatedPresentationEvents = negatedAuthorityEvents;
+  delete pending.allowedPresentationEvents;
+  state._serverPendingReaction = pending;
+  return {state, presentationEvents:[]};
 }
 
 function collectConsolidationTributeRefs(payload){
@@ -817,7 +891,7 @@ function consolidationConsumedCardReachedLegalDestination(preState, postState, p
   if(sourceCard._stolenByRobo){
     const originalOwner = Number(sourceCard._roboOrigOwner);
     if((originalOwner === 0 || originalOwner === 1)
-      && playerPileCardMatchingRef(postState, originalOwner, 'deck', ref)){
+      && playerPileCardMatchingRef(postState, originalOwner, 'discard', ref)){
       return true;
     }
   }
@@ -1240,6 +1314,168 @@ function validateCaliforniqueEndTurnTransition(preState, postState){
   return '';
 }
 
+function exactAuthorityCardSnapshot(left, right){
+  return JSON.stringify(left || null) === JSON.stringify(right || null);
+}
+
+function authorityCardIid(card){
+  return String(card && card.iid || '');
+}
+
+function validateHandLimitDiscardPostState(room, payload, postState){
+  const preState = room && room.canonicalState;
+  const playerIndex = Number(payload && payload.playerIndex);
+  if(!preState || !postState || (playerIndex !== 0 && playerIndex !== 1)) return 'Hand-limit discard player is invalid';
+  const beforePlayer = preState.players && preState.players[playerIndex];
+  const afterPlayer = postState.players && postState.players[playerIndex];
+  if(!beforePlayer || !afterPlayer) return 'Hand-limit discard player state is invalid';
+  const beforeHand = Array.isArray(beforePlayer.hand) ? beforePlayer.hand : [];
+  const afterHand = Array.isArray(afterPlayer.hand) ? afterPlayer.hand : [];
+  const handLimit = beforeHand.some(card=>
+    card
+    && String(card.id || '') === 'bh03'
+    && card._bh03OpponentHand === true
+  ) ? 6 : 12;
+  const excess = Math.max(0, beforeHand.length - handLimit);
+  if(excess <= 0) return 'Hand-limit discard is not required';
+  if(afterHand.length !== beforeHand.length - excess || afterHand.length !== handLimit) return 'Hand-limit discard must return the hand to its active limit';
+  const afterHandIids = new Set(afterHand.map(authorityCardIid));
+  const removed = beforeHand.filter(card=>!afterHandIids.has(authorityCardIid(card)));
+  if(removed.length !== excess) return 'Hand-limit discard removed an invalid number of cards';
+  if(removed.some(card=>String(card.id || '') === 'bh03' && card._bh03OpponentHand === true)) return 'Ali cannot be discarded from the opponent hand';
+  if(afterHand.some(card=>{
+    const original = beforeHand.find(entry=>authorityCardIid(entry) === authorityCardIid(card));
+    return !original || !exactAuthorityCardSnapshot(original, card);
+  })) return 'Hand-limit discard changed a card that remained in hand';
+  const requestedIids = Array.isArray(payload && payload.discardedIids)
+    ? payload.discardedIids.map(String).sort()
+    : [];
+  const removedIids = removed.map(authorityCardIid).sort();
+  if(requestedIids.length && JSON.stringify(requestedIids) !== JSON.stringify(removedIids)) return 'Hand-limit discard selection does not match the submitted cards';
+
+  const expected = cloneState(preState);
+  expected.players[playerIndex].hand = cloneState(afterHand);
+  for(const sourceCard of removed){
+    const ref = {iid:authorityCardIid(sourceCard), id:String(sourceCard.id || '')};
+    if(String(sourceCard.id || '') === '70' && sourceCard.guerilla_transferred !== true){
+      const holder = 1 - playerIndex;
+      const transferred = playerPileCardMatchingRef(postState, holder, 'hand', ref);
+      if(!transferred
+        || transferred.guerilla_transferred !== true
+        || Number(transferred.guerilla_owner) !== playerIndex
+        || Number(transferred.guerilla_turnsLeft) !== 5){
+        return 'Wine Country Guerilla must enter the opponent hand after a hand-limit discard';
+      }
+      expected.players[holder].hand.push(cloneState(transferred));
+      continue;
+    }
+    if(sourceCard._stolenByRobo === true){
+      const originalOwner = Number(sourceCard._roboOrigOwner);
+      const returned = (originalOwner === 0 || originalOwner === 1)
+        ? playerPileCardMatchingRef(postState, originalOwner, 'discard', ref)
+        : null;
+      if(!returned || returned._stolenByRobo === true || Number(returned.owner) !== originalOwner){
+        return 'Robo en la Noche stolen card must return to its original owner discard';
+      }
+      expected.players[originalOwner].discard.push(cloneState(returned));
+      continue;
+    }
+    const discarded = playerPileCardMatchingRef(postState, playerIndex, 'discard', ref);
+    if(!discarded) return 'Hand-limit discard did not reach a legal discard destination';
+    expected.players[playerIndex].discard.push(cloneState(discarded));
+  }
+  if(canonicalStateHash(expected) !== canonicalStateHash(postState)) {
+    return 'Hand-limit discard changed state outside its legal card destinations';
+  }
+  return '';
+}
+
+function validateAliIndomitableTransferPostState(room, payload, postState){
+  const preState = room && room.canonicalState;
+  const sourcePlayer = Number(payload && payload.playerIndex);
+  if(!preState || !postState || (sourcePlayer !== 0 && sourcePlayer !== 1)) return 'Ali transfer player is invalid';
+  const recipient = 1 - sourcePlayer;
+  const beforeSourceHand = preState.players?.[sourcePlayer]?.hand || [];
+  const afterSourceHand = postState.players?.[sourcePlayer]?.hand || [];
+  const beforeRecipientHand = preState.players?.[recipient]?.hand || [];
+  const afterRecipientHand = postState.players?.[recipient]?.hand || [];
+  const cardIid = String(payload && payload.cardIid || '');
+  const sourceCard = beforeSourceHand.find(card=>
+    card
+    && String(card.id || '') === 'bh03'
+    && card._bh03TransferPending === true
+    && (!cardIid || authorityCardIid(card) === cardIid)
+  );
+  if(!sourceCard) return 'Ali transfer source is no longer pending';
+  const iid = authorityCardIid(sourceCard);
+  if(afterSourceHand.length !== beforeSourceHand.length - 1 || afterSourceHand.some(card=>authorityCardIid(card) === iid)) return 'Ali must leave the source hand';
+  if(afterRecipientHand.length !== beforeRecipientHand.length + 1) return 'Ali must enter the opponent hand';
+  const transferred = afterRecipientHand.find(card=>authorityCardIid(card) === iid);
+  if(!transferred || String(transferred.id || '') !== 'bh03') return 'Ali transfer card identity is invalid';
+  if(Number(transferred.owner) !== recipient
+    || transferred._bh03OpponentHand !== true
+    || Number(transferred._bh03TransferredFrom) !== sourcePlayer
+    || transferred.immuneFlag !== true
+    || transferred.cantBeReduced !== true
+    || transferred._bh03TransferPending === true
+    || transferred.noConsolidate === true){
+    return 'Ali transfer state is invalid';
+  }
+  const expectedSource = beforeSourceHand.filter(card=>authorityCardIid(card) !== iid);
+  if(!exactAuthorityCardSnapshot(expectedSource, afterSourceHand)) return 'Ali transfer changed other source-hand cards';
+  if(beforeRecipientHand.some((card, index)=>!exactAuthorityCardSnapshot(card, afterRecipientHand[index]))) return 'Ali transfer changed other opponent-hand cards';
+  const expected = cloneState(preState);
+  expected.players[sourcePlayer].hand = cloneState(afterSourceHand);
+  expected.players[recipient].hand = cloneState(afterRecipientHand);
+  if(canonicalStateHash(expected) !== canonicalStateHash(postState)) return 'Ali transfer can only move Ali between hands';
+  return '';
+}
+
+function validateTaylorOpeningCopyPostState(room, payload, postState){
+  const preState = room && room.canonicalState;
+  const playerIndex = Number(payload && payload.playerIndex);
+  if(!preState || !postState || (playerIndex !== 0 && playerIndex !== 1)) return 'Taylor opening copy player is invalid';
+  const beforeHand = preState.players?.[playerIndex]?.hand || [];
+  const afterHand = postState.players?.[playerIndex]?.hand || [];
+  const sourceIid = String(payload && payload.cardIid || '');
+  const source = beforeHand.find(card=>
+    card
+    && String(card.id || '') === 'bh05'
+    && card._bh05GeneratedCopy !== true
+    && card._bh05OpeningCopyPending === true
+    && (!sourceIid || authorityCardIid(card) === sourceIid)
+  );
+  if(!source) return 'Taylor opening copy source is no longer pending';
+  if(afterHand.length !== beforeHand.length + 1) return 'Taylor opening copy must add exactly one card';
+  const expectedIid = Math.max(0, Math.floor(Number(preState.instanceCounter) || 0)) + 1;
+  const expectedSource = cloneState(source);
+  delete expectedSource._bh05OpeningCopyPending;
+  const retained = afterHand.find(card=>authorityCardIid(card) === authorityCardIid(source));
+  if(!exactAuthorityCardSnapshot(expectedSource, retained)) return 'Taylor opening copy changed its source card';
+  const generated = afterHand.find(card=>
+    card
+    && card._bh05GeneratedCopy === true
+    && String(card._bh05GeneratedFromIid || '') === authorityCardIid(source)
+  );
+  const expectedGenerated = Object.assign({}, cloneState(expectedSource), {
+    iid:expectedIid,
+    owner:playerIndex,
+    _bh05GeneratedCopy:true,
+    _bh05GeneratedFromIid:source.iid
+  });
+  if(!generated || !exactAuthorityCardSnapshot(expectedGenerated, generated)) return 'Taylor opening copy card is invalid';
+  const expectedHand = beforeHand.map(card=>
+    authorityCardIid(card) === authorityCardIid(source) ? expectedSource : cloneState(card)
+  );
+  expectedHand.push(expectedGenerated);
+  if(!exactAuthorityCardSnapshot(expectedHand, afterHand)) return 'Taylor opening copy changed another hand card';
+  const expected = cloneState(preState);
+  expected.instanceCounter = expectedIid;
+  expected.players[playerIndex].hand = expectedHand;
+  if(canonicalStateHash(expected) !== canonicalStateHash(postState)) return 'Taylor opening copy can only add its linked copy';
+  return '';
+}
+
 function validateActionSpecificPostState(room, msg, postState){
   const type = effectiveAuthorityActionType(msg);
   const payload = msg && msg.payload || {};
@@ -1261,6 +1497,9 @@ function validateActionSpecificPostState(room, msg, postState){
   if(usMarinesErr) return usMarinesErr;
   const whisperErr = validateWhisperLandscapeUsesTransition(room, msg, postState);
   if(whisperErr) return whisperErr;
+  if(type === 'HAND_LIMIT_DISCARD') return validateHandLimitDiscardPostState(room, payload, postState);
+  if(type === 'ALI_INDOMITABLE_TRANSFER') return validateAliIndomitableTransferPostState(room, payload, postState);
+  if(type === 'TAYLOR_OPENING_COPY') return validateTaylorOpeningCopyPostState(room, payload, postState);
   if(type === 'END_TURN'){
     const californiqueErr = validateCaliforniqueEndTurnTransition(room && room.canonicalState, postState);
     if(californiqueErr) return californiqueErr;
@@ -1444,26 +1683,70 @@ function findReactionOption(pending, payload){
   return options[0] || null;
 }
 
-function applyLydiaAuthorityReaction(state, option, pending){
+function applyLydiaAuthorityReaction(state, option, pending, presentationEvents){
   const entry = findBoardEntryByRef(state, option);
   if(!entry || !entry.card) return 'Lydia is no longer on the board';
   entry.card.usesLeft = Math.max(0, (entry.card.usesLeft === null || entry.card.usesLeft === undefined ? 3 : Number(entry.card.usesLeft) || 0) - 1);
   markAuthoritySourceNegated(state, pending, 'lydia');
-  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex), presentationEvents);
   return '';
 }
 
-function applySeculesAuthorityReaction(state, option, pending){
+function applySeculesAuthorityReaction(state, option, pending, presentationEvents){
   const entry = findBoardEntryByRef(state, option);
   if(!entry || !entry.card) return 'Mr. Secules is no longer on the board';
   entry.card.usesLeft = 0;
   entry.card._seculesUsed = true;
   markAuthoritySourceNegated(state, pending, 'secules');
-  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex), presentationEvents);
   return '';
 }
 
-function applyHavanoAuthorityReaction(state, option, payload, pending){
+function authorityBoardTotalFate(state, owner){
+  return boardEntries(state).reduce((total, entry)=>{
+    if(!entry.card || Number(entry.card.owner) !== Number(owner)) return total;
+    return total + Math.max(0, Number(entry.card.currentFate ?? entry.card.fate) || 0);
+  }, 0);
+}
+
+function applyAuthorityHavanoPlacementRules(state, inst, sourceCard, z, playerIndex){
+  if(!state || !inst) return;
+  inst._setTurn = Number(state.turn) || 0;
+  inst._setOwner = playerIndex;
+  const p0 = authorityBoardTotalFate(state, 0);
+  const p1 = authorityBoardTotalFate(state, 1);
+  if(String(state.landscapeId || '') === 'igb5' && p0 !== p1 && (p0 > p1 ? 0 : 1) === playerIndex){
+    if(!Array.isArray(inst._landscapeBonusIds)) inst._landscapeBonusIds = [];
+    if(!inst._landscapeBonusIds.includes('igb5')){
+      inst._landscapeBonusIds.push('igb5');
+      inst._landscapeStaticFateBonus = (Number(inst._landscapeStaticFateBonus) || 0) + 2;
+      applyAuthorityPermanentFateGain(inst, 2);
+    }
+  }
+  boardEntries(state).forEach(entry=>{
+    const aura = entry.card;
+    if(!aura || Number(entry.z) !== Number(z) || Number(aura.owner) !== playerIndex || isFaceDownAuthorityCard(aura)) return;
+    if(!authorityCardActsAsPassive(aura, '02') || authorityCardEffectIsSuppressed(aura)) return;
+    applyAuthorityPermanentFateGain(inst, 4);
+  });
+  delete inst._wciBonus;
+  delete inst._handCostDelta;
+  delete inst._handEffectModifiers;
+  delete inst._igb19HandTurnsRemaining;
+  delete inst._igb19HandOwner;
+  delete inst._igb19LastCountedHandTurn;
+  if(!Array.isArray(state.supportersSetP)) state.supportersSetP = [0, 0];
+  state.supportersSetP[playerIndex] = (Number(state.supportersSetP[playerIndex]) || 0) + 1;
+  if(!Array.isArray(state.supporterReinforcementSetP)) state.supporterReinforcementSetP = [0, 0];
+  state.supporterReinforcementSetP[playerIndex] = (Number(state.supporterReinforcementSetP[playerIndex]) || 0) + 1;
+  inst._setReinforcementValue = 1;
+  inst._supporterSetCounted = true;
+  inst._wasSetAsSupporter = true;
+  inst._hasBeenOnBoard = true;
+  inst._supporterSetOwner = playerIndex;
+}
+
+function applyHavanoAuthorityReaction(state, option, payload, pending, presentationEvents){
   const playerIndex = Number(pending && pending.playerIndex);
   const player = state && state.players && state.players[playerIndex];
   if(!player || !Array.isArray(player.hand)) return 'Havano reaction player is invalid';
@@ -1483,13 +1766,145 @@ function applyHavanoAuthorityReaction(state, option, payload, pending){
   const inst = cloneState(card);
   inst.owner = playerIndex;
   inst.currentFate = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
+  applyAuthorityHavanoPlacementRules(state, inst, card, z, playerIndex);
   state.board[z][r][c] = inst;
   markAuthoritySourceNegated(state, pending, 'havano');
-  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex), presentationEvents);
   return '';
 }
 
-function applyBoleslawSearchAuthorityReaction(state, option, pending){
+function appendAuthorityTaylorSelfCopy(state, playerIndex, drawn){
+  if(!state || !drawn || String(drawn.id || '') !== 'bh05' || drawn._bh05GeneratedCopy === true) return null;
+  const player = state.players && state.players[playerIndex];
+  if(!player || !Array.isArray(player.hand)) return null;
+  state.instanceCounter = Math.max(0, Math.floor(Number(state.instanceCounter) || 0)) + 1;
+  const secondCopy = cloneState(drawn);
+  secondCopy.iid = state.instanceCounter;
+  secondCopy.owner = playerIndex;
+  secondCopy._bh05GeneratedCopy = true;
+  secondCopy._bh05GeneratedFromIid = drawn.iid;
+  delete secondCopy._igb19HandTurnsRemaining;
+  delete secondCopy._igb19HandOwner;
+  delete secondCopy._igb19LastCountedHandTurn;
+  delete secondCopy._fateHandArrivalKind;
+  player.hand.push(secondCopy);
+  return secondCopy;
+}
+
+function authorityResetHandTenure(state, playerIndex, card){
+  if(!card) return;
+  delete card._igb19HandTurnsRemaining;
+  delete card._igb19HandOwner;
+  delete card._igb19LastCountedHandTurn;
+  const type = String(card.type || '');
+  if(String(state && state.landscapeId || '') !== 'igb19'
+    || type === 'Supporter'
+    || type === 'Counter'
+    || isAuthorityFullyEffectImmuneCard(card)) return;
+  const landscapeState = state._landscapeState || {};
+  card._igb19HandTurnsRemaining = 3;
+  card._igb19HandOwner = playerIndex;
+  card._igb19LastCountedHandTurn = Math.max(0, Number(landscapeState.handTurnCounts && landscapeState.handTurnCounts[playerIndex]) || 0);
+}
+
+function authorityApplyWestCaribHandArrival(state, playerIndex, card){
+  const pending = state && state._westCaribNext;
+  if(!pending || !card || String(card.id || '') === '70') return;
+  const owner = typeof pending === 'object' ? Number(pending.owner) : playerIndex;
+  const type = String(card.type || '');
+  if(owner !== playerIndex || type === 'Supporter' || type === 'Counter') return;
+  card._wciBonus = true;
+  card._handCostDelta = (Number(card._handCostDelta) || 0) - 1;
+  if(!Array.isArray(card._handEffectModifiers)) card._handEffectModifiers = [];
+  card._handEffectModifiers.push({
+    key:'west-caribbea-infantry',
+    name:'West Caribbea Infantry',
+    text:'The Company\'s Finest: -1 Reinforcement cost, +2 Fate when set.',
+    fateDelta:2,
+    costDelta:-1
+  });
+  state._westCaribNext = false;
+}
+
+function authorityApplySelvaHandArrival(state, playerIndex, card){
+  if(!card || String(card.id || '') !== '74') return;
+  if(Number(state.currentPlayer) === playerIndex && String(state.phase || '') === 'main'){
+    card._selvaArrivalTurn = Number(state.turn) || 0;
+    state.extraSupportsThisTurn = (Number(state.extraSupportsThisTurn) || 0) + 1;
+    if(!Array.isArray(state._selvaSupportBoosts)) state._selvaSupportBoosts = [null, null];
+    const previous = state._selvaSupportBoosts[playerIndex];
+    const previousExtra = previous && Number(previous.turn) === Number(state.turn)
+      ? Math.max(0, Number(previous.extraSupports) || 0)
+      : 0;
+    state._selvaSupportBoosts[playerIndex] = {
+      owner:playerIndex,
+      turn:Number(state.turn) || 0,
+      extraSupports:previousExtra + 1,
+      sourceIid:card.iid || null,
+      sourceName:card.name || 'Selva Islands Pirate'
+    };
+    return;
+  }
+  card._selvaOpeningQueued = true;
+  if(!Array.isArray(state._pendingSelvaSupportBoost)) state._pendingSelvaSupportBoost = [0, 0];
+  state._pendingSelvaSupportBoost[playerIndex] = (Number(state._pendingSelvaSupportBoost[playerIndex]) || 0) + 1;
+}
+
+function authorityApplyErbsDrawBonus(state, playerIndex, card){
+  const active = Array.isArray(state.erbsActive) ? !!state.erbsActive[playerIndex] : !!state.erbsActive;
+  if(!active || !card || String(card.id || '') === '70') return;
+  if(!isAuthorityFullyEffectImmuneCard(card)){
+    applyAuthorityPermanentFateGain(card, 4);
+    if(!Array.isArray(card._handEffectModifiers)) card._handEffectModifiers = [];
+    card._handEffectModifiers.push({
+      key:'christopher-erbs',
+      name:'Card Empowered',
+      text:'Hard Times, Strong Men: this card gained +4 Fate.',
+      fateDelta:4
+    });
+  }
+  if(Array.isArray(state.erbsActive)) state.erbsActive[playerIndex] = false;
+  else state.erbsActive = false;
+}
+
+function authorityResolveDrawnCardArrival(state, playerIndex, card, presentationEvents, options){
+  const player = state && state.players && state.players[playerIndex];
+  if(!player || !Array.isArray(player.hand) || !card) return;
+  const opts = options || {};
+  card.owner = playerIndex;
+  card._fateHandArrivalKind = 'draw';
+  authorityResetHandTenure(state, playerIndex, card);
+  authorityApplyWestCaribHandArrival(state, playerIndex, card);
+  authorityApplyErbsDrawBonus(state, playerIndex, card);
+  if(String(card.id || '') === 'bh03'){
+    const recipient = 1 - playerIndex;
+    delete card._igb19HandTurnsRemaining;
+    delete card._igb19HandOwner;
+    delete card._igb19LastCountedHandTurn;
+    delete card._fateHandArrivalKind;
+    card.owner = recipient;
+    card._bh03OpponentHand = true;
+    card._bh03TransferredFrom = playerIndex;
+    card.immuneFlag = true;
+    card.cantBeReduced = true;
+    state.players[recipient].hand.push(card);
+    return;
+  }
+  player.hand.push(card);
+  appendAuthorityTaylorSelfCopy(state, playerIndex, card);
+  authorityApplySelvaHandArrival(state, playerIndex, card);
+  delete card._fateHandArrivalKind;
+  if(opts.outsideDraw === true && String(state.landscapeId || '') === 'igb9' && Array.isArray(presentationEvents)){
+    presentationEvents.push({
+      type:'LANDSCAPE_OUTSIDE_DRAW_BONUS',
+      eventId:['authority-outside-draw', Number(state.turn) || 0, playerIndex, String(card.iid || card.id || 'card')].join(':'),
+      playerIndex,
+      cardName:String(card.name || 'a card')
+    });
+  }
+}
+
+function applyBoleslawSearchAuthorityReaction(state, option, pending, presentationEvents){
   const playerIndex = Number(pending && pending.playerIndex);
   const player = state && state.players && state.players[playerIndex];
   if(!player || !Array.isArray(player.deck) || !Array.isArray(player.hand)) return 'Boleslaw owner is invalid';
@@ -1497,29 +1912,19 @@ function applyBoleslawSearchAuthorityReaction(state, option, pending){
   if(!entry || !authorityCardIsReadyBoleslaw(entry.card, playerIndex)) return 'Boleslaw is no longer ready on the board';
   const before = Number(entry.card.currentFate ?? entry.card.fate ?? 0) || 0;
   entry.card.currentFate = before + 3;
-  applyAuthorityJoieDrawEffectPassive(state, playerIndex, entry.card);
+  applyAuthorityJoieDrawEffectPassive(state, playerIndex, entry.card, presentationEvents);
+  appendAuthorityCardEffectFlash(
+    presentationEvents,
+    state,
+    entry,
+    entry,
+    'boleslaw_exclaim',
+    '!!!',
+    ['boleslaw-authority', playerIndex, Number(state.turn) || 0, String(entry.card.iid || entry.card.id || 'card')].join(':')
+  );
   const drawn = player.deck.shift() || null;
   if(drawn){
-    if(String(state.landscapeId || '') === 'igb19' && !isAuthorityFullyEffectImmuneCard(drawn) && String(drawn.type || '') !== 'Supporter' && String(drawn.type || '') !== 'Counter'){
-      const landscapeState = state._landscapeState || {};
-      drawn._igb19HandTurnsRemaining = 3;
-      drawn._igb19HandOwner = playerIndex;
-      drawn._igb19LastCountedHandTurn = Math.max(0, Number(landscapeState.handTurnCounts && landscapeState.handTurnCounts[playerIndex]) || 0);
-    }
-    if(String(drawn.id || '') === 'bh03'){
-      const recipient = 1 - playerIndex;
-      delete drawn._igb19HandTurnsRemaining;
-      delete drawn._igb19HandOwner;
-      delete drawn._igb19LastCountedHandTurn;
-      drawn.owner = recipient;
-      drawn._bh03OpponentHand = true;
-      drawn._bh03TransferredFrom = playerIndex;
-      drawn.immuneFlag = true;
-      drawn.cantBeReduced = true;
-      state.players[recipient].hand.push(drawn);
-    } else {
-      player.hand.push(drawn);
-    }
+    authorityResolveDrawnCardArrival(state, playerIndex, drawn, presentationEvents, {outsideDraw:true});
   }
   return '';
 }
@@ -1532,32 +1937,52 @@ function reduceReactionChoice(room, msg){
   if(String(payload.promptId || '') !== String(pending.promptId || '')) return {ok:false, reason:'reaction prompt mismatch'};
   if(Number(payload.playerIndex) !== Number(pending.playerIndex)) return {ok:false, reason:'reaction player mismatch'};
   const choice = String(payload.choice || '').toLowerCase();
+  const manualEffectReaction = /^(?:supporter_effect|initiator_effect)$/i.test(String(pending.actionType || ''));
   if(choice === 'decline' || choice === 'allow' || choice === 'timeout'){
-    const resolved = cloneState(pending.resolvedPostState);
+    const resolved = cloneState(manualEffectReaction ? current : pending.resolvedPostState);
     if(!resolved) return {ok:false, reason:'pending reaction missing stored resolution'};
+    const presentationEvents = Array.isArray(pending.presentationEvents) ? cloneState(pending.presentationEvents) : [];
     applyAuthorityReactionTimerPause(resolved, pending);
     removePendingReaction(resolved);
     markAuthorityPlacementReactionAllowed(resolved, pending);
     markAuthorityDeckSetReactionAllowed(resolved, pending);
     const validationError = validateCanonicalState(resolved);
     if(validationError) return {ok:false, reason:validationError};
-    return {ok:true, canonicalState:resolved, canonicalHash:canonicalStateHash(resolved), serverReduced:true};
+    return {
+      ok:true,
+      canonicalState:resolved,
+      canonicalHash:canonicalStateHash(resolved),
+      serverReduced:true,
+      presentationEvents
+    };
   }
   if(choice !== 'negate') return {ok:false, reason:'unknown reaction choice'};
   const option = findReactionOption(pending, payload);
   if(!option) return {ok:false, reason:'reaction option is missing'};
   const isFirstSetReaction = String(pending.actionType || '') === 'first_set_effect';
   const isDeckSetReaction = String(pending.actionType || '') === 'set_from_deck_effect';
-  const state = cloneState(isFirstSetReaction ? pending.resolvedPostState : current);
+  const resolvedForSpentFlags = manualEffectReaction ? current : pending.resolvedPostState;
+  const state = cloneState(
+    isFirstSetReaction
+      ? pending.resolvedPostState
+      : (manualEffectReaction ? pending.preEffectState : current)
+  );
+  if(!state) return {ok:false, reason:'pending reaction missing rollback state'};
+  const presentationEvents = Array.isArray(pending.negatedPresentationEvents)
+    ? cloneState(pending.negatedPresentationEvents)
+    : [];
+  if(manualEffectReaction && current._serverReactionSeq !== undefined){
+    state._serverReactionSeq = cloneState(current._serverReactionSeq);
+  }
   applyAuthorityReactionTimerPause(state, pending);
   removePendingReaction(state);
   if(isDeckSetReaction) applyAuthorityDeckSetNegation(state, pending);
-  else if(!isFirstSetReaction) copySourceSpentFlagsFromResolved(state, pending.resolvedPostState, pending);
+  else if(!isFirstSetReaction) copySourceSpentFlagsFromResolved(state, resolvedForSpentFlags, pending);
   let error = '';
   const kind = String(option.kind || '');
-  if(kind === 'lydia') error = applyLydiaAuthorityReaction(state, option, pending);
-  else if(kind === 'secules') error = applySeculesAuthorityReaction(state, option, pending);
-  else if(kind === 'havano') error = applyHavanoAuthorityReaction(state, option, payload, pending);
+  if(kind === 'lydia') error = applyLydiaAuthorityReaction(state, option, pending, presentationEvents);
+  else if(kind === 'secules') error = applySeculesAuthorityReaction(state, option, pending, presentationEvents);
+  else if(kind === 'havano') error = applyHavanoAuthorityReaction(state, option, payload, pending, presentationEvents);
   else error = 'unsupported reaction option';
   if(error) return {ok:false, reason:error};
   const validationError = validateCanonicalState(state);
@@ -1572,7 +1997,8 @@ function reduceReactionChoice(room, msg){
       kind,
       sourceName:String(pending.sourceName || 'that effect'),
       source:cloneState(pending.source)
-    }
+    },
+    presentationEvents
   };
 }
 
@@ -1613,15 +2039,18 @@ function reduceServerAction(room, msg, opts){
   if(type === 'DISCONNECT_TIMEOUT') return reduceDisconnectTimeout(room, msg);
   const result = validateProposedTransition(room, msg, opts || {});
   if(!result.ok) return result;
-  const reactionState = maybeArmAuthorityImprovisorReaction(room, msg, result.canonicalState);
-  if(reactionState){
+  const reactionResolution = maybeArmAuthorityImprovisorReaction(room, msg, result.canonicalState);
+  if(reactionResolution){
+    const reactionState = reactionResolution.state;
     return {
       ok:true,
       canonicalState:reactionState,
       canonicalHash:canonicalStateHash(reactionState),
       baseStateHash:result.baseStateHash,
       serverReduced:true,
-      reactionArmed:!!reactionState._serverPendingReaction
+      reactionArmed:!!reactionState._serverPendingReaction,
+      suppressPresentationEvents:!!reactionState._serverPendingReaction,
+      presentationEvents:Array.isArray(reactionResolution.presentationEvents) ? reactionResolution.presentationEvents : []
     };
   }
   return result;

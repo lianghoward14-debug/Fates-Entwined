@@ -108,9 +108,8 @@
     if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
     if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return true;
     if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) return true;
-    return typeof isCardSupporterForRules === 'function'
-      ? isCardSupporterForRules(card, typeof G !== 'undefined' && G ? G.currentPlayer : card.owner)
-      : card.type === 'Supporter';
+    // Blame Game changes how Supporters classify for effects, not how they are set.
+    return card.type === 'Supporter';
   }
 
   function isOnlineCharacterConsolidationDrag(card){
@@ -214,7 +213,10 @@
   }
 
   function isBlockedHandSetCard(card){
-    return !!(card && String(card.id || '') === '70' && card.guerilla_transferred);
+    return !!(card && (
+      (String(card.id || '') === '70' && card.guerilla_transferred)
+      || (String(card.id || '') === 'bh03' && card._bh03TransferPending === true)
+    ));
   }
 
   function availableReinforcementFor(card){

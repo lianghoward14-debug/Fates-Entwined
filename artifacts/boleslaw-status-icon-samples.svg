@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="390" viewBox="0 0 920 390">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 .7 0 0 .52  0 0 .2 0 .08  0 0 0 .78 0" result="warm"/>
+      <feMerge><feMergeNode in="warm"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <style>
+      .bg{fill:#08090d}
+      .cell{fill:#10130f;stroke:rgba(255,210,112,.22);stroke-width:1}
+      .icon{fill:none;stroke:#ffd26f;stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .thin{stroke-width:3.4}
+      .num{fill:#e8c866;font:700 13px Georgia,serif;text-anchor:middle}
+    </style>
+  </defs>
+  <rect class="bg" width="920" height="390"/>
+
+  <g transform="translate(26 24)">
+    <g transform="translate(0 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">1</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M12 38c0-12 9-20 22-20h4c13 0 22 8 22 20s-9 20-22 20h-8l-15 9 5-14c-5-4-8-8-8-15z"/>
+        <path class="thin" d="M25 32h19M25 42h13"/>
+      </g>
+    </g>
+    <g transform="translate(178 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">2</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M14 37c0-11 8-19 21-19s21 8 21 19-8 19-21 19h-7l-13 8 4-12c-3-4-5-8-5-15z"/>
+        <path class="thin" d="M26 31h17M26 40h10"/>
+      </g>
+    </g>
+    <g transform="translate(356 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">3</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z"/>
+        <path class="thin" d="M24 31h22M24 40h18M24 49h10"/>
+      </g>
+    </g>
+    <g transform="translate(534 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">4</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M13 39c0-12 9-21 22-21h2c13 0 22 9 22 21s-9 21-22 21h-5l-16 8 5-14c-5-4-8-9-8-15z"/>
+        <path class="thin" d="M26 32h18M26 42h16"/>
+      </g>
+    </g>
+    <g transform="translate(712 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">5</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M15 37c0-10 8-18 20-18h4c12 0 20 8 20 18s-8 18-20 18h-10l-12 8 4-12c-4-3-6-7-6-14z"/>
+        <path class="thin" d="M27 30h18M27 39h13"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(26 206)">
+    <g transform="translate(0 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">6</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M12 37c0-11 9-19 22-19h4c13 0 22 8 22 19s-9 19-22 19h-8l-13 9 4-13c-5-3-9-8-9-15z"/>
+        <path class="thin" d="M24 31h16M24 40h20"/>
+      </g>
+    </g>
+    <g transform="translate(178 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">7</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M13 40c0-12 9-21 22-21s22 9 22 21-9 21-22 21h-6l-15 7 5-14c-4-4-6-8-6-14z"/>
+        <path class="thin" d="M26 33h17M26 42h11"/>
+      </g>
+    </g>
+    <g transform="translate(356 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">8</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M14 38c0-11 9-19 22-19s22 8 22 19-9 19-22 19h-9l-12 7 4-12c-3-4-5-8-5-14z"/>
+        <path class="thin" d="M25 31h20M25 40h8M38 40h8"/>
+      </g>
+    </g>
+    <g transform="translate(534 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">9</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M12 39c0-12 9-20 22-20h4c13 0 22 8 22 20s-9 20-22 20h-7l-17 8 6-14c-5-4-8-8-8-14z"/>
+        <path class="thin" d="M25 32h14M25 41h18"/>
+      </g>
+    </g>
+    <g transform="translate(712 0)">
+      <rect class="cell" width="150" height="150" rx="4"/>
+      <text class="num" x="75" y="136">10</text>
+      <g class="icon" transform="translate(43 32)">
+        <path d="M14 39c0-12 9-20 22-20h2c12 0 21 8 21 20s-9 20-21 20h-8l-14 8 5-13c-4-4-7-9-7-15z"/>
+        <path class="thin" d="M26 32h18M26 41h18"/>
+      </g>
+    </g>
+  </g>
+</svg>

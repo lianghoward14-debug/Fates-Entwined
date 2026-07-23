@@ -22,10 +22,12 @@ assert.match(helpersText, /let qingdaoResolved = false[\s\S]*if\(qingdaoResolved
 assert.match(helpersText, /kind:'landscapeZone'[\s\S]*landscapeId:'igb2'[\s\S]*G\.pendingInteraction = frontierPrompt/, 'Frontier must serialize its winning-player prompt for multiplayer handoff');
 assert.match(helpersText, /function resolvePendingLandscapeEndTurnZone[\s\S]*addLandscapeZoneFateBonus\(winner, z, 12[\s\S]*continueTurnAfterLandscapeResolution/, 'Frontier resolution must apply the zone bonus before continuing the suspended turn');
 assert.match(roomsText, /function maybeShowServerLandscapeZonePrompt[\s\S]*Number\(pending\.playerIndex\) !== localIndex[\s\S]*resolvePendingLandscapeEndTurnZone/, 'the winning remote client must reopen and resolve a serialized landscape prompt');
-assert.match(roomsText, /turnAgnosticAction = \/\^\(CHOOSE_TURN\|REACTION_CHOICE\|PICK_LANDSCAPE_ZONE\)/, 'a remote landscape winner must be allowed to resolve the zone while the opponent turn is suspended');
+assert.match(roomsText, /turnAgnosticAction = \/\^\([^;\r\n]*PICK_LANDSCAPE_ZONE/, 'a remote landscape winner must be allowed to resolve the zone while the opponent turn is suspended');
+assert.match(roomsText, /if\(actionType === 'PICK_ZONE'\) return 'RESOLVE_ZONE_PICK';\s*if\(actionType === 'PICK_LANDSCAPE_ZONE'\) return 'PICK_LANDSCAPE_ZONE';/, 'landscape choices must keep their dedicated authority action instead of being renamed to an in-turn zone pick');
+assert.match(roomsText, /bucket === 'landscapeZone'[\s\S]*actionType === 'PICK_LANDSCAPE_ZONE'/, 'serialized landscape prompts must accept the dedicated landscape action');
 assert.match(helpersText, /let drawPromptSettled = false[\s\S]*if\(drawPromptSettled\) return false/, 'outside-draw landscape prompt must settle once');
 assert.match(authorityText, /function findAcceptedLandscapePrompt[\s\S]*PICK_LANDSCAPE_ZONE[\s\S]*landscapePromptKey/, 'authority must index accepted landscape prompt keys');
-assert.match(authorityText, /effectiveType !== 'PICK_LANDSCAPE_ZONE'/, 'client-resolved landscape choices must be accepted from the winning out-of-turn player');
+assert.match(authorityText, /turnAgnosticEffectiveAction = \/\^\([^;\r\n]*PICK_LANDSCAPE_ZONE[\s\S]*!turnAgnosticEffectiveAction/, 'client-resolved landscape choices must be accepted from the winning out-of-turn player');
 assert.match(authorityText, /priorLandscapePrompt[\s\S]*replayAcceptedClientAction/, 'authority must replay rather than accept a second landscape choice');
 
 let modalCount = 0;

@@ -24,7 +24,7 @@ for(let id = 80; id <= 100; id += 1){
 }
 assert.strictEqual(expanded.length, 21);
 assert.strictEqual(catalog.byId.get('15').fate, 5, 'Zsofia must match the new 5-Fate card art');
-assert.strictEqual(catalog.byId.get('15').effect, 'Each time you would set a Coordinator in this zone, all cards in this zone gain 1 Fate.');
+assert.strictEqual(catalog.byId.get('15').effect, 'Each time you would set a Coordinator in this zone, all cards you control in this zone gain 1 Fate.');
 assert.strictEqual(catalog.byId.get('19').fate, 4, 'Kvetka must match the new 4-Fate card art');
 assert.strictEqual(catalog.byId.get('19').effect, 'All Coordinators you control in this card\'s zone gains 3 Fate.');
 assert.strictEqual(catalog.byId.get('84').name, 'Květka Svoboda');
@@ -216,6 +216,7 @@ assert.doesNotMatch(windowedWhenSet, /'97'/, 'Visegrad Politician must resolve a
 assert.match(data, /id:'26'[\s\S]*effect:'Activate Effect: Reveal your opponent\\'s hand\.'/, 'UCPD catalog text must describe its manual activation');
 assert.match(core, /case '97'[\s\S]*activateAdministrativeBloat\(cp, inst\)/, 'Visegrad Politician must automatically apply Administrative Bloat when set');
 assert.match(core, /case '96'[\s\S]*showSnowShovelerReturnedCards/, 'Snow Shoveler must show its random return result window');
+assert.match(core, /showSnowShovelerReturnedCards[\s\S]*immediate:false/, 'Snow Shoveler must wait for the activation presentation before showing its returned-card gallery');
 assert.match(core, /case '71'[\s\S]*characterSent:false/, 'Fort Calvin Watcher must initialize its one-Character redirect limit');
 assert.match(read('src/scripts/04-game-setup.js'), /revealedCharacter && !watcher\.characterSent[\s\S]*watcher\.characterSent = true[\s\S]*else if\(revealedCharacter\)/, 'Fort Calvin Watcher must redirect only the first Character and reveal later Characters normally');
 const gameSetup = read('src/scripts/04-game-setup.js');
@@ -268,6 +269,8 @@ assert.match(rendering, /G\._landscapeChangeLocks[\s\S]*A Snowy Village[\s\S]*Wo
 assert.match(rendering, /"99": "He's the one that started it first!\\nWell Zsofia shouldn't have been putting her feet on my sword!"/, 'Rozsi and Zsofia combined card must use the requested two-line subtitle');
 assert.match(rendering, /"100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived"/, 'Felicyta and Kvetka combined card must use the requested subtitle');
 assert.match(helpers, /function isCardSupporterForRules[\s\S]*isBlameGameActive/, 'Blame Game must have a shared inverse Supporter classifier');
+assert.match(handDragBridge, /function isDirectSetCard\(card\)[\s\S]{0,700}return card\.type === 'Supporter'/, 'multiplayer drag must directly set printed Supporters even while Blame Game classifies them as Characters');
+assert.match(rendering, /const isDirectSetCard = isAchillesToken[\s\S]{0,500}\|\| card\.type==='Supporter'/, 'card details must offer normal placement for printed Supporters during Blame Game');
 assert.match(handDragBridge, /cardUsesCharacterConsolidationTributes[\s\S]*isCardCharacterForRules[\s\S]*Drop on one of your '[\s\S]*'Characters'/, '99 and 100 drag consolidation must accept Character targets and explain invalid drops correctly');
 assert.match(authority, /resultUsesCharacterTributes[\s\S]*authorityCardIsCharacterForRules/, 'multiplayer authority must validate 99 and 100 Character tributes with the same rules classification');
 assert.match(core, /actualCost <= 0[\s\S]*if\(card\.type !== 'Supporter'\)[\s\S]*_freePlacementCinematicKind = card\._freePlacementCinematicKind \|\| 'costReducedFreeSet'/, 'free Rozsi and Zsofia combined-card placements must retain the Character consolidation cinematic marker');

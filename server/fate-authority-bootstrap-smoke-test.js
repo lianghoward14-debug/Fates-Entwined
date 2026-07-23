@@ -2,7 +2,7 @@
 'use strict';
 
 const assert = require('assert');
-const {canonicalStateHash} = require('./fate-authority-reducer');
+const {canonicalStateHash, reduceServerAction} = require('./fate-authority-reducer');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {buildInitialAuthorityState} = require('./fate-authority-bootstrap');
 
@@ -66,6 +66,59 @@ assert.strictEqual(selvaBoot.state.landscapeBgNum, 8);
 assert.strictEqual(selvaBoot.state._landscapeState.id, 'igb8');
 assert(Number.isInteger(selvaBoot.state._landscapeState.targetZone), 'target-zone landscapes should be initialized server-side');
 assert.strictEqual(canonicalStateHash(selvaBoot.state), selvaBoot.stateHash);
+
+const taylorDeck = ['bh05'];
+catalog.cards
+  .filter(card=>card && !card.retired && !card.temporarilyDisabled && String(card.id) !== 'bh05')
+  .slice(0, 39)
+  .forEach(card=>taylorDeck.push(card.id));
+let taylorBoot = null;
+for(let seedIndex = 0; seedIndex < 500; seedIndex += 1){
+  const candidate = buildInitialAuthorityState({
+    catalog,
+    seed:'taylor-opening-' + seedIndex,
+    decks:{0:taylorDeck, 1:deck}
+  });
+  if(candidate.state.players[0].hand.some(card=>String(card.id) === 'bh05')){
+    taylorBoot = candidate;
+    break;
+  }
+}
+assert(taylorBoot && taylorBoot.state, 'test seed should put Taylor in the multiplayer opening hand');
+const openingTaylors = taylorBoot.state.players[0].hand.filter(card=>String(card.id) === 'bh05');
+assert.strictEqual(openingTaylors.length, 1, 'multiplayer opening Taylor must wait to duplicate until both clients are playable');
+const originalTaylor = openingTaylors[0];
+assert.strictEqual(originalTaylor._bh05OpeningCopyPending, true);
+assert.strictEqual(taylorBoot.state.players[0].hand.length, 6);
+assert.strictEqual(canonicalStateHash(taylorBoot.state), taylorBoot.stateHash);
+
+const taylorPostState = JSON.parse(JSON.stringify(taylorBoot.state));
+const postOriginalTaylor = taylorPostState.players[0].hand.find(card=>String(card.iid) === String(originalTaylor.iid));
+delete postOriginalTaylor._bh05OpeningCopyPending;
+taylorPostState.instanceCounter += 1;
+const generatedTaylor = Object.assign({}, postOriginalTaylor, {
+  iid:taylorPostState.instanceCounter,
+  owner:0,
+  _bh05GeneratedCopy:true,
+  _bh05GeneratedFromIid:postOriginalTaylor.iid
+});
+taylorPostState.players[0].hand.push(generatedTaylor);
+const taylorCopyResult = reduceServerAction({
+  canonicalState:taylorBoot.state,
+  canonicalHash:taylorBoot.stateHash
+}, {
+  type:'ACTION_RESULT',
+  payload:{
+    actionKind:'TAYLOR_OPENING_COPY',
+    playerIndex:0,
+    cardIid:String(originalTaylor.iid),
+    baseStateHash:taylorBoot.stateHash,
+    postState:taylorPostState,
+    stateHash:canonicalStateHash(taylorPostState)
+  }
+}, {requireBaseHash:true});
+assert.strictEqual(taylorCopyResult.ok, true, taylorCopyResult.reason);
+assert.strictEqual(taylorCopyResult.canonicalState.players[0].hand.length, 7);
 
 assert.throws(()=>buildInitialAuthorityState({
   catalog,

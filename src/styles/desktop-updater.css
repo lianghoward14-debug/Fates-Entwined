@@ -72,6 +72,25 @@
   animation: desktop-update-pulse 1.6s ease-in-out infinite;
 }
 
+.is-error {
+  border-color: rgba(221, 105, 82, 0.62);
+}
+
+.is-error::before {
+  background: linear-gradient(180deg, #ed8c74, #913a2f);
+  box-shadow: 0 0 13px rgba(224, 91, 70, 0.4);
+}
+
+.is-error .desktop-update-pulse {
+  background: #e77962;
+  box-shadow: 0 0 0 3px rgba(231, 121, 98, 0.1), 0 0 10px rgba(231, 121, 98, 0.4);
+}
+
+.is-error .desktop-update-kicker,
+.is-error .desktop-update-percent {
+  color: #f1a08f;
+}
+
 @keyframes desktop-update-pulse {
   50% { opacity: 0.48; transform: scale(0.84); }
 }

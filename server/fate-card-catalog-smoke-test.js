@@ -15,12 +15,13 @@ const felicyta = catalog.byId.get('01');
 assert(felicyta, 'expected Felicyta Janowicz in catalog');
 assert.strictEqual(felicyta.fate, 6, 'Felicyta must match the new 6-Fate card art');
 assert.strictEqual(felicyta.effect, 'All cards you control that are adjacent to this card gains 4 Fate.', 'Felicyta rules text must match the new +4-Fate card art');
+const cosmicGf = catalog.byId.get('48');
+assert(cosmicGf, 'expected Cosmic GF in catalog');
+assert.strictEqual(cosmicGf.fate, 3, 'Cosmic GF must match the new 3-Fate card art');
+assert.match(cosmicGf.effect, /deck[\s\S]*non-Star "Expanded Worlds" card from the discard pile/, 'Cosmic GF effect must keep deck Star searches legal but block Star discard recovery');
 const root = path.resolve(__dirname, '..');
-for(const relativePath of ['src/scripts/05-gameplay-core.js', 'src/scripts/05-gameplay-core-v2.js']){
-  const gameplay = fs.readFileSync(path.join(root, relativePath), 'utf8');
-  assert.match(gameplay, /cell\.id==='01'[\s\S]{0,160}bonus \+= 4 \+ jeremiahBoost;/, `${relativePath} must apply Felicyta's +4 adjacent Fate aura`);
-}
 const activeGameplay = fs.readFileSync(path.join(root, 'src/scripts/05-gameplay-core.js'), 'utf8');
+assert.match(activeGameplay, /cardActsAsPassive\(cell, '01'\)[\s\S]{0,160}bonus \+= 4 \+ jeremiahBoost;/, 'active gameplay must apply Felicyta and Taylor-copied Felicyta as a +4 adjacent Fate aura');
 const majaStart = activeGameplay.indexOf("case '07':");
 const majaEnd = activeGameplay.indexOf("case '08':", majaStart);
 assert(majaStart >= 0 && majaEnd > majaStart, 'active gameplay must contain Maja Kaminska effect handling');

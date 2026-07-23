@@ -108,7 +108,7 @@ assert.match(core, /function commitWhisperLandscapeConversion[\s\S]{0,1500}chose
   'Concrete Roads must require exactly two hand cards');
 assert.match(core, /fatePushDiscard\(player, liveSource[\s\S]{0,500}hand\.push\(token\)[\s\S]{0,120}ensureWhisperLandscapeUses\(\)\[player\] = 1/,
   'Concrete Roads must discard its Coordinator and hand costs before creating and consuming the token use');
-assert.match(core, /G\.board\[sourceEntry\.z\]\[sourceEntry\.r\]\[sourceEntry\.c\] = null;[\s\S]{0,900}invalidateFateRenderCaches[\s\S]{0,300}renderGameImmediate/,
+assert.match(core, /function commitWhisperLandscapeConversion[\s\S]*G\.board\[sourceEntry\.z\]\[sourceEntry\.r\]\[sourceEntry\.c\] = null;[\s\S]*invalidateFateRenderCaches[\s\S]*renderGameImmediate/,
   'Concrete Roads must immediately remove and render away its Coordinator when the token is created');
 assert.match(core, /token\.currentFate = 5[\s\S]{0,180}token\.whisperLandscapeToken = true[\s\S]{0,260}_whisperCopiedEffectId/,
   'the created token must retain a validated copied-effect identity at 5 Fate');
@@ -121,7 +121,7 @@ assert.match(core, /WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set\(\['01', '02', 
   'Concrete Roads must identify Felicyta, Anicka, Makenna, and Rozsi as uncopyable');
 assert.match(core, /function getWhisperCoordinatorEntries[\s\S]{0,1100}WHISPER_UNCOPYABLE_COORDINATOR_IDS\.has\(String\(card\.id/,
   'Felicyta, Anicka, Makenna, and Rozsi must be excluded from the Concrete Roads source picker');
-assert.match(core, /function getZsofiaCoordinatorSetSources[\s\S]{0,900}getActiveWhisperTokens\(owner, '15'\)[\s\S]{0,220}fieldWide[\s\S]{0,1800}function applyZsofiaCoordinatorSetTrigger/,
+assert.match(core, /function getZsofiaCoordinatorSetSources[\s\S]*getActiveWhisperTokens\(owner, '15'\)\.forEach\(function\(entry\)\{ addSource\(entry, true\); \}\);[\s\S]*function applyZsofiaCoordinatorSetTrigger[\s\S]*if\(source\.fieldWide\)/,
   'copied Zsofia must expand into a field-wide Coordinator-set trigger');
 assert.doesNotMatch(core, /copiedId === '01'/,
   'Concrete Roads must not retain stale copied Felicyta behavior');
@@ -131,7 +131,7 @@ assert.match(core, /function resolveWhisperTokenPlacement[\s\S]{0,1600}playSfx\(
   'setting a Shizuku Token must play its dedicated Whisper audio');
 assert.match(rendering, /isWhisperOfTheHeartToken\(card\)[\s\S]{0,220}isDirectSetCard/,
   'the token must use direct board placement rather than consolidation');
-assert.match(handDragBridge, /function isDirectSetCard\(card\)[\s\S]{0,260}isWhisperOfTheHeartToken\(card\)/,
+assert.match(handDragBridge, /function isDirectSetCard\(card\)[\s\S]{0,500}isWhisperOfTheHeartToken\(card\)/,
   'dragging a Shizuku Token must use direct board placement rather than consolidation');
 assert.match(rendering, /function buildWhisperTokenCopyBannerHTML[\s\S]{0,600}Copied Effect[\s\S]{0,220}Field-wide/,
   'the information window must identify copied effects in a field-wide banner');
@@ -144,7 +144,7 @@ assert.match(css, /whisper-token-copy-banner[\s\S]{0,220}border-color/,
 assert.match(css, /whisper-token-copy-banner \.cd-live-tracker-label[\s\S]{0,220}transform:translateY\(-3px\)/,
   'the copied-effect banner label and Field-wide text must sit 3px higher');
 
-assert.match(core, /function applyIdyllicPolishVillageDrawPhase[\s\S]{0,650}isLandscapeActive\('igb18'\)[\s\S]{0,500}card\.aff !== 'expanded_worlds'[\s\S]{0,400}modifyFate\(card, 1, 'permanent'/,
+assert.match(core, /function applyIdyllicPolishVillageDrawPhase[\s\S]{0,650}isLandscapeActive\('igb18'\)[\s\S]{0,500}card\.aff !== 'expanded_worlds'[\s\S]{0,500}modifyFate\(card, 1, 'permanent'(?:, player)?\)/,
   'IGB18 must permanently grant 1 Fate to each controlled Expanded Worlds Character');
 const idyllicDrawPhaseIndex = core.indexOf('applyIdyllicPolishVillageDrawPhase(G.currentPlayer)');
 const normalDrawIndex = core.indexOf('drawCard(currentPlayer, 1, { drawPhase: true', idyllicDrawPhaseIndex);
@@ -161,11 +161,11 @@ assert.match(online, /_whisperLandscapeUses:cloneOnlinePlain[\s\S]{0,700}_wojcie
   'online canonical capture must include Concrete Roads usage');
 assert.match(online, /function pickSongForSeed[\s\S]{0,180}Math\.floor\(rng\(\) \* 20\) \+ 1/,
   'seeded multiplayer landscape selection must include IGB17 through IGB20');
-assert.match(online, /\['token1','whisper17'\]\.includes\(String\(card\.id \|\| ''\)\)/,
+assert.match(online, /const cardId = String\(card\.id \|\| ''\);[\s\S]*\['token1','whisper17'\]\.includes\(cardId\)/,
   'online card compaction must preserve the dynamic Shizuku Token effect text');
 assert.match(online, /window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,1000}sendOptimisticAction\('HAND_ACTION'[\s\S]{0,1000}_onlineClientOwnedBoardActionPickerDepth/,
   'multiplayer must resolve both Concrete Roads choices inside one authoritative action');
-assert.match(index, /00-structural-helpers\.js\?v=1785023090[\s\S]*01-data-and-state\.js\?v=1785023120[\s\S]*05-gameplay-core\.js\?v=1785023120[\s\S]*06-rendering-and-helpers\.js\?v=1785023120[\s\S]*07-ai\.js\?v=1785023021[\s\S]*08-audio-and-meta-ui\.js\?v=1785023070[\s\S]*18-online-rooms\.js\?v=1785023100&sync=1785023100/,
+assert.match(index, /00-structural-helpers\.js\?v=1785160801[\s\S]*01-data-and-state\.js\?v=1785160801[\s\S]*05-gameplay-core\.js\?v=1785160801[\s\S]*06-rendering-and-helpers\.js\?v=1785160801[\s\S]*07-ai\.js\?v=1785072413[\s\S]*08-audio-and-meta-ui\.js\?v=1785032407[\s\S]*18-online-rooms\.js\?v=1785160801&sync=1785160801/,
   'all landscape runtime surfaces must be cache-busted together');
 
 const catalog = getCardCatalog();

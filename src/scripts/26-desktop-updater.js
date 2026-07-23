@@ -15,6 +15,8 @@
   let startupCheckSettled = false;
   let resolveStartupCheck = null;
   let activeCheckPromise = null;
+  let installAttempted = false;
+  let installWatchdog = null;
 
   window.__fateDesktopUpdateCheckPromise = new Promise(resolve => {
     resolveStartupCheck = resolve;
@@ -65,6 +67,12 @@
       return {
         title:'Update Ready',
         copy:'A verified update is ready. You can install it after startup.'
+      };
+    }
+    if(s.status === 'installing') {
+      return {
+        title:'Installing Update',
+        copy:'Closing the game and starting the verified Windows installer.'
       };
     }
     if(s.status === 'error') {
@@ -218,12 +226,34 @@
     bannerAction.className = 'desktop-update-action';
     bannerAction.textContent = 'Restart and update';
     bannerAction.addEventListener('click', async () => {
+      installAttempted = true;
       bannerAction.disabled = true;
+      bannerAction.textContent = 'Starting installer...';
       try {
-        const accepted = await updater.install();
-        if(!accepted) bannerAction.disabled = false;
+        const result = await updater.install();
+        const accepted = result === true || result?.accepted === true;
+        if(!accepted) {
+          state = normalizedState(Object.assign({}, state || {}, {
+            status:'error',
+            error:String(result?.error || 'Windows did not accept the update installer.')
+          }));
+          renderBanner();
+          return;
+        }
+        clearTimeout(installWatchdog);
+        installWatchdog = setTimeout(() => {
+          state = normalizedState(Object.assign({}, state || {}, {
+            status:'error',
+            error:'The installer started, but the old game process did not close.'
+          }));
+          renderBanner();
+        }, 6000);
       } catch(err) {
-        bannerAction.disabled = false;
+        state = normalizedState(Object.assign({}, state || {}, {
+          status:'error',
+          error:String(err && err.message || err || 'The update installer failed to start.')
+        }));
+        renderBanner();
       }
     });
 
@@ -233,7 +263,11 @@
 
   function renderBanner(){
     const status = String(state?.status || '').toLowerCase();
-    const visibleStatus = status === 'downloading' || status === 'ready';
+    const installError = status === 'error' && installAttempted;
+    const visibleStatus = status === 'downloading'
+      || status === 'ready'
+      || status === 'installing'
+      || installError;
     if(!window.__fateStartupLoadingFinished || !state || !visibleStatus || !isTitleScreenActive()) {
       if(banner) banner.hidden = true;
       return;
@@ -241,28 +275,44 @@
 
     ensureBanner();
     const ready = status === 'ready';
+    const installing = status === 'installing';
     const percent = updatePercent(state);
     const version = state.availableVersion ? ` ${state.availableVersion}` : '';
-    bannerKicker.textContent = ready ? 'Update Ready' : 'Desktop Update';
-    bannerTitle.textContent = ready
-      ? `Version${version} is ready to install`
-      : (version ? `Downloading version${version}` : 'Downloading the latest update');
-    bannerPercent.textContent = `${percent}%`;
-    bannerProgress.style.width = `${percent}%`;
-    bannerProgress.parentElement.setAttribute('aria-valuenow', String(percent));
-    bannerWarning.textContent = ready
-      ? 'Restart before entering multiplayer.'
-      : 'Do not enter multiplayer while this update is downloading.';
+    bannerKicker.textContent = installError
+      ? 'Update Failed'
+      : (installing ? 'Installing Update' : (ready ? 'Update Ready' : 'Desktop Update'));
+    bannerTitle.textContent = installError
+      ? String(state.error || 'The update installer could not start.')
+      : (installing
+        ? `Starting version${version} installer`
+        : (ready
+          ? `Version${version} is ready to install`
+          : (version ? `Downloading version${version}` : 'Downloading the latest update')));
+    const displayPercent = installing || installError ? 100 : percent;
+    bannerPercent.textContent = installing ? 'WAIT' : `${displayPercent}%`;
+    bannerProgress.style.width = `${displayPercent}%`;
+    bannerProgress.parentElement.setAttribute('aria-valuenow', String(displayPercent));
+    bannerWarning.textContent = installError
+      ? 'Close and reopen the game, then try the update again.'
+      : (installing
+        ? 'The game will close automatically. Please wait.'
+        : (ready
+          ? 'Restart before entering multiplayer.'
+          : 'Do not enter multiplayer while this update is downloading.'));
     bannerAction.hidden = !ready;
+    bannerAction.textContent = 'Restart and update';
     bannerAction.disabled = false;
     banner.hidden = false;
     banner.classList.toggle('is-ready', ready);
-    banner.classList.toggle('is-downloading', !ready);
+    banner.classList.toggle('is-downloading', status === 'downloading' || installing);
+    banner.classList.toggle('is-installing', installing);
+    banner.classList.toggle('is-error', installError);
   }
 
   if(updater) {
     updater.onState(nextState => {
       state = normalizedState(nextState);
+      if(String(state.status || '').toLowerCase() === 'installing') installAttempted = true;
       renderCurrentVersion(state);
       emitUpdateStatus(state);
       if(stateEndsStartupWait(state)) settleStartupCheck(state);

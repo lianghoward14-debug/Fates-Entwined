@@ -1612,6 +1612,14 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-tint:rgba(177,38,126,.18);--effect-flash-inset:rgba(255,133,211,.14);
   --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='10' y='10' width='44' height='44' rx='9'/%3E%3Ccircle cx='32' cy='32' r='11'/%3E%3C/g%3E%3Ccircle cx='45' cy='19' r='3.2' fill='black'/%3E%3C/svg%3E");
 }
+.bc.effect-flash-boleslaw_exclaim{
+  --effect-flash-color:rgba(255,226,130,.99);--effect-flash-glow:rgba(255,150,54,.68);
+  --effect-flash-tint:rgba(175,86,24,.17);--effect-flash-inset:rgba(255,183,86,.13);
+}
+html body #s-game .bc.effect-flash-boleslaw_exclaim::after{
+  /* Final three-exclamation glyph/mask intentionally pending; keep the overlay kind wired without committing art. */
+  display:none!important;
+}
 .bc.effect-flash-bh07_overclock{
   --effect-flash-color:rgba(146,232,255,.99);--effect-flash-glow:rgba(58,190,255,.66);
   --effect-flash-tint:rgba(24,122,176,.17);--effect-flash-inset:rgba(105,219,255,.13);
@@ -24147,4 +24155,59 @@ html body #modal .modal.achilles-token-picker-modal #modal-acts .achilles-token-
   html body #modal .achilles-token-choice-grid-4,
   html body #modal .achilles-token-choice-grid-5{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
   html body #modal .achilles-draft-progress{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+}
+
+/* Match regular status-banner icon frames to the extra-effects dropdown. */
+html body #s-game :is(#tp-status-left,#tp-status-right)
+  .effect-pill:not(.effect-pill-overflow) .effect-pill-icon{
+  border:1px solid rgba(126,183,255,.62)!important;
+  background:radial-gradient(circle,rgba(71,122,190,.24),rgba(7,14,27,.72))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 7px rgba(77,141,225,.16)!important;
+}
+
+/* Opponent status-banner icons use the opponent red frame. */
+html body #s-game #tp-status-right .effect-pill:not(.effect-pill-overflow) .effect-pill-icon,
+html body #s-game .effect-pill.effect-pill-opp:not(.effect-pill-overflow) .effect-pill-icon{
+  border:1px solid rgba(255,122,132,.66)!important;
+  background:radial-gradient(circle,rgba(185,64,74,.25),rgba(29,8,13,.74))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.045),0 0 7px rgba(225,70,82,.18)!important;
+}
+
+/* Snow on the Carpathians: make consolidation ownership readable over the Alpine board. */
+html body #s-game.landscape-id-igb15 #board .bc.tribute-available:not(.opponent-card),
+html body #s-game.landscape-id-igb15 #board .bc.tribute-selected:not(.opponent-card),
+html body #s-game.landscape-id-igb15 #board .bc.tribute-ready:not(.opponent-card){
+  outline-color:rgba(83,176,255,.88)!important;
+  box-shadow:0 0 7px rgba(47,140,255,.22)!important;
+}
+html body #s-game.landscape-id-igb15 #board .bc.tribute-available.opponent-card,
+html body #s-game.landscape-id-igb15 #board .bc.tribute-selected.opponent-card,
+html body #s-game.landscape-id-igb15 #board .bc.tribute-ready.opponent-card{
+  outline-color:rgba(255,96,108,.9)!important;
+  box-shadow:0 0 7px rgba(255,58,72,.24)!important;
+}
+html body #s-game.landscape-id-igb15 #board .cell:is(.tribute-cell-available,.tribute-cell-selected,.tribute-cell-ready):has(.bc:not(.opponent-card)){
+  outline-color:rgba(83,176,255,.78)!important;
+  box-shadow:0 0 7px rgba(47,140,255,.18)!important;
+}
+html body #s-game.landscape-id-igb15 #board .cell:is(.tribute-cell-available,.tribute-cell-selected,.tribute-cell-ready):has(.bc.opponent-card){
+  outline-color:rgba(255,96,108,.8)!important;
+  box-shadow:0 0 7px rgba(255,58,72,.2)!important;
+}
+html body .cc-overlay-v2.alpine-consolidation-owner-mine .cc-card-wrap-v2::after,
+html body .cc-overlay-v2.alpine-consolidation-owner-opp .cc-card-wrap-v2::after{
+  content:''!important;
+  position:absolute!important;
+  inset:-7px!important;
+  border-radius:14px!important;
+  pointer-events:none!important;
+  box-shadow:0 0 0 2px var(--alpine-consolidation-owner-color),0 0 24px var(--alpine-consolidation-owner-glow)!important;
+}
+html body .cc-overlay-v2.alpine-consolidation-owner-mine .cc-card-wrap-v2{
+  --alpine-consolidation-owner-color:rgba(83,176,255,.92);
+  --alpine-consolidation-owner-glow:rgba(47,140,255,.34);
+}
+html body .cc-overlay-v2.alpine-consolidation-owner-opp .cc-card-wrap-v2{
+  --alpine-consolidation-owner-color:rgba(255,96,108,.94);
+  --alpine-consolidation-owner-glow:rgba(255,58,72,.36);
 }

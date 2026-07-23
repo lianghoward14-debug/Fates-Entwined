@@ -33,13 +33,14 @@ const MIME_TYPES = {
   '.gif': 'image/gif',
   '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
   '.wav': 'audio/wav',
   '.ogg': 'audio/ogg',
   '.txt': 'text/plain; charset=utf-8'
 };
 const LONG_CACHE_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico',
-  '.mp3', '.wav', '.ogg'
+  '.mp3', '.m4a', '.wav', '.ogg'
 ]);
 const VERSIONED_CACHE_EXTENSIONS = new Set(['.js', '.mjs', '.css']);
 

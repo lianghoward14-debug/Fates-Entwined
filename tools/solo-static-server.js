@@ -24,6 +24,7 @@ const mime = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
   '.wav': 'audio/wav',
   '.ogg': 'audio/ogg'
 };

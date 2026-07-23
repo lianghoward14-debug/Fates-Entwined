@@ -14,7 +14,7 @@ function resolveAIDeckRef(refId) {
 let _aiDeckResolving = false;
 function getPlayableAIDeck(aiSource, difficultyOverride=null) {
   const difficulty = difficultyOverride || (typeof G !== 'undefined' && G ? G.aiDifficulty : null) || 'medium';
-  // Resolve deckRef first � always use the latest version of a named deck
+  // Resolve deckRef first — always use the latest version of a named deck
   if(aiSource && aiSource.deckRef) {
     const resolved = resolveAIDeckRef(aiSource.deckRef);
     if(resolved && resolved.length >= 40) return resolved;
@@ -22,7 +22,7 @@ function getPlayableAIDeck(aiSource, difficultyOverride=null) {
   const rawDeck = aiSource && Array.isArray(aiSource.deck) ? aiSource.deck : [];
   const validIds = rawDeck.filter(id=>CARDS.some(c=>c.id===id));
   if(validIds.length >= 40) return validIds.slice(0,40);
-  // Fallback to AI_DECKS � guard against recursion since AI_DECKS getters call this function
+  // Fallback to AI_DECKS — guard against recursion since AI_DECKS getters call this function
   if(!_aiDeckResolving) {
     _aiDeckResolving = true;
     try {
@@ -192,7 +192,7 @@ function startGame(vsAI=false) {
       G._aiOpponentElo = G._selectedAI.elo || G._aiOpponentElo;
     } else {
       G.players[1].name = names[G.aiDifficulty] || 'AI';
-      // Always use the hand-crafted deck for the AI � ensures good synergy
+      // Always use the hand-crafted deck for the AI — ensures good synergy
       const aiDeck = typeof AI_DECKS !== 'undefined' ? AI_DECKS[G.aiDifficulty] : null;
       if(aiDeck && aiDeck.length === 40){
         G.p2Deck = [...aiDeck];
@@ -629,16 +629,16 @@ function showPreGameMatchup(vsAI, onContinue) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  AI PRESET DECKS � hand-crafted strategic builds
+//  AI PRESET DECKS — hand-crafted strategic builds
 // ═══════════════════════════════════════════════════════
 // Each deck is exactly 40 cards and respects rarity limits (1 star, 3 copies of every non-star rarity).
 // IDs reference the CARDS array. These favor synergy over raw card quantity.
 // ═══════════════════════════════════════════════════════
-//  AI OPPONENTS � Named characters per ELO rank tier
+//  AI OPPONENTS — Named characters per ELO rank tier
 //  Each has a unique deck, playstyle notes, and personality
 // ═══════════════════════════════════════════════════════
 const AI_OPPONENTS = [
-  // === FOOTMAN (0-799) � plays the 4 starter decks ===
+  // === FOOTMAN (0-799) — plays the 4 starter decks ===
   {name:'Anxiety Wreck Carolyn',elo:600,rank:'Footman',style:'cautious',img:'aiicons/ai18.png',
    desc:'Just learning the basics. Hesitant plays and missed opportunities.',
    deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
@@ -649,7 +649,7 @@ const AI_OPPONENTS = [
    desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
    deckPool:'starter', deckRef:'starter_assault', deck:[]},
 
-  // === CAPTAIN-OFFICER (800-999) � plays the 4 starter decks ===
+  // === CAPTAIN-OFFICER (800-999) — plays the 4 starter decks ===
   {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain-Officer',style:'methodical',img:'aiicons/ai15.png',
    desc:'Calculates every move carefully. Slow but rarely makes mistakes.',
    deckPool:'starter', deckRef:'starter_incel', deck:[]},
@@ -660,7 +660,7 @@ const AI_OPPONENTS = [
    desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
    deckPool:'starter', deckRef:'starter_freeworld', deck:[]},
 
-  // === LIEUTENANT AT ARMS (1000-1199) � upgraded v2 decks ===
+  // === LIEUTENANT AT ARMS (1000-1199) — upgraded v2 decks ===
   {name:'Postmodernist Dylan',elo:1050,rank:'Lieutenant at Arms',style:'disruptive',img:'aiicons/ai12.png',
    desc:'Finds angles you did not consider. Turns your own board state against you.',
    deckPool:'starter', deckRef:'starter_incel_2', deck:[]},
@@ -671,7 +671,7 @@ const AI_OPPONENTS = [
    desc:'Squeezes maximum value out of every card. Never wastes a placement.',
    deckPool:'starter', deckRef:'starter_assault_2', deck:[]},
 
-  // === SERGEANT OF THE GUARD (1200-1399) � upgraded v2 decks ===
+  // === SERGEANT OF THE GUARD (1200-1399) — upgraded v2 decks ===
   {name:'Queen Felicyta Janowicz',elo:1250,rank:'Sergeant of the Guard',style:'commanding',img:'aiicons/ai9.png',
    desc:'Coordinates multi-zone pressure that forces impossible decisions.',
    deckPool:'starter', deckRef:'starter_soft_suppression', deck:[]},
@@ -682,7 +682,7 @@ const AI_OPPONENTS = [
    desc:'Overwhelming force concentrated at the perfect moment.',
    deckPool:'starter', deckRef:'starter_maelstrom_2', deck:[]},
 
-  // === COMMANDER-GENERAL (1400-1599) � AI-exclusive advanced decks ===
+  // === COMMANDER-GENERAL (1400-1599) — AI-exclusive advanced decks ===
   {name:'Financial Consultant Phil',elo:1450,rank:'Commander-General',style:'efficient',img:'aiicons/ai6.png',
    desc:'Invests exactly where the return is highest. Ruthless efficiency.',
    deckPool:'starter', deckRef:'ai_investing_future', deck:[]},
@@ -693,7 +693,7 @@ const AI_OPPONENTS = [
    desc:'Sees the entire board as one interconnected puzzle. Plays three turns ahead.',
    deckPool:'starter', deckRef:'ai_henrys_conviction', deck:[]},
 
-  // === HIGH MARSHALL (1600+) � AI-exclusive advanced decks ===
+  // === HIGH MARSHALL (1600+) — AI-exclusive advanced decks ===
   {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',handKnowledge:'perfect',img:'aiicons/ai3.png',
    desc:'Tracks every card in your hand and builds patiently toward an unbeatable endgame.',
    deckPool:'starter', deckRef:'ai_royal_flush', deck:[]},
@@ -865,7 +865,7 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
 
 applyStoredAIEloStateToList(AI_OPPONENTS);
 
-// Map old difficulty keys to AI opponent selection � resolve dynamically so deckRef works
+// Map old difficulty keys to AI opponent selection — resolve dynamically so deckRef works
 const AI_DECKS = {
   get easy(){ return getPlayableAIDeck(AI_OPPONENTS[0]) || []; },
   get medium(){ return getPlayableAIDeck(AI_OPPONENTS[3]) || []; },
@@ -875,7 +875,7 @@ const AI_DECKS = {
 
 // --- TRUE ELO & AI SIMULATION ENGINE ---
 // True ELO: invisible metric that determines actual AI play quality.
-// Daily variation: up to �150 points from base true ELO.
+// Daily variation: up to ±150 points from base true ELO.
 // Title screen "Free Play" AI uses fixed true ELO = displayed ELO (no boost).
 
 function getDailyTrueElo(ai) {
@@ -1269,7 +1269,7 @@ if(typeof document !== 'undefined') {
 }
 
 function buildDefaultDecks() {
-  // Default decks if none set � fallback builds a balanced mix
+  // Default decks if none set — fallback builds a balanced mix
   function buildDeck(affPref) {
     const deck = [];
     const activeCards = CARDS.filter(c=>typeof isRetiredCardForBuilder === 'function'
@@ -1345,7 +1345,10 @@ function findReadyChristopherErbs(player) {
   if(typeof forEachBoardCard !== 'function') return null;
   let erbs = null;
   forEachBoardCard(c => {
-    if(!erbs && c && c.id === '40' && c.owner === player && (c.usesLeft || 0) > 0 && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) erbs = c;
+    const actsAsErbs = typeof cardActsAsPassive === 'function'
+      ? cardActsAsPassive(c, '40')
+      : c && c.id === '40';
+    if(!erbs && actsAsErbs && c.owner === player && (c.usesLeft || 0) > 0 && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) erbs = c;
   });
   return erbs;
 }
@@ -1353,6 +1356,34 @@ function findReadyChristopherErbs(player) {
 function chooseOptionalImprovisorActivation(player, card, context = {}) {
   return new Promise(resolve => {
     if(!card){ resolve(false); return; }
+    const onlineLocalIndex = Number(G && G._onlinePlayerIndex);
+    const shouldDeferOnlineChoice = !!(
+      G &&
+      G._onlineRoomCode &&
+      Number.isInteger(onlineLocalIndex) &&
+      (Number(player) !== onlineLocalIndex || G._onlineApplyingRemoteAction)
+    );
+    if(shouldDeferOnlineChoice){
+      const deckLength = Array.isArray(G.players?.[player]?.deck) ? G.players[player].deck.length : 0;
+      G._serverPendingModalAction = {
+        kind:'christopherErbsDrawChoice',
+        bucket:'modalAction',
+        playerIndex:Number(player),
+        turn:Number(G.turn || 0),
+        promptId:[
+          'erbs-draw',
+          Number(G.turn || 0),
+          Number(player),
+          String(card.iid || card.id || '40'),
+          deckLength
+        ].join(':'),
+        sourceIid:String(card.iid || ''),
+        sourceCardId:String(card.id || ''),
+        sourceCardName:String(card.name || 'Christopher Erbs')
+      };
+      resolve('defer-online-draw');
+      return;
+    }
     const isAI = G.aiEnabled && player === G.aiPlayer;
     if(isAI){
       const activate = typeof aiShouldActivateOptionalDrawEffect === 'function'
@@ -1391,6 +1422,62 @@ function chooseOptionalImprovisorActivation(player, card, context = {}) {
       ]
     );
   });
+}
+
+function resolveFortCalvinDrawInterception(player, card, options) {
+  if(!card || !options || !options.drawPhase || !Array.isArray(G._fortCalvinActive) || !G._fortCalvinActive.length){
+    return {revealed:false, redirected:false};
+  }
+  G._fortCalvinActive = G._fortCalvinActive.filter(function(watcher){
+    return !(watcher && watcher.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(watcher.sourceIid));
+  });
+  const watcher = G._fortCalvinActive.find(function(entry){
+    return entry && Number(entry.remaining) > 0 && Number(entry.owner) !== Number(player);
+  });
+  if(!watcher) return {revealed:false, redirected:false};
+
+  watcher.remaining--;
+  watcher.lastRevealedName = card.name || 'Unknown card';
+  watcher.lastRevealedId = card.id || null;
+  watcher.lastRevealedIid = card.iid || null;
+  const revealedCharacter = typeof isCardCharacterForRules === 'function'
+    ? isCardCharacterForRules(card, player)
+    : card.type !== 'Supporter';
+  watcher.lastRevealedWasCharacter = !!revealedCharacter;
+  let redirected = false;
+  if(revealedCharacter && !watcher.characterSent){
+    watcher.characterSent = true;
+    watcher.sentCharacterName = card.name || 'Unknown Character';
+    watcher.sentCharacterId = card.id || null;
+    watcher.sentCharacterIid = card.iid || null;
+    delete card._igb19HandTurnsRemaining;
+    delete card._igb19HandOwner;
+    delete card._igb19LastCountedHandTurn;
+    G.players[player].deck.push(card);
+    redirected = true;
+  }
+  if(!G._revealedCards) G._revealedCards = {};
+  G._revealedCards[card.iid] = true;
+  toast('Fort Calvin revealed: ' + card.name + '!');
+  log(player===0?'p1':'p2', 'Fort Calvin Watcher revealed: ' + card.name);
+  if(redirected){
+    toast(card.name + ' sent to bottom of deck by Fort Calvin Watcher!');
+    log(player===0?'p1':'p2', card.name + ' redirected to deck bottom');
+  }else if(revealedCharacter){
+    log(player===0?'p1':'p2', card.name + ' was revealed; Fort Calvin Watcher already redirected a Character');
+  }
+  if(watcher.sourceIid && typeof forEachBoardCard === 'function'){
+    forEachBoardCard(function(source){
+      if(!source || String(source.iid || '') !== String(watcher.sourceIid)) return;
+      source._fortCalvinLastRevealedName = watcher.lastRevealedName || null;
+      source._fortCalvinLastRevealedWasCharacter = !!watcher.lastRevealedWasCharacter;
+      source._fortCalvinSentCharacterName = watcher.sentCharacterName || null;
+      source._fortCalvinCharacterLimitReached = !!watcher.characterSent;
+      source._fortCalvinRemaining = Math.max(0, Number(watcher.remaining) || 0);
+    });
+  }
+  G._fortCalvinActive = G._fortCalvinActive.filter(function(entry){ return entry && Number(entry.remaining) > 0; });
+  return {revealed:true, redirected};
 }
 
 async function drawCard(player, count=1, options = {}) {
@@ -1435,6 +1522,7 @@ async function drawCard(player, count=1, options = {}) {
           drawPhase:!!options.drawPhase,
           openingHand:!!options.openingHand
         });
+        if(activate === 'defer-online-draw') return {onlineDrawDeferred:true};
         if(activate){
           if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
           G.erbsActive[player] = true;
@@ -1447,7 +1535,8 @@ async function drawCard(player, count=1, options = {}) {
       }
     }
     const card = G.players[player].deck.shift();
-    if(String(card && card.id || '') === 'bh03') {
+    const fortCalvinResult = resolveFortCalvinDrawInterception(player, card, options);
+    if(!fortCalvinResult.redirected && String(card && card.id || '') === 'bh03') {
       card.owner = player;
       card._bh03TransferPending = true;
       card.noConsolidate = true;
@@ -1475,55 +1564,7 @@ async function drawCard(player, count=1, options = {}) {
       }
       continue;
     }
-    if(!addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) continue;
-    // Fort Calvin Watcher (71): reveal three opponent draw-phase cards and redirect only the first Character.
-    if(options.drawPhase && G._fortCalvinActive && G._fortCalvinActive.length > 0){
-      G._fortCalvinActive = G._fortCalvinActive.filter(w => !(w && w.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(w.sourceIid)));
-      const activeWatchers = G._fortCalvinActive.filter(w => w.remaining > 0 && w.owner !== player);
-      if(activeWatchers.length > 0){
-        const watcher = activeWatchers[0];
-        watcher.remaining--;
-        watcher.lastRevealedName = card.name || 'Unknown card';
-        watcher.lastRevealedId = card.id || null;
-        watcher.lastRevealedIid = card.iid || null;
-        const updateFortCalvinSourceTracker = function(){
-          if(!watcher.sourceIid || typeof forEachBoardCard !== 'function') return;
-          forEachBoardCard(function(source){
-            if(!source || String(source.iid || '') !== String(watcher.sourceIid)) return;
-            source._fortCalvinLastRevealedName = watcher.lastRevealedName || null;
-            source._fortCalvinLastRevealedWasCharacter = !!watcher.lastRevealedWasCharacter;
-            source._fortCalvinSentCharacterName = watcher.sentCharacterName || null;
-            source._fortCalvinCharacterLimitReached = !!watcher.characterSent;
-            source._fortCalvinRemaining = Math.max(0, Number(watcher.remaining) || 0);
-          });
-        };
-        toast('Fort Calvin revealed: ' + card.name + '!');
-        if(!G._revealedCards) G._revealedCards = {};
-        G._revealedCards[card.iid] = true;
-        log(player===0?'p1':'p2', 'Fort Calvin Watcher revealed: '+card.name);
-        const revealedCharacter = typeof isCardCharacterForRules === 'function'
-          ? isCardCharacterForRules(card, player)
-          : card.type !== 'Supporter';
-        watcher.lastRevealedWasCharacter = !!revealedCharacter;
-        if(revealedCharacter && !watcher.characterSent){
-          watcher.characterSent = true;
-          watcher.sentCharacterName = card.name || 'Unknown Character';
-          watcher.sentCharacterId = card.id || null;
-          watcher.sentCharacterIid = card.iid || null;
-          G.players[player].hand = G.players[player].hand.filter(c => c.iid !== card.iid);
-          delete card._igb19HandTurnsRemaining;
-          delete card._igb19HandOwner;
-          delete card._igb19LastCountedHandTurn;
-          G.players[player].deck.push(card);
-          toast(card.name + ' sent to bottom of deck by Fort Calvin Watcher!');
-          log(player===0?'p1':'p2', card.name+' redirected to deck bottom');
-        } else if(revealedCharacter) {
-          log(player===0?'p1':'p2', card.name+' was revealed; Fort Calvin Watcher already redirected a Character');
-        }
-        updateFortCalvinSourceTracker();
-        G._fortCalvinActive = G._fortCalvinActive.filter(w => w.remaining > 0);
-      }
-    }
+    if(!fortCalvinResult.redirected && !addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) continue;
     // Christopher Erbs (40): per-player next drawn card gains 4 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
     if(erbsActiveForPlayer && card.id!=='70'){
@@ -1559,7 +1600,7 @@ async function drawCard(player, count=1, options = {}) {
       }
       if(!v2DrawQueued && player===myP) animateDrawCard(i);
     }
-    if(!options.drawPhase && !options.openingHand && !outsideDrawLandscapeCard){
+    if(!fortCalvinResult.redirected && !options.drawPhase && !options.openingHand && !outsideDrawLandscapeCard){
       outsideDrawLandscapeCard = card;
     }
   }
@@ -1591,6 +1632,9 @@ function transferAliIndomitableToOpponentHand(sourcePlayer, card, options = {}) 
   delete card._bh03TransferPending;
   delete card._bh03VisibleAt;
   delete card.noConsolidate;
+  delete card._igb19HandTurnsRemaining;
+  delete card._igb19HandOwner;
+  delete card._igb19LastCountedHandTurn;
   card.owner = recipient;
   card._bh03OpponentHand = true;
   card._bh03TransferredFrom = sourcePlayer;
@@ -1683,6 +1727,18 @@ function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
     if(!liveCard) {
       aliIndomitableTransferTimers.delete(timerKey);
       return;
+    }
+    if(G._onlineRoomCode) {
+      const localPlayer = Number.isInteger(Number(G._onlinePlayerIndex)) ? Number(G._onlinePlayerIndex) : null;
+      if(localPlayer === null || G._onlineAliTransfersReady !== true) {
+        const readinessTimer = setTimeout(beginVisibleCountdown, 120);
+        aliIndomitableTransferTimers.set(timerKey, readinessTimer);
+        return;
+      }
+      if(localPlayer !== Number(sourcePlayer)) {
+        aliIndomitableTransferTimers.delete(timerKey);
+        return;
+      }
     }
     const gameActive = !!document.getElementById('s-game')?.classList.contains('active');
     if(!gameActive) {
@@ -2095,7 +2151,7 @@ function doCoinFlip() {
 }
 
 function chooseTurn(goFirst) {
-  // coinWinner decides � if they choose first, they go first
+  // coinWinner decides — if they choose first, they go first
   const entryVeilStarted = showMatchEntryLoadingVeil();
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);

@@ -9,6 +9,19 @@ const path = require('path');
 const {getCardCatalog} = require('./fate-card-catalog');
 const {canonicalStateHash} = require('./fate-authority-reducer');
 
+const gameplaySource = fs.readFileSync(path.resolve(__dirname, '../src/scripts/05-gameplay-core.js'), 'utf8');
+const renderingSource = fs.readFileSync(path.resolve(__dirname, '../src/scripts/06-rendering-and-helpers.js'), 'utf8');
+assert.match(
+  gameplaySource,
+  /case '82':[\s\S]{0,1800}await new Promise[\s\S]{0,1800}transitionGameLandscape[\s\S]{0,1800}onCancel:function\(\)\{ finishChoice\(false\); \}/,
+  'Felicyta landscape selection must remain inside the awaited multiplayer board action'
+);
+assert.match(
+  renderingSource,
+  /label:'Cancel', action:function\(\)[\s\S]{0,400}choiceState\.onCancel/,
+  'landscape selection cancellation must settle the awaited multiplayer board action'
+);
+
 const PORT = Number(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_PORT || 8814);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const WS_URL = `ws://127.0.0.1:${PORT}`;
@@ -356,11 +369,20 @@ async function run(){
       stateHash:resolvedReactionHash
     });
     const activationAccepted = await expectAccepted(reactionActorClient, armReactionId, 'ACTION_RESULT');
-    assert.strictEqual(activationAccepted.action.payload.postState._serverPendingReaction, null, 'activation buttons must not reopen the multiplayer Improvisor path');
-    assert.strictEqual(activationAccepted.roomPatch?.currentTurnUid, reactionActorUid, 'normal activation must keep control with the acting player');
-    assert.strictEqual(Number(activationAccepted.action.payload.postState.board[0][actorRow][0].currentFate), 99, 'normal activation must apply immediately after first-set adjudication');
+    const activationPending = activationAccepted.action.payload.postState._serverPendingReaction;
+    assert.strictEqual(activationPending.actionType, 'initiator_effect', 'fresh activation buttons must open Lydia adjudication');
+    assert.strictEqual(activationAccepted.roomPatch?.currentTurnUid, reactionReactorUid, 'a Lydia window must temporarily pass authority to the reacting player');
+    assert.strictEqual(Number(activationAccepted.action.payload.postState.board[0][actorRow][0].currentFate), 99, 'the optimistic result must remain visible while Lydia decides');
+    const allowActivationId = sendIntent(reactionReactorClient, roomCode, 'REACTION_CHOICE', {
+      playerIndex:reactionReactor,
+      promptId:activationPending.promptId,
+      choice:'allow'
+    });
+    const activationAllowed = await expectAccepted(reactionReactorClient, allowActivationId, 'REACTION_CHOICE');
+    assert.strictEqual(activationAllowed.action.payload.postState._serverPendingReaction == null, true, 'allowing Lydia must close the activation reaction');
+    assert.strictEqual(activationAllowed.roomPatch?.currentTurnUid, reactionActorUid, 'allowing Lydia must return authority to the acting player');
 
-    const placementBase = clone(activationAccepted.action.payload.postState);
+    const placementBase = clone(activationAllowed.action.payload.postState);
     placementBase.board = blankBoard();
     placementBase.players[0].hand = [];
     placementBase.players[1].hand = [];
@@ -378,7 +400,7 @@ async function run(){
       playerIndex:reactionActor,
       currentPlayer:reactionActor,
       turn:placementBase.turn,
-      baseStateHash:activationAccepted.action.payload.stateHash,
+      baseStateHash:activationAllowed.action.payload.stateHash,
       postState:placementBase,
       stateHash:placementBaseHash
     });
@@ -424,6 +446,141 @@ async function run(){
     const resumed = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/resume?after=0&limit=20&includeState=1`);
     assert.strictEqual(resumed.canonicalHash, negatedPlacement.action.payload.stateHash);
     assert.strictEqual(resumed.canonicalState.board[0][actorRow][0].iid, placementSource.iid);
+
+    const landscapeBase = clone(negatedPlacement.action.payload.postState);
+    landscapeBase.board = blankBoard();
+    landscapeBase.players[0].hand = [];
+    landscapeBase.players[1].hand = [];
+    landscapeBase.currentPlayer = reactionActor;
+    landscapeBase.landscapeId = 'igb1';
+    landscapeBase.landscapeBgNum = 1;
+    landscapeBase._landscapeState = {
+      id:'igb1',
+      targetZone:null,
+      consolidations:[0, 0],
+      zoneFateBonuses:[[0, 0, 0], [0, 0, 0]],
+      resolvedTurns:{},
+      eventideMovedIids:{},
+      drawPhaseCounts:[0, 0],
+      supporterEffectsThisTurn:[0, 0],
+      handTurnCounts:[0, 0],
+      handLastResolvedGameTurns:[null, null]
+    };
+    const felicyta = testCard('82', reactionActor, 'ws-felicyta-youth-1', 'Initiator');
+    felicyta.name = 'Felicyta Janowicz (Youth)';
+    landscapeBase.board[0][actorRow][0] = felicyta;
+    const landscapeBaseHash = canonicalStateHash(landscapeBase);
+    const syncLandscapeBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
+      playerIndex:reactionActor,
+      currentPlayer:reactionActor,
+      turn:landscapeBase.turn,
+      baseStateHash:negatedPlacement.action.payload.stateHash,
+      postState:landscapeBase,
+      stateHash:landscapeBaseHash
+    });
+    await expectAccepted(reactionActorClient, syncLandscapeBaseId, 'STATE_SYNC');
+
+    const landscapePost = clone(landscapeBase);
+    landscapePost.landscapeId = 'igb3';
+    landscapePost.landscapeBgNum = 3;
+    landscapePost._landscapeState.id = 'igb3';
+    landscapePost._landscapeState.targetZone = 1;
+    landscapePost.board[0][actorRow][0].effectUsedInitial = true;
+    landscapePost.board[0][actorRow][0]._effectTurnLocked = true;
+    const landscapePostHash = canonicalStateHash(landscapePost);
+    const landscapeActionId = sendIntent(reactionActorClient, roomCode, 'ACTION_RESULT', {
+      playerIndex:reactionActor,
+      turn:landscapeBase.turn,
+      actionKind:'BOARD_ACTION',
+      fn:'triggerCharacterEffect',
+      z:0,
+      r:actorRow,
+      c:0,
+      source:{z:0, r:actorRow, c:0, card:{iid:felicyta.iid, id:'82', name:felicyta.name, type:'Initiator'}},
+      baseStateHash:landscapeBaseHash,
+      postState:landscapePost,
+      stateHash:landscapePostHash
+    });
+    const landscapeAccepted = await expectAccepted(reactionActorClient, landscapeActionId, 'ACTION_RESULT');
+    assert.strictEqual(landscapeAccepted.action.payload.postState.landscapeId, 'igb3', 'authority must accept Felicyta and the landscape change atomically');
+    const remoteLandscape = await waitForMessage(
+      reactionReactorClient,
+      msg => msg.kind === 'accepted' && Number(msg.action?.seq || 0) === Number(landscapeAccepted.action?.seq || 0),
+      'opponent Felicyta landscape broadcast'
+    );
+    assert.strictEqual(remoteLandscape.action.payload.postState.landscapeId, 'igb3', 'opponent must receive Felicyta landscape changes');
+
+    const handLimitPlayer = reactionReactor;
+    const handLimitClient = reactionReactorClient;
+    const handLimitBase = clone(landscapeAccepted.action.payload.postState);
+    handLimitBase.players[0].hand = [];
+    handLimitBase.players[1].hand = [];
+    handLimitBase.players[handLimitPlayer].discard = [];
+    handLimitBase.players[handLimitPlayer].hand.push(Object.assign(
+      testCard('bh03', handLimitPlayer, 'ws-ali-opponent-hand', 'Improvisor'),
+      {_bh03OpponentHand:true, _bh03TransferredFrom:reactionActor, immuneFlag:true, cantBeReduced:true}
+    ));
+    for(let i = 0; i < 6; i += 1){
+      handLimitBase.players[handLimitPlayer].hand.push(testCard('limit-' + i, handLimitPlayer, 'ws-limit-' + i, 'Supporter'));
+    }
+    const handLimitBaseHash = canonicalStateHash(handLimitBase);
+    const syncHandLimitBaseId = sendIntent(reactionActorClient, roomCode, 'STATE_SYNC', {
+      playerIndex:reactionActor,
+      currentPlayer:reactionActor,
+      turn:handLimitBase.turn,
+      baseStateHash:landscapeAccepted.action.payload.stateHash,
+      postState:handLimitBase,
+      stateHash:handLimitBaseHash
+    });
+    await expectAccepted(reactionActorClient, syncHandLimitBaseId, 'STATE_SYNC');
+
+    const handLimitPost = clone(handLimitBase);
+    const handLimitDiscarded = handLimitPost.players[handLimitPlayer].hand.pop();
+    handLimitPost.players[handLimitPlayer].discard.push(handLimitDiscarded);
+    const handLimitActionId = sendIntent(handLimitClient, roomCode, 'ACTION_RESULT', {
+      playerIndex:handLimitPlayer,
+      turn:handLimitBase.turn,
+      actionKind:'HAND_LIMIT_DISCARD',
+      discardedIids:[String(handLimitDiscarded.iid)],
+      handLimit:6,
+      baseStateHash:handLimitBaseHash,
+      postState:handLimitPost,
+      stateHash:canonicalStateHash(handLimitPost)
+    });
+    const handLimitAccepted = await expectAccepted(handLimitClient, handLimitActionId, 'ACTION_RESULT');
+    assert.strictEqual(handLimitAccepted.action.payload.postState.players[handLimitPlayer].hand.length, 6, 'off-turn Ali recipient must be able to discard down to six');
+    assert.strictEqual(handLimitAccepted.roomPatch?.currentTurnUid, reactionActorUid, 'forced hand-limit discard must not steal the active turn');
+
+    const effectFlashEventId = `ws-effect-flash-${Date.now()}`;
+    const remoteEffectFlashPromise = waitForMessage(
+      reactionActorClient,
+      msg => msg.kind === 'accepted'
+        && String(msg.action?.type || '').toUpperCase() === 'EFFECT_CINEMATIC'
+        && String(msg.action?.clientActionId || '') === effectFlashEventId,
+      'opponent card effect flash presentation broadcast'
+    );
+    const effectFlashRequestId = sendIntent(handLimitClient, roomCode, 'EFFECT_CINEMATIC', {
+      playerIndex:handLimitPlayer,
+      turn:handLimitBase.turn,
+      clientActionId:effectFlashEventId,
+      presentationEvents:[{
+        type:'CARD_EFFECT_FLASH',
+        eventId:effectFlashEventId,
+        playerIndex:handLimitPlayer,
+        target:{z:0, r:0, c:0, iid:'effect-flash-target'},
+        kind:'isaac_beaker',
+        label:'scientific inquiry',
+        at:Date.now(),
+        duration:3500,
+        localActorAlreadyPresented:true
+      }]
+    });
+    const effectFlashAccepted = await expectAccepted(handLimitClient, effectFlashRequestId, 'EFFECT_CINEMATIC');
+    assert.strictEqual(effectFlashAccepted.serverStateHash, handLimitAccepted.action.payload.stateHash, 'effect flash presentation must not mutate canonical state');
+    assert.strictEqual(effectFlashAccepted.action.payload.presentationEvents?.[0]?.type, 'CARD_EFFECT_FLASH', 'effect flash presentation must survive authority broadcast');
+    const remoteEffectFlash = await remoteEffectFlashPromise;
+    assert.strictEqual(remoteEffectFlash.action.payload.presentationEvents?.[0]?.eventId, effectFlashEventId, 'opponent must receive the exact effect flash event');
+    assert.ok(!Object.prototype.hasOwnProperty.call(remoteEffectFlash.roomPatch || {}, 'currentTurnUid'), 'effect presentation must not mutate active-turn ownership');
 
     const forfeitClientActionId = `http-forfeit-${Date.now()}`;
     const remoteForfeitPromise = waitForMessage(

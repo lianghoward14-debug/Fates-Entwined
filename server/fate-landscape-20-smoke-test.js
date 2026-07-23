@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, '..');
 const read = file=>fs.readFileSync(path.join(root, file), 'utf8');
 const data = read('src/scripts/01-data-and-state.js');
 const structural = read('src/scripts/00-structural-helpers.js');
+const core = read('src/scripts/05-gameplay-core.js');
 const rendering = read('src/scripts/06-rendering-and-helpers.js');
 const audio = read('src/scripts/08-audio-and-meta-ui.js');
 const online = read('src/scripts/18-online-rooms.js');
@@ -35,6 +36,8 @@ assert.match(rendering, /getActiveLandscapeFateDiscardConfig[\s\S]{0,720}id:'igb
 assert.match(rendering, /function maybeResolveBattleOfPellaThreshold\([\s\S]{0,1600}totals\[player\] >= threshold/);
 assert.match(rendering, /function resolveBattleOfPellaDiscard[\s\S]{0,1800}discardBoardCard\(live, z, r, c\)/);
 assert.match(rendering, /onlineClientOwnedChoice:true/);
+assert.match(core, /function ignoreBattleOfPellaThresholdsReachedBeforeEntry[\s\S]{0,1500}highestAlreadyReached[\s\S]{0,900}ignoredOnEntry:true/, 'entering Pella mid-game must mark already-reached thresholds as ignored');
+assert.match(core, /case '82'[\s\S]{0,2200}previousLandscapeId[\s\S]{0,500}ignoreBattleOfPellaThresholdsReachedBeforeEntry/, 'Felicyta landscape changes into Pella must initialize the next eligible Fate race');
 
 const catalog = getCardCatalog();
 const deck = catalog.cards.filter(card=>card && !card.retired && !card.temporarilyDisabled).slice(0, 40).map(card=>card.id);
@@ -86,5 +89,25 @@ assert.strictEqual(landscapeState.igb20FateThresholdClaims['20'].choiceResolved,
 assert.strictEqual(board[1][0][0], null);
 assert.strictEqual(board[2][0][0], immuneCard);
 assert.strictEqual(sandbox.G.players[1].discard[0].iid, 'target');
+
+const coreHelperStart = core.indexOf('function ignoreBattleOfPellaThresholdsReachedBeforeEntry');
+const coreHelperEnd = core.indexOf('function ensureMailDeliveryState', coreHelperStart);
+assert(coreHelperStart >= 0 && coreHelperEnd > coreHelperStart, 'Pella entry-threshold helper must be extractable');
+const entryLandscapeState = {id:'igb20', igb20FateThresholdClaims:{}, igb20PendingFateThreshold:null};
+const entrySandbox = {
+  window:{},
+  G:{landscapeId:'igb20', _landscapeState:entryLandscapeState},
+  getLandscapeState:()=>entryLandscapeState,
+  getLandscapeTotalFate:player=>player === 0 ? 36 : 14
+};
+vm.runInNewContext(core.slice(coreHelperStart, coreHelperEnd), entrySandbox, {filename:'fate-landscape-20-entry-runtime.js'});
+assert.deepStrictEqual(
+  Array.from(entrySandbox.window.ignoreBattleOfPellaThresholdsReachedBeforeEntry('igb3')),
+  [20, 35],
+  'Pella must ignore every threshold already reached before the landscape change'
+);
+assert.strictEqual(entryLandscapeState.igb20FateThresholdClaims['20'].ignored, true);
+assert.strictEqual(entryLandscapeState.igb20FateThresholdClaims['35'].choiceResolved, true);
+assert.strictEqual(entryLandscapeState.igb20FateThresholdClaims['50'], undefined, 'the next threshold must remain eligible');
 
 console.log('Landscape 20 Battle of Pella smoke passed.');

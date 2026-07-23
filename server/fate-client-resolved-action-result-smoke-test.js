@@ -249,7 +249,7 @@ const roboConsolidationPost = clone(roboConsolidationBase);
 const returnedRoboTribute = clone(roboTribute);
 returnedRoboTribute._stolenByRobo = false;
 roboConsolidationPost.players[0].hand = [];
-roboConsolidationPost.players[1].deck.push(returnedRoboTribute);
+roboConsolidationPost.players[1].discard.push(returnedRoboTribute);
 roboConsolidationPost.board[0][2][0] = roboResult;
 const acceptedRoboConsolidation = reduceServerAction({
   canonicalState:roboConsolidationBase,
@@ -423,9 +423,9 @@ const armed = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(armed.ok, true, armed.reason);
-assert.strictEqual(armed.reactionArmed, undefined, 'BOARD_ACTION must never reopen an Improvisor reaction after first-set adjudication');
-assert.strictEqual(armed.canonicalState._serverPendingReaction, undefined, 'activation-time actions must not create stale Improvisor prompts');
-assert.strictEqual(armed.canonicalState.board[0][2][0].currentFate, 99, 'activation-time actions should apply their client-resolved result immediately');
+assert.strictEqual(armed.reactionArmed, true, 'fresh Initiator activations must open Lydia/Havano adjudication');
+assert.strictEqual(armed.canonicalState._serverPendingReaction.actionType, 'initiator_effect');
+assert.strictEqual(armed.canonicalState.board[0][2][0].currentFate, 99, 'the optimistic activation result must remain visible while the reaction is pending');
 
 const duplicateEffectResolved = clone(resolvedEffect);
 duplicateEffectResolved.board[0][2][0].currentFate = 123;
@@ -495,9 +495,9 @@ const sparseSupporterArmed = reduceServerAction({
   requireBaseHash:true
 });
 assert.strictEqual(sparseSupporterArmed.ok, true, sparseSupporterArmed.reason);
-assert.strictEqual(sparseSupporterArmed.reactionArmed, undefined, 'activatePendingWhenSetEffect must not reopen the first-set Improvisor path');
-assert.strictEqual(sparseSupporterArmed.canonicalState._serverPendingReaction, undefined, 'Supporter activate buttons must not create a second Improvisor prompt');
-assert.strictEqual(sparseSupporterArmed.canonicalState.board[0][2][0].effectUsedInitial, true, 'allowed Supporter effects should proceed normally after first-set adjudication');
+assert.strictEqual(sparseSupporterArmed.reactionArmed, true, 'fresh Supporter Activate Effect buttons must open Lydia/Havano adjudication');
+assert.strictEqual(sparseSupporterArmed.canonicalState._serverPendingReaction.actionType, 'supporter_effect');
+assert.strictEqual(sparseSupporterArmed.canonicalState.board[0][2][0].effectUsedInitial, true, 'the spent marker must remain visible while the Supporter reaction is pending');
 
 const ordinaryPlacementBase = baseState();
 const ordinaryKazumi = card('27', 0, 'ordinary-kazumi-1', 'Initiator');
