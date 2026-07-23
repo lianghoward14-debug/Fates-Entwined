@@ -539,6 +539,7 @@
     if(/\b17th British Regiment\b|Liberators of Rwanda/i.test(description)) return '05';
     if(/\bIsaac Perez\b|Scientific Inquiry/i.test(description)) return '22';
     if(/\bOathbound\b|Hemorrhaging Wound/i.test(description)) return '31';
+    if(/\bAnicka Konvicka\b|Destruction of Paradise|Selva Island/i.test(description)) return 'bh04';
     return '';
   }
   const shownOnlineTargetEffectFlashKeys = new Set();
@@ -563,7 +564,9 @@
     const sourceId = onlineTargetEffectSourceId(action, beforeFateSnapshot);
     const kind = sourceId === '05'
       ? 'british_union_jack'
-      : (sourceId === '22' ? 'isaac_beaker' : (sourceId === '31' ? 'oathbound_crescent' : ''));
+      : (sourceId === '22'
+        ? 'isaac_beaker'
+        : (sourceId === '31' ? 'oathbound_crescent' : (sourceId === 'bh04' ? 'bh04_selva_paradise' : '')));
     if(!kind) return false;
     const current = collectOnlineFateSnapshot(gameState()?.board);
     const seq = String(action?.seq || action?.payload?.clientActionId || action?.clientActionId || 'pending');
@@ -578,7 +581,7 @@
       flashed = scheduleOnlineClientCardFlash(
         after.card,
         kind,
-        kind === 'british_union_jack' ? 'Liberators of Rwanda' : (kind === 'isaac_beaker' ? 'scientific inquiry' : 'oathbound blade'),
+        kind === 'british_union_jack' ? 'Liberators of Rwanda' : (kind === 'isaac_beaker' ? 'scientific inquiry' : (kind === 'bh04_selva_paradise' ? 'The Destruction of Paradise' : 'oathbound blade')),
         flashKey
       ) || flashed;
     });
@@ -3687,6 +3690,14 @@
     }
     if(card.name) snapshot.name = card.name;
     if(card.type) snapshot.type = card.type;
+    if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card) && card._achillesConfigured === true){
+      snapshot.achillesTokenConfig = {
+        playMode:String(card._achillesPlayMode || 'set'),
+        type:String(card.type || 'Supporter'),
+        rarity:String(card.rarity || 'circle'),
+        aff:String(card.aff || 'reality')
+      };
+    }
     return snapshot;
   }
   function onlineConsolidationPresentationFromPending(g, con, z, r, c){
@@ -4052,6 +4063,10 @@
     if(idx < 0 && selected.id) idx = hand.findIndex(c=>c && c.id === selected.id);
     if(idx < 0 && Number.isInteger(selected.index) && hand[selected.index]) idx = selected.index;
     if(idx < 0) return false;
+    const liveCard = hand[idx];
+    if(selected.achillesTokenConfig && typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(liveCard)){
+      if(typeof applyAchillesTokenConfiguration === 'function') applyAchillesTokenConfiguration(liveCard, selected.achillesTokenConfig);
+    }
     g.selectedHandCard = idx;
     return true;
   }
@@ -4765,8 +4780,9 @@
       return entry && entry.card && String(entry.card.id || '') === '19' && !entry.card.faceDown;
     });
     if(moved && !added.length && !removed.length && !window.FateMatchRendererAdapter) emitOnlineAcceptedPresentation('MOVE_CARD', {duration:170, path:'direct', noShadow:true, fastBoardMove:true}, action, 'move');
-    if(fateUp && !kvetkaCoordinatorGain) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_GAIN', {fateDelta:fateUp}, action, 'fate-gain'); }, moved ? 90 : 0);
-    if(fateDown) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_LOSS', {fateDelta:-fateDown, amount:fateDown}, action, 'fate-loss'); }, (moved || fateUp) ? 150 : 0);
+    const rendererOwnsFateFeedback = !!(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.presentFateDelta === 'function');
+    if(!rendererOwnsFateFeedback && fateUp && !kvetkaCoordinatorGain) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_GAIN', {fateDelta:fateUp}, action, 'fate-gain'); }, moved ? 90 : 0);
+    if(!rendererOwnsFateFeedback && fateDown) setTimeout(function(){ emitOnlineAcceptedPresentation('FATE_LOSS', {fateDelta:-fateDown, amount:fateDown}, action, 'fate-loss'); }, (moved || fateUp) ? 150 : 0);
     return true;
   }
   function maybePlayOnlineRemoteStatePresentation(g, previousSnapshot, action, reason){
@@ -10137,6 +10153,11 @@
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
           return originals.placeSelected.apply(this, arguments);
         }
+        const selectedIndex = Number(g && g.selectedHandCard);
+        const selectedCard = Number.isInteger(selectedIndex) ? g?.players?.[g.currentPlayer]?.hand?.[selectedIndex] : null;
+        if(selectedCard && typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(selectedCard) && selectedCard._achillesConfigured !== true){
+          return originals.placeSelected.apply(this, arguments);
+        }
         if(!canSendLocalAction(g, 'PLACE_CARD')) return;
         if(configuredAuthorityUrl() && !firebaseActionFallbackAllowed()){
           const selected = selectedHandSnapshot(g);
@@ -10162,6 +10183,9 @@
       window.clickCell = function(z,r,c){
         const g = gameState();
         if(!isOnlineMatchState(g) || g._onlineApplyingRemoteAction){
+          return originals.clickCell.apply(this, arguments);
+        }
+        if(g._achillesTargeting){
           return originals.clickCell.apply(this, arguments);
         }
         if(g._onlineHavanoReactionDeploying && typeof handleOnlineImprovisorHavanoDeploymentClick === 'function'){

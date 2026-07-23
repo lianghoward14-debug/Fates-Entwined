@@ -116,6 +116,26 @@ function makePlayerState(deckIds, playerIndex, catalog, rng, instanceCounter){
   };
 }
 
+function transferOpeningHandAliCards(players){
+  if(!Array.isArray(players) || players.length !== 2) return;
+  const transfers = [[], []];
+  players.forEach((player, sourcePlayer)=>{
+    if(!player || !Array.isArray(player.hand)) return;
+    player.hand = player.hand.filter(card=>{
+      if(!card || String(card.id || '') !== 'bh03') return true;
+      const recipient = 1 - sourcePlayer;
+      card.owner = recipient;
+      card._bh03OpponentHand = true;
+      card._bh03TransferredFrom = sourcePlayer;
+      card.immuneFlag = true;
+      card.cantBeReduced = true;
+      transfers[recipient].push(card);
+      return false;
+    });
+  });
+  transfers.forEach((cards, recipient)=>players[recipient].hand.push(...cards));
+}
+
 function queueOpeningHandSelvaBoosts(state){
   if(!state || !Array.isArray(state.players)) return;
   if(!Array.isArray(state._pendingSelvaSupportBoost)) state._pendingSelvaSupportBoost = [0, 0];
@@ -178,11 +198,12 @@ function buildInitialAuthorityState(input){
   const counter = {value:0};
   const p0 = makePlayerState(hostDeck.map(String), 0, catalog, rng, counter).player;
   const p1 = makePlayerState(guestDeck.map(String), 1, catalog, rng, counter).player;
+  transferOpeningHandAliCards([p0, p1]);
   if(landscapeId === 'igb19'){
     [p0, p1].forEach((player, playerIndex)=>{
       player.hand.forEach(card=>{
         const type = String(card && card.type || '');
-        if(!card || !type || type === 'Supporter' || type === 'Counter' || String(card.id || '') === 'token1') return;
+        if(!card || card.immuneFlag === true || !type || type === 'Supporter' || type === 'Counter' || String(card.id || '') === 'token1') return;
         card._igb19HandTurnsRemaining = 3;
         card._igb19HandOwner = playerIndex;
         card._igb19LastCountedHandTurn = 0;

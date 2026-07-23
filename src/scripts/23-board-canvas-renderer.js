@@ -56,6 +56,7 @@
 
   const imageCache = new Map();
   const fateAnimByIid = new Map();
+  let fateFeedbackRetryTimer = 0;
   const CANVAS_FATE_PULSE_MS = 1920;
   const LAYOUT_RETRY_MS = 900;
   const backBuffer = document.createElement('canvas');
@@ -848,6 +849,18 @@
       return rec;
     }
     if(rec.fate !== nextFate){
+      const blockedUntil = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
+        ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0
+        : 0;
+      if(blockedUntil > Date.now()) {
+        if(!fateFeedbackRetryTimer) {
+          fateFeedbackRetryTimer = setTimeout(function(){
+            fateFeedbackRetryTimer = 0;
+            scheduleDraw('fate-feedback-after-presentation');
+          }, Math.max(24, blockedUntil - Date.now() + 24));
+        }
+        return rec;
+      }
       const prevNum = Number(rec.fate);
       const nextNum = Number(nextFate);
       rec.delta = Number.isFinite(prevNum) && Number.isFinite(nextNum) ? nextNum - prevNum : 0;

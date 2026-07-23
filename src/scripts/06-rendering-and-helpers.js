@@ -918,8 +918,10 @@ function getActiveCardEffectFlash(card) {
     const now = Date.now();
     const actionPresentationActive = typeof G !== 'undefined' && G && (Number(G._actionPresentationLockUntil) || 0) > now;
     const cinematicLockActive = typeof G !== 'undefined' && G && (Number(G._cinematicUiLockUntil) || 0) > now;
+    const postConsolidationFeedbackActive = typeof G !== 'undefined' && G
+      && (Number(G._postConsolidationFateFeedbackUntil) || 0) > now;
     const cinematicDomActive = typeof document !== 'undefined' && !!document.body?.classList.contains('cinematic-lock');
-    if(now < (Number(flash.visibleAt) || 0) || actionPresentationActive || cinematicLockActive || cinematicDomActive) {
+    if(now < (Number(flash.visibleAt) || 0) || actionPresentationActive || cinematicLockActive || postConsolidationFeedbackActive || cinematicDomActive) {
       scheduleCardEffectFlashVisibilityPoll(card, flash);
       return null;
     }
@@ -1268,6 +1270,9 @@ function applyOpponentHandDensity(container, count) {
   if(!container) return;
   const handCount = Math.max(0, Number(count) || 0);
   container.dataset.count = String(handCount);
+  const handLabel = document.getElementById('opp-hand-lbl');
+  if(handLabel && (handCount < 9 || handCount > 12)) handLabel.classList.remove('opp-hand-label-compact-wrap');
+  if(handCount < 9 || handCount > 12) container.classList.remove('opp-hand-label-two-lines');
   const large = handCount > 0 && handCount <= 4;
   const medium = handCount >= 5 && handCount <= 8;
   const compact = handCount >= 9;
@@ -1287,6 +1292,26 @@ function applyOpponentHandDensity(container, count) {
     container.style.removeProperty('--opp-hand-card-w');
     container.style.removeProperty('--opp-hand-card-h');
   }
+}
+
+function updateOpponentHandLabelDensity(label, count) {
+  if(!label) return;
+  const handCount = Math.max(0, Number(count) || 0);
+  const handContainer = document.getElementById('opp-hand');
+  label.classList.remove('opp-hand-label-compact-wrap');
+  if(handContainer) handContainer.classList.remove('opp-hand-label-two-lines');
+  if(handCount < 9 || handCount > 12 || !label.firstChild) return;
+  const textRange = document.createRange();
+  textRange.selectNodeContents(label);
+  const lineTops = [];
+  Array.from(textRange.getClientRects()).forEach(function(rect){
+    if(rect.width <= 0 || rect.height <= 0) return;
+    if(!lineTops.some(function(top){ return Math.abs(top - rect.top) < 2; })) lineTops.push(rect.top);
+  });
+  textRange.detach();
+  const isTwoLines = lineTops.length >= 2;
+  label.classList.toggle('opp-hand-label-compact-wrap', isTwoLines);
+  if(handContainer) handContainer.classList.toggle('opp-hand-label-two-lines', isTwoLines);
 }
 
 var _pointerDown = false;
@@ -2717,7 +2742,10 @@ function renderOppHand() {
     container.style.cursor = '';
     container.onclick = null;
     const lbl=document.getElementById('opp-hand-lbl');
-    if(lbl) lbl.textContent=G.players[oppP].name+"'s Hand";
+    if(lbl) {
+      lbl.textContent=G.players[oppP].name+"'s Hand";
+      updateOpponentHandLabelDensity(lbl, oppHand.length);
+    }
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderOppHand');
     else window.FateMatchRendererAdapter.renderFromGameState({opponentHand:true, source:'renderOppHand'});
     return;
@@ -2780,7 +2808,10 @@ function renderOppHand() {
   }
   // Update label
   const lbl=document.getElementById('opp-hand-lbl');
-  if(lbl) lbl.textContent=G.players[oppP].name+"'s Hand";
+  if(lbl) {
+    lbl.textContent=G.players[oppP].name+"'s Hand";
+    updateOpponentHandLabelDensity(lbl, oppHand.length);
+  }
 }
 
 // Show deck info (count + no content reveal — this is hidden info)
@@ -2833,7 +2864,13 @@ function showDeckInfo(player) {
 
 function showHowardDevDeckList(player) {
   if(!G || !G.players || !G.players[player]) return;
-  const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.filter(function(card){ return card && card.id; }) : [];
+  const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
+    ? sortHowardDevDeckCards(CARDS.filter(function(card){
+      if(!card || !card.id) return false;
+      if(typeof isRetiredCardForBuilder === 'function') return !isRetiredCardForBuilder(card);
+      return String(card.id || '') !== 'bh25' && card.retired !== true;
+    }))
+    : [];
   if(!cards.length){
     showModal('Howard Dev Deck List',
       '<div class="di-window"><p class="di-note">No cards are available.</p></div>',
@@ -2856,14 +2893,36 @@ function showHowardDevDeckList(player) {
       const moved = typeof createCardInstance === 'function'
         ? createCardInstance(card, player)
         : Object.assign({}, card, { owner:player, iid:'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2) });
-      G.players[player].hand.push(moved);
-      added++;
+      if(typeof addCardToHand === 'function') {
+        if(addCardToHand(player, moved, {arrivalKind:'dev-add'})) added++;
+      } else {
+        G.players[player].hand.push(moved);
+        added++;
+      }
     });
     if(added && typeof toast === 'function') toast('Added ' + added + ' card' + (added === 1 ? '' : 's') + ' to hand.');
     if(typeof renderGame === 'function') renderGame({ hand:true, piles:true, topbar:true });
   });
 }
 window.showHowardDevDeckList = showHowardDevDeckList;
+
+function sortHowardDevDeckCards(cards) {
+  if(typeof sortCardsByArtNumber === 'function') return sortCardsByArtNumber(cards);
+  return [...cards].sort(function(a, b){
+    const cardNumber = function(card){
+      const id = String(card && card.id || '');
+      const img = String(card && card.img || '');
+      const brave = String(card && card.set || '') === 'brave_horizons' || /^bh\d+/i.test(id) || /(?:^|\/)bh\d+\./i.test(img);
+      const match = img.match(/(\d+)/) || id.match(/(\d+)/);
+      const n = match ? Number(match[1]) : 9999;
+      return (brave ? 1000 : 0) + n;
+    };
+    const an = cardNumber(a);
+    const bn = cardNumber(b);
+    if(an !== bn) return an - bn;
+    return String(a && a.name || '').localeCompare(String(b && b.name || ''));
+  });
+}
 
 window.setPolishFromDeck = function() {
   const cp = G.currentPlayer;
@@ -3261,14 +3320,16 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
     const immutable = typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card);
     const handBonusFate = card._wciBonus && !immutable ? 2 : 0;
     const liveFate = (immutable && !boardPos ? (Number(card.fate) || 0) : getLiveCardFate(card)) + (!boardPos ? handBonusFate : 0);
+    const taylorHasCopiedEffect = String(card.id || '') === 'bh05' && !!card._bh05CopiedCardId;
     return {
       card,
       isHidden: false,
       name: String(card.id || '') === 'whisper17' ? 'Shizuku' : card.name,
-      ability: card.ability,
-      effect: card.effect,
+      ability: taylorHasCopiedEffect ? String(card._bh05CopiedAbility || card.ability || '') : card.ability,
+      effect: taylorHasCopiedEffect ? String(card._bh05CopiedPrintedEffect || card.effect || '') : card.effect,
       type:typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner) ? 'Character' : card.type,
       aff: card.aff,
+      rarity: card.rarity || 'circle',
       fate: typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate),
       currentFate: liveFate,
       displayFate: boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate),
@@ -3286,6 +3347,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
     effect: 'This card is face down. Its effect is inactive and its Fate is not counted until it is flipped face up.',
     type: 'Face Down',
     aff: 'hidden',
+    rarity: 'hidden',
     fate: 0,
     currentFate: 0,
     displayFate: '—',
@@ -3631,16 +3693,37 @@ function renderHand() {
   if(typeof enforceHandLimit === 'function') enforceHandLimit(cp);
 }
 
+function getActiveHandLimit(player) {
+  const hand = G && G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
+  return hand.some(function(card){ return card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true; }) ? 6 : 12;
+}
+
+function getCardRarityLabel(rarity) {
+  const key = String(rarity || '').toLowerCase();
+  const labels = {
+    circle:'Circle',
+    square:'Square',
+    triangle:'Triangle',
+    star:'Star',
+    hidden:'Hidden'
+  };
+  return labels[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Circle');
+}
+
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
-  const handLimit = 12;
+  const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
     if(G._onlineRoomCode) return false;
     while(G.players[player].hand.length > handLimit){
-      const card = G.players[player].hand.pop();
+      const discardIndex = G.players[player].hand.map(function(card, index){ return {card:card,index:index}; }).reverse().find(function(entry){
+        return !(entry.card && String(entry.card.id || '') === 'bh03' && entry.card._bh03OpponentHand === true);
+      });
+      if(!discardIndex) break;
+      const card = G.players[player].hand.splice(discardIndex.index, 1)[0];
       if(card) {
         G.players[player].discard.push(card);
         log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
@@ -3680,14 +3763,14 @@ function enforceHandLimit(player) {
 function openHandLimitDiscardModal(player) {
   const p = G.players[player];
   if(!p || !Array.isArray(p.hand)) return;
-  const handLimit = 12;
+  const handLimit = getActiveHandLimit(player);
   const needed = Math.max(0, p.hand.length - handLimit);
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
-  const cards = p.hand.slice();
+  const cards = p.hand.filter(function(card){ return !(card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true); });
   const bodyHtml = `
     <div class="hand-limit-discard">
-      <div class="hand-limit-copy">Your hand has ${cards.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to 12.</div>
+      <div class="hand-limit-copy">Your hand has ${p.hand.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to ${handLimit}.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
@@ -3700,7 +3783,7 @@ function openHandLimitDiscardModal(player) {
         }).join('')}
       </div>
     </div>`;
-  showModal('Discard Down to 12', bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
+  showModal('Discard Down to ' + handLimit, bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
     if(selectedIids.length < excess){ toast('Select ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
@@ -3745,6 +3828,7 @@ window.enforceHandLimit = enforceHandLimit;
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
   if(card && card.id==='70' && card.guerilla_transferred) return false;
+  if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
   if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
@@ -3756,6 +3840,7 @@ function canPlayCard(card) {
 
 function isSupporterLimitReachedForCard(card) {
   if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
+  if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return false;
   if(G.phase !== 'main') return false;
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return false;
   if(G.majaEffectThisTurn) return false;
@@ -5528,10 +5613,24 @@ function getContinuousFateReductionCountForDetail(owner) {
   return count;
 }
 
+function formatJoieDrawEffectsActivated(count) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const names = [
+    'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'
+  ];
+  const label = names[n] || String(n);
+  return label + ' Draw Effect' + (n === 1 ? '' : 's') + ' Activated';
+}
+
 function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   if(hideCard || !card || typeof G === 'undefined' || !G) return '';
   const inMatch = !!document.getElementById('s-game')?.classList.contains('active');
   if(!inMatch) return '';
+  if(String(card.id || '') === 'bh05' && card._bh05CopiedCardId) {
+    card = Object.assign({}, card._bh05CopiedTrackerState || {}, card, {id:String(card._bh05CopiedCardId)});
+  }
   const owner = (card.owner === 0 || card.owner === 1) ? card.owner : viewerP;
   if(owner !== 0 && owner !== 1) return '';
   let label = '';
@@ -5627,6 +5726,20 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Opponent Sets / Consolidations';
     value = String(opponentPlacements);
     sub = 'Previous turn - ' + opponentPlacements + ' Pierogi Counter' + (opponentPlacements === 1 ? '' : 's');
+  } else if(String(card.id || '') === 'bh02') {
+    const triggers = Math.max(0, Math.floor(Number(card._joieProcCount) || 0));
+    label = 'Thousand Reel Stare Triggers';
+    value = String(triggers);
+    sub = formatJoieDrawEffectsActivated(triggers);
+  } else if(String(card.id || '') === 'bh08') {
+    const triggers = Math.max(0, Math.floor(Number(card._bh08ProcCount) || 0));
+    const sourcePos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
+    const potencyBoost = sourcePos && typeof getWhisperAuraPotencyBoost === 'function'
+      ? Math.max(0, Number(getWhisperAuraPotencyBoost({card:card, z:sourcePos.z, r:sourcePos.r, c:sourcePos.c})) || 0)
+      : 0;
+    label = 'Effects Negated / Suppressed';
+    value = String(triggers);
+    sub = '+' + (2 + potencyBoost) + ' Fate Granted Per Trigger';
   } else if(String(card.id || '') === '71') {
     const active = Array.isArray(G._fortCalvinActive)
       ? G._fortCalvinActive.find(function(w){ return w && String(w.sourceIid || '') === String(card.iid || ''); })
@@ -5817,6 +5930,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
   const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) : '');
+  const rarityLabel = getCardRarityLabel(visual.rarity);
   body.innerHTML=`
     <div class="cd-wrap">
       <div class="cd-img">
@@ -5832,6 +5946,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           <span class="pill type">${visual.type}${visual.cost>0?` (${visual.xCost?'X':visual.cost})`:''}</span>
           <span class="pill fate">${visual.fate} Fate</span>
           <span class="pill">${AFF_LABEL[visual.aff]||visual.aff}</span>
+          <span class="pill rarity">${rarityLabel}</span>
         </div>
         ${trackerHtml}
         ${copiedPassiveBanner}
@@ -5903,7 +6018,9 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       document.getElementById('modal').classList.add('on');
       return;
     }
-    const isDirectSetCard = (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter')
+    const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
+    const isDirectSetCard = isAchillesToken
+      || (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, handActionPlayer) : card.type==='Supporter')
       || (typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
       || (typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card));
     if(isDirectSetCard){
@@ -5941,8 +6058,15 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       acts.appendChild(place);
     } else {
       const con=document.createElement('button');
-      con.className='btn sm pri';con.textContent='Consolidate';
-      con.onclick=()=>initiateConsolidate();
+      con.className='btn sm pri';
+      if(card._bh03TransferPending === true){
+        con.textContent='Transfer Pending';
+        con.disabled=true;
+        con.title='Ali cannot be consolidated until his transfer finishes.';
+      } else {
+        con.textContent='Consolidate';
+        con.onclick=()=>initiateConsolidate();
+      }
       acts.appendChild(con);
     }
   }
@@ -6117,61 +6241,9 @@ function resetModalChrome() {
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox){
     modalBox.querySelectorAll('.preset-order-top-close').forEach(function(el){ el.remove(); });
-    modalBox.classList.remove(
-      'leaderboard-modal',
-      'recent-matches-modal',
-      'social-profile-modal',
-      'sell-card-modal',
-      'sell-card-picker-modal',
-      'online-room-deck-picker-modal',
-      'choose-deck-canonical-modal',
-      'choose-deck-runtime-modal',
-      'challenger-my-decks-modal',
-      'deck-slate-modal',
-      'cdb-save-modal',
-      'deck-inspect-compact-modal',
-      'deck-inspect-fit-modal',
-      'title-deck-preview-modal',
-      'shared-deck-preview-modal',
-      'challenger-deck-preview-modal',
-      'deck-art-editor-modal',
-      'challenger-deck-art-editor-modal',
-      'title-deck-art-editor-modal',
-      'division-pro-modal',
-      'market-history-modal',
-      'market-list-modal',
-      'market-purchase-modal',
-      'freeplay-mode-modal',
-      'freeplay-settings-modal',
-      'freeplay-title-preset-modal',
-      'public-decks-modal',
-      'public-decks-hub-modal',
-      'public-deck-preview-modal',
-      'public-deck-comments-modal',
-      'public-deck-import-choice-modal',
-      'share-deck-modal',
-      'online-profile-modal-v17',
-      'online-profile-modal-v18',
-      'online-profile-modal-v19',
-      'title-profile-modal',
-      'profile-view-modal-v2',
-      'profile-edit-modal-v2',
-      'inspected-profile-modal-stable',
-      'friend-requests-modal',
-      'title-my-decks-modal',
-      'daily-login-modal',
-      'card-effect-modal',
-      'card-detail-modal',
-      'audio-settings-modal',
-      'landscape-choice-modal',
-      'affiliation-picker-modal',
-      'board-target-picker-modal',
-      'move-target-picker-modal',
-      'hand-limit-discard-modal',
-      'end-turn-warning-modal',
-      'reaction-choice-modal',
-      'status-overflow-modal'
-    );
+    // The modal node is shared by every window. Restore its one permanent class
+    // instead of maintaining an incomplete list of temporary picker classes.
+    modalBox.className = 'modal';
     delete modalBox.dataset.chooseDeckModal;
     modalBox.removeAttribute('style');
   }
@@ -7103,7 +7175,7 @@ function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
       const baseHandIndex = G.players[player].hand.length;
       chosen.forEach((c, idx)=>{
         queueSearchToHandMotion(player, c, 'deck', baseHandIndex + idx, idx, chosen.length);
-        if(typeof addCardToHand==='function') addCardToHand(player, c);
+        if(typeof addCardToHand==='function') addCardToHand(player, c, {arrivalKind:'search'});
         else G.players[player].hand.push(c);
         G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       });
@@ -7123,6 +7195,7 @@ function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
+      c._fateHandArrivalKind = 'search';
       queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length, 0, 1);
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       shuffle(G.players[player].deck);
@@ -7141,6 +7214,7 @@ function searchAnySource(player, filter, prompt, callback, searchOptions={}) {
     (chosen)=>{
       if(!chosen.length) return;
       const c=chosen[0];
+      c._fateHandArrivalKind = 'search';
       const source = G.players[player].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
       queueSearchToHandMotion(player, c, source, G.players[player].hand.length, 0, 1);
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
@@ -7206,15 +7280,16 @@ function drawSupportersFromDeckOrDiscard(player, count, cb) {
 }
 
 function addAffFromDeckDiscard(player, aff) {
-  const fromDeck=G.players[player].deck.filter(c=>c.aff===aff);
-  const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, c=>c.aff===aff) : G.players[player].discard.filter(c=>c.aff===aff);
+  const affiliationEligible = c=>!!(c && c.aff===aff);
+  const fromDeck=G.players[player].deck.filter(affiliationEligible);
+  const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, affiliationEligible) : G.players[player].discard.filter(affiliationEligible);
   const label = AFF_LABEL[aff] || aff;
   let added = 0;
   const baseHandIndex = G.players[player].hand.length;
   const addChosen = (card, source) => {
     if(!card) return;
     queueSearchToHandMotion(player, card, source || 'deck', baseHandIndex + added, added, 2);
-    if(typeof addCardToHand==='function') addCardToHand(player, card);
+    if(typeof addCardToHand==='function') addCardToHand(player, card, {arrivalKind:'search'});
     else G.players[player].hand.push(card);
     if(source === 'deck') G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==card.iid);
     else G.players[player].discard=G.players[player].discard.filter(x=>x.iid!==card.iid);
@@ -8024,6 +8099,7 @@ function showCardInfoOverlay(card) {
     ? '<button type="button" class="btn sm cio-lore">Lore</button>'
     : '';
   var affLabel = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[visual.aff]) ? AFF_LABEL[visual.aff] : visual.aff;
+  var rarityLabel = getCardRarityLabel(visual.rarity);
   var copiedPassiveName = (String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   var copiedPassiveEffect = (String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
   var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + buildWhisperTokenCopyBannerHTML(card);
@@ -8043,6 +8119,7 @@ function showCardInfoOverlay(card) {
             '<span class="pill type">'+visual.type+(visual.cost>0?' ('+(visual.xCost?'X':visual.cost)+')':'')+'</span>'+
             '<span class="pill fate">'+visual.fate+' Fate</span>'+
             '<span class="pill">'+affLabel+'</span>'+
+            '<span class="pill rarity">'+rarityLabel+'</span>'+
           '</div>'+
           trackerHtml+
           copiedPassiveBanner+
@@ -8278,7 +8355,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "43": "Anyone wanna fill me in on who this Hitler guy was",
   "45": "There is no more frontier, nowhere I can run",
   "46": "Which is more evil, the banker, or the money?",
-  "48": "Before me, reality bows, darkness flees",
+  "48": "Before me, reality bows, and darkness flees",
   "51": "Everything I do is to protect the one I love",
   "55": "Ahaha...every swing of my blade leaves a chasm in the cosmic fabric",
   "56": "Your godlike powers, versus my rusty sword and undeeeniable face card",
@@ -8300,7 +8377,13 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "90": "Fishing - it is what all men secretly desire!",
   "99": "He's the one that started it first!\nWell Zsofia shouldn't have been putting her feet on my sword!",
   "100": "Step aside! The Winter queen, Felicyta Janowicz, has arrived",
-  "bh01": "In another time, in another place, these seas were once called Pacifique"
+  "bh01": "In another time, in another place, these seas were once called Pacifique",
+  "bh03": "Everyone will die one day. Well, except for me.",
+  "bh04": "The seas are mine to command.",
+  "bh05": "They say I play hard to get...but that just means I do my job well",
+  "bh06": "We must stay light on our feet, so that we are ready for anything",
+  "bh07": "By enforcing a Lyapunov function candidate with a negative semi-definite derivative, we guarantee asymptotic stability across the entire domain of attraction.",
+  "bh08": "Do you think I can blackmail the principal by leaving my bra inside his office?"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 
@@ -8323,13 +8406,15 @@ function getCinematicVoiceline(card) {
 }
 
 function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
-  if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
+  if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(cardOrLine)) || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
   const line = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
+  const cinematicCardId = typeof cardOrLine === 'string' ? '' : String(cardOrLine && cardOrLine.id || '');
   if(!line) return null;
   if(document.body && document.body.classList.contains('modal-open')) return null;
   document.querySelectorAll('.cinematic-subtitle-live').forEach(function(el){ el.remove(); });
   const el = document.createElement('div');
   el.className = 'cinematic-subtitle-live rarity-' + String(rarity || (cardOrLine && cardOrLine.rarity) || 'circle').toLowerCase();
+  if(cinematicCardId) el.classList.add('cinematic-card-' + cinematicCardId.toLowerCase().replace(/[^a-z0-9_-]/g, ''));
   el.setAttribute('aria-live', 'polite');
   const hasManualLineBreak = /\r?\n/.test(line);
   el.textContent = '“' + line + '”';
@@ -8346,6 +8431,9 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
       el.style.setProperty('bottom', 'calc(24vh - 25px)', 'important');
     }
   } catch(e) {}
+  if(cinematicCardId === 'bh07') {
+    el.style.setProperty('bottom', el.classList.contains('multi-line') ? 'calc(24vh - 30px)' : 'calc(27vh - 5px)', 'important');
+  }
   const ttl = Math.max(800, Number(durationMs) || 2100);
   const fadeLead = Math.max(120, Number(fadeLeadMs) || 470);
   setTimeout(function(){ el.classList.add('fade-out'); }, Math.max(300, ttl - fadeLead));
@@ -8399,7 +8487,24 @@ if(typeof window !== 'undefined') {
 let _consolidationCinematicQueue = [];
 let _consolidationCinematicShowing = false;
 let _lastConsolidationCinematicEndedAt = 0;
+// Set this to 0 to restore immediate post-cinematic Fate/overlay feedback.
+const POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS = 1000;
 const _characterSetCinematicKeys = new Set();
+
+function beginPostConsolidationFateFeedbackHold() {
+  if(typeof G === 'undefined' || !G) return 0;
+  const until = Date.now() + POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS;
+  G._postConsolidationFateFeedbackUntil = Math.max(
+    Number(G._postConsolidationFateFeedbackUntil) || 0,
+    until
+  );
+  return G._postConsolidationFateFeedbackUntil;
+}
+
+if(typeof window !== 'undefined') {
+  window.POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS = POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS;
+}
+
 if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanupInstalled) {
   const previousConsolidationQueueCleanup = window.clearConsolidationCinematicQueues;
   window.clearConsolidationCinematicQueues = function(){
@@ -8407,12 +8512,14 @@ if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanu
     _consolidationCinematicQueue.length = 0;
     _consolidationCinematicShowing = false;
     _characterSetCinematicKeys.clear();
+    if(typeof G !== 'undefined' && G) G._postConsolidationFateFeedbackUntil = 0;
   };
   window.__fateLegacyConsolidationQueueCleanupInstalled = true;
 }
 function showConsolidationCinematic(card, opts) {
   if(typeof G !== 'undefined' && G && G._aiAbort && !document.getElementById('s-game')?.classList.contains('active')) return false;
   if(!card) return false;
+  if(typeof shouldSuppressConsolidationCinematic === 'function' && shouldSuppressConsolidationCinematic(card)) return false;
   opts = opts || {};
   if(rendererV2OwnsBoardScene() && opts.allowRenderV2Cinematic !== true){
     try {
@@ -8440,7 +8547,7 @@ function showConsolidationCinematic(card, opts) {
   var color = colorMap[rarity] || colorMap.circle;
   var cinematicImage = card.img || (catalogCard && catalogCard.img) || (card.id ? String(card.id) + '.png' : '');
   var imgSrc = cinematicImage ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(cinematicImage, 'board') : cinematicImage) : '';
-  var subtitle = getCinematicVoiceline(card);
+  var subtitle = card._suppressCinematicSubtitle ? '' : getCinematicVoiceline(card);
 
   // Sigil shape: each rarity gets a unique outline —
   //   circle: circle outline (border-radius 50%)
@@ -8556,7 +8663,7 @@ function showConsolidationCinematic(card, opts) {
   if(subtitle && typeof showCinematicSubtitle === 'function') setTimeout(function(){
     var subtitleTtl = Math.max(800, timing.overlayRemoveAt - timing.subtitleDelay + 80);
     var fadeLead = Math.max(220, subtitleTtl - (timing.overlayFadeAt - timing.subtitleDelay));
-    var subEl = showCinematicSubtitle(subtitle, subtitleTtl, rarity, fadeLead);
+    var subEl = showCinematicSubtitle(card, subtitleTtl, rarity, fadeLead);
     if(subEl && overlay && overlay.isConnected){
       overlay.appendChild(subEl);
       subEl.classList.add('inside-consolidation-cinematic');
@@ -8564,6 +8671,9 @@ function showConsolidationCinematic(card, opts) {
       subEl.style.setProperty('left', '50%', 'important');
       var consolidationSubtitleBottom = perfLite ? '24vh' : '27vh';
       if(subEl.classList.contains('multi-line')) consolidationSubtitleBottom = 'calc(' + consolidationSubtitleBottom + ' - 25px)';
+      if(String(card && card.id || '') === 'bh07') {
+        consolidationSubtitleBottom = subEl.classList.contains('multi-line') ? 'calc(24vh - 30px)' : 'calc(27vh - 5px)';
+      }
       subEl.style.setProperty('bottom', consolidationSubtitleBottom, 'important');
       subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
       subEl.style.setProperty('z-index', '6', 'important');
@@ -8587,6 +8697,7 @@ function showConsolidationCinematic(card, opts) {
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     _lastConsolidationCinematicEndedAt = Date.now();
+    beginPostConsolidationFateFeedbackHold();
     if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
     scheduleEffectActivationCinematicDrain();
     var next = _consolidationCinematicQueue.shift();
@@ -8600,6 +8711,7 @@ function showConsolidationCinematic(card, opts) {
       document.querySelectorAll('.cc-overlay-v2').forEach(function(el){ el.remove(); });
       document.body.classList.remove('cinematic-lock');
       _lastConsolidationCinematicEndedAt = Date.now();
+      beginPostConsolidationFateFeedbackHold();
       if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
       scheduleEffectActivationCinematicDrain();
       var next = _consolidationCinematicQueue.shift();
@@ -8611,6 +8723,7 @@ function showConsolidationCinematic(card, opts) {
 
 function requestCharacterSetCinematic(card, opts) {
   if(!card || card.faceDown || String(card.type || '') === 'Supporter') return false;
+  if(typeof shouldSuppressConsolidationCinematic === 'function' && shouldSuppressConsolidationCinematic(card)) return false;
   const options = opts || {};
   const identity = String(card.iid || [card.id || '', card.owner ?? '', options.z ?? '', options.r ?? '', options.c ?? ''].join(':'));
   const key = 'character-set:' + identity;

@@ -163,6 +163,7 @@
     base.runtimeImg = runtimeCardImageSrc((visual && (visual.runtimeImg || visual.img)) || card.runtimeImg || base.img, 'board');
     base.fate = card.fate;
     base.currentFate = card.currentFate;
+    if(card._suppressCinematicSubtitle) base._suppressCinematicSubtitle = true;
     if(card._placementFateReveal) {
       base._placementFateReveal = {
         fromValue:card._placementFateReveal.fromValue,

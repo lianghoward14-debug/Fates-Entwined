@@ -23,6 +23,7 @@
   let deferredCoordinatorFatePulseByIid = new Map();
   let coordinatorAuraFateDelayUntilByIid = new Map();
   let coordinatorAuraFateSoundModeByIid = new Map();
+  let pendingBh07OverclockByPlacedIid = new Map();
   let deferredPlacementFatePulseByIid = new Map();
   let completedPlacementFateRevealAtByIid = new Map();
   let lastCardRectByIid = new Map();
@@ -69,6 +70,7 @@
   let fateNumberNodesByKey = new Map();
   let fateNumberTimersByKey = new Map();
   let recentFateNumbersByKey = new Map();
+  let deferredFateNumbersByKey = new Map();
   let nextFateNumberId = 1;
   let stableBoardViewport = null;
   const zoneScroll = {};
@@ -598,8 +600,57 @@
     fateNumberNodesByKey.clear();
     fateNumberTimersByKey.clear();
     recentFateNumbersByKey.clear();
+    deferredFateNumbersByKey.forEach(function(record){ if(record && record.timer) clearTimeout(record.timer); });
+    deferredFateNumbersByKey.clear();
     const layer = document.getElementById(fateNumberLayerId);
     if(layer) layer.remove();
+  }
+
+  function fateNumberPresentationKey(payload){
+    const p = payload || {};
+    const iid = String(p.iid || p.targetIid || '');
+    if(iid) return 'iid:' + iid;
+    if(Number.isInteger(Number(p.z)) && Number.isInteger(Number(p.r)) && Number.isInteger(Number(p.c))) {
+      return 'cell:' + [p.z, p.r, p.c].join(':');
+    }
+    return 'global';
+  }
+
+  function deferFateNumberUntilPresentationEnds(payload, blockedUntil){
+    const p = Object.assign({}, payload || {});
+    const key = fateNumberPresentationKey(p);
+    const previous = deferredFateNumbersByKey.get(key);
+    if(previous && previous.timer) clearTimeout(previous.timer);
+    if(previous && previous.payload) {
+      const previousFrom = Number(previous.payload.fromValue);
+      const nextTo = Number(p.toValue);
+      if(Number.isFinite(previousFrom) && Number.isFinite(nextTo)) {
+        p.fromValue = previous.payload.fromValue;
+        p.delta = nextTo - previousFrom;
+      }
+    }
+    const record = {
+      payload:p,
+      until:Math.max(Number(blockedUntil) || 0, previous ? Number(previous.until) || 0 : 0),
+      timer:null
+    };
+    const flush = function(){
+      const current = deferredFateNumbersByKey.get(key);
+      if(!current || current !== record) return;
+      const dynamicUntil = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
+        ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0
+        : 0;
+      if(dynamicUntil > Date.now()) {
+        record.until = Math.max(record.until, dynamicUntil);
+        record.timer = setTimeout(flush, Math.max(24, record.until - Date.now() + 24));
+        return;
+      }
+      deferredFateNumbersByKey.delete(key);
+      presentFateDelta(Object.assign({}, record.payload, {_fatePresentationReady:true}));
+    };
+    record.timer = setTimeout(flush, Math.max(24, record.until - Date.now() + 24));
+    deferredFateNumbersByKey.set(key, record);
+    return true;
   }
 
   function ensureFateNumberLayer(board){
@@ -641,6 +692,12 @@
     const p = payload || {};
     const delta = Number(p.delta != null ? p.delta : p.fateDelta != null ? p.fateDelta : p.amount);
     if(!Number.isFinite(delta) || delta === 0) return false;
+    if(!p._fatePresentationReady) {
+      const blockedUntil = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
+        ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0
+        : 0;
+      if(blockedUntil > Date.now()) return deferFateNumberUntilPresentationEnds(p, blockedUntil);
+    }
     const board = document.getElementById('board');
     const layer = ensureFateNumberLayer(board);
     if(!layer) return false;
@@ -650,13 +707,18 @@
       : '';
     const key = iid ? 'iid:' + iid : positionKey ? 'cell:' + positionKey : 'global';
     const signature = (delta > 0 ? '+' : '') + String(delta);
+    const fromValue = Number(p.fromValue);
+    const toValue = Number(p.toValue);
+    const hasTransition = Number.isFinite(fromValue) && Number.isFinite(toValue);
+    const eventSignature = hasTransition ? String(fromValue) + '>' + String(toValue) : signature;
     const now = Date.now();
     const recent = recentFateNumbersByKey.get(key);
-    if(recent && recent.signature === signature && now - recent.at < 320){
+    const duplicateWindow = iid && hasTransition ? 6000 : 420;
+    if(recent && recent.signature === eventSignature && now - recent.at < duplicateWindow){
       renderCounters.fateNumberDuplicatesSuppressed++;
       return true;
     }
-    recentFateNumbersByKey.set(key, {signature, at:now});
+    recentFateNumbersByKey.set(key, {signature:eventSignature, at:now});
     clearFateNumberPresentation(key);
 
     const target = fateNumberTargetRect(p);
@@ -1262,6 +1324,45 @@
     return Math.max(Date.now() + totalMs + 140, gameLockUntil + 100);
   }
 
+  function scheduleBh07OverclockPresentation(placedCard, sourceIids, targetIids, until){
+    const placedIid = getCardIid(placedCard);
+    if(!placedIid || !sourceIids.length || !targetIids.length) return;
+    const previous = pendingBh07OverclockByPlacedIid.get(placedIid);
+    if(previous && previous.timer) clearTimeout(previous.timer);
+    const record = {
+      sourceIids:Array.from(new Set(sourceIids.map(String))),
+      targetIids:Array.from(new Set(targetIids.map(String))),
+      until:Number(until) || Date.now(),
+      timer:null
+    };
+    const revealBh07Overclock = function(){
+      const pending = pendingBh07OverclockByPlacedIid.get(placedIid);
+      if(!pending || pending !== record) return;
+      const extendedUntil = placementFateRevealUntil(placedCard, pending.until);
+      if(extendedUntil > pending.until) {
+        pending.until = extendedUntil;
+        pending.targetIids.forEach(function(targetIid){
+          coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, extendedUntil));
+          const fatePending = deferredCoordinatorFatePulseByIid.get(targetIid);
+          if(fatePending && Number(fatePending.until) < extendedUntil) {
+            deferCoordinatorFatePulse(targetIid, fatePending.fromValue, fatePending.toValue, fatePending.delta, extendedUntil);
+          }
+        });
+        pending.timer = setTimeout(revealBh07Overclock, Math.max(0, extendedUntil - Date.now()));
+        return;
+      }
+      pendingBh07OverclockByPlacedIid.delete(placedIid);
+      try {
+        if(typeof window.flashBh07OverclockTargets === 'function') {
+          window.flashBh07OverclockTargets(pending.sourceIids, pending.targetIids, 'bh07-overclock-placement:' + placedIid);
+        }
+      } catch(e) {}
+      scheduleRender('bh07-overclock-after-consolidation');
+    };
+    record.timer = setTimeout(revealBh07Overclock, Math.max(0, record.until - Date.now()));
+    pendingBh07OverclockByPlacedIid.set(placedIid, record);
+  }
+
   function prepareCoordinatorAuraFateDelays(entries){
     const currentBoardCardIids = new Set();
     (entries || []).forEach(function(entry){
@@ -1271,23 +1372,44 @@
     const hadPreviousBoard = lastBoardCardIids.size > 0;
     const previousBoardCardIids = lastBoardCardIids;
     lastBoardCardIids = currentBoardCardIids;
-    if(!hadPreviousBoard || typeof window.getCoordinatorPlacementFlashTargets !== 'function') return;
+    if(!hadPreviousBoard) return;
     const coordinatorIds = new Set(['01','10','11','15','19','23','57']);
     (entries || []).forEach(function(entry){
       const source = entry && entry.card;
       const sourceIid = getCardIid(source);
-      if(!source || !sourceIid || !coordinatorIds.has(String(source.id || '')) || previousBoardCardIids.has(sourceIid)) return;
-      const until = coordinatorCinematicDelayUntil();
-      const targets = window.getCoordinatorPlacementFlashTargets(source, Number(entry.z), Number(entry.r), Number(entry.c)) || [];
-      targets.forEach(function(target){
-        const targetIid = getCardIid(target);
-        if(!targetIid) return;
-        coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, until));
-        const soundMode = String(source.id || '') === '19' ? 'kvetka' : 'generic';
-        if(soundMode === 'generic' || !coordinatorAuraFateSoundModeByIid.has(targetIid)){
-          coordinatorAuraFateSoundModeByIid.set(targetIid, soundMode);
-        }
+      if(!source || !sourceIid || previousBoardCardIids.has(sourceIid)) return;
+      if(coordinatorIds.has(String(source.id || '')) && typeof window.getCoordinatorPlacementFlashTargets === 'function') {
+        const until = coordinatorCinematicDelayUntil();
+        const targets = window.getCoordinatorPlacementFlashTargets(source, Number(entry.z), Number(entry.r), Number(entry.c)) || [];
+        targets.forEach(function(target){
+          const targetIid = getCardIid(target);
+          if(!targetIid) return;
+          coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, until));
+          const soundMode = String(source.id || '') === '19' ? 'kvetka' : 'generic';
+          if(soundMode === 'generic' || !coordinatorAuraFateSoundModeByIid.has(targetIid)){
+            coordinatorAuraFateSoundModeByIid.set(targetIid, soundMode);
+          }
+        });
+      }
+      if(String(source.type || '') !== 'Dauntless' || source.faceDown || typeof window.getBh07OverclockSourcesForPlacedDauntless !== 'function') return;
+      const overclockSources = window.getBh07OverclockSourcesForPlacedDauntless(source, Number(entry.z), Number(entry.r), Number(entry.c)) || [];
+      if(!overclockSources.length || typeof window.getBh07OverclockTargets !== 'function') return;
+      const overclockUntil = Math.max(coordinatorCinematicDelayUntil(), placementFateRevealUntil(source, 0));
+      const sourceIids = [];
+      const targetIids = [];
+      overclockSources.forEach(function(sourceEntry){
+        const overclockSourceIid = getCardIid(sourceEntry && sourceEntry.card);
+        if(overclockSourceIid) sourceIids.push(overclockSourceIid);
+        const targets = window.getBh07OverclockTargets(sourceEntry) || [];
+        targets.forEach(function(target){
+          const targetIid = getCardIid(target);
+          if(!targetIid) return;
+          targetIids.push(targetIid);
+          coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, overclockUntil));
+          coordinatorAuraFateSoundModeByIid.set(targetIid, 'generic');
+        });
       });
+      scheduleBh07OverclockPresentation(source, sourceIids, targetIids, overclockUntil);
     });
   }
 
@@ -2630,7 +2752,10 @@
     marie_deterrence:{color:'rgba(255,225,211,.98)',glow:'rgba(225,105,78,.52)',tint:'rgba(170,78,64,.14)'},
     movement_boot:{color:'rgba(255,224,166,.98)',glow:'rgba(255,158,61,.60)',tint:'rgba(172,91,24,.15)'},
     anicka_voyager_boat:{color:'rgba(142,231,255,.98)',glow:'rgba(62,190,255,.62)',tint:'rgba(30,126,172,.16)'},
+    bh04_selva_paradise:{color:'rgba(255,214,178,.99)',glow:'rgba(255,96,76,.72)',tint:'rgba(165,45,40,.18)'},
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
+    bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
+    bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
@@ -2845,6 +2970,40 @@
       ctx.stroke();
       circle(32,32,11);
       dot(45,19,3.2);
+    } else if(kind === 'bh04_selva_paradise') {
+      ctx.lineWidth = 4.8;
+      line([[32,6],[39,24],[59,32],[39,40],[32,58],[25,40],[5,32],[25,24],[32,6]],true);
+      line([[32,19],[40,32],[32,45],[24,32],[32,19]],true);
+    } else if(kind === 'bh07_overclock') {
+      ctx.lineWidth = 4.2;
+      roundedPath(ctx, 16, 16, 32, 32, 7);
+      ctx.stroke();
+      roundedPath(ctx, 25, 25, 14, 14, 2.5);
+      ctx.stroke();
+      line([[16,22],[8,22]],false); line([[16,32],[8,32]],false); line([[16,42],[8,42]],false);
+      line([[48,22],[56,22]],false); line([[48,32],[56,32]],false); line([[48,42],[56,42]],false);
+      line([[22,16],[22,8]],false); line([[32,16],[32,8]],false); line([[42,16],[42,8]],false);
+      line([[22,48],[22,56]],false); line([[32,48],[32,56]],false); line([[42,48],[42,56]],false);
+      line([[32,26],[32,33]],false);
+      ctx.beginPath();
+      ctx.moveTo(27,31);
+      ctx.bezierCurveTo(25,34,26,39,29,41);
+      ctx.bezierCurveTo(32,43,37,43,39,40);
+      ctx.bezierCurveTo(41,37,41,33,37,31);
+      ctx.stroke();
+    } else if(kind === 'bh08_mischief') {
+      ctx.lineWidth = 4.2;
+      circle(32,32,24);
+      ctx.beginPath();
+      ctx.moveTo(20,27);
+      ctx.bezierCurveTo(24,23,28,23,32,27);
+      ctx.stroke();
+      line([[48,25],[42,28],[48,31]],false);
+      line([[21,38],[48,38]],false);
+      ctx.beginPath();
+      ctx.moveTo(21,38);
+      ctx.bezierCurveTo(28,50,41,50,48,38);
+      ctx.stroke();
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
       ctx.beginPath();

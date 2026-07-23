@@ -105,6 +105,7 @@
 
   function isDirectSetCard(card){
     if(!card) return false;
+    if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
     if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return true;
     if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) return true;
     return typeof isCardSupporterForRules === 'function'
@@ -193,6 +194,7 @@
 
   function isFreeSetCard(card){
     if(!card || typeof G === 'undefined' || !G) return false;
+    if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
     try {
       if(card.type !== 'Supporter' && Number(card.cost) > 0 && typeof getDisplayedCardCost === 'function') {
@@ -982,6 +984,13 @@
     const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
     const card = state.card;
+    if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card) && card._achillesConfigured !== true) {
+      cleanup({clearPlacement:true});
+      G.selectedHandCard = idx;
+      G.placing = false;
+      if(typeof beginAchillesTokenConfiguration === 'function') beginAchillesTokenConfiguration(card, G.currentPlayer, {target:{z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)}});
+      return;
+    }
     try { window.__fateNextSetFromRect = from ? Object.assign({}, from) : null; } catch(e) {}
     cleanup({clearPlacement:false});
     G.selectedHandCard = idx;

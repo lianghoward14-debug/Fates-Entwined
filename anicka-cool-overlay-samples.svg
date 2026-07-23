@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1620" viewBox="0 0 1120 1620">
+  <defs>
+    <filter id="glow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.75)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="rgba(255,96,76,.72)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(165,45,40,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="1620" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,214,178,.99);stroke-width:4.8;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+    .thin{stroke-width:3.5}
+  </style>
+
+  <g transform="translate(55 25)"><text class="label" x="0" y="22">COOL-01</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l8 18 18 7-18 7-8 18-8-18-18-7 18-7z"/><path d="M32 19v26M19 32h26"/></g></g>
+  <g transform="translate(55 181)"><text class="label" x="0" y="22">COOL-02</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 14h40L42 52H22z"/><path d="M32 14l-6 15 9 5-6 18"/><path d="M20 25h24M17 39h30"/></g></g>
+  <g transform="translate(55 337)"><text class="label" x="0" y="22">COOL-03</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><circle cx="32" cy="32" r="22"/><path d="M32 10v14M32 40v14M10 32h14M40 32h14"/><path d="M24 24l16 16M40 24L24 40"/></g></g>
+  <g transform="translate(55 493)"><text class="label" x="0" y="22">COOL-04</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l23 40H9z"/><path d="M32 20v15M32 46v1"/><path d="M18 48l14-10 14 10"/></g></g>
+  <g transform="translate(55 649)"><text class="label" x="0" y="22">COOL-05</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M11 32h42"/><path d="M32 11v42"/><path d="M18 18l28 28M46 18L18 46"/><path d="M32 11l5 8M32 53l-5-8M11 32l8-5M53 32l-8 5"/></g></g>
+  <g transform="translate(55 805)"><text class="label" x="0" y="22">COOL-06</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 32l14-20h20L32 32l14 20H26z"/><path d="M23 32h18"/><path d="M32 15l-6 17 6 17"/></g></g>
+  <g transform="translate(55 961)"><text class="label" x="0" y="22">COOL-07</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 12l40 40M52 12L12 52"/><path d="M32 8l6 18 18 6-18 6-6 18-6-18-18-6 18-6z"/></g></g>
+  <g transform="translate(55 1117)"><text class="label" x="0" y="22">COOL-08</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l22 16v18L32 57 10 41V23z"/><path d="M18 23l14 10 14-10M18 41l14-10 14 10"/><path d="M32 11v42"/></g></g>
+  <g transform="translate(55 1273)"><text class="label" x="0" y="22">COOL-09</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M13 32c8-15 30-15 38 0-8 15-30 15-38 0z"/><path d="M32 18v28M22 25l20 14M42 25L22 39"/></g></g>
+  <g transform="translate(55 1429)"><text class="label" x="0" y="22">COOL-10</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M16 12h32v22c0 10-6 18-16 24-10-6-16-14-16-24z"/><path d="M24 24h16M22 36h20M32 18v32"/></g></g>
+
+  <g transform="translate(585 25)"><text class="label" x="0" y="22">COOL-11</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l7 17 17 7-17 7-7 17-7-17-17-7 17-7z"/><path d="M21 21l22 22M43 21L21 43"/></g></g>
+  <g transform="translate(585 181)"><text class="label" x="0" y="22">COOL-12</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 9l20 12v23L32 56 12 44V21z"/><path d="M20 21l24 23M44 21L20 44"/><path d="M32 9v47"/></g></g>
+  <g transform="translate(585 337)"><text class="label" x="0" y="22">COOL-13</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 46l20-36 20 36z"/><path d="M20 46l12-18 12 18"/><path d="M32 10l-4 14 8-4-6 18"/></g></g>
+  <g transform="translate(585 493)"><text class="label" x="0" y="22">COOL-14</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><circle cx="32" cy="32" r="22"/><path d="M32 14l6 12 12 6-12 6-6 12-6-12-12-6 12-6z"/></g></g>
+  <g transform="translate(585 649)"><text class="label" x="0" y="22">COOL-15</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M14 15h36L44 50H20z"/><path d="M19 21l26 23M45 21L19 44"/></g></g>
+  <g transform="translate(585 805)"><text class="label" x="0" y="22">COOL-16</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M9 32h46"/><path d="M17 18l30 28M47 18L17 46"/><path d="M32 9l4 14 14 4-14 4-4 14-4-14-14-4 14-4z"/></g></g>
+  <g transform="translate(585 961)"><text class="label" x="0" y="22">COOL-17</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l18 12v24L32 56 14 44V20z"/><path d="M22 25h20M22 39h20"/><path d="M32 17v30"/></g></g>
+  <g transform="translate(585 1117)"><text class="label" x="0" y="22">COOL-18</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M16 48l16-40 16 40z"/><path d="M24 31h16M20 48h24"/><path d="M32 8v40"/></g></g>
+  <g transform="translate(585 1273)"><text class="label" x="0" y="22">COOL-19</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><circle cx="32" cy="32" r="22"/><path d="M15 25c10-7 24 7 34 0M15 39c10-7 24 7 34 0"/><path d="M32 12v40"/></g></g>
+  <g transform="translate(585 1429)"><text class="label" x="0" y="22">COOL-20</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l10 17 19 4-13 14 2 19-18-8-18 8 2-19L3 28l19-4z"/></g></g>
+</svg>

@@ -338,10 +338,19 @@
   }
 
   function transferHandCard(card, fromOwner, toOwner, opts){
-    const fromRect = anyHandRectByIid(card && card.iid) || (Number(fromOwner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, fromOwner));
-    const toRect = Number(toOwner) === Number(currentViewer()) ? handSlotRect(999) : opponentHandSlotRect(999, toOwner);
+    const options = opts || {};
+    const fromRect = anyHandRectByIid(card && card.iid) || (Number(fromOwner) === Number(currentViewer()) ? handSlotRect(0) : opponentHandSlotRect(0, fromOwner)) || fallbackHandRect(fromOwner, null);
+    let toRect = (Number(toOwner) === Number(currentViewer()) ? handSlotRect(999) : opponentHandSlotRect(999, toOwner)) || fallbackHandRect(toOwner, fromRect);
+    if(options.preserveSourceSize && fromRect && toRect) {
+      toRect = {
+        x:toRect.x + toRect.w / 2 - fromRect.w / 2,
+        y:toRect.y + toRect.h / 2 - fromRect.h / 2,
+        w:fromRect.w,
+        h:fromRect.h
+      };
+    }
     if(!fromRect || !toRect) return false;
-    return play('MOVE_CARD', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:Number(toOwner) !== Number(currentViewer())}, opts || {}));
+    return play('MOVE_CARD', Object.assign({iid:card && card.iid, card, fromRect, toRect, faceDown:Number(toOwner) !== Number(currentViewer())}, options));
   }
 
   function revealCard(card, rectSource, rectTarget, opts){

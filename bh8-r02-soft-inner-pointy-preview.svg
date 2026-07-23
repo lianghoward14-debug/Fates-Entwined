@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="300" viewBox="0 0 1120 300">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="rgba(255,70,190,.72)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="170" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="170" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 146v14h-14M24 160H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="300" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+  </style>
+  <g transform="translate(55 65)">
+    <text class="label" x="0" y="-15">Soft Inner Join D</text>
+    <use href="#tile"/>
+    <g class="icon" transform="translate(196 30) scale(1.65)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M20 27c4-4 8-4 12 0"/>
+      <path d="M48 23C45 24 42 25 41 26C41 27 41 29 42 30L49 30"/>
+      <path d="M21 38h27"/>
+      <path d="M21 38c7 12 20 12 27 0"/>
+    </g>
+  </g>
+  <g transform="translate(595 65)">
+    <text class="label" x="0" y="-15">Pointy Inner Corner</text>
+    <use href="#tile"/>
+    <g class="icon" transform="translate(196 30) scale(1.65)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M20 27c4-4 8-4 12 0"/>
+      <path d="M48 23C45 24 42 25 40.5 26.5L42 30L49 30"/>
+      <path d="M21 38h27"/>
+      <path d="M21 38c7 12 20 12 27 0"/>
+    </g>
+  </g>
+</svg>

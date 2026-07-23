@@ -772,6 +772,156 @@ const AI_ONLY_RANDOM_DECKS = [
       '69','69','73','73','73','76','76','76','60','60',
       '60','75','75','75','47','47','47','05','05','05'
     ]
+  },
+  {
+    id: 'ai_snowbound_wintertide',
+    baseStrategy: 'ai_snowbound_wintertide',
+    name: 'Snowbound Wintertide',
+    description: 'Changes the landscape to Snow on the Carpathians, locks it in place, then cheats out and consolidates scaling Wintertide threats.',
+    theme: 'AI Only - Wintertide',
+    faceCardId: '100',
+    displayCardIds: ['100','82','84','91','99','87','bh05'],
+    ids: [
+      '82','82','82','84','84','84','87','87','87','90',
+      '90','90','91','91','91','94','94','94','96','96',
+      '96','97','97','97','98','98','98','99','99','99',
+      '100','100','100','47','47','47','80','80','80','bh05'
+    ]
+  },
+  {
+    id: 'ai_overclocked_dauntless',
+    baseStrategy: 'ai_overclocked_dauntless',
+    name: 'Overclocked Dauntless',
+    description: 'Builds an Agent-K lane, cheats Dauntless cards into it, and repositions the formation to multiply adjacency bonuses.',
+    theme: 'AI Only - Dauntless Formation',
+    faceCardId: 'bh07',
+    displayCardIds: ['bh07','84','88','89','100','54','bh01'],
+    ids: [
+      'bh07','bh07','bh07','84','84','84','88','88','88','89',
+      '89','89','100','100','100','44','44','44','54','54',
+      '54','68','68','68','47','47','47','60','60','60',
+      '95','95','95','98','98','98','83','83','83','bh01'
+    ]
+  },
+  {
+    id: 'ai_thousand_reel_drawstorm',
+    baseStrategy: 'ai_thousand_reel_drawstorm',
+    name: 'Thousand-Reel Drawstorm',
+    description: 'Free-sets Joie with Lina, concentrates allies in her lane, then chains activated draws into repeated permanent Fate gains.',
+    theme: 'AI Only - Draw Engine',
+    faceCardId: 'bh02',
+    displayCardIds: ['bh02','08','27','80','40','75','bh01'],
+    ids: [
+      'bh01','bh02','bh02','bh02','08','08','08','27','27','27',
+      '32','32','32','42','42','42','80','80','80','40',
+      '40','40','58','58','58','60','60','60','68','68',
+      '68','75','75','75','74','74','74','47','47','47'
+    ]
+  },
+  {
+    id: 'ai_university_mischief',
+    baseStrategy: 'ai_university_mischief',
+    name: 'University Mischief',
+    description: 'Finds University Maja, then turns Lydia, Havano, Secules and deliberate Lumberjack suppression into a growing formation.',
+    theme: 'AI Only - Suppression Engine',
+    faceCardId: 'bh08',
+    displayCardIds: ['bh08','92','18','67','79','21','56'],
+    ids: [
+      '56','bh08','bh08','bh08','92','92','92','18','18','18',
+      '67','67','67','79','79','79','21','21','21','37',
+      '37','37','60','60','60','68','68','68','58','58',
+      '58','75','75','75','05','05','05','09','09','09'
+    ]
+  },
+  {
+    id: 'ai_alis_handcuffs',
+    baseStrategy: 'ai_alis_handcuffs',
+    name: "Ali's Handcuffs",
+    description: 'Clogs the opponent hand with Ali and Wine Country Guerillas, then steals, filters and discards what little room remains.',
+    theme: 'AI Only - Hand Prison',
+    faceCardId: 'bh03',
+    displayCardIds: ['bh03','70','42','72','71','61','56'],
+    ids: [
+      'bh03','bh03','bh03','70','70','70','42','42','42','72',
+      '72','72','71','71','71','52','52','52','61','61',
+      '61','31','31','31','58','58','58','60','60','60',
+      '75','75','75','50','50','50','74','74','74','56'
+    ]
+  },
+  {
+    id: 'ai_destruction_paradise',
+    baseStrategy: 'ai_destruction_paradise',
+    name: 'Destruction of Paradise',
+    description: 'Uses West Caribbea Infantry and Jorge to prepare Selva Anicka, then follows her Fate blast with Eventide pressure.',
+    theme: 'AI Only - Eventide Tempo',
+    faceCardId: 'bh04',
+    displayCardIds: ['bh04','33','06','51','77','30','bh01'],
+    ids: [
+      'bh04','bh04','bh04','33','33','33','06','06','06','27',
+      '27','27','30','30','30','31','31','31','51','51',
+      '51','64','64','64','65','65','65','74','74','74',
+      '75','75','75','77','77','77','79','79','79','bh01'
+    ]
+  },
+  {
+    id: 'ai_taylors_perfect_mimic',
+    baseStrategy: 'ai_taylors_perfect_mimic',
+    name: "Taylor's Perfect Mimic",
+    description: 'Searches Taylor to create the bonus copy, then reliably mimics Alondra while retaining a broad Expanded Worlds toolbox.',
+    theme: 'AI Only - Mimic Toolbox',
+    faceCardId: 'bh05',
+    displayCardIds: ['bh05','48','84','14','bh04','100','90'],
+    ids: [
+      'bh05','48','48','48','84','84','84','14','14','14',
+      'bh04','bh04','bh04','100','100','100','90','90','90','06',
+      '06','06','47','47','47','58','58','58','60','60',
+      '60','32','32','32','75','75','75','05','05','05'
+    ]
+  },
+  {
+    id: 'ai_adaptive_formation',
+    baseStrategy: 'ai_adaptive_formation',
+    name: 'Adaptive Formation',
+    description: 'Survives into turn six, then configures Achille tokens to complete Coordinator, Dauntless and affiliation formations.',
+    theme: 'AI Only - Adaptive Tokens',
+    faceCardId: 'bh06',
+    displayCardIds: ['bh06','bh07','15','19','77','44','07'],
+    ids: [
+      'bh06','bh06','bh06','bh07','bh07','bh07','15','15','15','19',
+      '19','19','01','01','01','77','77','77','44','44',
+      '44','59','59','59','63','63','63','68','68','68',
+      '60','60','60','47','47','47','05','05','05','07'
+    ]
+  },
+  {
+    id: 'ai_pierogi_siege',
+    baseStrategy: 'ai_pierogi_siege',
+    name: 'Pierogi Siege',
+    description: 'Shrinks the usable board with locks and taxes, fills the remaining spaces with Pierogi Counters, then punishes clustered card types.',
+    theme: 'AI Only - Board Lock',
+    faceCardId: '81',
+    displayCardIds: ['81','82','97','04','17','50','bh04'],
+    ids: [
+      '56','81','81','81','82','82','82','97','97','97',
+      '04','04','04','17','17','17','50','50','50','91',
+      '91','91','93','93','93','94','94','94','75','75',
+      '75','60','60','60','06','06','06','bh04','bh04','bh04'
+    ]
+  },
+  {
+    id: 'ai_bombastic_search_punisher',
+    baseStrategy: 'ai_bombastic_search_punisher',
+    name: 'Bombastic Search Punisher',
+    description: 'Pairs Boleslaw with Joie so every opposing search draws, grows Boleslaw and permanently strengthens the Thousand-Reel lane.',
+    theme: 'AI Only - Search Punisher',
+    faceCardId: '86',
+    displayCardIds: ['86','bh02','08','bh03','71','40','bh01'],
+    ids: [
+      '86','86','86','bh02','bh02','bh02','08','08','08','bh03',
+      'bh03','bh03','71','71','71','40','40','40','27','27',
+      '27','32','32','32','42','42','42','60','60','60',
+      '68','68','68','94','94','94','97','97','97','bh01'
+    ]
   }
 ];
 

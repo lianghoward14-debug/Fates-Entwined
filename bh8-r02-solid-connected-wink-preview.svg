@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="300" viewBox="0 0 1120 300">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="rgba(255,70,190,.72)"/>
+    </filter>
+  </defs>
+  <rect width="1120" height="300" fill="#020305"/>
+  <rect x="210" y="42" width="700" height="210" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+  <rect x="210" y="42" width="700" height="210" rx="8" fill="rgba(144,37,136,.18)"/>
+  <path d="M224 68V56h12M884 56h12v12M896 226v12h-12M236 238h-12v-12" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+  <text x="235" y="82" font-family="Arial, sans-serif" font-size="18" fill="#d8d8d8">BH8 R-02 Solid Connected Wink</text>
+  <g transform="translate(492 72) scale(2.3)" fill="none" stroke="rgba(255,174,229,.99)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <circle cx="32" cy="32" r="24"/>
+    <path d="M20 27c4-4 8-4 12 0"/>
+    <path d="M21 38h27"/>
+    <path d="M21 38c7 12 20 12 27 0"/>
+  </g>
+  <path d="M584 132L612 122L616 146L594 146Z" fill="rgba(255,174,229,.99)" stroke="rgba(255,174,229,.99)" stroke-width="2" stroke-linejoin="round" filter="url(#glow)"/>
+</svg>

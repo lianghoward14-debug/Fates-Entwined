@@ -1,5 +1,5 @@
-﻿//  GAME START
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  GAME START
+// ═══════════════════════════════════════════════════════
 function resolveAIDeckRef(refId) {
   if(!refId) return null;
   // Search STARTER_DECKS and AI_ONLY_RANDOM_DECKS for the deck with matching id
@@ -14,7 +14,7 @@ function resolveAIDeckRef(refId) {
 let _aiDeckResolving = false;
 function getPlayableAIDeck(aiSource, difficultyOverride=null) {
   const difficulty = difficultyOverride || (typeof G !== 'undefined' && G ? G.aiDifficulty : null) || 'medium';
-  // Resolve deckRef first — always use the latest version of a named deck
+  // Resolve deckRef first � always use the latest version of a named deck
   if(aiSource && aiSource.deckRef) {
     const resolved = resolveAIDeckRef(aiSource.deckRef);
     if(resolved && resolved.length >= 40) return resolved;
@@ -22,7 +22,7 @@ function getPlayableAIDeck(aiSource, difficultyOverride=null) {
   const rawDeck = aiSource && Array.isArray(aiSource.deck) ? aiSource.deck : [];
   const validIds = rawDeck.filter(id=>CARDS.some(c=>c.id===id));
   if(validIds.length >= 40) return validIds.slice(0,40);
-  // Fallback to AI_DECKS — guard against recursion since AI_DECKS getters call this function
+  // Fallback to AI_DECKS � guard against recursion since AI_DECKS getters call this function
   if(!_aiDeckResolving) {
     _aiDeckResolving = true;
     try {
@@ -192,7 +192,7 @@ function startGame(vsAI=false) {
       G._aiOpponentElo = G._selectedAI.elo || G._aiOpponentElo;
     } else {
       G.players[1].name = names[G.aiDifficulty] || 'AI';
-      // Always use the hand-crafted deck for the AI — ensures good synergy
+      // Always use the hand-crafted deck for the AI � ensures good synergy
       const aiDeck = typeof AI_DECKS !== 'undefined' ? AI_DECKS[G.aiDifficulty] : null;
       if(aiDeck && aiDeck.length === 40){
         G.p2Deck = [...aiDeck];
@@ -628,17 +628,17 @@ function showPreGameMatchup(vsAI, onContinue) {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  AI PRESET DECKS — hand-crafted strategic builds
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
+//  AI PRESET DECKS � hand-crafted strategic builds
+// ═══════════════════════════════════════════════════════
 // Each deck is exactly 40 cards and respects rarity limits (1 star, 3 copies of every non-star rarity).
 // IDs reference the CARDS array. These favor synergy over raw card quantity.
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  AI OPPONENTS — Named characters per ELO rank tier
+// ═══════════════════════════════════════════════════════
+//  AI OPPONENTS � Named characters per ELO rank tier
 //  Each has a unique deck, playstyle notes, and personality
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 const AI_OPPONENTS = [
-  // === FOOTMAN (0-799) — plays the 4 starter decks ===
+  // === FOOTMAN (0-799) � plays the 4 starter decks ===
   {name:'Anxiety Wreck Carolyn',elo:600,rank:'Footman',style:'cautious',img:'aiicons/ai18.png',
    desc:'Just learning the basics. Hesitant plays and missed opportunities.',
    deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
@@ -649,7 +649,7 @@ const AI_OPPONENTS = [
    desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
    deckPool:'starter', deckRef:'starter_assault', deck:[]},
 
-  // === CAPTAIN-OFFICER (800-999) — plays the 4 starter decks ===
+  // === CAPTAIN-OFFICER (800-999) � plays the 4 starter decks ===
   {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain-Officer',style:'methodical',img:'aiicons/ai15.png',
    desc:'Calculates every move carefully. Slow but rarely makes mistakes.',
    deckPool:'starter', deckRef:'starter_incel', deck:[]},
@@ -660,7 +660,7 @@ const AI_OPPONENTS = [
    desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
    deckPool:'starter', deckRef:'starter_freeworld', deck:[]},
 
-  // === LIEUTENANT AT ARMS (1000-1199) — upgraded v2 decks ===
+  // === LIEUTENANT AT ARMS (1000-1199) � upgraded v2 decks ===
   {name:'Postmodernist Dylan',elo:1050,rank:'Lieutenant at Arms',style:'disruptive',img:'aiicons/ai12.png',
    desc:'Finds angles you did not consider. Turns your own board state against you.',
    deckPool:'starter', deckRef:'starter_incel_2', deck:[]},
@@ -671,7 +671,7 @@ const AI_OPPONENTS = [
    desc:'Squeezes maximum value out of every card. Never wastes a placement.',
    deckPool:'starter', deckRef:'starter_assault_2', deck:[]},
 
-  // === SERGEANT OF THE GUARD (1200-1399) — upgraded v2 decks ===
+  // === SERGEANT OF THE GUARD (1200-1399) � upgraded v2 decks ===
   {name:'Queen Felicyta Janowicz',elo:1250,rank:'Sergeant of the Guard',style:'commanding',img:'aiicons/ai9.png',
    desc:'Coordinates multi-zone pressure that forces impossible decisions.',
    deckPool:'starter', deckRef:'starter_soft_suppression', deck:[]},
@@ -682,7 +682,7 @@ const AI_OPPONENTS = [
    desc:'Overwhelming force concentrated at the perfect moment.',
    deckPool:'starter', deckRef:'starter_maelstrom_2', deck:[]},
 
-  // === COMMANDER-GENERAL (1400-1599) — AI-exclusive advanced decks ===
+  // === COMMANDER-GENERAL (1400-1599) � AI-exclusive advanced decks ===
   {name:'Financial Consultant Phil',elo:1450,rank:'Commander-General',style:'efficient',img:'aiicons/ai6.png',
    desc:'Invests exactly where the return is highest. Ruthless efficiency.',
    deckPool:'starter', deckRef:'ai_investing_future', deck:[]},
@@ -693,7 +693,7 @@ const AI_OPPONENTS = [
    desc:'Sees the entire board as one interconnected puzzle. Plays three turns ahead.',
    deckPool:'starter', deckRef:'ai_henrys_conviction', deck:[]},
 
-  // === HIGH MARSHALL (1600+) — AI-exclusive advanced decks ===
+  // === HIGH MARSHALL (1600+) � AI-exclusive advanced decks ===
   {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',handKnowledge:'perfect',img:'aiicons/ai3.png',
    desc:'Tracks every card in your hand and builds patiently toward an unbeatable endgame.',
    deckPool:'starter', deckRef:'ai_royal_flush', deck:[]},
@@ -865,7 +865,7 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
 
 applyStoredAIEloStateToList(AI_OPPONENTS);
 
-// Map old difficulty keys to AI opponent selection — resolve dynamically so deckRef works
+// Map old difficulty keys to AI opponent selection � resolve dynamically so deckRef works
 const AI_DECKS = {
   get easy(){ return getPlayableAIDeck(AI_OPPONENTS[0]) || []; },
   get medium(){ return getPlayableAIDeck(AI_OPPONENTS[3]) || []; },
@@ -873,9 +873,9 @@ const AI_DECKS = {
   get extreme(){ return getPlayableAIDeck(AI_OPPONENTS[AI_OPPONENTS.length-1]) || []; }
 };
 
-// ─── TRUE ELO & AI SIMULATION ENGINE ───
+// --- TRUE ELO & AI SIMULATION ENGINE ---
 // True ELO: invisible metric that determines actual AI play quality.
-// Daily variation: up to ±150 points from base true ELO.
+// Daily variation: up to �150 points from base true ELO.
 // Title screen "Free Play" AI uses fixed true ELO = displayed ELO (no boost).
 
 function getDailyTrueElo(ai) {
@@ -901,7 +901,7 @@ function hashStr(s) {
 function predictMatchOutcome(trueElo1, trueElo2, upsetFloor=0) {
   const expected1 = 1 / (1 + Math.pow(10, (trueElo2 - trueElo1) / 400));
   // Scale up the upset chance based on ELO closeness
-  // Equal ELO → 50%, max gap → upsetFloor
+  // Equal ELO ? 50%, max gap ? upsetFloor
   const winChance1 = Math.max(upsetFloor, Math.min(1 - upsetFloor, expected1));
   return Math.random() < winChance1;
 }
@@ -1012,7 +1012,7 @@ function getAICompetenceFromTrueElo(trueElo) {
   return {mistakeChance:0.3, skipEffectChance:0.15, consolidateThreshold:9};
 }
 
-// ─── THREE-MONTH AI PLAYERS ───
+// --- THREE-MONTH AI PLAYERS ---
 const MONTHLY_AI_CYCLE_MONTHS = 3;
 const MONTHLY_AI_NAMES_POOL = [
   'Shadow','Ember','Frost','Storm','Blaze','Void','Rune','Drift','Thorn','Pulse',
@@ -1269,7 +1269,7 @@ if(typeof document !== 'undefined') {
 }
 
 function buildDefaultDecks() {
-  // Default decks if none set — fallback builds a balanced mix
+  // Default decks if none set � fallback builds a balanced mix
   function buildDeck(affPref) {
     const deck = [];
     const activeCards = CARDS.filter(c=>typeof isRetiredCardForBuilder === 'function'
@@ -1447,7 +1447,35 @@ async function drawCard(player, count=1, options = {}) {
       }
     }
     const card = G.players[player].deck.shift();
-    if(!addCardToHand(player, card, { openingHand: !!options.openingHand })) continue;
+    if(String(card && card.id || '') === 'bh03') {
+      card.owner = player;
+      card._bh03TransferPending = true;
+      card.noConsolidate = true;
+      addCardToHand(player, card, {
+        openingHand:!!options.openingHand,
+        arrivalKind:'ali-pending-transfer',
+        announce:false,
+        skipHandLimit:true,
+        deferAliTransfer:false
+      });
+      if(document.getElementById('s-game')?.classList.contains('active')) {
+        let v2DrawQueued = false;
+        if(player === myP && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function') {
+          v2DrawQueued = window.FateV2CardMotionFx.drawFromPile(count > 1 ? 0 : i, player, {
+            card,
+            faceDown:false,
+            drawIndex:i,
+            drawCount:count,
+            suppressMotionAudio:!!options.drawPhase || !!options.suppressDrawSfx
+          });
+        }
+        if(!v2DrawQueued && player === myP) animateDrawCard(i);
+        if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
+        else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
+      }
+      continue;
+    }
+    if(!addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) continue;
     // Fort Calvin Watcher (71): reveal three opponent draw-phase cards and redirect only the first Character.
     if(options.drawPhase && G._fortCalvinActive && G._fortCalvinActive.length > 0){
       G._fortCalvinActive = G._fortCalvinActive.filter(w => !(w && w.sourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(w.sourceIid)));
@@ -1545,10 +1573,153 @@ async function drawCard(player, count=1, options = {}) {
   }
 }
 
+function transferAliIndomitableToOpponentHand(sourcePlayer, card, options = {}) {
+  if(!card || String(card.id || '') !== 'bh03' || !G.players || !G.players[sourcePlayer]) return false;
+  const timerKey = String(card.iid || '');
+  if(timerKey && aliIndomitableTransferTimers.has(timerKey)) {
+    clearTimeout(aliIndomitableTransferTimers.get(timerKey));
+    aliIndomitableTransferTimers.delete(timerKey);
+  }
+  const sourceHand = G.players[sourcePlayer].hand;
+  if(Array.isArray(sourceHand)) {
+    const sourceIndex = sourceHand.findIndex(function(entry){
+      return entry && String(entry.iid || '') === String(card.iid || '');
+    });
+    if(sourceIndex >= 0) sourceHand.splice(sourceIndex, 1);
+  }
+  const recipient = 1 - sourcePlayer;
+  delete card._bh03TransferPending;
+  delete card._bh03VisibleAt;
+  delete card.noConsolidate;
+  card.owner = recipient;
+  card._bh03OpponentHand = true;
+  card._bh03TransferredFrom = sourcePlayer;
+  card.immuneFlag = true;
+  card.cantBeReduced = true;
+  const added = addCardToHand(recipient, card, {
+    openingHand:!!options.openingHand,
+    arrivalKind:'ali-transfer',
+    announce:false
+  });
+  if(document.getElementById('s-game')?.classList.contains('active')) {
+    if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.transferHandCard === 'function') {
+      window.FateV2CardMotionFx.transferHandCard(card, sourcePlayer, recipient, {
+        duration:240,
+        easing:'out-cubic',
+        path:'withdraw',
+        arc:.10,
+        lift:.16,
+        sideArc:.10,
+        rotate:-3.5,
+        bank:-2.5,
+        textureScale:1.04,
+        preserveSourceSize:true,
+        faceDown:false,
+        noShadow:false,
+        suppressMotionAudio:true,
+        priority:'high'
+      });
+    }
+    if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
+    else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
+  }
+  if(typeof window.playFateSfxOnce === 'function') {
+    window.playFateSfxOnce('aliTransfer', 'ali-transfer:' + String(card.iid || ''), 900);
+  } else if(typeof playSfx === 'function') {
+    playSfx('aliTransfer');
+  }
+  if(typeof showAliIndomitableTransferBanner === 'function') showAliIndomitableTransferBanner(sourcePlayer, recipient);
+  else toast('Ali, The Indomitable was sent to the opponent\'s hand.');
+  log(sourcePlayer===0?'p1':'p2', 'Ali, The Indomitable transferred to the opposing hand after being added to a hand');
+  return added;
+}
+
+const aliIndomitableTransferTimers = new Map();
+
+function showAliIndomitableTransferBanner(sourcePlayer, recipient) {
+  let banner = document.getElementById('ali-indomitable-transfer-banner');
+  clearTimeout(window.__aliIndomitableBannerTimer);
+  clearTimeout(window.__aliIndomitableBannerRemoveTimer);
+  if(!banner) {
+    banner = document.createElement('div');
+    banner.id = 'ali-indomitable-transfer-banner';
+    banner.className = 'ali-indomitable-transfer-banner';
+    document.body.appendChild(banner);
+  }
+  const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
+  let destination = "OPPONENT'S HAND";
+  if(Number(viewer) === Number(recipient)) destination = 'YOUR HAND';
+  else if(Number(viewer) !== Number(sourcePlayer) && G.players && G.players[recipient]) destination = String(G.players[recipient].name || 'OPPONENT') + "'S HAND";
+  const safeDestination = typeof escapeHtml === 'function' ? escapeHtml(destination) : destination;
+  banner.innerHTML = '<span>HE, WHO IS UNYIELDING</span><strong>ALI SENT TO ' + safeDestination + '</strong>';
+  banner.classList.remove('on');
+  void banner.offsetWidth;
+  banner.classList.add('on');
+  window.__aliIndomitableBannerTimer = setTimeout(function(){
+    banner.classList.remove('on');
+    window.__aliIndomitableBannerRemoveTimer = setTimeout(function(){
+      if(banner && banner.parentNode && !banner.classList.contains('on')) banner.remove();
+    }, 260);
+  }, 3200);
+}
+window.showAliIndomitableTransferBanner = showAliIndomitableTransferBanner;
+
+function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
+  if(!card || String(card.id || '') !== 'bh03' || !G.players || !G.players[sourcePlayer]) return false;
+  card.owner = sourcePlayer;
+  card._bh03TransferPending = true;
+  card.noConsolidate = true;
+  const timerKey = String(card.iid || 'bh03-' + sourcePlayer + '-' + Date.now());
+  if(aliIndomitableTransferTimers.has(timerKey)) clearTimeout(aliIndomitableTransferTimers.get(timerKey));
+  const beginVisibleCountdown = function(){
+    const sourceHand = G.players && G.players[sourcePlayer] && G.players[sourcePlayer].hand;
+    if(!Array.isArray(sourceHand)) {
+      aliIndomitableTransferTimers.delete(timerKey);
+      return;
+    }
+    const liveCard = sourceHand.find(function(entry){
+      return entry && String(entry.iid || '') === String(card.iid || '');
+    });
+    if(!liveCard) {
+      aliIndomitableTransferTimers.delete(timerKey);
+      return;
+    }
+    const gameActive = !!document.getElementById('s-game')?.classList.contains('active');
+    if(!gameActive) {
+      const waitTimer = setTimeout(beginVisibleCountdown, 100);
+      aliIndomitableTransferTimers.set(timerKey, waitTimer);
+      return;
+    }
+    if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
+    else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
+    liveCard._bh03VisibleAt = Date.now();
+    const transferTimer = setTimeout(function(){
+      aliIndomitableTransferTimers.delete(timerKey);
+      const currentHand = G.players && G.players[sourcePlayer] && G.players[sourcePlayer].hand;
+      if(!Array.isArray(currentHand)) return;
+      const currentCard = currentHand.find(function(entry){
+        return entry && String(entry.iid || '') === String(liveCard.iid || '');
+      });
+      if(currentCard) transferAliIndomitableToOpponentHand(sourcePlayer, currentCard, options);
+    }, 5000);
+    aliIndomitableTransferTimers.set(timerKey, transferTimer);
+  };
+  const startTimer = setTimeout(beginVisibleCountdown, 0);
+  aliIndomitableTransferTimers.set(timerKey, startTimer);
+  return true;
+}
+
 function addCardToHand(player, card, options = {}) {
   if(!card) return false;
   const announce = options.announce !== false;
   const targetPlayer = typeof options.forceHandOwner === 'number' ? options.forceHandOwner : player;
+  const arrivalKind = String(options.arrivalKind || card._fateHandArrivalKind || '');
+  const shouldRevealAliBeforeTransfer = String(card.id || '') === 'bh03' && arrivalKind !== 'ali-transfer';
+  if(shouldRevealAliBeforeTransfer) {
+    card.owner = targetPlayer;
+    card._bh03TransferPending = true;
+    card.noConsolidate = true;
+  }
   if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, targetPlayer);
   if(options.animate !== false){
     if(!G._forceHandEnterIids) G._forceHandEnterIids = new Set();
@@ -1584,10 +1755,38 @@ function addCardToHand(player, card, options = {}) {
   }
 
   G.players[targetPlayer].hand.push(card);
+  if(shouldRevealAliBeforeTransfer && options.deferAliTransfer !== true) {
+    scheduleAliIndomitableHandTransfer(targetPlayer, card, options);
+  }
+  const inferredArrivalKind = String(options.arrivalKind || card._fateHandArrivalKind || (
+    G.players[player] && Array.isArray(G.players[player].deck) && G.players[player].deck.some(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); })
+      ? 'search'
+      : ''
+  ));
+  delete card._fateHandArrivalKind;
+  if(String(card.id || '') === 'bh05' && card._bh05GeneratedCopy !== true && (inferredArrivalKind === 'draw' || inferredArrivalKind === 'search')) {
+    const definition = typeof CARDS !== 'undefined' && Array.isArray(CARDS)
+      ? CARDS.find(function(entry){ return entry && String(entry.id || '') === 'bh05'; })
+      : null;
+    if(definition) {
+      const secondCopy = createCardInstance(definition, targetPlayer);
+      secondCopy._bh05GeneratedCopy = true;
+      secondCopy._bh05GeneratedFromIid = card.iid;
+      G.players[targetPlayer].hand.push(secondCopy);
+      if(typeof window.playFateSfxOnce === 'function') {
+        window.playFateSfxOnce('taylorSelfCopy', 'taylor-self-copy:' + String(card.iid || secondCopy.iid || ''), 700);
+      } else if(typeof playSfx === 'function') {
+        playSfx('taylorSelfCopy');
+      }
+      if(!G._forceHandEnterIids) G._forceHandEnterIids = new Set();
+      G._forceHandEnterIids.add(secondCopy.iid);
+      toast('The Art of Mimicry created a second Taylor in ' + G.players[targetPlayer].name + '\'s hand.');
+    }
+  }
   if(!options.skipArrivalEffects && card.id === '74' && typeof triggerSelvaIslandsPirateHandArrival === 'function'){
     triggerSelvaIslandsPirateHandArrival(targetPlayer, card, { openingHand: !!options.openingHand });
   }
-  if(typeof enforceHandLimit === 'function') enforceHandLimit(targetPlayer);
+  if(!options.skipHandLimit && !shouldRevealAliBeforeTransfer && typeof enforceHandLimit === 'function') enforceHandLimit(targetPlayer);
   if(options.animate !== false){
     if(!G._forceHandEnterIids) G._forceHandEnterIids = new Set();
     G._forceHandEnterIids.add(card.iid);
@@ -1815,9 +2014,9 @@ function animateDrawCard(delayIdx) {
   setTimeout(()=>flyCard.remove(), 520 + delayIdx*55);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  COIN FLIP
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 function renderCoinFace(heads) {
   return `<span class="coin-face-icon ${heads ? 'heads' : 'tails'}" aria-hidden="true">${heads ? '&#9728;' : '&#9790;'}</span>`;
 }
@@ -1896,7 +2095,7 @@ function doCoinFlip() {
 }
 
 function chooseTurn(goFirst) {
-  // coinWinner decides — if they choose first, they go first
+  // coinWinner decides � if they choose first, they go first
   const entryVeilStarted = showMatchEntryLoadingVeil();
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
@@ -1937,4 +2136,4 @@ function chooseTurn(goFirst) {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════

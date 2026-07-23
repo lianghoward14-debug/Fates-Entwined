@@ -516,11 +516,63 @@ function authorityCardEffectIsSuppressed(card){
   return !!(card && (card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed));
 }
 
+function authorityZsofiaSetSources(state, owner, z){
+  const entries = boardEntries(state);
+  return entries.filter(entry=>{
+    const card = entry.card;
+    if(!card || Number(card.owner) !== owner || isFaceDownAuthorityCard(card) || authorityCardEffectIsSuppressed(card)) return false;
+    if(String(card.id || '') === '15') return Number(entry.z) === Number(z);
+    return String(card._whisperCopiedEffectId || '') === '15';
+  });
+}
+
+function authorityZsofiaSetPotency(state, source){
+  if(!state || !source || !source.card) return 1;
+  const owner = Number(source.card.owner);
+  const entries = boardEntries(state);
+  const whisperJeremiah = entries.filter(entry=>
+    Number(entry.card && entry.card.owner) === owner &&
+    String(entry.card && entry.card._whisperCopiedEffectId || '') === '57' &&
+    !isFaceDownAuthorityCard(entry.card) &&
+    !authorityCardEffectIsSuppressed(entry.card)
+  ).length;
+  const localJeremiah = entries.filter(entry=>
+    Number(entry.z) === Number(source.z) &&
+    Number(entry.card && entry.card.owner) === owner &&
+    String(entry.card && entry.card.id || '') === '57' &&
+    !isFaceDownAuthorityCard(entry.card) &&
+    !authorityCardEffectIsSuppressed(entry.card)
+  ).length;
+  return 1 + whisperJeremiah + localJeremiah;
+}
+
+function validateAuthorityZsofiaCoordinatorSetTrigger(preState, postState, playerIndex, placedEntry){
+  const placedCard = placedEntry && placedEntry.card;
+  if(!preState || !postState || !placedCard || String(placedCard.type || '') !== 'Coordinator' || isFaceDownAuthorityCard(placedCard)) return '';
+  const owner = Number(placedCard.owner);
+  if(owner !== Number(playerIndex) || (owner !== 0 && owner !== 1)) return '';
+  const sources = authorityZsofiaSetSources(postState, owner, Number(placedEntry.z));
+  if(!sources.length) return '';
+  const beforeEntries = boardEntries(preState).filter(entry=>entry.card && Number(entry.card.owner) === owner);
+  for(const before of beforeEntries){
+    const after = findBoardEntryByRef(postState, before.card);
+    if(!after || !after.card) continue;
+    let required = 0;
+    sources.forEach(source=>{
+      const fieldWide = String(source.card && source.card._whisperCopiedEffectId || '') === '15';
+      if(fieldWide || Number(after.z) === Number(source.z)) required += authorityZsofiaSetPotency(postState, source);
+    });
+    if(required <= 0) continue;
+    const beforeFate = Number(before.card.currentFate ?? before.card.fate) || 0;
+    const afterFate = Number(after.card.currentFate ?? after.card.fate) || 0;
+    if(afterFate < beforeFate + required) return 'Blue Danube Waltz must apply when a Coordinator is set in Zsofia\'s zone';
+  }
+  return '';
+}
+
 function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
   if(!state || !Array.isArray(state.board) || (playerIndex !== 0 && playerIndex !== 1)) return 0;
   const entries = boardEntries(state);
-  const drawSourceEntry = findBoardEntryByRef(state, sourceCard);
-  if(!drawSourceEntry) return 0;
   const whisperJeremiah = entries.filter(entry=>
     Number(entry.card && entry.card.owner) === playerIndex &&
     String(entry.card && entry.card._whisperCopiedEffectId || '') === '57' &&
@@ -530,7 +582,6 @@ function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
   const sources = entries.filter(entry=>{
     const card = entry.card;
     if(!card || Number(card.owner) !== playerIndex || isFaceDownAuthorityCard(card) || authorityCardEffectIsSuppressed(card)) return false;
-    if(entry.z !== drawSourceEntry.z) return false;
     return String(card.id || '') === 'bh02' || String(card._whisperCopiedEffectId || '') === 'bh02';
   });
   if(!sources.length) return 0;
@@ -538,6 +589,7 @@ function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
   const eventKey = ['joie-authority', playerIndex, Number(state.turn) || 0, String(sourceCard && (sourceCard.iid || sourceCard.id) || 'draw')].join(':');
   let total = 0;
   sources.forEach(source=>{
+    source.card._joieProcCount = Math.max(0, Math.floor(Number(source.card._joieProcCount) || 0)) + 1;
     const fieldWide = String(source.card._whisperCopiedEffectId || '') === 'bh02';
     const localJeremiah = entries.filter(entry=>
       entry.z === source.z &&
@@ -561,6 +613,47 @@ function applyAuthorityJoieDrawEffectPassive(state, playerIndex, sourceCard){
         soundKey:eventKey,
         pitchStep:0,
         label:'Thousand Reel Stare'
+      };
+      total += amount;
+    });
+  });
+  return total;
+}
+
+function applyAuthorityMajaMischievousActivities(state, playerIndex){
+  if(!state || !Array.isArray(state.board) || (playerIndex !== 0 && playerIndex !== 1)) return 0;
+  const entries = boardEntries(state);
+  const whisperJeremiah = entries.filter(entry=>
+    Number(entry.card && entry.card.owner) === playerIndex &&
+    String(entry.card && entry.card._whisperCopiedEffectId || '') === '57' &&
+    !isFaceDownAuthorityCard(entry.card) &&
+    !authorityCardEffectIsSuppressed(entry.card)
+  ).length;
+  const sources = entries.filter(entry=>{
+    const card = entry.card;
+    return card && Number(card.owner) === playerIndex && (String(card.id || '') === 'bh08' || String(card._whisperCopiedEffectId || '') === 'bh08') &&
+      !isFaceDownAuthorityCard(card) && !authorityCardEffectIsSuppressed(card);
+  });
+  if(!sources.length) return 0;
+  const at = Date.now();
+  const eventKey = ['bh08-authority', playerIndex, Number(state.turn) || 0, at].join(':');
+  let total = 0;
+  sources.forEach(source=>{
+    source.card._bh08ProcCount = Math.max(0, Math.floor(Number(source.card._bh08ProcCount) || 0)) + 1;
+    const localJeremiah = entries.filter(entry=>
+      entry.z === source.z && Number(entry.card && entry.card.owner) === playerIndex &&
+      String(entry.card && entry.card.id || '') === '57' && !isFaceDownAuthorityCard(entry.card) &&
+      !authorityCardEffectIsSuppressed(entry.card)
+    ).length;
+    const amount = 2 + whisperJeremiah + localJeremiah;
+    const fieldWide = String(source.card && source.card._whisperCopiedEffectId || '') === 'bh08';
+    entries.forEach(target=>{
+      if(!target.card || (!fieldWide && target.z !== source.z) || isAuthorityFullyEffectImmuneCard(target.card)) return;
+      target.card.currentFate = (Number(target.card.currentFate ?? target.card.fate) || 0) + amount;
+      target.card._effectFlash = {
+        kind:'bh08_mischief', at, duration:3500, turn:Number(state.turn) || 0,
+        visibleAt:at, waitForConsolidationCinematic:false, soundKey:eventKey,
+        pitchStep:0, label:'Mischievous Activities'
       };
       total += amount;
     });
@@ -802,6 +895,8 @@ function validateConsolidationPostState(room, payload, postState){
       return 'consolidation did not move every consumed supporter to discard or its required destination';
     }
   }
+  const zsofiaErr = validateAuthorityZsofiaCoordinatorSetTrigger(preState, postState, playerIndex, {z:targetZ, r:targetR, c:targetC, card:targetCard});
+  if(zsofiaErr) return zsofiaErr;
   return '';
 }
 
@@ -849,8 +944,10 @@ function validatePlacementPostState(room, payload, postState){
     const copiedId = String(target._whisperCopiedEffectId || selected._whisperCopiedEffectId || '');
     if(Number(target.owner) !== Number(payload.playerIndex)) return 'Shizuku Token field ownership must belong to the acting player';
     if(target.whisperLandscapeToken !== true || target.type !== 'Coordinator' || Number(target.currentFate ?? target.fate) !== 5) return 'Shizuku Token placement state is invalid';
-    if(!/^(?:10|11|15|19|23|57|77|bh02)$/.test(copiedId)) return 'Shizuku Token copied an invalid Coordinator effect';
+    if(!/^(?:10|11|15|19|23|57|77|bh02|bh07|bh08)$/.test(copiedId)) return 'Shizuku Token copied an invalid Coordinator effect';
   }
+  const zsofiaErr = validateAuthorityZsofiaCoordinatorSetTrigger(room && room.canonicalState, postState, Number(payload.playerIndex), {z, r, c, card:target});
+  if(zsofiaErr) return zsofiaErr;
   return '';
 }
 
@@ -1014,7 +1111,7 @@ function validateWhisperLandscapeUsesTransition(room, msg, postState){
     if(afterTokens.length !== beforeTokens + 1) return 'Concrete Roads must create exactly one Shizuku Token';
     const token = afterTokens.find(entry=>!beforeHand.some(old=>String(old.card.iid || '') === String(entry.card.iid || '')))?.card;
     if(!token || token.type !== 'Coordinator' || Number(token.currentFate ?? token.fate) !== 5 || token.whisperLandscapeToken !== true) return 'Concrete Roads created an invalid Shizuku Token';
-    if(!/^(?:10|11|15|19|23|57|77|bh02)$/.test(String(token._whisperCopiedEffectId || ''))) return 'Shizuku Token copied an invalid Coordinator effect';
+    if(!/^(?:10|11|15|19|23|57|77|bh02|bh07|bh08)$/.test(String(token._whisperCopiedEffectId || ''))) return 'Shizuku Token copied an invalid Coordinator effect';
     const beforeBoard = boardEntries(baseState).filter(entry=>Number(entry.card.owner) === player);
     const afterBoard = boardEntries(postState).filter(entry=>Number(entry.card.owner) === player);
     const removedBoard = beforeBoard.filter(entry=>!afterBoard.some(next=>String(next.card.iid || '') === String(entry.card.iid || '')));
@@ -1352,6 +1449,7 @@ function applyLydiaAuthorityReaction(state, option, pending){
   if(!entry || !entry.card) return 'Lydia is no longer on the board';
   entry.card.usesLeft = Math.max(0, (entry.card.usesLeft === null || entry.card.usesLeft === undefined ? 3 : Number(entry.card.usesLeft) || 0) - 1);
   markAuthoritySourceNegated(state, pending, 'lydia');
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
   return '';
 }
 
@@ -1361,6 +1459,7 @@ function applySeculesAuthorityReaction(state, option, pending){
   entry.card.usesLeft = 0;
   entry.card._seculesUsed = true;
   markAuthoritySourceNegated(state, pending, 'secules');
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
   return '';
 }
 
@@ -1386,6 +1485,7 @@ function applyHavanoAuthorityReaction(state, option, payload, pending){
   inst.currentFate = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
   state.board[z][r][c] = inst;
   markAuthoritySourceNegated(state, pending, 'havano');
+  applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex));
   return '';
 }
 
@@ -1406,7 +1506,20 @@ function applyBoleslawSearchAuthorityReaction(state, option, pending){
       drawn._igb19HandOwner = playerIndex;
       drawn._igb19LastCountedHandTurn = Math.max(0, Number(landscapeState.handTurnCounts && landscapeState.handTurnCounts[playerIndex]) || 0);
     }
-    player.hand.push(drawn);
+    if(String(drawn.id || '') === 'bh03'){
+      const recipient = 1 - playerIndex;
+      delete drawn._igb19HandTurnsRemaining;
+      delete drawn._igb19HandOwner;
+      delete drawn._igb19LastCountedHandTurn;
+      drawn.owner = recipient;
+      drawn._bh03OpponentHand = true;
+      drawn._bh03TransferredFrom = playerIndex;
+      drawn.immuneFlag = true;
+      drawn.cantBeReduced = true;
+      state.players[recipient].hand.push(drawn);
+    } else {
+      player.hand.push(drawn);
+    }
   }
   return '';
 }

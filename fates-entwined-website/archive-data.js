@@ -188,10 +188,10 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "Blue Danube Waltz",
       "type": "Coordinator",
       "aff": "third_great_war",
-      "fate": 2,
+      "fate": 5,
       "cost": 2,
       "rarity": "triangle",
-      "effect": "All cards in this zone you control gain 1 Fate for each Coordinator in this zone (max 3 Fate).",
+      "effect": "Each time you would set a Coordinator in this zone, all cards in this zone gain 1 Fate.",
       "flavor": "\"The Beautiful Danube, clear and blue\"",
       "img": "../15.png"
     },
@@ -240,10 +240,10 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "The Vltava's Story",
       "type": "Coordinator",
       "aff": "third_great_war",
-      "fate": 5,
+      "fate": 4,
       "cost": 2,
       "rarity": "triangle",
-      "effect": "All Coordinators you control in this zone gain 2 Fate.",
+      "effect": "All Coordinators you control in this card's zone gains 3 Fate.",
       "flavor": "\"The Queen of Czechoslovakia, once a Street Urchin in Prague\"",
       "img": "../19.png"
     },
@@ -838,12 +838,12 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "Beyond Drawings",
       "type": "Initiator",
       "aff": "reality",
-      "fate": 4,
-      "cost": 2,
+      "fate": 3,
+      "cost": 1,
       "rarity": "triangle",
       "effect": "Declare an affiliation; change as many cards you control in this zone to that affiliation. This card gains 1 Fate for each card changed this way.",
       "flavor": "\"Steph Curry... MY GOAT!\"",
-      "img": "../66.png"
+      "img": "../66.png?v=20260723a"
     },
     {
       "id": "67",

@@ -1,5 +1,5 @@
-﻿//  SYNTHESIZED SOUND EFFECTS (Web Audio API)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  SYNTHESIZED SOUND EFFECTS (Web Audio API)
+// ═══════════════════════════════════════════════════════
 let _audioCtx = null;
 let _sfxBusByContext = new WeakMap();
 let _sfxNoiseBuffersByContext = new WeakMap();
@@ -127,6 +127,7 @@ const FATE_SAMPLE_SFX = {
   characterSet_Coordinator: {src:'soundeffects/codex-redesign/character_coordinator_oceanic_arrival.wav', gain:0.9},
   characterSet_Dauntless: {src:'soundeffects/codex-redesign/character_dauntless_impact.wav', gain:0.9},
   characterSet_Improvisor: {src:'soundeffects/codex-redesign/character_improvisor_future_drop.wav', gain:0.9},
+  aliTransfer: {src:'soundeffects/codex-redesign/character_improvisor_future_drop.wav', gain:1.1},
   whisperConsolidation: {src:'setvoicelines/whisper.mp3', gain:0.95}
 };
 const _fateSampleAudioCache = new Map();
@@ -225,6 +226,59 @@ function playFateLossTone(effectiveVol) {
   } catch(e) {}
 }
 
+function playAliTransferTone(effectiveVol) {
+  try {
+    const ctx = getAudioCtx();
+    const bus = getSfxBus(ctx);
+    const now = ctx.currentTime;
+    const out = ctx.createGain();
+    out.gain.value = _masterVol * effectiveVol * 0.95;
+    out.connect(bus.input);
+
+    const low = ctx.createOscillator();
+    low.type = 'triangle';
+    low.frequency.setValueAtTime(196, now);
+    low.frequency.exponentialRampToValueAtTime(73, now + 0.28);
+    const lowGain = ctx.createGain();
+    lowGain.gain.setValueAtTime(0.16, now);
+    lowGain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+    low.connect(lowGain);
+    lowGain.connect(out);
+    low.start(now);
+    low.stop(now + 0.36);
+
+    const edge = ctx.createOscillator();
+    edge.type = 'square';
+    edge.frequency.setValueAtTime(880, now + 0.02);
+    edge.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+    const edgeFilter = ctx.createBiquadFilter();
+    edgeFilter.type = 'bandpass';
+    edgeFilter.frequency.setValueAtTime(1250, now + 0.02);
+    edgeFilter.Q.value = 6;
+    const edgeGain = ctx.createGain();
+    edgeGain.gain.setValueAtTime(0.055, now + 0.02);
+    edgeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+    edge.connect(edgeFilter);
+    edgeFilter.connect(edgeGain);
+    edgeGain.connect(out);
+    edge.start(now + 0.02);
+    edge.stop(now + 0.2);
+
+    [392, 277.18].forEach(function(freq, index){
+      const tone = ctx.createOscillator();
+      tone.type = 'sine';
+      const start = now + 0.07 + index * 0.055;
+      tone.frequency.setValueAtTime(freq, start);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.045, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
+      tone.connect(gain);
+      gain.connect(out);
+      tone.start(start);
+      tone.stop(start + 0.28);
+    });
+  } catch(e) {}
+}
 function shouldPlayTurnChangeSfx() {
   const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const last = Number(window.__fateLastTurnChangeSfxAt || 0) || 0;
@@ -339,12 +393,14 @@ function playSfx(type) {
     if(!playFateSampleSfx(type, isMenuSound, effectiveVol)) playWhisperTokenTone(effectiveVol);
     return;
   }
+  if(type === 'aliTransfer') playAliTransferTone(effectiveVol);
   if(type === 'fateLose') playFateLossTone(effectiveVol);
   if(playFateSampleSfx(type, isMenuSound, effectiveVol)) return;
   try {
     const ctx = getAudioCtx();
     const vol = ctx.createGain();
-    vol.gain.value = _masterVol * effectiveVol * (isMenuSound ? 2.5 : 1.2);
+    const isNewGameplayCue = type === 'taylorSelfCopy' || type === 'consolidationModeOn' || type === 'consolidationModeOff';
+    vol.gain.value = _masterVol * effectiveVol * (isMenuSound ? 2.5 : (isNewGameplayCue ? 2.2 : 1.2));
     vol.connect(getSfxBus(ctx).input);
     const now = ctx.currentTime;
 
@@ -397,6 +453,60 @@ function playSfx(type) {
       tick.stop(now + 0.07);
     }
 
+    else if(type==='taylorSelfCopy'){
+      // A mirrored, crystalline flourish: one Taylor arrives, then her echo answers.
+      [659.25, 783.99, 987.77].forEach((frequency,index)=>{
+        [0,0.115].forEach((echoDelay,echoIndex)=>{
+          const tone = ctx.createOscillator(); tone.type = echoIndex ? 'sine' : 'triangle';
+          const start = now + index * 0.052 + echoDelay;
+          tone.frequency.setValueAtTime(frequency * (echoIndex ? 1.005 : 1), start);
+          const toneGain = ctx.createGain();
+          toneGain.gain.setValueAtTime(0.001, start);
+          toneGain.gain.linearRampToValueAtTime(echoIndex ? 0.04 : 0.075, start + 0.014);
+          toneGain.gain.exponentialRampToValueAtTime(0.001, start + 0.34);
+          tone.connect(toneGain); toneGain.connect(vol); tone.start(start); tone.stop(start + 0.38);
+        });
+      });
+      const shimmer = noiseBurst(0.2, 2.7, 0.11, 'highpass', 4200, 1.2);
+      shimmer.start(now + 0.035);
+    }
+
+    else if(type==='consolidationModeOn'){
+      const sweep = ctx.createOscillator(); sweep.type = 'triangle';
+      sweep.frequency.setValueAtTime(135, now);
+      sweep.frequency.exponentialRampToValueAtTime(430, now + 0.2);
+      const sweepGain = ctx.createGain();
+      sweepGain.gain.setValueAtTime(0.001, now);
+      sweepGain.gain.linearRampToValueAtTime(0.09, now + 0.035);
+      sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      sweep.connect(sweepGain); sweepGain.connect(vol); sweep.start(now); sweep.stop(now + 0.31);
+      [293.66, 440].forEach((frequency,index)=>{
+        const lock = ctx.createOscillator(); lock.type = 'sine';
+        const start = now + 0.12 + index * 0.06;
+        lock.frequency.setValueAtTime(frequency, start);
+        const lockGain = ctx.createGain();
+        lockGain.gain.setValueAtTime(0.001, start);
+        lockGain.gain.linearRampToValueAtTime(0.065, start + 0.012);
+        lockGain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+        lock.connect(lockGain); lockGain.connect(vol); lock.start(start); lock.stop(start + 0.34);
+      });
+    }
+
+    else if(type==='consolidationModeOff'){
+      const release = ctx.createOscillator(); release.type = 'triangle';
+      release.frequency.setValueAtTime(410, now);
+      release.frequency.exponentialRampToValueAtTime(118, now + 0.2);
+      const releaseGain = ctx.createGain();
+      releaseGain.gain.setValueAtTime(0.075, now);
+      releaseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+      release.connect(releaseGain); releaseGain.connect(vol); release.start(now); release.stop(now + 0.27);
+      const click = ctx.createOscillator(); click.type = 'square'; click.frequency.value = 760;
+      const clickGain = ctx.createGain();
+      clickGain.gain.setValueAtTime(0.035, now + 0.025);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      click.connect(clickGain); clickGain.connect(vol); click.start(now + 0.025); click.stop(now + 0.08);
+    }
+
     else if(type==='place'){
       // HEAVY card slam: sub-bass thud + saturated mid punch + metallic ring + noise crack
       // Sub thud
@@ -404,7 +514,7 @@ function playSfx(type) {
       sub.frequency.setValueAtTime(90,now); sub.frequency.exponentialRampToValueAtTime(35,now+0.25);
       const subG = ctx.createGain(); subG.gain.setValueAtTime(0.45,now); subG.gain.exponentialRampToValueAtTime(0.001,now+0.3);
       sub.connect(subG); subG.connect(vol); sub.start(now); sub.stop(now+0.32);
-      // Mid punch — saturated
+      // Mid punch � saturated
       const mid = ctx.createOscillator(); mid.type='sawtooth';
       mid.frequency.setValueAtTime(180,now); mid.frequency.exponentialRampToValueAtTime(70,now+0.12);
       const midG = ctx.createGain(); midG.gain.setValueAtTime(0.2,now); midG.gain.exponentialRampToValueAtTime(0.001,now+0.15);
@@ -470,8 +580,8 @@ function playSfx(type) {
     }
 
     else if(type==='turnChange'){
-      // Deep war horn → bright chime cascade
-      // Horn — filtered sawtooth
+      // Deep war horn ? bright chime cascade
+      // Horn � filtered sawtooth
       const horn = ctx.createOscillator(); horn.type='sawtooth';
       horn.frequency.setValueAtTime(130,now); horn.frequency.exponentialRampToValueAtTime(260,now+0.3);
       const hornLp = ctx.createBiquadFilter(); hornLp.type='lowpass';
@@ -515,7 +625,7 @@ function playSfx(type) {
     }
 
     else if(type==='starPlace'){
-      // Epic celestial fanfare: deep brass → ascending chorus → shimmering explosion
+      // Epic celestial fanfare: deep brass ? ascending chorus ? shimmering explosion
       // Brass foundation
       [130.81, 196.00, 261.63].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
@@ -592,7 +702,7 @@ function playSfx(type) {
       sub.connect(subG); subG.connect(vol); sub.start(now); sub.stop(now+0.28);
       // Impact crack
       noiseBurst(0.05, 2.0, 0.3, 'bandpass', 1000, 2).start(now);
-      // Dual chime — fifth interval
+      // Dual chime � fifth interval
       [880, 1320].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
         const g = ctx.createGain(); g.gain.setValueAtTime(0,now+0.03+i*0.05);
@@ -647,7 +757,7 @@ function playSfx(type) {
     }
 
     else if(type==='effect'){
-      // Magical surge: sub rumble → filter-swept resonance → sparkle cascade
+      // Magical surge: sub rumble ? filter-swept resonance ? sparkle cascade
       const sub = ctx.createOscillator(); sub.type='sine';
       sub.frequency.setValueAtTime(50,now); sub.frequency.exponentialRampToValueAtTime(100,now+0.2);
       const subG = ctx.createGain(); subG.gain.setValueAtTime(0.2,now);
@@ -675,7 +785,7 @@ function playSfx(type) {
     }
 
     else if(type==='win'){
-      // Triumphant anthem: brass fanfare → full chord bloom → cymbal wash
+      // Triumphant anthem: brass fanfare ? full chord bloom ? cymbal wash
       const chord1 = [196.00, 246.94, 293.66, 392.00]; // G major
       const chord2 = [293.66, 369.99, 440.00, 587.33]; // D major
       const chord3 = [261.63, 329.63, 392.00, 523.25, 783.99]; // C major + high
@@ -709,7 +819,7 @@ function playSfx(type) {
     }
 
     else if(type==='coinFlip'){
-      // Metallic coin spin: rapid pings accelerating → final ring
+      // Metallic coin spin: rapid pings accelerating ? final ring
       for(let i=0;i<12;i++){
         const t = i/12;
         const freq = 800 + i*60 + Math.sin(i*0.8)*50;
@@ -737,7 +847,7 @@ function playSfx(type) {
       drum.connect(drumG); drumG.connect(vol); drum.start(now); drum.stop(now+0.4);
       // Drum noise head
       noiseBurst(0.04, 3, 0.45, 'lowpass', 500).start(now);
-      // Battle horn — filtered sawtooth chord
+      // Battle horn � filtered sawtooth chord
       [165.00, 220.00, 330.00].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
         const lp = ctx.createBiquadFilter(); lp.type='lowpass';
@@ -812,7 +922,7 @@ function playSfx(type) {
     }
 
     else if(type==='zoeBlock'){
-      // Zoe: crystalline barrier seal — high resonant ping + glass ward + echo
+      // Zoe: crystalline barrier seal � high resonant ping + glass ward + echo
       const ping = ctx.createOscillator(); ping.type='sine'; ping.frequency.value=1800;
       const pingG = ctx.createGain(); pingG.gain.setValueAtTime(0.15,now);
       pingG.gain.exponentialRampToValueAtTime(0.001,now+0.4);
@@ -952,7 +1062,7 @@ function playSfx(type) {
     }
 
     else if(type==='packOpen'){
-      // Card pack rip: tearing noise → reveal shimmer
+      // Card pack rip: tearing noise ? reveal shimmer
       const tear = ctx.createBuffer(1,ctx.sampleRate*0.2,ctx.sampleRate);
       const tearD = tear.getChannelData(0);
       for(let i=0;i<tearD.length;i++){
@@ -975,7 +1085,7 @@ function playSfx(type) {
     }
 
     else if(type==='lose'){
-      // Defeated: descending minor chord → sub rumble → silence
+      // Defeated: descending minor chord ? sub rumble ? silence
       const chord = [196.00, 233.08, 293.66, 392.00]; // G minor
       chord.forEach(f=>{
         const o = ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
@@ -994,7 +1104,7 @@ function playSfx(type) {
 
 
     else if(type==='navClick'){
-      // Heavy navigation button — deep mechanical switch with resonant body
+      // Heavy navigation button � deep mechanical switch with resonant body
       // Sharp attack
       const snap = ctx.createOscillator(); snap.type='square';
       snap.frequency.setValueAtTime(1800,now); snap.frequency.exponentialRampToValueAtTime(300,now+0.025);
@@ -1020,7 +1130,7 @@ function playSfx(type) {
     }
 
     else if(type==='tabSwitch'){
-      // Smooth tab change — sliding notch click with pitch shift
+      // Smooth tab change � sliding notch click with pitch shift
       const o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(600,now); o.frequency.exponentialRampToValueAtTime(1200,now+0.06);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.3,now);
@@ -1041,7 +1151,7 @@ function playSfx(type) {
     }
 
     else if(type==='backBtn'){
-      // Back button — descending whoosh with weight
+      // Back button � descending whoosh with weight
       const sweep = ctx.createOscillator(); sweep.type='triangle';
       sweep.frequency.setValueAtTime(1000,now); sweep.frequency.exponentialRampToValueAtTime(250,now+0.12);
       const sweepLp = ctx.createBiquadFilter(); sweepLp.type='lowpass';
@@ -1059,7 +1169,7 @@ function playSfx(type) {
     }
 
     else if(type==='startGame'){
-      // Game start — dramatic rising power surge + slam
+      // Game start � dramatic rising power surge + slam
       // Rising whoosh
       const swoosh = ctx.createBuffer(1,ctx.sampleRate*0.5,ctx.sampleRate);
       const swooshD = swoosh.getChannelData(0);
@@ -1092,14 +1202,14 @@ function playSfx(type) {
     }
 
     else if(type==='deckAdd'){
-      // Smooth card slot-in — soft click + gentle ascending confirmation tone
+      // Smooth card slot-in � soft click + gentle ascending confirmation tone
       // Soft click
       const click = ctx.createOscillator(); click.type='triangle';
       click.frequency.setValueAtTime(1200,now); click.frequency.exponentialRampToValueAtTime(600,now+0.025);
       const clickG = ctx.createGain(); clickG.gain.setValueAtTime(0.12,now);
       clickG.gain.exponentialRampToValueAtTime(0.001,now+0.04);
       click.connect(clickG); clickG.connect(vol); click.start(now); click.stop(now+0.05);
-      // Gentle ascending tone — sounds like a card sliding into place
+      // Gentle ascending tone � sounds like a card sliding into place
       const tone = ctx.createOscillator(); tone.type='sine';
       tone.frequency.setValueAtTime(520,now+0.02); tone.frequency.exponentialRampToValueAtTime(780,now+0.12);
       const toneG = ctx.createGain(); toneG.gain.setValueAtTime(0.08,now+0.02);
@@ -1113,7 +1223,7 @@ function playSfx(type) {
     }
 
     else if(type==='deckRemove'){
-      // Card removed from deck — reverse pop + descending tone
+      // Card removed from deck � reverse pop + descending tone
       const pop = ctx.createOscillator(); pop.type='triangle';
       pop.frequency.setValueAtTime(1200,now); pop.frequency.exponentialRampToValueAtTime(400,now+0.08);
       const popG = ctx.createGain(); popG.gain.setValueAtTime(0.12,now);
@@ -1130,7 +1240,7 @@ function playSfx(type) {
     }
 
     else if(type==='filterClick'){
-      // Filter/toggle — crisp switch with subtle resonance
+      // Filter/toggle � crisp switch with subtle resonance
       const o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(1400,now); o.frequency.exponentialRampToValueAtTime(700,now+0.03);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.22,now);
@@ -1144,7 +1254,7 @@ function playSfx(type) {
     }
 
     else if(type==='danger'){
-      // Danger/delete button — warning buzz + descending tone
+      // Danger/delete button � warning buzz + descending tone
       const buzz = ctx.createOscillator(); buzz.type='square';
       buzz.frequency.setValueAtTime(250,now); buzz.frequency.setValueAtTime(200,now+0.05);
       const buzzG = ctx.createGain(); buzzG.gain.setValueAtTime(0.25,now);
@@ -1161,7 +1271,7 @@ function playSfx(type) {
     }
 
     else if(type==='purchase'){
-      // Shop purchase — coin drop + register cha-ching
+      // Shop purchase � coin drop + register cha-ching
       for(let i=0;i<3;i++){
         const o = ctx.createOscillator(); o.type='triangle';
         o.frequency.value = 1200+i*200;
@@ -1183,7 +1293,7 @@ function playSfx(type) {
     }
 
     else if(type==='cardReveal'){
-      // Pack card reveal — dramatic reveal chime
+      // Pack card reveal � dramatic reveal chime
       const chime = ctx.createOscillator(); chime.type='sine';
       chime.frequency.setValueAtTime(800,now); chime.frequency.exponentialRampToValueAtTime(1600,now+0.15);
       const chimeG = ctx.createGain(); chimeG.gain.setValueAtTime(0.12,now);
@@ -1200,7 +1310,7 @@ function playSfx(type) {
     }
 
     else if(type==='screenTransition'){
-      // Mechanical servo slide — gear engage + hydraulic hiss + latch
+      // Mechanical servo slide � gear engage + hydraulic hiss + latch
       // Gear engage click
       const gear = ctx.createOscillator(); gear.type='square';
       gear.frequency.setValueAtTime(800,now); gear.frequency.exponentialRampToValueAtTime(200,now+0.03);
@@ -1209,7 +1319,7 @@ function playSfx(type) {
       const gearLp = ctx.createBiquadFilter(); gearLp.type='lowpass'; gearLp.frequency.value=1500;
       gear.connect(gearLp); gearLp.connect(gearG); gearG.connect(vol);
       gear.start(now); gear.stop(now+0.05);
-      // Hydraulic hiss — filtered noise sweep
+      // Hydraulic hiss � filtered noise sweep
       const hBuf = ctx.createBuffer(1,ctx.sampleRate*0.12,ctx.sampleRate);
       const hD = hBuf.getChannelData(0);
       for(let i=0;i<hD.length;i++){const t=i/hD.length; hD[i]=(Math.random()*2-1)*(1-t)*0.2;}
@@ -1227,7 +1337,7 @@ function playSfx(type) {
     }
 
     else if(type==='xpGain'){
-      // XP earned — ascending sparkle burst
+      // XP earned � ascending sparkle burst
       [660,880,1100,1320,1760].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
         const g = ctx.createGain(); g.gain.setValueAtTime(0,now+i*0.05);
@@ -1242,9 +1352,9 @@ function playSfx(type) {
     }
 
 
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     //  AFFILIATION PLACEMENT SOUNDS
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     else if(type==='affPlace_third_great_war'){
       // Militant brass hit + marching snare
       [130.81,196.00,261.63].forEach((f,i)=>{
@@ -1266,7 +1376,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_eventide'){
-      // Oceanic swell — filtered pad + water shimmer
+      // Oceanic swell � filtered pad + water shimmer
       const pad=ctx.createOscillator();pad.type='sine';
       pad.frequency.setValueAtTime(220,now);pad.frequency.exponentialRampToValueAtTime(330,now+0.3);
       const padLp=ctx.createBiquadFilter();padLp.type='lowpass';
@@ -1290,7 +1400,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_expanded_worlds'){
-      // Sci-fi pulse — electric zap + resonant ping + digital stutter
+      // Sci-fi pulse � electric zap + resonant ping + digital stutter
       const zap=ctx.createOscillator();zap.type='sawtooth';
       zap.frequency.setValueAtTime(100,now);zap.frequency.exponentialRampToValueAtTime(2000,now+0.08);
       zap.frequency.exponentialRampToValueAtTime(400,now+0.15);
@@ -1311,7 +1421,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_reality'){
-      // Grounded percussive snap — wood block + finger snap + body
+      // Grounded percussive snap � wood block + finger snap + body
       noiseBurst(0.03,3,0.5,'bandpass',2500,4).start(now);
       const snap=ctx.createOscillator();snap.type='triangle';
       snap.frequency.setValueAtTime(3000,now);snap.frequency.exponentialRampToValueAtTime(800,now+0.02);
@@ -1326,9 +1436,9 @@ function playSfx(type) {
       body.connect(bodyG);bodyG.connect(vol);body.start(now);body.stop(now+0.12);
     }
 
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     //  COMBAT / INTERACTION SOUNDS
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     else if(type==='fateReduce'){
       // Heavy crunch when fate gets reduced
       const crunch=ctx.createOscillator();crunch.type='sawtooth';
@@ -1443,7 +1553,7 @@ function playSfx(type) {
     }
 
     else if(type==='reactionTrigger'){
-      // Dramatic interrupt — reverse cymbal + stinger chord
+      // Dramatic interrupt � reverse cymbal + stinger chord
       const revBuf=ctx.createBuffer(1,ctx.sampleRate*0.3,ctx.sampleRate);
       const revD=revBuf.getChannelData(0);
       for(let i=0;i<revD.length;i++){const t=i/revD.length;revD[i]=(Math.random()*2-1)*t*t*0.15;}
@@ -1463,7 +1573,7 @@ function playSfx(type) {
     }
 
     else if(type==='consolidateDenied'){
-      // Locked gate slam — metallic + denial
+      // Locked gate slam � metallic + denial
       const o=ctx.createOscillator();o.type='square';
       o.frequency.setValueAtTime(250,now);o.frequency.exponentialRampToValueAtTime(100,now+0.12);
       const g=ctx.createGain();g.gain.setValueAtTime(0.2,now);
@@ -1478,11 +1588,11 @@ function playSfx(type) {
       noiseBurst(0.04,2.5,0.3,'lowpass',600).start(now);
     }
 
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     //  PROGRESSION / REWARD SOUNDS
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     else if(type==='levelUp'){
-      // Grand level-up fanfare — ascending trumpet + sparkle explosion + sub boom
+      // Grand level-up fanfare � ascending trumpet + sparkle explosion + sub boom
       [261.63,329.63,392.00,523.25,659.25,783.99].forEach((f,i)=>{
         const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=f;
         const lp=ctx.createBiquadFilter();lp.type='lowpass';
@@ -1509,7 +1619,7 @@ function playSfx(type) {
     }
 
     else if(type==='starlightEarn'){
-      // Crystalline reward — glass chime cascade
+      // Crystalline reward � glass chime cascade
       [1047,1319,1568,2093,2637].forEach((f,i)=>{
         const o=ctx.createOscillator();o.type='sine';o.frequency.value=f;
         const g=ctx.createGain();g.gain.setValueAtTime(0,now+i*0.07);
@@ -1541,11 +1651,11 @@ function playSfx(type) {
       });
     }
 
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     //  DRAMATIC MOMENTS
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     else if(type==='lastTurn'){
-      // War drum announcement — deep double hit + horn blast
+      // War drum announcement � deep double hit + horn blast
       [0,0.2].forEach(d=>{
         const drum=ctx.createOscillator();drum.type='sine';
         drum.frequency.setValueAtTime(70,now+d);drum.frequency.exponentialRampToValueAtTime(35,now+d+0.15);
@@ -1566,7 +1676,7 @@ function playSfx(type) {
     }
 
     else if(type==='zoneCaptured'){
-      // Triumphant zone sting — bright major stab + shimmer
+      // Triumphant zone sting � bright major stab + shimmer
       [392,493.88,587.33,783.99].forEach(f=>{
         const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=f;
         const lp=ctx.createBiquadFilter();lp.type='lowpass';
@@ -1617,11 +1727,11 @@ function playSfx(type) {
       echo.connect(echoG);echoG.connect(vol);echo.start(now+0.15);echo.stop(now+0.32);
     }
 
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     //  UI POLISH SOUNDS
-    // ═══════════════════════════════════════════
+    // -------------------------------------------
     else if(type==='deckComplete'){
-      // 40/40 completion — satisfying lock + ascending sparkle
+      // 40/40 completion � satisfying lock + ascending sparkle
       // Heavy lock
       noiseBurst(0.03,3,0.4,'bandpass',1500,3).start(now);
       const lock=ctx.createOscillator();lock.type='sine';lock.frequency.value=660;
@@ -1673,7 +1783,7 @@ function playSfx(type) {
 
 
     else if(type==='playBtn'){
-      // Play vs AI / Play vs Human — dramatic heavy action button
+      // Play vs AI / Play vs Human � dramatic heavy action button
       // Impact slam
       noiseBurst(0.05, 2, 0.5, 'bandpass', 1400, 3).start(now);
       const slam = ctx.createOscillator(); slam.type='sawtooth';
@@ -1697,7 +1807,7 @@ function playSfx(type) {
     }
 
     else if(type==='categorySwitch'){
-      // Deck builder category change — chunky notch with harmonic shimmer
+      // Deck builder category change � chunky notch with harmonic shimmer
       const notch = ctx.createOscillator(); notch.type='square';
       notch.frequency.setValueAtTime(1600,now); notch.frequency.exponentialRampToValueAtTime(500,now+0.025);
       const notchG = ctx.createGain(); notchG.gain.setValueAtTime(0.2,now);
@@ -1827,9 +1937,9 @@ function playEffectActivationClickSfx(opts) {
 }
 window.playEffectActivationClickSfx = playEffectActivationClickSfx;
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  AUDIO SYSTEM
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 const CARD_SOUNDS = {
   '01': '1set', '02': '2set', '03': '3set', '04': '4set',
   '05': '5set', '06': '6set', '07': '7set', '08': '8set',
@@ -1856,7 +1966,7 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'bh1', 'bh02': 'bh2', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
@@ -1871,7 +1981,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','bh2','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);
@@ -2210,8 +2320,8 @@ function playCardSound(cardId) {
   if(AVAILABLE_CARD_SOUND_FILES && !AVAILABLE_CARD_SOUND_FILES.has(soundFile)) return;
   try {
     let src = SET_VOICELINE_PATH(soundFile);
-    const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set']);
-    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + 'v=20260615a';
+    const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set','bh8']);
+    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + (soundFile === 'bh8' ? 'v=20260723a' : 'v=20260615a');
     const audio = new Audio(src);
     // Normalize voiceline volume - cap at 0.7 to prevent loud clips
     audio.volume = Math.min(0.7, _voiceVol * _masterVol);
@@ -2735,11 +2845,11 @@ function showAudioSettings() {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  VISUAL POLISH
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 
-// Sparkle burst on card placement — disabled per user preference
+// Sparkle burst on card placement � disabled per user preference
 function spawnPlacementSparkle(z,r,c) {
   return;
 }
@@ -2753,12 +2863,12 @@ function showTurnFlash() {
   setTimeout(()=>el.remove(),420);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  TITLE BACKGROUND CROSSFADE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  PROFILE UI
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 function showProfile() {
   if(window.FateProfileView && typeof window.FateProfileView.openSelf === 'function'){
     window.FateProfileView.openSelf({returnScreen:'s-title'});
@@ -2957,9 +3067,9 @@ function getProfileCropStyle(){
   return base + 'object-position:center 20%!important;transform:none!important;';
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  PROFILE IMAGE EDITOR (card picker + cropper)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 let _cropState = null;
 let _profilePickerObserver = null;
 
@@ -3283,9 +3393,9 @@ function saveCroppedImage(card) {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  LEADERBOARD
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 function showLeaderboard() {
   updateLeaderboardEntry();
   AI_OPPONENTS.forEach(ai=>{
@@ -3339,7 +3449,7 @@ function showLeaderboard() {
 }
 
 //  PUBLIC DECKS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 let _publicDecksPage = 0;
 
 function showPublicDecks(page=_publicDecksPage) {
@@ -3660,9 +3770,9 @@ window.shareDeck = function(pid){
   showPublicDecks();
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 //  PRESET EDITING (face card + display cards)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════
 window.editPreset = function(pid){
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const p = PRESET_DECKS[pid];
@@ -3826,4 +3936,4 @@ window.editPreset = function(pid){
   renderEditor();
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════

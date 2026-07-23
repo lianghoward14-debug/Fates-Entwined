@@ -492,8 +492,22 @@ function isAnickaVoyagerCard(card) {
   return !!(card && String(card.id || '') === 'bh01');
 }
 
+function isAliIndomitableHandCard(card) {
+  return !!(card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true);
+}
+
+function isAchillesAdaptiveToken(card) {
+  return !!(card && (card.achillesToken === true || /^token[2-5]$/i.test(String(card.id || ''))));
+}
+
+function shouldSuppressConsolidationCinematic(card) {
+  // Adaptive Tactics may declare how rules classify its placement, but it is
+  // always a token presentation and must never enter a character cinematic.
+  return isAchillesAdaptiveToken(card);
+}
+
 function isInnatelyFullyEffectImmuneCard(card) {
-  return isAnickaVoyagerCard(card);
+  return isAnickaVoyagerCard(card) || isAliIndomitableHandCard(card);
 }
 
 function isWojciechPierogiCounter(card) {
@@ -579,6 +593,34 @@ function shouldShowEffectFateVisualDelta(card, beforeValue, afterValue) {
   if (Number(marker.before) !== before || Number(marker.after) !== after) return false;
   if (Number(marker.delta) !== after - before) return false;
   return Date.now() - (Number(marker.at) || 0) <= 3500;
+}
+
+function getFateFeedbackPresentationBlockUntil() {
+  const now = Date.now();
+  let until = 0;
+  if (typeof G !== 'undefined' && G) {
+    until = Math.max(
+      Number(G._actionPresentationLockUntil) || 0,
+      Number(G._cinematicUiLockUntil) || 0,
+      Number(G._postConsolidationFateFeedbackUntil) || 0
+    );
+  }
+  let presentationActive = false;
+  try {
+    const presenter = typeof window !== 'undefined' ? window.FateActionPresentation : null;
+    presentationActive = !!(presenter && typeof presenter.isActive === 'function' && presenter.isActive());
+  } catch(e) {}
+  let cinematicActive = false;
+  try {
+    cinematicActive = !!(document.body && document.body.classList.contains('cinematic-lock'))
+      || !!document.querySelector('.cc-overlay-v2');
+  } catch(e) {}
+  if (presentationActive || cinematicActive) until = Math.max(until, now + 120);
+  return until > now ? until : 0;
+}
+
+if (typeof window !== 'undefined') {
+  window.getFateFeedbackPresentationBlockUntil = getFateFeedbackPresentationBlockUntil;
 }
 
 function getPrintedFateLabel(card) {
@@ -851,12 +893,25 @@ function getHandCardEffectModifiers(card) {
   }
   const printed = Number(card.fate);
   const current = Number(card.currentFate);
-  if (Number.isFinite(printed) && Number.isFinite(current) && current < printed) {
+  const permanentDebuffAmount = Math.max(0, Number(card._permanentFateDebuffAmount) || 0);
+  const permanentFateCeiling = Number(card._permanentFateCeiling);
+  const hasPermanentFateDebuff = card._permanentFateDebuffed === true || permanentDebuffAmount > 0 || Number.isFinite(permanentFateCeiling);
+  if (hasPermanentFateDebuff) {
+    const ceilingText = Number.isFinite(permanentFateCeiling)
+      ? ' Its effective Fate cannot exceed ' + Math.max(0, permanentFateCeiling) + ' while this debuff remains.'
+      : '';
+    addRow({
+      key:'permanent-fate-debuff',
+      name:'Permanent Fate Debuff',
+      text:'Previously permanently reduced by ' + permanentDebuffAmount + ' Fate.' + ceilingText + ' This persists through Coordinator auras, discard, recovery, and being set again.',
+      fateDelta:-permanentDebuffAmount
+    });
+  } else if (Number.isFinite(printed) && Number.isFinite(current) && current < printed) {
     const reduction = printed - current;
     addRow({
-      key:'permanent-fate-reduction',
-      name:'Permanent Fate Reduction',
-      text:'Permanently reduced by ' + reduction + ' Fate. This reduction remains if this card is discarded, recovered, or set again.',
+      key:'fate-reduction',
+      name:'Fate Reduced',
+      text:'Current Fate is ' + reduction + ' below its printed value.',
       fateDelta:-reduction
     });
   } else if (Number.isFinite(printed) && Number.isFinite(current) && current > printed && !rows.some(function(row){ return Number(row.fateDelta) !== 0; })) {
@@ -948,6 +1003,9 @@ if (typeof window !== 'undefined') {
   window.isAlpineInfantryCard = isAlpineInfantryCard;
   window.isSouthWindSpearmanCard = isSouthWindSpearmanCard;
   window.isAnickaVoyagerCard = isAnickaVoyagerCard;
+  window.isAchillesAdaptiveToken = isAchillesAdaptiveToken;
+  window.shouldSuppressConsolidationCinematic = shouldSuppressConsolidationCinematic;
+  window.isAliIndomitableHandCard = isAliIndomitableHandCard;
   window.isInnatelyFullyEffectImmuneCard = isInnatelyFullyEffectImmuneCard;
   window.isCardEffectImmutable = isCardEffectImmutable;
   window.isWojciechPierogiCounter = isWojciechPierogiCounter;

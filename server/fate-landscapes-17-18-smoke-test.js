@@ -117,12 +117,12 @@ assert.match(core, /function countFieldWideCoordinators[\s\S]{0,350}card\.type !
 for(const copiedId of ['10','11','15','19','23','57','77']) {
   assert(core.includes(`'${copiedId}'`), `field-wide support must include Coordinator ${copiedId}`);
 }
-assert.match(core, /WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set\(\['01', '12', '34'\]\)/,
-  'Concrete Roads must identify Felicyta, Makenna, and Rozsi as uncopyable');
+assert.match(core, /WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set\(\['01', '02', '12', '34'\]\)/,
+  'Concrete Roads must identify Felicyta, Anicka, Makenna, and Rozsi as uncopyable');
 assert.match(core, /function getWhisperCoordinatorEntries[\s\S]{0,1100}WHISPER_UNCOPYABLE_COORDINATOR_IDS\.has\(String\(card\.id/,
-  'Felicyta, Makenna, and Rozsi must be excluded from the Concrete Roads source picker');
-assert.match(core, /getActiveWhisperTokens\(null, null\)[\s\S]{0,3200}copiedId === '15'/,
-  'continuous copied Coordinator effects must be expanded across every zone');
+  'Felicyta, Anicka, Makenna, and Rozsi must be excluded from the Concrete Roads source picker');
+assert.match(core, /function getZsofiaCoordinatorSetSources[\s\S]{0,900}getActiveWhisperTokens\(owner, '15'\)[\s\S]{0,220}fieldWide[\s\S]{0,1800}function applyZsofiaCoordinatorSetTrigger/,
+  'copied Zsofia must expand into a field-wide Coordinator-set trigger');
 assert.doesNotMatch(core, /copiedId === '01'/,
   'Concrete Roads must not retain stale copied Felicyta behavior');
 assert.match(core, /function resolveWhisperTokenPlacement[\s\S]{0,3200}copiedId === '77'/,
@@ -260,7 +260,7 @@ bh2After._whisperLandscapeUses[0] = 1;
 const acceptedBh2Use = reduce(bh2Before, bh2After);
 assert.strictEqual(acceptedBh2Use.ok, true, acceptedBh2Use.reason);
 
-for(const blockedCopyId of ['01', '12', '34']) {
+for(const blockedCopyId of ['01', '02', '12', '34']) {
   const blockedBefore = baseWhisperState();
   blockedBefore.board[0][2][0] = card(blockedCopyId, 0, `blocked-source-${blockedCopyId}`, 'Coordinator');
   const blockedAfter = clone(blockedBefore);

@@ -23,6 +23,10 @@ for(let id = 80; id <= 100; id += 1){
   expanded.push(card);
 }
 assert.strictEqual(expanded.length, 21);
+assert.strictEqual(catalog.byId.get('15').fate, 5, 'Zsofia must match the new 5-Fate card art');
+assert.strictEqual(catalog.byId.get('15').effect, 'Each time you would set a Coordinator in this zone, all cards in this zone gain 1 Fate.');
+assert.strictEqual(catalog.byId.get('19').fate, 4, 'Kvetka must match the new 4-Fate card art');
+assert.strictEqual(catalog.byId.get('19').effect, 'All Coordinators you control in this card\'s zone gains 3 Fate.');
 assert.strictEqual(catalog.byId.get('84').name, 'Květka Svoboda');
 assert.strictEqual(catalog.byId.get('87').fate, 3, 'Kvetka Ukulele must match the new 3-Fate card art');
 assert.strictEqual(catalog.byId.get('87').effect, 'Starting now, when you would consolidate a card, it gains 3 Fate, and this bonus continues until you set a Supporter.');
@@ -33,7 +37,8 @@ assert.strictEqual(catalog.byId.get('89').fate, 7);
 assert.strictEqual(catalog.byId.get('89').effect, 'As long as you activate less than 10 Supporter effects this game, this card gains 7 Fate.');
 assert.strictEqual(catalog.byId.get('90').effect, 'Declare any affiliation. Two random cards with that affiliation are added to your hand from the deck, and they both gain 3 Fate.');
 assert.strictEqual(catalog.byId.get('92').effect, 'While this card is on the field, any Supporter you set in this zone has their effect negated or suppressed, but gains 1 Reinforcement');
-assert.strictEqual(catalog.byId.get('96').effect, 'When set, return four random cards in your discard pile to your deck.');
+assert.strictEqual(catalog.byId.get('96').effect, 'When set, return four random cards in your discard pile to your deck, excluding Star cards.');
+assert.strictEqual(catalog.byId.get('96').rarity, 'triangle');
 assert.strictEqual(catalog.byId.get('97').effect, "When set, your opponent's next two consolidations cost 1 more Reinforcement.");
 assert.strictEqual(catalog.byId.get('98').effect, 'This card will always appear in your opening hand as an additional card.');
 assert.match(catalog.byId.get('99').effect, /Supporters are classified as Characters/);

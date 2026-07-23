@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { getCardCatalog } = require('./fate-authority-bootstrap');
+const { getCardCatalog } = require('./fate-card-catalog');
 
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -20,7 +20,7 @@ assert.strictEqual(bh2.rarity, 'square');
 assert.strictEqual(bh2.set, 'brave_horizons');
 assert.strictEqual(bh2.img, 'bh2.png');
 assert.notStrictEqual(bh2.retired, true, 'BH2 must be available in deck building and boosters');
-assert.match(bh2.effect, /activate a draw effect in this card's zone[\s\S]*all cards you control in this zone gain 1 Fate/i);
+assert.match(bh2.effect, /activate a draw effect[\s\S]*all cards you control in this card's zone gain 1 Fate/i);
 
 for(const relative of ['bh2.png', 'optimized/card-thumbs/bh2.jpg']){
   assert.ok(fs.existsSync(path.join(root, relative)), relative + ' must exist');
@@ -28,6 +28,7 @@ for(const relative of ['bh2.png', 'optimized/card-thumbs/bh2.jpg']){
 
 const setup = read('src/scripts/04-game-setup.js');
 const gameplay = read('src/scripts/05-gameplay-core.js');
+const rendering = read('src/scripts/06-rendering-and-helpers.js');
 const ai = read('src/scripts/07-ai.js');
 const audio = read('src/scripts/08-audio-and-meta-ui.js');
 const css = read('src/styles/zz-codex-last.css');
@@ -36,11 +37,12 @@ const authority = read('server/fate-authority-reducer.js');
 const index = read('index.html');
 
 assert.match(setup, /options\.activatedDrawEffect[\s\S]*triggerJoieDrawEffectPassive/, 'draw effects must route through Joie before drawing');
-assert.match(gameplay, /function triggerJoieDrawEffectPassive[\s\S]*drawSourcePosition[\s\S]*String\(card\.id \|\| ''\) !== 'bh02'[\s\S]*source\.z !== drawSourcePosition\.z[\s\S]*getWhisperAuraPotencyBoost[\s\S]*joie_thousand_reel/, 'Joie must require the draw source in her zone, then tick with Coordinator potency and its dedicated overlay');
-assert.match(gameplay, /'bh02':'Each time you activate a draw effect in this card\\'s zone, all cards you control on the field gain 1 Fate\.'/i, 'Concrete Roads must require the draw in the copied Joie token zone, then apply Joie fieldwide');
+assert.match(gameplay, /function triggerJoieDrawEffectPassive[\s\S]*String\(card\.id \|\| ''\) !== 'bh02'[\s\S]*_joieProcCount[\s\S]*getWhisperAuraPotencyBoost[\s\S]*joie_thousand_reel/, 'Joie must trigger from a draw effect anywhere, increment her tracker, and use the dedicated overlay');
+assert.match(gameplay, /'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate\.'/i, 'Concrete Roads must copy Joie\'s global draw trigger and apply its bonus fieldwide');
 assert.match(gameplay, /drawCard\(G\.currentPlayer, 1, \{activatedDrawEffect:true, effectSource:card\}\)/, 'Brave Horizons draws must trigger Joie after movement');
 assert.match(ai, /activatedDrawEffect:true, effectSource:inst/, 'AI draw effects must trigger Joie');
-assert.match(authority, /function applyAuthorityJoieDrawEffectPassive[\s\S]*drawSourceEntry[\s\S]*entry\.z !== drawSourceEntry\.z[\s\S]*joie_thousand_reel[\s\S]*applyBoleslawSearchAuthorityReaction[\s\S]*applyAuthorityJoieDrawEffectPassive\(state, playerIndex, entry\.card\)/, 'authority-resolved multiplayer draws must enforce Joie\'s zone before ticking');
+assert.match(rendering, /formatJoieDrawEffectsActivated[\s\S]*'Zero'[\s\S]*'One'[\s\S]*'Two'[\s\S]*Draw Effect[\s\S]*Activated[\s\S]*card\.id \|\| ''\) === 'bh02'[\s\S]*formatJoieDrawEffectsActivated\(triggers\)/, 'Joie Thousand Reel Stare tracker must use capitalized draw-effect wording for zero, one, two, and later counts');
+assert.match(authority, /function applyAuthorityJoieDrawEffectPassive[\s\S]*_joieProcCount[\s\S]*joie_thousand_reel[\s\S]*applyBoleslawSearchAuthorityReaction[\s\S]*applyAuthorityJoieDrawEffectPassive\(state, playerIndex, entry\.card\)/, 'authority-resolved multiplayer draws must trigger Joie from anywhere and preserve her match tracker');
 
 assert.match(audio, /'bh02': 'bh2'/, 'BH2 must already point at the future bh2 audio basename');
 assert.match(audio, /'bh1','bh2','horizons24set'/, 'the future BH2 audio basename must be allowed by the runtime');

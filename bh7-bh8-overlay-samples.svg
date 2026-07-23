@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1620" viewBox="0 0 1200 1620">
+  <defs>
+    <filter id="bh7Glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="rgba(58,190,255,.66)"/>
+    </filter>
+    <filter id="bh8Glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="rgba(255,70,190,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(24,122,176,.17)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+    <g id="tileWarm">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1200" height="1620" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .bh7{fill:none;stroke:rgba(146,232,255,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#bh7Glow)}
+    .bh7f{fill:rgba(146,232,255,.99);filter:url(#bh7Glow)}
+    .bh8{fill:none;stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#bh8Glow)}
+  </style>
+
+  <g transform="translate(60 25)">
+    <text class="label" x="0" y="22">BH7-01</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="16" y="16" width="32" height="32" rx="7"/><rect x="25" y="25" width="14" height="14" rx="2.5"/><path d="M16 22H8M16 32H8M16 42H8M48 22h8M48 32h8M48 42h8M22 16V8M32 16V8M42 16V8M22 48v8M32 48v8M42 48v8"/></g>
+  </g>
+  <g transform="translate(60 181)">
+    <text class="label" x="0" y="22">BH7-02</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="16" y="16" width="32" height="32" rx="7"/><path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M49 15l-6 6M21 43l-6 6"/><path d="M32 22v12"/><path d="M24 34c1 8 15 8 16 0"/></g>
+  </g>
+  <g transform="translate(60 337)">
+    <text class="label" x="0" y="22">BH7-03</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="14" y="14" width="36" height="36" rx="6"/><path d="M22 32h20M32 22v20M23 23l18 18M41 23L23 41"/><circle cx="32" cy="32" r="5"/></g>
+  </g>
+  <g transform="translate(60 493)">
+    <text class="label" x="0" y="22">BH7-04</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="12" y="18" width="40" height="28" rx="5"/><path d="M21 28l7 5-7 5M34 38h9M28 46v6M21 52h22"/></g>
+  </g>
+  <g transform="translate(60 649)">
+    <text class="label" x="0" y="22">BH7-05</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="15" y="15" width="34" height="34" rx="6"/><path d="M19 23H9M19 32H9M19 41H9M45 23h10M45 32h10M45 41h10"/><path d="M28 19l8 13-7 1 7 12"/></g>
+  </g>
+  <g transform="translate(60 805)">
+    <text class="label" x="0" y="22">BH7-06</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><rect x="15" y="21" width="34" height="26" rx="5"/><path d="M22 29h20M22 38h20M26 21V13M38 21V13M26 47v6M38 47v6"/><circle cx="32" cy="34" r="5"/></g>
+  </g>
+  <g transform="translate(60 961)">
+    <text class="label" x="0" y="22">BH7-07</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><path d="M25 18L11 32l14 14M39 18l14 14-14 14M35 12L29 52"/><circle cx="47" cy="48" r="7"/><path d="M47 38v4M47 54v4M37 48h4M53 48h4"/></g>
+  </g>
+  <g transform="translate(60 1117)">
+    <text class="label" x="0" y="22">BH7-08</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M49 15l-6 6M21 43l-6 6"/><circle cx="32" cy="32" r="17"/><path d="M32 20v14"/><path d="M23 35c2 10 16 10 18 0"/></g>
+  </g>
+  <g transform="translate(60 1273)">
+    <text class="label" x="0" y="22">BH7-09</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="8"/><circle cx="15" cy="19" r="6"/><circle cx="49" cy="19" r="6"/><circle cx="18" cy="49" r="5"/><circle cx="47" cy="48" r="5"/><path d="M21 23l7 5M43 23l-7 5M24 45l5-7M42 44l-6-6"/></g>
+  </g>
+  <g transform="translate(60 1429)">
+    <text class="label" x="0" y="22">BH7-10</text><use href="#tile" x="70" y="0"/>
+    <g class="bh7" transform="translate(271 26) scale(1.25)"><path d="M10 38h9l4-10 5 20 5-32 5 22h16"/><rect x="13" y="15" width="38" height="34" rx="6"/><circle cx="21" cy="24" r="2" class="bh7f"/><circle cx="43" cy="24" r="2" class="bh7f"/></g>
+  </g>
+
+  <g transform="translate(620 25)">
+    <text class="label" x="0" y="22">BH8-01</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27c4-4 8-4 12 0M40 26l8-3M42 30h7M22 41c7 7 19 7 25-3M39 40c3 3 6 4 9 3"/></g>
+  </g>
+  <g transform="translate(620 181)">
+    <text class="label" x="0" y="22">BH8-02</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27l9 3M40 25c4-4 8-3 10 2M20 43c8 6 18 6 26-2"/></g>
+  </g>
+  <g transform="translate(620 337)">
+    <text class="label" x="0" y="22">BH8-03</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27c4 3 8 3 12 0M42 24l7 7M49 24l-7 7M21 41c8 8 20 7 25-4"/></g>
+  </g>
+  <g transform="translate(620 493)">
+    <text class="label" x="0" y="22">BH8-04</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M19 28l10-4M37 24l10 4M22 42c8 8 20 6 25-5"/></g>
+  </g>
+  <g transform="translate(620 649)">
+    <text class="label" x="0" y="22">BH8-05</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27c5-3 9-3 12 1M42 27c-5-3-9-3-12 1M23 41c3 4 6 5 9 1 3 4 7 3 10-1"/></g>
+  </g>
+  <g transform="translate(620 805)">
+    <text class="label" x="0" y="22">BH8-06</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27c3-5 7-5 10 0M42 27c3-5 7-5 10 0M22 42c8 7 18 6 25-3M53 16l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></g>
+  </g>
+  <g transform="translate(620 961)">
+    <text class="label" x="0" y="22">BH8-07</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M19 26l10 3M39 29l9-4M21 42c7 6 17 5 24-3M47 39c2 1 4 1 6 0"/></g>
+  </g>
+  <g transform="translate(620 1117)">
+    <text class="label" x="0" y="22">BH8-08</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M15 29c8-8 16-8 24 0 5-4 10-4 15 0M18 30c5 5 12 5 17 0M39 30c4 4 9 4 13 0M24 44c6 4 13 4 19 0"/></g>
+  </g>
+  <g transform="translate(620 1273)">
+    <text class="label" x="0" y="22">BH8-09</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M19 27c4-5 9-5 13 0M38 27c4-5 9-5 13 0M20 40c8 10 24 10 32 0"/></g>
+  </g>
+  <g transform="translate(620 1429)">
+    <text class="label" x="0" y="22">BH8-10</text><use href="#tileWarm" x="70" y="0"/><g class="bh8" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="24"/><path d="M20 27l9 3M40 25c4-4 8-3 10 2M21 42c8 7 20 6 27-4M45 39l6 7 2-8"/></g>
+  </g>
+</svg>

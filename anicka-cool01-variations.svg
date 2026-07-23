@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1620" viewBox="0 0 1120 1620">
+  <defs>
+    <filter id="glow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.75)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="rgba(255,96,76,.72)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(165,45,40,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="1620" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,214,178,.99);stroke-width:4.8;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+    .thin{stroke-width:3.4}
+  </style>
+
+  <g transform="translate(55 25)"><text class="label" x="0" y="22">C01-V01</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l8 18 18 7-18 7-8 18-8-18-18-7 18-7z"/><path d="M32 19v26M19 32h26"/></g></g>
+  <g transform="translate(55 181)"><text class="label" x="0" y="22">C01-V02</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l7 18 19 8-19 8-7 18-7-18-19-8 19-8z"/><path d="M32 17v30M17 32h30"/></g></g>
+  <g transform="translate(55 337)"><text class="label" x="0" y="22">C01-V03</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l9 17 17 7-17 7-9 17-9-17-17-7 17-7z"/><path d="M23 23l18 18M41 23L23 41"/></g></g>
+  <g transform="translate(55 493)"><text class="label" x="0" y="22">C01-V04</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 5l8 19 19 8-19 8-8 19-8-19-19-8 19-8z"/><path d="M32 16v32M16 32h32"/><path class="thin" d="M22 22l20 20M42 22L22 42"/></g></g>
+  <g transform="translate(55 649)"><text class="label" x="0" y="22">C01-V05</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l6 18 20 8-20 8-6 18-6-18-20-8 20-8z"/><path d="M32 20v24M20 32h24"/><path class="thin" d="M25 25l14 14M39 25L25 39"/></g></g>
+  <g transform="translate(55 805)"><text class="label" x="0" y="22">C01-V06</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l10 17 16 8-16 8-10 17-10-17-16-8 16-8z"/><path d="M32 18v28M18 32h28"/></g></g>
+  <g transform="translate(55 961)"><text class="label" x="0" y="22">C01-V07</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l7 16 17 8-17 8-7 16-7-16-17-8 17-8z"/><path d="M32 16l5 12 12 4-12 4-5 12-5-12-12-4 12-4z"/></g></g>
+  <g transform="translate(55 1117)"><text class="label" x="0" y="22">C01-V08</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 5l8 19 18 8-18 8-8 19-8-19-18-8 18-8z"/><path d="M24 24l16 16M40 24L24 40"/><path d="M32 17v30"/></g></g>
+  <g transform="translate(55 1273)"><text class="label" x="0" y="22">C01-V09</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l9 18 18 8-18 8-9 18-9-18-18-8 18-8z"/><path d="M32 20v24M20 32h24"/><path class="thin" d="M13 13l10 10M51 13L41 23M13 51l10-10M51 51L41 41"/></g></g>
+  <g transform="translate(55 1429)"><text class="label" x="0" y="22">C01-V10</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l6 17 19 9-19 9-6 17-6-17-19-9 19-9z"/><path d="M22 32h20M32 22v20"/><path d="M25 25l14 14M39 25L25 39"/></g></g>
+
+  <g transform="translate(585 25)"><text class="label" x="0" y="22">C01-V11</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 4l9 20 19 8-19 8-9 20-9-20-19-8 19-8z"/><path d="M32 14v36M14 32h36"/></g></g>
+  <g transform="translate(585 181)"><text class="label" x="0" y="22">C01-V12</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l8 16 16 8-16 8-8 16-8-16-16-8 16-8z"/><circle cx="32" cy="32" r="9"/><path d="M32 19v26M19 32h26"/></g></g>
+  <g transform="translate(585 337)"><text class="label" x="0" y="22">C01-V13</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l10 18 18 8-18 8-10 18-10-18-18-8 18-8z"/><path d="M24 24l16 16M40 24L24 40"/><path class="thin" d="M32 14v11M32 39v11M14 32h11M39 32h11"/></g></g>
+  <g transform="translate(585 493)"><text class="label" x="0" y="22">C01-V14</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 6l7 18 20 8-20 8-7 18-7-18-20-8 20-8z"/><path d="M32 19l8 13-8 13-8-13z"/></g></g>
+  <g transform="translate(585 649)"><text class="label" x="0" y="22">C01-V15</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l8 18 18 7-18 7-8 18-8-18-18-7 18-7z"/><path d="M18 18l28 28M46 18L18 46"/></g></g>
+  <g transform="translate(585 805)"><text class="label" x="0" y="22">C01-V16</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 5l7 18 19 9-19 9-7 18-7-18-19-9 19-9z"/><path d="M32 15v34M15 32h34"/><path class="thin" d="M32 15l-5 9M32 49l5-9M15 32l9 5M49 32l-9-5"/></g></g>
+  <g transform="translate(585 961)"><text class="label" x="0" y="22">C01-V17</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 8l9 16 17 8-17 8-9 16-9-16-17-8 17-8z"/><path d="M26 20l12 24M38 20L26 44"/></g></g>
+  <g transform="translate(585 1117)"><text class="label" x="0" y="22">C01-V18</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 4l8 20 20 8-20 8-8 20-8-20-20-8 20-8z"/><path d="M23 32h18M32 23v18"/><path d="M27 27l10 10M37 27L27 37"/></g></g>
+  <g transform="translate(585 1273)"><text class="label" x="0" y="22">C01-V19</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 7l7 17 18 8-18 8-7 17-7-17-18-8 18-8z"/><path d="M32 18v28M18 32h28"/><path d="M24 18l16 28M40 18L24 46"/></g></g>
+  <g transform="translate(585 1429)"><text class="label" x="0" y="22">C01-V20</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M32 5l9 19 18 8-18 8-9 19-9-19-18-8 18-8z"/><path d="M21 21l22 22M43 21L21 43"/><path d="M32 14v10M32 40v10M14 32h10M40 32h10"/></g></g>
+</svg>

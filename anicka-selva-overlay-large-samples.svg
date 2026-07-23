@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1620" viewBox="0 0 1120 1620">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="rgba(255,112,76,.68)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(170,63,38,.17)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="1620" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,207,166,.99);stroke-width:4.8;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+    .thin{stroke-width:3.5}
+  </style>
+
+  <g transform="translate(55 25)"><text class="label" x="0" y="22">SELVA-L01</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 46c11-9 29-9 40 0"/><path d="M25 45l7-30 7 30"/><path d="M19 22c5-5 11-6 17-1M32 15c6-4 12-3 17 3M32 20c5 3 8 8 9 14"/><path d="M32 28l-6 7 6 4-5 8"/></g></g>
+  <g transform="translate(55 181)"><text class="label" x="0" y="22">SELVA-L02</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 48c12-8 28-8 40 0"/><path d="M22 46l10-31 10 31"/><path d="M24 35h16"/><path d="M32 15l-5 10 8-2-6 14 13-17"/></g></g>
+  <g transform="translate(55 337)"><text class="label" x="0" y="22">SELVA-L03</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M14 49c11-6 25-6 36 0"/><path d="M20 46l12-25 12 25"/><path d="M25 37h14"/><path d="M32 9v9M19 15l7 7M45 15l-7 7M12 31h11M52 31H41"/></g></g>
+  <g transform="translate(55 493)"><text class="label" x="0" y="22">SELVA-L04</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M13 48c10-8 28-8 38 0"/><path d="M20 46l12-28 12 28"/><path d="M28 27l8 8-8 8"/><path d="M12 52c7 4 13 4 20 0 7-4 13-4 20 0"/></g></g>
+  <g transform="translate(55 649)"><text class="label" x="0" y="22">SELVA-L05</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M10 47c13-9 31-9 44 0"/><path d="M24 45l8-29 8 29"/><path d="M17 22c6-6 12-6 19-1M32 16c7-4 13-3 18 3"/><path d="M12 37l14-5 12 8 14-6"/></g></g>
+  <g transform="translate(55 805)"><text class="label" x="0" y="22">SELVA-L06</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M11 45c8-7 16-8 25-4 7 3 12 2 17-3"/><path d="M17 52c8 3 14 3 21 0 5-2 10-2 16 0"/><path d="M28 41l4-24 4 24"/><path d="M22 20c5-4 10-4 15 0M32 17c5-4 10-4 15 0"/></g></g>
+  <g transform="translate(55 961)"><text class="label" x="0" y="22">SELVA-L07</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M13 47c11-8 27-8 38 0"/><path d="M21 45l11-30 11 30"/><path d="M24 31l16 14M40 31L24 45"/></g></g>
+  <g transform="translate(55 1117)"><text class="label" x="0" y="22">SELVA-L08</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 48c13-8 27-8 40 0"/><path d="M26 45l6-28 6 28"/><path d="M18 22c5-5 11-5 17-1M32 17c6-4 12-3 17 3"/><path d="M17 35h30"/></g></g>
+  <g transform="translate(55 1273)"><text class="label" x="0" y="22">SELVA-L09</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M13 48c10-8 28-8 38 0"/><path d="M20 45l12-26 12 26"/><path d="M32 19l-7 9h7l-4 12 12-16h-7z"/></g></g>
+  <g transform="translate(55 1429)"><text class="label" x="0" y="22">SELVA-L10</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M11 47c13-9 29-9 42 0"/><path d="M22 45l10-29 10 29"/><path d="M12 30c6-6 12 5 20 0s14 5 20 0"/></g></g>
+
+  <g transform="translate(585 25)"><text class="label" x="0" y="22">SELVA-L11</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 47c10-7 30-7 40 0"/><path d="M20 45l12-27 12 27"/><path d="M32 9l6 11-6 6-6-6z"/><path d="M26 37h12"/></g></g>
+  <g transform="translate(585 181)"><text class="label" x="0" y="22">SELVA-L12</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 48c12-8 28-8 40 0"/><path d="M23 45l9-28 9 28"/><path d="M15 18l34 34M49 18L15 52"/></g></g>
+  <g transform="translate(585 337)"><text class="label" x="0" y="22">SELVA-L13</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 46c13-8 27-8 40 0"/><path d="M26 45l6-29 6 29"/><path d="M18 22c6-6 12-6 18-1M32 16c7-4 13-3 18 3"/><path d="M18 45l10-8 8 8 10-8"/></g></g>
+  <g transform="translate(585 493)"><text class="label" x="0" y="22">SELVA-L14</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 48c12-8 28-8 40 0"/><path d="M20 45l12-28 12 28"/><path d="M17 18l12 8M47 18l-12 8M14 31h13M50 31H37"/></g></g>
+  <g transform="translate(585 649)"><text class="label" x="0" y="22">SELVA-L15</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 49c11-7 29-7 40 0"/><path d="M32 16l-12 29h24z"/><path d="M27 29l6 5-5 8"/><path d="M18 52c8 3 14 3 21 0 5-2 9-2 15 0"/></g></g>
+  <g transform="translate(585 805)"><text class="label" x="0" y="22">SELVA-L16</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 45c11-8 29-8 40 0"/><path d="M25 44l7-28 7 28"/><path d="M17 22c6-5 12-6 18-1M32 16c6-4 12-3 18 3"/><path d="M15 36l12-7 9 9 13-7"/></g></g>
+  <g transform="translate(585 961)"><text class="label" x="0" y="22">SELVA-L17</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 48c11-8 29-8 40 0"/><path d="M21 45l11-29 11 29"/><path d="M18 17l28 18M46 17L18 35"/></g></g>
+  <g transform="translate(585 1117)"><text class="label" x="0" y="22">SELVA-L18</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M12 47c13-8 27-8 40 0"/><path d="M22 45l10-27 10 27"/><path d="M17 28h30M22 38h20"/><path d="M32 10v8"/></g></g>
+  <g transform="translate(585 1273)"><text class="label" x="0" y="22">SELVA-L19</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M10 47c13-9 31-9 44 0"/><path d="M18 53c8 3 14 3 21 0 5-2 10-2 16 0"/><path d="M24 44l8-28 8 28"/><path d="M18 23c5-5 11-5 17-1M32 16c7-4 13-3 18 3"/></g></g>
+  <g transform="translate(585 1429)"><text class="label" x="0" y="22">SELVA-L20</text><use href="#tile" x="70"/><g class="icon" transform="translate(276 18) scale(1.55)"><path d="M13 48c12-8 26-8 38 0"/><path d="M22 45l10-27 10 27"/><path d="M13 31c6-6 12 5 19 0s13 5 19 0"/><path d="M18 52c8 3 13 3 20 0 5-3 10-3 16 0"/></g></g>
+</svg>

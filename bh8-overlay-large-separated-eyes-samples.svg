@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1620" viewBox="0 0 1120 1620">
+  <defs>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="rgba(255,70,190,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="1620" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,174,229,.99);stroke-width:3.9;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+  </style>
+
+  <g transform="translate(55 25)"><text class="label" x="0" y="22">BH8-L01</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26l9 4"/><path d="M47 26l-9 4"/><path d="M20 41c8 9 23 8 30-3"/></g></g>
+  <g transform="translate(55 181)"><text class="label" x="0" y="22">BH8-L02</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 28l9-5"/><path d="M47 28l-9-5"/><path d="M20 41c9 8 22 8 30-2"/></g></g>
+  <g transform="translate(55 337)"><text class="label" x="0" y="22">BH8-L03</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 27c3-3 6-3 9 0"/><path d="M47 27c-3-3-6-3-9 0"/><path d="M21 42c8 7 19 7 27-2"/></g></g>
+  <g transform="translate(55 493)"><text class="label" x="0" y="22">BH8-L04</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 27h10"/><path d="M48 27h-10"/><path d="M21 41c7 9 20 9 28 0"/><path d="M42 41l5 7"/></g></g>
+  <g transform="translate(55 649)"><text class="label" x="0" y="22">BH8-L05</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26l9-4"/><path d="M47 26l-9-4"/><path d="M21 42c4 4 8 5 12 1 5 5 11 3 16-3"/></g></g>
+  <g transform="translate(55 805)"><text class="label" x="0" y="22">BH8-L06</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 28c3-4 7-4 10 0"/><path d="M47 28c-3-4-7-4-10 0"/><path d="M21 42c9 6 19 5 27-3"/></g></g>
+  <g transform="translate(55 961)"><text class="label" x="0" y="22">BH8-L07</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 25h10"/><path d="M48 25h-10"/><path d="M21 42c8 7 19 7 27-2"/><path d="M48 40c2 1 4 1 6 0"/></g></g>
+  <g transform="translate(55 1117)"><text class="label" x="0" y="22">BH8-L08</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 27l9-5"/><path d="M47 27l-9-5"/><path d="M21 41c8 8 20 8 28-1"/><path d="M40 41c3 3 6 4 9 4"/></g></g>
+  <g transform="translate(55 1273)"><text class="label" x="0" y="22">BH8-L09</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 28l9-6"/><path d="M47 28l-9-6"/><path d="M20 42c9 8 22 7 30-4"/></g></g>
+  <g transform="translate(55 1429)"><text class="label" x="0" y="22">BH8-L10</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26c3 2 6 2 9 0"/><path d="M47 26c-3 2-6 2-9 0"/><path d="M20 41c8 10 23 10 31-1"/></g></g>
+
+  <g transform="translate(585 25)"><text class="label" x="0" y="22">BH8-L11</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 28l10-5"/><path d="M48 28l-10-5"/><path d="M20 42c8 7 19 6 28-3"/><path d="M47 39l5 5"/></g></g>
+  <g transform="translate(585 181)"><text class="label" x="0" y="22">BH8-L12</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 27h10"/><path d="M48 27h-10"/><path d="M21 41c4 5 9 6 14 2 5 4 10 3 15-3"/></g></g>
+  <g transform="translate(585 337)"><text class="label" x="0" y="22">BH8-L13</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26l9 4"/><path d="M47 26l-9 4"/><path d="M20 42c9 8 22 7 30-3"/><path d="M42 40l6 8"/></g></g>
+  <g transform="translate(585 493)"><text class="label" x="0" y="22">BH8-L14</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 29c3-4 7-5 11-2"/><path d="M47 27c-4-3-8-2-11 2"/><path d="M22 42c7 6 17 6 25-2"/></g></g>
+  <g transform="translate(585 649)"><text class="label" x="0" y="22">BH8-L15</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26l9-5"/><path d="M47 26l-9-5"/><path d="M20 41c5 7 12 9 20 4 4-2 7-4 10-7"/></g></g>
+  <g transform="translate(585 805)"><text class="label" x="0" y="22">BH8-L16</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 27l9-4"/><path d="M47 27l-9-4"/><path d="M20 42c8 9 22 8 30-1"/></g></g>
+  <g transform="translate(585 961)"><text class="label" x="0" y="22">BH8-L17</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 26c3-3 6-3 9 0"/><path d="M47 26c-3-3-6-3-9 0"/><path d="M21 42c5 5 10 6 15 2 5-3 9-5 13-4"/></g></g>
+  <g transform="translate(585 1117)"><text class="label" x="0" y="22">BH8-L18</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 27l10-5"/><path d="M48 27l-10-5"/><path d="M20 41c8 8 21 8 29-1"/><path d="M49 40c2 1 4 1 6 0"/></g></g>
+  <g transform="translate(585 1273)"><text class="label" x="0" y="22">BH8-L19</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M16 26h10"/><path d="M48 26h-10"/><path d="M21 41c8 8 20 8 28-1"/><path d="M42 41l6 7"/></g></g>
+  <g transform="translate(585 1429)"><text class="label" x="0" y="22">BH8-L20</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(270 19) scale(1.55)"><circle cx="32" cy="32" r="25"/><path d="M17 28l9-6"/><path d="M47 28l-9-6"/><path d="M20 42c9 7 21 6 30-3"/><path d="M41 40c3 4 6 5 10 4"/></g></g>
+</svg>

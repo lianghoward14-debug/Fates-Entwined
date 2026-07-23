@@ -1366,9 +1366,38 @@ if(typeof window !== 'undefined' && typeof window.scheduleCoordinatorPlacementFl
   window.scheduleCoordinatorPlacementFlash = scheduleCoordinatorPlacementFlashV2;
 }
 
+function applyZsofiaCoordinatorSetTriggerV2(placedCard, z) {
+  if(!placedCard || isFaceDownCard(placedCard) || String(placedCard.type || '') !== 'Coordinator') return 0;
+  const owner = placedCard.owner;
+  let sources = 0;
+  (G.board?.[z] || []).forEach(function(row, r){
+    (row || []).forEach(function(card, c){
+      if(!card || card.owner !== owner || String(card.id || '') !== '15' || isFaceDownCard(card)) return;
+      if(typeof isCoordinatorSuppressedAt === 'function' && isCoordinatorSuppressedAt(z, r, c)) return;
+      sources++;
+    });
+  });
+  if(!sources) return 0;
+  let gained = 0;
+  (G.board?.[z] || []).forEach(function(row){
+    (row || []).forEach(function(target){
+      if(!target || target.owner !== owner || isFaceDownCard(target)) return;
+      const before = Number(target.currentFate ?? target.fate) || 0;
+      target.currentFate = before + sources;
+      gained += sources;
+      if(typeof flashCardEffect === 'function') flashCardEffect(target, 'coord_zsofia_river', {
+        label:'Blue Danube Waltz',
+        soundKey:'zsofia-v2:' + String(placedCard.iid || placedCard.id) + ':' + String(target.iid || target.id)
+      });
+    });
+  });
+  return gained;
+}
+
 async function resolveSetCardAfterPlacement(inst, z, r, c) {
   if(!inst || isFaceDownCard(inst)) return;
   scheduleCoordinatorPlacementFlashV2(inst, {z:z, r:r, c:c, source:'resolve-set-card-v2'});
+  applyZsofiaCoordinatorSetTriggerV2(inst, z);
   if(Array.isArray(G.shieldWallZones) && G.shieldWallZones.includes(z)) inst.cantBeMoved = true;
   if(G.aiEnabled && G.currentPlayer===G.aiPlayer && typeof aiTriggerWhenSet === 'function') {
     await aiTriggerWhenSet(inst, z, r, c);
@@ -2709,8 +2738,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast('Selected cards are now immune');
         renderGame();
       }, c=>c.owner===cp); break;
-    case '15': // Zsofia Szocs: passive (handled in getEffectiveFate)
-      toast('Blue Danube Waltz is passive — applies while Zsofia is on the field.');
+    case '15': // Zsofia Szocs: automatic Coordinator-set trigger
+      toast('Blue Danube Waltz triggers automatically when you set a Coordinator in Zsofia\'s zone.');
       break;
     case '19': // Květka Svoboda: passive (handled in getEffectiveFate)
       toast('The Vltava\'s Story is passive — applies while Květka is on the field.');
@@ -3007,7 +3036,7 @@ function getEffectiveFate(card, z) {
     // Anne Stone (11): +3 to supporters in zone
     if(cell.id==='11' && card.type==='Supporter') bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
-    if(cell.id==='19' && card.type==='Coordinator') bonus += 2 + jeremiahBoost;
+    if(cell.id==='19' && card.type==='Coordinator') bonus += 3 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
     // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
@@ -3021,15 +3050,6 @@ function getEffectiveFate(card, z) {
     if(cell.id==='77' && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
 
-  // Zsofia (15): each copy applies its own zone-wide buff
-  let zsofiaCount = 0;
-  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell&&cell.id==='15'&&cell.owner===card.owner && !isCoordinatorSuppressedAt(z, r, c)) zsofiaCount++;
-  }));
-  if(zsofiaCount > 0) {
-    const coordCount = countCoordinators(z, card.owner);
-    bonus += Math.min(3, zsofiaCount * (coordCount + jeremiahBoost));
-  }
   if(card.type==='Dauntless' && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
       if(cell && cell.id==='44' && cell.owner===card.owner && !isInvisible(cell) && !isSupporterAuraSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {

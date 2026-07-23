@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="840" viewBox="0 0 1120 840">
+  <defs>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="rgba(255,70,190,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="840" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+  </style>
+
+  <g transform="translate(55 25)">
+    <text class="label" x="0" y="22">BH8-O01</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M20 39h28"/>
+      <path d="M20 39c7 11 20 11 28 0"/>
+    </g>
+  </g>
+  <g transform="translate(55 181)">
+    <text class="label" x="0" y="22">BH8-O02</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M21 38h27"/>
+      <path d="M21 38c6 13 20 13 27 0"/>
+    </g>
+  </g>
+  <g transform="translate(55 337)">
+    <text class="label" x="0" y="22">BH8-O03</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 28l10-5M36 23l10 5"/>
+      <path d="M20 40h29"/>
+      <path d="M20 40c8 10 21 10 29 0"/>
+      <path d="M43 40l4 6"/>
+    </g>
+  </g>
+  <g transform="translate(55 493)">
+    <text class="label" x="0" y="22">BH8-O04</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M21 39h27"/>
+      <path d="M21 39c8 9 19 9 27 0"/>
+      <path d="M29 40c1 4 4 6 7 6"/>
+    </g>
+  </g>
+  <g transform="translate(55 649)">
+    <text class="label" x="0" y="22">BH8-O05</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M19 38h30"/>
+      <path d="M19 38c8 12 22 12 30 0"/>
+      <path d="M34 38v9"/>
+    </g>
+  </g>
+
+  <g transform="translate(585 25)">
+    <text class="label" x="0" y="22">BH8-O06</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 28l10-5M36 23l10 5"/>
+      <path d="M21 39h27"/>
+      <path d="M21 39c7 11 20 11 27 0"/>
+      <path d="M41 40c2 3 5 5 8 5"/>
+    </g>
+  </g>
+  <g transform="translate(585 181)">
+    <text class="label" x="0" y="22">BH8-O07</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M22 37h26"/>
+      <path d="M22 37c6 14 20 14 26 0"/>
+      <path d="M25 37c5 3 11 4 20 0"/>
+    </g>
+  </g>
+  <g transform="translate(585 337)">
+    <text class="label" x="0" y="22">BH8-O08</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M17 28l11-5M36 23l11 5"/>
+      <path d="M20 39h29"/>
+      <path d="M20 39c7 13 22 13 29 0"/>
+      <path d="M44 39l5 8"/>
+    </g>
+  </g>
+  <g transform="translate(585 493)">
+    <text class="label" x="0" y="22">BH8-O09</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M18 27l10-4M36 23l10 4"/>
+      <path d="M20 40h28"/>
+      <path d="M20 40c9 9 20 9 28 0"/>
+      <path d="M27 40c3 5 8 7 14 4"/>
+    </g>
+  </g>
+  <g transform="translate(585 649)">
+    <text class="label" x="0" y="22">BH8-O10</text><use href="#tile" x="70" y="0"/>
+    <g class="icon" transform="translate(277 23) scale(1.36)">
+      <circle cx="32" cy="32" r="24"/>
+      <path d="M17 28l11-5M36 23l11 5"/>
+      <path d="M19 38h30"/>
+      <path d="M19 38c8 12 22 12 30 0"/>
+      <path d="M43 39c3 4 6 5 9 4"/>
+    </g>
+  </g>
+</svg>

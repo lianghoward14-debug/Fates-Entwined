@@ -66,7 +66,7 @@ function effectiveCardFate(state, card, z){
     if(aura.suppressed || aura.iid === card.iid) return;
     if(aura.id === '01') fate += 1.5 + jeremiah * 0.5;
     if(aura.id === '11' && card.type === 'Supporter') fate += 3 + jeremiah;
-    if(aura.id === '15' && card.type === 'Coordinator') fate += Math.min(3,coordinators) + jeremiah;
+    if(aura.id === '19' && card.type === 'Coordinator') fate += 3 + jeremiah;
     if(aura.id === '23' && card.type !== 'Supporter') fate += 2 + jeremiah;
     if(aura.id === '59' && card.type === 'Supporter') fate += 1;
     if(aura.id === '63' && card.type === 'Supporter') fate += 0.5;

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="840" viewBox="0 0 1120 840">
+  <defs>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="rgba(255,70,190,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1120" height="840" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .icon{fill:none;stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+  </style>
+
+  <g transform="translate(55 25)"><text class="label" x="0" y="22">BH8-S01</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M10 34l10-13 10 13M54 34l-10-13-10 13"/><path d="M30 43h14c6 0 9 3 9 8s-3 8-9 8H30z"/></g></g>
+  <g transform="translate(55 181)"><text class="label" x="0" y="22">BH8-S02</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M9 35l11-14 11 14M55 35l-11-14-11 14"/><path d="M31 42h13c7 0 10 3 10 8s-3 8-10 8H31z"/></g></g>
+  <g transform="translate(55 337)"><text class="label" x="0" y="22">BH8-S03</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M8 36l12-15 12 15M56 36l-12-15-12 15"/><path d="M31 41h12c7 0 11 4 11 9s-4 9-11 9H31z"/></g></g>
+  <g transform="translate(55 493)"><text class="label" x="0" y="22">BH8-S04</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M10 34l10-13 10 13M54 34l-10-13-10 13"/><path d="M30 42h15c6 0 9 4 9 8s-3 8-9 8H30"/><path d="M30 42v16"/></g></g>
+  <g transform="translate(55 649)"><text class="label" x="0" y="22">BH8-S05</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M7 35l13-14 13 14M57 35l-13-14-13 14"/><path d="M30 43h14c6 0 9 3 9 8s-3 8-9 8H30z"/></g></g>
+
+  <g transform="translate(585 25)"><text class="label" x="0" y="22">BH8-S06</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M11 33l9-12 9 12M53 33l-9-12-9 12"/><path d="M30 44h15c5 0 8 3 8 7s-3 7-8 7H30z"/></g></g>
+  <g transform="translate(585 181)"><text class="label" x="0" y="22">BH8-S07</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M9 34l11-12 11 12M55 34l-11-12-11 12"/><path d="M29 43h16c6 0 9 4 9 8s-3 8-9 8H29z"/></g></g>
+  <g transform="translate(585 337)"><text class="label" x="0" y="22">BH8-S08</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M8 34l12-13 12 13M56 34l-12-13-12 13"/><path d="M30 42h13c7 0 10 4 10 9s-3 9-10 9H30z"/></g></g>
+  <g transform="translate(585 493)"><text class="label" x="0" y="22">BH8-S09</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M6 36l14-15 14 15M58 36l-14-15-14 15"/><path d="M31 43h13c6 0 9 3 9 8s-3 8-9 8H31z"/></g></g>
+  <g transform="translate(585 649)"><text class="label" x="0" y="22">BH8-S10</text><use href="#tile" x="70" y="0"/><g class="icon" transform="translate(268 22) scale(1.35)"><path d="M10 35l10-14 10 14M54 35l-10-14-10 14"/><path d="M29 42h15c7 0 11 4 11 9s-4 9-11 9H29z"/></g></g>
+</svg>
