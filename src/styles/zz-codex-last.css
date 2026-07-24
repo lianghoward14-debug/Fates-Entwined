@@ -1615,10 +1615,7 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
 .bc.effect-flash-boleslaw_exclaim{
   --effect-flash-color:rgba(255,226,130,.99);--effect-flash-glow:rgba(255,150,54,.68);
   --effect-flash-tint:rgba(175,86,24,.17);--effect-flash-inset:rgba(255,183,86,.13);
-}
-html body #s-game .bc.effect-flash-boleslaw_exclaim::after{
-  /* Final three-exclamation glyph/mask intentionally pending; keep the overlay kind wired without committing art. */
-  display:none!important;
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='black'%3E%3Crect x='14' y='9' width='8' height='34' rx='4' transform='rotate(-5 18 26)'/%3E%3Ccircle cx='19' cy='53' r='5'/%3E%3Crect x='28' y='7' width='8' height='36' rx='4'/%3E%3Ccircle cx='32' cy='53' r='5'/%3E%3Crect x='42' y='9' width='8' height='34' rx='4' transform='rotate(5 46 26)'/%3E%3Ccircle cx='45' cy='53' r='5'/%3E%3C/g%3E%3C/svg%3E");
 }
 .bc.effect-flash-bh07_overclock{
   --effect-flash-color:rgba(146,232,255,.99);--effect-flash-glow:rgba(58,190,255,.66);
@@ -6344,6 +6341,17 @@ html body #modal .hand-limit-discard-modal{
   max-width:980px!important;
 }
 
+html body.hand-limit-discard-active #modal{
+  z-index:32000!important;
+  pointer-events:auto!important;
+}
+
+html body.hand-limit-discard-active #modal .modal,
+html body.hand-limit-discard-active #modal .hand-limit-card,
+html body.hand-limit-discard-active #modal #modal-acts .btn{
+  pointer-events:auto!important;
+}
+
 html body #modal .hand-limit-discard{
   display:flex!important;
   flex-direction:column!important;
@@ -6446,8 +6454,9 @@ html body #s-preset-overlay .preset-minis{
 }
 
 html body #modal .hand-limit-grid{
-  grid-template-columns:repeat(auto-fill,96px)!important;
+  grid-template-columns:repeat(auto-fit,96px)!important;
   justify-content:center!important;
+  justify-items:center!important;
   gap:.7rem!important;
 }
 
@@ -6655,8 +6664,9 @@ html body #s-preset-overlay .preset-mini-art img{
 }
 
 html body #modal .hand-limit-grid{
-  grid-template-columns:repeat(auto-fill,104px)!important;
+  grid-template-columns:repeat(auto-fit,104px)!important;
   justify-content:center!important;
+  justify-items:center!important;
   gap:.86rem!important;
   padding:.5rem .7rem .7rem!important;
 }

@@ -9,7 +9,9 @@ const root = path.resolve(__dirname, '..');
 const read = relative=>fs.readFileSync(path.join(root, relative), 'utf8');
 const core = read('src/scripts/05-gameplay-core.js');
 const rendering = read('src/scripts/06-rendering-and-helpers.js');
+const ai = read('src/scripts/07-ai.js');
 const online = read('src/scripts/18-online-rooms.js');
+const transactionSource = read('src/scripts/18a-online-effect-transactions.js');
 const authority = read('server/fate-authority-reducer.js');
 const effectRules = require('../src/scripts/02-effect-rule-metadata.js');
 const css = read('src/styles/zz-codex-last.css');
@@ -24,6 +26,19 @@ assert.doesNotMatch(authority, /AUTHORITY_CARD_SEARCH_SOURCE_IDS/, 'Boleslaw mus
 assert.match(authority, /transactionalSearch = type === 'BOARD_ACTION'[\s\S]{0,260}effectTransactionVersion[\s\S]{0,260}!transactionalSearch/, 'authority must detect searches completed inside an atomic activation');
 assert.match(authority, /const selectedWasAdded = selectedIids\.length[\s\S]{0,420}if\(!selectedWasAdded\) return null/, 'Boleslaw must trigger only after the chosen searched card actually reaches hand');
 assert.match(rendering, /function pickFromDiscard\([\s\S]{0,1200}resolveBoleslawAfterSearchSelection/, 'discard-pile searches must use the same completed-search notification as deck searches');
+assert.match(core, /case '68'[\s\S]{0,1400}resolveBoleslawAfterSearchSelection\(cp, \[chosen\], \{sourceCardId:'68'\}\)/, 'Great Oak High Schooler must explicitly report its successfully added Coordinator');
+assert.match(core, /case '84'[\s\S]{0,1800}resolveBoleslawAfterSearchSelection\(cp, \[found\], \{sourceCardId:'84'\}\)/, 'Kvetka must report the searched card after it reaches hand and before free placement');
+assert.match(core, /case '07'[\s\S]{0,6000}resolveBoleslawAfterSearchSelection\(cp, addedCards, \{sourceCardId:'07'\}\)/, 'Maja custom searches must use the shared completed-search notifier');
+assert.match(core, /case '29'[\s\S]{0,2200}resolveBoleslawAfterSearchSelection\(cp, addedCards, \{sourceCardId:'29'\}\)/, 'Dylan custom searches must use the shared completed-search notifier');
+assert.match(rendering, /function addAffFromDeckDiscard[\s\S]{0,2600}searchedCardsAddedToHand[\s\S]{0,1600}resolveBoleslawAfterSearchSelection\(player, searchedCardsAddedToHand, searchOptions\)/, 'Cosmic GF deck and discard browsing must converge on one completed-search notification');
+assert.match(core, /function resolveBoleslawAfterSearchSelection[\s\S]{0,700}handIids[\s\S]{0,500}handIids\.has\(iid\)/, 'the shared notifier must ignore chosen cards that never actually reached hand');
+assert.match(core, /function resolveBoleslawAfterSearchSelection[\s\S]{0,1400}FateOnlineEffectTransactions[\s\S]{0,500}captureSearchSelection/, 'completed online searches must report into the active transaction without resolving Boleslaw locally');
+assert.match(transactionSource, /function captureSearchSelection[\s\S]{0,700}new Set\(existing\.concat/, 'multi-stage searches must accumulate selections instead of replacing the earlier picker');
+assert.match(transactionSource, /function finalizePayload[\s\S]{0,3200}searchableOriginIids[\s\S]{0,1200}addedFromSearchableOrigin[\s\S]{0,900}opponentSearch = tx\.payload\.searchCompleted/, 'search completion must be inferred from selected cards that actually moved from deck or discard into hand');
+assert.doesNotMatch(ai, /resolveBoleslawOpponentSearch/, 'AI search effects must not trigger Boleslaw before a selected card reaches hand');
+for(const id of ['48','58','60','68','84','06','07','29','08','13']){
+  assert.match(ai, new RegExp(`resolveBoleslawAfterSearchSelection\\(cp,[\\s\\S]{0,100}\\{sourceCardId:'${id}'\\}`), `AI search source ${id} must use the shared completed-search notifier`);
+}
 for(const id of ['04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72','91','93','97','bh04','bh25']){
   assert(effectRules.HAVANO_TARGETING_SOURCE_IDS.includes(id), `shared Havano targeting metadata must include ${id}`);
 }
@@ -37,18 +52,27 @@ for(const id of ['85', '88', '89', '100']){
 }
 assert.match(core, /tickCarpathianSpecters[\s\S]{0,300}cardActsAsPassive\(card, '95'\)/, 'Taylor must retain copied Specter growth');
 assert.match(core, /getReadyBoleslawSearchReactions[\s\S]{0,500}cardActsAsPassive\(card, '86'\)/, 'Taylor must retain copied Boleslaw reactions');
-assert.match(core, /resolveBoleslawOpponentSearch[\s\S]*flashCardEffect\(live, 'boleslaw_exclaim', \{label:'!!!'\}\)/, 'singleplayer Boleslaw search reactions must use the dedicated placeholder exclamation overlay');
-assert.match(authority, /applyBoleslawSearchAuthorityReaction[\s\S]*'boleslaw_exclaim'[\s\S]*'!!!'/, 'authority-resolved multiplayer Boleslaw search reactions must emit the dedicated placeholder exclamation overlay');
+assert.match(core, /resolveBoleslawOpponentSearch[\s\S]*flashCardEffect\(live, 'boleslaw_exclaim', \{label:'!!!'\}\)/, 'singleplayer Boleslaw search reactions must use the dedicated three-exclamation overlay');
+assert.match(authority, /applyBoleslawSearchAuthorityReaction[\s\S]*'boleslaw_exclaim'[\s\S]*'!!!'/, 'authority-resolved multiplayer Boleslaw search reactions must emit the dedicated three-exclamation overlay');
 assert.doesNotMatch(authority, /_effectFlash\s*=/, 'authority presentation must not leak transient effect overlays into canonical card state');
-assert.match(css, /effect-flash-boleslaw_exclaim[\s\S]*Final three-exclamation glyph\/mask intentionally pending/, 'DOM Boleslaw overlay kind must be wired while leaving final three-exclamation art pending');
-assert.match(adapter, /boleslaw_exclaim:\{color:[\s\S]*kind === 'boleslaw_exclaim'[\s\S]*Final three-exclamation overlay art intentionally pending/, 'canvas Boleslaw overlay kind must be wired while leaving final three-exclamation art pending');
+assert.match(css, /effect-flash-boleslaw_exclaim[\s\S]*--effect-flash-mask:url\([\s\S]*rect x='14'[\s\S]*circle cx='45'/, 'DOM Boleslaw overlay must render the three-exclamation glyph');
+assert.doesNotMatch(css, /effect-flash-boleslaw_exclaim::after[\s\S]{0,180}display:none/, 'DOM Boleslaw overlay must not hide its effect icon');
+assert.match(adapter, /kind === 'boleslaw_exclaim'[\s\S]*\[\[18,13,20,40\],[\s\S]*\[\[20,52\],[\s\S]*ctx\.fill\(\)/, 'canvas Boleslaw overlay must render the same three-exclamation glyph');
+assert.match(online, /parentEffectTransaction[\s\S]*effectTransactions\.snapshot\(\)[\s\S]*parentEffectTransaction\.localResolved !== true[\s\S]*return originals\[fnName\]\.apply\(this, arguments\)/, 'Initiator, Vigilantes, and nested board operations must remain inside their parent effect transaction');
+assert.doesNotMatch(online, /internalWhenSetInitiatorResolution|internalWhenSetVigilantesResolution/, 'nested effect ownership must not depend on card-specific bypasses');
+assert.match(core, /if\(G\._actionPresentationActive && !G\._markSelecting\) return;/, 'a visible Mark square choice must accept the first click during the presentation cleanup frame');
+assert.match(
+  read('src/scripts/render-v2/06-match-scene-input.js'),
+  /function|class[\s\S]*isLiveBoardSelectionActive\(\)[\s\S]{0,1500}if\(!this\.isLiveBoardSelectionActive\(\) && \([\s\S]{0,300}!started[\s\S]{0,300}ended\.z !== started\.z/,
+  'live board selectors must trust the current pointer-release hit when a render rebuilds the hit map between pointer-down and pointer-up'
+);
 assert.match(core, /getBh07AdjacentDauntlessCount[\s\S]{0,600}_bh05CopiedPassiveId[\s\S]{0,1600}_bh05CopiedPassiveId/, 'Taylor must retain copied Agent-K adjacency');
 assert.match(core, /triggerMajaMischievousActivities[\s\S]{0,800}cardActsAsPassive\(card, 'bh08'\)/, 'Taylor must retain copied Maja reactions');
 assert.match(core, /case '05'[\s\S]*await new Promise[\s\S]*pickCardInZone[\s\S]*modifyFate\(tgt,3,'permanent'\)[\s\S]*finish\(true\)[\s\S]*function\(\)\{ finish\(false\); \}/, '17th British Regiment must keep its parent multiplayer activation pending until the target picker confirms or cancels');
 assert.match(core, /const requiresSupporterButton = instIsSupporterForRules && WINDOWED_WHEN_SET_EFFECT_IDS\.has[\s\S]*!opts\.forceImmediate && \(requiresSupporterButton \|\| whenSetEffectsAreDeferred\(\)\)[\s\S]*queueDeferredWhenSetEffect/, 'button-based Supporter effects must remain pending even if one client has the old immediate-mode debug flag persisted');
 assert.match(core, /function chooseTaylorCopiedEffect[\s\S]*return new Promise[\s\S]*onlineParentAction:true[\s\S]*resolve\(await resolveTaylorCopiedEffect[\s\S]*case 'bh05':[\s\S]*await chooseTaylorCopiedEffect/, 'Taylor activation must keep the parent multiplayer action open until her copy choice and copied effect finish');
-assert.match(online, /ONLINE_ALI_REVEAL_MS = 1400[\s\S]*function resumeOnlinePendingAliTransfers[\s\S]{0,900}_onlineAliTransfersReady !== true[\s\S]{0,900}playerIndex !== localIndex[\s\S]{0,1200}submitOnlineAliTransfer/, 'Ali transfers must wait for readiness, reveal briefly, and submit only from the source player client');
-assert.match(online, /function onlineBoardEffectActivationKey[\s\S]*_onlineRoomCode[\s\S]*function forgetOnlineEffectActivation[\s\S]*onlineSubmittedEffectActivations\.delete[\s\S]*function resetClientResolvedActionLocks[\s\S]*onlineSubmittedEffectActivations\.clear/, 'effect submission guards must be scoped to a room, forgotten after failed sends, and cleared between matches');
+assert.match(online, /ONLINE_ALI_REVEAL_MS = 5000[\s\S]*function resumeOnlinePendingAliTransfers[\s\S]{0,900}_onlineAliTransfersReady !== true[\s\S]{0,900}!onlineGameScreenIsActive\(\) \|\| !onlineMatchHasFirstSet\(state\)[\s\S]{0,1800}playerIndex !== localIndex[\s\S]{0,1800}submitOnlineAliTransfer/, 'Ali transfers must wait for readiness, the active game screen, and the first set, remain visible for five seconds, and submit only from the source player client');
+assert.doesNotMatch(online, /onlineSubmittedEffectActivations|fateOnlineEffectActivationWasSubmitted|rememberOnlineEffectActivation/, 'stale pre-resolution effect submission latches must stay removed');
 assert.match(online, /function submitOnlineAliTransfer[\s\S]{0,2600}onlineAliTransferInFlightIids\.has[\s\S]{0,1800}sendOptimisticAction\('ALI_INDOMITABLE_TRANSFER'[\s\S]{0,800}monitorOnlineAliTransferCommit/, 'Ali must have only one tracked serialized multiplayer submission in flight');
 assert.doesNotMatch(online, /publishCompletedOnlineAliTransfer|onlineAliTransferResumeIids/, 'the stale Ali rescheduler must be removed');
 assert.match(online, /function resumeOnlinePendingTaylorOpeningCopies[\s\S]{0,2200}_onlineAliTransfersReady !== true[\s\S]{0,2200}sendOptimisticAction\('TAYLOR_OPENING_COPY'/, 'opening Taylor must wait for both playable clients and duplicate through one serialized authority action');
@@ -145,7 +169,7 @@ const boleslawState = {
 };
 const boleslawEvents = [];
 assert.strictEqual(sandbox.applyBoleslawSearchAuthorityReaction(boleslawState, {iid:taylorBoleslaw.iid}, {playerIndex:1}, boleslawEvents), '');
-assert.strictEqual(taylorBoleslaw.currentFate, 4, 'Taylor copied Boleslaw must gain 3 Fate');
+assert.strictEqual(taylorBoleslaw.currentFate, 3, 'Taylor copied Boleslaw must gain 2 Fate');
 assert.strictEqual(taylorBoleslaw._effectFlash, undefined, 'authority Boleslaw presentation must not be stored in canonical card state');
 assert.strictEqual(boleslawEvents[0].kind, 'boleslaw_exclaim', 'authority Boleslaw reaction must emit its synchronized effect flash kind');
 assert.strictEqual(boleslawEvents[0].label, '!!!', 'authority Boleslaw reaction must reserve the three-exclamation presentation label');

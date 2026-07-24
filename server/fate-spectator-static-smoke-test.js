@@ -91,10 +91,10 @@ assert.match(authority,
   /SPECTATOR_STALE_MS[\s\S]*function pruneStaleRoomSpectators/,
   'the authority must reap spectators whose heartbeat disappeared');
 
-assert.match(index, /06-rendering-and-helpers\.js\?v=1785160801/, 'spectator-safe renderer must be cache-busted');
-assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1785032426/, 'hidden spectator hand renderer and Brave Horizons overlays must be cache-busted');
-assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1784650001/, 'hidden spectator hand input guard must be cache-busted');
-assert.match(index, /18-online-rooms\.js\?v=1785160801&sync=1785160801/, 'canonical spectator bridge must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1785165501/, 'spectator-safe renderer must be cache-busted');
+assert.match(index, /render-v2\/04-match-renderer-adapter\.js\?v=1785164801/, 'hidden spectator hand renderer and Boleslaw overlays must be cache-busted');
+assert.match(index, /render-v2\/06-match-scene-input\.js\?v=1785165101/, 'hidden spectator hand input guard and live board-selector release contract must be cache-busted');
+assert.match(index, /18-online-rooms\.js\?v=1785165401&sync=1785165401/, 'canonical spectator bridge must be cache-busted');
 assert.match(index, /22-spectator\.js\?v=1785072425/, 'spectator runtime must be cache-busted');
 
 const spectatorState = {

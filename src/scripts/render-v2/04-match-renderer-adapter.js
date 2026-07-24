@@ -1341,6 +1341,11 @@
       const extendedUntil = placementFateRevealUntil(placedCard, pending.until);
       if(extendedUntil > pending.until) {
         pending.until = extendedUntil;
+        const placementPending = deferredPlacementFatePulseByIid.get(placedIid);
+        if(placementPending && Number(placementPending.until) < extendedUntil) {
+          placementPending.until = extendedUntil;
+          schedulePlacementFateReveal(placedCard, placementPending);
+        }
         pending.targetIids.forEach(function(targetIid){
           coordinatorAuraFateDelayUntilByIid.set(targetIid, Math.max(Number(coordinatorAuraFateDelayUntilByIid.get(targetIid)) || 0, extendedUntil));
           const fatePending = deferredCoordinatorFatePulseByIid.get(targetIid);
@@ -1557,6 +1562,8 @@
   function deferPlacementFateReveal(card, fateValue){
     const iid = getCardIid(card);
     const meta = card && card._placementFateReveal;
+    const pendingBh07Batch = iid ? pendingBh07OverclockByPlacedIid.get(iid) : null;
+    const bh07BatchUntil = Math.max(0, Number(pendingBh07Batch && pendingBh07Batch.until) || 0);
     const createdAt = Math.max(0, Number(meta && meta.createdAt) || 0);
     const completedAt = iid ? Math.max(0, Number(completedPlacementFateRevealAtByIid.get(iid)) || 0) : 0;
     if(!iid || !meta || (completedAt && (!createdAt || completedAt >= createdAt))) return false;
@@ -1569,7 +1576,7 @@
         toValue:String(fateValue),
         genericSoundRequested:!!meta.genericSoundRequested,
         kvetkaGainAmount:Math.max(0, Number(meta.kvetkaGainAmount) || 0),
-        until:placementFateRevealUntil(card, 0),
+        until:Math.max(placementFateRevealUntil(card, 0), bh07BatchUntil),
         timer:null
       };
       deferredPlacementFatePulseByIid.set(iid, record);
@@ -1577,7 +1584,7 @@
       record.toValue = String(fateValue);
       record.genericSoundRequested = record.genericSoundRequested || !!meta.genericSoundRequested;
       record.kvetkaGainAmount = Math.max(record.kvetkaGainAmount || 0, Number(meta.kvetkaGainAmount) || 0);
-      record.until = placementFateRevealUntil(card, record.until);
+      record.until = Math.max(placementFateRevealUntil(card, record.until), bh07BatchUntil);
     }
     schedulePlacementFateReveal(card, record);
     return Date.now() < Number(record.until || 0);
@@ -3022,7 +3029,20 @@
       ctx.bezierCurveTo(28,50,41,50,48,38);
       ctx.stroke();
     } else if(kind === 'boleslaw_exclaim') {
-      // Final three-exclamation overlay art intentionally pending; the shared flash/tint plumbing is active.
+      ctx.lineWidth = 7.5;
+      ctx.lineCap = 'round';
+      [[18,13,20,40],[32,11,32,40],[46,13,44,40]].forEach(function(mark){
+        ctx.beginPath();
+        ctx.moveTo(mark[0], mark[1]);
+        ctx.lineTo(mark[2], mark[3]);
+        ctx.stroke();
+      });
+      [[20,52],[32,52],[44,52]].forEach(function(dot){
+        ctx.beginPath();
+        ctx.arc(dot[0], dot[1], 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = palette.color;
+        ctx.fill();
+      });
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
       ctx.beginPath();

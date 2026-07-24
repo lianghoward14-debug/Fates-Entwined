@@ -165,7 +165,7 @@ assert.match(online, /const cardId = String\(card\.id \|\| ''\);[\s\S]*\['token1
   'online card compaction must preserve the dynamic Shizuku Token effect text');
 assert.match(online, /window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,1000}sendOptimisticAction\('HAND_ACTION'[\s\S]{0,1000}_onlineClientOwnedBoardActionPickerDepth/,
   'multiplayer must resolve both Concrete Roads choices inside one authoritative action');
-assert.match(index, /00-structural-helpers\.js\?v=1785160801[\s\S]*01-data-and-state\.js\?v=1785160801[\s\S]*05-gameplay-core\.js\?v=1785160801[\s\S]*06-rendering-and-helpers\.js\?v=1785160801[\s\S]*07-ai\.js\?v=1785072413[\s\S]*08-audio-and-meta-ui\.js\?v=1785032407[\s\S]*18-online-rooms\.js\?v=1785160801&sync=1785160801/,
+assert.match(index, /00-structural-helpers\.js\?v=1785160801[\s\S]*01-data-and-state\.js\?v=1785160801[\s\S]*05-gameplay-core\.js\?v=1785165001[\s\S]*06-rendering-and-helpers\.js\?v=1785165501[\s\S]*07-ai\.js\?v=1785162601[\s\S]*08-audio-and-meta-ui\.js\?v=1785032407[\s\S]*18-online-rooms\.js\?v=1785165401&sync=1785165401/,
   'all landscape runtime surfaces must be cache-busted together');
 
 const catalog = getCardCatalog();

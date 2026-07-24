@@ -22,6 +22,8 @@ assert.match(core, /const targetIsAdjacentDauntless = String\(target\.type \|\| 
 assert.match(adapter, /overclockUntil = Math\.max\(coordinatorCinematicDelayUntil\(\), placementFateRevealUntil\(source, 0\)\)/, 'Agent-K must wait through the full placement cinematic and Fate reveal');
 assert.match(adapter, /coordinatorAuraFateDelayUntilByIid\.set\(targetIid[\s\S]*scheduleBh07OverclockPresentation\(source, sourceIids, targetIids, overclockUntil\)/, 'all affected Fate badges and overlays must share the Overclock deadline');
 assert.match(adapter, /const revealBh07Overclock = function\(\)[\s\S]*placementFateRevealUntil\(placedCard, pending\.until\)[\s\S]*deferCoordinatorFatePulse\(targetIid[\s\S]*flashBh07OverclockTargets[\s\S]*record\.until - Date\.now\(\)/, 'Overclock and affected Fate pulses must follow any extension of the cinematic deadline');
+assert.match(adapter, /pendingBh07Batch = iid \? pendingBh07OverclockByPlacedIid\.get\(iid\)[\s\S]{0,1200}until:Math\.max\(placementFateRevealUntil\(card, 0\), bh07BatchUntil\)/, 'the newly placed adjacent Dauntless must defer its own placement Fate pulse to the shared Overclock batch');
+assert.match(adapter, /const placementPending = deferredPlacementFatePulseByIid\.get\(placedIid\)[\s\S]{0,300}schedulePlacementFateReveal\(placedCard, placementPending\)/, 'an extended Agent-K deadline must extend the placed Dauntless Fate pulse as well as existing board targets');
 assert.match(css, /effect-flash-bh07_overclock[\s\S]*--effect-flash-mask/, 'Agent-K must retain a DOM Overclock overlay');
 assert.match(adapter, /bh07_overclock:\{color:[\s\S]*kind === 'bh07_overclock'/, 'Agent-K must retain a canvas Overclock overlay');
 const gameplayVersion = Number((index.match(/05-gameplay-core\.js\?v=(\d+)/) || [])[1]);

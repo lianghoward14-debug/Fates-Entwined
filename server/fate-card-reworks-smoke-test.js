@@ -15,6 +15,7 @@ const vfxRecipes = read('src/scripts/render-v2/13-vfx-recipes.js');
 const lastCss = read('src/styles/zz-codex-last.css');
 const ai = read('src/scripts/07-ai.js');
 const rooms = read('src/scripts/18-online-rooms.js');
+const effectTransactions = read('src/scripts/18a-online-effect-transactions.js');
 const authority = read('server/fate-authority-reducer.js');
 const bootstrap = read('server/fate-authority-bootstrap.js');
 const {canonicalStateHash, validateProposedTransition, reduceServerAction} = require('./fate-authority-reducer');
@@ -22,13 +23,16 @@ const {canonicalStateHash, validateProposedTransition, reduceServerAction} = req
 assert.match(data, /id:'52'[\s\S]*When it leaves the field, discard one random card from your opponent\\'s hand\./, 'Vigilantes text must describe its departure trigger');
 assert.match(data, /id:'61'[\s\S]*All copies of that card in their hand, deck, and on the field lose 7 Fate\./, 'Maria Song text must describe the copy-wide Fate loss');
 assert.match(data, /id:'81',name:'Wojciech',ability:'Pierogi Barrage',type:'Initiator'[\s\S]*stay there for 3 of their turns\./, 'Wojciech must use the new Initiator rules text');
-assert.match(data, /id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Improvisor'[\s\S]*Whenever your opponent would search for a card, you can draw 1 card, and this card gains 3 Fate\./, 'Boleslaw must match the new Improvisor card art');
+assert.match(data, /id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Improvisor'[\s\S]*Whenever your opponent searches for a card, draw 1 card, and this card gains 2 Fate\./, 'Boleslaw must match the new Improvisor card art');
 assert.match(data, /WOJCIECH_PIEROGI_COUNTER[\s\S]*id:'token1'[\s\S]*img:'token1\.png'/, 'the generated Pierogi Counter must use token1.png');
 
 assert.match(helpers, /function isWojciechPierogiCounter[\s\S]*function isCardCharacterForRules\(card, owner\) \{[\s\S]*isWojciechPierogiCounter\(card\)\) return false;/, 'Pierogi Counters must not count as Characters');
 assert.doesNotMatch(helpers, /if \(card\._markedForDeath\) return 0/, 'Vigilantes marks must not change Reinforcement');
 assert.doesNotMatch(helpers, /card\.id === '86'[\s\S]{0,120}(?:return 3|value = 3|playerHasMoreCharactersThanSupportersInHand)/, 'Boleslaw must not retain the old free-set or three-Reinforcement rules');
 assert.match(core, /function resolveVigilantesMarkedCardDeparture[\s\S]*deterministicOnlineRandomIndex[\s\S]*fatePushDiscard\(targetOwner, selected/, 'Vigilantes must resolve its random hand discard deterministically online');
+assert.match(renderer, /const discardAction = typeof window\.discardBoardCard === 'function'[\s\S]{0,260}\? window\.discardBoardCard[\s\S]{0,500}discardAction\(bc, z, r, c\)/, 'the manual board Discard button must pass through the multiplayer action wrapper');
+assert.match(renderer, /function showConsolidationCinematic\(card, opts\)/, 'the Character cinematic entry point must remain explicit');
+assert.match(renderer, /opts\.allowDetachedCard !== true[\s\S]{0,220}!getBoardCardPosition\(card\)\) return false;/, 'queued Character cinematics must be discarded once their card has left the board');
 assert.match(core, /case '52': \{[\s\S]*activateVigilantes\(inst, z, r, c, \{activationAlreadyCounted:true\}\)[\s\S]*async function activateVigilantes\(card, z, r, c, options\)[\s\S]*activationAlreadyCounted === true[\s\S]*beginManualSupporterEffectActivation/, 'Vigilantes must not count twice when Snow on the Carpathians has already counted its when-set activation');
 assert.match(core, /function applyMariaSongPreciseShot[\s\S]*reduceStoredCardFateBy\(target, 7, sourceOwner\)[\s\S]*\['hand','deck'\][\s\S]*forEachBoardCard/, 'Maria Song must hit matching copies in all three locations');
 assert.match(core, /function finishWojciechTurnState[\s\S]*_wojciechLastTurnPlacementCounts[\s\S]*_pierogiHandExpiresAfterTurn[\s\S]*_pierogiTurnsRemaining <= 0/, 'Wojciech must snapshot placements and expire hand and board counters');
@@ -36,20 +40,24 @@ assert.match(core, /function placeWojciechPierogiCounter[\s\S]*_pierogiTurnsRema
 assert.match(core, /function isWojciechPierogiPlacementSquare[\s\S]*r === 1\) return true[\s\S]*isPlayableSafeSquare\(z, r, c, host\)[\s\S]*getSquareRowOwner\(z, r\) === host/, 'client Pierogi placement must allow contested and exact opponent-owned generated squares');
 assert.match(core, /function getValidPlacementOptionsForCard[\s\S]*if\(isPierogiCounter\)[\s\S]*isWojciechPierogiPlacementSquare\(z, r, c, cp\)/, 'Pierogi highlights and AI options must use the shared per-square placement rule');
 assert.match(core, /INITIAL_SET_INITIATOR_IDS = new Set\([^\n]*'81'/, 'Wojciech must expose an initial Initiator activation');
-assert.match(core, /function getReadyBoleslawSearchReactions[\s\S]*async function resolveBoleslawOpponentSearch[\s\S]*checkReactions\('targeting_effect'[\s\S]*sourceOwner:reaction\.owner[\s\S]*await drawCard\(reaction\.owner, 1[\s\S]*live\.currentFate = before \+ 3/, 'single-player Boleslaw must trigger automatically while still opening Lydia reaction timing');
+assert.match(core, /function getReadyBoleslawSearchReactions[\s\S]*async function resolveBoleslawOpponentSearch[\s\S]*checkReactions\('targeting_effect'[\s\S]*sourceOwner:reaction\.owner[\s\S]*await drawCard\(reaction\.owner, 1[\s\S]*live\.currentFate = before \+ 2/, 'single-player Boleslaw must trigger automatically while still opening Lydia reaction timing');
 assert.doesNotMatch(core, /chooseOptionalImprovisorActivation\(reaction\.owner, live[\s\S]{0,300}boleslaw/, 'Boleslaw must not show its own optional activation prompt');
 assert.doesNotMatch(core, /t\.card\.id==='86'[\s\S]{0,80}bonusFate \+= 4|cell\.id==='86'/, 'core consolidation must not retain Boleslaw tribute bonuses');
 
 assert.match(ai, /hand\.filter\(function\(card\)\{ return typeof isWojciechPierogiCounter[\s\S]*pierogiCounter:true/, 'AI must generate Pierogi placement moves');
 assert.match(ai, /case '61'[\s\S]*applyMariaSongPreciseShot/, 'AI Maria Song must use the shared reworked effect');
 assert.match(ai, /case '81'[\s\S]*grantWojciechPierogiCounters/, 'AI Wojciech must generate counters');
-assert.match(ai, /case '06'[\s\S]*await resolveBoleslawOpponentSearch\(cp, \{sourceCardId:'06'\}\)[\s\S]*case '08'[\s\S]*await resolveBoleslawOpponentSearch\(cp, \{sourceCardId:'08'\}\)[\s\S]*case '13'[\s\S]*await resolveBoleslawOpponentSearch\(cp, \{sourceCardId:'13'\}\)/, 'AI searches must resolve the same automatic Boleslaw trigger');
+for(const id of ['06','08','13']){
+  assert.match(ai, new RegExp(`resolveBoleslawAfterSearchSelection\\(cp,[\\s\\S]{0,100}\\{sourceCardId:'${id}'\\}`), `AI search ${id} must resolve Boleslaw only after the selected card reaches hand`);
+}
 assert.match(ai, /card\.id==='52'[\s\S]*markCardForVigilantes/, 'AI Vigilantes must use the shared mark behavior');
 
 assert.match(rooms, /_wojciechTurnPlacementCounts:cloneOnlinePlain[\s\S]*_wojciechLastTurnPlacementCounts:cloneOnlinePlain/, 'multiplayer snapshots must carry Wojciech placement history');
 assert.match(rooms, /function onlineCardIsCharacter[\s\S]*type !== 'Counter'/, 'multiplayer presentation must not treat Counters as Characters');
 assert.match(authority, /function authorityPierogiPlacementSquareAllowed[\s\S]*extraRowOwners[\s\S]*markSafeSquares[\s\S]*String\(selected\.id \|\| target\.id \|\| ''\) === 'token1'[\s\S]*_pierogiTurnsRemaining\) !== 3/, 'authority must validate contested and opponent-owned Pierogi placement, including generated squares');
-assert.match(authority, /function resolveAuthorityBoleslawSearch[\s\S]*opponentSearch !== true[\s\S]*applyBoleslawSearchAuthorityReaction\(resolvedState[\s\S]*kind:'lydia'[\s\S]*actionType:'boleslaw_trigger'[\s\S]*function applyBoleslawSearchAuthorityReaction[\s\S]*currentFate = before \+ 3[\s\S]*player\.deck\.shift\(\)/, 'multiplayer authority must trigger Boleslaw automatically and arm only Lydia against it');
+assert.match(authority, /function resolveAuthorityBoleslawSearch[\s\S]*opponentSearch !== true[\s\S]*applyBoleslawSearchAuthorityReaction\(resolvedState[\s\S]*kind:'lydia'[\s\S]*actionType:'boleslaw_trigger'[\s\S]*function applyBoleslawSearchAuthorityReaction[\s\S]*currentFate = before \+ 2[\s\S]*player\.deck\.shift\(\)/, 'multiplayer authority must trigger Boleslaw automatically and arm only Lydia against it');
+assert.match(authority, /payload\.searchSourceCardId \|\| \(transactionalSearch \? payload\.effectSourceId : ''\)/, 'transactional searches must inherit their effect source instead of silently skipping Boleslaw when a picker omitted duplicate metadata');
+assert.match(effectTransactions, /function finalizePayload[\s\S]*if\(tx\.payload\.searchCompleted && !String\(tx\.payload\.searchSourceCardId \|\| ''\)\)[\s\S]*tx\.payload\.effectSourceId/, 'the effect transaction must attach its live source identity to every completed search');
 assert.match(rooms, /opts && opts\.opponentSearch === true[\s\S]*pickPayload\.opponentSearch = true[\s\S]*searchSourceCardId/, 'multiplayer card searches must identify themselves to the authority');
 assert.doesNotMatch(rooms, /data-server-reaction-boleslaw|Activate A Bombastic Character|finish\('activate'/, 'multiplayer must not render or submit a Boleslaw activation prompt');
 assert.match(bootstrap, /_wojciechTurnPlacementCounts:\[0, 0\][\s\S]*_wojciechLastTurnPlacementCounts:\[0, 0\]/, 'authority bootstrap must initialize Wojciech history');
@@ -152,7 +160,7 @@ const armedSearch = reduceServerAction(searchRoom, {type:'RESOLVE_CARD_PICK', pa
 assert.equal(armedSearch.ok, true, 'authority must accept the searched card selection');
 assert.equal(armedSearch.canonicalState._serverPendingReaction, undefined, 'Boleslaw must not create its own multiplayer reaction prompt');
 assert.equal(armedSearch.canonicalState.players[1].hand[0].iid, reactionDraw.iid, 'automatic Boleslaw must draw the top card');
-assert.equal(armedSearch.canonicalState.board[0][0][0].currentFate, 7, 'automatic Boleslaw must gain exactly 3 Fate');
+assert.equal(armedSearch.canonicalState.board[0][0][0].currentFate, 6, 'automatic Boleslaw must gain exactly 2 Fate');
 
 const lydiaPre = JSON.parse(JSON.stringify(searchPre));
 lydiaPre.board[1][2][0] = {id:'56',iid:'lydia-reactor',name:'Lydia',type:'Improvisor',owner:0,currentFate:7,fate:7,usesLeft:3};
@@ -178,7 +186,7 @@ const allowedBoleslaw = reduceServerAction({canonicalState:armedLydia.canonicalS
   playerIndex:0,promptId:pendingLydia.promptId,choice:'decline'
 }}, {});
 assert.equal(allowedBoleslaw.canonicalState.players[1].hand[0].iid, reactionDraw.iid, 'allowing the automatic trigger must draw for Boleslaw');
-assert.equal(allowedBoleslaw.canonicalState.board[0][0][0].currentFate, 7, 'allowing the automatic trigger must give Boleslaw 3 Fate');
+assert.equal(allowedBoleslaw.canonicalState.board[0][0][0].currentFate, 6, 'allowing the automatic trigger must give Boleslaw 2 Fate');
 const suppressedBoleslaw = reduceServerAction({canonicalState:armedLydia.canonicalState,canonicalHash:armedLydia.canonicalHash}, {type:'REACTION_CHOICE',payload:{
   playerIndex:0,promptId:pendingLydia.promptId,choice:'negate',optionIndex:0
 }}, {});

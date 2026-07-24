@@ -1746,6 +1746,16 @@ function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
       aliIndomitableTransferTimers.set(timerKey, waitTimer);
       return;
     }
+    const firstSetMade = Array.isArray(G.board) && G.board.some(function(zone){
+      return Array.isArray(zone) && zone.some(function(row){
+        return Array.isArray(row) && row.some(function(boardCard){ return !!boardCard; });
+      });
+    });
+    if(!firstSetMade) {
+      const waitTimer = setTimeout(beginVisibleCountdown, 100);
+      aliIndomitableTransferTimers.set(timerKey, waitTimer);
+      return;
+    }
     if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
     else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
     liveCard._bh03VisibleAt = Date.now();

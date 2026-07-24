@@ -52,7 +52,7 @@ assert.match(rendering, /ali_indomitable:\s*`<svg class="ali-indomitable-icon"[\
 assert.match(rendering, /handBits\.push\(\['ali', holder, c\.iid \|\| '', c\._bh03TransferredFrom/, 'the top-bar cache signature must track Ali entering and leaving the opponent hand');
 assert.match(rendering, /const aliCard = CARDS\.find\(c => c\.id === 'bh03'\)[\s\S]*_bh03OpponentHand === true[\s\S]*getStatusEffectIcon\('ali_indomitable'\)[\s\S]*statusInstanceKey:'ali-indomitable:'/, 'BH3 must expose a persistent status banner derived from synchronized opponent-hand state');
 assert.match(setup, /G\._onlineRoomCode[\s\S]{0,500}G\._onlineAliTransfersReady !== true[\s\S]{0,500}localPlayer !== Number\(sourcePlayer\)/, 'online Ali timers must wait for both clients and run only on the source player browser');
-assert.match(online, /function resumeOnlinePendingAliTransfers[\s\S]{0,500}_onlineAliTransfersReady !== true[\s\S]{0,500}playerIndex !== localIndex/, 'online Ali recovery must not schedule the same transfer on both clients');
+assert.match(online, /function resumeOnlinePendingAliTransfers[\s\S]{0,500}_onlineAliTransfersReady !== true[\s\S]{0,1800}playerIndex !== localIndex/, 'online Ali recovery must not schedule the same transfer on both clients');
 assert.match(gameplay, /function showAliIndomitableResolvingBanner[\s\S]*Ali is currently resolving its effect, wait less than five seconds[\s\S]*function selectHandCard[\s\S]*_bh03TransferPending === true[\s\S]*showAliIndomitableResolvingBanner\(\)[\s\S]*return;/, 'interacting with pending Ali must show the resolving banner without selecting him');
 assert.doesNotMatch(gameplay, /function showAliIndomitableResolvingBanner[\s\S]{0,900}ali-indomitable-transfer-banner/, 'interacting with pending Ali must not create a second top transfer banner');
 assert.match(online, /function applyOnlineAliTransferByIid[\s\S]*selectedHandCard = null[\s\S]*placing = false[\s\S]*transferAliIndomitableToOpponentHand/, 'Ali transfer must clear a stale local hand selection before publishing its post-state');
@@ -85,6 +85,31 @@ aliBase.players[0].discard = [];
 aliBase.players[1].discard = [];
 aliBase.currentPlayer = 1;
 const pendingAli = aliBase.players[0].hand[0];
+const earlyAliPost = JSON.parse(JSON.stringify(aliBase));
+const earlyTransferredAli = earlyAliPost.players[0].hand.shift();
+delete earlyTransferredAli._bh03TransferPending;
+delete earlyTransferredAli.noConsolidate;
+earlyTransferredAli.owner = 1;
+earlyTransferredAli._bh03OpponentHand = true;
+earlyTransferredAli._bh03TransferredFrom = 0;
+earlyTransferredAli.immuneFlag = true;
+earlyTransferredAli.cantBeReduced = true;
+earlyAliPost.players[1].hand.push(earlyTransferredAli);
+const earlyAliBaseHash = canonicalStateHash(aliBase);
+const earlyAliTransferResult = reduceServerAction(
+  {canonicalState:aliBase, canonicalHash:earlyAliBaseHash},
+  {type:'ACTION_RESULT', payload:{
+    playerIndex:0,
+    actionKind:'ALI_INDOMITABLE_TRANSFER',
+    cardIid:String(pendingAli.iid),
+    baseStateHash:earlyAliBaseHash,
+    postState:earlyAliPost,
+    stateHash:canonicalStateHash(earlyAliPost)
+  }},
+  {requireBaseHash:true}
+);
+assert.strictEqual(earlyAliTransferResult.ok, false, 'authority must reject Ali transfer before either player makes the first set');
+aliBase.board[0][0][0] = {id:'01', iid:'first-set-card', owner:1, type:'Supporter', currentFate:1};
 const aliPost = JSON.parse(JSON.stringify(aliBase));
 const transferredAli = aliPost.players[0].hand.shift();
 delete transferredAli._bh03TransferPending;
@@ -145,6 +170,7 @@ const sandbox = {
       {name:'Player 1', hand:[], deck:[]},
       {name:'Player 2', hand:[], deck:[]}
     ],
+    board:[[[null]], [[null]], [[null]]],
     _forceHandEnterIids:new Set()
   },
   window:{playFateSfxOnce:(type, key)=>events.push(['sfx', type, key])},
@@ -172,7 +198,11 @@ assert.strictEqual(searchedAli._bh03TransferPending, true);
 assert.strictEqual(scheduledTimers.length, 1, 'searched BH3 must schedule its visible-countdown start');
 scheduledTimers.shift().callback();
 assert.strictEqual(sandbox.G.players[0].hand[0], searchedAli, 'searched BH3 must remain visible while its transfer delay runs');
-assert.strictEqual(scheduledTimers.length, 1, 'searched BH3 must schedule one transfer after becoming visible');
+assert.strictEqual(scheduledTimers.length, 1, 'searched BH3 must keep waiting while no card has been set');
+assert.strictEqual(scheduledTimers[0].delay, 100, 'the pre-match retry must not consume Ali\'s five-second reveal time');
+sandbox.G.board[0][0][0] = {id:'01', iid:'first-set-card', owner:0};
+scheduledTimers.shift().callback();
+assert.strictEqual(scheduledTimers.length, 1, 'searched BH3 must schedule one transfer after the first set');
 assert.strictEqual(scheduledTimers[0].delay, 5000, 'searched BH3 must remain in hand for five seconds');
 scheduledTimers.shift().callback();
 assert.deepStrictEqual(Array.from(sandbox.G.players[0].hand), [], 'searched BH3 must leave the searching player\'s hand after the delay');

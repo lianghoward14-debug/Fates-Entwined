@@ -216,7 +216,8 @@ assert.doesNotMatch(windowedWhenSet, /'97'/, 'Visegrad Politician must resolve a
 assert.match(data, /id:'26'[\s\S]*effect:'Activate Effect: Reveal your opponent\\'s hand\.'/, 'UCPD catalog text must describe its manual activation');
 assert.match(core, /case '97'[\s\S]*activateAdministrativeBloat\(cp, inst\)/, 'Visegrad Politician must automatically apply Administrative Bloat when set');
 assert.match(core, /case '96'[\s\S]*showSnowShovelerReturnedCards/, 'Snow Shoveler must show its random return result window');
-assert.match(core, /showSnowShovelerReturnedCards[\s\S]*immediate:false/, 'Snow Shoveler must wait for the activation presentation before showing its returned-card gallery');
+assert.match(core, /case '96'[\s\S]*await waitForEffectPresentationBeforeChoice\(\)[\s\S]*showSnowShovelerReturnedCards/, 'Snow Shoveler must explicitly finish its activation presentation before opening the returned-card gallery');
+assert.match(core, /showSnowShovelerReturnedCards[\s\S]*immediate:true/, 'Snow Shoveler must not schedule a second modal delay outside its effect transaction');
 assert.match(core, /case '71'[\s\S]*characterSent:false/, 'Fort Calvin Watcher must initialize its one-Character redirect limit');
 assert.match(read('src/scripts/04-game-setup.js'), /revealedCharacter && !watcher\.characterSent[\s\S]*watcher\.characterSent = true[\s\S]*else if\(revealedCharacter\)/, 'Fort Calvin Watcher must redirect only the first Character and reveal later Characters normally');
 const gameSetup = read('src/scripts/04-game-setup.js');
@@ -246,6 +247,7 @@ assert.match(core, /function applyWodnyPotokLumberjackSuppression[\s\S]*inst\._l
 assert.match(ai, /case '31'[\s\S]*reduceStoredCardFateBy\(target, 3, cp\)/, 'AI Oathbound Noble Fighter must reduce 3 Fate once instead of using the old setter path');
 assert.match(core, /const INITIAL_SET_INITIATOR_IDS = new Set\(\[[\s\S]*'99'[\s\S]*\]\);/, 'Rozsi and Zsofia Youth must trigger The Blame Game as an initial set effect');
 assert.match(core, /case '99'[\s\S]*activateBlameGameEffect\(cp, card\)/, 'Rozsi and Zsofia Youth must activate The Blame Game');
+assert.match(core, /const MANUAL_EFFECT_BLOCKED_CARD_IDS = new Set\(\[[\s\S]*'99'[\s\S]*\]\);/, 'The automatic Blame Game set trigger must never expose a second Activate Effect button');
 assert.match(data, /Starting now, when you would consolidate a card, it gains 3 Fate, and this bonus continues until you set a Supporter\./, 'Kvetka Ukulele catalog text must match the new card art');
 assert.doesNotMatch(data, /Starting your next turn[\s\S]{0,220}gain 4 Fate permanently/, 'Kvetka Ukulele must not retain the old delayed Ballad text');
 assert.match(core, /function ensureBalladState[\s\S]*G\._balladEffects\[player\] = current \? \[current\] : \[\][\s\S]*function noteBalladConsolidation[\s\S]*card\.currentFate = before \+ 3[\s\S]*flashCardEffect\(card, 'kvetka_ballad'/, 'Kvetka Ballad must immediately grant 3 Fate for every active copy');

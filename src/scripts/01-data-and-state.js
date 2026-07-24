@@ -339,7 +339,7 @@ const CARDS = [
     flavor:'"A blood-stained axe, a shattered bayonet, a burning flag - I saw the last thing they saw in the fleeting moments of their lives"',img:'85.png'},
   {id:'86',name:'Boleslaw Kopewicz',ability:'A Bombastic Character',type:'Improvisor',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
-    effect:'Whenever your opponent would search for a card, you can draw 1 card, and this card gains 3 Fate.',
+    effect:'Whenever your opponent searches for a card, draw 1 card, and this card gains 2 Fate.',
     flavor:'"Boleslaw is the de-facto uncle of the Janowicz family - controversial and disruptive, but charismatic and amusing"',img:'86.png'},
   {id:'87',name:'Kv\u011btka Svoboda (Ukulele)',ability:'A Noble Effort at a Ballad',type:'Initiator',aff:'expanded_worlds',
     fate:3,cost:2,rarity:'triangle',

@@ -155,6 +155,80 @@ const activated = validate(activationPre, {
 }, activationPost);
 assert.strictEqual(activated.ok, true, activated.reason);
 
+const atomicPost = clone(activationPre);
+const atomicMovedCard = clone(atomicPost.board[0][2][0]);
+atomicPost.board[0][2][0] = null;
+atomicPost.board[2][0][1] = atomicMovedCard;
+atomicPost.board[2][0][1].bh01MovedThisTurn = true;
+atomicPost.board[2][0][1]._braveHorizonsLastMoveTurn = 7;
+atomicPost.players[0].deck = [];
+atomicPost.players[0].hand = [activationPre.players[0].deck[0]];
+const atomicMove = validate(activationPre, {
+  actionKind:'BOARD_ACTION',
+  playerIndex:0,
+  turn:7,
+  fn:'triggerCharacterEffect',
+  source:{z:0, r:2, c:0, iid:'bh01-1', id:'bh01'},
+  effectTransactionId:'effect-tx-v1:BH01:move:1',
+  effectTransactionVersion:1
+}, atomicPost);
+assert.strictEqual(atomicMove.ok, true, atomicMove.reason);
+
+const reorderedHandPre = baseState();
+reorderedHandPre.players[0].hand = [
+  card('hand-a', 0, 'hand-a'),
+  card('hand-b', 0, 'hand-b')
+];
+const reorderedHandPost = clone(reorderedHandPre);
+const reorderedMovedCard = clone(reorderedHandPost.board[0][2][0]);
+reorderedHandPost.board[0][2][0] = null;
+reorderedHandPost.board[2][0][1] = reorderedMovedCard;
+reorderedHandPost.board[2][0][1].bh01MovedThisTurn = true;
+reorderedHandPost.board[2][0][1]._braveHorizonsLastMoveTurn = 7;
+reorderedHandPost.players[0].deck = [];
+reorderedHandPost.players[0].hand = [
+  reorderedHandPre.players[0].hand[1],
+  reorderedHandPre.players[0].deck[0],
+  reorderedHandPre.players[0].hand[0]
+];
+const reorderedHandMove = validate(reorderedHandPre, {
+  actionKind:'BOARD_ACTION',
+  playerIndex:0,
+  turn:7,
+  fn:'triggerCharacterEffect',
+  source:{z:0, r:2, c:0, iid:'bh01-1', id:'bh01'},
+  effectTransactionId:'effect-tx-v1:BH01:reordered-hand:1',
+  effectTransactionVersion:1
+}, reorderedHandPost);
+assert.strictEqual(reorderedHandMove.ok, true, reorderedHandMove.reason);
+
+const illegalExtraDraw = clone(reorderedHandPost);
+illegalExtraDraw.players[0].hand.push(card('not-drawn', 0, 'not-drawn'));
+const rejectedExtraDraw = validate(reorderedHandPre, {
+  actionKind:'BOARD_ACTION',
+  playerIndex:0,
+  turn:7,
+  fn:'triggerCharacterEffect',
+  source:{z:0, r:2, c:0, iid:'bh01-1', id:'bh01'},
+  effectTransactionId:'effect-tx-v1:BH01:extra-draw:1',
+  effectTransactionVersion:1
+}, illegalExtraDraw);
+assert.strictEqual(rejectedExtraDraw.ok, false);
+assert.match(rejectedExtraDraw.reason, /top card of the deck/i);
+
+const atomicSkippedMove = clone(activationPre);
+const rejectedAtomicSkip = validate(activationPre, {
+  actionKind:'BOARD_ACTION',
+  playerIndex:0,
+  turn:7,
+  fn:'triggerCharacterEffect',
+  source:{z:0, r:2, c:0, iid:'bh01-1', id:'bh01'},
+  effectTransactionId:'effect-tx-v1:BH01:skip:1',
+  effectTransactionVersion:1
+}, atomicSkippedMove);
+assert.strictEqual(rejectedAtomicSkip.ok, false);
+assert.match(rejectedAtomicSkip.reason, /target is not an open square|once-per-turn use|source square/i);
+
 const movePre = activationPost;
 const movedCard = clone(movePre.board[0][2][0]);
 const movePost = clone(movePre);

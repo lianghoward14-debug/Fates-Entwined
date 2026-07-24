@@ -58,6 +58,7 @@
     "smoke:client-resolved-action-result": "node server/fate-client-resolved-action-result-smoke-test.js",
     "smoke:client-resolved-ws": "node server/fate-client-resolved-ws-smoke-test.js",
     "smoke:spectator": "node server/fate-spectator-static-smoke-test.js",
+    "smoke:website": "node server/fate-website-release-smoke-test.js",
     "smoke:account-isolation": "node server/fate-account-isolation-smoke-test.js",
     "smoke:ws-authority": "node server/local-multiplayer-smoke-test.js",
     "smoke:multiplayer": "node server/full-multiplayer-smoke-test.js",

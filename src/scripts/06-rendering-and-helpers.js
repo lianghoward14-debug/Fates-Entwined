@@ -829,6 +829,20 @@ function markCardEffectFlash(card, kind, options) {
   const cleanKind = sanitizeCardEffectFlashKind(kind);
   if(!cleanKind) return false;
   const at = Date.now();
+  const requestedSoundKey = String(opts.soundKey || '');
+  const currentFlash = card._effectFlash;
+  if(
+    requestedSoundKey &&
+    currentFlash &&
+    sanitizeCardEffectFlashKind(currentFlash.kind) === cleanKind &&
+    String(currentFlash.soundKey || '') === requestedSoundKey &&
+    (
+      cleanKind === 'kvetka_ballad' ||
+      at < Number(currentFlash.at || 0) + temporaryCardOverlayDurationMs(cleanKind)
+    )
+  ){
+    return false;
+  }
   card._effectFlash = {
     kind:cleanKind,
     at,
@@ -836,7 +850,7 @@ function markCardEffectFlash(card, kind, options) {
     turn:cleanKind === 'kvetka_ballad' && typeof G !== 'undefined' && G ? Number(G.turn) || 0 : null,
     visibleAt:opts.waitForConsolidationCinematic ? at + 90 : at,
     waitForConsolidationCinematic:!!opts.waitForConsolidationCinematic,
-    soundKey:String(opts.soundKey || (cleanKind + ':' + String(card.iid || card.id || 'card') + ':' + at)),
+    soundKey:requestedSoundKey || (cleanKind + ':' + String(card.iid || card.id || 'card') + ':' + at),
     pitchStep:Math.max(0, Number(opts.pitchStep) || 0),
     label:String(opts.label || cleanKind.replace(/[_-]+/g, ' '))
   };
@@ -1723,20 +1737,23 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
     closeModal();
     if(typeof choiceState.onCancel === 'function') choiceState.onCancel();
   }});
-  showModal('Choose Landscape', body, actions);
-  const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('landscape-choice-modal');
-  const modalBody = document.getElementById('modal-body');
-  if(modalBody) {
-    modalBody.querySelectorAll('.landscape-choice-card[data-landscape-action-index]').forEach(function(cardEl){
-      cardEl.addEventListener('click', function(e){
-        const idx = Number(cardEl.dataset.landscapeActionIndex);
-        const modalActions = Array.isArray(window.__fateCurrentModalActions) ? window.__fateCurrentModalActions : actions;
-        const action = modalActions[idx];
-        if(action && typeof action.action === 'function') action.action(e);
-      });
-    });
-  }
+  showModal('Choose Landscape', body, actions, {
+    onOpen:function(){
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('landscape-choice-modal');
+      const modalBody = document.getElementById('modal-body');
+      if(modalBody) {
+        modalBody.querySelectorAll('.landscape-choice-card[data-landscape-action-index]').forEach(function(cardEl){
+          cardEl.addEventListener('click', function(e){
+            const idx = Number(cardEl.dataset.landscapeActionIndex);
+            const modalActions = Array.isArray(window.__fateCurrentModalActions) ? window.__fateCurrentModalActions : actions;
+            const action = modalActions[idx];
+            if(action && typeof action.action === 'function') action.action(e);
+          });
+        });
+      }
+    }
+  });
 }
 window.showLandscapeChoiceModal = showLandscapeChoiceModal;
 
@@ -3797,11 +3814,13 @@ function openHandLimitDiscardModal(player) {
   if(!p || !Array.isArray(p.hand)) return;
   const handLimit = getActiveHandLimit(player);
   const needed = Math.max(0, p.hand.length - handLimit);
+  const handSignature = p.hand.map(function(card){ return String(card && card.iid || ''); }).join('|');
+  G._handLimitDiscard = { player, handLimit, needed, handSignature };
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
   const cards = p.hand.filter(function(card){ return !(card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true); });
   const bodyHtml = `
-    <div class="hand-limit-discard">
+    <div class="hand-limit-discard" data-player="${player}" data-hand-limit="${handLimit}" data-needed="${needed}" data-hand-signature="${escapePlacementAnimHtml(handSignature)}">
       <div class="hand-limit-copy">Your hand has ${p.hand.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to ${handLimit}.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
@@ -3818,6 +3837,11 @@ function openHandLimitDiscardModal(player) {
   showModal('Discard Down to ' + handLimit, bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
     const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
+    if(excess !== needed){
+      toast('Your hand changed while choosing cards. The discard choices were refreshed.');
+      reconcileHandLimitDiscardModal(player);
+      return;
+    }
     if(selectedIids.length !== excess){ toast('Select exactly ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
     const applyDiscard = function(){
       const liveHand = G.players?.[player]?.hand || [];
@@ -3878,7 +3902,30 @@ function openHandLimitDiscardModal(player) {
     };
   });
 }
+function reconcileHandLimitDiscardModal(player) {
+  if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
+  const modal = document.getElementById('modal');
+  const shell = modal && modal.classList.contains('on') ? modal.querySelector('.hand-limit-discard') : null;
+  const hand = Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
+  const handLimit = getActiveHandLimit(player);
+  const needed = Math.max(0, hand.length - handLimit);
+  const handSignature = hand.map(function(card){ return String(card && card.iid || ''); }).join('|');
+  if(!shell){
+    if(needed <= 0 && G._handLimitDiscard && G._handLimitDiscard.player === player) G._handLimitDiscard = null;
+    return false;
+  }
+  const matches = Number(shell.dataset.player) === Number(player)
+    && Number(shell.dataset.handLimit) === Number(handLimit)
+    && Number(shell.dataset.needed) === Number(needed)
+    && String(shell.dataset.handSignature || '') === handSignature;
+  if(matches && needed > 0) return true;
+  G._handLimitDiscard = null;
+  closeModal({forceHandLimitClose:true, silent:true, deferQueuedModals:true});
+  if(needed > 0) setTimeout(function(){ enforceHandLimit(player); }, 0);
+  return false;
+}
 window.enforceHandLimit = enforceHandLimit;
+window.reconcileHandLimitDiscardModal = reconcileHandLimitDiscardModal;
 
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
@@ -6280,10 +6327,24 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
             return;
           }
           closeModal();
-          discardBoardCard(bc, z, r, c);
-          log(bc.owner===0?'p1':'p2',`Discarded ${bc.name} from Zone ${z+1}`);
-          G.selectedBoardCard=null;
-          renderBoardActionForPlayer(bc.owner, {hand:false, piles:true});
+          const discardAction = typeof window.discardBoardCard === 'function'
+            ? window.discardBoardCard
+            : discardBoardCard;
+          const finishManualDiscard = function(){
+            const stillOnBoard = G.board?.[z]?.[r]?.[c] === bc;
+            if(stillOnBoard) return;
+            log(bc.owner===0?'p1':'p2',`Discarded ${bc.name} from Zone ${z+1}`);
+            G.selectedBoardCard=null;
+            renderBoardActionForPlayer(bc.owner, {hand:false, piles:true});
+          };
+          const discardResult = discardAction(bc, z, r, c);
+          if(discardResult && typeof discardResult.then === 'function') {
+            discardResult.then(finishManualDiscard).catch(function(err){
+              console.warn('Manual board discard did not complete', err);
+            });
+          } else {
+            finishManualDiscard();
+          }
         };
         acts.appendChild(disc);
       }
@@ -6370,8 +6431,49 @@ function renderCardEffectModalBody(title, bodyHtml) {
   '</div>';
 }
 
+function isHandLimitDiscardModalOpen() {
+  const modal = document.getElementById('modal');
+  return !!(modal && modal.classList.contains('on') && modal.querySelector('.hand-limit-discard'));
+}
+
+function queueModalBehindHandLimit(title, bodyHtml, actions, opts) {
+  if(typeof G === 'undefined' || !G) return false;
+  if(!Array.isArray(G._afterHandLimitModalQueue)) G._afterHandLimitModalQueue = [];
+  const titleKey = String(title || '');
+  const bodyKey = String(bodyHtml || '');
+  const duplicate = G._afterHandLimitModalQueue.some(function(entry){
+    return entry && entry.titleKey === titleKey && entry.bodyKey === bodyKey;
+  });
+  if(!duplicate) {
+    G._afterHandLimitModalQueue.push({title, bodyHtml, actions, opts, titleKey, bodyKey});
+    if(G._afterHandLimitModalQueue.length > 8) G._afterHandLimitModalQueue.splice(0, G._afterHandLimitModalQueue.length - 8);
+  }
+  return true;
+}
+
+function showNextModalAfterHandLimit() {
+  if(typeof G === 'undefined' || !G || G._handLimitDiscard || isHandLimitDiscardModalOpen()) return false;
+  const queue = Array.isArray(G._afterHandLimitModalQueue) ? G._afterHandLimitModalQueue : [];
+  const next = queue.shift();
+  if(!queue.length) delete G._afterHandLimitModalQueue;
+  if(!next) return false;
+  setTimeout(function(){
+    if(typeof G !== 'undefined' && G && !G._handLimitDiscard && !isHandLimitDiscardModalOpen()) {
+      showModal(next.title, next.bodyHtml, next.actions, Object.assign({}, next.opts || {}, {_handLimitQueued:true}));
+    } else {
+      queueModalBehindHandLimit(next.title, next.bodyHtml, next.actions, next.opts);
+    }
+  }, 0);
+  return true;
+}
+
 function showModal(title, bodyHtml, actions, opts) {
   const titleStr = typeof title === 'string' ? title : String(title||'');
+  const incomingHandLimit = /hand-limit-discard/.test(String(bodyHtml || ''));
+  if(!incomingHandLimit && typeof G !== 'undefined' && G && G._handLimitDiscard && isHandLimitDiscardModalOpen()) {
+    queueModalBehindHandLimit(title, bodyHtml, actions, opts);
+    return false;
+  }
   const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
   const skipDecorate = !!(opts && opts.skipDecorate);
   if(!(opts && opts.immediate)){
@@ -6423,6 +6525,11 @@ function showModal(title, bodyHtml, actions, opts) {
     acts.appendChild(btn);
   });
   document.getElementById('modal').classList.add('on');
+  if(incomingHandLimit && document.body) document.body.classList.add('hand-limit-discard-active');
+  if(opts && typeof opts.onOpen === 'function') {
+    try { opts.onOpen(); }
+    catch(error) { console.error('Modal onOpen callback failed', error); }
+  }
   const inGameModal = !!document.getElementById('s-game')?.classList.contains('active');
   if(!skipDecorate && !inGameModal && typeof FateSVG !== 'undefined' && FateSVG && typeof FateSVG.decorate === 'function'){
     const modalNode = document.getElementById('modal');
@@ -6434,11 +6541,17 @@ function showModal(title, bodyHtml, actions, opts) {
 }
 
 function closeModal(opts) {
-  document.getElementById('modal').classList.remove('on');
+  const modal = document.getElementById('modal');
+  const closingHandLimit = isHandLimitDiscardModalOpen();
+  if(closingHandLimit && typeof G !== 'undefined' && G && G._handLimitDiscard && !(opts && opts.forceHandLimitClose)) return false;
+  modal.classList.remove('on');
+  if(closingHandLimit && document.body) document.body.classList.remove('hand-limit-discard-active');
   resetModalChrome();
   if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
   if(!(opts && opts.silent) && typeof playSfx === 'function') playSfx('menuClose');
   if(typeof maybeCompleteDeferredTurnEnd === 'function') setTimeout(function(){ maybeCompleteDeferredTurnEnd('modal-close'); }, 0);
+  if(closingHandLimit && !(opts && opts.deferQueuedModals)) showNextModalAfterHandLimit();
+  return true;
 }
 
 function openInteractiveCardDetailFromPicker(card, entry) {
@@ -6526,14 +6639,14 @@ function pickCardInZone(z, prompt, callback, filter=null, onCancel=null) {
   }, filter, onCancel);
 }
 
-function pickMultipleInZone(z, max, prompt, callback, filter=null) {
+function pickMultipleInZone(z, max, prompt, callback, filter=null, onCancel=null) {
   const viewerP = G.currentPlayer;
   const entries=[];
   G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{
     if(cell&&(!filter||filter(cell,z,r,c))) entries.push({card:cell,z,r,c});
   }));
-  if(!entries.length){toast('No valid targets in this zone');return;}
-  showZonePicker(z, prompt, entries, max, viewerP, callback, filter);
+  if(!entries.length){toast('No valid targets in this zone');return false;}
+  return showZonePicker(z, prompt, entries, max, viewerP, callback, filter, onCancel);
 }
 
 function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
@@ -7274,7 +7387,6 @@ function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
         return resolveBoleslawAfterSearchSelection(player, chosen, searchOptions);
       }
     }); };
-  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
 }
 
@@ -7298,7 +7410,6 @@ function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
       }
       return callbackResult;
     }); };
-  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
 }
 
@@ -7323,7 +7434,6 @@ function searchAnySource(player, filter, prompt, callback, searchOptions={}) {
       }
       return callbackResult;
     }); };
-  if(typeof withBoleslawOpponentSearch === 'function') return withBoleslawOpponentSearch(player, openSearch, searchOptions);
   return openSearch();
 }
 
@@ -7393,6 +7503,7 @@ function addAffFromDeckDiscard(player, aff, searchOptions={}) {
   const fromDiscard=typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(player, recoverableDiscardEligible) : G.players[player].discard.filter(recoverableDiscardEligible);
   const label = AFF_LABEL[aff] || aff;
   let added = 0;
+  const searchedCardsAddedToHand = [];
   const baseHandIndex = G.players[player].hand.length;
   const addChosen = (card, source) => {
     if(!card) return;
@@ -7401,6 +7512,7 @@ function addAffFromDeckDiscard(player, aff, searchOptions={}) {
     else G.players[player].hand.push(card);
     if(source === 'deck') G.players[player].deck=G.players[player].deck.filter(x=>x.iid!==card.iid);
     else G.players[player].discard=G.players[player].discard.filter(x=>x.iid!==card.iid);
+    searchedCardsAddedToHand.push(card);
     added++;
   };
   const finish = () => {
@@ -7408,18 +7520,24 @@ function addAffFromDeckDiscard(player, aff, searchOptions={}) {
     if(added && typeof playSfx === 'function') playSfx('searchFound');
     toast(`Added ${added} ${label} card(s) to hand`);
     renderBoardActionForPlayer(player, {hand:true, piles:true});
+    if(searchedCardsAddedToHand.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+      return resolveBoleslawAfterSearchSelection(player, searchedCardsAddedToHand, searchOptions);
+    }
   };
   const chooseDiscard = () => {
-    if(!fromDiscard.length){ finish(); return; }
-    pickCardsVisual(fromDiscard, {
+    if(!fromDiscard.length) return finish();
+    return pickCardsVisual(fromDiscard, {
       title:'Cosmic GF - Discard Search',
       subtitle:`Choose one non-Star ${label} card from your discard pile`,
       maxCount:1,
       confirmLabel:'Add to Hand',
-      immediate:true
+      immediate:true,
+      opponentSearch:true,
+      searchingPlayer:player,
+      searchSourceCardId:String(searchOptions.sourceCardId || '')
     }, (picked)=>{
       if(picked.length) addChosen(picked[0], 'discard');
-      finish();
+      return finish();
     });
   };
   if(fromDeck.length){
@@ -7435,11 +7553,10 @@ function addAffFromDeckDiscard(player, aff, searchOptions={}) {
         searchSourceCardId:String(searchOptions.sourceCardId || '')
       }, (picked)=>{
         if(picked.length) addChosen(picked[0], 'deck');
-        chooseDiscard();
+        return chooseDiscard();
       });
     };
-    if(typeof withBoleslawOpponentSearch === 'function') withBoleslawOpponentSearch(player, openDeckSearch, searchOptions);
-    else openDeckSearch();
+    openDeckSearch();
   } else if(fromDiscard.length){
     chooseDiscard();
   } else {
@@ -8635,6 +8752,12 @@ function showConsolidationCinematic(card, opts) {
   if(!card) return false;
   if(typeof shouldSuppressConsolidationCinematic === 'function' && shouldSuppressConsolidationCinematic(card)) return false;
   opts = opts || {};
+  // Set/consolidation presentation may be delayed or queued behind another
+  // animation. If the card left the field meanwhile, its old presentation is
+  // stale and must not play during the removal that exposed the queue.
+  if(opts.allowDetachedCard !== true
+    && typeof G !== 'undefined' && G && Array.isArray(G.board)
+    && typeof getBoardCardPosition === 'function' && !getBoardCardPosition(card)) return false;
   if(rendererV2OwnsBoardScene() && opts.allowRenderV2Cinematic !== true){
     try {
       if(window.FateActionPresentation && typeof window.FateActionPresentation.noteRendererEvent === 'function') {

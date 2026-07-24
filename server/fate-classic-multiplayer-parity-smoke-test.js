@@ -23,6 +23,9 @@ assert.match(setup, /if\(activate === 'defer-online-draw'\) return \{onlineDrawD
 assert.match(setup, /function findReadyChristopherErbs[\s\S]*cardActsAsPassive\(c, '40'\)/, 'Taylor copying Erbs must be recognized by the automatic draw prompt');
 assert.match(online, /async function applyOnlineDeferredErbsDrawChoice[\s\S]*_serverPendingModalAction = null[\s\S]*window\.drawCard\(player, 1,[\s\S]*skipOptionalImprovisors:true/, 'the incoming player must resolve the deferred Erbs draw exactly once');
 assert.match(online, /function sendOnlineDeferredErbsDrawChoice[\s\S]*sendOptimisticAction\('MODAL_ACTION'[\s\S]*applyOnlineDeferredErbsDrawChoice/, 'the Erbs choice and draw must be synchronized as one multiplayer action');
+assert.match(core, /case '43':[\s\S]{0,1400}_markSelecting\s*=\s*\{\s*player:\s*cp,[\s\S]{0,800}Choose one highlighted safe-square slot/, 'Mark Kemper must expose its safe-square choice on the first activation');
+assert.doesNotMatch(core, /case '43':[\s\S]{0,1800}await new Promise/, 'Mark Kemper must not carry a card-specific transaction wait');
+assert.match(online, /effectTransactions\.ownsBoardContinuation\(g\)[\s\S]{0,160}originals\.clickCell\.apply/, 'all effect-owned board continuations must stay inside their parent transaction');
 
 // Evaluate the shared copied-card identity layer. All continuous and reusable
 // rules consume this layer rather than special-casing Taylor or Ledger.
@@ -87,10 +90,10 @@ assert.match(ai, /case '35'[\s\S]{0,260}getAlexanderSupporterFateTotal\(inst, z\
 // Boleslaw must see every classic search path in human, AI, and authority play.
 for(const id of ['07','29','68']){
   assert.match(core, new RegExp(`searchSourceCardId:'${id}'`), `human card ${id} search must carry authority metadata`);
-  assert.match(ai, new RegExp(`resolveBoleslawOpponentSearch\\(cp, \\{sourceCardId:'${id}'\\}\\)`), `AI card ${id} search must trigger Boleslaw`);
+  assert.match(ai, new RegExp(`resolveBoleslawAfterSearchSelection\\(cp,[\\s\\S]{0,100}\\{sourceCardId:'${id}'\\}`), `AI card ${id} search must trigger Boleslaw after the chosen card reaches hand`);
 }
 assert.match(core, /addAffFromDeckDiscard\(cp,'expanded_worlds',\{sourceCardId:'48'\}\)/, 'Cosmic GF must identify card 48 as its search source');
-assert.match(ai, /resolveBoleslawOpponentSearch\(cp, \{sourceCardId:'48'\}\)/, 'AI Cosmic GF must trigger Boleslaw for a deck search');
+assert.match(ai, /resolveBoleslawAfterSearchSelection\(cp, searchedCardsAdded, \{sourceCardId:'48'\}\)/, 'AI Cosmic GF must trigger Boleslaw after its searched cards reach hand');
 assert.match(rendering, /function addAffFromDeckDiscard\(player, aff, searchOptions=\{\}\)[\s\S]*opponentSearch:true[\s\S]*searchSourceCardId:String\(searchOptions\.sourceCardId \|\| ''\)/, 'Cosmic GF deck picker must publish Boleslaw metadata');
 assert.match(data, /id:'48'[\s\S]*non-Star "Expanded Worlds" card from the discard pile/, 'Cosmic GF rules text must explain that discard recovery cannot take Star cards');
 assert.match(rendering, /function addAffFromDeckDiscard\(player, aff, searchOptions=\{\}\)[\s\S]*recoverableDiscardEligible = c=>affiliationEligible\(c\) && String\(c\.rarity \|\| ''\)\.toLowerCase\(\) !== 'star'[\s\S]*Choose one non-Star \$\{label\} card from your discard pile/, 'Cosmic GF human discard picker must exclude Star cards while leaving the deck picker unrestricted');

@@ -378,6 +378,30 @@
       this.pointerDownPoint = p;
     }
 
+    isLiveBoardSelectionActive(){
+      if(typeof G === 'undefined' || !G) return false;
+      const localConsolidationActive = typeof isLocalConsolidationActive === 'function'
+        ? isLocalConsolidationActive()
+        : !!G._consolidating;
+      const localActionTurn = typeof isLocalPlayerActionTurn === 'function'
+        ? isLocalPlayerActionTurn()
+        : true;
+      const isMovementTargeting = !!(
+        G._wolfCreekMoving ||
+        G._expMoving ||
+        G._berkeleyMoving ||
+        G._bh01Moving ||
+        G._landscapeMoving ||
+        G._busserMoving ||
+        G._busserMovingCard ||
+        G._markSelecting
+      );
+      return !!(
+        localActionTurn &&
+        (localConsolidationActive || G.blockingCell || G._boardTargeting || G.placing || isMovementTargeting)
+      );
+    }
+
     handlePointerUp(ev){
       if(this.isModalBlockingSceneInput()) {
         this.pointerDownHit = null;
@@ -391,11 +415,22 @@
       const startedPoint = this.pointerDownPoint;
       this.pointerDownHit = null;
       this.pointerDownPoint = null;
-      if(!started || !startedPoint) return;
+      if(!startedPoint) return;
       if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) return;
       const p = this.eventPoint(ev);
       const ended = this.hitTest(p.x, p.y);
-      if(!ended || ended.z !== started.z || ended.r !== started.r || ended.c !== started.c) return;
+      if(!ended) return;
+      // A board selector can render a new row or rebuild its hit map between
+      // pointer-down and pointer-up. During an active selector the release hit
+      // is the live contract; requiring its coordinates to match the stale
+      // pointer-down hit makes the first valid choice disappear. Normal board
+      // card clicks retain the stricter same-cell down/up requirement.
+      if(!this.isLiveBoardSelectionActive() && (
+        !started ||
+        ended.z !== started.z ||
+        ended.r !== started.r ||
+        ended.c !== started.c
+      )) return;
       if(performance.now && performance.now() - this.lastHandledAt < 80) return;
       this.lastHandledAt = performance.now ? performance.now() : Date.now();
       this.dispatchHit(ended);
@@ -407,10 +442,7 @@
       const r = Number(hit.r);
       const c = Number(hit.c);
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
-      const localConsolidationActive = typeof isLocalConsolidationActive === 'function' ? isLocalConsolidationActive() : !!G._consolidating;
-      const localActionTurn = typeof isLocalPlayerActionTurn === 'function' ? isLocalPlayerActionTurn() : true;
-      const isMovementTargeting = !!(G._wolfCreekMoving || G._expMoving || G._berkeleyMoving || G._bh01Moving || G._landscapeMoving || G._busserMoving || G._busserMovingCard || G._markSelecting);
-      const isCellActionMode = !!(localActionTurn && (localConsolidationActive || G.blockingCell || G._boardTargeting || G.placing || isMovementTargeting));
+      const isCellActionMode = this.isLiveBoardSelectionActive();
       try {
         if(G._isSpectator) {
           if(boardCard) {

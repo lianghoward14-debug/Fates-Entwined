@@ -40,7 +40,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff5cd;backg
 .archive-tab{appearance:none;border:1px solid rgba(213,178,90,.25);background:rgba(255,255,255,.035);color:#d9cfb6;min-height:2.75rem;padding:.72rem 1rem;font-family:Cinzel,serif;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:.2s}
 .archive-tab.is-active{background:linear-gradient(135deg,rgba(213,178,90,.28),rgba(213,178,90,.08));border-color:rgba(246,214,126,.72);color:#fff3c8;box-shadow:0 0 24px rgba(213,178,90,.14)}
 .archive-panel{padding:1.1rem}
-.archive-toolbar{display:grid;grid-template-columns:minmax(240px,1fr) 220px 180px;gap:.8rem;align-items:end;margin-bottom:.8rem}
+.archive-toolbar{display:grid;grid-template-columns:minmax(240px,1fr) 190px 180px 160px;gap:.8rem;align-items:end;margin-bottom:.8rem}
 .archive-toolbar-lore{grid-template-columns:minmax(240px,1fr) 230px}
 .archive-toolbar label{display:grid;gap:.35rem}
 .archive-toolbar span{font-family:Cinzel,serif;font-size:.66rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
@@ -51,6 +51,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff5cd;backg
 .archive-card-tile,.archive-lore-tile{appearance:none;text-align:left;color:inherit;border:1px solid rgba(213,178,90,.18);background:linear-gradient(180deg,rgba(19,22,33,.92),rgba(7,8,14,.96));box-shadow:0 14px 34px rgba(0,0,0,.22);cursor:pointer;transition:.2s}
 .archive-card-tile{display:grid;grid-template-columns:74px 1fr auto;gap:.75rem;align-items:center;min-height:124px;padding:.65rem .7rem;border-left:3px solid var(--accent,rgba(213,178,90,.28))}
 .archive-card-tile:hover,.archive-lore-tile:hover{transform:translateY(-3px);border-color:rgba(245,216,135,.5);box-shadow:0 22px 46px rgba(0,0,0,.34),0 0 24px rgba(213,178,90,.12)}
+.archive-card-tile.is-retired{opacity:.62;filter:saturate(.55)}
 .archive-card-art{width:74px;height:104px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#05060a}
 .archive-card-art img{width:100%;height:100%;object-fit:cover}
 .archive-card-copy{min-width:0;display:grid;gap:.28rem}
@@ -118,4 +119,16 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff5cd;backg
   .archive-modal-window{max-height:92vh;padding:.75rem}
   .archive-modal-close{top:.5rem;right:.5rem}
   .archive-detail-stats{grid-template-columns:1fr}
+}
+
+/* Current release imagery and archive presentation. */
+.hero-bg{background-image:url('../ingamebackgrouds/igb20.png')}
+.download-bg{background-image:url('../ingamebackgrouds/igb18.png')}
+.mini-card img{
+  width:100%;
+  height:190px;
+  border-radius:.8rem;
+  object-fit:cover;
+  object-position:center 22%;
+  border:1px solid rgba(255,255,255,.2);
 }

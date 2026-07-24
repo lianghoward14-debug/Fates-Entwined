@@ -3026,9 +3026,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '48': { // Cosmic GF: add Expanded Worlds from deck, then non-Star Expanded Worlds from discard
       const strat = G._selectedAI?._deckStrategy || '';
       const priority = aiDeckSearchPriority(strat, 'character');
-      if(G.players[cp].deck.some(c=>c && c.aff==='expanded_worlds') && typeof resolveBoleslawOpponentSearch === 'function') {
-        await resolveBoleslawOpponentSearch(cp, {sourceCardId:'48'});
-      }
+      const searchedCardsAdded = [];
       ['deck','discard'].forEach(zoneName=>{
         const list = G.players[cp][zoneName];
         const expanded = list.filter(c=>c && c.aff==='expanded_worlds' && (zoneName !== 'discard' || String(c.rarity || '').toLowerCase() !== 'star'));
@@ -3037,10 +3035,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp][zoneName] = list.filter(c=>c.iid!==pick.iid);
+        searchedCardsAdded.push(pick);
       });
       shuffle(G.players[cp].deck);
       if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
       else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
+      if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+        await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'48'});
+      }
       break;
     }
     case '50': { // Berkeley CS Major: lock the opponent out of their best-looking zone
@@ -3124,14 +3126,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           : [];
         let best = sups.find(c => priorities.includes(c.id));
         if(!best) { sups.sort((a,b)=>(b.fate||0)-(a.fate||0)); best = sups[0]; }
-        if(typeof addCardToHand==='function') addCardToHand(cp, best, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, best, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(best);
         G.players[cp].discard = G.players[cp].discard.filter(c=>c.iid!==best.iid);
+        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+          await resolveBoleslawAfterSearchSelection(cp, [best], {sourceCardId:'58'});
+        }
         log('p2', `AI: Crossroads recycled ${best.name}`);
       } break;
     }
     case '60': { // IB Student: search deck for supporter
-      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'60'});
       const sups = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
       if(sups.length){
         const strat = G._selectedAI?._deckStrategy || '';
@@ -3141,10 +3145,13 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           : [];
         let pick = sups.find(c=>priorities.includes(c.id));
         if(!pick) pick = sups[0];
-        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
         shuffle(G.players[cp].deck);
+        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+          await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'60'});
+        }
       } break;
     }
     case '61': { // Maria Song: choose a revealed Character family and reduce every copy
@@ -3216,15 +3223,17 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '68': { // Great Oak High Schooler: add Coordinator from deck
       const coords = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
       if(coords.length){
-        if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'68'});
         const strat = G._selectedAI?._deckStrategy || '';
         const pick = aiPickByPriority(coords, aiDeckSearchPriority(strat, 'coordinator')) || coords[0];
-        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
         shuffle(G.players[cp].deck);
         if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
         else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
+        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+          await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'68'});
+        }
       } break;
     }
     case '69': { // Breakfast Republic Busser: grant any controlled card in this zone three turns of movement
@@ -3335,8 +3344,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         });
         const picked = matches[0];
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==picked.iid);
-        if(typeof addCardToHand === 'function') addCardToHand(cp, picked, {announce:false});
+        if(typeof addCardToHand === 'function') addCardToHand(cp, picked, {announce:false, arrivalKind:'search'});
         else G.players[cp].hand.push(picked);
+        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+          await resolveBoleslawAfterSearchSelection(cp, [picked], {sourceCardId:'84'});
+        }
         if(!G._linaFreeIids) G._linaFreeIids = new Set();
         G._linaFreeIids.add(picked.iid);
         if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(picked))) {
@@ -3597,7 +3609,6 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case '06': { // Jorge: search deck for a non-star card
-      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'06'});
       const deckCards = G.players[cp].deck.filter(c=>c.rarity!=='star');
       if(deckCards.length){
         const strat = G._selectedAI?._deckStrategy || '';
@@ -3606,10 +3617,13 @@ async function aiRunEffect(card, z, r, c) {
         if(strat === 'starter_freeworld') pick = deckCards.find(c => c.id === '77');
         if(strat === 'starter_soft_suppression') pick = deckCards.find(c => c.id === '17') || deckCards.find(c => c.id === '04') || deckCards.find(c => c.id === '61');
         if(!pick) pick = deckCards.sort((a,b)=>(b.fate||0)-(a.fate||0))[0];
-        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
         shuffle(G.players[cp].deck);
+        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+          await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'06'});
+        }
         log('p2', `AI: Jorge searched for ${pick.name}`);
       }
       break;
@@ -3716,7 +3730,6 @@ async function aiRunEffect(card, z, r, c) {
     case '27': await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:card}); log('p2','AI: Kazumi drew 3'); break;
     case '07': { // Maja Kaminska: search up to 3 deck supporters, buff them, then +2 supporter plays
       const sources = G.players[cp].deck.filter(c=>c.type==='Supporter');
-      if(sources.length && typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'07'});
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'supporter');
       sources.sort((a,b)=>{
@@ -3726,6 +3739,7 @@ async function aiRunEffect(card, z, r, c) {
         return (b.fate||0) - (a.fate||0);
       });
       let added = 0;
+      const searchedCardsAdded = [];
       for(const c of sources) {
         if(added >= 3) break;
         if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) continue;
@@ -3738,13 +3752,17 @@ async function aiRunEffect(card, z, r, c) {
             fateDelta:4
           });
         }
-        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(c);
         G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
+        searchedCardsAdded.push(c);
         added++;
       }
       G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
       if(added) shuffle(G.players[cp].deck);
+      if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+        await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'07'});
+      }
       log('p2', `AI: Maja searched ${added} supporter${added===1?'':'s'}, gave them +4 Fate, and unlocked 2 extra supporters`);
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
@@ -3774,9 +3792,6 @@ async function aiRunEffect(card, z, r, c) {
     case '29': { // Dylan Kirby: add 2 Third Great War
       const recoverableTgw = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.aff==='third_great_war') : G.players[cp].discard.filter(c=>c.aff==='third_great_war');
       const from=[...G.players[cp].deck.filter(c=>c.aff==='third_great_war'),...recoverableTgw];
-      if(G.players[cp].deck.some(c=>c.aff==='third_great_war') && typeof resolveBoleslawOpponentSearch === 'function') {
-        await resolveBoleslawOpponentSearch(cp, {sourceCardId:'29'});
-      }
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'dylan');
       from.sort((a,b)=>{
@@ -3786,19 +3801,23 @@ async function aiRunEffect(card, z, r, c) {
         return (b.fate||0) - (a.fate||0);
       });
       let added=0;
+      const searchedCardsAdded = [];
       for(const c of from){
         if(added>=2) break;
-        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(c);
         G.players[cp].deck=G.players[cp].deck.filter(x=>x.iid!==c.iid);
         G.players[cp].discard=G.players[cp].discard.filter(x=>x.iid!==c.iid);
+        searchedCardsAdded.push(c);
         added++;
+      }
+      if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+        await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'29'});
       }
       if(added) log('p2',`AI: Leader of Free World added ${added} cards`);
       break;
     }
     case '08': { // Lina: search for a Reality card from deck/discard, set for free
-      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'08'});
       // Deck strategy: Incel deck always searches for Jimmy (41)
       const recoverableReality = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.aff==='reality') : G.players[cp].discard.filter(c=>c.aff==='reality');
       const sources = [...G.players[cp].deck.filter(c=>c.aff==='reality'), ...recoverableReality];
@@ -3858,15 +3877,17 @@ async function aiRunEffect(card, z, r, c) {
           }
         }
         if(!placed){
-          if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false });
+          if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
           else G.players[cp].hand.push(pick);
+          if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+            await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'08'});
+          }
         }
         log('p2', `AI: Lina searched for ${pick.name}`);
       }
       break;
     }
     case '13': { // Johnathan Kirby: search deck for 2 supporters
-      if(typeof resolveBoleslawOpponentSearch === 'function') await resolveBoleslawOpponentSearch(cp, {sourceCardId:'13'});
       const deckSups = G.players[cp].deck.filter(c=>c.type==='Supporter');
       // Deck strategy: Maelstrom prioritizes Great Oak Infantry (47) for consolidation fodder
       // Incel prioritizes Oathbound Noble Fighter (31)
@@ -3887,12 +3908,17 @@ async function aiRunEffect(card, z, r, c) {
         return (b.fate||0) - (a.fate||0);
       });
       let added = 0;
+      const searchedCardsAdded = [];
       for(const c of deckSups) {
         if(added >= 2) break;
-        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false });
+        if(typeof addCardToHand==='function') addCardToHand(cp, c, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(c);
         G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
+        searchedCardsAdded.push(c);
         added++;
+      }
+      if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+        await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'13'});
       }
       if(added) { shuffle(G.players[cp].deck); log('p2',`AI: Kirby searched ${added} supporters`); }
       break;

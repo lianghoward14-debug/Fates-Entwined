@@ -2719,7 +2719,10 @@ async function clickCell(z,r,c) {
   }
   // Block interaction during AI turn
   if(G.aiEnabled && (G.currentPlayer===G.aiPlayer || G._aiRunning)) return;
-  if(G._actionPresentationActive) return;
+  // Mark's square picker is armed by an effect transaction and can become
+  // visible during the presentation system's final cleanup frame. Once the
+  // highlighted choice exists, do not silently discard the player's click.
+  if(G._actionPresentationActive && !G._markSelecting) return;
   // Handle direct board-card targeting flows. Same-zone effects such as Vigilantes
   // should not open a card-picker window; the player clicks a highlighted board card.
   if(G._boardTargeting) {
@@ -2854,7 +2857,11 @@ async function clickCell(z,r,c) {
     G.placing = false;
     clearPlaceHighlights();
     _cleanupMarkPreCreatedZones(z);
-    if(!added){ toast('Could not add that safe square'); renderGame({board:true, scores:true, topbar:true}); return; }
+    if(!added){
+      toast('Could not add that safe square');
+      renderGame({board:true, scores:true, topbar:true});
+      return;
+    }
     if(sel.sourceIid) markInitialEffectResolvedByIid(sel.sourceIid);
     if(typeof playSfx === 'function') playSfx('squarePlace');
     toast(`Added one safe square to Zone ${z+1}`);
@@ -4355,29 +4362,33 @@ async function resolveBoleslawOpponentSearch(searchingPlayer, context = {}) {
     }
     await drawCard(reaction.owner, 1, {afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:live});
     const before = Number(live.currentFate ?? live.fate) || 0;
-    live.currentFate = before + 3;
+    live.currentFate = before + 2;
     activated++;
-    toast('A Bombastic Character: drew 1 card; Boleslaw gained 3 Fate.');
-    log(reaction.owner===0?'p1':'p2', 'Boleslaw reacted to an opponent search: drew 1 card and gained 3 Fate');
+    toast('A Bombastic Character: drew 1 card; Boleslaw gained 2 Fate.');
+    log(reaction.owner===0?'p1':'p2', 'Boleslaw reacted to an opponent search: drew 1 card and gained 2 Fate');
     if(typeof flashCardEffect === 'function') flashCardEffect(live, 'boleslaw_exclaim', {label:'!!!'});
     renderEffectResolutionForPlayer(reaction.owner, {hand:true, piles:true});
   }
   return activated;
 }
 
-function withBoleslawOpponentSearch(searchingPlayer, continueSearch, context = {}) {
-  const proceed = typeof continueSearch === 'function' ? continueSearch : function(){};
-  return proceed();
-}
-
 function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = {}) {
-  const selected = Array.isArray(chosen) ? chosen.filter(Boolean) : [];
+  const hand = G && G.players && G.players[searchingPlayer] && Array.isArray(G.players[searchingPlayer].hand)
+    ? G.players[searchingPlayer].hand
+    : [];
+  const handIids = new Set(hand.map(function(card){ return String(card && card.iid || ''); }).filter(Boolean));
+  const selected = (Array.isArray(chosen) ? chosen : []).filter(function(card){
+    const iid = String(card && card.iid || '');
+    return !!card && !!iid && handIids.has(iid);
+  });
   if(!selected.length) return Promise.resolve(0);
-  const transactions = typeof window !== 'undefined' ? window.FateOnlineEffectTransactions : null;
-  if(transactions && typeof transactions.captureSearchSelection === 'function'){
-    transactions.captureSearchSelection(context.sourceCardId, selected);
+  if(G && G._onlineRoomCode) {
+    const transactions = typeof window !== 'undefined' ? window.FateOnlineEffectTransactions : null;
+    if(transactions && typeof transactions.captureSearchSelection === 'function') {
+      transactions.captureSearchSelection(String(context.sourceCardId || ''), selected);
+    }
+    return Promise.resolve(0);
   }
-  if(G && G._onlineRoomCode) return Promise.resolve(0);
   return Promise.resolve(resolveBoleslawOpponentSearch(searchingPlayer, context))
     .catch(function(err){
       console.warn('Boleslaw completed-search reaction failed open', err);
@@ -4388,7 +4399,6 @@ function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = 
 if(typeof window !== 'undefined') {
   window.getReadyBoleslawSearchReactions = getReadyBoleslawSearchReactions;
   window.resolveBoleslawOpponentSearch = resolveBoleslawOpponentSearch;
-  window.withBoleslawOpponentSearch = withBoleslawOpponentSearch;
   window.resolveBoleslawAfterSearchSelection = resolveBoleslawAfterSearchSelection;
 }
 
@@ -4658,7 +4668,7 @@ function showSnowShovelerReturnedCards(returned, player) {
   if(typeof showCanvasCardGalleryModal === 'function') {
     showCanvasCardGalleryModal('Shovel - Cards Returned to the Deck', returned, {
       viewerPlayerIndex:typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : player,
-      immediate:false,
+      immediate:true,
       hideCountText:true
     });
   }
@@ -4783,14 +4793,6 @@ function whenSetEffectsAreDeferred() {
   }
 }
 
-function wasOnlineOneShotEffectSubmitted(fnName, card, z, r, c) {
-  if(!card || !G || !G._onlineRoomCode || typeof window.fateOnlineEffectActivationWasSubmitted !== 'function') return false;
-  const pos = Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c)
-    ? { z, r, c }
-    : (typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null);
-  return !!(pos && window.fateOnlineEffectActivationWasSubmitted(fnName, card, pos));
-}
-
 window.setFateWhenSetImmediateMode = function(enabled) {
   try {
     if(enabled) localStorage.setItem('fateWhenSetImmediate', '1');
@@ -4804,7 +4806,6 @@ function cardHasDeferredSetEffect(card) {
   if(!card || isFaceDownCard(card)) return false;
   if(card._effectNegatedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return false;
   if(card._pendingWhenSetActivationInFlight || card._busserGrantPending) return false;
-  if(wasOnlineOneShotEffectSubmitted('activatePendingWhenSetEffect', card)) return false;
   const id = String(card.id || '');
   if(!WINDOWED_WHEN_SET_EFFECT_IDS.has(id)) return false;
   if(card.type === 'Supporter' && WHEN_SET_IDS.has(id)) return card.whenSetActivated !== true;
@@ -4863,7 +4864,6 @@ function queueDeferredWhenSetEffect(card, z, r, c) {
 function canActivatePendingWhenSetEffect(card, z, r, c, player = G.currentPlayer) {
   if(!card || !card._pendingWhenSetEffect || isFaceDownCard(card)) return false;
   if(card._pendingWhenSetActivationInFlight) return false;
-  if(wasOnlineOneShotEffectSubmitted('activatePendingWhenSetEffect', card, z, r, c)) return false;
   if(expireStalePendingWhenSetEffect(card)) return false;
   if(card.owner !== player || G.currentPlayer !== player) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
@@ -4919,15 +4919,20 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Snow on the Carpathians', 'major');
     return;
   }
+  const pendingEffect = card._pendingWhenSetEffect;
   card._pendingWhenSetActivationInFlight = true;
-  delete card._pendingWhenSetEffect;
-  if(card.type === 'Supporter') card.whenSetActivated = true;
   if(typeof closeModal === 'function') closeModal();
   try {
     if(typeof playEffectActivationCinematic === 'function') {
       await playEffectActivationCinematic(card, az, ar, ac, {source:'pending-when-set'});
     }
     await triggerWhenSet(card, az, ar, ac, { forceImmediate:true, manualActivation:true, skipActivationCinematic:true });
+    const activationStarted = card.whenSetActivated === true || card.effectUsedInitial === true;
+    if(!activationStarted) {
+      if(!card._pendingWhenSetEffect) card._pendingWhenSetEffect = pendingEffect;
+      throw new Error('The effect resolver did not start');
+    }
+    delete card._pendingWhenSetEffect;
     if(typeof tutorialEvent === 'function' && _tutorialActive) tutorialEvent('activateEffect', {card, id:card.id, z:az, r:ar, c:ac});
   } finally {
     delete card._pendingWhenSetActivationInFlight;
@@ -4955,6 +4960,7 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   if(G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
+    markInitialEffectResolved(inst);
     return;
   }
   if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
@@ -5340,19 +5346,6 @@ function showAchillesTokenChoiceStep(card, player, draft, config) {
   '</div>';
   // The token's only hand action is Place on Board. This declaration is an
   // automatic continuation of that placement, never a separate configure action.
-  showModal('Adaptive Tactics · ' + stepLabel, body, []);
-  const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('achilles-token-picker-modal');
-  const modalTitle = document.getElementById('modal-title');
-  if(modalTitle) modalTitle.textContent = 'Adaptive Tactics — Token Declaration';
-  document.querySelectorAll('#modal .achilles-token-choice[data-achilles-choice]').forEach(function(button){
-    button.onclick = function(){
-      const choice = config.choices[Number(button.getAttribute('data-achilles-choice'))];
-      if(!choice) return;
-      if(typeof playEffectActivationButtonSound === 'function') playEffectActivationButtonSound();
-      config.onChoose(choice.value);
-    };
-  });
   const cancelDraft = function(){
     window.__fateAchillesTokenDraft = null;
     if(typeof G !== 'undefined' && G) {
@@ -5363,24 +5356,40 @@ function showAchillesTokenChoiceStep(card, player, draft, config) {
     }
     closeModal();
   };
-  const acts = document.getElementById('modal-acts');
-  if(acts) {
-    acts.innerHTML = '';
-    if(config.onBack) {
-      const back = document.createElement('button');
-      back.type = 'button';
-      back.className = 'btn sm achilles-token-back';
-      back.textContent = 'Back';
-      back.onclick = config.onBack;
-      acts.appendChild(back);
+  showModal('Adaptive Tactics · ' + stepLabel, body, [], {
+    onOpen:function(){
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('achilles-token-picker-modal');
+      const modalTitle = document.getElementById('modal-title');
+      if(modalTitle) modalTitle.textContent = 'Adaptive Tactics — Token Declaration';
+      document.querySelectorAll('#modal .achilles-token-choice[data-achilles-choice]').forEach(function(button){
+        button.onclick = function(){
+          const choice = config.choices[Number(button.getAttribute('data-achilles-choice'))];
+          if(!choice) return;
+          if(typeof playEffectActivationButtonSound === 'function') playEffectActivationButtonSound();
+          config.onChoose(choice.value);
+        };
+      });
+      const acts = document.getElementById('modal-acts');
+      if(acts) {
+        acts.innerHTML = '';
+        if(config.onBack) {
+          const back = document.createElement('button');
+          back.type = 'button';
+          back.className = 'btn sm achilles-token-back';
+          back.textContent = 'Back';
+          back.onclick = config.onBack;
+          acts.appendChild(back);
+        }
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'btn sm';
+        cancel.textContent = 'Cancel';
+        cancel.onclick = cancelDraft;
+        acts.appendChild(cancel);
+      }
     }
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'btn sm';
-    cancel.textContent = 'Cancel';
-    cancel.onclick = cancelDraft;
-    acts.appendChild(cancel);
-  }
+  });
 }
 
 function showAchillesAffiliationStep(card, player, draft) {
@@ -5607,19 +5616,22 @@ function chooseDestructionOfParadiseType(sourceCard, z, sourceOwner) {
       }
     };
   });
-  showModal('The Destruction of Paradise', body, actions);
-  const modalBox = document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('bh04-type-picker-modal');
-  document.querySelectorAll('#modal .bh04-type-choice[data-bh04-type]').forEach(function(button){
-    button.onclick = function(){
-      const declaredType = String(button.getAttribute('data-bh04-type') || '');
-      const actionIndex = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.indexOf(declaredType);
-      if(actionIndex < 0) return;
-      if(typeof playEffectActivationButtonSound === 'function') playEffectActivationButtonSound();
-      const modalActions = Array.isArray(window.__fateCurrentModalActions) ? window.__fateCurrentModalActions : actions;
-      const action = modalActions[actionIndex];
-      if(action && typeof action.action === 'function') action.action();
-    };
+  showModal('The Destruction of Paradise', body, actions, {
+    onOpen:function(){
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('bh04-type-picker-modal');
+      document.querySelectorAll('#modal .bh04-type-choice[data-bh04-type]').forEach(function(button){
+        button.onclick = function(){
+          const declaredType = String(button.getAttribute('data-bh04-type') || '');
+          const actionIndex = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.indexOf(declaredType);
+          if(actionIndex < 0) return;
+          if(typeof playEffectActivationButtonSound === 'function') playEffectActivationButtonSound();
+          const modalActions = Array.isArray(window.__fateCurrentModalActions) ? window.__fateCurrentModalActions : actions;
+          const action = modalActions[actionIndex];
+          if(action && typeof action.action === 'function') action.action();
+        };
+      });
+    }
   });
 }
 
@@ -5776,19 +5788,24 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '12': // Makenna: when set, select 2 cards in zone to make immune
       {
         inst.effectUsedInitial = true;
-        // Delay slightly so the card is rendered first
-        setTimeout(()=>{
-          pickMultipleInZone(z,2,'Makenna: Select up to 2 friendly cards to make immune:',(targets)=>{
-            targets.forEach(t=>{
-              if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(t.card))) {
-                t.card.immuneFlag=true;
-                t.card._immuneByMakenna=true;
-              }
-            });
-            toast('Selected cards are now immune');
-            renderEffectResolutionForPlayer(cp, {hand:false});
-          }, c=>c.owner===cp);
-        },100);
+        // Keep the effect promise open through both the display delay and the
+        // target choice so multiplayer cannot snapshot the card between them.
+        await new Promise(function(resolve){
+          setTimeout(function(){
+            const opened = pickMultipleInZone(z,2,'Makenna: Select up to 2 friendly cards to make immune:',function(targets){
+              targets.forEach(function(t){
+                if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(t.card))) {
+                  t.card.immuneFlag=true;
+                  t.card._immuneByMakenna=true;
+                }
+              });
+              toast('Selected cards are now immune');
+              renderEffectResolutionForPlayer(cp, {hand:false});
+              resolve(true);
+            }, function(card){ return card.owner===cp; }, function(){ resolve(false); });
+            if(opened === false) resolve(false);
+          },100);
+        });
       } break;
     case '05': { // 17th British Regiment: select card in zone, +3 Fate
       // Keep the parent activation unresolved until its callback-style picker
@@ -6071,16 +6088,19 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           if(picked.length===0) return;
           const chosen = picked[0];
           if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, chosen, 'deck', G.players[cp].hand.length);
-          if(typeof addCardToHand==='function') addCardToHand(cp, chosen);
+          if(typeof addCardToHand==='function') addCardToHand(cp, chosen, {arrivalKind:'search'});
           else G.players[cp].hand.push(chosen);
           G.players[cp].deck = G.players[cp].deck.filter(d=>d.iid!==chosen.iid);
           shuffleDeck(cp);
           if(typeof playSfx === 'function') playSfx('searchFound');
           renderEffectResolutionForPlayer(cp, {hand:false});
           toast(`Added ${chosen.name} to hand`);
+          if(typeof resolveBoleslawAfterSearchSelection === 'function') {
+            return resolveBoleslawAfterSearchSelection(cp, [chosen], {sourceCardId:'68'});
+          }
         });
       };
-      if(matches.length) withBoleslawOpponentSearch(cp, openSchoolerSearch, {sourceCardId:'68'});
+      if(matches.length) openSchoolerSearch();
       break;
     }
     case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
@@ -6223,20 +6243,24 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           const found = picked && picked[0];
           if(!found) return;
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
-          if(typeof addCardToHand==='function') addCardToHand(cp, found, {announce:false});
+          if(typeof addCardToHand==='function') addCardToHand(cp, found, {announce:false, arrivalKind:'search'});
           else G.players[cp].hand.push(found);
-          beginImmediateFreePlacement(cp, found, 'Place '+found.name+' for free from Flower Picking.', {
-            key:'kvetka-svoboda-free-set',
-            name:'Kvetka Svoboda',
-            ability:'Flower Picking',
-            text:'Flower Picking: this card can be set immediately for free.'
+          const searchResolution = typeof resolveBoleslawAfterSearchSelection === 'function'
+            ? resolveBoleslawAfterSearchSelection(cp, [found], {sourceCardId:'84'})
+            : Promise.resolve(0);
+          return Promise.resolve(searchResolution).then(function(){
+            beginImmediateFreePlacement(cp, found, 'Place '+found.name+' for free from Flower Picking.', {
+              key:'kvetka-svoboda-free-set',
+              name:'Kvetka Svoboda',
+              ability:'Flower Picking',
+              text:'Flower Picking: this card can be set immediately for free.'
+            });
+            toast(found.name+' is ready to set immediately for free.');
+            inst.effectUsedInitial = true;
           });
-          toast(found.name+' is ready to set immediately for free.');
-          inst.effectUsedInitial = true;
         });
       };
-      if(typeof withBoleslawOpponentSearch === 'function') withBoleslawOpponentSearch(cp, openFlowerPicking, {sourceCardId:'84'});
-      else openFlowerPicking();
+      openFlowerPicking();
       break;
     }
     case '91': { // Wodny Potok Villager: lock opponent landscape changes
@@ -6277,8 +6301,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
         });
       };
-      if(typeof withBoleslawOpponentSearch === 'function') withBoleslawOpponentSearch(cp, openMailDelivery, {sourceCardId:'94'});
-      else openMailDelivery();
+      openMailDelivery();
       break;
     }
     case '20': // Shield Wall: South Wind is immune to opponent effects.
@@ -6336,6 +6359,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       } else {
         toast('There are no cards in your discard pile to return.');
       }
+      await waitForEffectPresentationBeforeChoice();
       showSnowShovelerReturnedCards(returned, cp);
       renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
       break;
@@ -6694,6 +6718,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           searchSourceCardId:'07'
         }, (chosen)=>{
           const baseHandIndex = G.players[cp].hand.length;
+          const addedCards = [];
           chosen.forEach((c, idx)=>{
             if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
             c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
@@ -6706,16 +6731,20 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
               });
             }
             if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'deck', baseHandIndex + idx, idx, chosen.length);
-            if(typeof addCardToHand==='function') addCardToHand(cp, c);
+            if(typeof addCardToHand==='function') addCardToHand(cp, c, {arrivalKind:'search'});
             else G.players[cp].hand.push(c);
             G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
+            addedCards.push(c);
           });
           if(chosen.length) shuffle(G.players[cp].deck);
           if(chosen.length) toast('Maja added '+chosen.length+' Supporter'+(chosen.length===1?'':'s')+' with +4 Fate!');
           renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+          if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+            return resolveBoleslawAfterSearchSelection(cp, addedCards, {sourceCardId:'07'});
+          }
         });
       };
-      withBoleslawOpponentSearch(cp, openMajaSearch, {sourceCardId:'07'});
+      openMajaSearch();
     } break;
     case '08': // Lina: search Reality card from deck/discard, set for free
       searchAnySource(cp,c=>c.aff==='reality','Search for a Reality card:',(found)=>{
@@ -6835,21 +6864,25 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
             searchSourceCardId:'29'
           }, (chosen)=>{
             const baseHandIndex = G.players[cp].hand.length;
+            const addedCards = [];
             chosen.forEach((c, idx)=>{
               const source = G.players[cp].deck.some(x=>x && x.iid===c.iid) ? 'deck' : 'discard';
               if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, source, baseHandIndex + idx, idx, chosen.length);
-              if(typeof addCardToHand==='function') addCardToHand(cp, c);
+              if(typeof addCardToHand==='function') addCardToHand(cp, c, {arrivalKind:'search'});
               else G.players[cp].hand.push(c);
               G.players[cp].deck=G.players[cp].deck.filter(x=>x.iid!==c.iid);
               G.players[cp].discard=G.players[cp].discard.filter(x=>x.iid!==c.iid);
+              addedCards.push(c);
             });
             if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
             shuffle(G.players[cp].deck);
             renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+            if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+              return resolveBoleslawAfterSearchSelection(cp, addedCards, {sourceCardId:'29'});
+            }
           });
         };
-        if(G.players[cp].deck.some(c=>c.aff==='third_great_war')) withBoleslawOpponentSearch(cp, openDylanSearch, {sourceCardId:'29'});
-        else openDylanSearch();
+        openDylanSearch();
       } break;
     case '30': // Santiago: discard an opponent card in this zone's contested row
       pickCardInZone(z,'Select an opponent card in this zone\'s contested row to discard:',(tgt,tz,tr,tc)=>{
@@ -7126,6 +7159,7 @@ const MANUAL_EFFECT_BLOCKED_CARD_IDS = new Set([
   '85',
   '88',
   '89',
+  '99',
   '100'
 ]);
 
@@ -7133,7 +7167,6 @@ function shouldShowManualCharacterEffectButton(card) {
   if(!card || card.type === 'Supporter') return false;
   const id = getCardRuntimeEffectId(card);
   if(MANUAL_EFFECT_BLOCKED_CARD_IDS.has(id)) return false;
-  if(wasOnlineOneShotEffectSubmitted('triggerCharacterEffect', card)) return false;
   if(G && G._onlineRoomCode && (
     card._effectActivationInFlight ||
     G._serverPendingReaction ||
@@ -7266,7 +7299,6 @@ function applyPermanentFateDebuff(card, amount, sourceOwner) {
     : storedAfter;
   card._permanentFateDebuffAmount = Math.max(0, Number(card._permanentFateDebuffAmount) || 0) + loss;
   card._permanentFateDebuffed = true;
-  card._permanentFateDebuffAt = Date.now();
   clampCardToLandscapeFateCap(card);
   const after = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   recordFateReductionEvent(sourceOwner, before, after);

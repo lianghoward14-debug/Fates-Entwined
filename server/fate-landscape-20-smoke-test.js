@@ -36,6 +36,7 @@ assert.match(rendering, /getActiveLandscapeFateDiscardConfig[\s\S]{0,720}id:'igb
 assert.match(rendering, /function maybeResolveBattleOfPellaThreshold\([\s\S]{0,1600}totals\[player\] >= threshold/);
 assert.match(rendering, /function resolveBattleOfPellaDiscard[\s\S]{0,1800}discardBoardCard\(live, z, r, c\)/);
 assert.match(rendering, /onlineClientOwnedChoice:true/);
+assert.match(online, /function maybePlayOnlineNewCharacterCinematic[\s\S]{0,240}isOnlineBoardRemovalPresentationAction\(action\)[\s\S]{0,40}return false/, 'Pella discard commits must not replay a character cinematic from a coalesced board snapshot');
 assert.match(core, /function ignoreBattleOfPellaThresholdsReachedBeforeEntry[\s\S]{0,1500}highestAlreadyReached[\s\S]{0,900}ignoredOnEntry:true/, 'entering Pella mid-game must mark already-reached thresholds as ignored');
 assert.match(core, /case '82'[\s\S]{0,2200}previousLandscapeId[\s\S]{0,500}ignoreBattleOfPellaThresholdsReachedBeforeEntry/, 'Felicyta landscape changes into Pella must initialize the next eligible Fate race');
 

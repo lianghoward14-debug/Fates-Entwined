@@ -513,6 +513,14 @@ function authorityCardActsAsPassive(card, sourceId){
     || (id === '75' && String(card._ledgerCopiedSourceId || '') === wanted);
 }
 
+function authorityCardUsesEffect(card, sourceId){
+  if(!card) return false;
+  const wanted = String(sourceId || '');
+  return authorityCardActsAsPassive(card, wanted)
+    || (String(card.id || '') === 'bh05' && String(card._bh05CopiedCardId || '') === wanted)
+    || (String(card.id || '') === '75' && String(card._ledgerCopiedSourceId || '') === wanted);
+}
+
 function authorityCardIsReadyBoleslaw(card, owner){
   if(!card || !authorityCardActsAsPassive(card, '86') || Number(card.owner) !== Number(owner)) return false;
   if(isFaceDownAuthorityCard(card)) return false;
@@ -705,7 +713,7 @@ function resolveAuthorityBoleslawSearch(preState, msg, postState){
   if(payload.searchCompleted === false) return null;
   const searchingPlayer = Number(payload.playerIndex);
   if(!Number.isInteger(searchingPlayer) || searchingPlayer < 0 || searchingPlayer > 1) return null;
-  const sourceId = String(payload.searchSourceCardId || '');
+  const sourceId = String(payload.searchSourceCardId || (transactionalSearch ? payload.effectSourceId : '') || '');
   if(!sourceId) return null;
   const beforeHand = playerHandEntries(preState, searchingPlayer);
   const afterHand = playerHandEntries(postState, searchingPlayer);
@@ -716,12 +724,19 @@ function resolveAuthorityBoleslawSearch(preState, msg, postState){
     ? selectedIids.some(iid=>addedToHand.some(entry=>String(entry.card && entry.card.iid || '') === iid))
     : addedToHand.length > 0;
   if(!selectedWasAdded) return null;
-  const sourceEntry = boardEntries(preState).find(entry=>
-    Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardActsAsPassive(entry.card, sourceId)
-  ) || boardEntries(postState).find(entry=>
-    Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardActsAsPassive(entry.card, sourceId)
-  ) || null;
-  if(!sourceEntry || isFaceDownAuthorityCard(sourceEntry.card)) return null;
+  const sourceRef = actionSourceRef(payload);
+  const sourceEntry = findBoardEntryByRef(preState, sourceRef)
+    || findBoardEntryByRef(postState, sourceRef)
+    || boardEntries(preState).find(entry=>
+      Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardUsesEffect(entry.card, sourceId)
+    )
+    || boardEntries(postState).find(entry=>
+      Number(entry.card && entry.card.owner) === searchingPlayer && authorityCardUsesEffect(entry.card, sourceId)
+    )
+    || null;
+  if(!sourceEntry || Number(sourceEntry.card && sourceEntry.card.owner) !== searchingPlayer) return null;
+  if(!authorityCardUsesEffect(sourceEntry.card, sourceId)) return null;
+  if(isFaceDownAuthorityCard(sourceEntry.card)) return null;
   const boleslawOwner = 1 - searchingPlayer;
   const boleslaws = boardEntries(postState)
     .filter(entry=>authorityCardIsReadyBoleslaw(entry.card, boleslawOwner));
@@ -1036,6 +1051,23 @@ function authorityCardSequenceMatches(actual, expected){
   return actual.every((card, index)=>authorityCardIdentity(card) === authorityCardIdentity(expected[index]));
 }
 
+function authorityCardMultisetMatches(actual, expected){
+  if(!Array.isArray(actual) || !Array.isArray(expected) || actual.length !== expected.length) return false;
+  const counts = new Map();
+  expected.forEach(card=>{
+    const key = authorityCardIdentity(card);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  for(const card of actual){
+    const key = authorityCardIdentity(card);
+    const remaining = counts.get(key) || 0;
+    if(remaining <= 0) return false;
+    if(remaining === 1) counts.delete(key);
+    else counts.set(key, remaining - 1);
+  }
+  return counts.size === 0;
+}
+
 function authorityAnickaVoyagerMoveOptions(state, source){
   const options = [];
   if(!state || !source) return options;
@@ -1057,10 +1089,8 @@ function authorityMoveOptionsMatch(actual, expected){
   return expected.every(option=>keys.has(`${option.z}:${option.r}:${option.c}`));
 }
 
-function validateAnickaVoyagerMovePostState(room, payload, postState){
-  const preState = room && room.canonicalState;
-  const pending = preState && preState._bh01Moving;
-  if(!pending || String(pending.kind || '') !== 'anickaVoyagerMove') return '';
+function validateResolvedAnickaVoyagerMove(preState, payload, postState, pending){
+  if(!preState || !pending || String(pending.kind || '') !== 'anickaVoyagerMove') return '';
   const playerIndex = Number(payload.playerIndex);
   if(playerIndex !== Number(preState.currentPlayer) || playerIndex !== Number(pending.playerIndex)) return 'Brave Horizons move belongs to the active player';
   if(Number(postState.currentPlayer) !== Number(preState.currentPlayer) || Number(postState.turn) !== Number(preState.turn)) return 'Brave Horizons cannot advance the turn';
@@ -1109,16 +1139,22 @@ function validateAnickaVoyagerMovePostState(room, payload, postState){
   const beforeHand = beforePlayer.hand || [];
   const drewOne = beforeDeck.length > 0
     && authorityCardSequenceMatches(afterPlayer.deck || [], beforeDeck.slice(1))
-    && authorityCardSequenceMatches(afterPlayer.hand || [], beforeHand.concat([beforeDeck[0]]));
+    && authorityCardMultisetMatches(afterPlayer.hand || [], beforeHand.concat([beforeDeck[0]]));
   const emptyDeckNoDraw = beforeDeck.length === 0
     && authorityCardSequenceMatches(afterPlayer.deck || [], beforeDeck)
-    && authorityCardSequenceMatches(afterPlayer.hand || [], beforeHand);
+    && authorityCardMultisetMatches(afterPlayer.hand || [], beforeHand);
   if(!drewOne && !emptyDeckNoDraw) return 'Brave Horizons must automatically draw exactly the top card of the deck';
   const other = 1 - playerIndex;
   for(const pile of ['deck','hand','discard']){
     if(!authorityCardSequenceMatches(postState.players?.[other]?.[pile] || [], preState.players?.[other]?.[pile] || [])) return 'Brave Horizons changed the opponent\'s cards';
   }
   return '';
+}
+
+function validateAnickaVoyagerMovePostState(room, payload, postState){
+  const preState = room && room.canonicalState;
+  const pending = preState && preState._bh01Moving;
+  return validateResolvedAnickaVoyagerMove(preState, payload, postState, pending);
 }
 
 function validatePendingMovePostState(room, payload, postState){
@@ -1233,12 +1269,35 @@ function validateBoardEffectActivationPostState(room, payload, postState){
     if(playerIndex !== Number(preState && preState.currentPlayer) || playerIndex !== Number(baseEntry.card.owner)) return 'Only Ani\u010dka\'s controller can activate Brave Horizons';
     if(Number(postState.currentPlayer) !== Number(preState.currentPlayer) || Number(postState.turn) !== Number(preState.turn)) return 'Brave Horizons activation cannot advance the turn';
     if(baseEntry.card.bh01MovedThisTurn === true || Number(baseEntry.card._braveHorizonsLastMoveTurn) === Number(preState.turn)) return 'Brave Horizons was already used this turn';
-    const pending = postState && postState._bh01Moving;
-    if(!pending || String(pending.kind || '') !== 'anickaVoyagerMove') return 'Brave Horizons activation did not create a movement choice';
-    if(Number(pending.playerIndex) !== playerIndex || Number(pending.fromZ) !== baseEntry.z || Number(pending.fromR) !== baseEntry.r || Number(pending.fromC) !== baseEntry.c) return 'Brave Horizons movement source is invalid';
-    if(String(pending.sourceIid || '') !== String(baseEntry.card.iid || '')) return 'Brave Horizons movement source identity is invalid';
     const legalOptions = authorityAnickaVoyagerMoveOptions(preState, baseEntry.card);
-    if(!legalOptions.length || !authorityMoveOptionsMatch(pending.options, legalOptions)) return 'Brave Horizons movement choices are invalid';
+    if(!legalOptions.length) return 'Brave Horizons has no legal movement choices';
+    if(Number(payload.effectTransactionVersion) === 1){
+      const movedEntry = findBoardEntryByRef(postState, baseEntry.card);
+      if(!movedEntry) return 'Brave Horizons result card is missing';
+      const pending = {
+        kind:'anickaVoyagerMove',
+        sourceIid:String(baseEntry.card.iid || ''),
+        cardId:'bh01',
+        playerIndex,
+        fromZ:baseEntry.z,
+        fromR:baseEntry.r,
+        fromC:baseEntry.c,
+        options:legalOptions
+      };
+      const resolvedPayload = Object.assign({}, payload, {
+        z:movedEntry.z,
+        r:movedEntry.r,
+        c:movedEntry.c
+      });
+      const resolvedError = validateResolvedAnickaVoyagerMove(preState, resolvedPayload, postState, pending);
+      if(resolvedError) return resolvedError;
+    }else{
+      const pending = postState && postState._bh01Moving;
+      if(!pending || String(pending.kind || '') !== 'anickaVoyagerMove') return 'Brave Horizons activation did not create a movement choice';
+      if(Number(pending.playerIndex) !== playerIndex || Number(pending.fromZ) !== baseEntry.z || Number(pending.fromR) !== baseEntry.r || Number(pending.fromC) !== baseEntry.c) return 'Brave Horizons movement source is invalid';
+      if(String(pending.sourceIid || '') !== String(baseEntry.card.iid || '')) return 'Brave Horizons movement source identity is invalid';
+      if(!authorityMoveOptionsMatch(pending.options, legalOptions)) return 'Brave Horizons movement choices are invalid';
+    }
   }
   if(baseEntry && isSpentBoardEffectSource(fn, baseEntry.card)){
     return 'effect already activated';
@@ -1394,6 +1453,7 @@ function validateAliIndomitableTransferPostState(room, payload, postState){
   const preState = room && room.canonicalState;
   const sourcePlayer = Number(payload && payload.playerIndex);
   if(!preState || !postState || (sourcePlayer !== 0 && sourcePlayer !== 1)) return 'Ali transfer player is invalid';
+  if(!boardEntries(preState).length) return 'Ali cannot transfer before the first set';
   const recipient = 1 - sourcePlayer;
   const beforeSourceHand = preState.players?.[sourcePlayer]?.hand || [];
   const afterSourceHand = postState.players?.[sourcePlayer]?.hand || [];
@@ -1481,7 +1541,13 @@ function validateActionSpecificPostState(room, msg, postState){
   const payload = msg && msg.payload || {};
   const preState = room && room.canonicalState;
   if(preState && postState){
-    const braveHorizonsMove = !!preState._bh01Moving || String(payload.moveKind || '') === 'anickaVoyagerMove';
+    const transactionalBraveHorizonsMove = effectiveAuthorityActionType(msg) === 'BOARD_ACTION'
+      && Number(payload.effectTransactionVersion) === 1
+      && String(payload.fn || '') === 'triggerCharacterEffect'
+      && String(actionSourceRef(payload)?.id || '') === 'bh01';
+    const braveHorizonsMove = !!preState._bh01Moving
+      || String(payload.moveKind || '') === 'anickaVoyagerMove'
+      || transactionalBraveHorizonsMove;
     for(const beforeEntry of boardEntries(preState).filter(entry=>isAuthorityFullyEffectImmuneCard(entry.card))){
       const afterEntry = findBoardEntryByRef(postState, beforeEntry.card);
       if(!afterEntry) return 'Fully immune cards cannot be discarded or removed by landscape effects';
@@ -1911,7 +1977,7 @@ function applyBoleslawSearchAuthorityReaction(state, option, pending, presentati
   const entry = findBoardEntryByRef(state, option);
   if(!entry || !authorityCardIsReadyBoleslaw(entry.card, playerIndex)) return 'Boleslaw is no longer ready on the board';
   const before = Number(entry.card.currentFate ?? entry.card.fate ?? 0) || 0;
-  entry.card.currentFate = before + 3;
+  entry.card.currentFate = before + 2;
   applyAuthorityJoieDrawEffectPassive(state, playerIndex, entry.card, presentationEvents);
   appendAuthorityCardEffectFlash(
     presentationEvents,

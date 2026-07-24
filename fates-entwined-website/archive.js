@@ -22,6 +22,7 @@
   const loreCount = document.getElementById('archive-lore-count');
   const cardSearch = document.getElementById('archive-card-search');
   const cardAffiliation = document.getElementById('archive-card-affiliation');
+  const cardSet = document.getElementById('archive-card-set');
   const cardType = document.getElementById('archive-card-type');
   const loreSearch = document.getElementById('archive-lore-search');
   const loreSection = document.getElementById('archive-lore-section');
@@ -43,6 +44,12 @@
 
   function affLabel(id){
     return affMeta[id]?.label || String(id || 'Unknown').replace(/_/g, ' ');
+  }
+
+  function setLabel(card){
+    if(card?.retired) return 'Retired';
+    if(card?.token) return 'Token';
+    return card?.set === 'brave_horizons' ? 'Brave Horizons' : 'Core Set';
   }
 
   function loreSectionLabel(id){
@@ -87,22 +94,26 @@
     if(!cardGrid) return;
     const query = toSearch(cardSearch?.value);
     const aff = cardAffiliation?.value || '';
+    const set = cardSet?.value || '';
     const type = cardType?.value || '';
     const filtered = cards.filter(card=>{
       if(aff && card.aff !== aff) return false;
+      if(set === 'token' && !card.token) return false;
+      if(set === 'retired' && !card.retired) return false;
+      if(set && set !== 'token' && set !== 'retired' && card.set !== set) return false;
       if(type && card.type !== type) return false;
       if(!query) return true;
-      return [card.name, card.ability, card.type, card.aff, card.rarity, card.effect, card.flavor]
+      return [card.name, card.ability, card.type, card.aff, card.rarity, card.set, card.effect, card.flavor]
         .some(value=>toSearch(value).includes(query));
     });
-    cardCount.textContent = `${filtered.length} of ${cards.length} cards`;
+    cardCount.textContent = `${filtered.length} of ${cards.length} catalog entries`;
     cardGrid.innerHTML = filtered.map(card=>{
       const aff = affMeta[card.aff] || {};
       return `
-        <button class="archive-card-tile ${esc(aff.cls || '')}" type="button" data-card-id="${esc(card.id)}">
+        <button class="archive-card-tile ${esc(aff.cls || '')} ${card.retired ? 'is-retired' : ''}" type="button" data-card-id="${esc(card.id)}">
           <span class="archive-card-art"><img src="${esc(card.img)}" alt="${esc(card.name)} card art" data-fallback="assets/portraits/queen.png"></span>
           <span class="archive-card-copy">
-            <span class="archive-card-kicker">${esc(affLabel(card.aff))} / ${esc(card.type || 'Card')}</span>
+            <span class="archive-card-kicker">${esc(setLabel(card))} · ${esc(affLabel(card.aff))} / ${esc(card.type || 'Card')}</span>
             <strong>${esc(card.name)}</strong>
             <span class="archive-card-ability">${esc(compactText(card.ability || card.effect, 96))}</span>
           </span>
@@ -187,7 +198,7 @@
           <img src="${esc(card.img)}" alt="${esc(card.name)} card art" data-fallback="assets/portraits/queen.png">
         </aside>
         <article class="archive-detail-copy">
-          <div class="archive-detail-kicker">${esc(affLabel(card.aff))} / ${esc(card.rarity || 'Rarity')} rarity</div>
+          <div class="archive-detail-kicker">${esc(setLabel(card))} · ${esc(affLabel(card.aff))} / ${esc(card.rarity || 'Rarity')} rarity</div>
           <h3>${esc(card.name)}</h3>
           <p class="archive-detail-ability">${esc(card.ability || '')}</p>
           <div class="archive-detail-stats">
@@ -237,7 +248,7 @@
     link.addEventListener('click', ()=>setTimeout(()=>setTab(link.dataset.archiveLink), 0));
   });
 
-  [cardSearch, cardAffiliation, cardType].forEach(control=>{
+  [cardSearch, cardAffiliation, cardSet, cardType].forEach(control=>{
     control?.addEventListener('input', renderCards);
     control?.addEventListener('change', renderCards);
   });

@@ -9,8 +9,22 @@
     'triggerCharacterEffect',
     'activatePendingWhenSetEffect',
     'activateVigilantes',
+    'activateExpeditionaryMove',
+    'activateLandscapeEventideMove',
+    'activateBusserMove',
     'activateWodnyPotokYouth'
   ]);
+  const BOARD_CONTINUATION_KEYS = [
+    '_markSelecting',
+    '_wolfCreekMoving',
+    '_expMoving',
+    '_berkeleyMoving',
+    '_bh01Moving',
+    '_landscapeMoving',
+    '_busserMoving',
+    '_busserMovingCard',
+    '_boardTargeting'
+  ];
   const bridgeOriginals = new Map();
   let activeTransaction = null;
   let reservedTransactionId = '';
@@ -19,7 +33,8 @@
   let pickerConstructionDepth = 0;
 
   function gameState(){
-    return root.G || null;
+    if(typeof root.getFateGameState === 'function') return root.getFateGameState();
+    return root.FATE_GAME_STATE || null;
   }
 
   function transactionStateBridge(){
@@ -37,6 +52,47 @@
     catch(e){ return false; }
   }
 
+  function isCardCollectionPath(path){
+    return /^\$\.players\[\d+\]\.(?:hand|deck|discard)$/.test(String(path || ''));
+  }
+
+  function cardCollectionIid(card){
+    return String(card && card.iid || '');
+  }
+
+  function canMergeCardCollection(base, local, remote, path){
+    if(!isCardCollectionPath(path)) return false;
+    const combined = base.concat(local, remote);
+    return combined.every(function(card){ return !!card && !!cardCollectionIid(card); });
+  }
+
+  function mergeCardCollection(base, local, remote, path, conflicts){
+    const baseByIid = new Map(base.map(function(card){ return [cardCollectionIid(card), card]; }));
+    const localByIid = new Map(local.map(function(card){ return [cardCollectionIid(card), card]; }));
+    const remoteByIid = new Map(remote.map(function(card){ return [cardCollectionIid(card), card]; }));
+    const localRemoved = new Set(base.filter(function(card){
+      return !localByIid.has(cardCollectionIid(card));
+    }).map(cardCollectionIid));
+    const order = local.map(cardCollectionIid);
+    remote.forEach(function(card){
+      const iid = cardCollectionIid(card);
+      if(!localRemoved.has(iid) && !order.includes(iid)) order.push(iid);
+    });
+    return order.map(function(iid){
+      const baseCard = baseByIid.get(iid);
+      const localCard = localByIid.get(iid);
+      const remoteCard = remoteByIid.get(iid);
+      if(!baseCard) return clonePlain(localCard || remoteCard);
+      if(!localCard) return undefined;
+      if(!remoteCard){
+        if(samePlain(localCard, baseCard)) return undefined;
+        conflicts.push(path + '[iid=' + iid + ']');
+        return undefined;
+      }
+      return threeWayMerge(baseCard, localCard, remoteCard, path + '[iid=' + iid + ']', conflicts);
+    }).filter(function(card){ return card !== undefined; });
+  }
+
   function threeWayMerge(base, local, remote, path, conflicts){
     if(samePlain(local, base)) return clonePlain(remote);
     if(samePlain(remote, base)) return clonePlain(local);
@@ -46,7 +102,14 @@
     const localArray = Array.isArray(local);
     const remoteArray = Array.isArray(remote);
     if(baseArray || localArray || remoteArray){
-      if(!(baseArray && localArray && remoteArray) || base.length !== local.length || base.length !== remote.length){
+      if(!(baseArray && localArray && remoteArray)){
+        conflicts.push(path || '$');
+        return clonePlain(remote);
+      }
+      if(canMergeCardCollection(base, local, remote, path)){
+        return mergeCardCollection(base, local, remote, path, conflicts);
+      }
+      if(base.length !== local.length || base.length !== remote.length){
         conflicts.push(path || '$');
         return clonePlain(remote);
       }
@@ -255,17 +318,23 @@
     return found;
   }
 
+  function effectSourceIdForCard(card){
+    return String(
+      card && (
+        card._bh05CopiedCardId ||
+        card._bh05CopiedPassiveId ||
+        card._ledgerCopiedSourceId ||
+        card.id
+      ) ||
+      ''
+    );
+  }
+
   function finalizePayload(tx){
     if(!tx || !tx.payload) return;
     const card = liveSourceCard(tx);
     if(card){
-      tx.payload.effectSourceId = String(
-        card._bh05CopiedCardId ||
-        card._bh05CopiedPassiveId ||
-        card._ledgerCopiedSourceId ||
-        card.id ||
-        ''
-      );
+      tx.payload.effectSourceId = effectSourceIdForCard(card);
       tx.payload.effectSourceType = String(card.type || '');
       tx.payload.effectRuleType = String(
         card._bh05CopiedTrackerState && card._bh05CopiedTrackerState.type ||
@@ -273,6 +342,30 @@
         ''
       );
       tx.payload.effectSourceIid = String(card.iid || '');
+    }
+    const g = gameState();
+    const playerIndex = Number(tx.payload.playerIndex);
+    const basePlayer = tx.baseState && tx.baseState.players && tx.baseState.players[playerIndex] || {};
+    const livePlayer = g && g.players && g.players[playerIndex] || {};
+    const baseHand = Array.isArray(basePlayer.hand) ? basePlayer.hand : [];
+    const baseDeck = Array.isArray(basePlayer.deck) ? basePlayer.deck : [];
+    const baseDiscard = Array.isArray(basePlayer.discard) ? basePlayer.discard : [];
+    const liveHand = Array.isArray(livePlayer.hand) ? livePlayer.hand : [];
+    const baseHandIids = new Set(baseHand.map(cardCollectionIid).filter(Boolean));
+    const searchableOriginIids = new Set(baseDeck.concat(baseDiscard).map(cardCollectionIid).filter(Boolean));
+    const addedFromSearchableOrigin = new Set(liveHand.map(cardCollectionIid).filter(function(iid){
+      return !!iid && !baseHandIids.has(iid) && searchableOriginIids.has(iid);
+    }));
+    const selectedIids = Array.isArray(tx.payload.searchedCardIids)
+      ? tx.payload.searchedCardIids.map(String).filter(Boolean)
+      : [];
+    tx.payload.searchedCardIids = Array.from(new Set(selectedIids.filter(function(iid){
+      return addedFromSearchableOrigin.has(iid);
+    })));
+    tx.payload.searchCompleted = tx.payload.searchedCardIids.length > 0;
+    tx.payload.opponentSearch = tx.payload.searchCompleted;
+    if(tx.payload.searchCompleted && !String(tx.payload.searchSourceCardId || '')){
+      tx.payload.searchSourceCardId = String(tx.payload.effectSourceId || '');
     }
     tx.payload.effectTransactionDurationMs = Math.max(0, Date.now() - tx.startedAt);
   }
@@ -286,9 +379,41 @@
     tx.resolveCompletion(true);
   }
 
+  function ownsBoardContinuation(g){
+    if(!g || !active()) return false;
+    if(g.blockingCell) return true;
+    return BOARD_CONTINUATION_KEYS.some(function(key){ return !!g[key]; });
+  }
+
+  function sourceResolutionPending(tx){
+    const card = liveSourceCard(tx);
+    if(!card) return false;
+    if(String(tx && tx.fn || '') === 'activatePendingWhenSetEffect'){
+      return !!(card._pendingWhenSetEffect || card._pendingWhenSetActivationInFlight);
+    }
+    if(String(tx && tx.fn || '') === 'triggerCharacterEffect'){
+      const sourceType = String(
+        tx && tx.payload && (tx.payload.effectSourceType || tx.payload.effectRuleType) ||
+        card.type ||
+        ''
+      );
+      if(sourceType === 'Initiator'){
+        return !!card._effectActivationInFlight || card.effectUsedInitial !== true;
+      }
+    }
+    return false;
+  }
+
   function maybeFinish(tx){
     if(!tx || tx.finished || !tx.coreSettled || tx.pending.size) return;
     clearQuietTimer(tx);
+    if(ownsBoardContinuation(gameState()) || sourceResolutionPending(tx)){
+      tx.quietTimer = setTimeout(function(){
+        tx.quietTimer = null;
+        maybeFinish(tx);
+      }, QUIET_WINDOW_MS);
+      return;
+    }
     tx.quietTimer = setTimeout(function(){
       tx.quietTimer = null;
       if(!tx.finished && !tx.localResolved && tx.coreSettled && tx.pending.size === 0) finishLocalResolution(tx);
@@ -346,6 +471,12 @@
     tx.baseState = clonePlain(remoteState);
     record('rebased', tx);
     return {ok:true, state, stateHash};
+  }
+
+  function mergeIncomingState(remoteState, localState){
+    const tx = activeTransaction;
+    if(!tx || tx.finished) return {ok:false, reason:'no active effect transaction'};
+    return rebasePostState(tx, remoteState, localState);
   }
 
   function registerInteraction(label, channel){
@@ -434,6 +565,10 @@
     return !!(activeTransaction && !activeTransaction.finished);
   }
 
+  function busy(){
+    return active() || !!reservedTransactionId;
+  }
+
   function capturePresentationEvent(event){
     const tx = activeTransaction;
     if(!tx || tx.finished || !event || typeof event !== 'object') return false;
@@ -485,10 +620,11 @@
     const tx = activeTransaction;
     const chosen = Array.isArray(selectedCards) ? selectedCards.filter(Boolean) : [];
     if(!tx || tx.finished || !tx.payload || !chosen.length) return false;
-    tx.payload.opponentSearch = true;
-    tx.payload.searchCompleted = true;
-    tx.payload.searchSourceCardId = String(searchSourceCardId || '');
-    tx.payload.searchedCardIids = chosen.map(function(card){ return String(card && card.iid || ''); }).filter(Boolean);
+    if(searchSourceCardId) tx.payload.searchSourceCardId = String(searchSourceCardId);
+    const existing = Array.isArray(tx.payload.searchedCardIids) ? tx.payload.searchedCardIids.map(String) : [];
+    tx.payload.searchedCardIids = Array.from(new Set(existing.concat(
+      chosen.map(function(card){ return String(card && card.iid || ''); }).filter(Boolean)
+    )));
     return true;
   }
 
@@ -574,6 +710,7 @@
 
     bridged('showModal', function(original){
       return function transactionShowModal(title, bodyHtml, actions, opts){
+        if(opts && opts._handLimitQueued === true) return original.apply(this, arguments);
         if(active() && pickerConstructionDepth > 0){
           const nestedArgs = arguments;
           return withLocalModalBypass(function(){ return original.apply(this, nestedArgs); }.bind(this));
@@ -608,9 +745,7 @@
           nextOpts.onCancel = wrapChoiceCallback(token, nextOpts.onCancel, 'card-picker-cancel');
         }
         const confirm = function(chosen){
-          if(opts && opts.opponentSearch === true && Array.isArray(chosen) && chosen.length){
-            captureSearchSelection(opts.searchSourceCardId, chosen);
-          }
+          if(Array.isArray(chosen) && chosen.length) captureSearchSelection(opts && opts.searchSourceCardId, chosen);
           return typeof onConfirm === 'function' ? onConfirm(chosen) : undefined;
         };
         return openAfterPresentationIdle(function(){
@@ -766,12 +901,15 @@
     abort,
     release,
     isActive:active,
+    isBusy:busy,
+    ownsBoardContinuation,
     capturePresentationEvent,
     captureActivationCinematic,
     captureReactionContext,
     captureSearchSelection,
     commitAuthority,
     rebasePostState,
+    mergeIncomingState,
     cancelActive,
     installPickerBridges,
     snapshot
