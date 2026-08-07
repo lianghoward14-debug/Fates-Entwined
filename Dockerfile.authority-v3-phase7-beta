@@ -1,0 +1,15 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED=1
+
+COPY server/authoritative-v3 ./server/authoritative-v3
+COPY server/fate-card-catalog.js ./server/fate-card-catalog.js
+COPY shared ./shared
+COPY src/scripts/01-data-and-state.js ./src/scripts/01-data-and-state.js
+
+EXPOSE 8787
+
+CMD ["node", "server/authoritative-v3/phase7-beta-server.mjs"]

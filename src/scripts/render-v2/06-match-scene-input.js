@@ -13,6 +13,7 @@
       this.viewportPointerDownHit = null;
       this.viewportPointerDownPoint = null;
       this.lastHandledAt = 0;
+      this.phase7ConsumedBoardClickUntil = 0;
       this.lastHoverSfxKey = '';
       this.moveRaf = 0;
       this.pendingMove = null;
@@ -31,11 +32,11 @@
       this.detach();
       this.container = container || null;
       if(!this.container) return;
-      this.container.addEventListener('pointerdown', this.handlePointerDown, {passive:true});
-      this.container.addEventListener('pointerup', this.handlePointerUp, {passive:true});
+      this.container.addEventListener('pointerdown', this.handlePointerDown, {passive:false});
+      this.container.addEventListener('pointerup', this.handlePointerUp, {passive:false});
       this.container.addEventListener('pointermove', this.handlePointerMove, {passive:true});
       this.container.addEventListener('wheel', this.handleWheel, {passive:false});
-      document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:true});
+      document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:false});
       document.addEventListener('pointerup', this.handleViewportPointerUp, {capture:true, passive:false});
       document.addEventListener('pointermove', this.handleViewportPointerMove, {capture:true, passive:true});
       document.addEventListener('click', this.handleViewportClick, {capture:true, passive:false});
@@ -157,6 +158,27 @@
       return Date.now() < (Number(window.__fateV2SuppressHandClickUntil) || 0);
     }
 
+    isAuthoritativeConsolidationActive(){
+      try{
+        const authoritativeUi = window.FatePhase7CurrentMultiplayerUi?.report?.();
+        return authoritativeUi?.active === true && authoritativeUi?.consolidationActive === true;
+      }catch(e){
+        return false;
+      }
+    }
+
+    isAuthoritativeBoardSelectionActive(){
+      try{
+        const authoritativeUi = window.FatePhase7CurrentMultiplayerUi?.report?.();
+        return authoritativeUi?.active === true && (
+          authoritativeUi?.consolidationActive === true
+          || Number(authoritativeUi?.destinationCommandCount || 0) > 0
+        );
+      }catch(e){
+        return false;
+      }
+    }
+
     hitTest(x, y){
       const scene = this.scene || window.FateMatchRendererAdapter;
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
@@ -220,6 +242,11 @@
         this.viewportPointerDownPoint = null;
         return;
       }
+      if(this.isAuthoritativeBoardSelectionActive() && this.isViewportCanvasTarget(ev.target)){
+        this.recordInputDebug('phase7-board-capture-down', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        this.handlePointerDown(ev);
+        return;
+      }
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
       if(ev.button !== 0) return;
@@ -238,6 +265,11 @@
     }
 
     handleViewportPointerUp(ev){
+      if(this.isAuthoritativeBoardSelectionActive() && this.isViewportCanvasTarget(ev.target)){
+        this.recordInputDebug('phase7-board-capture-up', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
+        this.handlePointerUp(ev);
+        return;
+      }
       if(this.isModalBlockingSceneInput()) {
         this.viewportPointerDownHit = null;
         this.viewportPointerDownPoint = null;
@@ -290,6 +322,17 @@
     }
 
     handleViewportClick(ev){
+      // During an authoritative board selector (including consolidation), the
+      // canvas pointer sequence has already been handled by dispatchHit. Do not
+      // let the synthesized click continue into the legacy card-detail route;
+      // that route can open a modal and cancel the just-made selection.
+      if((this.isAuthoritativeBoardSelectionActive() || (typeof G !== 'undefined' && G?._phase7CurrentMultiplayer === true && Date.now() < this.phase7ConsumedBoardClickUntil))
+        && this.isViewportCanvasTarget(ev.target)){
+        this.recordInputDebug('phase7-board-click-consumed', {target:this.targetSummary(ev.target)});
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        return;
+      }
       if(this.isModalBlockingSceneInput()) return;
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
@@ -358,7 +401,12 @@
       if(this.isModalBlockingSceneInput()) return;
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard()) return;
-      if(typeof scene.scrollZoneAtClient === 'function' && scene.scrollZoneAtClient(ev.clientX, ev.clientY, ev.deltaY)) {
+      // Layout/hit-map coordinates are canvas-local. Pointer handlers already
+      // perform this conversion; wheel input must do the same when the board is
+      // offset by the profile panel, otherwise every zone misses its scroll
+      // rectangle and cards in clipped safe rows cannot be reached.
+      const point = this.pointFromClient(ev.clientX, ev.clientY);
+      if(typeof scene.scrollZoneAtClient === 'function' && scene.scrollZoneAtClient(point.x, point.y, ev.deltaY)) {
         ev.preventDefault();
         ev.stopPropagation();
       }
@@ -376,10 +424,17 @@
       const p = this.eventPoint(ev);
       this.pointerDownHit = this.hitTest(p.x, p.y);
       this.pointerDownPoint = p;
+      this.recordInputDebug('board-down', {x:p.x, y:p.y, hit:!!this.pointerDownHit, z:this.pointerDownHit && this.pointerDownHit.z, r:this.pointerDownHit && this.pointerDownHit.r, c:this.pointerDownHit && this.pointerDownHit.c});
+      if(this.isAuthoritativeBoardSelectionActive()){
+        this.phase7ConsumedBoardClickUntil = Date.now() + 300;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+      }
     }
 
     isLiveBoardSelectionActive(){
       if(typeof G === 'undefined' || !G) return false;
+      if(this.isAuthoritativeBoardSelectionActive()) return true;
       const localConsolidationActive = typeof isLocalConsolidationActive === 'function'
         ? isLocalConsolidationActive()
         : !!G._consolidating;
@@ -415,11 +470,11 @@
       const startedPoint = this.pointerDownPoint;
       this.pointerDownHit = null;
       this.pointerDownPoint = null;
-      if(!startedPoint) return;
-      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) return;
+      if(!startedPoint) { this.recordInputDebug('board-up-no-start'); return; }
+      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) { this.recordInputDebug('board-up-moved'); return; }
       const p = this.eventPoint(ev);
       const ended = this.hitTest(p.x, p.y);
-      if(!ended) return;
+      if(!ended) { this.recordInputDebug('board-up-miss', {x:p.x, y:p.y}); return; }
       // A board selector can render a new row or rebuild its hit map between
       // pointer-down and pointer-up. During an active selector the release hit
       // is the live contract; requiring its coordinates to match the stale
@@ -430,9 +485,15 @@
         ended.z !== started.z ||
         ended.r !== started.r ||
         ended.c !== started.c
-      )) return;
-      if(performance.now && performance.now() - this.lastHandledAt < 80) return;
+      )) { this.recordInputDebug('board-up-mismatch', {started:started && [started.z,started.r,started.c], ended:[ended.z,ended.r,ended.c]}); return; }
+      if(performance.now && performance.now() - this.lastHandledAt < 80) { this.recordInputDebug('board-up-throttled'); return; }
       this.lastHandledAt = performance.now ? performance.now() : Date.now();
+      this.recordInputDebug('board-dispatch', {z:ended.z, r:ended.r, c:ended.c});
+      if(this.isAuthoritativeBoardSelectionActive()){
+        this.phase7ConsumedBoardClickUntil = Date.now() + 300;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+      }
       this.dispatchHit(ended);
     }
 
@@ -444,6 +505,10 @@
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
       const isCellActionMode = this.isLiveBoardSelectionActive();
       try {
+        if(G._phase7CurrentMultiplayer === true && typeof window.fatePhase7HandleBoardClick === 'function'){
+          window.fatePhase7HandleBoardClick(z, r, c);
+          return;
+        }
         if(G._isSpectator) {
           if(boardCard) {
             if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('boardCardClick', 'board-card-click', 120);
@@ -480,8 +545,23 @@
       if(!hit || typeof G === 'undefined' || !G || !Array.isArray(G.players)) return;
       try {
         if(hit.kind === 'hand-card'){
-          const cp = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer;
-          const card = G.players[cp] && G.players[cp].hand ? G.players[cp].hand[Number(hit.index)] : null;
+          const cp = G._phase7CurrentMultiplayer === true && Number.isInteger(Number(G._onlinePlayerIndex))
+            ? Number(G._onlinePlayerIndex)
+            : (typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer);
+          const hand = G.players[cp] && Array.isArray(G.players[cp].hand) ? G.players[cp].hand : [];
+          const byIid = hit.iid ? hand.find(function(candidate){
+            return candidate && String(candidate.iid || '') === String(hit.iid);
+          }) : null;
+          const card = byIid || hand[Number(hit.index)] || null;
+          const cardIndex = card ? hand.indexOf(card) : -1;
+          this.recordInputDebug('hand-resolve', {
+            cp,
+            hitIid:String(hit.iid || ''),
+            hitIndex:Number(hit.index),
+            byIidId:String(byIid?.id || ''),
+            byIndexId:String(hand[Number(hit.index)]?.id || ''),
+            chosenId:String(card?.id || '')
+          });
           if(!card) return;
           if(G._isSpectator){
             if(card.hidden || card._spectatorHidden) return;
@@ -490,17 +570,21 @@
             if(typeof openCardDetail === 'function') openCardDetail(card, false, false);
             return;
           }
+          if(G._phase7CurrentMultiplayer === true){
+            if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
+            return;
+          }
           const canActFromHand = cp === G.currentPlayer;
           let selectable = false;
           try {
             selectable = canActFromHand && ((typeof canPlayCard === 'function' && canPlayCard(card)) || (typeof isSupporterLimitReachedForCard === 'function' && isSupporterLimitReachedForCard(card)));
           } catch(e) {}
           if(selectable && typeof selectHandCard === 'function') {
-            selectHandCard(Number(hit.index));
+            selectHandCard(cardIndex >= 0 ? cardIndex : Number(hit.index));
             return;
           }
           if(selectable) {
-            G.selectedHandCard = Number(hit.index);
+            G.selectedHandCard = cardIndex >= 0 ? cardIndex : Number(hit.index);
             G.placing = false;
             if(typeof playSfx === 'function') playSfx('cardSelect');
             if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
@@ -510,7 +594,9 @@
           else if(typeof playSfx === 'function') playSfx('cardInfoOpen');
           if(typeof openCardDetail === 'function') openCardDetail(card, true, false);
         } else if(hit.kind === 'opponent-hand-card') {
-          const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (Number(G.currentPlayer) || 0);
+          const viewer = G._phase7CurrentMultiplayer === true && Number.isInteger(Number(G._onlinePlayerIndex))
+            ? Number(G._onlinePlayerIndex)
+            : (typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : (Number(G.currentPlayer) || 0));
           const fallbackOpponent = viewer === 0 ? 1 : 0;
           const playerIndex = Number.isInteger(Number(hit.playerIndex)) ? Number(hit.playerIndex) : fallbackOpponent;
           const isJanswick = (typeof isLandscapeActive === 'function' && isLandscapeActive('igb12')) || G.landscapeId === 'igb12';
@@ -529,6 +615,9 @@
           if(hit.pile === 'deck' && typeof showDeckInfo === 'function') showDeckInfo(Number(hit.playerIndex));
           if(hit.pile === 'discard' && typeof showDiscard === 'function') showDiscard(Number(hit.playerIndex));
         } else if(hit.kind === 'ui-command') {
+          if(G._phase7CurrentMultiplayer === true && typeof window.fatePhase7HandleUiCommand === 'function'){
+            if(window.fatePhase7HandleUiCommand(hit.command)) return;
+          }
           if(hit.disabled) {
             if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('invalidAction', 'disabled-ui-command:' + (hit.command || 'unknown'), 180);
             else if(typeof playSfx === 'function') playSfx('invalidAction');

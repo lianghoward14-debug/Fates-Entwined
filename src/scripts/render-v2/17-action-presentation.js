@@ -380,6 +380,7 @@
       autoMotionDisabledAfter:tx.autoMotionDisabledAfter || '',
       degraded:!!tx.degraded,
       degradedReason:tx.degradedReason || '',
+      vfxId:tx.vfxId || '',
       frameGapExceeded:!!tx.frameGapExceeded,
       frameGapExceededMs:tx.frameGapExceededMs || 0,
       preflight:tx.preflight,
@@ -777,12 +778,12 @@
     }
     waitForPreflight(tx, motion.recipe, motion.payload, 260).then(function(preflight){
       if(!active || active.id !== tx.id) return;
+      // A late texture must never erase the board-placement motion. The VFX
+      // director has a deterministic card-name fallback and will swap in the
+      // decoded texture on a later frame, so continue through the real motion
+      // path while retaining diagnostic evidence about the late asset.
       if(preflight && preflight.ready === false && preflight.total > 0) {
-        tx.degraded = true;
-        tx.degradedReason = 'texture-preflight-timeout-after-commit';
-        pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
-        finish(tx, 'degraded-snap');
-        return;
+        pushEvent(tx, 'texture-preflight-incomplete', {preflight});
       }
       const ms = beginAnimationPhase(tx, motion.duration);
       const vfxId = rawDirectorPlay(motion.recipe, motion.payload, {allowMatchActionMotion:true});
@@ -824,7 +825,7 @@
     const targetRect = fx.targetRectForBoardTarget(target);
     if(!targetRect) return null;
     const tributes = (Array.isArray(opts.tributes) ? opts.tributes : []).map(function(t, index){
-      const rect = fx.targetRectForBoardTarget({z:t && t.z, r:t && t.r, c:t && t.c});
+      const rect = t && t.rect ? t.rect : fx.targetRectForBoardTarget({z:t && t.z, r:t && t.r, c:t && t.c});
       return {
         iid:t && t.card && t.card.iid,
         card:t && t.card,
@@ -852,11 +853,9 @@
     waitForPreflight(tx, motion ? motion.recipe : '', motion ? motion.payload : null, preflightTimeout).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       if(motion && preflight && preflight.ready === false && preflight.total > 0) {
-        tx.degraded = true;
-        tx.degradedReason = 'texture-preflight-timeout';
-        pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
+        pushEvent(tx, 'texture-preflight-incomplete', {preflight});
       }
-      if(motion && !tx.degraded){
+      if(motion){
         if(opts.sourceCard) {
           try {
             opts.sourceCard._presentationDeparting = true;
@@ -963,10 +962,21 @@
         return true;
       }
     }
-    waitForPreflight(tx, 'CONSOLIDATE', payload, 460).then(function(preflight){
+    // The production presentation client may be decoding card art for the first
+    // time when consolidation begins.  The fast E2E client bypasses this path,
+    // so give the real client a bounded window to finish that decode instead of
+    // snapping after less than half a second on an otherwise valid animation.
+    // Under a real two-client match, full-art decoding can briefly queue behind
+    // simultaneous result overlays and the opponent renderer. Keep the bound
+    // below the outer 9s fail-open deadline, but allow enough time to preserve
+    // the required tribute-motion animation instead of snapping at 3s.
+    waitForPreflight(tx, 'CONSOLIDATE', payload, 6000).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       let delay = 0;
-      if(payload && preflight && preflight.ready !== false && consolidationMotionAllowed()){
+      if(payload && consolidationMotionAllowed()){
+        if(preflight && preflight.ready === false && preflight.total > 0) {
+          pushEvent(tx, 'texture-preflight-incomplete', {preflight});
+        }
         delay = beginAnimationPhase(tx, duration);
         const vfxId = rawDirectorPlay('CONSOLIDATE', payload, {allowMatchActionMotion:true});
         tx.vfxId = vfxId || '';
@@ -1027,11 +1037,7 @@
     waitForPreflight(tx, recipe, payload || {}, 220).then(function(preflight){
       if(!active || active.id !== tx.id) return;
       if(preflight && preflight.ready === false && preflight.total > 0) {
-        tx.degraded = true;
-        tx.degradedReason = 'texture-preflight-timeout';
-        pushEvent(tx, 'minimal-snap-path', {reason:tx.degradedReason, preflight});
-        finish(tx, 'degraded-snap');
-        return;
+        pushEvent(tx, 'texture-preflight-incomplete', {preflight});
       }
       const ms = beginAnimationPhase(tx, duration);
       const id = rawDirectorPlay(recipe, payload || {}, Object.assign({allowMatchActionMotion:true}, opts));

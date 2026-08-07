@@ -388,18 +388,13 @@
   function sourceResolutionPending(tx){
     const card = liveSourceCard(tx);
     if(!card) return false;
+    // Availability flags describe an unused effect, not work still owned by this
+    // transaction. Only transient execution flags may keep End Turn blocked.
     if(String(tx && tx.fn || '') === 'activatePendingWhenSetEffect'){
-      return !!(card._pendingWhenSetEffect || card._pendingWhenSetActivationInFlight);
+      return card._pendingWhenSetActivationInFlight === true;
     }
     if(String(tx && tx.fn || '') === 'triggerCharacterEffect'){
-      const sourceType = String(
-        tx && tx.payload && (tx.payload.effectSourceType || tx.payload.effectRuleType) ||
-        card.type ||
-        ''
-      );
-      if(sourceType === 'Initiator'){
-        return !!card._effectActivationInFlight || card.effectUsedInitial !== true;
-      }
+      return card._effectActivationInFlight === true;
     }
     return false;
   }

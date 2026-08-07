@@ -1,0 +1,27 @@
+{
+  "format": "fates-authority-v3-shadow-reviewed-issues-v1",
+  "issues": [
+    {
+      "id": "legacy-snow-shoveler-zion-canyon-recovery",
+      "classification": "existing-single-player-defect",
+      "match": {
+        "status": "mismatch",
+        "inferredCommandType": "LEGACY_SET_CARD",
+        "inferredCardId": "96",
+        "firstDifferingStatePathPattern": "^discardIds\\[[01]\\]\\.length$"
+      },
+      "rationale": "Legacy Snow Shoveler recovers discarded cards under Zion Canyon even though the landscape forbids discard recovery; authoritative v3 preserves the prohibition."
+    },
+    {
+      "id": "legacy-ali-deferred-hand-limit-ordering",
+      "classification": "existing-single-player-defect",
+      "match": {
+        "status": "mismatch",
+        "inferredCommandType": "LEGACY_SET_CARD",
+        "inferredCardId": "96",
+        "firstDifferingStatePathPattern": "^handCounts\\[[01]\\]$"
+      },
+      "rationale": "Legacy AI continues with a normal action while Ali hand-limit resolution is deferred; authoritative v3 requires the mandatory hand-limit command first."
+    }
+  ]
+}

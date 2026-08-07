@@ -17,7 +17,7 @@ const effectRules = require('../src/scripts/02-effect-rule-metadata.js');
 const css = read('src/styles/zz-codex-last.css');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 
-assert.match(core, /function chooseDestructionOfParadiseType[\s\S]{0,2600}const actions = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES\.map[\s\S]{0,1200}__fateCurrentModalActions/, 'BH4 type choices must travel through multiplayer modal actions');
+assert.match(core, /function chooseDestructionOfParadiseType[\s\S]{0,5000}const actions = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES\.map[\s\S]{0,2000}__fateCurrentModalActions/, 'BH4 type choices must travel through multiplayer modal actions');
 assert.match(core, /case 'bh25'[\s\S]{0,500}showModal[\s\S]{0,500}pickAnyBoardCard[\s\S]{0,300}discardBoardCard/, 'BH25 must retain a multiplayer-wrapped modal and board picker path');
 assert.match(authority, /AUTHORITY_CHARACTER_AFFECTS_OPPONENT = new Set\(\[[^\]]*'bh25'/, 'authority must classify BH25 as an opponent-affecting effect');
 assert.match(core, /case '84'[\s\S]{0,2400}opponentSearch:true[\s\S]{0,300}searchSourceCardId:'84'/, 'Flower Picking must identify its opponent search');
@@ -45,7 +45,7 @@ for(const id of ['04','10','14','16','17','18','21','26','30','31','36','39','50
 for(const fn of ['triggerCharacterEffect','activatePendingWhenSetEffect','activateVigilantes','activateExpeditionaryMove','activateBusserMove','activateWodnyPotokYouth']){
   assert(effectRules.BOARD_ACTIVATION_CLASSES[fn], `shared board activation metadata must include ${fn}`);
 }
-assert.match(core, /function activateWodnyPotokYouth[\s\S]{0,1800}pickCardInZone\(z,[\s\S]{0,1800}cell\.owner === opp/, 'Snowball Fight must target only the source zone');
+assert.match(core, /function activateWodnyPotokYouth[\s\S]{0,2200}pickCardFromAnyZone[\s\S]{0,1800}cell\.owner === opp/, 'Snowball Fight must target any effect-mutable opponent card on the field');
 assert.match(rendering, /cardActsAsPassive\(bc, '93'\)[\s\S]{0,250}snowBtn\.textContent='Snowball Fight'/, 'Taylor copied Snowball Fight must remain activatable');
 for(const id of ['85', '88', '89', '100']){
   assert.match(core, new RegExp(`cardActsAsPassive\\(card, '${id}'\\)`), `Taylor must retain copied passive ${id}`);
@@ -69,7 +69,8 @@ assert.match(
 assert.match(core, /getBh07AdjacentDauntlessCount[\s\S]{0,600}_bh05CopiedPassiveId[\s\S]{0,1600}_bh05CopiedPassiveId/, 'Taylor must retain copied Agent-K adjacency');
 assert.match(core, /triggerMajaMischievousActivities[\s\S]{0,800}cardActsAsPassive\(card, 'bh08'\)/, 'Taylor must retain copied Maja reactions');
 assert.match(core, /case '05'[\s\S]*await new Promise[\s\S]*pickCardInZone[\s\S]*modifyFate\(tgt,3,'permanent'\)[\s\S]*finish\(true\)[\s\S]*function\(\)\{ finish\(false\); \}/, '17th British Regiment must keep its parent multiplayer activation pending until the target picker confirms or cancels');
-assert.match(core, /const requiresSupporterButton = instIsSupporterForRules && WINDOWED_WHEN_SET_EFFECT_IDS\.has[\s\S]*!opts\.forceImmediate && \(requiresSupporterButton \|\| whenSetEffectsAreDeferred\(\)\)[\s\S]*queueDeferredWhenSetEffect/, 'button-based Supporter effects must remain pending even if one client has the old immediate-mode debug flag persisted');
+assert.match(core, /const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set\(\[[^\]]*'26'[^\]]*'93'/, 'single-player must preserve buttons only for genuine authoritative ACTIVATE Supporters');
+assert.doesNotMatch(core.match(/async function triggerWhenSet[\s\S]*?\n}/)?.[0] || '', /queueDeferredWhenSetEffect/, 'authoritative WHEN_SET effects must not be converted into a manual board action');
 assert.match(core, /function chooseTaylorCopiedEffect[\s\S]*return new Promise[\s\S]*onlineParentAction:true[\s\S]*resolve\(await resolveTaylorCopiedEffect[\s\S]*case 'bh05':[\s\S]*await chooseTaylorCopiedEffect/, 'Taylor activation must keep the parent multiplayer action open until her copy choice and copied effect finish');
 assert.match(online, /ONLINE_ALI_REVEAL_MS = 5000[\s\S]*function resumeOnlinePendingAliTransfers[\s\S]{0,900}_onlineAliTransfersReady !== true[\s\S]{0,900}!onlineGameScreenIsActive\(\) \|\| !onlineMatchHasFirstSet\(state\)[\s\S]{0,1800}playerIndex !== localIndex[\s\S]{0,1800}submitOnlineAliTransfer/, 'Ali transfers must wait for readiness, the active game screen, and the first set, remain visible for five seconds, and submit only from the source player client');
 assert.doesNotMatch(online, /onlineSubmittedEffectActivations|fateOnlineEffectActivationWasSubmitted|rememberOnlineEffectActivation/, 'stale pre-resolution effect submission latches must stay removed');

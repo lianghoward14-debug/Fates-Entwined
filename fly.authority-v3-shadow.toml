@@ -1,0 +1,45 @@
+# Validated Phase 6 shadow-soak configuration.
+# This app and volume are intentionally separate from fates-entwined-main and
+# fate_authority_data. Only explicitly routed soak clients should use it.
+app = 'fates-entwined-v3-shadow-soak'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile.authority-v3-shadow'
+
+[processes]
+  app = 'node server/authoritative-v3/phase6-shadow-supervisor.mjs'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_BUILD_ID = 'phase6-b896a72f0815774aa0f43d8e6d5267ea46a945333830ae2a5752b09e3730939d'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_WS_DATA_DIR = '/data/fate-authority'
+  FATE_WS_FLY_STORE = '1'
+  FATE_WS_REQUIRE_FLY_STORE = '1'
+  FATE_WS_APPEND_EVENT_LOG = '1'
+  FATE_WS_REQUIRE_TOKEN = '1'
+  FATE_WS_DISABLE_FIREBASE_RTDB = '1'
+  FATE_RTDB_DISABLED = '1'
+  FATE_WS_DURABLE_WRITES = 'off'
+  FATE_WS_REQUIRE_DURABLE_WRITES = '0'
+  FATE_WS_STATE_GATE = '1'
+  FATE_WS_REDUCER_MODE = 'client-resolved'
+  FATE_WS_GAMEPLAY_AUTHORITY = 'client-resolved'
+
+[[mounts]]
+  source = 'fate_authority_v3_shadow_soak'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

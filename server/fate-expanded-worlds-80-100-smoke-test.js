@@ -209,10 +209,11 @@ assert.match(core, /function isZoeConsolidationBlockedAt[\s\S]*function canUseAs
 assert.match(handDragBridge, /canUseAsConsolidationTribute\(cell, cp, z, r, c\)[\s\S]*canUseAsConsolidationTribute\(boardCard, G\.currentPlayer, Number\(hit\.z\), Number\(hit\.r\), Number\(hit\.c\)\)/, 'drag consolidation must reject Zoe-blocked source squares');
 assert.match(ai, /case '04'[\s\S]*const occupant = G\.board\[z\]\[rr\]\[cc\][\s\S]*sourceIid:card\.iid/, 'AI Zoe must consider occupied squares and preserve the source identity');
 assert.match(authority, /function authorityConsolidationBlockedAt[\s\S]*cannot be placed onto a square blocked by Zoe or Carolyn[\s\S]*cannot use a card from a square blocked by Zoe or Carolyn/, 'multiplayer authority must enforce both halves of Zoe\'s effect');
-const windowedWhenSet = (core.match(/const WINDOWED_WHEN_SET_EFFECT_IDS = new Set\(\[([\s\S]*?)\]\);/) || [,''])[1];
-assert.match(windowedWhenSet, /'26'/, 'UCPD must expose its deferred Activate Effect action instead of revealing automatically on placement');
-assert.match(windowedWhenSet, /'96'/, 'Snow Shoveler must expose its deferred Activate Effect action');
-assert.doesNotMatch(windowedWhenSet, /'97'/, 'Visegrad Politician must resolve automatically without an Activate Effect action');
+const authoritativeActivate = (core.match(/const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set\(\[([\s\S]*?)\]\);/) || [,''])[1];
+const authoritativeWhenSet = (core.match(/const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set\(\[([\s\S]*?)\]\);/) || [,''])[1];
+assert.match(authoritativeActivate, /'26'/, 'UCPD must retain its genuine authoritative ACTIVATE action');
+assert.match(authoritativeWhenSet, /'96'/, 'Snow Shoveler must resolve automatically when set');
+assert.match(authoritativeWhenSet, /'97'/, 'Visegrad Politician must resolve automatically without an Activate Effect action');
 assert.match(data, /id:'26'[\s\S]*effect:'Activate Effect: Reveal your opponent\\'s hand\.'/, 'UCPD catalog text must describe its manual activation');
 assert.match(core, /case '97'[\s\S]*activateAdministrativeBloat\(cp, inst\)/, 'Visegrad Politician must automatically apply Administrative Bloat when set');
 assert.match(core, /case '96'[\s\S]*showSnowShovelerReturnedCards/, 'Snow Shoveler must show its random return result window');
@@ -266,6 +267,7 @@ assert.match(rendering, /blame_game:[\s\S]*blame-game-icon[\s\S]*circle cx="32" 
 assert.doesNotMatch(rendering, /card\.id === '97'[\s\S]{0,900}liveStatusTracker/, 'Visegrad Politician must not duplicate its status inside card details');
 assert.match(rendering, /card\.id === '99'[\s\S]*The Blame Game/, 'The Blame Game must retain its card-detail status tracker');
 assert.match(core, /tickWintertideForCurrentPlayer[\s\S]*_wintertideTriggerCount = \(Number\(card\._wintertideTriggerCount\) \|\| 0\) \+ 1/, 'Wintertide must record every Snow on the Carpathians trigger on the combined card instance');
+assert.match(core, /controlsNamedCard\(card\.owner, \['Felicyta', 'Kvetka', 'Květka'\], \{excludeIid:card\.iid\}\)/, 'Felicyta and Květka must not satisfy its own separate-card +3 requirement in singleplayer');
 assert.match(rendering, /card\.id === '100'[\s\S]*_wintertideTriggerCount[\s\S]*label = 'Snow on the Carpathians:'[\s\S]*Fate gained this match/, 'Felicyta and Kvetka must expose a colon-separated match tracker for Snow on the Carpathians triggers');
 assert.match(rendering, /G\._landscapeChangeLocks[\s\S]*A Snowy Village[\s\S]*Wodny Potok Villager/, 'Wodny Potok Villager must expose an active topbar status banner while landscape changes are locked');
 assert.match(rendering, /"99": "He's the one that started it first!\\nWell Zsofia shouldn't have been putting her feet on my sword!"/, 'Rozsi and Zsofia combined card must use the requested two-line subtitle');

@@ -2053,7 +2053,6 @@ function getGameLandscapeBackgroundPath(bgNum) {
   const n = Math.max(1, Math.min(20, Number(bgNum) || 1));
   let path = '';
   if(n === 17) path = IGB17_BACKGROUND_FILES[getIgb17RotationIndex()] || IGB17_BACKGROUND_FILES[0];
-  else if(n === 15) path = 'ingamebackgrouds/igb15.png';
   else if(n === 18) path = 'ingamebackgrouds/igb18.png';
   else if(n === 19) path = 'ingamebackgrouds/igb19.png';
   else if(n === 20) path = 'ingamebackgrouds/igb20.png';

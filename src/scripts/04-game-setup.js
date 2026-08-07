@@ -103,13 +103,6 @@ function findCurrentAILeaderboardRecord(ai) {
 
 function getCurrentAIRankState(ai) {
   if(!ai) return {elo:600, rankName:'Footman', rank:null, entry:null};
-  const override = getAIBalanceOverride(ai);
-  if(override && Number.isFinite(Number(override.elo))) {
-    const elo = Math.max(100, Math.round(Number(override.elo)));
-    let rank = null;
-    try { rank = typeof getRank === 'function' ? getRank(elo) : null; } catch(e) {}
-    return {elo, rankName:(rank && rank.name) || ai.rank || 'Footman', rank, entry:null};
-  }
   const entry = findCurrentAILeaderboardRecord(ai);
   const selectedMatch = typeof G !== 'undefined' && G && G._selectedAI && isSameAIRecord(ai, G._selectedAI);
   const liveElo = Number(entry && entry.elo);
@@ -147,6 +140,22 @@ function formatFateMultiplier(mult) {
 }
 
 function startGame(vsAI=false) {
+  const authoritativeV3SinglePlayerRequested = new URLSearchParams(window.location.search || '')
+    .get('fateV3SinglePlayer') === '1';
+  if(authoritativeV3SinglePlayerRequested){
+    const authority = window.FateAuthorityV3SinglePlayer;
+    if(!authority?.enabled || typeof authority.startFromLegacyUi !== 'function'){
+      if(typeof toast === 'function') toast('Authoritative v3 single-player is still loading. Try again.');
+      return false;
+    }
+    try{
+      return authority.startFromLegacyUi({vsAI:vsAI === true});
+    }catch(error){
+      console.error('[Fate Phase 5 Single Player] start failed', error);
+      if(typeof toast === 'function') toast(error?.message || 'Authoritative v3 single-player could not start');
+      return false;
+    }
+  }
   const keepHowardDevMode = !!window.__fateHowardDevLaunchPending;
   window.__fateHowardDevLaunchPending = false;
   if(!keepHowardDevMode && typeof isHowardDevMode === 'function' && isHowardDevMode()){
@@ -239,7 +248,8 @@ function startOnlineServerBootstrappedGame(options) {
     const entryVeilStarted = showMatchEntryLoadingVeil();
     recordMatchEntryStep('online-server-bootstrap-start');
     if(typeof opts.applyServerState === 'function') opts.applyServerState();
-    const pendingOnlineTurnChoice = !!(G._onlineRoomCode && String(G.phase || '') !== 'main');
+    const pendingOnlineTurnChoice = opts.forceCoinChoice === true
+      || !!(G._onlineRoomCode && String(G.phase || '') !== 'main');
     if(!pendingOnlineTurnChoice) G.phase = 'main';
     G._turnInputLockUntil = 0;
     G._aiRunning = false;
@@ -247,34 +257,28 @@ function startOnlineServerBootstrappedGame(options) {
     G._aiAborted = false;
     G._aiTurnToken = 0;
     if(pendingOnlineTurnChoice){
+      const coinScreenAlreadyActive = !!document.getElementById('s-coin')?.classList.contains('active');
       showScreen('s-coin');
       recordMatchEntryStep('online-server-bootstrap-coin-choice');
       log('sys','Online match coin flip begins.');
       hideMatchEntryLoadingVeil(entryVeilStarted);
-      setTimeout(()=>doCoinFlip(), 60);
+      if(!coinScreenAlreadyActive) setTimeout(()=>doCoinFlip(), 60);
       if(typeof opts.afterEnter === 'function') opts.afterEnter();
       return;
     }
-    showScreen('s-game');
+    showGameScreenForInitialRender();
     recordMatchEntryStep('online-server-bootstrap-game-active');
     const currentName = G.players[G.currentPlayer]?.name || `Player ${Number(G.currentPlayer || 0) + 1}`;
     log('sys','Online match begins! '+currentName+' goes first.');
-    const renderStarted = performance.now ? performance.now() : Date.now();
-    if(typeof renderGameImmediate === 'function') {
-      if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
-        renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
-      } else {
-        renderGameImmediate();
+    scheduleInitialMatchRender({
+      step:'online-server-bootstrap-render-called',
+      entryVeilStarted,
+      onError:opts.onError,
+      onReady:function(){
+        startTurnTimer();
+        if(typeof opts.afterEnter === 'function') opts.afterEnter();
       }
-    } else renderGame();
-    recordMatchEntryStep('online-server-bootstrap-render-called', {
-      ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
     });
-    if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
-    recordMatchEntryStep('online-server-bootstrap-topbar-ready');
-    hideMatchEntryLoadingVeil(entryVeilStarted);
-    startTurnTimer();
-    if(typeof opts.afterEnter === 'function') opts.afterEnter();
   } catch(err) {
     console.error('Online server bootstrap entry failed', err);
     if(typeof opts.onError === 'function') opts.onError(err);
@@ -517,6 +521,50 @@ function hideMatchEntryLoadingVeil(startedAt) {
       setTimeout(close, delay);
     });
   });
+}
+
+function showGameScreenForInitialRender() {
+  const v2OwnsScene = typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene();
+  if(v2OwnsScene) window.__fateSkipNextRendererV2ScreenEnter = true;
+  showScreen('s-game');
+  return v2OwnsScene;
+}
+
+function scheduleInitialMatchRender(options) {
+  const opts = options || {};
+  const run = function(){
+    const renderStarted = performance.now ? performance.now() : Date.now();
+    try {
+      if(typeof renderGameImmediate === 'function') {
+        if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
+          renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
+        } else {
+          renderGameImmediate();
+        }
+      } else if(typeof renderGame === 'function') {
+        renderGame();
+      }
+      if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
+      recordMatchEntryStep(opts.step || 'initial-render-called', {
+        ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
+      });
+      recordMatchEntryStep('topbar-ready');
+    } catch(err) {
+      console.error('Initial match render failed', err);
+      recordMatchEntryStep('initial-render-error', {error:String(err && err.message || err)});
+      if(typeof opts.onError === 'function') opts.onError(err);
+    } finally {
+      hideMatchEntryLoadingVeil(opts.entryVeilStarted);
+      if(typeof opts.onReady === 'function') opts.onReady();
+    }
+  };
+  // Let the newly active screen complete layout and let Electron settle any
+  // pending fullscreen/window resize before allocating the match canvases.
+  if(typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(function(){ requestAnimationFrame(run); });
+  } else {
+    setTimeout(run, 32);
+  }
 }
 
 // Pre-game matchup screen - shows both players' decks and profiles
@@ -779,7 +827,13 @@ function applyStoredAIEloState(ai) {
     ai.elo = ai.isMonthly && storedElo === 600 && seededElo > 600 ? seededElo : storedElo;
   }
   if(rec && Number.isFinite(Number(rec.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(rec.trueElo)));
-  applyAIBalanceOverride(ai, rec);
+  if(!rec) {
+    applyAIBalanceOverride(ai);
+  } else {
+    const override = getAIBalanceOverride(ai);
+    if(override && Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
+    try { if(typeof getRank === 'function') ai.rank = getRank(ai.elo).name; } catch(e) {}
+  }
   return ai;
 }
 
@@ -800,7 +854,9 @@ function saveCurrentMonthlyAI() {
 
 function persistAIEloState(ai) {
   if(!ai || !ai.name) return;
-  applyAIBalanceOverride(ai);
+  const override = getAIBalanceOverride(ai);
+  if(override && Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
+  try { if(typeof getRank === 'function') ai.rank = getRank(ai.elo).name; } catch(e) {}
   const state = loadAIEloState();
   state[getAIRecordKey(ai)] = {
     elo: Math.max(100, Math.round(Number(ai.elo) || 600)),
@@ -815,9 +871,9 @@ function persistAIEloState(ai) {
 function syncAIEloEverywhere(aiName, newElo, didWin) {
   if(!aiName) return null;
   const override = getAIBalanceOverride(aiName);
-  const resolvedElo = override && Number.isFinite(Number(override.elo))
-    ? Math.max(100, Math.round(Number(override.elo)))
-    : Math.max(100, Math.round(Number(newElo) || 600));
+  // Balance overrides seed an AI's initial displayed rating; completed matches
+  // must be allowed to move that rating and persist the result.
+  const resolvedElo = Math.max(100, Math.round(Number(newElo) || 600));
   let source = null;
   const updateList = list=>{
     if(!Array.isArray(list)) return;
@@ -827,7 +883,6 @@ function syncAIEloEverywhere(aiName, newElo, didWin) {
       try { if(typeof getRank === 'function') ai.rank = getRank(resolvedElo).name; } catch(e) {}
       if(override && Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
       else if(!ai.trueElo) ai.trueElo = resolvedElo + 200;
-      applyAIBalanceOverride(ai);
       source = source || ai;
     }
   };
@@ -982,7 +1037,8 @@ function runAISimulation(options={}) {
 
 function updateAILeaderboardEntry(ai, didWin) {
   if(typeof LEADERBOARD === 'undefined') return;
-  applyAIBalanceOverride(ai);
+  const override = getAIBalanceOverride(ai);
+  if(override && Number.isFinite(Number(override.trueElo))) ai.trueElo = Math.max(100, Math.round(Number(override.trueElo)));
   let entry = LEADERBOARD.find(e => e.username === ai.name);
   if(!entry) {
     entry = {username: ai.name, elo: ai.elo, wins: 0, losses: 0, profileImg: (typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'circle') : (ai.img || 'blank.png')), isAI: true, isMonthly: !!ai.isMonthly, monthKey:ai.monthKey || (ai.isMonthly ? getMonthKey() : '')};
@@ -1047,7 +1103,7 @@ const RANDOM_AI_PERSONALITIES = [
 ];
 const MONTHLY_AI_STYLES = RANDOM_AI_PERSONALITIES.map(p => p.style);
 let MONTHLY_AI_OPPONENTS = [];
-const MONTHLY_AI_GENERATION_VERSION = 4;
+const MONTHLY_AI_GENERATION_VERSION = 5;
 const MONTHLY_AI_SKILL_BANDS = [
   {visible:680, trueBase:680, record:.29, matches:[14,24]},
   {visible:835, trueBase:835, record:.37, matches:[16,28]},
@@ -1500,7 +1556,7 @@ async function drawCard(player, count=1, options = {}) {
       await new Promise(function(resolve){ setTimeout(resolve, remainingGapMs); });
     }
   }
-  if(count > 0 && options.activatedDrawEffect && typeof triggerJoieDrawEffectPassive === 'function') {
+  if(count > 0 && options.activatedDrawEffect && !options.deferJoiePassive && typeof triggerJoieDrawEffectPassive === 'function') {
     triggerJoieDrawEffectPassive(player, {
       sourceCard:options.effectSource || null,
       sourceId:String(options.effectSourceId || options.effectSource?.id || '')
@@ -1517,7 +1573,7 @@ async function drawCard(player, count=1, options = {}) {
       const erbs = findReadyChristopherErbs(player);
       if(erbs){
         const activate = await chooseOptionalImprovisorActivation(player, erbs, {
-          triggerText: 'Activate Christopher Erbs so the next card you draw gains 4 Fate?',
+          triggerText: 'Activate Christopher Erbs so the next card you draw gains 6 Fate?',
           costText: erbs.usesLeft + ' use' + (erbs.usesLeft===1?'':'s') + ' remaining',
           drawPhase:!!options.drawPhase,
           openingHand:!!options.openingHand
@@ -1565,23 +1621,23 @@ async function drawCard(player, count=1, options = {}) {
       continue;
     }
     if(!fortCalvinResult.redirected && !addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) continue;
-    // Christopher Erbs (40): per-player next drawn card gains 4 Fate.
+    // Christopher Erbs (40): per-player next drawn card gains 6 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
     if(erbsActiveForPlayer && card.id!=='70'){
       const erbsCanAffect = !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card));
       if(erbsCanAffect) {
         const beforeErbsFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-        card.currentFate = beforeErbsFate + 4;
+        card.currentFate = beforeErbsFate + 6;
         if(typeof recordHandCardEffectModifier === 'function') {
           recordHandCardEffectModifier(card, {
             key:'christopher-erbs',
             name:'Card Empowered',
-            text:'Hard Times, Strong Men: this card gained +4 Fate.',
-            fateDelta:4
+            text:'Hard Times, Strong Men: this card gained +6 Fate.',
+            fateDelta:6
           });
         }
-        if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast(`${card.name} gained 4 Fate from Hard Times, Strong Men!`);
-        log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +4 Fate`);
+        if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast(`${card.name} gained 6 Fate from Hard Times, Strong Men!`);
+        log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +6 Fate`);
       }
       if(Array.isArray(G.erbsActive)) G.erbsActive[player] = false;
       else G.erbsActive = false;
@@ -2016,6 +2072,7 @@ function transferGuerillaToOpponent(player, card) {
   playSfx('debuff');
   if(typeof renderHand === 'function') renderHand();
   if(typeof updateTopBar === 'function') updateTopBar();
+  if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
 }
 
 function activateWineCountryGuerillaFromHand(card) {
@@ -2166,7 +2223,7 @@ function chooseTurn(goFirst) {
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
   if(typeof window.fateAIStartLearningMatch === 'function') window.fateAIStartLearningMatch();
-  showScreen('s-game');
+  showGameScreenForInitialRender();
   recordMatchEntryStep('screen-game-active');
   G.phase = 'main';
   G._turnInputLockUntil = 0;
@@ -2177,29 +2234,21 @@ function chooseTurn(goFirst) {
   if(typeof applyPendingSelvaSupportBoost === 'function') applyPendingSelvaSupportBoost(G.currentPlayer);
   // First player doesn't draw
   log('sys','Game begins! '+G.players[G.currentPlayer].name+' goes first.');
-  const renderStarted = performance.now ? performance.now() : Date.now();
-  if(typeof renderGameImmediate === 'function') {
-    if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) {
-      renderGameImmediate({hand:true, piles:true, oppHand:true, landscape:true, topbar:true});
-    } else {
-      renderGameImmediate();
+  scheduleInitialMatchRender({
+    step:'initial-render-called',
+    entryVeilStarted,
+    onReady:function(){
+      // If AI goes first, trigger its turn after the first safe frame.
+      if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
+        stopTurnTimer();
+        if(typeof startAITurnVisualTimer === 'function') startAITurnVisualTimer();
+        G._aiTurnToken = (G._aiTurnToken || 0) + 1;
+        setTimeout(runAITurn, 1000);
+      } else {
+        startTurnTimer();
+      }
     }
-  } else renderGame();
-  recordMatchEntryStep('initial-render-called', {
-    ms:Math.round(((performance.now ? performance.now() : Date.now()) - renderStarted) * 10) / 10
   });
-  if(typeof renderGameImmediate !== 'function' && typeof updateTopBar === 'function') updateTopBar();
-  recordMatchEntryStep('topbar-ready');
-  hideMatchEntryLoadingVeil(entryVeilStarted);
-  // If AI goes first, trigger its turn
-  if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
-    stopTurnTimer();
-    if(typeof startAITurnVisualTimer === 'function') startAITurnVisualTimer();
-    G._aiTurnToken = (G._aiTurnToken || 0) + 1;
-    setTimeout(runAITurn, 1000);
-  } else {
-    startTurnTimer();
-  }
 }
 
 // ═══════════════════════════════════════════════════════

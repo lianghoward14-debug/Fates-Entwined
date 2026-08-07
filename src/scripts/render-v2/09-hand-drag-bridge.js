@@ -927,6 +927,10 @@
   }
 
   function onPointerDown(ev){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')){
+      if(state) cleanup({clearPlacement:false});
+      return;
+    }
     if(Date.now() < blockClickUntil) return;
     if(state && state.dragging) return;
     if(state) cleanup({clearPlacement:false});
@@ -986,6 +990,12 @@
     const from = state.sourceBoardRect || handRectInBoardSpace(state.el);
     const idx = state.idx;
     const card = state.card;
+    if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true
+      && typeof window.fatePhase7HandleHandDrop === 'function'){
+      cleanup({clearPlacement:true});
+      window.fatePhase7HandleHandDrop(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
+      return;
+    }
     if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card) && card._achillesConfigured !== true) {
       cleanup({clearPlacement:true});
       G.selectedHandCard = idx;
@@ -1018,6 +1028,12 @@
     const target = boardCardAt(hit);
     const idx = state.idx;
     const card = state.card;
+    if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true
+      && typeof window.fatePhase7HandleHandDrop === 'function'){
+      cleanup({clearPlacement:true});
+      window.fatePhase7HandleHandDrop(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
+      return;
+    }
     const onlineDrop = !!(typeof window.fateOnlineQueueConsolidationDrop === 'function'
       && typeof G !== 'undefined'
       && G
@@ -1046,6 +1062,10 @@
   }
 
   function onPointerUp(ev){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')){
+      if(state) cleanup({clearPlacement:false});
+      return;
+    }
     if(!state) return;
     if(!isActiveDragPointer(ev)) return;
     if(!state.dragging){ cleanup(); return; }
@@ -1076,6 +1096,7 @@
   }
 
   function blockGhostClick(ev){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')) return;
     if(Date.now() >= blockClickUntil) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -1083,6 +1104,7 @@
   }
 
   function onContextMenu(ev){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')) return;
     if(!ev) return;
     if(state && state.dragging) {
       ev.preventDefault();
@@ -1104,6 +1126,10 @@
   }
 
   function onPointerCancel(ev){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')){
+      if(state) cleanup({clearPlacement:false});
+      return;
+    }
     if(!state || !isActiveDragPointer(ev)) return;
     if(state.dragging) {
       state.pointerCancelIgnoredAt = Date.now();

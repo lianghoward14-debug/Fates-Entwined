@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateCardTextureCache) return;
 
-  const CACHE_VERSION = 4;
+  const CACHE_VERSION = 5;
   const artRecords = new Map();
   const baseRecords = new Map();
   const stats = {
@@ -28,8 +28,8 @@
     clears:0
   };
   const defaults = {
-    maxEntries:160,
-    maxPixels:72000000,
+    maxEntries:120,
+    maxPixels:32000000,
     fallbackDelayMs:850
   };
 
@@ -425,6 +425,62 @@
     return true;
   }
 
+  function buildGeneratedBaseTexture(rec, card, visual){
+    // Artless cards still use the board renderer's text/icon fallback. Motion
+    // preflight needs an equivalent canvas instead of treating absent art as
+    // a failed network texture and dropping the entire animation.
+    const canvas = document.createElement('canvas');
+    const dpr = rec.dpr;
+    canvas.width = Math.max(1, Math.round(rec.width * dpr));
+    canvas.height = Math.max(1, Math.round(rec.height * dpr));
+    const ctx = canvas.getContext('2d', {alpha:true});
+    if(!ctx) return false;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = rec.width;
+    const h = rec.height;
+    const radius = Math.max(3, Math.min(8, w * .045));
+    const aff = String((visual && visual.aff) || (card && card.aff) || 'reality');
+    const palette = {
+      reality:['#27324a', '#101522'],
+      expanded_worlds:['#31545a', '#111d24'],
+      third_great_war:['#59452e', '#20170f']
+    };
+    const colors = palette[aff] || palette.reality;
+    roundedPath(ctx, 0, 0, w, h, radius);
+    const fill = ctx.createLinearGradient(0, 0, 0, h);
+    fill.addColorStop(0, colors[0]);
+    fill.addColorStop(1, colors[1]);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(244,214,112,.9)';
+    ctx.lineWidth = Math.max(1.5, w * .018);
+    ctx.stroke();
+    const name = String((visual && visual.name) || (card && card.name) || 'Card');
+    const ability = String((visual && visual.ability) || (card && card.ability) || '');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f6e8ba';
+    ctx.font = `600 ${Math.max(8, Math.round(w * .095))}px serif`;
+    ctx.fillText(name.slice(0, 28), w / 2, h * .45, w * .84);
+    if(ability){
+      ctx.fillStyle = 'rgba(246,232,186,.8)';
+      ctx.font = `${Math.max(7, Math.round(w * .072))}px serif`;
+      ctx.fillText(ability.slice(0, 34), w / 2, h * .58, w * .8);
+    }
+    rec.canvas = canvas;
+    rec.loaded = true;
+    rec.pending = false;
+    rec.failed = false;
+    rec.generatedFallback = true;
+    rec.builtAt = Date.now();
+    rec.lastUsed = nowMs();
+    rec.pixels = canvas.width * canvas.height;
+    stats.baseBuilds++;
+    notify(rec, 'base-generated-fallback-ready');
+    prune();
+    return true;
+  }
+
   function getBaseCardTexture(card, size, options){
     const opts = options || {};
     const visual = opts.visual || (card && card.visual) || null;
@@ -469,6 +525,11 @@
     };
     if(typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
     baseRecords.set(key, rec);
+
+    if(!rec.artSrc){
+      buildGeneratedBaseTexture(rec, card, visual);
+      return rec;
+    }
 
     const artRec = getArtBitmap(rec.artSrc, {
       source:'base-texture',
@@ -542,7 +603,7 @@
 
   function preloadVisible(snapshot, layout){
     const items = collectVisibleCards(snapshot, layout);
-    const boardDpr = Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1)));
+    const boardDpr = Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1)));
     let requested = 0;
     items.forEach(function(item){
       const visual = item.card && item.card.visual;

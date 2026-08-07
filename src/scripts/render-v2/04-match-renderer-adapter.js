@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchRendererAdapter) return;
 
-  const ADAPTER_VERSION = 10;
+  const ADAPTER_VERSION = 11;
   const canvasId = 'fate-match-v2-canvas';
   const backgroundCanvasId = 'fate-match-v2-background-canvas';
   const cardCanvasId = canvasId;
@@ -84,6 +84,11 @@
   const FRAME_SAMPLE_LIMIT = 36;
   const MIN_RENDER_SCALE = .84;
   const MAX_RENDER_SCALE = 1;
+  // Seven transparent full-window canvases can exhaust the GPU process on
+  // high-resolution displays. Keep their combined backing-store allocation
+  // bounded while retaining the same CSS/layout size.
+  const ELECTRON_LAYER_PIXEL_BUDGET = 26000000;
+  const MIN_MEMORY_SAFE_DPR = .6;
   const renderCounters = {
     fullSceneRedraws:0,
     dirtyDraws:0,
@@ -173,6 +178,7 @@
   }
 
   function ownsBoard(){
+    if(document.body?.classList.contains('fate-authority-v3-single-player-active')) return false;
     const p = params();
     if(p.has('domBoard')) return false;
     if(p.get('matchRendererV2') === '0') return false;
@@ -201,17 +207,26 @@
     return Math.max(1, raw);
   }
 
-  function getRenderScaleMetrics(){
+  function getRenderScaleMetrics(cssW, cssH){
     const rawDpr = Math.max(1, Number(window.devicePixelRatio || 1));
     const maxDpr = getMaxDpr();
     const baseDpr = clamp(rawDpr, 1, maxDpr);
+    const requestedDpr = Math.max(.7, baseDpr * renderScale);
+    const viewportPixels = Math.max(1, (Number(cssW) || window.innerWidth || 1280) * (Number(cssH) || window.innerHeight || 720));
+    const memorySafeDpr = isElectronShell()
+      ? Math.max(MIN_MEMORY_SAFE_DPR, Math.sqrt(ELECTRON_LAYER_PIXEL_BUDGET / Math.max(1, viewportPixels * layerIds.length)))
+      : requestedDpr;
+    const effectiveDpr = Math.min(requestedDpr, memorySafeDpr);
     return {
       rawDpr,
       maxDpr,
       renderScale,
-      effectiveDpr:Math.max(.7, baseDpr * renderScale),
+      requestedDpr,
+      memorySafeDpr,
+      layerPixelBudget:isElectronShell() ? ELECTRON_LAYER_PIXEL_BUDGET : null,
+      effectiveDpr,
       environment:isElectronShell() ? 'electron' : 'browser',
-      dprCapped:rawDpr > maxDpr + .01
+      dprCapped:rawDpr > maxDpr + .01 || effectiveDpr < requestedDpr - .01
     };
   }
 
@@ -1057,7 +1072,7 @@
   function getReadyTexture(card, visual, r){
     if(!window.FateCardTextureCache) return null;
     const size = {w:r.w, h:r.h};
-    const dpr = Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1)));
+    const dpr = Math.min(1.5, Math.max(1, Number(lastCanvasMetrics && lastCanvasMetrics.effectiveDpr) || Number(window.devicePixelRatio || 1)));
     const src = fullArtSource(card, visual);
     const options = {
       visual,
@@ -1084,7 +1099,7 @@
     if(texOpts.readyOnly) return getReadyTexture(card, visual, r);
     if(!window.FateCardTextureCache || typeof window.FateCardTextureCache.getBaseCardTexture !== 'function') return null;
     const size = {w:r.w, h:r.h};
-    const dpr = Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1)));
+    const dpr = Math.min(1.5, Math.max(1, Number(lastCanvasMetrics && lastCanvasMetrics.effectiveDpr) || Number(window.devicePixelRatio || 1)));
     const src = fullArtSource(card, visual);
     const options = {
       visual,
@@ -2778,6 +2793,7 @@
     bh04_selva_paradise:{color:'rgba(255,214,178,.99)',glow:'rgba(255,96,76,.72)',tint:'rgba(165,45,40,.18)'},
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
     boleslaw_exclaim:{color:'rgba(255,226,130,.99)',glow:'rgba(255,150,54,.68)',tint:'rgba(175,86,24,.17)'},
+    jimmy_wrath:{color:'rgba(255,92,82,.99)',glow:'rgba(244,67,58,.68)',tint:'rgba(148,29,29,.20)'},
     bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
@@ -3043,6 +3059,15 @@
         ctx.fillStyle = palette.color;
         ctx.fill();
       });
+    } else if(kind === 'jimmy_wrath') {
+      ctx.lineWidth = 4.2;
+      line([[10,14],[19,6],[45,6],[54,14],[58,33],[50,53],[40,64],[24,64],[13,53],[6,33],[10,14]],true);
+      line([[13,24],[27,29]],false); line([[55,24],[40,29]],false);
+      line([[16,34],[26,34]],false); line([[38,34],[48,34]],false);
+      line([[17,48],[46,48],[41,55],[23,55],[17,48]],true);
+      ctx.lineWidth = 2.9;
+      line([[27,48],[27,55]],false); line([[37,48],[37,55]],false);
+      ctx.lineWidth = 4.4;
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
       ctx.beginPath();
@@ -4145,6 +4170,9 @@
     const row3Y = row2Y + smallH + 8;
     const colW = (innerW - gap) / 2;
     const buttons = [];
+    if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true && typeof window.fatePhase7CanvasActions === 'function'){
+      window.fatePhase7CanvasActions().forEach(function(action){ buttons.push(action); });
+    }
     if(interaction.consolidating) buttons.push({command:'consolidate', label:'STOP CONSOLIDATION', active:true});
     buttons.push({command:'audio', label:'AUDIO'});
     buttons.push({command:'world-chat', label:'CHAT'});
@@ -4982,7 +5010,7 @@
     const viewportH = Math.max(1, boardRect.height || board.clientHeight || 720);
     const cssW = viewportW;
     const cssH = viewportH;
-    const scaleMetrics = getRenderScaleMetrics();
+    const scaleMetrics = getRenderScaleMetrics(cssW, cssH);
     const effectiveDpr = scaleMetrics.effectiveDpr;
     const layout = typeof window.fateBuildMatchLayout === 'function'
       ? window.fateBuildMatchLayout({
@@ -5489,8 +5517,13 @@
 
   function scrollZoneAtClient(clientX, clientY, deltaY){
     if(!lastLayout || !Array.isArray(lastLayout.zones)) return false;
+    const originX = Number(lastLayout.boardRect && lastLayout.boardRect.x) || 0;
+    const originY = Number(lastLayout.boardRect && lastLayout.boardRect.y) || 0;
     const zone = lastLayout.zones.find(function(item){
-      const r = item && item.rowsRect;
+      // Scene input and this adapter API use canvas-local coordinates. Layout
+      // rectangles remain viewport-absolute because the board sits beside the
+      // profile panel, so normalize the zone rectangle before hit-testing.
+      const r = item && item.rowsRect ? rect(item.rowsRect, originX, originY) : null;
       return r && clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h;
     });
     if(!zone) return false;
@@ -5512,7 +5545,8 @@
     if(!board) return {ok:false, reason:'missing-board'};
     const cssW = Math.max(960, Math.round(Number(opts.width) || window.innerWidth || 1280));
     const cssH = Math.max(540, Math.round(Number(opts.height) || window.innerHeight || 720));
-    const dpr = Math.min(2, Math.max(1, Number(window.devicePixelRatio || 1)));
+    const scaleMetrics = getRenderScaleMetrics(cssW, cssH);
+    const dpr = scaleMetrics.effectiveDpr;
     const pxW = Math.max(1, Math.round(cssW * dpr));
     const pxH = Math.max(1, Math.round(cssH * dpr));
     const ids = [backgroundCanvasId, cardCanvasId, effectCanvasId, particleCanvasId, topEffectCanvasId, hoverCanvasId, uiCanvasId];
@@ -5521,8 +5555,11 @@
       const canvas = makeLayerCanvas(id, id === cardCanvasId ? 'Fates Entwined match board' : '');
       if((id === uiCanvasId || id === hoverCanvasId || id === topEffectCanvasId) && document.body && canvas.parentNode !== document.body) document.body.appendChild(canvas);
       else if(id !== uiCanvasId && id !== hoverCanvasId && id !== topEffectCanvasId && canvas.parentNode !== board) board.appendChild(canvas);
-      if(canvas.width !== pxW) canvas.width = pxW;
-      if(canvas.height !== pxH) canvas.height = pxH;
+      // Creating a 2D context is enough to warm Chromium's canvas path. The
+      // prior code allocated seven fullscreen buffers here, then resized them
+      // again on the first visible frame, causing a large transient GPU spike.
+      if(canvas.width !== 1) canvas.width = 1;
+      if(canvas.height !== 1) canvas.height = 1;
       canvas.__fatePrewarmed = true;
       canvas.__fatePrewarmCssW = cssW;
       canvas.__fatePrewarmCssH = cssH;
@@ -5545,6 +5582,9 @@
       dpr,
       pxW,
       pxH,
+      allocatedPxW:1,
+      allocatedPxH:1,
+      layerPixelBudget:scaleMetrics.layerPixelBudget,
       ms:roundMs(nowMs() - started)
     };
     try{
@@ -5604,6 +5644,7 @@
   window.addEventListener('fate-screen-changed', function(ev){
     const to = ev && ev.detail ? ev.detail.to : '';
     if(to !== 's-game') teardownScene('screen-change');
+    else if(window.__fateSkipNextRendererV2ScreenEnter) window.__fateSkipNextRendererV2ScreenEnter = false;
     else if(ownsBoard()) scheduleRender('screen-enter');
   });
 })();

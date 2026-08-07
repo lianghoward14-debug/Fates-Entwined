@@ -1,0 +1,69 @@
+{
+  "format": "fates-authority-v3-phase6-deployed-shadow-audit-v1",
+  "completedAt": "2026-07-31T09:17:19.649Z",
+  "deployment": {
+    "app": "fates-entwined-v3-shadow-soak",
+    "release": 2,
+    "image": "registry.fly.io/fates-entwined-v3-shadow-soak:deployment-01KYVPEKZF6VKJA95MEXNG6Z5X",
+    "imageManifestSha256": "9f3de32a155b5346df3a780d55070d79d75d8bd95aefc736e5da10f6939994fd",
+    "volume": "fate_authority_v3_shadow_soak",
+    "volumeId": "vol_40o1z7k9l55el5k4",
+    "buildId": "phase6-b896a72f0815774aa0f43d8e6d5267ea46a945333830ae2a5752b09e3730939d",
+    "engineVersion": "3.0.0-beta.1",
+    "rulesetVersion": "2026-07-31-phase4-landscapes.1"
+  },
+  "selector": {
+    "clientActionIdPrefix": "phase6-real-corpus-v1:",
+    "oneLatestRecordPerCorpusIndex": true,
+    "firstIndex": 0,
+    "lastIndex": 179
+  },
+  "results": {
+    "uniqueRecords": 180,
+    "rooms": 180,
+    "matches": 178,
+    "reviewedLegacyDefects": 2,
+    "unreviewedIssues": 0,
+    "notCompared": 0,
+    "untranslatedGameplay": 0,
+    "acceptedActionRecords": 180,
+    "comparisonRecords": 180,
+    "reconciliationOk": true,
+    "deploymentValidationOk": true,
+    "deploymentBuildIdAgreementOk": true,
+    "promotionGateOk": true
+  },
+  "evidence": {
+    "rawComparisonLog": {
+      "sizeBytes": 574185,
+      "sha256": "9d32fb484013906a39c0c27f35196ccda03a56062b1601bfbe6ae65abb5fc23d"
+    },
+    "rawAcceptedLog": {
+      "sizeBytes": 42092876,
+      "sha256": "4c067b2ee55e2c934630928fa989ade5b5d6a78a22810bc7713d69a757e802a2"
+    },
+    "selectedComparisonSnapshot": {
+      "sizeBytes": 129909,
+      "sha256": "2b67d6059010ec6c45c89b32014160f1d900e361c25ed0c29121ff7560ab9e7c"
+    },
+    "selectedAcceptedSnapshot": {
+      "sizeBytes": 9240117,
+      "sha256": "2df42768f7b4217599faeb32596c6998bacbfbd4b32d9ec813516ca4c7d47167"
+    },
+    "reviewLedger": {
+      "sizeBytes": 1106,
+      "sha256": "3f67740b99f7a7638aa23b0f8657e8f1bb8138e784721c8acaa0bf2158acb279"
+    },
+    "deploymentConfig": {
+      "sizeBytes": 1353,
+      "sha256": "08589b5ee209a8e489fcd4210fd2bd6f263e3e5a142d945c9f89af6dd78da267"
+    },
+    "auditDigest": "5b8a243e234e32372c7e2b770dd01df44c74f3eb0b4b7e32842aa4241b7945d4"
+  },
+  "legacyProduction": {
+    "app": "fates-entwined-main",
+    "release": 311,
+    "imageDigest": "sha256:a28e2d0edb2031d1da0d001db8a3550535461215e89de85a0f265bae459ce68d",
+    "changedByPhase6Deployment": false
+  }
+}

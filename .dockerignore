@@ -1,5 +1,7 @@
 *
 !Dockerfile
+!Dockerfile.authority-v3-shadow
+!Dockerfile.authority-v3-phase7-beta
 !index.html
 !manifest.json
 !pwa-icon.svg
@@ -11,6 +13,10 @@
 !voicelines.txt
 !server/
 !server/**
+!shared/
+!shared/**
+!tools/
+!tools/**
 !src/
 !src/**
 !optimized/

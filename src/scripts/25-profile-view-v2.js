@@ -50,15 +50,16 @@
     const source = profile || {};
     const opts = options || {};
     const recordSource = opts.serverProfile && typeof opts.serverProfile === 'object' ? opts.serverProfile : source;
-    const recordsCleared = !!recordSource.profileRecordResetVersion;
-    const humanWins = recordsCleared ? 0 : number(recordSource.humanWins != null ? recordSource.humanWins : recordSource.wins, 0);
-    const humanLosses = recordsCleared ? 0 : number(recordSource.humanLosses != null ? recordSource.humanLosses : recordSource.losses, 0);
-    const challengerWins = recordsCleared ? 0 : number(recordSource.challengerWins, 0);
-    const challengerLosses = recordsCleared ? 0 : number(recordSource.challengerLosses, 0);
+    // The reset-version field is a migration marker, not a permanent instruction
+    // to hide every result recorded after that migration.
+    const humanWins = number(recordSource.humanWins != null ? recordSource.humanWins : recordSource.wins, 0);
+    const humanLosses = number(recordSource.humanLosses != null ? recordSource.humanLosses : recordSource.losses, 0);
+    const challengerWins = number(recordSource.challengerWins, 0);
+    const challengerLosses = number(recordSource.challengerLosses, 0);
     const totalWins = humanWins + challengerWins;
     const totalLosses = humanLosses + challengerLosses;
     const computedMatches = totalWins + totalLosses;
-    const matchesPlayed = recordsCleared ? 0 : Math.max(number(recordSource.matchesPlayed, computedMatches), computedMatches);
+    const matchesPlayed = Math.max(number(recordSource.matchesPlayed, computedMatches), computedMatches);
     const elo = number(recordSource.challengerElo != null ? recordSource.challengerElo : recordSource.elo, number(source.challengerElo != null ? source.challengerElo : source.elo, 600));
     const level = Math.max(1, number(source.level, 1));
     let rankName = source.rank || 'Footman';
@@ -268,7 +269,14 @@
     let photoStyle = '';
     try{ if(typeof window.getProfileImgSrc === 'function') photoSrc = window.getProfileImgSrc('square'); }catch(e){}
     try{ if(typeof window.getProfileCropStyle === 'function') photoStyle = window.getProfileCropStyle(); }catch(e){}
-    return open(local, Object.assign({}, options || {}, {uid:online.user && online.user.uid || local._fateAccountUid || '', code:online.baseCode || online.profile && online.profile.baseCode || '', photoSrc:photoSrc, photoStyle:photoStyle, isSelf:true}));
+    return open(local, Object.assign({}, options || {}, {
+      uid:online.user && online.user.uid || local._fateAccountUid || '',
+      code:online.baseCode || online.profile && online.profile.baseCode || '',
+      photoSrc:photoSrc,
+      photoStyle:photoStyle,
+      serverProfile:online.profile || null,
+      isSelf:true
+    }));
   }
 
   function refreshSelf(){

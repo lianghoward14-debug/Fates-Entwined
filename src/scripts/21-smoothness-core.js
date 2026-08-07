@@ -747,7 +747,7 @@
       });
       if(typeof cache.preload === 'function') cache.preload(thumb, {source:opts.source || 'match-prewarm'});
       if(typeof cache.getBaseCardTexture === 'function') {
-        const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+        const dpr = Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1)));
         const source = opts.source || 'match-prewarm';
         cache.getBaseCardTexture(card, {w:74, h:104}, {visual, dpr, preferFullArt:true, source:source + '-hand'});
         if(!opts.light) cache.getBaseCardTexture(card, {w:96, h:134}, {visual, dpr, preferFullArt:true, source:source + '-board'});
@@ -784,7 +784,7 @@
     const source = opts.source || 'matchup-loader';
     const maxCards = Math.max(20, Math.min(120, Number(opts.maxCards) || 80));
     const cards = collectMatchWarmCards({light:false}).slice(0, maxCards);
-    const dpr = Math.min(2, Math.max(1.5, Number(window.devicePixelRatio || 1)));
+    const dpr = Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1)));
     const records = [];
     const staticAssets = ['blank.png','back.png','deck.png'];
     let warmedCards = 0;
@@ -1340,7 +1340,11 @@
 
   function isStartupGameFlowActive(){
     const screen = getActiveScreenId();
-    return screen === 's-coin' || screen === 's-game' || screen === 's-matchmaking';
+    return screen === 's-coin'
+      || screen === 's-game'
+      || screen === 's-matchmaking'
+      || window.FatePhase7CurrentMultiplayerUi?.active?.() === true
+      || !!(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true);
   }
 
   function cleanupStartupWarmupOverlays(){
@@ -1798,11 +1802,13 @@
       perf.slowFrames = 0;
       perf.worstFrameMs = 0;
       if(typeof window.fateStopMenuMinuteLog === 'function') window.fateStopMenuMinuteLog('startup-warmup-complete');
-      setTimeout(function(){
-        if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
-          window.fateStartMenuMinuteLog({durationMs:60000});
-        }
-      }, 120);
+      if(automaticUiMinuteLoggingEnabled()) {
+        setTimeout(function(){
+          if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
+            window.fateStartMenuMinuteLog({durationMs:60000});
+          }
+        }, 120);
+      }
     }catch(e){}
   }
 
@@ -1864,11 +1870,13 @@
     }, 1200);
     try{
       if(typeof window.fateStopMenuMinuteLog === 'function') window.fateStopMenuMinuteLog('electron-light-start');
-      setTimeout(function(){
-        if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
-          window.fateStartMenuMinuteLog({durationMs:60000});
-        }
-      }, 120);
+      if(automaticUiMinuteLoggingEnabled()) {
+        setTimeout(function(){
+          if(getActiveScreenId() !== 's-game' && typeof window.fateStartMenuMinuteLog === 'function') {
+            window.fateStartMenuMinuteLog({durationMs:60000});
+          }
+        }, 120);
+      }
     }catch(e){}
   }
 
@@ -2950,6 +2958,14 @@
     };
     let activeMenuMinuteLog = null;
     let activeMatchMinuteLog = null;
+    const AUTOMATIC_UI_MINUTE_LOGGING_KEY = 'fateAutomaticUiMinuteLogging';
+    function automaticUiMinuteLoggingEnabled(){
+      try{
+        return localStorage.getItem(AUTOMATIC_UI_MINUTE_LOGGING_KEY) === '1';
+      }catch(e){
+        return false;
+      }
+    }
     function getElectronDiagnosticsApi(){
       try{
         const api = window.FateElectronDiagnostics;
@@ -3314,6 +3330,22 @@
       window.fateStopMenuMinuteLog = function(reason){ return stopMenuMinuteLog(reason || 'manual'); };
       window.fateStartMatchMinuteLog = function(options){ return startMatchMinuteLog('manual-match', options); };
       window.fateStopMatchMinuteLog = function(reason){ return stopMatchMinuteLog(reason || 'manual'); };
+      window.fateEnableAutomaticUiMinuteLogging = function(){
+        try{ localStorage.setItem(AUTOMATIC_UI_MINUTE_LOGGING_KEY, '1'); }catch(e){ return false; }
+        if(gameScreenActive()) {
+          startMatchMinuteLog('automatic-logging-enabled', {durationMs:3600000, intervalMs:2000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
+        } else {
+          startMenuMinuteLog('automatic-logging-enabled');
+        }
+        return true;
+      };
+      window.fateDisableAutomaticUiMinuteLogging = function(){
+        try{ localStorage.removeItem(AUTOMATIC_UI_MINUTE_LOGGING_KEY); }catch(e){}
+        stopMenuMinuteLog('automatic-logging-disabled');
+        stopMatchMinuteLog('automatic-logging-disabled');
+        return true;
+      };
+      window.fateAutomaticUiMinuteLoggingEnabled = automaticUiMinuteLoggingEnabled;
       window.fateMenuMinuteLogStatus = function(){
         const state = activeMenuMinuteLog;
         return state ? {
@@ -3345,7 +3377,9 @@
         const to = ev && ev.detail && ev.detail.to || getActiveScreenId();
         if(to === 's-game') {
           if(activeMenuMinuteLog && !activeMenuMinuteLog.stopped) stopMenuMinuteLog('entered-game-screen');
-          startMatchMinuteLog('entered-game-screen', {durationMs:3600000, intervalMs:2000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
+          if(automaticUiMinuteLoggingEnabled()) {
+            startMatchMinuteLog('entered-game-screen', {durationMs:3600000, intervalMs:2000, untilEndScreen:true, endScreenTailMs:10000, leftMatchTailMs:5000});
+          }
         } else {
           if(activeMatchMinuteLog && !activeMatchMinuteLog.stopped) {
             if(activeMatchMinuteLog.untilEndScreen && to === 's-win') {
@@ -3354,10 +3388,12 @@
               stopMatchMinuteLog('screen-changed-to-' + to);
             }
           }
-          if(!activeMatchMinuteLog || activeMatchMinuteLog.stopped) startMenuMinuteLog('screen-changed-to-' + to);
+          if(automaticUiMinuteLoggingEnabled() && (!activeMatchMinuteLog || activeMatchMinuteLog.stopped)) {
+            startMenuMinuteLog('screen-changed-to-' + to);
+          }
         }
       });
-      if(!gameScreenActive()) startMenuMinuteLog('startup-menu');
+      if(automaticUiMinuteLoggingEnabled() && !gameScreenActive()) startMenuMinuteLog('startup-menu');
     }
     installMenuMinuteLogger();
     function tick(now){

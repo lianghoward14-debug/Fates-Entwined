@@ -94,8 +94,27 @@ assert.match(
 );
 assert.match(
   transactionSource,
-  /const BOARD_CONTINUATION_KEYS[\s\S]*_markSelecting[\s\S]*_wolfCreekMoving[\s\S]*function ownsBoardContinuation[\s\S]*function sourceResolutionPending[\s\S]*_pendingWhenSetEffect[\s\S]*function maybeFinish[\s\S]*ownsBoardContinuation\(gameState\(\)\) \|\| sourceResolutionPending\(tx\)/,
-  'board-targeting continuations and unresolved source flags must remain part of the parent effect transaction'
+  /const BOARD_CONTINUATION_KEYS[\s\S]*_markSelecting[\s\S]*_wolfCreekMoving[\s\S]*function ownsBoardContinuation[\s\S]*function sourceResolutionPending[\s\S]*_pendingWhenSetActivationInFlight === true[\s\S]*_effectActivationInFlight === true[\s\S]*function maybeFinish[\s\S]*ownsBoardContinuation\(gameState\(\)\) \|\| sourceResolutionPending\(tx\)/,
+  'board-targeting continuations and actual source execution flags must remain part of the parent effect transaction'
+);
+const sourceResolutionSection = transactionSource.slice(
+  transactionSource.indexOf('function sourceResolutionPending'),
+  transactionSource.indexOf('function maybeFinish')
+);
+assert.doesNotMatch(
+  sourceResolutionSection,
+  /_pendingWhenSetEffect|effectUsedInitial/,
+  'unused effect availability must not be mistaken for an effect that is still executing'
+);
+assert.match(
+  onlineSource,
+  /function onlineBoardEffectActivationBlockReason[\s\S]{0,1800}isCardSupporterForRules[\s\S]{0,500}canActivateLandscapeSupporterEffect[\s\S]{0,400}Snow on the Carpathians/,
+  'Snow must reject a blocked deferred Supporter effect before an online transaction starts'
+);
+assert.match(
+  gameplaySource,
+  /window\.canActivateLandscapeSupporterEffect = canActivateLandscapeSupporterEffect/,
+  'the shared Snow permission check must be available to online preflight validation'
 );
 assert.match(
   transactionSource,
@@ -391,12 +410,49 @@ async function testNestedPickerTransaction(){
     pendingCompleted = true;
   });
   await wait(180);
-  assert.equal(pendingCompleted, false, 'a source that still carries its deferred effect may not be committed');
+  assert.equal(pendingCompleted, true, 'an available deferred effect must not hold a settled no-op transaction open');
+  await pendingCompletion;
+  api.commitAuthority(pendingTransaction);
+
+  sourceCard._pendingWhenSetActivationInFlight = true;
+  const pendingInFlightTransaction = api.begin(api.prepare('BOARD_ACTION', pendingPayload, 'board-action-pending-source-in-flight'));
+  let pendingInFlightCompleted = false;
+  const pendingInFlightCompletion = api.waitForCompletion(pendingInFlightTransaction, true).then(function(){
+    pendingInFlightCompleted = true;
+  });
+  await wait(180);
+  assert.equal(pendingInFlightCompleted, false, 'a deferred effect that is actually executing must keep its transaction open');
+  delete sourceCard._pendingWhenSetActivationInFlight;
+  await pendingInFlightCompletion;
+  assert.equal(pendingInFlightCompleted, true, 'the deferred effect transaction may complete after execution leaves flight');
+  api.commitAuthority(pendingInFlightTransaction);
+
   delete sourceCard._pendingWhenSetEffect;
   sourceCard.whenSetActivated = true;
-  await pendingCompletion;
-  assert.equal(pendingCompleted, true, 'the activation may complete after its source pending flag is cleared');
-  api.commitAuthority(pendingTransaction);
+  sourceCard.effectUsedInitial = false;
+  sourceCard._effectTurnLocked = false;
+  const unusedInitiatorTransaction = api.begin(api.prepare('BOARD_ACTION', blockPayload, 'board-action-unused-initiator-no-op'));
+  let unusedInitiatorCompleted = false;
+  const unusedInitiatorCompletion = api.waitForCompletion(unusedInitiatorTransaction, true).then(function(){
+    unusedInitiatorCompleted = true;
+  });
+  await wait(180);
+  assert.equal(unusedInitiatorCompleted, true, 'an unused Initiator must not hold a settled suppressed or blocked activation open');
+  await unusedInitiatorCompletion;
+  api.commitAuthority(unusedInitiatorTransaction);
+
+  sourceCard._effectActivationInFlight = true;
+  const initiatorInFlightTransaction = api.begin(api.prepare('BOARD_ACTION', blockPayload, 'board-action-initiator-in-flight'));
+  let initiatorInFlightCompleted = false;
+  const initiatorInFlightCompletion = api.waitForCompletion(initiatorInFlightTransaction, true).then(function(){
+    initiatorInFlightCompleted = true;
+  });
+  await wait(180);
+  assert.equal(initiatorInFlightCompleted, false, 'an Initiator that is actually executing must keep its transaction open');
+  delete sourceCard._effectActivationInFlight;
+  await initiatorInFlightCompletion;
+  assert.equal(initiatorInFlightCompleted, true, 'the Initiator transaction may complete after execution leaves flight');
+  api.commitAuthority(initiatorInFlightTransaction);
 
   sourceCard._pendingWhenSetEffect = {z:0, r:0, c:0, owner:0, turnQueued:1};
   sourceCard.whenSetActivated = false;

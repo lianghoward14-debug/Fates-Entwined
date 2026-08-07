@@ -450,7 +450,7 @@
   border-radius: 8px;
   background:
     linear-gradient(90deg, rgba(5,8,14,.9), rgba(19,29,37,.78)),
-    url("../../ingamebackgrouds/igb15.png?v=bg20260722a") center/cover;
+    url("../../optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260801a") center/cover;
   box-shadow: 0 18px 36px rgba(0,0,0,.35), inset 0 0 28px rgba(128,214,255,.045);
   overflow: hidden;
 }
@@ -666,7 +666,7 @@
   inset: 0;
   background:
     linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.42)),
-    url("../../ingamebackgrouds/igb15.png?v=bg20260722a") center/cover;
+    url("../../optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260801a") center/cover;
   opacity: .7;
 }
 

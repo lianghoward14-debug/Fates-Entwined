@@ -33,7 +33,7 @@ assert.match(
   /updateOpponentHandLabelDensity\(lbl, oppHand\.length\)/,
   'the true opponent hand size must remain available to non-card panel state'
 );
-assert.match(index, /06-rendering-and-helpers\.js\?v=1785165501/, 'the DOM renderer must be cache-busted');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1785350010/, 'the DOM renderer must be cache-busted');
 assert.match(index, /render-v2\/02-match-layout-engine\.js\?v=1785072427/, 'the canvas layout must be cache-busted');
 
 const sandbox = {

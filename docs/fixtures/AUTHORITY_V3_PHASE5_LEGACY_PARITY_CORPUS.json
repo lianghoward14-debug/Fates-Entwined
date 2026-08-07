@@ -1,0 +1,199 @@
+{
+  "format": "fates-legacy-action-corpus-v2",
+  "engineVersion": "fixture-translated-at-runtime",
+  "rulesetVersion": "fixture-translated-at-runtime",
+  "seed": "phase5-legacy-translation-fixture",
+  "provenance": "Deterministic recorder-schema compatibility fixture. Real exported legacy self-play corpora remain required for Phase 5 promotion.",
+  "actions": [
+    {
+      "index": 0,
+      "preState": {
+        "format": "fates-legacy-canonical-state-v1",
+        "state": {
+          "players": [
+            {
+              "id": "p0",
+              "name": "Player 0",
+              "deck": [],
+              "hand": [
+                {
+                  "iid": "fixture-supporter",
+                  "id": "fixture-vanilla-supporter",
+                  "name": "Fixture Supporter",
+                  "ability": "",
+                  "type": "Supporter",
+                  "aff": "reality",
+                  "rarity": "circle",
+                  "fate": 1,
+                  "currentFate": 1,
+                  "cost": 0,
+                  "owner": 0,
+                  "faceDown": false
+                }
+              ],
+              "discard": []
+            },
+            {
+              "id": "p1",
+              "name": "Player 1",
+              "deck": [],
+              "hand": [],
+              "discard": []
+            }
+          ],
+          "board": [
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]]
+          ],
+          "currentPlayer": 0,
+          "turn": 1,
+          "maxTurns": 20,
+          "phase": "main",
+          "landscapeId": "",
+          "maxSupportsPerTurn": 2,
+          "supportsPlacedThisTurn": 0,
+          "extraSupportsThisTurn": 0,
+          "_serverRngCounter": 0,
+          "instanceCounter": 1
+        }
+      },
+      "playerId": "p0",
+      "playerIndex": 0,
+      "command": {
+        "type": "LEGACY_SET_CARD",
+        "cardIid": "fixture-supporter",
+        "cardId": "fixture-vanilla-supporter",
+        "source": "hand",
+        "destination": {"zone": 0, "row": 1, "column": 0}
+      },
+      "choices": [],
+      "rng": {
+        "seed": "phase5-legacy-translation-fixture",
+        "counterBefore": 0,
+        "counterAfter": 0,
+        "mathRandomSamples": []
+      },
+      "expectedPostState": {"format": "fates-legacy-canonical-state-v1", "state": {}},
+      "visibleOutcomes": {
+        "turn": 1,
+        "currentPlayer": 0,
+        "phase": "main",
+        "landscapeId": "",
+        "handCounts": [0, 0],
+        "discardIds": [[], []],
+        "board": [
+          {
+            "zone": 0,
+            "row": 1,
+            "column": 0,
+            "card": {
+              "iid": "fixture-supporter",
+              "id": "fixture-vanilla-supporter",
+              "owner": 0,
+              "currentFate": 1,
+              "faceDown": false
+            }
+          }
+        ],
+        "zoneScores": [[1, 0], [0, 0], [0, 0]]
+      }
+    },
+    {
+      "index": 1,
+      "preState": {
+        "format": "fates-legacy-canonical-state-v1",
+        "state": {
+          "players": [
+            {"id": "p0", "name": "Player 0", "deck": [], "hand": [], "discard": []},
+            {"id": "p1", "name": "Player 1", "deck": [], "hand": [], "discard": []}
+          ],
+          "board": [
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]]
+          ],
+          "currentPlayer": 0,
+          "turn": 1,
+          "maxTurns": 20,
+          "phase": "main",
+          "landscapeId": "",
+          "maxSupportsPerTurn": 2,
+          "supportsPlacedThisTurn": 0,
+          "extraSupportsThisTurn": 0,
+          "_serverRngCounter": 0,
+          "instanceCounter": 0
+        }
+      },
+      "playerId": "p0",
+      "playerIndex": 0,
+      "command": {"type": "LEGACY_END_TURN", "payload": {}},
+      "choices": [],
+      "rng": {
+        "seed": "phase5-legacy-translation-fixture",
+        "counterBefore": 0,
+        "counterAfter": 0,
+        "mathRandomSamples": []
+      },
+      "expectedPostState": {"format": "fates-legacy-canonical-state-v1", "state": {}},
+      "visibleOutcomes": {
+        "turn": 2,
+        "currentPlayer": 1,
+        "phase": "main",
+        "landscapeId": "",
+        "handCounts": [0, 0],
+        "discardIds": [[], []],
+        "board": [],
+        "zoneScores": [[0, 0], [0, 0], [0, 0]]
+      }
+    },
+    {
+      "index": 2,
+      "preState": {
+        "format": "fates-legacy-canonical-state-v1",
+        "state": {
+          "players": [
+            {"id": "p0", "name": "Player 0", "deck": [], "hand": [], "discard": []},
+            {"id": "p1", "name": "Player 1", "deck": [], "hand": [], "discard": []}
+          ],
+          "board": [
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]],
+            [[null, null, null], [null, null, null], [null, null, null]]
+          ],
+          "currentPlayer": 0,
+          "turn": 1,
+          "maxTurns": 20,
+          "phase": "main",
+          "landscapeId": "",
+          "maxSupportsPerTurn": 2,
+          "supportsPlacedThisTurn": 0,
+          "extraSupportsThisTurn": 0,
+          "_serverRngCounter": 0,
+          "instanceCounter": 0
+        }
+      },
+      "playerId": "p0",
+      "playerIndex": 0,
+      "command": {"type": "LEGACY_CONCEDE", "payload": {}},
+      "choices": [],
+      "rng": {
+        "seed": "phase5-legacy-translation-fixture",
+        "counterBefore": 0,
+        "counterAfter": 0,
+        "mathRandomSamples": []
+      },
+      "expectedPostState": {"format": "fates-legacy-canonical-state-v1", "state": {}},
+      "visibleOutcomes": {
+        "turn": 1,
+        "currentPlayer": 0,
+        "phase": "ended",
+        "landscapeId": "",
+        "handCounts": [0, 0],
+        "discardIds": [[], []],
+        "board": [],
+        "zoneScores": [[0, 0], [0, 0], [0, 0]]
+      }
+    }
+  ]
+}

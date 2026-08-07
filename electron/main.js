@@ -19,6 +19,21 @@ const GPU_ACCELERATION_FORCE_DISABLED = process.argv.includes('--disable-gpu')
   || process.env.FATE_DISABLE_GPU === '1';
 const GPU_ACCELERATION_DISABLED = !GPU_ACCELERATION_FORCE_ENABLED && GPU_ACCELERATION_FORCE_DISABLED;
 const GPU_ACCELERATION_MODE = GPU_ACCELERATION_DISABLED ? 'disabled-safe-mode' : 'default-enabled';
+// Maximized-windowed avoids a fragile exclusive-fullscreen swap-chain during
+// the game's heaviest renderer transition. F11 and --fullscreen still opt in.
+const START_FULLSCREEN = !SAFE_MODE_ENABLED
+  && (process.argv.includes('--fullscreen') || process.env.FATE_FULLSCREEN === '1');
+const PHASE7_UNRANKED_BETA_ENABLED = process.argv.includes('--phase7-beta');
+const PHASE7_TEST_AUTH_ENABLED = process.argv.includes('--phase7-test-auth');
+const PHASE7_FAST_UI_TEST_ENABLED = process.argv.includes('--phase7-fast-ui-test');
+const PHASE7_PRESENTATION_TEST_ENABLED = process.argv.includes('--phase7-presentation-test');
+if(PHASE7_FAST_UI_TEST_ENABLED && PHASE7_PRESENTATION_TEST_ENABLED){
+  throw new Error('Choose exactly one Phase 7 UI test client: fast or presentation timing');
+}
+if((PHASE7_FAST_UI_TEST_ENABLED || PHASE7_PRESENTATION_TEST_ENABLED)
+  && (!PHASE7_UNRANKED_BETA_ENABLED || !PHASE7_TEST_AUTH_ENABLED)){
+  throw new Error('Phase 7 UI test clients require --phase7-beta and --phase7-test-auth');
+}
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -114,6 +129,12 @@ function sessionNameFromArgv(argv) {
   return sanitizeProfileName(argValueFrom(argv, 'session') || argValueFrom(argv, 'profile'));
 }
 
+function isolateMultiInstanceUserData() {
+  const sessionName = sessionNameFromArgv(process.argv);
+  if (!allowMultipleInstances || !sessionName) return;
+  app.setPath('userData', path.join(app.getPath('appData'), 'fates-entwined-profiles', sessionName));
+}
+
 function nextAutoProfileName() {
   autoProfileCounter += 1;
   return `player${autoProfileCounter}`;
@@ -137,11 +158,37 @@ function withElectronLaunchParams(rawUrl, sessionName) {
   url.searchParams.set('electron', '1');
   url.searchParams.set('electronBuild', ELECTRON_CLIENT_BUILD_STAMP);
   if (sessionName) url.searchParams.set('electronSession', sessionName);
-  const authority = electronAuthorityConfig();
-  if (authority) {
-    url.searchParams.set('fateAuthority', authority.mode);
-    url.searchParams.set('flyWs', authority.wsUrl);
-    url.searchParams.set('flyApi', authority.apiUrl);
+  if (PHASE7_UNRANKED_BETA_ENABLED) {
+    url.searchParams.set('fateV3UnrankedBeta', '1');
+    if (PHASE7_TEST_AUTH_ENABLED) url.searchParams.set('fateV3BetaTestAuth', '1');
+    if (PHASE7_FAST_UI_TEST_ENABLED) url.searchParams.set('fateV3FullUiE2E', '1');
+    if (PHASE7_PRESENTATION_TEST_ENABLED) url.searchParams.set('fateV3PresentationE2E', '1');
+    if (PHASE7_FAST_UI_TEST_ENABLED || PHASE7_PRESENTATION_TEST_ENABLED) {
+      const passthrough = [
+        ['e2e-games', 'e2eGames'],
+        ['e2e-start-index', 'e2eStartIndex'],
+        ['e2e-run-id', 'e2eRunId'],
+        ['e2e-seat', 'e2eSeat'],
+        ['e2e-focus-group', 'e2eFocusGroup'],
+        ['e2e-max-runtime-ms', 'e2eMaxRuntimeMs'],
+        ['e2e-max-actions', 'e2eMaxActions'],
+        ['ui-rev', 'uiRev']
+      ];
+      for (const [argument, parameter] of passthrough) {
+        const value = argValue(argument);
+        if (value) url.searchParams.set(parameter, value);
+      }
+      if (process.argv.includes('--e2e-fresh')) url.searchParams.set('e2eFresh', '1');
+      if (process.argv.includes('--e2e-organic-card-campaign')) url.searchParams.set('e2eOrganicCardCampaign', '1');
+      if (process.argv.includes('--e2e-strict-card-certification')) url.searchParams.set('e2eStrictCardCertification', '1');
+    }
+  } else {
+    const authority = electronAuthorityConfig();
+    if (authority) {
+      url.searchParams.set('fateAuthority', authority.mode);
+      url.searchParams.set('flyWs', authority.wsUrl);
+      url.searchParams.set('flyApi', authority.apiUrl);
+    }
   }
   return url.toString();
 }
@@ -581,7 +628,7 @@ async function createWindow(options = {}) {
     height: SAFE_MODE_ENABLED ? 720 : 1080,
     minWidth: 1024,
     minHeight: 640,
-    fullscreen: !SAFE_MODE_ENABLED,
+    fullscreen: START_FULLSCREEN,
     backgroundColor: '#06080e',
     icon: path.join(ROOT, 'icon.png'),
     show: false,
@@ -604,9 +651,32 @@ async function createWindow(options = {}) {
   Menu.setApplicationMenu(null);
 
   win.once('ready-to-show', () => {
+    if (!SAFE_MODE_ENABLED && !START_FULLSCREEN) {
+      try {
+        win.maximize();
+      } catch (err) {
+        writeStartupLog('window-maximize-failed', { error: String(err && err.message || err) });
+      }
+    }
     win.show();
     win.focus();
     win.webContents.send('fate:desktop-window-shown');
+  });
+
+  win.webContents.on('render-process-gone', (event, details) => {
+    writeStartupLog('render-process-gone', {
+      reason: details && details.reason || 'unknown',
+      exitCode: details && details.exitCode,
+      fullscreen: win.isDestroyed() ? null : win.isFullScreen(),
+      maximized: win.isDestroyed() ? null : win.isMaximized(),
+      gpuAccelerationMode: GPU_ACCELERATION_MODE
+    });
+  });
+  win.on('unresponsive', () => {
+    writeStartupLog('window-unresponsive', {
+      fullscreen: win.isDestroyed() ? null : win.isFullScreen(),
+      gpuAccelerationMode: GPU_ACCELERATION_MODE
+    });
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -665,13 +735,35 @@ async function createWindow(options = {}) {
   } catch (err) {
     console.warn('Failed to clear local Electron web cache', err);
   }
-  await win.loadURL(withElectronLaunchParams(startUrl, sessionName));
+  try {
+    await win.loadURL(withElectronLaunchParams(startUrl, sessionName));
+  } catch (err) {
+    if (err && err.code === 'ERR_ABORTED' && !win.isDestroyed()) {
+      writeStartupLog('initial-navigation-reload-continued', {
+        sessionName,
+        url: win.webContents.getURL()
+      });
+      return;
+    }
+    throw err;
+  }
 }
 
+isolateMultiInstanceUserData();
 applyPerformanceSwitches();
 startLocalCrashReporter();
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId('com.fatesentwined.desktop');
+app.on('child-process-gone', (event, details) => {
+  writeStartupLog('child-process-gone', {
+    type: details && details.type || 'unknown',
+    reason: details && details.reason || 'unknown',
+    exitCode: details && details.exitCode,
+    serviceName: details && details.serviceName || '',
+    name: details && details.name || '',
+    gpuAccelerationMode: GPU_ACCELERATION_MODE
+  });
+});
 
 let shouldCreateMainWindow = true;
 if (!allowMultipleInstances) {

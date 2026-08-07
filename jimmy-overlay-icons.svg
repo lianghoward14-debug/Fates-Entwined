@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="480" viewBox="0 0 960 480">
+  <defs><filter id="g" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <rect width="960" height="480" fill="#090b12"/>
+  <g fill="none" stroke="#ff4a46" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+    <!-- shared silhouette: hard brow, broad cheeks, squared jaw -->
+    <g transform="translate(72 55)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M31 84c8-10 40-10 48 0"/></g>
+    <g transform="translate(302 55)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M30 82h50l-9 12H39Z"/><path d="M47 82v12m16-12v12" stroke-width="5"/></g>
+    <g transform="translate(532 55)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M34 78c5-12 37-12 42 0v14c-7 8-35 8-42 0Z"/></g>
+    <g transform="translate(762 55)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M30 87c14-6 36-6 50 0"/><path d="M38 81h34" stroke-width="5"/></g>
+    <g transform="translate(72 285)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M30 79 44 93 55 79 66 93 80 79"/></g>
+    <g transform="translate(302 285)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M31 80h48M38 92h34"/><path d="M31 80l7 12m34-12-7 12" stroke-width="5"/></g>
+    <g transform="translate(532 285)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M33 86c10 6 34 6 44 0"/><path d="M41 80h28" stroke-width="5"/></g>
+    <g transform="translate(762 285)"><path d="M17 24 33 10h44l16 14 7 33-13 35-18 20H41L23 92 10 57Z"/><path d="m22 42 25 8m47-8-25 8M28 59h17m20 0h17"/><path d="M32 82c6 16 39 16 46 0"/><path d="M45 78v9m20-9v9" stroke-width="5"/></g>
+  </g>
+</svg>

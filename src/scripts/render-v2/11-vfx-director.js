@@ -729,7 +729,7 @@
     const cache = window.FateCardTextureCache;
     const textureOptions = {
       visual,
-      dpr:Number(opts.textureDpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
+      dpr:Number(opts.textureDpr) || Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)),
       preferFullArt:true,
       fitMode:opts.fitMode || 'cover',
       source:'vfx-card',
@@ -828,7 +828,7 @@
     try {
       window.FateCardTextureCache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
         visual:(p.card && p.card.visual) || p.card,
-        dpr:Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
+        dpr:Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)),
         preferFullArt:true,
         fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover'),
         source:'vfx-card-prime',
@@ -869,7 +869,7 @@
       try {
         rec = cache.getBaseCardTexture(p.card, {w:size.w, h:size.h}, {
           visual:(p.card && p.card.visual) || p.card,
-          dpr:Number(opts.dpr) || Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
+          dpr:Number(opts.dpr) || Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)),
           preferFullArt:true,
           fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover'),
           source:opts.source || 'vfx-card-preflight',
@@ -878,7 +878,18 @@
       } catch(e) {
         rec = null;
       }
-      if(rec && rec.loaded && rec.canvas && !rec.failed) out.readyCount++;
+      let readyRec = rec && rec.loaded && rec.canvas && !rec.failed ? rec : null;
+      if(!readyRec && typeof cache.findReadyBaseCardTexture === 'function'){
+        try {
+          readyRec = cache.findReadyBaseCardTexture(p.card, {w:size.w, h:size.h}, {
+            visual:(p.card && p.card.visual) || p.card,
+            dpr:Number(opts.dpr) || Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)),
+            preferFullArt:true,
+            fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover')
+          });
+        } catch(e) { readyRec = null; }
+      }
+      if(readyRec) out.readyCount++;
       else {
         out.ready = false;
         if(rec && rec.pending) out.pending++;
@@ -1527,10 +1538,9 @@
 
   function suppressAcceptedBridgeMotion(type, options){
     const recipeType = String(type || '').toUpperCase();
-    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) {
-      const opts = options || {};
-      return !(opts.forceBridgeVfx || opts.allowBridgeVfx || opts.allowMatchActionMotion);
-    }
+    // Board placement is intentionally instant. No caller flag may resurrect
+    // the retired horizontal set path; the destination-local set flash remains.
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return true;
     if(!BRIDGE_CARD_ACTION_RECIPES.has(recipeType)) return false;
     const opts = options || {};
     if(opts.forceBridgeVfx || opts.allowBridgeVfx) return false;

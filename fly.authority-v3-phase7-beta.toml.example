@@ -1,0 +1,40 @@
+# Copy to a separate private config and replace both placeholders. Never point
+# this at the production or Phase 6 shadow app/volume.
+app = 'replace-phase7-beta-app'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile.authority-v3-phase7-beta'
+
+[processes]
+  app = 'node server/authoritative-v3/phase7-beta-server.mjs'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '0'
+  FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION = '1.39.0-phase7-beta.1'
+  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'replace-phase7-build-id'
+  FATE_AUTHORITY_V3_FIREBASE_API_KEY = 'replace-firebase-web-api-key'
+  FATE_AUTHORITY_V3_HOST = '0.0.0.0'
+  FATE_AUTHORITY_V3_PORT = '8787'
+  FATE_AUTHORITY_V3_DATA_DIR = '/data/authority-v3-phase7'
+  FATE_AUTHORITY_V3_ALLOW_TEST_MATCHES = '0'
+  FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES = '0'
+
+[[mounts]]
+  source = 'replace-phase7-beta-volume'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

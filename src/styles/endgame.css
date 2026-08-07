@@ -1,0 +1,705 @@
+/* End-game result screen — single source of truth. */
+#s-win.endgame-redesign-v2 {
+  --result-accent: #e6c76c;
+  --result-accent-rgb: 230, 199, 108;
+  --result-cool: #8bc6e8;
+  position: relative;
+  isolation: isolate;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: clamp(24px, 4vw, 56px);
+  background-color: #070a10;
+  background-image: linear-gradient(rgba(3, 5, 9, .12), rgba(3, 5, 9, .34)), var(--game-bg-img, url('../../ingamebackgrouds/igb1.png'));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+#s-win.endgame-redesign-v2[data-outcome="defeat"] {
+  --result-accent: #d3b3b5;
+  --result-accent-rgb: 211, 179, 181;
+  --result-cool: #aabdd8;
+}
+
+#s-win.endgame-redesign-v2[data-outcome="draw"] {
+  --result-accent: #b7d7e8;
+  --result-accent-rgb: 183, 215, 232;
+  --result-cool: #b7d7e8;
+}
+
+#s-win.endgame-redesign-v2::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 42%, rgba(var(--result-accent-rgb), .14), transparent 34%),
+    linear-gradient(90deg, rgba(2, 4, 8, .58) 0%, rgba(2, 4, 8, .12) 48%, rgba(2, 4, 8, .34) 100%),
+    linear-gradient(180deg, rgba(2, 4, 8, .08), rgba(2, 4, 8, .26));
+}
+
+#s-win.endgame-redesign-v2::after {
+  content: '';
+  position: fixed;
+  inset: 14px;
+  z-index: -1;
+  border: 1px solid rgba(var(--result-accent-rgb), .18);
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, #000, transparent 28%, transparent 72%, #000);
+}
+
+#s-win.endgame-redesign-v2 .win-wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(280px, .82fr) minmax(520px, 1.18fr);
+  grid-template-areas:
+    "hero report"
+    "hero rewards"
+    "action rewards";
+  align-items: stretch;
+  gap: 18px clamp(32px, 5vw, 78px);
+  width: min(1180px, 100%);
+  min-height: min(640px, calc(100vh - 80px));
+  margin: auto;
+  padding: 0;
+}
+
+#s-win.endgame-redesign-v2 .win-result-head {
+  grid-area: hero;
+  align-self: end;
+  position: relative;
+  padding: 16px 0 34px;
+  text-align: left;
+  animation: endgame-hero-in .7s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+#s-win.endgame-redesign-v2 .win-result-sigil {
+  width: 76px;
+  height: 76px;
+  margin: 0 0 22px;
+  color: var(--result-accent);
+  opacity: .92;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .48));
+}
+
+#s-win.endgame-redesign-v2 .win-result-sigil svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+#s-win.endgame-redesign-v2 .win-result-sigil path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#s-win.endgame-redesign-v2 .win-result-sigil path:nth-child(2) {
+  fill: rgba(var(--result-accent-rgb), .12);
+  stroke-width: 1.4;
+}
+
+#s-win.endgame-redesign-v2 .win-result-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 13px;
+  color: var(--result-cool);
+  font: 600 .63rem/1 'Cinzel', serif;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-result-kicker::after {
+  content: '';
+  width: 56px;
+  height: 1px;
+  background: currentColor;
+  opacity: .55;
+}
+
+#s-win.endgame-redesign-v2 .win-title {
+  max-width: 520px;
+  margin: 0;
+  color: #f8f3e7;
+  font: 600 clamp(2.7rem, 5.4vw, 5.4rem)/.95 'Cinzel', serif;
+  letter-spacing: -.035em;
+  text-align: left;
+  text-wrap: balance;
+  text-shadow: 0 7px 34px rgba(0, 0, 0, .72);
+  animation: none;
+}
+
+#s-win.endgame-redesign-v2 .win-sub {
+  width: auto;
+  max-width: 440px;
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(240, 244, 248, .72);
+  font: 500 .78rem/1.55 'Cinzel', serif;
+  font-style: normal;
+  letter-spacing: .07em;
+  text-align: left;
+  box-shadow: none;
+  animation: none;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report,
+#s-win.endgame-redesign-v2 .win-rewards {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(220, 231, 240, .15);
+  border-radius: 2px;
+  background: linear-gradient(145deg, rgba(7, 12, 19, .80), rgba(6, 10, 16, .62));
+  box-shadow: 0 22px 62px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .045);
+  backdrop-filter: blur(9px) saturate(.9);
+  animation: endgame-panel-in .65s .08s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report {
+  grid-area: report;
+  align-self: end;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report:has(.win-zones:empty) {
+  display: none;
+}
+
+#s-win.endgame-redesign-v2 .win-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(220, 231, 240, .11);
+  color: var(--result-cool);
+  font: 600 .57rem/1 'Cinzel', serif;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-section-label span:last-child {
+  color: rgba(228, 236, 242, .4);
+  letter-spacing: .11em;
+}
+
+#s-win.endgame-redesign-v2 .win-zones {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  width: 100%;
+  margin: 0;
+  animation: none;
+}
+
+#s-win.endgame-redesign-v2 .win-z {
+  position: relative;
+  min-width: 0;
+  padding: 16px 17px 15px;
+  border: 0;
+  border-right: 1px solid rgba(220, 231, 240, .1);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  box-shadow: none;
+}
+
+#s-win.endgame-redesign-v2 .win-z:last-of-type {
+  border-right: 0;
+}
+
+#s-win.endgame-redesign-v2 .win-z.won::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 14px;
+  left: 14px;
+  height: 2px;
+  background: var(--result-accent);
+  box-shadow: 0 0 14px rgba(var(--result-accent-rgb), .5);
+}
+
+#s-win.endgame-redesign-v2 .win-zone-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0 0 13px;
+  color: rgba(229, 237, 243, .5);
+  font: 600 .54rem/1 'Cinzel', serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-heading strong {
+  color: #f1f4f6;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  color: rgba(235, 239, 243, .68);
+  font-size: .68rem;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score strong {
+  color: #f4f6f8;
+  font: 600 .95rem/1 'Cinzel', serif;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score.p1::before,
+#s-win.endgame-redesign-v2 .win-zone-score.p2::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  margin-right: -2px;
+  border-radius: 50%;
+  background: var(--p1);
+  box-shadow: 0 0 8px currentColor;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score.p1,
+#s-win.endgame-redesign-v2 .win-zone-score.p2 {
+  grid-template-columns: 4px minmax(0, 1fr) auto;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-score.p2::before {
+  background: var(--p2);
+}
+
+#s-win.endgame-redesign-v2 .win-zone-controller {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(220, 231, 240, .09);
+  color: var(--result-accent);
+  font: 600 .54rem/1.3 'Cinzel', serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px 18px;
+  align-items: center;
+  padding: 13px 17px;
+  border-top: 1px solid rgba(220, 231, 240, .11);
+  background: rgba(var(--result-accent-rgb), .045);
+  text-align: left;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-title {
+  color: var(--result-accent);
+  font: 600 .58rem/1.2 'Cinzel', serif;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-scores {
+  display: flex;
+  gap: 16px;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-scores > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: rgba(235, 239, 243, .6);
+  font-size: .62rem;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-scores strong {
+  color: #f4f6f8;
+  font: 600 .92rem/1 'Cinzel', serif;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-note {
+  grid-column: 1 / -1;
+  color: rgba(235, 239, 243, .52);
+  font-size: .6rem;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-note.won {
+  color: var(--result-accent);
+}
+
+#s-win.endgame-redesign-v2 .win-rewards {
+  grid-area: rewards;
+  align-self: start;
+  margin: 0;
+  padding: 16px;
+  animation-delay: .16s;
+}
+
+#s-win.endgame-redesign-v2 .win-result-mode {
+  margin: 0 0 12px;
+  color: rgba(229, 237, 243, .48);
+  font: 600 .56rem/1 'Cinzel', serif;
+  letter-spacing: .17em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .win-result-mode.challenger {
+  color: var(--result-accent);
+}
+
+#s-win.endgame-redesign-v2 .win-rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+}
+
+#s-win.endgame-redesign-v2 .win-reward-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 88px;
+  padding: 12px;
+  overflow: visible;
+  border: 1px solid rgba(220, 231, 240, .1);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow: none;
+  text-align: left;
+  backdrop-filter: none;
+}
+
+#s-win.endgame-redesign-v2 .win-reward-box.starlight {
+  border-color: rgba(var(--result-accent-rgb), .24);
+  background: rgba(var(--result-accent-rgb), .055);
+}
+
+#s-win.endgame-redesign-v2 .wrb-label {
+  margin-bottom: 8px;
+  color: rgba(229, 237, 243, .45);
+  font: 600 .52rem/1 'Cinzel', serif;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .wrb-value {
+  max-width: 100%;
+  color: #f4f6f8;
+  font: 600 1.35rem/1 'Cinzel', serif;
+}
+
+#s-win.endgame-redesign-v2 .wrb-sub {
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: visible;
+  color: rgba(229, 237, 243, .56);
+  font: 500 .58rem/1.25 'Cinzel', serif;
+  letter-spacing: .02em;
+  white-space: normal;
+}
+
+#s-win.endgame-redesign-v2 .win-xp-bar {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  margin: 7px 0 3px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: rgba(255, 255, 255, .1);
+}
+
+#s-win.endgame-redesign-v2 .win-xp-fill {
+  height: 100%;
+  border-radius: 0;
+  background: linear-gradient(90deg, var(--result-cool), var(--result-accent));
+  box-shadow: 0 0 12px rgba(var(--result-accent-rgb), .34);
+  transition: width 1s ease;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large,
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge {
+  justify-content: flex-start;
+  white-space: normal;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-label {
+  max-width: 100%;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-shift,
+#s-win.endgame-redesign-v2 .win-levelup {
+  margin: 0 0 10px;
+  padding: 11px 13px;
+  border: 1px solid rgba(var(--result-accent-rgb), .24);
+  border-radius: 2px;
+  background: rgba(var(--result-accent-rgb), .06);
+  box-shadow: none;
+}
+
+#s-win.endgame-redesign-v2 .win-levelup,
+#s-win.endgame-redesign-v2 .win-rank-shift-copy {
+  color: var(--result-accent);
+  font: 600 .62rem/1.3 'Cinzel', serif;
+  letter-spacing: .12em;
+  text-align: center;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-shift-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 100px;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-icon :is(img, svg) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-name {
+  color: rgba(239, 243, 246, .7);
+  font: 600 .56rem/1.2 'Cinzel', serif;
+  text-align: center;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-arrow {
+  color: var(--result-accent);
+  font: 600 1.2rem/1 'Cinzel', serif;
+}
+
+#s-win.endgame-redesign-v2 .online-forfeit-result {
+  margin: 0 0 14px;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(220, 231, 240, .11);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#s-win.endgame-redesign-v2 .online-result-kicker {
+  margin-bottom: 7px;
+  color: var(--result-accent);
+  font: 600 .55rem/1 'Cinzel', serif;
+  letter-spacing: .14em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+#s-win.endgame-redesign-v2 .online-forfeit-result-copy {
+  color: rgba(239, 243, 246, .68);
+  font-size: .72rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+#s-win.endgame-redesign-v2 .online-forfeit-sub:empty,
+#s-win.endgame-redesign-v2 :is(.online-forfeit-result-kicker, .online-result-divider, .online-result-note) {
+  display: none;
+}
+
+#s-win.endgame-redesign-v2 .win-return-action {
+  grid-area: action;
+  align-self: start;
+  display: flex;
+  justify-content: flex-start;
+  margin: 0;
+  animation: endgame-hero-in .7s .12s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+#s-win.endgame-redesign-v2 .win-return-action .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  min-width: 210px;
+  min-height: 48px;
+  padding: 0 17px;
+  border: 1px solid rgba(var(--result-accent-rgb), .48);
+  border-radius: 2px;
+  background: rgba(6, 10, 16, .72);
+  color: #f7f4ec;
+  font: 600 .62rem/1 'Cinzel', serif;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  box-shadow: 0 13px 32px rgba(0, 0, 0, .26);
+}
+
+#s-win.endgame-redesign-v2 .win-return-action .btn:hover {
+  border-color: var(--result-accent);
+  background: rgba(var(--result-accent-rgb), .13);
+  transform: translateY(-1px);
+}
+
+#s-win.endgame-redesign-v2 .win-return-action .btn span:last-child {
+  color: var(--result-accent);
+  font-size: 1rem;
+}
+
+html.fate-performance-mode #s-win.endgame-redesign-v2:not(.active) {
+  content-visibility: auto;
+  contain-intrinsic-size: 1000px 720px;
+}
+
+@keyframes endgame-hero-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes endgame-panel-in {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 940px) {
+  #s-win.endgame-redesign-v2 {
+    align-items: flex-start;
+    padding: 30px 22px;
+  }
+
+  #s-win.endgame-redesign-v2 .win-wrap {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero"
+      "report"
+      "rewards"
+      "action";
+    gap: 14px;
+    width: min(680px, 100%);
+    min-height: 0;
+  }
+
+  #s-win.endgame-redesign-v2 .win-result-head {
+    align-self: auto;
+    padding: 4px 0 18px;
+  }
+
+  #s-win.endgame-redesign-v2 .win-result-sigil {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 14px;
+  }
+
+  #s-win.endgame-redesign-v2 .win-title {
+    max-width: none;
+    font-size: clamp(2.45rem, 10vw, 4.4rem);
+  }
+
+  #s-win.endgame-redesign-v2 .win-return-action {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 620px) {
+  #s-win.endgame-redesign-v2 {
+    padding: 24px 14px;
+  }
+
+  #s-win.endgame-redesign-v2::after {
+    inset: 7px;
+  }
+
+  #s-win.endgame-redesign-v2 .win-zones {
+    grid-template-columns: 1fr;
+  }
+
+  #s-win.endgame-redesign-v2 .win-z {
+    display: grid;
+    grid-template-columns: 70px 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 12px 14px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(220, 231, 240, .1);
+  }
+
+  #s-win.endgame-redesign-v2 .win-z:last-of-type {
+    border-bottom: 0;
+  }
+
+  #s-win.endgame-redesign-v2 .win-z.won::before {
+    top: 9px;
+    bottom: 9px;
+    left: 0;
+    width: 2px;
+    height: auto;
+  }
+
+  #s-win.endgame-redesign-v2 .win-zone-heading,
+  #s-win.endgame-redesign-v2 .win-zone-score,
+  #s-win.endgame-redesign-v2 .win-zone-controller {
+    margin: 0;
+  }
+
+  #s-win.endgame-redesign-v2 .win-zone-controller {
+    grid-column: 1 / -1;
+    padding-top: 8px;
+  }
+
+  #s-win.endgame-redesign-v2 .win-total-fate {
+    grid-template-columns: 1fr;
+  }
+
+  #s-win.endgame-redesign-v2 .win-total-fate-scores {
+    justify-content: space-between;
+  }
+
+  #s-win.endgame-redesign-v2 .win-rewards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #s-win.endgame-redesign-v2 .win-return-action .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #s-win.endgame-redesign-v2 :is(.win-result-head, .win-zone-report, .win-rewards, .win-return-action) {
+    animation: none;
+  }
+}

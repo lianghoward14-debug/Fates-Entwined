@@ -17,6 +17,7 @@ let _lastTopBarEffectsSourceSignature = '';
 let _lastActionBarLayoutSignature = '';
 let _lastPlayerBannerActiveSignature = '';
 let _renderCalcCache = null;
+const jimmyFatePresentationByIid = new Map();
 let _renderDiagnosticsEnabled = null;
 const RENDER_ALL_PARTS = Object.freeze({
   board:true,
@@ -509,6 +510,35 @@ function preloadCardDetailImage(card) {
 function beginRenderCalculationFrame() {
   _renderCalcCache = { effectiveFate:new Map(), zoneScores:new Map(), baseScores:new Map() };
 }
+function jimmyFatePresentationSignature(owner) {
+  const direct = Math.max(0, Number(Array.isArray(G && G.damageDoneP) ? G.damageDoneP[owner] : 0) || 0);
+  let continuous = 0;
+  const sources = G && G._phase7CurrentMultiplayer === true ? null : (G && G._continuousDamageSources);
+  if(sources && typeof sources.forEach === 'function') {
+    sources.forEach(function(key){
+      if(typeof key === 'string' && key.startsWith(String(owner) + ':')) continuous += 1;
+    });
+  }
+  return direct + ':' + continuous;
+}
+function presentJimmyDynamicFateGain(card, value) {
+  if(!card || !(typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '41'))) return;
+  const iid = String(card.iid || card.id || 'jimmy');
+  const signature = jimmyFatePresentationSignature(card.owner);
+  const previous = jimmyFatePresentationByIid.get(iid);
+  const next = {value:Math.max(0, Number(value) || 0), signature};
+  jimmyFatePresentationByIid.set(iid, next);
+  if(jimmyFatePresentationByIid.size > 512) jimmyFatePresentationByIid.delete(jimmyFatePresentationByIid.keys().next().value);
+  if(!previous || previous.signature === signature || next.value <= previous.value) return;
+  if(typeof playFateChangeSound === 'function') playFateChangeSound(card, previous.value, next.value, card.owner);
+  if(typeof flashCardEffect === 'function') {
+    flashCardEffect(card, 'jimmy_wrath', {
+      label:"A True Incel's Wrath",
+      soundKey:['jimmy-wrath', iid, signature].join(':'),
+      onlineRemote:true
+    });
+  }
+}
 function getCachedEffectiveFate(card, z) {
   if(!card) return 0;
   if(!_renderCalcCache || typeof getEffectiveFate !== 'function') return getEffectiveFate(card, z);
@@ -516,6 +546,7 @@ function getCachedEffectiveFate(card, z) {
   if(_renderCalcCache.effectiveFate.has(key)) return _renderCalcCache.effectiveFate.get(key);
   const value = getEffectiveFate(card, z);
   _renderCalcCache.effectiveFate.set(key, value);
+  presentJimmyDynamicFateGain(card, value);
   return value;
 }
 function getCachedBaseZoneScore(z, player) {
@@ -1454,6 +1485,11 @@ document.addEventListener('pointerup', function(){ _pointerDown = false; setTime
 document.addEventListener('pointercancel', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
 
 function renderGame(parts) {
+  const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
+  if(v3LocalScreen){
+    v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
+    return;
+  }
   cleanupStaleEffectActivationDomVisuals();
   if(!isGameRenderScreenActive()){
     _renderGameScheduled = false;
@@ -1468,6 +1504,11 @@ function renderGame(parts) {
 }
 // Immediate render for critical moments (game start, turn change)
 function renderGameImmediate(parts) {
+  const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
+  if(v3LocalScreen){
+    v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
+    return;
+  }
   _renderGameScheduled = false;
   _renderGameDirty = null;
   FateMatchFrameScheduler.reset('renderGameImmediate');
@@ -1700,7 +1741,7 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
     const blockReason = choiceState.sourceCard && String(choiceState.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function'
       ? getFelicitaLandscapeChangeBlockReason(entry.id)
       : '';
-    return '<button type="button" class="landscape-choice-card' + (blockReason ? ' is-blocked' : '') + '" data-landscape-action-index="' + (selectActionStart + idx) + '" data-landscape-block-reason="' + escapeHtml(blockReason) + '">' +
+    return '<button type="button" class="landscape-choice-card' + (blockReason ? ' is-blocked' : '') + '" data-landscape-action-index="' + (selectActionStart + idx) + '" data-landscape-id="' + escapeHtml(entry.id) + '" data-landscape-block-reason="' + escapeHtml(blockReason) + '">' +
       '<div class="landscape-choice-art"><img src="' + escapeHtml(entry.img) + '" alt=""></div>' +
       '<div class="landscape-choice-copy">' +
         '<div class="landscape-choice-kicker">Landscape ' + entry.num + '</div>' +
@@ -1730,13 +1771,13 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
     }});
   });
   if(currentPage < maxPage) actions.push({label:'Next', action:function(){ showLandscapeChoiceModal(currentPage + 1, onChoose, choiceState); }});
-  actions.push({label:'Cancel', action:function(){
-    if(choiceState.committed) return;
-    choiceState.committed = true;
-    choiceState.cancelled = true;
-    closeModal();
-    if(typeof choiceState.onCancel === 'function') choiceState.onCancel();
-  }});
+  if(choiceState.allowCancel !== false) actions.push({label:'Cancel', action:function(){
+      if(choiceState.committed) return;
+      choiceState.committed = true;
+      choiceState.cancelled = true;
+      closeModal();
+      if(typeof choiceState.onCancel === 'function') choiceState.onCancel();
+    }});
   showModal('Choose Landscape', body, actions, {
     onOpen:function(){
       const modalBox = document.querySelector('#modal .modal');
@@ -1758,6 +1799,9 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
 window.showLandscapeChoiceModal = showLandscapeChoiceModal;
 
 function triggerLandscapeFlash(label, sfxKind) {
+  // Landscape state changes are synchronous. Mark their matching Fate feedback
+  // as immediate so a stale presentation timestamp cannot hold the number.
+  if(typeof G !== 'undefined' && G) G._landscapeFeedbackImmediateUntil = Date.now() + 900;
   const panel = document.getElementById('landscape-panel');
   if(sfxKind !== 'none' && sfxKind !== false && typeof playSfx === 'function') {
     const now = Date.now();
@@ -1899,8 +1943,10 @@ function getPendingLandscapeFateThreshold(st, config) {
 function isBattleOfPellaBlockedByConsolidation() {
   if(!G) return false;
   if(G._consolidating) return true;
+  if(typeof _scheduledCharacterSetCinematicCount !== 'undefined' && _scheduledCharacterSetCinematicCount > 0) return true;
+  if(typeof _consolidationCinematicQueue !== 'undefined' && _consolidationCinematicQueue.length > 0) return true;
   if(typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive()) return true;
-  if((Number(G._cinematicUiLockUntil) || 0) > Date.now()) return true;
+  if(typeof document !== 'undefined' && typeof document.querySelector === 'function' && document.querySelector('.cc-overlay-v2')) return true;
   const presenter = window.FateActionPresentation;
   return !!(presenter && typeof presenter.isActive === 'function' && presenter.isActive());
 }
@@ -2075,6 +2121,10 @@ function resolveSantaAnnaProsperity(card, targetPayload) {
     ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : G._onlinePlayerIndex)
     : getPerspectivePlayerIndex());
   if(player !== 0 && player !== 1 || !card) return false;
+  if(G.currentPlayer !== player || G.phase !== 'main') {
+    toast('Prosperity can only be activated during your turn.');
+    return false;
+  }
   if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
   const hand = G.players && G.players[player] ? G.players[player].hand : null;
   if(!Array.isArray(hand)) return false;
@@ -2122,6 +2172,10 @@ function activateSantaAnnaProsperityFromHand(card, targetPayload) {
     ? (Number.isInteger(G.localPlayerIndex) ? G.localPlayerIndex : G._onlinePlayerIndex)
     : getPerspectivePlayerIndex();
   if(player !== 0 && player !== 1 || G._isSpectator || G._onlineRole === 'spectator') return false;
+  if(G.currentPlayer !== player || G.phase !== 'main') {
+    toast('Prosperity can only be activated during your turn.');
+    return false;
+  }
   const hand = G.players && G.players[player] ? G.players[player].hand : null;
   const handIndex = Array.isArray(hand) ? hand.findIndex(function(c){ return c && card.iid && c.iid === card.iid; }) : -1;
   if(handIndex < 0) {
@@ -3172,6 +3226,11 @@ function patchChangedBoardCells(nextCellSigs, prevCellSigs) {
 function renderBoard() {
   const board = document.getElementById('board');
   if(!board || typeof G === 'undefined' || !G || !G.board) return;
+  const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
+  if(v3LocalScreen){
+    v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
+    return;
+  }
   if(rendererV2OwnsBoardScene()){
     removeRenderV2LegacyLiveVisuals();
     if(typeof window.FateMatchRendererAdapter.scheduleRender === 'function') window.FateMatchRendererAdapter.scheduleRender('renderBoard');
@@ -3613,6 +3672,11 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
 }
 
 function renderHand() {
+  const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
+  if(v3LocalScreen){
+    v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
+    return;
+  }
   const cp = getPerspectivePlayerIndex();
   const canActFromHand = (cp === G.currentPlayer);
   const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
@@ -3762,6 +3826,9 @@ function getCardRarityLabel(rarity) {
 function enforceHandLimit(player) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
+  // Phase 7 owns this requirement as an exact server command. Its UI bridge
+  // renders the authoritative picker; the legacy modal must never race it.
+  if(G._phase7CurrentMultiplayer === true) return false;
   const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
@@ -4909,6 +4976,7 @@ function renderTopbarEffects() {
         cardEffect:'Wine Country Guerilla is infiltrating the opposing hand. At the start of that opponent\'s turn, it reduces a random eligible card in their hand by 2 Fate. ' + turns + ' turn' + (turns === 1 ? '' : 's') + ' remaining.',
         owner:sourceOwner,
         extraClass:'effect-pill-guerilla',
+        effectInstanceCount:count,
         turnsLeft:turns
       });
     });
@@ -4932,6 +5000,7 @@ function renderTopbarEffects() {
         cardEffect:(count > 1 ? count + ' copies of Ali are' : 'Ali is') + ' in the opponent\'s hand, immune to all effects. That hand cannot exceed 6 cards. This status remains until ' + (count > 1 ? 'they are' : 'he is') + ' set.',
         owner:sourceOwner,
         extraClass:'effect-pill-ali',
+        effectInstanceCount:count,
         sourceIid:transferredAlis[0].iid,
         statusInstanceKey:'ali-indomitable:' + sourceOwner
       });
@@ -5217,6 +5286,31 @@ function renderTopbarEffects() {
     });
   });
 
+  const multiplicityGroups = {};
+  allEffects.forEach(function(effect){
+    const owner = coerceStatusOwner(effect && effect.owner, myP);
+    const key = [
+      owner,
+      String(effect && effect.cardName || '').trim().toLowerCase(),
+      String(effect && (effect.cardAbility || effect.label) || '').trim().toLowerCase(),
+      String(effect && effect.extraClass || '').trim().toLowerCase()
+    ].join('|');
+    if(!multiplicityGroups[key]) multiplicityGroups[key] = [];
+    multiplicityGroups[key].push(effect);
+  });
+  Object.keys(multiplicityGroups).forEach(function(key){
+    const group = multiplicityGroups[key];
+    const total = group.reduce(function(sum, effect){
+      return sum + Math.max(1, Number(effect && effect.effectInstanceCount) || 1);
+    }, 0);
+    if(total <= 1) return;
+    group.forEach(function(effect){
+      effect.label = String(effect.label || effect.cardAbility || 'Active Effect') + ' ×' + total;
+      effect.cardEffect = total + ' instances of this effect are active at the same time. ' + String(effect.cardEffect || '');
+      effect.effectInstanceCount = total;
+    });
+  });
+
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
@@ -5256,7 +5350,7 @@ function applyWinScreenGameBackground() {
   if(!gameBgVar && lastBg?.cssVar) gameBgVar = lastBg.cssVar;
   if(gameBgVar) {
     winScreen.style.setProperty('--game-bg-img', gameBgVar);
-    winScreen.style.setProperty('background-image', `linear-gradient(rgba(3,3,6,.58),rgba(3,3,6,.78)), ${gameBgVar}`, 'important');
+    winScreen.style.setProperty('background-image', `linear-gradient(rgba(3,3,6,.14),rgba(3,3,6,.36)), ${gameBgVar}`, 'important');
     winScreen.style.setProperty('background-size', 'cover, cover', 'important');
     winScreen.style.setProperty('background-position', 'center, center', 'important');
     winScreen.style.setProperty('background-repeat', 'no-repeat, no-repeat', 'important');
@@ -5335,6 +5429,12 @@ function renderTitleProfile(){
   const spreadW = (1.2 + idx * 0.25).toFixed(1);
   const spreadA = (0.06 + idx * 0.015).toFixed(3);
   const panelStyle = `border:${borderW.toFixed(1)}px solid ${rankColor}!important;box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 ${glowR}px rgba(${rgb.r},${rgb.g},${rgb.b},${glowA}),0 0 0 ${spreadW}px rgba(${rgb.r},${rgb.g},${rgb.b},${spreadA}),inset 0 0 0 1px rgba(255,255,255,${(0.04+idx*0.01).toFixed(2)})!important;`;
+  const renderSig = [src, cropStyle, elo, USER_PROFILE.level || 0, USER_PROFILE.xp || 0, USER_PROFILE.username || 'Player'].join('|');
+  if(el.dataset.titleProfileRenderSig === renderSig) {
+    scheduleTitleAccountPosition(40);
+    return;
+  }
+  el.dataset.titleProfileRenderSig = renderSig;
   el.style.cssText = panelStyle + '--title-profile-rank-color:'+rankColor+';--title-profile-rank-r:'+rgb.r+';--title-profile-rank-g:'+rgb.g+';--title-profile-rank-b:'+rgb.b+';';
   el.innerHTML = `
     <div class="tp-pic" style="${picFrame}">${src?`<img src="${src}" style="${cropStyle}" alt="" onerror="this.onerror=null;this.src='${fallbackSrc}';">`:'<span class="pi-placeholder">Profile</span>'}</div>
@@ -5790,7 +5890,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const total = manual + continuous;
     label = 'Fate Reductions';
     value = String(total);
-    sub = continuous ? manual + ' direct + ' + continuous + ' continuous' : 'opponent Fate reduced';
+    sub = continuous ? manual + ' Direct + ' + continuous + ' Continuous' : 'Opponent Fate Reduced';
   } else if(card.id === '85') {
     const opponentSets = typeof getSupportersSetCountForPlayer === 'function'
       ? getSupportersSetCountForPlayer(1 - owner)
@@ -6061,6 +6161,15 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
   const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) : '');
+  const pierogiHandTurns = (!hideCard && fromHand && typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
+    ? Math.max(0, Number(card._pierogiHandTurnsRemaining ?? 6))
+    : null;
+  const pierogiHandBanner = pierogiHandTurns === null ? '' : `
+    <div class="cd-pierogi-lifetime">
+      <span class="cd-pierogi-lifetime-label">Hand lifetime</span>
+      <strong>${pierogiHandTurns} turn${pierogiHandTurns === 1 ? '' : 's'} remaining</strong>
+      <span>It stays immune to all effects and cannot be discarded by your opponent.</span>
+    </div>`;
   const rarityLabel = getCardRarityLabel(visual.rarity);
   body.innerHTML=`
     <div class="cd-wrap">
@@ -6081,6 +6190,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         </div>
         ${trackerHtml}
         ${copiedPassiveBanner}
+        ${pierogiHandBanner}
         <div class="cd-eff">${visual.effect}</div>
         ${!hideCard && card.flavor?`<div class="cd-flavor">${card.flavor}</div>`:''}
       </div>
@@ -6108,6 +6218,12 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     acts.appendChild(lore);
   }
   acts.appendChild(close);
+  if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true
+    && typeof window.fatePhase7PopulateCardActions === 'function'
+    && window.fatePhase7PopulateCardActions(card, !!fromHand, !!fromBoard, acts)){
+    document.getElementById('modal').classList.add('on');
+    return;
+  }
   if(hideCard){
     document.getElementById('modal').classList.add('on');
     return;
@@ -6130,6 +6246,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const canUseHandCard = Number.isInteger(handActionPlayer) && handActionIndex > -1 && G.currentPlayer===handActionPlayer && G.phase==='main' && !G._isSpectator && G._onlineRole !== 'spectator';
   const canUseSantaAnnaLandscape = Number.isInteger(handActionPlayer)
     && handActionIndex > -1
+    && G.currentPlayer === handActionPlayer
+    && G.phase === 'main'
     && !fromBoard
     && !((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred)
     && !G._isSpectator
@@ -6223,10 +6341,6 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       && !G._isSpectator
       && G._onlineRole !== 'spectator';
     const canDiscardBerkeleyHomeless = canDiscardBerkeleyHomelessEffect(bc, z, r, c, boardActionPlayer);
-    const canActivateDeferredSetEffect = Number.isInteger(boardActionPlayer)
-      && !isFaceDownCard(bc)
-      && typeof canActivatePendingWhenSetEffect === 'function'
-      && canActivatePendingWhenSetEffect(bc, z, r, c, boardActionPlayer);
     if(canDiscardBerkeleyHomeless){
       const berkeleyDisc=document.createElement('button');
       berkeleyDisc.className='btn sm danger';
@@ -6248,20 +6362,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       };
       acts.appendChild(flip);
     }
-    if(canActivateDeferredSetEffect){
-      const setAct=document.createElement('button');
-      setAct.className='btn sm pri';
-      setAct.textContent='Activate Effect';
-      setAct.onclick=()=>{
-        setAct.disabled = true;
-        setAct.textContent = 'Resolving...';
-        playEffectActivationButtonSound();
-        closeModal();
-        activatePendingWhenSetEffect(bc,z,r,c);
-      };
-      acts.appendChild(setAct);
-    }
-    if(!canActivateDeferredSetEffect && canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
+    if(canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
       // Coordinators: passive, no manual activation needed
       if(false){
         // No button needed — coordinators are automatic
@@ -6289,14 +6390,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       }
       // Supporter active abilities — specific cards with board-activated effects
       const copiedExpeditionary = typeof cardActsAsPassive === 'function' && cardActsAsPassive(bc, '73');
-      if(!canActivateDeferredSetEffect && ((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') || copiedExpeditionary) && !isFaceDownCard(bc)){
-        // Vigilantes (52): when-set-only; only show if a deferred when-set effect is pending.
-        if(!supporterActionsSuppressed && bc.id==='52' && bc._pendingWhenSetEffect && (typeof canActivateVigilantesWindow === 'function' ? canActivateVigilantesWindow(bc) : bc.whenSetActivated !== true)){
-          const vigBtn=document.createElement('button');
-          vigBtn.className='btn sm pri';vigBtn.textContent='Activate Effect';
-          vigBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateVigilantes(bc,z,r,c);};
-          acts.appendChild(vigBtn);
-        }
+      if(((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(bc, boardActionPlayer) : bc.type==='Supporter') || copiedExpeditionary) && !isFaceDownCard(bc)){
         // ALPINE Expeditionary (73): move once per turn
         if(!supporterActionsSuppressed && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(bc, '73') : bc.id==='73') && bc._canMoveOncePerTurn && !bc._expMoved){
           const expBtn=document.createElement('button');
@@ -6470,7 +6564,11 @@ function showNextModalAfterHandLimit() {
 function showModal(title, bodyHtml, actions, opts) {
   const titleStr = typeof title === 'string' ? title : String(title||'');
   const incomingHandLimit = /hand-limit-discard/.test(String(bodyHtml || ''));
-  if(!incomingHandLimit && typeof G !== 'undefined' && G && G._handLimitDiscard && isHandLimitDiscardModalOpen()) {
+  // Both single-player and the server-authoritative multiplayer renderer use
+  // the shipping hand-limit modal.  The authoritative renderer owns the
+  // pending choice on the server rather than through G._handLimitDiscard, so
+  // the visible modal itself is the source of truth for modal ordering.
+  if(!incomingHandLimit && isHandLimitDiscardModalOpen()) {
     queueModalBehindHandLimit(title, bodyHtml, actions, opts);
     return false;
   }
@@ -6543,7 +6641,7 @@ function showModal(title, bodyHtml, actions, opts) {
 function closeModal(opts) {
   const modal = document.getElementById('modal');
   const closingHandLimit = isHandLimitDiscardModalOpen();
-  if(closingHandLimit && typeof G !== 'undefined' && G && G._handLimitDiscard && !(opts && opts.forceHandLimitClose)) return false;
+  if(closingHandLimit && !(opts && opts.forceHandLimitClose)) return false;
   modal.classList.remove('on');
   if(closingHandLimit && document.body) document.body.classList.remove('hand-limit-discard-active');
   resetModalChrome();
@@ -6662,6 +6760,7 @@ function showBoardTargetPicker(opts, onConfirm) {
   const entries = (opts.entries || []).filter(function(entry){ return entry && (entry.card || allowSquareTargets); });
   if(!entries.length){ toast(opts.emptyMessage || 'No valid targets'); return; }
   const maxCount = Math.max(1, Math.min(opts.maxCount || 1, entries.length));
+  const minCount = Math.max(0, Math.min(opts.minCount === undefined ? 1 : Number(opts.minCount) || 0, maxCount));
   const zones = (opts.zones && opts.zones.length ? opts.zones : [entries[0].z]).filter(function(z, idx, arr){
     return typeof z === 'number' && arr.indexOf(z) === idx;
   });
@@ -6815,7 +6914,7 @@ function showBoardTargetPicker(opts, onConfirm) {
       if(typeof opts.onCancel === 'function') opts.onCancel();
     }},
     {label:opts.confirmLabel || 'Confirm', pri:true, action:function(){
-      if(!selected.length){ toast(opts.emptySelectionMessage || (allowSquareTargets ? 'Select a square first' : 'Select a card first')); return; }
+      if(selected.length < minCount){ toast(opts.emptySelectionMessage || (allowSquareTargets ? 'Select a square first' : 'Select a card first')); return; }
       closeModal();
       if(typeof onConfirm === 'function') onConfirm(selected.slice());
     }}
@@ -7669,7 +7768,15 @@ function showZonePickerVisual(options, callback) {
       callback(zone);
     };
   });
-  document.getElementById('modal-acts').innerHTML = '<button class="btn sm" onclick="closeModal()">Cancel</button>';
+  const acts = document.getElementById('modal-acts');
+  if(acts) {
+    if(options.allowCancel === false) acts.innerHTML = '';
+    else {
+      acts.innerHTML = '<button class="btn sm" type="button">Cancel</button>';
+      const cancel = acts.querySelector('button');
+      if(cancel) cancel.onclick = function(){ closeModal(); if(typeof options.onCancel === 'function') options.onCancel(); };
+    }
+  }
   document.getElementById('modal').classList.add('on');
 }
 
@@ -7772,6 +7879,10 @@ async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSup
   ledger._ledgerCopiedSourceId = String(sourceSupporter.id || '');
   ledger._ledgerCopiedSourceName = String(sourceSupporter.name || 'Supporter');
   ledger._ledgerCopiedSourceAbility = String(sourceSupporter.ability || 'Copied Effect');
+  const copiedEffectText = String(sourceSupporter.effect || '').trim();
+  if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) {
+    toast('Ledger-keepers copied ' + ledger._ledgerCopiedSourceName + ' — ' + ledger._ledgerCopiedSourceAbility + (copiedEffectText ? ': ' + copiedEffectText : ''), 5200);
+  }
 
   G.currentPlayer = player;
   G._suppressEffectPrompt = true;
@@ -7791,6 +7902,12 @@ async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSup
 }
 
 function pickBoardSupporterEffect(player, z, ledgerRef) {
+  // Remote replay must reproduce state and presentation, but it must never open
+  // the opponent's private Ledger-keepers choice on this client.
+  if(typeof G !== 'undefined' && G && (G._onlineRoomCode || G._onlineRole || G._isSpectator)) {
+    const localPlayer = Number(G._onlinePlayerIndex);
+    if(!Number.isInteger(localPlayer) || Number(player) !== localPlayer) return false;
+  }
   // Ledger-keepers: copy a supporter effect — visual card picker
   const fallbackWhenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','37','42','43','50','51','52','58','60','62','68','69','71','72','73','76','80','91','94'];
   const whenSetIds = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS && typeof WHEN_SET_IDS.has === 'function')
@@ -8233,6 +8350,7 @@ function discardBoardCard(card, z, r, c) {
     else toast('Wine Country Guerilla was sent to opponent\'s hand.');
     log(originalOwner===0?'p1':'p2', 'Wine Country Guerilla moved to opponent hand from discard');
     if(typeof renderHand === 'function') renderHand();
+    if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   } else if(false && card.id==='37' && !card._returnUsed){
     card._returnUsed = true;
     G.players[card.owner].hand.push(card);
@@ -8717,10 +8835,24 @@ if(typeof window !== 'undefined') {
 
 let _consolidationCinematicQueue = [];
 let _consolidationCinematicShowing = false;
+var _scheduledCharacterSetCinematicCount = 0;
 let _lastConsolidationCinematicEndedAt = 0;
-// Set this to 0 to restore immediate post-cinematic Fate/overlay feedback.
-const POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS = 1000;
+const POST_CONSOLIDATION_FATE_FEEDBACK_DELAY_MS = 0;
 const _characterSetCinematicKeys = new Set();
+const _consolidationCinematicPendingKeys = new Set();
+const _recentConsolidationCinematicAtByKey = new Map();
+
+function getConsolidationCinematicDedupKey(card, opts) {
+  const options = opts || {};
+  const identity = String(card && (card.iid || [
+    card.id || '',
+    card.owner ?? '',
+    options.z ?? '',
+    options.r ?? '',
+    options.c ?? ''
+  ].join(':')) || '');
+  return identity ? 'consolidation:' + identity : '';
+}
 
 function beginPostConsolidationFateFeedbackHold() {
   if(typeof G === 'undefined' || !G) return 0;
@@ -8742,7 +8874,10 @@ if(typeof window !== 'undefined' && !window.__fateLegacyConsolidationQueueCleanu
     if(typeof previousConsolidationQueueCleanup === 'function') previousConsolidationQueueCleanup();
     _consolidationCinematicQueue.length = 0;
     _consolidationCinematicShowing = false;
+    _scheduledCharacterSetCinematicCount = 0;
     _characterSetCinematicKeys.clear();
+    _consolidationCinematicPendingKeys.clear();
+    _recentConsolidationCinematicAtByKey.clear();
     if(typeof G !== 'undefined' && G) G._postConsolidationFateFeedbackUntil = 0;
   };
   window.__fateLegacyConsolidationQueueCleanupInstalled = true;
@@ -8770,9 +8905,24 @@ function showConsolidationCinematic(card, opts) {
     } catch(e) {}
     return false;
   }
+  var cinematicDedupKey = String(opts._cinematicDedupKey || getConsolidationCinematicDedupKey(card, opts));
+  var cinematicAlreadyAdmitted = opts._cinematicDedupAccepted === true;
+  if(!cinematicAlreadyAdmitted && cinematicDedupKey) {
+    var recentCinematicAt = Number(_recentConsolidationCinematicAtByKey.get(cinematicDedupKey)) || 0;
+    if(_consolidationCinematicPendingKeys.has(cinematicDedupKey) || Date.now() - recentCinematicAt < 3600) {
+      return true;
+    }
+    _consolidationCinematicPendingKeys.add(cinematicDedupKey);
+  }
   var activeOverlay = document.querySelector('.cc-overlay-v2');
   if(activeOverlay || _consolidationCinematicShowing){
-    _consolidationCinematicQueue.push({card: card, opts: Object.assign({}, opts)});
+    _consolidationCinematicQueue.push({
+      card: card,
+      opts: Object.assign({}, opts, {
+        _cinematicDedupAccepted:true,
+        _cinematicDedupKey:cinematicDedupKey
+      })
+    });
     return true;
   }
   _consolidationCinematicShowing = true;
@@ -8941,6 +9091,10 @@ function showConsolidationCinematic(card, opts) {
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     _lastConsolidationCinematicEndedAt = Date.now();
+    if(cinematicDedupKey) {
+      _consolidationCinematicPendingKeys.delete(cinematicDedupKey);
+      _recentConsolidationCinematicAtByKey.set(cinematicDedupKey, _lastConsolidationCinematicEndedAt);
+    }
     beginPostConsolidationFateFeedbackHold();
     if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
     scheduleEffectActivationCinematicDrain();
@@ -8950,11 +9104,17 @@ function showConsolidationCinematic(card, opts) {
 
   // Safety: force-cleanup if stuck
   setTimeout(function(){
-    if(_consolidationCinematicShowing){
+    // A completed overlay can hand the queue to the next cinematic before this
+    // timer fires; never let the old timer tear down the new overlay.
+    if(_consolidationCinematicShowing && overlay.isConnected){
       _consolidationCinematicShowing = false;
       document.querySelectorAll('.cc-overlay-v2').forEach(function(el){ el.remove(); });
       document.body.classList.remove('cinematic-lock');
       _lastConsolidationCinematicEndedAt = Date.now();
+      if(cinematicDedupKey) {
+        _consolidationCinematicPendingKeys.delete(cinematicDedupKey);
+        _recentConsolidationCinematicAtByKey.set(cinematicDedupKey, _lastConsolidationCinematicEndedAt);
+      }
       beginPostConsolidationFateFeedbackHold();
       if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck(60);
       scheduleEffectActivationCinematicDrain();
@@ -8979,13 +9139,18 @@ function requestCharacterSetCinematic(card, opts) {
       G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + delayMs + getConsolidationCinematicTotalMs());
     }
   } catch(e) {}
+  _scheduledCharacterSetCinematicCount += 1;
   setTimeout(function(){
+    _scheduledCharacterSetCinematicCount = Math.max(0, _scheduledCharacterSetCinematicCount - 1);
     const shown = showConsolidationCinematic(card, {
       playVoice:options.playVoice !== false,
       playSfx:options.playSfx !== false,
       allowRenderV2Cinematic:true
     });
-    if(shown === false) _characterSetCinematicKeys.delete(key);
+    if(shown === false) {
+      _characterSetCinematicKeys.delete(key);
+      scheduleEffectActivationCinematicDrain();
+    }
   }, delayMs);
   return true;
 }
@@ -9028,8 +9193,43 @@ let _effectActivationCinematicQueue = [];
 let _lastEffectActivationCinematicKey = '';
 let _lastEffectActivationCinematicAt = 0;
 let _effectActivationCinematicDrainTimer = 0;
+const _recentEffectActivationCinematicKeys = new Map();
 const EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS = 1000;
 const EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS = 160;
+const EFFECT_ACTIVATION_DUPLICATE_WINDOW_MS = 7000;
+
+function effectActivationCinematicDedupeKey(card, options) {
+  const opts = options || {};
+  if(opts.activationId) return 'activation:' + String(opts.activationId);
+  const turn = typeof G !== 'undefined' && G ? Number(G.turn) || 0 : 0;
+  const state = [
+    card && card.usesLeft,
+    card && card.effectUsedThisTurn === true ? 1 : 0,
+    card && card.effectUsedInitial === true ? 1 : 0,
+    card && card.whenSetActivated === true ? 1 : 0
+  ].join(':');
+  return [
+    'card',
+    turn,
+    card && card.owner,
+    card && (card.iid || card.id || card.name || 'card'),
+    state
+  ].join(':');
+}
+
+function pruneRecentEffectActivationCinematics(now) {
+  _recentEffectActivationCinematicKeys.forEach(function(expiresAt, key){
+    if(Number(expiresAt) <= now) _recentEffectActivationCinematicKeys.delete(key);
+  });
+}
+
+function reserveEffectActivationCinematic(key, now) {
+  const at = Number(now) || Date.now();
+  pruneRecentEffectActivationCinematics(at);
+  if((Number(_recentEffectActivationCinematicKeys.get(key)) || 0) > at) return false;
+  _recentEffectActivationCinematicKeys.set(key, at + EFFECT_ACTIVATION_DUPLICATE_WINDOW_MS);
+  return true;
+}
 
 function holdEffectActivationPresentationUntil(until) {
   if(typeof G === 'undefined' || !G) return 0;
@@ -9055,21 +9255,48 @@ function effectActivationConsolidationGapRemaining() {
   return Math.max(0, EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS - (Date.now() - _lastConsolidationCinematicEndedAt));
 }
 
+function effectActivationPredecessorRemaining() {
+  const now = Date.now();
+  let remaining = 0;
+  if(typeof G !== 'undefined' && G) {
+    remaining = Math.max(
+      remaining,
+      Math.max(0, (Number(G._placementUiLockUntil) || 0) - now),
+      Math.max(0, (Number(G._cinematicUiLockUntil) || 0) - now)
+    );
+  }
+  const presenter = typeof window !== 'undefined' ? window.FateActionPresentation : null;
+  const placementActive = !!(presenter && typeof presenter.isActive === 'function' && presenter.isActive());
+  const setPresentationPending = _scheduledCharacterSetCinematicCount > 0
+    || _consolidationCinematicQueue.length > 0
+    || consolidationCinematicIsActive();
+  if(placementActive || setPresentationPending) remaining = Math.max(remaining, 80);
+  return remaining;
+}
+if(typeof window !== 'undefined') window.fateEffectActivationPredecessorRemaining = effectActivationPredecessorRemaining;
+
 function scheduleEffectActivationCinematicDrain() {
   if(_effectActivationCinematicShowing || !_effectActivationCinematicQueue.length) return;
   if(_effectActivationCinematicDrainTimer) clearTimeout(_effectActivationCinematicDrainTimer);
-  const delay = consolidationCinematicIsActive()
-    ? 80
-    : Math.max(0, effectActivationConsolidationGapRemaining());
+  const delay = Math.max(
+    effectActivationPredecessorRemaining(),
+    effectActivationConsolidationGapRemaining()
+  );
   _effectActivationCinematicDrainTimer = setTimeout(function(){
     _effectActivationCinematicDrainTimer = 0;
     if(_effectActivationCinematicShowing) return;
-    if(consolidationCinematicIsActive() || effectActivationConsolidationGapRemaining() > 0) {
+    if(effectActivationPredecessorRemaining() > 0 || effectActivationConsolidationGapRemaining() > 0) {
       scheduleEffectActivationCinematicDrain();
       return;
     }
     const next = _effectActivationCinematicQueue.shift();
-    if(next) showEffectActivationCinematic(next.card, next.opts).then(next.resolve);
+    if(next) {
+      const queuedOptions = Object.assign({}, next.opts, {
+        _reservedEffectActivationCinematic:true,
+        _effectActivationDedupeKey:next.key
+      });
+      showEffectActivationCinematic(next.card, queuedOptions).then(next.resolve);
+    }
   }, Math.max(0, delay));
 }
 
@@ -9086,13 +9313,13 @@ function queueEffectActivationCinematic(card, options, key) {
 function showEffectActivationCinematic(card, opts) {
   const options = opts || {};
   if(typeof document === 'undefined' || !card) return Promise.resolve(false);
-  const key = String(card.iid || card.id || card.name || 'card');
+  const key = String(options._effectActivationDedupeKey || effectActivationCinematicDedupeKey(card, options));
   const now = Date.now();
-  if(key === _lastEffectActivationCinematicKey && now - _lastEffectActivationCinematicAt < 3200) {
+  if(options._reservedEffectActivationCinematic !== true && !reserveEffectActivationCinematic(key, now)) {
     return Promise.resolve(false);
   }
   if(_effectActivationCinematicShowing || document.querySelector('.effect-activation-cinematic') ||
-    consolidationCinematicIsActive() || effectActivationConsolidationGapRemaining() > 0) {
+    effectActivationPredecessorRemaining() > 0 || effectActivationConsolidationGapRemaining() > 0) {
     return queueEffectActivationCinematic(card, options, key);
   }
   _lastEffectActivationCinematicKey = key;

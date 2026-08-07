@@ -1,0 +1,48 @@
+# Phase 6 shadow soak variant for a separate Fly app.
+#
+# Copy this to a private deployment config and set dedicated shadow app and
+# volume names. Do not reuse the production legacy app or its volume. This
+# image still serves protocol v2 from fate-ws-authority.js; it adds only the
+# file-reading observer sibling process for explicitly routed soak traffic.
+app = 'replace-with-separate-shadow-app'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile.authority-v3-shadow'
+
+[processes]
+  app = 'node server/authoritative-v3/phase6-shadow-supervisor.mjs'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_BUILD_ID = 'replace-with-shadow-build-id'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_WS_DATA_DIR = '/data/fate-authority'
+  FATE_WS_FLY_STORE = '1'
+  FATE_WS_REQUIRE_FLY_STORE = '1'
+  FATE_WS_APPEND_EVENT_LOG = '1'
+  FATE_WS_REQUIRE_TOKEN = '1'
+  FATE_WS_DISABLE_FIREBASE_RTDB = '1'
+  FATE_RTDB_DISABLED = '1'
+  FATE_WS_DURABLE_WRITES = 'off'
+  FATE_WS_REQUIRE_DURABLE_WRITES = '0'
+  FATE_WS_STATE_GATE = '1'
+  FATE_WS_REDUCER_MODE = 'client-resolved'
+  FATE_WS_GAMEPLAY_AUTHORITY = 'client-resolved'
+
+[[mounts]]
+  source = 'replace-with-separate-shadow-volume'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

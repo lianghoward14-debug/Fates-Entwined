@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="670" viewBox="0 0 1200 670">
+  <defs>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3a172d"/><stop offset=".52" stop-color="#1c1b36"/><stop offset="1" stop-color="#09111a"/></linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grain" width="54" height="54" patternUnits="userSpaceOnUse" patternTransform="rotate(-16)"><path d="M-10 20H70" stroke="#ffc2e2" stroke-opacity=".035" stroke-width="2"/></pattern>
+  </defs>
+  <rect width="1200" height="670" fill="#090b12"/>
+  <text x="60" y="58" fill="#eef1f7" font-family="system-ui, sans-serif" font-size="25" font-weight="700" letter-spacing="2">JIMMY — IN-GAME OVERLAY CANDIDATES</text>
+  <text x="60" y="86" fill="#aab2c3" font-family="system-ui, sans-serif" font-size="15">Current canvas language: clipped card tint, centered 64-unit line glyph, bright stroke, soft glow.</text>
+  <!-- Option 1 -->
+  <g transform="translate(70,122)">
+    <rect x="0" y="0" width="320" height="430" rx="18" fill="#111622" stroke="#ffb8dc" stroke-opacity=".55" stroke-width="2"/>
+    <clipPath id="clip1"><rect x="12" y="12" width="296" height="406" rx="13"/></clipPath>
+    <g clip-path="url(#clip1)"><rect x="12" y="12" width="296" height="406" fill="url(#card)"/><rect x="12" y="12" width="296" height="406" fill="#7b184d" fill-opacity=".20"/><rect x="12" y="12" width="296" height="406" fill="url(#grain)"/></g>
+    <rect x="28" y="30" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".56"/>
+    <text x="42" y="53" fill="#f0d9e5" font-family="system-ui, sans-serif" font-size="20" font-weight="700">JIMMY</text><text x="42" y="70" fill="#e597bd" font-family="system-ui, sans-serif" font-size="11">A TRUE INCEL'S WRATH</text>
+    <g transform="translate(92,139) scale(2.13)" fill="none" stroke="#ffbcdd" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <path d="M15 12v16H7l11 15 11-15h-8V12Z"/><path d="M43 12v16h-8l11 15 11-15h-8V12Z"/><path d="M29 8v19h-7l10 13 10-13h-7V8Z"/>
+      <circle cx="32" cy="49" r="12"/><path d="M24 49c3 7 13 7 16 0"/>
+    </g>
+    <rect x="28" y="345" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".62"/>
+    <text x="42" y="367" fill="#ffd1e5" font-family="system-ui, sans-serif" font-size="14" font-weight="700">FATE LEECH</text><text x="42" y="386" fill="#c8b4c0" font-family="system-ui, sans-serif" font-size="12">Their Fate loss feeds Jimmy.</text>
+  </g>
+  <!-- Option 2 -->
+  <g transform="translate(440,122)">
+    <rect x="0" y="0" width="320" height="430" rx="18" fill="#111622" stroke="#ffb8dc" stroke-opacity=".55" stroke-width="2"/>
+    <clipPath id="clip2"><rect x="12" y="12" width="296" height="406" rx="13"/></clipPath>
+    <g clip-path="url(#clip2)"><rect x="12" y="12" width="296" height="406" fill="url(#card)"/><rect x="12" y="12" width="296" height="406" fill="#7b184d" fill-opacity=".20"/><rect x="12" y="12" width="296" height="406" fill="url(#grain)"/></g>
+    <rect x="28" y="30" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".56"/>
+    <text x="42" y="53" fill="#f0d9e5" font-family="system-ui, sans-serif" font-size="20" font-weight="700">JIMMY</text><text x="42" y="70" fill="#e597bd" font-family="system-ui, sans-serif" font-size="11">A TRUE INCEL'S WRATH</text>
+    <g transform="translate(92,139) scale(2.13)" fill="none" stroke="#ffbcdd" stroke-width="4.3" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <path d="M56 36A24 24 0 1 1 32 8"/><path d="M32 10v29m0 0-9-9m9 9 9-9"/><path d="m19 20 5-4m-9 13 6-4m-4 14 6-4m22-15-5-4m9 13-6-4m4 14-6-4"/><circle cx="32" cy="51" r="3.5" fill="#ffbcdd" stroke="none"/>
+    </g>
+    <rect x="28" y="345" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".62"/>
+    <text x="42" y="367" fill="#ffd1e5" font-family="system-ui, sans-serif" font-size="14" font-weight="700">WRATH TALLY</text><text x="42" y="386" fill="#c8b4c0" font-family="system-ui, sans-serif" font-size="12">Repeated losses build his count.</text>
+  </g>
+  <!-- Option 3 -->
+  <g transform="translate(810,122)">
+    <rect x="0" y="0" width="320" height="430" rx="18" fill="#111622" stroke="#ffb8dc" stroke-opacity=".55" stroke-width="2"/>
+    <clipPath id="clip3"><rect x="12" y="12" width="296" height="406" rx="13"/></clipPath>
+    <g clip-path="url(#clip3)"><rect x="12" y="12" width="296" height="406" fill="url(#card)"/><rect x="12" y="12" width="296" height="406" fill="#7b184d" fill-opacity=".20"/><rect x="12" y="12" width="296" height="406" fill="url(#grain)"/></g>
+    <rect x="28" y="30" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".56"/>
+    <text x="42" y="53" fill="#f0d9e5" font-family="system-ui, sans-serif" font-size="20" font-weight="700">JIMMY</text><text x="42" y="70" fill="#e597bd" font-family="system-ui, sans-serif" font-size="11">A TRUE INCEL'S WRATH</text>
+    <g transform="translate(92,139) scale(2.13)" fill="none" stroke="#ffbcdd" stroke-width="4.3" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <path d="M7 33 18 20 32 16 46 20 57 33 46 46 32 50 18 46Z"/><circle cx="32" cy="33" r="8"/><circle cx="32" cy="33" r="2.7" fill="#ffbcdd" stroke="none"/><path d="M32 3v11m0 0-7-6m7 6 7-6M21 55l6 6 5-6 5 6 6-6" stroke-width="3.4"/>
+    </g>
+    <rect x="28" y="345" width="264" height="48" rx="7" fill="#08080e" fill-opacity=".62"/>
+    <text x="42" y="367" fill="#ffd1e5" font-family="system-ui, sans-serif" font-size="14" font-weight="700">ABYSS GAZE</text><text x="42" y="386" fill="#c8b4c0" font-family="system-ui, sans-serif" font-size="12">A darker, more characterful read.</text>
+  </g>
+  <text x="70" y="608" fill="#ff89bb" font-family="system-ui, sans-serif" font-size="13" letter-spacing="2">RECOMMENDATION</text>
+  <text x="70" y="636" fill="#d7dce8" font-family="system-ui, sans-serif" font-size="16">Fate Leech — it communicates the conditional transfer most clearly at gameplay size.</text>
+</svg>

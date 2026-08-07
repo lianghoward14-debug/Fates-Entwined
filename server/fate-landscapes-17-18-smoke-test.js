@@ -147,7 +147,7 @@ assert.match(css, /whisper-token-copy-banner \.cd-live-tracker-label[\s\S]{0,220
 assert.match(core, /function applyIdyllicPolishVillageDrawPhase[\s\S]{0,650}isLandscapeActive\('igb18'\)[\s\S]{0,500}card\.aff !== 'expanded_worlds'[\s\S]{0,500}modifyFate\(card, 1, 'permanent'(?:, player)?\)/,
   'IGB18 must permanently grant 1 Fate to each controlled Expanded Worlds Character');
 const idyllicDrawPhaseIndex = core.indexOf('applyIdyllicPolishVillageDrawPhase(G.currentPlayer)');
-const normalDrawIndex = core.indexOf('drawCard(currentPlayer, 1, { drawPhase: true', idyllicDrawPhaseIndex);
+const normalDrawIndex = core.indexOf('await drawCard(currentPlayer, 1, {', idyllicDrawPhaseIndex);
 assert(idyllicDrawPhaseIndex >= 0 && normalDrawIndex > idyllicDrawPhaseIndex,
   'IGB18 must resolve at the start of the Draw Phase before the draw');
 assert.match(ai, /activateWhisperOfTheHeartLandscape\(\{auto:true, playerIndex:G\.aiPlayer\}\)/,
@@ -165,7 +165,7 @@ assert.match(online, /const cardId = String\(card\.id \|\| ''\);[\s\S]*\['token1
   'online card compaction must preserve the dynamic Shizuku Token effect text');
 assert.match(online, /window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,1000}sendOptimisticAction\('HAND_ACTION'[\s\S]{0,1000}_onlineClientOwnedBoardActionPickerDepth/,
   'multiplayer must resolve both Concrete Roads choices inside one authoritative action');
-assert.match(index, /00-structural-helpers\.js\?v=1785160801[\s\S]*01-data-and-state\.js\?v=1785160801[\s\S]*05-gameplay-core\.js\?v=1785165001[\s\S]*06-rendering-and-helpers\.js\?v=1785165501[\s\S]*07-ai\.js\?v=1785162601[\s\S]*08-audio-and-meta-ui\.js\?v=1785032407[\s\S]*18-online-rooms\.js\?v=1785165401&sync=1785165401/,
+assert.match(index, /00-structural-helpers\.js\?v=1785600001[\s\S]*01-data-and-state\.js\?v=1785600002[\s\S]*05-gameplay-core\.js\?v=1785601100[\s\S]*06-rendering-and-helpers\.js\?v=1785605800[\s\S]*07-ai\.js\?v=1785354007[\s\S]*08-audio-and-meta-ui\.js\?v=1785032407[\s\S]*18-online-rooms\.js\?v=1785606400&sync=1785606400/,
   'all landscape runtime surfaces must be cache-busted together');
 
 const catalog = getCardCatalog();

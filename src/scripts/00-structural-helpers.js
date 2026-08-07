@@ -488,6 +488,24 @@ function isSouthWindSpearmanCard(card) {
   return !!(card && (String(card.id || '') === '20' || (typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '20'))));
 }
 
+function isCardCurrentlyOnField(card) {
+  if (!card || typeof G === 'undefined' || !G || !Array.isArray(G.board)) return false;
+  const iid = card.iid;
+  for (let z = 0; z < G.board.length; z++) {
+    const zone = G.board[z];
+    if (!Array.isArray(zone)) continue;
+    for (let r = 0; r < zone.length; r++) {
+      const row = zone[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const fieldCard = row[c];
+        if (fieldCard === card || (iid != null && fieldCard && fieldCard.iid === iid)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function isAnickaVoyagerCard(card) {
   return !!(card && String(card.id || '') === 'bh01');
 }
@@ -523,7 +541,7 @@ function isCardEffectImmutable(card) {
 }
 
 function isOpponentEffectOnlyImmuneCard(card) {
-  return isSouthWindSpearmanCard(card);
+  return isSouthWindSpearmanCard(card) && isCardCurrentlyOnField(card);
 }
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
@@ -616,6 +634,10 @@ function getFateFeedbackPresentationBlockUntil() {
     cinematicActive = !!(document.body && document.body.classList.contains('cinematic-lock'))
       || !!document.querySelector('.cc-overlay-v2');
   } catch(e) {}
+  const landscapeImmediate = typeof G !== 'undefined' && G
+    ? Number(G._landscapeFeedbackImmediateUntil) || 0
+    : 0;
+  if (landscapeImmediate > now && !cinematicActive) return 0;
   if (presentationActive || cinematicActive) until = Math.max(until, now + 120);
   return until > now ? until : 0;
 }
@@ -827,7 +849,16 @@ function getDisplayedCardCost(card) {
   const owner = getPlayerForHandCard(card);
   const hasConditionalFreeCost = card.id === '99' && controlsNamedCard(owner, ['Rozsi', 'Zsofia']);
   const bloatPenalty = isCardCharacterForRules(card, owner) ? getAdministrativeBloatCostPenalty(owner) : 0;
-  const printedCost = hasConditionalFreeCost ? 0 : (typeof card.cost === 'number' ? card.cost : 0);
+  // Resolve printed cost from the current catalog rather than trusting a card
+  // instance serialized before a balance/art update. Runtime discounts still use
+  // _handCostDelta below, while configured Achilles tokens remain instance-based.
+  const canonical = typeof CARDS !== 'undefined' && Array.isArray(CARDS) && !card.achillesToken
+    ? CARDS.find(function(def){ return def && String(def.id || '') === String(card.id || ''); })
+    : null;
+  const canonicalCost = canonical && typeof canonical.cost === 'number'
+    ? canonical.cost
+    : (typeof card.cost === 'number' ? card.cost : 0);
+  const printedCost = hasConditionalFreeCost ? 0 : canonicalCost;
   if (isCardEffectImmutable(card)) return Math.max(0, printedCost + bloatPenalty);
   return Math.max(0, printedCost + (Number(card._handCostDelta) || 0) + bloatPenalty);
 }
@@ -1126,6 +1157,7 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
         if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, holder);
         G.players[holder].hand.push(card);
         showWineCountryGuerillaSentBanner();
+        refreshStatusEffectsNow();
         return;
       }
     }

@@ -480,9 +480,7 @@ function collectAuthorityImprovisorOptions(preState, msg, postState){
       const card = entry.card;
       if(String(card.id || '') !== '79') return;
       const deploymentOptions = authorityPlacementOptionsForCard(preState, reactionPlayer, card);
-      if(deploymentOptions.length){
-        options.push({kind:'havano', handIndex:entry.index, card:cloneState(card), deploymentOptions});
-      }
+      options.push({kind:'havano', handIndex:entry.index, card:cloneState(card), deploymentOptions});
     });
   }
   if(!options.length) return null;
@@ -1819,8 +1817,14 @@ function applyHavanoAuthorityReaction(state, option, payload, pending, presentat
   const cardRef = option && option.card || option;
   const handIndex = player.hand.findIndex(card=>cardMatchesRef(card, cardRef));
   if(handIndex < 0) return 'Havano Citizen is no longer in hand';
+  const deploymentOptions = Array.isArray(option.deploymentOptions) ? option.deploymentOptions : [];
+  if(!deploymentOptions.length){
+    markAuthoritySourceNegated(state, pending, 'havano');
+    applyAuthorityMajaMischievousActivities(state, Number(pending && pending.playerIndex), presentationEvents);
+    return '';
+  }
   const deployment = payload && payload.deployment || null;
-  const legal = (Array.isArray(option.deploymentOptions) ? option.deploymentOptions : []).some(target=>
+  const legal = deploymentOptions.some(target=>
     Number(target.z) === Number(deployment && deployment.z) &&
     Number(target.r) === Number(deployment && deployment.r) &&
     Number(target.c) === Number(deployment && deployment.c)

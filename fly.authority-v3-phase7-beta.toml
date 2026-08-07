@@ -1,0 +1,49 @@
+# Isolated Phase 7 unranked beta. This app and volume must never be reused by
+# the legacy production authority or the Phase 6 shadow observer.
+app = 'fates-entwined-v3-unranked-beta'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile.authority-v3-phase7-beta'
+
+[processes]
+  app = 'node server/authoritative-v3/phase7-beta-server.mjs'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '0'
+  FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION = '1.39.0-phase7-beta.1'
+  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'phase7-8c84728915b5973ab35da28a8ec1d4d2aed0aa96be598d54bb9cee10d2e50acb'
+  FATE_AUTHORITY_V3_RETAINED_MATCHES = '50'
+  FATE_AUTHORITY_V3_FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc'
+  FATE_AUTHORITY_V3_HOST = '0.0.0.0'
+  FATE_AUTHORITY_V3_PORT = '8787'
+  FATE_AUTHORITY_V3_DATA_DIR = '/data/authority-v3-phase7'
+  FATE_AUTHORITY_V3_ALLOW_TEST_MATCHES = '0'
+  FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES = '0'
+  FATE_AUTHORITY_V3_PHASE7_ALLOW_ORGANIC_TEST_FIXTURES = '1'
+
+[[mounts]]
+  source = 'fate_authority_v3_phase7_beta'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

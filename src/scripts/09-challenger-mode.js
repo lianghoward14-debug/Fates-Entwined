@@ -1725,7 +1725,11 @@ function updateChTopbar() {
   const slIcon = document.getElementById('ch-starlight-icon');
   if(slVal) slVal.textContent = USER_PROFILE.starlight || 0;
   if(pkVal) pkVal.textContent = USER_PROFILE.unopenedPacks || 0;
-  if(eloVal) eloVal.textContent = USER_PROFILE.challengerElo || 600;
+  if(eloVal) {
+    const eloText = String(USER_PROFILE.challengerElo || 600);
+    eloVal.textContent = eloText;
+    eloVal.classList.toggle('four-digit-elo', eloText.length >= 4);
+  }
   if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
 }
 
@@ -3603,7 +3607,7 @@ function renderCdbCollection() {
       lowScroll:true,
       maxDpr:1,
       hoverRedraw:false,
-      onClick:(card)=>openCardDetail(card),
+      onClick:(card)=>openChallengerDeckBuilderCardDetail(card),
       onContextMenu:(card)=>cdbAdd(card.id)
     })) return;
   }
@@ -3621,7 +3625,7 @@ function renderCdbCollection() {
     ownedBadge.style.cssText='position:absolute;top:4px;right:4px;z-index:4;font-family:Cinzel,serif;font-size:.65rem;color:#fff;background:rgba(0,0,0,.8);border:1px solid var(--gold);padding:.1rem .3rem;border-radius:2px;';
     ownedBadge.textContent = `${avail}/${owned_n}`;
     el.appendChild(ownedBadge);
-    el.onclick = ()=>openCardDetail(c);
+    el.onclick = ()=>openChallengerDeckBuilderCardDetail(c);
     el.oncontextmenu = (e)=>{e.preventDefault();cdbAdd(c.id);};
     el.title = `Owned: ${owned_n} � In deck: ${inDeck} � Right-click to add`;
     col.appendChild(el);
@@ -3686,7 +3690,7 @@ function renderCdbDecklist() {
     if(renderCanvasDeckList(list, canvasEntries, {
       compact:true,
       removeLabel:'Remove',
-      onOpen:(card)=>openCardDetail(card),
+      onOpen:(card)=>openChallengerDeckBuilderCardDetail(card),
       onRemove:(id)=>cdbRemove(id)
     })) return;
   }
@@ -3727,7 +3731,7 @@ function renderCdbDecklist() {
         <span class="db-row-qty">x${n}</span>
         <span class="rm" onclick="event.stopPropagation();cdbRemove('${id}')" title="Remove">Remove</span>
       </span>`;
-    row.onclick = ()=>openCardDetail(c);
+    row.onclick = ()=>openChallengerDeckBuilderCardDetail(c);
     list.appendChild(row);
   });
 }
@@ -3859,6 +3863,54 @@ function cdbAdd(id) {
   refreshCdbCollectionCounts();
   renderCdbDecklist();
   if(wasComplete && _cdbCurrentDeckIds.length === 40 && typeof playSfx==='function') playSfx('deckComplete');
+}
+
+function getChallengerDeckBuilderAddBlockReason(card) {
+  if(!card) return 'Card unavailable';
+  if(_cdbCurrentDeckIds.length >= 40) return 'Deck is full (40 cards)';
+  const owned = Number(USER_PROFILE.ownedCards?.[card.id]) || 0;
+  const inDeck = _cdbCurrentDeckIds.filter(id=>id===card.id).length;
+  if(inDeck >= owned) return 'No owned copies remaining';
+  const copyLimit = card.rarity === 'star' ? 1 : 3;
+  if(inDeck >= copyLimit) return 'Copy limit reached';
+  if(card.rarity === 'star') {
+    const starCount = _cdbCurrentDeckIds.filter(function(id){
+      const entry = CARDS.find(candidate=>candidate.id===id);
+      return entry && entry.rarity === 'star';
+    }).length;
+    if(starCount >= 1) return 'Only one Star card is allowed';
+  }
+  return '';
+}
+
+function openChallengerDeckBuilderCardDetail(card) {
+  if(!card || typeof openCardDetail !== 'function') return;
+  openCardDetail(card);
+  const acts = document.getElementById('modal-acts');
+  if(!acts) return;
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'btn sm pri';
+  add.dataset.challengerAddToDeck = '1';
+  add.textContent = 'Add to Deck';
+  const refresh = function(){
+    const reason = getChallengerDeckBuilderAddBlockReason(card);
+    add.disabled = !!reason;
+    add.title = reason;
+  };
+  add.onclick = function(ev){
+    ev.preventDefault();
+    ev.stopPropagation();
+    const before = _cdbCurrentDeckIds.length;
+    cdbAdd(card.id);
+    if(_cdbCurrentDeckIds.length > before) add.textContent = 'Add Another';
+    refresh();
+  };
+  refresh();
+  const close = Array.from(acts.querySelectorAll('button')).find(function(button){
+    return /^close$/i.test(String(button.textContent || '').trim());
+  });
+  acts.insertBefore(add, close || null);
 }
 
 function cdbRemove(id) {
@@ -4082,9 +4134,11 @@ function cdbDeleteDeck() {
     `Delete "${escapeHtml(p.name)}"? This cannot be undone.`,
     [{label:'Cancel',action:closeModal},
      {label:'Delete',danger:true,action:()=>{
+       const deletedName = p.name;
        delete presets[_cdbCurrentDeckId];
        saveProfile();
        closeModal();
+       if(typeof showDeckOverwriteBanner === 'function') showDeckOverwriteBanner(deletedName, 'Challenger deck deleted');
        setTimeout(()=>toast('Deck deleted'), 80);
        cdbNewDeck();
      }}]);

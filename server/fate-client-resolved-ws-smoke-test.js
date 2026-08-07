@@ -23,8 +23,14 @@ assert.match(
 );
 
 const PORT = Number(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_PORT || 8814);
-const ORIGIN = `http://127.0.0.1:${PORT}`;
-const WS_URL = `ws://127.0.0.1:${PORT}`;
+const REMOTE_ORIGIN = String(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_ORIGIN || '').trim().replace(/\/+$/, '');
+const SPAWN_LOCAL = !REMOTE_ORIGIN;
+const ORIGIN = REMOTE_ORIGIN || `http://127.0.0.1:${PORT}`;
+const WS_URL = String(
+  process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_WS_URL
+  || (SPAWN_LOCAL ? `ws://127.0.0.1:${PORT}` : ORIGIN.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:'))
+);
+const FIREBASE_API_KEY = process.env.FATE_WS_SMOKE_API_KEY || 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
 const REQUEST_TIMEOUT_MS = Number(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_TIMEOUT_MS || 20000);
 
 function sleep(ms){
@@ -44,7 +50,10 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
 async function fetchJson(route, options = {}){
   const res = await fetchWithTimeout(ORIGIN + route, {
     method:options.method || 'GET',
-    headers:{'content-type':'application/json'},
+    headers:Object.assign(
+      {'content-type':'application/json'},
+      options.idToken ? {authorization:`Bearer ${options.idToken}`} : null
+    ),
     body:options.body === undefined ? undefined : JSON.stringify(options.body)
   }, options.timeoutMs || REQUEST_TIMEOUT_MS);
   const text = await res.text();
@@ -54,6 +63,51 @@ async function fetchJson(route, options = {}){
     throw new Error(`${options.method || 'GET'} ${route} failed ${res.status}: ${json?.error || text.slice(0, 300)}`);
   }
   return json;
+}
+
+async function identityToolkitRequest(endpoint, body){
+  const res = await fetchWithTimeout(
+    `https://identitytoolkit.googleapis.com/v1/${endpoint}?key=${encodeURIComponent(FIREBASE_API_KEY)}`,
+    {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify(body || {})
+    },
+    REQUEST_TIMEOUT_MS
+  );
+  const text = await res.text();
+  let json = null;
+  try{ json = text ? JSON.parse(text) : null; }catch(_){}
+  if(!res.ok || json?.error){
+    throw new Error(`Firebase Auth ${endpoint} failed: ${json?.error?.message || text.slice(0, 240) || res.status}`);
+  }
+  return json || {};
+}
+
+async function createAnonymousAuthUser(label){
+  const json = await identityToolkitRequest('accounts:signUp', {returnSecureToken:true});
+  if(!json.idToken || !json.localId) throw new Error(`anonymous ${label} auth response missing idToken/localId`);
+  return {label, uid:String(json.localId), idToken:String(json.idToken), temporary:true};
+}
+
+async function authUsers(){
+  if(SPAWN_LOCAL){
+    return {
+      host:{label:'host', uid:'client-resolved-host', idToken:''},
+      guest:{label:'guest', uid:'client-resolved-guest', idToken:''},
+      mode:'fake-local'
+    };
+  }
+  const host = await createAnonymousAuthUser('host');
+  const guest = await createAnonymousAuthUser('guest');
+  return {host, guest, mode:'temporary-anonymous-firebase-users'};
+}
+
+async function deleteTemporaryAuthUser(user){
+  if(!user?.temporary || !user.idToken) return;
+  try{
+    await identityToolkitRequest('accounts:delete', {idToken:user.idToken});
+  }catch(_){}
 }
 
 function validDeck(){
@@ -73,7 +127,12 @@ function deckChoice(name){
 }
 
 async function startServer(){
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fate-client-resolved-ws-'));
+  if(!SPAWN_LOCAL) return null;
+  const configuredDataDir = String(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_DATA_DIR || '').trim();
+  const dataDir = configuredDataDir
+    ? path.resolve(configuredDataDir)
+    : fs.mkdtempSync(path.join(os.tmpdir(), 'fate-client-resolved-ws-'));
+  fs.mkdirSync(dataDir, {recursive:true});
   const child = spawn(process.execPath, ['server/fate-ws-authority.js'], {
     cwd:path.resolve(__dirname, '..'),
     env:Object.assign({}, process.env, {
@@ -101,7 +160,7 @@ async function startServer(){
     if(child.exitCode !== null) throw new Error(`authority exited early: ${log.slice(-2000)}`);
     try{
       const health = await fetchJson('/health', {timeoutMs:1000});
-      if(health.ok) return {child, dataDir, log:()=>log};
+      if(health.ok) return {child, dataDir, ownsDataDir:!configuredDataDir, log:()=>log};
     }catch(_){}
     await sleep(100);
   }
@@ -147,7 +206,7 @@ function connectClient(user, room){
         kind:'hello',
         roomCode:room.roomCode || room.code,
         uid:user.uid,
-        idToken:'',
+        idToken:user.idToken || '',
         lastSeq:Number(room.lastActionSeq || room.lastSeq || 1) || 1,
         stateHash:String(room.canonicalHash || room.lastStateHash || room.serverStateHash || ''),
         room:{
@@ -231,15 +290,18 @@ function testCard(id, owner, iid, type){
 async function run(){
   const authority = await startServer();
   const clients = [];
+  let users = null;
   try{
     const health = await fetchJson('/health');
     assert.strictEqual(health.gameplayAuthority, 'client-resolved');
     assert.strictEqual(health.clientResolvedGameplay, true);
 
-    const host = {label:'host', uid:'client-resolved-host'};
-    const guest = {label:'guest', uid:'client-resolved-guest'};
+    users = await authUsers();
+    const host = users.host;
+    const guest = users.guest;
     const created = await fetchJson('/api/rooms', {
       method:'POST',
+      idToken:host.idToken,
       body:{uid:host.uid, mode:'freeplay', profile:profile('CR Host'), deckChoice:deckChoice('CR Host Deck')}
     });
     const roomCode = String(created.room?.roomCode || created.room?.code || '');
@@ -247,17 +309,24 @@ async function run(){
 
     await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/join`, {
       method:'POST',
+      idToken:guest.idToken,
       body:{uid:guest.uid, profile:profile('CR Guest'), deckChoice:deckChoice('CR Guest Deck')}
     });
 
     const started = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/start`, {
       method:'POST',
+      idToken:host.idToken,
       body:{uid:host.uid, seed:'client-resolved-ws-smoke', song:'board1', mode:'freeplay'}
     });
     assert.strictEqual(String(started.accepted?.action?.type || '').toUpperCase(), 'MATCH_START');
     const startState = started.accepted.action.payload.postState;
     const startHash = started.accepted.action.payload.stateHash;
     assert.ok(startState && startHash, 'MATCH_START must return canonical postState/stateHash');
+    const afterStartDelayMs = Math.max(
+      0,
+      Math.min(5000, Number(process.env.FATE_CLIENT_RESOLVED_WS_SMOKE_AFTER_START_DELAY_MS || 0) || 0)
+    );
+    if(afterStartDelayMs) await sleep(afterStartDelayMs);
 
     const activePlayer = Number(startState.currentPlayer || 0);
     const activeUid = activePlayer === 0 ? host.uid : guest.uid;
@@ -443,7 +512,9 @@ async function run(){
     assert.strictEqual(negatedPlacement.action.payload.reactionResolution?.mode, 'negated', 'WebSocket accepted action must broadcast negation semantics to both clients');
     assert.strictEqual(negatedPlacement.action.payload.reactionResolution?.sourceName, 'Kazumi', 'WebSocket negation banner must name the actual first-set source');
 
-    const resumed = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/resume?after=0&limit=20&includeState=1`);
+    const resumed = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/resume?after=0&limit=20&includeState=1`, {
+      idToken:host.idToken
+    });
     assert.strictEqual(resumed.canonicalHash, negatedPlacement.action.payload.stateHash);
     assert.strictEqual(resumed.canonicalState.board[0][actorRow][0].iid, placementSource.iid);
 
@@ -592,6 +663,7 @@ async function run(){
     );
     const forfeitResponse = await fetchJson(`/api/rooms/${encodeURIComponent(roomCode)}/forfeit`, {
       method:'POST',
+      idToken:reactionActor === 0 ? host.idToken : guest.idToken,
       body:{uid:reactionActorUid, clientActionId:forfeitClientActionId}
     });
     const forfeited = forfeitResponse.accepted;
@@ -601,13 +673,18 @@ async function run(){
     assert.strictEqual(forfeitResponse.room?.endedBy, reactionActorUid, 'room watch payload must identify who ended the match');
     const remoteForfeit = await remoteForfeitPromise;
     assert.strictEqual(remoteForfeit.roomPatch?.status, 'ended', 'opponent must receive the terminal room status');
-    console.log('fate-client-resolved-ws smoke passed');
+    console.log(`fate-client-resolved-ws smoke passed (${users.mode}; ${ORIGIN})`);
   }finally{
     clients.forEach(client => {
       try{ client.ws.close(); }catch(_){}
     });
-    try{ authority.child.kill(); }catch(_){}
-    try{ fs.rmSync(authority.dataDir, {recursive:true, force:true}); }catch(_){}
+    if(authority){
+      try{ authority.child.kill(); }catch(_){}
+      if(authority.ownsDataDir){
+        try{ fs.rmSync(authority.dataDir, {recursive:true, force:true}); }catch(_){}
+      }
+    }
+    await Promise.all([deleteTemporaryAuthUser(users?.host), deleteTemporaryAuthUser(users?.guest)]);
   }
 }
 

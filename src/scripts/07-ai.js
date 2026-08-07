@@ -234,21 +234,46 @@ async function runAITurn() {
 
       aiInvalidateZoneScoreCache();
 
-      // Execute the best move
+      // Phase 0 legacy recorder: observe only when ?fateV3Recorder=1 loaded
+      // the separate bridge. It never changes gameplay authority or routing.
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
-      if(bestMove.type==='place') await aiDoPlace(bestMove);
-      else if(bestMove.type==='consolidate') await aiDoConsolidate(bestMove);
-      else break;
+      const recorderBridge = window.FateAuthorityV3LegacyRecorderBridge;
+      const recorderToken = recorderBridge ? recorderBridge.beginAIAction(bestMove) : null;
+      try {
+        if(bestMove.type==='place') await aiDoPlace(bestMove);
+        else if(bestMove.type==='consolidate') await aiDoConsolidate(bestMove);
+        else break;
+      } finally {
+        if(recorderBridge) recorderBridge.finishAction(recorderToken);
+      }
       }
 
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
-      await aiActivateEffects();
+      const effectsRecorderBridge = window.FateAuthorityV3LegacyRecorderBridge;
+      const effectsRecorderToken = effectsRecorderBridge
+        ? effectsRecorderBridge.beginNamedAction('LEGACY_AI_ACTIVATE_EFFECTS')
+        : null;
+      try {
+        await aiActivateEffects();
+      } finally {
+        if(effectsRecorderBridge) effectsRecorderBridge.finishAction(effectsRecorderToken);
+      }
       await aiSleep(AI_VISUAL_PAUSE_ENDTURN);
       await aiWaitForInteractionAnimations(180);
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       log('p2','AI ends turn.');
       G._aiRunning = false;
-      if(!G._aiAbort) endTurn();
+      if(!G._aiAbort) {
+        const endTurnRecorderBridge = window.FateAuthorityV3LegacyRecorderBridge;
+        const endTurnRecorderToken = endTurnRecorderBridge
+          ? endTurnRecorderBridge.beginNamedAction('LEGACY_END_TURN')
+          : null;
+        try {
+          endTurn();
+        } finally {
+          if(endTurnRecorderBridge) endTurnRecorderBridge.finishAction(endTurnRecorderToken);
+        }
+      }
   } catch(e) {
     if(G._aiAbort) {
       G._aiRunning = false;
@@ -262,6 +287,12 @@ async function runAITurn() {
 }
 
 function aiSleep(ms){
+  const corpusParams = new URLSearchParams(window.location.search || '');
+  if(corpusParams.get('fateV3LegacyCorpus') === '1'
+    && corpusParams.get('fateV3Recorder') === '1'
+    && corpusParams.get('fateV3SinglePlayer') !== '1'){
+    return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if(G._aiAbort) reject(new Error('AI aborted'));
@@ -2100,9 +2131,24 @@ function selectAIOpponent(opp, options={}) {
     : (Number(currentOpp.elo || opp.elo || 600) || 600);
   G.aiDifficulty = difficultyElo>=1400?'extreme':difficultyElo>=1200?'hard':difficultyElo>=800?'medium':'easy';
 
-  // For pool-backed AI, pick from the rank-appropriate built-in deck pool each match.
+  // Explicit named decks take precedence and are resolved fresh each match, so
+  // opponent profiles immediately pick up edits to their current built-in deck.
   let resolvedOpp = currentOpp;
-  if(currentOpp.deckPool === 'starter') {
+  const namedDeck = currentOpp.deckRef && typeof resolveAIDeckRef === 'function'
+    ? resolveAIDeckRef(currentOpp.deckRef)
+    : null;
+  if(Array.isArray(namedDeck) && namedDeck.length >= 40) {
+    const knownDecks = [
+      ...(typeof STARTER_DECKS !== 'undefined' && Array.isArray(STARTER_DECKS) ? STARTER_DECKS : []),
+      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [])
+    ];
+    const namedDefinition = knownDecks.find(deck => deck && String(deck.id || '') === String(currentOpp.deckRef));
+    resolvedOpp = {
+      ...currentOpp,
+      deck:[...namedDeck],
+      _deckStrategy:namedDefinition?.baseStrategy || namedDefinition?.id || currentOpp.deckRef
+    };
+  } else if(currentOpp.deckPool === 'starter') {
     const pool = typeof getAIDeckPoolForOpponent === 'function'
       ? getAIDeckPoolForOpponent(currentOpp)
       : (typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : []);
@@ -2426,20 +2472,6 @@ async function aiDoConsolidate(choice) {
   const idx = hand.indexOf(choice.card);
   if(idx<0) return;
 
-  // Check Deterrance in affected zones
-  const affectedZones = [...new Set(choice.tributes.map(t=>t.z))];
-  affectedZones.forEach(tz=>{
-    G.board[tz].forEach(row=>row.forEach(cell=>{
-      if(cell&&(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id==='36')&&cell.owner!==cp&&aiIsPublicBoardCard(cell)){
-        G.fateModifiers['deterrance_z'+tz] = (G.fateModifiers['deterrance_z'+tz]||0) - 3;
-        if(typeof flashCardEffect === 'function') flashCardEffect(cell, 'marie_deterrence', {
-          label:'Deterrance',
-          soundKey:'marie-ai:' + String(cell.iid || cell.id) + ':' + String(G.turn || 0) + ':' + String(choice.card.iid || choice.card.id)
-        });
-      }
-    }));
-  });
-
   // Pick target tribute slot: prefer AI's safe row (row 0), then contested, then opponent's side
   const aiSafeRow = cp===0?2:0;
   const scored = choice.tributes.map(t=>{
@@ -2457,14 +2489,15 @@ async function aiDoConsolidate(choice) {
     (choice.card.fate||0) >= 3
   );
 
-  let bonusFate = 0;
-  choice.tributes.forEach(t=>{
-    if(t.card.id==='47') bonusFate+=3;
-  });
+  const bonusFate = typeof getGreatOakConsolidationBonus === 'function'
+    ? getGreatOakConsolidationBonus(choice.tributes)
+    : choice.tributes.reduce((total, t)=>total + (t.card && t.card.id==='47' ? 3 : 0), 0);
 
   const inst = newInstance(choice.card);
   inst.owner = cp;
-  inst.currentFate = getPlacedCardFate(choice.card, {bonusFate, tributeCount: choice.tributes.length});
+  inst.currentFate = getPlacedCardFate(choice.card, {bonusFate:0, tributeCount: choice.tributes.length});
+  if(typeof applyGreatOakConsolidationBonus === 'function') applyGreatOakConsolidationBonus(inst, bonusFate);
+  else inst.currentFate = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0) + bonusFate;
   if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, choice.card, 'consolidation');
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, target.z, target.r, target.c);
   if(typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(cp, inst, target.z);
@@ -2474,8 +2507,13 @@ async function aiDoConsolidate(choice) {
     inst._suppressCinematicSubtitle = true;
   }
   consumePendingPlacementFlags(choice.card, inst);
+  let deterranceApplied = false;
   const commitAiConsolidation = function(presentationDelay){
     const motionMs = Math.max(0, Number(presentationDelay) || 0);
+    if(!deterranceApplied && typeof applyMarieDeterranceForConsolidation === 'function') {
+      deterranceApplied = true;
+      applyMarieDeterranceForConsolidation(cp, target.z, inst);
+    }
     try {
       choice.tributes.forEach(t=>{
         if(t && t.card) t.card._suppressDiscardVfx = true;
@@ -2610,7 +2648,21 @@ async function aiTriggerWhenSet(inst, z, r, c) {
 
   if(instIsSupporterForRules && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(cp)) return;
 
-  if(instIsSupporterForRules && typeof isPersistentSupporterEffectOnSet === 'function' && isPersistentSupporterEffectOnSet(inst)) {
+  const hasAutomaticSetActivation = typeof AUTHORITATIVE_WHEN_SET_EFFECT_IDS !== 'undefined'
+    && AUTHORITATIVE_WHEN_SET_EFFECT_IDS.has(String(id || ''));
+  const hasPersistentSetRegistration = instIsSupporterForRules
+    && typeof isPersistentSupporterEffectOnSet === 'function'
+    && isPersistentSupporterEffectOnSet(inst);
+  if(!hasAutomaticSetActivation && !hasPersistentSetRegistration) return;
+  if(hasAutomaticSetActivation && typeof playEffectActivationCinematic === 'function') {
+    await playEffectActivationCinematic(inst, z, r, c, {
+      source:'ai-when-set',
+      broadcast:false,
+      activationId:'when-set:' + String(inst.iid || inst.id) + ':' + String(G.turn || 0)
+    });
+  }
+
+  if(hasPersistentSetRegistration) {
     if(!G._suppressEffectPrompt) {
       const affectedOwners = typeof getSupporterEffectAffectedOwners === 'function' ? getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) : [];
       const proceed = await checkReactions('supporter_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
@@ -2650,14 +2702,6 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const proceed = await checkReactions('targeting_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
       if(!proceed) return;
     }
-  }
-
-  const hasVisibleSetActivation = typeof WINDOWED_WHEN_SET_EFFECT_IDS !== 'undefined'
-    && WINDOWED_WHEN_SET_EFFECT_IDS.has(id);
-  if(hasVisibleSetActivation && typeof playEffectActivationCinematic === 'function') {
-    const waitForPlacementMs = Math.max(0, Math.min(2800, Number(G._cinematicUiLockUntil || 0) - Date.now()));
-    if(waitForPlacementMs) await aiSleep(waitForPlacementMs);
-    await playEffectActivationCinematic(inst, z, r, c, {source:'ai-when-set', broadcast:false});
   }
 
   switch(id) {
@@ -2943,7 +2987,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
     case '32': await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst}); break;
     case '42': { // draw 2, discard 2
-      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
+      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});
       const h = G.players[cp].hand;
       // Discard worst 2 cards (lowest fate supporters)
       const strat = G._selectedAI?._deckStrategy || '';
@@ -2959,6 +3003,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         const c = sorted[i];
         G.players[cp].hand = G.players[cp].hand.filter(x=>x.iid!==c.iid);
         fatePushDiscard(cp, c);
+      }
+      if(typeof triggerJoieDrawEffectPassive === 'function') {
+        triggerJoieDrawEffectPassive(cp, {sourceCard:inst, sourceId:String(inst && inst.id || '42')});
       }
       break;
     }
@@ -2981,7 +3028,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           log('p2', `AI: Hemorrhaging Wound -3 Fate to ${target.name}`);
           if(typeof flashCardEffect === 'function') flashCardEffect(target, 'oathbound_crescent', {
             label:'oathbound blade',
-            soundKey:'oathbound-ai:' + String(card && (card.iid || card.id) || 'card') + ':' + String(target && (target.iid || target.id) || 'target') + ':' + String(G.turn || 0)
+            soundKey:'oathbound-ai:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(target && (target.iid || target.id) || 'target') + ':' + String(G.turn || 0)
           });
         }
       } break;
@@ -3262,7 +3309,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
     case '71': // Fort Calvin Watcher: set reveal flag
       if(!G._fortCalvinActive) G._fortCalvinActive=[];
-      G._fortCalvinActive.push({owner:cp,remaining:3,characterSent:false,sourceIid:card.iid||null,lastRevealedName:null,lastRevealedWasCharacter:false,sentCharacterName:null}); break;
+      G._fortCalvinActive.push({owner:cp,remaining:3,characterSent:false,sourceIid:inst.iid||null,lastRevealedName:null,lastRevealedWasCharacter:false,sentCharacterName:null}); break;
     case '72': { // Robo: steal random eligible card from opp hand
       const oh=G.players[opp].hand;
       const eligible=oh.filter(function(target){ return !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)); });
@@ -3394,11 +3441,13 @@ async function aiActivateEffects() {
     const delay = flipFaceDownBoardCard(hidden.card, hidden.z, hidden.r, hidden.c);
     await aiSleep((delay || 0) + 60);
   }
-  // Collect all own characters on board
+  // Collect only genuine ACTIVATE characters. WHEN_SET and passive cards have
+  // already resolved from placement and must not receive a second AI action.
   const toActivate = [];
   forEachBoardCard((card,z,r,c)=>{
-    if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid) && !isFaceDownCard(card)){
-      if(String(card.id) === '21' && card.effectUsedInitial) return;
+    if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid) && !isFaceDownCard(card)
+      && typeof shouldShowManualCharacterEffectButton === 'function'
+      && shouldShowManualCharacterEffectButton(card)){
       toActivate.push({card,z,r,c});
     }
   });
@@ -3436,7 +3485,7 @@ async function aiActivateEffects() {
     const copiedSnowball = typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '93');
     const copiedExpeditionary = typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '73');
     const supporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter';
-    if(card.owner===cp && (supporterForRules || copiedSnowball || copiedExpeditionary) && !isFaceDownCard(card) && (['52','54','73','93'].includes(card.id) || copiedSnowball || copiedExpeditionary)){
+    if(card.owner===cp && (supporterForRules || copiedSnowball || copiedExpeditionary) && !isFaceDownCard(card) && (['26','73','93'].includes(card.id) || copiedSnowball || copiedExpeditionary)){
       supporterActions.push({card,z,r,c});
     }
   });
@@ -3458,21 +3507,26 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   const opp = 1 - cp;
+  if(String(card.id || '') === '26') {
+    if(card.effectUsedInitial) return;
+    if(typeof triggerCharacterEffect === 'function') await triggerCharacterEffect(card, z, r, c, {aiActivation:true});
+    return;
+  }
   if(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '93') : card.id === '93') {
     if(card.effectUsedThisTurn) return;
     const allowed = typeof beginManualSupporterEffectActivation === 'function' ? await beginManualSupporterEffectActivation(card, z, r, c, [opp]) : true;
     if(!allowed) return;
     const targets = [];
-    (G.board[z] || []).forEach(function(row){ (row || []).forEach(function(target){
+    (G.board || []).forEach(function(zone, targetZone){ (zone || []).forEach(function(row){ (row || []).forEach(function(target){
       if(!target || target.owner !== opp || isFaceDownCard(target)) return;
       if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)) return;
-      targets.push({card:target,z:z});
-    }); });
+      targets.push({card:target,z:targetZone});
+    }); }); });
     targets.sort(function(a,b){ return aiOpponentCardDecisionFate(b.card,b.z) - aiOpponentCardDecisionFate(a.card,a.z); });
     const target = targets[0] && targets[0].card;
     if(!target) return;
     const before = Math.max(0, Number(target.currentFate == null ? target.fate : target.currentFate) || 0);
-    if(typeof setCardFateValue === 'function') setCardFateValue(target, before - 1, cp);
+    if(typeof setCardFateValue === 'function') setCardFateValue(target, before - 1, cp, {countOncePerSourceEffect:card});
     else target.currentFate = Math.max(0, before - 1);
     card.effectUsedThisTurn = true;
     if(typeof markSnowballFightHit === 'function') markSnowballFightHit(target);
@@ -3544,18 +3598,23 @@ async function aiRunEffect(card, z, r, c) {
   // Skip if this character's effect was already used
   if(effectId === '21' && card.effectUsedInitial) return;
   if(card.effectUsedInitial && card.type!=='Dauntless' && card.type!=='Improvisor' && !reusableCopiedEffect) return;
-  if(card.type==='Initiator' && !G._suppressEffectPrompt){
-    const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
-      ? getCharacterEffectAffectedOwners(card, z, r, c, cp, opp)
-      : [];
-    const proceed = await checkReactions('initiator_effect', {card, z, r, c, sourceOwner:cp, affectedOwners});
-    if(!proceed){
-      card.effectUsedInitial = true;
-      card._effectTurnLocked = true;
-      return;
+  // Admission must happen before the first await. AI scheduling can revisit the
+  // same pending effect while reactions or presentation are still resolving.
+  if(card._aiEffectResolutionInFlight) return;
+  card._aiEffectResolutionInFlight = true;
+  try {
+    if(card.type==='Initiator' && !G._suppressEffectPrompt){
+      const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
+        ? getCharacterEffectAffectedOwners(card, z, r, c, cp, opp)
+        : [];
+      const proceed = await checkReactions('initiator_effect', {card, z, r, c, sourceOwner:cp, affectedOwners});
+      if(!proceed){
+        card.effectUsedInitial = true;
+        card._effectTurnLocked = true;
+        return;
+      }
     }
-  }
-  switch(effectId){
+    switch(effectId){
     case '03': { // Howard: double highest-fate own card, then +5
       const own=[]; G.board[z].forEach(row=>row.forEach(cell=>{
         if(cell && cell.owner===cp && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(cell, cp))) own.push(cell);
@@ -3963,7 +4022,7 @@ async function aiRunEffect(card, z, r, c) {
       }
       break;
     }
-    case '40': { // Christopher Erbs: arm the next draw for +4 Fate
+    case '40': { // Christopher Erbs: arm the next draw for +6 Fate
       if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
       if((card.usesLeft || 0) <= 0 || G.erbsActive[cp]) break;
       if(!aiShouldActivateOptionalDrawEffect(cp, card, {drawPhase:false, manualActivation:true})) break;
@@ -4021,10 +4080,13 @@ async function aiRunEffect(card, z, r, c) {
       else renderGame({board:true, scores:true, blocks:true, topbar:true});
       break;
     }
+    }
+    card.effectUsedInitial = true;
+    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:effectNeedsBlocks, topbar:false, effects:false, hover:false});
+    else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
+  } finally {
+    delete card._aiEffectResolutionInFlight;
   }
-  card.effectUsedInitial = true;
-  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:effectNeedsBlocks, topbar:false, effects:false, hover:false});
-  else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

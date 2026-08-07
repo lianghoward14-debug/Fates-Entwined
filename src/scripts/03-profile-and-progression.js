@@ -341,12 +341,12 @@ window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 const FATE_BACKGROUND_ASSET_VERSION = 'bg20260722a';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
-  if(path.includes('v=' + FATE_BACKGROUND_ASSET_VERSION)) return path;
+  if(/[?&]v=/.test(path)) return path;
   return path + (path.includes('?') ? '&' : '?') + 'v=' + FATE_BACKGROUND_ASSET_VERSION;
 }
 window.FATE_BACKGROUND_URL = FATE_BACKGROUND_URL;
 const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreenbackgrounds_bg${n}.jpg`);
-const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : (Number(n) === 15 ? 'ingamebackgrouds/igb15.png' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
+const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : (Number(n) === 15 ? 'optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260801a' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
   return `pfp/pfp${id}.png`;
@@ -651,7 +651,7 @@ function awardXp(amount){
   }
   // At max level, XP doesn't accumulate toward next
   if(USER_PROFILE.level >= MAX_LEVEL) USER_PROFILE.xp = 0;
-  // NOTE: caller is responsible for calling saveProfile() — removing the
+  // NOTE: caller is responsible for calling saveProfile() â€” removing the
   // save here prevents double-save cascades (recordGameResult calls awardXp
   // then saveProfile, which previously triggered 2x leaderboard + 2x cloud saves).
   return {xpGained:amount, levelsGained, newLevel:USER_PROFILE.level};
@@ -1121,6 +1121,11 @@ function checkDailyLoginOnStartup(options) {
     };
     const run = function(){
       const modal = document.getElementById('modal');
+      const gameScreen = document.getElementById('s-game');
+      if(gameScreen?.classList?.contains('active')
+        || window.FatePhase7CurrentMultiplayerUi?.active?.()){
+        return;
+      }
       const modalReady = !!(modal && document.getElementById('modal-acts') && typeof showModal === 'function');
       if(document.readyState === 'loading' || !modalReady) {
         retry(250);
@@ -1691,6 +1696,7 @@ function deletePreset(pid) {
        delete PRESET_DECKS[pid];
        savePresetsToStorage();
        closeModal();
+       showDeckOverwriteBanner(name, 'Preset deleted');
        toast('Preset deleted');
        browsePresets();
      }}]);
@@ -1712,6 +1718,7 @@ function deleteLoadedPresetFromBuilder() {
        savePresetsToStorage();
        closeModal();
        if(typeof renderDBDeck === 'function') renderDBDeck();
+       showDeckOverwriteBanner(name, 'Preset deleted');
        toast('Preset deleted');
      }}]);
 }

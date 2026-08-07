@@ -3425,49 +3425,6 @@ body.cinematic-lock #modal{
   min-height:2.35em!important;
   line-height:1.16!important;
 }
-#s-win .win-wrap{
-  width:min(920px,92vw)!important;
-  background:linear-gradient(180deg,rgba(9,11,20,.54),rgba(4,6,12,.28))!important;
-  border:1px solid rgba(255,255,255,.22)!important;
-  border-radius:18px!important;
-  backdrop-filter:blur(2px)!important;
-}
-#s-win .win-title{
-  color:#fff8d8!important;
-  text-shadow:0 0 24px rgba(201,168,76,.44),0 3px 18px rgba(0,0,0,.7)!important;
-}
-#s-win .win-result-mode{
-  text-align:center!important;
-  font-family:'Cinzel',serif!important;
-  font-size:.76rem!important;
-  letter-spacing:.18em!important;
-  margin:.2rem auto .75rem!important;
-  color:var(--dim)!important;
-}
-#s-win .win-result-mode.challenger{color:#ffd700!important;}
-#s-win .win-rewards-grid{
-  display:grid!important;
-  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;
-  gap:.72rem!important;
-  align-items:stretch!important;
-}
-#s-win .win-reward-box{
-  min-height:104px!important;
-  border:1px solid rgba(201,168,76,.28)!important;
-  border-radius:12px!important;
-  background:linear-gradient(180deg,rgba(12,15,27,.72),rgba(0,0,0,.32))!important;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)!important;
-}
-#s-win .online-result-kicker{
-  font-family:'Cinzel',serif!important;
-  color:var(--gold)!important;
-  font-size:.8rem!important;
-  letter-spacing:.18em!important;
-  text-align:center!important;
-  margin-bottom:.38rem!important;
-  text-transform:uppercase!important;
-}
-#s-win .online-result-v2.defeat .online-result-kicker{color:#dce5ff!important;}
 @media(max-width:900px){
   #modal-body .deck-pick-grid.my-presets-as-choose-deck,
   #modal-body .challenger-deck-browse-grid,
@@ -5147,56 +5104,6 @@ html body #modal .modal.card-detail-modal .modal-title{
   min-height:2rem!important;
 }
 
-#s-win .win-wrap{
-  background:rgba(5,7,14,.22)!important;
-  border:1px solid rgba(255,255,255,.18)!important;
-  border-radius:16px!important;
-  padding:1.35rem 1.55rem!important;
-  box-shadow:0 18px 58px rgba(0,0,0,.28)!important;
-  backdrop-filter:none!important;
-}
-#s-win .win-sub{
-  width:min(620px,92vw)!important;
-  margin:.65rem auto 1.1rem!important;
-  padding:.72rem 1rem!important;
-  border:1px solid rgba(255,255,255,.22)!important;
-  border-radius:12px!important;
-  background:rgba(0,0,0,.26)!important;
-  color:#f7f7ff!important;
-}
-#s-win .online-result-v2{
-  width:min(440px,88vw)!important;
-  margin:.8rem auto 0!important;
-  padding:1.2rem 1.35rem!important;
-  border:1px solid rgba(201,168,76,.36)!important;
-  border-radius:14px!important;
-  background:linear-gradient(180deg,rgba(9,12,22,.66),rgba(0,0,0,.34))!important;
-  color:#f8f6ee!important;
-  box-shadow:0 22px 54px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.07)!important;
-}
-#s-win .online-result-v2.defeat{
-  border-color:rgba(170,188,255,.36)!important;
-  box-shadow:0 22px 54px rgba(0,0,0,.42),0 0 34px rgba(120,146,255,.12),inset 0 0 0 1px rgba(255,255,255,.07)!important;
-}
-#s-win .online-result-emblem{
-  margin:0 auto .75rem!important;
-  padding:.48rem 1.05rem!important;
-  border-radius:10px!important;
-  border:1px solid rgba(201,168,76,.46)!important;
-  background:linear-gradient(180deg,rgba(201,168,76,.22),rgba(201,168,76,.08))!important;
-  color:#fff!important;
-  font-size:.86rem!important;
-  letter-spacing:.2em!important;
-}
-#s-win .online-forfeit-result-copy{
-  color:#fff!important;
-  font-size:.96rem!important;
-  line-height:1.35!important;
-  text-align:center!important;
-}
-#s-win .online-forfeit-sub:empty{display:none!important;}
-#s-win :is(.online-forfeit-result-kicker,.online-result-divider,.online-result-note){display:none!important;}
-
 .fate-smooth-runtime #s-game .hc-entering{
   will-change:transform,opacity!important;
   backface-visibility:hidden!important;
@@ -5242,92 +5149,6 @@ html body #modal .modal.card-detail-modal .modal-title{
 #world-chat-widget .world-chat-panel{
   right:0!important;
   bottom:52px!important;
-}
-
-#s-win .win-wrap{
-  width:min(940px,92vw)!important;
-  background:transparent!important;
-  border:0!important;
-  border-radius:0!important;
-  box-shadow:none!important;
-  backdrop-filter:none!important;
-  padding:0 1.25rem!important;
-}
-#s-win .win-title{
-  font-size:clamp(4.2rem,7.6vw,7.3rem)!important;
-  line-height:.9!important;
-  color:#ffe8a6!important;
-  letter-spacing:.08em!important;
-  text-shadow:
-    0 0 10px rgba(255,238,174,.9),
-    0 0 34px rgba(201,168,76,.72),
-    0 6px 30px rgba(0,0,0,.92)!important;
-}
-#s-win .win-title::first-letter{
-  color:#fff7cf!important;
-}
-#s-win .win-result-mode{
-  margin:.82rem auto 1rem!important;
-  transform:translateY(.22rem)!important;
-  color:#f6d977!important;
-}
-#s-win .win-sub{
-  margin:1rem auto 1.05rem!important;
-  background:linear-gradient(180deg,rgba(9,12,22,.78),rgba(2,4,10,.62))!important;
-  border-color:rgba(201,168,76,.36)!important;
-  box-shadow:0 12px 36px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,255,255,.05)!important;
-}
-#s-win .win-rewards-grid{
-  display:grid!important;
-  grid-template-columns:repeat(4,minmax(132px,1fr))!important;
-  justify-content:center!important;
-  align-items:stretch!important;
-  gap:.76rem!important;
-  max-width:760px!important;
-  margin:0 auto!important;
-}
-#s-win .win-reward-box{
-  min-width:0!important;
-  min-height:112px!important;
-  padding:.86rem .78rem!important;
-  overflow:visible!important;
-  backdrop-filter:none!important;
-}
-#s-win .win-reward-rank-box{
-  grid-column:2 / span 2!important;
-  width:min(340px,100%)!important;
-  justify-self:center!important;
-}
-#s-win .win-reward-progress-box{
-  order:2!important;
-}
-#s-win .win-rank-badge-large{
-  display:flex!important;
-  justify-content:center!important;
-  align-items:center!important;
-  width:100%!important;
-  overflow:visible!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg{
-  width:min(300px,100%)!important;
-  max-width:300px!important;
-  justify-content:center!important;
-  padding:.34rem .72rem!important;
-  gap:.42rem!important;
-  overflow:visible!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg .rank-badge-label{
-  max-width:220px!important;
-  white-space:normal!important;
-  overflow:visible!important;
-  text-overflow:clip!important;
-  line-height:1.05!important;
-  text-align:left!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg .rank-badge-icon{
-  width:34px!important;
-  height:34px!important;
-  flex:0 0 34px!important;
 }
 
 #modal-body :is(.deck-pick-grid.my-presets-as-choose-deck,.challenger-deck-browse-grid,.online-room-deck-picker-body .deck-pick-grid){
@@ -5499,12 +5320,6 @@ html body #modal .modal.card-detail-modal .modal-title{
   .fate-online-account{
     right:14px!important;
     bottom:14px!important;
-  }
-  #s-win .win-rewards-grid{
-    grid-template-columns:repeat(2,minmax(130px,1fr))!important;
-  }
-  #s-win .win-reward-rank-box{
-    grid-column:1 / -1!important;
   }
 }
 
@@ -6008,16 +5823,6 @@ html body #modal .modal.card-detail-modal .modal-title{
   padding:.46rem .56rem!important;
 }
 
-#s-win.forfeit-result-screen #win-sub{
-  width:auto!important;
-  margin:.55rem auto 1.1rem!important;
-  padding:0!important;
-  border:0!important;
-  border-radius:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-}
-
 /* Codex 2026-05-07 regression cleanup: stable profile modal, clean dock, old chat, faster hover, better loader. */
 .fate-loading-screen{
   background:
@@ -6148,55 +5953,6 @@ html body #modal .modal.card-detail-modal .modal-title{
 #modal .title-profile-modal-v2 .profile-level-badge{
   transform:none!important;
   margin:0!important;
-}
-
-#s-win .win-reward-box{
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:center!important;
-  justify-content:center!important;
-  overflow:visible!important;
-}
-#s-win .win-rank-badge-large,
-#s-win .win-rank-badge-large .rank-badge{
-  max-width:100%!important;
-  min-width:0!important;
-  box-sizing:border-box!important;
-}
-#s-win .win-rank-badge-large .rank-badge{
-  transform:scale(.86)!important;
-  transform-origin:center center!important;
-}
-#s-win .win-rank-badge-large .rank-badge-label{
-  max-width:126px!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-}
-#s-win.forfeit-result-screen .win-rewards-grid{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(150px,160px))!important;
-  justify-content:center!important;
-  justify-items:center!important;
-  gap:.9rem!important;
-  width:100%!important;
-  max-width:380px!important;
-  margin:0 auto 1rem!important;
-}
-#s-win.forfeit-result-screen .win-reward-box{
-  width:160px!important;
-  max-width:160px!important;
-  min-width:0!important;
-  padding:.78rem .68rem!important;
-  overflow:visible!important;
-}
-#s-win.forfeit-result-screen .win-reward-rank-box{
-  overflow:visible!important;
-  width:auto!important;
-  max-width:none!important;
-}
-#s-win.forfeit-result-screen .win-rank-badge-large,
-#s-win.forfeit-result-screen .win-rank-badge-large .rank-badge{
-  overflow:visible!important;
 }
 
 /* Codex 2026-05-07 rollback patch: do not restyle the in-game/lobby chat panels. */
@@ -7034,79 +6790,6 @@ html body #modal .modal.card-detail-modal .modal-title{
   object-position:center 18%!important;
   transform:scale(1.72)!important;
   transform-origin:center 20%!important;
-}
-
-/* Codex 2026-05-07 requested result/store polish. Revert this block only if needed. */
-#s-win .win-rewards-grid,
-#s-win.forfeit-result-screen .win-rewards-grid{
-  display:flex!important;
-  flex-wrap:wrap!important;
-  justify-content:center!important;
-  justify-items:center!important;
-  align-items:stretch!important;
-  gap:.82rem!important;
-  width:min(100%,720px)!important;
-  max-width:720px!important;
-  margin:.1rem auto 1rem!important;
-}
-#s-win .win-reward-box,
-#s-win.forfeit-result-screen .win-reward-box{
-  flex:0 1 162px!important;
-  width:162px!important;
-  max-width:162px!important;
-  min-width:0!important;
-  min-height:112px!important;
-  box-sizing:border-box!important;
-  padding:.82rem .72rem!important;
-  border:1.7px solid rgba(232,196,82,.76)!important;
-  border-radius:8px!important;
-  background:linear-gradient(180deg,rgba(13,18,29,.62),rgba(0,0,0,.42))!important;
-  box-shadow:0 12px 30px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,246,191,.08),0 0 18px rgba(218,185,82,.08)!important;
-  overflow:hidden!important;
-}
-#s-win .win-reward-box :is(.wrb-label,.wrb-value,.wrb-sub){
-  max-width:100%!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-}
-#s-win .win-reward-rank-box{
-  flex-basis:186px!important;
-  width:186px!important;
-  max-width:186px!important;
-}
-#s-win .win-rank-badge-large{
-  width:100%!important;
-  min-width:0!important;
-  max-width:100%!important;
-  min-height:0!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  overflow:hidden!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg,
-#s-win .win-rank-badge-large .rank-badge{
-  max-width:100%!important;
-  min-width:0!important;
-  width:auto!important;
-  box-sizing:border-box!important;
-  padding:.22rem .48rem!important;
-  gap:.34rem!important;
-  border-color:rgba(232,196,82,.86)!important;
-  overflow:hidden!important;
-  transform:none!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg .rank-badge-icon,
-#s-win .win-rank-badge-large .rank-badge .rank-badge-icon{
-  width:26px!important;
-  height:26px!important;
-}
-#s-win .win-rank-badge-large .rank-badge-label{
-  max-width:112px!important;
-  min-width:0!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  white-space:nowrap!important;
 }
 #s-challenger :is(.starlight-pill,.ch-packs-pill,.marketplace-pill){
   border-color:rgba(232,196,82,.78)!important;
@@ -12265,22 +11948,6 @@ html body #s-game .hc:hover{
   background:linear-gradient(90deg,rgba(20,27,42,.96),rgba(7,10,18,.98))!important;
 }
 
-#s-win .win-wrap{
-  width:min(1120px,96vw)!important;
-  max-width:min(1120px,96vw)!important;
-}
-#s-win .win-title{
-  max-width:min(1120px,96vw)!important;
-  margin-left:auto!important;
-  margin-right:auto!important;
-  font-size:clamp(2.8rem,5.4vw,6.6rem)!important;
-  line-height:.98!important;
-  letter-spacing:.035em!important;
-  overflow-wrap:normal!important;
-  word-break:normal!important;
-  text-wrap:balance;
-}
-
 #s-coin .coin{
   width:132px!important;
   height:132px!important;
@@ -13203,41 +12870,6 @@ html body #s-game .hc{
   border-radius:4px!important;
   box-shadow:none!important;
   filter:none!important;
-}
-
-#s-win .win-rewards-grid,
-#s-win.forfeit-result-screen .win-rewards-grid{
-  width:min(100%,820px)!important;
-  max-width:820px!important;
-  gap:1rem!important;
-}
-#s-win .win-reward-rank-box,
-#s-win.forfeit-result-screen .win-reward-rank-box{
-  flex:0 1 auto!important;
-  width:auto!important;
-  min-width:230px!important;
-  max-width:320px!important;
-  overflow:visible!important;
-}
-#s-win .win-rank-badge-large{
-  overflow:visible!important;
-  min-height:44px!important;
-}
-#s-win .win-rank-badge-large .rank-badge.rank-lg,
-#s-win .win-rank-badge-large .rank-badge{
-  width:auto!important;
-  min-width:166px!important;
-  max-width:290px!important;
-  padding:.28rem .68rem!important;
-  overflow:visible!important;
-  justify-content:flex-start!important;
-}
-#s-win .win-rank-badge-large .rank-badge-label{
-  max-width:210px!important;
-  white-space:normal!important;
-  overflow:visible!important;
-  text-overflow:clip!important;
-  line-height:1.02!important;
 }
 
 @media (max-width:900px){
@@ -15479,15 +15111,6 @@ html body #s-social .party-member-avatar-empty{
   border:1px dashed rgba(218,185,82,.38)!important;
 }
 
-html body #s-win #win-sub,
-html body #s-win .online-forfeit-result-copy,
-html body #s-win .online-forfeit-sub{
-  border:0!important;
-  outline:0!important;
-  box-shadow:none!important;
-  background:transparent!important;
-}
-
 html body #s-game .zone{
   padding-top:.92rem!important;
 }
@@ -16299,32 +15922,6 @@ html body #s-challenger .ch-v5-intel button:nth-child(3) .ch-intel-icon{
   top:50%!important;
   transform:translateY(-50%)!important;
   border-radius:12px!important;
-}
-
-/* Codex 2026-05-09: post-match plain text should not sit inside reward-style windows. */
-html body #s-win .online-forfeit-result.online-result-v2,
-html body #s-win .online-result-v2:has(.online-forfeit-result-copy){
-  width:auto!important;
-  max-width:min(760px,92vw)!important;
-  margin:.55rem auto 1.05rem!important;
-  padding:0!important;
-  border:0!important;
-  border-radius:0!important;
-  outline:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-}
-html body #s-win .online-forfeit-result.online-result-v2.defeat,
-html body #s-win .online-forfeit-result.online-result-v2.victory{
-  border:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-}
-html body #s-win .online-result-kicker,
-html body #s-win .online-forfeit-result-copy{
-  background:transparent!important;
-  border:0!important;
-  box-shadow:none!important;
 }
 
 /* Codex 2026-05-09: party inner box fit + slightly stronger hand/action panels. */

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Authoritative v3 Phase 5 Browser Harness</title>
+  <style>
+    body{margin:0;background:#0d111a;color:#f4e8c2;font:14px/1.4 system-ui,sans-serif}
+    #s-game{padding:12px}
+    .topbar,.piles,.hand-strip,#actbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    #board{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:10px}
+    .zone{border:1px solid #806e43;padding:6px}.brow{display:flex;gap:5px;margin:4px 0}.rl{width:76px}
+    .rcells{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:1}.cell{min-height:70px}
+    #hand-cards{display:flex;gap:6px;flex-wrap:wrap}.btn,button{cursor:pointer}
+    #harness-status{white-space:pre-wrap;border:1px solid #4c8;padding:8px;margin-bottom:10px}
+  </style>
+</head>
+<body>
+  <main id="s-game">
+    <output id="harness-status" data-state="loading">Harness loading</output>
+    <div class="topbar">
+      <span id="tp-cur"></span><span id="tp-phase"></span>
+      <span id="my-name"></span><span id="my-stat"></span>
+      <span id="opp-name"></span><span id="opp-stat"></span>
+      <span id="landscape-panel"></span>
+    </div>
+    <div class="piles">
+      <span id="my-deck-count"></span><span id="my-discard-count"></span>
+      <span id="opp-hand"></span><span id="zscore"></span>
+    </div>
+    <div id="board"></div>
+    <section class="hand-strip">
+      <strong>Your Hand <span id="hand-count"></span></strong>
+      <div id="hand-cards"></div>
+    </section>
+    <div id="act-hint"></div>
+    <div id="actbar"><button id="btn-end-turn" type="button">End Turn</button></div>
+  </main>
+  <script type="module" src="./phase5-browser-interaction-harness.mjs"></script>
+</body>
+</html>

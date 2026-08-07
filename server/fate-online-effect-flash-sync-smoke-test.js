@@ -82,7 +82,7 @@ assert.match(
   /gateResult\.suppressPresentationEvents[\s\S]*delete action\.payload\.presentationEvents[\s\S]*gateResult\.presentationEvents/,
   'authority must withhold a captured overlay during a reaction and release it only with the reaction result'
 );
-assert.match(index, /06-rendering-and-helpers\.js\?v=1785165501/, 'rendering cache bust must include stale cinematic suppression');
+assert.match(index, /06-rendering-and-helpers\.js\?v=1785350010/, 'rendering cache bust must include cinematic admission and immediate landscape feedback');
 assert.match(index, /18-online-rooms\.js\?v=1785165401&sync=1785165401/, 'online room cache bust must include consolidation postcondition and semantic board-removal presentation routing');
 assert.match(index, /18a-online-effect-transactions\.js\?v=1785164401/, 'transactional game-state bridge must bypass cached clients');
 

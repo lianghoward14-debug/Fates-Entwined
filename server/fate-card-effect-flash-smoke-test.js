@@ -37,7 +37,7 @@ assert.match(adapter, /drawEffectFlashCardOverlay[\s\S]*drawEffectFlashIcon/, 'r
 const allOverlayKinds = [
   'specter_ghost', 'kvetka_ballad', 'marie_deterrence',
   'rozsi_dance', 'rivera_crest', 'movement_boot', 'anicka_voyager_boat',
-  'oathbound_crescent', 'isaac_beaker',
+  'oathbound_crescent', 'isaac_beaker', 'jimmy_wrath',
   'coord_anne_trio', 'coord_postmodern_dylan', 'coord_kvetka_bloom', 'coord_cathy_cardigan',
   'coord_felicyta_eagle', 'coord_zsofia_river', 'coord_jeremiah_snowseal',
   'coord_heyward_compass', 'phil_crown', 'wintertide', 'idyllic_polish_village', 'maria_target'
@@ -55,6 +55,9 @@ allOverlayKinds.filter(kind => kind !== 'kvetka_ballad' && kind !== 'coord_kvetk
 
 assert.match(core, /nextKvetkaBalladPitchStep[\s\S]*pitchStep[\s\S]*kvetka_ballad/, 'Kvetka Ballad activations must retain an ascending pitch step');
 assert.match(core, /function flashCardEffect[\s\S]*scheduleRender\('card-effect-flash-started'\)/, 'every transient effect flash must immediately invalidate the shared renderer');
+assert.match(rendering, /function presentJimmyDynamicFateGain[\s\S]*previous\.signature === signature[\s\S]*next\.value <= previous\.value[\s\S]*playFateChangeSound\(card, previous\.value, next\.value, card\.owner\)[\s\S]*flashCardEffect\(card, 'jimmy_wrath'[\s\S]*onlineRemote:true/, 'Jimmy must show the Fate gain and red wrath overlay together for every newly counted opponent-Fate reduction on both local clients');
+assert.match(adapter, /jimmy_wrath:\{color:'rgba\(255,92,82,\.99\)'[\s\S]*kind === 'jimmy_wrath'[\s\S]*line\(\[\[10,14\],\[19,6\],\[45,6\]/, 'Jimmy canvas overlay must use the selected clenched-teeth furious face');
+assert.match(css, /effect-flash-jimmy_wrath[\s\S]*--effect-flash-color:rgba\(255,92,82,\.99\)[\s\S]*M17 48H46L41 55H23Z/, 'Jimmy DOM overlay must match the selected clenched-teeth furious face');
 assert.match(core, /tickCarpathianSpecters[\s\S]*flashCardEffect\(card, 'specter_ghost'/, 'Carpathian Specter must flash on a Fate tick');
 assert.match(core, /function noteBalladConsolidation[\s\S]*card\.currentFate = before \+ 3[\s\S]*flashCardEffect\(card, 'kvetka_ballad'/, 'Kvetka Ballad must flash each consolidation as it immediately gains 3 Fate');
 assert.match(core, /cell&&cardActsAsPassive\(cell, '36'\)[\s\S]*flashCardEffect\(cell, 'marie_deterrence'/, 'Marie and valid passive copies must flash when Deterrance resolves');

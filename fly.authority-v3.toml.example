@@ -1,0 +1,32 @@
+# This is intentionally a separate Fly app and process from legacy multiplayer.
+# Copy it to a private deployment config and replace the app/volume names.
+app = 'fates-entwined-authority-v3-beta'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile.authority-v3'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '1'
+  FATE_AUTHORITY_V3_HOST = '0.0.0.0'
+  FATE_AUTHORITY_V3_PORT = '8790'
+  FATE_AUTHORITY_V3_DATA_DIR = '/data/fate-authority-v3'
+  FATE_AUTHORITY_V3_ALLOW_TEST_MATCHES = '0'
+
+# Set FATE_AUTHORITY_V3_ADMIN_TOKEN as a Fly secret before deployment.
+
+[[mounts]]
+  source = 'fate_authority_v3_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8790
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

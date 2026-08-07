@@ -226,7 +226,7 @@
       }
       return window.FateCardTextureCache.getBaseCardTexture(card, {w:rect.w, h:rect.h}, {
         visual,
-        dpr:Math.min(2.5, Math.max(2.25, Number(window.devicePixelRatio || 1))),
+        dpr:Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1))),
         preferFullArt:true,
         onChange:textureCacheCallback
       });

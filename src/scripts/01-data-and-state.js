@@ -87,8 +87,8 @@ const CARDS = [
     flavor:'"The Queen of Czechoslovakia, once a Street Urchin in Prague"',img:'19.png'},
   {id:'20',name:'South Wind Spearman',ability:'Shield Wall',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'This card is immune to all of your opponent\'s effects.',
-    flavor:'"In Pacifica, the South Wind Spearmen are the textbook definition of a disciplined and well organized army"',img:'20.png'},
+    effect:'While this card is on the field, it is immune to all of your opponent\'s effects.',
+    flavor:'"In Pacifica, the South Wind Spearmen are the textbook definition of a disciplined and well organized army"',img:'20.png?v=20260801'},
   {id:'21',name:'Henry Dong',ability:'The Last Revolution',type:'Dauntless',aff:'third_great_war',
     fate:10,cost:3,rarity:'triangle',
     effect:'While this card is on the field, Select up to two squares adjacent to this card and suppress any of your opponent\'s Coordinator effects on them',
@@ -150,9 +150,9 @@ const CARDS = [
       effect:'This card\'s Fate is equal to the combined current Fate value of all Supporters you control in this zone.',
       flavor:'"He is the heir to Alexander the Great, not by blood but by blade"',img:'35.png'},
   {id:'36',name:'Marie L\'amboure',ability:'Deterrance',type:'Improvisor',aff:'third_great_war',
-    fate:6,cost:2,rarity:'triangle',
+    fate:6,cost:3,rarity:'triangle',
     effect:'Whenever your opponent would Consolidate a card in this zone, reduce the zone\'s total Fate by 4.',
-    flavor:'"Another of Dylan Kirby\'s many offspring - L\'amboure is known for the rearmament of the Maginot Line"',img:'36.png'},
+    flavor:'"Another of Dylan Kirby\'s many offspring - L\'amboure is known for the rearmament of the Maginot Line"',img:'36.png?v=20260801'},
   {id:'37',name:'6th French Fusiliers',ability:'The Anchor of Verdun',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, select any Supporter on the field with a "While this card is on the field" effect, and copy that effect for this card.',
@@ -166,9 +166,9 @@ const CARDS = [
     effect:'Move any of your opponent\'s cards to any open square in this card\'s zone.',
     flavor:'"A truly divine being - Only he could have toppled Makenna\'s Fascist Costa Rica"',img:'39.png'},
   {id:'40',name:'Christopher Erbs',ability:'Hard Times, Strong Men',type:'Improvisor',aff:'expanded_worlds',
-    fate:6,cost:2,rarity:'triangle',
-    effect:'At any time during your turn, you can activate this effect; the next card you draw gains 4 Fate (2 uses).',
-    flavor:'"Leader of an elite mercenary group who patrols the wastes of Temecula, purging it of zombie hordes"',img:'40.png'},
+    fate:3,cost:2,rarity:'triangle',
+    effect:'At any time during your turn, you can activate this effect; the next card you draw gains 6 Fate (2 uses).',
+    flavor:'"Leader of an elite mercenary group who patrols the wastes of Temecula, purging it of zombie hordes"',img:'40.png?v=20260801'},
   {id:'41',name:'Jimmy',ability:'A True Incel\'s Wrath',type:'Dauntless',aff:'reality',
     fate:0,cost:3,rarity:'triangle',
     effect:'This card gains 3 Fate for each time you reduced the Fate of your opponent\'s cards this game (once per card effect use).',
@@ -190,9 +190,9 @@ const CARDS = [
     effect:'This is the only character card you can control in this zone. Only one copy of this card can be played.',
     flavor:'"Through him, the entire history, legacy, and traditions of the Mohican people will live on. When he dies, so will they"',img:'45.png'},
   {id:'46',name:'Phil',ability:'The Monarchist Manifesto',type:'Dauntless',aff:'reality',
-    fate:1,cost:3,rarity:'square',
+    fate:4,cost:3,rarity:'square',
     effect:'For every one of your Draw phases that passes after this card is set, this card permanently gains 2 Fate.',
-    flavor:'"Let the rot of modernity fail, and reveal the only truth — The Holy Spirit"',img:'46.png'},
+    flavor:'"Let the rot of modernity fail, and reveal the only truth — The Holy Spirit"',img:'46.png?v=20260801'},
   {id:'47',name:'Great Oak Infantry',ability:'"We Bleed Red"',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
     effect:'When this card would be used in the Consolidation of a card, that card gains 3 Fate permanently.',
@@ -319,8 +319,8 @@ const CARDS = [
     flavor:'"You\'d think that wrathful apparitions would be a cause for concern, but all they do is ramble about neo-liberalism"',img:'80.png'},
   {id:'81',name:'Wojciech',ability:'Pierogi Barrage',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:2,rarity:'triangle',
-    effect:'For each card your opponent set or consolidated last turn, add a Pierogi Counter to your hand. Pierogi Counters stay in your hand for 1 turn, are immune to all effects, and cannot be discarded by your opponent. They can be placed in contested squares or any square your opponent owns, including added squares, and stay there for 3 of their turns.',
-    flavor:'"Wojciech\'s advanced age has given him ample time to refine his pierogi craft - He is a true artist!"',img:'81.png'},
+    effect:'For each card your opponent set or consolidated last turn, add a Pierogi Counter to your hand. Pierogi Counters stay in your hand for 6 turns, are immune to all effects, and cannot be discarded by your opponent. They can be placed in contested squares or any square your opponent owns, including added squares, and stay there for 3 of their turns.',
+    flavor:'"Wojciech\'s advanced age has given him ample time to refine his pierogi craft - He is a true artist!"',img:'81.png?v=20260801'},
   {id:'82',name:'Felicyta Janowicz (Youth)',ability:'A Quaint Polish Village',type:'Initiator',aff:'expanded_worlds',
     fate:4,cost:3,rarity:'square',
     effect:'Change the landscape to any of your choice.',
@@ -367,8 +367,8 @@ const CARDS = [
     flavor:'"In the cold of the Polish winter, there is no home without a roaring hearth"',img:'92.png'},
   {id:'93',name:'Wodny Potok Youth',ability:'Snowball Fight',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
-    effect:'While this card is on the field, you can select any card your opponent controls in this Zone and reduce its Fate by 1, Once a turn',
-    flavor:'"The Wodny Potok youth spend their time throwing snowballs and pestering their parents to take them to the city"',img:'93.png'},
+    effect:'While this card is on the field, you can select any card your opponent controls on the field and reduce its Fate by 1, once a turn.',
+    flavor:'"The Wodny Potok youth spend their time throwing snowballs and pestering their parents to take them to the city"',img:'93.png?v=20260801'},
   {id:'94',name:'Wodny Potok Mailman',ability:'Mail Delivery',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, select any Triangle card in your deck. That card will be added to your hand in four turns',
@@ -390,9 +390,9 @@ const CARDS = [
     effect:'This card will always appear in your opening hand as an additional card.',
     flavor:'"Pine trees are the leading cause of fatal accidents in Wodny Potok"',img:'98.png'},
   {id:'99',name:'Rozsi and Zsofia (Youth)',ability:'The Blame Game',type:'Initiator',aff:'expanded_worlds',
-    fate:4,cost:1,rarity:'triangle',
+    fate:4,cost:2,rarity:'triangle',
     effect:'For the next five turns, your Supporters are classified as Characters. If you control any Rozsi or Zsofia card, this card has no cost. This card uses Characters for its consolidation.',
-    flavor:'',img:'99.png'},
+    flavor:'',img:'99.png?v=20260801'},
   {id:'100',name:'Felicyta and Kv\u011btka (Youth)',ability:'Wintertide',type:'Dauntless',aff:'expanded_worlds',
     fate:12,cost:3,rarity:'square',
     effect:'This card gains 2 Fate for each of your turns that the "Snow on the Carpathians" landscape is active. If you control any Felicyta or Květka card, this card gains 3 Fate. This card uses Characters for its consolidation.',
@@ -592,7 +592,7 @@ const LANDSCAPES = {
     id:'igb16',
     name:'Santa Anna: Prosperity of a Treasure Port',
     shortName:'Prosperity of a Treasure Port',
-    description:'At any time, you may discard a card in your hand to increase Fate of any card on your side of the field by 4.'
+    description:'At any time during your turn, you may discard a card in your hand to increase Fate of any card on your side of the field by 4.'
   },
   igb17: {
     id:'igb17',
@@ -691,6 +691,9 @@ let G = {
 // lexical `G`. Expose a narrow bridge to the real game state instead of letting
 // online code create a shadow `window.G` object.
 window.getFateGameState = function(){ return G; };
+// Narrow read bridge for the independently flagged authoritative-v3 local
+// session. The v3 adapter compacts these definitions before state creation.
+window.getFateCardDefinitions = function(){ return CARDS.slice(); };
 Object.defineProperty(window, 'FATE_GAME_STATE', {
   configurable: true,
   get: function(){ return G; }
