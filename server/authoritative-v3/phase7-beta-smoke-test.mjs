@@ -6,7 +6,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const betaServer = path.join(path.dirname(fileURLToPath(import.meta.url)), 'phase7-beta-server.mjs');
-const clientVersion = '1.39.95-phase7-beta.1';
+const clientVersion = '1.39.0-phase7-beta.1';
 const adminToken = 'phase7-local-admin';
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fate-authority-v3-phase7-'));
 const port = 20000 + (process.pid % 1000);

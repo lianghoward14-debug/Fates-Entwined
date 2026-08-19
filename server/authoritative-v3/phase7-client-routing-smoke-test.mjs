@@ -151,9 +151,9 @@ assert.match(
   'generic test parameters must not persist or replace the Phase 7 route'
 );
 
-assert.match(client, /CLIENT_VERSION = '1\.39\.95-phase7-beta\.1'/);
-assert.match(client, /wss:\/\/fates-entwined-main\.fly\.dev\/v3\/beta\/socket/);
-assert.doesNotMatch(client, /fates-entwined-v3-unranked-beta\.fly\.dev|fates-entwined-v3-shadow-soak\.fly\.dev/);
+assert.match(client, /CLIENT_VERSION = '1\.39\.0-phase7-beta\.1'/);
+assert.match(client, /wss:\/\/fates-entwined-v3-unranked-beta\.fly\.dev\/v3\/beta\/socket/);
+assert.doesNotMatch(client, /fates-entwined-main\.fly\.dev|fates-entwined-v3-shadow-soak\.fly\.dev/);
 assert.match(client, /legacyFallback:false/);
 assert.match(client, /TEST_AUTH_ENABLED = params\.get\('electron'\) === '1'[\s\S]*fateV3BetaTestAuth/);
 assert.match(

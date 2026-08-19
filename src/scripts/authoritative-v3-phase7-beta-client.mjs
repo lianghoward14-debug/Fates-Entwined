@@ -1,4 +1,7 @@
-const CLIENT_VERSION = '1.39.95-phase7-beta.1';
+// The established authoritative service owns the shared live queue.  Keep
+// the release client on this protocol until a coordinated server migration
+// can preserve one queue for every installed client.
+const CLIENT_VERSION = '1.39.0-phase7-beta.1';
 const params = new URLSearchParams(globalThis.location?.search || '');
 const ISOLATED_LOCAL_AUTHORITY_TEST = params.get('electron') === '1'
   && params.get('fateV3BetaTestAuth') === '1'
@@ -9,10 +12,10 @@ const requestedTestApiUrl = String(params.get('fateV3BetaTestApiUrl') || '').rep
 const LOCAL_TEST_API_URL = ISOLATED_LOCAL_AUTHORITY_TEST && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(requestedTestApiUrl)
   ? requestedTestApiUrl
   : '';
-const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-main.fly.dev';
+const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-v3-unranked-beta.fly.dev';
 const WS_URL = LOCAL_TEST_API_URL
   ? `${LOCAL_TEST_API_URL.replace(/^http:/, 'ws:')}/v3/beta/socket`
-  : 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
+  : 'wss://fates-entwined-v3-unranked-beta.fly.dev/v3/beta/socket';
 const CREDENTIAL_KEY = 'fateAuthorityV3Phase7BetaCredential';
 const TEST_IDENTITY_KEY = 'fateAuthorityV3Phase7BetaTestIdentity';
 const FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
