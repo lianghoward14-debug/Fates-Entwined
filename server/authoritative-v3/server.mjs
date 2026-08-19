@@ -35,6 +35,10 @@ const MATCHES_PATH = BETA_MODE ? '/v3/beta/matches' : '/v3/matches';
 const SOCKET_PATH = BETA_MODE ? '/v3/beta/socket' : '/v3/socket';
 const SNAPSHOT_INTERVAL = Math.max(1, Number(process.env.FATE_AUTHORITY_V3_SNAPSHOT_INTERVAL || 20) || 20);
 const PROMPT_TIMEOUT_MS = Math.max(1000, Number(process.env.FATE_AUTHORITY_V3_PROMPT_TIMEOUT_MS || 30000) || 30000);
+const PHASE7_QUEUE_STALE_MS = Math.max(
+  250,
+  Number(process.env.FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS || 45000) || 45000
+);
 const RETAINED_MATCHES = BETA_MODE
   ? Math.max(10, Number(process.env.FATE_AUTHORITY_V3_RETAINED_MATCHES || 50) || 50)
   : 0;
@@ -82,6 +86,18 @@ const promptTimers = new Map();
 const turnTimers = new Map();
 const betaQueue = new Map();
 const betaDeliveries = new Map();
+
+function pruneStaleBetaQueue(now = Date.now()){
+  if(!BETA_MODE || !betaQueue.size) return 0;
+  let removed = 0;
+  for(const [uid, entry] of betaQueue.entries()){
+    const lastSeenAt = Math.max(Number(entry?.lastSeenAt || 0) || 0, Number(entry?.joinedAt || 0) || 0);
+    if(lastSeenAt && now - lastSeenAt <= PHASE7_QUEUE_STALE_MS) continue;
+    betaQueue.delete(uid);
+    removed += 1;
+  }
+  return removed;
+}
 
 async function phase7Identity(req){
   const token = bearer(req);
@@ -446,6 +462,7 @@ const server = http.createServer(async (req, res)=>{
         socketPath:SOCKET_PATH,
         authenticatedMatchmaking:BETA_MODE,
         queuedPlayers:BETA_MODE ? betaQueue.size : 0,
+        queueStaleMs:BETA_MODE ? PHASE7_QUEUE_STALE_MS : null,
         engineVersion:ENGINE_VERSION,
         rulesetVersion:RULESET_VERSION,
         testMatches:ALLOW_TEST_MATCHES,
@@ -478,6 +495,7 @@ const server = http.createServer(async (req, res)=>{
       return;
     }
     if(BETA_MODE && url.pathname === '/v3/beta/matchmaking/enter' && req.method === 'POST'){
+      pruneStaleBetaQueue();
       if(!phase7ClientCompatible(req)){
         writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
         return;
@@ -519,7 +537,8 @@ const server = http.createServer(async (req, res)=>{
           ? {zeroReinforcementCost:true}
           : null,
         testPool,
-        joinedAt:Date.now()
+        joinedAt:Date.now(),
+        lastSeenAt:Date.now()
       };
       const opponent = [...betaQueue.values()].find(entry=>
         entry.uid !== identity.uid && String(entry.testPool || '') === testPool
@@ -563,6 +582,7 @@ const server = http.createServer(async (req, res)=>{
       return;
     }
     if(BETA_MODE && url.pathname === '/v3/beta/matchmaking/status' && req.method === 'GET'){
+      pruneStaleBetaQueue();
       if(!phase7ClientCompatible(req)){
         writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
         return;
@@ -573,9 +593,11 @@ const server = http.createServer(async (req, res)=>{
         return;
       }
       const credential = betaDeliveries.get(identity.uid) || null;
+      const queued = betaQueue.get(identity.uid) || null;
+      if(queued) queued.lastSeenAt = Date.now();
       writeJson(res, 200, {
         ok:true,
-        status:credential ? 'matched' : (betaQueue.has(identity.uid) ? 'waiting' : 'idle'),
+        status:credential ? 'matched' : (queued ? 'waiting' : 'idle'),
         ...(credential ? {credential} : {})
       });
       return;

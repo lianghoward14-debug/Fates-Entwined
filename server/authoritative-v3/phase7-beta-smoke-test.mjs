@@ -53,7 +53,8 @@ function startServer(){
       FATE_AUTHORITY_V3_HOST:'127.0.0.1',
       FATE_AUTHORITY_V3_PORT:String(port),
       FATE_AUTHORITY_V3_DATA_DIR:dataDir,
-      FATE_AUTHORITY_V3_SNAPSHOT_INTERVAL:'1'
+      FATE_AUTHORITY_V3_SNAPSHOT_INTERVAL:'1',
+      FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS:'1000'
     },
     stdio:['ignore', 'pipe', 'pipe']
   });
@@ -152,6 +153,7 @@ try{
   assert.equal(health.requiredClientVersion, clientVersion);
   assert.equal(health.matchesPath, '/v3/beta/matches');
   assert.equal(health.socketPath, '/v3/beta/socket');
+  assert.equal(health.queueStaleMs, 1000);
 
   const legacyRoute = await fetch(`http://127.0.0.1:${port}/v3/matches`, {
     method:'POST',
@@ -209,6 +211,22 @@ try{
   const poolB1 = await enterPool('pool-b1', 'organic-pool-b');
   assert.equal(poolB1.body.status, 'matched');
   assert.notEqual(poolA1.body.credential.matchId, poolB1.body.credential.matchId);
+
+  const staleQueue = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/enter`, {
+    method:'POST',
+    headers:identityHeaders('abandoned-public-player'),
+    body:JSON.stringify({
+      name:'Abandoned Public Player',
+      deckIds:['32', '27', '54']
+    })
+  });
+  assert.equal(staleQueue.status, 202);
+  assert.equal((await staleQueue.json()).status, 'waiting');
+  await delay(1200);
+  const staleStatus = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/status`, {
+    headers:identityHeaders('abandoned-public-player')
+  });
+  assert.equal((await staleStatus.json()).status, 'idle', 'abandoned public queue entries must expire');
 
   const firstQueue = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/enter`, {
     method:'POST',
