@@ -1,4 +1,4 @@
-const CLIENT_VERSION = '1.39.0-phase7-beta.1';
+const CLIENT_VERSION = '1.39.95-phase7-beta.1';
 const params = new URLSearchParams(globalThis.location?.search || '');
 const ISOLATED_LOCAL_AUTHORITY_TEST = params.get('electron') === '1'
   && params.get('fateV3BetaTestAuth') === '1'
