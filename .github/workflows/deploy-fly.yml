@@ -7,6 +7,7 @@ on:
       - 'codex/**'
     paths:
       - "fly.toml"
+      - "fly.authority-v3-phase7-beta.toml"
       - "server/**"
       - "src/**"
       - "fates-entwined-website/**"
@@ -33,3 +34,8 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy --config fly.toml --remote-only
+
+      - name: Deploy Phase 7 Authority
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --config fly.authority-v3-phase7-beta.toml --remote-only
