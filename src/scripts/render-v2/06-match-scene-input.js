@@ -242,7 +242,14 @@
         this.viewportPointerDownPoint = null;
         return;
       }
-      if(this.isAuthoritativeBoardSelectionActive() && this.isViewportCanvasTarget(ev.target)){
+      const viewportHit = this.viewportHitTest(ev.clientX, ev.clientY);
+      // The command dock is painted on the same canvas as the board. During an
+      // authoritative selector, capture only genuine board clicks; otherwise
+      // STOP CONSOLIDATION and the other dock controls are swallowed as target
+      // selections before dispatchViewportHit can see them.
+      if(this.isAuthoritativeBoardSelectionActive()
+        && this.isViewportCanvasTarget(ev.target)
+        && viewportHit?.kind !== 'ui-command'){
         this.recordInputDebug('phase7-board-capture-down', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         this.handlePointerDown(ev);
         return;
@@ -254,7 +261,7 @@
         this.recordInputDebug('viewport-down-dom-control', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
       }
-      const hit = this.viewportHitTest(ev.clientX, ev.clientY);
+      const hit = viewportHit;
       if(!hit) {
         this.recordInputDebug('viewport-down-miss', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
@@ -265,7 +272,11 @@
     }
 
     handleViewportPointerUp(ev){
-      if(this.isAuthoritativeBoardSelectionActive() && this.isViewportCanvasTarget(ev.target)){
+      const viewportHit = this.viewportHitTest(ev.clientX, ev.clientY);
+      if(this.isAuthoritativeBoardSelectionActive()
+        && this.isViewportCanvasTarget(ev.target)
+        && this.viewportPointerDownHit?.kind !== 'ui-command'
+        && viewportHit?.kind !== 'ui-command'){
         this.recordInputDebug('phase7-board-capture-up', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         this.handlePointerUp(ev);
         return;
@@ -301,7 +312,7 @@
         this.recordInputDebug('viewport-up-moved', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
       }
-      const ended = this.viewportHitTest(ev.clientX, ev.clientY);
+      const ended = viewportHit;
       if(!ended || ended.kind !== started.kind) {
         this.recordInputDebug('viewport-up-hit-mismatch', {target:this.targetSummary(ev.target), started:started.kind, ended:ended && ended.kind || '', clientX:ev.clientX, clientY:ev.clientY});
         return;
@@ -326,8 +337,10 @@
       // canvas pointer sequence has already been handled by dispatchHit. Do not
       // let the synthesized click continue into the legacy card-detail route;
       // that route can open a modal and cancel the just-made selection.
+      const viewportHit = this.viewportHitTest(ev.clientX, ev.clientY);
       if((this.isAuthoritativeBoardSelectionActive() || (typeof G !== 'undefined' && G?._phase7CurrentMultiplayer === true && Date.now() < this.phase7ConsumedBoardClickUntil))
-        && this.isViewportCanvasTarget(ev.target)){
+        && this.isViewportCanvasTarget(ev.target)
+        && viewportHit?.kind !== 'ui-command'){
         this.recordInputDebug('phase7-board-click-consumed', {target:this.targetSummary(ev.target)});
         ev.preventDefault();
         ev.stopImmediatePropagation();
@@ -341,7 +354,7 @@
         return;
       }
       if(performance.now && performance.now() - this.lastHandledAt < 80) return;
-      const hit = this.viewportHitTest(ev.clientX, ev.clientY);
+      const hit = viewportHit;
       if(!hit || (hit.kind !== 'hand-card' && hit.kind !== 'opponent-hand-card' && hit.kind !== 'pile' && hit.kind !== 'ui-command')) {
         this.recordInputDebug('viewport-click-miss', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;

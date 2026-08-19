@@ -1397,89 +1397,6 @@ function shuffle(arr) {
   return arr;
 }
 
-function findReadyChristopherErbs(player) {
-  if(typeof forEachBoardCard !== 'function') return null;
-  let erbs = null;
-  forEachBoardCard(c => {
-    const actsAsErbs = typeof cardActsAsPassive === 'function'
-      ? cardActsAsPassive(c, '40')
-      : c && c.id === '40';
-    if(!erbs && actsAsErbs && c.owner === player && (c.usesLeft || 0) > 0 && !isFaceDownCard(c) && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c))) erbs = c;
-  });
-  return erbs;
-}
-
-function chooseOptionalImprovisorActivation(player, card, context = {}) {
-  return new Promise(resolve => {
-    if(!card){ resolve(false); return; }
-    const onlineLocalIndex = Number(G && G._onlinePlayerIndex);
-    const shouldDeferOnlineChoice = !!(
-      G &&
-      G._onlineRoomCode &&
-      Number.isInteger(onlineLocalIndex) &&
-      (Number(player) !== onlineLocalIndex || G._onlineApplyingRemoteAction)
-    );
-    if(shouldDeferOnlineChoice){
-      const deckLength = Array.isArray(G.players?.[player]?.deck) ? G.players[player].deck.length : 0;
-      G._serverPendingModalAction = {
-        kind:'christopherErbsDrawChoice',
-        bucket:'modalAction',
-        playerIndex:Number(player),
-        turn:Number(G.turn || 0),
-        promptId:[
-          'erbs-draw',
-          Number(G.turn || 0),
-          Number(player),
-          String(card.iid || card.id || '40'),
-          deckLength
-        ].join(':'),
-        sourceIid:String(card.iid || ''),
-        sourceCardId:String(card.id || ''),
-        sourceCardName:String(card.name || 'Christopher Erbs')
-      };
-      resolve('defer-online-draw');
-      return;
-    }
-    const isAI = G.aiEnabled && player === G.aiPlayer;
-    if(isAI){
-      const activate = typeof aiShouldActivateOptionalDrawEffect === 'function'
-        ? aiShouldActivateOptionalDrawEffect(player, card, context)
-        : true;
-      resolve(activate);
-      return;
-    }
-    const img = card.img
-      ? '<img src="'+card.img+'" style="width:80px;height:112px;object-fit:cover;object-position:center 30%;border-radius:3px;flex-shrink:0;border:1.5px solid var(--gold);">'
-      : '';
-    const triggerText = context.triggerText || 'This optional effect can activate now.';
-    const costText = context.costText || '';
-    const cleanup = (answer) => {
-      G._reactionPending = false;
-      closeModal();
-      resolve(!!answer);
-    };
-    G._reactionPending = true;
-    showModal(
-      card.name + ' - Activate?',
-      '<div style="text-align:center;">'+
-        '<div style="display:flex;align-items:center;gap:1rem;padding:.65rem;background:rgba(0,0,0,.32);border:1px solid rgba(201,168,76,.22);border-radius:5px;margin-bottom:.85rem;">'+
-          img+
-          '<div style="text-align:left;flex:1;">'+
-            '<div style="font-family:Cinzel,serif;color:var(--gold);font-size:1rem;margin-bottom:.32rem;">'+escapeHtml(card.ability || card.name)+'</div>'+
-            '<div style="font-size:.85rem;color:var(--text);font-style:italic;line-height:1.45;">'+escapeHtml(card.effect || '')+'</div>'+
-          '</div>'+
-        '</div>'+
-        '<div style="color:var(--text);font-size:.9rem;">'+escapeHtml(triggerText)+'</div>'+
-        (costText ? '<div style="color:var(--fate);font-size:.8rem;margin-top:.4rem;">'+escapeHtml(costText)+'</div>' : '')+
-      '</div>',
-      [
-        {label:'Decline', action:()=>cleanup(false)},
-        {label:'Activate', pri:true, action:()=>cleanup(true)}
-      ]
-    );
-  });
-}
-
 function resolveFortCalvinDrawInterception(player, card, options) {
   if(!card || !options || !options.drawPhase || !Array.isArray(G._fortCalvinActive) || !G._fortCalvinActive.length){
     return {revealed:false, redirected:false};
@@ -1567,28 +1484,6 @@ async function drawCard(player, count=1, options = {}) {
     if(G.players[player].deck.length===0){
       log('sys','P'+(player+1)+' deck is empty!');
       return;
-    }
-    const erbsAlreadyActive = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
-    if(!options.skipOptionalImprovisors && !erbsAlreadyActive){
-      const erbs = findReadyChristopherErbs(player);
-      if(erbs){
-        const activate = await chooseOptionalImprovisorActivation(player, erbs, {
-          triggerText: 'Activate Christopher Erbs so the next card you draw gains 6 Fate?',
-          costText: erbs.usesLeft + ' use' + (erbs.usesLeft===1?'':'s') + ' remaining',
-          drawPhase:!!options.drawPhase,
-          openingHand:!!options.openingHand
-        });
-        if(activate === 'defer-online-draw') return {onlineDrawDeferred:true};
-        if(activate){
-          if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
-          G.erbsActive[player] = true;
-          erbs.usesLeft--;
-          if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast('Christopher Erbs empowered the draw. ('+erbs.usesLeft+' uses left)');
-          log(player===0?'p1':'p2', 'Christopher Erbs armed the next drawn card');
-        } else {
-          log(player===0?'p1':'p2', 'Christopher Erbs declined');
-        }
-      }
     }
     const card = G.players[player].deck.shift();
     const fortCalvinResult = resolveFortCalvinDrawInterception(player, card, options);

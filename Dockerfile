@@ -6,8 +6,10 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=8787
 ENV FATE_WEBSITE_DIR=/app
+ENV FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED=1
 
 COPY server ./server
+COPY shared ./shared
 COPY index.html manifest.json pwa-icon.svg blank.png back.png deck.png sw.js voicelines.txt ./
 COPY *.png ./
 COPY src ./src
@@ -27,4 +29,4 @@ COPY fates-entwined-website ./fates-entwined-website
 
 EXPOSE 8787
 
-CMD ["node", "server/fate-ws-authority.js"]
+CMD ["node", "server/authoritative-v3/phase7-beta-server.mjs"]

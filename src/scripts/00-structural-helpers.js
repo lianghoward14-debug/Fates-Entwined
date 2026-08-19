@@ -1128,7 +1128,16 @@ function playDiscardSfx() {
 }
 
 function showWineCountryGuerillaSentBanner(options = {}) {
-  const message = 'Wine Country Guerilla was sent to opponent\'s hand.';
+  // This is a public match event. Use one perspective-neutral sentence so the
+  // two clients never display contradictory banners for the same transfer.
+  const message = String(options.message || 'Wine Country Guerilla transferred to the other player\'s hand.');
+  if(typeof toast === 'function') toast(message, options.durationMs || 3600);
+  return message;
+}
+
+function showWineCountryGuerillaFateBanner(cardName, options = {}) {
+  const safeName = String(cardName || 'A card');
+  const message = safeName + ' lost 2 Fate from Wine Country Guerilla.';
   if(typeof toast === 'function') toast(message, options.durationMs || 3600);
   return message;
 }
@@ -1196,6 +1205,7 @@ window.setEnhancedVisualFxEnabled = setEnhancedVisualFxEnabled;
 window.toggleEnhancedVisualFx = toggleEnhancedVisualFx;
 window.playDiscardSfx = playDiscardSfx;
 window.showWineCountryGuerillaSentBanner = showWineCountryGuerillaSentBanner;
+window.showWineCountryGuerillaFateBanner = showWineCountryGuerillaFateBanner;
 window.fatePushDiscard = fatePushDiscard;
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyEnhancedVisualFxState);
 else applyEnhancedVisualFxState();

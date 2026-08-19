@@ -12,6 +12,7 @@ const core = read('src/scripts/05-gameplay-core.js');
 const rendering = read('src/scripts/06-rendering-and-helpers.js');
 const ai = read('src/scripts/07-ai.js');
 const online = read('src/scripts/18-online-rooms.js');
+const data = read('src/scripts/01-data-and-state.js');
 
 function sourceSet(name){
   const match = core.match(new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\);`));
@@ -31,7 +32,11 @@ assert.deepEqual(sourceSet('AUTHORITATIVE_WHEN_SET_EFFECT_IDS'), engineWhenSet, 
 assert.match(core, /const _hasWhenSet = AUTHORITATIVE_WHEN_SET_EFFECT_IDS\.has[\s\S]{0,900}await playEffectActivationCinematic[\s\S]{0,900}await triggerCharacterEffect/, 'automatic Character effects must await activation presentation before resolving');
 assert.match(core, /async function runWhenSetEffect[\s\S]{0,6000}opts\.fromSet === true[\s\S]{0,700}await playEffectActivationCinematic[\s\S]{0,2600}checkReactions/, 'automatic non-Character effects must await activation presentation before reactions and results');
 assert.doesNotMatch(core.match(/async function triggerWhenSet[\s\S]*?\n}/)?.[0] || '', /queueDeferredWhenSetEffect/, 'WHEN_SET placement must never create a manual activation action');
-assert.match(core, /if\(AUTHORITATIVE_ACTIVATE_EFFECT_IDS\.has\(id\)\)[\s\S]{0,220}return card\.effectUsedInitial !== true;/, 'genuine ACTIVATE effects must retain manual button eligibility');
+assert.match(data, /window\.fateAutoActivateEffectsEnabled[\s\S]{0,900}return true;/, 'automatic effects must be enabled by default behind one reversible flag');
+assert.match(data, /window\.setFateAutoActivateEffects = function\(enabled\)/, 'the automatic-effects flag must have a reversible runtime setter');
+assert.match(core, /function shouldShowManualCharacterEffectButton\(card\)[\s\S]{0,300}if\(automaticBoardEffectsEnabled\(\)\) return false;[\s\S]{0,160}canUseManualCharacterEffect/, 'single-player manual effect buttons must be hidden only while the reversible automatic mode is enabled');
+assert.match(core, /resolveSetCardAfterPlacement[\s\S]{0,3600}fateQueueAutomaticBoardEffectResolution\('post-placement'\)/, 'automatic activation must begin only after placement resolution completes');
+assert.match(online, /function phase7ScheduleAutomaticEffectResolution[\s\S]{0,1800}ACTIVATE_EFFECT[\s\S]{0,1000}phase7SubmitCommand/, 'authoritative multiplayer must auto-submit only a server-issued activation command');
 
 const boardModalStart = rendering.indexOf('if(boardDetail){');
 const boardModalEnd = rendering.indexOf("document.getElementById('modal').classList.add('on');", boardModalStart);

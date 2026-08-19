@@ -263,7 +263,14 @@ state = stateFor('P4FATE40', ['40', '03']);
 const erbs = moveToBoard(state, 0, '40', {z:0, r:2, c:0});
 result = reduceCommand(
   state,
-  command(state, 'p0', 11, 'ACTIVATE_EFFECT', {sourceIid:erbs.iid}),
+  command(state, 'p0', 10, 'ACTIVATE_EFFECT', {sourceIid:erbs.iid}),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, false);
+assert.equal(result.rejection.code, 'MANUAL_ACTIVATION_REQUIRED');
+result = reduceCommand(
+  state,
+  command(state, 'p0', 11, 'ACTIVATE_EFFECT', {sourceIid:erbs.iid, userActivated:true}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
@@ -271,7 +278,7 @@ assert(result.state.board[0][2][0].statuses.includes('NEXT_DRAW_GAINS_6'));
 state = result.state;
 result = reduceCommand(
   state,
-  command(state, 'p0', 12, 'ACTIVATE_EFFECT', {sourceIid:erbs.iid}),
+  command(state, 'p0', 12, 'ACTIVATE_EFFECT', {sourceIid:erbs.iid, userActivated:true}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, false);

@@ -136,7 +136,8 @@ export function collectTriggeredOperations(state, event){
         count:1,
         sourceIid:boleslaw.card.iid,
         sourceController:playerIndex,
-        activatedEffect:true
+        activatedEffect:true,
+        semanticSourceCardId:'86'
       });
       if(!isEffectImmutable(boleslaw.card)){
         operations.push({
@@ -145,6 +146,10 @@ export function collectTriggeredOperations(state, event){
           amount:2,
           sourceIid:boleslaw.card.iid,
           sourceController:playerIndex,
+          // This passive can resolve inside the searched card's effect frame.
+          // Preserve Boleslaw's own rule identity so presentation and the
+          // detailed oracle do not apply the searcher's target restrictions.
+          semanticSourceCardId:'86',
           reason:'A_BOMBASTIC_CHARACTER',
           bypassReaction:true
         });

@@ -65,7 +65,7 @@ const CARD_RULES = [
   card('100','Felicyta and Květka (Youth)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain +2 permanent Fate once for each controller turn during which Snow on the Carpathians is active; independently gain +3 effective Fate if controller controls another Felicyta or Květka card.',{prerequisites:['SNOW_COUNTER_REQUIRES_IGB15_ON_CONTROLLER_TURN','KINSHIP_REQUIRES_OTHER_QUALIFYING_CARD'],forbidden:['SOURCE_QUALIFIES_ITSELF_FOR_PLUS_3','OPPONENT_QUALIFYING_CARD_COUNTS','PLUS_2_TICKS_ON_OPPONENT_TURN','PLUS_2_TICKS_WITHOUT_SNOW']}),
   card('11','Anne Stone','PASSIVE','CONTROLLER','SUPPORTERS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each qualifying Supporter gains exactly +3 effective Fate.',{forbidden:['SOURCE_OR_NON_SUPPORTER_GAINS_BONUS','OPPONENT_SUPPORTER_GAINS_BONUS','SUPPORTER_OUTSIDE_ZONE_GAINS_BONUS']}),
   card('12','Makenna','WHEN_SET','CONTROLLER','UP_TO_TWO_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Selected cards become immune to opponent effects while the protection remains active.',{cardinality:'ZERO_TO_TWO',forbidden:['OPPONENT_CARD_SELECTABLE','TARGET_OUTSIDE_SOURCE_ZONE','MORE_THAN_TWO_TARGETS','IMMUNITY_BLOCKS_CONTROLLERS_OWN_EFFECT']}),
-  card('13','Johnathan Kirby','ACTIVATE','CONTROLLER','UP_TO_TWO_SUPPORTERS_IN_CONTROLLER_DECK','Move up to two selected Supporters from controller deck to controller hand.',{cardinality:'ZERO_TO_TWO',useLimit:'ONCE_PER_CARD',forbidden:['NON_SUPPORTER_SELECTED','OPPONENT_DECK_SEARCHED','MORE_THAN_TWO']}),
+  card('13','Johnathan Kirby','WHEN_SET','CONTROLLER','UP_TO_TWO_SUPPORTERS_IN_CONTROLLER_DECK','Move up to two selected Supporters from controller deck to controller hand.',{cardinality:'ZERO_TO_TWO',forbidden:['NON_SUPPORTER_SELECTED','OPPONENT_DECK_SEARCHED','MORE_THAN_TWO','ACTIVATE_BUTTON_REQUIRED']}),
   card('14','Alondra Hopkins',['WHEN_SET','PASSIVE'],'CONTROLLER','ADJACENT_OR_DIAGONAL_OPPONENT_SUPPORTERS','On set, discard each qualifying opponent Supporter and give Alondra exactly +1 permanent Fate per card actually discarded; while active, opponent cannot set Supporters adjacent to her.',{forbidden:['CONTROLLERS_SUPPORTERS_DISCARDED','NON_SUPPORTER_DISCARDED','ALONDRA_GAINS_FOR_BLOCKED_OR_IMMUNE_TARGET','DIAGONAL_SQUARE_BLOCKED_FOR_FUTURE_SET']}),
   card('15','Zsofia Szocs','PASSIVE','CONTROLLER','ALL_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each time controller sets a Coordinator in this zone, every controlled card currently in the zone gains exactly +1 permanent Fate once.',{prerequisites:['NEW_CARD_IS_COORDINATOR','NEW_CARD_CONTROLLER_EQUALS_SOURCE_CONTROLLER','PLACEMENT_ZONE_EQUALS_SOURCE_ZONE'],forbidden:['SOURCE_PLACEMENT_SELF_TRIGGERS_WITHOUT_COORDINATOR_EVENT','OPPONENT_COORDINATOR_TRIGGERS','CARD_OUTSIDE_ZONE_GAINS','SAME_SET_EVENT_TRIGGERS_TWICE']}),
   card('16','MINAE Death Squad','WHEN_SET','CONTROLLER','ONE_OPPONENT_SUPPORTER_IN_SOURCE_ZONE','Optionally discard exactly one eligible opponent Supporter.',{cardinality:'ZERO_OR_ONE',forbidden:['CONTROLLERS_SUPPORTER_TARGETED','NON_SUPPORTER_TARGETED','TARGET_OUTSIDE_ZONE','CANCEL_DISCARDS_DEFAULT_TARGET']}),
@@ -87,15 +87,15 @@ const CARD_RULES = [
   card('32','Temecula Resident','WHEN_SET','CONTROLLER','TOP_AVAILABLE_CARD_CONTROLLER_DECK','Draw exactly one card if available.',{forbidden:['OPPONENT_DRAWS','MORE_THAN_ONE','EMPTY_DECK_CREATES_CARD']}),
   card('33','West Caribbea Infantry','WHEN_SET','CONTROLLER','NEXT_CHARACTER_ADDED_TO_CONTROLLER_HAND','The next Character added to controller hand costs exactly 1 less Reinforcement and gains exactly +2 permanent Fate; consume once.',{duration:'UNTIL_NEXT_ELIGIBLE_CHARACTER_ADDED',forbidden:['SUPPORTER_CONSUMES_STATUS','OPPONENT_CARD_BUFFED','MORE_THAN_ONE_CHARACTER_BUFFED']}),
   card('34','Rozsi Szocs','PASSIVE','CONTROLLER','CARD_MOVED_BY_EFFECT_INTO_SOURCE_ZONE','Each qualifying moved card gains exactly +3 permanent Fate once; setting is not movement.',{prerequisites:['MOVEMENT_EVENT','DESTINATION_ZONE_EQUALS_SOURCE_ZONE'],forbidden:['SET_CARD_TRIGGERS','CARD_MOVED_OUT_OF_ZONE_TRIGGERS','SAME_MOVE_TRIGGERS_TWICE']}),
-  card('35','Alexander the Magnificient','PASSIVE','CONTROLLER','SOURCE_CARD','Source effective Fate equals the sum of current Fate of every Supporter controller controls in source zone, including effect-immune Supporters.',{forbidden:['SOURCE_BASE_FATE_ADDED_ON_TOP','OPPONENT_SUPPORTER_COUNTS','SUPPORTER_OUTSIDE_ZONE_COUNTS','IMMUNE_SUPPORTER_EXCLUDED']}),
+  card('35','Alexander the Magnificient','PASSIVE','CONTROLLER','SOURCE_CARD','Source dynamic base equals the sum of current Fate of every Supporter controller controls in source zone, including effect-immune Supporters; normal external Fate modifiers still apply.',{forbidden:['SOURCE_PRINTED_BASE_FATE_ADDED_ON_TOP','IGNORES_EXTERNAL_FATE_MODIFIERS','OPPONENT_SUPPORTER_COUNTS','SUPPORTER_OUTSIDE_ZONE_COUNTS','IMMUNE_SUPPORTER_EXCLUDED']}),
   card('36','Marie L’amboure','PASSIVE','CONTROLLER','OPPONENT_CONSOLIDATION_IN_SOURCE_ZONE','After each qualifying opponent consolidation, apply exactly -4 to opponent zone total through the established zone modifier.',{forbidden:['CONTROLLERS_CONSOLIDATION_TRIGGERS','CONSOLIDATION_OUTSIDE_ZONE_TRIGGERS','SAME_CONSOLIDATION_TRIGGERS_TWICE']}),
   card('37','6th French Fusiliers',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_OTHER_SUPPORTER_WITH_ACTIVE_FIELD_PASSIVE','Copy the selected Supporter’s field passive only; do not execute a when-set effect.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['SOURCE_COPIES_ITSELF','CHARACTER_SELECTED','WHEN_SET_EFFECT_EXECUTED','COPIED_EFFECT_RECURSES']}),
   card('38','Jake','ACTIVATE','CONTROLLER','ONE_SUPPORTER_CONTROLLER_CONTROLS_ON_FIELD','Once per turn, discard selected controlled Supporter and give Jake exactly +4 permanent Fate if discard succeeds.',{useLimit:'ONCE_PER_TURN',forbidden:['OPPONENT_SUPPORTER_SELECTED','JAKE_GAINS_IF_DISCARD_BLOCKED','MORE_THAN_ONE_USE_PER_TURN']}),
   card('39','Juan Carlos','ACTIVATE','CONTROLLER','ONE_OPPONENT_CARD_THEN_OPEN_SQUARE_IN_SOURCE_ZONE','Move selected opponent card to chosen legal open square in Juan’s zone.',{cardinality:'EXACTLY_ONE_CARD_AND_ONE_DESTINATION',useLimit:'ONCE_PER_CARD',forbidden:['CONTROLLERS_CARD_SELECTED','DESTINATION_OUTSIDE_ZONE','OCCUPIED_DESTINATION','CARD_DUPLICATED_OR_LOST']}),
   card('40','Christopher Erbs','ACTIVATE','CONTROLLER','NEXT_CARD_CONTROLLER_DRAWS','Arm the next draw; that card gains exactly +6 permanent Fate, then consume the arm.',{useLimit:'TWO_USES_PER_CARD',duration:'UNTIL_NEXT_CONTROLLER_DRAW',forbidden:['ARMED_TWICE_SIMULTANEOUSLY','OPPONENT_DRAW_CONSUMES','MORE_THAN_PLUS_6','STATUS_NOT_CONSUMED']}),
-  card('41','Jimmy','PASSIVE','CONTROLLER','SOURCE_CARD','Effective Fate bonus equals exactly +3 times the number of distinct opponent-Fate-reduction card-effect uses performed by controller this game.',{forbidden:['COUNTS_RAW_FATE_POINTS_REDUCED','COUNTS_SAME_EFFECT_USE_MULTIPLE_TIMES','COUNTS_NON_EFFECT_OR_SELF_REDUCTION','DISPLAY_FATE_DIVERGES_FROM_SCORE_FATE']}),
+  card('41','Jimmy','PASSIVE','CONTROLLER','SOURCE_CARD','Jimmy establishes a dynamic base of exactly +3 Fate times the number of distinct opponent-Fate-reduction card-effect uses performed by controller this game; normal external Fate modifiers still apply.',{forbidden:['COUNTS_RAW_FATE_POINTS_REDUCED','COUNTS_SAME_EFFECT_USE_MULTIPLE_TIMES','COUNTS_NON_EFFECT_OR_SELF_REDUCTION','IGNORES_EXTERNAL_FATE_MODIFIERS','DISPLAY_FATE_DIVERGES_FROM_SCORE_FATE']}),
   card('42','West German Soldier','WHEN_SET','CONTROLLER','CONTROLLER_DECK_THEN_CONTROLLER_HAND','Draw exactly two available cards, then require exactly two legal hand discards; resolution remains pending until selection completes.',{cardinality:'DRAW_TWO_THEN_DISCARD_TWO',forbidden:['DISCARD_BEFORE_DRAW_PRESENTATION','OPPONENT_HAND_USED','CLOSING_PICKER_AUTO_SELECTS','TURN_ENDS_WITH_PENDING_SELECTION']}),
-  card('43','Mark Kemper','WHEN_SET','CONTROLLER','NEXT_AVAILABLE_SQUARE_IN_CONTROLLERS_EXTRA_ROW_IN_SOURCE_ZONE','Add one safe square owned by controller; later Marks fill the same partial row left-to-right before another row.',{forbidden:['FULL_ROW_ADDED_PER_MARK','SQUARE_OWNED_BY_OPPONENT','NEW_ROW_CREATED_WHILE_PARTIAL_ROW_OPEN']}),
+  card('43','Mark Kemper','WHEN_SET','CONTROLLER','ONE_CHOSEN_AVAILABLE_SQUARE_IN_CONTROLLERS_EXTRA_ROW_IN_SOURCE_ZONE','Controller chooses one of the available positions in the current partial extra row; if none exists, choose one of three positions in a new row.',{cardinality:'EXACTLY_ONE_DESTINATION',forbidden:['AUTO_SELECTS_WITHOUT_PROMPT','FULL_ROW_ADDED_PER_MARK','SQUARE_OWNED_BY_OPPONENT','NEW_ROW_CREATED_WHILE_PARTIAL_ROW_OPEN']}),
   card('44','Soviet Grenadiers','PASSIVE','CONTROLLER','SOURCE_AND_ADJACENT_DAUNTLESS','While adjacent, source and each qualifying Dauntless gain exactly +3 effective Fate.',{forbidden:['NON_DAUNTLESS_QUALIFIES','NON_ADJACENT_CARD_GAINS','BONUS_PERSISTS_AFTER_ADJACENCY_ENDS']}),
   card('45','Chingachlook','PASSIVE','CONTROLLER','SOURCE_ZONE_AND_SOURCE_CARD_ID','Controller may control no other Character in source zone and may play only one Chingachlook copy.',{forbidden:['SECOND_CHARACTER_ALLOWED_IN_ZONE','SECOND_COPY_ALLOWED','OPPONENT_CHARACTERS_BLOCK_CONTROLLER']}),
   card('46','Phil','PASSIVE','CONTROLLER','SOURCE_CARD','At each controller Draw phase after the phase in which Phil was set, gain exactly +2 permanent Fate once.',{forbidden:['GAINS_ON_OPPONENT_DRAW_PHASE','GAINS_IMMEDIATELY_WHEN_SET','SAME_DRAW_PHASE_TICKS_TWICE']}),
@@ -108,7 +108,7 @@ const CARD_RULES = [
   card('53','Colombo Thug','PASSIVE','CONTROLLER','OPPONENT_CONSOLIDATIONS_IN_SOURCE_ZONE','Opponent consolidations into this zone may use reinforcement only from this zone.',{forbidden:['CONTROLLERS_CONSOLIDATION_RESTRICTED','OTHER_ZONE_DESTINATION_RESTRICTED','OUTSIDE_ZONE_TRIBUTE_ACCEPTED']}),
   card('54','Wolf Creek Light Infantry','WHEN_SET','CONTROLLER','ONE_CARD_CONTROLLER_CONTROLS_IN_SOURCE_ZONE_THEN_LEGAL_OWN_SIDE_DESTINATION_OR_SWAP','Move selected controlled card to any open own-side square, or swap with a controlled field card when allowed.',{forbidden:['OPPONENT_CARD_SELECTED','SOURCE_ZONE_TARGET_REQUIREMENT_IGNORED','OPPONENT_SIDE_OPEN_DESTINATION','MOVE_DUPLICATES_OR_LOSES_CARD']}),
   card('55','Bobby Jones','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +5 effective Fate only if at least three other cards controller controls in source zone all share one affiliation.',{prerequisites:['AT_LEAST_THREE_OTHER_CONTROLLED_CARDS','ALL_OTHER_CONTROLLED_CARDS_IN_ZONE_SHARE_AFFILIATION'],forbidden:['SOURCE_COUNTS_TOWARD_THREE','MIXED_AFFILIATIONS_QUALIFY','OPPONENT_CARDS_COUNT']}),
-  card('56','Lydia','REACTION','CONTROLLER','OPPONENT_EFFECT_ACTIVATION','Up to three times per card, controller may negate that resolution or suppress its source permanently; decline changes nothing.',{useLimit:'THREE_REACTIONS_PER_CARD',forbidden:['REACTS_TO_CONTROLLERS_EFFECT','DECLINE_CONSUMES_USE','NEGATED_EFFECT_MUTATES_STATE','FOURTH_REACTION']}),
+  card('56','Lydia','REACTION','CONTROLLER','OPPONENT_EFFECT_ACTIVATION','Up to three times per card, controller may negate that resolution and permanently suppress its source; decline changes nothing.',{useLimit:'THREE_REACTIONS_PER_CARD',forbidden:['REACTS_TO_CONTROLLERS_EFFECT','DECLINE_CONSUMES_USE','NEGATED_EFFECT_MUTATES_STATE','SOURCE_NOT_SUPPRESSED_AFTER_LYDIA','FOURTH_REACTION']}),
   card('57','Jeremiah Jones','PASSIVE','CONTROLLER','COORDINATOR_ZONE_AURAS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Increase each qualifying numeric zone aura’s potency by exactly +1, not the card’s own Fate directly.',{forbidden:['NON_COORDINATOR_AURA_AMPLIFIED','OPPONENT_AURA_AMPLIFIED','CARD_OUTSIDE_ZONE_AMPLIFIED','RECURSIVE_AMPLIFICATION']}),
   card('58','Crossroads Worker','WHEN_SET','CONTROLLER','ONE_SUPPORTER_IN_CONTROLLER_DISCARD','Move selected Supporter to controller hand; with no eligible Supporter, skip without activation cinematic or modal.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['EMPTY_DISCARD_OPENS_EFFECT_CINEMATIC','NON_SUPPORTER_SELECTED','OPPONENT_DISCARD_SEARCHED']}),
   card('59','Czechoslovak Maroon Knights','PASSIVE','CONTROLLER','SUPPORTERS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each qualifying Supporter gains exactly +1 effective Fate.',{forbidden:['NON_SUPPORTER_GAINS','OPPONENT_SUPPORTER_GAINS','OUTSIDE_ZONE_GAINS']}),
@@ -140,7 +140,7 @@ const CARD_RULES = [
   card('85','Felicyta Janowicz (Specters)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +1 effective Fate per Supporter opponent has set this game.',{forbidden:['CONTROLLERS_SUPPORTERS_COUNT','CONSOLIDATED_SUPPORTER_COUNTS_AS_SET_TWICE','VALUE_CHANGES_WITHOUT_COUNTER_EVENT']}),
   card('86','Boleslaw Kopewicz','PASSIVE','CONTROLLER','SOURCE_AND_CONTROLLER_DECK','Whenever opponent completes a card search, controller draws exactly one and source gains exactly +2 permanent Fate once.',{forbidden:['CONTROLLERS_SEARCH_TRIGGERS','NONSEARCH_DRAW_TRIGGERS','SAME_SEARCH_TRIGGERS_TWICE','OPPONENT_DRAWS_BONUS_CARD']}),
   card('87','Květka Svoboda (Ukulele)','WHEN_SET','CONTROLLER','NEXT_CONTROLLER_CONSOLIDATIONS_UNTIL_CONTROLLER_SETS_SUPPORTER','Starting now, each qualifying consolidation card gains exactly +3 permanent Fate; status ends immediately when controller sets a Supporter.',{duration:'UNTIL_CONTROLLER_SETS_SUPPORTER',forbidden:['SOURCE_SELF_QUALIFIES_AS_PRIOR_SUPPORTER_EVENT','OPPONENT_CONSOLIDATION_GAINS','BONUS_PERSISTS_AFTER_SUPPORTER_SET','SAME_CONSOLIDATION_GAINS_TWICE']}),
-  card('88','Rozsi Szocs (Youth)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +2 effective Fate for every Character controller controls anywhere on field, including effect-immune Characters and source if source is a Character.',{forbidden:['OPPONENT_CHARACTER_COUNTS','SUPPORTER_COUNTS','IMMUNE_CHARACTER_EXCLUDED','ONLY_SOURCE_ZONE_COUNTED']}),
+  card('88','Rozsi Szocs (Youth)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +2 effective Fate for every Character controller controls anywhere on field, excluding effect-immutable cards that cannot count for bonuses; include source if source is a Character.',{forbidden:['OPPONENT_CHARACTER_COUNTS','SUPPORTER_COUNTS','EFFECT_IMMUTABLE_CARD_COUNTS','ONLY_SOURCE_ZONE_COUNTED']}),
   card('89','Zsofia Szocs (Youth)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +7 effective Fate while controller has activated fewer than 10 Supporter effects this game; lose bonus at count 10.',{forbidden:['OPPONENT_EFFECT_COUNT_USED','TEN_STILL_QUALIFIES','PLACEMENT_WITH_SKIPPED_EFFECT_COUNTS_AS_ACTIVATION']}),
   card('90','Wojciech (Fisherman)','WHEN_SET','CONTROLLER','TWO_DETERMINISTIC_RANDOM_MATCHING_AFFILIATION_CARDS_IN_CONTROLLER_DECK','After declaration, move up to two matching random cards to controller hand and give each exactly +3 permanent Fate.',{cardinality:'UP_TO_TWO_AVAILABLE',forbidden:['NONMATCHING_CARD_SELECTED','OPPONENT_DECK_USED','MORE_THAN_TWO','RERENDER_REROLLS_SELECTION']}),
   card('91','Wodny Potok Villager','WHEN_SET','CONTROLLER','OPPONENT_LANDSCAPE_CHANGE_ACTIONS','For the next five turns, prevent opponent from changing landscape; at most two activations per game.',{duration:'FIVE_TURNS_AS_SINGLEPLAYER_CLOCK','useLimit':'TWO_USES_PER_GAME',forbidden:['CONTROLLER_BLOCKED','SIXTH_TURN_BLOCKED','THIRD_USE']}),
@@ -385,10 +385,10 @@ function oracleContinuousConditionPositive(state, source, entries){
   if(id === '64') return !!oracleDuelistTarget(state, source, entries);
   if(id === '77') return entries.some(entry=>inZone(entry) && controlled(entry) && String(source.card.counters?.declaredAffiliation || '') === String(entry.card.affiliation || ''));
   if(id === '85') return Number(state?.supportersSetTotal?.[controller === 0 ? 1 : 0] || 0) > 0;
-  if(id === '88') return entries.some(entry=>controlled(entry) && oracleEffectiveType(state, entry.card) !== 'Supporter');
+  if(id === '88') return entries.some(entry=>controlled(entry) && !oracleEffectImmutable(entry.card) && oracleEffectiveType(state, entry.card) !== 'Supporter');
   if(id === '89') return Number(state?.supporterEffectsActivated?.[controller] || 0) < 10;
   if(id === '100'){
-    const related = new Set(['01','19','82','84','85','100']);
+    const related = new Set(['01','19','82','84','85','87','100']);
     return entries.some(entry=>controlled(entry) && String(entry.card.iid) !== String(source.card.iid) && related.has(String(entry.card.id || '')));
   }
   if(id === 'bh07') return entries.some(entry=>controlled(entry) && oracleEffectiveType(state, entry.card) === 'Dauntless' && oracleAdjacent(source, entry));
@@ -411,17 +411,18 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     const controller = controllerOfProjected(target.card);
     const type = oracleEffectiveType(state, target.card);
     const selfId = oracleRuntimeId(target.card);
-    let derived = stored;
-    if(oracleSourceActive(state, target) && selfId === '41'){
-      derived = Math.max(0, Number(state?.fateReductionEffectUses?.[controller] || 0) * 3);
-    }else if(oracleSourceActive(state, target) && selfId === '35'){
+    const permanentAdjustment = (Number(target.card.currentFate) || 0) - (Number(target.card.baseFate) || 0);
+    let derived = oracleSourceActive(state, target) && selfId === '41'
+      ? Math.max(0, Number(state?.fateReductionEffectUses?.[controller] || 0) * 3 + permanentAdjustment)
+      : stored;
+    if(oracleSourceActive(state, target) && selfId === '35'){
       derived = entries.filter(peer=>
         peer.z === target.z
         && String(peer.card.iid) !== iid
         && controllerOfProjected(peer.card) === controller
         && peer.card.faceDown !== true
         && oracleEffectiveType(state, peer.card) === 'Supporter'
-      ).reduce((sum, peer)=>sum + calculate(peer), 0);
+      ).reduce((sum, peer)=>sum + calculate(peer), 0) + permanentAdjustment;
     }
     let modifier = 0;
     for(const source of entries){
@@ -478,6 +479,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     if(oracleSourceActive(state, target) && selfId === '88') modifier += entries.filter(peer=>
       controllerOfProjected(peer.card) === controller
       && peer.card.faceDown !== true
+      && !oracleEffectImmutable(peer.card)
       && oracleEffectiveType(state, peer.card) !== 'Supporter'
     ).length * 2;
     if(oracleSourceActive(state, target) && selfId === '85') modifier += Number(state?.supportersSetTotal?.[controller === 0 ? 1 : 0] || 0);
@@ -488,10 +490,14 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       if(String(oracleDuelistTarget(state, duelist, entries)?.card?.iid || '') === iid) modifier -= 3;
     }
     if(oracleSourceActive(state, target) && selfId === '100'){
-      const related = new Set(['01','19','82','84','85','100']);
+      const related = new Set(['01','19','82','84','85','87','100']);
       if(entries.some(peer=>controllerOfProjected(peer.card) === controller && String(peer.card.iid) !== iid && related.has(String(peer.card.id || '')))) modifier += 3;
     }
-    const result = Math.max(0, derived + modifier);
+    const uncappedResult = Math.max(0, derived + modifier);
+    const permanentCeiling = Number(target.card.counters?.permanentFateCeiling);
+    const result = Number.isFinite(permanentCeiling)
+      ? Math.min(uncappedResult, Math.max(0, permanentCeiling))
+      : uncappedResult;
     evaluating.delete(iid);
     memo.set(iid, result);
     return result;
@@ -575,7 +581,12 @@ export function auditRuleOracleState(view, observedEffectiveFate = null){
       }
     }
     if(source && opponentOwnedStatusTypes.has(type)){
-      const sourceController = controllerOfProjected(source);
+      // Timed effects retain the controller who created them. The physical
+      // source may later change control or move into another player's pile;
+      // that must not invert an already-created opponent-facing status.
+      const sourceController = [0, 1].includes(Number(status?.sourceController))
+        ? Number(status.sourceController)
+        : controllerOfProjected(source);
       if(sourceController !== null && Number(status?.playerIndex) === sourceController){
         violations.push(issue('OPPONENT_STATUS_ASSIGNED_TO_SOURCE_CONTROLLER',sourceId,'',`${type} playerIndex=${status?.playerIndex}`));
       }
@@ -674,6 +685,7 @@ function mutationIsSourceCardEffect(event){
   // own reason codes and continue through the semantic checks below.
   const nonEffectReasons = new Set([
     'CONSOLIDATION_TRIBUTE',
+    'MANUAL_DISCARD',
     'HAND_LIMIT',
     'PEOPLES_PARK_COST',
     'LANDSCAPE_IGB16_COST',
@@ -691,7 +703,14 @@ function targetRelationViolation(view, rule, sourceEntry, targetEntry, event){
   const target = targetEntry?.card;
   if(!rule || !source || !target) return '';
   const scope = String(rule.target || '').toUpperCase();
-  const sourceController = controllerOfProjected(source);
+  // Use the effect's captured controller when the authoritative event exposes
+  // one. Delayed effects (Mail Delivery) remain owned by their activating
+  // player even if the physical source changes control before resolution.
+  const sourceController = event?.sourceController !== null
+    && event?.sourceController !== undefined
+    && [0, 1].includes(Number(event.sourceController))
+      ? Number(event.sourceController)
+      : controllerOfProjected(source);
   // For private piles, the semantic player is the pile holder. A transferred
   // card can retain its printed owner/controller metadata while legally
   // residing in the other player's hand (most importantly Guerilla). Effects
@@ -739,7 +758,15 @@ function targetRelationViolation(view, rule, sourceEntry, targetEntry, event){
   // duration, own-side destination, and adjacent-zone distance remain relevant.
   if(String(event?.type || '').toUpperCase() === 'CARD_MOVED'
     && String(event?.reason || '').toUpperCase() === 'MOVEMENT_GRANT') return '';
-  if((scope.includes('SOURCE_ZONE') || scope.includes('IN_SOURCE_ZONE')) && sourceEntry.zone === 'board'){
+  // Whisper of the Heart deliberately makes Shizuku's copied Coordinator
+  // aura field-wide.  The authoritative triggers and effective-Fate engine
+  // therefore allow a copied source-zone rule to reach controlled cards in
+  // every zone.  Retain the copied rule's controller/type constraints while
+  // skipping only its normal same-zone constraint.
+  const whisperFieldWide = source?.counters?.whisperLandscapeToken === true;
+  if((scope.includes('SOURCE_ZONE') || scope.includes('IN_SOURCE_ZONE'))
+    && sourceEntry.zone === 'board'
+    && !whisperFieldWide){
     // "Select in this/source zone, then move" constrains the origin, not the
     // post-resolution square. Effects worded "moved into source zone" instead
     // constrain the destination/current location.
@@ -759,7 +786,20 @@ function targetRelationViolation(view, rule, sourceEntry, targetEntry, event){
     if(oracleEffectiveType(state, target) === 'Supporter') return 'Supporter target used for consolidation bonus';
     return '';
   }
-  if(scope.includes('SUPPORTER') && oracleEffectiveType(state, target) !== 'Supporter') return 'non-Supporter target used';
+  // Lumberjack follows the shipping/single-player rule: it suppresses a card
+  // that was printed as a Supporter even while a temporary classification
+  // effect (for example Rozsi and Zsofia) makes that card act as a Character.
+  // The reducer deliberately checks card.type for this interaction, so the
+  // independent oracle must not turn that legal suppression status into a
+  // target-relation violation merely because effective type changed.
+  // Private-pile searches in the shipping game filter printed card type. A
+  // temporary field classification (Blame Game) must not make a Supporter in
+  // deck/discard illegal for Maja, Kirby, Crossroads Worker, IB Student, etc.
+  const printedSupporterContract = ['hand','deck','discard','limbo'].includes(String(targetEntry?.zone || ''));
+  const supporterTargetType = printedSupporterContract || String(rule?.id || '') === '92'
+    ? String(target?.type || '')
+    : oracleEffectiveType(state, target);
+  if(scope.includes('SUPPORTER') && supporterTargetType !== 'Supporter') return 'non-Supporter target used';
   if(scope.includes('CHARACTER') && oracleEffectiveType(state, target) === 'Supporter') return 'non-Character target used';
   return '';
 }
@@ -798,13 +838,25 @@ function auditGenericCardMutationSemantics(view, events, batchId){
     // effect frame is still resolving. The explicit consequence reason is
     // authoritative in that case: Rozsi's +3 obeys Rozsi's movement contract,
     // not the enclosing mover's target contract.
-    const reasonSemanticRuleId = String(event?.reason || '').toUpperCase() === 'ROZSI_MOVEMENT_BONUS'
+    const semanticReason = String(event?.reason || '').toUpperCase();
+    const reasonSemanticRuleId = semanticReason === 'ROZSI_MOVEMENT_BONUS'
       ? '34'
-      : '';
-    const eventSemanticRuleId = reasonSemanticRuleId || String(event?.semanticSourceCardId || '');
-    const semanticRuleId = eventSemanticRuleId && cardRuleOracle(eventSemanticRuleId)
+      : (semanticReason === 'WINE_COUNTRY_GUERILLA' ? '70' : '');
+    const eventSemanticRuleId = String(event?.semanticSourceCardId || '');
+    // Reducer events commonly repeat the physical source card id as
+    // semanticSourceCardId.  That does not replace the copied-effect contract:
+    // Taylor/Ledger remain the visible source while their public copiedEffectId
+    // defines which printed targeting rule the mutation must obey.  A genuinely
+    // different explicit semantic source still wins, as do intrinsic consequence
+    // reasons such as Rozsi's movement bonus.
+    const explicitSemanticRuleId = eventSemanticRuleId && eventSemanticRuleId !== cardId
       ? eventSemanticRuleId
-      : (copiedRuleId && cardRuleOracle(copiedRuleId) ? copiedRuleId : cardId);
+      : '';
+    const semanticRuleId = reasonSemanticRuleId && cardRuleOracle(reasonSemanticRuleId)
+      ? reasonSemanticRuleId
+      : (explicitSemanticRuleId && cardRuleOracle(explicitSemanticRuleId)
+        ? explicitSemanticRuleId
+        : (copiedRuleId && cardRuleOracle(copiedRuleId) ? copiedRuleId : cardId));
     const rule = cardRuleOracle(semanticRuleId);
     if(!rule) continue;
     cardChecks[cardId] = Number(cardChecks[cardId] || 0) + 1;
@@ -814,7 +866,11 @@ function auditGenericCardMutationSemantics(view, events, batchId){
       violations.push(issue('DUPLICATE_IDENTICAL_MUTATION',cardId,batchId,signature));
     }
     mutationSignatures.add(signature);
-    const sourceController = controllerOfProjected(source);
+    const sourceController = event?.sourceController !== null
+      && event?.sourceController !== undefined
+      && [0, 1].includes(Number(event.sourceController))
+        ? Number(event.sourceController)
+        : controllerOfProjected(source);
     const sourceEffectMutation = mutationIsSourceCardEffect(event);
     if(['CARD_DRAWN','TOKENS_CREATED','SAFE_ROW_ADDED','SAFE_SQUARE_ADDED','PLAYER_COUNTER_CHANGED'].includes(type)
       && sourceController !== null
@@ -936,7 +992,7 @@ export function auditRuleOraclePresentationBatch(view, batch){
       if(controller !== null && Number(event.playerIndex) !== controller){
         violations.push(issue('REACTION_ATTRIBUTED_TO_WRONG_PLAYER',reactionId,batchId,`expected ${controller}, got ${event.playerIndex}`));
       }
-      const allowedModes = {56:['NEGATE','SUPPRESS'],67:['NEGATE'],79:['NEGATE','SUPPRESS']}[reactionId] || null;
+    const allowedModes = {56:['NEGATE'],67:['NEGATE'],79:['NEGATE','SUPPRESS']}[reactionId] || null;
       if(allowedModes && !allowedModes.includes(String(event.mode || '').toUpperCase())){
         violations.push(issue('IMPROVISOR_REACTION_USED_INVALID_MODE',reactionId,batchId,String(event.mode || '')));
       }

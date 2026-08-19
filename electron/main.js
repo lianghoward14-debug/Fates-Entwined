@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const APP_NAME = 'Fates Entwined';
 const DEFAULT_FLY_AUTHORITY_API_URL = 'https://fates-entwined-main.fly.dev';
 const DEFAULT_FLY_AUTHORITY_WS_URL = 'wss://fates-entwined-main.fly.dev';
-const ELECTRON_CLIENT_BUILD_STAMP = 'electron-google-auth-bridge-stable-20260713a-1783961301';
+const ELECTRON_CLIENT_BUILD_STAMP = 'phase7-manual-erbs-ali-turn-boundary-20260816i';
 const CHROME_VERSION = process.versions.chrome || '126.0.0.0';
 const GOOGLE_FRIENDLY_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION} Safari/537.36`;
 const SAFE_MODE_ENABLED = process.argv.includes('--safe-mode') || process.env.FATE_SAFE_MODE === '1';
@@ -27,6 +27,7 @@ const PHASE7_UNRANKED_BETA_ENABLED = process.argv.includes('--phase7-beta');
 const PHASE7_TEST_AUTH_ENABLED = process.argv.includes('--phase7-test-auth');
 const PHASE7_FAST_UI_TEST_ENABLED = process.argv.includes('--phase7-fast-ui-test');
 const PHASE7_PRESENTATION_TEST_ENABLED = process.argv.includes('--phase7-presentation-test');
+const PHASE7_E2E_BACKGROUND_RUN = process.argv.includes('--e2e-background-run');
 if(PHASE7_FAST_UI_TEST_ENABLED && PHASE7_PRESENTATION_TEST_ENABLED){
   throw new Error('Choose exactly one Phase 7 UI test client: fast or presentation timing');
 }
@@ -160,7 +161,14 @@ function withElectronLaunchParams(rawUrl, sessionName) {
   if (sessionName) url.searchParams.set('electronSession', sessionName);
   if (PHASE7_UNRANKED_BETA_ENABLED) {
     url.searchParams.set('fateV3UnrankedBeta', '1');
-    if (PHASE7_TEST_AUTH_ENABLED) url.searchParams.set('fateV3BetaTestAuth', '1');
+    if (PHASE7_TEST_AUTH_ENABLED) {
+      url.searchParams.set('fateV3BetaTestAuth', '1');
+      // Manual beta clients must be able to exercise the exact local authority
+      // code under test instead of silently falling back to the deployed Fly
+      // build. Production beta launches still use Fly by default.
+      const authority = electronAuthorityConfig();
+      if (authority?.mode === 'local') url.searchParams.set('fateV3BetaTestApiUrl', authority.apiUrl);
+    }
     if (PHASE7_FAST_UI_TEST_ENABLED) url.searchParams.set('fateV3FullUiE2E', '1');
     if (PHASE7_PRESENTATION_TEST_ENABLED) url.searchParams.set('fateV3PresentationE2E', '1');
     if (PHASE7_FAST_UI_TEST_ENABLED || PHASE7_PRESENTATION_TEST_ENABLED) {
@@ -172,6 +180,7 @@ function withElectronLaunchParams(rawUrl, sessionName) {
         ['e2e-focus-group', 'e2eFocusGroup'],
         ['e2e-max-runtime-ms', 'e2eMaxRuntimeMs'],
         ['e2e-max-actions', 'e2eMaxActions'],
+        ['e2e-stall-ms', 'e2eStallMs'],
         ['ui-rev', 'uiRev']
       ];
       for (const [argument, parameter] of passthrough) {
@@ -181,6 +190,7 @@ function withElectronLaunchParams(rawUrl, sessionName) {
       if (process.argv.includes('--e2e-fresh')) url.searchParams.set('e2eFresh', '1');
       if (process.argv.includes('--e2e-organic-card-campaign')) url.searchParams.set('e2eOrganicCardCampaign', '1');
       if (process.argv.includes('--e2e-strict-card-certification')) url.searchParams.set('e2eStrictCardCertification', '1');
+      if (process.argv.includes('--e2e-allow-diagnostic-fallback')) url.searchParams.set('e2eAllowDiagnosticFallback', '1');
     }
   } else {
     const authority = electronAuthorityConfig();
@@ -658,8 +668,13 @@ async function createWindow(options = {}) {
         writeStartupLog('window-maximize-failed', { error: String(err && err.message || err) });
       }
     }
-    win.show();
-    win.focus();
+    if (PHASE7_E2E_BACKGROUND_RUN) {
+      win.showInactive();
+      win.minimize();
+    } else {
+      win.show();
+      win.focus();
+    }
     win.webContents.send('fate:desktop-window-shown');
   });
 

@@ -164,8 +164,10 @@
     if(animationsOff()) return false;
     const recipe = String(type || '').toUpperCase();
     if(BOARD_PLACEMENT_RECIPES.has(recipe)) return false;
+    const synchronizedResultFeedback = (recipe === 'FATE_GAIN' || recipe === 'FATE_LOSS')
+      && payload && payload.synchronizeResultFeedback === true;
     const presenter = window.FateActionPresentation;
-    if(presenter && typeof presenter.beginMotionOnly === 'function' &&
+    if(!synchronizedResultFeedback && presenter && typeof presenter.beginMotionOnly === 'function' &&
       !(typeof presenter.isActive === 'function' && presenter.isActive())) {
       return !!presenter.beginMotionOnly(recipe, payload || {});
     }
@@ -384,6 +386,41 @@
     }, opts || {}));
   }
 
+  function fateChangeAtLocation(card, location, before, after, opts){
+    const loc = location || {};
+    if(String(loc.zone || '') === 'board') return fateChange(card, loc.z, loc.r, loc.c, before, after, opts);
+    const from = Math.max(0, Number(before) || 0);
+    const to = Math.max(0, Number(after) || 0);
+    if(to === from) return false;
+    const owner = Number(loc.playerIndex == null ? card && card.owner : loc.playerIndex);
+    const zone = String(loc.zone || '').toLowerCase();
+    let rect = null;
+    if(zone === 'hand'){
+      rect = anyHandRectByIid(card && card.iid)
+        || (owner === Number(currentViewer()) ? handSlotRect(999) : opponentHandSlotRect(999, owner))
+        || fallbackHandRect(owner, null);
+    }else if(zone === 'deck' || zone === 'discard'){
+      rect = pileRect(owner, zone) || pileRect(null, zone);
+    }else if(zone === 'private'){
+      rect = fallbackHandRect(owner, null);
+    }
+    if(!rect) return false;
+    const amount = Math.abs(to - from);
+    const type = to > from ? 'FATE_GAIN' : 'FATE_LOSS';
+    return play(type, Object.assign({
+      iid:card && card.iid,
+      card,
+      rect,
+      targetRect:rect,
+      zone,
+      owner,
+      before:from,
+      after:to,
+      amount,
+      fateDelta:to - from
+    }, opts || {}));
+  }
+
   function supporterEffect(sourceCard, sourcePos, targets, opts){
     if(animationsOff()) return false;
     const sourceRect = sourcePos && sourcePos.x != null ? sourcePos : rectForBoardTarget(sourcePos && sourcePos.z, sourcePos && sourcePos.r, sourcePos && sourcePos.c);
@@ -520,6 +557,7 @@
       ownsSearchToHand:true,
       ownsReveal:true,
       ownsFateChange:true,
+      ownsOffBoardFateChange:true,
       ownsSupporterEffect:true,
       ownsZoneMotion:true,
       ownsExplicitSet:true,
@@ -546,6 +584,7 @@
     transferHandCard,
     revealCard,
     fateChange,
+    fateChangeAtLocation,
     supporterEffect,
     zoneMotion,
     turnHandoff,

@@ -119,8 +119,12 @@ export function effectiveFate(state, entryOrCard){
   const targetController = controllerOf(card);
   const targetType = effectiveCardType(state, card);
   const selfId = runtimeRuleId(card);
+  const permanentAdjustment = (Number(card.currentFate) || 0) - (Number(card.baseFate) || 0);
+  // Jimmy's own passive establishes his dynamic base Fate. It does not make
+  // him immune to other cards: ordinary auras and penalties (including an
+  // adjacent Soviet Grenadier) are applied to that base below.
   const derived = activeAuraSource(state, entry) && selfId === '41'
-    ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3)
+    ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
     : (activeAuraSource(state, entry) && selfId === '35'
       ? boardEntries(state)
         .filter(source=>
@@ -130,7 +134,7 @@ export function effectiveFate(state, entryOrCard){
           && source.card.faceDown !== true
           && effectiveCardType(state, source.card) === 'Supporter'
         )
-        .reduce((sum, source)=>sum + effectiveFate(state, source), 0)
+        .reduce((sum, source)=>sum + effectiveFate(state, source), 0) + permanentAdjustment
       : stored);
   let modifier = 0;
   for(const source of boardEntries(state)){
@@ -220,6 +224,10 @@ export function effectiveFate(state, entryOrCard){
     const characters = boardEntries(state).filter(source=>
       controllerOf(source.card) === targetController
       && source.card.faceDown !== true
+      // ALPINE Infantry and any other effect-immutable card are invisible to
+      // other cards' conditions. Temporary Supporter reclassification must
+      // not make them count toward Rozsi (Youth)'s Character total.
+      && !isEffectImmutable(source.card)
       && effectiveCardType(state, source.card) !== 'Supporter'
     ).length;
     modifier += characters * 2;
@@ -241,14 +249,24 @@ export function effectiveFate(state, entryOrCard){
     if(target && String(target.card.iid) === String(card.iid)) modifier -= 3;
   }
   if(activeAuraSource(state, entry) && selfId === '100'){
-    const relatedIds = new Set(['01', '19', '82', '84', '85', '100']);
+    // Every printed Felicyta/Květka card qualifies. Keep this explicit so a
+    // copied effect or a coincidental name cannot satisfy Wintertide, but do
+    // include Květka (Ukulele), whose card id is 87.
+    const relatedIds = new Set(['01', '19', '82', '84', '85', '87', '100']);
     if(boardEntries(state).some(source=>
       controllerOf(source.card) === targetController
       && String(source.card.iid || '') !== String(card.iid || '')
       && relatedIds.has(String(source.card.id || ''))
     )) modifier += 3;
   }
-  return Math.max(0, derived + modifier);
+  const effective = Math.max(0, derived + modifier);
+  const permanentCeiling = Number(card.counters?.permanentFateCeiling);
+  // Match the shipping single-player rule: a permanent Fate reduction caps
+  // the card's complete effective value, including continuous bonuses, until
+  // later permanent gains lift that ceiling.
+  return Number.isFinite(permanentCeiling)
+    ? Math.min(effective, Math.max(0, permanentCeiling))
+    : effective;
 }
 
 export function zoneActionBlock(state, playerIndex, zone){
@@ -322,6 +340,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
 }
 
 export function effectiveConsolidationCost(state, card, playerIndex){
+  if(state?.testRules?.zeroReinforcementCost === true) return 0;
   let cost = effectiveCost(state, card);
   for(const status of state?.statuses || []){
     if(status?.type !== 'CONSOLIDATION_COST_MODIFIER') continue;

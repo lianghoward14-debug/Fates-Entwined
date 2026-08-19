@@ -64,7 +64,10 @@ export function projectStateForPlayer(state, playerIndex){
     fateReductionEffectUses:cloneSerializable(state.fateReductionEffectUses),
     extraSupportersThisTurn:cloneSerializable(state.extraSupportersThisTurn),
     queuedExtraSupporters:cloneSerializable(state.queuedExtraSupporters),
+    testRules:cloneSerializable(state.testRules),
     landscapeId:state.landscapeId,
+    gameSettings:cloneSerializable(state.gameSettings),
+    turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState),
     players:state.players.map((player, index)=>
       index === viewer || state.landscapeId === 'igb12'
@@ -103,7 +106,10 @@ export function projectStateForSpectator(state){
     fateReductionEffectUses:cloneSerializable(state.fateReductionEffectUses),
     extraSupportersThisTurn:cloneSerializable(state.extraSupportersThisTurn),
     queuedExtraSupporters:cloneSerializable(state.queuedExtraSupporters),
+    testRules:cloneSerializable(state.testRules),
     landscapeId:state.landscapeId,
+    gameSettings:cloneSerializable(state.gameSettings),
+    turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState),
     players:state.players.map(publicPlayer),
     board:cloneSerializable(state.board),

@@ -13,6 +13,7 @@ import {TEST_DEFINITIONS, command, takeFromHandToBoard} from './test-helpers.mjs
 
 const PHASE3_DEFINITIONS = [
   ...TEST_DEFINITIONS,
+  {id:'13', name:'Johnathan Kirby', type:'Initiator', fate:2, cost:1, rarity:'square'},
   {id:'test-p3-chain', name:'Phase 3 Chain', type:'Initiator', fate:1, cost:1},
   {id:'test-p3-card-selection', name:'Phase 3 Card Selection', type:'Initiator', fate:1, cost:1},
   {id:'test-p3-board-multi', name:'Phase 3 Board Multi', type:'Initiator', fate:1, cost:1},
@@ -158,6 +159,33 @@ assert.equal(timeout.command.payload.cancel, true);
 outcome = await harness.actor.dispatch(timeout.playerId, timeout.command);
 assert.equal(outcome.response.status, 'ACCEPTED');
 assert(outcome.response.events.some(event=>event.type === 'PROMPT_CANCELLED'));
+harness.close();
+
+// Johnathan Kirby searches "up to 2" Supporters.  Optional multi-select
+// commands must include one-card choices as well as the empty selection.
+state = makeState('P3JOHNATHAN', ['13', '31', '32']);
+const oathbound = state.players[0].hand.splice(state.players[0].hand.findIndex(card=>card.id === '31'), 1)[0];
+state.players[0].deck.push(oathbound);
+const resident = takeFromHandToBoard(state, 0, '32', {z:0, r:2, c:0});
+const johnathan = state.players[0].hand.find(card=>card.id === '13');
+harness = createHarness(state);
+outcome = await harness.actor.dispatch(
+  'p0',
+  command(harness.actor.state, 'p0', 1, 'CONSOLIDATE_CARD', {
+    cardIid:johnathan.iid,
+    tributeIids:[resident.iid],
+    destination:{z:0, r:2, c:0}
+  })
+);
+assert.equal(outcome.response.state.pendingPrompt.type, 'CARD_SELECTION');
+assert.equal(outcome.response.state.pendingPrompt.min, 0);
+assert.equal(outcome.response.state.pendingPrompt.max, 2);
+outcome = await harness.actor.dispatch('p0', command(harness.actor.state, 'p0', 2, 'ANSWER_PROMPT', {
+  promptId:harness.actor.state.pendingPrompt.promptId,
+  selectedIids:[oathbound.iid]
+}));
+assert.equal(outcome.response.status, 'ACCEPTED');
+assert(harness.actor.state.players[0].hand.some(card=>card.iid === oathbound.iid), 'Johnathan must accept selecting Oathbound alone');
 harness.close();
 
 state = makeState('P3REACTION', ['27', '32'], ['56', '32']);

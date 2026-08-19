@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {ENGINE_VERSION, RULESET_VERSION} from '../../shared/engine/constants.mjs';
 import {AuthorityV3RoomManager} from './room-manager.mjs';
 import {SQLiteAuthorityStore} from './storage.mjs';
+import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
   throw new Error(
@@ -225,17 +226,27 @@ function clearTurnTimer(matchId){
   turnTimers.delete(matchId);
 }
 
-function scheduleTurnTimer(actor){
+function suspendTurnTimer(matchId){
+  const entry = turnTimers.get(matchId);
+  if(!entry || entry.suspended) return;
+  if(entry.timer) clearTimeout(entry.timer);
+  entry.timer = null;
+  entry.remainingMs = Math.max(1, Number(entry.deadlineAt || 0) - Date.now());
+  entry.suspended = true;
+  turnTimers.set(matchId, entry);
+}
+
+function armTurnTimer(actor, timeout, delayMs){
   const matchId = actor.state.matchId;
-  const timeout = actor.turnTimeoutCommand();
-  if(!timeout){
-    clearTurnTimer(matchId);
-    return;
-  }
-  const existing = turnTimers.get(matchId);
-  if(existing?.signature === timeout.turnSignature) return;
-  clearTurnTimer(matchId);
-  const timer = setTimeout(async ()=>{
+  const remainingMs = Math.max(1, Number(delayMs) || Number(timeout.timeoutMs) || 1);
+  const entry = {
+    timer:null,
+    signature:timeout.turnSignature,
+    remainingMs,
+    deadlineAt:Date.now() + remainingMs,
+    suspended:false
+  };
+  entry.timer = setTimeout(async ()=>{
     turnTimers.delete(matchId);
     const current = actor.turnTimeoutCommand();
     if(!current || current.turnSignature !== timeout.turnSignature) return;
@@ -247,14 +258,31 @@ function scheduleTurnTimer(actor){
     }catch(error){
       console.error(`authoritative v3 turn timeout failed for ${matchId}:`, error.message || error);
     }
-  }, timeout.timeoutMs);
-  timer.unref?.();
-  turnTimers.set(matchId, {timer, signature:timeout.turnSignature});
+  }, remainingMs);
+  entry.timer.unref?.();
+  turnTimers.set(matchId, entry);
+}
+
+function scheduleTurnTimer(actor){
+  const matchId = actor.state.matchId;
+  const timeout = actor.turnTimeoutCommand();
+  if(!timeout){
+    clearTurnTimer(matchId);
+    return;
+  }
+  const existing = turnTimers.get(matchId);
+  if(existing?.signature === timeout.turnSignature){
+    if(existing.timer && !existing.suspended) return;
+    armTurnTimer(actor, timeout, existing.remainingMs);
+    return;
+  }
+  clearTurnTimer(matchId);
+  armTurnTimer(actor, timeout, timeout.timeoutMs);
 }
 
 function scheduleAuthorityTimers(actor){
   schedulePromptTimer(actor);
-  if(actor.state.pendingPrompt) clearTurnTimer(actor.state.matchId);
+  if(actor.state.pendingPrompt || actor.state.pendingHandLimit) suspendTurnTimer(actor.state.matchId);
   else scheduleTurnTimer(actor);
 }
 
@@ -477,7 +505,7 @@ const server = http.createServer(async (req, res)=>{
         name:String(body.name || identity.uid).slice(0, 80),
         deckIds,
         organicFixture:organicFixtureIdentity,
-        landscapeId:String(body.landscapeId || 'igb1'),
+        gameSettings:normalizePhase7GameSettings(body.gameSettings, body.landscapeId),
         testOpeningCardIds:organicFixtureIdentity && Array.isArray(body.testOpeningCardIds)
           ? body.testOpeningCardIds.map(String).filter(id=>deckIds.includes(id)).slice(0, 4)
           : [],
@@ -487,6 +515,9 @@ const server = http.createServer(async (req, res)=>{
         testDeckTopCardIds:organicFixtureIdentity && Array.isArray(body.testDeckTopCardIds)
           ? body.testDeckTopCardIds.map(String).filter(id=>deckIds.includes(id)).slice(0, 2)
           : [],
+        testRules:organicFixtureIdentity && body.testRules?.zeroReinforcementCost === true
+          ? {zeroReinforcementCost:true}
+          : null,
         testPool,
         joinedAt:Date.now()
       };
@@ -501,12 +532,24 @@ const server = http.createServer(async (req, res)=>{
       betaQueue.delete(opponent.uid);
       betaQueue.delete(identity.uid);
       const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
+      // Matchmaking follows the same ownership rule as a hosted Free Play room:
+      // the first queued player owns the room settings. Random landscape is
+      // resolved exactly once by authority so both clients receive one result.
+      const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);
       const result = manager.createMatch({
         mode:'unranked',
         matchId,
         seed:matchId,
         requireTurnChoice:true,
-        landscapeId:opponent.landscapeId,
+        landscapeId:gameSettings.resolvedLandscapeId,
+        gameSettings,
+        turnTimerSeconds:gameSettings.turnTimerSeconds,
+        // Both authenticated fixture clients must request the same shortcut.
+        // A disagreement fails closed to the real production cost rules.
+        testRules:opponent.testRules?.zeroReinforcementCost === true
+          && queued.testRules?.zeroReinforcementCost === true
+            ? {zeroReinforcementCost:true}
+            : null,
         players:[
           {id:opponent.uid, name:opponent.name, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
           {id:queued.uid, name:queued.name, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}

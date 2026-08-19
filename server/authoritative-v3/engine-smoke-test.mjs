@@ -55,7 +55,7 @@ result = reduceCommand(
   reactionState,
   command(reactionState, 'p1', 3, 'ANSWER_PROMPT', {
     promptId:reactionState.pendingPrompt.promptId,
-    choice:'SUPPRESS',
+    choice:'NEGATE',
     reactionIid:lydia.iid
   }),
   {playerId:'p1'}

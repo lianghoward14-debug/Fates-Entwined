@@ -102,6 +102,32 @@ ukuleleAudit = auditRuleOraclePresentationBatch(ukuleleView, {
 });
 assert(ukuleleAudit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'));
 
+const whisperMajaSource = {
+  ...cardValue('whisper17', 'whisper-maja-source', 0),
+  type:'Coordinator',
+  counters:{copiedPassiveId:'bh08', whisperLandscapeToken:true}
+};
+const whisperMajaTarget = {...cardValue('31', 'whisper-maja-target', 0), type:'Character'};
+const whisperMajaView = {
+  playerIndex:0,
+  state:{
+    matchId:'whisper-maja-oracle',
+    revision:4,
+    players:[{hand:[]},{hand:[]}],
+    board:[[[whisperMajaSource,null,null],[null,null,null],[null,null,null]],[[null,null,null],[null,null,null],[null,null,null]],[[null,null,null],[null,null,null],[whisperMajaTarget,null,null]]],
+    geometry:{rowOwners:[[1,-1,0],[1,-1,0],[1,-1,0]],playableExtraSquares:[]}
+  }
+};
+const whisperMajaAudit = auditRuleOraclePresentationBatch(whisperMajaView, {
+  id:'whisper-maja-field-wide',
+  events:[{type:'FATE_CHANGED',sourceIid:'whisper-maja-source',cardIid:'whisper-maja-target',before:1,after:3,amount:2,reason:'MISCHIEVOUS_ACTIVITIES'}]
+});
+assert.equal(
+  whisperMajaAudit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'),
+  false,
+  JSON.stringify(whisperMajaAudit.violations)
+);
+
 const rozsiSource = {...cardValue('34', 'rozsi-source', 0), type:'Coordinator'};
 const rozsiControlledTarget = {...cardValue('68', 'rozsi-controlled-target', 0), type:'Character'};
 const rozsiOpponentTarget = {...cardValue('68', 'rozsi-opponent-target', 1), type:'Character'};
@@ -238,8 +264,8 @@ audit = auditRuleOraclePresentationBatch(fixedView, {
 assert(audit.violations.some(item=>item.code === 'DUPLICATE_IDENTICAL_MUTATION'));
 
 const lumberjackStatusView = JSON.parse(JSON.stringify(fixedView));
-const lumberjackSource = cardValue('92', 'lumberjack-source', 0);
-const lumberjackTarget = cardValue('20', 'lumberjack-target', 0);
+const lumberjackSource = {...cardValue('92', 'lumberjack-source', 0), type:'Supporter'};
+const lumberjackTarget = {...cardValue('20', 'lumberjack-target', 0), type:'Supporter'};
 lumberjackStatusView.state.board[0][1] = [lumberjackSource, lumberjackTarget, null];
 audit = auditRuleOraclePresentationBatch(lumberjackStatusView, {
   id:'distinct-status-mutations-are-not-duplicates',
@@ -250,6 +276,25 @@ audit = auditRuleOraclePresentationBatch(lumberjackStatusView, {
 });
 assert.equal(audit.violations.some(item=>item.code === 'DUPLICATE_IDENTICAL_MUTATION'), false, JSON.stringify(audit.violations));
 
+const reclassifiedLumberjackView = JSON.parse(JSON.stringify(lumberjackStatusView));
+reclassifiedLumberjackView.state.statuses = [{
+  type:'SUPPORTERS_AS_CHARACTERS',
+  playerIndex:0,
+  remainingTargetTurns:2
+}];
+audit = auditRuleOraclePresentationBatch(reclassifiedLumberjackView, {
+  id:'lumberjack-uses-printed-supporter-type',
+  events:[
+    {type:'STATUS_CREATED',sourceIid:'lumberjack-source',cardIid:'lumberjack-target',status:'SET_EFFECT_SUPPRESSED'},
+    {type:'STATUS_CREATED',sourceIid:'lumberjack-source',cardIid:'lumberjack-target',status:'REINFORCEMENT:1'}
+  ]
+});
+assert.equal(
+  audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'),
+  false,
+  JSON.stringify(audit.violations)
+);
+
 const opponentOnlySource = cardValue('30', 'opponent-source', 0);
 const wronglyOwnedTarget = cardValue('31', 'wrongly-owned-target', 0);
 const opponentOnlyView = JSON.parse(JSON.stringify(fixedView));
@@ -259,6 +304,30 @@ audit = auditRuleOraclePresentationBatch(opponentOnlyView, {
   events:[{type:'CARD_DISCARDED',sourceIid:'opponent-source',cardIid:'wrongly-owned-target',owner:0,previousZone:'board'}]
 });
 assert(audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'));
+
+// Mail Delivery belongs to the player who scheduled it. If the physical
+// Mailman later changes control, the delayed limbo-to-hand transfer must still
+// be judged using the captured effect controller, exactly as single-player's
+// queued delivery does.
+const mailmanControlChangeView = JSON.parse(JSON.stringify(fixedView));
+const changedControlMailman = cardValue('94', 'mailman-changed-control', 1);
+const scheduledTriangle = cardValue('30', 'scheduled-triangle', 0);
+mailmanControlChangeView.state.board[0][0] = [changedControlMailman, null, null];
+mailmanControlChangeView.state.players[0].hand = [scheduledTriangle];
+audit = auditRuleOraclePresentationBatch(mailmanControlChangeView, {
+  id:'mail-delivery-captured-controller',
+  events:[{
+    type:'CARD_TRANSFERRED', sourceIid:'mailman-changed-control',
+    semanticSourceCardId:'94', sourceController:0,
+    cardIid:'scheduled-triangle', from:'limbo', fromPlayerIndex:0,
+    to:'hand', playerIndex:0, reason:'MAIL_DELIVERY'
+  }]
+});
+assert.equal(
+  audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'),
+  false,
+  JSON.stringify(audit.violations)
+);
 
 const copiedUnseenStrikesView = JSON.parse(JSON.stringify(fixedView));
 const taylorCopySource = cardValue('bh05', 'taylor-copy-source', 0);
@@ -405,7 +474,8 @@ audit = auditRuleOraclePresentationBatch(replacementView, {
   id:'guerilla-replacement-has-intrinsic-semantic-source',
   events:[{
     type:'CARD_TRANSFERRED',sourceIid:'lydia-grouping-source',effectSourceIid:'replacement-guerilla',
-    cardIid:'replacement-guerilla',from:'board',to:'hand',playerIndex:0,reason:'WINE_COUNTRY_GUERILLA'
+    semanticSourceCardId:'33',cardIid:'replacement-guerilla',from:'board',to:'hand',playerIndex:0,
+    reason:'WINE_COUNTRY_GUERILLA'
   }]
 });
 assert.equal(audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'), false, JSON.stringify(audit.violations));
@@ -452,6 +522,18 @@ audit = auditRuleOraclePresentationBatch(opponentOnlyView, {
   events:[{
     type:'CARD_DISCARDED',sourceIid:'opponent-source',cardIid:'opponent-source',
     owner:0,previousZone:'hand',reason:'HAND_LIMIT'
+  }]
+});
+assert.equal(
+  audit.violations.some(item=>['ILLEGAL_ORACLE_TARGET_RELATION','WRONG_PLAYER_CARD_DISCARDED'].includes(item.code)),
+  false,
+  JSON.stringify(audit.violations)
+);
+audit = auditRuleOraclePresentationBatch(opponentOnlyView, {
+  id:'manual-discard-is-a-player-rule-not-the-discarded-card-effect',
+  events:[{
+    type:'CARD_DISCARDED',sourceIid:'opponent-source',cardIid:'opponent-source',
+    owner:0,previousZone:'board',reason:'MANUAL_DISCARD'
   }]
 });
 assert.equal(
@@ -510,6 +592,24 @@ audit = auditRuleOraclePresentationBatch(copiedEffectView, {
   events:[{type:'CARD_DISCARDED',sourceIid:'ledger-source',cardIid:'fixed-source',owner:0,previousZone:'hand',reason:'WEST_GERMAN_SOLDIER'}]
 });
 assert(audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'));
+
+const taylorCopiedMovementView = JSON.parse(JSON.stringify(fixedView));
+const taylorMovementSource = cardValue('bh05', 'taylor-movement-source', 1);
+taylorMovementSource.controller = 0;
+taylorMovementSource.counters = {copiedEffectId:'39', effectUses:1, originalOwner:1, taylorArrivalDuplicate:true};
+const taylorMovementTarget = cardValue('bh05', 'taylor-movement-target', 1);
+taylorCopiedMovementView.state.board[0][0] = [taylorMovementTarget, null, null];
+taylorCopiedMovementView.state.board[0][1] = [null, null, taylorMovementSource];
+audit = auditRuleOraclePresentationBatch(taylorCopiedMovementView, {
+  id:'taylor-copied-juan-carlos-repeated-physical-semantic-source',
+  events:[{
+    type:'CARD_MOVED', sourceIid:'taylor-movement-source', semanticSourceCardId:'bh05',
+    cardIid:'taylor-movement-target', from:{z:0,r:0,c:0}, to:{z:0,r:0,c:1}
+  }]
+});
+assert.equal(audit.violations.some(item=>item.code === 'ILLEGAL_ORACLE_TARGET_RELATION'), false, JSON.stringify(audit.violations));
+assert(Number(audit.cardChecks['bh05'] || 0) > 0, 'Taylor must retain coverage for copied movement');
+assert(Number(audit.cardChecks['39'] || 0) > 0, 'Taylor movement must be audited against copied Juan Carlos');
 
 const reactionView = JSON.parse(JSON.stringify(fixedView));
 reactionView.state.players[1].hand = [cardValue('56', 'lydia-reaction', 1)];
@@ -570,7 +670,7 @@ assert.match(harnessSource, /e2eOrganicTargetCardId[\s\S]*requestedOrganicTarget
 assert.match(harnessSource, /TEST_RUN_READY_PREFIX[\s\S]*waitForPeerTestClientReady[\s\S]*await waitForPeerTestClientReady\(\)/, 'paired strict clients must both be ready before first matchmaking so one seat cannot lose a match to warmup');
 assert.match(harnessSource, /expectedEffectiveFateFromOracle[\s\S]*getZoneScore[\s\S]*canonical-oracle/);
 assert.match(harnessSource, /clickBoardCardWhenReady\(iid, 4000, true, true\)/, 'consolidation tribute retry must target the shipping canvas after a normal UI hit is intercepted and re-close any remounted detail modal');
-assert.match(harnessSource, /clickBoardPosition\(destination, attempt > 0\)/, 'board destination retry must target the shipping canvas after a normal UI hit is intercepted');
+assert.match(harnessSource, /clickBoardPosition\(destination, true\)/, 'every authoritative board destination gesture must target the shipping canvas instead of an overlapping DOM layer');
 assert.match(harnessSource, /MODAL_CHOICE[\s\S]{0,1200}aff-pick-square\[data-aff\][\s\S]{0,500}dataset\.aff/, 'the full-UI campaign must drive the reused affiliation picker even when its optional Phase 7 metadata mounts one frame late');
 assert.match(harnessSource, /organicTargetCommandsThisMatch = new Set/);
 assert.match(harnessSource, /organicSetupPending[\s\S]{0,700}SET_CARD_FROM_DECK[\s\S]{0,300}CONSOLIDATE_CARD[\s\S]{0,300}SET_CARD/);
@@ -599,6 +699,7 @@ const PASSIVE_DEFINITIONS = [
   ['77','Duncan','Dauntless','eventide',7],
   ['76','Alpine','Supporter','expanded_worlds',5],
   ['85','Felicyta Specters','Dauntless','eventide',4],
+  ['87','Kvetka Ukulele','Supporter','expanded_worlds',1],
   ['88','Rozsi Youth','Dauntless','expanded_worlds',5],
   ['89','Zsofia Youth','Dauntless','expanded_worlds',5],
   ['100','Felicyta Kvetka','Dauntless','expanded_worlds',8],
@@ -687,5 +788,19 @@ assert.equal(expectedEffectiveFateFromOracle(kinshipState, kinship.iid), 11, 'an
 assert.equal(effectiveFate(kinshipState, findBoardCard(kinshipState, kinship.iid)), 11);
 stateAudit = auditRuleOracleState(kinshipState);
 assert(Number(stateAudit.cardBranches['100|CONTINUOUS_CONDITION_TRUE'] || 0) > 0, 'card 100 kinship positive branch must be observed');
+
+const ukuleleKinshipState = createInitialState({
+  matchId:'ORACLE-UKULELE-KINSHIP', seed:'oracle-ukulele-kinship', handSize:0, cardDefinitions:PASSIVE_DEFINITIONS,
+  players:[{id:'p0',deckIds:['100','87']},{id:'p1',deckIds:['plain-support']}]
+});
+for(const [index,id] of ['100','87'].entries()){
+  const cardIndex = ukuleleKinshipState.players[0].deck.findIndex(value=>value.id === id);
+  const value = ukuleleKinshipState.players[0].deck.splice(cardIndex, 1)[0];
+  value.controller = 0;
+  ukuleleKinshipState.board[index][2][0] = value;
+}
+const ukuleleKinship = ukuleleKinshipState.board[0][2][0];
+assert.equal(expectedEffectiveFateFromOracle(ukuleleKinshipState, ukuleleKinship.iid), 11, 'Kvetka Ukulele must qualify as the other Kvetka for Wintertide');
+assert.equal(effectiveFate(ukuleleKinshipState, findBoardCard(ukuleleKinshipState, ukuleleKinship.iid)), 11);
 
 console.log('authoritative-v3 Phase 7 detailed rules oracle smoke test passed');

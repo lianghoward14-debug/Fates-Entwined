@@ -24,15 +24,24 @@ function ownSetDestination(state, playerIndex, destination){
   return owner === -1 || owner === playerIndex;
 }
 
-function ruleForCard(card){
-  return cardRule(card?.counters?.copiedEffectId || card?.id);
+function opponentAlondraBlocksSupporterSet(state, playerIndex, destination){
+  return boardEntries(state).some(entry=>
+    entry.z === Number(destination.z)
+    && String(entry.card.id || '') === '14'
+    && controllerOf(entry.card) !== Number(playerIndex)
+    && entry.card.faceDown !== true
+    && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+    && Math.abs(entry.r - Number(destination.r))
+      + Math.abs(entry.c - Number(destination.c)) === 1
+  );
 }
 
-function immediatePlacementTiming(card){
-  const rule = ruleForCard(card);
-  if(rule?.timings?.includes('WHEN_SET')) return 'WHEN_SET';
-  if(rule?.timings?.includes('ACTIVATE')) return 'ACTIVATE';
-  return '';
+function ruleForCard(card){
+  // copiedEffectId is retained as public presentation/oracle evidence for a
+  // one-shot Taylor/Ledger copy. It must not replace the physical card's
+  // player-facing timing: single-player executes the copied program once and
+  // restores the copier, so it never gains a permanent ACTIVATE button.
+  return cardRule(card?.id);
 }
 
 function supporterActivationAvailable(state, card, playerIndex){
@@ -164,11 +173,15 @@ export function legalCommandTemplates(state, playerIndex){
         }
       }else{
         function choose(start, selected){
-          if(selected.length === min){
+          // Optional multi-select effects (for example Johnathan Kirby's
+          // "up to 2" deck search) must expose every combination from min
+          // through max. The previous min-only base case emitted only [] when
+          // min was zero, despite projecting selectable cards to the client.
+          if(selected.length >= min){
             commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, selectedIids:selected}});
-            return;
           }
-          for(let index = start; index <= eligible.length - (min - selected.length); index += 1){
+          if(selected.length >= max) return;
+          for(let index = start; index < eligible.length; index += 1){
             choose(index + 1, [...selected, eligible[index]]);
           }
         }
@@ -215,9 +228,15 @@ export function legalCommandTemplates(state, playerIndex){
     }
     for(const destination of openBoardDestinations(state, candidate=>{
       const owner = rowOwner(state, candidate.z, candidate.r);
-      return String(card.id) === '07' ? owner === player : [-1, player].includes(owner);
+      if(String(card.id) === '07') return owner === player;
+      return [-1, player].includes(owner)
+        && !opponentAlondraBlocksSupporterSet(state, player, candidate);
     })){
-      commands.push({type:'SET_CARD_FROM_DECK', payload:{cardIid:card.iid, destination}});
+      // cardId is safe to disclose only because this command is sent to the
+      // owning player. Keeping it beside the opaque iid makes the shipping
+      // deck controls independent of a second private-card payload arriving
+      // in exactly the same render tick.
+      commands.push({type:'SET_CARD_FROM_DECK', cardId:String(card.id || ''), payload:{cardIid:card.iid, destination}});
     }
   }
   for(const card of state.players[player].hand){
@@ -269,14 +288,7 @@ export function legalCommandTemplates(state, playerIndex){
     for(const destination of setDestinations){
       if(zoneActionBlock(state, player, destination.z)) continue;
       if(String(card.id) === '65' && destination.r !== 1) continue;
-      const blockedByAlondra = boardEntries(state).some(entry=>
-        entry.z === destination.z
-        && String(entry.card.id || '') === '14'
-        && controllerOf(entry.card) !== player
-        && entry.card.faceDown !== true
-        && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
-        && Math.abs(entry.r - destination.r) + Math.abs(entry.c - destination.c) === 1
-      );
+      const blockedByAlondra = opponentAlondraBlocksSupporterSet(state, player, destination);
       if(blockedByAlondra && String(card.type || '') === 'Supporter') continue;
       const preview = placementPreview(state, player, card, destination);
       if(!openingChoiceAvailable(preview.state, preview.card, player, 'WHEN_SET')) continue;
@@ -292,7 +304,10 @@ export function legalCommandTemplates(state, playerIndex){
     const cost = effectiveConsolidationCost(state, card, player);
     const combinations = [];
     function collect(start, selected, reinforcement){
-      if(reinforcement >= cost){
+      // A zero reinforcement amount still uses a real tribute square. The
+      // isolated fixture waives only the numeric cost, not consolidation's
+      // consume/replace interaction or its production presentation path.
+      if(selected.length > 0 && reinforcement >= cost){
         combinations.push(selected);
         return;
       }
@@ -348,8 +363,10 @@ export function legalCommandTemplates(state, playerIndex){
           {z:destination.z, r:destination.r, c:destination.c},
           tributes.map(entry=>entry.card.iid)
         );
-        const timing = immediatePlacementTiming(preview.card);
-        if(timing && !openingChoiceAvailable(preview.state, preview.card, player, timing)) continue;
+        // Placement legality is independent of whether an auto-activated
+        // effect currently has a legal target. The card is consolidated first;
+        // an unavailable optional/activate effect then cleanly fizzles, exactly
+        // as it does in the shipping single-player flow.
         commands.push({
           type:'CONSOLIDATE_CARD',
           payload:{
@@ -382,6 +399,14 @@ export function legalCommandTemplates(state, playerIndex){
     zone.flatMap((row, r)=>row.map((card, c)=>card ? {card, z, r, c} : null).filter(Boolean))
   )){
     if(controllerOf(entry.card) !== player) continue;
+    // Single-player parity: during the active main phase a player may manually
+    // discard any controlled board card except immutable ALPINE Infantry.
+    if(String(entry.card.id || '') !== '76'){
+      commands.push({
+        type:'DISCARD_CARD',
+        payload:{targetIid:entry.card.iid, sourceIid:entry.card.iid, reason:'MANUAL_DISCARD'}
+      });
+    }
     if(entry.card.faceDown === true){
       commands.push({type:'FLIP_CARD', payload:{cardIid:entry.card.iid}});
       continue;
@@ -396,7 +421,11 @@ export function legalCommandTemplates(state, playerIndex){
         if(rule.blockedWhileStatus && entry.card.statuses?.includes(rule.blockedWhileStatus)) continue;
         if(!supporterActivationAvailable(state, entry.card, player)) continue;
         if(!openingChoiceAvailable(state, entry.card, player, 'ACTIVATE')) continue;
-        commands.push({type:'ACTIVATE_EFFECT', payload:{sourceIid:entry.card.iid}});
+        commands.push({
+          type:'ACTIVATE_EFFECT',
+          cardId:runtimeRuleId(entry.card),
+          payload:{sourceIid:entry.card.iid}
+        });
       }
     }
     const movementGrant = movementGrantFor(state, entry.card.iid);

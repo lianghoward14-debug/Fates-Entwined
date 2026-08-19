@@ -80,7 +80,7 @@ const PAYLOAD_FIELDS = Object.freeze({
   ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid'],
   DISCARD_CARD:['targetIid', 'sourceIid', 'reason'],
   MODIFY_FATE:['targetIid', 'amount', 'sourceIid', 'reason'],
-  ACTIVATE_EFFECT:['sourceIid'],
+  ACTIVATE_EFFECT:['sourceIid', 'userActivated'],
   ANSWER_PROMPT:['promptId', 'choice', 'reactionIid', 'selectedIid', 'selectedIids', 'destination', 'destinations', 'zone', 'cancel'],
   DISCARD_TO_HAND_LIMIT:['discardedIids'],
   END_TURN:[],
@@ -125,7 +125,10 @@ function validatePayload(type, payload){
     if(payload.tributeIids.length > 27) return 'tributeIids exceeds the board capacity';
     if(payload.tributeIids.some(iid=>!String(iid || ''))) return 'every tributeIid must be present';
   }
-  if(type === 'ACTIVATE_EFFECT' && !String(payload.sourceIid || '')) return 'sourceIid is required';
+  if(type === 'ACTIVATE_EFFECT'){
+    if(!String(payload.sourceIid || '')) return 'sourceIid is required';
+    if(payload.userActivated !== undefined && typeof payload.userActivated !== 'boolean') return 'userActivated must be a boolean';
+  }
   if(type === 'ACTIVATE_LANDSCAPE'){
     if(payload.sourceIid !== undefined && !String(payload.sourceIid || '')) return 'sourceIid must be a stable card iid';
     if(payload.targetIid !== undefined && !String(payload.targetIid || '')) return 'targetIid must be a stable card iid';
@@ -249,6 +252,9 @@ function resolveOperation(template, frame){
 }
 
 function applyResolvedEffectOperation(ctx, operation, frame){
+  if(frame?.sourceCardId && !operation.semanticSourceCardId){
+    operation.semanticSourceCardId = String(frame.sourceCardId);
+  }
   const eventStart = ctx.events.length;
   const ruleEventStart = ctx.ruleEvents.length;
   const result = applyOperation(ctx, operation);
@@ -467,10 +473,32 @@ function expireTimedPlayerStatuses(state, endingPlayer, ctx){
 }
 
 function processTurnStartMechanics(state, playerIndex, ctx){
+  // Opening/drawn Ali transfers must not interrupt the coin sequence or the
+  // other player's turn. Activate his six-card cap at the recipient's first
+  // actual turn boundary; the normal post-command hand-limit refresh then owns
+  // one stable discard prompt.
+  for(const card of (state.players[playerIndex]?.hand || [])){
+    if(String(card?.id || '') !== 'bh03'
+      || card?.counters?.aliHandLimitPendingUntilTurnStart !== true) continue;
+    card.counters.aliHandLimitPendingUntilTurnStart = false;
+    ctx.events.push({
+      type:'ALI_HAND_LIMIT_ACTIVATED',
+      playerIndex,
+      sourceIid:card.iid,
+      limit:6
+    });
+  }
   const queued = Math.max(0, Number(state.queuedExtraSupporters[playerIndex] || 0));
   if(queued){
     state.extraSupportersThisTurn[playerIndex] += queued;
     state.queuedExtraSupporters[playerIndex] = 0;
+    for(const status of state.statuses){
+      if(status?.type !== 'SELVA_EXTRA_SUPPORTER'
+        || Number(status.playerIndex) !== Number(playerIndex)
+        || status.activeNow === true) continue;
+      status.activeNow = true;
+      status.remainingOwnerTurns = 1;
+    }
     ctx.events.push({type:'QUEUED_SUPPORTER_SETS_ACTIVATED', playerIndex, count:queued});
   }
   for(const status of state.statuses.filter(item=>
@@ -485,7 +513,9 @@ function processTurnStartMechanics(state, playerIndex, ctx){
       playerIndex,
       destinationPile:'hand',
       sourceIid:status.sourceIid,
-      sourceController:playerIndex
+      sourceController:playerIndex,
+      semanticSourceCardId:'94',
+      reason:'MAIL_DELIVERY'
     });
     ctx.events.push({
       type:'DELAYED_CARD_DELIVERED',
@@ -514,10 +544,20 @@ function processTurnStartMechanics(state, playerIndex, ctx){
       0,
       Number(card.counters.guerillaTurnsRemaining || 0) - 1
     );
+    const infiltrationStatusId = `wine-country-guerilla:${card.iid}`;
+    const infiltrationStatus = state.statuses.find(status=>status?.statusId === infiltrationStatusId);
+    if(infiltrationStatus) infiltrationStatus.remaining = card.counters.guerillaTurnsRemaining;
     if(card.counters.guerillaTurnsRemaining > 0) continue;
     card.statuses = card.statuses.filter(status=>
       !['GUERILLA_INFILTRATING', 'HAND_EFFECT_IMMUNE'].includes(status)
     );
+    state.statuses = state.statuses.filter(status=>status?.statusId !== infiltrationStatusId);
+    ctx.events.push({
+      type:'STATUS_REMOVED',
+      statusId:infiltrationStatusId,
+      playerIndex,
+      statusType:'WINE_COUNTRY_GUERILLA_INFILTRATION'
+    });
     applyOperation(ctx, {
       type:'DISCARD_CARD',
       targetIid:card.iid,
@@ -534,13 +574,15 @@ function activationReactionOptions(state, frame){
   const opponent = frame.controller === 0 ? 1 : 0;
   for(const entry of boardEntries(state)){
     if(controllerOf(entry.card) !== opponent) continue;
-    const rule = cardRule(entry.card.counters?.copiedEffectId || entry.card.id);
+    const rule = cardRule(entry.card.id);
     if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < Number(rule.maxUses || 0)){
-      options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE', 'SUPPRESS']});
+      options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE']});
     }
-    const secWorks = frame.timing === 'ACTIVATE'
-      ? String(frame.sourceType || '') === 'Initiator'
-      : frame.timing === 'WHEN_SET' && String(frame.sourceType || '') === 'Supporter';
+    // Secules reacts to Initiator effects regardless of whether their printed
+    // timing is ACTIVATE or WHEN_SET (Lina is the important WHEN_SET case), and
+    // to Supporter WHEN_SET effects.
+    const secWorks = String(frame.sourceType || '') === 'Initiator'
+      || (frame.timing === 'WHEN_SET' && String(frame.sourceType || '') === 'Supporter');
     if(rule?.reactionKind === 'SECULES' && secWorks && reactionUses(entry.card) < Number(rule.maxUses || 0)){
       options.push({reactionIid:entry.card.iid, kind:'SECULES', modes:['NEGATE']});
     }
@@ -576,7 +618,7 @@ function openReactionPrompt(state, frame, options, phase){
 }
 
 function openEffectFrame(state, source, controller, timing, commandId){
-  const rule = cardRule(source.counters?.copiedEffectId || source.id);
+  const rule = cardRule(source.id);
   if(!rule?.program) return null;
   const frame = {
     frameId:nextId(state, 'frame'),
@@ -910,7 +952,8 @@ function runEffectStack(state, ctx){
             type:RULE_EVENT_TYPES.DECK_SEARCHED,
             playerIndex:frame.controller,
             count:1,
-            sourceIid:frame.sourceIid
+            sourceIid:frame.sourceIid,
+            semanticSourceCardId:frame.sourceCardId || undefined
           });
         }
       }
@@ -1154,7 +1197,7 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
 }
 
 function startEffect(state, ctx, source, controller, timing, commandId){
-  const rule = cardRule(source.counters?.copiedEffectId || source.id);
+  const rule = cardRule(source.id);
   if(timing === 'WHEN_SET' && rule?.whenSetTurnUseKey){
     const statusId = `turn-use:${String(rule.whenSetTurnUseKey).toLowerCase()}:p${controller}`;
     if(state.statuses.some(status=>status.statusId === statusId && Number(status.turn) === state.turn)){
@@ -1218,7 +1261,7 @@ function startEffect(state, ctx, source, controller, timing, commandId){
 }
 
 function startAutomaticActivation(state, ctx, source, controller, commandId){
-  const rule = cardRule(source?.counters?.copiedEffectId || source?.id);
+  const rule = cardRule(source?.id);
   if(!source || !rule?.program) return false;
   if(rule.maxUses && effectUses(source) >= Number(rule.maxUses)) return false;
   if(rule.oncePerTurn && Number(source.counters?.lastEffectTurn) === state.turn) return false;
@@ -1301,7 +1344,9 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   const reactionEntry = findCard(state, option.reactionIid);
   if(!reactionEntry) throw Object.assign(new Error('reaction card no longer exists'), {code:'REACTION_NOT_FOUND'});
   if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
-  if(choice === 'SUPPRESS') addSuppression(state, frame.sourceIid);
+  // Lydia has one clear response: negate this resolution and permanently
+  // suppress its source. Havano retains its distinct negate/suppress choice.
+  if(choice === 'SUPPRESS' || option.kind === 'LYDIA') addSuppression(state, frame.sourceIid);
   emitRuleEvent(ctx, {
     type:RULE_EVENT_TYPES.EFFECT_REACTED,
     sourceIid:frame.sourceIid,
@@ -1483,6 +1528,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     state.coinFlip.startingPlayer = startingPlayer;
     state.activePlayer = startingPlayer;
     state.phase = 'main';
+    processTurnStartMechanics(state, startingPlayer, ctx);
     ctx.events.push({
       type:'TURN_ORDER_CHOSEN',
       winner:actorIndex,
@@ -1743,7 +1789,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       card.controller = host;
     }
     if(card){
-      const effectId = card.counters?.copiedEffectId || card.id;
+      const effectId = card.id;
       const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET');
       const block = supporterEffectBlock(state, card, actorIndex);
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
@@ -1803,7 +1849,8 @@ function performCommand(state, ctx, command, actorIndex, options){
       type:RULE_EVENT_TYPES.DECK_SEARCHED,
       playerIndex:actorIndex,
       count:1,
-      sourceIid:card.iid
+      sourceIid:card.iid,
+      semanticSourceCardId:String(card.id || '') || undefined
     });
     const result = applyOperation(ctx, {
       type:'SET_CARD',
@@ -1815,7 +1862,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       countTowardSupporterLimit:String(card.id) === '28'
     });
     const placed = findBoardCard(state, result.cardIid)?.card;
-    if(placed && hasTiming(placed.counters?.copiedEffectId || placed.id, 'WHEN_SET')){
+    if(placed && hasTiming(placed.id, 'WHEN_SET')){
       startEffect(state, ctx, placed, actorIndex, 'WHEN_SET', command.commandId);
     }
     return;
@@ -1901,7 +1948,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       ctx.events.push({type:'STATUS_REMOVED', statusId:faceDownPermission.statusId, reason:'FACE_DOWN_CONSOLIDATION_USED'});
     }
     if(card && !card.faceDown){
-      const effectId = card.counters?.copiedEffectId || card.id;
+      const effectId = card.id;
       if(hasTiming(effectId, 'WHEN_SET')) startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
       else if(hasTiming(effectId, 'ACTIVATE')) startAutomaticActivation(state, ctx, card, actorIndex, command.commandId);
     }
@@ -1917,7 +1964,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     entry.card.faceDown = false;
     ctx.events.push({type:'CARD_FLIPPED', cardIid:entry.card.iid, playerIndex:actorIndex, faceDown:false});
-    const effectId = entry.card.counters?.copiedEffectId || entry.card.id;
+    const effectId = entry.card.id;
     if(hasTiming(effectId, 'WHEN_SET')) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
     else if(hasTiming(effectId, 'ACTIVATE')) startAutomaticActivation(state, ctx, entry.card, actorIndex, command.commandId);
     return;
@@ -1998,6 +2045,25 @@ function performCommand(state, ctx, command, actorIndex, options){
     if(landscapeMove) entry.card.counters.landscapeMoveTurn = state.turn;
     return;
   }
+  if(command.type === 'DISCARD_CARD'){
+    const entry = findBoardCard(state, payload.targetIid);
+    if(!entry || controllerOf(entry.card) !== actorIndex){
+      throw Object.assign(new Error('the actor does not control the discarded card'), {code:'CARD_NOT_CONTROLLED'});
+    }
+    if(String(entry.card.id || '') === '76'){
+      throw Object.assign(new Error('ALPINE Infantry cannot be manually discarded'), {code:'CARD_IMMUTABLE'});
+    }
+    applyOperation(ctx, {
+      type:'DISCARD_CARD',
+      targetIid:entry.card.iid,
+      sourceIid:entry.card.iid,
+      sourceController:actorIndex,
+      reason:'MANUAL_DISCARD',
+      bypassTargeting:true,
+      bypassReaction:true
+    });
+    return;
+  }
   if(command.type === 'ACTIVATE_EFFECT'){
     const entry = findBoardCard(state, payload.sourceIid);
     if(!entry || controllerOf(entry.card) !== actorIndex){
@@ -2010,9 +2076,15 @@ function performCommand(state, ctx, command, actorIndex, options){
         {code:'ZONE_ACTION_BLOCKED', statusId:activationBlock.statusId}
       );
     }
-    const rule = cardRule(entry.card.counters?.copiedEffectId || entry.card.id);
+    const rule = cardRule(entry.card.id);
     if(!rule?.timings?.includes('ACTIVATE') || !rule.program){
       throw Object.assign(new Error('this card has no v3 activated effect'), {code:'EFFECT_NOT_IMPLEMENTED'});
+    }
+    if(rule.manualOnly === true && payload.userActivated !== true){
+      throw Object.assign(
+        new Error('this effect requires an explicit player activation'),
+        {code:'MANUAL_ACTIVATION_REQUIRED'}
+      );
     }
     if(entry.card.statuses?.includes('EFFECTS_SUPPRESSED')){
       throw Object.assign(new Error('the source effect is suppressed'), {code:'EFFECT_SUPPRESSED'});

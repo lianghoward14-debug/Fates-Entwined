@@ -12,14 +12,14 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=1785072305">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1784660001">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1785354010">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1786960804">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=1784059902">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1785021008">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1785023024">
 <link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
 <link rel="stylesheet" href="src/styles/desktop-updater.css?v=1784163601">
 <link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784359003">
-<link rel="stylesheet" href="src/styles/endgame.css?v=1785600001">
+<link rel="stylesheet" href="src/styles/endgame.css?v=1785600300">
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -35,37 +35,25 @@
 <script>
   (function(){
     var params = new URLSearchParams(location.search || '');
-    var shadowSoak = params.get('fateV3ShadowSoak') === '1';
+    // The former Fly/RTDB room system accepted client-resolved snapshots.
+    // It is retired, not a fallback: multiplayer may only enter through the
+    // separately loaded Phase 7 authoritative client.
+    window.FATE_LEGACY_MULTIPLAYER_RETIRED = true;
     var phase7Beta = params.get('fateV3UnrankedBeta') === '1';
-    var shadowConflict = shadowSoak && (
-      !!String(params.get('fateAuthority') || '').trim()
-      || params.has('flyWs')
-      || params.has('fateWsAuthorityUrl')
-      || params.has('wsAuthority')
-      || params.get('fateV3SinglePlayer') === '1'
-      || phase7Beta
-    );
     var phase7Conflict = phase7Beta && (
       !!String(params.get('fateAuthority') || '').trim()
       || params.has('flyWs')
       || params.has('fateWsAuthorityUrl')
       || params.has('wsAuthority')
       || params.get('fateV3SinglePlayer') === '1'
-      || shadowSoak
     );
-    if(shadowConflict || phase7Conflict){
+    if(phase7Conflict){
       window.FATE_AUTHORITY_ROUTE_BLOCKED = true;
-      window.FATE_PHASE6_SHADOW_SOAK_BLOCKED = true;
       window.FATE_PHASE7_UNRANKED_BETA_BLOCKED = true;
       window.FATE_WS_AUTHORITY_ENABLED = false;
       window.FATE_WS_AUTHORITY_URL = '';
       window.FATE_FLY_API_URL = '';
       console.error('[Fate Authority] conflicting exact routes; multiplayer is blocked');
-    }else if(shadowSoak){
-      window.FATE_PHASE6_SHADOW_SOAK = true;
-      window.FATE_WS_AUTHORITY_ENABLED = true;
-      window.FATE_WS_AUTHORITY_URL = 'wss://fates-entwined-v3-shadow-soak.fly.dev';
-      window.FATE_FLY_API_URL = 'https://fates-entwined-v3-shadow-soak.fly.dev';
     }else if(phase7Beta){
       window.FATE_PHASE7_UNRANKED_BETA = true;
       window.FATE_LEGACY_MULTIPLAYER_BLOCKED = true;
@@ -73,27 +61,7 @@
       window.FATE_WS_AUTHORITY_URL = '';
       window.FATE_FLY_API_URL = '';
     }
-    var hostedFly = String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev';
-    if(hostedFly && !shadowSoak && !phase7Beta){
-      window.FATE_WS_AUTHORITY_URL = 'wss://fates-entwined-main.fly.dev';
-      window.FATE_FLY_API_URL = location.origin.replace(/\/+$/, '');
-      try{
-        var storedWs = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim();
-        var storedApi = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
-        localStorage.removeItem('fateRtdbDisabled');
-        localStorage.removeItem('fateFlyRoomsEnabled');
-        localStorage.removeItem('fateFlyAuthorityOnly');
-        localStorage.removeItem('fateFlyActionReplay');
-        if(/^wss?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(storedWs)){
-          localStorage.removeItem('fateWsAuthorityUrl');
-          localStorage.removeItem('fateWsAuthorityEnabled');
-        }
-        if(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(storedApi)){
-          localStorage.removeItem('fateFlyApiUrl');
-        }
-      }catch(e){}
-    }
-    if(hostedFly && navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
       navigator.serviceWorker.getRegistrations().then(function(registrations){
         registrations.forEach(function(registration){ registration.unregister(); });
       }).catch(function(){});
@@ -625,14 +593,14 @@
 <div id="toast"></div>
 
   <script src="src/scripts/00-structural-helpers.js?v=1785600001"></script>
-  <script src="src/scripts/01-data-and-state.js?v=1785600002"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1786391000"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=1785021018"></script>
 <script src="src/scripts/02-effect-rule-metadata.js?v=1785160801"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
 <script src="src/scripts/03-profile-and-progression.js?v=1785603000"></script>
 <script src="src/scripts/04-game-setup.js?v=1785616900"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1785686101"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1785705501"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1786960803"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1786960803"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=1784666002"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1785072427"></script>
@@ -642,11 +610,11 @@
 <script src="src/scripts/render-v2/12-vfx-primitives.js?v=1780900001"></script>
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1783222102"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1784932802"></script>
-<script src="src/scripts/render-v2/11-vfx-director.js?v=1785683700"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1785714501"></script>
+<script src="src/scripts/render-v2/11-vfx-director.js?v=1786671400"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1786795500"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1785603000"></script>
-<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1785032409"></script>
+<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1786730000"></script>
 <script src="src/scripts/render-v2/17-action-presentation.js?v=1785683501"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1785600200"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1783779902"></script>
@@ -656,7 +624,7 @@
 <script src="src/scripts/07-ai.js?v=1785685000"></script>
   <script src="src/scripts/08-audio-and-meta-ui.js?v=1785032407"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=1785350004"></script>
-<script src="src/scripts/09-challenger-mode.js?v=1785354008"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1786730000"></script>
 <script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
 <script src="src/scripts/09-challenger-lore.js?v=1784293501"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1785023024"></script>
@@ -670,7 +638,7 @@
 <!-- Online rebuild v1: Google auth + Fly-first profile/social/rooms foundation -->
 <script>
 (function(){
-  window.__fateClientBuildStamp = 'jimmy-wrath-overlay-20260801-1785354013';
+  window.__fateClientBuildStamp = 'phase7-manual-erbs-ali-turn-boundary-20260816-1786960811';
   window.FATE_GAMEPLAY_AUTHORITY = window.FATE_GAMEPLAY_AUTHORITY || 'client-resolved';
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
@@ -678,8 +646,7 @@
     './src/scripts/15-online-auth.js?v=1785021001',
     './src/scripts/16-online-core.js?v=1782617501',
     './src/scripts/17-online-social.js?v=1784195101',
-    './src/scripts/18-online-rooms.js?v=1785761004&sync=1785761004',
-    './src/scripts/18a-online-effect-transactions.js?v=1785164401',
+    './src/scripts/18-online-rooms.js?v=1786960811&sync=1786960811',
     './src/scripts/19-online-elo.js?v=1784059901',
     './src/scripts/20-online-economy.js?v=1785023147'
   ];
@@ -773,10 +740,10 @@
   var params = new URLSearchParams(location.search || '');
   if(params.get('fateV3UnrankedBeta') !== '1') return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
-  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1785686110')
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1786960811')
     .then(function(){
       if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
-        return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=1785761006');
+        return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=1786960811');
       }
     })
     .catch(function(error){ console.error('[Fate Phase 7 Beta] failed to load', error); });

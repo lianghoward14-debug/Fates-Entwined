@@ -722,18 +722,54 @@
       : '';
     const key = iid ? 'iid:' + iid : positionKey ? 'cell:' + positionKey : 'global';
     const signature = (delta > 0 ? '+' : '') + String(delta);
-    const fromValue = Number(p.fromValue);
-    const toValue = Number(p.toValue);
+    // Authoritative presentation events use before/after while generic canvas
+    // observation uses fromValue/toValue. Treat them as the same transition so
+    // the explicit effect feedback and the following canonical snapshot cannot
+    // produce two visible Fate numbers for one change (notably Snowball Fight).
+    const fromValue = Number(p.fromValue != null ? p.fromValue : p.before);
+    const toValue = Number(p.toValue != null ? p.toValue : p.after);
     const hasTransition = Number.isFinite(fromValue) && Number.isFinite(toValue);
     const eventSignature = hasTransition ? String(fromValue) + '>' + String(toValue) : signature;
     const now = Date.now();
+    // An authority event can reach the renderer through both the explicit
+    // presentation batch and the subsequent canonical snapshot observation.
+    // Deduplicate by its durable event identity, not only by a timing window.
+    const authorityEventKey = p.batchId && p.eventId
+      ? ['authority-fate', String(p.batchId), String(p.eventId), key, eventSignature].join(':')
+      : '';
+    if(authorityEventKey && recentFateNumbersByKey.get(authorityEventKey)){
+      renderCounters.fateNumberDuplicatesSuppressed++;
+      return true;
+    }
+    if(authorityEventKey) recentFateNumbersByKey.set(authorityEventKey, {
+      signature:eventSignature,
+      at:now,
+      delta,
+      authoritative:true
+    });
     const recent = recentFateNumbersByKey.get(key);
     const duplicateWindow = iid && hasTransition ? 6000 : 420;
+    // The canonical render that follows an explicit authority event may only
+    // know the card's observed delta, not the presentation event id or even
+    // the exact pre-commit value.  In that one direction (authority first,
+    // generic observation second), the matching card/delta is still the same
+    // visible change and must not produce a second number.  A later explicit
+    // authority event keeps its own event id and is never swallowed here.
+    if(recent && recent.authoritative === true && !authorityEventKey
+      && Number(recent.delta) === delta && now - recent.at < 6000){
+      renderCounters.fateNumberDuplicatesSuppressed++;
+      return true;
+    }
     if(recent && recent.signature === eventSignature && now - recent.at < duplicateWindow){
       renderCounters.fateNumberDuplicatesSuppressed++;
       return true;
     }
-    recentFateNumbersByKey.set(key, {signature:eventSignature, at:now});
+    recentFateNumbersByKey.set(key, {
+      signature:eventSignature,
+      at:now,
+      delta,
+      authoritative:!!authorityEventKey
+    });
     clearFateNumberPresentation(key);
 
     const target = fateNumberTargetRect(p);
@@ -745,6 +781,10 @@
     const node = document.createElement('div');
     node.className = 'fate-number-pop ' + (delta < 0 ? 'is-loss' : 'is-gain');
     node.dataset.fateNumberId = String(nextFateNumberId++);
+    node.dataset.fateTargetKey = key;
+    node.dataset.fateTransition = eventSignature;
+    node.dataset.fateDelta = String(delta);
+    if(authorityEventKey) node.dataset.fateAuthorityEvent = authorityEventKey;
     node.textContent = signature;
     node.style.left = Math.round(x) + 'px';
     node.style.top = Math.round(y) + 'px';
@@ -1715,7 +1755,10 @@
           return sum + (possible ? Math.max(0, Number(possible.reinforcement) || 0) : 0);
         }, 0)
         : 0;
-      const requirementsMet = con.phase === 'select_placement' || (running >= Number(con.cost || 0) && con.phase === 'select_tributes');
+      const requirementsMet = con.phase === 'select_placement'
+        || (con._phase7Authoritative === true
+          ? con._phase7VisualReady === true
+          : (running >= Number(con.cost || 0) && con.phase === 'select_tributes'));
       if(chosen && con.phase === 'select_placement') return 'placement';
       if(chosen && requirementsMet) return 'ready';
       if(chosen) return 'selected';
@@ -1918,6 +1961,10 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
+    // Authoritative placement/movement choices live outside the legacy
+    // single-player targeting fields. Carry those exact server-issued squares
+    // into the production canvas so a legal choice is visibly clickable.
+    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)) return true;
     if(G.blockingCell){
       const rawBlockZone = typeof window !== 'undefined' ? window._blockZone : null;
       const blockType = Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe';
@@ -1985,6 +2032,7 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
+    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)) return 'move';
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
     for(let i = 0; i < optionStates.length; i++){
       const mv = optionStates[i];
@@ -2507,6 +2555,10 @@
   }
 
   function shouldShowPendingWhenSetGlow(card, hit){
+    // During an activation/consolidation presentation the cinematic owns the
+    // card frame.  Do not paint the interactive blue/purple readiness aura on
+    // top of it; the aura returns only after the presentation is idle.
+    if(document.querySelector('.effect-activation-cinematic,.consolidation-cinematic-overlay,.cc-overlay-v2')) return false;
     if(!cardHasPendingWhenSetVisual(card, hit)) return false;
     const pending = card._pendingWhenSetEffect || {};
     const owner = Number.isInteger(card.owner) ? card.owner : Number(pending.owner);
@@ -2812,7 +2864,11 @@
     phil_crown:{color:'rgba(255,224,138,.98)',glow:'rgba(255,199,79,.62)',tint:'rgba(154,105,18,.15)'},
     wintertide:{color:'rgba(224,249,255,.98)',glow:'rgba(110,214,246,.58)',tint:'rgba(92,174,210,.14)'},
     idyllic_polish_village:{color:'rgba(214,248,255,.99)',glow:'rgba(92,213,248,.62)',tint:'rgba(54,151,195,.16)'},
-    maria_target:{color:'rgba(255,226,220,.98)',glow:'rgba(235,92,72,.56)',tint:'rgba(164,48,48,.16)'}
+    maria_target:{color:'rgba(255,226,220,.98)',glow:'rgba(235,92,72,.56)',tint:'rgba(164,48,48,.16)'},
+    mark_menz_reality:{color:'rgba(255,232,142,.99)',glow:'rgba(226,198,87,.68)',tint:'rgba(154,124,30,.18)'},
+    mark_menz_third_great_war:{color:'rgba(255,166,156,.99)',glow:'rgba(226,90,79,.70)',tint:'rgba(156,43,35,.20)'},
+    mark_menz_expanded_worlds:{color:'rgba(171,255,190,.99)',glow:'rgba(73,191,105,.68)',tint:'rgba(31,132,63,.19)'},
+    mark_menz_eventide:{color:'rgba(164,229,255,.99)',glow:'rgba(88,196,240,.70)',tint:'rgba(35,116,171,.19)'}
   });
   const DEFAULT_EFFECT_FLASH_PALETTE = Object.freeze({
     color:'rgba(255,246,210,.98)',
@@ -2958,7 +3014,35 @@
     const circle = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); };
     const dot = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); };
 
-    if(kind === 'specter_ghost') {
+    if(kind === 'mark_menz_reality') {
+      ctx.lineWidth = 3.4;
+      circle(32,32,12);
+      line([[32,8],[32,18]],false); line([[32,46],[32,56]],false);
+      line([[8,32],[18,32]],false); line([[46,32],[56,32]],false);
+      line([[15,15],[22,22]],false); line([[42,42],[49,49]],false);
+      line([[49,15],[42,22]],false); line([[22,42],[15,49]],false);
+    } else if(kind === 'mark_menz_third_great_war') {
+      ctx.lineWidth = 3.2;
+      circle(32,32,22);
+      line([[32,13],[36,21],[32,25],[28,21],[32,13]],true);
+      ctx.lineWidth = 4;
+      line([[32,25],[32,46]],false); line([[24,31],[40,31]],false); line([[28,46],[36,46]],false);
+      ctx.lineWidth = 2.8;
+      line([[18,22],[24,28]],false); line([[46,22],[40,28]],false);
+      line([[18,42],[24,36]],false); line([[46,42],[40,36]],false);
+    } else if(kind === 'mark_menz_expanded_worlds') {
+      ctx.lineWidth = 3.6;
+      line([[32,8],[56,52],[8,52],[32,8]],true);
+      ctx.lineWidth = 3;
+      line([[32,50],[19.5,33],[44.5,33],[32,50]],true);
+      ctx.lineWidth = 2.2;
+      circle(32,39.5,4);
+    } else if(kind === 'mark_menz_eventide') {
+      ctx.lineWidth = 3.2;
+      line([[32,8],[37,27],[56,32],[37,37],[32,56],[27,37],[8,32],[27,27],[32,8]],true);
+      ctx.lineWidth = 2.6;
+      circle(32,32,7);
+    } else if(kind === 'specter_ghost') {
       ctx.beginPath();
       ctx.moveTo(17,49); ctx.lineTo(17,29); ctx.bezierCurveTo(17,15,25,9,32,9); ctx.bezierCurveTo(41,9,48,17,48,29);
       ctx.lineTo(48,50); ctx.lineTo(41,44); ctx.lineTo(35,51); ctx.lineTo(29,44); ctx.lineTo(23,51); ctx.closePath(); ctx.stroke();

@@ -18,6 +18,7 @@ const DEFINITIONS = [
   {id:'08', name:'Lina', type:'Initiator', aff:'reality', fate:2, cost:2, rarity:'square'},
   {id:'14', name:'Alondra', type:'Dauntless', aff:'expanded_worlds', fate:6, cost:3, rarity:'square'},
   {id:'24', name:"Ralph's Courtesy Clerk", type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'},
+  {id:'26', name:'UCPD', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'},
   {id:'28', name:'2nd Polish-Lithuanian Army', type:'Supporter', aff:'third_great_war', fate:1, cost:0, rarity:'circle'},
   {id:'30', name:'Tatra Mountains Sharpshooter', type:'Initiator', aff:'third_great_war', fate:3, cost:2, rarity:'triangle'},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'},
@@ -171,6 +172,32 @@ assert.equal(
   'Army of Exiles must be limited to one deck set per turn'
 );
 
+state = stateFor('P4FINALDECKSETALONDRABLOCK', ['28'], ['14'], {handSize:0});
+board(state, 1, '14', {z:0, r:1, c:0});
+const blockedArmy = state.players[0].deck.find(card=>card.id === '28');
+const blockedArmyCommands = legalCommandTemplates(state, 0).filter(template=>
+  template.type === 'SET_CARD_FROM_DECK'
+  && String(template.payload?.cardIid || '') === String(blockedArmy.iid)
+);
+assert.equal(
+  blockedArmyCommands.some(template=>
+    template.payload.destination.z === 0
+    && template.payload.destination.r === 2
+    && template.payload.destination.c === 0
+  ),
+  false,
+  'deck-set legal commands must not advertise a Supporter square blocked by opponent Alondra'
+);
+assert.equal(
+  blockedArmyCommands.some(template=>
+    template.payload.destination.z === 0
+    && template.payload.destination.r === 2
+    && template.payload.destination.c === 2
+  ),
+  true,
+  'deck-set legal commands must retain unblocked destinations'
+);
+
 state = stateFor('P4FINALFREESET', ['08', '05', '05', '32'], ['14']);
 board(state, 1, '14', {z:1, r:0, c:0});
 const realityFreeTarget = take(state, 0, '32');
@@ -285,6 +312,44 @@ assert.equal(
   'Taylor must not offer a copied effect whose mandatory opening target is unavailable'
 );
 assert(result.prompt.eligibleCards.some(card=>card.id === '32'));
+
+state = stateFor('P4FINALTAYLORONESHOTCOPY', ['bh05', '26', '05'], ['05']);
+const taylorOneShotTribute = board(state, 0, '05', {z:0, r:2, c:0});
+const taylorOneShot = state.players[0].hand.find(card=>card.id === 'bh05');
+result = reduceCommand(
+  state,
+  command(state, 'p0', 30, 'CONSOLIDATE_CARD', {
+    cardIid:taylorOneShot.iid,
+    tributeIids:[taylorOneShotTribute.iid],
+    destination:{z:0, r:2, c:0}
+  }),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+assert.equal(result.prompt.type, 'CARD_SELECTION');
+state = result.state;
+const copiedUcpd = state.pendingPrompt.eligibleCards.find(card=>card.id === '26');
+assert(copiedUcpd, 'Taylor must be able to copy the eligible UCPD effect');
+result = reduceCommand(
+  state,
+  command(state, 'p0', 31, 'ANSWER_PROMPT', {
+    promptId:state.pendingPrompt.promptId,
+    selectedIid:copiedUcpd.iid
+  }),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+const resolvedTaylor = result.state.board[0][2][0];
+assert.equal(resolvedTaylor.counters.copiedEffectId, '26', 'copied identity remains public for presentation and oracle attribution');
+assert.equal(
+  legalCommandTemplates(result.state, 0).some(template=>
+    template.type === 'ACTIVATE_EFFECT'
+      && String(template.payload?.sourceIid || '') === String(resolvedTaylor.iid)
+  ),
+  false,
+  'Taylor executes the copied effect once when set and must not inherit a permanent Activate Effect command'
+);
+assertInvariants(result.state);
 
 state = stateFor('P4FINALPRECISESHOTEMPTY', ['61', '32', '32', '32'], ['32']);
 const preciseTributeA = board(state, 0, '32', {z:0, r:2, c:0});

@@ -4,13 +4,20 @@ import {
   auditRuleOracleState,
   cardRuleOracle,
   expectedEffectiveFateFromOracle,
+  landscapeRuleOracle,
   RULE_ORACLE_CONTINUOUS_BRANCH_CARD_IDS,
   validateRuleOracleCatalog
-} from '../../shared/engine/rules-oracle.mjs?v=1785761006';
+} from '../../shared/engine/rules-oracle.mjs?v=1786672600';
 
 const params = new URLSearchParams(globalThis.location?.search || '');
 const fastUiMode = params.get('fateV3FullUiE2E') === '1';
 const timingUiMode = params.get('fateV3PresentationE2E') === '1';
+// Only presentation mode is the shipping game. Fast mode is retained as a
+// diagnostic accelerator, but it is never certification evidence because it
+// deliberately disables presentation. Direct command fallback is opt-in and
+// is forbidden in the exact shipping path.
+const exactShippingPathMode = timingUiMode;
+const diagnosticFallbackEnabled = fastUiMode && params.get('e2eAllowDiagnosticFallback') === '1';
 const enabled = params.get('fateV3UnrankedBeta') === '1'
   && fastUiMode !== timingUiMode
   && params.get('electron') === '1'
@@ -18,10 +25,11 @@ const enabled = params.get('fateV3UnrankedBeta') === '1'
 
 if(!enabled) throw new Error('Phase 7 full-UI E2E requires exactly one isolated fast or presentation-timing flag');
 
-const targetGames = Math.max(1, Math.min(1010, Number(params.get('e2eGames')) || 1));
-const startGameIndex = Math.max(0, Math.min(1009, Number(params.get('e2eStartIndex')) || 0));
+const targetGames = Math.max(1, Math.min(1070, Number(params.get('e2eGames')) || 1));
+const startGameIndex = Math.max(0, Math.min(1069, Number(params.get('e2eStartIndex')) || 0));
 const maxRuntimeMs = Math.max(0, Math.min(300_000, Number(params.get('e2eMaxRuntimeMs')) || 0));
 const maxActions = Math.max(0, Math.min(100_000, Number(params.get('e2eMaxActions')) || 0));
+const stallTimeoutMs = Math.max(5000, Math.min(30000, Number(params.get('e2eStallMs')) || (timingUiMode ? 12000 : 6000)));
 const seat = String(params.get('e2eSeat') || 'A').slice(0, 12);
 const runId = String(params.get('e2eRunId') || 'local').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) || 'local';
 const organicCardCampaign = params.get('e2eOrganicCardCampaign') === '1';
@@ -91,6 +99,8 @@ async function waitForPeerTestClientReady(){
 }
 const eligibleCardIds = multiplayerEligibleCardIds().map(String);
 const requestedOrganicTargetCardId = String(params.get('e2eOrganicTargetCardId') || '').trim();
+const requestedFocusedScenario = String(params.get('e2eFocusedScenario') || '').trim().toLowerCase();
+const requestedLandscapeId = String(params.get('e2eLandscapeId') || '').trim().toLowerCase();
 const oracleCatalogAudit = validateRuleOracleCatalog(
   eligibleCardIds,
   Array.from({length:20}, (_value, index)=>`igb${index + 1}`)
@@ -104,10 +114,53 @@ if(requestedOrganicTargetCardId && !organicCardCampaign){
 if(requestedOrganicTargetCardId && !eligibleCardIds.includes(requestedOrganicTargetCardId)){
   throw new Error(`Unknown multiplayer-eligible card requested: ${requestedOrganicTargetCardId}`);
 }
-// Pure card-to-hand/deck transfer effects are covered by focused picker/state
-// tests. They do not consume ten full organic matches. Lina is intentionally
-// absent: her search creates a free-set/placement/reaction/effect chain.
-const ORGANIC_FULL_MATCH_EXEMPT_CARD_IDS = new Set(['06','13','29','48','58','60','68','96']);
+const FOCUSED_SHIPPING_SCENARIOS = Object.freeze({
+  // One real match deliberately carries every canonical status-banner source
+  // plus the named source overlays that have regressed in multiplayer. The
+  // server can pin only four opening cards per seat, so this remains one
+  // combined test run but uses three bounded real matches. That makes every
+  // source reachable before turn 20 instead of mistaking a lucky draw for
+  // presentation coverage.
+  'status-presentations':Object.freeze({
+    groups:Object.freeze([
+      Object.freeze({targets:Object.freeze(['71','18','50','91','33']), variantIndex:0}),
+      Object.freeze({targets:Object.freeze(['69','93','94','97','74','78']), variantIndex:0}),
+      Object.freeze({targets:Object.freeze(['51','87','99','86','07']), variantIndex:2})
+    ])
+  }),
+  // Both production deck-window controls are exercised in the same match.
+  'deck-set-controls':Object.freeze({
+    targets:Object.freeze(['07','28']),
+    variantIndex:0
+  }),
+  // Generic Johnathan searches, all three square-prompt effects, and both
+  // three-card draw/search presentation paths share one rendered match.
+  'search-square-draw':Object.freeze({
+    targets:Object.freeze(['13','43','04','17','27','07']),
+    variantIndex:0
+  }),
+  // Exact reported regressions: opening Selva, Mark's per-target affiliation
+  // overlays, Christopher remaining manual, and a real two-card hand picker.
+  'first-turn-ui-regressions':Object.freeze({
+    targets:Object.freeze(['74','66','40','42']),
+    variantIndex:0
+  })
+});
+if(requestedFocusedScenario && !FOCUSED_SHIPPING_SCENARIOS[requestedFocusedScenario]){
+  throw new Error(`Unknown focused shipping scenario: ${requestedFocusedScenario}`);
+}
+if(requestedFocusedScenario && !organicCardCampaign){
+  throw new Error('e2eFocusedScenario requires the strict organic card campaign flags');
+}
+if(requestedLandscapeId && !/^igb(?:[1-9]|1\d|20)$/.test(requestedLandscapeId)){
+  throw new Error(`Unknown landscape requested: ${requestedLandscapeId}`);
+}
+// The user explicitly allowed only the two basic deck-search cards to skip the
+// ten-match organic campaign. Other search/draw cards remain in the campaign:
+// their empty-source, ownership, picker, reaction, and presentation behavior is
+// still observable only through the real shipping interaction path. Lina is
+// intentionally included because her search continues into free placement.
+const ORGANIC_FULL_MATCH_EXEMPT_CARD_IDS = new Set(['06','60']);
 function organicCardSort(left, right){
   const leftNumeric = /^\d+$/.test(String(left)) ? Number(left) : Number.POSITIVE_INFINITY;
   const rightNumeric = /^\d+$/.test(String(right)) ? Number(right) : Number.POSITIVE_INFINITY;
@@ -117,8 +170,8 @@ const organicCampaignCardIds = (requestedOrganicTargetCardId
   ? [requestedOrganicTargetCardId]
   : eligibleCardIds.filter(id=>!ORGANIC_FULL_MATCH_EXEMPT_CARD_IDS.has(id)))
     .sort(organicCardSort);
-if(organicCardCampaign && !requestedOrganicTargetCardId && organicCampaignCardIds.length !== 101){
-  throw new Error(`Strict card certification requires exactly 101 non-exempt cards; found ${organicCampaignCardIds.length}`);
+if(organicCardCampaign && !requestedOrganicTargetCardId && organicCampaignCardIds.length !== 107){
+  throw new Error(`Strict card certification requires exactly 107 non-exempt cards; found ${organicCampaignCardIds.length}`);
 }
 const ORGANIC_VARIANTS = Object.freeze([
   Object.freeze({key:'BASELINE_CONTROLLER_RESOLUTION', partners:['32']}),
@@ -132,6 +185,47 @@ const ORGANIC_VARIANTS = Object.freeze([
   Object.freeze({key:'LANDSCAPE_INTERACTION', partners:['82','91']}),
   Object.freeze({key:'OPPOSITE_SEAT_AND_CONTROL_DIRECTION', partners:['39','52']})
 ]);
+// These effects use card-specific production status overlays. Their focused
+// matches are not certified unless the exact overlay kind is observed; a
+// generic effect flash is not equivalent to the shipping single-player UI.
+const REQUIRED_SOURCE_OVERLAY_KINDS = Object.freeze({
+  '01':'coord_felicyta_eagle',
+  '05':'british_union_jack',
+  '10':'coord_postmodern_dylan',
+  '11':'coord_anne_trio',
+  '15':'coord_zsofia_river',
+  '19':'coord_kvetka_bloom',
+  '22':'isaac_beaker',
+  '23':'coord_cathy_cardigan',
+  '31':'oathbound_crescent',
+  '34':'rozsi_dance',
+  '36':'marie_deterrence',
+  '41':'jimmy_wrath',
+  '51':'rivera_crest',
+  '57':'coord_jeremiah_snowseal',
+  '61':'maria_target',
+  '66':Object.freeze(['mark-menz-reality','mark-menz-third_great_war','mark-menz-expanded_worlds','mark-menz-eventide']),
+  '77':'coord_heyward_compass',
+  '86':'boleslaw_exclaim',
+  '87':'kvetka_ballad',
+  '93':'snowball',
+  'bh01':'anicka_voyager_boat',
+  'bh02':'joie_thousand_reel',
+  'bh04':'bh04_selva_paradise',
+  'bh07':'bh07_overclock',
+  'bh08':'bh08_mischief',
+  'bh25':'jimmy_wrath'
+});
+function requiredOverlayKindsForCard(cardId){
+  const configured = REQUIRED_SOURCE_OVERLAY_KINDS[String(cardId || '')];
+  if(!configured) return [];
+  return Array.isArray(configured) ? configured : [configured];
+}
+function sourceOverlayEvidenceCount(cardId){
+  return requiredOverlayKindsForCard(cardId).reduce((sum, kind)=>
+    sum + Number(result.sourceOverlayKinds[`${cardId}|${kind}`] || 0), 0
+  );
+}
 // Every non-exempt card receives ten full shipping-UI matches. Risk labels are
 // retained for reporting and scenario design only; they must never reduce the
 // per-card match count requested by the certification campaign.
@@ -148,8 +242,11 @@ function organicRequiredMatches(cardId){
   return 10;
 }
 
-const organicCampaignSchedule = Object.freeze(organicCampaignCardIds.flatMap((cardId, cardIndex)=>
-  Array.from({length:organicRequiredMatches(cardId)}, (_value, variantIndex)=>Object.freeze({
+// Interleave cards by variant. A stopped campaign therefore exercises a broad
+// slice of the catalog instead of spending its first hundred matches on ten
+// consecutive copies of the same few cards.
+const organicCampaignSchedule = Object.freeze(ORGANIC_VARIANTS.flatMap((_variant, variantIndex)=>
+  organicCampaignCardIds.map((cardId, cardIndex)=>Object.freeze({
     cardId,
     cardIndex,
     variantIndex,
@@ -172,7 +269,19 @@ const ORGANIC_CANARY_SCHEDULE = Object.freeze([
   {cardId:'82', cardIndex:organicCampaignCardIds.indexOf('82'), variantIndex:8, requiredMatches:1, partners:['91']},
   {cardId:'32', cardIndex:organicCampaignCardIds.indexOf('32'), variantIndex:9, requiredMatches:1, partners:['52']}
 ].map(Object.freeze));
-const activeOrganicSchedule = canaryMode ? ORGANIC_CANARY_SCHEDULE : organicCampaignSchedule;
+const requestedFocusedScenarioDefinition = FOCUSED_SHIPPING_SCENARIOS[requestedFocusedScenario] || null;
+const activeOrganicSchedule = requestedFocusedScenarioDefinition
+  ? Object.freeze((requestedFocusedScenarioDefinition.groups
+      || [requestedFocusedScenarioDefinition]
+    ).map((group, groupIndex)=>Object.freeze({
+      cardId:group.targets[0],
+      targets:group.targets,
+      cardIndex:groupIndex,
+      variantIndex:group.variantIndex,
+      requiredMatches:1,
+      partners:Object.freeze([])
+    })))
+  : (canaryMode ? ORGANIC_CANARY_SCHEDULE : organicCampaignSchedule);
 const ORGANIC_REACTION_SOURCE_CYCLES = Object.freeze({
   '56':Object.freeze(['14','16','30','39','51','52','61','66','90','93']),
   '67':Object.freeze(['16','30','39','52','96','16','30','39','52','96']),
@@ -224,7 +333,9 @@ function organicDeckTopTargets(targets){
 
 function shouldHoldOrganicReactionCard(cardId){
   const id = String(cardId || '');
-  if(!['56','67','79'].includes(id)) return false;
+  // Lydia and Secules react from the field, exactly as in single-player. Only
+  // Havano is a hand reaction and must be preserved instead of set.
+  if(id !== '79') return false;
   if(queuedOrganicTargets.includes(id)) return true;
   return queuedOrganicTargets.some(targetId=>(cardRule(targetId)?.prompts || []).includes('REACTION'));
 }
@@ -251,24 +362,208 @@ function organicScenarioForGame(gameIndex){
   return activeOrganicSchedule[index] || null;
 }
 
-function exactOrganicScenarioDeck(targets, partners){
-  // Temecula Resident and Isaac Perez are deterministic setup scaffolding,
-  // not random filler. Character targets need Supporter reinforcement, while
-  // Supporter passives such as Great Oak Infantry need a cheap Character to
-  // consolidate. They also give both seats stable opponent targets.
-  const scenarioIds = [...new Set([...(targets || []), ...(partners || []), '32', '22'].map(String).filter(id=>eligibleCardIds.includes(id)))];
+const ORGANIC_ROTATING_SUPPORTER_IDS = Object.freeze([
+  '05','09','16','18','20','24','25','26','28','31','32','33','37','42','44','47',
+  '49','50','52','53','54','58','59','62','63','64','69','70','71','72','73','74',
+  '75','76','78','79','80','91','92','93','94','95','97','98'
+].filter(id=>eligibleCardIds.includes(id)));
+const ORGANIC_ROTATING_CHARACTER_IDS = Object.freeze([
+  '01','02','03','04','06','07','08','10','11','12','13','14','15','17','19','21',
+  '22','23','27','29','30','34','35','36','38','39','40','41','43','45','46','48',
+  '51','55','56','57','61','66','67','77','81','82','83','84','85','86','87','88',
+  '89','90','99','100','bh01','bh02','bh03','bh04','bh05','bh06','bh07','bh08','bh25'
+].filter(id=>eligibleCardIds.includes(id)));
+
+function rotatedScenarioIds(pool, gameIndex, seatOffset, count, excluded){
+  if(!pool.length) return [];
+  const start = (Math.max(0, Number(gameIndex) || 0) * 7 + seatOffset) % pool.length;
+  const ordered = Array.from({length:pool.length}, (_value, index)=>pool[(start + index) % pool.length]);
+  return ordered.filter(id=>!excluded.has(id)).slice(0, count);
+}
+
+function cardMatchesOracleSelection(card, targetText, targetId = ''){
+  const target = String(targetText || '').toUpperCase();
+  if(target.includes('OTHER_COPY') || target.includes('SOURCE_CARD')) return String(card?.id || '') === String(targetId || '');
+  const type = String(card?.type || '').toUpperCase();
+  const affiliation = String(card?.aff || card?.affiliation || '').toUpperCase();
+  const rarity = String(card?.rarity || '').toUpperCase();
+  if(target.includes('SUPPORTER') && type !== 'SUPPORTER') return false;
+  if(target.includes('CHARACTER') && type === 'SUPPORTER') return false;
+  if(target.includes('NON_STAR') && (type === 'STAR' || rarity === 'STAR')) return false;
+  if(target.includes('TRIANGLE') && rarity !== 'TRIANGLE') return false;
+  if(target.includes('THIRD_GREAT_WAR') && affiliation !== 'THIRD_GREAT_WAR') return false;
+  if(target.includes('EXPANDED_WORLDS') && affiliation !== 'EXPANDED_WORLDS') return false;
+  if(target.includes('REALITY') && affiliation !== 'REALITY') return false;
+  if(target.includes('EVENTIDE') && affiliation !== 'EVENTIDE') return false;
+  if(target.includes('OTHER_THAN_SOURCE_ID') && String(card?.id || '') === String(targetId || '')) return false;
+  return true;
+}
+
+function cardMatchesDeckPrerequisite(card, targetText, targetId = ''){
+  if(!String(targetText || '').toUpperCase().includes('DECK')) return false;
+  return cardMatchesOracleSelection(card, targetText, targetId);
+}
+
+function emptyPrerequisiteDeckFillers(targetId, excluded){
+  const targetText = String(cardRuleOracle(targetId)?.target || '').toUpperCase();
+  if(!targetText.includes('DECK')) return [];
+  return eligibleCardIds.filter(id=>{
+    if(excluded.has(id)) return false;
+    const definition = cardDefinition(id);
+    return definition && !cardMatchesDeckPrerequisite(definition, targetText, targetId);
+  });
+}
+
+function exactOrganicScenarioDeck(targets, partners, gameIndex, seatName, variantIndex = 0){
+  const primary = [...new Set([...(targets || []), ...(partners || [])].map(String).filter(id=>eligibleCardIds.includes(id)))];
+  const excluded = new Set(primary);
+  const seatOffset = String(seatName || '').toUpperCase() === 'B' ? 17 : 0;
+  const supporters = rotatedScenarioIds(ORGANIC_ROTATING_SUPPORTER_IDS, gameIndex, seatOffset, 10, excluded);
+  const characters = rotatedScenarioIds(ORGANIC_ROTATING_CHARACTER_IDS, gameIndex, seatOffset + 5, 10, excluded);
+  const emptyDeckFillers = Number(variantIndex) === 7 && targets?.length === 1
+    ? emptyPrerequisiteDeckFillers(String(targets[0]), excluded)
+    : [];
+  const useEmptyDeckFixture = emptyDeckFillers.length > 0;
+  const scenarioIds = [...new Set([...primary, ...(useEmptyDeckFixture ? emptyDeckFillers : [...supporters, ...characters])])];
   if(!scenarioIds.length) throw new Error('Exact organic scenario deck has no eligible cards');
   // Test-auth matches deliberately bypass production rarity limits. Repeating
   // only the scenario cards makes every draw relevant while retaining a full
   // forty-card, twenty-turn match and the exact shipping UI/runtime path.
-  const counts = new Map([['32', 16], ['22', 4]]);
-  for(const id of (targets || []).map(String)) counts.set(id, (counts.get(id) || 0) + 8);
-  for(const id of (partners || []).map(String)) counts.set(id, (counts.get(id) || 0) + 6);
+  const counts = new Map();
+  const focusedTargetCopies = requestedFocusedScenario
+    ? Math.max(1, Math.min(4, Math.floor(32 / Math.max(1, (targets || []).length))))
+    : 8;
+  for(const id of (targets || []).map(String)) counts.set(id, (counts.get(id) || 0) + (useEmptyDeckFixture ? 1 : focusedTargetCopies));
+  for(const id of (partners || []).map(String)) counts.set(id, (counts.get(id) || 0) + (useEmptyDeckFixture ? 1 : 5));
+  if(!useEmptyDeckFixture){
+    for(const id of supporters) counts.set(id, (counts.get(id) || 0) + 1);
+    for(const id of characters) counts.set(id, (counts.get(id) || 0) + 1);
+  }
   let deckIds = [...counts.entries()].flatMap(([id, count])=>Array.from({length:count}, ()=>id))
     .filter(id=>eligibleCardIds.includes(id));
-  if(deckIds.length < 40) deckIds.push(...Array.from({length:40 - deckIds.length}, ()=>'32'));
+  const fillers = useEmptyDeckFixture ? emptyDeckFillers : [...supporters, ...characters, ...primary];
+  for(let index = 0; deckIds.length < 40 && fillers.length; index += 1){
+    deckIds.push(fillers[index % fillers.length]);
+  }
   deckIds = deckIds.slice(0, 40);
   return {deckIds, scenarioIds};
+}
+
+function oracleText(rule){
+  return [
+    ...(rule?.timing || []), ...(rule?.prerequisites || []), rule?.target,
+    rule?.resolution, rule?.cardinality, rule?.duration, rule?.useLimit,
+    ...(rule?.stateEvidence || []), ...(rule?.forbidden || [])
+  ].filter(Boolean).join(' ').toUpperCase();
+}
+
+function requiresRealReinforcementRules(cardId, landscapeId){
+  const cardText = oracleText(cardRuleOracle(cardId));
+  const landscapeText = oracleText(landscapeRuleOracle(landscapeId));
+  // A Supporter-related effect is not automatically a reinforcement test.
+  // Keep the accelerated zero-cost fixture for targeting, search, suppression,
+  // Fate, and other Supporter interactions; use production costs only when the
+  // rule itself observes or changes reinforcement/tribute legality or value.
+  return /REINFORCEMENT|TRIBUTE|CONSOLIDATION_COST|CONSOLIDATION_RULE|CONSOLIDATION_RESTRICTED|ZERO_COST/.test(cardText + ' ' + landscapeText);
+}
+
+function reinforcementPolicyForScenario(gameIndex, cardId, landscapeId){
+  const scenario = organicScenarioForGame(gameIndex);
+  const baselineRealRules = Number(scenario?.variantIndex ?? 0) === 0;
+  const realRulesRequired = baselineRealRules || requiresRealReinforcementRules(cardId, landscapeId);
+  return Object.freeze({
+    key:realRulesRequired ? 'REAL' : 'ZERO_COST',
+    zeroReinforcementCost:!realRulesRequired,
+    reason:baselineRealRules
+      ? 'BASELINE_REAL_RULES'
+      : (realRulesRequired ? 'REINFORCEMENT_SENSITIVE_ORACLE' : 'EFFECT_FOCUS_OPTIMIZATION')
+  });
+}
+
+function cardRequiresRealReinforcementRules(cardId){
+  return requiresRealReinforcementRules(cardId, '');
+}
+
+function zeroCostOpeningScaffoldIds(targets, partners, deckIds){
+  if(!queuedReinforcementPolicy.zeroReinforcementCost) return [];
+  const reserved = new Set([...(targets || []), ...(partners || [])].map(String));
+  const consolidationCount = [...reserved].filter(id=>
+    String(cardDefinition(id)?.type || '') !== 'Supporter' && !shouldHoldOrganicReactionCard(id)
+  ).length;
+  if(consolidationCount <= 0) return [];
+  return [...new Set((deckIds || []).map(String))].filter(id=>{
+    const definition = cardDefinition(id);
+    return !reserved.has(id) && String(definition?.type || '') === 'Supporter';
+  }).slice(0, Math.min(2, consolidationCount));
+}
+
+function cardCertificationObligations(cardId){
+  const rule = cardRuleOracle(cardId);
+  if(!rule) return [];
+  const obligations = [
+    ...(rule.requiredBranches || []).map(value=>`BRANCH:${value}`),
+    ...(rule.prerequisites || []).map(value=>`PREREQUISITE:${value}`),
+    ...(rule.stateEvidence || []).map(value=>`STATE:${value}`),
+    ...(rule.forbidden || []).map(value=>`FORBIDDEN:${value}`),
+    ...(rule.presentation || []).map(value=>`PRESENTATION:${value}`),
+    `BENEFICIARY:${rule.beneficiary}`,
+    `TARGET:${rule.target}`,
+    `CARDINALITY:${rule.cardinality}`,
+    `DURATION:${rule.duration}`,
+    `USE_LIMIT:${rule.useLimit}`
+  ];
+  return [...new Set(obligations.filter(value=>value
+    && !value.endsWith(':AS_PRINTED')
+    && !value.endsWith(':NO_ADDITIONAL_LIMIT')
+  ))];
+}
+
+function obligationVariantIndex(obligation){
+  const value = String(obligation || '').toUpperCase();
+  if(/CANCEL|DECLIN/.test(value)) return 1;
+  if(/NEGAT/.test(value)) return 2;
+  if(/SUPPRESS|BLOCKED_EFFECT|PENDING_EFFECT/.test(value)) return 3;
+  if(/IMMUNE|INELIGIBLE/.test(value)) return 5;
+  if(/TWICE|DUPLICATE|SECOND_|THIRD_|FOURTH_|MORE_THAN|USE_LIMIT|RERENDER/.test(value)) return 6;
+  if(/PREREQUISITE|EMPTY|WITHOUT_PRINTED|PRE_TURN|ABSENT|OFF_FIELD/.test(value)) return 7;
+  if(/LANDSCAPE/.test(value)) return 8;
+  if(/OPPONENT|CONTROLLER|OWNER|WRONG_PLAYER|WRONG_HAND|SEATS_DISAGREE/.test(value)) return 9;
+  return 0;
+}
+
+function plannedObligationsForScenario(cardId, variantIndex){
+  return cardCertificationObligations(cardId).filter(obligation=>
+    obligationVariantIndex(obligation) === Number(variantIndex)
+  );
+}
+
+function mechanicallyObservedObligations(cardId, evidence){
+  const required = cardCertificationObligations(cardId);
+  const observed = [];
+  const addMatching = predicate=>{
+    for(const obligation of required) if(predicate(obligation) && !observed.includes(obligation)) observed.push(obligation);
+  };
+  if(evidence.resolvedEffectDelta > 0 && evidence.oracleCheckDelta > 0 && evidence.oracleViolations === 0){
+    addMatching(value=>value === 'BRANCH:ELIGIBLE_RESOLUTION'
+      || value.startsWith('BENEFICIARY:')
+      || value.startsWith('TARGET:')
+      || value.startsWith('CARDINALITY:'));
+    addMatching(value=>value === 'FORBIDDEN:EFFECT_BENEFITS_OPPONENT_UNLESS_TEXT_EXPLICITLY_ALLOWS_IT'
+      || value === 'FORBIDDEN:SAME_COMMAND_RESOLVES_TWICE');
+  }
+  if(evidence.crossSeatViolations === 0){
+    addMatching(value=>value === 'FORBIDDEN:SEATS_DISAGREE_ON_ACTIVE_PLAYER_OR_PUBLIC_STATE');
+  }
+  if(exactShippingPathMode && evidence.resolvedEffectDelta > 0 && evidence.presentationTimingViolations === 0){
+    addMatching(value=>value.startsWith('PRESENTATION:')
+      || value === 'FORBIDDEN:EFFECT_CINEMATIC_WITHOUT_A_LEGAL_RESOLUTION'
+      || value === 'FORBIDDEN:PROMPT_OR_DRAW_MOTION_PRECEDES_REQUIRED_CINEMATIC');
+  }
+  // All remaining prerequisite, ineligible, immunity, ownership, duration,
+  // cleanup, cancellation, and use-limit obligations require a dedicated
+  // scenario probe. They intentionally remain unobserved here; a clean match
+  // count is not evidence that a forbidden behavior was attempted and blocked.
+  return observed;
 }
 // These are generated from the Phase 0/4 classification docs and intersected
 // with the current multiplayer registry. Families whose executable registry
@@ -313,14 +608,20 @@ const focusedLandscapeIds = Array.isArray(focus?.landscapeIds) ? [...focus.lands
 const result = {
   enabled:true,
   mode:timingUiMode ? 'production-presentation-timing' : 'fast-interaction',
+  exactShippingPath:exactShippingPathMode,
+  certificationEligible:exactShippingPathMode,
+  diagnosticFallbackEnabled,
   exactFlag:timingUiMode ? 'fateV3PresentationE2E=1' : 'fateV3FullUiE2E=1',
   identityMode:String(globalThis.FATE_PHASE7_TEST_IDENTITY_MODE || ''),
   runId,
   seat,
+  clientBuildStamp:String(globalThis.__fateClientBuildStamp || ''),
+  electronBuild:String(params.get('electronBuild') || ''),
   targetGames,
   startGameIndex,
   maxRuntimeMs,
   maxActions,
+  stallTimeoutMs,
   focusMapRevision:'phase4-families-20260802-2',
   focusGroup:requestedFocusGroup,
   focusFamily:focus?.family || 'ALL_EFFECT_FAMILIES',
@@ -330,6 +631,7 @@ const result = {
   strictCardCertification,
   canaryMode,
   requestedOrganicTargetCardId,
+  requestedFocusedScenario,
   organicCampaignCardIds:[...organicCampaignCardIds],
   organicExemptCardIds:[...ORGANIC_FULL_MATCH_EXEMPT_CARD_IDS],
   organicHighRiskCardIds:[...ORGANIC_HIGH_RISK_CARD_IDS],
@@ -341,7 +643,9 @@ const result = {
     highRiskAdditionalMatches:0,
     exactScenarioDecks:true,
     diagnosticFallbackCountsAsSuccess:false,
+    directCommandFallbackEnabled:diagnosticFallbackEnabled,
     presentationDurationCompressed:false,
+    certificationRequiresProductionPresentation:true,
     releaseCleanStreakRequired:30
   },
   organicTargetCoverage:{},
@@ -349,20 +653,32 @@ const result = {
   oracleChecks:0,
   oracleCardChecks:{},
   oracleCardBranches:{},
+  obligationEvidenceCounts:{},
+  obligationEvidence:[],
+  pileAuditSamples:[],
   oracleViolations:[],
+  domChecks:0,
+  domViolations:[],
+  domCheckKinds:{},
   completedGames:0,
+  failedGames:0,
+  failedScenarioIndexes:[],
   warmupMatches:0,
   actions:0,
   fallbackActions:0,
   uiFallbacks:[],
+  uiDriveRetries:0,
+  lastUiDriveFailure:null,
   errors:[],
   commandTypes:{},
   answerVariants:{},
   promptTypes:{},
   cardIds:{},
+  observedActionCardIds:{},
   focusCardIds:{},
   eventTypes:{},
   effectEventCardIds:{},
+  resolvedEffectCardIds:{},
   effectBranches:{},
   focusEffectBranches:{},
   landscapes:{},
@@ -371,11 +687,20 @@ const result = {
   presentationStages:0,
   presentationTimingViolations:[],
   presentationTrace:[],
+  drawSequences:[],
+  fateNumberDomEvents:[],
+  boardPickerSelections:[],
+  cardPickerSelections:[],
+  manualActivationPauses:[],
+  pickerOpenCounts:{},
   overlayKinds:{},
+  sourceOverlayKinds:{},
   failureClassifications:{},
   failureBundles:[],
   crossSeatChecks:0,
   crossSeatViolations:[],
+  targetAvailabilityDiagnostics:[],
+  lastTargetAvailabilityDiagnostic:null,
   checkpoints:[],
   canaryStatus:{passed:false, missing:[]},
   consecutiveCleanMatches:0,
@@ -387,6 +712,27 @@ const result = {
   stopReason:''
 };
 
+function recordRuleObligationEvidence(cardId, obligation, detail){
+  const id = String(cardId || '');
+  const key = `${id}|${String(obligation || '')}`;
+  if(!cardCertificationObligations(id).includes(String(obligation || ''))) return false;
+  note(result.obligationEvidenceCounts, key);
+  result.obligationEvidence.push({
+    cardId:id,
+    obligation:String(obligation || ''),
+    matchId:String(report()?.state?.matchId || ''),
+    revision:Number(report()?.state?.revision ?? report()?.revision ?? 0),
+    detail:detail || null,
+    at:Date.now()
+  });
+  if(result.obligationEvidence.length > 300) result.obligationEvidence.shift();
+  return true;
+}
+
+function obligationEvidenceSnapshot(cardId){
+  return prefixedCountSnapshot(result.obligationEvidenceCounts, cardId);
+}
+
 let loopPromise = null;
 let stopped = false;
 let matchStart = null;
@@ -397,12 +743,23 @@ let lastMatchmakingAttemptAt = 0;
 let matchmakingInFlight = false;
 let queuedOrganicTargets = [];
 let queuedOrganicPartners = [];
+let queuedOpeningScaffoldIds = [];
+let queuedReinforcementPolicy = Object.freeze({key:'REAL',zeroReinforcementCost:false,reason:'NON_ORGANIC'});
 let organicTargetCommandsThisMatch = new Set();
 let organicPartnerCommandsThisMatch = new Set();
+let manualDiscardCoveredThisMatch = false;
 let lastProjectionOracleKey = '';
+let projectionOracleCandidateKey = '';
+let projectionOracleCandidateSince = 0;
+let lastObservedProgressKey = '';
+let lastTargetAvailabilityKey = '';
+let abandonMatchInFlight = false;
+const successfulActivationCounts = new Map();
+const useLimitProbeKeys = new Set();
+const timedStatusTrackers = new Map();
 
 function currentOrganicGameIndex(){
-  return startGameIndex + result.completedGames + result.warmupMatches;
+  return startGameIndex + result.completedGames + result.failedGames + result.warmupMatches;
 }
 
 function organicVariant(){
@@ -416,6 +773,7 @@ function organicVariantContract(){
 
 function organicTargetsForGame(gameIndex){
   const scenario = organicScenarioForGame(gameIndex);
+  if(Array.isArray(scenario?.targets)) return scenario.targets.filter(id=>eligibleCardIds.includes(String(id))).map(String);
   return scenario?.cardId ? [scenario.cardId] : [];
 }
 
@@ -429,15 +787,22 @@ function organicCoverage(cardId){
       completedMatches:0,
       commandMatches:0,
       effectMatches:0,
+      resolvedEffectMatches:0,
       cleanMatches:0,
       evidencePassedMatches:0,
       oracleObservedMatches:0,
       adversarialPartnerObservedMatches:0,
       commands:0,
       effectEvents:0,
+      resolvedEffects:0,
       landscapes:[],
       variants:[],
       branchKeys:[],
+      requiredObligations:cardCertificationObligations(id),
+      observedObligations:[],
+      plannedObligations:[],
+      realRuleMatches:0,
+      zeroCostMatches:0,
       matchEvidence:[],
       automaticEvidencePassed:false,
       certified:false,
@@ -491,9 +856,16 @@ function refreshOrganicAutomaticEvidence(cardId){
   if(coverage.adversarialPartnerObservedMatches < requiredMatches) pending.push('ADVERSARIAL_PARTNER_EVERY_MATCH');
   if(coverage.cleanMatches < requiredMatches) pending.push('ZERO_UI_FALLBACKS');
   if(coverage.matchEvidence.some(entry=>Number(entry.presentationTimingViolations) > 0)) pending.push('ZERO_PRESENTATION_ERRORS');
+  if(coverage.matchEvidence.some(entry=>Number(entry.domViolations) > 0)) pending.push('ZERO_RENDERED_UI_VIOLATIONS');
   if(coverage.matchEvidence.some(entry=>Number(entry.oracleViolations) > 0)) pending.push('ZERO_ORACLE_VIOLATIONS');
   if(new Set(coverage.landscapes).size < requiredMatches) pending.push('REQUIRED_DISTINCT_LANDSCAPES');
   if(new Set(coverage.variants).size < requiredMatches) pending.push('REQUIRED_ADVERSARIAL_VARIANTS');
+  if(coverage.realRuleMatches < 1) pending.push('REAL_REINFORCEMENT_BASELINE');
+  if(!cardRequiresRealReinforcementRules(cardId) && coverage.zeroCostMatches < 1) pending.push('ZERO_COST_EFFECT_FOCUS_VARIANT');
+  const missingObligations = coverage.requiredObligations.filter(obligation=>
+    !coverage.observedObligations.includes(obligation)
+  );
+  if(missingObligations.length) pending.push(`UNOBSERVED_RULE_OBLIGATIONS:${missingObligations.length}`);
   // Passing these mechanical checks is necessary but deliberately not enough
   // to certify a card. Focused rule/interaction review remains mandatory.
   coverage.automaticEvidencePassed = pending.length === 0;
@@ -524,7 +896,54 @@ function currentUiReady(){
   return !!document.getElementById('fate-match-v2-canvas') && !!hitMap();
 }
 
-const presentationTimingState = {cinematicDepth:0, resultsActive:false, lastResultsEndAt:0};
+const presentationTimingState = {
+  cinematicDepth:0,
+  resultsActive:false,
+  lastResultsEndAt:0,
+  resultFeedbackStarts:new Map()
+};
+const drawPresentationState = new Map();
+const submittedPickerKeys = new Set();
+const openedPickerKeys = new Set();
+const recentFateNumberDomByTarget = new Map();
+function resultFeedbackKey(details){
+  const value = details || {};
+  return [
+    String(value.batchId || ''),
+    String(value.eventId || ''),
+    String(value.sourceIid || ''),
+    String(value.targetIid || ''),
+    String(value.before ?? ''),
+    String(value.after ?? '')
+  ].join('|');
+}
+function noteResultFeedbackStart(kind, detail){
+  const details = detail?.details || {};
+  const key = resultFeedbackKey(details);
+  if(!String(details.batchId || '') || !String(details.targetIid || '')) return;
+  const current = presentationTimingState.resultFeedbackStarts.get(key) || {batchId:String(details.batchId || '')};
+  if(Number.isFinite(current[kind])){
+    recordPresentationTimingViolation(
+      kind === 'fate'
+        ? 'Authoritative Fate change produced more than one visible Fate animation'
+        : 'Authoritative Fate change produced more than one effect overlay',
+      {...details, kind, firstStartedAt:current[kind], duplicateStartedAt:Number(detail?.at) || Date.now()}
+    );
+  }
+  current[kind] = Number(detail?.at) || Date.now();
+  presentationTimingState.resultFeedbackStarts.set(key, current);
+  if(Number.isFinite(current.fate) && Number.isFinite(current.overlay)){
+    const deltaMs = Math.abs(current.fate - current.overlay);
+    if(deltaMs > 34){
+      recordPresentationTimingViolation('Fate number and effect overlay did not start in the same frame window', {
+        ...details,
+        fateStartedAt:current.fate,
+        overlayStartedAt:current.overlay,
+        deltaMs
+      });
+    }
+  }
+}
 function recordPresentationTimingViolation(message, detail){
   const entry = {message:String(message || ''), detail:detail || null, at:Date.now()};
   result.presentationTimingViolations.push(entry);
@@ -535,9 +954,33 @@ if(timingUiMode){
   globalThis.addEventListener('fate-phase7-presentation-stage', function(event){
     const detail = event?.detail || {};
     const stage = String(detail.stage || '');
+    lastProgressAt = Date.now();
     result.presentationStages += 1;
     result.presentationTrace.push({stage, at:Number(detail.at) || Date.now(), details:detail.details || {}});
     if(result.presentationTrace.length > 160) result.presentationTrace.shift();
+    if(stage === 'picker:submit'){
+      const key = String(detail?.details?.key || '');
+      if(key) submittedPickerKeys.add(key);
+    }
+    if(stage === 'picker:open'){
+      const key = String(detail?.details?.key || '');
+      if(key){
+        note(result.pickerOpenCounts, key);
+        if(openedPickerKeys.has(key)){
+          recordPresentationTimingViolation('The same authoritative picker opened more than once', {
+            key,
+            kind:String(detail?.details?.kind || '')
+          });
+        }
+        openedPickerKeys.add(key);
+      }
+      if(key && submittedPickerKeys.has(key)){
+        recordPresentationTimingViolation('A resolved picker reopened while its authoritative submission was in flight', {
+          key,
+          kind:String(detail?.details?.kind || '')
+        });
+      }
+    }
     if(stage === 'cinematic:start') presentationTimingState.cinematicDepth += 1;
     if(stage === 'cinematic:end') presentationTimingState.cinematicDepth = Math.max(0, presentationTimingState.cinematicDepth - 1);
     if(stage === 'results:start'){
@@ -547,6 +990,65 @@ if(timingUiMode){
     if(stage === 'results:end'){
       presentationTimingState.resultsActive = false;
       presentationTimingState.lastResultsEndAt = Date.now();
+      const batchId = String(detail?.details?.batchId || '');
+      for(const [key, starts] of presentationTimingState.resultFeedbackStarts){
+        if(starts.batchId !== batchId) continue;
+        if(Number.isFinite(starts.overlay) && !Number.isFinite(starts.fate)){
+          recordPresentationTimingViolation('Effect overlay appeared without the matching visible Fate number animation', {batchId, key});
+        }
+        presentationTimingState.resultFeedbackStarts.delete(key);
+      }
+    }
+    if(stage === 'draw:start'){
+      const batchId = String(detail?.details?.batchId || '');
+      const drawIndex = Number(detail?.details?.drawIndex);
+      const drawCount = Number(detail?.details?.drawCount);
+      const current = drawPresentationState.get(batchId) || {expected:drawCount,nextIndex:0,active:false,ended:0,draws:[]};
+      if(current.active) recordPresentationTimingViolation('A draw animation started before the preceding draw animation finished', detail);
+      if(drawIndex !== current.nextIndex) recordPresentationTimingViolation('Draw animations did not run in authoritative event order', {...detail, expectedIndex:current.nextIndex});
+      if(drawCount !== current.expected) recordPresentationTimingViolation('Draw animation count changed within one authoritative batch', detail);
+      current.active = true;
+      current.activeIndex = drawIndex;
+      current.draws.push({
+        drawIndex,
+        cardIid:String(detail?.details?.cardIid || ''),
+        sourceIid:String(detail?.details?.sourceIid || ''),
+        sourceCardId:String(detail?.details?.sourceCardId || ''),
+        eventType:String(detail?.details?.eventType || ''),
+        startedAt:Number(detail?.at) || Date.now(),
+        endedAt:0
+      });
+      drawPresentationState.set(batchId, current);
+    }
+    if(stage === 'draw:end'){
+      const batchId = String(detail?.details?.batchId || '');
+      const drawIndex = Number(detail?.details?.drawIndex);
+      const current = drawPresentationState.get(batchId);
+      if(!current?.active || current.activeIndex !== drawIndex) recordPresentationTimingViolation('Draw animation ended without its matching active draw', detail);
+      if(current){
+        const activeDraw = current.draws.find(candidate=>candidate.drawIndex === drawIndex && !candidate.endedAt);
+        if(activeDraw) activeDraw.endedAt = Number(detail?.at) || Date.now();
+        current.active = false;
+        current.ended += 1;
+        current.nextIndex += 1;
+      }
+    }
+    if(stage === 'results:start'){
+      const batchId = String(detail?.details?.batchId || '');
+      const current = drawPresentationState.get(batchId);
+      if(current && (current.active || current.ended !== current.expected)){
+        recordPresentationTimingViolation('Result presentation began before every sequential draw animation finished', {...detail, drawState:{...current}});
+      }
+      if(current){
+        result.drawSequences.push({
+          batchId,
+          expected:current.expected,
+          ended:current.ended,
+          draws:current.draws.map(draw=>({...draw}))
+        });
+        if(result.drawSequences.length > 80) result.drawSequences.shift();
+        drawPresentationState.delete(batchId);
+      }
     }
     if(stage === 'modal-gate:open'){
       if(presentationTimingState.cinematicDepth > 0 || presentationTimingState.resultsActive){
@@ -565,13 +1067,59 @@ if(timingUiMode){
     }
     if(stage === 'overlay:start'){
       const kind = String(detail?.details?.kind || 'missing');
+      const sourceCardId = String(detail?.details?.sourceCardId || '');
       note(result.overlayKinds, kind);
+      if(sourceCardId) note(result.sourceOverlayKinds, `${sourceCardId}|${kind}`);
       if(kind.startsWith('phase7_')){
         recordPresentationTimingViolation('Generic Phase 7 overlay was used instead of a production overlay', detail);
       }
+      if(String(detail?.details?.eventType || '').toUpperCase() === 'FATE_CHANGED') noteResultFeedbackStart('overlay', detail);
     }
+    if(stage === 'fate-motion:start') noteResultFeedbackStart('fate', detail);
     publish();
   });
+
+  // Observe the shipping DOM result itself in addition to presentation-stage
+  // telemetry.  This catches the historical failure where one explicit
+  // authority Fate number was followed by a second generic renderer number.
+  // The two paths do not necessarily share an event id, so a same-target,
+  // same-delta authority/generic pair inside one presentation window is a
+  // duplicate even when its transition metadata differs.
+  const observeFateNumberNode = function(node){
+    if(!(node instanceof HTMLElement) || !node.classList.contains('fate-number-pop')) return;
+    const entry = {
+      id:String(node.dataset.fateNumberId || ''),
+      targetKey:String(node.dataset.fateTargetKey || ''),
+      transition:String(node.dataset.fateTransition || ''),
+      delta:String(node.dataset.fateDelta || node.textContent || '').trim(),
+      authorityEvent:String(node.dataset.fateAuthorityEvent || ''),
+      at:Date.now()
+    };
+    result.fateNumberDomEvents.push(entry);
+    if(result.fateNumberDomEvents.length > 160) result.fateNumberDomEvents.shift();
+    const targetKey = entry.targetKey || 'global';
+    const recent = recentFateNumberDomByTarget.get(targetKey);
+    const sameAuthorityEvent = !!entry.authorityEvent && entry.authorityEvent === recent?.authorityEvent;
+    const authorityGenericPair = entry.delta === recent?.delta
+      && (!!entry.authorityEvent !== !!recent?.authorityEvent);
+    if(recent && entry.at - recent.at < 6000 && (sameAuthorityEvent || authorityGenericPair)){
+      recordPresentationTimingViolation('One authoritative Fate change rendered more than one DOM Fate number', {
+        previous:recent,
+        duplicate:entry
+      });
+    }
+    recentFateNumberDomByTarget.set(targetKey, entry);
+    publish();
+  };
+  const fateNumberObserver = new MutationObserver(function(records){
+    records.forEach(function(record){
+      record.addedNodes.forEach(function(node){
+        observeFateNumberNode(node);
+        if(node instanceof Element) node.querySelectorAll('.fate-number-pop').forEach(observeFateNumberNode);
+      });
+    });
+  });
+  fateNumberObserver.observe(document.documentElement, {subtree:true, childList:true});
 }
 
 function statusElement(){
@@ -600,6 +1148,40 @@ function publish(){
 let electronDiagnosticStarted = false;
 let electronDiagnosticInFlight = false;
 let lastElectronDiagnosticAt = 0;
+function compactElectronProgress(){
+  return {
+    version:2,
+    heartbeatAt:Date.now(),
+    runId,
+    seat,
+    mode:result.mode,
+    startGameIndex,
+    targetGames,
+    startedAt:result.startedAt,
+    finishedAt:result.finishedAt,
+    running:result.running,
+    stopReason:result.stopReason,
+    completedGames:result.completedGames,
+    failedGames:result.failedGames,
+    warmupMatches:result.warmupMatches,
+    actions:result.actions,
+    domChecks:result.domChecks,
+    errorCount:result.errors.length,
+    domViolationCount:result.domViolations.length,
+    oracleViolationCount:result.oracleViolations.length,
+    crossSeatViolationCount:result.crossSeatViolations.length,
+    presentationTimingViolationCount:result.presentationTimingViolations.length,
+    fallbackActionCount:result.fallbackActions,
+    lastStage:result.lastStage,
+    releaseGate:result.releaseGate,
+    recentErrors:result.errors.slice(-12),
+    recentDomViolations:result.domViolations.slice(-12),
+    recentOracleViolations:result.oracleViolations.slice(-12),
+    recentCrossSeatViolations:result.crossSeatViolations.slice(-12),
+    lastCheckpoint:result.checkpoints.at(-1) || null,
+    lastMatch:result.matches.at(-1) || null
+  };
+}
 async function publishElectronDiagnostic(force){
   const api = globalThis.FateElectronDiagnostics;
   if(!api || electronDiagnosticInFlight || (!force && Date.now() - lastElectronDiagnosticAt < 3000)) return;
@@ -611,7 +1193,9 @@ async function publishElectronDiagnostic(force){
       await api.startUiMinuteLog({sessionId, kind:'phase7-full-ui-e2e', runId, seat});
       electronDiagnosticStarted = true;
     }
-    const snapshot = JSON.parse(JSON.stringify(result));
+    // Long campaigns publish every few seconds. Persist a bounded heartbeat
+    // instead of repeatedly appending the entire growing in-memory result.
+    const snapshot = compactElectronProgress();
     await api.appendUiMinuteLog({type:'phase7-full-ui-e2e-progress', at:new Date().toISOString(), sessionId, result:snapshot});
     if(force && result.finishedAt){
       await api.finishUiMinuteLog({type:'phase7-full-ui-e2e-finish', at:new Date().toISOString(), sessionId, result:snapshot});
@@ -622,6 +1206,12 @@ async function publishElectronDiagnostic(force){
     electronDiagnosticInFlight = false;
   }
 }
+// Game events can be quiet while the opponent is choosing. Keep an independent
+// disk heartbeat so the detached supervisor distinguishes a healthy waiting
+// client from a suspended or crashed renderer.
+const electronHeartbeatTimer = globalThis.setInterval(function(){
+  publishElectronDiagnostic(false);
+}, 3000);
 
 function note(map, key, amount = 1){
   const value = String(key || 'unknown');
@@ -649,7 +1239,10 @@ function refreshOperationalGates(){
   if(!result.canaryStatus.passed) reasons.push('INTERACTION_CANARIES_NOT_CLEAN');
   if(result.consecutiveCleanMatches < 30) reasons.push('THIRTY_CONSECUTIVE_CLEAN_MATCHES_REQUIRED');
   if(result.fallbackActions > 0) reasons.push('DIAGNOSTIC_FALLBACK_USED');
+  if(result.failedGames > 0) reasons.push('FAILED_OR_STALLED_SCENARIOS');
+  if(!result.certificationEligible) reasons.push('NON_SHIPPING_PRESENTATION_MODE');
   if(result.oracleViolations.length > 0) reasons.push('UNRESOLVED_ORACLE_FINDING');
+  if(result.domViolations.length > 0) reasons.push('RENDERED_UI_ORACLE_VIOLATION');
   if(result.crossSeatViolations.length > 0) reasons.push('CROSS_SEAT_DIVERGENCE');
   if(result.presentationTimingViolations.length > 0) reasons.push('PRESENTATION_CONTRACT_VIOLATION');
   const incompleteCards = Object.values(result.organicTargetCoverage).filter(coverage=>!coverage.automaticEvidencePassed).length;
@@ -664,7 +1257,7 @@ function classifyFailure(message, details = {}){
   if(/oracle false positive/.test(haystack)) return 'ORACLE_FALSE_POSITIVE';
   if(/projection|revision|canonical.*ui|active player|private.*leak|cross.seat|legal command.*available/.test(haystack)) return 'SERVER_CLIENT_SYNC';
   if(/oracle|illegal|not legal|invalid reaction|wrong owner|wrong controller|fate/.test(haystack)) return 'GAME_RULE';
-  if(/synthetic|hit map|test driver|coordinate/.test(haystack)) return 'TEST_DRIVER';
+  if(/synthetic|hit map|test driver|coordinate|ui drive|gesture|pointer/.test(haystack)) return 'TEST_DRIVER';
   return 'SHIPPING_UI';
 }
 
@@ -734,6 +1327,60 @@ function writeCheckpoint(nextGameIndex){
   try{ localStorage.setItem(`fateAuthorityV3FullUiCheckpoint:${runId}:${seat}`, JSON.stringify(checkpoint)); }catch(_){ }
 }
 
+const ABANDON_BARRIER_PREFIX = 'fateAuthorityV3FullUiAbandon';
+const FOCUSED_EVIDENCE_PREFIX = 'fateAuthorityV3FullUiFocusedEvidence';
+function abandonBarrierKey(matchId, targetSeat){
+  return `${ABANDON_BARRIER_PREFIX}:${runId}:${String(matchId || '')}:${String(targetSeat || '').toUpperCase()}`;
+}
+function writeAbandonBarrier(matchId, gameIndex, reason){
+  try{
+    localStorage.setItem(abandonBarrierKey(matchId, seat), JSON.stringify({
+      runId, seat, matchId:String(matchId || ''), gameIndex:Number(gameIndex),
+      reason:String(reason || ''), at:Date.now()
+    }));
+  }catch(_){ }
+}
+function readPeerAbandonBarrier(matchId){
+  const peerSeat = String(seat).toUpperCase() === 'A' ? 'B' : 'A';
+  try{ return JSON.parse(localStorage.getItem(abandonBarrierKey(matchId, peerSeat)) || 'null'); }
+  catch(_){ return null; }
+}
+async function waitForPeerAbandonBarrier(matchId, gameIndex){
+  const deadline = Date.now() + Math.max(4000, stallTimeoutMs);
+  while(Date.now() < deadline){
+    const peer = readPeerAbandonBarrier(matchId);
+    if(peer && Number(peer.gameIndex) === Number(gameIndex)) return peer;
+    await sleep(50);
+  }
+  return null;
+}
+
+function focusedEvidenceKey(matchId, gameIndex, cardId, targetSeat){
+  return `${FOCUSED_EVIDENCE_PREFIX}:${runId}:${String(matchId || '')}:${Number(gameIndex)}:${String(cardId || '')}:${String(targetSeat || '').toUpperCase()}`;
+}
+
+async function exchangeFocusedEvidence(matchId, gameIndex, cardId, localEvidence){
+  const ownSeat = String(seat).toUpperCase();
+  const peerSeat = ownSeat === 'A' ? 'B' : 'A';
+  try{
+    localStorage.setItem(
+      focusedEvidenceKey(matchId, gameIndex, cardId, ownSeat),
+      JSON.stringify({...localEvidence, seat:ownSeat, at:Date.now()})
+    );
+  }catch(_){ }
+  const deadline = Date.now() + Math.max(2000, Math.min(6000, stallTimeoutMs));
+  while(Date.now() < deadline){
+    try{
+      const peer = JSON.parse(localStorage.getItem(
+        focusedEvidenceKey(matchId, gameIndex, cardId, peerSeat)
+      ) || 'null');
+      if(peer) return peer;
+    }catch(_){ }
+    await sleep(25);
+  }
+  return null;
+}
+
 function visibleButtons(){
   return [...document.querySelectorAll('button')].filter(button=>{
     if(button.disabled) return false;
@@ -786,9 +1433,15 @@ function viewportPointForHit(hit){
     ...(map?.handEffectIcons || []),
     ...(map?.piles || [])
   ];
-  const points = [
-    [0.5, 0.12], [0.35, 0.18], [0.65, 0.18], [0.5, 0.3], [0.25, 0.3], [0.75, 0.3], [0.5, 0.5]
-  ];
+  // Dense production hands expose narrow rotated edges. Sample those edges as
+  // well as the card body so a focused card is not declared "unclickable"
+  // merely because the old seven center-biased points fall under its neighbor.
+  const points = [];
+  for(const yRatio of [0.03,0.07,0.12,0.18,0.28,0.42,0.62,0.82]){
+    for(const xRatio of [0.03,0.08,0.16,0.28,0.4,0.5,0.6,0.72,0.84,0.92,0.97]){
+      points.push([xRatio,yRatio]);
+    }
+  }
   for(const [xRatio, yRatio] of points){
     const x = rect.x + rect.w * xRatio;
     const y = rect.y + rect.h * yRatio;
@@ -861,6 +1514,16 @@ function clickHandCard(iid){
 function hasClickableHandCard(iid){
   const hit = (hitMap()?.handCards || []).find(candidate=>String(candidate?.iid || '') === String(iid || ''));
   return !!viewportPointForHit(hit);
+}
+
+function hasRenderedHandCard(iid){
+  const hit = (hitMap()?.handCards || []).find(candidate=>String(candidate?.iid || '') === String(iid || ''));
+  return !!hit && !hit.disabled && !hit.departing;
+}
+
+async function clickHandCardWhenReady(iid, timeoutMs = 2500){
+  const ready = await waitFor(()=>hasClickableHandCard(iid), timeoutMs);
+  return !!ready && clickHandCard(iid);
 }
 
 function clickBoardCard(iid, forceCanvas = false){
@@ -993,6 +1656,127 @@ function sourceCardId(view, iid){
   return String(cardIdByIid.get(String(iid || '')) || '');
 }
 
+function captureTargetAvailability(view, stage = 'revision'){
+  const targets = matchStart?.organicTargets?.length
+    ? matchStart.organicTargets
+    : queuedOrganicTargets;
+  if(!view?.state || !targets?.length) return null;
+  const matchId = String(view.state.matchId || '');
+  const revision = Number(view.state.revision ?? view.revision ?? 0);
+  const key = `${matchId}:${revision}:${String(stage || '')}`;
+  if(key === lastTargetAvailabilityKey) return result.lastTargetAvailabilityDiagnostic;
+  lastTargetAvailabilityKey = key;
+  rememberViewCards(view);
+  const targetSet = new Set(targets.map(String));
+  const locations = Object.fromEntries(targets.map(id=>[String(id), []]));
+  const recordLocation = (card, location)=>{
+    const id = String(card?.id || sourceCardId(view, card?.iid) || '');
+    if(!targetSet.has(id)) return;
+    locations[id].push({
+      ...location,
+      iid:String(card?.iid || ''),
+      id,
+      type:String(card?.type || ''),
+      fate:Number(card?.fate ?? card?.baseFate ?? 0),
+      reinforcementCost:Number(card?.reinforcementCost ?? card?.cost ?? 0)
+    });
+  };
+  for(let playerIndex = 0; playerIndex < (view.state.players || []).length; playerIndex += 1){
+    const player = view.state.players[playerIndex] || {};
+    for(const pile of ['hand','deck','discard']){
+      (player[pile] || []).forEach((card, index)=>recordLocation(card, {kind:'pile', playerIndex, pile, index}));
+    }
+  }
+  for(let zoneIndex = 0; zoneIndex < (view.state.board || []).length; zoneIndex += 1){
+    const zone = view.state.board[zoneIndex] || [];
+    for(let rowIndex = 0; rowIndex < zone.length; rowIndex += 1){
+      (zone[rowIndex] || []).forEach((card, slotIndex)=>recordLocation(card, {
+        kind:'board', zoneIndex, rowIndex, slotIndex,
+        owner:Number(card?.owner), controller:Number(card?.controller)
+      }));
+    }
+  }
+  (view.privateActionCards || []).forEach((card, index)=>recordLocation(card, {kind:'private-action', index}));
+  const renderedHandIids = new Set((hitMap()?.handCards || []).map(hit=>String(hit?.iid || '')));
+  const summarizedCommands = (view.legalCommands || []).map(command=>{
+    const payload = command?.payload || {};
+    const iids = [
+      payload.cardIid,
+      payload.sourceIid,
+      payload.reactionIid,
+      ...(payload.tributeIids || []),
+      ...(payload.discardedIids || [])
+    ].filter(value=>value !== undefined && value !== null && String(value) !== '').map(String);
+    const cardIds = [...new Set(iids.map(iid=>sourceCardId(view, iid)).filter(Boolean))];
+    return {
+      type:String(command?.type || ''),
+      iids,
+      cardIds,
+      targets:cardIds.filter(id=>targetSet.has(id))
+    };
+  });
+  const commands = summarizedCommands.filter(command=>command.targets.length);
+  const localPlayerIndex = Number(view.playerIndex);
+  const localPlayer = view.state.players?.[localPlayerIndex] || {};
+  const boardCards = [];
+  for(let zoneIndex = 0; zoneIndex < (view.state.board || []).length; zoneIndex += 1){
+    const zone = view.state.board[zoneIndex] || [];
+    for(let rowIndex = 0; rowIndex < zone.length; rowIndex += 1){
+      (zone[rowIndex] || []).forEach((card, slotIndex)=>boardCards.push({
+        id:String(card?.id || sourceCardId(view, card?.iid) || ''),
+        iid:String(card?.iid || ''),
+        type:String(card?.type || ''),
+        owner:Number(card?.owner),
+        controller:Number(card?.controller),
+        zoneIndex,
+        rowIndex,
+        slotIndex
+      }));
+    }
+  }
+  const diagnostic = {
+    at:Date.now(),
+    stage:String(stage || ''),
+    gameIndex:Number(matchStart?.gameIndex ?? currentOrganicGameIndex()),
+    matchId,
+    revision,
+    turn:Number(view.state.turn || 0),
+    phase:String(view.state.phase || ''),
+    playerIndex:Number(view.playerIndex),
+    activePlayer:Number(view.state.activePlayer),
+    testRules:view.state.testRules || null,
+    pendingPrompt:view.state.pendingPrompt ? {
+      type:String(view.state.pendingPrompt.type || ''),
+      playerIndex:Number(view.state.pendingPrompt.playerIndex),
+      sourceIid:String(view.state.pendingPrompt.sourceIid || '')
+    } : null,
+    targets:[...targetSet],
+    locations,
+    localHand:(localPlayer.hand || []).map(card=>({
+      id:String(card?.id || sourceCardId(view, card?.iid) || ''),
+      iid:String(card?.iid || ''),
+      type:String(card?.type || ''),
+      rendered:renderedHandIids.has(String(card?.iid || ''))
+    })),
+    boardCards,
+    renderedHand:Object.fromEntries(targets.map(id=>[
+      String(id),
+      (locations[String(id)] || []).some(entry=>entry.pile === 'hand' && renderedHandIids.has(entry.iid))
+    ])),
+    legalCommandTypes:Object.fromEntries(summarizedCommands.reduce((entries, command)=>{
+      entries.set(command.type, Number(entries.get(command.type) || 0) + 1);
+      return entries;
+    }, new Map())),
+    legalActionCards:summarizedCommands.filter(command=>command.iids.length).slice(0, 80),
+    legalCommands:commands
+  };
+  result.lastTargetAvailabilityDiagnostic = diagnostic;
+  result.targetAvailabilityDiagnostics.push(diagnostic);
+  if(result.targetAvailabilityDiagnostics.length > 60) result.targetAvailabilityDiagnostics.shift();
+  publish();
+  return diagnostic;
+}
+
 function effectBranchKey(event){
   return [
     String(event?.type || 'UNKNOWN_EVENT'),
@@ -1031,6 +1815,7 @@ function ingestPresentationBatch(view){
       seat
     });
   }
+  const oracleViolationCardIds = new Set((oracleAudit.violations || []).map(violation=>String(violation?.cardId || '')));
   for(const event of (batch.events || [])){
     const eventType = String(event?.type || 'UNKNOWN_EVENT');
     note(result.eventTypes, eventType);
@@ -1040,20 +1825,874 @@ function ingestPresentationBatch(view){
     }
     const eventSourceIid = eventType === 'EFFECT_REACTED'
       ? event?.reactionIid
-      : (event?.effectSourceIid || event?.sourceIid);
+      : (event?.effectSourceIid || event?.sourceIid || event?.cardIid);
     const reactionCardId = ({LYDIA:'56',SECULES:'67',HAVANO:'79'})[String(event?.reactionKind || '').toUpperCase()] || '';
     const sourceId = (eventType === 'EFFECT_REACTED' ? '' : String(event?.sourceCardId || ''))
       || sourceCardId(view, eventSourceIid)
       || (eventType === 'EFFECT_REACTED' ? reactionCardId : '')
       || ((eventType === 'EFFECT_ACTIVATED' || eventType === 'EFFECT_REACTED') ? String(event?.cardId || '') : '');
+    if(sourceId && ['CARD_SET','CARD_CONSOLIDATED'].includes(eventType)){
+      note(result.observedActionCardIds, sourceId);
+    }
+    if(eventType === 'EFFECT_ACTIVATED' && eventSourceIid){
+      const activationKey = `${String(view?.state?.matchId || '')}|${String(eventSourceIid)}`;
+      successfulActivationCounts.set(activationKey, Number(successfulActivationCounts.get(activationKey) || 0) + 1);
+    }
     if(sourceId){
       note(result.effectEventCardIds, sourceId);
+      if(eventType === 'EFFECT_RESOLVED') note(result.resolvedEffectCardIds, sourceId);
       note(result.effectBranches, `${sourceId}|${effectBranchKey(event)}`);
       if(focusedCardIdSet.has(sourceId)){
         note(result.focusEffectBranches, `${sourceId}|${effectBranchKey(event)}`);
       }
+      if(queuedOrganicTargets.includes(sourceId) && !oracleViolationCardIds.has(sourceId)){
+        const stateObligations = cardCertificationObligations(sourceId).filter(value=>value.startsWith('STATE:'));
+        if(eventType === 'EFFECT_RESOLVED'){
+          for(const obligation of stateObligations.filter(value=>value === 'STATE:PUBLIC_STATE_MATCHES_PRINTED_RESULT')){
+            recordRuleObligationEvidence(sourceId, obligation, {
+              probe:'AUTHORITATIVE_RESOLUTION_PASSED_RULE_ORACLE',
+              batchId,
+              sourceIid:String(eventSourceIid || '')
+            });
+          }
+        }
+        if(sourceId === '02' && eventType === 'SAFE_ROW_ADDED'){
+          const sourceCard = canonicalBoardEntries(view?.state).find(entry=>String(entry.card?.iid || '') === String(eventSourceIid || ''))?.card;
+          const controller = sourceCard?.controller ?? sourceCard?.owner;
+          const rowOwner = Number(view?.state?.geometry?.rowOwners?.[Number(event?.zone)]?.[Number(event?.row)]);
+          const squares = (view?.state?.geometry?.playableExtraSquares || []).filter(square=>Number(square?.z) === Number(event?.zone) && Number(square?.r) === Number(event?.row));
+          if(Number(event?.playerIndex) === Number(controller) && rowOwner === Number(controller) && squares.length === 3 && squares.every(square=>Number(square.owner) === Number(controller))){
+            for(const obligation of stateObligations){
+              recordRuleObligationEvidence(sourceId, obligation, {probe:'ANICKA_CANONICAL_ROW_GEOMETRY',batchId,zone:Number(event.zone),row:Number(event.row)});
+            }
+          }
+        }
+        if(sourceId === '03' && eventType === 'FATE_CHANGED'){
+          const sourceActivations = (batch.events || []).filter(candidate=>String(candidate?.type || '').toUpperCase() === 'EFFECT_ACTIVATED' && String(candidate?.sourceIid || '') === String(eventSourceIid || ''));
+          const sourceChanges = (batch.events || []).filter(candidate=>String(candidate?.type || '').toUpperCase() === 'FATE_CHANGED' && String(candidate?.effectSourceIid || candidate?.sourceIid || '') === String(eventSourceIid || ''));
+          const sourceCard = canonicalBoardEntries(view?.state).find(entry=>String(entry.card?.iid || '') === String(eventSourceIid || ''))?.card;
+          if(sourceActivations.length === 1 && sourceChanges.length === 1 && Number(event.after) === Number(event.before) * 2 + 5 && Number(sourceCard?.counters?.effectUses) === 1){
+            for(const obligation of stateObligations){
+              recordRuleObligationEvidence(sourceId, obligation, {probe:'HOWARD_SINGLE_EXACT_MUTATION',batchId,before:Number(event.before),after:Number(event.after)});
+            }
+          }
+        }
+        if(sourceId === '05' && eventType === 'FATE_CHANGED' && Number(event.after) - Number(event.before) === 3){
+          for(const obligation of stateObligations.filter(value=>value === 'STATE:ONE_FATE_CHANGED_WITH_DELTA_PLUS_3')){
+            recordRuleObligationEvidence(sourceId, obligation, {probe:'BRITISH_REGIMENT_EXACT_PLUS_THREE',batchId,before:Number(event.before),after:Number(event.after)});
+          }
+        }
+      }
+      if(queuedOrganicTargets.includes(sourceId) && eventType === 'PROMPT_CANCELLED'){
+        for(const obligation of cardCertificationObligations(sourceId).filter(value=>/CANCEL/.test(value))){
+          recordRuleObligationEvidence(sourceId, obligation, {
+            probe:'CANCEL_WITHOUT_DEFAULT_MUTATION',
+            batchId,
+            promptId:String(event?.promptId || '')
+          });
+        }
+      }
+      if(queuedOrganicTargets.includes(sourceId) && eventType === 'EFFECT_SKIPPED'){
+        const pendingSource = String(view?.state?.pendingPrompt?.sourceIid || '');
+        const activated = (batch.events || []).some(candidate=>
+          String(candidate?.type || '').toUpperCase() === 'EFFECT_ACTIVATED'
+          && String(candidate?.sourceIid || '') === String(event?.sourceIid || '')
+        );
+        const mutationTypes = new Set(['CARD_DRAWN','CARD_DISCARDED','CARD_MOVED','CARD_TRANSFERRED','FATE_CHANGED','STATUS_CREATED','SAFE_ROW_ADDED','SAFE_SQUARE_ADDED','TOKENS_CREATED','CONTROL_CHANGED']);
+        const leakedMutation = (batch.events || []).some(candidate=>
+          mutationTypes.has(String(candidate?.type || '').toUpperCase())
+          && String(candidate?.sourceIid || candidate?.effectSourceIid || '') === String(event?.sourceIid || '')
+        );
+        if((!pendingSource || pendingSource !== String(event?.sourceIid || '')) && !activated && !leakedMutation){
+          for(const obligation of cardCertificationObligations(sourceId).filter(value=>
+            value === 'BRANCH:INELIGIBLE_OR_EMPTY_CASE'
+            || value.startsWith('PREREQUISITE:')
+            || value === 'FORBIDDEN:EFFECT_TRIGGERS_WITHOUT_PRINTED_PREREQUISITE'
+          )){
+            recordRuleObligationEvidence(sourceId, obligation, {
+              probe:'INELIGIBLE_EFFECT_SKIPPED_CLEANLY',
+              batchId,
+              reason:String(event?.reason || '')
+            });
+          }
+        }
+      }
+      if(queuedOrganicTargets.includes(sourceId) && eventType === 'EFFECT_BLOCKED'){
+        const reacted = (batch.events || []).find(candidate=>
+          String(candidate?.type || '').toUpperCase() === 'EFFECT_REACTED'
+          && String(candidate?.sourceIid || '') === String(event?.sourceIid || '')
+        );
+        const reactingCardId = reacted
+          ? (sourceCardId(view, reacted?.reactionIid)
+            || ({LYDIA:'56',SECULES:'67',HAVANO:'79'})[String(reacted?.reactionKind || '').toUpperCase()]
+            || '')
+          : '';
+        const mutationTypes = new Set(['CARD_DRAWN','CARD_DISCARDED','CARD_MOVED','CARD_TRANSFERRED','FATE_CHANGED','STATUS_CREATED','SAFE_ROW_ADDED','SAFE_SQUARE_ADDED','TOKENS_CREATED','CONTROL_CHANGED']);
+        const leakedMutation = (batch.events || []).some(candidate=>
+          mutationTypes.has(String(candidate?.type || '').toUpperCase())
+          && String(candidate?.sourceIid || candidate?.effectSourceIid || '') === String(event?.sourceIid || '')
+        );
+        const pendingSource = String(view?.state?.pendingPrompt?.sourceIid || '');
+        if(reacted && queuedOrganicPartners.includes(reactingCardId) && !leakedMutation && pendingSource !== String(event?.sourceIid || '')){
+          for(const obligation of cardCertificationObligations(sourceId).filter(value=>
+            /NEGAT|SUPPRESS|BLOCKED_EFFECT|PENDING_EFFECT|RESOLVES_ANYWAY/.test(value)
+          )){
+            recordRuleObligationEvidence(sourceId, obligation, {
+              probe:'REACTION_BLOCKED_WITHOUT_MUTATION',
+              batchId,
+              mode:String(reacted?.mode || '')
+            });
+          }
+        }
+      }
     }
   }
+}
+
+const AUTHORITY_STATUS_BANNER_RULES = Object.freeze({
+  FORT_CALVIN_WATCHER:Object.freeze({cardId:'71', groupClass:'effect-pill-fort-calvin', requiresRemaining:true}),
+  SUPPORTER_EFFECTS_BLOCKED:Object.freeze({cardId:'18', groupClass:'effect-pill-semper', requiresRemaining:true}),
+  ZONE_ACTIONS_BLOCKED:Object.freeze({cardId:'50', groupClass:'effect-pill-berkeley', requiresRemaining:true}),
+  LANDSCAPE_CHANGE_BLOCKED:Object.freeze({cardId:'91', groupClass:'effect-pill-house', requiresRemaining:true}),
+  NEXT_CHARACTER_HAND_ARRIVAL:Object.freeze({cardId:'33', groupClass:'effect-pill-wci', requiresRemaining:false}),
+  RIVERA_AFFILIATION_BONUS:Object.freeze({cardId:'51', groupClass:'effect-pill-rivera', requiresRemaining:true}),
+  CONSOLIDATION_FATE_BONUS:Object.freeze({cardId:'87', groupClass:'effect-pill-music', requiresRemaining:false}),
+  CONSOLIDATION_COST_MODIFIER:Object.freeze({cardId:'97', groupClass:'effect-pill-administrative-bloat', requiresRemaining:true}),
+  DELAYED_HAND_DELIVERY:Object.freeze({cardId:'94', groupClass:'effect-pill-mail', requiresRemaining:true}),
+  SUPPORTERS_AS_CHARACTERS:Object.freeze({cardId:'99', groupClass:'effect-pill-blame-game', requiresRemaining:true}),
+  SELVA_EXTRA_SUPPORTER:Object.freeze({cardId:'74', groupClass:'effect-pill-selva', requiresRemaining:true}),
+  MAJA_EXTRA_SUPPORTERS:Object.freeze({cardId:'07', groupClass:'effect-pill-maja', requiresRemaining:true}),
+  FACE_DOWN_CONSOLIDATION_PERMISSION:Object.freeze({cardId:'78', groupClass:'effect-pill-chaparral', requiresRemaining:true}),
+  MOVEMENT_GRANT:Object.freeze({cardId:'69', groupClass:'effect-pill-busser', requiresRemaining:true})
+});
+
+function normalizedUiText(value){
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function cardDefinition(cardId){
+  return (globalThis.FATE_CARD_DEFINITIONS || []).find(card=>String(card?.id || '') === String(cardId || '')) || null;
+}
+
+function effectGroupKey(effect){
+  const semanticGroupClass = normalizedUiText(effect?.groupClass)
+    .split(' ')
+    .filter(className=>className && className !== 'effect-pill-flex-tail')
+    .join(' ');
+  return [
+    String(effect?.side || ''),
+    normalizedUiText(effect?.cardName).toLowerCase(),
+    normalizedUiText(effect?.ability).replace(/\s+×\d+$/u, '').toLowerCase(),
+    semanticGroupClass.toLowerCase()
+  ].join('|');
+}
+
+function renderedEffectPills(){
+  const out = [];
+  for(const [containerId, side] of [['tp-status-left','left'], ['tp-status-right','right']]){
+    const container = document.getElementById(containerId);
+    for(const pill of (container ? [...container.children] : [])){
+      if(!pill.classList?.contains('effect-pill')) continue;
+      if(pill.classList.contains('effect-pill-overflow')){
+        for(const effect of (pill._statusOverflowEffects || [])){
+          out.push({
+            side,
+            cardName:String(effect?.cardName || ''),
+            ability:String(effect?.cardAbility || effect?.label || ''),
+            groupClass:String(effect?.extraClass || ''),
+            count:Math.max(1, Number(effect?.effectInstanceCount) || 1),
+            label:String(effect?.label || ''),
+            iconHtml:String(effect?.icon || ''),
+            overflow:true
+          });
+        }
+        continue;
+      }
+      const icon = pill.querySelector('.effect-pill-icon');
+      out.push({
+        side,
+        cardName:String(pill.dataset.effectCardName || pill.querySelector('.ept-name')?.textContent || ''),
+        ability:String(pill.dataset.effectAbility || pill.querySelector('.ept-ability')?.textContent || pill.querySelector('.effect-pill-label')?.textContent || ''),
+        groupClass:String(pill.dataset.effectGroupClass || ''),
+        count:Math.max(1, Number(pill.dataset.effectCount) || 1),
+        label:String(pill.querySelector('.effect-pill-label')?.textContent || ''),
+        iconHtml:String(icon?.innerHTML || ''),
+        sourceIid:String(pill.dataset.effectSourceIid || ''),
+        statusKey:String(pill.dataset.effectStatusKey || ''),
+        overflow:false
+      });
+    }
+  }
+  return out;
+}
+
+function canonicalBoardEntries(state){
+  const entries = [];
+  for(let z = 0; z < (state?.board || []).length; z += 1){
+    for(let r = 0; r < (state.board[z] || []).length; r += 1){
+      for(let c = 0; c < (state.board[z][r] || []).length; c += 1){
+        const card = state.board[z][r][c];
+        if(card) entries.push({card,z,r,c});
+      }
+    }
+  }
+  return entries;
+}
+
+function commandSelectedIids(command){
+  const payload = command?.payload || {};
+  return [
+    payload.selectedIid,
+    payload.targetIid,
+    ...(payload.selectedIids || []),
+    ...(payload.cardIids || [])
+  ].filter(value=>value !== undefined && value !== null && String(value) !== '').map(String);
+}
+
+function auditNegativePromptObligations(view){
+  if(!organicCardCampaign) return;
+  const prompt = view?.state?.pendingPrompt;
+  if(!prompt || Number(prompt.playerIndex) !== Number(view.playerIndex)) return;
+  const sourceIid = String(prompt.sourceIid || '');
+  const sourceEntry = canonicalBoardEntries(view.state).find(entry=>String(entry.card?.iid || '') === sourceIid);
+  const cardId = String(sourceEntry?.card?.id || sourceCardId(view, sourceIid) || '');
+  if(!queuedOrganicTargets.includes(cardId)) return;
+  const rule = cardRuleOracle(cardId);
+  if(!rule) return;
+  const answers = (view.legalCommands || []).filter(command=>command.type === 'ANSWER_PROMPT');
+  const selected = new Set(answers.flatMap(commandSelectedIids));
+  if(!selected.size) return;
+  const board = canonicalBoardEntries(view.state);
+  const sourceController = Number(sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
+  const scope = String(rule.target || '').toUpperCase();
+  const opponent = sourceController === 0 ? 1 : 0;
+  const controllerOf = entry=>Number(entry?.card?.controller ?? entry?.card?.owner);
+  const canTargetOpponent = /OPPONENT|ANYWHERE|ANY_EFFECT|SELECTED_CARD/.test(scope);
+
+  if(canTargetOpponent){
+    const immuneOpponentCards = board.filter(entry=>
+      controllerOf(entry) === opponent
+      && (['20','76'].includes(String(entry.card?.id || ''))
+        || entry.card?.immuneFlag === true
+        || entry.card?.opponentEffectImmune === true)
+    );
+    const hasSelectableOpponent = board.some(entry=>controllerOf(entry) === opponent && selected.has(String(entry.card?.iid || '')));
+    if(immuneOpponentCards.length && hasSelectableOpponent
+      && immuneOpponentCards.every(entry=>!selected.has(String(entry.card?.iid || '')))){
+      for(const obligation of cardCertificationObligations(cardId).filter(value=>/IMMUNE|INELIGIBLE/.test(value))){
+        recordRuleObligationEvidence(cardId, obligation, {
+          probe:'IMMUNE_TARGET_EXCLUSION',
+          promptId:String(prompt.promptId || ''),
+          excludedIids:immuneOpponentCards.map(entry=>String(entry.card.iid))
+        });
+      }
+    }
+  }
+
+  const wrongControllerCards = board.filter(entry=>{
+    const controller = controllerOf(entry);
+    if(scope.includes('OPPONENT')) return controller === sourceController;
+    if(scope.includes('CONTROLLER')) return controller === opponent;
+    return false;
+  });
+  const hasCorrectControllerTarget = board.some(entry=>{
+    const controller = controllerOf(entry);
+    const correct = scope.includes('OPPONENT') ? controller === opponent : controller === sourceController;
+    return correct && selected.has(String(entry.card?.iid || ''));
+  });
+  if(wrongControllerCards.length && hasCorrectControllerTarget
+    && wrongControllerCards.every(entry=>!selected.has(String(entry.card?.iid || '')))){
+    for(const obligation of cardCertificationObligations(cardId).filter(value=>
+      /OPPONENT|CONTROLLER|OWNER|WRONG_PLAYER|WRONG_HAND/.test(value)
+    )){
+      recordRuleObligationEvidence(cardId, obligation, {
+        probe:'CONTROL_DIRECTION_EXCLUSION',
+        promptId:String(prompt.promptId || ''),
+        excludedIids:wrongControllerCards.map(entry=>String(entry.card.iid))
+      });
+    }
+  }
+
+  if((scope.includes('SOURCE_ZONE') || scope.includes('IN_SOURCE_ZONE')) && Number.isInteger(Number(sourceEntry?.z))){
+    const outside = board.filter(entry=>Number(entry.z) !== Number(sourceEntry.z));
+    const hasInsideTarget = board.some(entry=>Number(entry.z) === Number(sourceEntry.z) && selected.has(String(entry.card?.iid || '')));
+    if(outside.length && hasInsideTarget && outside.every(entry=>!selected.has(String(entry.card?.iid || '')))){
+      for(const obligation of cardCertificationObligations(cardId).filter(value=>/OUTSIDE_SOURCE_ZONE|TARGET_OUTSIDE.*ZONE/.test(value))){
+        recordRuleObligationEvidence(cardId, obligation, {
+          probe:'SOURCE_ZONE_EXCLUSION',
+          promptId:String(prompt.promptId || ''),
+          sourceZone:Number(sourceEntry.z)
+        });
+      }
+    }
+  }
+}
+
+function auditPileSelectionObligations(view){
+  if(!organicCardCampaign) return;
+  const prompt = view?.state?.pendingPrompt;
+  if(String(prompt?.type || '') !== 'CARD_SELECTION' || Number(prompt?.playerIndex) !== Number(view?.playerIndex)) return;
+  const sourceIid = String(prompt?.sourceIid || '');
+  const sourceEntry = canonicalBoardEntries(view?.state).find(entry=>String(entry.card?.iid || '') === sourceIid);
+  const cardId = String(sourceEntry?.card?.id || sourceCardId(view, sourceIid) || '');
+  if(!queuedOrganicTargets.includes(cardId)) return;
+  const rule = cardRuleOracle(cardId);
+  const target = String(rule?.target || '').toUpperCase();
+  const answers = (view?.legalCommands || []).filter(command=>command.type === 'ANSWER_PROMPT' && command.payload?.cancel !== true);
+  const selectedIids = new Set(answers.flatMap(commandSelectedIids));
+  const offered = (prompt?.eligibleCards || []).filter(card=>selectedIids.has(String(card?.iid || '')));
+  if(!offered.length || !offered.every(card=>cardMatchesOracleSelection(card, target, cardId))) return;
+
+  const controller = Number(sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
+  const ownPlayer = view?.state?.players?.[controller] || {};
+  let candidateCards = [];
+  if(target.includes('DISCARD')) candidateCards = [...(ownPlayer.discard || [])];
+  else if(target.includes('HAND')) candidateCards = [...(ownPlayer.hand || [])];
+  else if(target.includes('DECK')){
+    const queued = result.queuedDecks[result.queuedDecks.length - 1];
+    candidateCards = (queued?.deckIds || []).map(cardDefinition).filter(Boolean);
+  }
+  const ineligible = candidateCards.filter(card=>!cardMatchesOracleSelection(card, target, cardId));
+  if(!ineligible.length) return;
+
+  const exclusionPatterns = /NON_SUPPORTER_SELECTED|NON_CHARACTER_SELECTED|WRONG_AFFILIATION|STAR_CARD_ELIGIBLE|NON_TRIANGLE_SELECTED|COPY_OF_SOURCE_SELECTED|DISCARD_STAR_SELECTED/;
+  for(const obligation of cardCertificationObligations(cardId).filter(value=>exclusionPatterns.test(value))){
+    recordUseLimitProbe(cardId, sourceIid, obligation, 'REAL_PICKER_EXCLUDES_SEEDED_INELIGIBLE_PILE_CARDS', view);
+  }
+
+  const maxFromCardinality = /UP_TO_THREE/.test(String(rule?.cardinality || '')) ? 3
+    : (/UP_TO_TWO|ZERO_TO_TWO/.test(String(rule?.cardinality || '')) ? 2
+      : (/EXACTLY_ONE|ZERO_OR_ONE/.test(String(rule?.cardinality || '')) ? 1 : null));
+  const largestSelection = answers.reduce((max, command)=>Math.max(max, new Set(commandSelectedIids(command)).size), 0);
+  result.pileAuditSamples.push({
+    matchId:String(view?.state?.matchId || ''),
+    promptId:String(prompt?.promptId || ''),
+    cardId,
+    eligibleCount:Number(prompt?.eligibleIids?.length || 0),
+    offeredCount:offered.length,
+    ineligibleFixtureCount:ineligible.length,
+    maxFromCardinality,
+    largestLegalSelection:largestSelection
+  });
+  if(result.pileAuditSamples.length > 50) result.pileAuditSamples.shift();
+  if(maxFromCardinality !== null && Number(prompt?.eligibleIids?.length || 0) > maxFromCardinality){
+    if(largestSelection <= maxFromCardinality){
+      for(const obligation of cardCertificationObligations(cardId).filter(value=>/MORE_THAN_ONE|MORE_THAN_TWO|MORE_THAN_THREE/.test(value))){
+        recordUseLimitProbe(cardId, sourceIid, obligation, 'REAL_PICKER_ENFORCES_CARDINALITY_WITH_EXTRA_ELIGIBLE_CHOICES', view);
+      }
+    }
+  }
+}
+
+function auditNoTriggerUiObligations(view){
+  if(!organicCardCampaign) return;
+  const batch = view?.presentationBatch;
+  if(!batch?.events?.length) return;
+  const mutationTypes = new Set(['CARD_DRAWN','CARD_DISCARDED','CARD_MOVED','CARD_TRANSFERRED','FATE_CHANGED','STATUS_CREATED','SAFE_ROW_ADDED','SAFE_SQUARE_ADDED','TOKENS_CREATED','CONTROL_CHANGED']);
+  for(const skipped of batch.events.filter(event=>String(event?.type || '').toUpperCase() === 'EFFECT_SKIPPED')){
+    const sourceIid = String(skipped?.sourceIid || '');
+    const cardId = sourceCardId(view, sourceIid);
+    if(!queuedOrganicTargets.includes(cardId)) continue;
+    const activated = batch.events.some(event=>String(event?.type || '').toUpperCase() === 'EFFECT_ACTIVATED' && String(event?.sourceIid || '') === sourceIid);
+    const leakedMutation = batch.events.some(event=>mutationTypes.has(String(event?.type || '').toUpperCase()) && String(event?.sourceIid || event?.effectSourceIid || '') === sourceIid);
+    const promptOpen = String(view?.state?.pendingPrompt?.sourceIid || '') === sourceIid;
+    const modalOpen = document.getElementById('modal')?.classList.contains('on') === true;
+    const cinematicVisible = [...document.querySelectorAll('.effect-activation-cinematic')].some(node=>{
+      const style = getComputedStyle(node);
+      return node.isConnected && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0;
+    });
+    if(activated || leakedMutation || promptOpen || modalOpen || cinematicVisible) continue;
+    for(const obligation of cardCertificationObligations(cardId).filter(value=>
+      value === 'FORBIDDEN:EMPTY_SEARCH_OPENS_MODAL'
+      || (exactShippingPathMode && (
+        value === 'FORBIDDEN:EFFECT_CINEMATIC_WITHOUT_A_LEGAL_RESOLUTION'
+        || value === 'PRESENTATION:ACTIVATION_CINEMATIC_ONLY_IF_RESOLUTION_IS_LEGAL'
+      ))
+    )){
+      recordUseLimitProbe(cardId, sourceIid, obligation, 'NO_TARGET_SKIP_LEFT_NO_MODAL_CINEMATIC_OR_MUTATION', view);
+    }
+  }
+}
+
+function projectedPileCount(player, pile){
+  const value = player?.[pile];
+  if(Array.isArray(value)) return value.length;
+  return Number(player?.[`${pile}Count`] || 0) || 0;
+}
+
+function hasConservativeActivationPrerequisite(view, sourceEntry, rule){
+  const state = view?.state || {};
+  const sourceController = Number(sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
+  const player = state.players?.[sourceController] || {};
+  const target = String(rule?.target || '').toUpperCase();
+  const board = canonicalBoardEntries(state);
+  const controllerOf = entry=>Number(entry?.card?.controller ?? entry?.card?.owner);
+  if(target.includes('DECK') && projectedPileCount(player, 'deck') < 1) return false;
+  if(target.includes('DISCARD') && projectedPileCount(player, 'discard') < 1) return false;
+  if(target.includes('OPPONENT_HAND')){
+    const opponent = state.players?.[sourceController === 0 ? 1 : 0] || {};
+    if(projectedPileCount(opponent, 'hand') < 1) return false;
+  }
+  if(target.includes('OPPONENT_CARD')){
+    const opponent = sourceController === 0 ? 1 : 0;
+    if(!board.some(entry=>controllerOf(entry) === opponent)) return false;
+  }
+  if(target.includes('CONTROLLER_CONTROLS') || target.includes('CARD_CONTROLLER_CONTROLS')){
+    if(!board.some(entry=>controllerOf(entry) === sourceController && String(entry.card?.iid || '') !== String(sourceEntry?.card?.iid || ''))) return false;
+  }
+  if((target.includes('SOURCE_ZONE') || target.includes('IN_SOURCE_ZONE')) && Number.isInteger(Number(sourceEntry?.z))){
+    if(!board.some(entry=>Number(entry.z) === Number(sourceEntry.z) && String(entry.card?.iid || '') !== String(sourceEntry?.card?.iid || ''))) return false;
+  }
+  return true;
+}
+
+function recordUseLimitProbe(cardId, sourceIid, obligation, probe, view){
+  const key = [String(view?.state?.matchId || ''), String(cardId || ''), String(obligation || ''), String(probe || '')].join('|');
+  if(useLimitProbeKeys.has(key)) return;
+  useLimitProbeKeys.add(key);
+  recordRuleObligationEvidence(cardId, obligation, {
+    probe,
+    sourceIid:String(sourceIid || ''),
+    turn:Number(view?.state?.turn || 0)
+  });
+}
+
+function auditUseLimitObligations(view){
+  if(!organicCardCampaign) return;
+  const state = view?.state || {};
+  const board = canonicalBoardEntries(state);
+  const legal = Array.isArray(view?.legalCommands) ? view.legalCommands : [];
+  const prompt = state.pendingPrompt;
+  for(const entry of board){
+    const cardId = String(entry.card?.id || '');
+    if(!queuedOrganicTargets.includes(cardId)) continue;
+    const rule = cardRuleOracle(cardId);
+    const useLimit = String(rule?.useLimit || '').toUpperCase();
+    if(!useLimit || useLimit === 'NO_ADDITIONAL_LIMIT') continue;
+    const sourceIid = String(entry.card?.iid || '');
+    const controller = Number(entry.card?.controller ?? entry.card?.owner);
+    const effectUses = Number(entry.card?.counters?.effectUses || 0);
+    const reactionUses = Number(entry.card?.counters?.reactionUses || 0);
+    const activationCount = Number(successfulActivationCounts.get(`${String(state.matchId || '')}|${sourceIid}`) || 0);
+    const useObligation = `USE_LIMIT:${rule.useLimit}`;
+
+    if(useLimit === 'NO_PRINTED_LIMIT' && activationCount >= 2){
+      recordUseLimitProbe(cardId, sourceIid, useObligation, 'REPEATED_ACTIVATION_ACCEPTED_WITHOUT_PRINTED_LIMIT', view);
+      continue;
+    }
+
+    if((rule?.timing || []).includes('REACTION')){
+      const maximum = useLimit === 'THREE_REACTIONS_PER_CARD' ? 3 : (useLimit === 'ONCE_PER_CARD' ? 1 : null);
+      if(maximum === null || reactionUses < maximum || String(prompt?.type || '') !== 'REACTION' || Number(prompt?.playerIndex) !== controller) continue;
+      const illegallyOffered = legal.some(command=>command.type === 'ANSWER_PROMPT' && String(command.payload?.reactionIid || '') === sourceIid);
+      if(!illegallyOffered){
+        recordUseLimitProbe(cardId, sourceIid, useObligation, 'REACTION_LIMIT_REMOVES_REAL_PROMPT_OPTION', view);
+        for(const obligation of cardCertificationObligations(cardId).filter(value=>/FOURTH_REACTION|SECOND_REACTION/.test(value))){
+          recordUseLimitProbe(cardId, sourceIid, obligation, 'REACTION_LIMIT_REMOVES_REAL_PROMPT_OPTION', view);
+        }
+      }
+      continue;
+    }
+
+    if(!(rule?.timing || []).includes('ACTIVATE')
+      || Number(state.activePlayer) !== controller
+      || Number(view?.playerIndex) !== controller
+      || prompt
+      || state.pendingHandLimit
+      || !hasConservativeActivationPrerequisite(view, entry, rule)) continue;
+    const reachedPerCardLimit = useLimit === 'ONCE_PER_CARD' && effectUses >= 1
+      || useLimit === 'TWO_USES_PER_CARD' && effectUses >= 2;
+    const reachedTurnLimit = useLimit === 'ONCE_PER_TURN' && Number(entry.card?.counters?.lastEffectTurn) === Number(state.turn);
+    if(!reachedPerCardLimit && !reachedTurnLimit) continue;
+    const illegallyOffered = legal.some(command=>command.type === 'ACTIVATE_EFFECT' && String(command.payload?.sourceIid || '') === sourceIid);
+    if(!illegallyOffered){
+      recordUseLimitProbe(cardId, sourceIid, useObligation, reachedTurnLimit ? 'SAME_TURN_REACTIVATION_NOT_LEGAL' : 'EXHAUSTED_CARD_REACTIVATION_NOT_LEGAL', view);
+      for(const obligation of cardCertificationObligations(cardId).filter(value=>/SECOND_ACTIVATION|SECOND_USE_SAME_TURN|MORE_THAN_ONE_USE_PER_TURN|ARMED_TWICE/.test(value))){
+        recordUseLimitProbe(cardId, sourceIid, obligation, reachedTurnLimit ? 'SAME_TURN_REACTIVATION_NOT_LEGAL' : 'EXHAUSTED_CARD_REACTIVATION_NOT_LEGAL', view);
+      }
+    }
+  }
+}
+
+const TIMED_STATUS_CONTRACTS = Object.freeze({
+  SUPPORTER_EFFECTS_BLOCKED:Object.freeze({field:'remainingTargetTurns',initial:1}),
+  ZONE_ACTIONS_BLOCKED:Object.freeze({field:'remainingTargetTurns',initial:1}),
+  RIVERA_AFFILIATION_BONUS:Object.freeze({field:'remainingOwnerTurns',initial:3}),
+  MOVEMENT_GRANT:Object.freeze({field:'remainingOwnerTurns',initial:3}),
+  FORT_CALVIN_WATCHER:Object.freeze({field:'remaining',initial:3}),
+  FACE_DOWN_CONSOLIDATION_PERMISSION:Object.freeze({field:'remaining',initial:1}),
+  LANDSCAPE_CHANGE_BLOCKED:Object.freeze({field:'remainingTargetTurns',initial:5}),
+  DELAYED_HAND_DELIVERY:Object.freeze({field:'deliveryTurnsRemaining',initial:4}),
+  CONSOLIDATION_COST_MODIFIER:Object.freeze({field:'remaining',initial:2}),
+  SUPPORTERS_AS_CHARACTERS:Object.freeze({field:'remainingTargetTurns',initial:5})
+});
+
+function auditTimedStatusObligations(view){
+  if(!organicCardCampaign) return;
+  const state = view?.state || {};
+  const matchId = String(state.matchId || '');
+  const presentKeys = new Set();
+  for(const status of (state.statuses || [])){
+    const type = String(status?.statusType || status?.type || '').toUpperCase();
+    const contract = TIMED_STATUS_CONTRACTS[type];
+    if(!contract) continue;
+    const sourceIid = String(status?.sourceIid || '');
+    const cardId = sourceCardId(view, sourceIid);
+    if(!queuedOrganicTargets.includes(cardId)) continue;
+    const statusId = String(status?.statusId || `${type}:${sourceIid}`);
+    const key = `${matchId}|${statusId}`;
+    presentKeys.add(key);
+    const value = Number(status?.[contract.field]);
+    if(!Number.isInteger(value) || value < 1) continue;
+    let tracker = timedStatusTrackers.get(key);
+    if(!tracker){
+      tracker = {matchId,statusId,type,cardId,sourceIid,field:contract.field,initial:contract.initial,values:[],credited:false};
+      timedStatusTrackers.set(key, tracker);
+    }
+    if(tracker.values[tracker.values.length - 1] !== value) tracker.values.push(value);
+  }
+  for(const [key, tracker] of timedStatusTrackers){
+    if(tracker.matchId !== matchId || tracker.credited || presentKeys.has(key)) continue;
+    const expected = Array.from({length:tracker.initial}, (_value, index)=>tracker.initial - index);
+    if(tracker.values.length === expected.length && tracker.values.every((value, index)=>value === expected[index])){
+      const obligation = `DURATION:${cardRuleOracle(tracker.cardId)?.duration || ''}`;
+      if(cardCertificationObligations(tracker.cardId).includes(obligation)){
+        recordUseLimitProbe(tracker.cardId, tracker.sourceIid, obligation, 'FULL_CANONICAL_STATUS_COUNTDOWN_AND_REMOVAL', view);
+      }
+      for(const forbidden of cardCertificationObligations(tracker.cardId).filter(value=>/PERSISTS_EXTRA_TURN|FOURTH_TURN|SIXTH_TURN|FOURTH_DRAW|THIRD_CONSOLIDATION|DELIVERED_EARLY_OR_LATE/.test(value))){
+        recordUseLimitProbe(tracker.cardId, tracker.sourceIid, forbidden, 'FULL_CANONICAL_STATUS_COUNTDOWN_AND_REMOVAL', view);
+      }
+      tracker.credited = true;
+    }
+  }
+}
+
+function expectedRenderedEffects(view){
+  const expected = new Map();
+  const viewer = Number(view?.playerIndex);
+  const add = function(owner, cardId, groupClass, amount = 1){
+    const definition = cardDefinition(cardId);
+    if(!definition) return;
+    const effect = {
+      side:Number(owner) === viewer ? 'left' : 'right',
+      cardName:String(definition.name || ''),
+      ability:String(definition.ability || ''),
+      groupClass:String(groupClass || '')
+    };
+    const key = effectGroupKey(effect);
+    expected.set(key, (expected.get(key) || 0) + Math.max(1, Number(amount) || 1));
+  };
+  for(const status of (view?.state?.statuses || [])){
+    const type = String(status?.statusType || status?.type || '').toUpperCase();
+    const rule = AUTHORITY_STATUS_BANNER_RULES[type];
+    if(!rule) continue;
+    const remaining = Math.max(0, Number(status?.remainingTargetTurns ?? status?.remainingOwnerTurns ?? status?.remaining ?? status?.deliveryTurnsRemaining) || 0);
+    if(rule.requiresRemaining && remaining <= 0) continue;
+    const sourceController = Number(status?.sourceController);
+    const affected = Number(status?.playerIndex);
+    // Most player statuses are opponent-facing locks, so an old snapshot that
+    // lacks sourceController falls back to the player opposite the affected
+    // seat. Blame Game is a benefit owned by the affected/controller seat.
+    // Match the shipping renderer's explicit exception or the oracle looks on
+    // the wrong side and reports a present banner as missing.
+    const owner = [
+      'NEXT_CHARACTER_HAND_ARRIVAL',
+      'RIVERA_AFFILIATION_BONUS',
+      'CONSOLIDATION_FATE_BONUS',
+      'DELAYED_HAND_DELIVERY',
+      'SUPPORTERS_AS_CHARACTERS',
+      'SELVA_EXTRA_SUPPORTER',
+      'MAJA_EXTRA_SUPPORTERS',
+      'FACE_DOWN_CONSOLIDATION_PERMISSION',
+      'MOVEMENT_GRANT'
+    ].includes(type) && (affected === 0 || affected === 1)
+      ? affected
+      : (sourceController === 0 || sourceController === 1
+        ? sourceController
+        : ((affected === 0 || affected === 1) ? 1 - affected : viewer));
+    const groupClass = type === 'RIVERA_AFFILIATION_BONUS'
+      ? `${rule.groupClass} aff-${String(status?.affiliation || '').replace(/[^a-z0-9_-]/gi, '')}`
+      : rule.groupClass;
+    add(owner, rule.cardId, groupClass);
+  }
+  for(const {card} of canonicalBoardEntries(view?.state)){
+    if(card?.faceDown) continue;
+    const cardId = String(card?.id || '');
+    if(cardId !== '56' && cardId !== '67') continue;
+    const maxUses = cardId === '56' ? 3 : 1;
+    if(Math.max(0, Number(card?.counters?.reactionUses) || 0) >= maxUses) continue;
+    add(Number(card.controller ?? card.owner), cardId, cardId === '56' ? 'effect-pill-lydia' : 'effect-pill-secules');
+  }
+  return expected;
+}
+
+function auditRenderedShippingUi(view){
+  const findings = [];
+  const check = function(kind, condition, detail){
+    result.domChecks += 1;
+    note(result.domCheckKinds, kind);
+    if(!condition) findings.push({code:kind, detail:String(detail || kind)});
+  };
+  const state = view?.state || {};
+  // Coin choice and the final result have their own production screens. Board,
+  // hand, status, and turn-HUD assertions begin only after the shipping match
+  // screen is mounted. Their dedicated screens are checked separately here.
+  if(String(state.phase || '') === 'coin'){
+    if(!timingUiMode) return findings;
+    check('COIN_SCREEN_ACTIVE', !!document.getElementById('s-coin')?.classList.contains('active'), 'production coin screen is not active');
+    // The accelerated functional campaign still clicks the real production
+    // turn-order buttons, but it does not certify the 1.8-second cosmetic coin
+    // animation. Text/result timing remains mandatory in presentation mode.
+    if(timingUiMode){
+      check('COIN_RESULT_VISIBLE', normalizedUiText(document.getElementById('coin-result')?.textContent).length > 0, 'coin result text is missing');
+      const localChooses = (view?.legalCommands || []).some(command=>String(command?.type || '') === 'CHOOSE_TURN_ORDER');
+      if(localChooses){
+        check('COIN_CHOICES_VISIBLE', visibleButtons().some(button=>normalizedUiText(button.textContent) === 'Go First' && !button.disabled) && visibleButtons().some(button=>normalizedUiText(button.textContent) === 'Go Second' && !button.disabled), 'coin winner cannot use both turn-order choices');
+      }
+    }
+    return findings;
+  }
+  if(state.outcome){
+    const winScreen = document.getElementById('s-win');
+    check('ENDGAME_SCREEN_ACTIVE', !!winScreen?.classList.contains('active'), 'production endgame screen is not active');
+    check('ENDGAME_TITLE_VISIBLE', normalizedUiText(document.getElementById('win-title')?.textContent).length > 0, 'endgame title is missing');
+    check('ENDGAME_ZONE_REPORT', document.querySelectorAll('#win-zones .win-z').length === 3, 'endgame does not show all three zone results');
+    return findings;
+  }
+  if(!document.getElementById('s-game')?.classList.contains('active')) return findings;
+  const viewer = Number(view?.playerIndex);
+  const opponent = viewer === 0 ? 1 : 0;
+  const game = document.getElementById('s-game');
+  const expectedOwnTurn = Number(state.activePlayer) === viewer;
+  check('GAME_SCREEN_ACTIVE', !!game?.classList.contains('active'), 'shipping game screen is not active');
+  check('TURN_HUD_NUMBER', normalizedUiText(document.getElementById('turn-hud-turn')?.textContent) === `Turn ${Number(state.turn || 0)}/${Number(state.maxTurns || 20)}`, 'turn number does not match authority');
+  check('TURN_HUD_OWNER', normalizedUiText(document.getElementById('turn-hud-player')?.textContent) === (expectedOwnTurn ? "It's Your Turn!" : "Opponent's Turn"), 'turn owner label does not match viewer perspective');
+  check('TURN_SCREEN_CLASS', !!game?.classList.contains(expectedOwnTurn ? 'own-turn' : 'opponent-turn'), 'turn ownership CSS class does not match authority');
+
+  const map = hitMap();
+  const localHandCount = Number(state.players?.[viewer]?.hand?.length ?? state.players?.[viewer]?.handCount ?? 0);
+  const opponentHandCount = Number(state.players?.[opponent]?.handCount ?? state.players?.[opponent]?.hand?.length ?? 0);
+  const opponentPanelCount = Math.min(opponentHandCount, 12);
+  check('LOCAL_HAND_RENDER_COUNT', Number(map?.handCards?.length || 0) === localHandCount, `local rendered hand=${Number(map?.handCards?.length || 0)} authority=${localHandCount}`);
+  check('OPPONENT_HAND_RENDER_COUNT', Number(map?.opponentHandCards?.length || 0) === opponentPanelCount, `opponent rendered hand=${Number(map?.opponentHandCards?.length || 0)} panel expectation=${opponentPanelCount} authority=${opponentHandCount}`);
+  const projectedOpponentHandCount = Number(globalThis.FATE_GAME_STATE?.players?.[opponent]?.hand?.length || 0);
+  check('OPPONENT_HAND_PROJECTED_COUNT', projectedOpponentHandCount === opponentHandCount, `opponent projected hand=${projectedOpponentHandCount} authority=${opponentHandCount}`);
+  check('OPPONENT_HAND_HIDDEN', (map?.opponentHandCards || []).every(hit=>!hit?.card || hit.card.hidden === true || hit.card.faceDown === true || hit.card.revealed === true || hit.card._revealed === true || !hit.card.id), 'opponent hand exposes a face-up card without an authoritative reveal');
+
+  for(const hit of [...(map?.handCards || []), ...(map?.cards || [])]){
+    const visual = hit?.card?.visual || hit?.card;
+    const cardId = String(visual?.id || hit?.card?.id || '');
+    if(!['token2','token3','token4'].includes(cardId)) continue;
+    check('ADAPTIVE_TOKEN_ART', !!(visual?.runtimeImg || visual?.img), `${cardId} is rendered without its production card image`);
+  }
+  for(const entry of canonicalBoardEntries(state)){
+    const marked = (entry?.card?.statuses || []).some(status=>String(status || '').startsWith('VIGILANTES_MARK:'));
+    if(!marked) continue;
+    const projected = (map?.cards || []).find(hit=>String(hit?.card?.iid || '') === String(entry.card.iid || ''));
+    const renderedCard = projected?.card || null;
+    const visual = renderedCard?.visual || renderedCard || null;
+    check(
+      'VIGILANTES_OVERLAY_PRESENT',
+      !!(renderedCard && (
+        renderedCard._markedForDeath === true
+        || renderedCard.flags?.markedForDeath === true
+        || visual?._markedForDeath === true
+        || visual?.flags?.markedForDeath === true
+      )),
+      `Vigilantes target ${entry.card.iid} has no rendered Marked for Death overlay flag`
+    );
+  }
+  const brokenVisibleImages = [...document.querySelectorAll('#s-game img, #modal.on img')].filter(image=>
+    isVisible(image) && image.complete && Number(image.naturalWidth) === 0
+  );
+  check('VISIBLE_IMAGE_ASSETS', brokenVisibleImages.length === 0, `broken visible images: ${brokenVisibleImages.map(image=>image.getAttribute('src') || '').join(', ')}`);
+
+  const renderedEffects = renderedEffectPills();
+  const expectedEffects = expectedRenderedEffects(view);
+  result.lastStatusAudit = {
+    matchId:String(state.matchId || ''),
+    revision:Number(state.revision || 0),
+    canonical:(state.statuses || []).map(status=>({
+      type:String(status?.statusType || status?.type || ''),
+      sourceIid:String(status?.sourceIid || ''),
+      sourceController:status?.sourceController,
+      playerIndex:status?.playerIndex,
+      remaining:status?.remainingTargetTurns ?? status?.remainingOwnerTurns ?? status?.remaining ?? status?.deliveryTurnsRemaining
+    })),
+    projected:(globalThis.FATE_GAME_STATE?._phase7Statuses || []).map(status=>({
+      type:String(status?.statusType || status?.type || ''),
+      sourceIid:String(status?.sourceIid || ''),
+      sourceController:status?.sourceController,
+      playerIndex:status?.playerIndex,
+      remaining:status?.remainingTargetTurns ?? status?.remainingOwnerTurns ?? status?.remaining ?? status?.deliveryTurnsRemaining
+    })),
+    rendered:renderedEffects.map(effect=>({
+      side:effect.side,
+      cardName:effect.cardName,
+      ability:effect.ability,
+      groupClass:effect.groupClass,
+      count:effect.count
+    }))
+  };
+  const renderedByKey = new Map();
+  for(const effect of renderedEffects){
+    const key = effectGroupKey(effect);
+    if(!renderedByKey.has(key)) renderedByKey.set(key, []);
+    renderedByKey.get(key).push(effect);
+    check('STATUS_ICON_PRESENT', normalizedUiText(effect.iconHtml).length > 0, `status banner ${effect.cardName || effect.ability} has no icon`);
+    check('STATUS_MULTIPLICITY_LABEL', effect.count <= 1 || new RegExp(`(?:×|Ã—|x)\\s*${effect.count}(?:\\D|$)`, 'iu').test(effect.label), `status banner ${effect.cardName || effect.ability} count=${effect.count} has no matching multiplier`);
+  }
+  for(const [key, effects] of renderedByKey){
+    check('STATUS_BANNER_UNIQUE', effects.length === 1, `duplicate rendered status banners for ${key}: ${effects.length}`);
+  }
+  for(const [key, expectedCount] of expectedEffects){
+    const effects = renderedByKey.get(key) || [];
+    check('STATUS_BANNER_PRESENT', effects.length === 1, `expected one authoritative status banner for ${key}, rendered=${effects.length}`);
+    if(effects.length === 1){
+      check('STATUS_BANNER_COUNT', Number(effects[0].count) === Number(expectedCount), `status banner ${key} count=${effects[0].count} authority=${expectedCount}`);
+    }
+  }
+
+  const prompt = state.pendingPrompt || null;
+  const modalOpen = document.getElementById('modal')?.classList.contains('on') === true;
+  const promptType = String(prompt?.type || '');
+  const localPrompt = !!prompt && Number(prompt.playerIndex) === viewer;
+  if(localPrompt && ['REACTION','MODAL_CHOICE','ZONE_SELECTION','CARD_SELECTION','HAND_SELECTION','BOARD_DESTINATION','BOARD_TARGET'].includes(promptType)){
+    check('LOCAL_PROMPT_VISIBLE', modalOpen, `local ${prompt.type} prompt has no visible production modal`);
+  }
+  if(localPrompt && ['BOARD_DESTINATION','BOARD_TARGET'].includes(promptType)){
+    const picker = document.querySelector('#modal.on .board-target-picker');
+    check('BOARD_PICKER_VISIBLE', !!picker && isVisible(picker), `local ${promptType} prompt has no visible production board picker`);
+    if(picker && isVisible(picker)){
+      const zones = [...picker.querySelectorAll('.board-target-zone')];
+      check('BOARD_PICKER_ALL_ZONES', zones.length === 3, `${promptType} picker rendered ${zones.length} zones instead of 3`);
+      if(zones.length === 3){
+        const zoneRects = zones.map(zone=>zone.getBoundingClientRect());
+        const widths = zoneRects.map(rect=>rect.width);
+        const heights = zoneRects.map(rect=>rect.height);
+        check('BOARD_PICKER_STABLE_ZONE_WIDTH', Math.max(...widths) - Math.min(...widths) <= 2, `${promptType} picker zone widths changed: ${widths.map(value=>Math.round(value)).join(',')}`);
+        check('BOARD_PICKER_STABLE_ZONE_HEIGHT', Math.max(...heights) - Math.min(...heights) <= 2, `${promptType} picker zone heights changed: ${heights.map(value=>Math.round(value)).join(',')}`);
+        zones.forEach((zone, index)=>{
+          const overflowY = getComputedStyle(zone).overflowY;
+          const hasExtraGeometry = zone.classList.contains('has-extra-rows')
+            || !!zone.querySelector('.board-target-row.has-extra-cells');
+          if(hasExtraGeometry){
+            if(zone.scrollHeight <= zone.clientHeight + 1) return;
+            check('BOARD_PICKER_INTERNAL_SCROLL', overflowY === 'auto' || overflowY === 'scroll', `${promptType} Zone ${index + 1} extra geometry cannot scroll (client=${zone.clientHeight}, scroll=${zone.scrollHeight}, overflow-y=${overflowY})`);
+            return;
+          }
+          check('BOARD_PICKER_DEFAULT_FITS', zone.scrollHeight <= zone.clientHeight + 4, `${promptType} Zone ${index + 1} clips its normal three rows (client=${zone.clientHeight}, scroll=${zone.scrollHeight})`);
+          check('BOARD_PICKER_DEFAULT_NO_SCROLL', overflowY === 'hidden' || overflowY === 'clip', `${promptType} Zone ${index + 1} shows a default scrollbar (overflow-y=${overflowY})`);
+        });
+      }
+      if(promptType === 'BOARD_DESTINATION'){
+        const targets = [...picker.querySelectorAll('.board-target-cell.is-square-target.is-targetable')];
+        check('BOARD_DESTINATION_HIGHLIGHTS', targets.length > 0, 'board destination prompt has no highlighted selectable squares');
+        for(const target of targets){
+          const marker = target.querySelector('.board-target-square-mark');
+          check('BOARD_DESTINATION_NO_SQUARE_LABEL', !String(marker?.textContent || '').trim(), `board destination ${target.dataset.pickerPos || ''} displays filler text`);
+          const borderedElement = marker || target;
+          check('BOARD_DESTINATION_SOLID_BORDER', getComputedStyle(borderedElement).borderTopStyle === 'solid', `board destination ${target.dataset.pickerPos || ''} does not use a solid selection border`);
+        }
+      }
+    }
+  }
+  if(localPrompt && ['CARD_SELECTION','HAND_SELECTION'].includes(promptType)){
+    const canvas = document.querySelector('#modal.on #visual-page-canvas');
+    check('CARD_PICKER_VISIBLE', !!canvas && isVisible(canvas), `local ${promptType} prompt has no visible production card picker`);
+    if(canvas && isVisible(canvas)){
+      let renderedIids = [];
+      try{ renderedIids = JSON.parse(String(canvas.dataset.pickerCardIids || '[]')).map(String); }catch(error){}
+      const missing = (prompt.eligibleIids || []).map(String).filter(iid=>!renderedIids.includes(iid));
+      check('CARD_PICKER_CANONICAL_ELIGIBILITY', missing.length === 0, `${promptType} picker omitted eligible authority IIDs: ${missing.join(',')}`);
+    }
+  }
+  if(prompt?.waitingForOpponent && String(prompt.type || '') === 'REACTION'){
+    check('OPPONENT_REACTION_WAIT_VISIBLE', modalOpen && !!document.querySelector('#modal.on .phase7-reaction-waiting'), 'opponent reaction pause window is not visible');
+  }
+  return findings;
+}
+
+function coinPresentationReachedOracleFrame(view){
+  const state = view?.state || {};
+  const screen = document.getElementById('s-coin');
+  const expectedKey = [String(state.matchId || ''), Number(state.revision || 0), Number(state.coinFlip?.winner)].join(':');
+  if(!screen?.classList.contains('active') || screen.dataset.phase7CoinPresentationKey !== expectedKey) return false;
+  if(normalizedUiText(document.getElementById('coin-result')?.textContent).length === 0) return false;
+  if(normalizedUiText(document.getElementById('coin-winner-text')?.textContent).length === 0) return false;
+  const localChooses = (view?.legalCommands || []).some(command=>String(command?.type || '') === 'CHOOSE_TURN_ORDER');
+  if(!localChooses) return true;
+  const buttons = visibleButtons();
+  return buttons.some(button=>normalizedUiText(button.textContent) === 'Go First' && !button.disabled)
+    && buttons.some(button=>normalizedUiText(button.textContent) === 'Go Second' && !button.disabled);
+}
+
+function renderedUiReachedOracleFrame(view){
+  const state = view?.state || {};
+  if(String(state.phase || '') === 'coin'){
+    return !timingUiMode || coinPresentationReachedOracleFrame(view);
+  }
+  if(state.outcome){
+    return !!document.getElementById('s-win')?.classList.contains('active')
+      && document.querySelectorAll('#win-zones .win-z').length === 3;
+  }
+  if(!document.getElementById('s-game')?.classList.contains('active')) return false;
+  const viewer = Number(view?.playerIndex);
+  const opponent = viewer === 0 ? 1 : 0;
+  const pendingPrompt = state.pendingPrompt || null;
+  if(pendingPrompt
+    && Number(pendingPrompt.playerIndex) === viewer
+    && ['REACTION','MODAL_CHOICE','ZONE_SELECTION','CARD_SELECTION','HAND_SELECTION','BOARD_DESTINATION','BOARD_TARGET'].includes(String(pendingPrompt.type || ''))
+    && document.getElementById('modal')?.classList.contains('on') !== true){
+    // modal-gate:open is emitted before the production modal has necessarily
+    // mounted. Keep the oracle candidate pending until that frame is visible;
+    // auditCurrentUiProjection still records the violation after its bounded
+    // 2.5-second deadline if the prompt UI genuinely never appears.
+    return false;
+  }
+  if(pendingPrompt
+    && Number(pendingPrompt.playerIndex) === viewer
+    && ['BOARD_DESTINATION','BOARD_TARGET'].includes(String(pendingPrompt.type || ''))){
+    const picker = document.querySelector('#modal.on .board-target-picker');
+    if(!picker || !isVisible(picker)) return false;
+  }
+  const localHandCount = Number(state.players?.[viewer]?.hand?.length ?? state.players?.[viewer]?.handCount ?? 0);
+  const opponentHandCount = Number(state.players?.[opponent]?.handCount ?? state.players?.[opponent]?.hand?.length ?? 0);
+  const opponentPanelCount = Math.min(opponentHandCount, 12);
+  const map = hitMap();
+  if(Number(map?.handCards?.length || 0) !== localHandCount
+    || Number(map?.opponentHandCards?.length || 0) !== opponentPanelCount) return false;
+  // Durable card-status flags are applied to the projected board before the
+  // render scheduler publishes a new hit map.  Do not compare a freshly
+  // marked canonical card against the preceding canvas frame.  Waiting here
+  // remains fail-closed: if the actual Marked for Death visual never reaches
+  // the hit map, the normal bounded oracle timeout still records the failure.
+  for(const entry of canonicalBoardEntries(state)){
+    const marked = (entry?.card?.statuses || []).some(status=>String(status || '').startsWith('VIGILANTES_MARK:'));
+    if(!marked) continue;
+    const rendered = (map?.cards || []).find(hit=>String(hit?.card?.iid || '') === String(entry.card.iid || ''))?.card;
+    const visual = rendered?.visual || rendered;
+    if(!(rendered && (
+      rendered._markedForDeath === true
+      || rendered.flags?.markedForDeath === true
+      || visual?._markedForDeath === true
+      || visual?.flags?.markedForDeath === true
+    ))) return false;
+  }
+  // Status pills are committed after the authoritative board/status projection
+  // and can legitimately land a few animation frames after the hand hit map.
+  // Treat them as part of the oracle frame: transiently absent pills wait for
+  // the normal bounded projection deadline, while a genuinely missing or
+  // duplicate banner still fails closed when that deadline expires.
+  const renderedStatusCounts = new Map();
+  for(const effect of renderedEffectPills()){
+    const key = effectGroupKey(effect);
+    renderedStatusCounts.set(key, (renderedStatusCounts.get(key) || 0) + 1);
+  }
+  for(const [key] of expectedRenderedEffects(view)){
+    if(Number(renderedStatusCounts.get(key) || 0) !== 1) return false;
+  }
+  return true;
 }
 
 function auditCurrentUiProjection(view){
@@ -1070,8 +2709,41 @@ function auditCurrentUiProjection(view){
     || !bridge?.active
     || Number(bridge.revision) !== revision
     || bridge.presentationBusy) return;
+  if(projectionOracleCandidateKey !== auditKey){
+    projectionOracleCandidateKey = auditKey;
+    projectionOracleCandidateSince = Date.now();
+    return;
+  }
+  // Give the production renderer at least two frames after the bridge commits
+  // the authoritative revision. This is not a test-only rendering shortcut;
+  // it prevents comparing the authority to the previous shipping frame.
+  const candidateAge = Date.now() - projectionOracleCandidateSince;
+  // A terminal revision is committed before the shipping result sequence has
+  // finished its final fate/result motion and mounted the production win
+  // screen. That sequence legitimately takes several seconds with full
+  // presentation enabled. Keep the state-to-DOM oracle behind it instead of
+  // auditing the outgoing board frame as though it were the final screen.
+  // A cold production bootstrap must mount the coin screen and run its real
+  // 1.8-second result animation before the winner buttons exist. Give that
+  // dedicated presentation a bounded allowance that also tolerates Chromium's
+  // background-tab timer throttling during parallel paired campaigns. The
+  // five-pair certification layout can defer an otherwise-correct production
+  // modal for more than ten seconds while another tab renders a cinematic, so
+  // every shipping frame gets the same bounded allowance. This remains a
+  // fail-closed DOM assertion; it only prevents scheduler delay from being
+  // misclassified as a missing UI path.
+  const warmReconnectFrame = matchStart?.matchId === String(view?.state?.matchId || '')
+    && Number(matchStart?.startRevision || 0) > 3
+    && revision === Number(matchStart?.startRevision || 0);
+  const oracleFrameTimeoutMs = 15000;
+  if(candidateAge < 50 || (!renderedUiReachedOracleFrame(view) && candidateAge < oracleFrameTimeoutMs)) return;
   lastProjectionOracleKey = auditKey;
   exchangeCrossSeatSnapshot(view);
+  auditNegativePromptObligations(view);
+  auditPileSelectionObligations(view);
+  auditNoTriggerUiObligations(view);
+  auditUseLimitObligations(view);
+  auditTimedStatusObligations(view);
   const legacy = globalThis.FATE_GAME_STATE || globalThis.getFateGameState?.();
   if(!legacy) return;
   const violations = [];
@@ -1167,25 +2839,31 @@ function auditCurrentUiProjection(view){
     }
     if(!legacyEntry || typeof globalThis.getEffectiveFate !== 'function') return Number.NaN;
     const observed = globalThis.getEffectiveFate(legacyEntry, canonicalEntry.z);
-    if(String(canonicalEntry?.card?.id || '') === '55'){
-      const expected = expectedEffectiveFateFromOracle(view.state, cardIid);
-      if(Number(observed) !== Number(expected)){
+    const expected = expectedEffectiveFateFromOracle(view.state, cardIid);
+    if(Number(observed) !== Number(expected)){
         result.lastEffectiveFateDiagnostic = {
-          cardId:'55', cardIid:String(cardIid || ''), expected:Number(expected), observed:Number(observed),
+          cardId:String(canonicalEntry?.card?.id || ''), cardIid:String(cardIid || ''), expected:Number(expected), observed:Number(observed),
           zone:Number(canonicalEntry.z),
+          canonical:{currentFate:canonicalEntry?.card?.currentFate, counters:canonicalEntry?.card?.counters, statuses:canonicalEntry?.card?.statuses, fateReductionEffectUses:view.state?.fateReductionEffectUses},
           source:{
             id:String(legacyEntry.id || ''), owner:legacyEntry.owner, controller:legacyEntry.controller,
             aff:legacyEntry.aff, affiliation:legacyEntry.affiliation, faceDown:legacyEntry.faceDown,
             noBonus:legacyEntry.noBonus,
+            currentFate:legacyEntry.currentFate,
+            phase7JimmyReductionEffectUses:legacyEntry._phase7JimmyReductionEffectUses,
+            phase7CurrentMultiplayer:legacy._phase7CurrentMultiplayer,
+            damageDoneP:legacy.damageDoneP,
+            counters:legacyEntry.counters,
+            permanentFateCeiling:legacyEntry._permanentFateCeiling,
+            permanentFateDebuffAmount:legacyEntry._permanentFateDebuffAmount,
             suppressedFlags:Object.fromEntries(Object.entries(legacyEntry).filter(([key, value])=>value === true && /suppress|negat|immune/i.test(key)))
           },
-          peers:(legacy.board?.[canonicalEntry.z] || []).flat().filter(Boolean).map(card=>({
+          peers:(legacy.board || []).flat(2).filter(Boolean).map(card=>({
             iid:String(card.iid || ''), id:String(card.id || ''), owner:card.owner, controller:card.controller,
             aff:card.aff, affiliation:card.affiliation, faceDown:card.faceDown,
             immutable:typeof globalThis.isCardEffectImmutable === 'function' ? !!globalThis.isCardEffectImmutable(card) : false
           }))
         };
-      }
     }
     return observed;
   });
@@ -1209,16 +2887,30 @@ function auditCurrentUiProjection(view){
       seat
     });
   }
+  for(const finding of auditRenderedShippingUi(view)){
+    const entry = {
+      ...finding,
+      matchId:String(view.state.matchId || ''),
+      revision,
+      seat,
+      at:Date.now()
+    };
+    result.domViolations.push(entry);
+    if(result.domViolations.length > 200) result.domViolations.shift();
+    recordError(entry.detail, {stage:'shipping-dom-oracle', code:entry.code, revision});
+  }
 }
 
 function noteCommandCard(view, command){
+  if(command?.type === 'DISCARD_CARD') manualDiscardCoveredThisMatch = true;
   if(command?.type === 'ANSWER_PROMPT'){
     const payload = command.payload || {};
     note(result.answerVariants, payload.cancel === true
       ? 'CANCEL'
       : (payload.mode ? `MODE_${String(payload.mode).toUpperCase()}` : 'ACCEPT'));
   }
-  const primaryIid = command?.payload?.cardIid || command?.payload?.sourceIid || command?.payload?.reactionIid;
+  const primaryIid = command?.payload?.cardIid || command?.payload?.sourceIid
+    || command?.payload?.targetIid || command?.payload?.reactionIid;
   const iids = [primaryIid, ...(command?.payload?.tributeIids || [])].map(String).filter(Boolean);
   let primaryCardId = '';
   for(const [index, iid] of iids.entries()){
@@ -1249,6 +2941,7 @@ function commandKey(command){
 }
 
 const attemptedTurnCommandKeys = new Set();
+const successfulTurnActionCounts = new Map();
 
 function turnCommandAttemptKey(view, command){
   return [
@@ -1258,6 +2951,20 @@ function turnCommandAttemptKey(view, command){
     String(command?.type || ''),
     commandKey(command)
   ].join(':');
+}
+
+function successfulTurnActionKey(view){
+  return [
+    String(view?.state?.matchId || ''),
+    Number(view?.state?.turn || 0),
+    Number(view?.playerIndex ?? -1)
+  ].join(':');
+}
+
+function noteSuccessfulTurnAction(view, command){
+  if(!command || command.type === 'END_TURN') return;
+  const key = successfulTurnActionKey(view);
+  successfulTurnActionCounts.set(key, Number(successfulTurnActionCounts.get(key) || 0) + 1);
 }
 
 function chooseCommand(view){
@@ -1290,6 +2997,17 @@ function chooseCommand(view){
       const variant = organicVariant();
       const cancel = choices.find(command=>command.payload?.cancel === true);
       if(cancel && [1, 7].includes(variant)) return cancel;
+      const promptSourceId = String(prompt?.semanticSourceCardId || sourceCardId(view, prompt?.sourceIid) || '');
+      if(requestedFocusedScenario === 'search-square-draw' && promptSourceId === '13'){
+        // Johnathan is an up-to-two search, so an empty answer is legal. The
+        // focused shipping scenario must deliberately exercise the real card
+        // picker with actual Supporters instead of silently proving only the
+        // zero-card branch.
+        const nonEmptySearch = choices
+          .filter(command=>command.payload?.cancel !== true && commandSelectedIids(command).length > 0)
+          .sort((left, right)=>commandSelectedIids(right).length - commandSelectedIids(left).length)[0];
+        if(nonEmptySearch) return nonEmptySearch;
+      }
       if(String(prompt.type || '') === 'REACTION'){
         const partnerReactions = choices.filter(command=>{
           const reactionIid = String(command.payload?.reactionIid || '');
@@ -1335,8 +3053,84 @@ function chooseCommand(view){
     organicTargetSetupPending
     || queuedOrganicPartners.some(id=>!shouldHoldOrganicReactionCard(id) && !organicPartnerCommandsThisMatch.has(id))
   );
+  // Once every required target/partner has been established, keep organic play
+  // representative without exhaustively walking every distinct movement or
+  // repeatable activation command. Four accepted non-End-Turn actions is a
+  // generous real turn; after that the shipping End Turn control advances the
+  // match. Required setup is never curtailed by this budget.
+  if(!organicSetupPending && Number(successfulTurnActionCounts.get(successfulTurnActionKey(view)) || 0) >= 4){
+    const boundedEndTurn = commands.find(command=>command.type === 'END_TURN') || null;
+    if(boundedEndTurn) return boundedEndTurn;
+  }
+  // Exercise the actual shipping card-detail Discard button once per organic
+  // match, but only after the focused cards and adversarial partners have been
+  // established. Never sacrifice those certification subjects for coverage.
+  if(organicCardCampaign && !requestedFocusedScenario && !organicSetupPending && !manualDiscardCoveredThisMatch){
+    const protectedIds = new Set([...queuedOrganicTargets, ...queuedOrganicPartners]);
+    const manualDiscard = commands.find(command=>
+      command?.type === 'DISCARD_CARD'
+        && !attemptedTurnCommandKeys.has(turnCommandAttemptKey(view, command))
+        && !protectedIds.has(sourceCardId(view, command.payload?.targetIid))
+    );
+    if(manualDiscard) return manualDiscard;
+  }
+  if(organicTargetSetupPending){
+    const fieldReactionPartnersPending = queuedOrganicPartners.filter(id=>
+      ['56','67'].includes(id) && !organicPartnerCommandsThisMatch.has(id)
+    );
+    if(fieldReactionPartnersPending.length){
+      const directFieldReactionPartner = commands.find(command=>{
+        const type = String(command?.type || '');
+        if(!['SET_CARD_FROM_DECK','SET_CARD','CONSOLIDATE_CARD'].includes(type)) return false;
+        const iid = command.payload?.cardIid;
+        if(!fieldReactionPartnersPending.includes(sourceCardId(view, iid))) return false;
+        if(type !== 'SET_CARD_FROM_DECK' && !hasRenderedHandCard(iid)) return false;
+        return hasBoardPosition(command.payload?.destination) && boardPositionIsUnobscured(command.payload.destination);
+      });
+      if(directFieldReactionPartner) return directFieldReactionPartner;
+      const reactionScaffold = commands.find(command=>
+        command?.type === 'SET_CARD'
+          && queuedOpeningScaffoldIds.includes(sourceCardId(view, command.payload?.cardIid))
+          && Number(command.payload?.destination?.r) === 1
+          && hasRenderedHandCard(command.payload?.cardIid)
+          && boardPositionIsUnobscured(command.payload?.destination)
+      );
+      if(reactionScaffold) return reactionScaffold;
+    }
+    // Search across action types before applying generic action-type priority.
+    // Otherwise an unrelated deck-set command can repeatedly outrank a legal
+    // focused consolidation and let the match end without exercising its card.
+    const directTarget = commands.find(command=>{
+      const type = String(command?.type || '');
+      if(!['SET_CARD_FROM_DECK','SET_CARD','SET_ADAPTIVE_TOKEN','CONSOLIDATE_CARD'].includes(type)) return false;
+      if(attemptedTurnCommandKeys.has(turnCommandAttemptKey(view, command))) return false;
+      const iid = command.payload?.cardIid;
+      const cardId = sourceCardId(view, iid);
+      if(!queuedOrganicTargets.includes(cardId) || organicTargetCommandsThisMatch.has(cardId)) return false;
+      if(type !== 'SET_CARD_FROM_DECK' && !hasRenderedHandCard(iid)) return false;
+      if(!hasBoardPosition(command.payload?.destination) || !boardPositionIsUnobscured(command.payload.destination)) return false;
+      if(type === 'CONSOLIDATE_CARD'){
+        const reinforcementTargets = new Set(queuedOrganicTargets.filter(id=>['47','70'].includes(id)));
+        const protectedIds = new Set([
+          ...queuedOrganicTargets.filter(id=>!reinforcementTargets.has(id)),
+          ...queuedOrganicPartners.filter(id=>!organicPartnerCommandsThisMatch.has(id))
+        ]);
+        if((command.payload?.tributeIids || []).some(tributeIid=>protectedIds.has(sourceCardId(view, tributeIid)))) return false;
+      }
+      return true;
+    });
+    if(directTarget) return directTarget;
+    const contestedScaffold = commands.find(command=>
+      command?.type === 'SET_CARD'
+        && queuedOpeningScaffoldIds.includes(sourceCardId(view, command.payload?.cardIid))
+        && Number(command.payload?.destination?.r) === 1
+        && hasRenderedHandCard(command.payload?.cardIid)
+        && boardPositionIsUnobscured(command.payload?.destination)
+    );
+    if(contestedScaffold) return contestedScaffold;
+  }
   const priority = organicSetupPending
-    ? ['SET_CARD_FROM_DECK','CONSOLIDATE_CARD','SET_CARD','SET_ADAPTIVE_TOKEN','ACTIVATE_EFFECT','ACTIVATE_LANDSCAPE','FLIP_CARD','MOVE_CARD','END_TURN']
+    ? ['SET_CARD','SET_ADAPTIVE_TOKEN','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','ACTIVATE_EFFECT','ACTIVATE_LANDSCAPE','FLIP_CARD','MOVE_CARD','END_TURN']
     : ['ACTIVATE_EFFECT','SET_CARD_FROM_DECK','ACTIVATE_LANDSCAPE','CONSOLIDATE_CARD','SET_CARD','SET_ADAPTIVE_TOKEN','FLIP_CARD','MOVE_CARD','END_TURN'];
   for(const type of priority){
     let options = commands.filter(command=>command.type === type);
@@ -1382,14 +3176,22 @@ function chooseCommand(view){
         const cardId = sourceCardId(view, iid);
         const heldForReaction = ['SET_CARD','SET_ADAPTIVE_TOKEN','CONSOLIDATE_CARD'].includes(type)
           && shouldHoldOrganicReactionCard(cardId);
-        return !heldForReaction && queuedOrganicTargets.includes(cardId);
+        return !heldForReaction
+          && queuedOrganicTargets.includes(cardId)
+          && (!organicTargetSetupPending || !organicTargetCommandsThisMatch.has(cardId));
       }) : null;
       const organicPartnerOption = organicCardCampaign ? options.find(command=>{
         const iid = command.payload?.cardIid || command.payload?.sourceIid;
         const cardId = sourceCardId(view, iid);
         const heldForReaction = ['SET_CARD','SET_ADAPTIVE_TOKEN','CONSOLIDATE_CARD'].includes(type)
           && shouldHoldOrganicReactionCard(cardId);
-        return !heldForReaction && queuedOrganicPartners.includes(cardId);
+        // Once one adversarial partner has been exercised, do not let its
+        // duplicate copies indefinitely outrank another required partner.
+        // Every queued partner must contribute real command/event evidence in
+        // this match before generic focused-card play resumes.
+        return !heldForReaction
+          && queuedOrganicPartners.includes(cardId)
+          && !organicPartnerCommandsThisMatch.has(cardId);
       }) : null;
       if(organicTargetOption) return organicTargetOption;
       // A partner may build the board, but it must never consume consolidation
@@ -1445,12 +3247,26 @@ async function selectVisualPickerIids(view, iids, cardsOverride = null){
     return isVisible(candidate) ? candidate : null;
   });
   if(!canvas) return false;
-  const cards = Array.isArray(cardsOverride)
+  // The shipping visual picker can show a filtered subset of the authority's
+  // private action-card catalogue (notably SET_CARD_FROM_DECK). Drive the
+  // exact order rendered by that picker instead of assuming the broader
+  // private catalogue uses the same indexes.
+  let renderedPickerIids = [];
+  try{ renderedPickerIids = JSON.parse(String(canvas.dataset.pickerCardIids || '[]')).map(String); }
+  catch(error){ renderedPickerIids = []; }
+  const fallbackCards = Array.isArray(cardsOverride)
     ? cardsOverride
     : (view?.state?.pendingHandLimit
       ? (view.state.players?.[view.playerIndex]?.hand || [])
       : pickerCards(view));
+  const cards = renderedPickerIids.length
+    ? renderedPickerIids.map(iid=>({iid}))
+    : fallbackCards;
   const wanted = (iids || []).map(String);
+  const activeView = report() || view;
+  const activePrompt = activeView?.state?.pendingPrompt || null;
+  const promptSourceIid = String(activePrompt?.sourceIid || '');
+  const promptSourceCardId = String(activePrompt?.semanticSourceCardId || sourceCardId(activeView, promptSourceIid) || '');
   for(const iid of wanted){
     const index = cards.findIndex(card=>String(card?.iid || '') === iid);
     if(index < 0) return false;
@@ -1468,12 +3284,28 @@ async function selectVisualPickerIids(view, iids, cardsOverride = null){
     // The production canvas rejects releases within 80ms of the preceding
     // handled action. Preserve that boundary for multi-card/page selection.
     await sleep(120);
+    const selected = await waitFor(()=>{
+      try{ return JSON.parse(String(canvas.dataset.selectedIids || '[]')).map(String).includes(iid); }
+      catch(error){ return false; }
+    }, 1200);
+    if(!selected) return false;
     for(let p = 0; p < page; p++){
       if(!clickButton('Prev', true)) return false;
       await sleep(100);
     }
   }
-  return clickButton('Confirm') || clickButton('Choose Destination');
+  const submitted = clickButton('Confirm') || clickButton('Choose Destination');
+  if(submitted){
+    result.cardPickerSelections.push({
+      at:Date.now(),
+      promptSourceCardId,
+      promptSourceIid,
+      selectedIids:wanted.slice(),
+      selectedByVisibleCanvasClick:true
+    });
+    if(result.cardPickerSelections.length > 80) result.cardPickerSelections.shift();
+  }
+  return submitted;
 }
 
 async function selectHandLimitIids(iids){
@@ -1541,21 +3373,53 @@ async function selectHandLimitIids(iids){
 }
 
 async function selectBoardPickerIids(view, iids){
+  result.lastStage = 'prompt:BOARD_TARGET:wait-picker';
   const picker = await waitFor(()=>{
-    const candidate = document.querySelector('.board-target-picker');
-    return isVisible(candidate) ? candidate : null;
-  });
+    const candidate = document.querySelector('#modal.on .board-target-picker');
+    if(isVisible(candidate)) return candidate;
+    // A completed cinematic can release the authoritative prompt one frame
+    // before its production picker mounts. Ask the bridge to perform its
+    // normal idempotent UI sync while waiting; never submit the prompt here.
+    globalThis.FatePhase7CurrentMultiplayerUi?.ensureInteractionUi?.();
+    return null;
+  }, 10000);
   if(!picker) return false;
   for(const iid of (iids || [])){
     let pos = null;
     (view.state.board || []).forEach((zone,z)=>(zone || []).forEach((row,r)=>(row || []).forEach((card,c)=>{
       if(card && String(card.iid || '') === String(iid)) pos = `${z}:${r}:${c}`;
     })));
-    const button = pos && picker.querySelector(`[data-picker-pos="${pos}"]`);
-    if(!button) return false;
+    let button = pos && picker.querySelector(`[data-picker-pos="${pos}"]`);
+    if(!button){ result.lastStage = `prompt:BOARD_TARGET:missing:${iid}`; return false; }
+    button.scrollIntoView({block:'center', inline:'center'});
+    await sleep(80);
+    button = document.querySelector(`#modal.on .board-target-picker [data-picker-pos="${pos}"]`);
+    if(!button){ result.lastStage = `prompt:BOARD_TARGET:remounted:${iid}`; return false; }
+    result.lastStage = `prompt:BOARD_TARGET:select:${iid}`;
     button.click();
+    let selected = await waitFor(()=>{
+      const current = document.querySelector(`#modal.on .board-target-picker [data-picker-pos="${pos}"]`);
+      return current?.classList.contains('is-selected');
+    }, 1200);
+    if(!selected){
+      button = document.querySelector(`#modal.on .board-target-picker [data-picker-pos="${pos}"]`);
+      if(!button) return false;
+      button.click();
+      selected = await waitFor(()=>document.querySelector(
+        `#modal.on .board-target-picker [data-picker-pos="${pos}"]`
+      )?.classList.contains('is-selected'), 1200);
+    }
+    if(!selected) return false;
   }
-  return clickButton('Confirm') || clickButton('Choose Destination');
+  const confirm = await waitFor(()=>visibleButtons().find(button=>{
+    if(!button.closest('#modal.on')) return false;
+    const label = String(button.textContent || '').trim().toLowerCase();
+    return label === 'confirm' || label === 'choose destination';
+  }), 1200);
+  if(!confirm) return false;
+  result.lastStage = 'prompt:BOARD_TARGET:confirm';
+  confirm.click();
+  return true;
 }
 
 async function clickBoardCardWhenReady(iid, timeoutMs = 4000, forceCanvas = false, closeModalImmediatelyBeforeInput = false){
@@ -1752,9 +3616,15 @@ async function selectOnBoardConsolidation(tributeIids, destination, beforeRevisi
   const destinationSelected = await waitFor(()=>{
     const bridge = globalThis.FatePhase7CurrentMultiplayerUi?.report?.();
     return bridge?.consolidationActive
-      && (bridge?.consolidationSelectedIids || []).length === wanted.length;
-  }, 1500);
+      && (bridge?.consolidationSelectedIids || []).length === wanted.length
+      && (globalThis.FATE_GAME_STATE || globalThis.getFateGameState?.())?._consolidating?._phase7VisualReady === true;
+  }, 2500);
   if(!destinationSelected) return false;
+  // The tribute click updates the production input controller's release guard.
+  // A human cannot physically press the destination in the same event frame;
+  // preserve that real gesture spacing so the destination pointer-up is not
+  // discarded as a duplicate of the tribute click.
+  await sleep(120);
   result.lastStage = 'consolidation:choose-destination';
   for(let attempt = 0; attempt < 2; attempt += 1){
     // After the last tribute, the shipping UI can promote destination choice
@@ -1779,7 +3649,16 @@ async function selectOnBoardConsolidation(tributeIids, destination, beforeRevisi
     if(!globalThis.FatePhase7CurrentMultiplayerUi?.report?.().consolidationActive){
       return restartOnBoardConsolidation(command, beforeRevision, reentryAttempt);
     }
-    if(!clickBoardPosition(destination, attempt > 0)) return false;
+    const destinationTributeIid = wanted.find(iid=>{
+      const position = boardPositionForIid(report(), iid);
+      return Number(position?.z) === Number(destination?.z)
+        && Number(position?.r) === Number(destination?.r)
+        && Number(position?.c) === Number(destination?.c);
+    });
+    const clicked = destinationTributeIid
+      ? await clickBoardCardWhenReady(destinationTributeIid, 4000, true, true)
+      : clickBoardPosition(destination, true);
+    if(!clicked) return false;
     const submitted = await submitPhase7ModalCommandWhenShown(command, beforeRevision, 900);
     if(submitted) return true;
     await sleep(160);
@@ -1789,17 +3668,60 @@ async function selectOnBoardConsolidation(tributeIids, destination, beforeRevisi
 
 async function clickBoardDestinationWithRevision(destination, beforeRevision){
   for(let attempt = 0; attempt < 2; attempt += 1){
-    if(!clickBoardPosition(destination, attempt > 0)) return false;
+    // Card-detail presentation may remount after a set/search picker closes.
+    // A human dismisses that incidental modal before using the board; do the
+    // same and re-check the live destination geometry before each attempt.
+    if(document.getElementById('modal')?.classList.contains('on')){
+      if(!await closeIncidentalModalBeforeBoardInput()) return false;
+    }
+    if(!await waitForBoardInteraction(destination)) return false;
+    // Destination selection belongs to the renderer canvas even when an empty
+    // cell's DOM board layer happens to be above it at elementFromPoint.
+    if(!clickBoardPosition(destination, true)) return false;
     const submitted = await waitFor(()=>{
       const authoritative = report();
       const bridge = globalThis.FatePhase7CurrentMultiplayerUi?.report?.();
       return Number(authoritative?.revision) !== Number(beforeRevision)
         || Number(bridge?.lastCommandResult?.revision || 0) > Number(beforeRevision);
-    }, 900);
+    }, 1800);
     if(submitted) return true;
     await sleep(160);
   }
   return false;
+}
+
+async function driveAdaptiveTokenDeclaration(payload, beforeRevision){
+  const steps = [
+    {kind:'placement', value:String(payload.placementType || '').toLowerCase()},
+    {kind:'type', value:String(payload.declaredType || '').toLowerCase()},
+    {kind:'rarity', value:String(payload.declaredRarity || '').toLowerCase()},
+    {kind:'affiliation', value:String(payload.declaredAffiliation || '').toLowerCase()}
+  ];
+  for(const step of steps){
+    result.lastStage = `adaptive-token:${step.kind}:wait`;
+    const picker = await waitFor(()=>document.querySelector(
+      `#modal.on .achilles-token-picker[data-achilles-kind="${step.kind}"]`
+    ), 4000);
+    if(!picker) return false;
+    const button = [...picker.querySelectorAll('.achilles-token-choice[data-achilles-value]')].find(candidate=>
+      String(candidate.dataset.achillesValue || '').toLowerCase() === step.value
+    );
+    if(!button || !isVisible(button) || button.disabled) return false;
+    result.lastStage = `adaptive-token:${step.kind}:click`;
+    button.click();
+    await sleep(80);
+  }
+  result.lastStage = 'adaptive-token:wait-authority';
+  const submitted = await waitFor(()=>Number(report()?.revision) !== Number(beforeRevision), 5000);
+  if(!submitted) return false;
+  result.lastStage = 'adaptive-token:verify-rendered-art';
+  return !!await waitFor(()=>{
+    const hit = (hitMap()?.cards || []).find(candidate=>
+      String(candidate?.iid || candidate?.card?.iid || '') === String(payload.cardIid || '')
+    );
+    const card = hit?.card || hit;
+    return !!String(card?.runtimeImg || card?.img || '').trim();
+  }, 3000);
 }
 
 async function selectBoardPickerDestinations(destinations){
@@ -1808,11 +3730,41 @@ async function selectBoardPickerDestinations(destinations){
     return isVisible(candidate) ? candidate : null;
   });
   if(!picker) return false;
+  const activeView = report();
+  const prompt = activeView?.state?.pendingPrompt || null;
+  const promptSourceIid = String(prompt?.sourceIid || '');
+  const promptSourceCardId = String(prompt?.semanticSourceCardId || sourceCardId(activeView, promptSourceIid) || '');
   for(const destination of (destinations || [])){
     const key = `${Number(destination.z)}:${Number(destination.r)}:${Number(destination.c)}`;
-    const button = picker.querySelector(`[data-picker-pos="${key}"]`);
+    let button = picker.querySelector(`[data-picker-pos="${key}"]`);
     if(!button) return false;
+    if(button.classList.contains('is-selected')){
+      recordError('Board destination was preselected before the player clicked it', {
+        stage:'board-picker-selection', promptSourceCardId, promptSourceIid, destination:key
+      });
+      return false;
+    }
     button.click();
+    let selected = await waitFor(()=>document.querySelector(
+      `#modal.on .board-target-picker [data-picker-pos="${key}"]`
+    )?.classList.contains('is-selected'), 1200);
+    if(!selected){
+      button = document.querySelector(`#modal.on .board-target-picker [data-picker-pos="${key}"]`);
+      if(!button) return false;
+      button.click();
+      selected = await waitFor(()=>document.querySelector(
+        `#modal.on .board-target-picker [data-picker-pos="${key}"]`
+      )?.classList.contains('is-selected'), 1200);
+    }
+    if(!selected) return false;
+    result.boardPickerSelections.push({
+      at:Date.now(),
+      promptSourceCardId,
+      promptSourceIid,
+      destination:key,
+      selectedByVisibleClick:true
+    });
+    if(result.boardPickerSelections.length > 80) result.boardPickerSelections.shift();
   }
   return clickButton('Confirm');
 }
@@ -1982,7 +3934,7 @@ async function driveCommand(view, command){
   if(view.state.pendingPrompt) return drivePrompt(view, command);
   if(['SET_CARD','SET_ADAPTIVE_TOKEN'].includes(command.type)){
     result.lastStage = 'set:click-hand';
-    if(!clickHandCard(payload.cardIid)) return false;
+    if(!await clickHandCardWhenReady(payload.cardIid)) return false;
     result.lastStage = 'set:click-button';
     if(!await clickPhase7CardAction('place', payload.cardIid, ()=>clickHandCard(payload.cardIid))){ result.lastModal = captureModalDebug(); return false; }
     result.lastStage = 'set:wait-close';
@@ -1991,19 +3943,59 @@ async function driveCommand(view, command){
     result.lastStage = 'set:wait-destination';
     if(!await waitForBoardInteraction(payload.destination)) return false;
     result.lastStage = 'set:click-destination';
+    if(command.type === 'SET_ADAPTIVE_TOKEN'){
+      if(!clickBoardPosition(payload.destination)) return false;
+      return driveAdaptiveTokenDeclaration(payload, view.revision);
+    }
     return clickBoardDestinationWithRevision(payload.destination, view.revision);
   }
   if(command.type === 'CONSOLIDATE_CARD'){
     result.lastStage = 'consolidation:click-hand';
-    if(!clickHandCard(payload.cardIid)) return false;
+    if(!await clickHandCardWhenReady(payload.cardIid)) return false;
     result.lastStage = 'consolidation:click-button';
     if(!await clickPhase7CardAction('consolidate', payload.cardIid, ()=>clickHandCard(payload.cardIid))){ result.lastModal = captureModalDebug(); return false; }
     result.lastStage = 'consolidation:select-tributes';
     return selectOnBoardConsolidation(payload.tributeIids || [], payload.destination, view.revision, command);
   }
   if(command.type === 'ACTIVATE_EFFECT'){
+    if(sourceCardId(view, payload.sourceIid) === '40'){
+      // Christopher is explicitly player-timed. Prove that merely waiting on
+      // his legal Activate Effect button does not spend a use automatically.
+      result.lastStage = 'activate:christopher-manual-pause';
+      const beforePauseRevision = Number(view.revision);
+      await sleep(650);
+      const afterPause = report();
+      const stillLegal = (afterPause?.legalCommands || []).some(candidate=>
+        candidate?.type === 'ACTIVATE_EFFECT'
+          && String(candidate?.payload?.sourceIid || '') === String(payload.sourceIid || '')
+      );
+      result.manualActivationPauses.push({
+        cardId:'40',
+        sourceIid:String(payload.sourceIid || ''),
+        beforePauseRevision,
+        afterPauseRevision:Number(afterPause?.revision),
+        stillLegal,
+        waitedMs:650
+      });
+      if(Number(afterPause?.revision) !== beforePauseRevision || !stillLegal){
+        recordError('Christopher Erbs activated before the visible Activate Effect button was clicked', {
+          stage:'christopher-negative-ui-oracle',
+          sourceIid:String(payload.sourceIid || ''),
+          beforePauseRevision,
+          afterPauseRevision:Number(afterPause?.revision),
+          stillLegal
+        });
+        return false;
+      }
+    }
     if(!await clickBoardCardWhenReady(payload.sourceIid)) return false;
     return clickPhase7CardAction('activate', payload.sourceIid, ()=>clickBoardCard(payload.sourceIid));
+  }
+  if(command.type === 'DISCARD_CARD'){
+    result.lastStage = 'discard:click-card';
+    if(!await clickBoardCardWhenReady(payload.targetIid)) return false;
+    result.lastStage = 'discard:click-button';
+    return clickPhase7CardAction('discard', payload.targetIid, ()=>clickBoardCard(payload.targetIid));
   }
   if(command.type === 'MOVE_CARD'){
     result.lastStage = 'move:click-card';
@@ -2023,8 +4015,22 @@ async function driveCommand(view, command){
     return clickPhase7CardAction('flip', payload.cardIid, ()=>clickBoardCard(payload.cardIid));
   }
   if(command.type === 'SET_CARD_FROM_DECK'){
-    result.lastStage = 'set-from-deck:open-picker';
-    if(!await waitFor(()=>clickUiCommand('phase7-set-from-deck'), 4000)) return false;
+    const privateCard = (view.privateActionCards || []).find(card=>String(card?.iid || '') === String(payload.cardIid || ''));
+    const cardId = String(privateCard?.id || '');
+    result.lastStage = 'set-from-deck:open-deck-window';
+    const ownDeck = await waitFor(()=>{
+      const node = document.getElementById('my-deck');
+      return isVisible(node) ? node : null;
+    }, 4000);
+    if(!ownDeck) return false;
+    ownDeck.click();
+    result.lastStage = 'set-from-deck:click-card-action:' + cardId;
+    const cardAction = await waitFor(()=>{
+      const button = document.querySelector('#modal.on [data-phase7-deck-set-card-id="' + cardId + '"]');
+      return isVisible(button) ? button : null;
+    }, 4000);
+    if(!cardAction) return false;
+    cardAction.click();
     result.lastStage = 'set-from-deck:select-card';
     if(!await selectVisualPickerIids(view, [payload.cardIid], view.privateActionCards || [])) return false;
     result.lastStage = 'set-from-deck:wait-close';
@@ -2131,6 +4137,13 @@ async function submitDiagnosticFallback(view, command, before, failureKind){
     advanced:false
   };
   result.uiFallbacks.push(entry);
+  if(!diagnosticFallbackEnabled){
+    entry.error = exactShippingPathMode
+      ? 'Direct command fallback is forbidden in the exact shipping-path harness'
+      : 'Direct command fallback is disabled; add e2eAllowDiagnosticFallback=1 only for diagnostic runs';
+    publish();
+    return false;
+  }
   try{
     if(typeof beta()?.sendCommand !== 'function') throw new Error('Authoritative diagnostic fallback is unavailable');
     await beta().sendCommand(command.type, command.payload || {});
@@ -2201,13 +4214,13 @@ function recordError(message, details = {}){
   if(result.errors.length > 200) result.errors.shift();
   const revision = Number(details.revision ?? view?.state?.revision ?? view?.revision ?? 0);
   const matchId = String(details.matchId || view?.state?.matchId || matchStart?.matchId || '');
-  const replayKey = [runId, startGameIndex + result.completedGames + result.warmupMatches, matchId, revision, details.commandType || details.stage || 'unknown'].join(':');
+  const replayKey = [runId, currentOrganicGameIndex(), matchId, revision, details.commandType || details.stage || 'unknown'].join(':');
   result.failureBundles.push({
     version:1,
     replayKey,
     classification,
     error:errorEntry,
-    gameIndex:startGameIndex + result.completedGames + result.warmupMatches,
+    gameIndex:currentOrganicGameIndex(),
     matchId,
     revision,
     lastAcceptedRevision:revision,
@@ -2218,6 +4231,14 @@ function recordError(message, details = {}){
     crossSeatSnapshots:currentCrossSeatEvidence(view),
     presentationTrace:result.presentationTrace.slice(-48),
     oracleFindings:result.oracleViolations.slice(-24),
+    domFindings:result.domViolations.slice(-24),
+    renderedUi:{
+      turnHud:normalizedUiText(document.getElementById('turn-hud-turn')?.textContent),
+      turnOwner:normalizedUiText(document.getElementById('turn-hud-player')?.textContent),
+      modal:captureModalDebug(),
+      effects:renderedEffectPills(),
+      hitMapCounts:Object.fromEntries(Object.entries(hitMap() || {}).filter(([,value])=>Array.isArray(value)).map(([key,value])=>[key,value.length]))
+    },
     inputTrace:(globalThis.__fatePerf?.sceneInputDebug || []).slice(-36),
     shippingUiReport:globalThis.FatePhase7CurrentMultiplayerUi?.report?.() || null
   });
@@ -2225,41 +4246,161 @@ function recordError(message, details = {}){
   publish();
 }
 
+function installShippingErrorObservers(){
+  if(globalThis.__fatePhase7ShippingErrorObserversInstalled) return;
+  globalThis.__fatePhase7ShippingErrorObserversInstalled = true;
+  globalThis.addEventListener('error', event=>{
+    if(result.finishedAt || abandonMatchInFlight) return;
+    const message = String(event?.error?.stack || event?.error?.message || event?.message || 'Unhandled browser error');
+    recordError(message, {stage:'browser-error', filename:String(event?.filename || ''), line:Number(event?.lineno || 0)});
+  });
+  globalThis.addEventListener('unhandledrejection', event=>{
+    if(result.finishedAt || abandonMatchInFlight) return;
+    const reason = event?.reason;
+    recordError(String(reason?.stack || reason?.message || reason || 'Unhandled promise rejection'), {stage:'unhandled-rejection'});
+  });
+  const originalConsoleError = globalThis.console?.error?.bind(globalThis.console);
+  if(originalConsoleError){
+    globalThis.console.error = function(...args){
+      originalConsoleError(...args);
+      if(result.finishedAt || abandonMatchInFlight) return;
+      const message = args.map(value=>{
+        if(value instanceof Error) return value.stack || value.message;
+        if(typeof value === 'string') return value;
+        try { return JSON.stringify(value); } catch(_){ return String(value); }
+      }).join(' ');
+      recordError('Console error: ' + message, {stage:'console-error'});
+    };
+  }
+}
+
+installShippingErrorObservers();
+
 function beginMatch(view){
   const targets = queuedOrganicTargets.slice();
   targets.forEach(id=>{ organicCoverage(id).assignedMatches += 1; });
+  const startRevision = Number(view?.state?.revision || 0);
+  const observedFromAuthoritativeStart = startRevision <= 1;
+  const canonicalReinforcementPolicy = view?.state?.testRules?.zeroReinforcementCost === true
+    ? 'ZERO_COST'
+    : 'REAL';
+  // A second seat can attach after the authority has already created the fixture.
+  // Its locally queued scenario metadata is not evidence about that in-flight
+  // match, which is already treated as a warm-up and excluded from certification.
+  if(observedFromAuthoritativeStart && canonicalReinforcementPolicy !== queuedReinforcementPolicy.key){
+    recordError('Authoritative fixture reinforcement policy differs from the requested scenario policy', {
+      stage:'fixture-policy',
+      requested:queuedReinforcementPolicy.key,
+      canonical:canonicalReinforcementPolicy
+    });
+  }
   matchStart = {
+    gameIndex:currentOrganicGameIndex(),
     matchId:String(view.state.matchId || ''),
     startTurn:Number(view.state.turn || 0),
-    startRevision:Number(view.state.revision || 0),
+    startRevision,
     actions:result.actions,
     errors:result.errors.length,
     fallbackActions:result.fallbackActions,
     presentationTimingViolations:result.presentationTimingViolations.length,
     presentationTrace:result.presentationTrace.length,
     oracleViolations:result.oracleViolations.length,
+    domViolations:result.domViolations.length,
     crossSeatViolations:result.crossSeatViolations.length,
     failureBundles:result.failureBundles.length,
+    drawSequences:result.drawSequences.length,
+    boardPickerSelections:result.boardPickerSelections.length,
+    cardPickerSelections:result.cardPickerSelections.length,
     oracleCheckStart:Object.fromEntries(targets.map(id=>[id, Number(result.oracleCardChecks[id] || 0)])),
     oracleBranchStart:Object.fromEntries(targets.map(id=>[id, prefixedCountSnapshot(result.oracleCardBranches, id)])),
+    obligationEvidenceStart:Object.fromEntries(targets.map(id=>[id, obligationEvidenceSnapshot(id)])),
     landscapeId:String(view.state.landscapeId || ''),
     organicVariant:organicVariantContract().key,
+    organicVariantIndex:organicVariant(),
     organicPartners:queuedOrganicPartners.slice(),
     organicTargets:targets,
+    reinforcementPolicy:canonicalReinforcementPolicy,
+    reinforcementPolicyReason:queuedReinforcementPolicy.reason,
+    plannedObligations:Object.fromEntries(targets.map(cardId=>[
+      cardId,
+      plannedObligationsForScenario(cardId, organicVariant())
+    ])),
     organicCommandStart:Object.fromEntries(targets.map(id=>[id, Number(result.cardIds[id] || 0)])),
+    organicObservedActionStart:Object.fromEntries(targets.map(id=>[id, Number(result.observedActionCardIds[id] || 0)])),
     organicEffectStart:Object.fromEntries(targets.map(id=>[id, Number(result.effectEventCardIds[id] || 0)])),
+    organicResolvedEffectStart:Object.fromEntries(targets.map(id=>[id, Number(result.resolvedEffectCardIds[id] || 0)])),
+    organicSourceOverlayStart:Object.fromEntries(targets.map(id=>{
+      return [id, sourceOverlayEvidenceCount(id)];
+    })),
     organicBranchStart:Object.fromEntries(targets.map(id=>[id, prefixedCountSnapshot(result.effectBranches, id)]))
     ,organicPartnerCommandStart:Object.fromEntries(queuedOrganicPartners.map(id=>[id, Number(result.cardIds[id] || 0)]))
+    ,organicPartnerObservedActionStart:Object.fromEntries(queuedOrganicPartners.map(id=>[id, Number(result.observedActionCardIds[id] || 0)]))
+    ,organicPartnerEffectStart:Object.fromEntries(queuedOrganicPartners.map(id=>[id, Number(result.effectEventCardIds[id] || 0)]))
     ,organicPartnerOracleStart:Object.fromEntries(queuedOrganicPartners.map(id=>[id, Number(result.oracleCardChecks[id] || 0)]))
   };
   note(result.landscapes, matchStart.landscapeId);
+  captureTargetAvailability(view, 'match-start');
+}
+
+async function abandonStalledMatch(view, reason, details = {}){
+  if(abandonMatchInFlight) return false;
+  abandonMatchInFlight = true;
+  const stalledGameIndex = Number(matchStart?.gameIndex ?? currentOrganicGameIndex());
+  const stalledMatchId = String(view?.state?.matchId || matchStart?.matchId || '');
+  writeAbandonBarrier(stalledMatchId, stalledGameIndex, reason);
+  const failure = {
+    ...details,
+    stage:'stall-watchdog',
+    matchId:String(view?.state?.matchId || matchStart?.matchId || ''),
+    revision:Number(view?.state?.revision ?? view?.revision ?? 0),
+    turn:Number(view?.state?.turn || 0),
+    pendingPrompt:view?.state?.pendingPrompt || null,
+    pendingHandLimit:view?.state?.pendingHandLimit || null
+  };
+  recordError(String(reason || 'Shipping UI scenario stalled'), failure);
+  result.failedGames += 1;
+  result.matches.push({
+    ...(matchStart || {}),
+    failed:true,
+    failureReason:String(reason || 'Shipping UI scenario stalled'),
+    endRevision:failure.revision,
+    actionCount:matchStart ? result.actions - matchStart.actions : 0,
+    errorCount:matchStart ? result.errors.length - matchStart.errors : 1,
+    completeFromStart:false
+  });
+  if(result.matches.length > 100) result.matches.shift();
+  writeCheckpoint(currentOrganicGameIndex());
+  publish();
+  try{
+    // A paired production-UI fixture is one certification unit. Do not let one
+    // seat create the next match while its peer still drives this failed one.
+    // The peer sees our barrier in its normal loop and records the same failed
+    // scenario; both then leave matchmaking together.
+    const peerBarrier = await waitForPeerAbandonBarrier(stalledMatchId, stalledGameIndex);
+    if(!peerBarrier) recordError('Peer did not acknowledge the shared stalled-match barrier', {
+      stage:'stall-recovery-barrier', matchId:stalledMatchId, gameIndex:stalledGameIndex
+    });
+    globalThis.closeModal?.({forceHandLimitClose:true});
+    beta()?.unmountGameScreen?.();
+    beta()?.disconnect?.({forget:true});
+    await sleep(100);
+    if(result.completedGames + result.failedGames < targetGames) await queueNextMatch();
+  }catch(error){
+    recordError(error?.message || error, {stage:'stall-recovery'});
+  }finally{
+    matchStart = null;
+    lastProgressAt = Date.now();
+    abandonMatchInFlight = false;
+  }
+  return true;
 }
 
 async function queueNextMatch(){
-  const gameIndex = startGameIndex + result.completedGames + result.warmupMatches;
+  const gameIndex = currentOrganicGameIndex();
   const organicScenario = organicScenarioForGame(gameIndex);
   organicTargetCommandsThisMatch = new Set();
   organicPartnerCommandsThisMatch = new Set();
+  manualDiscardCoveredThisMatch = false;
   queuedOrganicTargets = organicTargetsForGame(gameIndex);
   const variantContract = ORGANIC_VARIANTS[organicScenario?.variantIndex ?? (Math.max(0, gameIndex) % ORGANIC_VARIANTS.length)];
   queuedOrganicPartners = organicCardCampaign
@@ -2271,15 +4412,21 @@ async function queueNextMatch(){
   // Production matchmaking enforces rarity-aware copy limits. Use every
   // focused card at most once, then fill a short family with unique helpers.
   const helperIds = eligibleCardIds.filter(id=>!focusedCardIdSet.has(id));
-  const exactScenario = organicCardCampaign
-    ? exactOrganicScenarioDeck(queuedOrganicTargets, queuedOrganicPartners)
-    : null;
-  const deckIds = exactScenario?.deckIds || [...new Set([...rotatedFocus, ...helperIds])].slice(0, 40);
-  const landscapeId = focusedLandscapeIds.length
+  const landscapeId = requestedLandscapeId || (focusedLandscapeIds.length
     ? focusedLandscapeIds[gameIndex % focusedLandscapeIds.length]
     : (organicCardCampaign
         ? organicLandscapeForGame(gameIndex, queuedOrganicTargets[0])
-        : `igb${(gameIndex % 20) + 1}`);
+        : `igb${(gameIndex % 20) + 1}`));
+  queuedReinforcementPolicy = organicCardCampaign
+    ? reinforcementPolicyForScenario(gameIndex, queuedOrganicTargets[0], landscapeId)
+    : Object.freeze({key:'REAL',zeroReinforcementCost:false,reason:'NON_ORGANIC'});
+  const exactScenario = organicCardCampaign
+    ? exactOrganicScenarioDeck(queuedOrganicTargets, queuedOrganicPartners, gameIndex, seat, organicScenario?.variantIndex ?? 0)
+    : null;
+  const deckIds = exactScenario?.deckIds || [...new Set([...rotatedFocus, ...helperIds])].slice(0, 40);
+  queuedOpeningScaffoldIds = organicCardCampaign
+    ? zeroCostOpeningScaffoldIds(queuedOrganicTargets, queuedOrganicPartners, deckIds)
+    : [];
   result.queuedDecks.push({
     gameIndex,
     landscapeId,
@@ -2294,6 +4441,9 @@ async function queueNextMatch(){
     ,organicVariantIndex:organicScenario?.variantIndex ?? 0
     ,organicRequiredMatches:organicScenario?.requiredMatches ?? 0
     ,organicPartners:queuedOrganicPartners.slice()
+    ,openingScaffoldIds:queuedOpeningScaffoldIds.slice()
+    ,plannedObligations:queuedOrganicTargets.flatMap(cardId=>plannedObligationsForScenario(cardId, organicScenario?.variantIndex ?? 0))
+    ,reinforcementPolicy:queuedReinforcementPolicy
   });
   if(result.queuedDecks.length > 30) result.queuedDecks.shift();
   document.querySelectorAll('.effect-activation-cinematic').forEach(node=>node.remove());
@@ -2309,10 +4459,13 @@ async function queueNextMatch(){
       ? [...queuedOrganicTargets.filter(id=>
           !organicDeckHeldTargets(queuedOrganicTargets).includes(id)
           && !organicDeckTopTargets(queuedOrganicTargets).includes(id)
-        ), ...queuedOrganicPartners]
+        ), ...queuedOrganicPartners, ...queuedOpeningScaffoldIds]
       : [],
     testDeckCardIds:organicCardCampaign ? organicDeckHeldTargets(queuedOrganicTargets) : [],
-    testDeckTopCardIds:organicCardCampaign ? organicDeckTopTargets(queuedOrganicTargets) : []
+    testDeckTopCardIds:organicCardCampaign ? organicDeckTopTargets(queuedOrganicTargets) : [],
+    testRules:organicCardCampaign && queuedReinforcementPolicy.zeroReinforcementCost
+      ? {zeroReinforcementCost:true}
+      : null
   });
   matchStart = null;
 }
@@ -2341,7 +4494,7 @@ async function loop(){
     }catch(_){ }
     globalThis.FATE_DISABLE_EFFECT_ACTIVATION_CINEMATIC = false;
   }
-  while(!stopped && result.completedGames < targetGames){
+  while(!stopped && result.completedGames + result.failedGames < targetGames){
     claimTestRunLock();
     if(maxRuntimeMs && Date.now() - result.startedAt >= maxRuntimeMs){
       result.stopReason = 'runtime-budget';
@@ -2353,8 +4506,26 @@ async function loop(){
     }
     const view = report();
     if(view?.state){
+      const peerAbandon = readPeerAbandonBarrier(view.state.matchId);
+      if(peerAbandon && Number(peerAbandon.gameIndex) === Number(matchStart?.gameIndex ?? currentOrganicGameIndex())){
+        await abandonStalledMatch(view, 'Peer seat abandoned the same stalled production-UI scenario', {
+          peerSeat:String(peerAbandon.seat || ''), peerReason:String(peerAbandon.reason || '')
+        });
+        continue;
+      }
+      const progressKey = `${String(view.state.matchId || '')}:${Number(view.state.revision ?? view.revision ?? 0)}`;
+      if(progressKey !== lastObservedProgressKey){
+        lastObservedProgressKey = progressKey;
+        lastProgressAt = Date.now();
+      }
       auditCurrentUiProjection(view);
       ingestPresentationBatch(view);
+      if(matchStart?.matchId === String(view.state.matchId || '')) captureTargetAvailability(view, 'revision');
+      const projectionAuditKey = `${String(view.state.matchId || '')}:${Number(view.state.revision ?? view.revision ?? 0)}`;
+      if(projectionAuditKey !== lastProjectionOracleKey){
+        await sleep(30);
+        continue;
+      }
     }
     if(!view?.state || !Number.isInteger(Number(view.playerIndex))){
       if(!matchmakingInFlight
@@ -2392,14 +4563,26 @@ async function loop(){
         const preferFirst = ((result.completedGames + (seat === 'B' ? 1 : 0)) % 2) === 0;
         const command = choices.find(candidate=>candidate.payload?.goFirst === preferFirst) || choices[0];
         const label = command.payload?.goFirst ? 'Go First' : 'Go Second';
-        if(clickButton(label)){
+        const coinButton = visibleButtons().find(button=>normalizedUiText(button.textContent) === label);
+        // The production coin buttons are mounted before their Phase 7
+        // authoritative handlers are stamped. Clicking that cosmetic frame can
+        // do nothing even though it looks enabled. Certify and click the same
+        // bound control a player receives after the coin animation completes.
+        const coinScreen = document.getElementById('s-coin');
+        const expectedCoinKey = [String(view.state.matchId || ''), Number(view.revision || 0), Number(view.state.coinFlip?.winner)].join(':');
+        const boundCoinButton = coinButton
+          && coinScreen?.dataset.phase7CoinPresentationKey === expectedCoinKey
+          && coinScreen?.dataset.phase7CoinFlipStartedKey === expectedCoinKey
+          && typeof coinButton.onclick === 'function';
+        if(boundCoinButton){
+          coinButton.click();
           const before = Number(view.revision || 0);
-          if(await waitForRevisionChange(before)){
+          if(await waitForRevisionChange(before, 8000)){
             result.actions += 1;
             lastProgressAt = Date.now();
             note(result.commandTypes, command.type);
             publish();
-          }else{
+          }else if(!globalThis.FatePhase7CurrentMultiplayerUi?.report?.().presentationBusy){
             recordError('Coin turn-order UI did not produce an authoritative revision', {revision:before, label});
           }
         }
@@ -2422,6 +4605,7 @@ async function loop(){
         fallbackActionCount:result.fallbackActions - matchStart.fallbackActions,
         presentationTimingViolationCount:result.presentationTimingViolations.length - matchStart.presentationTimingViolations,
         oracleViolationCount:result.oracleViolations.length - matchStart.oracleViolations,
+        domViolationCount:result.domViolations.length - matchStart.domViolations,
         crossSeatViolationCount:result.crossSeatViolations.length - matchStart.crossSeatViolations,
         failureBundleReplayKeys:result.failureBundles.slice(matchStart.failureBundles).map(bundle=>bundle.replayKey),
         presentationContract:{
@@ -2430,67 +4614,186 @@ async function loop(){
         },
         completeFromStart
       };
+      const focusedEvidenceFailures = [];
       for(const cardId of (matchStart.organicTargets || [])){
         const coverage = organicCoverage(cardId);
         const commandDelta = Math.max(0, Number(result.cardIds[cardId] || 0) - Number(matchStart.organicCommandStart?.[cardId] || 0));
+        const observedActionDelta = Math.max(0, Number(result.observedActionCardIds[cardId] || 0) - Number(matchStart.organicObservedActionStart?.[cardId] || 0));
+        const targetActionObserved = commandDelta > 0 || observedActionDelta > 0;
         const effectDelta = Math.max(0, Number(result.effectEventCardIds[cardId] || 0) - Number(matchStart.organicEffectStart?.[cardId] || 0));
+        const resolvedEffectDelta = Math.max(0, Number(result.resolvedEffectCardIds[cardId] || 0) - Number(matchStart.organicResolvedEffectStart?.[cardId] || 0));
         const oracleCheckDelta = Math.max(0, Number(result.oracleCardChecks[cardId] || 0) - Number(matchStart.oracleCheckStart?.[cardId] || 0));
-        const partnerEvidence = Object.fromEntries((matchStart.organicPartners || []).map(partnerId=>[
+        const requiredOverlayKinds = requiredOverlayKindsForCard(cardId);
+        const requiredOverlayKind = requiredOverlayKinds.join('|');
+        const requiredOverlayDelta = requiredOverlayKinds.length
+          ? Math.max(0, sourceOverlayEvidenceCount(cardId) - Number(matchStart.organicSourceOverlayStart?.[cardId] || 0))
+          : 0;
+        let localFocusedUiEvidence = true;
+        let focusedUiEvidenceKind = '';
+        if(requestedFocusedScenario === 'search-square-draw'){
+          if(['27','07'].includes(cardId)){
+            focusedUiEvidenceKind = 'THREE_SEQUENTIAL_DRAWS';
+            localFocusedUiEvidence = result.drawSequences.slice(matchStart.drawSequences).some(sequence=>
+              Number(sequence?.expected) === 3
+                && Number(sequence?.ended) === 3
+                && Array.isArray(sequence?.draws)
+                && sequence.draws.length === 3
+                && sequence.draws.every((draw, index)=>
+                  Number(draw?.drawIndex) === index
+                    && Number(draw?.endedAt) >= Number(draw?.startedAt)
+                    && String(draw?.sourceCardId || '') === cardId
+                )
+            );
+          }else if(['43','04','17'].includes(cardId)){
+            focusedUiEvidenceKind = 'VISIBLE_BOARD_SQUARE_CLICK';
+            localFocusedUiEvidence = result.boardPickerSelections.slice(matchStart.boardPickerSelections).some(selection=>
+              String(selection?.promptSourceCardId || '') === cardId
+                && selection?.selectedByVisibleClick === true
+            );
+          }else if(cardId === '13'){
+            focusedUiEvidenceKind = 'VISIBLE_GENERIC_SUPPORTER_PICKER';
+            localFocusedUiEvidence = result.cardPickerSelections.slice(matchStart.cardPickerSelections).some(selection=>
+              String(selection?.promptSourceCardId || '') === '13'
+                && selection?.selectedByVisibleCanvasClick === true
+                && Array.isArray(selection?.selectedIids)
+                && selection.selectedIids.length > 0
+            );
+          }
+        }
+        const localPartnerEvidence = Object.fromEntries((matchStart.organicPartners || []).map(partnerId=>[
           partnerId,
           Math.max(0, Number(result.cardIds[partnerId] || 0) - Number(matchStart.organicPartnerCommandStart?.[partnerId] || 0))
-            + Math.max(0, Number(result.oracleCardChecks[partnerId] || 0) - Number(matchStart.organicPartnerOracleStart?.[partnerId] || 0))
+            + Math.max(0, Number(result.observedActionCardIds[partnerId] || 0) - Number(matchStart.organicPartnerObservedActionStart?.[partnerId] || 0))
+            + Math.max(0, Number(result.effectEventCardIds[partnerId] || 0) - Number(matchStart.organicPartnerEffectStart?.[partnerId] || 0))
+        ]));
+        const clean = summary.errorCount === 0
+          && summary.fallbackActionCount === 0
+          && summary.presentationTimingViolationCount === 0
+          && summary.oracleViolationCount === 0
+          && summary.domViolationCount === 0
+          && summary.crossSeatViolationCount === 0;
+        const peerEvidence = await exchangeFocusedEvidence(summary.matchId, matchStart.gameIndex, cardId, {
+          targetActionObserved,
+          effectDelta,
+          resolvedEffectDelta,
+          oracleCheckDelta,
+          requiredOverlayDelta,
+          focusedUiEvidenceKind,
+          focusedUiEvidenceObserved:localFocusedUiEvidence,
+          partnerEvidence:localPartnerEvidence,
+          clean,
+          completeFromStart
+        });
+        const partnerEvidence = Object.fromEntries((matchStart.organicPartners || []).map(partnerId=>[
+          partnerId,
+          Number(localPartnerEvidence[partnerId] || 0) + Number(peerEvidence?.partnerEvidence?.[partnerId] || 0)
         ]));
         const partnerEvidenceCount = Object.values(partnerEvidence).reduce((sum, count)=>sum + Number(count || 0), 0);
-        const allPartnersObserved = Object.keys(partnerEvidence).length > 0
-          && Object.values(partnerEvidence).every(count=>Number(count || 0) > 0);
-        coverage.completedMatches += completeFromStart ? 1 : 0;
+        const sharedTargetActionObserved = targetActionObserved || peerEvidence?.targetActionObserved === true;
+        const sharedEffectDelta = effectDelta + Number(peerEvidence?.effectDelta || 0);
+        const sharedResolvedEffectDelta = resolvedEffectDelta + Number(peerEvidence?.resolvedEffectDelta || 0);
+        const sharedOracleCheckDelta = oracleCheckDelta + Number(peerEvidence?.oracleCheckDelta || 0);
+        const sharedRequiredOverlayDelta = requiredOverlayDelta + Number(peerEvidence?.requiredOverlayDelta || 0);
+        const sharedFocusedUiEvidence = localFocusedUiEvidence || peerEvidence?.focusedUiEvidenceObserved === true;
+        const sharedClean = clean && peerEvidence?.clean === true;
+        const sharedCompleteFromStart = completeFromStart && peerEvidence?.completeFromStart === true;
+        // Variant 7 deliberately certifies empty/ineligible prerequisites. When
+        // the target is itself the variant's generic partner (card 58), the
+        // scenario correctly removes that duplicate and has no partner to
+        // exercise. Treat only that explicit no-partner contract as satisfied;
+        // every other scenario must still observe every planned partner.
+        const noPartnerEvidenceExpected = Object.keys(partnerEvidence).length === 0
+          && (matchStart.organicVariant === 'EMPTY_OR_INELIGIBLE_PREREQUISITE'
+            || !!requestedFocusedScenario);
+        const allPartnersObserved = noPartnerEvidenceExpected
+          || (Object.keys(partnerEvidence).length > 0
+            && Object.values(partnerEvidence).every(count=>Number(count || 0) > 0));
         coverage.commands += commandDelta;
         coverage.effectEvents += effectDelta;
-        if(commandDelta > 0) coverage.commandMatches += 1;
-        if(effectDelta > 0) coverage.effectMatches += 1;
-        if(oracleCheckDelta > 0) coverage.oracleObservedMatches += 1;
+        coverage.resolvedEffects += resolvedEffectDelta;
+        if(sharedTargetActionObserved) coverage.commandMatches += 1;
+        if(sharedEffectDelta > 0) coverage.effectMatches += 1;
+        if(sharedResolvedEffectDelta > 0) coverage.resolvedEffectMatches += 1;
+        if(sharedOracleCheckDelta > 0) coverage.oracleObservedMatches += 1;
         if(allPartnersObserved) coverage.adversarialPartnerObservedMatches += 1;
         const branchKeys = [
           ...changedPrefixedKeys(result.effectBranches, matchStart.organicBranchStart?.[cardId], cardId),
           ...changedPrefixedKeys(result.oracleCardBranches, matchStart.oracleBranchStart?.[cardId], cardId)
         ];
-        const clean = summary.errorCount === 0
-          && summary.fallbackActionCount === 0
-          && summary.presentationTimingViolationCount === 0
-          && summary.oracleViolationCount === 0
-          && summary.crossSeatViolationCount === 0;
+        const observedObligations = mechanicallyObservedObligations(cardId, {
+          resolvedEffectDelta,
+          oracleCheckDelta,
+          oracleViolations:summary.oracleViolationCount,
+          presentationTimingViolations:summary.presentationTimingViolationCount,
+          crossSeatViolations:summary.crossSeatViolationCount
+        });
+        const probedObligations = changedPrefixedKeys(
+          result.obligationEvidenceCounts,
+          matchStart.obligationEvidenceStart?.[cardId],
+          cardId
+        ).map(key=>key.slice(String(cardId).length + 1));
+        for(const obligation of probedObligations){
+          if(!observedObligations.includes(obligation)) observedObligations.push(obligation);
+        }
         const requiresEffectEvidence = organicTargetRequiresEffectEvidence(cardId);
-        const evidencePassed = completeFromStart
-          && commandDelta > 0
-          && (!requiresEffectEvidence || effectDelta > 0)
-          && oracleCheckDelta > 0
+        const evidencePassed = sharedCompleteFromStart
+          && sharedTargetActionObserved
+          && (!requiresEffectEvidence || sharedEffectDelta > 0)
+          && (!requiredOverlayKind || sharedRequiredOverlayDelta > 0)
+          && sharedFocusedUiEvidence
+          && sharedOracleCheckDelta > 0
           && allPartnersObserved
-          && clean;
-        if(clean && completeFromStart) coverage.cleanMatches += 1;
-        if(evidencePassed) coverage.evidencePassedMatches += 1;
+          && sharedClean;
+        if(evidencePassed){
+          coverage.completedMatches += 1;
+          coverage.cleanMatches += 1;
+          coverage.evidencePassedMatches += 1;
+        }else if(organicCardCampaign){
+          focusedEvidenceFailures.push({cardId, commandDelta, observedActionDelta, effectDelta, resolvedEffectDelta, oracleCheckDelta, requiredOverlayKind, requiredOverlayDelta, focusedUiEvidenceKind, localFocusedUiEvidence, sharedFocusedUiEvidence, partnerEvidence, noPartnerEvidenceExpected, allPartnersObserved, clean, completeFromStart, peerEvidence, sharedClean, sharedCompleteFromStart});
+        }
         if(!evidencePassed && coverage.requiredMatches < 10){
           coverage.requiredMatches = 10;
           coverage.escalatedAfterFailure = true;
         }
-        if(completeFromStart && !coverage.landscapes.includes(matchStart.landscapeId)) coverage.landscapes.push(matchStart.landscapeId);
-        if(completeFromStart && !coverage.variants.includes(matchStart.organicVariant)) coverage.variants.push(matchStart.organicVariant);
+        if(evidencePassed && !coverage.landscapes.includes(matchStart.landscapeId)) coverage.landscapes.push(matchStart.landscapeId);
+        if(evidencePassed && !coverage.variants.includes(matchStart.organicVariant)) coverage.variants.push(matchStart.organicVariant);
+        if(evidencePassed && matchStart.reinforcementPolicy === 'REAL') coverage.realRuleMatches += 1;
+        if(evidencePassed && matchStart.reinforcementPolicy === 'ZERO_COST') coverage.zeroCostMatches += 1;
+        for(const obligation of (matchStart.plannedObligations?.[cardId] || [])){
+          if(!coverage.plannedObligations.includes(obligation)) coverage.plannedObligations.push(obligation);
+        }
+        for(const obligation of observedObligations){
+          if(!coverage.observedObligations.includes(obligation)) coverage.observedObligations.push(obligation);
+        }
         for(const key of branchKeys) if(!coverage.branchKeys.includes(key)) coverage.branchKeys.push(key);
         coverage.matchEvidence.push({
-          gameIndex:startGameIndex + result.completedGames,
+          gameIndex:currentOrganicGameIndex(),
           matchId:summary.matchId,
           landscapeId:summary.landscapeId,
           organicVariant:matchStart.organicVariant,
+          organicVariantIndex:matchStart.organicVariantIndex,
           organicPartners:matchStart.organicPartners,
+          reinforcementPolicy:matchStart.reinforcementPolicy,
+          reinforcementPolicyReason:matchStart.reinforcementPolicyReason,
+          plannedObligations:matchStart.plannedObligations?.[cardId] || [],
+          observedObligations,
+          probedObligations,
           completeFromStart,
           commandDelta,
+          observedActionDelta,
           effectDelta,
+          resolvedEffectDelta,
+          requiredOverlayKind,
+          requiredOverlayDelta,
           oracleCheckDelta,
           partnerEvidenceCount,
           partnerEvidence,
+          noPartnerEvidenceExpected,
           allPartnersObserved,
           errorCount:summary.errorCount,
           fallbackActionCount:summary.fallbackActionCount,
           presentationTimingViolations:summary.presentationTimingViolationCount,
+          domViolations:summary.domViolationCount,
           oracleViolations:result.oracleViolations.slice(matchStart.oracleViolations).filter(violation=>
             !violation.cardId || violation.cardId === cardId
           ).length,
@@ -2500,26 +4803,52 @@ async function loop(){
         if(coverage.matchEvidence.length > 10) coverage.matchEvidence.shift();
         refreshOrganicAutomaticEvidence(cardId);
         summary.organicCoverage = summary.organicCoverage || {};
-        summary.organicCoverage[cardId] = {commandDelta, effectDelta};
+        summary.organicCoverage[cardId] = {commandDelta, observedActionDelta, effectDelta, resolvedEffectDelta};
+      }
+      summary.focusedEvidenceFailures = focusedEvidenceFailures;
+      if(focusedEvidenceFailures.length){
+        recordError('Focused scenario reached the end screen without exercising its required target/partner evidence', {
+          stage:'focused-evidence-gate',
+          gameIndex:matchStart.gameIndex,
+          matchId:summary.matchId,
+          failures:focusedEvidenceFailures
+        });
+        summary.errorCount = result.errors.length - matchStart.errors;
       }
       result.matches.push(summary);
       const cleanMatch = completeFromStart
+        && focusedEvidenceFailures.length === 0
         && summary.errorCount === 0
         && summary.fallbackActionCount === 0
         && summary.presentationTimingViolationCount === 0
         && summary.oracleViolationCount === 0
+        && summary.domViolationCount === 0
         && summary.crossSeatViolationCount === 0;
       result.consecutiveCleanMatches = cleanMatch ? result.consecutiveCleanMatches + 1 : 0;
-      if(completeFromStart) result.completedGames += 1;
+      if(completeFromStart && focusedEvidenceFailures.length === 0) result.completedGames += 1;
+      else if(focusedEvidenceFailures.length){
+        result.failedGames += 1;
+        if(!result.failedScenarioIndexes.includes(matchStart.gameIndex)) result.failedScenarioIndexes.push(matchStart.gameIndex);
+      }
       else result.warmupMatches += 1;
-      writeCheckpoint(startGameIndex + result.completedGames + result.warmupMatches);
+      // A failed scenario is diagnostic evidence, not permission to strand the
+      // paired unattended campaign. Both seats advance one schedule slot; the
+      // failed index is retained for the post-fix replay pass.
+      writeCheckpoint(currentOrganicGameIndex());
       publish();
-      if(result.completedGames >= targetGames) break;
+      if(result.completedGames + result.failedGames >= targetGames) break;
       try{ await queueNextMatch(); }
       catch(error){ recordError(error?.message || error, {stage:'matchmaking'}); await sleep(500); }
       continue;
     }
-    if(!currentUiReady()){ await sleep(50); continue; }
+    if(!currentUiReady()){
+      const bridge = globalThis.FatePhase7CurrentMultiplayerUi?.report?.();
+      if(!bridge?.presentationBusy && Date.now() - lastProgressAt > stallTimeoutMs){
+        await abandonStalledMatch(view, 'Shipping UI did not become interactive before the stall deadline', {bridge});
+      }
+      await sleep(50);
+      continue;
+    }
     // Production effect/card-detail modals are intentionally the last visual
     // stage. Once no authoritative prompt or hand-limit choice owns that modal,
     // a human closes it before taking the next board/dock action. Do the same
@@ -2543,9 +4872,12 @@ async function loop(){
         : (view.state.pendingHandLimit
             ? pendingHandLimitPlayer === Number(view.playerIndex)
             : Number(view.state.activePlayer) === Number(view.playerIndex));
-      if(localMustAct && Date.now() - lastProgressAt > 6000){
-        recordError('No UI-drivable legal command was available', {revision:view.revision, turn:view.state.turn});
-        lastProgressAt = Date.now();
+      if(localMustAct && Date.now() - lastProgressAt > stallTimeoutMs){
+        await abandonStalledMatch(view, 'No UI-drivable legal command was available before the stall deadline', {
+          revision:view.revision,
+          turn:view.state.turn,
+          legalCommandTypes:(view.legalCommands || []).map(candidate=>String(candidate?.type || ''))
+        });
       }
       await sleep(30);
       continue;
@@ -2555,19 +4887,19 @@ async function loop(){
     try{ driven = await driveCommand(view, command); }
     catch(error){ recordError(error?.message || error, {stage:'drive', commandType:command.type, revision:before}); }
     if(!driven){
-      if(command.type !== 'END_TURN' && !view.state.pendingPrompt && !view.state.pendingHandLimit){
-        attemptedTurnCommandKeys.add(turnCommandAttemptKey(view, command));
-      }
       if(await waitForRevisionChange(before, 500)){
         result.actions += 1;
         lastProgressAt = Date.now();
         note(result.commandTypes, command.type);
         noteCommandCard(view, command);
+        noteSuccessfulTurnAction(view, command);
         publish();
         continue;
       }
       const commandIid = command.payload?.cardIid || command.payload?.sourceIid;
-      recordError('Could not drive the displayed UI for a legal command', {
+      result.uiDriveRetries += 1;
+      result.lastUiDriveFailure = {
+        message:'Could not drive the displayed UI for a legal command',
         uiStage:result.lastStage,
         commandType:command.type,
         commandPayload:command.payload || {},
@@ -2576,16 +4908,35 @@ async function loop(){
         tributePositions:(command.payload?.tributeIids || []).map(iid=>({iid, position:boardPositionForIid(view, iid)})),
         visibleBoardCardIids:(hitMap()?.cards || []).map(hit=>String(hit?.iid || hit?.card?.iid || '')),
         revision:before,
-        pendingPrompt:view.state.pendingPrompt || null
-      });
+        pendingPrompt:view.state.pendingPrompt || null,
+        at:Date.now()
+      };
       if(await submitDiagnosticFallback(view, command, before, 'UI_DRIVE_FAILED')) continue;
+      if(Date.now() - lastProgressAt > stallTimeoutMs){
+        await abandonStalledMatch(view, 'Repeated production UI drive failure exceeded the stall deadline', {commandType:command.type, commandPayload:command.payload || {}});
+        continue;
+      }
       globalThis.closeModal?.({forceHandLimitClose:true});
+      // Do not blacklist a legal command merely because one physical gesture
+      // missed. The next loop reopens the production interaction and retries
+      // it until the bounded stall watchdog either observes a revision or
+      // records/abandons the scenario.
       await sleep(100);
       continue;
     }
     if(!await waitForRevisionChange(before)){
-      recordError('UI action did not produce an authoritative revision', {commandType:command.type, revision:before});
+      result.uiDriveRetries += 1;
+      result.lastUiDriveFailure = {
+        message:'UI action did not produce an authoritative revision',
+        commandType:command.type,
+        revision:before,
+        at:Date.now()
+      };
       if(await submitDiagnosticFallback(view, command, before, 'UI_NO_REVISION')) continue;
+      if(Date.now() - lastProgressAt > stallTimeoutMs){
+        await abandonStalledMatch(view, 'Production UI action failed to advance authority before the stall deadline', {commandType:command.type, commandPayload:command.payload || {}});
+        continue;
+      }
       globalThis.closeModal?.({forceHandLimitClose:true});
       await sleep(100);
       continue;
@@ -2597,6 +4948,7 @@ async function loop(){
     lastProgressAt = Date.now();
     note(result.commandTypes, command.type);
     noteCommandCard(view, command);
+    noteSuccessfulTurnAction(view, command);
     publish();
     // Keep consecutive genuine UI gestures beyond the production canvas's
     // 80ms release guard. This remains fast while avoiding synthetic drops.
@@ -2604,6 +4956,7 @@ async function loop(){
   }
   result.running = false;
   result.finishedAt = Date.now();
+  globalThis.clearInterval(electronHeartbeatTimer);
   if(!result.stopReason){
     result.stopReason = stopped ? 'requested-stop' : 'target-games-complete';
   }
@@ -2626,6 +4979,7 @@ globalThis.FatePhase7FullUiE2E.start().catch(error=>{
   recordError(error?.stack || error, {stage:'fatal'});
   result.running = false;
   result.finishedAt = Date.now();
+  globalThis.clearInterval(electronHeartbeatTimer);
   finishTestRunLock();
   publish();
 });

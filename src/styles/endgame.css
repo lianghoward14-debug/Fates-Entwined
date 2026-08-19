@@ -154,12 +154,31 @@
 #s-win.endgame-redesign-v2 .win-rewards {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(220, 231, 240, .15);
-  border-radius: 2px;
-  background: linear-gradient(145deg, rgba(7, 12, 19, .80), rgba(6, 10, 16, .62));
-  box-shadow: 0 22px 62px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .045);
-  backdrop-filter: blur(9px) saturate(.9);
+  border: 1px solid rgba(var(--result-accent-rgb), .16);
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .018)),
+    rgba(3, 7, 13, .36);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .22), inset 0 1px rgba(255, 255, 255, .055);
+  backdrop-filter: blur(7px) saturate(1.04);
   animation: endgame-panel-in .65s .08s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report::before,
+#s-win.endgame-redesign-v2 .win-rewards::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(var(--result-accent-rgb), .10), transparent 34%, rgba(139, 198, 232, .045)),
+    linear-gradient(180deg, rgba(255, 255, 255, .045), transparent 42%);
+  opacity: .62;
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report > *,
+#s-win.endgame-redesign-v2 .win-rewards > * {
+  position: relative;
 }
 
 #s-win.endgame-redesign-v2 .win-zone-report {
@@ -177,7 +196,7 @@
   justify-content: space-between;
   min-height: 44px;
   padding: 0 18px;
-  border-bottom: 1px solid rgba(220, 231, 240, .11);
+  border-bottom: 1px solid rgba(var(--result-accent-rgb), .12);
   color: var(--result-cool);
   font: 600 .57rem/1 'Cinzel', serif;
   letter-spacing: .17em;
@@ -203,7 +222,7 @@
   min-width: 0;
   padding: 16px 17px 15px;
   border: 0;
-  border-right: 1px solid rgba(220, 231, 240, .1);
+  border-right: 1px solid rgba(220, 231, 240, .075);
   border-radius: 0;
   background: transparent;
   text-align: left;
@@ -300,8 +319,8 @@
   gap: 9px 18px;
   align-items: center;
   padding: 13px 17px;
-  border-top: 1px solid rgba(220, 231, 240, .11);
-  background: rgba(var(--result-accent-rgb), .045);
+  border-top: 1px solid rgba(var(--result-accent-rgb), .11);
+  background: rgba(var(--result-accent-rgb), .035);
   text-align: left;
 }
 
@@ -344,7 +363,7 @@
   grid-area: rewards;
   align-self: start;
   margin: 0;
-  padding: 16px;
+  padding: 15px;
   animation-delay: .16s;
 }
 
@@ -363,8 +382,8 @@
 
 #s-win.endgame-redesign-v2 .win-rewards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 9px;
   width: 100%;
   margin: 0;
 }
@@ -374,20 +393,30 @@
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  min-height: 88px;
-  padding: 12px;
-  overflow: visible;
-  border: 1px solid rgba(220, 231, 240, .1);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, .025);
-  box-shadow: none;
+  min-height: 82px;
+  padding: 11px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(220, 231, 240, .085);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .018);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035);
   text-align: left;
   backdrop-filter: none;
 }
 
+#s-win.endgame-redesign-v2 .win-reward-box:hover {
+  border-color: rgba(var(--result-accent-rgb), .18);
+  background: rgba(255, 255, 255, .028);
+}
+
 #s-win.endgame-redesign-v2 .win-reward-box.starlight {
   border-color: rgba(var(--result-accent-rgb), .24);
-  background: rgba(var(--result-accent-rgb), .055);
+  background: rgba(var(--result-accent-rgb), .042);
+}
+
+#s-win.endgame-redesign-v2 .win-reward-rank-box {
+  grid-column: span 2;
+  min-height: 82px;
 }
 
 #s-win.endgame-redesign-v2 .wrb-label {
@@ -438,28 +467,73 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 #s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge {
-  justify-content: flex-start;
-  white-space: normal;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
+  gap: 8px !important;
+  box-sizing: border-box;
+  height: auto !important;
+  min-height: 42px;
+  padding: 7px 9px !important;
+  position: relative;
+  white-space: normal !important;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-icon,
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-svg {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-svg {
+  position: absolute !important;
+  inset: 3px 6px !important;
+  width: auto !important;
+  height: auto !important;
+  opacity: .18;
+  pointer-events: none;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-icon {
+  position: relative;
+  z-index: 1;
+  width: 30px !important;
+  height: 30px !important;
+}
+
+#s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-icon :is(img, svg) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 #s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge-label {
-  max-width: 100%;
-  overflow: visible;
-  white-space: normal;
+  display: block;
+  min-width: 0;
+  max-width: 100% !important;
+  overflow: hidden;
+  color: inherit;
+  font-size: clamp(.48rem, 1.2vw, .62rem) !important;
+  line-height: 1.08;
+  position: relative;
+  z-index: 1;
   text-overflow: clip;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
 }
 
 #s-win.endgame-redesign-v2 .win-rank-shift,
 #s-win.endgame-redesign-v2 .win-levelup {
   margin: 0 0 10px;
   padding: 11px 13px;
-  border: 1px solid rgba(var(--result-accent-rgb), .24);
-  border-radius: 2px;
-  background: rgba(var(--result-accent-rgb), .06);
+  border: 1px solid rgba(var(--result-accent-rgb), .18);
+  border-radius: 5px;
+  background: rgba(var(--result-accent-rgb), .045);
   box-shadow: none;
 }
 
@@ -484,7 +558,8 @@
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  min-width: 100px;
+  min-width: 0;
+  max-width: 150px;
 }
 
 #s-win.endgame-redesign-v2 .win-rank-icon {
@@ -502,9 +577,11 @@
 }
 
 #s-win.endgame-redesign-v2 .win-rank-name {
+  max-width: 100%;
   color: rgba(239, 243, 246, .7);
   font: 600 .56rem/1.2 'Cinzel', serif;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 #s-win.endgame-redesign-v2 .win-rank-arrow {
@@ -691,6 +768,10 @@ html.fate-performance-mode #s-win.endgame-redesign-v2:not(.active) {
 
   #s-win.endgame-redesign-v2 .win-rewards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #s-win.endgame-redesign-v2 .win-reward-rank-box {
+    grid-column: 1 / -1;
   }
 
   #s-win.endgame-redesign-v2 .win-return-action .btn {

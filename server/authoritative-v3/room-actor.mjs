@@ -1,5 +1,6 @@
 import {
   canonicalHash,
+  landscapeRule,
   legalCommandTemplates,
   projectEvents,
   projectStateForPlayer,
@@ -136,8 +137,7 @@ export class AuthoritativeRoomActor {
   }
 
   turnTimeoutCommand(){
-    if(this.state.landscapeId !== 'igb14'
-      || this.state.phase !== 'main'
+    if(this.state.phase !== 'main'
       || this.state.outcome
       || this.state.pendingPrompt
       || this.state.pendingHandLimit){
@@ -145,10 +145,14 @@ export class AuthoritativeRoomActor {
     }
     const player = this.state.players[this.state.activePlayer];
     if(!player) throw new Error('active turn owner is invalid');
+    const activeLandscapeRule = landscapeRule(this.state.landscapeId);
+    const timeoutMs = activeLandscapeRule?.kind === 'SERVER_TURN_TIMER'
+      ? Number(activeLandscapeRule.milliseconds)
+      : Math.round(Number(this.state.turnTimerSeconds) || 180) * 1000;
     return {
       playerId:player.id,
       turnSignature:`${this.state.matchId}:${this.state.turn}:${this.state.activePlayer}`,
-      timeoutMs:30000,
+      timeoutMs:Math.max(30000, Math.min(600000, timeoutMs)),
       command:{
         commandId:`server-turn-timeout:${this.state.turn}:${this.state.activePlayer}`,
         matchId:this.state.matchId,

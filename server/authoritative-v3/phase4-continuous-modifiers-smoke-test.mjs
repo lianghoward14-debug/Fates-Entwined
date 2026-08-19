@@ -12,6 +12,8 @@ const DEFINITIONS = [
   {id:'10', name:'Post-Modernist Dylan', type:'Coordinator', aff:'expanded_worlds', fate:5, cost:2},
   {id:'11', name:'Anne Stone', type:'Coordinator', aff:'eventide', fate:6, cost:2},
   {id:'23', name:'Cathy', type:'Coordinator', aff:'reality', fate:3, cost:2},
+  {id:'41', name:'Jimmy', type:'Dauntless', aff:'reality', fate:0, cost:3},
+  {id:'44', name:'Soviet Grenadiers', type:'Supporter', aff:'third_great_war', fate:1, cost:0},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0},
   {id:'57', name:'Jeremiah Jones', type:'Coordinator', aff:'expanded_worlds', fate:3, cost:3},
   {id:'59', name:'Maroon Knights', type:'Supporter', aff:'third_great_war', fate:1, cost:0},
@@ -101,5 +103,25 @@ assert.equal(
   4,
   'a face-down continuous source must stop contributing immediately'
 );
+
+// Jimmy's passive establishes a dynamic base; it is not effect immunity.
+// Adjacent Grenadiers and permanent Fate gains must still modify that base.
+state = createInitialState({
+  matchId:'P4CONTINUOUSJIMMY',
+  seed:'p4-continuous-jimmy',
+  handSize:99,
+  cardDefinitions:DEFINITIONS,
+  players:[
+    {id:'p0', deckIds:['41', '44']},
+    {id:'p1', deckIds:['32']}
+  ]
+});
+const jimmy = putOnBoard(state, 0, '41', {z:1, r:1, c:1});
+putOnBoard(state, 0, '44', {z:1, r:1, c:0});
+assert.equal(effectiveFate(state, jimmy), 3, 'an adjacent Grenadier must give Jimmy +3 even with zero qualifying uses');
+state.fateReductionEffectUses[0] = 1;
+assert.equal(effectiveFate(state, jimmy), 6, 'Jimmy must combine his 3x dynamic base with Grenadiers');
+jimmy.currentFate += 4;
+assert.equal(effectiveFate(state, jimmy), 10, 'Jimmy must retain permanent Fate gains on top of his dynamic base and Grenadiers');
 
 console.log('authoritative-v3 Phase 4 continuous-modifier family smoke test passed');

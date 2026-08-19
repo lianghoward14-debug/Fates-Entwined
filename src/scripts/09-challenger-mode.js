@@ -1745,6 +1745,7 @@ function renderChPlayTab(content) {
   const progressPct = rankInfo ? rankInfo.progressPct : 0;
   const divisionCopy = rankInfo ? `Division Rank ${rankInfo.divisionRank} / ${rankInfo.divisionSize}` : '';
   const nextRankCopy = rankInfo?.nextRank ? `${rankInfo.pointsToNext} ELO to ${rankInfo.nextRank.name}` : 'Top rank reached';
+  const eloFitClass = String(elo).length >= 4 ? ' is-four-digit' : '';
   content.innerHTML = `
     <div class="ch-play-panel ch-play-v5" style="--rank-color:${rank.color};">
       <section class="ch-v5-rank">
@@ -1752,7 +1753,7 @@ function renderChPlayTab(content) {
           <div class="ch-v5-rank-title"><span>Rank</span></div>
           <div class="ch-v5-rank-badge">${renderRankBadge(elo,'lg')}</div>
           <div class="ch-v5-elo-card">
-            <div class="ch-v5-elo">${elo}</div>
+            <div class="ch-v5-elo${eloFitClass}">${elo}</div>
             <div class="ch-v5-elo-label">ELO</div>
           </div>
         </div>

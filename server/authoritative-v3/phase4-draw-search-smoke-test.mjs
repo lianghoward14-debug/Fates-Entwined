@@ -76,10 +76,17 @@ assert(result.events.some(event=>event.type === 'CARD_TRANSFERRED'));
 assert(result.events.some(event=>event.type === 'DECK_SEARCHED'));
 
 state = stateFor('P4SEARCH13', ['13', '05', '31', '32', '27']);
-const johnathan = moveToBoard(state, '13', {z:0, r:2, c:0});
+const johnathanIndex = state.players[0].deck.findIndex(card=>card.id === '13');
+const johnathan = state.players[0].deck.splice(johnathanIndex, 1)[0];
+state.players[0].hand.push(johnathan);
+const reinforcement = moveToBoard(state, '05', {z:0, r:2, c:0});
 result = reduceCommand(
   state,
-  command(state, 'p0', 3, 'ACTIVATE_EFFECT', {sourceIid:johnathan.iid}),
+  command(state, 'p0', 3, 'CONSOLIDATE_CARD', {
+    cardIid:johnathan.iid,
+    tributeIids:[reinforcement.iid],
+    destination:{z:0, r:2, c:0}
+  }),
   {playerId:'p0'}
 );
 assert.equal(result.prompt.type, 'CARD_SELECTION');

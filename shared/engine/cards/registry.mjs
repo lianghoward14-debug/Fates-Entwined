@@ -36,7 +36,7 @@ const REGISTRY = Object.freeze({
   '08':{
     timings:['WHEN_SET'],
     operations:['SET_CARD'],
-    prompts:['CARD_SELECTION', 'BOARD_DESTINATION'],
+    prompts:['CARD_SELECTION', 'BOARD_DESTINATION', 'REACTION'],
     program:[
       {
         kind:'SELECT_CARDS',
@@ -324,9 +324,10 @@ const REGISTRY = Object.freeze({
   '43':{
     timings:['WHEN_SET'],
     operations:['ADD_SAFE_SQUARE'],
-    prompts:[],
+    prompts:['BOARD_DESTINATION'],
     program:[
-      {kind:'OPERATION', operation:{type:'ADD_SAFE_SQUARE', playerIndex:'$controller'}}
+      {kind:'SELECT_DESTINATION', local:'destination', filter:{safeSquareSlot:true}},
+      {kind:'OPERATION', operation:{type:'ADD_SAFE_SQUARE', playerIndex:'$controller', destination:'$destination'}}
     ]
   },
   '44':{
@@ -667,10 +668,9 @@ const REGISTRY = Object.freeze({
     ]
   },
   '13':{
-    timings:['ACTIVATE'],
+    timings:['WHEN_SET'],
     operations:['TRANSFER_CARDS'],
     prompts:['CARD_SELECTION'],
-    maxUses:1,
     program:[
       {
         kind:'SELECT_CARDS',
@@ -921,6 +921,7 @@ const REGISTRY = Object.freeze({
   },
   '40':{
     timings:['ACTIVATE'],
+    manualOnly:true,
     operations:['CREATE_STATUS'],
     prompts:[],
     maxUses:2,
@@ -1471,6 +1472,7 @@ const REGISTRY = Object.freeze({
             type:'CONSOLIDATION_COST_MODIFIER',
             playerIndex:'$opponent',
             sourceIid:'$sourceIid',
+            sourceController:'$controller',
             value:1,
             remaining:2
           }

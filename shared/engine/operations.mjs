@@ -67,7 +67,7 @@ function applyHandArrivalModifiers(ctx, playerIndex, card){
   const fateBonus = Number(pending.fateBonus || 0) || 0;
   const costDelta = Number(pending.costDelta || 0) || 0;
   const before = Number(card.currentFate) || 0;
-  if(fateBonus && !isEffectImmutable(card)) card.currentFate = Math.max(0, before + fateBonus);
+  if(fateBonus && !isEffectImmutable(card)) commitPermanentFate(card, before + fateBonus);
   card.counters.handCostDelta = (Number(card.counters.handCostDelta) || 0) + costDelta;
   ctx.events.push({
     type:'HAND_ARRIVAL_MODIFIED',
@@ -83,15 +83,30 @@ function applyHandArrivalModifiers(ctx, playerIndex, card){
 function applySpecialHandArrival(ctx, playerIndex, card){
   if(!card) return playerIndex;
   if(String(card.id || '') === '74'){
-    if(ctx.state.activePlayer === playerIndex){
+    const activeNow = ctx.state.activePlayer === playerIndex;
+    if(activeNow){
       ctx.state.extraSupportersThisTurn[playerIndex] += 1;
     }else{
       ctx.state.queuedExtraSupporters[playerIndex] += 1;
     }
+    // Keep the source-specific presentation contract authoritative.  The
+    // numeric counter is also changed by Maja, so it cannot by itself tell the
+    // client that A New Pacifica is the active bonus.  Pending grants become
+    // active on their controller's next turn and active grants expire at that
+    // turn's end through the normal owner-turn status lifecycle.
+    ctx.state.statuses.push({
+      statusId:`selva-support:${card.iid}:t${ctx.state.turn}:e${ctx.events.length}`,
+      type:'SELVA_EXTRA_SUPPORTER',
+      playerIndex,
+      sourceIid:card.iid,
+      extraSupports:1,
+      activeNow,
+      remainingOwnerTurns:activeNow ? 1 : null
+    });
     ctx.events.push({
       type:'EXTRA_SUPPORTER_SET_GRANTED',
       playerIndex,
-      activeNow:ctx.state.activePlayer === playerIndex,
+      activeNow,
       sourceIid:card.iid
     });
   }
@@ -114,6 +129,11 @@ function applySpecialHandArrival(ctx, playerIndex, card){
     const index = hand.findIndex(item=>String(item.iid) === String(card.iid));
     if(index >= 0) hand.splice(index, 1);
     const recipient = playerIndex === 0 ? 1 : 0;
+    card.counters = {
+      ...(card.counters || {}),
+      aliTransferredFrom:playerIndex,
+      aliHandLimitPendingUntilTurnStart:true
+    };
     card.owner = recipient;
     card.controller = recipient;
     if(!card.statuses.includes('OPPONENT_HAND_LIMIT_6')) card.statuses.push('OPPONENT_HAND_LIMIT_6');
@@ -144,7 +164,8 @@ function drawCards(ctx, operation){
     emit(ctx, {
       type:RULE_EVENT_TYPES.DRAW_EFFECT_ACTIVATED,
       playerIndex,
-      sourceIid:operation.sourceIid || null
+      sourceIid:operation.sourceIid || null,
+      semanticSourceCardId:operation.semanticSourceCardId || undefined
     });
   }
   for(let index = 0; index < count; index += 1){
@@ -184,6 +205,7 @@ function drawCards(ctx, operation){
         playerIndex,
         cardIid:card.iid,
         sourceIid:operation.sourceIid || null,
+        semanticSourceCardId:operation.semanticSourceCardId || undefined,
         activatedEffect:false,
         redirectedToDeckBottom:true
       });
@@ -222,6 +244,7 @@ function drawCards(ctx, operation){
       playerIndex,
       cardIid:card.iid,
       sourceIid:operation.sourceIid || null,
+      semanticSourceCardId:operation.semanticSourceCardId || undefined,
       activatedEffect:operation.activatedEffect === true
     });
   }
@@ -507,6 +530,20 @@ function discardCard(ctx, operation){
     card.counters.guerillaOriginalOwner = originalOwner;
     card.counters.guerillaTurnsRemaining = 5;
     ctx.state.players[recipient].hand.push(card);
+    const infiltrationStatus = {
+      statusId:`wine-country-guerilla:${card.iid}`,
+      type:'WINE_COUNTRY_GUERILLA_INFILTRATION',
+      playerIndex:recipient,
+      sourceController:originalOwner,
+      sourceIid:card.iid,
+      // This decrements at the infiltrated player's turn start, alongside the
+      // hidden card counter. Do not use remainingOwnerTurns: the generic end-
+      // turn expiry pass would otherwise count each turn twice.
+      remaining:5
+    };
+    ctx.state.statuses = ctx.state.statuses.filter(status=>status?.statusId !== infiltrationStatus.statusId);
+    ctx.state.statuses.push(infiltrationStatus);
+    ctx.events.push({type:'STATUS_CREATED', status:cloneSerializable(infiltrationStatus)});
     emit(ctx, {
       type:RULE_EVENT_TYPES.CARD_TRANSFERRED,
       cardIid:card.iid,
@@ -580,6 +617,26 @@ function fateTargetIids(operation){
   return targetIids;
 }
 
+function commitPermanentFate(card, nextValue){
+  const before = Math.max(0, Number(card?.currentFate) || 0);
+  const after = Math.max(0, Number(nextValue) || 0);
+  if(!card || !Number.isInteger(after)) throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
+  if(!card.counters || typeof card.counters !== 'object') card.counters = {};
+  const oldCeiling = Number(card.counters.permanentFateCeiling);
+  if(after < before){
+    card.counters.permanentFateCeiling = Number.isFinite(oldCeiling)
+      ? Math.min(Math.max(0, oldCeiling), after)
+      : after;
+    card.counters.permanentFateDebuffAmount = Math.max(0, Number(card.counters.permanentFateDebuffAmount) || 0) + (before - after);
+  }else if(after > before && Number.isFinite(oldCeiling)){
+    // Single-player permanent gains lift an existing debuff ceiling by the
+    // same amount; continuous auras remain capped underneath that ceiling.
+    card.counters.permanentFateCeiling = Math.max(0, oldCeiling) + (after - before);
+  }
+  card.currentFate = after;
+  return {before, after};
+}
+
 function changeFate(ctx, operation, absolute){
   const targetIids = fateTargetIids(operation);
   if(!targetIids.length) return {cardIids:[], changes:[]};
@@ -609,7 +666,7 @@ function changeFate(ctx, operation, absolute){
       throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
     }
     const after = Math.max(0, transformed);
-    entry.card.currentFate = after;
+    commitPermanentFate(entry.card, after);
     emit(ctx, {
       type:RULE_EVENT_TYPES.FATE_CHANGED,
       cardIid:entry.card.iid,
@@ -724,7 +781,16 @@ function transferCards(ctx, operation){
       to:destinationPile,
       playerIndex,
       privateTo:[playerIndex],
-      sourceIid:operation.sourceIid || null
+      sourceIid:operation.sourceIid || null,
+      // Delayed and copied effects must be audited against the controller who
+      // actually created the effect, not a source card's later controller.
+      // Mail Delivery can resolve four owner turns after its source changed
+      // control, while single-player correctly keeps the original recipient.
+      sourceController:Number.isInteger(Number(operation.sourceController))
+        ? Number(operation.sourceController)
+        : null,
+      semanticSourceCardId:operation.semanticSourceCardId || undefined,
+      reason:operation.reason || ''
     });
   }
   if(searchedDeck){
@@ -732,7 +798,8 @@ function transferCards(ctx, operation){
       type:RULE_EVENT_TYPES.DECK_SEARCHED,
       playerIndex,
       count:transferred.length,
-      sourceIid:operation.sourceIid || null
+      sourceIid:operation.sourceIid || null,
+      semanticSourceCardId:operation.semanticSourceCardId || undefined
     });
   }
   return {transferredIids:transferred};
@@ -1089,11 +1156,43 @@ function addSafeSquare(ctx, operation){
   const z = Number.isInteger(Number(operation.zone))
     ? Number(operation.zone)
     : findBoardCard(ctx.state, operation.sourceIid)?.z;
-  const r = ensureExtraRow(ctx, z, owner);
-  const existing = new Set(ctx.state.geometry.playableExtraSquares
-    .filter(square=>square.z === z && square.r === r)
-    .map(square=>square.c));
-  const c = [0, 1, 2].find(column=>!existing.has(column));
+  if(!ctx.state.board[z] || ![0, 1].includes(owner)){
+    throw operationError('INVALID_GEOMETRY', 'extra safe square requires a valid zone and owner');
+  }
+  const rowOwners = ctx.state.geometry.rowOwners[z];
+  const playable = ctx.state.geometry.playableExtraSquares;
+  const incompleteOwnedRow = rowOwners.findIndex((rowOwner, rowIndex)=>
+    rowIndex >= 3
+      && rowOwner === owner
+      && [0, 1, 2].some(column=>!playable.some(square=>
+        square.z === z && square.r === rowIndex && square.c === column
+      ))
+  );
+  const expectedRow = incompleteOwnedRow >= 0 ? incompleteOwnedRow : ctx.state.board[z].length;
+  const requested = operation.destination && typeof operation.destination === 'object'
+    ? operation.destination
+    : null;
+  const r = requested ? Number(requested.r) : expectedRow;
+  const c = requested
+    ? Number(requested.c)
+    : [0, 1, 2].find(column=>!playable.some(square=>
+        square.z === z && square.r === r && square.c === column
+      ));
+  if(requested && Number(requested.z) !== z){
+    throw operationError('INVALID_DESTINATION', 'safe square must remain in the source zone');
+  }
+  if(r !== expectedRow || ![0, 1, 2].includes(c)){
+    throw operationError('INVALID_DESTINATION', 'safe square destination is not an available extra-row slot');
+  }
+  if(r === ctx.state.board[z].length){
+    ctx.state.board[z].push([null, null, null]);
+    rowOwners.push(owner);
+  }else if(rowOwners[r] !== owner){
+    throw operationError('INVALID_DESTINATION', 'safe square row belongs to the wrong player');
+  }
+  if(playable.some(square=>square.z === z && square.r === r && square.c === c)){
+    throw operationError('INVALID_DESTINATION', 'safe square destination is already available');
+  }
   if(c === undefined) return {zone:z, row:r, added:false};
   ctx.state.geometry.playableExtraSquares.push({z, r, c, owner});
   ctx.state.geometry.playableExtraSquares.sort((a, b)=>
@@ -1409,6 +1508,18 @@ function changePlayerCounter(ctx, operation){
     throw operationError('INVALID_COUNTER', 'player counter change is invalid');
   }
   ctx.state[field][playerIndex] = Math.max(0, Number(ctx.state[field][playerIndex] || 0) + amount);
+  if(field === 'extraSupportersThisTurn'
+    && String(operation.semanticSourceCardId || '') === '07'
+    && amount > 0){
+    ctx.state.statuses.push({
+      statusId:`maja-support:${operation.sourceIid || 'maja'}:t${ctx.state.turn}:e${ctx.events.length}`,
+      type:'MAJA_EXTRA_SUPPORTERS',
+      playerIndex,
+      sourceIid:operation.sourceIid || null,
+      extraSupports:amount,
+      remainingOwnerTurns:1
+    });
+  }
   ctx.events.push({type:'PLAYER_COUNTER_CHANGED', field, playerIndex, amount, sourceIid:operation.sourceIid || null});
   return {field, playerIndex, value:ctx.state[field][playerIndex]};
 }
@@ -1465,6 +1576,16 @@ function changeZoneAffiliation(ctx, operation){
       sourceIid:operation.sourceIid || null
     });
   }
+  // One presentation fact for the chosen affiliation. Individual card-change
+  // events remain available to rules and auditing without duplicating Mark's
+  // visible declaration on every affected card.
+  emit(ctx, {
+    type:RULE_EVENT_TYPES.AFFILIATION_DECLARED,
+    sourceIid:operation.sourceIid || null,
+    playerIndex,
+    affiliation,
+    changedIids:[...changedIids]
+  });
   if(changedIids.length){
     changeFate(ctx, {
       type:OPERATION_TYPES.MODIFY_FATE,
@@ -1531,7 +1652,7 @@ function randomTransferCards(ctx, operation){
       if(sourceIndex < 0) throw operationError('CARD_NOT_FOUND', 'random-transfer card no longer exists');
       player[sourcePile].splice(sourceIndex, 1);
       if(fateBonus && !isEffectImmutable(card)){
-        card.currentFate = Math.max(0, (Number(card.currentFate) || 0) + fateBonus);
+        commitPermanentFate(card, (Number(card.currentFate) || 0) + fateBonus);
       }
       const insertIndex = nextInt(ctx.state.rngState, player.deck.length + 1);
       player.deck.splice(insertIndex, 0, card);
@@ -1554,7 +1675,7 @@ function randomTransferCards(ctx, operation){
     if(fateBonus){
       for(const card of selected){
         if(isEffectImmutable(card)) continue;
-        card.currentFate = Math.max(0, (Number(card.currentFate) || 0) + fateBonus);
+        commitPermanentFate(card, (Number(card.currentFate) || 0) + fateBonus);
       }
     }
     const selectedIids = selected.map(card=>card.iid);

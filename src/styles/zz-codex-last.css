@@ -1569,6 +1569,29 @@ html body #s-game .bc.fate-effect-flash::after{
 }
 html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!important;filter:none!important;}
 
+/* Mark Menz — four exact declaration crests in the established full-card
+   effect-flash language. Colours mirror the affiliation picker. */
+html body #s-game .bc.effect-flash-mark_menz_reality{
+  --effect-flash-color:rgba(255,232,142,.99);--effect-flash-glow:rgba(226,198,87,.68);
+  --effect-flash-tint:rgba(154,124,30,.18);--effect-flash-inset:rgba(255,226,120,.13);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='12' stroke-width='3.4'/%3E%3Cpath d='M32 8v10M32 46v10M8 32h10M46 32h10M15 15l7 7M42 42l7 7M49 15l-7 7M22 42l-7 7' stroke-width='3.4'/%3E%3C/g%3E%3C/svg%3E");
+}
+html body #s-game .bc.effect-flash-mark_menz_third_great_war{
+  --effect-flash-color:rgba(255,166,156,.99);--effect-flash-glow:rgba(226,90,79,.70);
+  --effect-flash-tint:rgba(156,43,35,.20);--effect-flash-inset:rgba(255,126,116,.14);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='22' stroke-width='3.2'/%3E%3Cpath d='M32 13l4 8-4 4-4-4 4-8zM32 25v21M24 31h16M28 46h8M18 22l6 6M46 22l-6 6M18 42l6-6M46 42l-6-6' stroke-width='3.4'/%3E%3C/g%3E%3C/svg%3E");
+}
+html body #s-game .bc.effect-flash-mark_menz_expanded_worlds{
+  --effect-flash-color:rgba(171,255,190,.99);--effect-flash-glow:rgba(73,191,105,.68);
+  --effect-flash-tint:rgba(31,132,63,.19);--effect-flash-inset:rgba(112,236,143,.13);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 8L56 52H8Z' stroke-width='3.6'/%3E%3Cpath d='M32 50L19.5 33H44.5Z' stroke-width='3'/%3E%3Ccircle cx='32' cy='39.5' r='4' stroke-width='2.2'/%3E%3C/g%3E%3C/svg%3E");
+}
+html body #s-game .bc.effect-flash-mark_menz_eventide{
+  --effect-flash-color:rgba(164,229,255,.99);--effect-flash-glow:rgba(88,196,240,.70);
+  --effect-flash-tint:rgba(35,116,171,.19);--effect-flash-inset:rgba(119,212,250,.13);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 8l5 19 19 5-19 5-5 19-5-19-19-5 19-5z' stroke-width='3.2'/%3E%3Ccircle cx='32' cy='32' r='7' stroke-width='2.6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
 .bc.effect-flash-specter_ghost{
   --effect-flash-color:rgba(224,239,255,.98);--effect-flash-glow:rgba(140,184,255,.58);
   --effect-flash-tint:rgba(104,126,174,.16);--effect-flash-inset:rgba(176,205,255,.12);
@@ -12437,6 +12460,18 @@ html body #modal .board-target-picker.is-multi-zone .board-target-zone{
   scrollbar-color:rgba(218,185,82,.28) transparent!important;
 }
 
+/* A stock three-by-three zone fits completely and must never advertise scroll.
+   Scrolling is reserved for authority geometry that actually adds board space. */
+html body #modal .board-target-zone.no-extra-board-space,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone.no-extra-board-space{
+  overflow:hidden!important;
+  scrollbar-width:none!important;
+}
+
+html body #modal .board-target-zone.no-extra-board-space::-webkit-scrollbar{
+  display:none!important;
+}
+
 html body #modal .board-target-zone::-webkit-scrollbar{
   width:4px!important;
 }
@@ -12690,6 +12725,10 @@ html body #s-challenger .ch-play-panel .ch-v5-elo{
 
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo{
   font-size:clamp(2.65rem,3.15vw,3.85rem)!important;
+}
+
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
+  font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
 }
 
 html body.modal-open .cinematic-subtitle-live{
@@ -13228,8 +13267,41 @@ html body #s-challenger .ch-tab-pane{
   width:100%!important;
   min-height:0!important;
   flex:1 1 auto!important;
-  overflow-y:auto!important;
+  overflow-y:hidden!important;
   overflow-x:hidden!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone.has-extra-rows{
+  overflow-y:auto!important;
+}
+
+html body #modal .board-target-picker.is-multi-zone .board-target-zone,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone.has-extra-rows{
+  block-size:434px!important;
+  height:434px!important;
+  min-height:434px!important;
+  max-height:434px!important;
+}
+
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone,
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone.has-extra-rows{
+  block-size:434px!important;
+  height:434px!important;
+  min-height:434px!important;
+  max-height:434px!important;
+}
+
+@media (max-height:700px){
+  html body #modal .board-target-picker.is-multi-zone .board-target-zone,
+  html body #modal .board-target-picker.is-multi-zone .board-target-zone.has-extra-rows,
+  html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone,
+  html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone.has-extra-rows{
+    block-size:calc(100vh - 266px)!important;
+    height:calc(100vh - 266px)!important;
+    min-height:calc(100vh - 266px)!important;
+    max-height:calc(100vh - 266px)!important;
+  }
 }
 
 html body #s-challenger .ch-tab-pane:not([hidden]){
@@ -14745,6 +14817,7 @@ html body #modal .modal.cdb-save-modal .cdb-save-top,
 html body #modal .modal.cdb-save-modal .cdb-save-form,
 html body #modal .modal.cdb-save-modal .deck-theme-field{
   overflow:visible!important;
+  transform:translateX(-5px)!important;
 }
 html body #modal .modal.cdb-save-modal .cdb-save-top,
 html body #modal .modal.cdb-save-modal .cdb-save-form,
@@ -18727,31 +18800,190 @@ html body #s-social .social-friends-list-v20 .social-friend-row::before{
 
 /* Henry square picker and profile avatar pixel nudges. */
 html body #modal .board-target-cell.is-square-target.is-empty{
-  border-color:rgba(166,135,236,.56)!important;
-  background:linear-gradient(145deg,rgba(38,24,70,.76),rgba(8,12,22,.82))!important;
+  border:1px solid rgba(238,205,105,.7)!important;
+  border-style:solid!important;
+  background:
+    radial-gradient(circle at center,rgba(238,205,105,.18),rgba(8,20,36,.22) 62%),
+    linear-gradient(145deg,rgba(53,42,15,.54),rgba(7,18,32,.84))!important;
 }
 
 html body #modal .board-target-square-mark{
   width:100%!important;
   height:100%!important;
-  border:1px dashed rgba(221,202,255,.42)!important;
+  border:1px solid rgba(238,205,105,.44)!important;
+  border-style:solid!important;
   background:
-    radial-gradient(circle at center,rgba(186,151,255,.22),rgba(10,12,23,.24) 62%),
-    linear-gradient(145deg,rgba(98,73,160,.26),rgba(22,31,48,.58))!important;
-  box-shadow:inset 0 0 18px rgba(142,108,224,.16)!important;
-}
-
-html body #modal .board-target-square-mark span{
-  opacity:.72!important;
-  color:rgba(235,225,255,.86)!important;
-  letter-spacing:.14em!important;
+    radial-gradient(circle at center,rgba(238,205,105,.22),rgba(8,20,36,.18) 62%),
+    linear-gradient(145deg,rgba(92,71,20,.24),rgba(13,35,57,.62))!important;
+  box-shadow:inset 0 0 18px rgba(238,205,105,.13)!important;
+  color:transparent!important;
+  font-size:0!important;
 }
 
 html body #modal .board-target-cell.is-square-target.is-selected .board-target-square-mark{
-  border-color:rgba(244,216,111,.82)!important;
+  border-color:rgba(255,224,129,.92)!important;
   background:
-    radial-gradient(circle at center,rgba(244,216,111,.22),rgba(25,19,45,.18) 64%),
-    linear-gradient(145deg,rgba(117,88,186,.34),rgba(20,33,54,.62))!important;
+    radial-gradient(circle at center,rgba(255,224,129,.34),rgba(10,34,58,.2) 64%),
+    linear-gradient(145deg,rgba(129,99,28,.4),rgba(12,42,68,.68))!important;
+}
+
+html body #modal .board-target-cell.is-square-target.is-selected,
+html body #modal .board-target-cell.is-square-target.is-targetable.is-selected{
+  border-color:rgba(255,224,129,.94)!important;
+  border-style:solid!important;
+  background:linear-gradient(145deg,rgba(118,91,25,.42),rgba(8,30,50,.72))!important;
+  box-shadow:inset 0 0 0 2px rgba(238,205,105,.82),0 0 14px rgba(238,205,105,.24)!important;
+}
+
+/* 2026-08-10: extra board space never resizes the production zone picker.
+   The three-zone frame and cells stay at their normal dimensions; Mark,
+   Anicka, and every other extra-row/extra-cell effect scroll inside it. */
+html body #modal .modal.board-target-picker-modal{
+  width:min(760px,calc(100vw - 32px))!important;
+  max-width:760px!important;
+  height:min(820px,calc(100vh - 32px))!important;
+  max-height:calc(100vh - 32px)!important;
+}
+
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker{
+  width:min(1180px,calc(100vw - 32px))!important;
+  max-width:1180px!important;
+  height:min(820px,calc(100vh - 32px))!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body{
+  height:calc(100% - 92px)!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html body #modal .board-target-picker{
+  height:100%!important;
+  min-height:0!important;
+}
+
+html body #modal .board-target-picker:not(.is-multi-zone),
+html body #modal .board-target-picker:not(.is-multi-zone) .board-target-zone.has-extra-rows{
+  --board-target-cell-w:108px!important;
+}
+
+html body #modal .board-target-picker.is-multi-zone{
+  --board-target-cell-w:104px!important;
+}
+
+html body #modal .board-target-zones{
+  flex:1 1 auto!important;
+  min-height:0!important;
+}
+
+html body #modal .board-target-picker.is-multi-zone .board-target-zones{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  align-items:stretch!important;
+  justify-items:stretch!important;
+}
+
+html body #modal .board-target-zone,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  align-self:stretch!important;
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow-y:hidden!important;
+  overflow-x:hidden!important;
+}
+
+html body #modal .board-target-zone.has-extra-rows,
+html body #modal .board-target-picker.is-multi-zone .board-target-zone.has-extra-rows{
+  height:100%!important;
+  max-height:100%!important;
+  overflow-y:auto!important;
+}
+
+html body #modal .board-target-row.has-extra-cells .board-target-cells{
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+}
+
+/* The earlier 434px multi-zone frame clipped the third card row. Keep every
+   three-zone picker at one stable, fully visible height. Added rows scroll
+   inside that same frame; ordinary three-row boards never show a scrollbar. */
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone,
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone.has-extra-rows{
+  block-size:clamp(360px, calc(100vh - 340px), 500px)!important;
+  height:clamp(360px, calc(100vh - 340px), 500px)!important;
+  min-height:clamp(360px, calc(100vh - 340px), 500px)!important;
+  max-height:clamp(360px, calc(100vh - 340px), 500px)!important;
+}
+
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone:not(.has-extra-rows):not(.has-extra-cells){
+  overflow:hidden!important;
+  scrollbar-width:none!important;
+}
+
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone.has-extra-rows{
+  overflow-y:auto!important;
+}
+
+@media (max-height:820px){
+  html body #modal .board-target-picker.is-multi-zone{
+    --board-target-cell-w:88px!important;
+  }
+
+  html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone,
+  html body #modal .modal.board-target-picker-modal.is-multi-zone-picker #modal-body .board-target-picker.is-multi-zone .board-target-zones > .board-target-zone.has-extra-rows{
+    block-size:calc(100vh - 310px)!important;
+    height:calc(100vh - 310px)!important;
+    min-height:calc(100vh - 310px)!important;
+    max-height:calc(100vh - 310px)!important;
+  }
+}
+
+/* 2026-08-16: board pickers size to their actual rows. The previous fixed
+   820px shell left a large dead band under an ordinary three-row board and
+   pushed Cancel/Confirm against the viewport edge. Extra geometry still
+   scrolls inside the same stable zone frame. */
+html body #modal .modal.board-target-picker-modal,
+html body #modal .modal.board-target-picker-modal.is-multi-zone-picker{
+  height:auto!important;
+  min-height:0!important;
+  max-height:calc(100vh - 32px)!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-body{
+  height:auto!important;
+  min-height:0!important;
+  flex:0 1 auto!important;
+}
+
+html body #modal .modal.board-target-picker-modal .board-target-picker{
+  height:auto!important;
+  min-height:0!important;
+}
+
+html body #modal .modal.board-target-picker-modal .board-target-zones{
+  flex:0 0 auto!important;
+}
+
+html body #modal .modal.board-target-picker-modal #modal-acts{
+  flex:0 0 auto!important;
+  margin-top:.62rem!important;
+  padding-bottom:.12rem!important;
+}
+
+/* All three zone frames must remain exactly equal. Extra Mark/Anicka geometry
+   scrolls inside the affected frame; it never changes that frame's height or
+   leaves the other two zones with slightly different borders. */
+
+/* The production renderer is prepared behind a fully opaque entry veil. This
+   prevents the retired DOM board from flashing while the canvas scene mounts. */
+html body .match-entry-loading-veil.on{
+  background:#040509!important;
+  transition:none!important;
 }
 
 html body #modal :is(.online-profile-inspect-v19,.inspected-profile-stable) .profile-img-wrap{
@@ -19741,6 +19973,26 @@ html body #online-improvisor-reaction-root .reaction-prompt strong{
 html body #online-improvisor-reaction-root .reaction-prompt strong{
   margin:0 .24rem!important;
   overflow-wrap:break-word!important;
+}
+
+/* The same sentence is used by the single-player and Phase 7 reaction
+   modals.  Long card names must wrap as prose, never force the flex children
+   into overlapping columns. */
+html body #modal .reaction-prompt{
+  display:block!important;
+  min-width:0!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+html body #modal .reaction-prompt span,
+html body #modal .reaction-prompt strong{
+  display:inline!important;
+  vertical-align:baseline!important;
+}
+html body #modal .reaction-prompt strong{
+  margin:0 .24rem!important;
+  overflow-wrap:anywhere!important;
+  white-space:normal!important;
 }
 
 /* Deck builders keep wheel/touch scrolling without visible scrollbar chrome. */
@@ -24151,27 +24403,10 @@ html body #s-game .effect-pill.effect-pill-opp:not(.effect-pill-overflow) .effec
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.045),0 0 7px rgba(225,70,82,.18)!important;
 }
 
-/* Snow on the Carpathians: make consolidation ownership readable over the Alpine board. */
-html body #s-game.landscape-id-igb15 #board .bc.tribute-available:not(.opponent-card),
-html body #s-game.landscape-id-igb15 #board .bc.tribute-selected:not(.opponent-card),
-html body #s-game.landscape-id-igb15 #board .bc.tribute-ready:not(.opponent-card){
-  outline-color:rgba(83,176,255,.88)!important;
-  box-shadow:0 0 7px rgba(47,140,255,.22)!important;
-}
-html body #s-game.landscape-id-igb15 #board .bc.tribute-available.opponent-card,
-html body #s-game.landscape-id-igb15 #board .bc.tribute-selected.opponent-card,
-html body #s-game.landscape-id-igb15 #board .bc.tribute-ready.opponent-card{
-  outline-color:rgba(255,96,108,.9)!important;
-  box-shadow:0 0 7px rgba(255,58,72,.24)!important;
-}
-html body #s-game.landscape-id-igb15 #board .cell:is(.tribute-cell-available,.tribute-cell-selected,.tribute-cell-ready):has(.bc:not(.opponent-card)){
-  outline-color:rgba(83,176,255,.78)!important;
-  box-shadow:0 0 7px rgba(47,140,255,.18)!important;
-}
-html body #s-game.landscape-id-igb15 #board .cell:is(.tribute-cell-available,.tribute-cell-selected,.tribute-cell-ready):has(.bc.opponent-card){
-  outline-color:rgba(255,96,108,.8)!important;
-  box-shadow:0 0 7px rgba(255,58,72,.2)!important;
-}
+/* Snow on the Carpathians deliberately keeps the standard consolidation
+   language: available/partial tributes are gold, and only a complete legal
+   selection turns blue.  Do not replace these state colors with ownership
+   colors on the Alpine board. */
 html body .cc-overlay-v2.alpine-consolidation-owner-mine .cc-card-wrap-v2::after,
 html body .cc-overlay-v2.alpine-consolidation-owner-opp .cc-card-wrap-v2::after{
   content:''!important;
@@ -24260,6 +24495,7 @@ html body #s-social .social-online-command .social-online-card-rank{
   align-self:center!important;
   justify-content:stretch!important;
   overflow:visible!important;
+  transform:translateX(-5px)!important;
 }
 html body #s-social .social-online-command .social-online-card-rank .rank-badge,
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md{
@@ -24291,6 +24527,11 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
   text-overflow:clip!important;
   line-height:1.12!important;
   text-align:left!important;
+}
+
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-long,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-xlong{
+  transform:translateX(-10px)!important;
 }
 html body #s-social .social-friend-row .social-friend-meta{
   height:auto!important;

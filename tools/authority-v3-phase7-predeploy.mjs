@@ -2,8 +2,40 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseDeploymentToml} from './authority-v3-shadow-predeploy.mjs';
 import {buildPhase7SourceIdentity} from './authority-v3-phase7-build-id.mjs';
+
+function parseValue(raw){
+  const value = String(raw || '').trim();
+  const quoted = value.match(/^(['"])([\s\S]*)\1$/);
+  return quoted ? quoted[2] : value;
+}
+
+// Phase 7 is independently deployable after removal of the retired shadow
+// multiplayer system, so its release gate must not import a deleted legacy
+// predeploy module merely to parse this small TOML subset.
+function parseDeploymentToml(text){
+  const tables = {root:{}};
+  const duplicateKeys = [];
+  let tableName = 'root';
+  for(const rawLine of String(text || '').split(/\r?\n/)){
+    const line = rawLine.replace(/\s+#.*$/, '').trim();
+    if(!line) continue;
+    const arrayHeader = line.match(/^\[\[([^\]]+)\]\]$/);
+    const tableHeader = line.match(/^\[([^\]]+)\]$/);
+    if(arrayHeader || tableHeader){
+      tableName = String((arrayHeader || tableHeader)[1]).trim();
+      tables[tableName] ||= {};
+      continue;
+    }
+    const assignment = line.match(/^([A-Za-z0-9_]+)\s*=\s*(.+)$/);
+    if(!assignment) continue;
+    const key = assignment[1];
+    tables[tableName] ||= {};
+    if(Object.hasOwn(tables[tableName], key)) duplicateKeys.push(`${tableName}.${key}`);
+    tables[tableName][key] = parseValue(assignment[2]);
+  }
+  return {tables, duplicateKeys};
+}
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.resolve(process.argv[2] || path.join(root, 'fly.authority-v3-phase7-beta.toml'));
@@ -24,10 +56,20 @@ if(!fs.existsSync(configPath)){
     if(String(actual ?? '') !== String(expected)) errors.push(`${label} must be ${JSON.stringify(expected)}`);
   };
   if(parsed.duplicateKeys.length) errors.push(`duplicate keys: ${parsed.duplicateKeys.join(', ')}`);
-  if([defaultFly.root?.app, shadowFly.root?.app].includes(tables.root?.app)){
+  const conflictingApps = [defaultFly.root?.app, shadowFly.root?.app].filter(Boolean);
+  if(conflictingApps.includes(tables.root?.app)){
     errors.push('Phase 7 app must be separate from legacy production and Phase 6 shadow');
   }
-  if([defaultFly.mounts?.source, shadowFly.mounts?.source].includes(tables.mounts?.source)){
+  // Fly volume names are scoped to an app. Reusing the descriptive source
+  // name in two distinct apps is not shared storage; only reject it when the
+  // app itself also conflicts. Ignore absent retired-shadow values entirely.
+  const storageConflicts = [defaultFly, shadowFly].some(function(candidate){
+    return candidate.root?.app
+      && candidate.root.app === tables.root?.app
+      && candidate.mounts?.source
+      && candidate.mounts.source === tables.mounts?.source;
+  });
+  if(storageConflicts){
     errors.push('Phase 7 volume must be separate from legacy production and Phase 6 shadow');
   }
   requireEqual(tables.build?.dockerfile, 'Dockerfile.authority-v3-phase7-beta', 'build.dockerfile');
@@ -67,10 +109,9 @@ if(!fs.existsSync(configPath)){
   ]){
     if(!dockerfile.includes(requiredCopy)) errors.push(`Phase 7 Dockerfile is missing ${requiredCopy}`);
   }
-  const defaultText = fs.readFileSync(path.join(root, 'fly.toml'), 'utf8');
-  if(/PHASE7|phase7|unranked-beta/.test(defaultText)){
-    errors.push('default fly.toml must remain unaware of Phase 7');
-  }
+  // The retired client-authoritative deployment has been physically removed.
+  // The default app may now name the Phase 7 runtime, while this isolated beta
+  // config must still use its own app identity above.
 }
 
 const result = {ok:errors.length === 0, configPath, errors};

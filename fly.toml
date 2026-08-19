@@ -9,25 +9,15 @@ primary_region = 'lax'
 [build]
 
 [processes]
-  app = 'node server/fate-ws-authority.js'
+  app = 'node server/authoritative-v3/phase7-beta-server.mjs'
 
 [env]
-  FATE_WS_DATA_DIR = '/data/fate-authority'
-  FATE_WS_FLY_STORE = '1'
-  FATE_WS_REQUIRE_FLY_STORE = '1'
-  FATE_WS_REQUIRE_TOKEN = '1'
-  FATE_WS_DISABLE_FIREBASE_RTDB = '1'
-  FATE_RTDB_DISABLED = '1'
-  FATE_WEB_GAME_DISABLED = '0'
-  FATE_WS_DURABLE_WRITES = 'off'
-  FATE_WS_REQUIRE_DURABLE_WRITES = '0'
-  FATE_WS_STATE_GATE = '1'
-  FATE_WS_REDUCER_MODE = 'client-resolved'
-  FATE_WS_GAMEPLAY_AUTHORITY = 'client-resolved'
-  FATE_WS_MAX_ROOM_EVENTS = '360'
-  FATE_WS_PERSIST_DEBOUNCE_MS = '750'
-  FATE_WS_APPEND_EVENT_LOG = '1'
-  FATE_WS_PING_MS = '45000'
+  FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '0'
+  FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION = '1.39.0-phase7-beta.1'
+  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'phase7-8c84728915b5973ab35da28a8ec1d4d2aed0aa96be598d54bb9cee10d2e50acb'
+  FATE_AUTHORITY_V3_DATA_DIR = '/data/authority-v3-phase7'
   FATE_AI_LEARNING_ENABLED = '1'
   FATE_AI_TRAINING_MODE = 'scheduled'
   FATE_AI_TRAIN_INTERVAL_MS = '21600000'
@@ -37,7 +27,7 @@ primary_region = 'lax'
   FATE_AI_TRAIN_RETENTION_DAYS = '45'
 
 [[mounts]]
-  source = 'fate_authority_data'
+  source = 'fate_authority_v3_phase7_beta'
   destination = '/data'
 
 [http_service]

@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const rooms = fs.readFileSync(path.join(root, 'src', 'scripts', '18-online-rooms.js'), 'utf8');
 const gameplay = fs.readFileSync(path.join(root, 'src', 'scripts', '05-gameplay-core.js'), 'utf8');
+const renderingHelpers = fs.readFileSync(path.join(root, 'src', 'scripts', '06-rendering-and-helpers.js'), 'utf8');
 const client = fs.readFileSync(
   path.join(root, 'src', 'scripts', 'authoritative-v3-phase7-beta-client.mjs'),
   'utf8'
@@ -22,6 +23,8 @@ const matchSceneInput = fs.readFileSync(
   'utf8'
 );
 const actor = fs.readFileSync(path.join(root, 'server', 'authoritative-v3', 'room-actor.mjs'), 'utf8');
+const authorityServer = fs.readFileSync(path.join(root, 'server', 'authoritative-v3', 'server.mjs'), 'utf8');
+const finalStyles = fs.readFileSync(path.join(root, 'src', 'styles', 'zz-codex-last.css'), 'utf8');
 const sceneInput = fs.readFileSync(path.join(root, 'src', 'scripts', 'render-v2', '06-match-scene-input.js'), 'utf8');
 const rendererAdapter = fs.readFileSync(path.join(root, 'src', 'scripts', 'render-v2', '04-match-renderer-adapter.js'), 'utf8');
 const smoothness = fs.readFileSync(path.join(root, 'src', 'scripts', '21-smoothness-core.js'), 'utf8');
@@ -29,7 +32,52 @@ const electronMain = fs.readFileSync(path.join(root, 'electron', 'main.js'), 'ut
 const packageJson = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 const defaultFly = fs.readFileSync(path.join(root, 'fly.toml'), 'utf8');
 
+assert.match(
+  rooms,
+  /const phase7ServerOwnsBoard = g\._phase7CurrentMultiplayer === true;[\s\S]*if\(phase7ServerOwnsBoard\) clearOnlineMoreBoardPreference\('phase7-server-board-authority'\)/,
+  'Phase 7 must clear retired local-board preservation state before projecting an authoritative snapshot'
+);
+assert.match(
+  rooms,
+  /state = phase7ServerOwnsBoard\s*\? state\s*:\s*preferMoreOnlineBoardCards/,
+  'Phase 7 must use the exact server board and never revive a locally richer legacy board'
+);
 assert.match(index, /params\.get\('fateV3UnrankedBeta'\) === '1'/);
+assert.match(
+  gameplay,
+  /function isTurnTimerInteractionPaused\(\)[\s\S]*_phase7PendingPrompt[\s\S]*getElementById\('modal'\)[\s\S]*function getTurnTimerPausedMs/,
+  'every live effect window must suspend the shared turn clock and preserve its elapsed pause'
+);
+assert.match(
+  gameplay,
+  /if\(updateTurnTimerPauseState\(turnTimerPauseNow\(\)\)\)\{[\s\S]*updateTimerDisplay\(\);[\s\S]*return;/,
+  'the countdown loop must not consume a second while any interaction window is open'
+);
+assert.match(
+  authorityServer,
+  /function suspendTurnTimer[\s\S]*remainingMs[\s\S]*function armTurnTimer[\s\S]*pendingPrompt \|\| actor\.state\.pendingHandLimit\) suspendTurnTimer/,
+  'the authoritative landscape clock must resume from its remaining time after prompts and hand-limit windows'
+);
+assert.match(
+  rooms,
+  /inflightCommandPromises:new Map[\s\S]*function phase7CurrentEquivalentCommand[\s\S]*adapter\?\.view[\s\S]*function phase7SubmitCommand[\s\S]*inflight\.has\(key\)/,
+  'coin choices and other visible commands must deduplicate clicks and rebase from the latest rejection snapshot'
+);
+assert.match(
+  rooms,
+  /#coin-btns button[\s\S]*button\.disabled = true[\s\S]*phase7SubmitCommand\(command\)/,
+  'the coin winner choices must lock immediately while the authoritative command is in flight'
+);
+assert.match(
+  finalStyles,
+  /extra board space never resizes[\s\S]*board-target-picker-modal\.is-multi-zone-picker[\s\S]*height:min\(820px[\s\S]*has-extra-cells[\s\S]*overflow-x:auto/,
+  'extra rows and cells must scroll inside a stable picker frame'
+);
+assert.match(
+  finalStyles,
+  /board-target-cell\.is-square-target\.is-empty[\s\S]*rgba\(238,205,105[\s\S]*is-square-target\.is-selected[\s\S]*rgba\(255,224,129/,
+  'all square-target picker states must use the current single-player gold selection treatment'
+);
 assert.match(rooms, /\['51','66','77','90'\][\s\S]{0,1400}phase7AuthoritativeAffiliationBound[\s\S]{0,500}capture:true/, 'authoritative affiliation prompts must bind their reused visual picker after presentation deferral and guard duplicate submissions');
 assert.match(rooms, /sourceId === 'bh04'[\s\S]{0,1800}bindTypeButtons[\s\S]{0,900}phase7AuthoritativeBh04Bound[\s\S]{0,500}capture:true/, 'Destruction of Paradise must bind its deferred single-player type picker and submit the exact authoritative choice once');
 assert.match(electronMain, /process\.argv\.includes\('--phase7-beta'\)/);
@@ -54,12 +102,12 @@ assert.match(
 );
 assert.match(
   index,
-  /phase7Conflict = phase7Beta[\s\S]*fateAuthority[\s\S]*flyWs[\s\S]*fateV3SinglePlayer[\s\S]*shadowSoak/,
+  /phase7Conflict = phase7Beta[\s\S]*fateAuthority[\s\S]*flyWs[\s\S]*fateV3SinglePlayer/,
   'Phase 7 must reject every competing authority route'
 );
 assert.match(
   index,
-  /if\(shadowConflict \|\| phase7Conflict\)\{[\s\S]*FATE_AUTHORITY_ROUTE_BLOCKED = true[\s\S]*FATE_PHASE7_UNRANKED_BETA_BLOCKED = true[\s\S]*FATE_WS_AUTHORITY_URL = ''/,
+  /if\(phase7Conflict\)\{[\s\S]*FATE_AUTHORITY_ROUTE_BLOCKED = true[\s\S]*FATE_PHASE7_UNRANKED_BETA_BLOCKED = true[\s\S]*FATE_WS_AUTHORITY_URL = ''/,
   'Phase 7 route conflicts must fail closed'
 );
 assert.match(
@@ -72,11 +120,8 @@ assert.match(
   /get\('fateV3UnrankedBeta'\) !== '1'[\s\S]*FATE_PHASE7_UNRANKED_BETA_BLOCKED[\s\S]*authoritative-v3-phase7-beta-client\.mjs/,
   'the Phase 7 client module must not load without its exact conflict-free route'
 );
-assert.match(
-  index,
-  /if\(hostedFly && !shadowSoak && !phase7Beta\)/,
-  'the production hosted route must not run under the Phase 7 flag'
-);
+assert.match(index, /FATE_LEGACY_MULTIPLAYER_RETIRED = true/, 'the legacy multiplayer route must be retired globally');
+assert.doesNotMatch(index, /fateV3ShadowSoak|fates-entwined-v3-shadow-soak/, 'the retired shadow route settings must be absent');
 
 assert.match(
   rooms,
@@ -84,8 +129,8 @@ assert.match(
 );
 assert.match(
   rooms,
-  /if\(phase7UnrankedBetaEnabled\(\)\)\{[\s\S]*startUnrankedMatchmaking\([\s\S]*deckIds:deck\.deckIds[\s\S]*landscapeId:settings\.landscapeId/,
-  'the existing Free Play queue must enter Phase 7 matchmaking on the exact beta route'
+  /if\(phase7UnrankedBetaEnabled\(\)\)\{[\s\S]*const settings = pendingFreePlayRoomGameSettings\(mode\)[\s\S]*startUnrankedMatchmaking\([\s\S]*deckIds:deck\.deckIds[\s\S]*gameSettings:settings/,
+  'the existing Free Play queue must enter Phase 7 matchmaking with the selected deck and complete normalized game settings'
 );
 assert.match(
   rooms,
@@ -146,7 +191,7 @@ assert.match(
 assert.match(rooms, /phase7ProjectionToLegacy/);
 assert.match(
   rooms,
-  /function phase7CardToLegacy\(card\)[\s\S]{0,700}projectedController = Number\(card\.controller \?\? card\.owner\)[\s\S]{0,500}next\.owner = projectedController[\s\S]{0,160}next\.controller = projectedController/,
+  /function phase7CardToLegacy\(card(?:, projectedState)?\)[\s\S]{0,700}projectedController = Number\(card\.controller \?\? card\.owner\)[\s\S]{0,500}next\.owner = projectedController[\s\S]{0,160}next\.controller = projectedController/,
   'the shipping UI must score transferred cards for their authoritative controller while preserving printed ownership separately'
 );
 assert.doesNotMatch(
@@ -185,6 +230,16 @@ assert.match(
   'Phase 7 activation controls must be driven by exact server-issued legal commands'
 );
 assert.match(
+  renderingHelpers,
+  /function queueLandscapeOutsideDrawBonus\(player, drawnCard\)\s*\{[\s\S]{0,520}_phase7CurrentMultiplayer === true\) return false/,
+  'West Coast Dreaming must not use the legacy client-owned draw bonus in a Phase 7 match'
+);
+assert.match(
+  renderingHelpers,
+  /function processLandscapeDrawQueue\(\)\s*\{[\s\S]{0,420}_phase7CurrentMultiplayer === true\)[\s\S]{0,220}_landscapeDrawQueue = \[\]/,
+  'a stale legacy West Coast Dreaming queue must be discarded when Phase 7 authority is active'
+);
+assert.match(
   gameplay,
   /function getBaseZoneScore\(z, player\)[\s\S]*_phase7CurrentMultiplayer === true[\s\S]*_phase7Statuses[\s\S]*ZONE_FATE_MODIFIER[\s\S]*status\.playerIndex/,
   'Phase 7 zone Fate must include the authority projection status modifiers'
@@ -196,12 +251,12 @@ assert.match(
 );
 assert.match(
   rooms,
-  /function phase7CardToLegacy\(card\)[\s\S]*counters\?\.copiedPassiveId[\s\S]*next\.copiedPassiveId = copiedPassiveId[\s\S]*next\._copiedPassiveId = copiedPassiveId/,
+  /function phase7CardToLegacy\(card(?:, projectedState)?\)[\s\S]*counters\?\.copiedPassiveId[\s\S]*next\.copiedPassiveId = copiedPassiveId[\s\S]*next\._copiedPassiveId = copiedPassiveId/,
   'authoritative copied passives must use the established single-player scoring compatibility fields'
 );
 assert.match(
   rooms,
-  /function phase7CardToLegacy\(card\)[\s\S]*counters\?\.declaredAffiliation[\s\S]*next\.declaredAffiliation = declaredAffiliation[\s\S]*next\._declaredAff = declaredAffiliation/,
+  /function phase7CardToLegacy\(card(?:, projectedState)?\)[\s\S]*counters\?\.declaredAffiliation[\s\S]*next\.declaredAffiliation = declaredAffiliation[\s\S]*next\._declaredAff = declaredAffiliation/,
   'authoritative Duncan declarations must use the established single-player scoring compatibility fields'
 );
 assert.match(
@@ -255,7 +310,14 @@ assert.match(rooms, /function phase7GuardHandLimitPicker[\s\S]*discard selected[
   'the authoritative hand-limit guard must rebuild incomplete modal chrome, including a missing action row');
 assert.match(fullUiE2e, /function organicCardSort[\s\S]*\.sort\(organicCardSort\)/,
   'card certification must use natural numeric order so card 100 never appears between 10 and 11');
-assert.match(fullUiE2e, /function exactOrganicScenarioDeck[\s\S]*new Map\(\[\['32',\s*16\],\s*\['22',\s*4\]\]\)[\s\S]*deckIds\.slice\(0, 40\)/);
+assert.match(fullUiE2e, /ORGANIC_VARIANTS\.flatMap[\s\S]*organicCampaignCardIds\.map/, 'card campaign schedule must interleave cards by variant');
+assert.match(fullUiE2e, /Math\.min\(1070,[\s\S]*Math\.min\(1069,[\s\S]*ORGANIC_FULL_MATCH_EXEMPT_CARD_IDS = new Set\(\['06','60'\]\)/,
+  'the strict campaign must run ten matches for all 107 non-basic-search cards');
+assert.match(fullUiE2e, /ORGANIC_ROTATING_SUPPORTER_IDS[\s\S]*ORGANIC_ROTATING_CHARACTER_IDS[\s\S]*function exactOrganicScenarioDeck[\s\S]*rotatedScenarioIds/, 'exact decks must rotate diverse Supporter and Character interaction scaffolds');
+assert.doesNotMatch(fullUiE2e, /new Map\(\[\['10',\s*\d+\]\]\)/, 'Post-Modernist Dylan must never be fixed universal scaffolding');
+assert.match(fullUiE2e, /reinforcementPolicyForScenario[\s\S]*BASELINE_REAL_RULES[\s\S]*REINFORCEMENT_SENSITIVE_ORACLE[\s\S]*EFFECT_FOCUS_OPTIMIZATION/, 'fixture cost shortcuts must fail closed for baseline and reinforcement-sensitive rules');
+assert.match(fullUiE2e, /cardCertificationObligations[\s\S]*UNOBSERVED_RULE_OBLIGATIONS/, 'card certification must fail closed when a positive or negative oracle obligation lacks evidence');
+assert.match(rooms, /function phase7EnsureCoinPresentation\(view\)[\s\S]*coinPresentationKey[\s\S]*window\.doCoinFlip\(\)/, 'Phase 7 must initialize the production coin UI even when its screen was already active');
 assert.match(fullUiE2e, /exactScenarioDeck:!!exactScenario[\s\S]*scenarioCardIds/);
 assert.doesNotMatch(
   fullUiE2e,
@@ -306,6 +368,16 @@ assert.match(
   'an accepted command must count as progress while production presentation holds the old visible revision'
 );
 assert.match(rooms, /button\.dataset\.phase7Action[\s\S]*button\.dataset\.phase7Iid/);
+assert.match(
+  client,
+  /message\.kind === 'snapshot' \|\| message\.kind === 'accepted' \|\| message\.kind === 'rejected'[\s\S]*state = clone\(message\.state\)[\s\S]*revision = Math\.max/,
+  'a rejected command must consume the authoritative replacement projection and revision before the UI offers another prompt action'
+);
+assert.match(
+  rooms,
+  /function phase7CurrentEquivalentCommand[\s\S]*phase7CommandKey[\s\S]*STALE_REVISION[\s\S]*retryOnStale:false/,
+  'a stale prompt click may retry only the exact refreshed server-issued command once'
+);
 assert.match(rooms, /button\.dataset\.phase7PromptId[\s\S]*phase7PromptCancel/);
 assert.match(rooms, /button\.dataset\.phase7CommandType[\s\S]*phase7CommandPayload[\s\S]*phase7CommandKey/);
 assert.match(rooms, /phase7CommandRevision/);
@@ -347,8 +419,13 @@ assert.match(rooms, /phase === 'main'[\s\S]*screenRecoveryKey[\s\S]*showScreen\(
 assert.doesNotMatch(fullUiE2e, /dispatchLegalCommand/);
 assert.match(
   fullUiE2e,
-  /if\(!driven\)[\s\S]*recordError\('Could not drive the displayed UI[\s\S]*submitDiagnosticFallback/,
-  'the full-UI runner must record a displayed-control failure before using its anti-stall fallback'
+  /if\(!driven\)[\s\S]*result\.uiDriveRetries \+= 1[\s\S]*result\.lastUiDriveFailure = [\s\S]*submitDiagnosticFallback/,
+  'the full-UI runner must retain retry diagnostics without failing a match that a later genuine UI gesture completes'
+);
+assert.match(
+  fullUiE2e,
+  /if\(Date\.now\(\) - lastProgressAt > stallTimeoutMs\)[\s\S]*abandonStalledMatch/,
+  'a repeated displayed-control failure must still become a strict recorded failure at the bounded stall deadline'
 );
 assert.match(
   fullUiE2e,
@@ -436,10 +513,10 @@ assert.equal(
   'an opponent must not receive another player private deck choice metadata'
 );
 assert.doesNotMatch(client, /localStorage/);
-assert.doesNotMatch(
+assert.match(
   defaultFly,
-  /FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED|fates-entwined-v3-unranked-beta/,
-  'the default production deployment must remain unaware of Phase 7'
+  /app = 'node server\/authoritative-v3\/phase7-beta-server\.mjs'[\s\S]*FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'/,
+  'the default deployment must run only the Phase 7 authoritative server'
 );
 
 console.log('authoritative v3 Phase 7 client routing smoke test passed');

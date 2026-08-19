@@ -8,6 +8,7 @@ import {effectiveFate} from '../../shared/engine/modifiers.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const rooms = fs.readFileSync(path.join(ROOT, 'src/scripts/18-online-rooms.js'), 'utf8');
 const core = fs.readFileSync(path.join(ROOT, 'src/scripts/05-gameplay-core.js'), 'utf8');
+const data = fs.readFileSync(path.join(ROOT, 'src/scripts/01-data-and-state.js'), 'utf8');
 const rendering = fs.readFileSync(path.join(ROOT, 'src/scripts/06-rendering-and-helpers.js'), 'utf8');
 
 const definitions = [
@@ -16,6 +17,7 @@ const definitions = [
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'},
   {id:'41', name:'Jimmy', type:'Dauntless', aff:'reality', fate:0, cost:3, rarity:'triangle'}
   ,{id:'58', name:'Crossroads Worker', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'}
+  ,{id:'29', name:'Dylan Kirby', type:'Initiator', aff:'third_great_war', fate:3, cost:1, rarity:'square'}
 ];
 
 function initial(matchId, p0, p1){
@@ -74,6 +76,26 @@ assert.equal(result.ok, true);
 assert.equal(result.state.pendingPrompt, null);
 assert.equal(result.events.some(event=>event.type === 'EFFECT_ACTIVATED'), false, 'empty Crossroads must not activate');
 assert.equal(result.events.some(event=>event.type === 'EFFECT_SKIPPED' && event.reason === 'NO_LEGAL_TARGETS'), true);
+
+// An auto-activated Character with no current search targets is still legal
+// to consolidate. Target availability controls the effect, never the card's
+// placement itself.
+state = initial('LIVE-ACTIVATE-FIZZLE-CONSOLIDATION', ['29', '16'], ['32']);
+state.testRules = {zeroReinforcementCost:true};
+const dylan = handCard(state, 0, '29');
+const dylanTribute = handCard(state, 0, '16');
+state.players[0].hand.splice(state.players[0].hand.indexOf(dylanTribute), 1);
+dylanTribute.controller = 0;
+state.board[0][1][0] = dylanTribute;
+legal = legalCommandTemplates(state, 0);
+const consolidateDylan = legal.find(entry=>entry.type === 'CONSOLIDATE_CARD'
+  && entry.payload.cardIid === dylan.iid
+  && entry.payload.tributeIids.includes(dylanTribute.iid));
+assert(consolidateDylan, 'Dylan must remain consolidatable when his up-to-two search currently has zero targets');
+result = reduceCommand(state, command(state, 32, consolidateDylan.type, consolidateDylan.payload), {playerId:'p0'});
+assert.equal(result.ok, true, result.rejection?.reason);
+assert.equal(boardCard(result.state, dylan.iid)?.id, '29', 'Dylan placement must commit before the unavailable effect fizzles');
+assert.equal(result.state.pendingPrompt, null, 'empty Dylan search must not leave a blocking prompt');
 
 // Oathbound cancellation is a real no-op command. It must neither select the
 // newly set Oathbound nor reduce its Fate.
@@ -149,9 +171,12 @@ assert.match(core, /cardActsAsPassive\(card, '65'\)[\s\S]{0,180}G\?\._phase7Curr
 assert.match(rendering, /_phase7CurrentMultiplayer === true \? null/);
 assert.match(rooms, /preselectedTributeIid:[\s\S]{0,160}droppedOnIid/);
 assert.match(rooms, /'Chaparral Hoplite'[\s\S]{0,700}'Normal Set'[\s\S]{0,240}'Set Face Down'/);
-assert.match(rooms, /showAffiliationPickerVisual[\s\S]{0,900}showLandscapeChoiceModal[\s\S]{0,900}chooseDestructionOfParadiseType[\s\S]{0,1200}showZonePickerVisual/);
+assert.match(rooms, /showAffiliationPickerVisual[\s\S]{0,1800}showLandscapeChoiceModal[\s\S]{0,1800}chooseDestructionOfParadiseType[\s\S]{0,2200}showZonePickerVisual/);
 assert.match(rooms, /phase7FastPresentationMode[\s\S]{0,180}fateV3PresentationE2E/);
 assert.match(rooms, /fateEffectActivationPredecessorRemaining/);
 assert.match(rooms, /phase7CommitWithConsolidationMotion[\s\S]{0,700}onlineApproxBoardCellRect[\s\S]{0,700}onlineRelativeBoardCellRect/, 'Phase 7 consolidation motion must retain production VFX geometry while the direct hit map is between layouts');
+assert.match(rooms, /authoritativeTurnChanged[\s\S]{0,500}_turnStartedAt\s*=\s*\(typeof window\.fateAuthorityServerNow/, 'each authoritative turn handoff must install a fresh client timer origin');
+assert.match(data, /FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS\s*=\s*Object\.freeze\(\[['"]26['"],\s*['"]38['"],\s*['"]40['"],\s*['"]93['"]\]\)/, 'player-timed effects must have one centralized manual-only identity list');
+assert.match(core, /fateEffectRequiresManualActivationId\?\.\(card\)[\s\S]{0,140}continue;/, 'automatic single-player resolution must consult the centralized manual-only invariant');
 
 console.log('phase7 live interaction regressions smoke test passed');

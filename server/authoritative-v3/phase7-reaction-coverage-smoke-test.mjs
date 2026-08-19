@@ -23,7 +23,7 @@ const DEFINITIONS = ACTIVE_CARDS.map(card=>({...card}));
 const INVENTORY = cardCoverageInventory(ACTIVE_CARDS);
 const REACTION_CARD_IDS = ['56', '67', '79'];
 const INTERRUPTIBLE_SOURCE_IDS = [
-  '14', '16', '30', '39', '51', '52',
+  '08', '14', '16', '30', '39', '51', '52',
   '61', '66', '90', '93', '96', 'bh04'
 ];
 
@@ -43,7 +43,7 @@ assert.deepEqual(
   [...INTERRUPTIBLE_SOURCE_IDS].sort(),
   'the reaction batch must enumerate every non-Improvisor effect declaring a reaction window'
 );
-assert.equal(reactionPromptCards.length, 15);
+assert.equal(reactionPromptCards.length, 16);
 
 function snapshot(value){
   return JSON.parse(stableStringify(value));
@@ -143,8 +143,8 @@ const coverage = {
   cases:[]
 };
 
-// Lydia: every declared interruptible source must expose DECLINE, NEGATE and
-// SUPPRESS. Each branch is reduced from the same immutable authoritative state.
+// Lydia has one response: it negates this resolution and permanently suppresses
+// the source. Each branch is reduced from the same immutable authoritative state.
 for(const item of interruptibleSources){
   const fixture = makeFixture(item.cardId, ['56'], 'LYDIA');
   const opened = triggerFixture(fixture);
@@ -152,7 +152,7 @@ for(const item of interruptibleSources){
   assert.equal(opened.prompt?.type, 'REACTION', `${item.name} must open the reaction window`);
   const lydia = opened.prompt.options.find(option=>option.kind === 'LYDIA');
   assert(lydia, `${item.name} must expose Lydia`);
-  assert.deepEqual([...lydia.modes].sort(), ['NEGATE', 'SUPPRESS']);
+  assert.deepEqual([...lydia.modes], ['NEGATE']);
   const reactionState = snapshot(opened.state);
 
   const declined = answerReaction(snapshot(reactionState), 'DECLINE', null, 2);
@@ -160,30 +160,29 @@ for(const item of interruptibleSources){
   assert.notEqual(declined.state.pendingPrompt?.type, 'REACTION');
   assertInvariants(declined.state);
 
-  for(const mode of ['NEGATE', 'SUPPRESS']){
-    const resolved = answerReaction(snapshot(reactionState), mode, lydia.reactionIid, mode === 'NEGATE' ? 3 : 4);
+  for(const mode of ['NEGATE']){
+    const resolved = answerReaction(snapshot(reactionState), mode, lydia.reactionIid, 3);
     assertReacted(resolved, 'LYDIA', mode, lydia.reactionIid);
     assert.equal(resolved.state.effectStack.length, 0, `${mode} must close ${item.name}'s effect frame`);
     assert.equal(findCard(resolved.state, lydia.reactionIid)?.counters?.reactionUses, 1);
     assert.equal(
       findCard(resolved.state, fixture.source.iid)?.statuses?.includes('EFFECTS_SUPPRESSED'),
-      mode === 'SUPPRESS'
+      true
     );
   }
 
-  coverage.cases.push({sourceCardId:item.cardId, reactorCardId:'56', branches:['DECLINE', 'NEGATE', 'SUPPRESS']});
+  coverage.cases.push({sourceCardId:item.cardId, reactorCardId:'56', branches:['DECLINE', 'NEGATE_AND_SUPPRESS']});
 }
 
-// Mr. Secules is deliberately narrower: activated Initiators and when-set
-// Supporters only. Assert both the positive and negative eligibility boundary.
+// Mr. Secules is deliberately narrower: Initiator effects (including Lina's
+// when-set effect) and when-set Supporters only. Assert both boundaries.
 const seculesEligible = [];
 const seculesIneligible = [];
 for(const item of interruptibleSources){
   const printed = ACTIVE_CARDS.find(card=>String(card.id) === item.cardId);
   const timing = cardRule(item.cardId)?.timings?.includes('ACTIVATE') ? 'ACTIVATE' : 'WHEN_SET';
-  const expected = timing === 'ACTIVATE'
-    ? printed?.type === 'Initiator'
-    : printed?.type === 'Supporter';
+  const expected = printed?.type === 'Initiator'
+    || (timing === 'WHEN_SET' && printed?.type === 'Supporter');
   const fixture = makeFixture(item.cardId, ['67'], 'SECULES');
   const opened = triggerFixture(fixture, 10);
   assert.equal(opened.ok, true);
@@ -200,7 +199,7 @@ for(const item of interruptibleSources){
     seculesIneligible.push(item.cardId);
   }
 }
-assert.deepEqual(seculesEligible.sort(), ['16', '30', '39', '52', '96'].sort());
+assert.deepEqual(seculesEligible.sort(), ['08', '16', '30', '39', '51', '52', '66', '90', '96', 'bh04'].sort());
 
 // Multiple Improvisors must produce separate legal commands, including the
 // common decline command, without collapsing the identity of either card.
@@ -214,7 +213,7 @@ assert.deepEqual(seculesEligible.sort(), ['16', '30', '39', '52', '96'].sort());
   const commands = legalCommandTemplates(opened.state, 1).filter(item=>item.type === 'ANSWER_PROMPT');
   assert(commands.some(item=>item.payload.choice === 'DECLINE'));
   assert(commands.some(item=>item.payload.choice === 'NEGATE' && item.payload.reactionIid === lydia.reactionIid));
-  assert(commands.some(item=>item.payload.choice === 'SUPPRESS' && item.payload.reactionIid === lydia.reactionIid));
+  assert.equal(commands.some(item=>item.payload.choice === 'SUPPRESS' && item.payload.reactionIid === lydia.reactionIid), false);
   assert(commands.some(item=>item.payload.choice === 'NEGATE' && item.payload.reactionIid === secules.reactionIid));
   assert.equal(commands.some(item=>item.payload.choice === 'SUPPRESS' && item.payload.reactionIid === secules.reactionIid), false);
 

@@ -7,6 +7,57 @@
 // cost: supporters = 0, others = number of supporters needed
 // colorKey: used for card background
 
+// Effects now resolve automatically in both the shipping single-player flow
+// and the authoritative multiplayer flow.  Keep the switch here, before both
+// systems load, so a manual-effect regression can be reproduced without
+// selecting a different multiplayer implementation.
+(function configureAutomaticEffects(){
+  const key = 'fateAutoActivateEffects';
+  const readQuery = function(){
+    try {
+      const value = new URLSearchParams(window.location.search).get(key);
+      if(value == null) return null;
+      return !['0','false','off','no'].includes(String(value).trim().toLowerCase());
+    } catch(error) { return null; }
+  };
+  window.fateAutoActivateEffectsEnabled = function(){
+    const queryValue = readQuery();
+    if(queryValue != null) return queryValue;
+    if(typeof window.FATE_AUTO_ACTIVATE_EFFECTS === 'boolean') return window.FATE_AUTO_ACTIVATE_EFFECTS;
+    try {
+      const stored = window.localStorage.getItem(key);
+      if(stored != null) return !['0','false','off','no'].includes(String(stored).trim().toLowerCase());
+    } catch(error) {}
+    return true;
+  };
+  window.setFateAutoActivateEffects = function(enabled){
+    const next = !!enabled;
+    window.FATE_AUTO_ACTIVATE_EFFECTS = next;
+    try { window.localStorage.setItem(key, next ? '1' : '0'); } catch(error) {}
+    try { window.renderGame?.({board:true, hand:true, topbar:true, effects:true}); } catch(error) {}
+    try { window.FatePhase7CurrentMultiplayerUi?.ensureInteractionUi?.(); } catch(error) {}
+    return next;
+  };
+})();
+
+// One authoritative browser-side definition for effects that are deliberately
+// player-timed. Automatic set/draw resolution may expose their legal command,
+// but must never submit it. These effects only run from their explicit board
+// action button.
+window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['26', '38', '40', '93']);
+window.fateEffectRequiresManualActivationId = function(cardOrId){
+  if(cardOrId && typeof cardOrId === 'object'){
+    const ids = [
+      cardOrId.id,
+      cardOrId.counters?.copiedEffectId,
+      cardOrId.counters?.copiedPassiveId,
+      cardOrId._copiedPassiveId
+    ].filter(Boolean).map(String);
+    return ids.some(function(id){ return window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS.includes(id); });
+  }
+  return window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS.includes(String(cardOrId || ''));
+};
+
 const CARDS = [
   // â”€â”€ SET 1: MAIN SET â”€â”€
   {id:'01',name:'Felicyta Janowicz',ability:'The White Eagle',type:'Coordinator',aff:'third_great_war',
@@ -231,7 +282,7 @@ const CARDS = [
     flavor:'"A divine being, whose golden hair is said to harbor entire galaxies"',img:'55.png'},
   {id:'56',name:'Lydia',ability:'Berknomaly!?@#',type:'Improvisor',aff:'expanded_worlds',
     fate:7,cost:2,rarity:'star',
-    effect:'Whenever your opponent would activate the effect of any card, you can negate the effect or suppress it permanently (3 uses).',
+    effect:'Whenever your opponent would activate the effect of any card, you can negate that effect and suppress its source permanently (3 uses).',
     flavor:'"How is life with a floating magical sword following me everywhere I go? Not really that bad actually..."',img:'56.png'},
   {id:'57',name:'Jeremiah Jones',ability:'ALPINE, The Future',type:'Coordinator',aff:'expanded_worlds',
     fate:3,cost:3,rarity:'square',
@@ -447,6 +498,12 @@ const CARDS = [
     effect:'When set, discard any card on the field.',
     flavor:'"I will burn this planet down before I spend another minute among these foids"',img:''},
 ];
+
+// Read-only catalog bridge for the isolated server-authoritative test harness.
+// Classic-script top-level `const` bindings are not properties on `window`, so
+// ES modules cannot otherwise classify deterministic fixture fillers. Gameplay
+// continues to use CARDS directly; the harness only reads this array.
+window.FATE_CARD_DEFINITIONS = CARDS;
 
 const ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS = Object.freeze([
   Object.freeze({id:'token2',name:'A Crown of Silver and Thorns',ability:'The Winter Queen',type:'Token',aff:'reality',fate:2,cost:0,rarity:'circle',token:true,achillesToken:true,set:'brave_horizons',effect:'This card counts as a Token. Before placement, declare whether it was set or consolidated, its card type, rarity, and affiliation.',flavor:'"A heartfelt gift from Květka to Felicyta on a chilly winter\'s morning, though it is a little prickly"',img:'token2.png'}),

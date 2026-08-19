@@ -84,6 +84,8 @@
   let vfxWakeTimer = 0;
   let vfxWakeAt = 0;
   const numberSpriteCache = new Map();
+  let motionCardBackImage = null;
+  let motionCardBackImageRequested = false;
   const eventBridgeStats = {
     acceptedGameEvents:0,
     suppressedGameEvents:0,
@@ -335,6 +337,22 @@
   function rectFromCenter(cx, cy, w, h){
     return {x:cx - w / 2, y:cy - h / 2, w, h};
   }
+
+  function primeMotionCardBackImage(){
+    if(motionCardBackImageRequested || typeof Image !== 'function') return motionCardBackImage;
+    motionCardBackImageRequested = true;
+    motionCardBackImage = new Image();
+    motionCardBackImage.decoding = 'async';
+    motionCardBackImage.onload = function(){ scheduleRender('vfx-card-back-ready'); };
+    motionCardBackImage.onerror = function(){ motionCardBackImage = null; };
+    motionCardBackImage.src = 'back.png';
+    return motionCardBackImage;
+  }
+
+  // This file loads at application startup, well before the first turn handoff.
+  // Prime the real production card back now so a remote draw never flashes the
+  // procedural fallback while the image begins loading.
+  primeMotionCardBackImage();
 
   function keepTransformedRectInFrame(r, scaleX, scaleY, rotation, metrics, margin, bottomMargin){
     if(!r || !metrics) return r;
@@ -681,7 +699,15 @@
 
   function drawCardBack(ctx, r){
     if(!ctx || !r) return;
+    primeMotionCardBackImage();
     ctx.save();
+    if(motionCardBackImage && motionCardBackImage.complete && motionCardBackImage.naturalWidth > 0){
+      rounded(ctx, r.x, r.y, r.w, r.h, Math.max(7, r.w * .055));
+      ctx.clip();
+      ctx.drawImage(motionCardBackImage, r.x, r.y, r.w, r.h);
+      ctx.restore();
+      return;
+    }
     const grd = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
     grd.addColorStop(0, '#1b1f2d');
     grd.addColorStop(.5, '#10131d');

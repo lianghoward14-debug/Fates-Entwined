@@ -116,25 +116,16 @@ result = reduceCommand(
 assert.equal(result.ok, true);
 assert.equal(result.state.supporterEffectsActivated[0], 0, 'negated Supporter effects must not count');
 assert.equal(effectiveFate(result.state, protectedZsofia), 14);
+assert(result.state.board[0][2][1].statuses.includes('EFFECTS_SUPPRESSED'), 'Lydia must permanently suppress the negated source');
 state = result.state;
 result = reduceCommand(
   state,
   command(state, 'p0', 3, 'ACTIVATE_EFFECT', {sourceIid:reactedUcpd.iid}),
   {playerId:'p0'}
 );
-assert.equal(result.ok, true);
-state = result.state;
-result = reduceCommand(
-  state,
-  command(state, 'p1', 4, 'ANSWER_PROMPT', {
-    promptId:state.pendingPrompt.promptId,
-    choice:'SUPPRESS',
-    reactionIid:lydia.iid
-  }),
-  {playerId:'p1'}
-);
-assert.equal(result.ok, true);
-assert.equal(result.state.supporterEffectsActivated[0], 0, 'suppressed Supporter effects must not count');
+assert.equal(result.ok, false, 'Lydia-suppressed sources must not reactivate');
+assert.equal(result.rejection.code, 'EFFECT_SUPPRESSED');
+assert.equal(state.supporterEffectsActivated[0], 0, 'suppressed Supporter effects must not count');
 
 state = newState('P4COUNTERDECLINE', ['89', '26'], ['56']);
 const declinedUcpd = putOnBoard(state, 0, '26', {z:0, r:2, c:0});

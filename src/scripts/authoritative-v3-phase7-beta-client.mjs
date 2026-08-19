@@ -276,6 +276,28 @@ function rejectInflight(reason){
   inflight.clear();
 }
 
+function resetForNextMatch(nextCredential){
+  const nextMatchId = String(nextCredential?.matchId || '');
+  const currentMatchId = String(credential?.matchId || state?.matchId || '');
+  if(!currentMatchId || currentMatchId === nextMatchId) return false;
+  intentionallyClosed = true;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  reconnectAttempts = 0;
+  rejectInflight(new Error('Phase 7 match changed'));
+  const previousSocket = socket;
+  socket = null;
+  try{ previousSocket?.close(); }catch(_){ }
+  state = null;
+  revision = 0;
+  stateHash = '';
+  playerIndex = null;
+  legalCommands = [];
+  privateActionCards = [];
+  presentationBatch = null;
+  return true;
+}
+
 function scheduleReconnect(){
   if(intentionallyClosed || fatalError || !credential || reconnectTimer) return;
   const delay = Math.min(5000, 250 * (2 ** Math.min(5, reconnectAttempts)));
@@ -293,7 +315,11 @@ function applyServerMessage(message){
   if(message.kind === 'hello-ok'){
     playerIndex = Number(message.playerIndex);
   }
-  if(message.kind === 'snapshot' || message.kind === 'accepted'){
+  // A rejection is also an authoritative resynchronization message.  In
+  // particular, a prompt that immediately follows an activated draw can race
+  // the client's previous revision.  Consume the server's current projection
+  // before the UI is allowed to offer that prompt again.
+  if(message.kind === 'snapshot' || message.kind === 'accepted' || message.kind === 'rejected'){
     if(message.state) state = clone(message.state);
     if(Array.isArray(message.legalCommands)) legalCommands = clone(message.legalCommands);
     if(Array.isArray(message.privateActionCards)) privateActionCards = clone(message.privateActionCards);
@@ -307,9 +333,6 @@ function applyServerMessage(message){
         events:clone(message.events)
       };
     }
-  }
-  if(message.kind === 'rejected' && Array.isArray(message.legalCommands)){
-    legalCommands = clone(message.legalCommands);
   }
   const commandId = String(message.commandId || '');
   if(commandId && inflight.has(commandId)
@@ -337,7 +360,9 @@ function applyServerMessage(message){
 
 async function connect(nextCredential = credential || loadCredential()){
   if(fatalError) throw new Error(fatalError);
-  credential = validateCredential(nextCredential);
+  const validatedCredential = validateCredential(nextCredential);
+  resetForNextMatch(validatedCredential);
+  credential = validatedCredential;
   saveCredential(credential);
   intentionallyClosed = false;
   if(socket && socket.readyState === WebSocket.OPEN) return report();
@@ -348,21 +373,24 @@ async function connect(nextCredential = credential || loadCredential()){
     });
     return report();
   }
-  socket = new WebSocket(WS_URL);
-  socket.addEventListener('message', event=>{
+  const connectedSocket = new WebSocket(WS_URL);
+  socket = connectedSocket;
+  connectedSocket.addEventListener('message', event=>{
+    if(socket !== connectedSocket) return;
     try{ applyServerMessage(JSON.parse(String(event.data || '{}'))); }
     catch(error){ console.error('[Fate Phase 7 Beta] invalid server message', error); }
   });
-  socket.addEventListener('close', ()=>{
+  connectedSocket.addEventListener('close', ()=>{
+    if(socket !== connectedSocket) return;
     rejectInflight(new Error('Phase 7 beta socket closed before acknowledgement'));
     scheduleReconnect();
   });
   await new Promise((resolve, reject)=>{
     const timer = setTimeout(()=>reject(new Error('Phase 7 beta socket open timed out')), 20_000);
-    socket.addEventListener('open', ()=>{
+    connectedSocket.addEventListener('open', ()=>{
       clearTimeout(timer);
       reconnectAttempts = 0;
-      socket.send(JSON.stringify({
+      connectedSocket.send(JSON.stringify({
         kind:'hello',
         protocolVersion:3,
         clientVersion:CLIENT_VERSION,
@@ -372,7 +400,7 @@ async function connect(nextCredential = credential || loadCredential()){
       }));
       resolve();
     }, {once:true});
-    socket.addEventListener('error', ()=>{
+    connectedSocket.addEventListener('error', ()=>{
       clearTimeout(timer);
       reject(new Error('Phase 7 beta socket failed to open'));
     }, {once:true});
@@ -473,7 +501,7 @@ function report(){
   };
 }
 
-async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = 'igb1', testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], onStatus} = {}){
+async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
   const normalizedDeck = Array.isArray(deckIds) ? deckIds.map(String) : [];
   if(normalizedDeck.length !== 40) throw new Error('Phase 7 unranked matchmaking requires exactly 40 cards');
   matchmakingCancelled = false;
@@ -482,10 +510,21 @@ async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = 'igb1
     body:{
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
-      landscapeId:String(landscapeId || 'igb1'),
+      // `landscapeId` remains for deterministic fixture callers. Production
+      // Free Play sends the complete settings object so "Random" is not
+      // accidentally converted to its picker fallback (igb1/Pacifica).
+      landscapeId:String(landscapeId || ''),
+      gameSettings:gameSettings && typeof gameSettings === 'object' ? {
+        landscapeMode:gameSettings.landscapeMode === 'selected' ? 'selected' : 'random',
+        landscapeId:String(gameSettings.landscapeId || 'igb1'),
+        turnTimerMinutes:Math.max(1, Math.min(10, Math.round(Number(gameSettings.turnTimerMinutes) || 3)))
+      } : null,
       testOpeningCardIds:Array.isArray(testOpeningCardIds) ? testOpeningCardIds.map(String).filter(id=>normalizedDeck.includes(id)).slice(0, 4) : [],
       testDeckCardIds:Array.isArray(testDeckCardIds) ? testDeckCardIds.map(String).filter(id=>normalizedDeck.includes(id)).slice(0, 2) : [],
       testDeckTopCardIds:Array.isArray(testDeckTopCardIds) ? testDeckTopCardIds.map(String).filter(id=>normalizedDeck.includes(id)).slice(0, 2) : [],
+      testRules:ORGANIC_TEST_IDENTITY_ENABLED && testRules?.zeroReinforcementCost === true
+        ? {zeroReinforcementCost:true}
+        : null,
       testPool:ORGANIC_TEST_IDENTITY_ENABLED ? organicTestPool() : ''
     }
   });
@@ -498,10 +537,9 @@ async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = 'igb1
   if(result.status !== 'matched' || !result.credential){
     throw new Error(`Phase 7 matchmaking ended in unexpected status ${result.status || '(missing)'}`);
   }
-  credential = validateCredential(result.credential);
-  saveCredential(credential);
-  if(typeof onStatus === 'function') onStatus({status:'matched', matchId:credential.matchId});
-  await connect(credential);
+  const matchedCredential = validateCredential(result.credential);
+  if(typeof onStatus === 'function') onStatus({status:'matched', matchId:matchedCredential.matchId});
+  await connect(matchedCredential);
   await waitForInitialView();
   await mountGameScreen();
   return {ok:true, status:'matched', credential:clone(credential), connection:report()};

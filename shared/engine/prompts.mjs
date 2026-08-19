@@ -215,6 +215,25 @@ function ownSide(playerIndex, destination){
 
 export function eligibleDestinations(state, frame, filter = {}){
   const source = findBoardCard(state, frame.sourceIid);
+  if(filter.safeSquareSlot){
+    if(!source || ![0, 1].includes(Number(frame.controller))) return [];
+    const z = Number(source.z);
+    const owner = Number(frame.controller);
+    const zone = state.board?.[z] || [];
+    const rowOwners = state.geometry?.rowOwners?.[z] || [];
+    const existing = new Set((state.geometry?.playableExtraSquares || [])
+      .filter(square=>Number(square.z) === z)
+      .map(square=>`${Number(square.r)}:${Number(square.c)}`));
+    let r = rowOwners.findIndex((rowOwner, rowIndex)=>
+      rowIndex >= 3
+        && Number(rowOwner) === owner
+        && [0, 1, 2].some(c=>!existing.has(`${rowIndex}:${c}`))
+    );
+    if(r < 0) r = zone.length;
+    return [0, 1, 2]
+      .filter(c=>!existing.has(`${r}:${c}`))
+      .map(c=>({z, r, c}));
+  }
   const nextInstruction = frame?.program?.[Number(frame.instructionIndex || 0) + 1];
   const freeSetIid = nextInstruction?.kind === 'FREE_SET'
     ? (String(nextInstruction.cardIid || '').startsWith('$')

@@ -46,14 +46,20 @@ function validatePlayer(player, seat){
 function forceTestOpeningCards(state, players){
   const forced = [];
   players.forEach((player, playerIndex)=>{
-    const requested = player.testOpeningCardIds || [];
-    requested.forEach((cardId, requestIndex)=>{
+    const requested = [...new Set((player.testOpeningCardIds || []).map(String))];
+    const requestedIds = new Set(requested);
+    requested.forEach(cardId=>{
       const hand = state.players[playerIndex].hand;
       const deck = state.players[playerIndex].deck;
       if(hand.some(card=>String(card.id) === String(cardId))) return;
       const deckIndex = deck.findIndex(card=>String(card.id) === String(cardId));
       if(deckIndex < 0 || !hand.length) return;
-      const handIndex = Math.max(0, hand.length - 1 - requestIndex);
+      // Never evict another requested fixture card. In the old index-based
+      // replacement, a target that naturally appeared in the opening hand
+      // could be swapped back into the deck while inserting a later partner or
+      // scaffold. The match then ran without the card it claimed to certify.
+      const handIndex = hand.findLastIndex(card=>!requestedIds.has(String(card?.id || '')));
+      if(handIndex < 0) return;
       const incoming = deck.splice(deckIndex, 1, hand[handIndex])[0];
       hand[handIndex] = incoming;
       forced.push({playerIndex, card:incoming});
@@ -181,6 +187,9 @@ export class AuthorityV3RoomManager {
     const players = requestedPlayers.map(validatePlayer);
     if(players.length !== 2 || players[0].id === players[1].id) throw new Error('two distinct players are required');
     const catalog = getCardCatalog();
+    const organicFixtureMatch = this.allowOrganicTestFixtures
+      && requestedPlayers.length === 2
+      && requestedPlayers.every(player=>player?.organicFixture === true);
     players.forEach((player, index)=>{
       const allowExactFixtureDeck = this.allowOrganicTestFixtures
         && requestedPlayers[index]?.organicFixture === true;
@@ -201,7 +210,12 @@ export class AuthorityV3RoomManager {
       activePlayer:input.activePlayer,
       requireTurnChoice:input.requireTurnChoice === true,
       coinWinner:input.coinWinner,
-      landscapeId
+      landscapeId,
+      gameSettings:input.gameSettings,
+      turnTimerSeconds:input.turnTimerSeconds,
+      testRules:organicFixtureMatch && input.testRules?.zeroReinforcementCost === true
+        ? {zeroReinforcementCost:true}
+        : null
     });
     if(this.allowOrganicTestFixtures){
       forceTestOpeningCards(state, players);

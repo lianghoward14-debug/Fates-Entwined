@@ -64,11 +64,15 @@ function put(state, playerIndex, cardId, z, r, c){
 }
 
 {
-  const state = scenario(['41']);
+  const state = scenario(['41', '44']);
   const jimmy = put(state, 0, '41', 0, 2, 0);
   assert.equal(effectiveFate(state, jimmy), 0, 'Jimmy must not gain Fate before a qualifying reduction');
   state.fateReductionEffectUses[0] = 2;
   assert.equal(effectiveFate(state, jimmy), 6, 'Jimmy must gain exactly 3 Fate per qualifying effect use');
+  put(state, 0, '44', 0, 2, 1);
+  assert.equal(effectiveFate(state, jimmy), 9, 'Jimmy must receive an adjacent Soviet Grenadier aura');
+  jimmy.currentFate += 3;
+  assert.equal(effectiveFate(state, jimmy), 12, 'Jimmy must receive permanent Fate on top of his derived value and aura');
 }
 
 {
@@ -77,8 +81,10 @@ function put(state, playerIndex, cardId, z, r, c){
   assert.equal(effectiveFate(state, alexander), 0, 'Alexander must be zero with no Supporters');
   put(state, 0, '32', 0, 2, 1);
   assert.equal(effectiveFate(state, alexander), 1, 'Alexander must include an ordinary Supporter');
+  alexander.currentFate += 3;
+  assert.equal(effectiveFate(state, alexander), 4, 'Alexander must retain permanent Fate on top of its derived Supporter total');
   put(state, 0, '76', 0, 2, 2);
-  assert.equal(effectiveFate(state, alexander), 2, 'Alexander must include an effect-immune Supporter, matching singleplayer');
+  assert.equal(effectiveFate(state, alexander), 5, 'Alexander must include an effect-immune Supporter while retaining permanent Fate');
 }
 
 {
@@ -215,7 +221,8 @@ function put(state, playerIndex, cardId, z, r, c){
   put(state, 0, '32', 0, 2, 1);
   assert.equal(effectiveFate(state, rozsi), 3, 'Rozsi must count herself but not a Supporter');
   put(state, 0, 'bh01', 1, 2, 0);
-  assert.equal(effectiveFate(state, rozsi), 5, 'Rozsi must count an effect-immune Character anywhere on her field, matching singleplayer');
+  assert.equal(effectiveFate(state, rozsi), 3, 'Rozsi must not count an effect-immutable Character, matching singleplayer invisibility rules');
+  assert.equal(expectedEffectiveFateFromOracle(state, rozsi.iid), 3, 'the detailed oracle must also exclude effect-immutable Characters from Rozsi');
 }
 
 {

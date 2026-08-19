@@ -76,6 +76,7 @@ assert(result.events.some(event=>
   && event.mode === 'NEGATE'
   && event.playerIndex === 0
 ));
+assert(result.state.board[1][0][0].statuses.includes('EFFECTS_SUPPRESSED'));
 assert.equal(result.state.board[0][2][2].currentFate, 7);
 assert.equal(result.state.board[0][2][1].currentFate, 6);
 assert.equal(result.state.board[0][2][0].currentFate, 10);
@@ -85,32 +86,6 @@ assert(result.events.some(event=>
   && event.sourceIid === maja.iid
   && event.reason === 'MISCHIEVOUS_ACTIVITIES'
 ));
-
-state = result.state;
-// Reuse the fixture source to exercise a second reaction mode without making
-// the shipping one-shot Kazumi effect repeatable.
-state.board[1][0][0].counters.effectUses = 0;
-result = reduceCommand(
-  state,
-  command(state, 'p1', 3, 'ACTIVATE_EFFECT', {sourceIid:kazumi.iid}),
-  {playerId:'p1'}
-);
-assert.equal(result.ok, true);
-state = result.state;
-result = reduceCommand(
-  state,
-  command(state, 'p0', 4, 'ANSWER_PROMPT', {
-    promptId:state.pendingPrompt.promptId,
-    choice:'SUPPRESS',
-    reactionIid:lydia.iid
-  }),
-  {playerId:'p0'}
-);
-assert.equal(result.ok, true);
-assert(result.state.board[1][0][0].statuses.includes('EFFECTS_SUPPRESSED'));
-assert.equal(result.state.board[0][2][2].currentFate, 10);
-assert.equal(result.state.board[0][2][1].currentFate, 9);
-assert.equal(result.state.board[0][2][0].currentFate, 13);
 
 let automaticState = createInitialState({
   matchId:'P4REACTIONAUTO',

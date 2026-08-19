@@ -86,10 +86,10 @@ assert.equal(
   'Rozsi Youth must count five mutable Characters across the field, including itself'
 );
 immutable.type = 'Initiator';
-assert.equal(effectiveFate(state, youth), 18, 'Rozsi counts controlled Characters even when they are effect-immutable');
+assert.equal(effectiveFate(state, youth), 16, 'Rozsi must not count an effect-immutable card even if it is classified as a Character');
 state = JSON.parse(stableStringify(state));
 assertInvariants(state);
-assert.equal(effectiveFate(state, state.board[2][1][0]), 18);
+assert.equal(effectiveFate(state, state.board[2][1][0]), 16);
 
 state = createInitialState({
   matchId:'P4EXPANSION47',

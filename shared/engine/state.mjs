@@ -103,6 +103,11 @@ export function createInitialState(input = {}){
   for(const {playerIndex, card} of openingAli){
     playerStates[playerIndex].hand = playerStates[playerIndex].hand.filter(item=>item !== card);
     const recipient = playerIndex === 0 ? 1 : 0;
+    card.counters = {
+      ...(card.counters || {}),
+      aliTransferredFrom:playerIndex,
+      aliHandLimitPendingUntilTurnStart:true
+    };
     card.owner = recipient;
     card.controller = recipient;
     if(!card.statuses.includes('OPPONENT_HAND_LIMIT_6')) card.statuses.push('OPPONENT_HAND_LIMIT_6');
@@ -110,9 +115,10 @@ export function createInitialState(input = {}){
     card.statuses.sort();
     playerStates[recipient].hand.push(card);
   }
-  const queuedExtraSupporters = playerStates.map(player=>
-    player.hand.filter(card=>String(card.id || '') === '74').length
+  const openingSelvaCards = playerStates.map(player=>
+    player.hand.filter(card=>String(card.id || '') === '74')
   );
+  const queuedExtraSupporters = openingSelvaCards.map(cards=>cards.length);
   const requiresTurnChoice = input.requireTurnChoice === true;
   const coinWinner = requiresTurnChoice
     ? ([0, 1].includes(Number(input.coinWinner)) ? Number(input.coinWinner) : nextInt(rngState, 2))
@@ -144,6 +150,17 @@ export function createInitialState(input = {}){
       startingPlayer:null
     } : null,
     landscapeId:String(input.landscapeId || ''),
+    gameSettings:input.gameSettings && typeof input.gameSettings === 'object'
+      ? cloneSerializable(input.gameSettings)
+      : null,
+    turnTimerSeconds:Math.max(30, Math.min(600, Math.round(Number(input.turnTimerSeconds) || 180))),
+    // Test rules are accepted only by the separately authenticated organic
+    // fixture route in the server. Keeping the selected policy in canonical
+    // state makes the shortcut auditable by both clients and prevents a test
+    // from silently claiming production-rule coverage.
+    testRules:input.testRules?.zeroReinforcementCost === true
+      ? {zeroReinforcementCost:true}
+      : null,
     rngState,
     players:playerStates,
     board:createEmptyBoard(),
@@ -160,6 +177,29 @@ export function createInitialState(input = {}){
     eventSeq:0,
     instanceCounter:instanceCounter.value
   };
+  // Opening-hand arrival effects are part of match construction. Selva was
+  // previously represented only by a queued numeric counter, so the starting
+  // player received neither the first-turn bonus nor its authoritative status
+  // banner. Preserve one public status per physical Pirate and activate the
+  // chosen starting player's grants immediately when no coin choice remains.
+  for(let playerIndex = 0; playerIndex < 2; playerIndex += 1){
+    const activeNow = !requiresTurnChoice && state.activePlayer === playerIndex;
+    for(const card of openingSelvaCards[playerIndex]){
+      state.statuses.push({
+        statusId:`selva-support:${card.iid}:opening`,
+        type:'SELVA_EXTRA_SUPPORTER',
+        playerIndex,
+        sourceIid:card.iid,
+        extraSupports:1,
+        activeNow,
+        remainingOwnerTurns:activeNow ? 1 : null
+      });
+    }
+    if(activeNow && openingSelvaCards[playerIndex].length){
+      state.extraSupportersThisTurn[playerIndex] += openingSelvaCards[playerIndex].length;
+      state.queuedExtraSupporters[playerIndex] = 0;
+    }
+  }
   state.landscapeState = createLandscapeState(state.landscapeId, state.rngState);
   initializeLandscapeHandCards(state);
   return state;

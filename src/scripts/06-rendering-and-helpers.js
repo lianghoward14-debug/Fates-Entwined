@@ -2498,6 +2498,11 @@ function maybeResolveLandscapeEndTurn() {
 
 function queueLandscapeOutsideDrawBonus(player, drawnCard) {
   if(!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb9'))) return false;
+  // Phase 7 owns this landscape trigger on the server.  Do not allow the
+  // legacy draw listener to mutate the projected client board before the
+  // server-issued prompt arrives; doing so produces a visible +3 that the
+  // next authoritative snapshot correctly rolls back.
+  if(G && G._phase7CurrentMultiplayer === true) return false;
   if(G && G._onlineRoomCode) {
     const localPlayer = Number(G._onlinePlayerIndex);
     if(!Number.isInteger(localPlayer) || Number(player) !== localPlayer || G._onlineApplyingRemoteAction) return false;
@@ -2531,6 +2536,14 @@ function resolveLiveLandscapeDrawTarget(choice) {
 }
 
 function processLandscapeDrawQueue() {
+  // A queue may have been created immediately before the Phase 7 projection
+  // was marked authoritative.  Drop it rather than resolving a legacy
+  // client-owned fate change against the authoritative match.
+  if(G && G._phase7CurrentMultiplayer === true) {
+    G._landscapeDrawQueue = [];
+    G._landscapeDrawPromptOpen = false;
+    return;
+  }
   if(!G._landscapeDrawQueue || !G._landscapeDrawQueue.length || G._landscapeDrawPromptOpen) return;
   const presenter = window.FateActionPresentation;
   if(presenter && typeof presenter.isActive === 'function' && presenter.isActive()) {
@@ -2929,20 +2942,23 @@ function showDeckInfo(player) {
   const hand = G.players[player].hand;
   const discard = G.players[player].discard;
   const isOwn = isPerspectivePlayer(player);
+  const authorityDeckSets = isOwn && typeof window.fatePhase7DeckSetAvailability === 'function'
+    ? window.fatePhase7DeckSetAvailability()
+    : null;
   const title = (isOwn ? 'Your' : G.players[player].name+"'s") + ' Deck';
   let boardCount = 0;
   G.board.forEach(function(zone){ zone.forEach(function(row){ if(row) row.forEach(function(cell){ if(cell && cell.owner === player) boardCount++; }); }); });
   const polishCards = isOwn ? deck.filter(c=>c.id==='28' && !c._deckSetNegatedByReaction) : [];
   const polishUses = Array.isArray(G.polishArmyUses) ? (G.polishArmyUses[player]||0) : 0;
-  const canSetPolish = isOwn && player===G.currentPlayer && polishCards.length>0 && !G._polishUsedThisTurn && polishUses<2 && G.phase==='main' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(polishCards[0]));
-  const canSetMaja = isOwn && player===G.currentPlayer && deck.some(c=>c.id==='07' && !c._deckSetNegatedByReaction) && G.phase==='main';
+  const canSetPolish = authorityDeckSets ? authorityDeckSets.polish : (isOwn && player===G.currentPlayer && polishCards.length>0 && !G._polishUsedThisTurn && polishUses<2 && G.phase==='main' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(polishCards[0])));
+  const canSetMaja = authorityDeckSets ? authorityDeckSets.maja : (isOwn && player===G.currentPlayer && deck.some(c=>c.id==='07' && !c._deckSetNegatedByReaction) && G.phase==='main');
   let polishHtml = '';
   if(canSetPolish){
-    polishHtml = '<div class="di-action-panel"><div class="di-action-title">2nd Polish-Lithuanian Army</div><div class="di-action-desc">Set directly from deck (' + (2-polishUses) + ' game use' + ((2-polishUses)!==1?'s':'') + ' left)</div><button class="btn sm pri" onclick="setPolishFromDeck()">Set from Deck</button></div>';
+    polishHtml = '<div class="di-action-panel"><div class="di-action-title">2nd Polish-Lithuanian Army</div><div class="di-action-desc">Set directly from deck (' + (2-polishUses) + ' game use' + ((2-polishUses)!==1?'s':'') + ' left)</div><button class="btn sm pri" data-phase7-deck-set-card-id="28" onclick="' + (authorityDeckSets ? "fatePhase7BeginSetFromDeckCard('28')" : 'setPolishFromDeck()') + '">Set from Deck</button></div>';
   }
   let majaHtml = '';
   if(canSetMaja){
-    majaHtml = '<div class="di-action-panel"><div class="di-action-title">Maja Kaminska</div><div class="di-action-desc">Set directly from deck at no cost.</div><button class="btn sm pri" onclick="setMajaFromDeck()">Set from Deck</button></div>';
+    majaHtml = '<div class="di-action-panel"><div class="di-action-title">Maja Kaminska</div><div class="di-action-desc">Set directly from deck at no cost.</div><button class="btn sm pri" data-phase7-deck-set-card-id="07" onclick="' + (authorityDeckSets ? "fatePhase7BeginSetFromDeckCard('07')" : 'setMajaFromDeck()') + '">Set from Deck</button></div>';
   }
   const totalCards = deck.length + hand.length + discard.length + boardCount;
   showModal(title,
@@ -3025,59 +3041,97 @@ function sortHowardDevDeckCards(cards) {
   });
 }
 
-window.setPolishFromDeck = function() {
+function beginLocalSetFromDeckCard(cardId, config) {
   const cp = G.currentPlayer;
   if(!isPerspectivePlayer(cp)){toast('You can only set from your deck on your turn.');return;}
   const deck = G.players[cp].deck;
-  const idx = deck.findIndex(c=>c.id==='28' && !c._deckSetNegatedByReaction);
-  if(idx===-1){toast('No Polish-Lithuanian Army in deck');closeModal();return;}
-  const card = deck[idx];
-  deck.splice(idx,1);
-  if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
-  else G.players[cp].hand.push(card);
-  if(typeof beginImmediateFreePlacement==='function') {
-    beginImmediateFreePlacement(cp, card, 'Place ' + card.name + ' for free from your deck.', {
+  const matches = deck.filter(function(card){
+    return String(card && card.id || '') === String(cardId || '') && !card._deckSetNegatedByReaction;
+  });
+  if(!matches.length){toast(config.emptyMessage);closeModal();return;}
+  const commit = function(chosenCard){
+    const idx = deck.findIndex(function(card){
+      return card && chosenCard && String(card.iid || '') === String(chosenCard.iid || '');
+    });
+    if(idx < 0){ toast(config.emptyMessage); return; }
+    const card = deck[idx];
+    deck.splice(idx,1);
+    if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
+    else G.players[cp].hand.push(card);
+    closeModal();
+    if(typeof beginImmediateFreePlacement==='function') {
+      beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo, {
+        destinationUi:'highlighted-board'
+      }));
+    }
+    if(typeof config.onCommitted === 'function') config.onCommitted(cp, card);
+    toast(config.readyMessage);
+    renderBoardActionForPlayer(cp, {hand:true, piles:true});
+  };
+  if(typeof pickCardsVisual !== 'function') { commit(matches[0]); return; }
+  pickCardsVisual(matches, {
+    title:'Set an Eligible Card From Deck',
+    subtitle:'Choose the card to set.',
+    minCount:1,
+    maxCount:1,
+    confirmLabel:'Choose Destination',
+    immediate:true,
+    viewerPlayerIndex:cp
+  }, function(chosen){
+    if(chosen && chosen[0]) commit(chosen[0]);
+  });
+}
+
+window.setPolishFromDeck = function() {
+  const cp = G.currentPlayer;
+  const uses = Array.isArray(G.polishArmyUses) ? (Number(G.polishArmyUses[cp]) || 0) : 0;
+  if(G._polishUsedThisTurn){ toast('You already set a Polish-Lithuanian Army from deck this turn.'); return; }
+  if(uses >= 2){ toast('All Polish-Lithuanian Army deck-set uses have been spent.'); return; }
+  beginLocalSetFromDeckCard('28', {
+    emptyMessage:'No Polish-Lithuanian Army in deck',
+    placementMessage:'Place 2nd Polish-Lithuanian Army for free from your deck.',
+    readyMessage:'2nd Polish-Lithuanian Army is ready to set immediately for free!',
+    effectInfo:{
       key:'polish-lithuanian-deck-set',
       name:'2nd Polish-Lithuanian Army',
       ability:'The Army of Exiles',
       text:'Set directly from your deck at no cost.',
       freePlacementKind:'polishLithuanianDeckSet'
-    });
-  }
-  G._polishUsedThisTurn = true;
-  if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
-  G.polishArmyUses[cp] = (G.polishArmyUses[cp]||0)+1;
-  closeModal();
-  toast('2nd Polish-Lithuanian Army is ready to set immediately for free!');
-  renderBoardActionForPlayer(cp, {hand:true, piles:true});
+    },
+    onCommitted:function(player){
+      G._polishUsedThisTurn = true;
+      if(!Array.isArray(G.polishArmyUses)) G.polishArmyUses = [0,0];
+      G.polishArmyUses[player] = (G.polishArmyUses[player]||0)+1;
+    }
+  });
 };
 
 window.setMajaFromDeck = function() {
-  const cp = G.currentPlayer;
-  if(!isPerspectivePlayer(cp)){toast('You can only set from your deck on your turn.');return;}
-  const deck = G.players[cp].deck;
-  const idx = deck.findIndex(c=>c.id==='07' && !c._deckSetNegatedByReaction);
-  if(idx===-1){toast('No Maja Kaminska in deck');closeModal();return;}
-  const card = deck[idx];
-  deck.splice(idx,1);
-  if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
-  else G.players[cp].hand.push(card);
-  if(typeof beginImmediateFreePlacement==='function') {
-    beginImmediateFreePlacement(cp, card, 'Place Maja Kaminska for free from your deck.', {
+  beginLocalSetFromDeckCard('07', {
+    emptyMessage:'No Maja Kaminska in deck',
+    placementMessage:'Place Maja Kaminska for free from your deck.',
+    readyMessage:'Maja Kaminska is ready to set immediately for free!',
+    effectInfo:{
       key:'maja-deck-set',
       name:'Maja Kaminska',
       ability:'Oblique Order',
       text:'Set directly from your deck at no cost.',
       freePlacementKind:'majaDeckSet'
-    });
-  }
-  closeModal();
-  toast('Maja Kaminska is ready to set immediately for free!');
-  renderBoardActionForPlayer(cp, {hand:true, piles:true});
+    }
+  });
 };
 
-// Show discard pile as a grid of card images
+// Show discard pile as a grid of card images. Canvas pointer-up and the DOM
+// click fallback can both report the same physical click. Rebuilding the
+// shared modal twice makes it flash closed/open and destroys live selection.
+let _lastDiscardPileInspectorOpen = {key:'', at:0};
 function showDiscard(player) {
+  const modal = document.getElementById('modal');
+  const key = 'discard:' + String(player);
+  const now = Date.now();
+  if(modal?.classList?.contains('on') && modal.dataset.pileInspectorKey === key) return false;
+  if(_lastDiscardPileInspectorOpen.key === key && now - _lastDiscardPileInspectorOpen.at < 450) return false;
+  _lastDiscardPileInspectorOpen = {key, at:now};
   if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
   else if(typeof playSfx === 'function') playSfx('uiClick');
   const disc = G.players[player].discard;
@@ -3087,9 +3141,12 @@ function showDiscard(player) {
     showModal(title,
       '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">Discard pile is empty</div>',
       [{label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
-    return;
+    if(modal) modal.dataset.pileInspectorKey = key;
+    return true;
   }
   showCanvasCardGalleryModal(title, disc, { viewerPlayerIndex:getPerspectivePlayerIndex(), immediate:true, silentOpen:true });
+  if(modal) modal.dataset.pileInspectorKey = key;
+  return true;
 }
 
 window.showCardFromDiscard = function(player, idx) {
@@ -3952,7 +4009,10 @@ function openHandLimitDiscardModal(player) {
   const okBtn = document.querySelector('#modal-acts .btn.pri');
   if(okBtn) okBtn.disabled = true;
   document.querySelectorAll('#modal .hand-limit-card').forEach(function(btn){
-    btn.onclick = function(){
+    btn.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+    btn.addEventListener('pointerup', function(ev){ ev.stopPropagation(); });
+    btn.onclick = function(ev){
+      ev?.stopPropagation?.();
       const wasSelected = btn.classList.contains('is-selected');
       const selectedBefore = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
       if(!wasSelected && selectedBefore >= needed) return;
@@ -4627,6 +4687,7 @@ function syncEffectPills(container, effects, side) {
       e.cardName || '',
       e.cardAbility || '',
       displayEffect,
+      e.effectInstanceCount || 1,
       e.sourceIid || '',
       e.statusInstanceKey || '',
       e.isOverflow ? 'overflow' : '',
@@ -4682,6 +4743,13 @@ function syncEffectPills(container, effects, side) {
     }
     if(pill.dataset.effectSig === sig) continue;
     pill.dataset.effectSig = sig;
+    pill.dataset.effectOwner = side;
+    pill.dataset.effectCardName = String(e.cardName || '');
+    pill.dataset.effectAbility = String(e.cardAbility || e.label || '');
+    pill.dataset.effectSourceIid = String(e.sourceIid || '');
+    pill.dataset.effectStatusKey = String(e.statusInstanceKey || '');
+    pill.dataset.effectCount = String(Math.max(1, Number(e.effectInstanceCount) || 1));
+    pill.dataset.effectGroupClass = String(e.extraClass || '');
     pill.className = 'effect-pill ' + sideClass + extraClass;
     var iconEl = pill.querySelector('.effect-pill-icon');
     var labelEl = pill.querySelector('.effect-pill-label');
@@ -4807,6 +4875,11 @@ function getTopBarEffectsSourceSignature() {
     JSON.stringify(G._blameGameEffects || []),
     JSON.stringify(G._administrativeBloatEffects || []),
     JSON.stringify(G._selvaSupportBoosts || []),
+    // Server-authoritative multiplayer stores durable status effects here.
+    // Include the canonical collection in the render signature so a status
+    // that is created or expires without changing a legacy mirror still
+    // mounts/unmounts its normal production top-bar banner immediately.
+    JSON.stringify(G._phase7Statuses || []),
     handBits.join(','),
     boardBits.join(',')
   ].join('|');
@@ -4831,6 +4904,115 @@ function renderTopbarEffects() {
   // Collect all active effects with ownership
   if(typeof normalizeRiveraEffects === 'function') normalizeRiveraEffects();
   const allEffects = [];
+
+  // Phase 7 owns these statuses on the authority.  Render them directly from
+  // the canonical snapshot instead of requiring the retired multiplayer path
+  // to rebuild a parallel collection of client-only flags.
+  const phase7Statuses = Array.isArray(G && G._phase7Statuses) ? G._phase7Statuses : [];
+  const phase7StatusCard = function(id){ return CARDS.find(function(card){ return String(card.id) === String(id); }); };
+  const phase7StatusOwner = function(status, type, fallback){
+    const sourceOwner = Number(status && status.sourceController);
+    if(sourceOwner === 0 || sourceOwner === 1) return sourceOwner;
+    const affected = Number(status && status.playerIndex);
+    // These are controller benefits. Their canonical status does not always
+    // need a sourceController for gameplay, so presentation must use the
+    // affected/controller seat rather than the inverse lock-owner fallback.
+    if([
+      'NEXT_CHARACTER_HAND_ARRIVAL',
+      'RIVERA_AFFILIATION_BONUS',
+      'CONSOLIDATION_FATE_BONUS',
+      'DELAYED_HAND_DELIVERY',
+      'SUPPORTERS_AS_CHARACTERS',
+       'SELVA_EXTRA_SUPPORTER',
+       'MAJA_EXTRA_SUPPORTERS',
+       'WINE_COUNTRY_GUERILLA_INFILTRATION',
+       'FACE_DOWN_CONSOLIDATION_PERMISSION',
+      'MOVEMENT_GRANT'
+    ].includes(String(type || '').toUpperCase()) && (affected === 0 || affected === 1)) return affected;
+    return affected === 0 || affected === 1 ? 1 - affected : fallback;
+  };
+  phase7Statuses.forEach(function(status, index){
+    if(!status || typeof status !== 'object') return;
+    const type = String(status.statusType || status.type || '').toUpperCase();
+    const affected = Number(status.playerIndex);
+    const remaining = Math.max(0, Number(status.remainingTargetTurns ?? status.remainingOwnerTurns ?? status.remaining ?? status.deliveryTurnsRemaining) || 0);
+    const sourceOwner = phase7StatusOwner(status, type, myP);
+    const add = function(id, icon, fallbackName, fallbackAbility, cardEffect, extraClass){
+      const card = phase7StatusCard(id);
+      allEffects.push({
+        icon:getStatusEffectIcon(icon),
+        label:card ? card.ability : fallbackAbility,
+        cardName:card ? card.name : fallbackName,
+        cardAbility:card ? card.ability : fallbackAbility,
+        cardEffect:cardEffect,
+        owner:sourceOwner,
+        extraClass:extraClass || '',
+        turnsLeft:remaining || undefined,
+        sourceIid:status.sourceIid,
+        statusInstanceKey:'phase7-status:' + String(status.statusId || status.sourceIid || type + ':' + index)
+      });
+    };
+    if(type === 'FORT_CALVIN_WATCHER' && remaining > 0){
+      const redirect = status.characterRedirected ? 'Its Character redirect has already been used.' : 'The next revealed Character is sent to the bottom of the deck.';
+      add('71', 'fort_calvin', 'Fort Calvin Watcher', 'All Eyes on the I-15', 'Reveals the next ' + remaining + ' eligible opponent Draw Phase card' + (remaining === 1 ? '' : 's') + '. ' + redirect, 'effect-pill-fort-calvin');
+    }else if(type === 'SUPPORTER_EFFECTS_BLOCKED' && remaining > 0){
+      add('18', 'semper', '1st US Marines', 'Semper Fidelis', 'The affected player cannot activate Supporter effects this turn.', 'effect-pill-semper');
+    }else if(type === 'ZONE_ACTIONS_BLOCKED' && remaining > 0){
+      const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'The selected zone';
+      add('50', 'berkeley_lock', 'Berkeley CS Major', 'Artillery Distance', zone + ' is locked for the affected player\'s turn.', 'effect-pill-berkeley');
+    }else if(type === 'LANDSCAPE_CHANGE_BLOCKED' && remaining > 0){
+      add('91', 'village_lock', 'Wodny Potok Villager', 'A Snowy Village', 'The affected player cannot change the current landscape.', 'effect-pill-house');
+    }else if(type === 'NEXT_CHARACTER_HAND_ARRIVAL'){
+      add('33', 'wci_bonus', 'West Caribbea Infantry', 'The West Caribbea Infantry', 'The next Character added to this player\'s hand costs 1 less Reinforcement and gains 2 Fate.', 'effect-pill-wci');
+    }else if(type === 'RIVERA_AFFILIATION_BONUS' && remaining > 0){
+      const aff = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[status.affiliation]) ? AFF_LABEL[status.affiliation] : String(status.affiliation || 'the declared affiliation');
+      const affClass = String(status.affiliation || '').replace(/[^a-z0-9_-]/gi, '');
+      add('51', 'rivera_aff', 'Rivera', "Jorge's Right Hand Man", 'Character cards set with ' + aff + ' gain ' + (Number(status.value) || 4) + ' Fate. ' + remaining + ' owner turn' + (remaining === 1 ? '' : 's') + ' remaining.', 'effect-pill-rivera' + (affClass ? ' aff-' + affClass : ''));
+    }else if(type === 'CONSOLIDATION_FATE_BONUS'){
+      add('87', 'ballad', 'Kvetka Svoboda', 'A Noble Effort at a Ballad', 'Your consolidations gain ' + (Number(status.value) || 3) + ' Fate until you set a Supporter.', 'effect-pill-music');
+    }else if(type === 'CONSOLIDATION_COST_MODIFIER' && remaining > 0){
+      add(
+        '97',
+        'administrative_bloat',
+        'Visegrad Politician',
+        'Administrative Bloat',
+        remaining === 1
+          ? "The opponent's next consolidation costs 1 extra Reinforcement."
+          : "The opponent's next " + remaining + " consolidations cost 1 extra Reinforcement.",
+        'effect-pill-administrative-bloat'
+      );
+    }else if(type === 'DELAYED_HAND_DELIVERY' && remaining > 0){
+      add('94', 'mail_delivery', 'Wodny Potok Mailman', 'Mail Delivery', 'A scheduled card will be added to hand after ' + remaining + ' owner turn' + (remaining === 1 ? '' : 's') + '.', 'effect-pill-mail');
+    }else if(type === 'SUPPORTERS_AS_CHARACTERS' && remaining > 0){
+      add('99', 'blame_game', 'Rozsi and Zsofia (Youth)', 'The Blame Game', 'Supporters are classified as Characters for consolidation.', 'effect-pill-blame-game');
+      // Unlike opponent-facing locks, Blame Game benefits status.playerIndex.
+      // Its canonical status did not need sourceController, so the generic
+      // inverse-owner fallback put a duplicate banner on the wrong side while
+      // the compatibility mirror rendered the correct side.
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'SELVA_EXTRA_SUPPORTER' && status.activeNow === true && ((Number(status.extraSupports) || 0) > 0 || remaining > 0)){
+      add('74', 'selva', 'Selva Islands Pirate', 'A New Pacifica', '+' + (Number(status.extraSupports) || 1) + ' Supporter placement this turn.', 'effect-pill-selva');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'MAJA_EXTRA_SUPPORTERS' && ((Number(status.extraSupports) || 0) > 0 || remaining > 0)){
+      add('07', 'maja_unlimited', 'Maja Kaminska', 'Oblique Order', '+' + (Number(status.extraSupports) || 2) + ' Supporter placements this turn.', 'effect-pill-maja');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'WINE_COUNTRY_GUERILLA_INFILTRATION' && remaining > 0){
+      add(
+        '70',
+        'guerilla',
+        'Wine Country Guerilla',
+        'A Gun Behind Every Grapevine',
+        'Wine Country Guerilla is infiltrating the opposing hand. At the start of that player\'s turn, it reduces a random eligible hand card by 2 Fate. ' + remaining + ' turn' + (remaining === 1 ? '' : 's') + ' remaining.',
+        'effect-pill-guerilla'
+      );
+    }else if(type === 'FACE_DOWN_CONSOLIDATION_PERMISSION' && remaining > 0){
+      const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'this zone';
+      add('78', 'chaparral', 'Chaparral Hoplite', 'Chaparral Ambush', 'The next consolidation in ' + zone + ' may be set face down.', 'effect-pill-chaparral');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'MOVEMENT_GRANT' && remaining > 0){
+      add('69', 'busser_boot', 'Breakfast Republic Busser', 'Corner! Behind!', 'A friendly card can move to an adjacent-zone own-side square once per turn for ' + remaining + ' more owner turn' + (remaining === 1 ? '' : 's') + '.', 'effect-pill-busser');
+    }
+  });
 
   // Suppression — applied BY suppressor TO suppressTarget
   if(G.oppSuppressedNextTurn && G.suppressTarget !== undefined) {
@@ -4910,6 +5092,15 @@ function renderTopbarEffects() {
   forEachBoardCard(function(c, z){
     if(!c || !(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '78') : String(c.id || '') === '78') || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
     if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(c)) return;
+    // Authoritative multiplayer projects the same permission onto both the
+    // canonical status list and the compatibility board card. The canonical
+    // entry is the single source of truth for its banner; rendering this
+    // compatibility branch as well produced two identical Chaparral pills for
+    // one live permission. Single-player still owns and uses this board path.
+    if(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
+      return String(status?.statusType || status?.type || '').toUpperCase() === 'FACE_DOWN_CONSOLIDATION_PERMISSION'
+        && Number(status?.remainingOwnerTurns ?? status?.remaining ?? 0) > 0;
+    })) return;
     allEffects.push({
       icon:getStatusEffectIcon('chaparral'),
       label:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
@@ -4922,7 +5113,10 @@ function renderTopbarEffects() {
   });
 
   // Maja unlimited supporters
-  if(G.majaEffectThisTurn) {
+  if(G.majaEffectThisTurn && !(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
+    return String(status?.type || '').toUpperCase() === 'MAJA_EXTRA_SUPPORTERS'
+      && (Number(status.remainingOwnerTurns || 0) > 0 || Number(status.extraSupports || 0) > 0);
+  }))) {
     let majaOwner = myP;
     forEachBoardCard(c => { if(c.id === '07') majaOwner = c.owner; });
     const card = CARDS.find(c => c.id === '07');
@@ -4941,6 +5135,12 @@ function renderTopbarEffects() {
     const card = CARDS.find(c => c.id === '74');
     G._selvaSupportBoosts.forEach(function(fx, owner){
       if(!fx || fx.turn !== G.turn || owner !== G.currentPlayer) return;
+      if(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
+        return String(status?.type || '').toUpperCase() === 'SELVA_EXTRA_SUPPORTER'
+          && status.activeNow === true
+          && Number(status.playerIndex) === Number(owner)
+          && (Number(status.remainingOwnerTurns || 0) > 0 || Number(status.extraSupports || 0) > 0);
+      })) return;
       const extra = Math.max(0, Number(fx.extraSupports) || 0);
       if(extra <= 0) return;
       const total = Math.max(0, Number(G.maxSupportsPerTurn) || 0) + Math.max(0, Number(G.extraSupportsThisTurn) || 0);
@@ -4958,7 +5158,11 @@ function renderTopbarEffects() {
   }
 
   const wineCountryCard = CARDS.find(c => c.id === '70');
-  if(G && Array.isArray(G.players)) {
+  const phase7HasPublicWineStatus = G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
+    return String(status?.type || '').toUpperCase() === 'WINE_COUNTRY_GUERILLA_INFILTRATION'
+      && Number(status?.remaining ?? status?.remainingOwnerTurns ?? 0) > 0;
+  });
+  if(G && Array.isArray(G.players) && !phase7HasPublicWineStatus) {
     G.players.forEach(function(player, holder){
       const hand = player && Array.isArray(player.hand) ? player.hand : [];
       const infiltrators = hand.filter(function(c){
@@ -5040,9 +5244,23 @@ function renderTopbarEffects() {
   }
 
   // Christopher Erbs — waiting for next draw
-  if(G.erbsActive) {
+  const erbsReadyOwners = [false, false];
+  if(Array.isArray(G.erbsActive)) {
+    erbsReadyOwners[0] = !!G.erbsActive[0];
+    erbsReadyOwners[1] = !!G.erbsActive[1];
+  } else if(G.erbsActive) {
+    erbsReadyOwners[myP] = true;
+  }
+  forEachBoardCard(function(card){
+    if(!card || String(card.id || '') !== '40' || isFaceDownCard(card)) return;
+    if(Array.isArray(card.statuses) && card.statuses.includes('NEXT_DRAW_GAINS_6')){
+      const controller = Number(card.controller ?? card.owner);
+      if(controller === 0 || controller === 1) erbsReadyOwners[controller] = true;
+    }
+  });
+  if(erbsReadyOwners.some(Boolean)) {
     for(let p = 0; p < 2; p++) {
-      if(G.erbsActive[p]) {
+      if(erbsReadyOwners[p]) {
         const card = CARDS.find(c => c.id === '40');
         allEffects.push({
           icon: getStatusEffectIcon('erbs_ready'), label: card ? card.ability : 'Hard Times, Strong Men',
@@ -5064,15 +5282,17 @@ function renderTopbarEffects() {
       if(c.id === '56' && !c.immuneFlag) {
         const uses = Math.max(0, Number(c.usesLeft == null ? 5 : c.usesLeft) || 0);
         if(uses > 0) {
-          if(!lydiaStatusesByOwner[c.owner]) lydiaStatusesByOwner[c.owner] = [];
-          lydiaStatusesByOwner[c.owner].push({ card: c, uses: uses });
+          const controller = Number(c.controller ?? c.owner);
+          if(!lydiaStatusesByOwner[controller]) lydiaStatusesByOwner[controller] = [];
+          lydiaStatusesByOwner[controller].push({ card: c, uses: uses });
         }
       }
       if(c.id === '67' && !c.immuneFlag) {
         const uses = Math.max(0, Number(c.usesLeft == null ? (c._seculesUsed ? 0 : 1) : c.usesLeft) || 0);
         if(uses > 0) {
-          if(!securesStatusesByOwner[c.owner]) securesStatusesByOwner[c.owner] = [];
-          securesStatusesByOwner[c.owner].push({ card: c, uses: uses });
+          const controller = Number(c.controller ?? c.owner);
+          if(!securesStatusesByOwner[controller]) securesStatusesByOwner[controller] = [];
+          securesStatusesByOwner[controller].push({ card: c, uses: uses });
         }
       }
     });
@@ -5187,6 +5407,15 @@ function renderTopbarEffects() {
     const card = CARDS.find(c => c.id === '99');
     G._blameGameEffects.forEach(function(fx, owner){
       if(!fx || !fx.active || (Number(fx.turnsLeft) || 0) <= 0) return;
+      // In authoritative multiplayer this array is a compatibility projection
+      // of the canonical SUPPORTERS_AS_CHARACTERS statuses above, not another
+      // effect instance. Rendering both inflated ×N and sometimes duplicated
+      // the banner. Single-player continues to use this branch unchanged.
+      if(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
+        return String(status?.statusType || status?.type || '').toUpperCase() === 'SUPPORTERS_AS_CHARACTERS'
+          && Number(status?.playerIndex) === Number(owner)
+          && Number(status?.remainingTargetTurns || 0) > 0;
+      })) return;
       const turns = Math.max(0, Number(fx.turnsLeft) || 0);
       allEffects.push({
         icon: getStatusEffectIcon('blame_game'),
@@ -5239,7 +5468,11 @@ function renderTopbarEffects() {
     });
   }
 
-  if(Array.isArray(G._administrativeBloatEffects)) {
+  const phase7OwnsAdministrativeBloat = phase7Statuses.some(function(status){
+    return String(status && (status.statusType || status.type) || '').toUpperCase() === 'CONSOLIDATION_COST_MODIFIER'
+      && Number(status && status.remaining || 0) > 0;
+  });
+  if(!phase7OwnsAdministrativeBloat && Array.isArray(G._administrativeBloatEffects)) {
     const card = CARDS.find(c => c.id === '97');
     G._administrativeBloatEffects.forEach(function(fx){
       if(!fx || (Number(fx.remaining) || 0) <= 0) return;
@@ -5311,15 +5544,37 @@ function renderTopbarEffects() {
     });
   });
 
+  // Multiple instances from the same card/effect use one banner. The banner's
+  // multiplicity label above communicates the count without consuming a slot
+  // for every instance (or for both canonical and compatibility projections).
+  const seenEffectGroups = new Set();
+  const coalescedEffects = allEffects.filter(function(effect){
+    const owner = coerceStatusOwner(effect && effect.owner, myP);
+    const key = [
+      owner,
+      String(effect && effect.cardName || '').trim().toLowerCase(),
+      String(effect && (effect.cardAbility || effect.label) || '').replace(/\s+×\d+$/, '').trim().toLowerCase(),
+      String(effect && effect.extraClass || '').trim().toLowerCase()
+    ].join('|');
+    if(seenEffectGroups.has(key)) return false;
+    seenEffectGroups.add(key);
+    return true;
+  });
+  allEffects.length = 0;
+  allEffects.push.apply(allEffects, coalescedEffects);
+
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
   const mySig = myEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
   const oppSig = oppEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
   const nextHtml = mySig + '::' + oppSig;
-  if(_topbarEffectsLastHtml === nextHtml) {
-    return;
-  }
+  // Do not use "at least one pill exists" as a cache hit. A screen transition
+  // can remove just one member of a multi-status side while leaving another
+  // pill mounted; the old presence-only shortcut then hid the missing status
+  // indefinitely (most visibly Mr. Secules beside another active banner).
+  // syncEffectPills is keyed and incremental, so running it again is cheap and
+  // also gives the production renderer an exact self-heal on every state pass.
   _topbarEffectsLastHtml = nextHtml;
   syncEffectPills(leftBar, myEffects, 'left');
   syncEffectPills(rightBar, oppEffects, 'right');
@@ -6477,6 +6732,7 @@ function resetModalChrome() {
   if(modalEl) {
     modalEl.classList.remove('match-overview-modal', 'online-match-overview-modal', 'no-edge-corners-modal', 'card-detail-overlay', 'preset-order-modal');
     delete modalEl.dataset.chooseDeckOpen;
+    delete modalEl.dataset.pileInspectorKey;
   }
   if(document.body) document.body.classList.remove('choose-deck-open');
   const modalBox = document.querySelector('#modal .modal');
@@ -6705,6 +6961,38 @@ function inspectPickerCardDetail(card, entry) {
   if(card && typeof showCardInfoOverlay === 'function') showCardInfoOverlay(card);
 }
 
+function resolveEffectPromptSourceCard(source) {
+  if(source && typeof source === 'object') return source;
+  const sourceId = String(source || '');
+  if(!sourceId) return null;
+  let live = null;
+  if(typeof forEachBoardCard === 'function') {
+    forEachBoardCard(function(card){
+      if(!live && card && (String(card.iid || '') === sourceId || String(card.id || '') === sourceId)) live = card;
+    });
+  }
+  if(live) return live;
+  return (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
+    ? (CARDS.find(function(card){ return card && String(card.id || '') === sourceId; }) || null)
+    : null;
+}
+
+function getMultiplayerCardSelectionTitle(source) {
+  const card = resolveEffectPromptSourceCard(source);
+  return card && card.name ? ('Resolve ' + card.name) : 'Resolve Effect';
+}
+
+function getMultiplayerBoardPromptTitle(source) {
+  const card = resolveEffectPromptSourceCard(source);
+  if(card && String(card.id || '') === '54') return String(card.ability || 'Elusive Movements');
+  return card && card.name ? ('Resolve ' + card.name + ' Effect') : 'Resolve Effect';
+}
+
+if(typeof window !== 'undefined') {
+  window.getMultiplayerCardSelectionTitle = getMultiplayerCardSelectionTitle;
+  window.getMultiplayerBoardPromptTitle = getMultiplayerBoardPromptTitle;
+}
+
 function pickAnyBoardCard(owner, callback) {
   const entries=[];
   forEachBoardCard((card,z,r,c)=>entries.push({card,z,r,c}));
@@ -6723,7 +7011,7 @@ function pickAnyBoardCard(owner, callback) {
   });
 }
 
-function pickCardInZone(z, prompt, callback, filter=null, onCancel=null) {
+function pickCardInZone(z, prompt, callback, filter=null, onCancel=null, sourceCard=null) {
   const viewerP = G.currentPlayer;
   const entries=[];
   G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{
@@ -6734,17 +7022,17 @@ function pickCardInZone(z, prompt, callback, filter=null, onCancel=null) {
     if(!chosen.length) return;
     const picked = chosen[0];
     callback(picked.card, picked.z, picked.r, picked.c);
-  }, filter, onCancel);
+  }, filter, onCancel, sourceCard);
 }
 
-function pickMultipleInZone(z, max, prompt, callback, filter=null, onCancel=null) {
+function pickMultipleInZone(z, max, prompt, callback, filter=null, onCancel=null, sourceCard=null) {
   const viewerP = G.currentPlayer;
   const entries=[];
   G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{
     if(cell&&(!filter||filter(cell,z,r,c))) entries.push({card:cell,z,r,c});
   }));
   if(!entries.length){toast('No valid targets in this zone');return false;}
-  return showZonePicker(z, prompt, entries, max, viewerP, callback, filter, onCancel);
+  return showZonePicker(z, prompt, entries, max, viewerP, callback, filter, onCancel, sourceCard);
 }
 
 function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
@@ -6761,7 +7049,9 @@ function showBoardTargetPicker(opts, onConfirm) {
   if(!entries.length){ toast(opts.emptyMessage || 'No valid targets'); return; }
   const maxCount = Math.max(1, Math.min(opts.maxCount || 1, entries.length));
   const minCount = Math.max(0, Math.min(opts.minCount === undefined ? 1 : Number(opts.minCount) || 0, maxCount));
-  const zones = (opts.zones && opts.zones.length ? opts.zones : [entries[0].z]).filter(function(z, idx, arr){
+  const zones = (opts.visibleZones && opts.visibleZones.length
+    ? opts.visibleZones
+    : (opts.zones && opts.zones.length ? opts.zones : [entries[0].z])).filter(function(z, idx, arr){
     return typeof z === 'number' && arr.indexOf(z) === idx;
   });
   const byPos = new Map();
@@ -6819,7 +7109,11 @@ function showBoardTargetPicker(opts, onConfirm) {
       clearTimeout(scrollIdleTimer);
       scrollIdleTimer = setTimeout(function(){ panel.classList.remove('is-scrolling'); }, 100);
     }, {passive:true});
-    const totalRows = G.board[z] ? G.board[z].length : 3;
+    const zoneEntries = entries.filter(function(entry){ return Number(entry.z) === Number(z); });
+    const highestEntryRow = zoneEntries.reduce(function(highest, entry){
+      return Math.max(highest, Number(entry.r));
+    }, -1);
+    const totalRows = Math.max(G.board[z] ? G.board[z].length : 3, highestEntryRow + 1, 3);
     const hasExtraRows = totalRows > 3;
     let hasExtraCells = false;
     if(hasExtraRows) panel.classList.add('has-extra-rows');
@@ -6837,7 +7131,13 @@ function showBoardTargetPicker(opts, onConfirm) {
 
       const cells = document.createElement('div');
       cells.className = 'board-target-cells';
-      const rowCap = typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3;
+      const entryRowCap = zoneEntries.reduce(function(cap, entry){
+        return Number(entry.r) === Number(r) ? Math.max(cap, Number(entry.c) + 1) : cap;
+      }, 3);
+      const rowCap = Math.max(
+        typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3,
+        entryRowCap
+      );
       if(rowCap > 3) {
         hasExtraCells = true;
         rowEl.classList.add('has-extra-cells');
@@ -6860,7 +7160,7 @@ function showBoardTargetPicker(opts, onConfirm) {
         if(!cell) {
           cellEl.classList.add('is-empty');
           cellEl.innerHTML = entry
-            ? '<div class="board-target-card board-target-square-mark"><span>Square</span></div>'
+            ? '<div class="board-target-card board-target-square-mark" aria-hidden="true"></div>'
             : '<span>Empty</span>';
         } else {
           const visual = getCardVisualData(cell, viewerP, {forceBoardHidden:true, boardPos:{z:z, r:r, c:c}});
@@ -6908,6 +7208,19 @@ function showBoardTargetPicker(opts, onConfirm) {
     zonesEl.appendChild(panel);
   });
 
+  // Geometry prompts such as Mark Kemper target the not-yet-committed fourth
+  // row.  A targetable square in that row is a hard UI contract.
+  if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true){
+    entries.filter(function(entry){ return allowSquareTargets && Number(entry.r) >= 3; }).forEach(function(entry){
+      const selector = '[data-picker-pos="' + entry.z + ':' + entry.r + ':' + entry.c + '"]';
+      if(!body.querySelector(selector)){
+        window.fatePhase7PresentationAudit?.warnings?.push({
+          at:Date.now(), code:'MISSING_EXTRA_SQUARE_TARGET', position:[entry.z, entry.r, entry.c]
+        });
+      }
+    });
+  }
+
   showModal(opts.title || 'Select Target', '', [
     {label:'Cancel', action:function(){
       closeModal();
@@ -6933,23 +7246,24 @@ function showBoardTargetPicker(opts, onConfirm) {
 }
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
-function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel) {
+function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
-    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel), wait);
+    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard), wait);
     return;
   }
   const pickerEntries = (entries || []).filter(function(entry){ return entry && entry.card; });
   if(!pickerEntries.length){ toast('No valid targets in this zone'); return; }
   showBoardTargetPicker({
-    title: 'Zone '+(z+1)+' - Select Target',
+    title: getMultiplayerBoardPromptTitle(sourceCard),
     prompt: prompt,
     maxCount: Math.max(1, Math.min(maxCount || 1, pickerEntries.length)),
     confirmLabel: 'Confirm',
     viewerPlayerIndex: viewerP,
     zones: [z],
+    visibleZones:[0,1,2],
     entries: pickerEntries,
-    showOpponentOverlay: true,
+    showZoneTitles:true,
     emptyMessage: 'No valid targets in this zone',
     onCancel:onCancel
   }, function(chosen){
@@ -7070,6 +7384,11 @@ function pickCardsFromHand(player, maxCount, prompt, callback) {
 // Image-based card picker with pagination
 function pickCardsVisual(cards, opts, onConfirm) {
   opts = opts || {};
+  if(opts.searchSourceCardId && opts.matchMultiplayerPromptTitle !== false) {
+    opts = Object.assign({}, opts, {
+      title:getMultiplayerCardSelectionTitle(opts.searchSourceCardId)
+    });
+  }
   const allowAfterEffectCinematic = typeof G !== 'undefined' && G && G._allowImmediateEffectPickerUntil && Date.now() < G._allowImmediateEffectPickerUntil;
   const wait = (opts.immediate || allowAfterEffectCinematic) ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
@@ -7149,6 +7468,12 @@ function pickCardsVisual(cards, opts, onConfirm) {
   let pickerHitboxes = [];
   let pickerDrawToken = 0;
   let pickerMotionTimer = 0;
+
+  function syncPickerCanonicalSelection() {
+    if(!pickerCanvas) return;
+    pickerCanvas.dataset.pickerCardIids = JSON.stringify(cards.map(function(card){ return String(card?.iid || ''); }));
+    pickerCanvas.dataset.selectedIids = JSON.stringify(selected.map(function(index){ return String(cards[index]?.iid || ''); }).filter(Boolean));
+  }
 
   function triggerPickerMotion(className, duration) {
     if(!body || !className) return;
@@ -7397,6 +7722,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
         const okBtn = document.getElementById('modal-acts').querySelector('.btn.pri');
         if(okBtn){ okBtn.disabled = selected.length < minCount; okBtn.style.opacity = selected.length < minCount ? '.4' : '1'; }
       }
+      syncPickerCanonicalSelection();
       triggerPickerMotion('is-selection-pulse', 360);
       drawCanvasPage();
     };
@@ -7420,6 +7746,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       inspectPickerCardDetail(hit.card, hit.entry);
     };
   }
+  syncPickerCanonicalSelection();
   renderPage();
   triggerPickerMotion('is-search-entering', 780);
 
@@ -7787,11 +8114,44 @@ function countCardsInZone(z) {
   return count;
 }
 
+const MARK_MENZ_AFFILIATION_OVERLAYS = Object.freeze({
+  reality:{kind:'mark_menz_reality', label:'Reality'},
+  third_great_war:{kind:'mark_menz_third_great_war', label:'Third Great War'},
+  expanded_worlds:{kind:'mark_menz_expanded_worlds', label:'Expanded Worlds'},
+  eventide:{kind:'mark_menz_eventide', label:'Eventide'}
+});
+
+// Mark Menz uses the same full-card, bare-glyph effect-overlay language as the
+// rest of the shipping game. There are four deliberately separate kinds so the
+// chosen affiliation is unmistakable by both crest and colour. The picker is
+// closed by its click handler before this is called; presentation therefore
+// starts only after the declaration window is gone.
+function showMarkMenzAffiliationOverlay(cardInstance, newAff, options) {
+  const descriptor = MARK_MENZ_AFFILIATION_OVERLAYS[String(newAff || '')];
+  if(!cardInstance || !descriptor || typeof flashCardEffect !== 'function') return false;
+  const sourceKey = String(cardInstance._lastAffEffectSource || 'mark-menz');
+  const turnKey = typeof G !== 'undefined' ? String(G.turn || 0) : '0';
+  return flashCardEffect(cardInstance, descriptor.kind, {
+    label:descriptor.label,
+    // Every changed card gets the crest, but a single declaration should only
+    // play one sound even when it updates several cards in the zone.
+    soundKey:String(options && options.soundKey || ('mark-menz:' + sourceKey + ':' + String(newAff || '') + ':' + turnKey)),
+    onlineRemote:!!(options && options.onlineRemote)
+  });
+}
+if(typeof window !== 'undefined') window.showMarkMenzAffiliationOverlay = showMarkMenzAffiliationOverlay;
+
 // Show affiliation change overlay: circular icon faintly flashing over a card
 function showAffChangeOverlay(cardInstance, newAff) {
   if(cardInstance){
     cardInstance._affChanged = newAff;
     cardInstance._affChangedBy = cardInstance._affChangedBy || 'affiliation_effect';
+  }
+  // Mark Menz previously fell through to boardNotice(), producing a generic
+  // card/text pop in the canvas scene. Its declaration now has four exact
+  // affiliation overlays and no card-pop presentation.
+  if(cardInstance && cardInstance._affChangedBy === 'mark_menz') {
+    return showMarkMenzAffiliationOverlay(cardInstance, newAff);
   }
   if(rendererV2OwnsBoardScene()){
     let pos = null;
@@ -9194,9 +9554,19 @@ let _lastEffectActivationCinematicKey = '';
 let _lastEffectActivationCinematicAt = 0;
 let _effectActivationCinematicDrainTimer = 0;
 const _recentEffectActivationCinematicKeys = new Map();
-const EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS = 1000;
+// The actual predecessor barrier is event-driven. This is only breathing room
+// after the consolidation cinematic has fully ended, so it can stay brief
+// without allowing activation to overlap placement or consolidation.
+const EFFECT_ACTIVATION_AFTER_CONSOLIDATION_GAP_MS = 420;
 const EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS = 160;
 const EFFECT_ACTIVATION_DUPLICATE_WINDOW_MS = 7000;
+// One reversible control for the shared single-player/multiplayer cinematic.
+// Set this back to 0 to restore the original duration and animation speeds.
+const EFFECT_ACTIVATION_CINEMATIC_SPEEDUP_MS = 750;
+const EFFECT_ACTIVATION_CINEMATIC_BASE_DURATION_MS = 2300;
+const EFFECT_ACTIVATION_CINEMATIC_PERF_BASE_DURATION_MS = 1800;
+const EFFECT_ACTIVATION_CINEMATIC_MIN_DURATION_MS = 1400;
+const EFFECT_ACTIVATION_CINEMATIC_MAX_DURATION_MS = 2800;
 
 function effectActivationCinematicDedupeKey(card, options) {
   const opts = options || {};
@@ -9329,8 +9699,43 @@ function showEffectActivationCinematic(card, opts) {
     const perfLite = document.documentElement.classList.contains('fate-animations-off')
       || document.documentElement.classList.contains('fate-super-performance-mode')
       || document.body.classList.contains('fate-super-performance-mode');
-    const duration = Math.max(1400, Math.min(2800, Number(options.duration) || (perfLite ? 1800 : 2300)));
-    holdEffectActivationPresentationUntil(Date.now() + duration + (perfLite ? 160 : 220) + EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS);
+    const baseDuration = perfLite
+      ? EFFECT_ACTIVATION_CINEMATIC_PERF_BASE_DURATION_MS
+      : EFFECT_ACTIVATION_CINEMATIC_BASE_DURATION_MS;
+    const defaultDuration = baseDuration - EFFECT_ACTIVATION_CINEMATIC_SPEEDUP_MS;
+    const duration = Math.max(
+      EFFECT_ACTIVATION_CINEMATIC_MIN_DURATION_MS,
+      Math.min(EFFECT_ACTIVATION_CINEMATIC_MAX_DURATION_MS, Number(options.duration) || defaultDuration)
+    );
+    // Scale every visual beat with the total duration. The frame transitions
+    // are also capped to the post-image-load entrance budget so they finish
+    // before the outro instead of being clipped by the shorter cinematic.
+    const animationScale = duration / baseDuration;
+    const scaledTiming = function(normalMs, perfMs, minimumMs){
+      return Math.max(Number(minimumMs) || 0, Math.round((perfLite ? perfMs : normalMs) * animationScale));
+    };
+    const seconds = function(ms){ return (ms / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') + 's'; };
+    const overlayFadeMs = scaledTiming(220, 160, 90);
+    const sigilTransformMs = scaledTiming(720, 420, 180);
+    const sigilOpacityMs = scaledTiming(240, 240, 100);
+    const cardTransformMs = scaledTiming(360, 220, 120);
+    const cardOpacityMs = scaledTiming(160, 160, 90);
+    const labelOpacityMs = scaledTiming(200, 200, 100);
+    const imageRetryMs = scaledTiming(160, 160, 90);
+    const imageReadyFallbackMs = scaledTiming(360, 220, 140);
+    const outroFadeMs = scaledTiming(340, 260, 180);
+    const frameTransitionBudgetMs = duration < baseDuration
+      ? Math.max(360, duration - imageReadyFallbackMs - outroFadeMs)
+      : Number.POSITIVE_INFINITY;
+    const frameTransformMs = Math.min(
+      scaledTiming(2140, 1680, 650),
+      frameTransitionBudgetMs
+    );
+    const frameOpacityMs = Math.min(
+      scaledTiming(1820, 1440, 520),
+      frameTransitionBudgetMs
+    );
+    holdEffectActivationPresentationUntil(Date.now() + duration + overlayFadeMs + EFFECT_ACTIVATION_PRESENTATION_SETTLE_MS);
     const rarity = String((card && card.rarity) || 'circle').toLowerCase();
     const color = '#ffd966';
     const imgSrc = card.img ? (typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(card.img, 'board') : card.img) : '';
@@ -9340,20 +9745,20 @@ function showEffectActivationCinematic(card, opts) {
     overlay.setAttribute('style',
       'position:fixed;inset:0;z-index:999998;display:flex;align-items:center;justify-content:center;' +
       'background:rgba(0,0,0,.48);opacity:0;pointer-events:none;overflow:hidden;' +
-      'transition:opacity ' + (perfLite ? '.16s' : '.22s') + ' ease-out;'
+      'transition:opacity ' + seconds(overlayFadeMs) + ' ease-out;'
     );
     const sigil = document.createElement('div');
     sigil.setAttribute('style',
       'position:absolute;left:50%;top:50%;width:min(48vmin,520px);height:min(48vmin,520px);' +
       'transform:translate(-50%,-50%) scale(.72);opacity:0;border:2px solid rgba(255,217,102,.58);' +
       'box-shadow:0 0 28px rgba(255,217,102,.28),inset 0 0 22px rgba(255,217,102,.12);' +
-      'transition:transform ' + (perfLite ? '.42s' : '.72s') + ' cubic-bezier(.13,.92,.16,1),opacity .24s ease-out;'
+      'transition:transform ' + seconds(sigilTransformMs) + ' cubic-bezier(.13,.92,.16,1),opacity ' + seconds(sigilOpacityMs) + ' ease-out;'
     );
     overlay.appendChild(sigil);
     const cardWrap = document.createElement('div');
     cardWrap.setAttribute('style',
       'position:relative;z-index:2;width:'+activationCardSize.w+';height:'+activationCardSize.h+';display:flex;align-items:center;justify-content:center;' +
-      'transform:translateY(0) scale(.72);opacity:0;transition:transform ' + (perfLite ? '.22s' : '.36s') + ' cubic-bezier(.14,.95,.18,1.03),opacity .16s ease-out;' +
+      'transform:translateY(0) scale(.72);opacity:0;transition:transform ' + seconds(cardTransformMs) + ' cubic-bezier(.14,.95,.18,1.03),opacity ' + seconds(cardOpacityMs) + ' ease-out;' +
       'filter:drop-shadow(0 0 18px rgba(255,217,102,.55));'
     );
     let imageReady = Promise.resolve(false);
@@ -9372,13 +9777,13 @@ function showEffectActivationCinematic(card, opts) {
         img.onerror = function(){
           if(card.img && img.src.indexOf(card.img) === -1) {
             img.src = card.img;
-            setTimeout(function(){ finish(false); }, 160);
+            setTimeout(function(){ finish(false); }, imageRetryMs);
           } else {
             img.style.display = 'none';
             finish(false);
           }
         };
-        setTimeout(function(){ finish(false); }, perfLite ? 220 : 360);
+        setTimeout(function(){ finish(false); }, imageReadyFallbackMs);
         setTimeout(function(){
           if(img.complete && img.naturalWidth > 0) finish(true);
         }, 0);
@@ -9396,14 +9801,14 @@ function showEffectActivationCinematic(card, opts) {
       'position:absolute;left:50%;top:50%;width:'+activationCardSize.w+';height:'+activationCardSize.h+';' +
       'transform:translate(-50%,-50%) scale(.88);opacity:0;border:2px solid rgba(255,217,102,.96);border-radius:6px;' +
       'box-shadow:0 0 18px rgba(255,217,102,.72),inset 0 0 16px rgba(255,217,102,.18);' +
-      'transition:transform ' + Math.max(1.05, (duration - (perfLite ? 120 : 160)) / 1000).toFixed(2) + 's cubic-bezier(.18,.82,.18,1),opacity ' + Math.max(.65, (duration - (perfLite ? 360 : 480)) / 1000).toFixed(2) + 's ease-out;'
+      'transition:transform ' + seconds(frameTransformMs) + ' cubic-bezier(.18,.82,.18,1),opacity ' + seconds(frameOpacityMs) + ' ease-out;'
     );
     cardWrap.appendChild(cardSquare);
     const label = document.createElement('div');
     label.setAttribute('style',
       'position:absolute;left:50%;bottom:-86px;transform:translateX(-50%);z-index:3;color:#ffeaa0;text-align:center;' +
       'font-family:var(--serif,serif);letter-spacing:.12em;text-transform:uppercase;text-shadow:0 0 14px rgba(255,217,102,.65);' +
-      'font-size:clamp(17px,2.1vw,28px);line-height:1;white-space:nowrap;opacity:0;transition:opacity .2s ease-out;'
+      'font-size:clamp(17px,2.1vw,28px);line-height:1;white-space:nowrap;opacity:0;transition:opacity ' + seconds(labelOpacityMs) + ' ease-out;'
     );
     label.textContent = 'Activate Effect';
     cardWrap.appendChild(label);
@@ -9423,7 +9828,7 @@ function showEffectActivationCinematic(card, opts) {
         scheduleEffectActivationCinematicDrain();
         finishEffectActivationPresentationHold();
         resolve(result);
-      }, perfLite ? 160 : 220);
+      }, overlayFadeMs);
     }
 
     imageReady.then(function(){
@@ -9453,7 +9858,7 @@ function showEffectActivationCinematic(card, opts) {
       sigil.style.opacity = '0';
       cardSquare.style.opacity = '0';
       label.style.opacity = '0';
-    }, Math.max(520, duration - (perfLite ? 260 : 340)));
+    }, Math.max(320, duration - outroFadeMs));
     setTimeout(function(){ finish(true); }, duration);
     setTimeout(function(){ finish(false); }, duration + 900);
   });

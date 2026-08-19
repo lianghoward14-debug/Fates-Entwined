@@ -23,11 +23,19 @@ assert.doesNotMatch(engineSource, /\bDate\.now\s*\(/, 'shared engine must not re
 assert.doesNotMatch(engineSource, /\bdocument\.|\bwindow\.|localStorage|WebSocket/, 'shared engine must not access browser or transport APIs');
 assert.doesNotMatch(engineSource, /setTimeout|setInterval/, 'shared engine must not store timer-driven rules');
 
-const legacyServer = fs.readFileSync(path.join(root, 'server', 'fate-ws-authority.js'), 'utf8');
-assert.doesNotMatch(legacyServer, /authoritative-v3|FATE_SERVER_AUTHORITATIVE_V3_ENABLED/, 'legacy server must not dispatch into v3');
+assert.equal(
+  fs.existsSync(path.join(root, 'server', 'fate-ws-authority.js')),
+  false,
+  'the retired client-resolved WebSocket authority must not exist'
+);
+assert.equal(
+  fs.existsSync(path.join(root, 'server', 'fate-authority-reducer.js')),
+  false,
+  'the retired client-resolved reducer must not exist'
+);
 const v3Server = fs.readFileSync(path.join(root, 'server', 'authoritative-v3', 'server.mjs'), 'utf8');
 assert.match(v3Server, /FATE_SERVER_AUTHORITATIVE_V3_ENABLED\s*!==\s*'1'/);
-assert.doesNotMatch(v3Server, /fate-authority-reducer|fate-ws-authority/, 'v3 must not import legacy authority code');
+assert.doesNotMatch(v3Server, /fate-authority-reducer|fate-ws-authority/, 'v3 must not import retired authority code');
 
 const inventory = cardCoverageInventory(getCardCatalog().cards);
 assert.equal(inventory.length, getCardCatalog().cards.length);

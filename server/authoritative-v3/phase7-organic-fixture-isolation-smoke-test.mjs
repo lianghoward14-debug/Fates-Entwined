@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {multiplayerEligibleCardIds} from '../../shared/engine/index.mjs';
+import {
+  effectiveConsolidationCost,
+  legalCommandTemplates,
+  multiplayerEligibleCardIds,
+  projectStateForPlayer
+} from '../../shared/engine/index.mjs';
 import {AuthorityV3RoomManager} from './room-manager.mjs';
 import {SQLiteAuthorityStore} from './storage.mjs';
 
@@ -37,6 +42,61 @@ assert.doesNotThrow(()=>strictFixtureManager.createMatch({
     {id:'exact-p1', deckIds:exactFixtureDeck, organicFixture:true}
   ]
 }), 'match creation must preserve the already-authorized fixture deck instead of reapplying production copy limits');
+strictFixtureManager.createMatch({
+  matchId:'ZEROCOSTFIXTURE',
+  seed:'zero-cost-fixture',
+  landscapeId:'igb1',
+  testRules:{zeroReinforcementCost:true},
+  players:[
+    {id:'zero-p0', deckIds:exactFixtureDeck, organicFixture:true},
+    {id:'zero-p1', deckIds:exactFixtureDeck, organicFixture:true}
+  ]
+});
+const zeroCostState = strictFixtureManager.actor('ZEROCOSTFIXTURE').state;
+assert.equal(zeroCostState.testRules?.zeroReinforcementCost, true, 'authenticated organic fixtures may explicitly request zero reinforcement cost');
+assert.equal(effectiveConsolidationCost(zeroCostState, {cost:7,statuses:[],counters:{}}, 0), 0, 'fixture zero-cost policy must be enforced by the shared legal/rules query');
+assert.equal(projectStateForPlayer(zeroCostState, 0).testRules?.zeroReinforcementCost, true, 'both clients must see and audit the canonical fixture policy');
+const zeroCostCharacterDeck = [
+  ...Array.from({length:8}, ()=>'30'),
+  ...Array.from({length:32}, ()=>'32')
+];
+strictFixtureManager.createMatch({
+  matchId:'ZEROCOSTCONSOLIDATION',
+  seed:'zero-cost-consolidation',
+  landscapeId:'igb1',
+  testRules:{zeroReinforcementCost:true},
+  players:[
+    {id:'zero-consolidate-p0', deckIds:zeroCostCharacterDeck, organicFixture:true, testOpeningCardIds:['30','32']},
+    {id:'zero-consolidate-p1', deckIds:zeroCostCharacterDeck, organicFixture:true, testOpeningCardIds:['30','32']}
+  ]
+});
+const zeroConsolidationState = strictFixtureManager.actor('ZEROCOSTCONSOLIDATION').state;
+const zeroSupporterIndex = zeroConsolidationState.players[0].hand.findIndex(card=>String(card.id) === '32');
+assert(zeroSupporterIndex >= 0, 'zero-cost fixture must stage a real Supporter tribute');
+const zeroSupporter = zeroConsolidationState.players[0].hand.splice(zeroSupporterIndex, 1)[0];
+zeroConsolidationState.board[0][2][0] = zeroSupporter;
+const zeroOpponentSupporterIndex = zeroConsolidationState.players[1].hand.findIndex(card=>String(card.id) === '32');
+assert(zeroOpponentSupporterIndex >= 0, 'zero-cost fixture must stage a real opponent effect target');
+const zeroOpponentSupporter = zeroConsolidationState.players[1].hand.splice(zeroOpponentSupporterIndex, 1)[0];
+zeroConsolidationState.board[0][1][0] = zeroOpponentSupporter;
+const zeroCharacter = zeroConsolidationState.players[0].hand.find(card=>String(card.id) === '30');
+assert(zeroCharacter, 'zero-cost fixture must stage the Character under test');
+const zeroCostConsolidations = legalCommandTemplates(zeroConsolidationState, 0).filter(command=>
+  command.type === 'CONSOLIDATE_CARD' && String(command.payload?.cardIid || '') === String(zeroCharacter.iid)
+);
+assert(zeroCostConsolidations.length > 0, 'zero reinforcement cost must still produce a real one-tribute consolidation command');
+assert(zeroCostConsolidations.every(command=>command.payload.tributeIids.length === 1), 'zero-cost fixture must preserve the reducer requirement for a real tribute square');
+strictFixtureManager.createMatch({
+  matchId:'ZEROCOSTDENIED',
+  seed:'zero-cost-denied',
+  landscapeId:'igb1',
+  testRules:{zeroReinforcementCost:true},
+  players:[
+    {id:'denied-p0', deckIds:multiplayerEligibleCardIds().slice(0, 40)},
+    {id:'denied-p1', deckIds:multiplayerEligibleCardIds().slice(0, 40)}
+  ]
+});
+assert.equal(strictFixtureManager.actor('ZEROCOSTDENIED').state.testRules, null, 'ordinary matches must ignore fixture-only rule shortcuts');
 strictFixtureStore.close();
 
 function createHarness(name, allowOrganicTestFixtures){
@@ -90,6 +150,25 @@ assert.equal(
 assert.equal(enabledState.players[0].hand.length, 6, 'fixture swap must not change opening hand size');
 assert.equal(enabledState.players[0].deck.length, baselineState.players[0].deck.length, 'fixture swap must not change deck size');
 enabled.store.close();
+
+const protectedOpening = createHarness('protected-opening', true);
+const naturallyRequestedId = String(baselineState.players[0].hand[4]?.id || '');
+const insertedRequestedIds = baselineState.players[0].deck.slice(0, 2).map(card=>String(card?.id || ''));
+const allRequestedOpeningIds = [naturallyRequestedId, ...insertedRequestedIds];
+assert(allRequestedOpeningIds.every(Boolean), 'fixture protection regression needs one natural and two deck-held requested cards');
+const protectedOpeningState = create(
+  protectedOpening.manager,
+  'FIXTUREPROTECTED',
+  allRequestedOpeningIds
+);
+for(const requestedId of allRequestedOpeningIds){
+  assert(
+    protectedOpeningState.players[0].hand.some(card=>String(card.id) === requestedId),
+    `inserting later fixture cards must not evict already-present requested card ${requestedId}`
+  );
+}
+assert.equal(protectedOpeningState.players[0].hand.length, 6, 'multi-card fixture protection must preserve opening hand size');
+protectedOpening.store.close();
 
 const held = createHarness('held', true);
 const naturallyDealtId = String(baselineState.players[0].hand[0]?.id || '');
