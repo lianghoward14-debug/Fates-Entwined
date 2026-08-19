@@ -504,9 +504,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = '', g
   const normalizedDeck = Array.isArray(deckIds) ? deckIds.map(String) : [];
   if(normalizedDeck.length !== 40) throw new Error('Phase 7 unranked matchmaking requires exactly 40 cards');
   matchmakingCancelled = false;
-  let result = await matchmakingRequest('/v3/beta/matchmaking/enter', {
-    method:'POST',
-    body:{
+  const matchmakingPayload = {
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
       // `landscapeId` remains for deterministic fixture callers. Production
@@ -525,12 +523,26 @@ async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = '', g
         ? {zeroReinforcementCost:true}
         : null,
       testPool:ORGANIC_TEST_IDENTITY_ENABLED ? organicTestPool() : ''
-    }
+  };
+  const enterQueue = ()=>matchmakingRequest('/v3/beta/matchmaking/enter', {
+    method:'POST',
+    body:matchmakingPayload
   });
+  let result = await enterQueue();
+  let resetRetries = 0;
   while(!matchmakingCancelled && result.status === 'waiting'){
     if(typeof onStatus === 'function') onStatus({status:'waiting'});
     await new Promise(resolve=>setTimeout(resolve, 900));
     result = await matchmakingRequest('/v3/beta/matchmaking/status');
+    // The queue is intentionally in memory.  A host replacement or a
+    // recovery restart can therefore clear a waiting entry between polls.
+    // Re-enter the exact same queue a few times instead of presenting a
+    // spurious "unexpected status idle" error to the player.
+    if(result.status === 'idle' && resetRetries < 3){
+      resetRetries += 1;
+      if(typeof onStatus === 'function') onStatus({status:'waiting', recovered:true});
+      result = await enterQueue();
+    }
   }
   if(matchmakingCancelled) return {ok:false, status:'cancelled'};
   if(result.status !== 'matched' || !result.credential){

@@ -170,6 +170,8 @@ assert.match(client, /accounts:signUp[\s\S]*accounts:delete/);
 assert.match(client, /securetoken\.googleapis\.com\/v1\/token[\s\S]*grant_type:'refresh_token'[\s\S]*expiresAt:Date\.now\(\) \+ expiresInMs/, 'long-running full-UI clients must refresh expiring temporary Firebase identities');
 assert.match(client, /containsForbiddenPostState[\s\S]*Phase 7 commands cannot contain client postState/);
 assert.match(client, /scheduleReconnect[\s\S]*connect\(\)/);
+assert.match(client, /const enterQueue = \(\)=>matchmakingRequest\('\/v3\/beta\/matchmaking\/enter'/, 'matchmaking must retain the exact queue payload for recovery');
+assert.match(client, /result\.status === 'idle' && resetRetries < 3[\s\S]*result = await enterQueue\(\)/, 'a transient host restart must re-enter a waiting player instead of failing with idle');
 assert.doesNotMatch(client, /FateAuthoritativeV3SinglePlayerScreen/);
 assert.match(client, /FatePhase7CurrentMultiplayerUi/);
 assert.match(client, /waitForInitialView/);
