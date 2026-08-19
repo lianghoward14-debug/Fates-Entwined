@@ -33,7 +33,9 @@ primary_region = 'lax'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  # The shared matchmaking queue is memory-resident. Keep one machine ready
+  # so a waiting player is never evicted by an idle shutdown.
+  min_machines_running = 1
   processes = ['app']
 
   [[http_service.checks]]
