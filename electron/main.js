@@ -23,7 +23,10 @@ const GPU_ACCELERATION_MODE = GPU_ACCELERATION_DISABLED ? 'disabled-safe-mode' :
 // the game's heaviest renderer transition. F11 and --fullscreen still opt in.
 const START_FULLSCREEN = !SAFE_MODE_ENABLED
   && (process.argv.includes('--fullscreen') || process.env.FATE_FULLSCREEN === '1');
-const PHASE7_UNRANKED_BETA_ENABLED = process.argv.includes('--phase7-beta');
+// Authoritative multiplayer is the shipping multiplayer route.  The former
+// client-resolved room system is retired, so every desktop launch must enter
+// the authoritative route without requiring an internal beta launch flag.
+const PHASE7_UNRANKED_BETA_ENABLED = true;
 const PHASE7_TEST_AUTH_ENABLED = process.argv.includes('--phase7-test-auth');
 const PHASE7_FAST_UI_TEST_ENABLED = process.argv.includes('--phase7-fast-ui-test');
 const PHASE7_PRESENTATION_TEST_ENABLED = process.argv.includes('--phase7-presentation-test');

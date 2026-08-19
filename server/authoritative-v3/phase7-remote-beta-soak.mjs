@@ -6,8 +6,8 @@ import {multiplayerEligibleCardIds} from '../../shared/engine/index.mjs';
 const require = createRequire(import.meta.url);
 const {getCardCatalog} = require('../fate-card-catalog.js');
 
-const ORIGIN = 'https://fates-entwined-v3-unranked-beta.fly.dev';
-const WS_URL = 'wss://fates-entwined-v3-unranked-beta.fly.dev/v3/beta/socket';
+const ORIGIN = 'https://fates-entwined-main.fly.dev';
+const WS_URL = 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
 const CLIENT_VERSION = '1.39.95-phase7-beta.1';
 const FIREBASE_API_KEY = process.env.FATE_WS_SMOKE_API_KEY || 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
 const enabled = process.env.FATE_PHASE7_REMOTE_BETA_SOAK === '1';

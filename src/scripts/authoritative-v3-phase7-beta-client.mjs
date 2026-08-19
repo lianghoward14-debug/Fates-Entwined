@@ -9,16 +9,15 @@ const requestedTestApiUrl = String(params.get('fateV3BetaTestApiUrl') || '').rep
 const LOCAL_TEST_API_URL = ISOLATED_LOCAL_AUTHORITY_TEST && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(requestedTestApiUrl)
   ? requestedTestApiUrl
   : '';
-const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-v3-unranked-beta.fly.dev';
+const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-main.fly.dev';
 const WS_URL = LOCAL_TEST_API_URL
   ? `${LOCAL_TEST_API_URL.replace(/^http:/, 'ws:')}/v3/beta/socket`
-  : 'wss://fates-entwined-v3-unranked-beta.fly.dev/v3/beta/socket';
+  : 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
 const CREDENTIAL_KEY = 'fateAuthorityV3Phase7BetaCredential';
 const TEST_IDENTITY_KEY = 'fateAuthorityV3Phase7BetaTestIdentity';
 const FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
 
-if(params.get('fateV3UnrankedBeta') !== '1'
-  || globalThis.FATE_PHASE7_UNRANKED_BETA !== true
+if(globalThis.FATE_PHASE7_UNRANKED_BETA !== true
   || globalThis.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true
   || globalThis.FATE_AUTHORITY_ROUTE_BLOCKED === true){
   throw new Error('Phase 7 beta client requires its exact, conflict-free route');

@@ -42,7 +42,7 @@ assert.match(
   /state = phase7ServerOwnsBoard\s*\? state\s*:\s*preferMoreOnlineBoardCards/,
   'Phase 7 must use the exact server board and never revive a locally richer legacy board'
 );
-assert.match(index, /params\.get\('fateV3UnrankedBeta'\) === '1'/);
+assert.match(index, /params\.get\('fateV3UnrankedBeta'\) !== '0'/);
 assert.match(
   gameplay,
   /function isTurnTimerInteractionPaused\(\)[\s\S]*_phase7PendingPrompt[\s\S]*getElementById\('modal'\)[\s\S]*function getTurnTimerPausedMs/,
@@ -80,7 +80,7 @@ assert.match(
 );
 assert.match(rooms, /\['51','66','77','90'\][\s\S]{0,1400}phase7AuthoritativeAffiliationBound[\s\S]{0,500}capture:true/, 'authoritative affiliation prompts must bind their reused visual picker after presentation deferral and guard duplicate submissions');
 assert.match(rooms, /sourceId === 'bh04'[\s\S]{0,1800}bindTypeButtons[\s\S]{0,900}phase7AuthoritativeBh04Bound[\s\S]{0,500}capture:true/, 'Destruction of Paradise must bind its deferred single-player type picker and submit the exact authoritative choice once');
-assert.match(electronMain, /process\.argv\.includes\('--phase7-beta'\)/);
+assert.match(electronMain, /const PHASE7_UNRANKED_BETA_ENABLED = true/);
 assert.match(electronMain, /process\.argv\.includes\('--phase7-test-auth'\)/);
 assert.match(electronMain, /process\.argv\.includes\('--phase7-fast-ui-test'\)/);
 assert.match(electronMain, /process\.argv\.includes\('--phase7-presentation-test'\)/);
@@ -98,7 +98,7 @@ assert.match(electronMain, /err\.code === 'ERR_ABORTED'[\s\S]*initial-navigation
 assert.match(
   electronMain,
   /if \(PHASE7_UNRANKED_BETA_ENABLED\)[\s\S]*fateV3UnrankedBeta[\s\S]*else \{[\s\S]*electronAuthorityConfig\(\)/,
-  'Electron beta sessions must set only the isolated beta route before considering legacy authority parameters'
+  'Electron launches must set only the authoritative route before considering legacy authority parameters'
 );
 assert.match(
   index,
@@ -113,19 +113,19 @@ assert.match(
 assert.match(
   index,
   /else if\(phase7Beta\)\{[\s\S]*FATE_PHASE7_UNRANKED_BETA = true[\s\S]*FATE_LEGACY_MULTIPLAYER_BLOCKED = true[\s\S]*FATE_WS_AUTHORITY_ENABLED = false/,
-  'the exact Phase 7 flag must explicitly block legacy authority'
+  'the standard Phase 7 route must explicitly block legacy authority'
 );
 assert.match(
   index,
-  /get\('fateV3UnrankedBeta'\) !== '1'[\s\S]*FATE_PHASE7_UNRANKED_BETA_BLOCKED[\s\S]*authoritative-v3-phase7-beta-client\.mjs/,
-  'the Phase 7 client module must not load without its exact conflict-free route'
+  /FATE_PHASE7_UNRANKED_BETA !== true[\s\S]*FATE_PHASE7_UNRANKED_BETA_BLOCKED[\s\S]*authoritative-v3-phase7-beta-client\.mjs/,
+  'the Phase 7 client module must load only on its conflict-free authoritative route'
 );
 assert.match(index, /FATE_LEGACY_MULTIPLAYER_RETIRED = true/, 'the legacy multiplayer route must be retired globally');
 assert.doesNotMatch(index, /fateV3ShadowSoak|fates-entwined-v3-shadow-soak/, 'the retired shadow route settings must be absent');
 
 assert.match(
   rooms,
-  /function phase7UnrankedBetaEnabled\(\)\{[\s\S]*FATE_PHASE7_UNRANKED_BETA === true[\s\S]*get\('fateV3UnrankedBeta'\) === '1'/
+  /function phase7UnrankedBetaEnabled\(\)\{[\s\S]*FATE_PHASE7_UNRANKED_BETA === true/
 );
 assert.match(
   rooms,
@@ -151,9 +151,9 @@ assert.match(
   'generic test parameters must not persist or replace the Phase 7 route'
 );
 
-assert.match(client, /CLIENT_VERSION = '1\.39\.0-phase7-beta\.1'/);
-assert.match(client, /wss:\/\/fates-entwined-v3-unranked-beta\.fly\.dev\/v3\/beta\/socket/);
-assert.doesNotMatch(client, /fates-entwined-main\.fly\.dev|fates-entwined-v3-shadow-soak\.fly\.dev/);
+assert.match(client, /CLIENT_VERSION = '1\.39\.95-phase7-beta\.1'/);
+assert.match(client, /wss:\/\/fates-entwined-main\.fly\.dev\/v3\/beta\/socket/);
+assert.doesNotMatch(client, /fates-entwined-v3-unranked-beta\.fly\.dev|fates-entwined-v3-shadow-soak\.fly\.dev/);
 assert.match(client, /legacyFallback:false/);
 assert.match(client, /TEST_AUTH_ENABLED = params\.get\('electron'\) === '1'[\s\S]*fateV3BetaTestAuth/);
 assert.match(

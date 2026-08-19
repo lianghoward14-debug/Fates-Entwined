@@ -39,7 +39,9 @@
     // It is retired, not a fallback: multiplayer may only enter through the
     // separately loaded Phase 7 authoritative client.
     window.FATE_LEGACY_MULTIPLAYER_RETIRED = true;
-    var phase7Beta = params.get('fateV3UnrankedBeta') === '1';
+    // Authoritative multiplayer is the standard online route.  An explicit
+    // zero is reserved only for isolated troubleshooting sessions.
+    var phase7Beta = params.get('fateV3UnrankedBeta') !== '0';
     var phase7Conflict = phase7Beta && (
       !!String(params.get('fateAuthority') || '').trim()
       || params.has('flyWs')
@@ -738,7 +740,7 @@
 <script>
 (function(){
   var params = new URLSearchParams(location.search || '');
-  if(params.get('fateV3UnrankedBeta') !== '1') return;
+  if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
   import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1786960811')
     .then(function(){

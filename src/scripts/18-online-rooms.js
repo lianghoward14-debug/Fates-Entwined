@@ -13717,8 +13717,7 @@
   function phase7UnrankedBetaEnabled(){
     if(phase7UnrankedBetaBlocked()) return false;
     try{
-      return window.FATE_PHASE7_UNRANKED_BETA === true
-        && new URLSearchParams(location.search || '').get('fateV3UnrankedBeta') === '1';
+      return window.FATE_PHASE7_UNRANKED_BETA === true;
     }catch(e){
       return false;
     }
