@@ -12,10 +12,10 @@ const requestedTestApiUrl = String(params.get('fateV3BetaTestApiUrl') || '').rep
 const LOCAL_TEST_API_URL = ISOLATED_LOCAL_AUTHORITY_TEST && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(requestedTestApiUrl)
   ? requestedTestApiUrl
   : '';
-const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-v3-unranked-beta.fly.dev';
+const API_URL = LOCAL_TEST_API_URL || 'https://fates-entwined-main.fly.dev';
 const WS_URL = LOCAL_TEST_API_URL
   ? `${LOCAL_TEST_API_URL.replace(/^http:/, 'ws:')}/v3/beta/socket`
-  : 'wss://fates-entwined-v3-unranked-beta.fly.dev/v3/beta/socket';
+  : 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
 const CREDENTIAL_KEY = 'fateAuthorityV3Phase7BetaCredential';
 const TEST_IDENTITY_KEY = 'fateAuthorityV3Phase7BetaTestIdentity';
 const FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
@@ -130,6 +130,22 @@ function saveCredential(next){
 
 function clearCredential(){
   try{ sessionStorage.removeItem(CREDENTIAL_KEY); }catch(_){}
+}
+
+function matchmakingClientSession(){
+  const electronSession = String(params.get('electronSession') || '').replace(/[^A-Za-z0-9_.:@-]/g, '-').slice(0, 80);
+  if(electronSession) return `electron:${electronSession}`;
+  const key = 'fateAuthorityV3MatchmakingClientSession';
+  try{
+    let value = String(sessionStorage.getItem(key) || '');
+    if(!value){
+      value = `web:${Date.now().toString(36)}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(key, value);
+    }
+    return value.replace(/[^A-Za-z0-9_.:@-]/g, '-').slice(0, 80);
+  }catch(_){
+    return `web:${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 async function firebaseIdToken(){
@@ -257,6 +273,7 @@ async function matchmakingRequest(route, {method = 'GET', body} = {}){
       authorization:`Bearer ${await matchmakingIdentityToken()}`,
       'content-type':'application/json',
       'x-fate-client-version':CLIENT_VERSION,
+      'x-fate-client-session':matchmakingClientSession(),
       ...(ORGANIC_TEST_IDENTITY_ENABLED ? {'x-fate-organic-fixture':'1'} : {})
     },
     body:body === undefined ? undefined : JSON.stringify(body)

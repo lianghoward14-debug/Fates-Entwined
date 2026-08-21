@@ -157,6 +157,27 @@ function phase7ClientVersionCompatible(value){
   return PHASE7_COMPATIBLE_CLIENT_VERSIONS.has(String(value || '').trim());
 }
 
+function phase7QueuePlayerId(req, identity){
+  const uid = String(identity?.uid || '');
+  const clientSession = String(req.headers['x-fate-client-session'] || '').trim();
+  if(!uid || !/^[A-Za-z0-9_.:@-]{1,80}$/.test(clientSession)) return uid;
+  const sessionHash = crypto.createHash('sha256').update(clientSession).digest('hex').slice(0, 16);
+  return `${uid}@${sessionHash}`.slice(0, 128);
+}
+
+function migrateLegacyBetaQueueIdentity(identity, playerId){
+  const legacyId = String(identity?.uid || '');
+  if(!legacyId || !playerId || legacyId === playerId || betaQueue.has(playerId)) return;
+  const legacy = betaQueue.get(legacyId);
+  if(!legacy) return;
+  betaQueue.delete(legacyId);
+  store.deleteBetaMatchmakingEntry(legacyId);
+  legacy.uid = playerId;
+  legacy.authUid = legacyId;
+  betaQueue.set(playerId, legacy);
+  store.upsertBetaMatchmakingEntry(legacy);
+}
+
 function betaCredentialFor(result, uid, queueMode = 'freeplay'){
   const item = result.players.find(player=>player.playerId === uid);
   if(!item) throw new Error('match credential was not created for player');
@@ -515,7 +536,7 @@ function readFrames(ws, chunk){
 
 function setCors(res){
   res.setHeader('access-control-allow-origin', '*');
-  res.setHeader('access-control-allow-headers', 'authorization, content-type, x-fate-client-version, x-fate-organic-fixture');
+  res.setHeader('access-control-allow-headers', 'authorization, content-type, x-fate-client-version, x-fate-client-session, x-fate-organic-fixture');
   res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
 }
 
@@ -581,6 +602,11 @@ const server = http.createServer(async (req, res)=>{
         socketPath:SOCKET_PATH,
         authenticatedMatchmaking:BETA_MODE,
         queuedPlayers:BETA_MODE ? betaQueue.size : 0,
+        queuedPlayersByMode:BETA_MODE ? [...betaQueue.values()].reduce((counts, entry)=>{
+          const mode = entry?.queueMode === 'ranked' ? 'challenger' : 'freeplay';
+          counts[mode] = Number(counts[mode] || 0) + 1;
+          return counts;
+        }, {freeplay:0, challenger:0}) : null,
         queueStaleMs:BETA_MODE ? PHASE7_QUEUE_STALE_MS : null,
         disconnectForfeitMs:BETA_MODE ? DISCONNECT_FORFEIT_MS : null,
         engineVersion:ENGINE_VERSION,
@@ -625,8 +651,11 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
         return;
       }
-      if(betaDeliveries.has(identity.uid)){
-        writeJson(res, 200, {ok:true, status:'matched', credential:betaDeliveries.get(identity.uid)});
+      const queuePlayerId = phase7QueuePlayerId(req, identity);
+      migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
+      const pendingDelivery = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
+      if(pendingDelivery){
+        writeJson(res, 200, {ok:true, status:'matched', credential:pendingDelivery});
         return;
       }
       const body = await readBody(req);
@@ -639,7 +668,8 @@ const server = http.createServer(async (req, res)=>{
         ? (validRequestedTestPool ? requestedTestPool : `fixture:${identity.uid}`.slice(0, 80))
         : '';
       const queued = {
-        uid:identity.uid,
+        uid:queuePlayerId,
+        authUid:identity.uid,
         name:String(body.name || identity.uid).slice(0, 80),
         deckIds,
         queueMode:String(body.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay',
@@ -661,7 +691,7 @@ const server = http.createServer(async (req, res)=>{
         joinedAt:Date.now(),
         lastSeenAt:Date.now()
       };
-      betaQueue.set(identity.uid, queued);
+      betaQueue.set(queuePlayerId, queued);
       store.upsertBetaMatchmakingEntry(queued);
       const matched = completeBetaQueueMatch(queued);
       if(!matched){
@@ -682,12 +712,14 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
         return;
       }
-      let credential = betaDeliveries.get(identity.uid) || null;
-      const queued = betaQueue.get(identity.uid) || null;
+      const queuePlayerId = phase7QueuePlayerId(req, identity);
+      migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
+      let credential = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
+      const queued = betaQueue.get(queuePlayerId) || null;
       if(queued){
         queued.lastSeenAt = Date.now();
-        betaQueue.set(identity.uid, queued);
-        store.touchBetaMatchmakingEntry(identity.uid, queued.lastSeenAt);
+        betaQueue.set(queuePlayerId, queued);
+        store.touchBetaMatchmakingEntry(queuePlayerId, queued.lastSeenAt);
         const matched = completeBetaQueueMatch(queued);
         if(matched) credential = matched.ownCredential;
       }
@@ -704,8 +736,10 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
         return;
       }
-      betaQueue.delete(identity.uid);
-      store.deleteBetaMatchmakingEntry(identity.uid);
+      const queuePlayerId = phase7QueuePlayerId(req, identity);
+      migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
+      betaQueue.delete(queuePlayerId);
+      store.deleteBetaMatchmakingEntry(queuePlayerId);
       writeJson(res, 200, {ok:true, status:'idle'});
       return;
     }
