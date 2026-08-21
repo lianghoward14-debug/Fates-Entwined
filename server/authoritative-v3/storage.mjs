@@ -58,6 +58,17 @@ export class SQLiteAuthorityStore {
         PRIMARY KEY(match_id, revision),
         FOREIGN KEY(match_id) REFERENCES matches(match_id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS beta_matchmaking_queue (
+        player_id TEXT PRIMARY KEY,
+        entry_json TEXT NOT NULL,
+        joined_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS beta_matchmaking_deliveries (
+        player_id TEXT PRIMARY KEY,
+        credential_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS commands_match_command
         ON commands(match_id, command_id);
       CREATE INDEX IF NOT EXISTS commands_match_revision
@@ -67,6 +78,78 @@ export class SQLiteAuthorityStore {
 
   close(){
     this.db.close();
+  }
+
+  loadBetaMatchmakingQueue(){
+    return this.db.prepare(`
+      SELECT player_id AS playerId, entry_json AS entryJson, last_seen_at AS lastSeenAt
+      FROM beta_matchmaking_queue
+      ORDER BY joined_at, player_id
+    `).all().map(row=>{
+      const entry = parseJson(row.entryJson);
+      if(entry) entry.lastSeenAt = Math.max(1, Number(row.lastSeenAt) || Number(entry.lastSeenAt) || Date.now());
+      return {playerId:String(row.playerId || ''), entry};
+    }).filter(row=>row.playerId && row.entry);
+  }
+
+  upsertBetaMatchmakingEntry(entry){
+    const playerId = String(entry?.uid || '');
+    if(!playerId) throw new Error('beta matchmaking player id is required');
+    const joinedAt = Math.max(1, Number(entry.joinedAt) || Date.now());
+    const lastSeenAt = Math.max(joinedAt, Number(entry.lastSeenAt) || joinedAt);
+    this.db.prepare(`
+      INSERT INTO beta_matchmaking_queue(player_id, entry_json, joined_at, last_seen_at)
+      VALUES(?, ?, ?, ?)
+      ON CONFLICT(player_id) DO UPDATE SET
+        entry_json = excluded.entry_json,
+        joined_at = excluded.joined_at,
+        last_seen_at = excluded.last_seen_at
+    `).run(playerId, stableStringify(entry), joinedAt, lastSeenAt);
+  }
+
+  touchBetaMatchmakingEntry(playerId, lastSeenAt = Date.now()){
+    const id = String(playerId || '');
+    if(!id) return 0;
+    return this.db.prepare(`
+      UPDATE beta_matchmaking_queue
+      SET last_seen_at = ?
+      WHERE player_id = ?
+    `).run(Math.max(1, Number(lastSeenAt) || Date.now()), id).changes;
+  }
+
+  deleteBetaMatchmakingEntry(playerId){
+    const id = String(playerId || '');
+    if(!id) return 0;
+    return this.db.prepare('DELETE FROM beta_matchmaking_queue WHERE player_id = ?').run(id).changes;
+  }
+
+  loadBetaMatchmakingDeliveries(){
+    return this.db.prepare(`
+      SELECT player_id AS playerId, credential_json AS credentialJson
+      FROM beta_matchmaking_deliveries
+      ORDER BY created_at, player_id
+    `).all().map(row=>({
+      playerId:String(row.playerId || ''),
+      credential:parseJson(row.credentialJson)
+    })).filter(row=>row.playerId && row.credential);
+  }
+
+  upsertBetaMatchmakingDelivery(playerId, credential){
+    const id = String(playerId || '');
+    if(!id || !credential) throw new Error('beta matchmaking delivery is invalid');
+    this.db.prepare(`
+      INSERT INTO beta_matchmaking_deliveries(player_id, credential_json, created_at)
+      VALUES(?, ?, ?)
+      ON CONFLICT(player_id) DO UPDATE SET
+        credential_json = excluded.credential_json,
+        created_at = excluded.created_at
+    `).run(id, stableStringify(credential), Date.now());
+  }
+
+  deleteBetaMatchmakingDelivery(playerId){
+    const id = String(playerId || '');
+    if(!id) return 0;
+    return this.db.prepare('DELETE FROM beta_matchmaking_deliveries WHERE player_id = ?').run(id).changes;
   }
 
   rollbackIfActive(){

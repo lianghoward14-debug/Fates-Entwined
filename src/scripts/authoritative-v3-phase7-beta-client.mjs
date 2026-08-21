@@ -111,7 +111,8 @@ function validateCredential(value){
   if(!/^[A-Za-z0-9_-]{3,80}$/.test(matchId)) throw new Error('invalid Phase 7 matchId');
   if(!/^[A-Za-z0-9_.:@-]{1,128}$/.test(playerId)) throw new Error('invalid Phase 7 playerId');
   if(!token) throw new Error('Phase 7 match token is required');
-  return {matchId, playerId, token};
+  const queueMode = String(next.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay';
+  return {matchId, playerId, token, queueMode};
 }
 
 function loadCredential(){
@@ -503,13 +504,15 @@ function report(){
   };
 }
 
-async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
+async function startUnrankedMatchmaking({deckIds, name = '', queueMode = 'freeplay', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
   const normalizedDeck = Array.isArray(deckIds) ? deckIds.map(String) : [];
-  if(normalizedDeck.length !== 40) throw new Error('Phase 7 unranked matchmaking requires exactly 40 cards');
+  if(normalizedDeck.length !== 40) throw new Error('Authoritative matchmaking requires exactly 40 cards');
+  const normalizedQueueMode = queueMode === 'ranked' ? 'ranked' : 'freeplay';
   matchmakingCancelled = false;
   const matchmakingPayload = {
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
+      queueMode:normalizedQueueMode,
       // `landscapeId` remains for deterministic fixture callers. Production
       // Free Play sends the complete settings object so "Random" is not
       // accidentally converted to its picker fallback (igb1/Pacifica).
@@ -532,17 +535,14 @@ async function startUnrankedMatchmaking({deckIds, name = '', landscapeId = '', g
     body:matchmakingPayload
   });
   let result = await enterQueue();
-  let resetRetries = 0;
   while(!matchmakingCancelled && result.status === 'waiting'){
     if(typeof onStatus === 'function') onStatus({status:'waiting'});
     await new Promise(resolve=>setTimeout(resolve, 900));
     result = await matchmakingRequest('/v3/beta/matchmaking/status');
-    // The queue is intentionally in memory.  A host replacement or a
-    // recovery restart can therefore clear a waiting entry between polls.
-    // Re-enter the exact same queue a few times instead of presenting a
-    // spurious "unexpected status idle" error to the player.
-    if(result.status === 'idle' && resetRetries < 3){
-      resetRetries += 1;
+    // A rolling deployment or recovery can briefly return idle between the
+    // durable queue being restored and this poll. Keep the player in the same
+    // pool until they explicitly cancel instead of abandoning matchmaking.
+    if(result.status === 'idle'){
       if(typeof onStatus === 'function') onStatus({status:'waiting', recovered:true});
       result = await enterQueue();
     }
@@ -570,7 +570,10 @@ const networkAdapter = Object.freeze({
     if(!state || !Number.isInteger(playerIndex) || !credential) return null;
     const opponentIndex = playerIndex === 0 ? 1 : 0;
     return {
-      mode:'server-authoritative-v3-phase7-unranked-beta',
+      mode:credential.queueMode === 'ranked'
+        ? 'server-authoritative-v3-phase7-challenger'
+        : 'server-authoritative-v3-phase7-freeplay',
+      queueMode:credential.queueMode,
       playerId:credential.playerId,
       playerIndex,
       aiPlayerId:String(state.players?.[opponentIndex]?.id || ''),

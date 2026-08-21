@@ -4923,10 +4923,22 @@ async function activateWodnyPotokYouth(card, z, r, c) {
     toast('Snowball Fight can only be used once per turn.');
     return;
   }
-  if(card._snowballFightResolving) return;
+  if(card._snowballFightResolving || card._snowballFightActivationInFlight) return;
   const cp = G.currentPlayer;
   const opp = 1 - cp;
-  const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [opp]);
+  card._snowballFightActivationInFlight = true;
+  let allowed = false;
+  try {
+    // Match the shared manual-effect flow: finish the activation cinematic
+    // before reactions or the Snowball Fight target picker can open.
+    if(!G._onlineRoomCode && typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, z, r, c, {source:'snowball-fight'});
+    }
+    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
+    allowed = await beginManualSupporterEffectActivation(card, z, r, c, [opp]);
+  } finally {
+    delete card._snowballFightActivationInFlight;
+  }
   if(!allowed) {
     card.effectUsedThisTurn = true;
     renderGame({board:true, scores:true, topbar:true});
@@ -7479,9 +7491,7 @@ function shouldShowManualCharacterEffectButton(card) {
   if(G && G._phase7CurrentMultiplayer === true && typeof window.fatePhase7CanActivateSource === 'function') {
     return window.fatePhase7CanActivateSource(card.iid);
   }
-  if(PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS.has(getCardRuntimeEffectId(card))){
-    return canUseManualCharacterEffect(card);
-  }
+  if(window.fateEffectRequiresManualActivationId?.(card)) return canUseManualCharacterEffect(card);
   if(automaticBoardEffectsEnabled()) return false;
   return canUseManualCharacterEffect(card);
 }
@@ -8604,8 +8614,19 @@ async function activateExpeditionaryMove(card, z, r, c) {
     }
     return;
   }
+  if(card._expeditionaryActivationInFlight) return;
   var cp = G.currentPlayer;
-  const allowed = await beginManualSupporterEffectActivation(card, z, r, c, [cp]);
+  card._expeditionaryActivationInFlight = true;
+  let allowed = false;
+  try {
+    if(!G._onlineRoomCode && typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, z, r, c, {source:'expeditionary-move'});
+    }
+    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
+    allowed = await beginManualSupporterEffectActivation(card, z, r, c, [cp]);
+  } finally {
+    delete card._expeditionaryActivationInFlight;
+  }
   if(!allowed) {
     card._expMoved = true;
     renderGame({board:true, scores:true, topbar:true});
@@ -8670,16 +8691,17 @@ function activateLandscapeEventideMove(card, z, r, c) {
   setHint('Landscape: move ' + card.name + ' to a highlighted square.');
 }
 
-function activateBusserMove(card, fromZ, fromR, fromC) {
+async function activateBusserMove(card, fromZ, fromR, fromC) {
   if(G._busserMovingCard){
     toast('Choose the highlighted Busser square first');
     return;
   }
-  var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
   if(!card || card.cantBeMoved || card.immuneFlag || card.id==='76'){
     toast('This card cannot be moved');
     return;
   }
+  if(card._busserActivationInFlight) return;
+  var cp = typeof card._busserOwner === 'number' ? card._busserOwner : G.currentPlayer;
   if(card._busserSourceIid && isStoredEffectSourceSuppressed(card._busserSourceIid)){
     toast('Busser movement was suppressed.');
     card._busserTurnsLeft = 0;
@@ -8714,8 +8736,6 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
         var cell = G.board[zz][rr][cc] || null;
         if(!cell && !isBlocked(zz,rr,cc)){
           options.push({z:zz,r:rr,c:cc});
-          var el = document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
-          if(el) el.classList.add('placeable','move-target');
         }
       }
     });
@@ -8725,6 +8745,15 @@ function activateBusserMove(card, fromZ, fromR, fromC) {
     G._busserMovingCard = null;
     clearPlaceHighlights();
     return;
+  }
+  card._busserActivationInFlight = true;
+  try {
+    if(!G._onlineRoomCode && typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, fromZ, fromR, fromC, {source:'busser-move'});
+    }
+    if(typeof G !== 'undefined' && G) G._allowImmediateEffectPickerUntil = Date.now() + 1400;
+  } finally {
+    delete card._busserActivationInFlight;
   }
   toast('Click an open square in an adjacent zone to move ' + card.name);
   G._busserMovingCard = {card:card, fromZ:fromZ, fromR:fromR, fromC:fromC, options:options};

@@ -12,7 +12,7 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=1785072305">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=1784660001">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1786960804">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1787317304">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=1784059902">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1785021008">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1785023024">
@@ -601,8 +601,8 @@
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
 <script src="src/scripts/03-profile-and-progression.js?v=1785603000"></script>
 <script src="src/scripts/04-game-setup.js?v=1785616900"></script>
-<script src="src/scripts/05-gameplay-core.js?v=1786960803"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=1786960803"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1787317003"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1787317305"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=1784666002"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1785072427"></script>
@@ -648,7 +648,7 @@
     './src/scripts/15-online-auth.js?v=1785021001',
     './src/scripts/16-online-core.js?v=1782617501',
     './src/scripts/17-online-social.js?v=1784195101',
-    './src/scripts/18-online-rooms.js?v=1786960811&sync=1786960811',
+    './src/scripts/18-online-rooms.js?v=1787317311&sync=1787317311',
     './src/scripts/19-online-elo.js?v=1784059901',
     './src/scripts/20-online-economy.js?v=1785023147'
   ];
@@ -742,7 +742,7 @@
   var params = new URLSearchParams(location.search || '');
   if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
-  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1786960811')
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1787317312')
     .then(function(){
       if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
         return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=1786960811');

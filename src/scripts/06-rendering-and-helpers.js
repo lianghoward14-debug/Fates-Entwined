@@ -6380,6 +6380,36 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     if(G.selectedHandCard!==null) card=G.players[G.currentPlayer].hand[G.selectedHandCard];
     if(!card) return;
   }
+  // A mandatory hand-limit choice owns the shared modal. Card detail writes
+  // directly into that modal rather than going through showModal(), so opening
+  // Ali (or any other card) could erase the discard picker while the rules
+  // continued blocking every action. Restore the picker instead of allowing
+  // card information to replace it.
+  if(typeof G !== 'undefined' && G){
+    const perspective = typeof getPerspectivePlayerIndex === 'function'
+      ? getPerspectivePlayerIndex()
+      : Number(G.currentPlayer);
+    const authorityHandLimit = G._phase7PendingHandLimit || null;
+    if(G._phase7CurrentMultiplayer === true
+      && authorityHandLimit
+      && Number(authorityHandLimit.playerIndex) === Number(perspective)){
+      if(typeof window.fatePhase7EnsureHandLimitPickerVisible === 'function'){
+        window.fatePhase7EnsureHandLimitPickerVisible();
+      }
+      if(typeof toast === 'function') toast('Discard down to the hand limit before opening card information.');
+      return;
+    }
+    const perspectiveHand = G.players?.[perspective]?.hand;
+    const localLimit = Number.isInteger(Number(perspective)) && typeof getActiveHandLimit === 'function'
+      ? getActiveHandLimit(perspective)
+      : 12;
+    if(Array.isArray(perspectiveHand)
+      && perspectiveHand.length > localLimit){
+      if(typeof enforceHandLimit === 'function') enforceHandLimit(perspective);
+      if(typeof toast === 'function') toast('Discard down to the hand limit before opening card information.');
+      return;
+    }
+  }
   if(typeof G !== 'undefined' && G && G._cardDetailModalLockUntil && !window.__fateBypassCardDetailDelay) {
     const waitMs = Math.max(0, Number(G._cardDetailModalLockUntil) - Date.now());
     if(waitMs > 16) {

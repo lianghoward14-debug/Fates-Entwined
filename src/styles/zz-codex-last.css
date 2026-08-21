@@ -12729,6 +12729,8 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo{
 
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
   font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
+  transform:scale(.9)!important;
+  transform-origin:center center!important;
 }
 
 html body.modal-open .cinematic-subtitle-live{

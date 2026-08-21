@@ -46,6 +46,10 @@ const PHASE7_QUEUE_STALE_MS = Math.max(
   250,
   Number(process.env.FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS || 45000) || 45000
 );
+const DISCONNECT_FORFEIT_MS = Math.max(
+  1000,
+  Number(process.env.FATE_AUTHORITY_V3_DISCONNECT_FORFEIT_MS || 5000) || 5000
+);
 const RETAINED_MATCHES = BETA_MODE
   ? Math.max(10, Number(process.env.FATE_AUTHORITY_V3_RETAINED_MATCHES || 50) || 50)
   : 0;
@@ -91,8 +95,18 @@ const sockets = new Set();
 const matchSockets = new Map();
 const promptTimers = new Map();
 const turnTimers = new Map();
-const betaQueue = new Map();
-const betaDeliveries = new Map();
+const disconnectForfeitTimers = new Map();
+const betaQueue = new Map(
+  BETA_MODE
+    ? store.loadBetaMatchmakingQueue().map(row=>[row.playerId, row.entry])
+    : []
+);
+const betaDeliveries = new Map(
+  BETA_MODE
+    ? store.loadBetaMatchmakingDeliveries().map(row=>[row.playerId, row.credential])
+    : []
+);
+let shuttingDown = false;
 
 function pruneStaleBetaQueue(now = Date.now()){
   if(!BETA_MODE || !betaQueue.size) return 0;
@@ -101,6 +115,7 @@ function pruneStaleBetaQueue(now = Date.now()){
     const lastSeenAt = Math.max(Number(entry?.lastSeenAt || 0) || 0, Number(entry?.joinedAt || 0) || 0);
     if(lastSeenAt && now - lastSeenAt <= PHASE7_QUEUE_STALE_MS) continue;
     betaQueue.delete(uid);
+    store.deleteBetaMatchmakingEntry(uid);
     removed += 1;
   }
   return removed;
@@ -142,7 +157,7 @@ function phase7ClientVersionCompatible(value){
   return PHASE7_COMPATIBLE_CLIENT_VERSIONS.has(String(value || '').trim());
 }
 
-function betaCredentialFor(result, uid){
+function betaCredentialFor(result, uid, queueMode = 'freeplay'){
   const item = result.players.find(player=>player.playerId === uid);
   if(!item) throw new Error('match credential was not created for player');
   return {
@@ -150,9 +165,54 @@ function betaCredentialFor(result, uid){
     playerId:item.playerId,
     playerIndex:item.seat,
     token:item.token,
+    queueMode:queueMode === 'ranked' ? 'ranked' : 'freeplay',
     protocolVersion:3,
     clientVersion:PHASE7_CLIENT_VERSION
   };
+}
+
+function betaQueueOpponent(entry){
+  return [...betaQueue.values()].find(candidate=>
+    candidate.uid !== entry.uid
+    && String(candidate.testPool || '') === String(entry.testPool || '')
+    && String(candidate.queueMode || 'freeplay') === String(entry.queueMode || 'freeplay')
+  ) || null;
+}
+
+function completeBetaQueueMatch(queued){
+  const opponent = betaQueueOpponent(queued);
+  if(!opponent) return null;
+  const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
+  const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);
+  const queueMode = queued.queueMode === 'ranked' ? 'ranked' : 'freeplay';
+  const result = manager.createMatch({
+    mode:queueMode,
+    matchId,
+    seed:matchId,
+    requireTurnChoice:true,
+    landscapeId:gameSettings.resolvedLandscapeId,
+    gameSettings,
+    turnTimerSeconds:gameSettings.turnTimerSeconds,
+    testRules:opponent.testRules?.zeroReinforcementCost === true
+      && queued.testRules?.zeroReinforcementCost === true
+        ? {zeroReinforcementCost:true}
+        : null,
+    players:[
+      {id:opponent.uid, name:opponent.name, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
+      {id:queued.uid, name:queued.name, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
+    ]
+  });
+  const opponentCredential = betaCredentialFor(result, opponent.uid, queueMode);
+  const ownCredential = betaCredentialFor(result, queued.uid, queueMode);
+  betaQueue.delete(opponent.uid);
+  betaQueue.delete(queued.uid);
+  store.deleteBetaMatchmakingEntry(opponent.uid);
+  store.deleteBetaMatchmakingEntry(queued.uid);
+  betaDeliveries.set(opponent.uid, opponentCredential);
+  betaDeliveries.set(queued.uid, ownCredential);
+  store.upsertBetaMatchmakingDelivery(opponent.uid, opponentCredential);
+  store.upsertBetaMatchmakingDelivery(queued.uid, ownCredential);
+  return {result, opponentCredential, ownCredential};
 }
 
 function json(value){
@@ -191,6 +251,48 @@ function closeSocket(ws, code = 1000, reason = 'bye'){
   ws.destroy();
 }
 
+function disconnectForfeitKey(matchId, playerId){
+  return `${String(matchId || '')}:${String(playerId || '')}`;
+}
+
+function clearDisconnectForfeit(matchId, playerId){
+  const key = disconnectForfeitKey(matchId, playerId);
+  const timer = disconnectForfeitTimers.get(key);
+  if(timer) clearTimeout(timer);
+  disconnectForfeitTimers.delete(key);
+}
+
+function scheduleDisconnectForfeit(matchId, playerId){
+  const id = String(matchId || '');
+  const pid = String(playerId || '');
+  if(shuttingDown || !BETA_MODE || !id || !pid) return;
+  const key = disconnectForfeitKey(id, pid);
+  if(disconnectForfeitTimers.has(key)) return;
+  const actor = manager.actor(id);
+  if(!actor || actor.state.outcome || actor.state.phase === 'ended') return;
+  const timer = setTimeout(async ()=>{
+    disconnectForfeitTimers.delete(key);
+    if((matchSockets.get(id)?.get(pid)?.size || 0) > 0) return;
+    const current = manager.actor(id);
+    if(!current || current.state.outcome || current.state.phase === 'ended') return;
+    try{
+      const outcome = await current.dispatch(pid, {
+        commandId:`server-disconnect-forfeit:${pid}:${current.state.revision}`,
+        matchId:id,
+        expectedRevision:current.state.revision,
+        type:'CONCEDE',
+        payload:{}
+      });
+      if(outcome.broadcasts.length) broadcastPrivate(id, outcome.broadcasts);
+      scheduleAuthorityTimers(current);
+    }catch(error){
+      console.error(`authoritative v3 disconnect forfeit failed for ${id}/${pid}:`, error.message || error);
+    }
+  }, DISCONNECT_FORFEIT_MS);
+  timer.unref?.();
+  disconnectForfeitTimers.set(key, timer);
+}
+
 function unregister(ws){
   sockets.delete(ws);
   const matchId = ws?.authorityV3Session?.matchId;
@@ -200,11 +302,15 @@ function unregister(ws){
   playerSockets?.delete(ws);
   if(playerSockets && !playerSockets.size) players.delete(playerId);
   if(players && !players.size) matchSockets.delete(matchId);
+  if(matchId && playerId && !(matchSockets.get(matchId)?.get(playerId)?.size || 0)){
+    scheduleDisconnectForfeit(matchId, playerId);
+  }
 }
 
 function register(ws, session){
   unregister(ws);
   ws.authorityV3Session = session;
+  clearDisconnectForfeit(session.matchId, session.playerId);
   if(!matchSockets.has(session.matchId)) matchSockets.set(session.matchId, new Map());
   const players = matchSockets.get(session.matchId);
   if(!players.has(session.playerId)) players.set(session.playerId, new Set());
@@ -332,6 +438,7 @@ async function handleSocketMessage(ws, message){
       const delivery = betaDeliveries.get(String(message.playerId));
       if(String(delivery?.matchId || '') === String(message.matchId)){
         betaDeliveries.delete(String(message.playerId));
+        store.deleteBetaMatchmakingDelivery(String(message.playerId));
       }
     }
     send(ws, {
@@ -466,7 +573,7 @@ const server = http.createServer(async (req, res)=>{
           : 'FATE_SERVER_AUTHORITATIVE_V3_ENABLED',
         protocolVersion:3,
         phase7Beta:BETA_MODE,
-        matchmakingMode:BETA_MODE ? 'unranked' : 'test-prototype',
+        matchmakingMode:BETA_MODE ? 'freeplay-and-challenger' : 'test-prototype',
         requiredClientVersion:BETA_MODE ? PHASE7_CLIENT_VERSION : null,
         compatibleClientVersions:BETA_MODE ? [...PHASE7_COMPATIBLE_CLIENT_VERSIONS] : [],
         buildId:BETA_MODE ? PHASE7_BUILD_ID : null,
@@ -475,6 +582,7 @@ const server = http.createServer(async (req, res)=>{
         authenticatedMatchmaking:BETA_MODE,
         queuedPlayers:BETA_MODE ? betaQueue.size : 0,
         queueStaleMs:BETA_MODE ? PHASE7_QUEUE_STALE_MS : null,
+        disconnectForfeitMs:BETA_MODE ? DISCONNECT_FORFEIT_MS : null,
         engineVersion:ENGINE_VERSION,
         rulesetVersion:RULESET_VERSION,
         testMatches:ALLOW_TEST_MATCHES,
@@ -534,6 +642,7 @@ const server = http.createServer(async (req, res)=>{
         uid:identity.uid,
         name:String(body.name || identity.uid).slice(0, 80),
         deckIds,
+        queueMode:String(body.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay',
         organicFixture:organicFixtureIdentity,
         gameSettings:normalizePhase7GameSettings(body.gameSettings, body.landscapeId),
         testOpeningCardIds:organicFixtureIdentity && Array.isArray(body.testOpeningCardIds)
@@ -552,45 +661,14 @@ const server = http.createServer(async (req, res)=>{
         joinedAt:Date.now(),
         lastSeenAt:Date.now()
       };
-      const opponent = [...betaQueue.values()].find(entry=>
-        entry.uid !== identity.uid && String(entry.testPool || '') === testPool
-      );
-      if(!opponent){
-        betaQueue.set(identity.uid, queued);
+      betaQueue.set(identity.uid, queued);
+      store.upsertBetaMatchmakingEntry(queued);
+      const matched = completeBetaQueueMatch(queued);
+      if(!matched){
         writeJson(res, 202, {ok:true, status:'waiting'});
         return;
       }
-      betaQueue.delete(opponent.uid);
-      betaQueue.delete(identity.uid);
-      const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
-      // Matchmaking follows the same ownership rule as a hosted Free Play room:
-      // the first queued player owns the room settings. Random landscape is
-      // resolved exactly once by authority so both clients receive one result.
-      const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);
-      const result = manager.createMatch({
-        mode:'unranked',
-        matchId,
-        seed:matchId,
-        requireTurnChoice:true,
-        landscapeId:gameSettings.resolvedLandscapeId,
-        gameSettings,
-        turnTimerSeconds:gameSettings.turnTimerSeconds,
-        // Both authenticated fixture clients must request the same shortcut.
-        // A disagreement fails closed to the real production cost rules.
-        testRules:opponent.testRules?.zeroReinforcementCost === true
-          && queued.testRules?.zeroReinforcementCost === true
-            ? {zeroReinforcementCost:true}
-            : null,
-        players:[
-          {id:opponent.uid, name:opponent.name, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
-          {id:queued.uid, name:queued.name, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
-        ]
-      });
-      const opponentCredential = betaCredentialFor(result, opponent.uid);
-      const ownCredential = betaCredentialFor(result, identity.uid);
-      betaDeliveries.set(opponent.uid, opponentCredential);
-      betaDeliveries.set(identity.uid, ownCredential);
-      writeJson(res, 200, {ok:true, status:'matched', credential:ownCredential});
+      writeJson(res, 200, {ok:true, status:'matched', credential:matched.ownCredential});
       return;
     }
     if(BETA_MODE && url.pathname === '/v3/beta/matchmaking/status' && req.method === 'GET'){
@@ -604,9 +682,15 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
         return;
       }
-      const credential = betaDeliveries.get(identity.uid) || null;
+      let credential = betaDeliveries.get(identity.uid) || null;
       const queued = betaQueue.get(identity.uid) || null;
-      if(queued) queued.lastSeenAt = Date.now();
+      if(queued){
+        queued.lastSeenAt = Date.now();
+        betaQueue.set(identity.uid, queued);
+        store.touchBetaMatchmakingEntry(identity.uid, queued.lastSeenAt);
+        const matched = completeBetaQueueMatch(queued);
+        if(matched) credential = matched.ownCredential;
+      }
       writeJson(res, 200, {
         ok:true,
         status:credential ? 'matched' : (queued ? 'waiting' : 'idle'),
@@ -621,6 +705,7 @@ const server = http.createServer(async (req, res)=>{
         return;
       }
       betaQueue.delete(identity.uid);
+      store.deleteBetaMatchmakingEntry(identity.uid);
       writeJson(res, 200, {ok:true, status:'idle'});
       return;
     }
@@ -689,9 +774,14 @@ const pingTimer = setInterval(()=>{
 pingTimer.unref?.();
 
 function shutdown(){
+  shuttingDown = true;
   clearInterval(pingTimer);
   for(const timer of promptTimers.values()) clearTimeout(timer);
   promptTimers.clear();
+  for(const timer of turnTimers.values()) clearTimeout(timer?.timer);
+  turnTimers.clear();
+  for(const timer of disconnectForfeitTimers.values()) clearTimeout(timer);
+  disconnectForfeitTimers.clear();
   for(const socket of sockets) closeSocket(socket, 1001, 'server restarting');
   server.close(()=>{
     store.close();

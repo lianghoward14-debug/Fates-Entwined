@@ -1515,6 +1515,23 @@ function resolvePrompt(state, ctx, actorIndex, payload){
 function performCommand(state, ctx, command, actorIndex, options){
   const payload = command.payload || {};
   if(state.outcome) throw Object.assign(new Error('the match has ended'), {code:'MATCH_ENDED'});
+  // Concession is always available, including while the coin winner is
+  // choosing turn order or a mandatory prompt is open. Server-owned
+  // disconnect forfeits must be able to terminate every active match state.
+  if(command.type === 'CONCEDE'){
+    state.outcome = {
+      type:'CONCEDED',
+      winner:actorIndex === 0 ? 1 : 0,
+      loser:actorIndex,
+      turn:state.turn
+    };
+    state.phase = 'ended';
+    state.pendingPrompt = null;
+    state.pendingHandLimit = null;
+    state.effectStack = [];
+    ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED, outcome:cloneSerializable(state.outcome)});
+    return;
+  }
   if(state.phase === 'coin'){
     if(command.type !== 'CHOOSE_TURN_ORDER'){
       throw Object.assign(new Error('the coin-flip winner must choose the turn order first'), {code:'TURN_ORDER_REQUIRED'});
@@ -1540,20 +1557,6 @@ function performCommand(state, ctx, command, actorIndex, options){
   }
   if(command.type === 'CHOOSE_TURN_ORDER'){
     throw Object.assign(new Error('turn order has already been chosen'), {code:'TURN_ORDER_ALREADY_CHOSEN'});
-  }
-  if(command.type === 'CONCEDE'){
-    state.outcome = {
-      type:'CONCEDED',
-      winner:actorIndex === 0 ? 1 : 0,
-      loser:actorIndex,
-      turn:state.turn
-    };
-    state.phase = 'ended';
-    state.pendingPrompt = null;
-    state.pendingHandLimit = null;
-    state.effectStack = [];
-    ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED, outcome:cloneSerializable(state.outcome)});
-    return;
   }
   if(state.pendingHandLimit){
     if(command.type !== 'DISCARD_TO_HAND_LIMIT'){

@@ -4414,6 +4414,12 @@
   }
   function phase7PopulateCardActions(card, fromHand, fromBoard, acts){
     if(!phase7CurrentUiActive() || !card || !acts) return false;
+    const pendingHandLimit = phase7CurrentUiSession.view?.state?.pendingHandLimit || null;
+    if(pendingHandLimit
+      && Number(pendingHandLimit.playerIndex) === Number(phase7CurrentUiSession.view?.playerIndex)){
+      phase7EnsureHandLimitPickerVisible();
+      return true;
+    }
     if(phase7AliTransferPending(card)){
       phase7ShowAliTransferPendingBanner();
       return true;
@@ -4814,7 +4820,11 @@
     // second. Once this exact hand-limit prompt owns the picker, never rebuild
     // it from those calls—even if presentation temporarily hides its DOM.
     // The bounded guard below is the sole delayed recovery owner.
-    if(phase7CurrentUiSession.pickerKey === key) return;
+    if(phase7CurrentUiSession.pickerKey === key && existing) return;
+    if(phase7CurrentUiSession.pickerKey === key && !existing){
+      phase7CurrentUiSession.pickerKey = '';
+      phase7CurrentUiSession.handLimitMissingSince = 0;
+    }
     const commands = phase7CurrentCommands().filter(function(command){
       return command?.type === 'DISCARD_TO_HAND_LIMIT';
     });
@@ -4881,6 +4891,11 @@
     });
     const shell = document.querySelector('#modal.on .phase7-hand-limit-discard');
     if(document.body) document.body.dataset.phase7HandLimitStage = shell ? 'visible' : 'missing-after-show';
+    if(!shell){
+      phase7CurrentUiSession.pickerKey = '';
+      setTimeout(phase7SyncInteractionUi, 0);
+      return;
+    }
     const count = shell?.querySelector('.hand-limit-count');
     const confirm = document.querySelector('#modal-acts .btn.pri');
     if(count) count.textContent = selectedIids.size + '/' + required + ' selected';
@@ -4906,6 +4921,18 @@
     });
     phase7GuardHandLimitPicker(key);
   }
+  function phase7EnsureHandLimitPickerVisible(){
+    if(!phase7CurrentUiActive()) return false;
+    const view = phase7CurrentUiSession.view;
+    const pending = view?.state?.pendingHandLimit || null;
+    if(!pending || Number(pending.playerIndex) !== Number(view?.playerIndex)) return false;
+    if(document.querySelector('#modal.on .phase7-hand-limit-discard')) return true;
+    phase7CurrentUiSession.pickerKey = '';
+    phase7CurrentUiSession.handLimitMissingSince = 0;
+    phase7SyncInteractionUi();
+    return true;
+  }
+  window.fatePhase7EnsureHandLimitPickerVisible = phase7EnsureHandLimitPickerVisible;
   function phase7PromptCancel(){
     return phase7CurrentCommands().find(function(candidate){
       return candidate?.type === 'ANSWER_PROMPT' && candidate?.payload?.cancel === true;
@@ -6544,7 +6571,11 @@
     g._onlinePlayerIndex = localIndex;
     g.localPlayerIndex = localIndex;
     g.viewerPlayerIndex = localIndex;
-    g._onlineRoomMode = 'freeplay';
+    const phase7RoomMode = view.queueMode === 'ranked' ? 'ranked' : 'freeplay';
+    g._onlineRoomMode = phase7RoomMode;
+    if(typeof window.setFateCurrentMode === 'function'){
+      window.setFateCurrentMode(phase7RoomMode === 'ranked' ? 'challenger' : 'free');
+    }
     g._onlineActionLogMode = true;
     g._onlineGameSong = 'board' + legacy.landscapeBgNum;
     g._onlineMatchPlayable = true;
@@ -16543,11 +16574,6 @@
     randomQueueState = { active:true, roomCode:null, role:null, started:false, handlers };
     window.FATE_ONLINE_PENDING_ROOM_DECK = deck;
     if(phase7UnrankedBetaEnabled()){
-      if(mode !== 'freeplay'){
-        randomQueueState.active = false;
-        emitRandomQueueStatus('error', 'Online matchmaking currently supports Free Play only.');
-        return false;
-      }
       const beta = window.fateAuthorityV3Beta;
       if(!beta || typeof beta.startUnrankedMatchmaking !== 'function'){
         randomQueueState.active = false;
@@ -16561,6 +16587,7 @@
         const result = await beta.startUnrankedMatchmaking({
           deckIds:deck.deckIds,
           name:pName(prof),
+          queueMode:mode,
           gameSettings:settings,
           onStatus(detail){
             if(detail?.status === 'waiting') emitRandomQueueStatus('waiting', 'Waiting for an opponent...');

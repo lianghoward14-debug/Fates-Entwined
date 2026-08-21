@@ -15,9 +15,10 @@ primary_region = 'lax'
   FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '0'
   FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION = '1.39.0-phase7-beta.1'
   FATE_AUTHORITY_V3_PHASE7_COMPATIBLE_CLIENT_VERSIONS = '1.39.0-phase7-beta.1,1.39.95-phase7-beta.1'
-  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'phase7-ff32ccb92be614fc01113a06443d292082ae3ab2bf3310f4a3cc2990e00ca478'
+  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'phase7-bcdff6afae58e3086f3942c7daa4fb7b7cc64915e94a4b19105f6f499fd545bb'
   FATE_AUTHORITY_V3_RETAINED_MATCHES = '50'
   FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS = '45000'
+  FATE_AUTHORITY_V3_DISCONNECT_FORFEIT_MS = '5000'
   FATE_AUTHORITY_V3_FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc'
   FATE_AUTHORITY_V3_HOST = '0.0.0.0'
   FATE_AUTHORITY_V3_PORT = '8787'
@@ -35,8 +36,8 @@ primary_region = 'lax'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  # The shared matchmaking queue is memory-resident. Keep one machine ready
-  # so a waiting player is never evicted by an idle shutdown.
+  # Keep the shared authoritative queue and active matches immediately
+  # reachable; waiting membership is also persisted on the mounted volume.
   min_machines_running = 1
   processes = ['app']
 
