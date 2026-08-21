@@ -607,6 +607,11 @@ function isAllowedAuthPopupUrl(rawUrl) {
       || host === 'apis.google.com'
       || host === 'oauth2.googleapis.com'
       || host === 'www.googleapis.com'
+      || host === 'identitytoolkit.googleapis.com'
+      || host === 'securetoken.googleapis.com'
+      || host === 'www.gstatic.com'
+      || host === 'ssl.gstatic.com'
+      || host === 'fates-entwined-41491.firebaseapp.com'
       || host.endsWith('.googleusercontent.com');
   } catch (err) {
     return false;

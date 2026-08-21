@@ -637,7 +637,7 @@
 
 <!-- Online play uses the Fate authoritative service and a local installation identity. -->
 <script src="src/scripts/14-cloud-save.js?v=1783782001"></script>
-<!-- Online runtime: local identity + authoritative profile/social/room surfaces -->
+<!-- Online runtime: Google account auth + local authoritative multiplayer identity -->
 <script>
 (function(){
   window.__fateClientBuildStamp = 'phase7-manual-erbs-ali-turn-boundary-20260816-1786960811';
@@ -645,7 +645,7 @@
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
   var modules = [
-    './src/scripts/15-online-auth.js?v=1787317801',
+    './src/scripts/15-online-auth.js?v=1787400201',
     './src/scripts/16-online-core.js?v=1782617501',
     './src/scripts/17-online-social.js?v=1784195101',
     './src/scripts/18-online-rooms.js?v=1787317901&sync=1787317901',
