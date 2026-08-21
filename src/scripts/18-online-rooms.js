@@ -3098,7 +3098,8 @@
     handLimitSelectionKey:'',
     handLimitSelectedIids:new Set(),
     handLimitMissingSince:0,
-    promptMissingSince:0
+    promptMissingSince:0,
+    aliTransferPendingIids:new Set()
   };
   function phase7CurrentUiActive(){
     return !!(phase7CurrentUiSession.mounted && phase7CurrentUiSession.adapter && phase7CurrentUiSession.view);
@@ -3675,6 +3676,23 @@
         : ['26', '38', '40', '93'].includes(String(id));
     });
   }
+  function phase7RequiresAuthorityManualIntent(card, command){
+    const ids = [
+      command?.cardId,
+      command?.sourceCardId,
+      command?.semanticSourceCardId,
+      card?.id,
+      card?.counters?.copiedEffectId,
+      card?._copiedEffectId
+    ].filter(Boolean).map(String);
+    if(card && typeof window.getCardRuntimeEffectId === 'function'){
+      try{ ids.push(String(window.getCardRuntimeEffectId(card) || '')); }catch(error){}
+    }
+    // Christopher Erbs is the only rule whose authority schema requires proof
+    // of a deliberate click. Other manual effects are gated locally, but must
+    // retain the older payload shape accepted by shipped authorities.
+    return ids.includes('40');
+  }
   function phase7AutomaticEffectsEnabled(){
     try { return window.fateAutoActivateEffectsEnabled?.() === true; } catch(error) { return false; }
   }
@@ -3780,7 +3798,7 @@
         });
         return Promise.resolve(false);
       }
-      if(requiresManualActivation){
+      if(requiresManualActivation && phase7RequiresAuthorityManualIntent(source, command)){
         // Carry the explicit click across the authority boundary. The reducer
         // rejects Christopher without this field, so a forgotten scheduler,
         // replay, or legacy draw path cannot spend a use server-side.
@@ -4382,8 +4400,24 @@
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
     return {label:'Activate Effect', prompt:'Activate Effect'};
   }
+  function phase7AliTransferPending(card){
+    const iid = String(card?.iid || '');
+    return !!(iid && (card?._phase7AliTransferPending === true
+      || phase7CurrentUiSession.aliTransferPendingIids.has(iid)));
+  }
+  function phase7ShowAliTransferPendingBanner(){
+    if(typeof window.showAliIndomitableTransferPendingBanner === 'function'){
+      window.showAliIndomitableTransferPendingBanner();
+    }else if(window.toast){
+      toast('Ali is being transferred to the opponent. Wait about 5 seconds.');
+    }
+  }
   function phase7PopulateCardActions(card, fromHand, fromBoard, acts){
     if(!phase7CurrentUiActive() || !card || !acts) return false;
+    if(phase7AliTransferPending(card)){
+      phase7ShowAliTransferPendingBanner();
+      return true;
+    }
     const iid = String(card.iid || '');
     const commands = phase7CurrentCommands();
     const add = function(label, handler, options){
@@ -4439,6 +4473,10 @@
   }
   function phase7HandleHandDrop(card, destination){
     if(!phase7CurrentUiActive() || !card || !destination) return false;
+    if(phase7AliTransferPending(card)){
+      phase7ShowAliTransferPendingBanner();
+      return true;
+    }
     const iid = String(card.iid || '');
     const placements = phase7CurrentCommands().filter(function(command){
       return ['SET_CARD','SET_ADAPTIVE_TOKEN'].includes(String(command?.type || ''))
@@ -4782,7 +4820,15 @@
     });
     const required = Math.max(1, Number(handLimit?.required) || 1);
     const limit = Math.max(0, Number(handLimit?.limit) || 12);
-    if(!commands.length || !Array.isArray(cards) || cards.length < required){
+    const discardableIids = new Set(commands.flatMap(function(command){
+      return Array.isArray(command?.payload?.discardedIids)
+        ? command.payload.discardedIids.map(String)
+        : [];
+    }));
+    const eligibleCards = Array.isArray(cards) ? cards.filter(function(card){
+      return discardableIids.has(String(card?.iid || ''));
+    }) : [];
+    if(!commands.length || eligibleCards.length < required){
       phase7CurrentUiSession.pickerKey = '';
       if(window.toast) toast('The server supplied no legal hand-limit selection.');
       return;
@@ -4791,7 +4837,7 @@
       phase7CurrentUiSession.handLimitSelectionKey = key;
       phase7CurrentUiSession.handLimitSelectedIids = new Set();
     }
-    const availableIids = new Set(cards.map(function(card){ return String(card?.iid || ''); }));
+    const availableIids = new Set(eligibleCards.map(function(card){ return String(card?.iid || ''); }));
     phase7CurrentUiSession.handLimitSelectedIids = new Set(
       Array.from(phase7CurrentUiSession.handLimitSelectedIids || []).filter(function(iid){ return availableIids.has(String(iid)); })
     );
@@ -4802,7 +4848,7 @@
     const body = '<div class="hand-limit-discard phase7-hand-limit-discard" data-needed="' + required + '">' +
       '<div class="hand-limit-copy">Your hand has ' + cards.length + ' cards. Discard ' + required + ' card' + (required === 1 ? '' : 's') + ' to return to ' + limit + '.</div>' +
       '<div class="hand-limit-count">0/' + required + ' selected</div>' +
-      '<div class="hand-limit-grid">' + cards.map(function(card){
+      '<div class="hand-limit-grid">' + eligibleCards.map(function(card){
         const iid = String(card?.iid || '');
         const name = String(card?.name || 'Card');
         const image = String(card?.runtimeImg || card?.img || '');
@@ -5929,6 +5975,31 @@
     }
   }
 
+  function phase7BuildAliTransferPreview(view, event){
+    const previous = phase7CurrentUiSession.view;
+    const sourcePlayer = Number(event?.fromPlayerIndex);
+    const viewer = Number(view?.playerIndex);
+    const iid = String(event?.cardIid || '');
+    if(!previous?.state || !iid || ![0, 1].includes(sourcePlayer) || viewer !== sourcePlayer) return null;
+    const preview = cloneOnlinePlain(previous);
+    if(!Array.isArray(preview?.state?.players?.[sourcePlayer]?.hand)) return null;
+    const projected = event?.card
+      || phase7FindProjectedEntry(view, iid)?.card
+      || (view.privateActionCards || []).find(function(card){ return String(card?.iid || '') === iid; });
+    if(!projected) return null;
+    (preview.state.players || []).forEach(function(player){
+      if(!Array.isArray(player?.hand)) return;
+      player.hand = player.hand.filter(function(card){ return String(card?.iid || '') !== iid; });
+    });
+    const pendingCard = cloneOnlinePlain(projected);
+    pendingCard.owner = sourcePlayer;
+    pendingCard.controller = sourcePlayer;
+    pendingCard._phase7AliTransferPending = true;
+    preview.state.players[sourcePlayer].hand.push(pendingCard);
+    preview.presentationBatch = null;
+    return preview;
+  }
+
   async function phase7PresentBatch(view, eventsOverride){
     const batch = view?.presentationBatch;
     const batchId = String(batch?.id || '');
@@ -6017,6 +6088,24 @@
       phase7RecordPresentationStage('draw:end', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'end'}, drawStageDetails));
     }
+    const aliTransfers = events.filter(function(event){
+      return String(event?.type || '').toUpperCase() === 'CARD_TRANSFERRED'
+        && String(event?.reason || '').toUpperCase() === 'ALI_INDOMITABLE';
+    });
+    for(const event of aliTransfers){
+      const iid = String(event?.cardIid || '');
+      if(!iid) continue;
+      phase7CurrentUiSession.aliTransferPendingIids.add(iid);
+      const preview = phase7BuildAliTransferPreview(view, event);
+      if(preview){
+        phase7CommitCurrentView(preview, 'Phase 7 Ali transfer pending preview');
+        const liveAli = phase7FindAnyCard(iid);
+        if(liveAli) liveAli._phase7AliTransferPending = true;
+        await phase7NextFrame();
+      }
+      await new Promise(function(resolve){ setTimeout(resolve, 5000); });
+      phase7CurrentUiSession.aliTransferPendingIids.delete(iid);
+    }
     phase7RecordPresentationStage('results:start', {batchId, eventCount:events.length});
     await phase7NextFrame();
     events.forEach(function(event, eventIndex){
@@ -6080,6 +6169,11 @@
           durationMs:3600,
           recipient:recipient === Number(view.playerIndex)
         });
+      }
+      if(type === 'CARD_TRANSFERRED'
+        && String(event.reason || '').toUpperCase() === 'ALI_INDOMITABLE'
+        && typeof window.showAliIndomitableTransferBanner === 'function'){
+        window.showAliIndomitableTransferBanner(Number(event.fromPlayerIndex), Number(event.playerIndex));
       }
       if(type === 'CARD_TRANSFERRED' && target){
         const fx = window.FateV2CardMotionFx;
@@ -6206,6 +6300,7 @@
               before:event?.before,
               after:event?.after
             }, resultFeedbackFrameAt);
+            return;
           }
           if(typeof window.playFateChangeSound === 'function') window.playFateChangeSound(target, fateBefore, fateAfter, phase7FindAnyCard(event.sourceIid)?.owner);
           return;
@@ -6221,18 +6316,24 @@
         phase7ShowExactEffectOverlay(view, event, target, eventIndex);
         return;
       }
-      if(type === 'AFFILIATION_CHANGED' && target && typeof window.showAffChangeOverlay === 'function'){
+      if(type === 'AFFILIATION_CHANGED' && target){
         const affiliation = String(event.affiliation || target.aff || '');
         const sourceCard = phase7FindAnyCard(event?.sourceIid) || phase7FindProjectedEntry(view, event?.sourceIid)?.card;
         const sourceCardId = String(event?.semanticSourceCardId || sourceCard?.id || '');
         if(sourceCardId === '66' && typeof window.showMarkMenzAffiliationOverlay === 'function'){
           target._lastAffEffectSource = String(event?.sourceIid || 'mark-menz');
           target._affChangedBy = 'mark_menz';
-          window.showMarkMenzAffiliationOverlay(target, affiliation, {
+          const shown = window.showMarkMenzAffiliationOverlay(target, affiliation, {
             onlineRemote:Number(event.playerIndex) !== Number(view.playerIndex),
             soundKey:['phase7', batchId, 'mark-menz', affiliation].join(':')
           });
-        }else{
+          if(shown && target._effectFlash){
+            const liveTarget = phase7FindAnyCard(target.iid);
+            const projectedTarget = phase7FindRawProjectedCard(view, target.iid);
+            if(liveTarget) liveTarget._effectFlash = cloneOnlinePlain(target._effectFlash);
+            if(projectedTarget) projectedTarget._effectFlash = cloneOnlinePlain(target._effectFlash);
+          }
+        }else if(typeof window.showAffChangeOverlay === 'function'){
           window.showAffChangeOverlay(target, affiliation);
         }
         phase7RecordPresentationStage('overlay:start', {

@@ -27,6 +27,13 @@ const ALLOW_TEST_MATCHES = process.env.FATE_AUTHORITY_V3_ALLOW_TEST_MATCHES === 
 const PHASE7_BETA_ENABLED = process.env.FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED === '1';
 const BETA_MODE = String(process.env.FATE_AUTHORITY_V3_BETA_MODE || '') === 'unranked';
 const PHASE7_CLIENT_VERSION = String(process.env.FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION || '').trim();
+const PHASE7_COMPATIBLE_CLIENT_VERSIONS = new Set(
+  String(process.env.FATE_AUTHORITY_V3_PHASE7_COMPATIBLE_CLIENT_VERSIONS || '')
+    .split(',')
+    .map(value=>String(value || '').trim())
+    .filter(Boolean)
+);
+if(PHASE7_CLIENT_VERSION) PHASE7_COMPATIBLE_CLIENT_VERSIONS.add(PHASE7_CLIENT_VERSION);
 const PHASE7_BUILD_ID = String(process.env.FATE_AUTHORITY_V3_PHASE7_BUILD_ID || '').trim();
 const PHASE7_FIREBASE_API_KEY = String(process.env.FATE_AUTHORITY_V3_FIREBASE_API_KEY || '').trim();
 const PHASE7_ALLOW_TEST_IDENTITIES = process.env.FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES === '1';
@@ -128,7 +135,11 @@ function phase7OrganicFixtureIdentity(req, identity, requestedTestPool){
 }
 
 function phase7ClientCompatible(req){
-  return String(req.headers['x-fate-client-version'] || '') === PHASE7_CLIENT_VERSION;
+  return phase7ClientVersionCompatible(req.headers['x-fate-client-version']);
+}
+
+function phase7ClientVersionCompatible(value){
+  return PHASE7_COMPATIBLE_CLIENT_VERSIONS.has(String(value || '').trim());
 }
 
 function betaCredentialFor(result, uid){
@@ -305,7 +316,7 @@ function scheduleAuthorityTimers(actor){
 async function handleSocketMessage(ws, message){
   if(message.kind === 'hello'){
     if(Number(message.protocolVersion) !== 3) throw new Error('protocolVersion 3 is required');
-    if(BETA_MODE && String(message.clientVersion || '') !== PHASE7_CLIENT_VERSION){
+    if(BETA_MODE && !phase7ClientVersionCompatible(message.clientVersion)){
       throw new Error('compatible Phase 7 client version is required');
     }
     const credential = manager.authenticate(message.matchId, message.playerId, message.token);
@@ -457,6 +468,7 @@ const server = http.createServer(async (req, res)=>{
         phase7Beta:BETA_MODE,
         matchmakingMode:BETA_MODE ? 'unranked' : 'test-prototype',
         requiredClientVersion:BETA_MODE ? PHASE7_CLIENT_VERSION : null,
+        compatibleClientVersions:BETA_MODE ? [...PHASE7_COMPATIBLE_CLIENT_VERSIONS] : [],
         buildId:BETA_MODE ? PHASE7_BUILD_ID : null,
         matchesPath:MATCHES_PATH,
         socketPath:SOCKET_PATH,
@@ -481,7 +493,7 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 403, {ok:false, error:'admin token is required'});
         return;
       }
-      if(BETA_MODE && String(req.headers['x-fate-client-version'] || '') !== PHASE7_CLIENT_VERSION){
+      if(BETA_MODE && !phase7ClientCompatible(req)){
         writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
         return;
       }
@@ -616,7 +628,7 @@ const server = http.createServer(async (req, res)=>{
       ? url.pathname.match(/^\/v3\/beta\/matches\/([^/]+)\/snapshot$/)
       : url.pathname.match(/^\/v3\/matches\/([^/]+)\/snapshot$/);
     if(req.method === 'GET' && snapshotMatch){
-      if(BETA_MODE && String(req.headers['x-fate-client-version'] || '') !== PHASE7_CLIENT_VERSION){
+      if(BETA_MODE && !phase7ClientCompatible(req)){
         writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
         return;
       }

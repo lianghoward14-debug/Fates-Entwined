@@ -143,9 +143,11 @@ function applySpecialHandArrival(ctx, playerIndex, card){
     ctx.events.push({
       type:'CARD_TRANSFERRED',
       playerIndex:recipient,
+      fromPlayerIndex:playerIndex,
       from:'hand',
       to:'hand',
       cardIid:card.iid,
+      card:cloneSerializable(card),
       privateTo:[playerIndex, recipient],
       reason:'ALI_INDOMITABLE'
     });
@@ -1573,7 +1575,8 @@ function changeZoneAffiliation(ctx, operation){
       playerIndex,
       previousAffiliation,
       affiliation,
-      sourceIid:operation.sourceIid || null
+      sourceIid:operation.sourceIid || null,
+      semanticSourceCardId:String(source.card?.id || source.id || '')
     });
   }
   // One presentation fact for the chosen affiliation. Individual card-change
@@ -1582,6 +1585,7 @@ function changeZoneAffiliation(ctx, operation){
   emit(ctx, {
     type:RULE_EVENT_TYPES.AFFILIATION_DECLARED,
     sourceIid:operation.sourceIid || null,
+    semanticSourceCardId:String(source.card?.id || source.id || ''),
     playerIndex,
     affiliation,
     changedIids:[...changedIids]

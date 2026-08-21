@@ -1659,6 +1659,29 @@ function showAliIndomitableTransferBanner(sourcePlayer, recipient) {
 }
 window.showAliIndomitableTransferBanner = showAliIndomitableTransferBanner;
 
+function showAliIndomitableTransferPendingBanner() {
+  let banner = document.getElementById('ali-indomitable-transfer-banner');
+  clearTimeout(window.__aliIndomitableBannerTimer);
+  clearTimeout(window.__aliIndomitableBannerRemoveTimer);
+  if(!banner) {
+    banner = document.createElement('div');
+    banner.id = 'ali-indomitable-transfer-banner';
+    banner.className = 'ali-indomitable-transfer-banner';
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML = '<span>HE, WHO IS UNYIELDING</span><strong>ALI IS TRANSFERRING TO THE OPPONENT — WAIT ABOUT 5 SECONDS</strong>';
+  banner.classList.remove('on');
+  void banner.offsetWidth;
+  banner.classList.add('on');
+  window.__aliIndomitableBannerTimer = setTimeout(function(){
+    banner.classList.remove('on');
+    window.__aliIndomitableBannerRemoveTimer = setTimeout(function(){
+      if(banner && banner.parentNode && !banner.classList.contains('on')) banner.remove();
+    }, 260);
+  }, 3200);
+}
+window.showAliIndomitableTransferPendingBanner = showAliIndomitableTransferPendingBanner;
+
 function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
   if(!card || String(card.id || '') !== 'bh03' || !G.players || !G.players[sourcePlayer]) return false;
   card.owner = sourcePlayer;
