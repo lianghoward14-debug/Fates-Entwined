@@ -35,7 +35,6 @@ const PHASE7_COMPATIBLE_CLIENT_VERSIONS = new Set(
 );
 if(PHASE7_CLIENT_VERSION) PHASE7_COMPATIBLE_CLIENT_VERSIONS.add(PHASE7_CLIENT_VERSION);
 const PHASE7_BUILD_ID = String(process.env.FATE_AUTHORITY_V3_PHASE7_BUILD_ID || '').trim();
-const PHASE7_FIREBASE_API_KEY = String(process.env.FATE_AUTHORITY_V3_FIREBASE_API_KEY || '').trim();
 const PHASE7_ALLOW_TEST_IDENTITIES = process.env.FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES === '1';
 const PHASE7_ALLOW_ORGANIC_TEST_FIXTURES = process.env.FATE_AUTHORITY_V3_PHASE7_ALLOW_ORGANIC_TEST_FIXTURES === '1';
 const MATCHES_PATH = BETA_MODE ? '/v3/beta/matches' : '/v3/matches';
@@ -63,10 +62,6 @@ if(BETA_MODE && (!PHASE7_BETA_ENABLED || !PHASE7_CLIENT_VERSION)){
 if(PHASE7_BETA_ENABLED && !BETA_MODE){
   throw new Error('Phase 7 beta flag cannot start the generic v3 route');
 }
-if(BETA_MODE && !ALLOW_TEST_MATCHES && !PHASE7_FIREBASE_API_KEY){
-  throw new Error('Phase 7 beta requires FATE_AUTHORITY_V3_FIREBASE_API_KEY');
-}
-
 const authorityDatabasePath = path.join(DATA_DIR, 'authority-v3.sqlite');
 let store = new SQLiteAuthorityStore(authorityDatabasePath);
 if(RETAINED_MATCHES){
@@ -126,22 +121,17 @@ async function phase7Identity(req){
   if(PHASE7_ALLOW_TEST_IDENTITIES && /^test:[A-Za-z0-9_.:@-]{1,128}$/.test(token)){
     return {uid:token.slice(5), testIdentity:true};
   }
-  if(!PHASE7_FIREBASE_API_KEY || !token) return null;
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(PHASE7_FIREBASE_API_KEY)}`,
-    {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({idToken:token})
-    }
-  );
-  if(!response.ok) return null;
-  const body = await response.json().catch(()=>null);
-  const user = body?.users?.[0];
-  if(!user?.localId) return null;
-  const providers = Array.isArray(user.providerUserInfo) ? user.providerUserInfo : [];
-  const anonymous = !String(user.email || '') && !String(user.phoneNumber || '') && providers.length === 0;
-  return {uid:String(user.localId), testIdentity:false, anonymous};
+  const clientSession = String(req.headers['x-fate-client-session'] || '').trim();
+  const validClientSession = /^[A-Za-z0-9_.:@-]{1,80}$/.test(clientSession);
+  // Current clients identify a queue seat with a local session. During the
+  // installer transition, an older opaque bearer is also accepted as a seed;
+  // the authority never sends it to or verifies it with another service.
+  const seed = validClientSession
+    ? clientSession
+    : (token && token.length <= 4096 ? token : '');
+  if(!seed) return null;
+  const uid = `session-${crypto.createHash('sha256').update(seed).digest('hex').slice(0, 32)}`;
+  return {uid, testIdentity:false, anonymous:true, sessionIdentity:true};
 }
 
 function phase7OrganicFixtureIdentity(req, identity, requestedTestPool){
@@ -600,7 +590,8 @@ const server = http.createServer(async (req, res)=>{
         buildId:BETA_MODE ? PHASE7_BUILD_ID : null,
         matchesPath:MATCHES_PATH,
         socketPath:SOCKET_PATH,
-        authenticatedMatchmaking:BETA_MODE,
+        authenticatedMatchmaking:false,
+        matchmakingIdentityMode:BETA_MODE ? 'client-session' : null,
         queuedPlayers:BETA_MODE ? betaQueue.size : 0,
         queuedPlayersByMode:BETA_MODE ? [...betaQueue.values()].reduce((counts, entry)=>{
           const mode = entry?.queueMode === 'ranked' ? 'challenger' : 'freeplay';
@@ -648,7 +639,7 @@ const server = http.createServer(async (req, res)=>{
       }
       const identity = await phase7Identity(req);
       if(!identity){
-        writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
+        writeJson(res, 401, {ok:false, error:'valid client session is required'});
         return;
       }
       const queuePlayerId = phase7QueuePlayerId(req, identity);
@@ -709,7 +700,7 @@ const server = http.createServer(async (req, res)=>{
       }
       const identity = await phase7Identity(req);
       if(!identity){
-        writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
+        writeJson(res, 401, {ok:false, error:'valid client session is required'});
         return;
       }
       const queuePlayerId = phase7QueuePlayerId(req, identity);
@@ -733,7 +724,7 @@ const server = http.createServer(async (req, res)=>{
     if(BETA_MODE && url.pathname === '/v3/beta/matchmaking/leave' && req.method === 'POST'){
       const identity = await phase7Identity(req);
       if(!identity){
-        writeJson(res, 401, {ok:false, error:'valid Firebase identity token is required'});
+        writeJson(res, 401, {ok:false, error:'valid client session is required'});
         return;
       }
       const queuePlayerId = phase7QueuePlayerId(req, identity);

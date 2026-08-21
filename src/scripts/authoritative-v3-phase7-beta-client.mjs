@@ -17,8 +17,6 @@ const WS_URL = LOCAL_TEST_API_URL
   ? `${LOCAL_TEST_API_URL.replace(/^http:/, 'ws:')}/v3/beta/socket`
   : 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
 const CREDENTIAL_KEY = 'fateAuthorityV3Phase7BetaCredential';
-const TEST_IDENTITY_KEY = 'fateAuthorityV3Phase7BetaTestIdentity';
-const FIREBASE_API_KEY = 'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc';
 
 if(globalThis.FATE_PHASE7_UNRANKED_BETA !== true
   || globalThis.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true
@@ -32,8 +30,8 @@ const ORGANIC_TEST_IDENTITY_ENABLED = TEST_AUTH_ENABLED
   && params.get('e2eStrictCardCertification') === '1'
   && ((params.get('fateV3FullUiE2E') === '1') !== (params.get('fateV3PresentationE2E') === '1'));
 globalThis.FATE_PHASE7_TEST_IDENTITY_MODE = TEST_AUTH_ENABLED
-  ? 'temporary-anonymous-first'
-  : 'signed-user';
+  ? 'local-test-session'
+  : 'authoritative-client-session';
 const FULL_UI_E2E_RESET_KEY = 'fateAuthorityV3Phase7FullUiE2ERun';
 
 function organicTestPool(){
@@ -53,7 +51,6 @@ function resetInheritedFullUiE2ECredential(){
   try{
     if(sessionStorage.getItem(FULL_UI_E2E_RESET_KEY) === marker) return;
     sessionStorage.removeItem(CREDENTIAL_KEY);
-    sessionStorage.removeItem(TEST_IDENTITY_KEY);
     sessionStorage.setItem(FULL_UI_E2E_RESET_KEY, marker);
   }catch(_){ }
 }
@@ -148,141 +145,33 @@ function matchmakingClientSession(){
   }
 }
 
-async function firebaseIdToken(){
-  // The isolated E2E route must never inherit a real signed-in player's
-  // identity. Exact scenario fixtures are authorized only for a disposable
-  // anonymous test identity carrying the organic-fixture request marker.
-  if(TEST_AUTH_ENABLED) return (await temporaryTestIdentity()).idToken;
-  const user = globalThis.FATE_ONLINE?.user || globalThis.FateOnline?.auth?.currentUser || null;
-  if(user && typeof user.getIdToken === 'function'){
-    const token = await user.getIdToken(false);
-    if(token) return token;
-  }
-  throw new Error('Phase 7 matchmaking requires a signed-in Firebase user');
-}
-
-function storedTestIdentity(){
-  try{
-    const value = JSON.parse(sessionStorage.getItem(TEST_IDENTITY_KEY) || 'null');
-    return value?.localId && value?.idToken ? {
-      localId:String(value.localId),
-      idToken:String(value.idToken),
-      refreshToken:String(value.refreshToken || ''),
-      expiresAt:Math.max(0, Number(value.expiresAt) || 0)
-    } : null;
-  }catch(_){ return null; }
-}
-
-function saveTestIdentity(identity){
-  sessionStorage.setItem(TEST_IDENTITY_KEY, JSON.stringify(identity));
-  return identity;
-}
-
-async function refreshTemporaryTestIdentity(identity){
-  if(!identity?.refreshToken) return null;
-  const response = await fetch(
-    `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(FIREBASE_API_KEY)}`,
-    {
-      method:'POST',
-      headers:{'content-type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({
-        grant_type:'refresh_token',
-        refresh_token:String(identity.refreshToken)
-      }).toString()
-    }
-  );
-  const value = await response.json().catch(()=>null);
-  if(!response.ok || !value?.id_token || !value?.user_id) return null;
-  const expiresInMs = Math.max(60, Number(value.expires_in) || 3600) * 1000;
-  return saveTestIdentity({
-    localId:String(value.user_id),
-    idToken:String(value.id_token),
-    refreshToken:String(value.refresh_token || identity.refreshToken),
-    expiresAt:Date.now() + expiresInMs
-  });
-}
-
-async function temporaryTestIdentity(){
-  const existing = storedTestIdentity();
-  if(existing && existing.expiresAt > Date.now() + 60_000) return existing;
-  if(existing?.refreshToken){
-    const refreshed = await refreshTemporaryTestIdentity(existing);
-    if(refreshed) return refreshed;
-  }
-  sessionStorage.removeItem(TEST_IDENTITY_KEY);
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(FIREBASE_API_KEY)}`,
-    {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({returnSecureToken:true})
-    }
-  );
-  const value = await response.json().catch(()=>null);
-  if(!response.ok || !value?.localId || !value?.idToken){
-    throw new Error(String(value?.error?.message || 'Could not create temporary Phase 7 test identity'));
-  }
-  const expiresInMs = Math.max(60, Number(value.expiresIn) || 3600) * 1000;
-  return saveTestIdentity({
-    localId:String(value.localId),
-    idToken:String(value.idToken),
-    refreshToken:String(value.refreshToken || ''),
-    expiresAt:Date.now() + expiresInMs
-  });
-}
-
-function releaseTemporaryTestIdentity(){
-  if(!TEST_AUTH_ENABLED) return;
-  const identity = storedTestIdentity();
-  if(!identity) return;
-  sessionStorage.removeItem(TEST_IDENTITY_KEY);
-  fetch(API_URL + '/v3/beta/matchmaking/leave', {
-    method:'POST',
-    headers:{
-      authorization:`Bearer ${identity.idToken}`,
-      'content-type':'application/json',
-      'x-fate-client-version':CLIENT_VERSION
-    },
-    body:'{}',
-    keepalive:true
-  }).catch(()=>{});
-  fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(FIREBASE_API_KEY)}`,
-    {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({idToken:identity.idToken}),
-      keepalive:true
-    }
-  ).catch(()=>{});
-}
-
-globalThis.addEventListener?.('pagehide', releaseTemporaryTestIdentity, {once:true});
-
 async function matchmakingIdentityToken(){
   if(LOCAL_TEST_API_URL){
     return `test:local-${organicTestPool()}-${String(params.get('e2eSeat') || 'seat').replace(/[^A-Za-z0-9_.:@-]/g, '-')}`;
   }
-  return firebaseIdToken();
+  return `session:${matchmakingClientSession()}`;
 }
 
 async function matchmakingRequest(route, {method = 'GET', body} = {}){
   const response = await fetch(API_URL + route, {
-    method,
-    headers:{
-      authorization:`Bearer ${await matchmakingIdentityToken()}`,
-      'content-type':'application/json',
-      'x-fate-client-version':CLIENT_VERSION,
-      'x-fate-client-session':matchmakingClientSession(),
-      ...(ORGANIC_TEST_IDENTITY_ENABLED ? {'x-fate-organic-fixture':'1'} : {})
-    },
-    body:body === undefined ? undefined : JSON.stringify(body)
-  });
+      method,
+      headers:{
+        authorization:`Bearer ${await matchmakingIdentityToken()}`,
+        'content-type':'application/json',
+        'x-fate-client-version':CLIENT_VERSION,
+        'x-fate-client-session':matchmakingClientSession(),
+        ...(ORGANIC_TEST_IDENTITY_ENABLED ? {'x-fate-organic-fixture':'1'} : {})
+      },
+      body:body === undefined ? undefined : JSON.stringify(body)
+    });
   const text = await response.text();
   let result = null;
   try{ result = text ? JSON.parse(text) : null; }catch(_){}
   if(!response.ok || result?.ok === false){
-    throw new Error(String(result?.error || text || `Phase 7 matchmaking failed ${response.status}`));
+    throw Object.assign(
+      new Error(String(result?.error || text || `Phase 7 matchmaking failed ${response.status}`)),
+      {status:Number(response.status) || 0}
+    );
   }
   return result || {};
 }
@@ -551,17 +440,32 @@ async function startUnrankedMatchmaking({deckIds, name = '', queueMode = 'freepl
     method:'POST',
     body:matchmakingPayload
   });
-  let result = await enterQueue();
+  const recoverableRequest = async request=>{
+    let attempt = 0;
+    while(!matchmakingCancelled){
+      try{ return await request(); }
+      catch(error){
+        if([400, 403, 426].includes(Number(error?.status))) throw error;
+        attempt += 1;
+        if(typeof onStatus === 'function'){
+          onStatus({status:'waiting', reconnecting:true, message:'Reconnecting to the authoritative queue...'});
+        }
+        await new Promise(resolve=>setTimeout(resolve, Math.min(4000, 500 * attempt)));
+      }
+    }
+    return {status:'cancelled'};
+  };
+  let result = await recoverableRequest(enterQueue);
   while(!matchmakingCancelled && result.status === 'waiting'){
     if(typeof onStatus === 'function') onStatus({status:'waiting'});
     await new Promise(resolve=>setTimeout(resolve, 900));
-    result = await matchmakingRequest('/v3/beta/matchmaking/status');
+    result = await recoverableRequest(()=>matchmakingRequest('/v3/beta/matchmaking/status'));
     // A rolling deployment or recovery can briefly return idle between the
     // durable queue being restored and this poll. Keep the player in the same
     // pool until they explicitly cancel instead of abandoning matchmaking.
     if(result.status === 'idle'){
       if(typeof onStatus === 'function') onStatus({status:'waiting', recovered:true});
-      result = await enterQueue();
+      result = await recoverableRequest(enterQueue);
     }
   }
   if(matchmakingCancelled) return {ok:false, status:'cancelled'};

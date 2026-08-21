@@ -16590,7 +16590,7 @@
           queueMode:mode,
           gameSettings:settings,
           onStatus(detail){
-            if(detail?.status === 'waiting') emitRandomQueueStatus('waiting', 'Waiting for an opponent...');
+            if(detail?.status === 'waiting') emitRandomQueueStatus('waiting', detail?.message || 'Waiting for an opponent...');
             if(detail?.status === 'matched') emitRandomQueueStatus('matched', 'Match found. Starting game...');
           }
         });
