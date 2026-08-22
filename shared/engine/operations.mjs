@@ -1219,7 +1219,7 @@ function createSquareStatus(ctx, operation){
     throw operationError('INVALID_DESTINATION', 'square status requires a playable board square');
   }
   const type = String(operation.statusType || '');
-  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'COORDINATOR_SUPPRESSED'].includes(type)){
+  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'COORDINATOR_SUPPRESSED', 'FLOWER_KING_BLESSED'].includes(type)){
     throw operationError('INVALID_STATUS', 'unsupported square status');
   }
   if(type === 'PERMANENTLY_BLOCKED' && boardCardAt(ctx.state, destination)){
@@ -1236,6 +1236,11 @@ function createSquareStatus(ctx, operation){
       ? Number(operation.blockedPlayer)
       : null
   };
+  if(type === 'FLOWER_KING_BLESSED'){
+    ctx.state.geometry.squareStatuses = ctx.state.geometry.squareStatuses.filter(existing=>
+      !(existing?.type === type && String(existing.sourceIid || '') === String(status.sourceIid || ''))
+    );
+  }
   const duplicate = ctx.state.geometry.squareStatuses.some(existing=>
     squareKey(existing) === squareKey(status)
     && existing.type === status.type
@@ -1666,6 +1671,10 @@ function randomTransferCards(ctx, operation){
       emit(ctx, {
         type:RULE_EVENT_TYPES.CARD_TRANSFERRED,
         cardIid:card.iid,
+        // This event is private to the affected player. Preserve the exact
+        // returned cards for the Snow Shoveler result gallery after they have
+        // been randomized back into the otherwise-hidden deck.
+        card:cloneSerializable(card),
         from:sourcePile,
         to:destinationPile,
         playerIndex,

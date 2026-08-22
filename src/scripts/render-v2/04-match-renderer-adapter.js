@@ -2781,6 +2781,7 @@
     const suppressed = !!(showStatus && entry && entry.card && flags.suppressed);
     const negated = !!(showStatus && entry && entry.card && flags.negated);
     const snowballHit = !!(showStatus && entry && entry.card && flags.snowballHit);
+    const flowerKingBlessed = !!(showStatus && entry && entry.card && flags.flowerKingBlessed);
     const effectFlashKind = showStatus && entry && entry.card && flags.effectFlashKind ? String(flags.effectFlashKind) : '';
     const immune = !!(showStatus && entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
     const zoeBlocked = !!(showStatus && entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
@@ -2812,6 +2813,7 @@
     else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
     else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
     else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
+    if(flowerKingBlessed) drawFlowerKingCardOverlay(ctx, r);
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     ctx.restore();
   }
@@ -2946,6 +2948,53 @@
     ctx.fillStyle = 'rgba(32,95,124,.12)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
     drawStatusBadge(ctx, r, 'immune');
+    ctx.restore();
+  }
+
+  function drawFlowerKingCardOverlay(ctx, r){
+    if(!ctx || !r) return;
+    const radius = Math.max(3, Math.min(8, r.w * .08));
+    const size = Math.max(60, Math.min(104, r.w * .88));
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    ctx.save();
+    roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(164,126,25,.12)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = 'rgba(255,224,106,.99)';
+    ctx.lineWidth = Math.max(3.2, size * .045);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,224,106,.66)';
+    ctx.shadowBlur = Math.max(7, size * .12);
+    ctx.translate(cx - size / 2, cy - size / 2);
+    ctx.scale(size / 64, size / 64);
+    ctx.lineWidth = 4.2;
+    ctx.beginPath();
+    ctx.moveTo(32, 26);
+    ctx.bezierCurveTo(25, 22, 23, 15, 27, 9);
+    ctx.bezierCurveTo(35, 9, 39, 16, 32, 26);
+    ctx.moveTo(38, 28);
+    ctx.bezierCurveTo(39, 20, 45, 15, 52, 17);
+    ctx.bezierCurveTo(55, 24, 50, 30, 38, 28);
+    ctx.moveTo(39, 35);
+    ctx.bezierCurveTo(47, 35, 52, 41, 50, 48);
+    ctx.bezierCurveTo(43, 51, 37, 46, 39, 35);
+    ctx.moveTo(34, 38);
+    ctx.bezierCurveTo(39, 45, 36, 52, 29, 55);
+    ctx.bezierCurveTo(23, 50, 24, 43, 34, 38);
+    ctx.moveTo(26, 37);
+    ctx.bezierCurveTo(23, 45, 15, 46, 10, 41);
+    ctx.bezierCurveTo(11, 33, 18, 30, 26, 37);
+    ctx.moveTo(25, 29);
+    ctx.bezierCurveTo(17, 31, 11, 26, 11, 19);
+    ctx.bezierCurveTo(17, 14, 24, 17, 25, 29);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(32, 32, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,224,106,.99)';
+    ctx.fill();
     ctx.restore();
   }
 

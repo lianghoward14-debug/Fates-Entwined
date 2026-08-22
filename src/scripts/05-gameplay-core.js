@@ -4943,13 +4943,20 @@ function returnRandomDiscardCardsToDeck(player, count, reason, filter) {
 }
 
 function showSnowShovelerReturnedCards(returned, player) {
-  if(typeof showCanvasCardGalleryModal === 'function') {
-    showCanvasCardGalleryModal('Shovel - Cards Returned to the Deck', returned, {
-      viewerPlayerIndex:typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : player,
+  const cards = Array.isArray(returned) ? returned.slice() : [];
+  const viewerPlayerIndex = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : player;
+  // The when-set resolver still owns the operation modal at this point. Opening
+  // the gallery synchronously lets that resolver's cleanup close the new modal
+  // on the same tick. Queue the result window after the board/pile commit so it
+  // remains visible and interactive in both legacy and renderer-v2 matches.
+  setTimeout(function(){
+    if(typeof showCanvasCardGalleryModal !== 'function') return;
+    showCanvasCardGalleryModal('Shovel - Cards Returned to the Deck', cards, {
+      viewerPlayerIndex,
       immediate:true,
       hideCountText:true
     });
-  }
+  }, 180);
 }
 
 async function waitForEffectPresentationBeforeChoice() {
@@ -6095,11 +6102,14 @@ async function resolveChauffeurRedraw(card, cp) {
     fatePushDiscard(cp, discarded, {sound:false});
     if(typeof playDiscardSfx === 'function') playDiscardSfx();
   }
+  const cardsToDraw = Math.min(discarded.length, Math.max(0, Number(G.players[cp]?.deck?.length) || 0));
+  if(typeof showChauffeurRedrawBanner === 'function') showChauffeurRedrawBanner(discarded.length, cardsToDraw);
   await drawCard(cp, discarded.length, {
     afterSetOrCinematic:true,
     activatedDrawEffect:true,
     effectSource:card,
-    effectSourceId:'bh10'
+    effectSourceId:'bh10',
+    sequentialHandReveal:true
   });
   toast('Chauffeur discarded ' + discarded.length + ' card' + (discarded.length === 1 ? '' : 's') + ' and drew the same number.');
   renderEffectResolutionForPlayer(cp, {bothHands:true, piles:true});
@@ -6175,28 +6185,26 @@ async function resolveSmartInvestments(card, cp) {
 }
 
 async function chooseFlowerKingTarget(inst, z, r, c, cp) {
-  const entries = getAdjacentCards(z, r, c).filter(function(entry){
-    const target = entry && entry.card;
-    if(!target || target.iid === inst.iid) return false;
-    return !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target));
-  });
+  const entries = getAdjacentBoardSquareEntries(z, r, c);
   if(!entries.length){
-    toast('The Flower King has no eligible adjacent card to bless.');
+    toast('The Flower King has no eligible adjacent square to bless.');
     return false;
   }
   const applyTarget = function(entry){
-    const target = entry && entry.card;
-    if(!target) return false;
-    inst._bh12FlowerTargetIid = String(target.iid || '');
-    toast(target.name + ' gains 6 Fate while ' + inst.name + ' remains on the field.');
+    if(!entry) return false;
+    delete inst._bh12FlowerTargetIid;
+    inst._bh12FlowerSquare = {z:Number(entry.z), r:Number(entry.r), c:Number(entry.c)};
+    toast('The selected adjacent square will grant your card 6 Fate while ' + inst.name + ' remains on the field.');
     renderEffectResolutionForPlayer(cp, {hand:false});
     return true;
   };
   if(G.aiEnabled && cp === G.aiPlayer){
     const ordered = entries.slice().sort(function(a, b){
-      const ownership = Number(b.card.owner === cp) - Number(a.card.owner === cp);
+      const ownership = Number(b.card && b.card.owner === cp) - Number(a.card && a.card.owner === cp);
       if(ownership) return ownership;
-      return getEffectiveFate(b.card, z) - getEffectiveFate(a.card, z);
+      const fateA = a.card ? getEffectiveFate(a.card, z) : -1;
+      const fateB = b.card ? getEffectiveFate(b.card, z) : -1;
+      return fateB - fateA;
     });
     return applyTarget(ordered[0]);
   }
@@ -6205,14 +6213,13 @@ async function chooseFlowerKingTarget(inst, z, r, c, cp) {
     const openPicker = function(){
       const sourcePos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(inst) : {z:z, r:r, c:c};
       if(!sourcePos){ resolve(false); return; }
-      const liveEntries = getAdjacentCards(sourcePos.z, sourcePos.r, sourcePos.c).filter(function(entry){
-        return entry && entry.card && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(entry.card));
-      });
+      const liveEntries = getAdjacentBoardSquareEntries(sourcePos.z, sourcePos.r, sourcePos.c);
       if(!liveEntries.length){ resolve(false); return; }
       showBoardTargetPicker({
         title:'The Flower King',
-        prompt:'Choose one adjacent card. It gains 6 Fate while Louis remains on the field.',
+        prompt:'Choose one adjacent square. A friendly card on it gains 6 Fate while Louis remains on the field.',
         entries:liveEntries,
+        allowSquareTargets:true,
         zones:[sourcePos.z],
         minCount:1,
         maxCount:1,
@@ -6221,13 +6228,31 @@ async function chooseFlowerKingTarget(inst, z, r, c, cp) {
         onCancel:function(){ setTimeout(openPicker, 0); }
       }, function(chosen){
         const selected = chosen && chosen[0];
-        if(!selected || !selected.card){ setTimeout(openPicker, 0); return; }
+        if(!selected){ setTimeout(openPicker, 0); return; }
         resolve(applyTarget(selected));
       });
     };
     openPicker();
   });
 }
+
+function isFlowerKingBlessedCard(card, z, r, c) {
+  if(!card || !Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
+  let blessed = false;
+  if(typeof forEachBoardCard !== 'function') return false;
+  forEachBoardCard(function(source, sourceZ, sourceR, sourceC){
+    if(blessed || !source || !cardActsAsPassive(source, 'bh12') || isFaceDownCard(source)) return;
+    if(source.owner !== card.owner) return;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, sourceZ, sourceR, sourceC)) return;
+    const square = source._bh12FlowerSquare;
+    if(!square || Number(square.z) !== z || Number(square.r) !== r || Number(square.c) !== c) return;
+    if(!isAdjacentBoardSquare({z:sourceZ, r:sourceR, c:sourceC}, square)) return;
+    blessed = true;
+  });
+  return blessed;
+}
+window.isFlowerKingBlessedCard = isFlowerKingBlessedCard;
 
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
   switch(id) {
@@ -6871,9 +6896,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       } else {
         toast('There are no cards in your discard pile to return.');
       }
-      await waitForEffectPresentationBeforeChoice();
-      showSnowShovelerReturnedCards(returned, cp);
       renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
+      showSnowShovelerReturnedCards(returned, cp);
       break;
     }
     case '97': { // Visegrad Politician: opponent's next two consolidations cost +1
@@ -8354,9 +8378,13 @@ function getEffectiveFate(card, z) {
   }));
   if(typeof forEachBoardCard === 'function') forEachBoardCard(function(source, sourceZ, sourceR, sourceC){
     if(!source || !cardActsAsPassive(source, 'bh12') || isFaceDownCard(source)) return;
+    if(source.owner !== card.owner) return;
     if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, sourceZ, sourceR, sourceC)) return;
-    const targetIid = String(source._bh12FlowerTargetIid || source.counters?.flowerKingTargetIid || '');
-    if(targetIid && targetIid === String(card.iid || '')) bonus += 6 * getSuperiorMarksMultiplier(z, source.owner);
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
+    const square = source._bh12FlowerSquare;
+    if(!square || Number(square.z) !== Number(z) || Number(square.r) !== Number(r) || Number(square.c) !== Number(c)) return;
+    if(!isAdjacentBoardSquare({z:sourceZ, r:sourceR, c:sourceC}, square)) return;
+    bonus += 6 * getSuperiorMarksMultiplier(z, source.owner);
   });
 
   // Concrete Roads tokens keep the copied Coordinator identity while expanding

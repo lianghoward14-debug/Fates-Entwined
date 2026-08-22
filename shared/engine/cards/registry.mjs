@@ -1615,22 +1615,17 @@ const REGISTRY = Object.freeze({
   'bh12':{
     effectLabels:['ADJACENCY_BONUS'],
     timings:['WHEN_SET', 'PASSIVE'],
-    operations:['SET_CARD_COUNTER'],
-    prompts:['BOARD_TARGET'],
+    operations:['CREATE_SQUARE_STATUS'],
+    prompts:['BOARD_DESTINATION'],
     program:[
       {
-        kind:'SELECT_BOARD',
-        local:'flowerKingTargetIid',
-        filter:{sameZone:true, adjacent:true, effectMutable:true, excludeSource:true}
+        kind:'SELECT_DESTINATION',
+        local:'destination',
+        filter:{sameZone:true, includeOccupied:true, adjacent:true}
       },
       {
         kind:'OPERATION',
-        operation:{
-          type:'SET_CARD_COUNTER',
-          targetIid:'$sourceIid',
-          counterKey:'flowerKingTargetIid',
-          value:'$flowerKingTargetIid'
-        }
+        operation:{type:'CREATE_SQUARE_STATUS', destination:'$destination', statusType:'FLOWER_KING_BLESSED'}
       }
     ]
   },

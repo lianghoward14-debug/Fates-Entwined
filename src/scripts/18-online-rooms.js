@@ -3216,6 +3216,18 @@
         });
       if(next._henrySuppressionSquares.length) next.effectUsedInitial = true;
     }
+    if(runtimePassiveId === 'bh12' && projectedState){
+      const flowerStatus = (Array.isArray(projectedState.geometry?.squareStatuses)
+        ? projectedState.geometry.squareStatuses
+        : []).find(function(status){
+          return status?.type === 'FLOWER_KING_BLESSED'
+            && String(status.sourceIid || '') === String(card.iid || '');
+        });
+      if(flowerStatus){
+        next._bh12FlowerSquare = {z:Number(flowerStatus.z), r:Number(flowerStatus.r), c:Number(flowerStatus.c)};
+        next.effectUsedInitial = true;
+      }
+    }
     if(runtimePassiveId === '41' && projectedState){
       // Jimmy's dynamic Fate and the card object must come from one canonical
       // revision. A separately assigned game-level counter can momentarily be
@@ -4877,13 +4889,13 @@
     phase7RecordPresentationStage('picker:open', {key:String(key || ''), kind:'hand-limit'});
     if(document.body) document.body.dataset.phase7HandLimitStage = 'rendering';
     const body = '<div class="hand-limit-discard phase7-hand-limit-discard" data-needed="' + required + '">' +
-      '<div class="hand-limit-copy">Your hand has ' + cards.length + ' cards. Discard ' + required + ' card' + (required === 1 ? '' : 's') + ' to return to ' + limit + '.</div>' +
+      '<div class="hand-limit-copy">Your hand has ' + cards.length + ' cards. Select all ' + required + ' card' + (required === 1 ? '' : 's') + ', then press <b>Discard Selected</b>. They will be discarded together.</div>' +
       '<div class="hand-limit-count">0/' + required + ' selected</div>' +
       '<div class="hand-limit-grid">' + eligibleCards.map(function(card){
         const iid = String(card?.iid || '');
         const name = String(card?.name || 'Card');
         const image = String(card?.runtimeImg || card?.img || '');
-        return '<button class="hand-limit-card' + (selectedIids.has(iid) ? ' is-selected' : '') + '" type="button" data-iid="' + esc(iid) + '">' +
+        return '<button class="hand-limit-card' + (selectedIids.has(iid) ? ' is-selected' : '') + '" type="button" aria-pressed="' + (selectedIids.has(iid) ? 'true' : 'false') + '" data-iid="' + esc(iid) + '">' +
           '<span class="hand-limit-art">' + (image ? '<img src="' + esc(image) + '" alt="' + esc(name) + '" decoding="async" loading="eager">' : '') + '</span>' +
           '<span class="hand-limit-name">' + esc(name) + '</span></button>';
       }).join('') + '</div></div>';
@@ -4937,9 +4949,11 @@
         const iid = String(button.dataset.iid || '');
         if(button.classList.contains('is-selected')){
           button.classList.remove('is-selected');
+          button.setAttribute('aria-pressed', 'false');
           selectedIids.delete(iid);
         }else if(selectedCount < required){
           button.classList.add('is-selected');
+          button.setAttribute('aria-pressed', 'true');
           selectedIids.add(iid);
         }
         const nextCount = shell.querySelectorAll('.hand-limit-card.is-selected').length;
@@ -6070,6 +6084,14 @@
     const batchId = String(batch?.id || '');
     const events = Array.isArray(eventsOverride) ? eventsOverride : (batch?.events || []);
     if(!batchId || !events.length) return;
+    const snowShovelerReturnedCards = events.filter(function(event){
+      return String(event?.type || '').toUpperCase() === 'CARD_TRANSFERRED'
+        && String(event?.semanticSourceCardId || '').toLowerCase() === '96'
+        && String(event?.from || '').toLowerCase() === 'discard'
+        && String(event?.to || '').toLowerCase() === 'deckrandom'
+        && Number(event?.playerIndex) === Number(view?.playerIndex)
+        && event?.card;
+    }).map(function(event){ return cloneOnlinePlain(event.card); });
     let resultMotionStarted = false;
     const prePresentedMoveIndexes = new Set();
     // Brave Horizons resolves as move -> overlay -> draw. Present only the
@@ -6114,6 +6136,47 @@
           && String(event.from || '').toLowerCase() === 'deck'
           && String(event.to || '').toLowerCase() === 'hand');
     });
+    const chauffeurDraws = drawEvents.filter(function(entry){
+      return String(entry?.event?.semanticSourceCardId || '').toLowerCase() === 'bh10';
+    });
+    const chauffeurDiscards = events.filter(function(event){
+      return String(event?.type || '').toUpperCase() === 'CARD_DISCARDED'
+        && String(event?.reason || '').toUpperCase() === 'CHAUFFEUR_REDRAW';
+    });
+    const chauffeurRevealedByPlayer = new Map();
+    const buildChauffeurPreview = function(){
+      const preview = cloneOnlinePlain(view);
+      const drawIidsByPlayer = new Map();
+      chauffeurDraws.forEach(function(entry){
+        const event = entry.event || {};
+        const playerIndex = Number(event.playerIndex);
+        if(!drawIidsByPlayer.has(playerIndex)) drawIidsByPlayer.set(playerIndex, []);
+        drawIidsByPlayer.get(playerIndex).push(String(event.cardIid || ''));
+      });
+      drawIidsByPlayer.forEach(function(drawIids, playerIndex){
+        const projectedPlayer = preview?.state?.players?.[playerIndex];
+        if(!projectedPlayer) return;
+        const revealed = chauffeurRevealedByPlayer.get(playerIndex) || new Set();
+        const drawSet = new Set(drawIids);
+        if(Array.isArray(projectedPlayer.hand)){
+          projectedPlayer.hand = projectedPlayer.hand.filter(function(card){
+            const iid = String(card?.iid || '');
+            return !drawSet.has(iid) || revealed.has(iid);
+          });
+        }
+        const finalCount = Math.max(0, Number(view?.state?.players?.[playerIndex]?.handCount) || 0);
+        projectedPlayer.handCount = Math.max(0, finalCount - drawIids.length + revealed.size);
+      });
+      preview.presentationBatch = null;
+      return preview;
+    };
+    if(chauffeurDraws.length){
+      if(typeof window.showChauffeurRedrawBanner === 'function') {
+        window.showChauffeurRedrawBanner(chauffeurDiscards.length, chauffeurDraws.length);
+      }
+      phase7CommitCurrentView(buildChauffeurPreview(), 'Phase 7 Chauffeur redraw staging');
+      await phase7NextFrame();
+    }
     for(let drawIndex = 0; drawIndex < drawEvents.length; drawIndex += 1){
       const event = drawEvents[drawIndex].event;
       const drawSource = phase7PresentationCard(phase7FindAnyCard(event?.sourceIid))
@@ -6150,6 +6213,13 @@
       phase7RecordPresentationStage('draw:start', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'start'}, drawStageDetails));
       await phase7WaitForPresentationIdle({minQuietMs:70, timeoutMs:3600});
+      if(String(event?.semanticSourceCardId || '').toLowerCase() === 'bh10'){
+        const ownerReveals = chauffeurRevealedByPlayer.get(owner) || new Set();
+        ownerReveals.add(String(event.cardIid || ''));
+        chauffeurRevealedByPlayer.set(owner, ownerReveals);
+        phase7CommitCurrentView(buildChauffeurPreview(), 'Phase 7 Chauffeur sequential draw reveal');
+        await phase7NextFrame();
+      }
       phase7RecordPresentationStage('draw:end', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'end'}, drawStageDetails));
     }
@@ -6430,6 +6500,19 @@
       }
       if(type === 'LANDSCAPE_CHANGED' && typeof window.triggerLandscapeFlash === 'function') window.triggerLandscapeFlash('Landscape changed', 'none');
     });
+    if(snowShovelerReturnedCards.length || events.some(function(event){
+      return String(event?.semanticSourceCardId || '').toLowerCase() === '96'
+        && Number(event?.playerIndex) === Number(view?.playerIndex);
+    })){
+      setTimeout(function(){
+        if(typeof window.showCanvasCardGalleryModal !== 'function') return;
+        window.showCanvasCardGalleryModal('Shovel - Cards Returned to the Deck', snowShovelerReturnedCards, {
+          viewerPlayerIndex:Number(view.playerIndex),
+          immediate:true,
+          hideCountText:true
+        });
+      }, 180);
+    }
     if(resultMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:110, timeoutMs:7600});
     await phase7NextFrame();
     phase7RecordPresentationStage('results:end', {batchId, resultMotionStarted});

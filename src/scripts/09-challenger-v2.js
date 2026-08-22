@@ -905,7 +905,11 @@ function updateChTopbar() {
   const slIcon = document.getElementById('ch-starlight-icon');
   if(slVal) slVal.textContent = USER_PROFILE.starlight || 0;
   if(pkVal) pkVal.textContent = USER_PROFILE.unopenedPacks || 0;
-  if(eloVal) eloVal.textContent = USER_PROFILE.challengerElo || 600;
+  if(eloVal) {
+    const eloText = String(USER_PROFILE.challengerElo || 600);
+    eloVal.textContent = eloText;
+    eloVal.classList.toggle('four-digit-elo', eloText.length >= 4);
+  }
   if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
 }
 

@@ -272,7 +272,15 @@ export function effectiveFate(state, entryOrCard){
   }
   for(const flowerKing of boardEntries(state)){
     if(runtimeRuleId(flowerKing.card) !== 'bh12' || !activeAuraSource(state, flowerKing)) continue;
-    if(String(flowerKing.card.counters?.flowerKingTargetIid || '') !== String(card.iid)) continue;
+    if(controllerOf(flowerKing.card) !== targetController || isEffectImmutable(card)) continue;
+    const blessed = (state?.geometry?.squareStatuses || []).some(status=>
+      status?.type === 'FLOWER_KING_BLESSED'
+      && String(status.sourceIid || '') === String(flowerKing.card.iid || '')
+      && Number(status.z) === Number(entry.z)
+      && Number(status.r) === Number(entry.r)
+      && Number(status.c) === Number(entry.c)
+    );
+    if(!blessed || flowerKing.z !== entry.z || Math.abs(flowerKing.r - entry.r) + Math.abs(flowerKing.c - entry.c) !== 1) continue;
     modifier += 6 * adjacencyBonusMultiplier(state, entry.z, controllerOf(flowerKing.card));
   }
   if(activeAuraSource(state, entry) && selfId === '100'){

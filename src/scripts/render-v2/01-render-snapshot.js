@@ -183,6 +183,8 @@
       && window.isCardVisuallyNegated(card));
     const snowballHit = !!(onBoard && typeof window.isSnowballFightHitActive === 'function'
       && window.isSnowballFightHitActive(card));
+    const flowerKingBlessed = !!(onBoard && typeof window.isFlowerKingBlessedCard === 'function'
+      && window.isFlowerKingBlessedCard(card, boardPos.z, boardPos.r, boardPos.c));
     const effectFlash = onBoard && typeof window.getActiveCardEffectFlash === 'function'
       ? window.getActiveCardEffectFlash(card)
       : null;
@@ -199,6 +201,7 @@
       suppressed,
       negated,
       snowballHit,
+      flowerKingBlessed,
       effectFlashKind:effectFlash && effectFlash.kind ? String(effectFlash.kind) : '',
       effectFlashAt:effectFlash && effectFlash.at ? Number(effectFlash.at) : 0,
       zoeBlocked:!!(blockedCell && blockedCell.type === 'zoe'),
@@ -333,7 +336,7 @@
   function buildPlayerSnapshot(g, player, viewer){
     const p = g.players && g.players[player] ? g.players[player] : {};
     const isViewer = player === viewer;
-    const hand = Array.isArray(p.hand) ? p.hand : [];
+    const hand = Array.isArray(p.hand) ? p.hand.filter(function(card){ return !(card && card._drawPresentationPending); }) : [];
     const handCards = hand.map(function(card, index){
       const revealed = isViewer || canRevealHandCard(g, card);
       return revealed

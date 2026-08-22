@@ -1258,6 +1258,7 @@ function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidde
   return [
     z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
     block && block.type === 'zoe' ? 1 : 0, statusState.primary || '', statusState.immune ? 1 : 0,
+    typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c) ? 1 : 0,
     visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
     visual && visual.displayFate || '',
     cardRenderSignature(card, z, r, c)
@@ -1362,8 +1363,9 @@ function getHandRenderSignature() {
     G.majaEffectThisTurn ? 1 : 0, force, tutorialSig,
     hand.map(card=>[
       card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
-      card.fate, card.currentFate, card._wciBonus ? 1 : 0,
-      card._handCostDelta || 0, card.guerilla_transferred ? 1 : 0,
+       card.fate, card.currentFate, card._wciBonus ? 1 : 0,
+       card._drawPresentationPending ? 1 : 0,
+       card._handCostDelta || 0, card.guerilla_transferred ? 1 : 0,
       typeof getHandCardEffectModifiers === 'function' ? JSON.stringify(getHandCardEffectModifiers(card)) : ''
     ].join(':')).join(',')
   ].join('|');
@@ -3681,6 +3683,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const isMarkedForDeath = !!statusEligibility.marked;
   const showMarkedIcon = statusState.primary === 'marked';
   const isZoeBlocked = statusState.primary === 'blocked';
+  const isFlowerBlessed = !isHidden && typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c);
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -3719,7 +3722,8 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(isEffectFlash?' fate-effect-flash effect-flash-'+effectFlashKind:'')
     +(showMarkedIcon?' fate-marked-death':'')
     +(isZoeBlocked?' fate-blocked-action':'')
-    +(isImmune?' fate-immune':'');
+    +(isImmune?' fate-immune':'')
+    +(isFlowerBlessed?' fate-flower-blessed':'');
   if(selected) el.classList.add('sel');
   const eff=isHidden ? 0 : getCachedEffectiveFate(card,z);
   // Determine buff/debuff state — compare effective fate vs base (printed) fate
@@ -3746,6 +3750,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   el.innerHTML=`
     <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
     ${affBadge}
+    ${isFlowerBlessed?'<span class="flower-king-overlay" aria-hidden="true"></span>':''}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
   if(changed && !shouldUseCanvasBoardVisuals()){
@@ -3800,7 +3805,7 @@ function renderHand() {
   const cp = getPerspectivePlayerIndex();
   const canActFromHand = (cp === G.currentPlayer);
   const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
-  const hand = G.players[cp].hand;
+  const hand = G.players[cp].hand.filter(function(card){ return !(card && card._drawPresentationPending); });
   const hc = document.getElementById('hand-cards');
   if(!hc) return;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsHand === 'function' && window.FateMatchRendererAdapter.ownsHand()){
@@ -4034,13 +4039,13 @@ function openHandLimitDiscardModal(player) {
   });
   const bodyHtml = `
     <div class="hand-limit-discard" data-player="${player}" data-hand-limit="${handLimit}" data-needed="${needed}" data-hand-signature="${escapePlacementAnimHtml(handSignature)}">
-      <div class="hand-limit-copy">Your hand has ${countedHandSize} cards. Discard ${needed} card${needed===1?'':'s'} to return to ${handLimit}.</div>
+      <div class="hand-limit-copy">Your hand has ${countedHandSize} cards. Select all ${needed} card${needed===1?'':'s'}, then press <b>Discard Selected</b>. They will be discarded together.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
           const visual = getCardVisualData(card, viewer, {forceBoardHidden:!isViewer});
           const img = visual.runtimeImg || visual.img || card.img || '';
-          return `<button class="hand-limit-card" type="button" data-i="${i}" data-iid="${escapePlacementAnimHtml(String(card.iid || ''))}">
+          return `<button class="hand-limit-card" type="button" aria-pressed="false" data-i="${i}" data-iid="${escapePlacementAnimHtml(String(card.iid || ''))}">
             <span class="hand-limit-art">${img ? `<img src="${img}" alt="${escapePlacementAnimHtml(visual.name || card.name)}" decoding="async" loading="eager">` : `<span>${getAffIcon(visual.aff || card.aff)}</span>`}</span>
             <span class="hand-limit-name">${escapePlacementAnimHtml(visual.name || card.name)}</span>
           </button>`;
@@ -4106,6 +4111,7 @@ function openHandLimitDiscardModal(player) {
       const selectedBefore = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
       if(!wasSelected && selectedBefore >= needed) return;
       btn.classList.toggle('is-selected');
+      btn.setAttribute('aria-pressed', btn.classList.contains('is-selected') ? 'true' : 'false');
       const selected = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
       if(countEl) countEl.textContent = selected + '/' + needed + ' selected';
       if(okBtn) okBtn.disabled = selected !== needed;
@@ -9154,6 +9160,25 @@ function showEffectNegatedBanner(msg) {
   setTimeout(()=>flash.remove(), 1550);
 }
 
+function showChauffeurRedrawBanner(discardedCount, drawCount) {
+  const discarded = Math.max(0, Number(discardedCount) || 0);
+  const drawn = Math.max(0, Number(drawCount) || 0);
+  document.querySelectorAll('.chauffeur-redraw-banner').forEach(function(existing){ existing.remove(); });
+  const banner = document.createElement('div');
+  banner.className = 'chauffeur-redraw-banner';
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  banner.innerHTML = '<span class="chauffeur-redraw-kicker">CHAUFFEUR</span>' +
+    '<span class="chauffeur-redraw-copy">' + discarded + ' card' + (discarded === 1 ? '' : 's') +
+    ' discarded &mdash; ' + drawn + ' card' + (drawn === 1 ? '' : 's') + ' will be drawn</span>';
+  document.body.appendChild(banner);
+  requestAnimationFrame(function(){ banner.classList.add('is-visible'); });
+  setTimeout(function(){ banner.classList.remove('is-visible'); }, 3000);
+  setTimeout(function(){ banner.remove(); }, 3380);
+  return banner;
+}
+window.showChauffeurRedrawBanner = showChauffeurRedrawBanner;
+
 function showEffectFlash(card) {
   return;
 }
@@ -9489,8 +9514,11 @@ function showConsolidationCinematic(card, opts) {
   var enhancedFx = typeof isEnhancedVisualFxEnabled === 'function' && isEnhancedVisualFxEnabled();
   var perfLite = isConsolidationCinematicPerfLite();
   var timing = getConsolidationCinematicTiming(perfLite);
-  var cardShowcaseWidth = String(card.id || '') === '81' ? 'min(28vw,300px)' : 'min(30vw,320px)';
-  var cardShowcaseHeight = String(card.id || '') === '81' ? 'min(49vh,435px)' : 'min(52vh,460px)';
+  // Keep every cinematic at the established optimized-card footprint. When a
+  // thumbnail is missing and the full 750x1050 PNG is used as a fallback, the
+  // source image must not expand to the former 320x448 max-size path.
+  var cardShowcaseWidth = 'min(24vw,260px)';
+  var cardShowcaseHeight = 'min(43vh,364px)';
   var alpineOwnerClass = '';
   if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb15')) {
     var perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);

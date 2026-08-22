@@ -1480,6 +1480,22 @@ function resolveFortCalvinDrawInterception(player, card, options) {
 
 async function drawCard(player, count=1, options = {}) {
   const myP = getPerspectivePlayerIndex();
+  const sequentialHandReveal = !!options.sequentialHandReveal
+    && Number(player) === Number(myP)
+    && !!document.getElementById('s-game')?.classList.contains('active');
+  const revealDrawnCard = async function(card){
+    if(!card || !card._drawPresentationPending) return;
+    const presenter = window.FateActionPresentation;
+    if(presenter && typeof presenter.waitForIdle === 'function') {
+      await presenter.waitForIdle({minQuietMs:70, timeoutMs:3600});
+    } else {
+      await new Promise(function(resolve){ setTimeout(resolve, 720); });
+    }
+    delete card._drawPresentationPending;
+    if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
+    else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
+    await new Promise(function(resolve){ requestAnimationFrame(function(){ resolve(); }); });
+  };
   let outsideDrawLandscapeCard = null;
   const effectPresentationGapMs = options.afterSetOrCinematic ? 1000 : 0;
   const presentationWaitStartedAt = Date.now();
@@ -1514,6 +1530,7 @@ async function drawCard(player, count=1, options = {}) {
     const fortCalvinResult = resolveFortCalvinDrawInterception(player, card, options);
     if(!fortCalvinResult.redirected && String(card && card.id || '') === 'bh03') {
       card.owner = player;
+      if(sequentialHandReveal) card._drawPresentationPending = true;
       card._bh03TransferPending = true;
       card.noConsolidate = true;
       addCardToHand(player, card, {
@@ -1538,9 +1555,14 @@ async function drawCard(player, count=1, options = {}) {
         if(typeof renderGameImmediate === 'function') renderGameImmediate({hand:true, oppHand:true, piles:true, topbar:true});
         else if(typeof renderGame === 'function') renderGame({hand:true, oppHand:true, piles:true, topbar:true});
       }
+      await revealDrawnCard(card);
       continue;
     }
-    if(!fortCalvinResult.redirected && !addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) continue;
+    if(!fortCalvinResult.redirected && sequentialHandReveal) card._drawPresentationPending = true;
+    if(!fortCalvinResult.redirected && !addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) {
+      delete card._drawPresentationPending;
+      continue;
+    }
     // Christopher Erbs (40): per-player next drawn card gains 6 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
     if(erbsActiveForPlayer && card.id!=='70'){
@@ -1576,6 +1598,7 @@ async function drawCard(player, count=1, options = {}) {
       }
       if(!v2DrawQueued && player===myP) animateDrawCard(i);
     }
+    await revealDrawnCard(card);
     if(!fortCalvinResult.redirected && !options.drawPhase && !options.openingHand && !outsideDrawLandscapeCard){
       outsideDrawLandscapeCard = card;
     }

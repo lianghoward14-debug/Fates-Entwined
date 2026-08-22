@@ -7496,8 +7496,8 @@ html body .card-info-overlay .cd-flavor{
 
 /* Codex 2026-05-26: the active consolidation cinematic is cc-overlay-v2, not the older consolidation-cinematic-card path. */
 html body .cc-overlay-v2 .cc-card-wrap-v2{
-  width:min(30vw,320px)!important;
-  height:min(52vh,460px)!important;
+  width:min(24vw,260px)!important;
+  height:min(43vh,364px)!important;
 }
 
 html body .cc-overlay-v2 .cc-card-wrap-v2.cc-card-id-81{
@@ -7506,11 +7506,12 @@ html body .cc-overlay-v2 .cc-card-wrap-v2.cc-card-id-81{
 }
 
 html body .cc-overlay-v2 .cc-card-wrap-v2 img{
-  width:auto!important;
-  height:auto!important;
+  width:100%!important;
+  height:100%!important;
   max-width:100%!important;
   max-height:100%!important;
   object-fit:contain!important;
+  object-position:center center!important;
 }
 
 /* Codex 2026-05-26: landscape panel fit/left panel inlay visibility. */
@@ -12732,6 +12733,50 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
   left:1px!important;
   transform:scale(.945)!important;
   transform-origin:center center!important;
+}
+
+/* Francisek redraw summary: one stable banner while the individual cards land. */
+html body .chauffeur-redraw-banner{
+  position:fixed;
+  top:clamp(74px,9vh,104px);
+  left:50%;
+  z-index:2147482500;
+  min-width:min(560px,calc(100vw - 32px));
+  max-width:calc(100vw - 32px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:.72rem;
+  padding:.72rem 1rem;
+  color:#fff5cf;
+  background:linear-gradient(90deg,rgba(4,7,12,.97),rgba(16,13,5,.98),rgba(4,7,12,.97));
+  border:1px solid rgba(220,181,73,.88);
+  box-shadow:0 12px 30px rgba(0,0,0,.54),inset 0 0 0 1px rgba(255,230,147,.08);
+  pointer-events:none;
+  opacity:0;
+  transform:translate(-50%,-10px);
+  transition:opacity .2s ease,transform .2s ease;
+  font-family:'Cinzel',serif;
+  text-align:center;
+}
+html body .chauffeur-redraw-banner.is-visible{opacity:1;transform:translate(-50%,0);}
+html body .chauffeur-redraw-kicker{font-size:.61rem;letter-spacing:.2em;color:#d8ae3f;white-space:nowrap;}
+html body .chauffeur-redraw-copy{font-size:.78rem;letter-spacing:.035em;}
+
+/* Louis LeJeune: only an occupied blessed square receives the flower. */
+html body #s-game .bc .flower-king-overlay{
+  position:absolute!important;
+  left:50%!important;
+  top:50%!important;
+  width:clamp(42px,62%,76px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  z-index:5!important;
+  pointer-events:none!important;
+  background:rgba(255,224,106,.99)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='8' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='8' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 3px rgba(31,20,4,.7)) drop-shadow(0 0 7px rgba(255,224,106,.66))!important;
 }
 
 html body.modal-open .cinematic-subtitle-live{

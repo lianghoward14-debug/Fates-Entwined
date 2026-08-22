@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="810" viewBox="0 0 1200 810">
+  <defs>
+    <filter id="flowerGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="rgba(255,224,106,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(164,126,25,.17)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect width="1200" height="810" fill="#020305"/>
+  <style>
+    .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+    .flower{fill:none;stroke:rgba(255,224,106,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#flowerGlow)}
+    .flower-fill{fill:rgba(255,224,106,.99);filter:url(#flowerGlow)}
+  </style>
+
+  <g transform="translate(60 25)">
+    <text class="label" x="0" y="22">L-01</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="7"/><path d="M32 25C22 23 21 13 27 9c5-3 9 4 5 16M39 32c2-10 12-11 16-5 3 5-4 9-16 5M32 39c10 2 11 12 5 16-5 3-9-4-5-16M25 32c-2 10-12 11-16 5-3-5 4-9 16-5"/></g>
+  </g>
+  <g transform="translate(620 25)">
+    <text class="label" x="0" y="22">L-02</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="6"/><path d="M32 26C24 21 25 11 32 8c7 3 8 13 0 18M38 29c3-9 13-10 18-4-1 8-11 11-18 4M37 37c8 4 8 14 1 18-8-2-10-12-1-18M27 37c-7 6-16 2-17-6 5-7 15-6 17 6M26 28c-9 0-13-9-8-15 8-2 14 5 8 15"/></g>
+  </g>
+  <g transform="translate(60 181)">
+    <text class="label" x="0" y="22">L-03</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="30" r="7"/><path d="M32 23c-7-7-3-16 5-17 7 5 5 14-5 17M39 30c7-7 16-3 17 5-5 7-14 5-17-5M32 37c7 7 3 16-5 17-7-5-5-14 5-17M25 30c-7 7-16 3-17-5 5-7 14-5 17 5M32 38v17M32 46c-8-1-12 3-13 8M32 48c7-2 12 1 15 6"/></g>
+  </g>
+  <g transform="translate(620 181)">
+    <text class="label" x="0" y="22">L-04</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="6"/><path d="M32 26c-5-12 0-18 7-17 6 5 3 13-7 17M38 29c11-7 18-3 18 5-3 7-12 6-18-5M38 36c9 8 7 16 0 19-8 0-11-9 0-19M26 37c-7 10-16 8-18 1 1-8 10-10 18-1M25 29c-11-4-12-13-6-18 7-3 13 4 6 18"/><path d="M32 26v12M26 32h12"/></g>
+  </g>
+  <g transform="translate(60 337)">
+    <text class="label" x="0" y="22">L-05</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="7"/><path d="M29 25C17 17 19 8 27 7c8 2 9 11 2 18M39 29c8-11 17-8 18 0-1 8-10 10-18 0M36 39c11 7 8 16 0 18-8-1-10-10 0-18M25 37c-7 10-16 7-18-1 1-8 10-10 18 1"/><circle cx="32" cy="32" r="2" class="flower-fill"/></g>
+  </g>
+  <g transform="translate(620 337)">
+    <text class="label" x="0" y="22">L-06</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="6"/><path d="M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10"/></g>
+  </g>
+  <g transform="translate(60 493)">
+    <text class="label" x="0" y="22">L-07</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="8"/><path d="M32 24c-5-6-4-14 0-19 5 5 6 13 0 19M40 32c6-5 14-4 19 0-5 5-13 6-19 0M32 40c5 6 4 14 0 19-5-5-6-13 0-19M24 32c-6 5-14 4-19 0 5-5 13-6 19 0"/><path d="M26 26l-10-10M38 26l10-10M38 38l10 10M26 38L16 48"/></g>
+  </g>
+  <g transform="translate(620 493)">
+    <text class="label" x="0" y="22">L-08</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><path d="M32 8c6 8 7 15 0 22-7-7-6-14 0-22M56 32c-8 6-15 7-22 0 7-7 14-6 22 0M32 56c-6-8-7-15 0-22 7 7 6 14 0 22M8 32c8-6 15-7 22 0-7 7-14 6-22 0"/><circle cx="32" cy="32" r="5"/><path d="M15 15l12 12M49 15L37 27M49 49L37 37M15 49l12-12"/></g>
+  </g>
+  <g transform="translate(60 649)">
+    <text class="label" x="0" y="22">L-09</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="6"/><path d="M32 26c-10-5-10-15-3-19 8 2 10 11 3 19M38 30c5-10 15-10 19-3-2 8-11 10-19 3M35 38c10 5 10 15 3 19-8-2-10-11-3-19M26 35c-5 10-15 10-19 3 2-8 11-10 19-3"/><path d="M28 27L17 16M37 27l10-11M37 37l10 11M27 37L17 48"/></g>
+  </g>
+  <g transform="translate(620 649)">
+    <text class="label" x="0" y="22">L-10</text><use href="#tile" x="70" y="0"/>
+    <g class="flower" transform="translate(271 26) scale(1.25)"><circle cx="32" cy="32" r="7"/><path d="M32 25C20 19 22 8 31 7c8 3 9 12 1 18M39 31c6-12 17-10 18-1-3 8-12 9-18 1M35 39c12 6 10 17 1 18-8-3-9-12-1-18M25 35c-6 12-17 10-18 1 3-8 12-9 18-1"/><path d="M32 39v17M32 47c-7-2-12 1-16 7M32 50c7-3 13-1 17 4"/><circle cx="32" cy="32" r="2" class="flower-fill"/></g>
+  </g>
+</svg>

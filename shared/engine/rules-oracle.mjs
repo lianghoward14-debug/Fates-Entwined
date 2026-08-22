@@ -153,7 +153,7 @@ const CARD_RULES = [
   card('98','Wodny Potok Skier','OPENING_HAND','CONTROLLER','CONTROLLER_OPENING_HAND','Always appears as one additional opening-hand card without replacing a normal opening card; only existing deck copy moves.',{forbidden:['NORMAL_OPENING_HAND_SIZE_REDUCED','CARD_DUPLICATED','OPPONENT_RECEIVES_CARD','TRIGGERS_ON_LATER_DRAW']}),
   card('99','Rozsi and Zsofia (Youth)',['WHEN_SET','PASSIVE'],'CONTROLLER','CONTROLLER_SUPPORTERS_AND_SOURCE_CONSOLIDATION_RULE','For controller’s next five turns, Supporters are classified as Characters; source has zero cost if controller already controls another Rozsi or Zsofia, and source uses Characters for reinforcement.',{duration:'FIVE_CONTROLLER_TURNS',forbidden:['OPPONENT_SUPPORTERS_RECLASSIFIED','SIXTH_TURN_RECLASSIFIED','SOURCE_QUALIFIES_ITSELF_FOR_ZERO_COST','SUPPORTERS_USED_FOR_SOURCE_CONSOLIDATION']}),
   card('bh01','Anička Konvička (Voyager)',['ACTIVATE','PASSIVE'],'CONTROLLER','SOURCE_AND_ONE_OPEN_SQUARE_ANY_ZONE','Once per turn move source to any open square, then controller draws exactly one; source is immune to all effects.',{useLimit:'ONCE_PER_TURN',forbidden:['OCCUPIED_DESTINATION','MOVE_WITHOUT_DRAW','SECOND_MOVE_SAME_TURN','OPPONENT_EFFECT_MUTATES_SOURCE']}),
-  card('bh02','Joie','PASSIVE','CONTROLLER','ALL_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each time controller activates a draw effect, every controlled card in Joie’s zone gains exactly +1 permanent Fate once.',{forbidden:['DRAW_PHASE_TRIGGERS','OPPONENT_DRAW_EFFECT_TRIGGERS','CARD_OUTSIDE_ZONE_GAINS','SAME_DRAW_EFFECT_TRIGGERS_TWICE']}),
+  card('bh02','Joie','PASSIVE','CONTROLLER','ALL_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each time controller would activate a draw effect, every controlled card in Joie’s zone gains exactly +1 permanent Fate once.',{forbidden:['DRAW_PHASE_TRIGGERS','OPPONENT_DRAW_EFFECT_TRIGGERS','CARD_OUTSIDE_ZONE_GAINS','SAME_DRAW_EFFECT_TRIGGERS_TWICE']}),
   card('bh03','Ali, The Indomitable',['HAND_ARRIVAL','PASSIVE'],'ORIGINAL_OWNER','SOURCE_IN_OPPONENT_HAND','When source appears in original owner hand, transfer it to opponent hand; there it is effect-immune and caps that hand at six until set, then loses immunity.',{forbidden:['SOURCE_REMAINS_IN_ORIGINAL_HAND','WRONG_HAND_CAPPED','CAP_EXCEEDS_SIX','IMMUNITY_REMAINS_AFTER_SET']}),
   card('bh04','Anicka Konvicka (Selva Island)','WHEN_SET','CONTROLLER','ALL_EFFECT_MUTABLE_OPPONENT_CARDS_OF_DECLARED_TYPE_IN_SOURCE_ZONE','Split exactly 20 permanent Fate loss evenly using established integer distribution among eligible opponent cards of declared type.',{forbidden:['CONTROLLERS_CARDS_LOSE','WRONG_TYPE_OR_ZONE_LOSES','TOTAL_LOSS_EXCEEDS_AVAILABLE_FATE_OR_20','DISTRIBUTION_REROLLS_ON_RENDER']}),
   card('bh05','Taylor',['HAND_ARRIVAL','WHEN_SET'],'CONTROLLER','SECOND_COPY_THEN_ONE_COPYABLE_CARD_IN_CONTROLLER_HAND_OR_DECK','On draw/search arrival create exactly one additional Taylor copy as established; when set, copy and execute one eligible card effect using Taylor/controller context.',{forbidden:['RECURSIVE_TAYLOR_COPY','ARRIVAL_EVENT_CREATES_MORE_THAN_ONE_COPY','OPPONENT_PILE_SELECTED','COPIED_EFFECT_RUNS_TWICE']}),
@@ -163,7 +163,7 @@ const CARD_RULES = [
   card('bh09','Alondra Hopkins (Mercenary)','WHEN_SET','CONTROLLER','SOURCE_CARD_AND_ONE_SELECTED_ZONE','Select any zone; source gains permanent Fate equal to the non-negative difference between controller total Fate and opponent total Fate in that zone.',{forbidden:['ZONE_SELECTED_BY_OPPONENT','WRONG_ZONE_SCORED','NEGATIVE_DIFFERENCE_REDUCES_SOURCE','DIFFERENCE_APPLIED_MORE_THAN_ONCE']}),
   card('bh10','Francisek','WHEN_SET','CONTROLLER','ALL_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Discard every eligible card in controller hand, then activate one draw effect for exactly the number actually removed.',{forbidden:['OPPONENT_HAND_DISCARDED','IMMUNE_HAND_CARD_DISCARDED','DRAW_COUNT_EXCEEDS_DISCARDED_COUNT','REDRAW_ACTIVATES_MORE_THAN_ONCE']}),
   card('bh11','Felicyta Janowicz (University)','PASSIVE','CONTROLLER','ALL_CONTROLLED_ADJACENCY_BONUSES_IN_SOURCE_ZONE','Each active Superior Marks source doubles every positive numeric ADJACENCY_BONUS controlled in its zone; multiple sources double multiplicatively, while penalties and non-bonus adjacency effects remain unchanged.',{forbidden:['OPPONENT_ADJACENCY_BONUS_DOUBLED','ADJACENCY_PENALTY_DOUBLED','NON_BONUS_ADJACENCY_EFFECT_DOUBLED','BONUS_OUTSIDE_SOURCE_ZONE_DOUBLED']}),
-  card('bh12','Louis LeJeune',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ADJACENT_TO_SOURCE','Choose exactly one eligible adjacent card when source is set; that specific card gains +6 effective Fate while source remains active on the field. The bonus is classified as ADJACENCY_BONUS.',{forbidden:['NON_ADJACENT_CARD_SELECTED','MORE_THAN_ONE_CARD_BLESSED','BONUS_PERSISTS_AFTER_SOURCE_LEAVES','IMMUNE_CARD_RECEIVES_BONUS']}),
+  card('bh12','Louis LeJeune',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_SQUARE_ADJACENT_TO_SOURCE','Choose exactly one adjacent square when source is set; a controlled card occupying that square gains +6 effective Fate while source remains active and adjacent. The bonus is classified as ADJACENCY_BONUS.',{forbidden:['NON_ADJACENT_SQUARE_SELECTED','EMPTY_SQUARE_SHOWS_PREEMPTIVE_OVERLAY','MORE_THAN_ONE_SQUARE_BLESSED','BONUS_PERSISTS_AFTER_SOURCE_LEAVES_OR_MOVES_AWAY','IMMUNE_CARD_RECEIVES_BONUS']}),
   card('bh13','Hugh Roberts','WHEN_SET','CONTROLLER','UP_TO_THREE_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Choose zero to three eligible cards in controller hand; each selected card gains exactly +6 permanent Fate, then moves from controller hand to controller discard.',{cardinality:'ZERO_TO_THREE',forbidden:['OPPONENT_HAND_CARD_SELECTED','MORE_THAN_THREE_CARDS_SELECTED','IMMUNE_CARD_MUTATED_OR_DISCARDED','FATE_GAIN_APPLIED_AFTER_CARD_LEAVES_HAND','SELECTED_CARD_GAINS_OTHER_THAN_6']}),
   card('bh25','Jimmy (Viltrumite)','WHEN_SET','CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ANYWHERE_ON_FIELD','Discard exactly one selected eligible card on either side of the field.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['IMMUNE_OR_UNAFFORDABLE_PROTECTED_TARGET','MORE_THAN_ONE_CARD_DISCARDED','CANCEL_DISCARDS_DEFAULT_TARGET']})
 ];
@@ -419,8 +419,15 @@ function oracleContinuousConditionPositive(state, source, entries){
     && controlled(entry)
     && ['01','24','44','64','bh07','bh12'].includes(oracleRuntimeId(entry.card))
   );
-  if(id === 'bh12') return entries.some(entry=>
-    String(entry.card.iid || '') === String(source.card.counters?.flowerKingTargetIid || '')
+  if(id === 'bh12') return (state?.geometry?.squareStatuses || []).some(status=>
+    status?.type === 'FLOWER_KING_BLESSED'
+    && String(status.sourceIid || '') === String(source.card.iid || '')
+    && oracleAdjacent(source, {z:Number(status.z), r:Number(status.r), c:Number(status.c)})
+    && entries.some(entry=>Number(entry.z) === Number(status.z)
+      && Number(entry.r) === Number(status.r)
+      && Number(entry.c) === Number(status.c)
+      && controllerOfProjected(entry.card) === controller
+      && !oracleEffectImmutable(entry.card))
   );
   return false;
 }
@@ -522,8 +529,16 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     }
     for(const flowerKing of entries){
       if(oracleRuntimeId(flowerKing.card) !== 'bh12' || !oracleSourceActive(state, flowerKing)) continue;
-      if(String(flowerKing.card.counters?.flowerKingTargetIid || '') !== iid) continue;
       const flowerController = controllerOfProjected(flowerKing.card);
+      if(flowerController !== controller || oracleEffectImmutable(target.card)) continue;
+      const blessed = (state?.geometry?.squareStatuses || []).some(status=>
+        status?.type === 'FLOWER_KING_BLESSED'
+        && String(status.sourceIid || '') === String(flowerKing.card.iid || '')
+        && Number(status.z) === Number(target.z)
+        && Number(status.r) === Number(target.r)
+        && Number(status.c) === Number(target.c)
+      );
+      if(!blessed || !oracleAdjacent(flowerKing, target)) continue;
       modifier += 6 * oracleAdjacencyBonusMultiplier(state, target.z, flowerController, entries);
     }
     if(oracleSourceActive(state, target) && selfId === '100'){
