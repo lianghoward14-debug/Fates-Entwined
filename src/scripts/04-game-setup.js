@@ -139,7 +139,32 @@ function formatFateMultiplier(mult) {
   return Number.isInteger(n) ? n + 'x' : n.toFixed(2).replace(/0+$/,'').replace(/\.$/,'') + 'x';
 }
 
+function clearCompletedOnlineSessionBeforeLocalGame() {
+  if(typeof G === 'undefined' || !G) return;
+  const beta = window.fateAuthorityV3Beta;
+  const hasOnlineResidue = !!(
+    G._onlineRoomCode
+    || G._onlineActionLogMode
+    || G._phase7CurrentMultiplayer
+    || window.FatePhase7CurrentMultiplayerUi?.active?.()
+  );
+  if(!hasOnlineResidue) return;
+  try { beta?.unmountGameScreen?.(); } catch(e) {}
+  try { beta?.disconnect?.(); } catch(e) {}
+  try { window.fateCleanupTerminalOnlineRoomState?.('start-local-game'); } catch(e) {}
+  G._onlineRoomCode = null;
+  G._onlineRole = null;
+  G._onlinePlayerIndex = null;
+  G._onlineRoomMode = null;
+  G.localPlayerIndex = null;
+  G.viewerPlayerIndex = null;
+  G._onlineActionLogMode = false;
+  G._onlineApplyingRemoteAction = false;
+  G._phase7CurrentMultiplayer = false;
+}
+
 function startGame(vsAI=false) {
+  clearCompletedOnlineSessionBeforeLocalGame();
   const authoritativeV3SinglePlayerRequested = new URLSearchParams(window.location.search || '')
     .get('fateV3SinglePlayer') === '1';
   if(authoritativeV3SinglePlayerRequested){
@@ -2060,6 +2085,10 @@ function doCoinFlip() {
   const result = document.getElementById('coin-result');
   const btns = document.getElementById('coin-btns');
   const winnerText = document.getElementById('coin-winner-text');
+  // Multiplayer disables these shared DOM buttons while submitting the turn
+  // choice. A completed online game must not leave the next local coin screen
+  // with permanently disabled controls.
+  btns.querySelectorAll('button').forEach(function(button){ button.disabled = false; });
   coin.className='coin coin-pending';
   coin.innerHTML='?';
   result.textContent='';

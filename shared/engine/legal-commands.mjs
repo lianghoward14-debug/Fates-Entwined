@@ -4,6 +4,7 @@ import {
   effectiveCardType,
   effectiveConsolidationCost,
   isEffectImmutable,
+  isEffectSourceSuppressed,
   isImmuneToOpponentEffects,
   runtimeRuleId,
   zoneActionBlock
@@ -414,7 +415,7 @@ export function legalCommandTemplates(state, playerIndex){
     const rule = ruleForCard(entry.card);
     if(rule?.timings?.includes('ACTIVATE')
       && rule.program
-      && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(state, entry)
       && !zoneActionBlock(state, player, entry.z)){
       if(!rule.maxUses || Number(entry.card.counters?.effectUses || 0) < Number(rule.maxUses)){
         if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn) continue;

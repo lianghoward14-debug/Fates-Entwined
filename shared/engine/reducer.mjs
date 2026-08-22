@@ -15,6 +15,7 @@ import {
 import {
   effectiveCardType,
   isEffectImmutable,
+  isEffectSourceSuppressed,
   isImmuneToOpponentEffects,
   runtimeRuleId,
   zoneActionBlock
@@ -1198,6 +1199,17 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
 
 function startEffect(state, ctx, source, controller, timing, commandId){
   const rule = cardRule(source.id);
+  const sourceEntry = findBoardCard(state, source.iid);
+  if(sourceEntry && isEffectSourceSuppressed(state, sourceEntry)){
+    ctx.events.push({
+      type:'EFFECT_SKIPPED',
+      sourceIid:source.iid,
+      playerIndex:controller,
+      timing,
+      reason:'EFFECT_SUPPRESSED'
+    });
+    return;
+  }
   if(timing === 'WHEN_SET' && rule?.whenSetTurnUseKey){
     const statusId = `turn-use:${String(rule.whenSetTurnUseKey).toLowerCase()}:p${controller}`;
     if(state.statuses.some(status=>status.statusId === statusId && Number(status.turn) === state.turn)){
@@ -1263,6 +1275,11 @@ function startEffect(state, ctx, source, controller, timing, commandId){
 function startAutomaticActivation(state, ctx, source, controller, commandId){
   const rule = cardRule(source?.id);
   if(!source || !rule?.program) return false;
+  // Player-timed effects must never be consumed merely because a card was
+  // consolidated or flipped face up. Christopher Erbs is armed only by an
+  // explicit ACTIVATE_EFFECT command carrying userActivated=true.
+  if(rule.manualOnly === true) return false;
+  if(isEffectSourceSuppressed(state, findBoardCard(state, source.iid) || source)) return false;
   if(rule.maxUses && effectUses(source) >= Number(rule.maxUses)) return false;
   if(rule.oncePerTurn && Number(source.counters?.lastEffectTurn) === state.turn) return false;
   if(rule.blockedWhileStatus && source.statuses?.includes(rule.blockedWhileStatus)) return false;
@@ -2089,7 +2106,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         {code:'MANUAL_ACTIVATION_REQUIRED'}
       );
     }
-    if(entry.card.statuses?.includes('EFFECTS_SUPPRESSED')){
+    if(isEffectSourceSuppressed(state, entry)){
       throw Object.assign(new Error('the source effect is suppressed'), {code:'EFFECT_SUPPRESSED'});
     }
     const permissionBlock = supporterEffectBlock(state, entry.card, actorIndex);

@@ -3198,6 +3198,24 @@
       || card.id
       || ''
     );
+    if(runtimePassiveId === '21' && projectedState){
+      // Preserve Henry's authoritative square choices on the legacy board
+      // card. The shared renderer and suppression helpers already understand
+      // this shape, so occupied chosen squares immediately receive the lock
+      // overlay and remain suppressed for as long as Henry stays active.
+      next._henrySuppressionSquares = (Array.isArray(projectedState.geometry?.squareStatuses)
+        ? projectedState.geometry.squareStatuses
+        : [])
+        .filter(function(status){
+          return status?.type === 'COORDINATOR_SUPPRESSED'
+            && String(status.sourceIid || '') === String(card.iid || '');
+        })
+        .slice(0, 2)
+        .map(function(status){
+          return {z:Number(status.z), r:Number(status.r), c:Number(status.c)};
+        });
+      if(next._henrySuppressionSquares.length) next.effectUsedInitial = true;
+    }
     if(runtimePassiveId === '41' && projectedState){
       // Jimmy's dynamic Fate and the card object must come from one canonical
       // revision. A separately assigned game-level counter can momentarily be
@@ -12556,6 +12574,7 @@
     if(code && typeof window.fateUnpublishLiveMatch === 'function') window.fateUnpublishLiveMatch(code);
     recordOnlineDiagnostic('online-terminal-room-cleanup', {reason:String(reason || ''), roomCode:code});
   }
+  window.fateCleanupTerminalOnlineRoomState = cleanupTerminalOnlineRoomState;
   async function setConnectedOnDisconnect(code, uid){
     if(!firebaseRoomTransportAllowed()) return false;
     await FO.onDisconnect(FO.ref(FO.rtdb, `rooms/${code}/players/${uid}`)).update({connected:false, disconnectedAt:FO.serverTimestamp()}).catch(()=>{});

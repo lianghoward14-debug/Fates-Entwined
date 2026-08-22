@@ -304,13 +304,20 @@ function oracleEffectiveType(state, value){
 function oracleSourceActive(state, entry){
   if(!entry?.card || entry.card.faceDown === true || entry.card.statuses?.includes('EFFECTS_SUPPRESSED')) return false;
   if(String(entry.card.type || '') !== 'Coordinator') return true;
-  return !(state?.statuses || []).some(status=>
-    status?.type === 'COORDINATOR_SUPPRESSED'
-    && Number(status.zone) === entry.z
-    && Number(status.row) === entry.r
-    && Number(status.column) === entry.c
-    && Number(status.blockedPlayer) === controllerOfProjected(entry.card)
-  );
+  if(oracleEffectImmutable(entry.card) || (entry.card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS')) return true;
+  return !(state?.geometry?.squareStatuses || []).some(status=>{
+    if(!(status?.type === 'COORDINATOR_SUPPRESSED'
+      && Number(status.z) === entry.z
+      && Number(status.r) === entry.r
+      && Number(status.c) === entry.c
+      && Number(status.blockedPlayer) === controllerOfProjected(entry.card))) return false;
+    const source = oracleBoardEntries(state).find(value=>String(value.card.iid || '') === String(status.sourceIid || ''));
+    return !!source
+      && oracleRuntimeId(source.card) === '21'
+      && controllerOfProjected(source.card) !== controllerOfProjected(entry.card)
+      && source.card.faceDown !== true
+      && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
+  });
 }
 
 function oracleAdjacent(left, right){

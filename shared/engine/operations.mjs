@@ -4,6 +4,7 @@ import {
   effectiveConsolidationCost,
   inspectOperation,
   isEffectImmutable,
+  isEffectSourceSuppressed,
   runtimeRuleId
 } from './modifiers.mjs';
 import {
@@ -60,7 +61,7 @@ function applyHandArrivalModifiers(ctx, playerIndex, card){
   if(!pending) return;
   ctx.state.statuses = ctx.state.statuses.filter(status=>status.statusId !== pending.statusId);
   const source = pending.sourceIid ? findCard(ctx.state, pending.sourceIid)?.card : null;
-  if(source?.statuses?.includes('EFFECTS_SUPPRESSED')){
+  if(source && isEffectSourceSuppressed(ctx.state, source)){
     ctx.events.push({type:'STATUS_REMOVED', statusId:pending.statusId, reason:'SOURCE_SUPPRESSED'});
     return;
   }
@@ -284,7 +285,7 @@ function setCard(ctx, operation){
       && String(source.card.id || '') === '14'
       && controllerOf(source.card) !== playerIndex
       && source.card.faceDown !== true
-      && !source.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(ctx.state, source)
       && Math.abs(source.r - r) + Math.abs(source.c - c) === 1
     );
     if(alondraBlock){
@@ -385,7 +386,7 @@ function consolidateCard(ctx, operation){
   }else if(characterEntries.some(entry=>
     String(entry.card.id || '') === '45'
     && entry.card.faceDown !== true
-    && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+    && !isEffectSourceSuppressed(ctx.state, entry)
   )){
     throw operationError('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook forbids another friendly Character in this zone');
   }
@@ -393,13 +394,13 @@ function consolidateCard(ctx, operation){
     entry.z === destinationEntry.z
     && runtimeRuleId(entry.card) === '53'
     && controllerOf(entry.card) !== playerIndex
-    && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+    && !isEffectSourceSuppressed(ctx.state, entry)
   );
   if(colomboRestricted && tributes.some(entry=>entry.z !== destinationEntry.z)){
     throw operationError('CROSS_ZONE_TRIBUTE_PREVENTED', 'Colombo Thug requires all tributes to come from the destination zone');
   }
   const greatOakBonus = tributes.reduce((sum, entry)=>
-    sum + (String(entry.card.id || '') === '47' && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED') ? 3 : 0)
+    sum + (String(entry.card.id || '') === '47' && !isEffectSourceSuppressed(ctx.state, entry) ? 3 : 0)
   , 0);
   const reservedIndex = player.hand.findIndex(card=>String(card.iid) === String(handEntry.card.iid));
   const reservedCard = player.hand.splice(reservedIndex, 1)[0];

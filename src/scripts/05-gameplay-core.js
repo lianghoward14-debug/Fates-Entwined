@@ -3655,12 +3655,12 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
   if(idx === -1) return;
   G.selectedHandCard = idx;
   clearPlaceHighlights();
-  // Single-player free sets use the same zone-and-square destination window
-  // regardless of whether the card came from hand, deck, or discard.
-  if(!(G && G._onlineRoomCode)) {
-    openImmediateFreePlacementDestinationPicker(player, card, message, info);
-    return;
-  }
+  // Direct deck sets mirror authoritative multiplayer: after the card-choice
+  // window closes, legal destinations are highlighted on the live board.
+  // Other effect-created free sets retain the board-destination window.
+  const useDestinationPicker = info.destinationUi !== 'highlighted-board'
+    && !(G && G._onlineRoomCode);
+  if(useDestinationPicker && openImmediateFreePlacementDestinationPicker(player, card, message, info)) return;
   G.placing = true;
   if(!highlightValidCells(card, 'free-placement-choice')){
     G.selectedHandCard = null;

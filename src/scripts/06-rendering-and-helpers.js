@@ -3103,7 +3103,9 @@ function beginLocalSetFromDeckCard(cardId, config) {
     else G.players[cp].hand.push(card);
     closeModal();
     if(typeof beginImmediateFreePlacement==='function') {
-      beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo));
+      beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo, {
+        destinationUi:'highlighted-board'
+      }));
     }
     if(typeof config.onCommitted === 'function') config.onCommitted(cp, card);
     toast(config.readyMessage);

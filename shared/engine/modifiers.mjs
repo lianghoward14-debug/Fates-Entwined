@@ -53,21 +53,30 @@ export function effectiveCost(_state, card){
   return cost;
 }
 
+export function isEffectSourceSuppressed(state, value){
+  const entry = value?.card
+    ? value
+    : (value?.iid ? findBoardCard(state, value.iid) : null);
+  const card = entry?.card || value;
+  if(!card) return false;
+  if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
+  if(!entry || String(card.type || '') !== 'Coordinator') return false;
+  if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;
+  return squareStatuses(state, entry, 'COORDINATOR_SUPPRESSED').some(status=>{
+    if(Number(status.blockedPlayer) !== controllerOf(card)) return false;
+    const source = findBoardCard(state, status.sourceIid);
+    return !!source
+      && runtimeRuleId(source.card) === '21'
+      && controllerOf(source.card) !== controllerOf(card)
+      && source.card.faceDown !== true
+      && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
+  });
+}
+
 function activeAuraSource(state, entry){
   if(!entry?.card
     || entry.card.faceDown === true
-    || entry.card.statuses?.includes('EFFECTS_SUPPRESSED')) return false;
-  if(String(entry.card.type || '') === 'Coordinator'){
-    const suppressed = squareStatuses(state, entry, 'COORDINATOR_SUPPRESSED').some(status=>{
-      if(Number(status.blockedPlayer) !== controllerOf(entry.card)) return false;
-      const source = findBoardCard(state, status.sourceIid);
-      return !!source
-        && String(source.card.id || '') === '21'
-        && source.card.faceDown !== true
-        && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
-    });
-    if(suppressed) return false;
-  }
+    || isEffectSourceSuppressed(state, entry)) return false;
   return true;
 }
 

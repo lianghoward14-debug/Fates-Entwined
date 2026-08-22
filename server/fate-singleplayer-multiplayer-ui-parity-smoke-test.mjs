@@ -44,11 +44,13 @@ assert.match(rendering, /window\.setPolishFromDeck = function\(\)[\s\S]{0,800}be
 assert.match(rendering, /window\.setMajaFromDeck = function\(\)[\s\S]{0,300}beginLocalSetFromDeckCard\('07'/);
 assert.match(
   rendering,
-  /function beginLocalSetFromDeckCard[\s\S]{0,1200}beginImmediateFreePlacement\(cp, card, config\.placementMessage, Object\.assign\(\{\}, config\.effectInfo\)\)/,
-  'direct deck sets must continue from the card picker into the zone-and-square destination window'
+  /function beginLocalSetFromDeckCard[\s\S]{0,1400}beginImmediateFreePlacement\(cp, card, config\.placementMessage, Object\.assign\(\{\}, config\.effectInfo, \{[\s\S]{0,100}destinationUi:'highlighted-board'/,
+  'single-player direct deck sets must continue from the card picker into live-board destination highlighting'
 );
-assert.doesNotMatch(rendering, /destinationUi\s*:\s*['"]highlighted-board['"]/,
-  'single-player deck sets must not bypass the destination window for direct board clicking');
+assert.match(online, /function phase7BeginSetFromDeck[\s\S]{0,5200}phase7BeginDestinationChoice\(/,
+  'multiplayer direct deck sets must continue from card choice into its live-board destination flow');
+assert.match(online, /function phase7BeginDestinationChoice[\s\S]{0,1500}closeModal[\s\S]{0,900}phase7HighlightDestinations\(choices\)/,
+  'the multiplayer destination flow must close the picker and highlight legal live-board squares');
 
 assert.match(
   gameplay,
@@ -57,13 +59,13 @@ assert.match(
 );
 assert.match(
   gameplay,
-  /function beginImmediateFreePlacement[\s\S]{0,2400}if\(!\(G && G\._onlineRoomCode\)\)[\s\S]{0,240}openImmediateFreePlacementDestinationPicker\(player, card, message, info\);[\s\S]{0,40}return;/,
-  'every single-player free-placement path must stop in the destination window instead of arming direct board clicks'
+  /function beginImmediateFreePlacement[\s\S]{0,2400}info\.destinationUi !== 'highlighted-board'[\s\S]{0,240}openImmediateFreePlacementDestinationPicker[\s\S]{0,300}highlightValidCells\(card, 'free-placement-choice'\)/,
+  'single-player must reserve live-board highlighting for the direct-deck-set parity route'
 );
 assert.match(gameplay, /case '08':[\s\S]{0,700}beginImmediateFreePlacement\(cp, found,[\s\S]{0,300}key:'lina-free-set'/);
 
-// Behavioral guard: a single-player deck-set card must open the full modal and
-// must not arm the old click-directly-on-the-board placement path.
+// Behavioral guard: the direct-deck-set parity option must close the modal and
+// arm live-board destinations, exactly like phase7BeginDestinationChoice.
 const deckSetCard = {id:'28', iid:'single-player-deck-set', name:'2nd Polish-Lithuanian Army', owner:0};
 const pickerContext = {
   G:{currentPlayer:0, players:[{hand:[deckSetCard]}, {hand:[]}], _onlineRoomCode:''},
@@ -84,15 +86,13 @@ vm.runInNewContext([
   functionSource(gameplay, 'resolveImmediateFreePlacementHandCard'),
   functionSource(gameplay, 'openImmediateFreePlacementDestinationPicker'),
   functionSource(gameplay, 'beginImmediateFreePlacement'),
-  `beginImmediateFreePlacement(0, G.players[0].hand[0], 'Choose a destination.', {name:'2nd Polish-Lithuanian Army'});`
+  `beginImmediateFreePlacement(0, G.players[0].hand[0], 'Choose a destination.', {name:'2nd Polish-Lithuanian Army', destinationUi:'highlighted-board'});`
 ].join('\n'), pickerContext);
-assert.deepEqual(Array.from(pickerContext.pickerOptions.visibleZones), [0,1,2]);
-assert.equal(pickerContext.pickerOptions.allowSquareTargets, true);
-assert.equal(pickerContext.pickerOptions.showZoneTitles, true);
-assert.equal(pickerContext.directBoardPlacementCalls, 0,
-  'single-player deck sets must not arm direct board placement');
-pickerContext.pickerConfirm([{z:2,r:2,c:1}]);
-assert.deepEqual(pickerContext.clickedDestination, {z:2,r:2,c:1});
+assert.equal(pickerContext.pickerOptions, null,
+  'single-player Polish/Maja must not open a second destination modal');
+assert.equal(pickerContext.directBoardPlacementCalls, 1,
+  'single-player Polish/Maja must highlight legal destinations on the live board');
+assert.equal(pickerContext.G.placing, true);
 
 assert.match(
   rendering,

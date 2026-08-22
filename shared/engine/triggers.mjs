@@ -5,6 +5,7 @@ import {
   effectiveCardType,
   effectiveFate,
   isEffectImmutable,
+  isEffectSourceSuppressed,
   runtimeRuleId
 } from './modifiers.mjs';
 
@@ -58,7 +59,7 @@ export function collectTriggeredOperations(state, event){
         && controllerOf(entry.card) === Number(event.playerIndex)
         && String(entry.card.iid) !== String(placed.card.iid)
         && entry.card.faceDown !== true
-        && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+        && !isEffectSourceSuppressed(state, entry)
       )){
         operations.push({
           type:'MODIFY_FATE',
@@ -127,7 +128,7 @@ export function collectTriggeredOperations(state, event){
       String(entry.card.id || '') === '86'
       && controllerOf(entry.card) !== Number(event.playerIndex)
       && entry.card.faceDown !== true
-      && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(state, entry)
     )){
       const playerIndex = controllerOf(boleslaw.card);
       operations.push({
@@ -206,7 +207,7 @@ export function collectTriggeredOperations(state, event){
         && runtimeRuleId(entry.card) === '15'
         && controllerOf(entry.card) === playerIndex
         && entry.card.faceDown !== true
-        && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+        && !isEffectSourceSuppressed(state, entry)
       )){
         const amount = 1 + coordinatorAuraPotencyBoost(state, source);
         for(const target of boardEntries(state).filter(entry=>
@@ -233,7 +234,7 @@ export function collectTriggeredOperations(state, event){
       runtimeRuleId(entry.card) === 'bh08'
       && controllerOf(entry.card) === reactingPlayer
       && entry.card.faceDown !== true
-      && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(state, entry)
     )){
       const amount = 2 + coordinatorAuraPotencyBoost(state, source);
       for(const target of boardEntries(state).filter(entry=>
@@ -348,7 +349,7 @@ export function collectTriggeredOperations(state, event){
       if(entry.z !== Number(event.destination?.z)) continue;
       if(String(entry.card.id || '') !== '36') continue;
       if(controllerOf(entry.card) === Number(event.playerIndex)) continue;
-      if(entry.card.statuses?.includes('EFFECTS_SUPPRESSED')) continue;
+      if(isEffectSourceSuppressed(state, entry)) continue;
       operations.push({
         type:'CREATE_MATCH_STATUS',
         status:{
@@ -389,7 +390,7 @@ export function collectTriggeredOperations(state, event){
         String(item.card.id || '') === '100'
         && controllerOf(item.card) === Number(event.playerIndex)
         && item.card.faceDown !== true
-        && !item.card.statuses?.includes('EFFECTS_SUPPRESSED')
+        && !isEffectSourceSuppressed(state, item)
         && !isEffectImmutable(item.card)
       )){
         operations.push({
@@ -406,7 +407,7 @@ export function collectTriggeredOperations(state, event){
     for(const entry of boardEntries(state).filter(item=>
       String(item.card.id || '') === '95'
       && item.card.faceDown !== true
-      && !item.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(state, item)
     )){
       operations.push({
         type:'TICK_COUNTER_FATE',
@@ -427,7 +428,7 @@ export function collectTriggeredOperations(state, event){
       String(item.card.id || '') === '46'
       && controllerOf(item.card) === Number(event.playerIndex)
       && item.card.faceDown !== true
-      && !item.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && !isEffectSourceSuppressed(state, item)
     )){
       operations.push({
         type:'MODIFY_FATE',
