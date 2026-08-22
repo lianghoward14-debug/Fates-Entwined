@@ -516,9 +516,22 @@ function getFullCardImageFallbackSrc(src) {
   if(!src) return '';
   const raw = String(src);
   const m = raw.match(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/);
-  return (m && isElectronCardImageRuntime()) ? (m[1] + '.png') : raw;
+  return m ? (m[1] + '.png') : raw;
 }
 window.getFullCardImageFallbackSrc = getFullCardImageFallbackSrc;
+// Optimized card art is preferred for dense grids, but a newly added card can
+// briefly exist before its generated thumbnail does. Recover every card-image
+// surface—including deck pickers—through the packaged full PNG instead of
+// leaving a broken image/alt-text tile.
+if(typeof document !== 'undefined') document.addEventListener('error', function(event){
+  const image = event && event.target;
+  if(typeof HTMLImageElement === 'undefined' || !(image instanceof HTMLImageElement)) return;
+  const current = String(image.getAttribute('src') || '');
+  const fallback = getFullCardImageFallbackSrc(current);
+  if(!fallback || fallback === current || image.dataset.cardFullFallbackApplied === '1') return;
+  image.dataset.cardFullFallbackApplied = '1';
+  image.src = fallback;
+}, true);
 function shouldUseCanvasBoardVisuals() {
   try {
     if(window.FATE_RUNTIME_FORCE_DOM_BOARD) return false;

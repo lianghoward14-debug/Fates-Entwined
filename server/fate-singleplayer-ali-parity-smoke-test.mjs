@@ -83,6 +83,6 @@ assert.equal(pendingAli._bh03HandLimitPendingUntilTurnStart, false,
 
 assert.match(index, /04-game-setup\.js\?v=1787630001/);
 assert.match(index, /05-gameplay-core\.js\?v=1787880001/);
-assert.match(index, /06-rendering-and-helpers\.js\?v=1787880001/);
+assert.match(index, /06-rendering-and-helpers\.js\?v=1787970001/);
 
 console.log('single-player Ali multiplayer-parity smoke passed');
