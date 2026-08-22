@@ -2014,6 +2014,11 @@ function highlightValidCells(card, extraClass) {
   const classes = ['placeable'];
   if(extraClass) classes.push(extraClass);
   const options = getValidPlacementOptionsForCard(card, G.currentPlayer);
+  // Render V2 rebuilds the board asynchronously, so persist the exact legal
+  // squares instead of relying only on CSS classes that a paint can replace.
+  G._singlePlayerPlacementOptions = options.map(function(option){
+    return {z:Number(option.z), r:Number(option.r), c:Number(option.c)};
+  });
   const tutorialTarget = typeof tutorialCurrentTargetSquare === 'function' ? tutorialCurrentTargetSquare() : null;
   options.forEach(function(o){
     const cellEl = document.querySelector(`#board .cell[data-z="${o.z}"][data-r="${o.r}"][data-c="${o.c}"]`);
@@ -2045,6 +2050,7 @@ function isBlockedByAlondra(z,r,c,player) {
 }
 
 function clearPlaceHighlights() {
+  if(typeof G !== 'undefined' && G) G._singlePlayerPlacementOptions = null;
   document.querySelectorAll('#board .cell.placeable,#board .cell.move-target,#board .cell.landscape-move-target,#board .cell.brave-horizons-target').forEach(el=>el.classList.remove('placeable','move-target','landscape-move-target','brave-horizons-target'));
   document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
@@ -6767,6 +6773,31 @@ function normalizeHenrySuppressionSquares(card) {
     }).slice(0, 2)
     : [];
 }
+
+function isActiveHenrySuppressionSquare(z, r, c, gameState) {
+  if(!Number.isInteger(z) || !Number.isInteger(r) || !Number.isInteger(c)) return false;
+  const state = gameState || (typeof G !== 'undefined' ? G : null);
+  if(!state || !Array.isArray(state.board)) return false;
+  const target = {z, r, c};
+  for(let hz = 0; hz < state.board.length; hz++) {
+    const zone = state.board[hz] || [];
+    for(let hr = 0; hr < zone.length; hr++) {
+      const row = zone[hr] || [];
+      for(let hc = 0; hc < row.length; hc++) {
+        const source = row[hc];
+        if(!source || !cardActsAsPassive(source, '21')) continue;
+        if(isFaceDownCard(source) || isDirectCardEffectSuppressed(source)) continue;
+        const sourcePos = {z:hz, r:hr, c:hc};
+        const selected = normalizeHenrySuppressionSquares(source);
+        if(selected.some(function(square){
+          return isSameBoardSquare(square, target) && isAdjacentBoardSquare(sourcePos, square);
+        })) return true;
+      }
+    }
+  }
+  return false;
+}
+window.isActiveHenrySuppressionSquare = isActiveHenrySuppressionSquare;
 
 function applyHenryDongSuppressionSquares(card, chosen, z, r, c) {
   if(!card) return false;

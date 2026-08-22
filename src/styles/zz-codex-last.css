@@ -24591,3 +24591,43 @@ html body #modal .modal.card-detail-modal .cd-pierogi-lifetime > span:last-child
   gap: .45rem;
   flex-wrap: wrap;
 }
+
+/* Henry Dong: identify selected empty squares without making them unplaceable.
+   Once occupied, the cell class is removed and the card keeps its normal visual. */
+html body #s-game .cell.henry-suppressed-empty{
+  background:rgba(142,18,28,.34)!important;
+  border:2px solid rgba(255,72,82,.88)!important;
+  box-shadow:inset 0 0 20px rgba(255,30,48,.24),0 0 12px rgba(255,42,58,.42)!important;
+}
+html body #s-game .cell.henry-suppressed-empty::after{
+  content:''!important;
+  position:absolute!important;
+  left:50%!important;
+  top:50%!important;
+  width:clamp(42px,62%,76px)!important;
+  aspect-ratio:1!important;
+  transform:translate(-50%,-50%)!important;
+  inset:auto!important;
+  z-index:4!important;
+  pointer-events:none!important;
+  border:0!important;
+  border-radius:0!important;
+  background:rgba(238,218,255,.96)!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='5.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29v-6a10 10 0 0 1 20 0v6'/%3E%3Crect x='18' y='29' width='28' height='20' rx='5'/%3E%3Cpath d='M27 39h10'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  filter:drop-shadow(0 2px 7px rgba(24,8,42,.72)) drop-shadow(0 0 9px rgba(255,72,82,.44))!important;
+}
+
+/* Four-digit Challenger ELO only: retain the normal size for shorter values. */
+html body #s-challenger #ch-elo-val.four-digit-elo{
+  position:relative!important;
+  left:-2px!important;
+  font-size:.95em!important;
+  letter-spacing:inherit!important;
+}
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
+  left:-2px!important;
+  font-size:clamp(2.65rem,3.15vw,3.85rem)!important;
+  transform:scale(.95)!important;
+  transform-origin:center center!important;
+}

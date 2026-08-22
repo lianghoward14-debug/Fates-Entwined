@@ -1183,6 +1183,7 @@ function appendBoardInteractionSignature(parts) {
   ['_boardTargeting','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving','_landscapeMoving','_busserMoving','_busserMovingCard'].forEach(k=>{
     if(G[k]) parts.push(k, safeInteractionStateSignature(G[k]));
   });
+  if(G._singlePlayerPlacementOptions) parts.push('singlePlayerPlacement', safeInteractionStateSignature(G._singlePlayerPlacementOptions));
   parts.push('extraRows', JSON.stringify(G.extraRows || []));
   parts.push('extraRowOwners', JSON.stringify(G.extraRowOwners || []));
   parts.push('extraCells', JSON.stringify(G.extraCells || []));
@@ -1191,6 +1192,7 @@ function appendBoardInteractionSignature(parts) {
 
 function getBoardCellStateSignature(z, r, c, card) {
   const block = (G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c; });
+  const henrySuppressed = !card && typeof isActiveHenrySuppressionSquare === 'function' && isActiveHenrySuppressionSquare(z, r, c, G);
   const fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
   let markState = '';
   if(r >= 3 && !fullExtraRow){
@@ -1204,6 +1206,7 @@ function getBoardCellStateSignature(z, r, c, card) {
     c >= 3 ? 1 : 0,
     block?.type === 'carolyn' ? 1 : 0,
     block?.type === 'zoe' ? 1 : 0,
+    henrySuppressed ? 1 : 0,
     markState
   ].join(':');
 }
@@ -1217,6 +1220,7 @@ function applyBoardCellStateClasses(cellEl, z, r, c, card) {
   cellEl.classList.toggle('blocked', !!block && block.type === 'carolyn');
   cellEl.classList.toggle('no-consolidate', !!block && block.type === 'zoe');
   cellEl.classList.toggle('extra-safe', c >= 3);
+  cellEl.classList.toggle('henry-suppressed-empty', !card && typeof isActiveHenrySuppressionSquare === 'function' && isActiveHenrySuppressionSquare(z, r, c, G));
   cellEl.classList.remove('mark-safe-square','mark-safe-choice','mark-safe-inactive');
   if(r >= 3 && !fullExtraRow){
     if(typeof isMarkSafeSquare === 'function' && isMarkSafeSquare(z,r,c)) cellEl.classList.add('mark-safe-square');
@@ -3102,14 +3106,16 @@ function beginLocalSetFromDeckCard(cardId, config) {
     if(typeof addCardToHand==='function') addCardToHand(cp, card, { announce:false });
     else G.players[cp].hand.push(card);
     closeModal();
+    if(typeof config.onCommitted === 'function') config.onCommitted(cp, card);
+    toast(config.readyMessage);
+    // Finish all state/UI rendering before arming destinations. Otherwise an
+    // asynchronous board paint can replace the cells that were just marked.
+    renderBoardActionForPlayer(cp, {hand:true, piles:true});
     if(typeof beginImmediateFreePlacement==='function') {
       beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo, {
         destinationUi:'highlighted-board'
       }));
     }
-    if(typeof config.onCommitted === 'function') config.onCommitted(cp, card);
-    toast(config.readyMessage);
-    renderBoardActionForPlayer(cp, {hand:true, piles:true});
   };
   if(typeof pickCardsVisual !== 'function') { commit(matches[0]); return; }
   pickCardsVisual(matches, {
@@ -3427,6 +3433,7 @@ function renderBoard() {
         const zoeBlocked = zoeBlockedCells.has(blockKey);
         const card=boardRow[c];
         cellEl.className='cell '+(card ? 'has-card' : 'cell-empty')+(carolynBlocked?' blocked':'')+(zoeBlocked?' no-consolidate':'');
+        cellEl.classList.toggle('henry-suppressed-empty', !card && typeof isActiveHenrySuppressionSquare === 'function' && isActiveHenrySuppressionSquare(z, r, c, G));
         if(c>=3) cellEl.classList.add('extra-safe');
         const fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
         if(r>=3 && !fullExtraRow){
@@ -3916,6 +3923,23 @@ function getActiveHandLimit(player) {
   }) ? 6 : 12;
 }
 
+function isAliPendingTransferForOriginalOwner(card, player) {
+  return !!(card
+    && String(card.id || '') === 'bh03'
+    && card._bh03TransferPending === true
+    && card._bh03OpponentHand !== true
+    && Number(card.owner) === Number(player));
+}
+
+function getHandLimitCount(player) {
+  const hand = G && G.players && G.players[player] && Array.isArray(G.players[player].hand)
+    ? G.players[player].hand
+    : [];
+  return hand.reduce(function(count, card){
+    return count + (isAliPendingTransferForOriginalOwner(card, player) ? 0 : 1);
+  }, 0);
+}
+
 function getCardRarityLabel(rarity) {
   const key = String(rarity || '').toLowerCase();
   const labels = {
@@ -3937,12 +3961,12 @@ function enforceHandLimit(player) {
   if(Number(G._deferHandLimitEnforcementForPlayer) === Number(player)) return false;
   const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
-  if(hand.length <= handLimit) return false;
+  if(getHandLimitCount(player) <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
     if(G._onlineRoomCode) return false;
-    while(G.players[player].hand.length > handLimit){
+    while(getHandLimitCount(player) > handLimit){
       const discardIndex = G.players[player].hand.map(function(card, index){ return {card:card,index:index}; }).reverse().find(function(entry){
-        return !(entry.card && String(entry.card.id || '') === 'bh03' && entry.card._bh03OpponentHand === true);
+        return !(entry.card && String(entry.card.id || '') === 'bh03' && (entry.card._bh03OpponentHand === true || entry.card._bh03TransferPending === true));
       });
       if(!discardIndex) break;
       const card = G.players[player].hand.splice(discardIndex.index, 1)[0];
@@ -3986,15 +4010,18 @@ function openHandLimitDiscardModal(player) {
   const p = G.players[player];
   if(!p || !Array.isArray(p.hand)) return;
   const handLimit = getActiveHandLimit(player);
-  const needed = Math.max(0, p.hand.length - handLimit);
+  const countedHandSize = getHandLimitCount(player);
+  const needed = Math.max(0, countedHandSize - handLimit);
   const handSignature = p.hand.map(function(card){ return String(card && card.iid || ''); }).join('|');
   G._handLimitDiscard = { player, handLimit, needed, handSignature };
   const viewer = getPerspectivePlayerIndex();
   const isViewer = player === viewer;
-  const cards = p.hand.filter(function(card){ return !(card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true); });
+  const cards = p.hand.filter(function(card){
+    return !(card && String(card.id || '') === 'bh03' && (card._bh03OpponentHand === true || card._bh03TransferPending === true));
+  });
   const bodyHtml = `
     <div class="hand-limit-discard" data-player="${player}" data-hand-limit="${handLimit}" data-needed="${needed}" data-hand-signature="${escapePlacementAnimHtml(handSignature)}">
-      <div class="hand-limit-copy">Your hand has ${p.hand.length} cards. Discard ${needed} card${needed===1?'':'s'} to return to ${handLimit}.</div>
+      <div class="hand-limit-copy">Your hand has ${countedHandSize} cards. Discard ${needed} card${needed===1?'':'s'} to return to ${handLimit}.</div>
       <div class="hand-limit-count">0/${needed} selected</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
@@ -4009,7 +4036,7 @@ function openHandLimitDiscardModal(player) {
     </div>`;
   showModal('Discard Down to ' + handLimit, bodyHtml, [{label:'Discard Selected', pri:true, action:function(){
     const selectedIids = Array.from(document.querySelectorAll('#modal .hand-limit-card.is-selected')).map(function(el){ return el.dataset.iid; }).filter(Boolean);
-    const excess = Math.max(0, (G.players[player].hand || []).length - handLimit);
+    const excess = Math.max(0, getHandLimitCount(player) - handLimit);
     if(excess !== needed){
       toast('Your hand changed while choosing cards. The discard choices were refreshed.');
       reconcileHandLimitDiscardModal(player);
@@ -4018,12 +4045,12 @@ function openHandLimitDiscardModal(player) {
     if(selectedIids.length !== excess){ toast('Select exactly ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
     const applyDiscard = function(){
       const liveHand = G.players?.[player]?.hand || [];
-      const liveExcess = Math.max(0, liveHand.length - getActiveHandLimit(player));
+      const liveExcess = Math.max(0, getHandLimitCount(player) - getActiveHandLimit(player));
       const selectedCards = selectedIids.map(function(iid){
         return liveHand.find(function(card){ return card && String(card.iid || '') === String(iid); }) || null;
       });
       if(liveExcess !== selectedIids.length || selectedCards.some(function(card){
-        return !card || (String(card.id || '') === 'bh03' && card._bh03OpponentHand === true);
+        return !card || (String(card.id || '') === 'bh03' && (card._bh03OpponentHand === true || card._bh03TransferPending === true));
       })) return false;
       selectedIids.forEach(function(iid){
         const idx = G.players[player].hand.findIndex(function(card){ return card && String(card.iid || '') === String(iid); });
@@ -4037,7 +4064,7 @@ function openHandLimitDiscardModal(player) {
       closeModal();
       renderHand();
       if(typeof updateTopBar === 'function') updateTopBar();
-      if((G.players[player].hand || []).length > getActiveHandLimit(player)) enforceHandLimit(player);
+      if(getHandLimitCount(player) > getActiveHandLimit(player)) enforceHandLimit(player);
       return true;
     };
     if(typeof window.fateResolveOnlineHandLimitDiscard === 'function' && window.fateResolveOnlineHandLimitDiscard(player, {
@@ -4084,7 +4111,7 @@ function reconcileHandLimitDiscardModal(player) {
   const shell = modal && modal.classList.contains('on') ? modal.querySelector('.hand-limit-discard') : null;
   const hand = Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
   const handLimit = getActiveHandLimit(player);
-  const needed = Math.max(0, hand.length - handLimit);
+  const needed = Math.max(0, getHandLimitCount(player) - handLimit);
   const handSignature = hand.map(function(card){ return String(card && card.iid || ''); }).join('|');
   if(!shell){
     if(needed <= 0 && G._handLimitDiscard && G._handLimitDiscard.player === player) G._handLimitDiscard = null;
@@ -4102,6 +4129,7 @@ function reconcileHandLimitDiscardModal(player) {
 }
 window.enforceHandLimit = enforceHandLimit;
 window.reconcileHandLimitDiscardModal = reconcileHandLimitDiscardModal;
+window.getHandLimitCount = getHandLimitCount;
 
 function canPlayCard(card) {
   if(G.phase!=='main') return false;

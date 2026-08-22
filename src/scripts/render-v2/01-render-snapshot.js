@@ -313,6 +313,7 @@
             blocked:block ? {type:block.type || 'blocked', owner:block.owner} : null,
             markSafe,
             markSafeChoice:r === markChoiceRow && !markSafe && !card,
+            henrySuppressed:!card && typeof window.isActiveHenrySuppressionSquare === 'function' && window.isActiveHenrySuppressionSquare(z, r, c, g),
             card:cardPublicState(card, viewer, {boardPos:{z,r,c}, blocked:block})
           });
         }

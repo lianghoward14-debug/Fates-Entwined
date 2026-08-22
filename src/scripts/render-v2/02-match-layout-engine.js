@@ -423,6 +423,7 @@
             blocked:cell.blocked || null,
             markSafe:!!cell.markSafe,
             markSafeChoice:!!cell.markSafeChoice,
+            henrySuppressed:!!cell.henrySuppressed,
             extra:!!cell.extra,
             card:cell.card || null
           };

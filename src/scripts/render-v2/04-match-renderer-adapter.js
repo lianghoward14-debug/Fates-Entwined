@@ -1943,6 +1943,22 @@
     return !getBoardCell(z, r, c) && !isCellBlockedForTarget(z, r, c);
   }
 
+  function drawHenrySuppressionSquare(ctx, r){
+    if(!ctx || !r) return;
+    ctx.save();
+    roundedPath(ctx, r.x + 1, r.y + 1, Math.max(0, r.w - 2), Math.max(0, r.h - 2), 5);
+    ctx.fillStyle = 'rgba(142,18,28,.34)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,72,82,.88)';
+    ctx.shadowColor = 'rgba(255,42,58,.52)';
+    ctx.shadowBlur = Math.max(6, Math.min(15, r.w * .12));
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    drawStatusBadge(ctx, r, 'suppressed');
+    ctx.restore();
+  }
+
   function selectionOptionForCell(mv, z, r, c){
     if(!mv || !Array.isArray(mv.options)) return null;
     if(selectionOptionCacheState !== mv){
@@ -1964,7 +1980,8 @@
     // Authoritative placement/movement choices live outside the legacy
     // single-player targeting fields. Carry those exact server-issued squares
     // into the production canvas so a legal choice is visibly clickable.
-    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)) return true;
+    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
+      || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return true;
     if(G.blockingCell){
       const rawBlockZone = typeof window !== 'undefined' ? window._blockZone : null;
       const blockType = Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe';
@@ -2032,7 +2049,8 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
-    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)) return 'move';
+    if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
+      || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return 'move';
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
     for(let i = 0; i < optionStates.length; i++){
       const mv = optionStates[i];
@@ -4473,6 +4491,9 @@
           ctx.restore();
           if(cell.blocked){
             drawBlockOverlay(ctx, cr, cell.blocked);
+          }
+          if(cell.henrySuppressed){
+            drawHenrySuppressionSquare(ctx, cr);
           }
           const cellSelectionKind = getSelectionTargetKind(cell);
           if(cellSelectionKind) drawSquareSelectionCue(ctx, cr, cellSelectionKind);

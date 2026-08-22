@@ -51,6 +51,13 @@ assert.match(online, /function phase7BeginSetFromDeck[\s\S]{0,5200}phase7BeginDe
   'multiplayer direct deck sets must continue from card choice into its live-board destination flow');
 assert.match(online, /function phase7BeginDestinationChoice[\s\S]{0,1500}closeModal[\s\S]{0,900}phase7HighlightDestinations\(choices\)/,
   'the multiplayer destination flow must close the picker and highlight legal live-board squares');
+assert.match(rendering, /function beginLocalSetFromDeckCard[\s\S]{0,1500}renderBoardActionForPlayer\(cp,[\s\S]{0,300}beginImmediateFreePlacement\(cp, card/,
+  'single-player must finish its post-selection render before arming deck-set destinations');
+assert.match(gameplay, /function highlightValidCells[\s\S]{0,500}_singlePlayerPlacementOptions\s*=\s*options\.map/,
+  'single-player must persist legal placement squares for the canvas renderer');
+assert.match(online + '\n' + fs.readFileSync(new URL('../src/scripts/render-v2/04-match-renderer-adapter.js', import.meta.url), 'utf8'),
+  /squareMatchesOption\(G\._singlePlayerPlacementOptions, z, r, c\)/,
+  'Render V2 must paint persisted single-player placement destinations');
 
 assert.match(
   gameplay,
