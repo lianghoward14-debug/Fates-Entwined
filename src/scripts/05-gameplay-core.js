@@ -5080,6 +5080,9 @@ function markCardSetTurn(card, player) {
   if(!card || typeof G === 'undefined' || !G) return;
   card._setTurn = G.turn;
   card._setOwner = typeof player === 'number' ? player : (typeof card.owner === 'number' ? card.owner : G.currentPlayer);
+  // Christopher's placement initializes his two player-timed uses. It does not
+  // arm the next draw; that remains exclusive to the manual activation button.
+  if(getCardRuntimeEffectId(card) === '40' && !Number.isFinite(Number(card.usesLeft))) card.usesLeft = 2;
   recordWojciechPlacementForTurn(card, card._setOwner);
 }
 
@@ -5940,6 +5943,8 @@ async function resolveTaylorCopiedEffect(taylor, z, r, c, selected) {
     copiedSupporter:taylor._ledgerCopiedSupporterEffect
   };
   const previousSuppressPrompt = !!G._suppressEffectPrompt;
+  const copiedEffectIsPlayerTimed = typeof window.fateEffectRequiresManualActivationId === 'function'
+    && window.fateEffectRequiresManualActivationId(selected);
   G._suppressEffectPrompt = true;
   try {
     taylor.id = String(selected.id || '');
@@ -5947,7 +5952,9 @@ async function resolveTaylorCopiedEffect(taylor, z, r, c, selected) {
     taylor.effectUsedInitial = false;
     taylor._effectTurnLocked = false;
     taylor.whenSetActivated = false;
-    if(taylor.type === 'Supporter') {
+    if(copiedEffectIsPlayerTimed) {
+      if(taylor.id === '40' && !Number.isFinite(Number(taylor.usesLeft))) taylor.usesLeft = 2;
+    } else if(taylor.type === 'Supporter') {
       taylor._ledgerCopiedSupporterEffect = true;
       await runWhenSetEffect(taylor, z, r, c);
     } else if(INITIAL_SET_INITIATOR_IDS.has(taylor.id)) {
@@ -5960,8 +5967,8 @@ async function resolveTaylorCopiedEffect(taylor, z, r, c, selected) {
   } finally {
     taylor.id = original.id;
     taylor.type = original.type;
-    taylor.effectUsedInitial = true;
-    taylor._effectTurnLocked = true;
+    taylor.effectUsedInitial = !copiedEffectIsPlayerTimed;
+    taylor._effectTurnLocked = !copiedEffectIsPlayerTimed;
     taylor.whenSetActivated = original.whenSetActivated;
     if(original.copiedSupporter === undefined) delete taylor._ledgerCopiedSupporterEffect;
     else taylor._ledgerCopiedSupporterEffect = original.copiedSupporter;
@@ -9349,4 +9356,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh25']);

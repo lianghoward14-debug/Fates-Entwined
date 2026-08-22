@@ -1367,7 +1367,9 @@
         document.body.classList.remove('ai-preset-overlay-open','choose-deck-open');
       }
       const modal = document.getElementById('modal');
-      if(modal) {
+      const mandatoryHandLimitOwnsModal = typeof window.isAuthoritativeLocalHandLimitPending === 'function'
+        && window.isAuthoritativeLocalHandLimitPending();
+      if(modal && !mandatoryHandLimitOwnsModal) {
         modal.classList.remove('on');
         delete modal.dataset.chooseDeckOpen;
       }

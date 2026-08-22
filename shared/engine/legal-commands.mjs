@@ -424,6 +424,7 @@ export function legalCommandTemplates(state, playerIndex){
         commands.push({
           type:'ACTIVATE_EFFECT',
           cardId:runtimeRuleId(entry.card),
+          manualOnly:rule.manualOnly === true,
           payload:{sourceIid:entry.card.iid}
         });
       }

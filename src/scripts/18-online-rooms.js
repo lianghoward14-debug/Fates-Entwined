@@ -3644,6 +3644,7 @@
     // These are repeatable player-timed abilities. They must never be fired by
     // the automatic set-resolution path: the player chooses when/if to spend
     // a use. Movement and flip families retain their existing buttons.
+    if(command?.manualOnly === true) return true;
     const sourceIid = String(command?.payload?.sourceIid || card?.iid || '');
     const projected = phase7FindRawProjectedCard(phase7CurrentUiSession.view, sourceIid);
     const privateCard = (phase7CurrentUiSession.view?.privateActionCards || []).find(function(candidate){
@@ -4886,7 +4887,14 @@
           // synchronous close hook can request a UI resync; without this order
           // it rebuilt the picker and made the button appear inert.
           const submission = phase7SubmitCommand(command);
-          if(typeof window.closeModal === 'function') closeModal({forceHandLimitClose:true, deferQueuedModals:true});
+          if(typeof window.allowAuthoritativeHandLimitModalClose === 'function'){
+            window.allowAuthoritativeHandLimitModalClose(2200);
+          }
+          if(typeof window.closeModal === 'function') closeModal({
+            forceHandLimitClose:true,
+            authoritativeHandLimitResolved:true,
+            deferQueuedModals:true
+          });
           return submission;
         }
       }], {immediate:true});
@@ -6602,6 +6610,7 @@
     g._onlineSeed = String(view.state.matchId || 'PHASE7');
     g._phase7PendingPrompt = cloneOnlinePlain(view.state.pendingPrompt || null);
     g._phase7PendingHandLimit = cloneOnlinePlain(view.state.pendingHandLimit || null);
+    if(!g._phase7PendingHandLimit) delete g._authoritativeHandLimitModalCloseAllowedUntil;
     g._phase7Outcome = cloneOnlinePlain(view.state.outcome || null);
     const ownsMandatoryHandLimit = g._phase7PendingHandLimit
       && Number(g._phase7PendingHandLimit.playerIndex) === localIndex;

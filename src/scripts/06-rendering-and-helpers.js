@@ -6864,6 +6864,58 @@ function isHandLimitDiscardModalOpen() {
   return !!(modal && modal.classList.contains('on') && modal.querySelector('.hand-limit-discard'));
 }
 
+function isAuthoritativeLocalHandLimitPending() {
+  if(typeof G === 'undefined' || !G || G._phase7CurrentMultiplayer !== true) return false;
+  const pending = G._phase7PendingHandLimit || null;
+  const localPlayer = Number.isInteger(Number(G._onlinePlayerIndex))
+    ? Number(G._onlinePlayerIndex)
+    : Number(G.localPlayerIndex);
+  return !!(pending && Number(pending.playerIndex) === localPlayer);
+}
+function authoritativeHandLimitCloseIsAllowed() {
+  return Number((typeof G !== 'undefined' && G && G._authoritativeHandLimitModalCloseAllowedUntil) || 0) > Date.now();
+}
+function allowAuthoritativeHandLimitModalClose(durationMs) {
+  if(typeof G === 'undefined' || !G) return false;
+  const duration = Math.max(250, Number(durationMs) || 2200);
+  G._authoritativeHandLimitModalCloseAllowedUntil = Date.now() + duration;
+  clearTimeout(G._authoritativeHandLimitModalCloseTimer);
+  G._authoritativeHandLimitModalCloseTimer = setTimeout(function(){
+    if(typeof G === 'undefined' || !G) return;
+    delete G._authoritativeHandLimitModalCloseAllowedUntil;
+    G._authoritativeHandLimitModalCloseTimer = null;
+    if(isAuthoritativeLocalHandLimitPending()
+      && typeof window.fatePhase7EnsureHandLimitPickerVisible === 'function'){
+      window.fatePhase7EnsureHandLimitPickerVisible();
+    }
+  }, duration + 40);
+  return true;
+}
+window.isAuthoritativeLocalHandLimitPending = isAuthoritativeLocalHandLimitPending;
+window.allowAuthoritativeHandLimitModalClose = allowAuthoritativeHandLimitModalClose;
+
+// Some startup and screen cleanup code predates authoritative mandatory
+// choices and removes the shared modal class directly. Restore ownership in
+// the same microtask, before the browser can paint a flash or lose clicks.
+if(typeof MutationObserver !== 'undefined'){
+  const installAuthoritativeHandLimitModalGuard = function(){
+    const modal = document.getElementById('modal');
+    if(!modal || modal.dataset.authoritativeHandLimitGuard === '1') return;
+    modal.dataset.authoritativeHandLimitGuard = '1';
+    new MutationObserver(function(){
+      if(!modal.classList.contains('on')
+        && modal.querySelector('.phase7-hand-limit-discard')
+        && isAuthoritativeLocalHandLimitPending()
+        && !authoritativeHandLimitCloseIsAllowed()){
+        modal.classList.add('on');
+        if(document.body) document.body.classList.add('hand-limit-discard-active');
+      }
+    }).observe(modal, {attributes:true, attributeFilter:['class']});
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installAuthoritativeHandLimitModalGuard, {once:true});
+  else installAuthoritativeHandLimitModalGuard();
+}
+
 function queueModalBehindHandLimit(title, bodyHtml, actions, opts) {
   if(typeof G === 'undefined' || !G) return false;
   if(!Array.isArray(G._afterHandLimitModalQueue)) G._afterHandLimitModalQueue = [];
@@ -6975,6 +7027,10 @@ function showModal(title, bodyHtml, actions, opts) {
 function closeModal(opts) {
   const modal = document.getElementById('modal');
   const closingHandLimit = isHandLimitDiscardModalOpen();
+  if(closingHandLimit
+    && isAuthoritativeLocalHandLimitPending()
+    && !authoritativeHandLimitCloseIsAllowed()
+    && !(opts && opts.authoritativeHandLimitResolved)) return false;
   if(closingHandLimit && !(opts && opts.forceHandLimitClose)) return false;
   modal.classList.remove('on');
   if(closingHandLimit && document.body) document.body.classList.remove('hand-limit-discard-active');
