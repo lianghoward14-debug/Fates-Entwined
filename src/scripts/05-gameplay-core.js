@@ -1216,6 +1216,8 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  const aliHandLimitActivated = activateAliIndomitableHandLimitForPlayer(G.currentPlayer);
+  if(aliHandLimitActivated) G._deferHandLimitEnforcementForPlayer = G.currentPlayer;
   if(G._onlineRoomCode){
     G._turnStartedAt = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
       ? window.fateAuthorityServerNow()
@@ -1384,6 +1386,19 @@ async function nextPlayerTurn() {
   applyContinuousEffects();
 
     renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
+
+  // Ali's six-card rule begins at this turn start, but its mandatory discard
+  // window must use the completed post-draw hand. Opening it before drawCard()
+  // made the draw reconcile and briefly destroy the modal while actions stayed
+  // locked. Open it once, automatically, after the final hand is rendered.
+  if(aliHandLimitActivated){
+    delete G._deferHandLimitEnforcementForPlayer;
+    const openAliHandLimit = function(){
+      if(typeof enforceHandLimit === 'function') enforceHandLimit(G.currentPlayer);
+    };
+    if(typeof window.fateAfterPlacementPaint === 'function') window.fateAfterPlacementPaint(openAliHandLimit);
+    else setTimeout(openAliHandLimit, 0);
+  }
 
   if(typeof tutorialOnTurnStart === 'function') tutorialOnTurnStart(G.currentPlayer);
 
@@ -1762,10 +1777,34 @@ window.syncTurnTimerToCurrentLimit = syncTurnTimerToCurrentLimit;
 //  CARD PLACEMENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function showAliIndomitableResolvingBanner() {
-  const message = 'Wait Until the First Set';
-  if(typeof toast === 'function') toast(message, 3200);
+  if(typeof window.showAliIndomitableTransferPendingBanner === 'function') {
+    window.showAliIndomitableTransferPendingBanner();
+    return;
+  }
+  if(typeof toast === 'function') toast('Ali is being transferred to the opponent. Wait about 5 seconds.', 3200);
 }
 window.showAliIndomitableResolvingBanner = showAliIndomitableResolvingBanner;
+
+function activateAliIndomitableHandLimitForPlayer(player) {
+  if(!G || !Array.isArray(G.players)) return false;
+  let activated = false;
+  G.players.forEach(function(holder){
+    const hand = holder && Array.isArray(holder.hand) ? holder.hand : [];
+    hand.forEach(function(card){
+      if(!card || String(card.id || '') !== 'bh03' || card._bh03HandLimitPendingUntilTurnStart !== true) return;
+      let recipient = Number(card._bh03HandLimitRecipient);
+      if(recipient !== 0 && recipient !== 1) {
+        recipient = card._bh03OpponentHand === true ? Number(card.owner) : 1 - Number(card.owner);
+      }
+      if(recipient !== Number(player)) return;
+      card._bh03HandLimitRecipient = recipient;
+      card._bh03HandLimitPendingUntilTurnStart = false;
+      activated = true;
+    });
+  });
+  return activated;
+}
+window.activateAliIndomitableHandLimitForPlayer = activateAliIndomitableHandLimitForPlayer;
 
 function selectHandCard(idx) {
   if(G.phase!=='main') return;
@@ -3284,7 +3323,6 @@ async function clickCell(z,r,c) {
     if(isLinaFree || freePlacementCinematicKind) {
       inst._serverFreePlacementConsumed = inst._serverFreePlacementConsumed || (card._serverFreePlacementConsumed || freePlacementCinematicKind || 'linaFreeSet');
     }
-    requestCharacterSetCinematic(inst, {z:z, r:r, c:c, delayMs:90, source:freePlacementCinematicKind || 'normal-set'});
   }
   markCommit('characterSetCinematic');
 
@@ -3368,7 +3406,9 @@ async function clickCell(z,r,c) {
 
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     markCommit('continuousEffects');
-    if(typeof renderBoardActionForPlayer === 'function') {
+    if(typeof window.renderPlacementCommitImmediately === 'function') {
+      window.renderPlacementCommitImmediately(G.currentPlayer, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
+    } else if(typeof renderBoardActionForPlayer === 'function') {
       renderBoardActionForPlayer(G.currentPlayer, {hand:true, blocks:false, topbar:false, effects:false, hover:false});
     } else {
       renderGame({board:true, hand:true, scores:true});
@@ -3379,7 +3419,20 @@ async function clickCell(z,r,c) {
     // cinematic can begin. This guard is used by both normal single-player and
     // the current multiplayer presentation queue.
     G._placementUiLockUntil = Math.max(Number(G._placementUiLockUntil) || 0, Date.now() + 240);
-    requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, z, r, c));
+    const beginPostPlacement = function(){
+      if(shouldPlayCharacterSetCinematic){
+        requestCharacterSetCinematic(inst, {
+          z:z,
+          r:r,
+          c:c,
+          delayMs:0,
+          source:freePlacementCinematicKind || 'normal-set'
+        });
+      }
+      requestAnimationFrame(() => resolveSetCardAfterPlacement(inst, z, r, c));
+    };
+    if(typeof window.fateAfterPlacementPaint === 'function') window.fateAfterPlacementPaint(beginPostPlacement);
+    else requestAnimationFrame(beginPostPlacement);
     markCommit('scheduleWhenSet');
   }
 
@@ -3602,12 +3655,12 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
   if(idx === -1) return;
   G.selectedHandCard = idx;
   clearPlaceHighlights();
-  // Current authoritative multiplayer resolves effect-created free sets with
-  // the production board-destination window. Direct deck sets (Polish Army and
-  // Maja) intentionally retain its highlighted-board destination flow.
-  const useDestinationPicker = info.destinationUi !== 'highlighted-board'
-    && !(G && G._onlineRoomCode);
-  if(useDestinationPicker && openImmediateFreePlacementDestinationPicker(player, card, message, info)) return;
+  // Single-player free sets use the same zone-and-square destination window
+  // regardless of whether the card came from hand, deck, or discard.
+  if(!(G && G._onlineRoomCode)) {
+    openImmediateFreePlacementDestinationPicker(player, card, message, info);
+    return;
+  }
   G.placing = true;
   if(!highlightValidCells(card, 'free-placement-choice')){
     G.selectedHandCard = null;
@@ -3623,6 +3676,8 @@ async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
   if(String(inst.id || '') === 'bh03') {
     delete inst._bh03OpponentHand;
     delete inst._bh03TransferredFrom;
+    delete inst._bh03HandLimitRecipient;
+    delete inst._bh03HandLimitPendingUntilTurnStart;
     inst.immuneFlag = false;
     inst.cantBeReduced = false;
   }
@@ -5127,6 +5182,8 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   if(String(inst.id || '') === 'bh03') {
     delete inst._bh03OpponentHand;
     delete inst._bh03TransferredFrom;
+    delete inst._bh03HandLimitRecipient;
+    delete inst._bh03HandLimitPendingUntilTurnStart;
     inst.immuneFlag = false;
     inst.cantBeReduced = false;
   }

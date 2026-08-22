@@ -41,7 +41,7 @@ assert.match(
 );
 assert.match(
   legacyRendering,
-  /function getActiveHandLimit[\s\S]*_bh03OpponentHand === true; \}\) \? 6 : 12/,
+  /function getActiveHandLimit[\s\S]*_bh03OpponentHand === true[\s\S]*_bh03HandLimitPendingUntilTurnStart !== true[\s\S]*\? 6 : 12/,
   'legacy hand limits must remain 12 normally and 6 under opponent Ali'
 );
 

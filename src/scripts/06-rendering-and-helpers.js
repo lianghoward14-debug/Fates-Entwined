@@ -168,6 +168,49 @@ function renderBoardActionForPlayer(player, options) {
   }
   renderGame(parts);
 }
+// Placement is a rules commit, not a presentation effect. Paint the new board
+// state synchronously so a picker, reaction, or cinematic can never win the
+// frame race against the card that caused it.
+function renderPlacementCommitImmediately(player, options) {
+  const parts = getBoardActionRenderPartsForPlayer(player, Object.assign({
+    hand:true,
+    scores:true,
+    effects:false,
+    hover:false
+  }, options || {}));
+  if(typeof scheduleBattleOfPellaThresholdCheck === 'function') scheduleBattleOfPellaThresholdCheck();
+  if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()
+    && window.FateMatchRendererAdapter
+    && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+    const source = 'board-action-fast-path:placement-commit,' + renderPartSource(parts);
+    const commitRenderNow = (window.performance && performance.now) ? performance.now() : Date.now();
+    window.__fateAllowActionCommitRenderUntil = Math.max(
+      Number(window.__fateAllowActionCommitRenderUntil) || 0,
+      commitRenderNow + 240
+    );
+    window.FateMatchRendererAdapter.renderFromGameState({source:source});
+    if(parts.topbar && typeof updateTopBar === 'function') updateTopBar();
+    if(parts.landscape && typeof renderLandscapePanel === 'function') renderLandscapePanel();
+    return true;
+  }
+  renderGameImmediate(parts);
+  return true;
+}
+function afterPlacementPaint(callback) {
+  if(typeof callback !== 'function') return false;
+  if(typeof requestAnimationFrame !== 'function') {
+    setTimeout(callback, 0);
+    return true;
+  }
+  // The first callback is before the browser's next paint. The second runs
+  // after that committed board frame has had an opportunity to be displayed.
+  requestAnimationFrame(function(){ requestAnimationFrame(callback); });
+  return true;
+}
+if(typeof window !== 'undefined') {
+  window.renderPlacementCommitImmediately = renderPlacementCommitImmediately;
+  window.fateAfterPlacementPaint = afterPlacementPaint;
+}
 function shouldDeferGameRenderForPointer(dirty) {
   if(!_pointerDown) return false;
   const parts = dirty || {};
@@ -3060,9 +3103,7 @@ function beginLocalSetFromDeckCard(cardId, config) {
     else G.players[cp].hand.push(card);
     closeModal();
     if(typeof beginImmediateFreePlacement==='function') {
-      beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo, {
-        destinationUi:'highlighted-board'
-      }));
+      beginImmediateFreePlacement(cp, card, config.placementMessage, Object.assign({}, config.effectInfo));
     }
     if(typeof config.onCommitted === 'function') config.onCommitted(cp, card);
     toast(config.readyMessage);
@@ -3865,7 +3906,12 @@ function renderHand() {
 
 function getActiveHandLimit(player) {
   const hand = G && G.players && G.players[player] && Array.isArray(G.players[player].hand) ? G.players[player].hand : [];
-  return hand.some(function(card){ return card && String(card.id || '') === 'bh03' && card._bh03OpponentHand === true; }) ? 6 : 12;
+  return hand.some(function(card){
+    return card
+      && String(card.id || '') === 'bh03'
+      && card._bh03OpponentHand === true
+      && card._bh03HandLimitPendingUntilTurnStart !== true;
+  }) ? 6 : 12;
 }
 
 function getCardRarityLabel(rarity) {
@@ -3886,6 +3932,7 @@ function enforceHandLimit(player) {
   // Phase 7 owns this requirement as an exact server command. Its UI bridge
   // renders the authoritative picker; the legacy modal must never race it.
   if(G._phase7CurrentMultiplayer === true) return false;
+  if(Number(G._deferHandLimitEnforcementForPlayer) === Number(player)) return false;
   const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
   if(hand.length <= handLimit) return false;
@@ -4852,7 +4899,7 @@ function getTopBarEffectsSourceSignature() {
           handBits.push(['guerilla', holder, c.iid || '', c.guerilla_owner ?? '', c.guerilla_turnsLeft ?? 0].join(':'));
         }
         if(String(c.id || '') === 'bh03' && c._bh03OpponentHand === true) {
-          handBits.push(['ali', holder, c.iid || '', c._bh03TransferredFrom ?? ''].join(':'));
+          handBits.push(['ali', holder, c.iid || '', c._bh03TransferredFrom ?? '', c._bh03HandLimitPendingUntilTurnStart === true ? 1 : 0].join(':'));
         }
       });
     });
@@ -5196,12 +5243,13 @@ function renderTopbarEffects() {
       if(!transferredAlis.length) return;
       const sourceOwner = coerceStatusOwner(transferredAlis[0]._bh03TransferredFrom, 1 - holder);
       const count = transferredAlis.length;
+      const handLimitActive = transferredAlis.some(function(c){ return c._bh03HandLimitPendingUntilTurnStart !== true; });
       allEffects.push({
         icon:getStatusEffectIcon('ali_indomitable'),
         label:aliCard ? aliCard.ability : 'He, Who is Unyielding',
         cardName:aliCard ? aliCard.name : 'Ali, The Indomitable',
         cardAbility:aliCard ? aliCard.ability : 'He, Who is Unyielding',
-        cardEffect:(count > 1 ? count + ' copies of Ali are' : 'Ali is') + ' in the opponent\'s hand, immune to all effects. That hand cannot exceed 6 cards. This status remains until ' + (count > 1 ? 'they are' : 'he is') + ' set.',
+        cardEffect:(count > 1 ? count + ' copies of Ali are' : 'Ali is') + ' in the opponent\'s hand, immune to all effects. ' + (handLimitActive ? 'That hand cannot exceed 6 cards.' : 'The 6-card hand limit begins at that player\'s next turn start.') + ' This status remains until ' + (count > 1 ? 'they are' : 'he is') + ' set.',
         owner:sourceOwner,
         extraClass:'effect-pill-ali',
         effectInstanceCount:count,

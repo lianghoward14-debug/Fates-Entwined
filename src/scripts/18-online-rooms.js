@@ -4705,7 +4705,9 @@
         return;
       }
       const modal = document.getElementById('modal');
-      const shell = modal?.querySelector?.('.phase7-hand-limit-discard');
+      const shell = modal?.classList?.contains('on')
+        ? modal.querySelector?.('.phase7-hand-limit-discard')
+        : null;
       const confirm = Array.from(modal?.querySelectorAll?.('#modal-acts button') || []).find(function(button){
         return String(button.textContent || '').trim().toLowerCase() === 'discard selected';
       });
@@ -5756,6 +5758,16 @@
     const preview = phase7BuildCardSetPresentationPreview(view, setEvents);
     if(preview){
       phase7CommitCurrentView(preview, 'Phase 7 authoritative placement preview');
+      if(typeof window.renderPlacementCommitImmediately === 'function'){
+        window.renderPlacementCommitImmediately(Number(view.playerIndex), {
+          hand:true,
+          bothHands:true,
+          blocks:false,
+          topbar:false,
+          effects:false,
+          hover:false
+        });
+      }
       const g = gameState();
       if(g) g._placementUiLockUntil = Math.max(Number(g._placementUiLockUntil) || 0, Date.now() + 140);
       // Let the shipping renderer paint the placed card before an activation
@@ -6591,6 +6603,23 @@
     g._phase7PendingPrompt = cloneOnlinePlain(view.state.pendingPrompt || null);
     g._phase7PendingHandLimit = cloneOnlinePlain(view.state.pendingHandLimit || null);
     g._phase7Outcome = cloneOnlinePlain(view.state.outcome || null);
+    const ownsMandatoryHandLimit = g._phase7PendingHandLimit
+      && Number(g._phase7PendingHandLimit.playerIndex) === localIndex;
+    if(ownsMandatoryHandLimit){
+      const handLimitMatchId = String(view.state.matchId || '');
+      const handLimitRevision = Number(view.revision ?? view.state.revision ?? -1);
+      setTimeout(function(){
+        const latest = phase7CurrentUiSession.view;
+        if(String(latest?.state?.matchId || '') !== handLimitMatchId
+          || Number(latest?.revision ?? latest?.state?.revision ?? -2) !== handLimitRevision
+          || !latest?.state?.pendingHandLimit) return;
+        // This mandatory picker is gameplay state, so it opens without a hand
+        // click. If presentation is still draining, the normal sync loop will
+        // mount it immediately when that gate clears.
+        if(phase7CurrentUiSession.presentationBusy) phase7SyncInteractionUi();
+        else phase7EnsureHandLimitPickerVisible();
+      }, 0);
+    }
     if(String(view.state.phase || '') === 'coin'){
       phase7EnsureCoinPresentation(view);
     }
@@ -6846,6 +6875,27 @@
     const unseenBatch = !!(batchId && events.length && !phase7CurrentUiSession.seenPresentationBatchIds.has(batchId));
     const hasCommittedView = !!phase7CurrentUiSession.view?.state;
     if(unseenBatch) phase7RememberPresentationBatch(batchId);
+
+    // A CARD_SET is visible state, even while an older cinematic or picker is
+    // still draining. Commit its placement-only preview at snapshot arrival so
+    // every Character and Supporter appears on the board immediately. The full
+    // authoritative view and its prompts remain gated by the presentation queue.
+    if(unseenBatch && hasCommittedView){
+      const placementPreview = phase7BuildCardSetPresentationPreview(view, events);
+      if(placementPreview){
+        phase7CommitCurrentView(placementPreview, 'Phase 7 immediate authoritative placement');
+        if(typeof window.renderPlacementCommitImmediately === 'function'){
+          window.renderPlacementCommitImmediately(Number(view.playerIndex), {
+            hand:true,
+            bothHands:true,
+            blocks:false,
+            topbar:false,
+            effects:false,
+            hover:false
+          });
+        }
+      }
+    }
 
     // Bootstrap/reconnect snapshots have no live predecessor to animate from.
     // Apply them immediately unless an earlier presentation is already queued.

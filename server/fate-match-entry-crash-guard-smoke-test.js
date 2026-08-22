@@ -37,7 +37,7 @@ assert.match(textureCache, /const boardDpr = Math\.min\(1\.5, Math\.max\(1,/, 'v
   assert.doesNotMatch(source, /Math\.max\(2\.25,\s*(?:Number\()?window\.devicePixelRatio/, 'a match texture path still forces excessive DPR');
 });
 
-assert.match(index, /04-game-setup\.js\?v=1785616900/, 'match-entry cache stamp is stale');
+assert.match(index, /04-game-setup\.js\?v=1787390001/, 'match-entry cache stamp is stale');
 assert.match(index, /04-match-renderer-adapter\.js\?v=1786795500/, 'renderer cache stamp is stale');
 
 console.log('match-entry crash guard smoke passed');

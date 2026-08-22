@@ -1589,6 +1589,7 @@ function transferAliIndomitableToOpponentHand(sourcePlayer, card, options = {}) 
   card.owner = recipient;
   card._bh03OpponentHand = true;
   card._bh03TransferredFrom = sourcePlayer;
+  card._bh03HandLimitRecipient = recipient;
   card.immuneFlag = true;
   card.cantBeReduced = true;
   const added = addCardToHand(recipient, card, {
@@ -1686,6 +1687,8 @@ function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
   if(!card || String(card.id || '') !== 'bh03' || !G.players || !G.players[sourcePlayer]) return false;
   card.owner = sourcePlayer;
   card._bh03TransferPending = true;
+  card._bh03HandLimitRecipient = 1 - sourcePlayer;
+  if(card._bh03HandLimitPendingUntilTurnStart !== false) card._bh03HandLimitPendingUntilTurnStart = true;
   card.noConsolidate = true;
   const timerKey = String(card.iid || 'bh03-' + sourcePlayer + '-' + Date.now());
   if(aliIndomitableTransferTimers.has(timerKey)) clearTimeout(aliIndomitableTransferTimers.get(timerKey));
@@ -1716,16 +1719,6 @@ function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
     }
     const gameActive = !!document.getElementById('s-game')?.classList.contains('active');
     if(!gameActive) {
-      const waitTimer = setTimeout(beginVisibleCountdown, 100);
-      aliIndomitableTransferTimers.set(timerKey, waitTimer);
-      return;
-    }
-    const firstSetMade = Array.isArray(G.board) && G.board.some(function(zone){
-      return Array.isArray(zone) && zone.some(function(row){
-        return Array.isArray(row) && row.some(function(boardCard){ return !!boardCard; });
-      });
-    });
-    if(!firstSetMade) {
       const waitTimer = setTimeout(beginVisibleCountdown, 100);
       aliIndomitableTransferTimers.set(timerKey, waitTimer);
       return;

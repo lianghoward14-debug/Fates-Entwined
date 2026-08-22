@@ -1,9 +1,34 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const gameplay = fs.readFileSync(new URL('../src/scripts/05-gameplay-core.js', import.meta.url), 'utf8');
 const rendering = fs.readFileSync(new URL('../src/scripts/06-rendering-and-helpers.js', import.meta.url), 'utf8');
 const online = fs.readFileSync(new URL('../src/scripts/18-online-rooms.js', import.meta.url), 'utf8');
+
+function functionSource(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} must exist`);
+  const signatureEnd = source.indexOf(') {', start);
+  assert.notEqual(signatureEnd, -1, `${name} must use a conventional function signature`);
+  const bodyStart = signatureEnd + 2;
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for(let i = bodyStart; i < source.length; i += 1) {
+    const char = source[i];
+    if(quote) {
+      if(escaped) escaped = false;
+      else if(char === '\\') escaped = true;
+      else if(char === quote) quote = '';
+      continue;
+    }
+    if(char === '"' || char === "'" || char === '`') { quote = char; continue; }
+    if(char === '{') depth += 1;
+    if(char === '}' && --depth === 0) return source.slice(start, i + 1);
+  }
+  assert.fail(`${name} must have a complete body`);
+}
 
 assert.match(
   rendering,
@@ -19,9 +44,11 @@ assert.match(rendering, /window\.setPolishFromDeck = function\(\)[\s\S]{0,800}be
 assert.match(rendering, /window\.setMajaFromDeck = function\(\)[\s\S]{0,300}beginLocalSetFromDeckCard\('07'/);
 assert.match(
   rendering,
-  /beginImmediateFreePlacement\(cp, card,[\s\S]{0,420}destinationUi:'highlighted-board'/,
-  'direct deck sets must match multiplayer highlighted-board destination selection after the card picker'
+  /function beginLocalSetFromDeckCard[\s\S]{0,1200}beginImmediateFreePlacement\(cp, card, config\.placementMessage, Object\.assign\(\{\}, config\.effectInfo\)\)/,
+  'direct deck sets must continue from the card picker into the zone-and-square destination window'
 );
+assert.doesNotMatch(rendering, /destinationUi\s*:\s*['"]highlighted-board['"]/,
+  'single-player deck sets must not bypass the destination window for direct board clicking');
 
 assert.match(
   gameplay,
@@ -30,10 +57,42 @@ assert.match(
 );
 assert.match(
   gameplay,
-  /function beginImmediateFreePlacement[\s\S]{0,2400}info\.destinationUi !== 'highlighted-board'[\s\S]{0,500}openImmediateFreePlacementDestinationPicker/,
-  'the shared single-player free-placement path must default to the destination picker'
+  /function beginImmediateFreePlacement[\s\S]{0,2400}if\(!\(G && G\._onlineRoomCode\)\)[\s\S]{0,240}openImmediateFreePlacementDestinationPicker\(player, card, message, info\);[\s\S]{0,40}return;/,
+  'every single-player free-placement path must stop in the destination window instead of arming direct board clicks'
 );
 assert.match(gameplay, /case '08':[\s\S]{0,700}beginImmediateFreePlacement\(cp, found,[\s\S]{0,300}key:'lina-free-set'/);
+
+// Behavioral guard: a single-player deck-set card must open the full modal and
+// must not arm the old click-directly-on-the-board placement path.
+const deckSetCard = {id:'28', iid:'single-player-deck-set', name:'2nd Polish-Lithuanian Army', owner:0};
+const pickerContext = {
+  G:{currentPlayer:0, players:[{hand:[deckSetCard]}, {hand:[]}], _onlineRoomCode:''},
+  renderGame(){},
+  clearPlaceHighlights(){},
+  getValidPlacementOptionsForCard(){ return [{z:0,r:2,c:0}, {z:2,r:2,c:1}]; },
+  setHint(){},
+  toast(){},
+  pickerOptions:null,
+  pickerConfirm:null,
+  clickedDestination:null,
+  directBoardPlacementCalls:0
+};
+pickerContext.showBoardTargetPicker = function(options, confirm){ pickerContext.pickerOptions = options; pickerContext.pickerConfirm = confirm; };
+pickerContext.clickCell = function(z, r, c){ pickerContext.clickedDestination = {z,r,c}; };
+pickerContext.highlightValidCells = function(){ pickerContext.directBoardPlacementCalls += 1; return true; };
+vm.runInNewContext([
+  functionSource(gameplay, 'resolveImmediateFreePlacementHandCard'),
+  functionSource(gameplay, 'openImmediateFreePlacementDestinationPicker'),
+  functionSource(gameplay, 'beginImmediateFreePlacement'),
+  `beginImmediateFreePlacement(0, G.players[0].hand[0], 'Choose a destination.', {name:'2nd Polish-Lithuanian Army'});`
+].join('\n'), pickerContext);
+assert.deepEqual(Array.from(pickerContext.pickerOptions.visibleZones), [0,1,2]);
+assert.equal(pickerContext.pickerOptions.allowSquareTargets, true);
+assert.equal(pickerContext.pickerOptions.showZoneTitles, true);
+assert.equal(pickerContext.directBoardPlacementCalls, 0,
+  'single-player deck sets must not arm direct board placement');
+pickerContext.pickerConfirm([{z:2,r:2,c:1}]);
+assert.deepEqual(pickerContext.clickedDestination, {z:2,r:2,c:1});
 
 assert.match(
   rendering,
