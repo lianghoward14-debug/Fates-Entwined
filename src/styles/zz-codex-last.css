@@ -12774,8 +12774,8 @@ html body #s-game .bc .flower-king-overlay{
   z-index:5!important;
   pointer-events:none!important;
   background:rgba(255,224,106,.99)!important;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='8' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='8' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3Ccircle cx='32' cy='32' r='6'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 26c-7-4-9-11-5-17 8 0 12 7 5 17M38 28c1-8 7-13 14-11 3 7-2 13-14 11M39 35c8 0 13 6 11 13-7 3-13-2-11-13M34 38c5 7 2 14-5 17-6-5-5-12 5-17M26 37c-3 8-11 9-16 4 1-8 8-11 16-4M25 29c-8 2-14-3-14-10 6-5 13-2 14 10'/%3E%3Ccircle cx='32' cy='32' r='6'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat!important;
   filter:drop-shadow(0 2px 3px rgba(31,20,4,.7)) drop-shadow(0 0 7px rgba(255,224,106,.66))!important;
 }
 
@@ -24672,7 +24672,28 @@ html body #s-challenger #ch-elo-val.four-digit-elo{
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
   left:-2px!important;
-  font-size:clamp(2.65rem,3.15vw,3.85rem)!important;
+  font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
   transform:scale(.95)!important;
   transform-origin:center center!important;
+}
+
+/* Board effect pickers must always paint. Chromium could preserve the hit
+   regions while skipping these contained rows, making Oathbound and Louis
+   look invisible even though random clicks still selected their targets. */
+html body #modal .board-target-picker,
+html body #modal .board-target-picker .board-target-zones,
+html body #modal .board-target-picker .board-target-zone,
+html body #modal .board-target-picker .board-target-row,
+html body #modal .board-target-picker .board-target-cells,
+html body #modal .board-target-picker .board-target-cell,
+html body #modal .board-target-picker .board-target-card,
+html body #modal .board-target-picker .board-target-card img{
+  content-visibility:visible!important;
+  contain:none!important;
+  contain-intrinsic-size:none!important;
+}
+html body #modal .board-target-picker .board-target-card,
+html body #modal .board-target-picker .board-target-card img{
+  transform:none!important;
+  backface-visibility:visible!important;
 }

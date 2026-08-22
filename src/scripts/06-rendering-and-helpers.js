@@ -2725,7 +2725,22 @@ function showCanvasCardGalleryModal(title, cards, opts) {
       return;
     }
   }
-  cards = Array.isArray(cards) ? cards : [];
+  cards = (Array.isArray(cards) ? cards : []).map(function(card){
+    if(!card) return card;
+    let definition = null;
+    try{
+      const definitions = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.slice() : (Array.isArray(window.CARDS) ? window.CARDS.slice() : []);
+      if(typeof ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS !== 'undefined' && Array.isArray(ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS)) definitions.push(...ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS);
+      if(typeof WOJCIECH_PIEROGI_COUNTER !== 'undefined' && WOJCIECH_PIEROGI_COUNTER) definitions.push(WOJCIECH_PIEROGI_COUNTER);
+      definition = definitions.find(function(candidate){ return String(candidate && candidate.id || '') === String(card.id || ''); }) || null;
+    }catch(e){}
+    if(!definition) return card;
+    const expanded = Object.assign({}, definition, card);
+    ['img','runtimeImg','rarity','type','name','aff','effect','ability','flavor'].forEach(function(key){
+      if((expanded[key] == null || expanded[key] === '') && definition[key] != null) expanded[key] = definition[key];
+    });
+    return expanded;
+  }).filter(Boolean);
   if(!cards.length) {
     showModal(title, '<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No cards to show</div>', [{label:'Close', action:closeModal}], {immediate:true, silentOpen:!!opts.silentOpen});
     return;
@@ -2850,10 +2865,10 @@ function showCanvasCardGalleryModal(title, cards, opts) {
         ctx.fillStyle='rgba(214,180,89,.10)';
         ctx.fillRect(x,y,cardW,cardH);
         ctx.fillStyle='rgba(236,224,190,.55)';
-        ctx.font='32px serif';
+        ctx.font='700 18px Cinzel, serif';
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        ctx.fillText(getAffIcon(visual.aff), x+cardW/2, y+cardH/2);
+        ctx.fillText(String(visual.name || 'Card').slice(0, 12), x+cardW/2, y+cardH/2);
       }
       ctx.restore();
       ctx.lineWidth = 1.5;

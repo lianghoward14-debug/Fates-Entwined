@@ -475,7 +475,7 @@ const CARDS = [
     flavor:'"A completely normal man, impervious to all manner of weaponry"',img:'bh3.png?v=bh3-20260723'},
   {id:'bh04',name:'Anicka Konvicka (Selva Island)',ability:'The Destruction of Paradise',type:'Initiator',aff:'eventide',
     fate:6,cost:4,rarity:'triangle',set:'brave_horizons',
-    effect:'Declare a card type—each card your opponent controls in this zone of that type loses a share of 20 Fate, split evenly and permanently.',
+    effect:'Declare a Card type-all cards your opponent controls in this zone of that card type losses 20 Fate split evenly, permanently',
     flavor:'"Everything I do...its all to find Kazumi and bring her home"',img:'bh4.png?v=bh4-20260723'},
   {id:'bh05',name:'Taylor',ability:'The Art of Mimicry',type:'Initiator',aff:'expanded_worlds',
     fate:5,cost:1,rarity:'star',set:'brave_horizons',

@@ -5276,6 +5276,7 @@
     phase7RecordPresentationStage('picker:open', {key:String(key || ''), kind:'board'});
     withOnlinePromptBypass(gameState(), function(){
       window.showBoardTargetPicker({
+        pickerClass:'phase7-authoritative-board-picker',
         title:opts.title || 'Resolve Effect',
         prompt:opts.prompt || 'Choose the required targets.',
         entries,
@@ -5555,7 +5556,7 @@
           phase7OpenBoardPromptPicker(promptKey, multi, {
             commandField:'destinations',
             squareTargets:true,
-            showAllZones:true,
+            showAllZones:false,
             minCount:Math.max(0, Number(prompt.min) || 0),
             maxCount:Math.max(1, Number(prompt.max) || 1),
             title:phase7EffectPromptTitle(prompt),
@@ -5567,7 +5568,7 @@
           phase7OpenBoardPromptPicker(promptKey, single, {
             commandField:'destination',
             squareTargets:true,
-            showAllZones:true,
+            showAllZones:false,
             minCount:1,
             maxCount:1,
             title:phase7EffectPromptTitle(prompt),
@@ -5581,7 +5582,7 @@
         if(multi.length){
           phase7OpenBoardPromptPicker(promptKey, multi, {
             commandField:'selectedIids',
-            showAllZones:true,
+            showAllZones:false,
             minCount:Math.max(0, Number(prompt.min) || 0),
             maxCount:Math.max(1, Number(prompt.max) || 1),
             title:phase7EffectPromptTitle(prompt),
@@ -5592,7 +5593,7 @@
           const single = commands.filter(function(command){ return !!command?.payload?.selectedIid; });
           phase7OpenBoardPromptPicker(promptKey, single, {
             commandField:'selectedIid',
-            showAllZones:true,
+            showAllZones:false,
             minCount:Math.max(0, Number(prompt.min) || 0),
             maxCount:1,
             title:phase7EffectPromptTitle(prompt),
@@ -6091,7 +6092,7 @@
         && String(event?.to || '').toLowerCase() === 'deckrandom'
         && Number(event?.playerIndex) === Number(view?.playerIndex)
         && event?.card;
-    }).map(function(event){ return cloneOnlinePlain(event.card); });
+    }).map(function(event){ return phase7PresentationCard(event.card) || cloneOnlinePlain(event.card); });
     let resultMotionStarted = false;
     const prePresentedMoveIndexes = new Set();
     // Brave Horizons resolves as move -> overlay -> draw. Present only the

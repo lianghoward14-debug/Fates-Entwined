@@ -2992,9 +2992,8 @@
     ctx.bezierCurveTo(17, 14, 24, 17, 25, 29);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(32, 32, 8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,224,106,.99)';
-    ctx.fill();
+    ctx.arc(32, 32, 6, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 

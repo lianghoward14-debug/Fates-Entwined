@@ -6194,8 +6194,10 @@ async function chooseFlowerKingTarget(inst, z, r, c, cp) {
     if(!entry) return false;
     delete inst._bh12FlowerTargetIid;
     inst._bh12FlowerSquare = {z:Number(entry.z), r:Number(entry.r), c:Number(entry.c)};
+    if(typeof invalidateFateRenderCaches === 'function') invalidateFateRenderCaches();
+    if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     toast('The selected adjacent square will grant your card 6 Fate while ' + inst.name + ' remains on the field.');
-    renderEffectResolutionForPlayer(cp, {hand:false});
+    renderEffectResolutionForPlayer(cp, {board:true, scores:true, hand:false, topbar:true});
     return true;
   };
   if(G.aiEnabled && cp === G.aiPlayer){

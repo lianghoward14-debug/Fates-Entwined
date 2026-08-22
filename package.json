@@ -115,6 +115,7 @@
       "ingamebackgrouds/**/*",
       "igb17/**/*",
       "setvoicelines/**/*",
+      "tutorialvideos/**/*",
       "new voices/**/*",
       "soundeffects/**/*",
       "server/**/*",
