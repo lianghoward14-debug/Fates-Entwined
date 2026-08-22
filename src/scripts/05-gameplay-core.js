@@ -8378,13 +8378,27 @@ function getEffectiveFate(card, z) {
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
     if(cardActsAsPassive(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
-  if(typeof forEachBoardCard === 'function') forEachBoardCard(function(source, sourceZ, sourceR, sourceC){
+  let flowerKingTargetPosition = null;
+  if(Array.isArray(G.board && G.board[z])){
+    G.board[z].forEach(function(row, targetR){
+      (Array.isArray(row) ? row : []).forEach(function(cell, targetC){
+        if(flowerKingTargetPosition || !cell) return;
+        if(cell === card || (card.iid && String(cell.iid || '') === String(card.iid))){
+          flowerKingTargetPosition = {z:Number(z), r:Number(targetR), c:Number(targetC)};
+        }
+      });
+    });
+  }
+  if(flowerKingTargetPosition && typeof forEachBoardCard === 'function') forEachBoardCard(function(source, sourceZ, sourceR, sourceC){
     if(!source || !cardActsAsPassive(source, 'bh12') || isFaceDownCard(source)) return;
     if(source.owner !== card.owner) return;
     if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, sourceZ, sourceR, sourceC)) return;
     if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
     const square = source._bh12FlowerSquare;
-    if(!square || Number(square.z) !== Number(z) || Number(square.r) !== Number(r) || Number(square.c) !== Number(c)) return;
+    if(!square
+      || Number(square.z) !== flowerKingTargetPosition.z
+      || Number(square.r) !== flowerKingTargetPosition.r
+      || Number(square.c) !== flowerKingTargetPosition.c) return;
     if(!isAdjacentBoardSquare({z:sourceZ, r:sourceR, c:sourceC}, square)) return;
     bonus += 6 * getSuperiorMarksMultiplier(z, source.owner);
   });

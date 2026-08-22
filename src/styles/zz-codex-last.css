@@ -24666,14 +24666,14 @@ html body #s-game .cell.henry-suppressed-empty::after{
 /* Four-digit Challenger ELO only: retain the normal size for shorter values. */
 html body #s-challenger #ch-elo-val.four-digit-elo{
   position:relative!important;
-  left:-2px!important;
-  font-size:.95em!important;
+  left:-3px!important;
+  font-size:.9405em!important;
   letter-spacing:inherit!important;
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
-  left:-2px!important;
+  left:-3px!important;
   font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
-  transform:scale(.95)!important;
+  transform:scale(.9405)!important;
   transform-origin:center center!important;
 }
 

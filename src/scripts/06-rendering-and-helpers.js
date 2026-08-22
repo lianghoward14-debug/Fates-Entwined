@@ -7459,7 +7459,6 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     confirmLabel: 'Confirm',
     viewerPlayerIndex: viewerP,
     zones: [z],
-    visibleZones:[0,1,2],
     entries: pickerEntries,
     showZoneTitles:true,
     emptyMessage: 'No valid targets in this zone',
