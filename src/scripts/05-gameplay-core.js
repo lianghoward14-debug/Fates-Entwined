@@ -5069,12 +5069,12 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh25']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -6106,6 +6106,74 @@ async function resolveChauffeurRedraw(card, cp) {
   return discarded.length;
 }
 
+async function resolveSmartInvestments(card, cp) {
+  const hand = G.players[cp] && Array.isArray(G.players[cp].hand) ? G.players[cp].hand : [];
+  const eligible = hand.filter(function(candidate){
+    if(!candidate || candidate._bh03TransferPending) return false;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(candidate)) return false;
+    return !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(candidate));
+  });
+  if(!eligible.length){
+    toast('Smart Investments has no eligible cards in your hand.');
+    return 0;
+  }
+  const commit = function(chosen){
+    const selected = Array.isArray(chosen) ? chosen.slice(0, 3) : [];
+    const invested = [];
+    selected.forEach(function(candidate){
+      const liveIndex = hand.findIndex(function(live){
+        return live && String(live.iid || '') === String(candidate && candidate.iid || '');
+      });
+      if(liveIndex < 0) return;
+      const live = hand[liveIndex];
+      if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(live)) return;
+      if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(live)) return;
+      const before = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
+      if(typeof modifyFate === 'function') modifyFate(live, 6, 'permanent', cp);
+      else live.currentFate = before + 6;
+      const after = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
+      if(after <= before) return;
+      if(typeof recordHandCardEffectModifier === 'function') {
+        recordHandCardEffectModifier(live, {
+          key:'hugh-roberts-smart-investments',
+          name:'Smart Investments',
+          text:'Smart Investments: this card permanently gained 6 Fate.',
+          fateDelta:after - before
+        });
+      }
+      hand.splice(liveIndex, 1);
+      fatePushDiscard(cp, live, {sound:false});
+      invested.push(live);
+    });
+    if(invested.length && typeof playDiscardSfx === 'function') playDiscardSfx();
+    toast(invested.length
+      ? 'Smart Investments sent ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to discard with +6 Fate.'
+      : 'Smart Investments declined.');
+    renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+    return invested.length;
+  };
+  if(G.aiEnabled && cp === G.aiPlayer){
+    const chosen = eligible.slice().sort(function(a, b){
+      return (Number(a.currentFate ?? a.fate) || 0) - (Number(b.currentFate ?? b.fate) || 0);
+    }).slice(0, Math.min(3, Math.max(0, eligible.length - 2)));
+    return commit(chosen);
+  }
+  if(typeof pickCardsVisual !== 'function') return commit([]);
+  return new Promise(function(resolve){
+    pickCardsVisual(eligible, {
+      title:'Smart Investments',
+      subtitle:'Choose up to 3 cards from your hand. Each gains 6 Fate permanently, then goes to your discard pile.',
+      minCount:0,
+      maxCount:3,
+      confirmLabel:'Invest and Discard',
+      immediate:true,
+      viewerPlayerIndex:cp,
+      onlineParentAction:true,
+      onCancel:function(){ resolve(commit([])); }
+    }, function(chosen){ resolve(commit(chosen)); });
+  });
+}
+
 async function chooseFlowerKingTarget(inst, z, r, c, cp) {
   const entries = getAdjacentCards(z, r, c).filter(function(entry){
     const target = entry && entry.card;
@@ -6168,6 +6236,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case 'bh12':
       await chooseFlowerKingTarget(inst, z, r, c, cp);
+      break;
+    case 'bh13':
+      await resolveSmartInvestments(inst, cp);
       break;
     case '02': // Anicka Konvicka: create extra safe row in this zone
       {
@@ -9540,4 +9611,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh25']);

@@ -9260,7 +9260,8 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh09": "Its a cruel world,",
   "bh10": "Where you thinking of going today?",
   "bh11": "Let's reframe the issue in terms of state level mechanisms",
-  "bh12": "Why worry of worldly affairs? Stop and smell the roses."
+  "bh12": "Why worry of worldly affairs? Stop and smell the roses.",
+  "bh13": "If you ever have to stop and pause, and think to yourself, am i being too greedy? then that means you aren't greedy enough!!!"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 

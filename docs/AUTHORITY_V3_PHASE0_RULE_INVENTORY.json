@@ -4,13 +4,13 @@
   "phase": "Phase 0: Architecture and Rule Inventory",
   "gateStatus": "classified-not-implemented",
   "summary": {
-    "playableCards": 113,
+    "playableCards": 114,
     "landscapes": 20,
-    "isolatedPrototypeCards": 113,
+    "isolatedPrototypeCards": 114,
     "unportedCards": 0,
     "isolatedPrototypeLandscapes": 20,
     "unportedLandscapes": 0,
-    "openCardAmbiguityFlags": 40,
+    "openCardAmbiguityFlags": 41,
     "openLandscapeAmbiguityFlags": 11
   },
   "taxonomy": {
@@ -3506,6 +3506,37 @@
       "multiplayerEligibility": "isolated-v3-test-only",
       "ambiguityFlags": [
         "ADJACENCY_DEFINITION"
+      ]
+    },
+    {
+      "cardId": "bh13",
+      "name": "Hugh Roberts",
+      "type": "Initiator",
+      "affiliation": "expanded_worlds",
+      "abilityText": "Send up to three cards in your hand to the discard pile—each of those cards permanently gains 6 Fate.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "DISCARD_REMOVAL_AND_TRANSFER",
+        "FATE_MODIFICATION"
+      ],
+      "operations": [
+        "DISCARD_CARD",
+        "MODIFY_FATE"
+      ],
+      "promptTypes": [
+        "OPTIONAL_CHOICE"
+      ],
+      "triggerSubscriptions": [],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh13",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "ZERO_SELECTION_AND_CANCELLATION"
       ]
     },
     {

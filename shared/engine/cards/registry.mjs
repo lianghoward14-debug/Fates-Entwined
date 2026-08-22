@@ -1634,6 +1634,30 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  'bh13':{
+    timings:['WHEN_SET'],
+    operations:['MODIFY_FATE', 'DISCARD_CARD'],
+    prompts:['CARD_SELECTION'],
+    program:[
+      {
+        kind:'SELECT_HAND',
+        local:'targetIids',
+        min:0,
+        max:3,
+        optional:true,
+        cancelBehavior:'CONTINUE',
+        filter:{playerIndex:'controller', targetable:'MODIFY_FATE'}
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:6}
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'DISCARD_CARD', targetIids:'$targetIids', reason:'SMART_INVESTMENTS'}
+      }
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],
