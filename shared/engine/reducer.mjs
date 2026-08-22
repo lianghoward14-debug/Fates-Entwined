@@ -1637,7 +1637,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         throw Object.assign(new Error('Concrete Roads can only be used once per game'), {code:'USE_LIMIT_REACHED'});
       }
       const source = findBoardCard(state, payload.sourceIid);
-      const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08']);
+      const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
       if(!source
         || controllerOf(source.card) !== actorIndex
         || effectiveCardType(state, source.card) !== 'Coordinator'

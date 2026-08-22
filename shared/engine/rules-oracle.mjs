@@ -162,6 +162,8 @@ const CARD_RULES = [
   card('bh08','Maja Kaminska (University)','PASSIVE','CONTROLLER','ALL_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each time controller actually negates or suppresses an effect, every controlled card in source zone gains exactly +2 permanent Fate once.',{forbidden:['DECLINED_REACTION_TRIGGERS','OPPONENT_REACTION_TRIGGERS','CARD_OUTSIDE_ZONE_GAINS','SAME_REACTION_TRIGGERS_TWICE']}),
   card('bh09','Alondra Hopkins (Mercenary)','WHEN_SET','CONTROLLER','SOURCE_CARD_AND_ONE_SELECTED_ZONE','Select any zone; source gains permanent Fate equal to the non-negative difference between controller total Fate and opponent total Fate in that zone.',{forbidden:['ZONE_SELECTED_BY_OPPONENT','WRONG_ZONE_SCORED','NEGATIVE_DIFFERENCE_REDUCES_SOURCE','DIFFERENCE_APPLIED_MORE_THAN_ONCE']}),
   card('bh10','Francisek','WHEN_SET','CONTROLLER','ALL_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Discard every eligible card in controller hand, then activate one draw effect for exactly the number actually removed.',{forbidden:['OPPONENT_HAND_DISCARDED','IMMUNE_HAND_CARD_DISCARDED','DRAW_COUNT_EXCEEDS_DISCARDED_COUNT','REDRAW_ACTIVATES_MORE_THAN_ONCE']}),
+  card('bh11','Felicyta Janowicz (University)','PASSIVE','CONTROLLER','ALL_CONTROLLED_ADJACENCY_BONUSES_IN_SOURCE_ZONE','Each active Superior Marks source doubles every positive numeric ADJACENCY_BONUS controlled in its zone; multiple sources double multiplicatively, while penalties and non-bonus adjacency effects remain unchanged.',{forbidden:['OPPONENT_ADJACENCY_BONUS_DOUBLED','ADJACENCY_PENALTY_DOUBLED','NON_BONUS_ADJACENCY_EFFECT_DOUBLED','BONUS_OUTSIDE_SOURCE_ZONE_DOUBLED']}),
+  card('bh12','Louis LeJeune',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ADJACENT_TO_SOURCE','Choose exactly one eligible adjacent card when source is set; that specific card gains +6 effective Fate while source remains active on the field. The bonus is classified as ADJACENCY_BONUS.',{forbidden:['NON_ADJACENT_CARD_SELECTED','MORE_THAN_ONE_CARD_BLESSED','BONUS_PERSISTS_AFTER_SOURCE_LEAVES','IMMUNE_CARD_RECEIVES_BONUS']}),
   card('bh25','Jimmy (Viltrumite)','WHEN_SET','CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ANYWHERE_ON_FIELD','Discard exactly one selected eligible card on either side of the field.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['IMMUNE_OR_UNAFFORDABLE_PROTECTED_TARGET','MORE_THAN_ONE_CARD_DISCARDED','CANCEL_DISCARDS_DEFAULT_TARGET']})
 ];
 
@@ -361,11 +363,21 @@ function oracleAuraBoost(state, source, entries){
   ).length;
 }
 
+function oracleAdjacencyBonusMultiplier(state, zone, controller, entries){
+  const sourceCount = entries.filter(source=>
+    controllerOfProjected(source.card) === controller
+    && oracleRuntimeId(source.card) === 'bh11'
+    && (source.z === zone || source.card.counters?.whisperLandscapeToken === true)
+    && oracleSourceActive(state, source)
+  ).length;
+  return Math.pow(2, sourceCount);
+}
+
 const ORACLE_CONTINUOUS_BRANCH_IDS = freeze(new Set([
-  '01','10','11','19','23','35','41','44','55','59','63','64','77','85','88','89','100','bh07'
+  '01','10','11','19','23','35','41','44','55','59','63','64','77','85','88','89','100','bh07','bh11','bh12'
 ]));
 export const RULE_ORACLE_CONTINUOUS_BRANCH_CARD_IDS = freeze([
-  '01','10','11','35','41','44','55','64','77','85','89','100','bh07'
+  '01','10','11','35','41','44','55','64','77','85','89','100','bh07','bh11','bh12'
 ]);
 
 function oracleContinuousConditionPositive(state, source, entries){
@@ -401,6 +413,14 @@ function oracleContinuousConditionPositive(state, source, entries){
     return entries.some(entry=>controlled(entry) && String(entry.card.iid) !== String(source.card.iid) && related.has(String(entry.card.id || '')));
   }
   if(id === 'bh07') return entries.some(entry=>controlled(entry) && oracleEffectiveType(state, entry.card) === 'Dauntless' && oracleAdjacent(source, entry));
+  if(id === 'bh11') return entries.some(entry=>
+    inZone(entry)
+    && controlled(entry)
+    && ['01','24','44','64','bh07','bh12'].includes(oracleRuntimeId(entry.card))
+  );
+  if(id === 'bh12') return entries.some(entry=>
+    String(entry.card.iid || '') === String(source.card.counters?.flowerKingTargetIid || '')
+  );
   return false;
 }
 
@@ -420,6 +440,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     const controller = controllerOfProjected(target.card);
     const type = oracleEffectiveType(state, target.card);
     const selfId = oracleRuntimeId(target.card);
+    const adjacencyMultiplier = oracleAdjacencyBonusMultiplier(state, target.z, controller, entries);
     const permanentAdjustment = (Number(target.card.currentFate) || 0) - (Number(target.card.baseFate) || 0);
     let derived = oracleSourceActive(state, target) && selfId === '41'
       ? Math.max(0, Number(state?.fateReductionEffectUses?.[controller] || 0) * 3 + permanentAdjustment)
@@ -442,7 +463,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       if(sourceId === '10' && sourceController !== controller){ modifier -= 3; continue; }
       if(sourceController !== controller) continue;
       const boost = oracleAuraBoost(state, source, entries);
-      if(sourceId === '01' && oracleAdjacent(source, target)) modifier += 4 + boost;
+      if(sourceId === '01' && oracleAdjacent(source, target)) modifier += (4 + boost) * adjacencyMultiplier;
       else if(sourceId === '11' && type === 'Supporter') modifier += 3 + boost;
       else if(sourceId === '19' && type === 'Coordinator') modifier += 3 + boost;
       else if(sourceId === '23' && type !== 'Supporter') modifier += 2 + boost;
@@ -454,7 +475,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
           && oracleEffectiveType(state, peer.card) === 'Dauntless'
           && oracleAdjacent(source, peer)
         ).length;
-        modifier += adjacent * (2 + boost);
+        modifier += adjacent * (2 + boost) * adjacencyMultiplier;
       }
     }
     if(oracleSourceActive(state, target) && selfId === '44' && entries.some(peer=>
@@ -462,13 +483,13 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       && peer.card.faceDown !== true
       && oracleEffectiveType(state, peer.card) === 'Dauntless'
       && oracleAdjacent(target, peer)
-    )) modifier += 3;
+    )) modifier += 3 * adjacencyMultiplier;
     if(type === 'Dauntless') modifier += entries.filter(source=>
       controllerOfProjected(source.card) === controller
       && oracleRuntimeId(source.card) === '44'
       && oracleSourceActive(state, source)
       && oracleAdjacent(source, target)
-    ).length * 3;
+    ).length * 3 * adjacencyMultiplier;
     if(oracleSourceActive(state, target) && selfId === '55'){
       const peers = entries.filter(peer=>peer.z === target.z
         && String(peer.card.iid) !== iid
@@ -493,10 +514,16 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     ).length * 2;
     if(oracleSourceActive(state, target) && selfId === '85') modifier += Number(state?.supportersSetTotal?.[controller === 0 ? 1 : 0] || 0);
     if(oracleSourceActive(state, target) && selfId === '89' && Number(state?.supporterEffectsActivated?.[controller] || 0) < 10) modifier += 7;
-    if(oracleSourceActive(state, target) && selfId === '64' && oracleDuelistTarget(state, target, entries)) modifier += 3;
+    if(oracleSourceActive(state, target) && selfId === '64' && oracleDuelistTarget(state, target, entries)) modifier += 3 * adjacencyMultiplier;
     for(const duelist of entries){
       if(oracleRuntimeId(duelist.card) !== '64') continue;
       if(String(oracleDuelistTarget(state, duelist, entries)?.card?.iid || '') === iid) modifier -= 3;
+    }
+    for(const flowerKing of entries){
+      if(oracleRuntimeId(flowerKing.card) !== 'bh12' || !oracleSourceActive(state, flowerKing)) continue;
+      if(String(flowerKing.card.counters?.flowerKingTargetIid || '') !== iid) continue;
+      const flowerController = controllerOfProjected(flowerKing.card);
+      modifier += 6 * oracleAdjacencyBonusMultiplier(state, target.z, flowerController, entries);
     }
     if(oracleSourceActive(state, target) && selfId === '100'){
       const related = new Set(['01','19','82','84','85','87','100']);

@@ -230,7 +230,7 @@ function sourceOverlayEvidenceCount(cardId){
 // retained for reporting and scenario design only; they must never reduce the
 // per-card match count requested by the certification campaign.
 const ORGANIC_EXPLICIT_HIGH_RISK_CARD_IDS = new Set([
-  '02','03','04','05','07','09','10','11','12','14','15','16','17','18','19','20','21','23','24','25','28','30','31','34','35','37','39','41','44','45','47','49','50','51','52','53','54','55','56','57','59','61','62','63','64','65','66','67','69','70','72','73','74','75','76','77','78','79','81','82','83','85','87','88','89','91','92','93','94','95','97','98','99','100','bh01','bh03','bh04','bh05','bh06','bh07','bh08','bh09','bh10','bh25'
+  '02','03','04','05','07','09','10','11','12','14','15','16','17','18','19','20','21','23','24','25','28','30','31','34','35','37','39','41','44','45','47','49','50','51','52','53','54','55','56','57','59','61','62','63','64','65','66','67','69','70','72','73','74','75','76','77','78','79','81','82','83','85','87','88','89','91','92','93','94','95','97','98','99','100','bh01','bh03','bh04','bh05','bh06','bh07','bh08','bh09','bh10','bh11','bh12','bh25'
 ]);
 const ORGANIC_HIGH_RISK_CARD_IDS = new Set(organicCampaignCardIds.filter(id=>
   ORGANIC_EXPLICIT_HIGH_RISK_CARD_IDS.has(id)
@@ -371,7 +371,7 @@ const ORGANIC_ROTATING_CHARACTER_IDS = Object.freeze([
   '01','02','03','04','06','07','08','10','11','12','13','14','15','17','19','21',
   '22','23','27','29','30','34','35','36','38','39','40','41','43','45','46','48',
   '51','55','56','57','61','66','67','77','81','82','83','84','85','86','87','88',
-  '89','90','99','100','bh01','bh02','bh03','bh04','bh05','bh06','bh07','bh08','bh09','bh10','bh25'
+  '89','90','99','100','bh01','bh02','bh03','bh04','bh05','bh06','bh07','bh08','bh09','bh10','bh11','bh12','bh25'
 ].filter(id=>eligibleCardIds.includes(id)));
 
 function rotatedScenarioIds(pool, gameIndex, seatOffset, count, excluded){
@@ -570,7 +570,7 @@ function mechanicallyObservedObligations(cardId, evidence){
 // grew beyond the original text classifier are explicitly widened below.
 const EFFECT_FAMILY_FOCUS_GROUPS = Object.freeze({
   1:Object.freeze({family:'DRAW_AND_SEARCH', cardIds:Object.freeze(['06','07','08','13','27','29','32','40','42','46','48','60','68','71','74','80','84','86','90','bh01','bh02','bh10'])}),
-  2:Object.freeze({family:'FATE_MODIFICATION', cardIds:Object.freeze(['01','02','03','05','07','10','11','14','15','19','22','23','31','33','34','35','36','38','40','41','44','46','47','51','55','57','59','61','63','64','65','66','70','76','77','83','85','86','87','88','89','90','93','95','100','bh02','bh07','bh08','bh09'])}),
+  2:Object.freeze({family:'FATE_MODIFICATION', cardIds:Object.freeze(['01','02','03','05','07','10','11','14','15','19','22','23','31','33','34','35','36','38','40','41','44','46','47','51','55','57','59','61','63','64','65','66','70','76','77','83','85','86','87','88','89','90','93','95','100','bh02','bh07','bh08','bh09','bh11','bh12'])}),
   3:Object.freeze({family:'MOVEMENT', cardIds:Object.freeze(['34','39','54','62','69','70','73','bh01'])}),
   4:Object.freeze({family:'DISCARD_REMOVAL_AND_TRANSFER', cardIds:Object.freeze(['08','16','29','30','38','42','48','52','58','62','70','71','72','73','80','96','bh10','bh25'])}),
   5:Object.freeze({family:'STATUS_AND_IMMUNITY', cardIds:Object.freeze(['06','07','12','14','17','18','20','21','51','53','56','67','69','70','76','79','81','91','99','bh01','bh03','bh06','bh08'])}),
@@ -579,19 +579,19 @@ const EFFECT_FAMILY_FOCUS_GROUPS = Object.freeze({
     family:'CONTINUOUS_MODIFIERS',
     // Phase 0 text classification plus every live effectiveFate source in
     // the current authoritative modifier query.
-    cardIds:Object.freeze(['01','10','11','14','15','19','20','21','23','24','35','37','41','44','49','53','55','57','59','61','63','64','77','83','85','88','89','92','93','95','100','bh02','bh07','bh08'])
+    cardIds:Object.freeze(['01','10','11','14','15','19','20','21','23','24','35','37','41','44','49','53','55','57','59','61','63','64','77','83','85','88','89','92','93','95','100','bh02','bh07','bh08','bh11','bh12'])
   }),
   8:Object.freeze({
     family:'PLACEMENT_EFFECTS',
     // All current registry rules with WHEN_SET or DECK_SET timing.
-    cardIds:Object.freeze(['02','04','05','07','08','12','14','16','17','18','21','25','28','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh25'])
+    cardIds:Object.freeze(['02','04','05','07','08','12','14','16','17','18','21','25','28','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh25'])
   }),
   9:Object.freeze({
     family:'REACTIONS_AND_INTERRUPTS',
     // Phase 0 reaction observers + the complete Phase 7 reactor/source
     // matrix. Keeping both sides in the deck is required to open real
     // authoritative interrupt prompts instead of merely setting Improvisors.
-    cardIds:Object.freeze(['14','16','18','26','30','39','40','51','52','56','61','66','67','79','90','91','93','96','bh02','bh04','bh08'])
+    cardIds:Object.freeze(['14','16','18','26','30','39','40','51','52','56','61','66','67','79','90','91','93','96','bh02','bh04','bh08','bh12'])
   }),
   10:Object.freeze({
     family:'LANDSCAPES',

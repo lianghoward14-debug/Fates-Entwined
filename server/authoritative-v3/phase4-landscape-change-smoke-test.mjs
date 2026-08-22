@@ -39,7 +39,7 @@ function makeState(landscapeId, matchId){
   return {state, supporters};
 }
 
-assert.equal(multiplayerEligibleCardIds().length, 111);
+assert.equal(multiplayerEligibleCardIds().length, 113);
 assert(multiplayerEligibleCardIds().includes('82'));
 assert.equal(multiplayerEligibleLandscapeIds().length, 20);
 

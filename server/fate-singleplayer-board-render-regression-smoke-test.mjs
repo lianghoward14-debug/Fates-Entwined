@@ -33,6 +33,6 @@ const context = {
 };
 vm.runInNewContext(`${manualButton}; rendered = shouldShowManualCharacterEffectButton({id:'60', iid:'single-player-card'});`, context);
 assert.equal(context.rendered, false, 'ordinary single-player board snapshots must evaluate without throwing');
-assert.match(index, /05-gameplay-core\.js\?v=1787710001/, 'the fixed gameplay renderer guard must be cache-busted');
+assert.match(index, /05-gameplay-core\.js\?v=1787800001/, 'the fixed gameplay renderer guard must be cache-busted');
 
 console.log('single-player board render regression smoke passed');

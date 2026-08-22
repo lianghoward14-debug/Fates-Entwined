@@ -16,7 +16,7 @@ const read = relative=>fs.readFileSync(path.join(root, relative), 'utf8');
 const generated = buildPhase0Inventory();
 const committed = JSON.parse(read('docs/AUTHORITY_V3_PHASE0_RULE_INVENTORY.json'));
 assert.deepStrictEqual(committed, generated, 'committed Phase 0 inventory must match the live card and landscape catalogs');
-assert.equal(generated.summary.playableCards, 111);
+assert.equal(generated.summary.playableCards, 113);
 assert.equal(generated.summary.landscapes, 20);
 assert.equal(new Set(generated.cards.map(item=>item.cardId)).size, generated.cards.length, 'card IDs must be unique');
 assert.equal(new Set(generated.landscapes.map(item=>item.landscapeId)).size, generated.landscapes.length, 'landscape IDs must be unique');

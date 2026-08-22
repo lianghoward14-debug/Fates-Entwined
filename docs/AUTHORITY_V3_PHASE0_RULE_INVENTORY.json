@@ -4,13 +4,13 @@
   "phase": "Phase 0: Architecture and Rule Inventory",
   "gateStatus": "classified-not-implemented",
   "summary": {
-    "playableCards": 111,
+    "playableCards": 113,
     "landscapes": 20,
-    "isolatedPrototypeCards": 111,
+    "isolatedPrototypeCards": 113,
     "unportedCards": 0,
     "isolatedPrototypeLandscapes": 20,
     "unportedLandscapes": 0,
-    "openCardAmbiguityFlags": 39,
+    "openCardAmbiguityFlags": 40,
     "openLandscapeAmbiguityFlags": 11
   },
   "taxonomy": {
@@ -3453,6 +3453,60 @@
       "parityFixtures": [],
       "multiplayerEligibility": "isolated-v3-test-only",
       "ambiguityFlags": []
+    },
+    {
+      "cardId": "bh11",
+      "name": "Felicyta Janowicz (University)",
+      "type": "Coordinator",
+      "affiliation": "expanded_worlds",
+      "abilityText": "Double all adjacency bonuses you control in this card's zone.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "CUSTOM_RULE"
+      ],
+      "operations": [],
+      "promptTypes": [],
+      "triggerSubscriptions": [],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh11",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": []
+    },
+    {
+      "cardId": "bh12",
+      "name": "Louis LeJeune",
+      "type": "Coordinator",
+      "affiliation": "third_great_war",
+      "abilityText": "Choose a card adjacent to this card; while this card is on the field, that card gains 6 Fate.",
+      "abilityTiming": [
+        "CONTINUOUS"
+      ],
+      "effectFamilies": [
+        "CONTINUOUS_MODIFIERS",
+        "FATE_MODIFICATION"
+      ],
+      "operations": [
+        "MODIFY_FATE"
+      ],
+      "promptTypes": [],
+      "triggerSubscriptions": [],
+      "modifiers": [
+        "ADJACENCY_QUERY",
+        "CONTINUOUS_AURA"
+      ],
+      "customHandler": "legacy-card:bh12",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "ADJACENCY_DEFINITION"
+      ]
     },
     {
       "cardId": "bh25",

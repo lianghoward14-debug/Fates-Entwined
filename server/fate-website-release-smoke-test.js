@@ -30,7 +30,7 @@ for(const card of catalog){
 
 assert.match(html, /releases\/latest\/download\/Fates-Entwined-Installer\.exe/, 'website must use the stable newest-installer release alias');
 assert.doesNotMatch(html, /Latest Windows build:\s*v|installer,\s*v1\.39\.0/i, 'website must not hard-code a stale release version');
-assert.match(html, /111-card catalog[\s\S]*Twenty Landscapes[\s\S]*All 111 current catalog entries/, 'website copy must describe the current catalog and landscape count');
+assert.match(html, /113-card catalog[\s\S]*Twenty Landscapes[\s\S]*All 113 current catalog entries/, 'website copy must describe the current catalog and landscape count');
 assert.match(html, /id="archive-card-set"[\s\S]*Brave Horizons[\s\S]*Tokens[\s\S]*Retired/, 'website archive must expose current set/status filters');
 assert.match(archiveJs, /function setLabel[\s\S]*cardSet\?\.value/, 'website archive must render and filter current sets');
 assert.match(archiveJs, /set === 'token' && !card\.token[\s\S]*set === 'retired' && !card\.retired/, 'website archive must filter tokens and retired entries');

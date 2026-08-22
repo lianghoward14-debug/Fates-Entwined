@@ -202,6 +202,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '01':{
+    effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -306,6 +307,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '24':{
+    effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -331,6 +333,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '44':{
+    effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -414,6 +417,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '64':{
+    effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -1565,6 +1569,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   'bh07':{
+    effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -1598,6 +1603,34 @@ const REGISTRY = Object.freeze({
       {
         kind:'OPERATION',
         operation:{type:'REDRAW_HAND', playerIndex:'$controller'}
+      }
+    ]
+  },
+  'bh11':{
+    effectLabels:['ADJACENCY_BONUS_MULTIPLIER'],
+    timings:['PASSIVE'],
+    operations:[],
+    prompts:[]
+  },
+  'bh12':{
+    effectLabels:['ADJACENCY_BONUS'],
+    timings:['WHEN_SET', 'PASSIVE'],
+    operations:['SET_CARD_COUNTER'],
+    prompts:['BOARD_TARGET'],
+    program:[
+      {
+        kind:'SELECT_BOARD',
+        local:'flowerKingTargetIid',
+        filter:{sameZone:true, adjacent:true, effectMutable:true, excludeSource:true}
+      },
+      {
+        kind:'OPERATION',
+        operation:{
+          type:'SET_CARD_COUNTER',
+          targetIid:'$sourceIid',
+          counterKey:'flowerKingTargetIid',
+          value:'$flowerKingTargetIid'
+        }
       }
     ]
   },

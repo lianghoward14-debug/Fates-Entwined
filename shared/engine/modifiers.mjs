@@ -117,6 +117,18 @@ export function coordinatorAuraPotencyBoost(state, sourceEntry){
   ).length;
 }
 
+export function adjacencyBonusMultiplier(state, zone, playerIndex){
+  const z = Number(zone);
+  const controller = Number(playerIndex);
+  const superiorMarksSources = boardEntries(state).filter(source=>
+    controllerOf(source.card) === controller
+    && runtimeRuleId(source.card) === 'bh11'
+    && (source.z === z || source.card.counters?.whisperLandscapeToken === true)
+    && activeAuraSource(state, source)
+  ).length;
+  return Math.pow(2, superiorMarksSources);
+}
+
 export function effectiveFate(state, entryOrCard){
   const entry = entryOrCard?.card
     ? entryOrCard
@@ -128,6 +140,7 @@ export function effectiveFate(state, entryOrCard){
   const targetController = controllerOf(card);
   const targetType = effectiveCardType(state, card);
   const selfId = runtimeRuleId(card);
+  const adjacencyMultiplier = adjacencyBonusMultiplier(state, entry.z, targetController);
   const permanentAdjustment = (Number(card.currentFate) || 0) - (Number(card.baseFate) || 0);
   // Jimmy's own passive establishes his dynamic base Fate. It does not make
   // him immune to other cards: ordinary auras and penalties (including an
@@ -158,7 +171,7 @@ export function effectiveFate(state, entryOrCard){
     if(sourceController !== targetController) continue;
     if(sourceId === '01'
       && Math.abs(source.r - entry.r) + Math.abs(source.c - entry.c) === 1){
-      modifier += 4 + coordinatorAuraPotencyBoost(state, source);
+      modifier += (4 + coordinatorAuraPotencyBoost(state, source)) * adjacencyMultiplier;
     }else if(sourceId === '11' && targetType === 'Supporter'){
       modifier += 3 + coordinatorAuraPotencyBoost(state, source);
     }else if(sourceId === '19' && targetType === 'Coordinator'){
@@ -178,7 +191,7 @@ export function effectiveFate(state, entryOrCard){
         && effectiveCardType(state, peer.card) === 'Dauntless'
         && Math.abs(peer.r - source.r) + Math.abs(peer.c - source.c) === 1
       ).length;
-      modifier += adjacentDauntless * (2 + coordinatorAuraPotencyBoost(state, source));
+      modifier += adjacentDauntless * (2 + coordinatorAuraPotencyBoost(state, source)) * adjacencyMultiplier;
     }
   }
   if(activeAuraSource(state, entry) && selfId === '44'){
@@ -189,7 +202,7 @@ export function effectiveFate(state, entryOrCard){
       && effectiveCardType(state, peer.card) === 'Dauntless'
       && Math.abs(peer.r - entry.r) + Math.abs(peer.c - entry.c) === 1
     );
-    if(hasAdjacentDauntless) modifier += 3;
+    if(hasAdjacentDauntless) modifier += 3 * adjacencyMultiplier;
   }
   if(targetType === 'Dauntless'){
     const grenadiers = boardEntries(state).filter(source=>
@@ -199,7 +212,7 @@ export function effectiveFate(state, entryOrCard){
       && activeAuraSource(state, source)
       && Math.abs(source.r - entry.r) + Math.abs(source.c - entry.c) === 1
     ).length;
-    modifier += grenadiers * 3;
+    modifier += grenadiers * 3 * adjacencyMultiplier;
   }
   if(activeAuraSource(state, entry) && selfId === '55'){
     const peers = boardEntries(state).filter(source=>
@@ -250,12 +263,17 @@ export function effectiveFate(state, entryOrCard){
     modifier += 7;
   }
   if(activeAuraSource(state, entry) && selfId === '64' && duelistTarget(state, entry)){
-    modifier += 3;
+    modifier += 3 * adjacencyMultiplier;
   }
   for(const duelist of boardEntries(state)){
     if(runtimeRuleId(duelist.card) !== '64') continue;
     const target = duelistTarget(state, duelist);
     if(target && String(target.card.iid) === String(card.iid)) modifier -= 3;
+  }
+  for(const flowerKing of boardEntries(state)){
+    if(runtimeRuleId(flowerKing.card) !== 'bh12' || !activeAuraSource(state, flowerKing)) continue;
+    if(String(flowerKing.card.counters?.flowerKingTargetIid || '') !== String(card.iid)) continue;
+    modifier += 6 * adjacencyBonusMultiplier(state, entry.z, controllerOf(flowerKing.card));
   }
   if(activeAuraSource(state, entry) && selfId === '100'){
     // Every printed Felicyta/Květka card qualifies. Keep this explicit so a
@@ -311,7 +329,7 @@ export function effectiveReinforcement(state, entry, playerIndex){
   }
   for(const ralph of boardEntries(state)){
     if(runtimeRuleId(ralph.card) !== '24' || controllerOf(ralph.card) !== Number(playerIndex)) continue;
-    if(isAdjacent(entry, ralph)) value += 1;
+    if(isAdjacent(entry, ralph)) value += adjacencyBonusMultiplier(state, entry.z, playerIndex);
   }
   return Math.max(0, value);
 }

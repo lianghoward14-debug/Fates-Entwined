@@ -842,9 +842,10 @@ const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
   '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.',
   'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate.',
   'bh07':'For each Dauntless card adjacent to this card, all cards you control on the field gain 2 Fate.',
-  'bh08':'Each time you would negate or suppress an effect, all cards you control on the field gain 2 Fate.'
+  'bh08':'Each time you would negate or suppress an effect, all cards you control on the field gain 2 Fate.',
+  'bh11':'Double all adjacency bonuses you control on the field.'
 });
-const WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set(['01', '02', '12', '34']);
+const WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set(['01', '02', '12', '34', 'bh12']);
 
 function ensureWhisperLandscapeUses() {
   if(!Array.isArray(G._whisperLandscapeUses)) G._whisperLandscapeUses = [0, 0];
@@ -3514,6 +3515,21 @@ function getUnusedChaparralAmbusherInZone(z, owner) {
   return found;
 }
 
+function getSuperiorMarksMultiplier(z, owner) {
+  let sourceCount = 0;
+  const zone = G && G.board && G.board[z] ? G.board[z] : [];
+  zone.forEach(function(row, r){
+    (row || []).forEach(function(card, c){
+      if(!card || card.owner !== owner || !cardActsAsPassive(card, 'bh11') || isFaceDownCard(card)) return;
+      if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)) return;
+      sourceCount++;
+    });
+  });
+  if(typeof getActiveWhisperTokens === 'function') sourceCount += getActiveWhisperTokens(owner, 'bh11').length;
+  return Math.pow(2, sourceCount);
+}
+window.getSuperiorMarksMultiplier = getSuperiorMarksMultiplier;
+
 function countFriendlyRalphAdjacency(z, r, c, owner) {
   const target = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
   if(!target || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(target, owner) : target.type === 'Supporter')) return 0;
@@ -3527,7 +3543,7 @@ function countFriendlyRalphAdjacency(z, r, c, owner) {
       if(dr + dc === 1) count++;
     });
   });
-  return count;
+  return count * getSuperiorMarksMultiplier(z, owner);
 }
 
 function clientSeededRandom(seed){
@@ -5058,7 +5074,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','2
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -6090,10 +6106,68 @@ async function resolveChauffeurRedraw(card, cp) {
   return discarded.length;
 }
 
+async function chooseFlowerKingTarget(inst, z, r, c, cp) {
+  const entries = getAdjacentCards(z, r, c).filter(function(entry){
+    const target = entry && entry.card;
+    if(!target || target.iid === inst.iid) return false;
+    return !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target));
+  });
+  if(!entries.length){
+    toast('The Flower King has no eligible adjacent card to bless.');
+    return false;
+  }
+  const applyTarget = function(entry){
+    const target = entry && entry.card;
+    if(!target) return false;
+    inst._bh12FlowerTargetIid = String(target.iid || '');
+    toast(target.name + ' gains 6 Fate while ' + inst.name + ' remains on the field.');
+    renderEffectResolutionForPlayer(cp, {hand:false});
+    return true;
+  };
+  if(G.aiEnabled && cp === G.aiPlayer){
+    const ordered = entries.slice().sort(function(a, b){
+      const ownership = Number(b.card.owner === cp) - Number(a.card.owner === cp);
+      if(ownership) return ownership;
+      return getEffectiveFate(b.card, z) - getEffectiveFate(a.card, z);
+    });
+    return applyTarget(ordered[0]);
+  }
+  if(typeof showBoardTargetPicker !== 'function') return applyTarget(entries[0]);
+  return new Promise(function(resolve){
+    const openPicker = function(){
+      const sourcePos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(inst) : {z:z, r:r, c:c};
+      if(!sourcePos){ resolve(false); return; }
+      const liveEntries = getAdjacentCards(sourcePos.z, sourcePos.r, sourcePos.c).filter(function(entry){
+        return entry && entry.card && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(entry.card));
+      });
+      if(!liveEntries.length){ resolve(false); return; }
+      showBoardTargetPicker({
+        title:'The Flower King',
+        prompt:'Choose one adjacent card. It gains 6 Fate while Louis remains on the field.',
+        entries:liveEntries,
+        zones:[sourcePos.z],
+        minCount:1,
+        maxCount:1,
+        confirmLabel:'Grant 6 Fate',
+        showZoneTitles:true,
+        onCancel:function(){ setTimeout(openPicker, 0); }
+      }, function(chosen){
+        const selected = chosen && chosen[0];
+        if(!selected || !selected.card){ setTimeout(openPicker, 0); return; }
+        resolve(applyTarget(selected));
+      });
+    };
+    openPicker();
+  });
+}
+
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
   switch(id) {
     case 'bh09':
       await resolveChildOfWar(inst, cp, opp);
+      break;
+    case 'bh12':
+      await chooseFlowerKingTarget(inst, z, r, c, cp);
       break;
     case '02': // Anicka Konvicka: create extra safe row in this zone
       {
@@ -8091,6 +8165,7 @@ function getEffectiveFate(card, z) {
   // Alexander (and Taylor copying Alexander) recalculates from the zone's current
   // Supporter Fate total every time effective Fate is requested.
   let bonus = 0;
+  const adjacencyMultiplier = getSuperiorMarksMultiplier(z, card.owner);
 
   if(cardActsAsPassive(card, '85')) {
     const opponent = 1 - card.owner;
@@ -8140,13 +8215,13 @@ function getEffectiveFate(card, z) {
     }));
     if(sourcePos){
       const adj = getAdjacentCards(z, sourcePos.r, sourcePos.c);
-      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 3;
+      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 3 * adjacencyMultiplier;
     }
   }
   if(cardActsAsPassive(card, '64') && !isSupporterEffectSuppressed(card)) {
     const targetInfo = getCookIslandsDuelistTarget(card, z);
     if(targetInfo) {
-      bonus += 3;
+      bonus += 3 * adjacencyMultiplier;
       noteCookIslandsDuelistContinuousSource(card);
     }
   }
@@ -8184,11 +8259,11 @@ function getEffectiveFate(card, z) {
       const sourceBoost = typeof getWhisperAuraPotencyBoost === 'function'
         ? getWhisperAuraPotencyBoost({card:cell, z:z, r:r, c:c})
         : 0;
-      if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost);
+      if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost) * adjacencyMultiplier;
     }
     if(cell.owner!==card.owner) return;
     // Felicyta (01): +4 to adjacent friendly cards
-    if(cardActsAsPassive(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += 4 + jeremiahBoost;
+    if(cardActsAsPassive(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += (4 + jeremiahBoost) * adjacencyMultiplier;
     // Phil (46): no zone aura
     // Anne Stone (11): +3 to supporters in zone
     if(cardActsAsPassive(cell, '11') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
@@ -8206,6 +8281,12 @@ function getEffectiveFate(card, z) {
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
     if(cardActsAsPassive(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
+  if(typeof forEachBoardCard === 'function') forEachBoardCard(function(source, sourceZ, sourceR, sourceC){
+    if(!source || !cardActsAsPassive(source, 'bh12') || isFaceDownCard(source)) return;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, sourceZ, sourceR, sourceC)) return;
+    const targetIid = String(source._bh12FlowerTargetIid || source.counters?.flowerKingTargetIid || '');
+    if(targetIid && targetIid === String(card.iid || '')) bonus += 6 * getSuperiorMarksMultiplier(z, source.owner);
+  });
 
   // Concrete Roads tokens keep the copied Coordinator identity while expanding
   // supported source auras from one zone to every zone on the field.
@@ -8224,7 +8305,7 @@ function getEffectiveFate(card, z) {
         const adjacentDauntless = getAdjacentCards(sourceEntry.z, sourceEntry.r, sourceEntry.c).filter(function(entry){
           return entry && entry.card && !isInvisible(entry.card) && String(entry.card.type || '') === 'Dauntless';
         }).length;
-        if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost);
+        if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost) * adjacencyMultiplier;
       }
       if(source.owner !== card.owner) return;
       if(copiedId === '11' && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) bonus += 3 + sourceBoost;
@@ -8237,7 +8318,7 @@ function getEffectiveFate(card, z) {
   if(card.type==='Dauntless' && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
       if(cell && cardActsAsPassive(cell, '44') && cell.owner===card.owner && !isInvisible(cell) && !isSupporterEffectSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {
-        bonus += 3;
+        bonus += 3 * adjacencyMultiplier;
       }
     }));
   }
@@ -9459,4 +9540,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh25']);

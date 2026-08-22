@@ -484,7 +484,7 @@ export function legalCommandTemplates(state, playerIndex){
   }
   if(state.landscapeId === 'igb17'
     && Number(state.landscapeState.oncePerGameUses[player] || 0) < 1){
-    const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08']);
+    const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
     const sources = boardEntries(state).filter(entry=>
       controllerOf(entry.card) === player
       && effectiveCardType(state, entry.card) === 'Coordinator'
