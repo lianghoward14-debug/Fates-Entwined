@@ -1966,7 +1966,7 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
@@ -1981,7 +1981,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);

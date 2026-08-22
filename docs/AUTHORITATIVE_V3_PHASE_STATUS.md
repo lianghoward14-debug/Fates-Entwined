@@ -7,11 +7,11 @@ gate.
 
 | Phase | Status | Gate evidence |
 | --- | --- | --- |
-| Phase 0: Architecture and Rule Inventory | Complete | All 109 cards and 20 landscapes have machine-checked operation/modifier/trigger/custom-handler assignments. The observe-only recorder and ambiguity ledger pass `smoke:authority-v3-phase0`. |
+| Phase 0: Architecture and Rule Inventory | Complete | All 111 cards and 20 landscapes have machine-checked operation/modifier/trigger/custom-handler assignments. The observe-only recorder and ambiguity ledger pass `smoke:authority-v3-phase0`. |
 | Phase 1: Engine Foundation | Complete | State construction, pinned RNG output, canonical hashing, strict command validation, permanent IDs, invariants, atomic rejection, and deterministic replay pass `smoke:authority-v3-phase1`. |
 | Phase 2: Universal Gameplay | Complete | Draw, set and set limits, move, discard, consolidation, Fate mutation, end turn, scoring/victory, and hand limits pass `smoke:authority-v3-phase2` with legacy rule anchors. |
 | Phase 3: Prompts and Effect Stack | Complete | Modal, card/hand, multi-board, destination, zone, optional, chained, cancellation, timeout, and reaction prompts recover with their exact continuation frames under `smoke:authority-v3-phase3`. |
-| Phase 4: Card Families | Complete | All 109 cards and all 20 landscapes have isolated implementations. Deterministic, interactive, triggered, timer-owned, token-copying, and landscape-changing rules pass the complete Phase 4 aggregate. |
+| Phase 4: Card Families | Complete | All 111 cards and all 20 landscapes have isolated implementations. Deterministic, interactive, triggered, timer-owned, token-copying, and landscape-changing rules pass the complete Phase 4 aggregate. |
 | Phase 5: Single-Player Cutover | Complete | The exact-flag route owns local state, UI commands, AI commands, hidden projections, replay, advanced browser interactions, and teardown. The 180-action differential gate, browser-family harness, and projection-only AI calibration all pass. Legacy remains the unflagged default to preserve strict route isolation. |
 | Phase 6: Server Shadow Mode | Complete | Release 2 of the separate `fates-entwined-v3-shadow-soak` app produced 180 authenticated, one-room-per-action comparisons: 178 exact matches and only the two reviewed Phase 5 legacy defects. Accepted-log reconciliation is 180/180, all version/build/deployment pins agree, and no unreviewed or untranslated corpus records remain. |
 | Phase 7: Unranked Authoritative Beta | Complete | Release 6 of the isolated beta app runs the pinned catalog-complete build on exactly one encrypted volume. Two Firebase-authenticated clients used distinct credentials, private projections, command-only placement/end-turn, then recovered the exact revision/hash after a real machine restart and completed the match with no legacy fallback. |
@@ -19,7 +19,7 @@ gate.
 
 ## Phase 0 evidence
 
-- `docs/AUTHORITY_V3_PHASE0_RULE_INVENTORY.json` inventories all 109 playable
+- `docs/AUTHORITY_V3_PHASE0_RULE_INVENTORY.json` inventories all 111 playable
   card definitions and all 20 landscapes.
 - Every definition declares timing, effect family, operations, prompts,
   triggers, modifiers, a legacy parity handler, implementation status, and
@@ -236,7 +236,7 @@ then.
   placement, or delayed statuses remain assigned to their later/overlapping
   Phase 4 families.
 - `smoke:authority-v3-phase4` runs every Phase 4 family and the completed
-  109-card/20-landscape registry. No later phase is promoted.
+  111-card/20-landscape registry. No later phase is promoted.
 - `smoke:authority-v3-phase4-movement` covers serialized movement grants,
   adjacent-zone/row validation, once-per-turn enforcement, owner-turn expiry,
   recovery, and standard movement-trigger interaction.

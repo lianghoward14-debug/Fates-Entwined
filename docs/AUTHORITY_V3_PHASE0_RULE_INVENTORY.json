@@ -4,13 +4,13 @@
   "phase": "Phase 0: Architecture and Rule Inventory",
   "gateStatus": "classified-not-implemented",
   "summary": {
-    "playableCards": 109,
+    "playableCards": 111,
     "landscapes": 20,
-    "isolatedPrototypeCards": 109,
+    "isolatedPrototypeCards": 111,
     "unportedCards": 0,
     "isolatedPrototypeLandscapes": 20,
     "unportedLandscapes": 0,
-    "openCardAmbiguityFlags": 38,
+    "openCardAmbiguityFlags": 39,
     "openLandscapeAmbiguityFlags": 11
   },
   "taxonomy": {
@@ -1699,7 +1699,7 @@
       "name": "Lydia",
       "type": "Improvisor",
       "affiliation": "expanded_worlds",
-      "abilityText": "Whenever your opponent would activate the effect of any card, you can negate the effect or suppress it permanently (3 uses).",
+      "abilityText": "Whenever your opponent would activate the effect of any card, you can negate that effect and suppress its source permanently (3 uses).",
       "abilityTiming": [
         "TRIGGERED"
       ],
@@ -3389,6 +3389,65 @@
         "ZONE_QUERY"
       ],
       "customHandler": "legacy-card:bh08",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": []
+    },
+    {
+      "cardId": "bh09",
+      "name": "Alondra Hopkins (Mercenary)",
+      "type": "Dauntless",
+      "affiliation": "eventide",
+      "abilityText": "When set, select any zone—this card gains Fate equal to your total Fate in that zone subtracted by your opponent's total Fate in that zone.",
+      "abilityTiming": [
+        "WHEN_SET"
+      ],
+      "effectFamilies": [
+        "PLACEMENT_EFFECTS"
+      ],
+      "operations": [
+        "SET_CARD"
+      ],
+      "promptTypes": [
+        "CARD_SELECTION",
+        "ZONE_SELECTION"
+      ],
+      "triggerSubscriptions": [
+        "CARD_SET"
+      ],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh09",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "BASE_VS_EFFECTIVE_FATE"
+      ]
+    },
+    {
+      "cardId": "bh10",
+      "name": "Francisek",
+      "type": "Initiator",
+      "affiliation": "expanded_worlds",
+      "abilityText": "Discard your entire hand then draw an equal number of cards from your deck.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "DISCARD_REMOVAL_AND_TRANSFER",
+        "DRAW_AND_SEARCH"
+      ],
+      "operations": [
+        "DISCARD_CARD",
+        "DRAW_CARD"
+      ],
+      "promptTypes": [],
+      "triggerSubscriptions": [],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh10",
       "coverageDeclaration": "phase-0-classified",
       "implementationStatus": "isolated-v3-prototype",
       "parityFixtures": [],

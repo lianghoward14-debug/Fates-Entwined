@@ -1575,6 +1575,32 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['EFFECT_REACTED']
   },
+  'bh09':{
+    timings:['WHEN_SET'],
+    operations:['GAIN_ZONE_FATE_DIFFERENCE'],
+    prompts:['ZONE_SELECTION'],
+    program:[
+      {
+        kind:'SELECT_ZONE',
+        local:'zone'
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'GAIN_ZONE_FATE_DIFFERENCE', zone:'$zone'}
+      }
+    ]
+  },
+  'bh10':{
+    timings:['WHEN_SET'],
+    operations:['REDRAW_HAND', 'DRAW_CARD', 'DISCARD_CARD'],
+    prompts:[],
+    program:[
+      {
+        kind:'OPERATION',
+        operation:{type:'REDRAW_HAND', playerIndex:'$controller'}
+      }
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],

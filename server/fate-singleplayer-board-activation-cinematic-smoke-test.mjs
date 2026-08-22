@@ -119,7 +119,7 @@ await Promise.all([
 assert.deepEqual(busserEvents, ['cinematic', 'movement-prompt', 'movement-targets', 'glow'],
   'Bussing must play exactly one cinematic before opening movement selection');
 
-assert.match(index, /05-gameplay-core\.js\?v=1787630002/,
+assert.match(index, /05-gameplay-core\.js\?v=1787710001/,
   'the complete single-player button-cinematic fix must be cache-busted');
 
 console.log('single-player board activation cinematic smoke passed');

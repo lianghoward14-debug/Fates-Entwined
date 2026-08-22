@@ -5053,12 +5053,12 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh25']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -6024,8 +6024,77 @@ function chooseTaylorCopiedEffect(taylor, z, r, c, player) {
   });
 }
 
+async function resolveChildOfWar(inst, cp, opp) {
+  const applyZone = function(selectedZone){
+    const zone = Math.max(0, Math.min(2, Number(selectedZone) || 0));
+    const ownFate = getZoneScore(zone, cp);
+    const opponentFate = getZoneScore(zone, opp);
+    const gain = Math.max(0, ownFate - opponentFate);
+    if(gain > 0) modifyFate(inst, gain, 'permanent', cp);
+    toast(inst.name + ' gains ' + gain + ' Fate from Zone ' + (zone + 1) + '.');
+    renderEffectResolutionForPlayer(cp, {hand:false});
+    return gain;
+  };
+  if(G.aiEnabled && cp === G.aiPlayer){
+    let bestZone = 0;
+    let bestDifference = -Infinity;
+    for(let zone = 0; zone < 3; zone++){
+      const difference = getZoneScore(zone, cp) - getZoneScore(zone, opp);
+      if(difference > bestDifference){
+        bestDifference = difference;
+        bestZone = zone;
+      }
+    }
+    return applyZone(bestZone);
+  }
+  return new Promise(function(resolve){
+    const finish = function(zone){ resolve(applyZone(zone)); };
+    if(typeof showZonePickerVisual === 'function'){
+      showZonePickerVisual({
+        title:'The Child of War',
+        subtitle:"Select any zone. Alondra gains Fate equal to your Fate there minus your opponent's Fate.",
+        allowCancel:false
+      }, finish);
+      return;
+    }
+    showModal('The Child of War', '<p>Select any zone. Alondra gains Fate equal to your Fate there minus your opponent\'s Fate.</p>', [
+      {label:'Zone 1', action:function(){ closeModal(); finish(0); }},
+      {label:'Zone 2', action:function(){ closeModal(); finish(1); }},
+      {label:'Zone 3', action:function(){ closeModal(); finish(2); }}
+    ]);
+  });
+}
+
+async function resolveChauffeurRedraw(card, cp) {
+  const hand = G.players[cp] && Array.isArray(G.players[cp].hand) ? G.players[cp].hand : [];
+  const discarded = [];
+  hand.slice().forEach(function(candidate){
+    if(!candidate || candidate._bh03TransferPending) return;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(candidate)) return;
+    const index = hand.findIndex(function(live){ return live && String(live.iid || '') === String(candidate.iid || ''); });
+    if(index < 0) return;
+    discarded.push(hand.splice(index, 1)[0]);
+  });
+  if(discarded.length){
+    fatePushDiscard(cp, discarded, {sound:false});
+    if(typeof playDiscardSfx === 'function') playDiscardSfx();
+  }
+  await drawCard(cp, discarded.length, {
+    afterSetOrCinematic:true,
+    activatedDrawEffect:true,
+    effectSource:card,
+    effectSourceId:'bh10'
+  });
+  toast('Chauffeur discarded ' + discarded.length + ' card' + (discarded.length === 1 ? '' : 's') + ' and drew the same number.');
+  renderEffectResolutionForPlayer(cp, {bothHands:true, piles:true});
+  return discarded.length;
+}
+
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
   switch(id) {
+    case 'bh09':
+      await resolveChildOfWar(inst, cp, opp);
+      break;
     case '02': // Anicka Konvicka: create extra safe row in this zone
       {
         const anickaIid = inst && inst.iid;
@@ -7010,6 +7079,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       break;
     case 'bh06':
       activateAchillesAdaptiveTactics(card, cp);
+      break;
+    case 'bh10':
+      await resolveChauffeurRedraw(card, cp);
       break;
     case '03': // Howard: double Fate of card in zone, then +5
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
@@ -9387,4 +9459,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh25']);

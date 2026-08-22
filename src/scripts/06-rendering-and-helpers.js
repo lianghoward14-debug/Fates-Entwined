@@ -9256,7 +9256,9 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh05": "They say I play hard to get...but that just means I do my job well",
   "bh06": "We must stay light on our feet, so that we are ready for anything",
   "bh07": "By enforcing a Lyapunov function candidate with a negative semi-definite derivative, we guarantee asymptotic stability across the entire domain of attraction.",
-  "bh08": "Do you think I can blackmail the principal by leaving my bra inside his office?"
+  "bh08": "Do you think I can blackmail the principal by leaving my bra inside his office?",
+  "bh09": "Its a cruel world,",
+  "bh10": "Where you thinking of going today?"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 

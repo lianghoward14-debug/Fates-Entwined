@@ -27,6 +27,7 @@ import {
   stampCaliforniqueHandCard
 } from './landscapes/runtime.mjs';
 import {cloneSerializable} from './serialization.mjs';
+import {zoneScore} from './scoring.mjs';
 
 function operationError(code, reason, details = {}){
   const error = new Error(reason);
@@ -1777,6 +1778,70 @@ function changeLandscape(ctx, operation){
   return result;
 }
 
+function gainZoneFateDifference(ctx, operation){
+  const source = findBoardCard(ctx.state, operation.sourceIid);
+  if(!source) throw operationError('CARD_NOT_ON_BOARD', 'The Child of War source is no longer on the board');
+  const zone = Number(operation.zone);
+  if(!Number.isInteger(zone) || zone < 0 || zone > 2){
+    throw operationError('INVALID_ZONE', 'The Child of War requires a valid selected zone');
+  }
+  const controller = Number(operation.sourceController);
+  if(controller !== 0 && controller !== 1){
+    throw operationError('PLAYER_NOT_FOUND', 'The Child of War controller is invalid');
+  }
+  const ownFate = zoneScore(ctx.state, zone, controller);
+  const opponentFate = zoneScore(ctx.state, zone, controller === 0 ? 1 : 0);
+  const amount = Math.max(0, ownFate - opponentFate);
+  if(amount > 0){
+    changeFate(ctx, {
+      type:OPERATION_TYPES.MODIFY_FATE,
+      targetIid:source.card.iid,
+      amount,
+      sourceIid:source.card.iid,
+      sourceController:controller,
+      reason:'CHILD_OF_WAR'
+    }, false);
+  }
+  return {zone, ownFate, opponentFate, amount};
+}
+
+function redrawHand(ctx, operation){
+  const playerIndex = Number(operation.playerIndex);
+  const player = ctx.state.players[playerIndex];
+  if(!player) throw operationError('PLAYER_NOT_FOUND', 'Chauffeur controller is invalid');
+  const sourceCard = cardSource(ctx, operation);
+  const snapshot = player.hand.map(card=>String(card.iid));
+  const discardedIids = [];
+  for(const targetIid of snapshot){
+    const entry = findCard(ctx.state, targetIid);
+    if(!entry || entry.zone !== 'hand' || Number(entry.playerIndex) !== playerIndex) continue;
+    const discardOperation = {
+      type:OPERATION_TYPES.DISCARD_CARD,
+      targetIid,
+      sourceIid:operation.sourceIid || null,
+      sourceController:Number(operation.sourceController),
+      semanticSourceCardId:operation.semanticSourceCardId,
+      reason:'CHAUFFEUR_REDRAW'
+    };
+    const check = inspectOperation(ctx.state, {...discardOperation, sourceCard});
+    if(!check.ok) continue;
+    discardCard(ctx, discardOperation);
+    if(!player.hand.some(card=>String(card.iid) === targetIid)) discardedIids.push(targetIid);
+  }
+  const drawResult = discardedIids.length
+    ? drawCards(ctx, {
+        type:OPERATION_TYPES.DRAW_CARD,
+        playerIndex,
+        count:discardedIids.length,
+        activatedEffect:true,
+        sourceIid:operation.sourceIid || null,
+        sourceController:Number(operation.sourceController),
+        semanticSourceCardId:operation.semanticSourceCardId || 'bh10'
+      })
+    : {drawnIids:[]};
+  return {discardedIids, drawnIids:drawResult.drawnIids};
+}
+
 export function applyOperation(ctx, operation){
   if(!ctx?.state || !Array.isArray(ctx.events) || !Array.isArray(ctx.ruleEvents)){
     throw new TypeError('operation context is invalid');
@@ -1816,6 +1881,8 @@ export function applyOperation(ctx, operation){
     case OPERATION_TYPES.CHANGE_ZONE_AFFILIATION: return changeZoneAffiliation(ctx, operation);
     case OPERATION_TYPES.RANDOM_TRANSFER_CARDS: return randomTransferCards(ctx, operation);
     case OPERATION_TYPES.SPLIT_FATE_LOSS_BY_TYPE: return splitFateLossByType(ctx, operation);
+    case OPERATION_TYPES.GAIN_ZONE_FATE_DIFFERENCE: return gainZoneFateDifference(ctx, operation);
+    case OPERATION_TYPES.REDRAW_HAND: return redrawHand(ctx, operation);
     case OPERATION_TYPES.CHANGE_LANDSCAPE: return changeLandscape(ctx, operation);
     default: throw operationError('UNSUPPORTED_OPERATION', `unsupported operation ${operation?.type || '(missing)'}`);
   }
