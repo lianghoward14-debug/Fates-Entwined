@@ -674,7 +674,18 @@ function changeFate(ctx, operation, absolute){
     if(!Number.isInteger(transformed)){
       throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
     }
-    commitPermanentFate(entry.card, transformed);
+    const targetController = controllerOf(entry.card);
+    const chineseMacArthurSources = transformed > beforeStored
+      && String(operation.reason || '').toUpperCase() !== 'CHINESE_MACARTHUR_BONUS'
+      ? boardEntries(ctx.state).filter(sourceEntry=>
+          controllerOf(sourceEntry.card) === targetController
+          && sourceEntry.card.faceDown !== true
+          && runtimeRuleId(sourceEntry.card) === 'bh15'
+          && !isEffectSourceSuppressed(ctx.state, sourceEntry)
+        )
+      : [];
+    const chineseMacArthurBonus = chineseMacArthurSources.length;
+    commitPermanentFate(entry.card, transformed + chineseMacArthurBonus);
     const after = entry.zone === 'board'
       ? effectiveFate(ctx.state, findCard(ctx.state, targetIid))
       : Math.max(0, Number(entry.card.currentFate) || 0);
@@ -686,9 +697,11 @@ function changeFate(ctx, operation, absolute){
       amount:after - before,
       sourceIid:operation.sourceIid || null,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
-      reason:operation.reason || ''
+      reason:operation.reason || '',
+      bh15Bonus:chineseMacArthurBonus,
+      bh15SourceIids:chineseMacArthurSources.map(sourceEntry=>String(sourceEntry.card.iid || ''))
     });
-    changes.push({cardIid:entry.card.iid, before, after});
+    changes.push({cardIid:entry.card.iid, before, after, bh15Bonus:chineseMacArthurBonus});
   }
   if(!absolute && amount < 0 && Number.isInteger(Number(operation.sourceController))){
     const sourceController = Number(operation.sourceController);
@@ -701,6 +714,60 @@ function changeFate(ctx, operation, absolute){
   return changes.length === 1
     ? changes[0]
     : {cardIids:changes.map(change=>change.cardIid), changes};
+}
+
+function changeCardType(ctx, operation){
+  const playerIndex = Number(operation.playerIndex);
+  if(!ctx.state.players[playerIndex]) throw operationError('PLAYER_NOT_FOUND', 'card-type controller is invalid');
+  const declaredTypes = ['Supporter', 'Initiator', 'Improvisor', 'Coordinator', 'Dauntless'];
+  const cardType = String(operation.cardType || '');
+  if(!declaredTypes.includes(cardType)) throw operationError('INVALID_CARD_TYPE', 'declared card type is invalid');
+  const targetIids = Array.from(new Set((Array.isArray(operation.targetIids)
+    ? operation.targetIids
+    : [operation.targetIid]).map(value=>String(value || '')).filter(Boolean)));
+  const entries = targetIids.map(targetIid=>{
+    const entry = findCard(ctx.state, targetIid);
+    if(!entry || entry.zone !== 'hand' || Number(entry.playerIndex) !== playerIndex){
+      throw operationError('CARD_NOT_IN_HAND', 'card-type target is not in the controller hand', {targetIid});
+    }
+    if(isEffectImmutable(entry.card)) throw operationError('TARGET_IMMUNE', 'card-type target is effect immutable', {targetIid});
+    return entry;
+  });
+  const changes = entries.map(entry=>{
+    const beforeType = String(entry.card.type || '');
+    if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
+    if(!entry.card.counters.bh14OriginalType) entry.card.counters.bh14OriginalType = beforeType;
+    entry.card.counters.bh14DeclaredType = cardType;
+    entry.card.type = cardType;
+    if(!Array.isArray(entry.card._handEffectModifiers)) entry.card._handEffectModifiers = [];
+    const modifierText = `Charter of the United Nations: this card became a ${cardType === 'Improvisor' ? 'Improviser' : cardType}.`;
+    const existingModifier = entry.card._handEffectModifiers.find(item=>item?.key === 'chloe-kirk-charter');
+    if(existingModifier){
+      existingModifier.name = 'Charter of the United Nations';
+      existingModifier.text = modifierText;
+    }else{
+      entry.card._handEffectModifiers.push({
+        key:'chloe-kirk-charter',
+        name:'Charter of the United Nations',
+        text:modifierText,
+        fateDelta:0,
+        costDelta:0
+      });
+    }
+    emit(ctx, {
+      type:RULE_EVENT_TYPES.CARD_TYPE_CHANGED,
+      privateTo:[playerIndex],
+      playerIndex,
+      cardIid:entry.card.iid,
+      beforeType,
+      afterType:cardType,
+      sourceIid:operation.sourceIid || null,
+      semanticSourceCardId:operation.semanticSourceCardId || 'bh14',
+      reason:operation.reason || 'CHARTER_OF_THE_UNITED_NATIONS'
+    });
+    return {cardIid:entry.card.iid, beforeType, afterType:cardType};
+  });
+  return {cardIids:changes.map(change=>change.cardIid), changes};
 }
 
 function revealHand(ctx, operation){
@@ -1030,16 +1097,31 @@ function createMatchStatus(ctx, operation){
     throw operationError('INVALID_STATUS', 'match status requires a source and player');
   }
   const type = String(input.type).toUpperCase();
+  const sourceEntry = findBoardCard(ctx.state, sourceIid);
+  const countedAffiliation = String(input.countControlledAffiliation || '');
+  const countedEntries = countedAffiliation
+    ? boardEntries(ctx.state).filter(entry=>
+        controllerOf(entry.card) === Number(operation.sourceController)
+        && String(entry.card.affiliation || entry.card.aff || '') === countedAffiliation
+      )
+    : [];
+  const sourceUse = Math.max(1, Number(sourceEntry?.card?.counters?.effectUses || 1));
   const statusId = String(input.statusId || (
     type === 'NEXT_CHARACTER_HAND_ARRIVAL'
       ? `rule:${type.toLowerCase()}:p${playerIndex}`
-      : `rule:${type.toLowerCase()}:${sourceIid}:p${playerIndex}`
+      : (input.stackPerUse === true
+          ? `rule:${type.toLowerCase()}:${sourceIid}:p${playerIndex}:use${sourceUse}`
+          : `rule:${type.toLowerCase()}:${sourceIid}:p${playerIndex}`)
   ));
   const inferredZone = input.inferSourceZone === true
     ? findBoardCard(ctx.state, sourceIid)?.z
     : input.zone;
   const status = JSON.parse(JSON.stringify({
     ...input,
+    ...(countedAffiliation ? {
+      value:countedEntries.length * Number(input.valuePerControlledCard || 0),
+      countedCardIids:countedEntries.map(entry=>String(entry.card.iid || ''))
+    } : {}),
     ...(Number.isInteger(Number(inferredZone)) ? {zone:Number(inferredZone)} : {}),
     type,
     statusId,
@@ -1047,6 +1129,9 @@ function createMatchStatus(ctx, operation){
     playerIndex
   }));
   delete status.inferSourceZone;
+  delete status.countControlledAffiliation;
+  delete status.valuePerControlledCard;
+  delete status.stackPerUse;
   const existingIndex = ctx.state.statuses.findIndex(item=>item.statusId === statusId);
   if(existingIndex >= 0){
     ctx.state.statuses[existingIndex] = status;
@@ -1879,6 +1964,7 @@ export function applyOperation(ctx, operation){
     case OPERATION_TYPES.DISCARD_CARD: return discardCards(ctx, operation);
     case OPERATION_TYPES.MODIFY_FATE: return changeFate(ctx, operation, false);
     case OPERATION_TYPES.SET_FATE: return changeFate(ctx, operation, true);
+    case OPERATION_TYPES.CHANGE_CARD_TYPE: return changeCardType(ctx, operation);
     case OPERATION_TYPES.REVEAL_HAND: return revealHand(ctx, operation);
     case OPERATION_TYPES.TRANSFER_CARDS: return transferCards(ctx, operation);
     case OPERATION_TYPES.CHANGE_CONTROL: return changeControl(ctx, operation);

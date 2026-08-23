@@ -1439,6 +1439,28 @@ function playSfx(type) {
     // -------------------------------------------
     //  COMBAT / INTERACTION SOUNDS
     // -------------------------------------------
+    else if(type==='liHuaBlades'){
+      // Three fast jian cuts followed by a bright tempered-steel ring. This is
+      // distinct from the generic Fate-loss crunch and plays once while all
+      // of Li-Hua's counted-card overlays appear together.
+      [0,0.045,0.09].forEach(function(offset, index){
+        const cut=noiseBurst(0.075,3.4,0.16,'highpass',2100 + index * 520,1.15);
+        cut.start(now + offset);
+        const edge=ctx.createOscillator();edge.type='triangle';
+        edge.frequency.setValueAtTime(1850 + index * 310,now + offset);
+        edge.frequency.exponentialRampToValueAtTime(760 + index * 120,now + offset + 0.11);
+        const edgeG=ctx.createGain();edgeG.gain.setValueAtTime(0.075,now + offset);
+        edgeG.gain.exponentialRampToValueAtTime(0.001,now + offset + 0.15);
+        edge.connect(edgeG);edgeG.connect(vol);edge.start(now + offset);edge.stop(now + offset + 0.17);
+      });
+      [987.77,1318.51,1567.98].forEach(function(freq,index){
+        const ring=ctx.createOscillator();ring.type='sine';ring.frequency.value=freq;
+        const ringG=ctx.createGain();ringG.gain.setValueAtTime(0.055/(index+1),now+0.11);
+        ringG.gain.exponentialRampToValueAtTime(0.001,now+0.72+index*0.06);
+        ring.connect(ringG);ringG.connect(vol);ring.start(now+0.11);ring.stop(now+0.78+index*0.06);
+      });
+    }
+
     else if(type==='fateReduce'){
       // Heavy crunch when fate gets reduced
       const crunch=ctx.createOscillator();crunch.type='sawtooth';
@@ -1966,7 +1988,7 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
@@ -1981,7 +2003,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);

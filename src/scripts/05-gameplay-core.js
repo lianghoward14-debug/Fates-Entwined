@@ -318,6 +318,7 @@ function applyRiveraBuffToPlacedCard(inst, owner) {
     if(inst._riveraAppliedBuffs[key]) return;
     const before = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
     inst.currentFate = Math.max(0, before + 4);
+    if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(inst, before, inst.currentFate);
     inst._riveraAppliedBuffs[key] = true;
     inst._riveraFateBonus = (Number(inst._riveraFateBonus) || 0) + 4;
     applied = true;
@@ -4559,12 +4560,14 @@ function applyGreatOakConsolidationBonus(card, amount) {
   if(!card) return 0;
   const gain = Math.max(0, Number(amount) || 0);
   if(!gain) return 0;
-  card.currentFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0) + gain;
+  const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  card.currentFate = before + gain;
   // Great Oak's gain is permanent, so it must also lift a pre-existing permanent
   // Fate ceiling instead of being hidden behind an earlier debuff.
   if(Number.isFinite(Number(card._permanentFateCeiling))) {
     card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + gain;
   }
+  if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(card, before, card.currentFate);
   card._greatOakPermanentFateGain = Math.max(0, Number(card._greatOakPermanentFateGain) || 0) + gain;
   if(typeof recordHandCardEffectModifier === 'function') {
     recordHandCardEffectModifier(card, {
@@ -4640,6 +4643,7 @@ async function resolveBoleslawOpponentSearch(searchingPlayer, context = {}) {
     await drawCard(reaction.owner, 1, {afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:live});
     const before = Number(live.currentFate ?? live.fate) || 0;
     live.currentFate = before + 2;
+    if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(live, before, live.currentFate);
     activated++;
     toast('A Bombastic Character: drew 1 card; Boleslaw gained 2 Fate.');
     log(reaction.owner===0?'p1':'p2', 'Boleslaw reacted to an opponent search: drew 1 card and gained 2 Fate');
@@ -4712,6 +4716,7 @@ function noteBalladConsolidation(player, card) {
   activeEffects.forEach(function(fx, index){
     const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
     card.currentFate = before + 3;
+    if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(card, before, card.currentFate);
     if(card._placementFateReveal) {
       card._placementFateReveal.kvetkaGainAmount = (Number(card._placementFateReveal.kvetkaGainAmount) || 0) + 3;
     }
@@ -5076,7 +5081,7 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh14','bh25']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
@@ -6143,6 +6148,7 @@ async function resolveSmartInvestments(card, cp) {
       // the deck. It is not a visible board Fate-gain event, so commit the
       // permanent value without spawning the generic floating Fate number.
       live.currentFate = before + 6;
+      if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(live, before, live.currentFate);
       if(Number.isFinite(Number(live._permanentFateCeiling))){
         live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + 6;
       }
@@ -6190,6 +6196,100 @@ async function resolveSmartInvestments(card, cp) {
     }, function(chosen){ resolve(commit(chosen)); });
   });
 }
+
+function applyCharterOfUnitedNations(chosen, declaredType, cp) {
+  if(!BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.includes(declaredType)) return 0;
+  const hand = G.players[cp] && Array.isArray(G.players[cp].hand) ? G.players[cp].hand : [];
+  const selectedIids = new Set((Array.isArray(chosen) ? chosen : []).map(function(card){
+    return String(card && card.iid || '');
+  }).filter(Boolean));
+  let changed = 0;
+  hand.forEach(function(live){
+    if(!live || !selectedIids.has(String(live.iid || '')) || live._bh03TransferPending) return;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(live)) return;
+    if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(live)) return;
+    const beforeType = String(live.type || '');
+    if(!live._bh14OriginalType) live._bh14OriginalType = beforeType;
+    live._bh14DeclaredType = declaredType;
+    live.type = declaredType;
+    if(typeof recordHandCardEffectModifier === 'function') {
+      recordHandCardEffectModifier(live, {
+        key:'chloe-kirk-charter',
+        name:'Charter of the United Nations',
+        text:'Charter of the United Nations: this card became a ' + (declaredType === 'Improvisor' ? 'Improviser' : declaredType) + '.'
+      });
+    }
+    changed += 1;
+  });
+  toast(changed
+    ? 'Charter of the United Nations changed ' + changed + ' card' + (changed === 1 ? '' : 's') + ' into ' + (declaredType === 'Improvisor' ? 'Improvisers.' : declaredType + 's.')
+    : 'Charter of the United Nations declined.');
+  renderEffectResolutionForPlayer(cp, {hand:true, piles:false});
+  return changed;
+}
+
+async function chooseCharterOfUnitedNationsType(card, cp) {
+  const hand = G.players[cp] && Array.isArray(G.players[cp].hand) ? G.players[cp].hand : [];
+  const eligible = hand.filter(function(candidate){
+    if(!candidate || candidate._bh03TransferPending) return false;
+    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(candidate)) return false;
+    return !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(candidate));
+  });
+  if(!eligible.length){
+    toast('Charter of the United Nations has no eligible cards in your hand.');
+    return 0;
+  }
+  const selectCards = function(declaredType, resolve){
+    if(typeof pickCardsVisual !== 'function'){
+      resolve(applyCharterOfUnitedNations([], declaredType, cp));
+      return;
+    }
+    pickCardsVisual(eligible, {
+      title:'Charter of the United Nations',
+      subtitle:'Select any number of cards in your hand to become ' + (declaredType === 'Improvisor' ? 'Improvisers.' : declaredType + 's.'),
+      minCount:0,
+      maxCount:eligible.length,
+      confirmLabel:'Change Card Type',
+      immediate:true,
+      viewerPlayerIndex:cp,
+      onlineParentAction:true,
+      onCancel:function(){ resolve(applyCharterOfUnitedNations([], declaredType, cp)); }
+    }, function(chosen){ resolve(applyCharterOfUnitedNations(chosen, declaredType, cp)); });
+  };
+  if(G.aiEnabled && cp === G.aiPlayer){
+    const declaredType = 'Supporter';
+    return applyCharterOfUnitedNations(eligible.filter(function(candidate){ return String(candidate.type || '') !== declaredType; }), declaredType, cp);
+  }
+  return new Promise(function(resolve){
+    let settled = false;
+    const labels = {Supporter:'Supporter', Initiator:'Initiator', Improvisor:'Improviser', Coordinator:'Coordinator', Dauntless:'Dauntless'};
+    const body = '<div class="bh04-type-picker"><p class="bh04-picker-prompt">Declare one card type. <span>You may then select any number of eligible cards in your hand.</span></p><div class="bh04-type-grid">' +
+      BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(type){
+        return '<button type="button" class="btn bh04-type-choice" data-bh14-type="' + escapeHtml(type) + '"><span class="bh04-type-name">' + escapeHtml(labels[type] || type) + '</span><span class="bh04-type-meta">Declare this type</span></button>';
+      }).join('') + '</div></div>';
+    const actions = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(declaredType){
+      return {label:'Declare ' + (labels[declaredType] || declaredType), pri:true, hidden:true, action:function(){
+        if(settled) return;
+        settled = true;
+        closeModal();
+        setTimeout(function(){ selectCards(declaredType, resolve); }, 0);
+      }};
+    });
+    showModal('Charter of the United Nations', body, actions, {onOpen:function(){
+      document.querySelectorAll('#modal .bh04-type-choice[data-bh14-type]').forEach(function(button){
+        button.onclick = function(){
+          const type = String(button.getAttribute('data-bh14-type') || '');
+          const index = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.indexOf(type);
+          if(index < 0) return;
+          if(typeof playEffectActivationButtonSound === 'function') playEffectActivationButtonSound();
+          const action = actions[index];
+          if(action && typeof action.action === 'function') action.action();
+        };
+      });
+    }});
+  });
+}
+if(typeof window !== 'undefined') window.chooseCharterOfUnitedNationsType = chooseCharterOfUnitedNationsType;
 
 async function chooseFlowerKingTarget(inst, z, r, c, cp) {
   const entries = getAdjacentBoardSquareEntries(z, r, c);
@@ -6277,6 +6377,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case 'bh13':
       await resolveSmartInvestments(inst, cp);
+      break;
+    case 'bh14':
+      await chooseCharterOfUnitedNationsType(inst, cp);
       break;
     case '02': // Anicka Konvicka: create extra safe row in this zone
       {
@@ -6932,6 +7035,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       inst.usesLeft = 3; break;
     case '40': // Christopher Erbs: initialize 2 uses
       inst.usesLeft = 2; break;
+    case 'bh16': // Li-Hua: two player-timed Zone Fate reductions
+      inst.usesLeft = 2; break;
     case '14': // Alondra Hopkins: discard adjacent OR diagonal opponent supporters when set
       {
         const adjCards = getAdjacentAndDiagonalCards(z,r,c);
@@ -6944,7 +7049,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
             log(cp===0?'p1':'p2',`Alondra discarded ${ac.name}`);
           }
         });
-        if(gained) inst.currentFate += gained;
+        if(gained) {
+          const before = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0);
+          inst.currentFate = before + gained;
+          if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(inst, before, inst.currentFate);
+        }
         if(gained) toast(`Alondra discarded ${gained} adjacent supporters, gained ${gained} Fate`);
         renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
       } break;
@@ -7265,11 +7374,15 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case 'bh10':
       await resolveChauffeurRedraw(card, cp);
       break;
+    case 'bh14':
+      await chooseCharterOfUnitedNationsType(card, cp);
+      break;
     case '03': // Howard: double Fate of card in zone, then +5
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
         if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
         const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
         tgt.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
+        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(tgt, before, tgt.currentFate);
         log(cp===0?'p1':'p2',`Moffitt Inspiration: ${tgt.name} Fate became ${tgt.currentFate}`);
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false});
@@ -7311,7 +7424,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           const addedCards = [];
           chosen.forEach((c, idx)=>{
             if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
-            c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
+            const beforeFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0);
+            c.currentFate = beforeFate + 4;
+            if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(c, beforeFate, c.currentFate);
             if(typeof recordHandCardEffectModifier === 'function') {
               recordHandCardEffectModifier(c, {
                 key:'maja-kaminska-oblique-order',
@@ -7570,6 +7685,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
           const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
           found.currentFate = beforeFate + 3;
+          if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
           if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
             recordHandCardEffectModifier(found, {
               key:'wojciech-fisherman:' + (card.iid || card.id || 'source'),
@@ -7711,6 +7827,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       if(card.usesLeft>0){
         toast('Lydia is ready to negate an opponent effect activation ('+card.usesLeft+' uses remaining).');
       } else toast('No uses remaining.'); break;
+    case 'bh16':
+      activateLiHuaStormOfTenThousandBlades(card, z, cp);
+      break;
     case '17': // Carolyn: block any open cell permanently
       {
         highlightForBlock(-1, card);
@@ -7770,6 +7889,7 @@ function canUseManualCharacterEffect(card) {
     G.pendingInteraction
   )) return false;
   if(id === '40') return Number(card.usesLeft || 0) > 0;
+  if(id === 'bh16') return Number(card.usesLeft || 0) > 0;
   if(id === '38') return card.effectUsedThisTurn !== true;
   if(id === 'bh01') return !hasAnickaVoyagerMovedThisTurn(card);
   if(AUTHORITATIVE_ACTIVATE_EFFECT_IDS.has(id)) {
@@ -7971,6 +8091,153 @@ function applyPermanentFateDebuff(card, amount, sourceOwner) {
 }
 if(typeof window !== 'undefined') window.applyPermanentFateDebuff = applyPermanentFateDebuff;
 
+const BH16_OVERLAY_KIND = 'bh16_storm_blades';
+
+function controlledEventideCardsForLiHua(owner) {
+  const cards = [];
+  if(owner !== 0 && owner !== 1) return cards;
+  forEachBoardCard(function(card){
+    // Storm of Ten Thousand Blades counts affiliation only. Suppression (and
+    // the card being face down) does not stop an Eventide card from counting.
+    if(card && Number(card.owner) === owner && String(card.aff || card.affiliation || '') === 'eventide') cards.push(card);
+  });
+  return cards;
+}
+
+function activateLiHuaStormOfTenThousandBlades(card, zoneIndex, owner) {
+  if(!card) return false;
+  const controller = owner === 0 || owner === 1 ? owner : Number(card.owner);
+  const z = Number(zoneIndex);
+  if((controller !== 0 && controller !== 1) || !Number.isInteger(z) || !G.board?.[z]) return false;
+  const usesLeft = Number.isFinite(Number(card.usesLeft)) ? Math.max(0, Number(card.usesLeft)) : 2;
+  if(usesLeft <= 0){
+    toast('Storm of Ten Thousand Blades has no uses remaining.');
+    return false;
+  }
+  const counted = controlledEventideCardsForLiHua(controller);
+  const opponent = 1 - controller;
+  const reduction = counted.length;
+  card.usesLeft = usesLeft - 1;
+  if(reduction > 0){
+    const key = 'lihua_z' + z + '_p' + opponent;
+    G.fateModifiers[key] = (Number(G.fateModifiers[key]) || 0) - reduction;
+    if(typeof playSfx === 'function') playSfx('liHuaBlades');
+    counted.forEach(function(eligible, index){
+      flashCardEffect(eligible, BH16_OVERLAY_KIND, {
+        label:'Storm of Ten Thousand Blades',
+        soundKey:['bh16', String(card.iid || card.id), String(G.turn || 0), String(card.usesLeft), String(index)].join(':')
+      });
+    });
+    if(typeof playSfx === 'function') playSfx('fateReduce');
+  }
+  toast('Storm of Ten Thousand Blades: ' + reduction + ' Eventide card' + (reduction === 1 ? '' : 's')
+    + ' reduced the opponent\'s Zone ' + (z + 1) + ' Fate by ' + reduction
+    + '. (' + card.usesLeft + ' use' + (card.usesLeft === 1 ? '' : 's') + ' left)');
+  log(controller === 0 ? 'p1' : 'p2', 'Li-Hua reduced the opponent\'s Zone ' + (z + 1) + ' Fate by ' + reduction);
+  renderEffectResolutionForPlayer(controller, {hand:false, scores:true, topbar:true});
+  return true;
+}
+if(typeof window !== 'undefined') {
+  window.controlledEventideCardsForLiHua = controlledEventideCardsForLiHua;
+  window.activateLiHuaStormOfTenThousandBlades = activateLiHuaStormOfTenThousandBlades;
+}
+
+const BH15_OVERLAY_KIND = 'bh15_chinese_macarthur';
+const bh15OverlayQueues = new Map();
+
+function activeChineseMacArthurSources(owner) {
+  const sources = [];
+  if((owner !== 0 && owner !== 1) || typeof forEachBoardCard !== 'function') return sources;
+  forEachBoardCard(function(source, z, r, c){
+    if(!source || Number(source.owner) !== owner || isFaceDownCard(source)) return;
+    if(!cardActsAsPassive(source, 'bh15')) return;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, z, r, c)) return;
+    sources.push(source);
+  });
+  return sources;
+}
+
+function queueChineseMacArthurOverlay(target, sourceIids) {
+  if(!target || !Array.isArray(sourceIids) || !sourceIids.length || typeof window === 'undefined') return;
+  const targetKey = String(target.iid || target.id || 'card');
+  let state = bh15OverlayQueues.get(targetKey);
+  if(!state){
+    state = {target:target, queue:[], running:false};
+    bh15OverlayQueues.set(targetKey, state);
+  }
+  state.target = target;
+  sourceIids.forEach(function(sourceIid){ state.queue.push(String(sourceIid || 'bh15')); });
+  if(state.running) return;
+  state.running = true;
+  const presentNext = function(){
+    const current = bh15OverlayQueues.get(targetKey);
+    if(!current || !current.queue.length){
+      bh15OverlayQueues.delete(targetKey);
+      return;
+    }
+    const liveTarget = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || current.target;
+    const activeFlash = liveTarget && liveTarget._effectFlash;
+    const now = Date.now();
+    if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
+      const waitMs = Math.max(40, Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500) - now + 35);
+      setTimeout(presentNext, waitMs);
+      return;
+    }
+    const sourceIid = current.queue.shift();
+    if(typeof flashCardEffect === 'function'){
+      flashCardEffect(liveTarget, BH15_OVERLAY_KIND, {
+        label:'The Chinese MacArthur',
+        soundKey:['bh15', sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
+      });
+    }
+    setTimeout(presentNext, 3535);
+  };
+  setTimeout(presentNext, 0);
+}
+if(typeof window !== 'undefined') window.queueChineseMacArthurOverlay = queueChineseMacArthurOverlay;
+
+function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
+  if(!card) return {bonus:0, after:afterValue, sourceIids:[]};
+  const before = Math.max(0, Number(beforeValue) || 0);
+  const after = Math.max(0, Number(afterValue) || 0);
+  // Authoritative rooms already include this rider in FATE_CHANGED. Their
+  // client projection only schedules the follow-up overlay and must not
+  // mutate the server-provided Fate a second time while presenting it.
+  if(typeof G !== 'undefined' && G && G._onlineRoomCode) return {bonus:0, after:after, sourceIids:[]};
+  if(after <= before) return {bonus:0, after:after, sourceIids:[]};
+  const owner = Number(card.owner);
+  const sources = activeChineseMacArthurSources(owner);
+  if(!sources.length) return {bonus:0, after:after, sourceIids:[]};
+  const currentFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  const turn = Number(G && G.turn || 0);
+  const now = Date.now();
+  const lastGain = card._bh15LastFateGain;
+  // A few legacy effects mutate Fate directly and then immediately call the
+  // shared Fate-feedback helper with that already-adjusted value. Treat that
+  // second pass as presentation for the same gain, rather than another BH15
+  // trigger. A later, genuinely new gain still receives its own rider/overlay.
+  if(lastGain
+    && Number(lastGain.turn) === turn
+    && Number(lastGain.before) === before
+    && Number(lastGain.final) === currentFate
+    && after === currentFate
+    && now - Number(lastGain.at || 0) < 250){
+    return {bonus:0, after:currentFate, sourceIids:[]};
+  }
+  const bonus = sources.length;
+  card.currentFate = currentFate + bonus;
+  if(Number.isFinite(Number(card._permanentFateCeiling))){
+    card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + bonus;
+  }
+  clampCardToLandscapeFateCap(card);
+  const sourceIids = sources.map(function(source){ return String(source.iid || source.id || 'bh15'); });
+  const finalFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+  card._bh15LastFateGain = {turn:turn, before:before, requestedAfter:after, final:finalFate, at:now};
+  queueChineseMacArthurOverlay(card, sourceIids);
+  return {bonus:Math.max(0, finalFate - currentFate), after:finalFate, sourceIids:sourceIids};
+}
+if(typeof window !== 'undefined') window.applyChineseMacArthurFateRider = applyChineseMacArthurFateRider;
+
 function modifyFate(card, amount, type) {
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
   const sourceOwner = (arguments.length >= 4 && (arguments[3] === 0 || arguments[3] === 1)) ? arguments[3] : G.currentPlayer;
@@ -7990,8 +8257,12 @@ function modifyFate(card, amount, type) {
 function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
   if(!card) return;
   const before = Math.max(0, Number(beforeValue) || 0);
-  const after = Math.max(0, Number(afterValue) || 0);
+  let after = Math.max(0, Number(afterValue) || 0);
   if(after === before) return;
+  if(after > before){
+    const rider = applyChineseMacArthurFateRider(card, before, after);
+    after = Math.max(after, Number(rider && rider.after) || after);
+  }
   if(card._placementFateReveal) {
     card._placementFateReveal.genericSoundRequested = true;
     return;
@@ -8513,6 +8784,8 @@ function getBaseZoneScore(z, player) {
   if(deterranceOwner>=0 && deterranceOwner!==player && dm<0){
     score = Math.max(0, score+dm);
   }
+  const liHuaReduction = Number(G.fateModifiers['lihua_z' + z + '_p' + player] || 0) || 0;
+  if(liHuaReduction < 0) score = Math.max(0, score + liHuaReduction);
   if(typeof getLandscapeZoneFateBonus === 'function') {
     score = Math.max(0, score + getLandscapeZoneFateBonus(player, z));
   }
@@ -9672,4 +9945,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh14','bh25']);

@@ -2890,6 +2890,8 @@
     jimmy_wrath:{color:'rgba(255,92,82,.99)',glow:'rgba(244,67,58,.68)',tint:'rgba(148,29,29,.20)'},
     bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
+    bh15_chinese_macarthur:{color:'rgba(225,239,255,.99)',glow:'rgba(105,159,235,.66)',tint:'rgba(48,82,142,.18)'},
+    bh16_storm_blades:{color:'rgba(187,255,249,.99)',glow:'rgba(69,214,205,.68)',tint:'rgba(26,131,126,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
@@ -3239,6 +3241,47 @@
       line([[17,48],[46,48],[41,55],[23,55],[17,48]],true);
       ctx.lineWidth = 2.9;
       line([[27,48],[27,55]],false); line([[37,48],[37,55]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'bh15_chinese_macarthur') {
+      // HL-A01: classic teardrop aviators. Kept as canvas geometry so the
+      // selected glyph stays crisp at every board-card render scale.
+      ctx.lineWidth = 4.2;
+      ctx.beginPath();
+      ctx.moveTo(7,18); ctx.lineTo(28,18); ctx.lineTo(27,35);
+      ctx.bezierCurveTo(26,45,21,51,15,51);
+      ctx.bezierCurveTo(8,51,6,42,6,33); ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(36,18); ctx.lineTo(57,18); ctx.lineTo(58,33);
+      ctx.bezierCurveTo(58,42,55,51,49,51);
+      ctx.bezierCurveTo(42,51,37,45,36,35); ctx.closePath(); ctx.stroke();
+      line([[28,23],[32,20],[36,23]],false);
+      line([[7,20],[1,16]],false); line([[57,20],[63,16]],false);
+      ctx.lineWidth = 2.5;
+      line([[13,27],[20,23]],false); line([[43,27],[50,23]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'bh16_storm_blades') {
+      // LH-J01: three balanced Chinese jian. The blades cross directly with
+      // no ring, disc, or other center mark.
+      const drawJian = function(angle){
+        ctx.save();
+        ctx.translate(32,32);
+        ctx.rotate(angle);
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(0,-29); ctx.lineTo(4,-22); ctx.lineTo(3,13);
+        ctx.lineTo(0,18); ctx.lineTo(-3,13); ctx.lineTo(-4,-22);
+        ctx.closePath(); ctx.stroke();
+        ctx.lineWidth = 3.1;
+        ctx.beginPath();
+        ctx.moveTo(-9,13); ctx.quadraticCurveTo(0,9,9,13);
+        ctx.lineTo(6,17); ctx.lineTo(-6,17); ctx.closePath(); ctx.stroke();
+        ctx.lineWidth = 2.7;
+        line([[0,17],[0,27]],false); line([[-3,20],[3,20]],false); line([[-3,27],[3,27]],false);
+        ctx.restore();
+      };
+      drawJian(0);
+      drawJian((Math.PI * 2) / 3);
+      drawJian((Math.PI * 4) / 3);
       ctx.lineWidth = 4.4;
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;

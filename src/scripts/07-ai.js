@@ -2827,6 +2827,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
         const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
         found.currentFate = beforeFate + 3;
+        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
         if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
           recordHandCardEffectModifier(found, {
             key:'wojciech-fisherman:' + (inst.iid || inst.id || 'source'),
@@ -2911,7 +2912,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         gained++;
       });
       if(gained) {
-        inst.currentFate = (inst.currentFate || inst.fate || 0) + gained;
+        const before = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0);
+        inst.currentFate = before + gained;
+        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(inst, before, inst.currentFate);
         log('p2','AI: Alondra discarded '+gained+' adjacent supporter(s)');
       }
       break;
@@ -3452,7 +3455,7 @@ async function aiActivateEffects() {
     }
   });
   // Sort: activate high-impact effects first (doublers, halvers, buff-all)
-  const effectPriority = {'40':13,'07':12,'21':11,'03':10,'bh01':10,'30':9,'01':8,'46':8,'57':8,'29':7,'27':7,'08':7,'06':7,'38':7,'23':6,'11':6,'15':6,'19':6,'10':5,'bh25':9};
+  const effectPriority = {'40':13,'bh16':12,'07':12,'21':11,'03':10,'bh01':10,'30':9,'01':8,'46':8,'57':8,'29':7,'27':7,'08':7,'06':7,'38':7,'23':6,'11':6,'15':6,'19':6,'10':5,'bh25':9};
   // Easier AIs process in random order (miss optimal sequencing)
   if(Math.random() < settings.mistakeChance){
     toActivate.sort(()=>Math.random()-0.5);
@@ -3628,6 +3631,7 @@ async function aiRunEffect(card, z, r, c) {
         }
         const before = Number(target.currentFate ?? target.fate ?? 0) || 0;
         target.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
+        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(target, before, target.currentFate);
         log('p2',`AI: Howard boosted ${target.name} to ${target.currentFate} Fate`);
       }
       break;
@@ -3802,7 +3806,9 @@ async function aiRunEffect(card, z, r, c) {
       for(const c of sources) {
         if(added >= 3) break;
         if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) continue;
-        c.currentFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0) + 4;
+        const beforeFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0);
+        c.currentFate = beforeFate + 4;
+        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(c, beforeFate, c.currentFate);
         if(typeof recordHandCardEffectModifier === 'function') {
           recordHandCardEffectModifier(c, {
             key:'maja-kaminska-oblique-order',
@@ -4029,6 +4035,12 @@ async function aiRunEffect(card, z, r, c) {
       card.usesLeft--;
       G.erbsActive[cp] = true;
       log('p2','AI: Christopher Erbs empowered the next drawn card');
+      break;
+    }
+    case 'bh16': {
+      if(typeof activateLiHuaStormOfTenThousandBlades === 'function'){
+        activateLiHuaStormOfTenThousandBlades(card, z, cp);
+      }
       break;
     }
     case '22': { // Isaac Perez: buff up to 2 friendly cards in this zone

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64">
+  <defs><filter id="g" x="-70%" y="-70%" width="240%" height="240%"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#699feb" flood-opacity=".7"/></filter></defs>
+  <g fill="none" stroke="#e1efff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+    <path d="M7 18h21l-1 17c-1 10-6 16-12 16-7 0-9-9-9-18Z M36 18h21l1 15c0 9-3 18-9 18-7 0-12-6-13-16Z"/>
+    <path d="m28 23 4-3 4 3M7 20l-6-4M57 20l6-4"/>
+  </g>
+  <g fill="none" stroke="#e1efff" stroke-width="2.5" stroke-linecap="round" filter="url(#g)"><path d="m13 27 7-4M43 27l7-4"/></g>
+</svg>

@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1620" viewBox="0 0 1120 1620">
+  <defs>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(31,20,4,.7)"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="rgba(255,70,190,.66)"/>
+    </filter>
+    <g id="tile">
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="#05080d" stroke="rgba(202,159,54,.85)" stroke-width="1.4"/>
+      <rect x="0" y="0" width="470" height="136" rx="8" fill="rgba(144,37,136,.18)"/>
+      <path d="M10 24V10h14M446 10h14v14M460 112v14h-14M24 126H10v-14" fill="none" stroke="rgba(202,159,54,.9)" stroke-width="2"/>
+    </g>
+    <style>
+      .label{font:18px Arial,sans-serif;fill:#d8d8d8}
+      .icon{fill:none;stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .fillRed{fill:rgba(173,42,38,.92);stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .fillBlue{fill:rgba(34,36,92,.96);stroke:rgba(255,174,229,.99);stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+      .sun{fill:rgba(255,232,170,.96);stroke:rgba(255,174,229,.99);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;filter:url(#glow)}
+    </style>
+  </defs>
+
+  <rect width="1120" height="1620" fill="#020305"/>
+
+  <!-- Row 1 -->
+  <g transform="translate(55 25)">
+    <text class="label" x="0" y="22">TW-01</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(275 28)">
+      <rect class="icon" x="8" y="10" width="46" height="30" rx="2"/>
+      <rect class="fillRed" x="8" y="10" width="46" height="30" rx="2"/>
+      <rect class="fillBlue" x="8" y="10" width="20" height="20" rx="1"/>
+      <circle class="sun" cx="18" cy="20" r="6.5"/>
+      <path class="sun" d="M18 10v4M18 26v4M8 20h4M24 20h4M11 13l3 3M22 13l-3 3M11 27l3-3M22 27l-3-3"/>
+    </g>
+  </g>
+  <g transform="translate(585 25)">
+    <text class="label" x="0" y="22">TW-02</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(273 24)">
+      <path class="icon" d="M12 20c10 0 18-4 28-4 6 0 12 1 18 4v22c-7-3-13-4-20-4-10 0-18 4-26 4z"/>
+      <path class="fillRed" d="M12 20c10 0 18-4 28-4 6 0 12 1 18 4v22c-7-3-13-4-20-4-10 0-18 4-26 4z"/>
+      <path class="fillBlue" d="M12 20c5 0 11-1 16-4 4-2 8-3 12-3v18H12z"/>
+      <circle class="sun" cx="24" cy="18" r="6"/>
+      <path class="sun" d="M24 9v4M24 23v4M15 18h4M29 18h4M18 12l2 2M28 12l-2 2M18 24l2-2M28 24l-2-2"/>
+    </g>
+  </g>
+
+  <!-- Row 2 -->
+  <g transform="translate(55 181)">
+    <text class="label" x="0" y="22">TW-03</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(272 26)">
+      <path class="icon" d="M11 17h8v24h-8z"/>
+      <path class="fillRed" d="M11 17h8v24h-8z"/>
+      <path class="icon" d="M19 19c7-2 15-4 22-4 7 0 13 1 19 4"/>
+      <path class="fillRed" d="M19 19c7-2 15-4 22-4 7 0 13 1 19 4"/>
+      <path class="fillBlue" d="M19 19h18v18H19z"/>
+      <circle class="sun" cx="28" cy="28" r="5.8"/>
+      <path class="sun" d="M28 20v3M28 33v3M20 28h3M33 28h3M22 23l2 2M32 23l-2 2M22 33l2-2M32 33l-2-2"/>
+      <path class="icon" d="M19 20c13 2 24 7 32 16"/>
+    </g>
+  </g>
+  <g transform="translate(585 181)">
+    <text class="label" x="0" y="22">TW-04</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(272 25)">
+      <path class="icon" d="M12 24c9-2 17-3 24-3 9 0 17 1 26 3"/>
+      <path class="fillRed" d="M12 24c9-2 17-3 24-3 9 0 17 1 26 3v14c-9-2-17-3-26-3-7 0-15 1-24 3z"/>
+      <path class="fillBlue" d="M12 21h20v14H12z"/>
+      <circle class="sun" cx="22" cy="28" r="5.4"/>
+      <path class="sun" d="M22 21v3M22 32v3M15 28h3M26 28h3M16 23l2 2M24 23l-2 2M16 33l2-2M24 33l-2-2"/>
+      <path class="icon" d="M12 38c8 1 16 1 24 0 7-1 15-1 24 0"/>
+    </g>
+  </g>
+
+  <!-- Row 3 -->
+  <g transform="translate(55 337)">
+    <text class="label" x="0" y="22">TW-05</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(272 24)">
+      <rect class="icon" x="8" y="10" width="48" height="32" rx="3"/>
+      <rect class="fillRed" x="8" y="10" width="48" height="32" rx="3"/>
+      <rect class="fillBlue" x="8" y="10" width="20" height="20" rx="1"/>
+      <circle class="sun" cx="18" cy="20" r="6.5"/>
+      <path class="sun" d="M18 12v4M18 24v4M10 20h4M22 20h4M12 14l2 2M20 14l-2 2M12 26l2-2M20 26l-2-2"/>
+      <path class="icon" d="M8 42h48"/>
+    </g>
+  </g>
+  <g transform="translate(585 337)">
+    <text class="label" x="0" y="22">TW-06</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(271 25)">
+      <circle class="icon" cx="30" cy="28" r="22"/>
+      <path class="fillRed" d="M11 20h38v8c0 10-8 18-19 22-11-4-19-12-19-22z"/>
+      <path class="fillBlue" d="M11 20h18v18H11z"/>
+      <circle class="sun" cx="20" cy="29" r="5"/>
+      <path class="sun" d="M20 22v3M20 33v3M14 29h3M23 29h3M15 24l2 2M23 24l-2 2M15 34l2-2M23 34l-2-2"/>
+      <path class="icon" d="M13 43c6 3 12 4 17 4 5 0 11-1 17-4"/>
+    </g>
+  </g>
+
+  <!-- Row 4 -->
+  <g transform="translate(55 493)">
+    <text class="label" x="0" y="22">TW-07</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(270 23) rotate(-8 32 32)">
+      <path class="icon" d="M14 16h6v32h-6z"/>
+      <path class="fillRed" d="M14 16h6v32h-6z"/>
+      <path class="icon" d="M20 20c8-3 16-4 24-4 7 0 14 1 22 4"/>
+      <path class="fillRed" d="M20 20c8-3 16-4 24-4 7 0 14 1 22 4v22c-8-3-15-4-22-4-8 0-16 1-24 4z"/>
+      <path class="fillBlue" d="M20 20h18v16H20z"/>
+      <circle class="sun" cx="29" cy="28" r="5.8"/>
+      <path class="sun" d="M29 21v3M29 32v3M22 28h3M33 28h3M24 24l2 2M32 24l-2 2M24 32l2-2M32 32l-2-2"/>
+      <path class="icon" d="M20 42c10 2 21 2 32 0"/>
+    </g>
+  </g>
+  <g transform="translate(585 493)">
+    <text class="label" x="0" y="22">TW-08</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(272 24)">
+      <path class="icon" d="M12 20h28v20H12z"/>
+      <path class="fillRed" d="M12 20h28v20H12z"/>
+      <path class="fillBlue" d="M12 20h12v12H12z"/>
+      <circle class="sun" cx="18" cy="26" r="4.8"/>
+      <path class="sun" d="M18 21v2.5M18 28.5v2.5M13 26h2.5M20.5 26H23M14 23l1.6 1.6M20 23l-1.6 1.6M14 29l1.6-1.6M20 29l-1.6-1.6"/>
+      <path class="icon" d="M40 21c4 1 9 1 14 0v16c-5 1-10 1-14 0"/>
+      <path class="fillRed" d="M40 21c4 1 9 1 14 0v16c-5 1-10 1-14 0z"/>
+    </g>
+  </g>
+
+  <!-- Row 5 -->
+  <g transform="translate(55 649)">
+    <text class="label" x="0" y="22">TW-09</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(271 24)">
+      <path class="icon" d="M10 23c11-2 21-3 31-3 9 0 19 1 29 3"/>
+      <path class="fillRed" d="M10 23c11-2 21-3 31-3 9 0 19 1 29 3v14c-10-2-20-3-29-3-10 0-20 1-31 3z"/>
+      <path class="fillBlue" d="M10 20h22v18H10z"/>
+      <circle class="sun" cx="21" cy="29" r="6"/>
+      <path class="sun" d="M21 22v3M21 33v3M14 29h3M24 29h3M15 24l2 2M23 24l-2 2M15 34l2-2M23 34l-2-2"/>
+      <path class="icon" d="M10 37c12 1 24 1 36 0 6-1 12-1 18 0"/>
+    </g>
+  </g>
+  <g transform="translate(585 649)">
+    <text class="label" x="0" y="22">TW-10</text>
+    <use href="#tile" x="70" y="0"/>
+    <g transform="translate(271 24)">
+      <path class="icon" d="M9 18c7-1 14-2 21-2 7 0 14 1 22 2 7 1 14 1 21 0"/>
+      <path class="fillRed" d="M9 18c7-1 14-2 21-2 7 0 14 1 22 2 7 1 14 1 21 0v18c-7-1-14-1-21 0-8 1-15 2-22 2-7 0-14-1-21-2z"/>
+      <path class="fillBlue" d="M9 18h19v18H9z"/>
+      <circle class="sun" cx="18.5" cy="27" r="5.7"/>
+      <path class="sun" d="M18.5 20v3M18.5 31v3M12 27h3M21 27h3M13 22l1.8 1.8M20 22l-1.8 1.8M13 32l1.8-1.8M20 32l-1.8-1.8"/>
+      <path class="icon" d="M14 40c6 2 13 3 19 3 7 0 14-1 21-3"/>
+    </g>
+  </g>
+</svg>

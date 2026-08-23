@@ -165,6 +165,9 @@ const CARD_RULES = [
   card('bh11','Felicyta Janowicz (University)','PASSIVE','CONTROLLER','ALL_CONTROLLED_ADJACENCY_BONUSES_IN_SOURCE_ZONE','Each active Superior Marks source doubles every positive numeric ADJACENCY_BONUS controlled in its zone; multiple sources double multiplicatively, while penalties and non-bonus adjacency effects remain unchanged.',{forbidden:['OPPONENT_ADJACENCY_BONUS_DOUBLED','ADJACENCY_PENALTY_DOUBLED','NON_BONUS_ADJACENCY_EFFECT_DOUBLED','BONUS_OUTSIDE_SOURCE_ZONE_DOUBLED']}),
   card('bh12','Louis LeJeune',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_SQUARE_ADJACENT_TO_SOURCE','Choose exactly one adjacent square when source is set; a controlled card occupying that square gains +6 effective Fate while source remains active and adjacent. The bonus is classified as ADJACENCY_BONUS.',{forbidden:['NON_ADJACENT_SQUARE_SELECTED','EMPTY_SQUARE_SHOWS_PREEMPTIVE_OVERLAY','MORE_THAN_ONE_SQUARE_BLESSED','BONUS_PERSISTS_AFTER_SOURCE_LEAVES_OR_MOVES_AWAY','IMMUNE_CARD_RECEIVES_BONUS']}),
   card('bh13','Hugh Roberts','WHEN_SET','CONTROLLER','UP_TO_THREE_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Choose zero to three eligible cards in controller hand; each selected card gains exactly +6 permanent Fate, then returns from controller hand to controller deck.',{cardinality:'ZERO_TO_THREE',forbidden:['OPPONENT_HAND_CARD_SELECTED','MORE_THAN_THREE_CARDS_SELECTED','IMMUNE_CARD_MUTATED_OR_MOVED','FATE_GAIN_APPLIED_AFTER_CARD_LEAVES_HAND','SELECTED_CARD_GAINS_OTHER_THAN_6','SELECTED_CARD_SENT_TO_DISCARD']}),
+  card('bh14','Chloe Kirk','WHEN_SET','CONTROLLER','ANY_NUMBER_OF_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Declare one card type, then choose any number of eligible cards in controller hand; every selected card permanently becomes the declared type.',{cardinality:'ZERO_TO_ALL_AVAILABLE',forbidden:['OPPONENT_HAND_CARD_SELECTED','IMMUNE_CARD_TYPE_CHANGED','UNSELECTED_CARD_TYPE_CHANGED','DECLARED_TYPE_OUTSIDE_PRINTED_TYPES']}),
+  card('bh15','Hsei-Ling','PASSIVE','CONTROLLER','ANY_CARD_CONTROLLER_CONTROLS_THAT_WOULD_GAIN_FATE','Whenever a controlled card would gain Fate, each active copy adds exactly +1 permanent Fate to that same card; the added Fate does not recursively trigger other copies.',{forbidden:['OPPONENT_CARD_GAINS_BONUS','BONUS_APPLIED_TO_SOURCE_INSTEAD_OF_GAINING_CARD','RECURSIVE_COPY_TRIGGER','SUPPRESSED_OR_FACE_DOWN_SOURCE_TRIGGERS']}),
+  card('bh16','Li-Hua (Battle-Ready)','ACTIVATE_DURING_CONTROLLER_TURN','CONTROLLER','ALL_CONTROLLED_EVENTIDE_CARDS_ON_FIELD','Up to twice per game during controller\'s turn, reduce the opponent\'s Zone Fate in Li-Hua\'s zone by exactly one for every Eventide card controller controls on the field. Counted Eventide cards remain eligible even while suppressed.',{forbidden:['OUT_OF_TURN_ACTIVATION','SUPPRESSED_EVENTIDE_EXCLUDED','NON_EVENTIDE_COUNTS','OPPONENT_EVENTIDE_COUNTS','WRONG_ZONE_REDUCED','MORE_THAN_TWO_USES']}),
   card('bh25','Jimmy (Viltrumite)','WHEN_SET','CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ANYWHERE_ON_FIELD','Discard exactly one selected eligible card on either side of the field.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['IMMUNE_OR_UNAFFORDABLE_PROTECTED_TARGET','MORE_THAN_ONE_CARD_DISCARDED','CANCEL_DISCARDS_DEFAULT_TARGET']})
 ];
 
@@ -670,7 +673,7 @@ function issue(code, cardId, batchId, detail){
 }
 
 const ORACLE_MUTATION_EVENTS = freeze(new Set([
-  'CARD_DRAWN','CARD_DISCARDED','CARD_MOVED','CARD_TRANSFERRED','FATE_CHANGED',
+  'CARD_DRAWN','CARD_DISCARDED','CARD_MOVED','CARD_TRANSFERRED','FATE_CHANGED','CARD_TYPE_CHANGED',
   'STATUS_CREATED','STATUS_REMOVED','SAFE_ROW_ADDED','SAFE_SQUARE_ADDED',
   'SQUARE_STATUS_CREATED','TOKENS_CREATED','PLAYER_COUNTER_CHANGED','CONTROL_CHANGED'
 ]));

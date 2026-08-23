@@ -44,7 +44,7 @@
 // player-timed. Automatic set/draw resolution may expose their legal command,
 // but must never submit it. These effects only run from their explicit board
 // action button.
-window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['26', '38', '40', '93']);
+window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['26', '38', '40', '93', 'bh16']);
 window.fateEffectRequiresManualActivationId = function(cardOrId){
   if(cardOrId && typeof cardOrId === 'object'){
     const ids = [
@@ -513,6 +513,18 @@ const CARDS = [
     fate:1,cost:1,rarity:'triangle',set:'brave_horizons',
     effect:'Send up to three cards in your hand back into the Deck—each of those cards permanently gain 6 Fate.',
     flavor:'"He\'s slimy, shady, and unapologetically self-interested—the perfect type of man to run the finances of your top secret military facility in the Alps"',img:'bh13.png?v=20260823b'},
+  {id:'bh14',name:'Chloe Kirk',ability:'Charter of the United Nations',type:'Initiator',aff:'third_great_war',
+    fate:2,cost:2,rarity:'triangle',set:'brave_horizons',
+    effect:'Declare a card type, and select as many cards in your hand as you want to become that card type.',
+    flavor:'"Her bold and scathing remarks contrast the relative meekness of previous High Commissioners of the UN"',img:'bh14.png?v=20260823a'},
+  {id:'bh15',name:'Hsei-Ling',ability:'The Chinese MacArthur',type:'Improvisor',aff:'third_great_war',
+    fate:3,cost:2,rarity:'triangle',set:'brave_horizons',
+    effect:'Whenever you would increase the Fate of any card you control, increase that card\'s Fate by 1. This card cannot proc off other copies of this card.',
+    flavor:'"Despite their comparisons, Ling\'s invasion of Qingdao and conquest of China in 2035 overshadow MacArthur\'s own feats"',img:'bh15.png?v=20260823a'},
+  {id:'bh16',name:'Li-Hua (Battle-Ready)',ability:'Storm of Ten Thousand Blades',type:'Improvisor',aff:'eventide',
+    fate:5,cost:3,rarity:'square',set:'brave_horizons',
+    effect:'At any time, you can activate this effect—for every Eventide card you control, reduce your opponent\'s Zone Fate in this card\'s Zone. (2 uses)',
+    flavor:'"A furious dragon, amidst a raging typhoon—such is the impression left by Li-Hua\'s peerless bladework"',img:'bh16.png?v=20260823a'},
   {id:'bh25',name:'Jimmy (Viltrumite)',ability:'Left Hook of the Incel',type:'Dauntless',aff:'reality',
     fate:8,cost:3,rarity:'square',set:'brave_horizons',retired:true,
     effect:'When set, discard any card on the field.',

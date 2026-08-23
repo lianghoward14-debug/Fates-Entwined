@@ -712,7 +712,9 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       ? Math.max(0, Number(instruction.min ?? (instruction.optional ? 0 : 1)) || 0)
       : exactAvailable;
     const max = exactAvailable === null
-      ? Math.max(min, Number(instruction.max ?? 1) || 1)
+      ? (instruction.maxAvailable === true
+        ? Math.max(min, eligibleIids.length)
+        : Math.max(min, Number(instruction.max ?? 1) || 1))
       : exactAvailable;
     if(eligibleIids.length < min){
       if(fizzleUnavailableWhenSet()) return false;

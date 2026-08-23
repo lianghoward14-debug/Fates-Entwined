@@ -627,6 +627,8 @@ function getCachedBaseZoneScore(z, player) {
     if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id === '36')) deterranceOwner = cell.owner;
   }));
   if(deterranceOwner >= 0 && deterranceOwner !== player && dm < 0) score = Math.max(0, score + dm);
+  const liHuaReduction = Number(G.fateModifiers?.['lihua_z' + z + '_p' + player] || 0) || 0;
+  if(liHuaReduction < 0) score = Math.max(0, score + liHuaReduction);
   if(typeof getLandscapeZoneFateBonus === 'function') score = Math.max(0, score + getLandscapeZoneFateBonus(player, z));
   _renderCalcCache.baseScores.set(key, score);
   return score;
@@ -1541,6 +1543,7 @@ function positionHandEffectTooltip(ev, explicitMarker) {
     x = rect.left + rect.width / 2 - width / 2;
     y = rect.top - estimatedHeight - 10;
     if(y < 12) y = rect.bottom + 10;
+    y += 12;
   }else{
     x = rect.left - width - gap;
     if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
@@ -6900,11 +6903,14 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         // No button needed — coordinators are automatic
       } else if(bc.type==='Initiator' && bc.effectUsedInitial && !['38','40'].includes(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(bc) : String(bc.id || ''))){
         // Initiator already fired — no button
-      } else if((bc.type==='Improvisor' && String(bc.id || '') !== '40') || bc.id==='89'){
+      } else if((bc.type==='Improvisor' && !['40','bh16'].includes(String(bc.id || ''))) || bc.id==='89'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
-        act.className='btn sm pri';act.textContent=String(bc.id || '') === 'bh01' ? 'Brave Horizons' : 'Activate Effect';
+        act.className='btn sm pri';
+        act.textContent=String(bc.id || '') === 'bh01'
+          ? 'Brave Horizons'
+          : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : 'Activate Effect');
         act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
@@ -9496,7 +9502,10 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh10": "Where you thinking of going today?",
   "bh11": "Let's reframe the issue in terms of state level mechanisms",
   "bh12": "Why worry of worldly affairs? Stop and smell the roses.",
-  "bh13": "If you ever have to stop and pause, and think to yourself, am i being too greedy? then that means you aren't greedy enough!!!"
+  "bh13": "If you ever have to stop and pause, and think to yourself, am i being too greedy? then that means you aren't greedy enough!!!",
+  "bh14": "We must take a stand, as representatives of the international community!",
+  "bh15": "Soldiers, The only red i want to see in Beijing, is the blood of a dead commie!",
+  "bh16": "Singing steel, dancing moonlight, Striking blade of the falling star"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 

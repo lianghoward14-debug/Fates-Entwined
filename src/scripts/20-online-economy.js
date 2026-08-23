@@ -472,7 +472,7 @@
       publicDecks = [saved, ...publicDecks.filter(d=>d.id !== saved.id && d.deckId !== saved.deckId)];
       publicDecksLoaded = true;
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
-      if(window.toast) toast('Deck published');
+      if(window.toast) toast('Deck published to Public Decks.');
       return saved.deckId || saved.id;
     }
     if(!FO.auth?.currentUser?.uid) throw new Error('Firebase auth is not ready for public deck publish');
@@ -481,7 +481,7 @@
       [`publicDeckDetails/${id}`]:detail
     });
     publicDeckDetailCache.set(id, normalizePublicDeck(detail));
-    if(window.toast) toast('Deck published');
+    if(window.toast) toast('Deck published to Public Decks.');
     return id;
   }
   async function listMarketplaceCard(cardId, price){
@@ -1212,12 +1212,28 @@
     publicDecksPollTimer = 0;
     let d = publicDeckById(id);
     if(!d) return;
-    if(typeof resetModalChrome === 'function') resetModalChrome();
-    applyPublicDeckModalChrome('public-deck-preview-modal');
-    document.getElementById('modal-body').innerHTML = '<div class="pd-empty-state"><div class="pd-empty-title">Loading deck...</div><p>Opening the deck details.</p></div>';
-    document.getElementById('modal-title').textContent = '';
-    document.getElementById('modal-acts').innerHTML = '';
-    d = await loadPublicDeckDetail(id).catch(()=>d) || d;
+    const openingCard = Array.from(document.querySelectorAll('#modal-body .pdx-card[data-public-deck-id]')).find(function(card){
+      return String(card.dataset.publicDeckId || '') === String(id);
+    });
+    const openingButton = openingCard && openingCard.querySelector('.pdx-open');
+    if(openingCard) openingCard.classList.add('is-opening');
+    if(openingButton){
+      openingButton.disabled = true;
+      openingButton.textContent = 'Opening...';
+    }
+    try{
+      d = await loadPublicDeckDetail(id) || d;
+    }catch(error){
+      if(openingCard) openingCard.classList.remove('is-opening');
+      if(openingButton){
+        openingButton.disabled = false;
+        openingButton.innerHTML = 'Open Deck &rarr;';
+      }
+      schedulePublicDecksPoll();
+      const reason = String(error && error.message || '').trim();
+      if(window.toast) toast(reason ? 'Could not open deck: ' + reason : 'Could not open deck.', 5200);
+      return;
+    }
     if(viewToken !== publicDeckViewToken || !publicDecksModalOpen()) return;
     if(typeof resetModalChrome === 'function') resetModalChrome();
     applyPublicDeckModalChrome('public-deck-preview-modal');
@@ -1669,7 +1685,8 @@
       });
     }catch(e){
       console.error('Publish deck failed', e);
-      if(window.toast) toast('Could not share deck');
+      const reason = String(e && e.message || '').trim();
+      if(window.toast) toast(reason ? 'Could not publish deck: ' + reason : 'Could not publish deck.', 5200);
     }
     if(!deckId && trigger){
       trigger.disabled = false;

@@ -437,6 +437,7 @@ export function inspectOperation(state, operation){
     'DISCARD_CARD',
     'MODIFY_FATE',
     'SET_FATE',
+    'CHANGE_CARD_TYPE',
     'CHANGE_CONTROL',
     'CREATE_CARD_MARK',
     'TRANSFER_CARDS'

@@ -24978,11 +24978,11 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
 }
 
 /* Profile: keep the pill box fixed while shifting only its visible icon and
-   two-line label left.  Both label lines share the same centered column. */
+   two-line label four pixels right from their previous -3px offset. */
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-icon,
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   position:relative!important;
-  left:-3px!important;
+  left:1px!important;
 }
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   display:inline-grid!important;
@@ -24998,6 +24998,12 @@ html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badg
   text-align:center!important;
 }
 
+/* Notifications triggered from modal workflows (including Public Decks)
+   must remain visible above the modal that initiated them. */
+html body #toast{
+  z-index:2147483601!important;
+}
+
 /* Public deck cards keep a stable footprint under the pointer. */
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card,
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:hover,
@@ -25008,6 +25014,13 @@ html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:focus-within{
   border-color:rgba(201,168,76,.34)!important;
   background:linear-gradient(180deg,rgba(12,14,20,.99),rgba(6,8,13,.998))!important;
   box-shadow:0 15px 34px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,235,158,.018)!important;
+}
+html body #modal .pd-library-v3 .pdx-card.is-opening{
+  cursor:progress!important;
+  pointer-events:none!important;
+}
+html body #modal .pd-library-v3 .pdx-card.is-opening .pdx-open{
+  opacity:.78!important;
 }
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card::before,
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-art,

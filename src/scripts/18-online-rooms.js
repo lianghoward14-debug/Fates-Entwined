@@ -4436,6 +4436,7 @@
     // Match the named single-player board action. Other repeatable activations
     // intentionally retain the single-player "Activate Effect" label.
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
+    if(String(card?.id || '') === 'bh16') return {label:'Storm of Ten Thousand Blades', prompt:'Storm of Ten Thousand Blades'};
     return {label:'Activate Effect', prompt:'Activate Effect'};
   }
   function phase7AliTransferPending(card){
@@ -6341,6 +6342,31 @@
       }
       if(type === 'STATUS_CREATED'){
         const status = event?.status || {};
+        if(String(status.reason || '').toUpperCase() === 'LI_HUA_STORM_OF_TEN_THOUSAND_BLADES'){
+          const countedIids = Array.isArray(status.countedCardIids) ? status.countedCardIids : [];
+          if(countedIids.length && typeof window.playSfx === 'function') window.playSfx('liHuaBlades');
+          countedIids.forEach(function(cardIid, countedIndex){
+            const eligible = phase7PresentationCard(phase7FindAnyCard(cardIid))
+              || phase7FindProjectedEntry(view, cardIid)?.card;
+            if(!eligible || typeof window.flashCardEffect !== 'function') return;
+            const shown = window.flashCardEffect(eligible, 'bh16_storm_blades', {
+              label:'Storm of Ten Thousand Blades',
+              soundKey:['phase7', String(view?.presentationBatch?.id || ''), 'bh16', String(status.sourceIid || ''), String(cardIid), String(countedIndex)].join(':'),
+              onlineRemote:true
+            });
+            const projected = phase7FindRawProjectedCard(view, cardIid);
+            if(shown && projected && projected !== eligible && eligible._effectFlash){
+              projected._effectFlash = cloneOnlinePlain(eligible._effectFlash);
+            }
+          });
+          if(countedIids.length && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+            window.FateMatchRendererAdapter.renderFromGameState({source:'phase7-li-hua-counted-card-overlays'});
+          }
+          if(window.toast){
+            const reduction = Math.abs(Number(status.value || 0) || 0);
+            toast('Storm of Ten Thousand Blades reduced Zone ' + (Number(status.zone) + 1) + ' Fate by ' + reduction + '.');
+          }
+        }
         if(String(status.reason || '').toUpperCase() === 'MARIE_DETERRANCE'){
           const marie = phase7PresentationCard(phase7FindAnyCard(status.sourceIid))
             || phase7FindProjectedEntry(view, status.sourceIid)?.card;
@@ -6396,6 +6422,9 @@
         // the overlay into the rendered board first, then start the number
         // recipe in this same task so neither can visibly lead the other.
         phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        if(Array.isArray(event.bh15SourceIids) && event.bh15SourceIids.length && typeof window.queueChineseMacArthurOverlay === 'function'){
+          window.queueChineseMacArthurOverlay(target, event.bh15SourceIids);
+        }
         let fateMotionShown = false;
         const fateFx = window.FateV2CardMotionFx;
         if(pos && fateFx){

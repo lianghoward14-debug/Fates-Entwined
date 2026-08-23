@@ -1660,6 +1660,70 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  'bh14':{
+    timings:['WHEN_SET'],
+    operations:['CHANGE_CARD_TYPE'],
+    prompts:['MODAL_CHOICE', 'HAND_SELECTION'],
+    program:[
+      {
+        kind:'CHOOSE_OPTION',
+        local:'cardType',
+        options:[
+          {value:'Supporter', label:'Supporter'},
+          {value:'Initiator', label:'Initiator'},
+          {value:'Improvisor', label:'Improviser'},
+          {value:'Coordinator', label:'Coordinator'},
+          {value:'Dauntless', label:'Dauntless'}
+        ],
+        defaultChoice:'Supporter'
+      },
+      {
+        kind:'SELECT_HAND',
+        local:'targetIids',
+        min:0,
+        maxAvailable:true,
+        optional:true,
+        cancelBehavior:'CONTINUE',
+        filter:{playerIndex:'controller', targetable:'CHANGE_CARD_TYPE'}
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'CHANGE_CARD_TYPE', targetIids:'$targetIids', playerIndex:'$controller', cardType:'$cardType', reason:'CHARTER_OF_THE_UNITED_NATIONS'}
+      }
+    ]
+  },
+  'bh15':{
+    effectLabels:['FATE_GAIN_RIDER'],
+    timings:['PASSIVE'],
+    operations:['MODIFY_FATE'],
+    prompts:[]
+  },
+  'bh16':{
+    effectLabels:['ZONE_FATE_REDUCTION'],
+    timings:['ACTIVATE'],
+    operations:['CREATE_MATCH_STATUS'],
+    prompts:[],
+    manualOnly:true,
+    maxUses:2,
+    program:[
+      {
+        kind:'OPERATION',
+        operation:{
+          type:'CREATE_MATCH_STATUS',
+          status:{
+            type:'ZONE_FATE_MODIFIER',
+            playerIndex:'$opponent',
+            sourceIid:'$sourceIid',
+            inferSourceZone:true,
+            countControlledAffiliation:'eventide',
+            valuePerControlledCard:-1,
+            stackPerUse:true,
+            reason:'LI_HUA_STORM_OF_TEN_THOUSAND_BLADES'
+          }
+        }
+      }
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],
