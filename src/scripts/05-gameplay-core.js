@@ -6259,23 +6259,33 @@ async function chooseCharterOfUnitedNationsType(card, cp) {
     const declaredType = 'Supporter';
     return applyCharterOfUnitedNations(eligible.filter(function(candidate){ return String(candidate.type || '') !== declaredType; }), declaredType, cp);
   }
+  const declaredType = await showCharterTypeDeclarationPicker();
+  if(!declaredType) return applyCharterOfUnitedNations([], '', cp);
+  return new Promise(function(resolve){ selectCards(declaredType, resolve); });
+}
+
+function showCharterTypeDeclarationPicker(onChoose) {
   return new Promise(function(resolve){
     let settled = false;
     const labels = {Supporter:'Supporter', Initiator:'Initiator', Improvisor:'Improviser', Coordinator:'Coordinator', Dauntless:'Dauntless'};
-    const descriptions = {Supporter:'Recognized by Supporter effects', Initiator:'Recognized by Initiator effects', Improvisor:'Recognized by Improviser effects', Coordinator:'Recognized by Coordinator effects', Dauntless:'Recognized by Dauntless effects'};
-    const body = '<div class="bh04-type-picker"><div class="bh04-type-picker-intro"><span class="bh04-type-picker-kicker">Charter declaration</span><strong>Choose an effect-facing card type</strong><p>The printed card type still controls setting, consolidation, and Supporter limits.</p></div><div class="bh04-type-grid">' +
-      BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(type){
-        return '<button type="button" class="btn bh04-type-choice" data-bh14-type="' + escapeHtml(type) + '"><span class="bh04-type-index">TYPE</span><span class="bh04-type-name">' + escapeHtml(labels[type] || type) + '</span><span class="bh04-type-action">' + escapeHtml(descriptions[type] || 'Declare this type') + '</span></button>';
+    const descriptions = {Supporter:'Supply and support effects', Initiator:'Opening and tempo effects', Improvisor:'Flexible activated effects', Coordinator:'Persistent field effects', Dauntless:'Resilient combat effects'};
+    const glyphs = {Supporter:'SUP', Initiator:'INI', Improvisor:'IMP', Coordinator:'COR', Dauntless:'DAU'};
+    const body = '<div class="bh14-charter-picker"><div class="bh14-charter-head"><span class="bh14-charter-seal">UN</span><div><span class="bh14-charter-kicker">Charter declaration</span><strong>Declare a card type</strong><p>Effects will recognize the chosen type. Printed placement and consolidation rules stay unchanged.</p></div></div><div class="bh14-charter-grid">' +
+      BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(type, index){
+        return '<button type="button" class="bh14-charter-choice" data-bh14-type="' + escapeHtml(type) + '"><span class="bh14-charter-number">0' + (index + 1) + '</span><span class="bh14-charter-glyph">' + escapeHtml(glyphs[type]) + '</span><span class="bh14-charter-name">' + escapeHtml(labels[type] || type) + '</span><span class="bh14-charter-desc">' + escapeHtml(descriptions[type]) + '</span><span class="bh14-charter-select">Declare <b>→</b></span></button>';
       }).join('') + '</div></div>';
     const actions = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(declaredType){
       return {label:'Declare ' + (labels[declaredType] || declaredType), pri:true, hidden:true, action:function(){
         if(settled) return;
         settled = true;
         closeModal();
-        setTimeout(function(){ selectCards(declaredType, resolve); }, 0);
+        if(typeof onChoose === 'function') onChoose(declaredType);
+        resolve(declaredType);
       }};
     });
     showModal('Charter of the United Nations', body, actions, {onOpen:function(){
+      const modalBox = document.querySelector('#modal .modal');
+      if(modalBox) modalBox.classList.add('bh14-type-picker-modal');
       document.querySelectorAll('#modal .bh04-type-choice[data-bh14-type]').forEach(function(button){
         button.onclick = function(){
           const type = String(button.getAttribute('data-bh14-type') || '');
@@ -6290,6 +6300,7 @@ async function chooseCharterOfUnitedNationsType(card, cp) {
   });
 }
 if(typeof window !== 'undefined') window.chooseCharterOfUnitedNationsType = chooseCharterOfUnitedNationsType;
+if(typeof window !== 'undefined') window.showCharterTypeDeclarationPicker = showCharterTypeDeclarationPicker;
 
 async function chooseFlowerKingTarget(inst, z, r, c, cp) {
   const entries = getAdjacentBoardSquareEntries(z, r, c);

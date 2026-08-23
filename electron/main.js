@@ -355,6 +355,31 @@ ipcMain.handle('fate:get-performance-info', (event) => {
   };
 });
 
+ipcMain.handle('fate:fly-api-request', async (_event, request = {}) => {
+  const route = String(request.route || '');
+  const method = String(request.method || 'GET').toUpperCase();
+  if(!route.startsWith('/api/') || !['GET','POST'].includes(method)){
+    return {ok:false, status:400, error:'Invalid Fly API request'};
+  }
+  const headers = {'accept':'application/json'};
+  const authorization = String(request.authorization || '');
+  if(authorization.startsWith('Bearer ')) headers.authorization = authorization;
+  const init = {method, headers};
+  if(method === 'POST'){
+    headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(request.body || {});
+  }
+  try{
+    const response = await fetch(DEFAULT_FLY_AUTHORITY_API_URL + route, init);
+    const text = await response.text();
+    let data = null;
+    try{ data = text ? JSON.parse(text) : {}; }catch(_err){}
+    return {ok:response.ok, status:response.status, data, text:text.slice(0,1000)};
+  }catch(error){
+    return {ok:false, status:0, error:String(error && error.message || error)};
+  }
+});
+
 ipcMain.handle('fate:start-ui-minute-log', async (event, meta) => {
   const sessionId = sanitizeDiagnosticSessionId(meta && meta.sessionId);
   const paths = diagnosticPaths(sessionId);

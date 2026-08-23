@@ -4809,6 +4809,7 @@
     if(['51','66','77','90'].includes(sourceId) && modal.querySelector('.aff-pick-square[data-aff]')) return true;
     if(sourceId === '82' && modal.querySelector('.landscape-choice-card[data-landscape-id]')) return true;
     if(sourceId === 'bh04' && modal.querySelector('.bh04-type-choice[data-bh04-type]')) return true;
+    if(sourceId === 'bh14' && modal.querySelector('.bh14-charter-choice[data-bh14-type]')) return true;
     if(prompt?.type === 'ZONE_SELECTION' && modal.querySelector('.zone-picker-tile[data-zone]')) return true;
     return false;
   }
@@ -5117,6 +5118,18 @@
         });
       };
       bindTypeButtons(0);
+      return;
+    }
+    if(prompt?.type === 'MODAL_CHOICE' && sourceId === 'bh14'
+      && typeof window.showCharterTypeDeclarationPicker === 'function'){
+      let submitted = false;
+      withOnlinePromptBypass(gameState(), function(){
+        window.showCharterTypeDeclarationPicker(function(cardType){
+          if(submitted) return;
+          submitted = true;
+          submitChoice(cardType, 'choice');
+        });
+      });
       return;
     }
     if(prompt?.type === 'ZONE_SELECTION' && typeof window.showZonePickerVisual === 'function'){

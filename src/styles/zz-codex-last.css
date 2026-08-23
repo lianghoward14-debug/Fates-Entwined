@@ -24761,12 +24761,12 @@ html body #s-game .cell.henry-suppressed-empty::after{
 /* Four-digit Challenger ELO only: retain the normal size for shorter values. */
 html body #s-challenger #ch-elo-val.four-digit-elo{
   position:relative!important;
-  left:-2px!important;
+  left:-3px!important;
   font-size:.9405em!important;
   letter-spacing:inherit!important;
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
-  left:-2px!important;
+  left:-3px!important;
   font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
   transform:scale(.9405)!important;
   transform-origin:center center!important;
@@ -24982,7 +24982,7 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-icon,
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   position:relative!important;
-  left:1px!important;
+  left:4px!important;
 }
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   display:inline-grid!important;
@@ -25006,6 +25006,64 @@ html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badg
 html body #toast{
   z-index:2147483601!important;
 }
+
+/* Chloe Kirk: dedicated charter declaration instead of the generic option list. */
+html body #modal .modal.bh14-type-picker-modal{
+  width:min(980px,calc(100vw - 40px))!important;
+  max-width:980px!important;
+  padding:1.45rem 1.55rem 1.55rem!important;
+  overflow:hidden!important;
+  border:1px solid rgba(209,171,69,.82)!important;
+  background:linear-gradient(140deg,rgba(21,51,69,.32),transparent 42%),linear-gradient(180deg,#0c111b,#060910)!important;
+  box-shadow:0 32px 90px rgba(0,0,0,.8),inset 0 0 0 1px rgba(104,205,245,.08)!important;
+}
+html body #modal .modal.bh14-type-picker-modal #modal-title{
+  margin-bottom:.9rem!important;
+  padding-bottom:.72rem!important;
+  color:#efd888!important;
+  border-bottom:1px solid rgba(209,171,69,.3)!important;
+  letter-spacing:.075em!important;
+}
+html body #modal .modal.bh14-type-picker-modal #modal-acts{display:none!important;}
+html body #modal .bh14-charter-picker{display:grid!important;gap:1rem!important;}
+html body #modal .bh14-charter-head{
+  display:grid!important;
+  grid-template-columns:66px minmax(0,1fr)!important;
+  gap:1rem!important;
+  align-items:center!important;
+  padding:.9rem 1rem!important;
+  border:1px solid rgba(91,183,221,.3)!important;
+  border-left:3px solid #72cdec!important;
+  background:linear-gradient(90deg,rgba(24,73,96,.3),rgba(7,12,20,.52))!important;
+}
+html body #modal .bh14-charter-seal{
+  width:58px!important;height:58px!important;display:grid!important;place-items:center!important;
+  border:1px solid rgba(112,205,238,.68)!important;border-radius:50%!important;
+  color:#efd888!important;background:radial-gradient(circle,rgba(29,94,119,.5),rgba(7,13,21,.98) 70%)!important;
+  font:600 .82rem/1 Cinzel,serif!important;letter-spacing:.12em!important;
+  box-shadow:inset 0 0 0 6px rgba(5,10,17,.72),0 0 18px rgba(77,182,222,.12)!important;
+}
+html body #modal .bh14-charter-kicker{display:block!important;color:#77d1ef!important;font:600 .58rem/1 Cinzel,serif!important;letter-spacing:.2em!important;text-transform:uppercase!important;}
+html body #modal .bh14-charter-head strong{display:block!important;margin:.35rem 0 .22rem!important;color:#f3dea0!important;font:600 1.08rem/1.2 Cinzel,serif!important;letter-spacing:.035em!important;text-transform:uppercase!important;}
+html body #modal .bh14-charter-head p{margin:0!important;color:rgba(220,229,236,.68)!important;font:italic .75rem/1.42 Georgia,serif!important;}
+html body #modal .bh14-charter-grid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:.7rem!important;}
+html body #modal .bh14-charter-choice{
+  position:relative!important;min-width:0!important;min-height:184px!important;display:flex!important;flex-direction:column!important;align-items:center!important;
+  padding:.75rem .7rem .68rem!important;overflow:hidden!important;cursor:pointer!important;
+  border:1px solid rgba(170,138,48,.46)!important;border-radius:2px!important;
+  color:#e9d487!important;background:linear-gradient(160deg,rgba(18,32,44,.99),rgba(6,9,15,.99) 74%)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03),inset 0 -2px 0 rgba(102,200,236,.06)!important;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease!important;
+}
+html body #modal .bh14-charter-choice::before{content:""!important;position:absolute!important;inset:0 0 auto!important;height:2px!important;background:linear-gradient(90deg,transparent,#72cdec,transparent)!important;opacity:.48!important;}
+html body #modal .bh14-charter-choice:hover,html body #modal .bh14-charter-choice:focus-visible{transform:translateY(-4px)!important;border-color:rgba(114,205,236,.88)!important;background:linear-gradient(160deg,rgba(25,54,70,.99),rgba(7,11,18,.99) 75%)!important;box-shadow:0 15px 28px rgba(0,0,0,.38),0 0 20px rgba(83,183,222,.1)!important;outline:none!important;}
+html body #modal .bh14-charter-number{align-self:flex-start!important;color:rgba(114,205,236,.5)!important;font:600 .52rem/1 Cinzel,serif!important;letter-spacing:.16em!important;}
+html body #modal .bh14-charter-glyph{width:48px!important;height:48px!important;display:grid!important;place-items:center!important;margin:.65rem 0 .7rem!important;border:1px solid rgba(211,172,69,.56)!important;border-radius:50%!important;color:#efd477!important;background:radial-gradient(circle,rgba(121,89,20,.18),rgba(7,12,19,.96) 72%)!important;font:600 .62rem/1 Cinzel,serif!important;letter-spacing:.06em!important;}
+html body #modal .bh14-charter-name{color:#f2dc96!important;font:600 .73rem/1.2 Cinzel,serif!important;letter-spacing:.04em!important;text-transform:uppercase!important;text-align:center!important;}
+html body #modal .bh14-charter-desc{margin:.42rem 0 .7rem!important;color:rgba(208,218,225,.62)!important;font:italic .65rem/1.35 Georgia,serif!important;text-align:center!important;}
+html body #modal .bh14-charter-select{width:100%!important;margin-top:auto!important;padding-top:.55rem!important;border-top:1px solid rgba(161,131,42,.25)!important;color:#75cae8!important;font:600 .52rem/1 Cinzel,serif!important;letter-spacing:.14em!important;text-transform:uppercase!important;text-align:left!important;}
+html body #modal .bh14-charter-select b{float:right!important;color:#efd477!important;font-size:.8rem!important;}
+@media(max-width:820px){html body #modal .bh14-charter-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}html body #modal .bh14-charter-choice{min-height:150px!important;}}
 
 /* Public deck cards keep a stable footprint under the pointer. */
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card,

@@ -257,9 +257,24 @@
     const base = authorityHttpBaseUrl();
     if(!base) throw new Error('Fly authority API URL is not configured');
     const headers = {'accept':'application/json'};
-    const token = await FO.auth?.currentUser?.getIdToken?.().catch(()=> '');
-    if(token) headers.authorization = 'Bearer ' + token;
     const method = String(opts.method || 'GET').toUpperCase();
+    const account = method === 'GET' ? authUser() : await waitForAuthUser(3500);
+    const token = await account?.getIdToken?.().catch(()=> '');
+    if(method !== 'GET' && !token) throw new Error('Your Google account is still restoring. Please try again in a moment.');
+    if(token) headers.authorization = 'Bearer ' + token;
+    const electronApi = window.FateElectronFlyApi;
+    if(electronApi && typeof electronApi.request === 'function'){
+      const bridged = await electronApi.request({
+        route:path,
+        method,
+        authorization:token ? 'Bearer ' + token : '',
+        body:opts.body
+      });
+      if(!bridged?.ok){
+        throw new Error('Fly economy API failed: ' + Number(bridged?.status || 0) + ' ' + String(bridged?.error || bridged?.data?.error || bridged?.text || 'request failed').slice(0,160));
+      }
+      return bridged.data || {};
+    }
     const init = {method, headers};
     if(method === 'GET') init.cache = 'no-store';
     if(opts.body !== undefined){

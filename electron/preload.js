@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('FateElectronAuthBridge', {
   }
 });
 
+contextBridge.exposeInMainWorld('FateElectronFlyApi', {
+  request(options) {
+    return ipcRenderer.invoke('fate:fly-api-request', options || {});
+  }
+});
+
 contextBridge.exposeInMainWorld('FateDesktopUpdater', {
   getState() {
     return ipcRenderer.invoke('fate:desktop-update-get-state');

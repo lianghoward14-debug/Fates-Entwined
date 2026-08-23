@@ -227,10 +227,14 @@ export function createFlyDataApi({readBody, writeJson}){
         const body=await readBody(req),uid=await requireSelf(req,body.uid||target),existing=saves.get(uid)||{uid,data:{}};existing.data=Object.assign({},existing.data||{},clone(body.data||{}));existing.updatedAt=Date.now();saves.set(uid,existing);persist();writeJson(res,200,{ok:true,save:clone(existing),data:clone(existing.data)});return true;
       }
       if(p[1]==='public-decks'){
-        if(req.method==='GET'&&!p[2]){await verifiedUid(req);const limit=Math.min(80,Number(url.searchParams.get('limit')||40));writeJson(res,200,{ok:true,decks:[...decks.values()].sort((a,b)=>Number(b.updatedAt||b.createdAt)-Number(a.updatedAt||a.createdAt)).slice(0,limit).map(deckPublic)});return true;}
+        // Public deck browsing is deliberately readable without an account.
+        // Mutating routes below still verify Firebase identity and ownership.
+        // Requiring a token here made the library and every deck preview fail
+        // while Electron was still restoring the persisted Google session.
+        if(req.method==='GET'&&!p[2]){const limit=Math.min(80,Number(url.searchParams.get('limit')||40));writeJson(res,200,{ok:true,decks:[...decks.values()].sort((a,b)=>Number(b.updatedAt||b.createdAt)-Number(a.updatedAt||a.createdAt)).slice(0,limit).map(deckPublic)});return true;}
         if(req.method==='POST'&&!p[2]){const body=await readBody(req),uid=await requireSelf(req,body.uid);if(body.profile)mergeProfile(uid,body.profile);const input=clone(body.deck||body),deckId=cleanId(input.deckId||input.id)||('deck_'+Date.now()+'_'+uid.slice(0,8));const deck=Object.assign({},decks.get(deckId)||{},input,{deckId,id:deckId,ownerUid:uid,uid,updatedAt:Date.now(),createdAt:decks.get(deckId)?.createdAt||Date.now()});decks.set(deckId,deck);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
         const id=cleanId(p[2]),deck=decks.get(id);if(!deck)throw Object.assign(new Error('deck not found'),{status:404});
-        if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
+        if(req.method==='GET'){writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
         const body=await readBody(req),uid=await requireSelf(req,body.uid);
         if(p[3]==='delete'){if(cleanId(deck.ownerUid||deck.uid,128)!==uid)throw Object.assign(new Error('not deck owner'),{status:403});decks.delete(id);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
         if(p[3]==='rating'){deck.ratings=(deck.ratings||[]).filter(r=>r.uid!==uid);deck.ratings.push({uid,username:cleanId(body.username,80),stars:Math.max(1,Math.min(5,Number(body.stars)||1)),createdAt:Date.now()});deck.updatedAt=Date.now();decks.set(id,deck);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
