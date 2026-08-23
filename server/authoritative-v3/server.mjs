@@ -561,7 +561,9 @@ function readBody(req){
   });
 }
 
-const flyDataApi = createFlyDataApi({readBody, writeJson});
+const flyDataApi = process.env.FATE_FLY_DATA_API_ENABLED === '1'
+  ? createFlyDataApi({readBody, writeJson})
+  : {handle:async()=>false, flush:()=>{}, counts:()=>null};
 
 function bearer(req){
   const match = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -609,7 +611,7 @@ const server = http.createServer(async (req, res)=>{
         activeSockets:sockets.size,
         promptTimeoutMs:PROMPT_TIMEOUT_MS,
         lonePineTurnTimeoutMs:30000,
-        flyDataApi:true,
+        flyDataApi:process.env.FATE_FLY_DATA_API_ENABLED === '1',
         flyData:flyDataApi.counts()
       });
       return;
