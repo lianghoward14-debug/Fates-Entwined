@@ -1502,7 +1502,23 @@ function positionHandEffectTooltip(ev) {
   const card = marker && marker.closest
     ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card' : '.hc')
     : null;
-  const rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : (marker && marker.getBoundingClientRect ? marker.getBoundingClientRect() : null);
+  let rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : null;
+  if(!rect && pickerMarker && marker?.classList?.contains('canvas-picker-effect-marker')){
+    const layer = marker.parentElement;
+    const layerRect = layer && layer.getBoundingClientRect ? layer.getBoundingClientRect() : null;
+    const leftRatio = Number(marker.dataset.pickerCardLeftRatio);
+    const topRatio = Number(marker.dataset.pickerCardTopRatio);
+    const widthRatio = Number(marker.dataset.pickerCardWidthRatio);
+    const heightRatio = Number(marker.dataset.pickerCardHeightRatio);
+    if(layerRect && [leftRatio, topRatio, widthRatio, heightRatio].every(Number.isFinite)){
+      const left = layerRect.left + layerRect.width * leftRatio;
+      const top = layerRect.top + layerRect.height * topRatio;
+      const width = layerRect.width * widthRatio;
+      const height = layerRect.height * heightRatio;
+      rect = {left:left, top:top, width:width, height:height, right:left + width, bottom:top + height};
+    }
+  }
+  if(!rect) rect = marker && marker.getBoundingClientRect ? marker.getBoundingClientRect() : null;
   if(!rect) return;
   const width = Math.min(300, Math.max(240, window.innerWidth - 32));
   const gap = 24;
@@ -1525,9 +1541,9 @@ function positionHandEffectTooltip(ev) {
   x = Math.max(12, Math.min(x, window.innerWidth - width - 12));
   if(y + estimatedHeight > window.innerHeight - 12) y = window.innerHeight - estimatedHeight - 12;
   if(y < 12) y = 12;
-  _handEffectTooltipPortal.style.width = width + 'px';
-  _handEffectTooltipPortal.style.left = Math.round(x) + 'px';
-  _handEffectTooltipPortal.style.top = Math.round(y) + 'px';
+  _handEffectTooltipPortal.style.setProperty('width', width + 'px', 'important');
+  _handEffectTooltipPortal.style.setProperty('left', Math.round(x) + 'px', 'important');
+  _handEffectTooltipPortal.style.setProperty('top', Math.round(y) + 'px', 'important');
 }
 
 function showHandEffectTooltip(ev) {
@@ -7932,6 +7948,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
         const markerY = hit.y + (getPickerPositionLabel(hit.index) ? 31 : 7);
         marker.style.setProperty('--picker-info-left', (markerX / cssW * 100) + '%');
         marker.style.setProperty('--picker-info-top', (markerY / cssH * 100) + '%');
+        marker.dataset.pickerCardLeftRatio = String(hit.x / cssW);
+        marker.dataset.pickerCardTopRatio = String(hit.y / cssH);
+        marker.dataset.pickerCardWidthRatio = String(hit.w / cssW);
+        marker.dataset.pickerCardHeightRatio = String(hit.h / cssH);
         pickerInfoLayer.appendChild(marker);
       });
     }

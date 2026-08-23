@@ -13262,8 +13262,8 @@ html body > .hand-effect-tooltip.hand-effect-tooltip-portal{
   display:none!important;
   position:fixed!important;
   z-index:12000!important;
-  left:0!important;
-  top:0!important;
+  left:0;
+  top:0;
   transform:none!important;
   width:300px!important;
   max-width:calc(100vw - 32px)!important;
@@ -24776,11 +24776,11 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
    text size exactly unchanged. */
 html body #s-challenger #ch-elo-val.three-digit-elo{
   position:relative!important;
-  left:3px!important;
+  left:1px!important;
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-three-digit{
   position:relative!important;
-  left:3px!important;
+  left:1px!important;
 }
 
 /* Board effect pickers must always paint. Chromium could preserve the hit
@@ -24846,14 +24846,59 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge,
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md,
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-long,
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-xlong{
-  width:max-content!important;
+  display:inline-flex!important;
+  width:fit-content!important;
+  inline-size:fit-content!important;
+  min-width:0!important;
+  min-inline-size:0!important;
   max-width:178px!important;
+  max-inline-size:178px!important;
+  flex:0 0 auto!important;
   transform:none!important;
 }
 
+html body #s-social .social-online-command .social-online-card-rank .rank-badge-label{
+  width:auto!important;
+  inline-size:auto!important;
+  min-width:0!important;
+  min-inline-size:0!important;
+  flex:0 0 auto!important;
+}
+
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-two-line{
+  width:fit-content!important;
+  inline-size:fit-content!important;
+  max-width:none!important;
+  max-inline-size:none!important;
+  justify-content:flex-start!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge-label-two-line{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  inline-size:max-content!important;
+  max-width:none!important;
+  max-inline-size:none!important;
+  white-space:normal!important;
+  text-align:center!important;
+  line-height:.9!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge-label-two-line .rank-badge-line{
+  display:block!important;
+  width:max-content!important;
+  inline-size:max-content!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+}
+
 /* Public Decks controls are real DOM hit targets above decorative surfaces. */
+html body #modal .modal.public-decks-modal #modal-body,
 html body #modal .pd-library-v3,
 html body #modal .pd-library-v3 :is(button,.pdx-card){
+  position:relative!important;
+  z-index:5!important;
   pointer-events:auto!important;
 }
 

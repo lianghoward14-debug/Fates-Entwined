@@ -576,8 +576,12 @@ function renderRankBadge(elo, size='md') {
   const len = rankName.length;
   const fitClass = len <= 8 ? ' rank-badge-short' : (len <= 14 ? ' rank-badge-medium' : (len <= 20 ? ' rank-badge-long' : ' rank-badge-xlong'));
   const longClass = len > 14 ? ' rank-badge-label-long' : '';
-  const labelHtml = `<span class="rank-badge-label${longClass}" data-raw-rank-name="${escapeHtml(rankName)}" title="${escapeHtml(rankName)}">${escapeHtml(rankName)}</span>`;
-  return `<span class="rank-badge rank-${size}${fitClass} fate-badge-frame" style="background:${rank.bg};border-color:${rank.color}40;color:${rank.color};">
+  const centeredLines = rankName === 'Lieutenant at Arms' ? ['Lieutenant', 'at Arms'] : null;
+  const twoLineClass = centeredLines ? ' rank-badge-two-line' : '';
+  const labelHtml = centeredLines
+    ? `<span class="rank-badge-label${longClass} rank-badge-label-two-line" data-raw-rank-name="${escapeHtml(rankName)}" title="${escapeHtml(rankName)}"><span class="rank-badge-line rank-badge-line-main">${escapeHtml(centeredLines[0])}</span><span class="rank-badge-line rank-badge-line-sub">${escapeHtml(centeredLines[1])}</span></span>`
+    : `<span class="rank-badge-label${longClass}" data-raw-rank-name="${escapeHtml(rankName)}" title="${escapeHtml(rankName)}">${escapeHtml(rankName)}</span>`;
+  return `<span class="rank-badge rank-${size}${fitClass}${twoLineClass} fate-badge-frame" style="background:${rank.bg};border-color:${rank.color}40;color:${rank.color};">
     <span class="rank-badge-svg">${divider}</span>
     <span class="rank-badge-icon">${renderRankIconMark(rank,size)}</span>${labelHtml}
   </span>`;

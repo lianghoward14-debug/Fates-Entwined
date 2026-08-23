@@ -64,6 +64,34 @@
     if(!modalBox) return;
     modalBox.classList.add('public-decks-modal', ...classes.filter(Boolean));
   }
+  function installPersistentPublicDeckActions(){
+    if(window.__fatePublicDeckActionsInstalled) return;
+    window.__fatePublicDeckActionsInstalled = true;
+    window.addEventListener('click', function(event){
+      const target = event.target instanceof Element ? event.target : null;
+      const hub = target?.closest('#modal.on .pd-library-v3');
+      if(!hub) return;
+      const action = target.closest('button,.pdx-card[data-public-deck-id]');
+      if(!action || !hub.contains(action) || action.disabled) return;
+      const cardNode = action.closest('.pdx-card[data-public-deck-id]');
+      const deckId = String(cardNode?.dataset.publicDeckId || '');
+      let handled = true;
+      if(action.classList.contains('pd-v3-publish')) window.openShareDeckFlow();
+      else if(action.classList.contains('pd-v3-close')) {
+        if(typeof window.closeModal === 'function') window.closeModal();
+        else if(typeof closeModal === 'function') closeModal();
+      }
+      else if(action.classList.contains('pd-v3-prev')) window.showPublicDecks(publicDecksPage - 1);
+      else if(action.classList.contains('pd-v3-next')) window.showPublicDecks(publicDecksPage + 1);
+      else if(action.classList.contains('pdx-delete')) { if(deckId) window.deletePublicDeck(deckId); }
+      else if(action.classList.contains('pdx-open') || action.classList.contains('pdx-card')) { if(deckId) window.viewPublicDeck(deckId); }
+      else handled = false;
+      if(!handled) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  }
+  installPersistentPublicDeckActions();
   function rarityLabel(rarity){
     const raw = String(rarity || 'card').trim();
     return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Card';

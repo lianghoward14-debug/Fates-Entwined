@@ -149,6 +149,27 @@
 #modal .profile-view-code:hover{color:#d9bf72;}
 #modal .profile-view-badges{display:flex;align-items:center;gap:.55rem;min-height:40px;flex-wrap:wrap;}
 #modal .profile-view-badges .rank-badge,#modal .profile-view-badges .level-badge{margin:0!important;}
+#modal .profile-view-badges .rank-badge{
+  display:inline-flex!important;
+  width:fit-content!important;
+  inline-size:fit-content!important;
+  min-width:0!important;
+  min-inline-size:0!important;
+  max-width:100%!important;
+  max-inline-size:100%!important;
+  flex:0 0 auto!important;
+  align-self:center!important;
+  justify-content:flex-start!important;
+}
+#modal .profile-view-badges .rank-badge-label{
+  width:auto!important;
+  inline-size:auto!important;
+  min-width:0!important;
+  min-inline-size:0!important;
+  max-width:none!important;
+  max-inline-size:none!important;
+  flex:0 0 auto!important;
+}
 #modal .profile-view-rank-progress{width:min(380px,100%);margin-top:.55rem;}
 #modal .profile-view-rank-progress>div{height:4px;overflow:hidden;background:rgba(255,255,255,.1);}
 #modal .profile-view-rank-progress>div span{display:block;height:100%;background:#c9a84c;}
