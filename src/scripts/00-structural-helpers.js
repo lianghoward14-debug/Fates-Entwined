@@ -914,6 +914,10 @@ function getHandCardEffectModifiers(card) {
   }
   if (isCardEffectImmutable(card)) return rows;
   if (Array.isArray(card._handEffectModifiers)) card._handEffectModifiers.forEach(addRow);
+  // Renderer snapshots and authoritative picker projections expose the same
+  // rows without the legacy underscore. Accept both shapes so every picker
+  // can show the information marker for a modified card.
+  if (Array.isArray(card.handEffectModifiers)) card.handEffectModifiers.forEach(addRow);
   if (card._wciBonus || Number(card._handCostDelta)) {
     addRow({
       key:'west-caribbea-infantry',

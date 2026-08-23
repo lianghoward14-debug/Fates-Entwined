@@ -6139,8 +6139,14 @@ async function resolveSmartInvestments(card, cp) {
       if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(live)) return;
       if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(live)) return;
       const before = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
-      if(typeof modifyFate === 'function') modifyFate(live, 6, 'permanent', cp);
-      else live.currentFate = before + 6;
+      // Smart Investments changes a card while it is being filed back into
+      // the deck. It is not a visible board Fate-gain event, so commit the
+      // permanent value without spawning the generic floating Fate number.
+      live.currentFate = before + 6;
+      if(Number.isFinite(Number(live._permanentFateCeiling))){
+        live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + 6;
+      }
+      if(typeof clampCardToLandscapeFateCap === 'function') clampCardToLandscapeFateCap(live);
       const after = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
       if(after <= before) return;
       if(typeof recordHandCardEffectModifier === 'function') {

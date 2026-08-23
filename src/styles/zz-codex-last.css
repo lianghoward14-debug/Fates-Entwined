@@ -24674,7 +24674,7 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
 
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-long,
 html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-xlong{
-  transform:translateX(-10px)!important;
+  transform:none!important;
 }
 html body #s-social .social-friend-row .social-friend-meta{
   height:auto!important;
@@ -24833,4 +24833,45 @@ html body #s-title .title-profile .tp-rank-row .rank-badge.rank-lg{
   min-width:0!important;
   max-width:100%!important;
   flex:0 0 auto!important;
+}
+
+/* 2026-08-23: keep Social identity and rank in separate, non-overlapping
+   columns. The existing label/icon sizes are unchanged; only the pill's outer
+   width and the old negative translation are corrected. */
+html body #s-social .social-online-command .social-online-card{
+  grid-template-columns:68px minmax(0,1fr) auto!important;
+}
+html body #s-social .social-online-command .social-online-card-rank,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-long,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-badge-xlong{
+  width:max-content!important;
+  max-width:178px!important;
+  transform:none!important;
+}
+
+/* Public Decks controls are real DOM hit targets above decorative surfaces. */
+html body #modal .pd-library-v3,
+html body #modal .pd-library-v3 :is(button,.pdx-card){
+  pointer-events:auto!important;
+}
+
+html body #modal .hand-limit-card{
+  position:relative!important;
+}
+html body #modal .hand-limit-picker-effect-marker{
+  left:auto!important;
+  right:7px!important;
+  top:7px!important;
+}
+
+@media(max-width:760px){
+  html body #s-social .social-online-command .social-online-card{
+    grid-template-columns:58px minmax(0,1fr)!important;
+  }
+  html body #s-social .social-online-command .social-online-card-rank{
+    grid-column:2!important;
+    grid-row:3!important;
+  }
 }

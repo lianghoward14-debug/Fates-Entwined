@@ -1498,15 +1498,31 @@ function getHandEffectTooltipPortal() {
 function positionHandEffectTooltip(ev) {
   if(!_handEffectTooltipPortal || !_handEffectTooltipPortal.isConnected) return;
   const marker = ev && ev.currentTarget ? ev.currentTarget : null;
-  const card = marker && marker.closest ? marker.closest('.hc') : null;
+  const pickerMarker = !!(marker && marker.classList && marker.classList.contains('picker-effect-marker'));
+  const card = marker && marker.closest
+    ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card' : '.hc')
+    : null;
   const rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : (marker && marker.getBoundingClientRect ? marker.getBoundingClientRect() : null);
   if(!rect) return;
   const width = Math.min(300, Math.max(240, window.innerWidth - 32));
   const gap = 24;
-  let x = rect.left - width - gap;
-  if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
-  let y = rect.top + Math.min(12, rect.height * .12) + 67;
   const estimatedHeight = Math.min(170, Math.max(96, _handEffectTooltipPortal.offsetHeight || 118));
+  let x;
+  let y;
+  if(pickerMarker){
+    // Picker cards live in a centered modal (and canvas cards only have a DOM
+    // marker). Anchor the tooltip directly above that card/marker instead of
+    // using the hand's left-side placement, which collapsed it into the
+    // screen's top-left corner.
+    x = rect.left + rect.width / 2 - width / 2;
+    y = rect.top - estimatedHeight - 10;
+    if(y < 12) y = rect.bottom + 10;
+  }else{
+    x = rect.left - width - gap;
+    if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
+    y = rect.top + Math.min(12, rect.height * .12) + 67;
+  }
+  x = Math.max(12, Math.min(x, window.innerWidth - width - 12));
   if(y + estimatedHeight > window.innerHeight - 12) y = window.innerHeight - estimatedHeight - 12;
   if(y < 12) y = 12;
   _handEffectTooltipPortal.style.width = width + 'px';
@@ -4098,6 +4114,7 @@ function openHandLimitDiscardModal(player) {
           const img = visual.runtimeImg || visual.img || card.img || '';
           return `<button class="hand-limit-card" type="button" aria-pressed="false" data-i="${i}" data-iid="${escapePlacementAnimHtml(String(card.iid || ''))}">
             <span class="hand-limit-art">${img ? `<img src="${img}" alt="${escapePlacementAnimHtml(visual.name || card.name)}" decoding="async" loading="eager">` : `<span>${getAffIcon(visual.aff || card.aff)}</span>`}</span>
+            ${buildHandEffectMarkerHTML(card, 'picker-effect-marker hand-limit-picker-effect-marker')}
             <span class="hand-limit-name">${escapePlacementAnimHtml(visual.name || card.name)}</span>
           </button>`;
         }).join('')}

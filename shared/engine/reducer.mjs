@@ -734,14 +734,11 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       eligibleIids,
       eligibleCards:eligibleIids.map(iid=>{
         const card = findCard(state, iid)?.card;
-        return {
-          iid,
-          id:String(card?.id || ''),
-          name:String(card?.name || ''),
-          type:String(card?.type || ''),
-          affiliation:String(card?.affiliation || ''),
-          rarity:String(card?.rarity || '')
-        };
+        // These cards are already explicitly revealed as legal choices to
+        // this prompt's owning player. Preserve their runtime state (notably
+        // base/current Fate, counters, and statuses) so deck/discard/hand
+        // pickers can render modified-card information consistently.
+        return card ? cloneSerializable(card) : {iid};
       }),
       min,
       max,

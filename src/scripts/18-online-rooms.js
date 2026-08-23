@@ -4904,6 +4904,7 @@
         const image = String(card?.runtimeImg || card?.img || '');
         return '<button class="hand-limit-card' + (selectedIids.has(iid) ? ' is-selected' : '') + '" type="button" aria-pressed="' + (selectedIids.has(iid) ? 'true' : 'false') + '" data-iid="' + esc(iid) + '">' +
           '<span class="hand-limit-art">' + (image ? '<img src="' + esc(image) + '" alt="' + esc(name) + '" decoding="async" loading="eager">' : '') + '</span>' +
+          (typeof buildHandEffectMarkerHTML === 'function' ? buildHandEffectMarkerHTML(card, 'picker-effect-marker hand-limit-picker-effect-marker') : '') +
           '<span class="hand-limit-name">' + esc(name) + '</span></button>';
       }).join('') + '</div></div>';
     const g = gameState();
@@ -6361,6 +6362,11 @@
         // effect crest when the printed Fate number did not change creates an
         // overlay that can never be paired with a legitimate number motion.
         if(fateBefore === fateAfter) return;
+        // Hugh modifies cards in hand and immediately files them into the
+        // deck. That persistent data change belongs in the card's information
+        // marker, not as a floating Fate number at a fallback pile location.
+        if(String(event.reason || '').toUpperCase() === 'SMART_INVESTMENTS'
+          || String(event.semanticSourceCardId || source?.id || '') === 'bh13') return;
         // A WHEN_SET effect may change the Fate of the card being placed in
         // this very presentation batch. The shipping result sequence runs
         // before the canonical view commit, so that card is absent from the

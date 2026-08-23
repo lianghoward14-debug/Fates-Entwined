@@ -234,6 +234,12 @@ async function syncPublicProfile(){
   state.profile = result?.profile || Object.assign({}, payload, {updatedAt:Date.now()});
   state.user = active;
   state.baseCode = state.profile.baseCode || payload.baseCode;
+  // Fly owns account records and Challenger ELO. Apply that same returned
+  // profile to the local game profile so Social, title, profile, and in-game
+  // rank badges cannot disagree about the signed-in player's rank.
+  if(state.profile && typeof window.fateApplyServerProfileStats === 'function'){
+    window.fateApplyServerProfileStats(state.profile);
+  }
   emit();
   return state.profile;
 }
