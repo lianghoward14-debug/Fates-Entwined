@@ -158,20 +158,20 @@ assert.match(client, /legacyFallback:false/);
 assert.match(client, /TEST_AUTH_ENABLED = params\.get\('electron'\) === '1'[\s\S]*fateV3BetaTestAuth/);
 assert.match(
   client,
-  /async function firebaseIdToken\(\)\{[\s\S]{0,260}if\(TEST_AUTH_ENABLED\) return \(await temporaryTestIdentity\(\)\)\.idToken;[\s\S]{0,500}FATE_ONLINE/,
-  'the isolated test client must use a disposable identity before considering a real signed-in user'
+  /async function matchmakingIdentityToken\(\)\{[\s\S]{0,260}if\(LOCAL_TEST_API_URL\)[\s\S]{0,260}return `test:local-\$\{organicTestPool\(\)\}-[\s\S]{0,260}return `session:\$\{matchmakingClientSession\(\)\}`/,
+  'isolated local clients must use a disposable test identity before the session identity fallback'
 );
 assert.match(
   client,
   /resetInheritedFullUiE2ECredential[\s\S]*fateV3FullUiE2E[\s\S]*e2eFresh[\s\S]*sessionStorage\.removeItem\(CREDENTIAL_KEY\)/,
   'the full-UI runner must clear inherited tab credentials once per explicit fresh batch'
 );
-assert.match(client, /accounts:signUp[\s\S]*accounts:delete/);
-assert.match(client, /securetoken\.googleapis\.com\/v1\/token[\s\S]*grant_type:'refresh_token'[\s\S]*expiresAt:Date\.now\(\) \+ expiresInMs/, 'long-running full-UI clients must refresh expiring temporary Firebase identities');
+assert.doesNotMatch(client, /accounts:signUp|accounts:delete|securetoken\.googleapis\.com/, 'matchmaking identity must stay independent of Firebase account lifecycle');
+assert.match(client, /const LOCAL_TEST_API_URL = ISOLATED_LOCAL_AUTHORITY_TEST[\s\S]*127\\\.0\\\.0\\\.1:[\s\S]*requestedTestApiUrl/, 'only the isolated local UI harness may select a local authority endpoint');
 assert.match(client, /containsForbiddenPostState[\s\S]*Phase 7 commands cannot contain client postState/);
 assert.match(client, /scheduleReconnect[\s\S]*connect\(\)/);
 assert.match(client, /const enterQueue = \(\)=>matchmakingRequest\('\/v3\/beta\/matchmaking\/enter'/, 'matchmaking must retain the exact queue payload for recovery');
-assert.match(client, /result\.status === 'idle' && resetRetries < 3[\s\S]*result = await enterQueue\(\)/, 'a transient host restart must re-enter a waiting player instead of failing with idle');
+assert.match(client, /result\.status === 'idle'[\s\S]*onStatus\(\{status:'waiting', recovered:true\}\)[\s\S]*result = await recoverableRequest\(enterQueue\)/, 'a transient host restart must re-enter a waiting player instead of failing with idle');
 assert.doesNotMatch(client, /FateAuthoritativeV3SinglePlayerScreen/);
 assert.match(client, /FatePhase7CurrentMultiplayerUi/);
 assert.match(client, /waitForInitialView/);

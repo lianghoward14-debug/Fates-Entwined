@@ -113,7 +113,14 @@ assert.match(onlineRooms, /_blameGameEffects:blameGameEffects/, 'authoritative B
 assert.match(onlineRooms, /const pos = phase7FindBoardCard\(target\.iid\) \|\| phase7FindProjectedEntry\(view, target\.iid\)[\s\S]{0,1000}synchronizeResultFeedback:true/, 'same-batch Fate changes must animate at the authoritative projected destination before the view commit');
 assert.match(onlineRooms, /const fateBefore = Math\.max\(0, Number\(event\.before\)[\s\S]{0,420}if\(fateBefore === fateAfter\) return;/, 'zero-delta authoritative Fate events must exit before visible feedback');
 assert.match(onlineRooms, /card\.counters\?\.permanentFateCeiling[\s\S]{0,700}next\._permanentFateCeiling[\s\S]{0,500}next\._permanentFateDebuffed = true/, 'authoritative permanent Fate ceilings must project into the unchanged single-player effective-Fate contract');
-assert.match(onlineRooms, /if\(fateBefore === fateAfter\) return;[\s\S]{0,1800}phase7ShowExactEffectOverlay[\s\S]{0,5200}playFateChangeSound/, 'nonzero Fate changes must install the paired production overlay before playing their result sound and motion');
+{
+  const fateBlockStart = onlineRooms.indexOf('if(fateBefore === fateAfter) return;');
+  const fateBlockEnd = onlineRooms.indexOf("if(type === 'CARD_MOVED'", fateBlockStart);
+  const fateBlock = onlineRooms.slice(fateBlockStart, fateBlockEnd);
+  assert.ok(fateBlockStart >= 0 && fateBlockEnd > fateBlockStart, 'the authoritative Fate presentation block must remain discoverable');
+  assert.ok(fateBlock.indexOf('phase7ShowExactEffectOverlay') >= 0, 'nonzero Fate changes must install the paired production overlay');
+  assert.ok(fateBlock.indexOf('playFateChangeSound') > fateBlock.indexOf('phase7ShowExactEffectOverlay'), 'the paired overlay must be installed before its fallback result sound');
+}
 assert.match(onlineRooms, /'93':\{kind:'snowball', label:'Snowball Fight'\}/, 'Wodny Potok Youth must map to its production Snowball Fight overlay');
 assert.match(onlineRooms, /descriptor\.kind === 'snowball'[\s\S]{0,500}markSnowballFightHit/, 'authoritative Snowball Fight feedback must reuse the single-player status-overlay marker');
 assert.match(harness, /['"]93['"]\s*:\s*['"]snowball['"]/, 'the full-UI harness must require Wodny Potok Youth card-specific overlay parity');

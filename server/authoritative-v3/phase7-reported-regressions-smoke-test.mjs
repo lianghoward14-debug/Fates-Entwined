@@ -122,8 +122,8 @@ function submit(state, playerId, sequence, type, payload){
   const reducedRozsi = state.board[1][2][0];
   assert.equal(reducedRozsi.currentFate, 2);
   assert.equal(reducedRozsi.counters.permanentFateCeiling, 2);
-  assert.equal(effectiveFate(state, reducedRozsi), 2, 'the permanent debuff must cap Rozsi below her live +8 aura bonus');
-  assert.equal(expectedEffectiveFateFromOracle(state, reducedRozsi.iid), 2, 'the independent oracle must enforce the same single-player ceiling');
+  assert.equal(effectiveFate(state, reducedRozsi), 10, 'the permanent -4 must reduce Rozsi from 14 to 10 without erasing her live +8 aura bonus');
+  assert.equal(expectedEffectiveFateFromOracle(state, reducedRozsi.iid), 10, 'the independent oracle must preserve the same continuous-bonus semantics');
   assert.equal(projectStateForPlayer(state, 1).board[1][2][0].counters.permanentFateCeiling, 2);
 
   result = reduceCommand(
@@ -134,8 +134,8 @@ function submit(state, playerId, sequence, type, payload){
   assert.equal(result.ok, true);
   state = result.state;
   assert.equal(state.board[1][2][0].counters.permanentFateCeiling, 5);
-  assert.equal(effectiveFate(state, state.board[1][2][0]), 5, 'a later permanent +3 must lift the ceiling from 2 to 5');
-  assert.equal(expectedEffectiveFateFromOracle(state, rozsi.iid), 5);
+  assert.equal(effectiveFate(state, state.board[1][2][0]), 13, 'a later permanent +3 must raise the complete effective value from 10 to 13');
+  assert.equal(expectedEffectiveFateFromOracle(state, rozsi.iid), 13);
   assertInvariants(state);
 }
 

@@ -242,13 +242,13 @@ assert.match(
 );
 assert.match(
   serverText,
-  /String\(entry\.testPool \|\| ''\) === testPool/,
+  /function betaQueueOpponent\(entry\)[\s\S]{0,320}String\(candidate\.testPool \|\| ''\) === String\(entry\.testPool \|\| ''\)/,
   'the authority must match certification clients only within their exact pool'
 );
-assert.match(
+assert.doesNotMatch(
   betaClientText,
-  /const user = globalThis\.FATE_ONLINE/,
-  'manual and shipping beta sessions must retain the Firebase identity path'
+  /globalThis\.FATE_ONLINE|firebaseIdToken|accounts:signUp/,
+  'matchmaking must remain independent of Firebase account and social data'
 );
 
 fs.rmSync(tempDir, {recursive:true, force:true});

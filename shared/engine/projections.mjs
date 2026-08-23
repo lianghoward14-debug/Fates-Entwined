@@ -64,11 +64,11 @@ export function projectStateForPlayer(state, playerIndex){
     fateReductionEffectUses:cloneSerializable(state.fateReductionEffectUses),
     extraSupportersThisTurn:cloneSerializable(state.extraSupportersThisTurn),
     queuedExtraSupporters:cloneSerializable(state.queuedExtraSupporters),
-    testRules:cloneSerializable(state.testRules),
+    testRules:cloneSerializable(state.testRules ?? null),
     landscapeId:state.landscapeId,
-    gameSettings:cloneSerializable(state.gameSettings),
+    gameSettings:cloneSerializable(state.gameSettings ?? null),
     turnTimerSeconds:state.turnTimerSeconds,
-    landscapeState:cloneSerializable(state.landscapeState),
+    landscapeState:cloneSerializable(state.landscapeState ?? null),
     players:state.players.map((player, index)=>
       index === viewer || state.landscapeId === 'igb12'
         ? privatePlayer(player)
@@ -79,7 +79,7 @@ export function projectStateForPlayer(state, playerIndex){
     statuses:cloneSerializable(state.statuses),
     pendingPrompt:promptProjection(state.pendingPrompt, viewer),
     pendingHandLimit:handLimitProjection(state.pendingHandLimit, viewer),
-    outcome:cloneSerializable(state.outcome)
+    outcome:cloneSerializable(state.outcome ?? null)
   };
   return projection;
 }
@@ -106,11 +106,11 @@ export function projectStateForSpectator(state){
     fateReductionEffectUses:cloneSerializable(state.fateReductionEffectUses),
     extraSupportersThisTurn:cloneSerializable(state.extraSupportersThisTurn),
     queuedExtraSupporters:cloneSerializable(state.queuedExtraSupporters),
-    testRules:cloneSerializable(state.testRules),
+    testRules:cloneSerializable(state.testRules ?? null),
     landscapeId:state.landscapeId,
-    gameSettings:cloneSerializable(state.gameSettings),
+    gameSettings:cloneSerializable(state.gameSettings ?? null),
     turnTimerSeconds:state.turnTimerSeconds,
-    landscapeState:cloneSerializable(state.landscapeState),
+    landscapeState:cloneSerializable(state.landscapeState ?? null),
     players:state.players.map(publicPlayer),
     board:cloneSerializable(state.board),
     geometry:cloneSerializable(state.geometry),
@@ -125,7 +125,7 @@ export function projectStateForSpectator(state){
       limit:state.pendingHandLimit.limit,
       required:state.pendingHandLimit.required
     } : null,
-    outcome:cloneSerializable(state.outcome)
+    outcome:cloneSerializable(state.outcome ?? null)
   };
 }
 

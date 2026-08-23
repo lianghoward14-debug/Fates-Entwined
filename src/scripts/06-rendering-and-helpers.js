@@ -1558,6 +1558,7 @@ function showHandEffectTooltip(ev, explicitMarker) {
   const marker = resolveHandEffectMarker(ev, explicitMarker);
   const source = marker && marker.querySelector ? marker.querySelector('.hand-effect-tooltip') : null;
   if(!source) return;
+  if(marker.classList?.contains('picker-effect-marker') && typeof removeHoverPreview === 'function') removeHoverPreview();
   const portal = getHandEffectTooltipPortal();
   portal.innerHTML = source.innerHTML;
   portal.classList.add('is-visible');
@@ -1567,6 +1568,34 @@ function showHandEffectTooltip(ev, explicitMarker) {
 function hideHandEffectTooltip() {
   if(!_handEffectTooltipPortal) return;
   _handEffectTooltipPortal.classList.remove('is-visible');
+}
+
+function bindPickerEffectMarker(marker) {
+  if(!marker || marker.dataset?.pickerTooltipBound === 'true') return;
+  if(marker.closest?.('.board-target-picker,.board-target-picker-modal,.zone-picker-wrap')) return;
+  marker.dataset.pickerTooltipBound = 'true';
+  marker.addEventListener('pointerenter', function(ev){
+    showHandEffectTooltip(ev, marker);
+    positionHandEffectTooltip(ev, marker);
+  });
+  marker.addEventListener('pointermove', function(ev){ positionHandEffectTooltip(ev, marker); });
+  marker.addEventListener('pointerleave', function(){ hideHandEffectTooltip(); });
+  marker.addEventListener('focus', function(ev){ showHandEffectTooltip(ev, marker); }, true);
+  marker.addEventListener('blur', function(){ hideHandEffectTooltip(); }, true);
+}
+
+function bindPickerEffectMarkers(root) {
+  const scope = root && root.querySelectorAll ? root : document;
+  scope.querySelectorAll('.picker-effect-marker').forEach(bindPickerEffectMarker);
+}
+window.bindPickerEffectMarkers = bindPickerEffectMarkers;
+
+const _pickerEffectMarkerRoot = document.getElementById('modal');
+if(_pickerEffectMarkerRoot && !window.__fatePickerEffectMarkerObserver){
+  window.__fatePickerEffectMarkerObserver = new MutationObserver(function(){
+    bindPickerEffectMarkers(_pickerEffectMarkerRoot);
+  });
+  window.__fatePickerEffectMarkerObserver.observe(_pickerEffectMarkerRoot, {childList:true, subtree:true});
 }
 
 // Picker cards are frequently rebuilt while a modal stays open. Delegating
@@ -7495,7 +7524,6 @@ function showBoardTargetPicker(opts, onConfirm) {
             '<div class="board-target-card">' +
               (img ? '<img src="' + img + '" alt="' + (visual.name || 'Card') + '" decoding="async" loading="lazy" fetchpriority="low">' : '<span class="board-target-aff">' + getAffIcon(visual.aff) + '</span>') +
               '<div class="board-target-fate' + (visual.isHidden ? ' is-hidden-fate' : '') + '">' + visual.displayFate + '</div>' +
-              buildHandEffectMarkerHTML(cell, 'picker-effect-marker board-target-effect-marker') +
             '</div>';
           if(entry) cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
           else {

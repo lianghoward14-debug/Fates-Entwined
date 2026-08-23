@@ -20,6 +20,7 @@ const data = fs.readFileSync(path.join(ROOT, 'src/scripts/01-data-and-state.js')
 const harness = fs.readFileSync(path.join(ROOT, 'src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs'), 'utf8');
 const renderer = fs.readFileSync(path.join(ROOT, 'src/scripts/render-v2/04-match-renderer-adapter.js'), 'utf8');
 const rendering = fs.readFileSync(path.join(ROOT, 'src/scripts/06-rendering-and-helpers.js'), 'utf8');
+const economy = fs.readFileSync(path.join(ROOT, 'src/scripts/20-online-economy.js'), 'utf8');
 const gameplay = fs.readFileSync(path.join(ROOT, 'src/scripts/05-gameplay-core.js'), 'utf8');
 const betaClient = fs.readFileSync(path.join(ROOT, 'src/scripts/authoritative-v3-phase7-beta-client.mjs'), 'utf8');
 const engineState = fs.readFileSync(path.join(ROOT, 'shared/engine/state.mjs'), 'utf8');
@@ -164,7 +165,7 @@ assert.match(data, /function\(cardOrId\)[\s\S]{0,500}copiedEffectId[\s\S]{0,500}
 assert.match(online, /function phase7RequiresManualActivation\(card, command\)[\s\S]{0,1400}privateCard\?\.counters\?\.copiedEffectId[\s\S]{0,650}fateEffectRequiresManualActivationId/, 'Christopher manual classification must combine server, projected, private, copied, and rendered identities');
 assert.match(online, /const currentCandidate = phase7CurrentEquivalentCommand\(candidate\)[\s\S]{0,500}phase7RequiresManualActivation\(currentSource, currentCandidate\)/, 'the automatic scheduler must recheck Christopher after the card identity has committed');
 assert.match(online, /const requiresManualActivation = phase7RequiresManualActivation\(source, command\)[\s\S]{0,180}requiresManualActivation && submitOptions\.manualActivationIntent !== true[\s\S]{0,700}manual-activation-without-user-intent-blocked/, 'manual effects must be rejected at the final submit boundary unless a production click supplied explicit intent');
-assert.match(online, /requiresManualActivation\)[\s\S]{0,480}userActivated:true/, 'an explicit manual click must carry its intent across the authority boundary');
+assert.match(online, /if\(requiresManualActivation && phase7RequiresAuthorityManualIntent\(source, command\)\)[\s\S]{0,900}command\.payload = Object\.assign\(\{\}, command\.payload, \{userActivated:true\}\)/, 'an explicit manual click must carry its intent across the authority boundary');
 assert.match(online, /function phase7ResyncStatusBannersWhenGameReady[\s\S]{0,900}s-game[\s\S]{0,300}match-entry-loading-veil[\s\S]{0,900}renderTopbarEffects/, 'opening-turn status banners must repaint only after the production game screen transition is settled');
 assert.match(online, /phase7ChooseCommand\(activations, activationPresentation\.prompt, \{manualActivationIntent:true\}\)/, 'the rendered Activate Effect action must be the source of the explicit manual intent');
 assert.match(online, /phase7SubmitBoardFunction[\s\S]{0,700}manualActivationIntent:true/, 'the shipping board button path must carry explicit manual intent');
@@ -239,8 +240,10 @@ assert.match(online, /type === 'AFFILIATION_CHANGED'[\s\S]{0,500}sourceCardId ==
 assert.ok(rendering.includes("let _lastDiscardPileInspectorOpen = {key:'', at:0}"));
 assert.ok(rendering.includes("modal.dataset.pileInspectorKey === key"));
 assert.ok(rendering.includes("showCanvasCardGalleryModal(title, disc"));
-assert.match(online, /selectedCount < required[\s\S]{0,420}nextCount !== required/);
-assert.match(online, /if\(phase7CurrentUiSession\.pickerKey === key\) return;/, 'normal snapshots must never rebuild the same hand-discard window');
+assert.match(online, /selectedIids\.size < required[\s\S]{0,1200}nextCount < required/, 'hand-limit discard must enable confirmation at the minimum while allowing additional selected cards');
+assert.doesNotMatch(online, /nextCount !== required/, 'hand-limit discard must not force an exact one-card selection');
+assert.match(online, /if\(phase7CurrentUiSession\.pickerKey === key && existing\) return;/, 'normal snapshots must never rebuild the same mounted hand-discard window');
+assert.match(online, /if\(phase7CurrentUiSession\.pickerKey === key && !existing\)[\s\S]{0,220}pickerKey = ''/, 'a genuinely missing hand-discard window must clear stale ownership so it can recover');
 assert.ok(online.includes('handLimitSelectedIids:new Set()'), 'hand-discard selection must survive DOM replacement');
 assert.match(online, /const submission = phase7SubmitCommand\(command\);[\s\S]{0,220}closeModal/, 'hand-discard submission ownership must be established before closing');
 assert.ok(online.includes('lastHandLimitSubmission:null'), 'hand-limit UI must retain a stale-snapshot submission latch');
@@ -249,6 +252,23 @@ assert.match(online, /visual-picker-body[\s\S]{0,900}phase7PickerKey/, 'card and
 assert.match(online, /\['CARD_SELECTION','HAND_SELECTION'\][\s\S]{0,700}visual-picker-body/, 'card and hand selection prompts must recognize their still-mounted production picker');
 assert.match(online, /phase7OpenCardPicker\([\s\S]{0,700}phase7GuardOptionPrompt\(promptKey, prompt\)/, 'card and hand selection prompts must use the bounded recovery guard');
 assert.ok(rendering.includes("btn.addEventListener('pointerdown'"));
-assert.ok(rendering.includes('selectedBefore >= needed'));
+assert.ok(rendering.includes('selected < needed'), 'single-player hand-limit confirmation must also allow every selection at or above the minimum');
+assert.ok(rendering.includes("classList.toggle('is-selected')"), 'single-player hand-limit cards must remain independently toggleable');
+
+// Picker information and Public Deck controls must remain owned by their live
+// modal content rather than stale global handlers.
+assert.match(rendering, /function bindPickerEffectMarker[\s\S]{0,500}pointerenter[\s\S]{0,500}pointerleave/, 'picker information markers must bind direct hover handlers');
+assert.match(rendering, /MutationObserver[\s\S]{0,300}bindPickerEffectMarkers/, 'rebuilt picker cards must receive information hover handlers');
+assert.match(rendering, /if\(pickerMarker\)[\s\S]{0,500}rect\.top - estimatedHeight - 10/, 'picker information must anchor directly above its card');
+{
+  const boardPickerStart = rendering.indexOf('function showBoardTargetPicker');
+  const boardPickerEnd = rendering.indexOf('function showZonePicker(', boardPickerStart);
+  const boardPicker = rendering.slice(boardPickerStart, boardPickerEnd);
+  assert.ok(boardPickerStart >= 0 && boardPickerEnd > boardPickerStart, 'zone picker source must remain discoverable');
+  assert.doesNotMatch(boardPicker, /buildHandEffectMarkerHTML/, 'zone pickers must not render information icons');
+}
+assert.match(economy, /function bindPublicDeckHubActions\(hub\)[\s\S]{0,1200}hub\.addEventListener\('click'/, 'Public Deck controls must bind to the live hub');
+assert.match(economy, /if\(publicDecksHubOpen\(\)\) showPublicDecks/, 'account refresh must not replace an open deck detail window with the hub');
+assert.doesNotMatch(economy, /window\.addEventListener\('click'[\s\S]{0,260}pd-library-v3/, 'Public Deck controls must not use a page-wide capture handler');
 
 console.log('Phase 7 current interaction acceptance smoke test passed');

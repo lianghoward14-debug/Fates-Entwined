@@ -149,7 +149,7 @@ try{
   assert.equal(health.phase7Beta, true);
   assert.equal(health.flag, 'FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED');
   assert.equal(health.protocolVersion, 3);
-  assert.equal(health.matchmakingMode, 'unranked');
+  assert.equal(health.matchmakingMode, 'freeplay-and-challenger');
   assert.equal(health.requiredClientVersion, clientVersion);
   assert.equal(health.matchesPath, '/v3/beta/matches');
   assert.equal(health.socketPath, '/v3/beta/socket');
@@ -233,7 +233,8 @@ try{
     headers:identityHeaders('p0'),
     body:JSON.stringify({
       name:'Phase 7 P0',
-      deckIds:['32', '27', '54']
+      deckIds:['32', '27', '54'],
+      gameSettings:{landscapeMode:'selected', landscapeId:'igb1', turnTimerMinutes:3}
     })
   });
   assert.equal(firstQueue.status, 202);
@@ -241,7 +242,11 @@ try{
   const secondQueue = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/enter`, {
     method:'POST',
     headers:identityHeaders('p1'),
-    body:JSON.stringify({name:'Phase 7 P1', deckIds:['79', '56', '32']})
+    body:JSON.stringify({
+      name:'Phase 7 P1',
+      deckIds:['79', '56', '32'],
+      gameSettings:{landscapeMode:'selected', landscapeId:'igb1', turnTimerMinutes:3}
+    })
   });
   assert.equal(secondQueue.status, 200);
   const secondMatch = await secondQueue.json();
