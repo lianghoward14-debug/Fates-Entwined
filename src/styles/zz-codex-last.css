@@ -19185,6 +19185,101 @@ html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank
   justify-content:flex-start!important;
 }
 
+/* The earlier Social command rule is intentionally very specific and set the
+   pill back to width:100%. Match that specificity so the existing icon, text,
+   padding, and gap stay untouched while the banner itself hugs its contents. */
+html body #s-social .social-online-command .social-online-card-rank .rank-badge,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md,
+html body #modal .profile-rank-row .rank-badge.rank-lg,
+html body #modal .profile-rank-level-row .rank-badge,
+html body #modal .social-profile-inspect .inspect-profile-rank .rank-badge.rank-lg,
+html body #s-title .title-profile .tp-rank-row .rank-badge.rank-lg{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:100%!important;
+  flex:0 0 auto!important;
+}
+
+/* Picker modifier badges use exactly the same 21px information treatment as
+   hand cards, but live above canvas/DOM picker cards and never select them. */
+html body #modal .visual-page-canvas-shell{
+  position:relative!important;
+  width:min(100%,760px)!important;
+  max-width:760px!important;
+  margin:0 auto!important;
+}
+html body #modal .visual-page-canvas-shell .visual-page-canvas{
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+}
+html body #modal .visual-picker-info-layer{
+  position:absolute!important;
+  inset:0!important;
+  z-index:8!important;
+  pointer-events:none!important;
+}
+html body #modal .visual-mc,
+html body #modal .board-target-card{
+  position:relative!important;
+}
+html body #modal .picker-effect-marker{
+  position:absolute!important;
+  left:var(--picker-info-left,auto)!important;
+  right:auto!important;
+  top:var(--picker-info-top,7px)!important;
+  z-index:12!important;
+  width:21px!important;
+  height:21px!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  pointer-events:auto!important;
+}
+html body #modal .picker-effect-marker.dom-picker-effect-marker,
+html body #modal .picker-effect-marker.board-target-effect-marker{
+  left:auto!important;
+  right:5px!important;
+  top:7px!important;
+}
+html body #modal .picker-effect-marker .hand-effect-marker-icon{
+  width:100%!important;
+  height:100%!important;
+  border-radius:999px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-family:Cinzel,serif!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  color:#daf4ff!important;
+  background:rgba(8,10,16,.88)!important;
+  border:1px solid rgba(118,210,255,.78)!important;
+  box-shadow:0 2px 6px rgba(0,0,0,.35)!important;
+}
+html body #modal .picker-effect-marker .hand-effect-tooltip{
+  display:none!important;
+}
+html body > .hand-effect-tooltip-portal .hand-effect-row + .hand-effect-row{
+  margin-top:8px!important;
+  padding-top:8px!important;
+  border-top:1px solid rgba(118,210,255,.16)!important;
+}
+html body > .hand-effect-tooltip-portal .hand-effect-name{
+  color:#daf4ff!important;
+  font-family:Cinzel,serif!important;
+  font-size:12px!important;
+  font-weight:800!important;
+}
+html body > .hand-effect-tooltip-portal .hand-effect-text{
+  margin-top:3px!important;
+  color:rgba(238,243,252,.88)!important;
+  font-size:12px!important;
+  line-height:1.35!important;
+}
+
 html body #s-game .in-game-rank-stat .rank-badge.rank-sm.in-game-rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   display:inline-flex!important;
   flex-direction:column!important;
@@ -24696,4 +24791,35 @@ html body #modal .board-target-picker .board-target-card,
 html body #modal .board-target-picker .board-target-card img{
   transform:none!important;
   backface-visibility:visible!important;
+}
+/* 2026-08-23: rank banners hug their existing icon and label everywhere.
+   Sizing, padding, typography, icons, and internal gaps remain unchanged. */
+html body .rank-badge,
+html body .rank-badge.rank-sm,
+html body .rank-badge.rank-md,
+html body .rank-badge.rank-lg{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:100%!important;
+  flex:0 0 auto!important;
+}
+
+html body #s-social .social-online-command .social-online-card-rank{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:100%!important;
+  justify-self:start!important;
+  justify-content:flex-start!important;
+}
+
+html body #s-social .social-online-command .social-online-card-rank .rank-badge,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md,
+html body #modal .profile-rank-row .rank-badge.rank-lg,
+html body #modal .profile-rank-level-row .rank-badge,
+html body #modal .social-profile-inspect .inspect-profile-rank .rank-badge.rank-lg,
+html body #s-title .title-profile .tp-rank-row .rank-badge.rank-lg{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:100%!important;
+  flex:0 0 auto!important;
 }

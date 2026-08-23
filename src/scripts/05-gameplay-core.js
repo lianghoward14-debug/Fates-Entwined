@@ -6152,12 +6152,13 @@ async function resolveSmartInvestments(card, cp) {
         });
       }
       hand.splice(liveIndex, 1);
-      fatePushDiscard(cp, live, {sound:false});
+      G.players[cp].deck.push(live);
       invested.push(live);
     });
-    if(invested.length && typeof playDiscardSfx === 'function') playDiscardSfx();
+    if(invested.length && typeof shuffle === 'function') shuffle(G.players[cp].deck);
+    if(invested.length && typeof playSfx === 'function') playSfx('deckAdd');
     toast(invested.length
-      ? 'Smart Investments sent ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to discard with +6 Fate.'
+      ? 'Smart Investments returned ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to the deck with +6 Fate.'
       : 'Smart Investments declined.');
     renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
     return invested.length;
@@ -6172,10 +6173,10 @@ async function resolveSmartInvestments(card, cp) {
   return new Promise(function(resolve){
     pickCardsVisual(eligible, {
       title:'Smart Investments',
-      subtitle:'Choose up to 3 cards from your hand. Each gains 6 Fate permanently, then goes to your discard pile.',
+      subtitle:'Choose up to 3 cards from your hand. Each gains 6 Fate permanently, then returns to your deck.',
       minCount:0,
       maxCount:3,
-      confirmLabel:'Invest and Discard',
+      confirmLabel:'Invest and Return',
       immediate:true,
       viewerPlayerIndex:cp,
       onlineParentAction:true,
@@ -6231,7 +6232,11 @@ async function chooseFlowerKingTarget(inst, z, r, c, cp) {
       }, function(chosen){
         const selected = chosen && chosen[0];
         if(!selected){ setTimeout(openPicker, 0); return; }
-        resolve(applyTarget(selected));
+        // The flower and its +6 Fate feedback belong to the resolved choice,
+        // not the still-open picker. Let the modal close paint first.
+        const finishAfterPickerClose = function(){ resolve(applyTarget(selected)); };
+        if(typeof requestAnimationFrame === 'function') requestAnimationFrame(finishAfterPickerClose);
+        else setTimeout(finishAfterPickerClose, 0);
       });
     };
     openPicker();
@@ -7926,9 +7931,12 @@ function capEffectiveFateForLandscape(value, z) {
 
 function capEffectiveFateForPermanentDebuff(card, value) {
   const total = Math.max(0, Number(value) || 0);
-  if(!card) return total;
-  const ceiling = Number(card._permanentFateCeiling);
-  return Number.isFinite(ceiling) ? Math.min(total, Math.max(0, ceiling)) : total;
+  // Permanent Fate loss is already committed to currentFate. The old ceiling
+  // capped the final derived value as well, which accidentally erased live
+  // continuous bonuses (for example Oathbound's -3 also removed Louis's +6).
+  // Keep the legacy counter for save compatibility, but do not apply it after
+  // continuous modifiers have been calculated.
+  return total;
 }
 
 function applyPermanentFateDebuff(card, amount, sourceOwner) {
@@ -7940,7 +7948,9 @@ function applyPermanentFateDebuff(card, amount, sourceOwner) {
   const before = pos ? getEffectiveFate(card, pos.z) : Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const storedBefore = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   const storedAfter = Math.max(0, storedBefore - loss);
+  const overflowLoss = Math.max(0, loss - storedBefore);
   card.currentFate = storedAfter;
+  card._permanentFateOverflowDebuff = Math.max(0, Number(card._permanentFateOverflowDebuff) || 0) + overflowLoss;
   const oldCeiling = Number(card._permanentFateCeiling);
   card._permanentFateCeiling = Number.isFinite(oldCeiling)
     ? Math.min(Math.max(0, oldCeiling), storedAfter)
@@ -8453,7 +8463,8 @@ function getEffectiveFate(card, z) {
     if(allSameAff && ownAff && ownCount >= 3) bonus += 5;
   }
 
-  const effectiveWithAuras = capEffectiveFateForLandscape(Math.max(0, baseFate + bonus - staticPenalty), z);
+  const permanentOverflowDebuff = Math.max(0, Number(card._permanentFateOverflowDebuff) || 0);
+  const effectiveWithAuras = capEffectiveFateForLandscape(Math.max(0, baseFate + bonus - staticPenalty - permanentOverflowDebuff), z);
   return capEffectiveFateForPermanentDebuff(card, effectiveWithAuras);
 }
 

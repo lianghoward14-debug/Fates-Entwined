@@ -156,7 +156,7 @@
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flySocialEnabled(){
-    return !!authorityHttpBaseUrl();
+    return rtdbDisabledMode() && !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -422,6 +422,7 @@
   }
   function ensureProfileSub(uid){
     if(!uid || profileUnsubs.has(uid)) return;
+    if(!firebaseSocialAllowed()) return;
     // Put a placeholder in the map before subscribing. Some RTDB listeners
     // can invoke their first callback immediately, and without this guard the
     // callback can re-enter renderSocialPage() -> ensureProfileSub() recursively.
@@ -586,6 +587,10 @@
   }
   function watchSocial(){
     const u = window.FATE_ONLINE?.user;
+    if(u && window.FATE_ONLINE?.profile){
+      profileMap.set(u.uid, window.FATE_ONLINE.profile);
+      try{ FO.profileCache?.set?.(u.uid, window.FATE_ONLINE.profile); }catch(_){ }
+    }
     if(u && flySocialEnabled()){
       if(currentUid !== u.uid){
         resetWatchers();
@@ -604,7 +609,10 @@
       scheduleRender();
       return;
     }
-    if(currentUid === u.uid && unsubFriends && unsubReq && unsubPresence && unsubPartyInvites && unsubUserParty) return;
+    if(currentUid === u.uid && unsubFriends && unsubReq && unsubPresence && unsubPartyInvites && unsubUserParty){
+      scheduleRender();
+      return;
+    }
     resetWatchers();
     currentUid = u.uid;
     ensureProfileSub(u.uid);

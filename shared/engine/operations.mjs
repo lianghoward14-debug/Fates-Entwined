@@ -1,6 +1,7 @@
 import {OPERATION_TYPES, RULE_EVENT_TYPES} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
+  effectiveFate,
   effectiveConsolidationCost,
   inspectOperation,
   isEffectImmutable,
@@ -623,18 +624,21 @@ function fateTargetIids(operation){
 
 function commitPermanentFate(card, nextValue){
   const before = Math.max(0, Number(card?.currentFate) || 0);
-  const after = Math.max(0, Number(nextValue) || 0);
+  const requested = Number(nextValue) || 0;
+  const after = Math.max(0, requested);
   if(!card || !Number.isInteger(after)) throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
   const oldCeiling = Number(card.counters.permanentFateCeiling);
-  if(after < before){
+  const overflowLoss = Math.max(0, -requested);
+  if(requested < before){
     card.counters.permanentFateCeiling = Number.isFinite(oldCeiling)
       ? Math.min(Math.max(0, oldCeiling), after)
       : after;
-    card.counters.permanentFateDebuffAmount = Math.max(0, Number(card.counters.permanentFateDebuffAmount) || 0) + (before - after);
+    card.counters.permanentFateDebuffAmount = Math.max(0, Number(card.counters.permanentFateDebuffAmount) || 0) + (before - after) + overflowLoss;
+    card.counters.permanentFateOverflowDebuff = Math.max(0, Number(card.counters.permanentFateOverflowDebuff) || 0) + overflowLoss;
   }else if(after > before && Number.isFinite(oldCeiling)){
-    // Single-player permanent gains lift an existing debuff ceiling by the
-    // same amount; continuous auras remain capped underneath that ceiling.
+    // Retain the legacy ceiling field for old serialized matches. Effective
+    // Fate no longer uses it to erase continuous bonuses.
     card.counters.permanentFateCeiling = Math.max(0, oldCeiling) + (after - before);
   }
   card.currentFate = after;
@@ -664,13 +668,16 @@ function changeFate(ctx, operation, absolute){
   const changes = [];
   for(const targetIid of targetIids){
     const entry = findCard(ctx.state, targetIid);
-    const before = Number(entry.card.currentFate) || 0;
-    const transformed = absolute ? value : (before * multiplier) + amount;
+    const beforeStored = Number(entry.card.currentFate) || 0;
+    const before = entry.zone === 'board' ? effectiveFate(ctx.state, entry) : beforeStored;
+    const transformed = absolute ? value : (beforeStored * multiplier) + amount;
     if(!Number.isInteger(transformed)){
       throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
     }
-    const after = Math.max(0, transformed);
-    commitPermanentFate(entry.card, after);
+    commitPermanentFate(entry.card, transformed);
+    const after = entry.zone === 'board'
+      ? effectiveFate(ctx.state, findCard(ctx.state, targetIid))
+      : Math.max(0, Number(entry.card.currentFate) || 0);
     emit(ctx, {
       type:RULE_EVENT_TYPES.FATE_CHANGED,
       cardIid:entry.card.iid,
@@ -794,6 +801,15 @@ function transferCards(ctx, operation){
         ? Number(operation.sourceController)
         : null,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
+      reason:operation.reason || ''
+    });
+  }
+  if(operation.shuffleDeckAfter === true && (destinationPile === 'deckTop' || destinationPile === 'deckBottom')){
+    shuffleInPlace(ctx.state.players[playerIndex].deck, ctx.state.rngState);
+    ctx.events.push({
+      type:'DECK_SHUFFLED',
+      playerIndex,
+      sourceIid:operation.sourceIid || null,
       reason:operation.reason || ''
     });
   }

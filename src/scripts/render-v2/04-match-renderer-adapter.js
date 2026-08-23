@@ -19,6 +19,7 @@
   let lastReport = {available:false, reason:'not-rendered', version:ADAPTER_VERSION};
   let lastHitMap = {cards:[], cells:[], handCards:[], handEffectIcons:[], opponentHandCards:[], piles:[], uiCommands:[]};
   let lastCardFateByIid = new Map();
+  let lastFlowerBlessedByIid = new Map();
   let lastBoardCardIids = new Set();
   let deferredCoordinatorFatePulseByIid = new Map();
   let coordinatorAuraFateDelayUntilByIid = new Map();
@@ -1651,6 +1652,20 @@
     if(!timeline || !iid) return;
     const fateValue = getCardFateValue(card, visual);
     const prev = lastCardFateByIid.get(iid);
+    const flowerBlessed = !!(card && card.flags && card.flags.flowerKingBlessed);
+    const flowerWasBlessed = lastFlowerBlessedByIid.get(iid);
+    const flowerPickerOpen = typeof document !== 'undefined'
+      && !!document.querySelector('#modal.on .board-target-picker');
+    const synchronizedFlowerReveal = flowerBlessed && flowerWasBlessed === false && !flowerPickerOpen;
+    const playSynchronizedFlowerFateGain = delta=>{
+      if(!synchronizedFlowerReveal || !(Number(delta) > 0)) return;
+      try{
+        const soundKey = 'louis-finalized-fate-gain:' + iid + ':' + String(fateValue);
+        if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('fateGain', soundKey, 700);
+        else if(typeof window.playSfx === 'function') window.playSfx('fateGain');
+      }catch(_){ }
+    };
+    lastFlowerBlessedByIid.set(iid, flowerBlessed);
     const coordinatorDelayUntil = Number(coordinatorAuraFateDelayUntilByIid.get(iid)) || 0;
     if(deferPlacementFateReveal(card, fateValue)) {
       lastCardFateByIid.set(iid, fateValue);
@@ -1694,6 +1709,7 @@
             delta,
             numbersOnly:true
           });
+          playSynchronizedFlowerFateGain(delta);
           lastCardFateByIid.set(iid, fateValue);
           return;
         }
@@ -1718,8 +1734,13 @@
           rect:cardRect,
           fromValue:prev,
           toValue:fateValue,
-          delta
+          delta,
+          // Louis's permanent flower and its +6 number are one result. Bypass
+          // an older cinematic feedback lock only after the picker is closed,
+          // so both become visible in the same first paint frame.
+          _fatePresentationReady:synchronizedFlowerReveal
         });
+        playSynchronizedFlowerFateGain(delta);
       }
     }
     lastCardFateByIid.set(iid, fateValue);
@@ -2756,7 +2777,7 @@
       try { return window.getCardStatusVisualState(entry && entry.card, statuses); } catch(e) {}
     }
     if(statuses && statuses.effectFlash) return {primary:'effect_flash', immune:false, flashKind:statuses.effectFlash.kind || ''};
-    const order = ['snowball','negated','suppressed','blocked','marked','immune'];
+    const order = ['snowball','flower','negated','suppressed','blocked','marked','immune'];
     for(let i = 0; i < order.length; i++){
       if(statuses && statuses[order[i]]) return {primary:order[i], immune:order[i] === 'immune'};
     }
@@ -2792,10 +2813,11 @@
       marked:markedForDeath,
       blocked:zoeBlocked,
       immune,
+      flower:flowerKingBlessed,
       effectFlash:effectFlashKind ? {kind:effectFlashKind, at:Number(flags.effectFlashAt) || 0} : null
     });
     const primaryStatus = statusState.primary || '';
-    if(markedForDeath && typeof ctx.filter === 'string') ctx.filter = 'saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)';
+    if(primaryStatus === 'marked' && typeof ctx.filter === 'string') ctx.filter = 'saturate(.68) brightness(.84) contrast(.97) sepia(.16) hue-rotate(325deg)';
     if(isRenderFaceDownCard(entry && entry.card, visual)){
       drawCardBack(ctx, r, '', 'back.png');
       drawCardPlaneGleam(ctx, r, tilt);
@@ -2813,7 +2835,7 @@
     else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
     else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
     else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
-    if(flowerKingBlessed) drawFlowerKingCardOverlay(ctx, r);
+    else if(primaryStatus === 'flower') drawFlowerKingCardOverlay(ctx, r);
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     ctx.restore();
   }

@@ -164,7 +164,7 @@ const CARD_RULES = [
   card('bh10','Francisek','WHEN_SET','CONTROLLER','ALL_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Discard every eligible card in controller hand, then activate one draw effect for exactly the number actually removed.',{forbidden:['OPPONENT_HAND_DISCARDED','IMMUNE_HAND_CARD_DISCARDED','DRAW_COUNT_EXCEEDS_DISCARDED_COUNT','REDRAW_ACTIVATES_MORE_THAN_ONCE']}),
   card('bh11','Felicyta Janowicz (University)','PASSIVE','CONTROLLER','ALL_CONTROLLED_ADJACENCY_BONUSES_IN_SOURCE_ZONE','Each active Superior Marks source doubles every positive numeric ADJACENCY_BONUS controlled in its zone; multiple sources double multiplicatively, while penalties and non-bonus adjacency effects remain unchanged.',{forbidden:['OPPONENT_ADJACENCY_BONUS_DOUBLED','ADJACENCY_PENALTY_DOUBLED','NON_BONUS_ADJACENCY_EFFECT_DOUBLED','BONUS_OUTSIDE_SOURCE_ZONE_DOUBLED']}),
   card('bh12','Louis LeJeune',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_SQUARE_ADJACENT_TO_SOURCE','Choose exactly one adjacent square when source is set; a controlled card occupying that square gains +6 effective Fate while source remains active and adjacent. The bonus is classified as ADJACENCY_BONUS.',{forbidden:['NON_ADJACENT_SQUARE_SELECTED','EMPTY_SQUARE_SHOWS_PREEMPTIVE_OVERLAY','MORE_THAN_ONE_SQUARE_BLESSED','BONUS_PERSISTS_AFTER_SOURCE_LEAVES_OR_MOVES_AWAY','IMMUNE_CARD_RECEIVES_BONUS']}),
-  card('bh13','Hugh Roberts','WHEN_SET','CONTROLLER','UP_TO_THREE_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Choose zero to three eligible cards in controller hand; each selected card gains exactly +6 permanent Fate, then moves from controller hand to controller discard.',{cardinality:'ZERO_TO_THREE',forbidden:['OPPONENT_HAND_CARD_SELECTED','MORE_THAN_THREE_CARDS_SELECTED','IMMUNE_CARD_MUTATED_OR_DISCARDED','FATE_GAIN_APPLIED_AFTER_CARD_LEAVES_HAND','SELECTED_CARD_GAINS_OTHER_THAN_6']}),
+  card('bh13','Hugh Roberts','WHEN_SET','CONTROLLER','UP_TO_THREE_EFFECT_MUTABLE_CARDS_IN_CONTROLLER_HAND','Choose zero to three eligible cards in controller hand; each selected card gains exactly +6 permanent Fate, then returns from controller hand to controller deck.',{cardinality:'ZERO_TO_THREE',forbidden:['OPPONENT_HAND_CARD_SELECTED','MORE_THAN_THREE_CARDS_SELECTED','IMMUNE_CARD_MUTATED_OR_MOVED','FATE_GAIN_APPLIED_AFTER_CARD_LEAVES_HAND','SELECTED_CARD_GAINS_OTHER_THAN_6','SELECTED_CARD_SENT_TO_DISCARD']}),
   card('bh25','Jimmy (Viltrumite)','WHEN_SET','CONTROLLER','ONE_EFFECT_MUTABLE_CARD_ANYWHERE_ON_FIELD','Discard exactly one selected eligible card on either side of the field.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['IMMUNE_OR_UNAFFORDABLE_PROTECTED_TARGET','MORE_THAN_ONE_CARD_DISCARDED','CANCEL_DISCARDS_DEFAULT_TARGET']})
 ];
 
@@ -545,11 +545,8 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       const related = new Set(['01','19','82','84','85','87','100']);
       if(entries.some(peer=>controllerOfProjected(peer.card) === controller && String(peer.card.iid) !== iid && related.has(String(peer.card.id || '')))) modifier += 3;
     }
-    const uncappedResult = Math.max(0, derived + modifier);
-    const permanentCeiling = Number(target.card.counters?.permanentFateCeiling);
-    const result = Number.isFinite(permanentCeiling)
-      ? Math.min(uncappedResult, Math.max(0, permanentCeiling))
-      : uncappedResult;
+    const overflowDebuff = Math.max(0, Number(target.card.counters?.permanentFateOverflowDebuff) || 0);
+    const result = Math.max(0, derived + modifier - overflowDebuff);
     evaluating.delete(iid);
     memo.set(iid, result);
     return result;

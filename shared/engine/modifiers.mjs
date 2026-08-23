@@ -294,14 +294,11 @@ export function effectiveFate(state, entryOrCard){
       && relatedIds.has(String(source.card.id || ''))
     )) modifier += 3;
   }
-  const effective = Math.max(0, derived + modifier);
-  const permanentCeiling = Number(card.counters?.permanentFateCeiling);
-  // Match the shipping single-player rule: a permanent Fate reduction caps
-  // the card's complete effective value, including continuous bonuses, until
-  // later permanent gains lift that ceiling.
-  return Number.isFinite(permanentCeiling)
-    ? Math.min(effective, Math.max(0, permanentCeiling))
-    : effective;
+  const overflowDebuff = Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
+  // A permanent loss consumes stored Fate first. Any remainder continues into
+  // continuous bonuses, so an 8-Fate card always becomes 5 after a -3 effect,
+  // without deleting the underlying Louis aura.
+  return Math.max(0, derived + modifier - overflowDebuff);
 }
 
 export function zoneActionBlock(state, playerIndex, zone){

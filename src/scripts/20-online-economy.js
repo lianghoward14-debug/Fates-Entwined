@@ -19,7 +19,8 @@
   let marketplaceLoaded = false;
   let publicDecksLoaded = false;
   const MARKETPLACE_FEED_LIMIT = 80;
-  const PUBLIC_DECK_FEED_LIMIT = 80;
+  // Matches the deployed RTDB query rule (`limitToLast <= 60`).
+  const PUBLIC_DECK_FEED_LIMIT = 60;
   const PUBLIC_DECK_ACTIVE_REFRESH_MS = 2000;
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
@@ -211,10 +212,10 @@
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flyEconomyEnabled(){
-    return !!authorityHttpBaseUrl();
+    return rtdbDisabledMode() && !!authorityHttpBaseUrl();
   }
   function publicDeckApiEnabled(){
-    return !!authorityHttpBaseUrl();
+    return rtdbDisabledMode() && !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -323,7 +324,11 @@
       window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
       updateMarketplaceRedeemButton();
       try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){ console.warn('Marketplace render failed', e); }
-    }, err=>console.warn('Marketplace subscription failed', err));
+    }, err=>{
+      marketplaceUnsub = null;
+      marketplaceLoaded = false;
+      console.warn('Marketplace subscription failed', err);
+    });
   }
   function watchPublicDecks(){
     if(publicDeckApiEnabled()){
@@ -343,7 +348,12 @@
       try{
         if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
       }catch(e){ console.warn('Public decks refresh failed', e); }
-    }, err=>console.warn('Public decks subscription failed', err));
+    }, err=>{
+      publicDecksUnsub = null;
+      publicDecksLoaded = false;
+      console.warn('Public decks subscription failed', err);
+      if(publicDecksHubOpen()) setTimeout(()=>watchPublicDecks(), 900);
+    });
   }
   function stopWatchers(){
     try{ if(marketplaceUnsub) marketplaceUnsub(); }catch(e){}
@@ -1614,7 +1624,16 @@
   };
 
   if(FO.onAuth) FO.onAuth(s=>{ if(!s.user) stopWatchers(); });
-  window.addEventListener('fate-online-auth', e=>{ if(!e.detail?.user) stopWatchers(); });
+  window.addEventListener('fate-online-auth', e=>{
+    if(!e.detail?.user){
+      stopWatchers();
+      return;
+    }
+    // The economy module can load before Firebase finishes restoring the
+    // persisted account. Re-enter the subscriptions when RTDB becomes live.
+    ensureWatchers('all');
+    if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
+  });
 
   window.FateOnline = Object.assign(window.FateOnline || {}, {
     publishDeck,

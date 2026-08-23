@@ -1475,3 +1475,14 @@ html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .game-left .playe
   82%{opacity:1;transform:translate3d(-50%,-12px,0) scale(1);}
   100%{opacity:0;transform:translate3d(-50%,-22px,0) scale(.98);}
 }
+/* Keep live-match rank banners content-sized; do not alter their established
+   text, icon, padding, height, or gap treatment. */
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .rank-badge,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .rank-badge.rank-sm,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .rank-badge.rank-md,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .rank-badge.rank-lg{
+  width:max-content!important;
+  min-width:0!important;
+  max-width:100%!important;
+  flex:0 0 auto!important;
+}

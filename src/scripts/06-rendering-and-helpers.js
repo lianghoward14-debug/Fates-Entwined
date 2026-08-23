@@ -598,7 +598,13 @@ function presentJimmyDynamicFateGain(card, value) {
 function getCachedEffectiveFate(card, z) {
   if(!card) return 0;
   if(!_renderCalcCache || typeof getEffectiveFate !== 'function') return getEffectiveFate(card, z);
-  const key = String(z) + ':' + String(card.iid || card.id || '') + ':' + String(card.currentFate) + ':' + (card.faceDown ? 1 : 0) + ':' + (card.immuneFlag ? 1 : 0) + ':' + (card._markedForDeath ? 1 : 0) + ':' + (card.usesLeft || 0);
+  const flowerSquare = card._bh12FlowerSquare
+    ? [card._bh12FlowerSquare.z, card._bh12FlowerSquare.r, card._bh12FlowerSquare.c].join(',')
+    : '';
+  const key = String(z) + ':' + String(card.iid || card.id || '') + ':' + String(card.currentFate) + ':'
+    + String(Number(card._permanentFateOverflowDebuff) || 0) + ':' + flowerSquare + ':'
+    + (card.faceDown ? 1 : 0) + ':' + (card.immuneFlag ? 1 : 0) + ':'
+    + (card._markedForDeath ? 1 : 0) + ':' + (card.usesLeft || 0);
   if(_renderCalcCache.effectiveFate.has(key)) return _renderCalcCache.effectiveFate.get(key);
   const value = getEffectiveFate(card, z);
   _renderCalcCache.effectiveFate.set(key, value);
@@ -888,16 +894,21 @@ function shouldShowProtectionStatusIcon(card) {
 }
 if(typeof window !== 'undefined') window.shouldShowProtectionStatusIcon = shouldShowProtectionStatusIcon;
 
-const CARD_STATUS_VISUAL_PRIORITY = Object.freeze([
+const TEMPORARY_CARD_STATUS_VISUAL_PRIORITY = Object.freeze([
   'effect_flash',
-  'snowball',
-  'negated',
-  'suppressed',
-  'blocked',
+  'snowball'
+]);
+const PERMANENT_CARD_STATUS_VISUAL_FALLBACK_ORDER = Object.freeze([
+  'immune',
   'marked',
-  'immune'
+  'blocked',
+  'suppressed',
+  'negated',
+  'flower'
 ]);
 const cardStatusVisualPrimarySeen = new Map();
+const cardPermanentStatusRecency = new Map();
+let cardPermanentStatusSequence = 0;
 const snowballFightStatusTimers = new Map();
 const cardEffectFlashTimers = new Map();
 const TEMPORARY_CARD_OVERLAY_MS = 3500;
@@ -1119,6 +1130,7 @@ function getBoardCardStatusEligibility(card, z, r, c, isHidden) {
     marked:!hidden && !!card._markedForDeath,
     blocked:!hidden && !!((G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c && b.type === 'zoe'; })),
     immune:!hidden && shouldShowProtectionStatusIcon(card),
+    flower:!hidden && typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c),
     effectFlash:!hidden ? getActiveCardEffectFlash(card) : null
   };
 }
@@ -1128,13 +1140,34 @@ function getCardStatusVisualState(card, statuses) {
   const key = String(card && (card.iid || card.id) || '');
   const flash = active.effectFlash && active.effectFlash.kind ? active.effectFlash : null;
   let primary = '';
-  for(let i = 0; i < CARD_STATUS_VISUAL_PRIORITY.length; i++) {
-    const kind = CARD_STATUS_VISUAL_PRIORITY[i];
+  // Temporary overlays always cover persistent statuses for their full
+  // duration. Once they expire, the most recently applied persistent overlay
+  // resumes. This single selector is shared by DOM and canvas rendering.
+  for(let i = 0; i < TEMPORARY_CARD_STATUS_VISUAL_PRIORITY.length; i++) {
+    const kind = TEMPORARY_CARD_STATUS_VISUAL_PRIORITY[i];
     if((kind === 'effect_flash' && flash) || (kind !== 'effect_flash' && active[kind])) {
       primary = kind;
       break;
     }
   }
+  const activePermanent = PERMANENT_CARD_STATUS_VISUAL_FALLBACK_ORDER.filter(function(kind){ return !!active[kind]; });
+  let latestPermanent = '';
+  if(key){
+    let recency = cardPermanentStatusRecency.get(key);
+    if(!recency) recency = {active:new Set(), applied:new Map()};
+    activePermanent.forEach(function(kind){
+      if(!recency.active.has(kind)) recency.applied.set(kind, ++cardPermanentStatusSequence);
+    });
+    recency.active = new Set(activePermanent);
+    if(activePermanent.length) cardPermanentStatusRecency.set(key, recency);
+    else cardPermanentStatusRecency.delete(key);
+    latestPermanent = activePermanent.slice().sort(function(a, b){
+      return (Number(recency.applied.get(b)) || 0) - (Number(recency.applied.get(a)) || 0);
+    })[0] || '';
+  }else{
+    latestPermanent = activePermanent[activePermanent.length - 1] || '';
+  }
+  if(!primary) primary = latestPermanent;
   if(key) {
     const signature = primary === 'effect_flash'
       ? primary + ':' + String(flash && flash.at || '') + ':' + String(flash && flash.kind || '')
@@ -1145,7 +1178,7 @@ function getCardStatusVisualState(card, statuses) {
       else if(primary && primary !== 'negated' && primary !== 'suppressed') queueCardStatusIconSfx(primary, key);
     }
   }
-  return { primary, immune:primary === 'immune', flashKind:flash ? flash.kind : '' };
+  return { primary, immune:primary === 'immune', flower:primary === 'flower', flashKind:flash ? flash.kind : '' };
 }
 if(typeof window !== 'undefined') window.getCardStatusVisualState = getCardStatusVisualState;
 
@@ -1158,6 +1191,8 @@ function cardRenderSignature(card, z, r, c) {
     card.fate, card.xFate ? 1 : 0, card.currentFate, eff, card.faceDown ? 1 : 0,
     card.immuneFlag ? 1 : 0, card.opponentEffectImmune ? 1 : 0, card._markedForDeath ? 1 : 0, Number(card._pierogiTurnsRemaining) || 0,
     Number(card._snowballFightHitAt) || 0,
+    Number(card._permanentFateOverflowDebuff) || 0,
+    card._bh12FlowerSquare ? [card._bh12FlowerSquare.z, card._bh12FlowerSquare.r, card._bh12FlowerSquare.c].join(',') : '',
     card._effectFlash ? [card._effectFlash.kind, card._effectFlash.at, card._effectFlash.duration, card._effectFlash.pitchStep].join(',') : '',
     shouldShowProtectionStatusIcon(card) ? 1 : 0,
     isCardVisuallySuppressed(card, z, r, c) ? 1 : 0,
@@ -1434,10 +1469,11 @@ var _pointerDown = false;
 var _renderDeferredByPointer = false;
 const RENDER_V2_LEGACY_LIVE_VISUAL_SELECTOR = '.placement-anim-ghost, .draw-fly-card, .guerilla-transfer-fly, .maria-discard-badge, .aff-change-overlay, .effect-activation-aura, .block-overlay, .effect-blocked-flash, .consolidation-cinematic-overlay, .cc-overlay-v2';
 
-function buildHandEffectMarkerHTML(card) {
+function buildHandEffectMarkerHTML(card, extraClass) {
   const rows = typeof getHandCardEffectModifiers === 'function' ? getHandCardEffectModifiers(card) : [];
   if(!rows.length) return '';
-  return '<div class="hand-effect-marker" aria-label="Card effect modifiers" onclick="event.stopPropagation();" onmouseenter="showHandEffectTooltip(event)" onmousemove="positionHandEffectTooltip(event)" onmouseleave="hideHandEffectTooltip()">' +
+  const markerClass = ['hand-effect-marker', String(extraClass || '').trim()].filter(Boolean).join(' ');
+  return '<div class="' + markerClass + '" role="button" tabindex="0" aria-label="Card effect modifiers" onclick="event.preventDefault();event.stopPropagation();showHandEffectTooltip(event);positionHandEffectTooltip(event);" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();showHandEffectTooltip(event);positionHandEffectTooltip(event);}" onmouseenter="showHandEffectTooltip(event)" onmousemove="positionHandEffectTooltip(event)" onmouseleave="hideHandEffectTooltip()">' +
     '<span class="hand-effect-marker-icon" aria-hidden="true">i</span>' +
     '<div class="hand-effect-tooltip">' +
       rows.map(function(row){
@@ -3698,7 +3734,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const isMarkedForDeath = !!statusEligibility.marked;
   const showMarkedIcon = statusState.primary === 'marked';
   const isZoeBlocked = statusState.primary === 'blocked';
-  const isFlowerBlessed = !isHidden && typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c);
+  const isFlowerBlessed = statusState.primary === 'flower';
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -3756,7 +3792,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   G._cardFateMap[card.iid] = eff;
   // Mark Menz still changes affiliation, but no longer renders a persistent icon badge.
   const affBadge = '';
-  if(isMarkedForDeath) el.classList.add('vigilante-muted'); else el.classList.remove('vigilante-muted');
+  if(showMarkedIcon) el.classList.add('vigilante-muted'); else el.classList.remove('vigilante-muted');
   if(shouldUseCanvasBoardVisuals()){
     el.dataset.canvasVisual = '1';
     el.dataset.iid = String(card.iid || '');
@@ -7372,6 +7408,7 @@ function showBoardTargetPicker(opts, onConfirm) {
             '<div class="board-target-card">' +
               (img ? '<img src="' + img + '" alt="' + (visual.name || 'Card') + '" decoding="async" loading="lazy" fetchpriority="low">' : '<span class="board-target-aff">' + getAffIcon(visual.aff) + '</span>') +
               '<div class="board-target-fate' + (visual.isHidden ? ' is-hidden-fate' : '') + '">' + visual.displayFate + '</div>' +
+              buildHandEffectMarkerHTML(cell, 'picker-effect-marker board-target-effect-marker') +
             '</div>';
           if(entry) cellEl.oncontextmenu = function(ev){ openPickerCardInfo(ev, cell, entry); };
           else {
@@ -7652,7 +7689,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
     <p style="font-size:.78rem;margin-bottom:.3rem;color:var(--dim);font-style:italic;text-align:center;">${sub}</p>
     ${zoneContextHtml}
     <div id="visual-count" style="font-family:'Cinzel',serif;color:var(--gold);font-size:.75rem;margin-bottom:.3rem;text-align:center;">0/${maxCount} selected</div>
-    <canvas id="visual-page-canvas" class="visual-page-canvas" width="840" height="592" style="width:100%;max-width:840px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
+    <div class="visual-page-canvas-shell">
+      <canvas id="visual-page-canvas" class="visual-page-canvas" width="840" height="592" style="width:100%;max-width:840px;display:block;margin:0 auto;border-radius:8px;background:rgba(3,5,10,.45);"></canvas>
+      <div class="visual-picker-info-layer" aria-hidden="false"></div>
+    </div>
     ${totalPages>1?`<div id="visual-pagination" style="display:flex;align-items:center;justify-content:center;gap:.8rem;margin-top:.5rem;padding:.3rem 0;">
       <button class="btn sm" id="vp-prev" style="font-size:.72rem;padding:.3rem .7rem;min-width:60px;">◀ Prev</button>
       <span id="vp-page" style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--dim);letter-spacing:.06em;">1 / ${totalPages}</span>
@@ -7660,6 +7700,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
     </div>`:''}`;
 
   const pickerCanvas = body.querySelector('#visual-page-canvas');
+  const pickerInfoLayer = body.querySelector('.visual-picker-info-layer');
   const pickerCtx = pickerCanvas && pickerCanvas.getContext ? pickerCanvas.getContext('2d', { alpha:true }) : null;
   const pickerImageCache = new Map();
   let pickerHitboxes = [];
@@ -7839,6 +7880,23 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.fill();
       }
     }
+    if(pickerInfoLayer) {
+      pickerInfoLayer.innerHTML = '';
+      pickerHitboxes.forEach(function(hit){
+        const markerHtml = buildHandEffectMarkerHTML(hit.card, 'picker-effect-marker canvas-picker-effect-marker');
+        if(!markerHtml) return;
+        const holder = document.createElement('div');
+        holder.innerHTML = markerHtml;
+        const marker = holder.firstElementChild;
+        if(!marker) return;
+        const markerSize = 21;
+        const markerX = hit.x + hit.w - markerSize - 7;
+        const markerY = hit.y + (getPickerPositionLabel(hit.index) ? 31 : 7);
+        marker.style.setProperty('--picker-info-left', (markerX / cssW * 100) + '%');
+        marker.style.setProperty('--picker-info-top', (markerY / cssH * 100) + '%');
+        pickerInfoLayer.appendChild(marker);
+      });
+    }
   }
 
   function renderPage() {
@@ -7865,6 +7923,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       el.innerHTML=`
         ${getPickerPositionLabel(i) ? `<div class="visual-card-zone-tag">${getPickerPositionLabel(i)}</div>` : ''}
         <div class="mc-art">${visual.img?`<img src="${visual.img}" alt="${visual.name}" loading="eager" decoding="async" fetchpriority="high">`:`<span class="mc-ico">${getAffIcon(visual.aff)}</span>`}</div>
+        ${buildHandEffectMarkerHTML(c, 'picker-effect-marker dom-picker-effect-marker')}
         `;
       el.title = visual.ability+' — '+visual.effect;
       el.onmouseenter=(ev)=>showHoverPreview(visual,ev);

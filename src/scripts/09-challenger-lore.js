@@ -106,6 +106,7 @@
   function localStorageFlag(name){ try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; } }
   function canUseFly(){
     const FO = window.FateOnline || {};
+    if(canUseRtdb()) return false;
     const hasBase = typeof FO.authorityHttpBaseUrl !== 'function' || !!FO.authorityHttpBaseUrl();
     return hasBase && typeof FO.flyApiRequest === 'function' && (
       localStorageFlag('fateFlyRoomsEnabled') ||

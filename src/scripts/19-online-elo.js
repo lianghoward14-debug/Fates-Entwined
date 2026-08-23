@@ -42,7 +42,7 @@
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flyLeaderboardEnabled(){
-    return !!authorityHttpBaseUrl();
+    return rtdbDisabledMode() && !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;
@@ -408,6 +408,73 @@
     return records;
   }
 
+  function resolvedFirebasePlayerRecord(overrides={}){
+    const u = user();
+    const p = profile();
+    const lp = localProfile();
+    const localMatches = Math.max(0, Number(lp.matchesPlayed) || 0);
+    const remoteMatches = Math.max(0, Number(p.matchesPlayed) || 0);
+    const localElo = Math.max(0, Number(lp.challengerElo ?? lp.elo ?? 600) || 600);
+    const remoteElo = Math.max(0, Number(p.challengerElo ?? p.elo ?? 600) || 600);
+    const preferLocal = localMatches > remoteMatches
+      || (localMatches === remoteMatches && localElo !== 600 && remoteElo === 600);
+    const source = preferLocal ? lp : p;
+    const challengerElo = Math.max(0, Number(overrides.challengerElo ?? overrides.newElo ?? source.challengerElo ?? source.elo ?? localElo) || 600);
+    const challengerWins = Math.max(0, Number(overrides.wins ?? source.challengerWins ?? source.wins ?? 0) || 0);
+    const challengerLosses = Math.max(0, Number(overrides.losses ?? source.challengerLosses ?? source.losses ?? 0) || 0);
+    const humanWins = Math.max(0, Number(overrides.humanWins ?? lp.humanWins ?? p.humanWins ?? 0) || 0);
+    const humanLosses = Math.max(0, Number(overrides.humanLosses ?? lp.humanLosses ?? p.humanLosses ?? 0) || 0);
+    const matchesPlayed = Math.max(
+      challengerWins + challengerLosses,
+      Number(overrides.matchesPlayed ?? source.matchesPlayed ?? localMatches) || 0
+    );
+    const photoURL = FO.profilePhoto ? FO.profilePhoto(p) : (p.photoURL || p.profileImg || lp.photoURL || lp.profileImg || 'blank.png');
+    return {
+      uid:String(u?.uid || ''),
+      name:nameOf(p),
+      chosenUsername:nameOf(p),
+      displayName:nameOf(p),
+      username:nameOf(p),
+      usernameLower:String(p.usernameLower || nameOf(p)).trim().toLowerCase(),
+      baseCode:p.baseCode || p.baseUsername || '',
+      photoURL:photoURL || 'blank.png',
+      profileImg:photoURL || 'blank.png',
+      elo:challengerElo,
+      challengerElo,
+      wins:challengerWins,
+      losses:challengerLosses,
+      challengerWins,
+      challengerLosses,
+      humanWins,
+      humanLosses,
+      matchesPlayed,
+      level:Math.max(1, Number(lp.level ?? p.level ?? 1) || 1),
+      rank:lp.rank || p.rank || 'Footman',
+      isAI:false
+    };
+  }
+
+  async function writeFirebasePlayerRecord(overrides={}){
+    const u = user();
+    if(!u || !firebaseLeaderboardAllowed()) return null;
+    const record = resolvedFirebasePlayerRecord(overrides);
+    if(!record.uid) return null;
+    const stamp = FO.serverTimestamp();
+    const updates = {};
+    Object.entries(record).forEach(([key, value])=>{
+      if(value !== undefined) updates[`publicProfiles/${record.uid}/${key}`] = value;
+    });
+    updates[`publicProfiles/${record.uid}/updatedAt`] = stamp;
+    updates[`leaderboards/challenger/${record.uid}`] = Object.assign({}, record, {updatedAt:stamp});
+    await FO.update(FO.ref(FO.rtdb), updates);
+    if(window.FATE_ONLINE){
+      window.FATE_ONLINE.profile = Object.assign({}, window.FATE_ONLINE.profile || {}, record, {updatedAt:Date.now()});
+    }
+    leaderboard[record.uid] = Object.assign({}, record, {updatedAt:Date.now(), isOnline:true, source:'firebase'});
+    window.FATE_ONLINE_LEADERBOARD = leaderboard;
+    return record;
+  }
+
   async function syncMyLeaderboard(){
     const u=user(); if(!u) return;
     if(flyLeaderboardEnabled()){
@@ -416,6 +483,7 @@
       return;
     }
     await FO.syncPublicProfile?.().catch(()=>{});
+    await writeFirebasePlayerRecord().catch(e=>console.warn('Firebase player record sync failed', e));
   }
   async function writeAILeaderboardEntry(rec){
     if(flyLeaderboardEnabled()) return;
@@ -821,6 +889,14 @@
       await fetchFlyLeaderboard().catch(()=>{});
       return {oldElo,newElo,delta};
     }
+    await writeFirebasePlayerRecord({
+      challengerElo:newElo,
+      wins,
+      losses,
+      matchesPlayed:Number(localProfile().matchesPlayed || wins + losses),
+      humanWins:Number(localProfile().humanWins || 0),
+      humanLosses:Number(localProfile().humanLosses || 0)
+    }).catch(e=>console.warn('Firebase Challenger result submit failed', e));
     return {oldElo,newElo,delta};
   }
   function watchLeaderboard(){

@@ -1,19 +1,26 @@
 // FATES ENTWINED ONLINE ACCOUNT + LOCAL MULTIPLAYER SESSION
 //
-// Firebase is used only for optional Google account sign-in. Multiplayer uses
-// the authoritative Fate server and a separate installation-scoped identity;
-// queue registration never waits for or sends a Firebase credential.
+// Firebase owns account data and every non-matchmaking online surface. Multiplayer
+// matchmaking uses the authoritative Fate server and a separate installation-
+// scoped identity; queue registration never waits for or sends a Firebase token.
 
 const firebaseConfig = {
   apiKey:'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc',
   authDomain:'fates-entwined-41491.firebaseapp.com',
+  databaseURL:'https://fates-entwined-41491-default-rtdb.firebaseio.com',
   projectId:'fates-entwined-41491',
-  appId:'1:920253472655:web:c9964989ee5cf3b76975fa'
+  storageBucket:'fates-entwined-41491.firebasestorage.app',
+  messagingSenderId:'920253472655',
+  appId:'1:920253472655:web:c9964989ee5cf3b76975fa',
+  measurementId:'G-WS86STH46J'
 };
 let app = null;
 let auth = {currentUser:null};
+let rtdb = null;
+let storage = null;
 let provider = null;
 let firebaseAuthApi = null;
+let firebaseDbApi = null;
 let firebaseAuthLoadPromise = null;
 let firebaseAuthListenerInstalled = false;
 
@@ -31,18 +38,47 @@ async function ensureFirebaseAuth(){
   if(firebaseAuthLoadPromise) return firebaseAuthLoadPromise;
   firebaseAuthLoadPromise = Promise.all([
     import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js')
-  ]).then(([appApi, authApi])=>{
+    import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js')
+  ]).then(([appApi, authApi, dbApi])=>{
     firebaseAuthApi = authApi;
+    firebaseDbApi = dbApi;
     app = appApi.getApps().length ? appApi.getApps()[0] : appApi.initializeApp(firebaseConfig);
     auth = authApi.getAuth(app);
+    rtdb = dbApi.getDatabase(app);
     provider = new authApi.GoogleAuthProvider();
     provider.setCustomParameters({prompt:'select_account'});
     authApi.setPersistence(auth, authApi.browserLocalPersistence).catch(()=>{});
-    if(window.FateOnline){
-      window.FateOnline.app = app;
-      window.FateOnline.auth = auth;
-    }
+    if(window.FateOnline) Object.assign(window.FateOnline, {
+      app,
+      auth,
+      rtdb,
+      storage,
+      ref:dbApi.ref,
+      child:dbApi.child,
+      get:dbApi.get,
+      set:dbApi.set,
+      update:dbApi.update,
+      push:dbApi.push,
+      remove:dbApi.remove,
+      onValue:dbApi.onValue,
+      onChildAdded:dbApi.onChildAdded,
+      off:dbApi.off,
+      onDisconnect:dbApi.onDisconnect,
+      serverTimestamp:dbApi.serverTimestamp,
+      query:dbApi.query,
+      orderByChild:dbApi.orderByChild,
+      orderByKey:dbApi.orderByKey,
+      startAt:dbApi.startAt,
+      equalTo:dbApi.equalTo,
+      limitToFirst:dbApi.limitToFirst,
+      limitToLast:dbApi.limitToLast,
+      runTransaction:dbApi.runTransaction
+    });
+    state.app = app;
+    state.auth = auth;
+    state.rtdb = rtdb;
+    state.storage = storage;
     if(!firebaseAuthListenerInstalled){
       firebaseAuthListenerInstalled = true;
       authApi.onAuthStateChanged(auth, handleAccountState);
@@ -102,7 +138,15 @@ function localName(profile){
 }
 function localPhoto(profile){
   const value = profile || {};
-  return value.profileImg || value.photoURL || value.pfp || value.img || 'blank.png';
+  try{
+    if(typeof window.getProfileImgSrc === 'function'){
+      const resolved = window.getProfileImgSrc();
+      if(resolved) return resolved;
+    }
+  }catch(_){ }
+  const source = value.profileImg || value.photoURL || value.pfp || value.img || 'blank.png';
+  if(source && typeof source === 'object') return source.src || source.url || source.path || 'blank.png';
+  return source;
 }
 function buildLocalProfile(user){
   const local = getLocalProfile();
@@ -157,22 +201,74 @@ function requireUser(){
 }
 function getEphemeralMultiplayerGuestUser(){ return guestUser; }
 async function syncPublicProfile(){
-  const active = auth.currentUser || guestUser;
-  state.profile = buildLocalProfile(active);
-  state.baseCode = state.profile.baseCode;
+  const active = auth.currentUser;
+  if(!active || !rtdb || !firebaseDbApi) return null;
+  const localProfile = buildLocalProfile(active);
+  const rawLocal = getLocalProfile();
+  const localImage = rawLocal && typeof rawLocal.profileImg === 'object' ? rawLocal.profileImg : {};
+  const profileRef = firebaseDbApi.ref(rtdb, `publicProfiles/${active.uid}`);
+  // A failed authenticated read is not the same thing as a new profile. Never
+  // turn a rules/network error into `{}` and overwrite established ELO, rank,
+  // or records with local defaults.
+  const existing = await firebaseDbApi.get(profileRef).then(snapshot=>snapshot.val() || {});
+  const resolvedElo = Number(existing.challengerElo ?? existing.elo ?? localProfile.challengerElo ?? 600) || 600;
+  const resolvedRank = existing.rank
+    || (typeof window.rankName === 'function' ? window.rankName(resolvedElo) : '')
+    || localProfile.rank
+    || 'Footman';
+  const payload = {
+    uid:active.uid,
+    baseCode:localProfile.baseCode,
+    baseUsername:localProfile.baseCode,
+    chosenUsername:localProfile.chosenUsername,
+    displayName:localProfile.displayName,
+    username:localProfile.username,
+    usernameLower:localProfile.usernameLower,
+    photoURL:localProfile.photoURL,
+    profileImg:localProfile.profileImg,
+    level:Number(localProfile.level || 1) || 1,
+    challengerElo:resolvedElo,
+    challengerWins:Number(existing.challengerWins ?? localProfile.challengerWins ?? 0) || 0,
+    challengerLosses:Number(existing.challengerLosses ?? localProfile.challengerLosses ?? 0) || 0,
+    humanWins:Number(existing.humanWins ?? localProfile.humanWins ?? 0) || 0,
+    humanLosses:Number(existing.humanLosses ?? localProfile.humanLosses ?? 0) || 0,
+    matchesPlayed:Number(existing.matchesPlayed ?? localProfile.matchesPlayed ?? 0) || 0,
+    rank:resolvedRank,
+    bio:safe(rawLocal.bio || rawLocal.status || '').trim().slice(0, 240),
+    profileCropFocusX:rawLocal.profileCropFocusX ?? localImage.cropFocusX ?? null,
+    profileCropFocusY:rawLocal.profileCropFocusY ?? localImage.cropFocusY ?? null,
+    profileCropY:rawLocal.profileCropY ?? localImage.cropY ?? null,
+    profileCropZoom:rawLocal.profileCropZoom ?? localImage.cropZoom ?? null,
+    schemaVersion:1,
+    localAuthoritativeSession:false,
+    updatedAt:firebaseDbApi.serverTimestamp()
+  };
+  const updates = {};
+  Object.entries(payload).forEach(([key, value])=>{
+    if(value !== undefined) updates[`publicProfiles/${active.uid}/${key}`] = value;
+  });
+  updates[`friendInviteCodes/${payload.baseCode}`] = active.uid;
+  if(payload.usernameLower) updates[`usernames/${payload.usernameLower}/${active.uid}`] = true;
+  await firebaseDbApi.update(firebaseDbApi.ref(rtdb), updates);
+  state.profile = Object.assign({}, payload, {updatedAt:Date.now()});
+  state.user = active;
+  state.baseCode = payload.baseCode;
   emit();
   return state.profile;
 }
 async function getPublicProfile(uid){
-  const active = auth.currentUser || guestUser;
-  return String(uid || '') === active.uid ? (state.profile || buildLocalProfile(active)) : null;
+  const key = String(uid || '').trim();
+  if(!key || !rtdb || !firebaseDbApi) return null;
+  if(key === auth.currentUser?.uid && state.profile) return state.profile;
+  return await firebaseDbApi.get(firebaseDbApi.ref(rtdb, `publicProfiles/${key}`)).then(snapshot=>snapshot.val() || null);
 }
 function subscribeProfile(uid, listener){
-  let cancelled = false;
-  Promise.resolve(getPublicProfile(uid)).then(profile=>{
-    if(!cancelled && profile && typeof listener === 'function') listener(profile);
+  const key = String(uid || '').trim();
+  if(!key || !rtdb || !firebaseDbApi || typeof listener !== 'function') return ()=>{};
+  return firebaseDbApi.onValue(firebaseDbApi.ref(rtdb, `publicProfiles/${key}`), snapshot=>{
+    const profile = snapshot.val();
+    listener(profile || (key === auth.currentUser?.uid ? state.profile : null));
   });
-  return ()=>{ cancelled = true; };
 }
 function profileName(profile){ return localName(profile); }
 function profilePhoto(profile){ return localPhoto(profile); }
@@ -226,7 +322,11 @@ async function localTransaction(_ref, updater){
 }
 function identityQuery(value){ return value; }
 
-window.FATE_RTDB_DISABLED = true;
+// Matchmaking no longer uses RTDB, but the rest of the online game still does.
+// Remove the stale migration flag left by older authoritative-client builds so
+// Social, cloud saves, records, decks, Store, chat, and parties select RTDB.
+try{ localStorage.removeItem('fateRtdbDisabled'); }catch(_){ }
+window.FATE_RTDB_DISABLED = false;
 state.user = auth.currentUser || null;
 state.profile = state.user ? buildLocalProfile(state.user) : null;
 state.baseCode = state.profile?.baseCode || null;
@@ -273,8 +373,8 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
   flyApiRequest,
   authorityHttpBaseUrl,
   flyProfilesEnabled:()=>false,
-  rtdbDisabledMode:()=>true,
-  rtdbAvailable:()=>false
+  rtdbDisabledMode:()=>false,
+  rtdbAvailable:()=>!!rtdb
 });
 
 function queryFlag(name){
@@ -395,6 +495,13 @@ async function signInNow(){
 async function signOutNow(){
   try{
     await ensureFirebaseAuth();
+    const current = auth.currentUser;
+    if(current && rtdb && firebaseDbApi){
+      await firebaseDbApi.update(firebaseDbApi.ref(rtdb, `presence/${current.uid}`), {
+        online:false,
+        lastSeen:firebaseDbApi.serverTimestamp()
+      }).catch(()=>{});
+    }
     state.unsubs.splice(0).forEach(unsub=>{ try{ unsub(); }catch(_){ } });
     await firebaseAuthApi.signOut(auth);
     if(typeof window._fateClearActiveAccount === 'function') window._fateClearActiveAccount();
@@ -424,7 +531,27 @@ if(isElectronExternalAuth()){
     .catch(error=>console.warn('Google redirect sign-in result failed', error));
 }
 
+async function syncAccountPresence(account){
+  if(!account || !rtdb || !firebaseDbApi) return;
+  const presenceRef = firebaseDbApi.ref(rtdb, `presence/${account.uid}`);
+  await firebaseDbApi.update(presenceRef, {
+    uid:account.uid,
+    online:true,
+    lastSeen:firebaseDbApi.serverTimestamp()
+  });
+  firebaseDbApi.onDisconnect(presenceRef).update({
+    online:false,
+    lastSeen:firebaseDbApi.serverTimestamp()
+  }).catch(()=>{});
+  const timer = setInterval(()=>{
+    if(auth.currentUser?.uid !== account.uid || document.hidden || document.getElementById('s-game')?.classList.contains('active')) return;
+    firebaseDbApi.update(presenceRef, {online:true, lastSeen:firebaseDbApi.serverTimestamp()}).catch(()=>{});
+  }, 60000);
+  state.unsubs.push(()=>clearInterval(timer));
+}
+
 async function handleAccountState(account){
+  state.unsubs.splice(0).forEach(unsub=>{ try{ unsub(); }catch(_){ } });
   state.user = account || null;
   state.ready = true;
   state.profile = account ? buildLocalProfile(account) : null;
@@ -437,6 +564,7 @@ async function handleAccountState(account){
       else if(typeof window._fateSetActiveUid === 'function') window._fateSetActiveUid(account.uid);
       await window.FateCloudSave?.onSignIn?.(account.uid);
       await syncPublicProfile();
+      await syncAccountPresence(account);
     }catch(error){ console.warn('Account profile initialization failed', error); }
   }else{
     try{ window.FateCloudSave?.onSignOut?.(); }catch(_){ }

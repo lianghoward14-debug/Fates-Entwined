@@ -3124,11 +3124,11 @@
       next.currentFate = Number(card.currentFate ?? next.fate) || 0;
       const permanentFateCeiling = Number(card.counters?.permanentFateCeiling);
       if(Number.isFinite(permanentFateCeiling)){
-        // Preserve the established single-player permanent-debuff contract at
-        // the authoritative projection edge. Shipping getEffectiveFate caps
-        // the whole live value (including auras) through this field.
+        // Preserve legacy save metadata while the actual overflow reduction is
+        // projected separately so continuous bonuses are not erased.
         next._permanentFateCeiling = Math.max(0, permanentFateCeiling);
         next._permanentFateDebuffAmount = Math.max(0, Number(card.counters?.permanentFateDebuffAmount) || 0);
+        next._permanentFateOverflowDebuff = Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
         next._permanentFateDebuffed = true;
       }
       const statuses = Array.isArray(card.statuses) ? card.statuses.map(String) : [];
@@ -17252,10 +17252,16 @@
       || params.get('fateFlyApiUrl')
       || params.get('authorityApi')
       || (electron && authorityMode !== 'local' ? DEFAULT_FATE_FLY_API_URL : '');
+    const explicitlyDisableNonMatchFirebase = params.has('rtdbDisabled')
+      && params.get('rtdbDisabled') === '1';
     const status = window.fateEnableLocalFlyAuthorityForTesting({
       url,
       apiUrl,
-      rtdbDisabled:params.get('rtdbDisabled') !== '0',
+      // Authoritative matchmaking/rooms and Firebase account services are
+      // independent. Electron release startup must not disable profiles,
+      // presence, public decks, Store, records, or cloud saves merely because
+      // the match transport is Fly/WebSocket authoritative.
+      rtdbDisabled:explicitlyDisableNonMatchFirebase,
       authorityOnly:params.get('authorityOnly') !== '0',
       rooms:params.get('flyRooms') !== '0'
     });

@@ -1631,7 +1631,7 @@ const REGISTRY = Object.freeze({
   },
   'bh13':{
     timings:['WHEN_SET'],
-    operations:['MODIFY_FATE', 'DISCARD_CARD'],
+    operations:['MODIFY_FATE', 'TRANSFER_CARDS'],
     prompts:['CARD_SELECTION'],
     program:[
       {
@@ -1649,7 +1649,14 @@ const REGISTRY = Object.freeze({
       },
       {
         kind:'OPERATION',
-        operation:{type:'DISCARD_CARD', targetIids:'$targetIids', reason:'SMART_INVESTMENTS'}
+        operation:{
+          type:'TRANSFER_CARDS',
+          targetIids:'$targetIids',
+          playerIndex:'$controller',
+          destinationPile:'deckBottom',
+          shuffleDeckAfter:true,
+          reason:'SMART_INVESTMENTS'
+        }
       }
     ]
   },
