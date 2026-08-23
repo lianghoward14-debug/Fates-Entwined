@@ -24772,6 +24772,17 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
   transform-origin:center center!important;
 }
 
+/* Three-digit ELO values: optical position only; keep the existing icon and
+   text size exactly unchanged. */
+html body #s-challenger #ch-elo-val.three-digit-elo{
+  position:relative!important;
+  left:3px!important;
+}
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-three-digit{
+  position:relative!important;
+  left:3px!important;
+}
+
 /* Board effect pickers must always paint. Chromium could preserve the hit
    regions while skipping these contained rows, making Oathbound and Louis
    look invisible even though random clicks still selected their targets. */

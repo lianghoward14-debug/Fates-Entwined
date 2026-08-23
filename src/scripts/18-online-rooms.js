@@ -3317,9 +3317,16 @@
       definition = definitions.find(function(candidate){ return String(candidate?.id || '') === String(next.id || ''); }) || null;
     }catch(e){}
     if(definition){
-      ['img','runtimeImg','rarity','type','name'].forEach(function(key){
+      // Authoritative prompts carry gameplay state, not a duplicate of every
+      // immutable catalogue field. Reattach all data used by picker artwork
+      // and information windows instead of hydrating only the thumbnail.
+      ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set'].forEach(function(key){
         if((next[key] == null || next[key] === '') && definition[key] != null) next[key] = definition[key];
       });
+      if(!String(next.aff || '').trim()) next.aff = String(definition.aff || definition.affiliation || '');
+      const sourceHasPrintedFate = card.baseFate != null || card.fate != null;
+      if(!sourceHasPrintedFate && definition.fate != null) next.fate = definition.fate;
+      if(card.currentFate == null && definition.fate != null) next.currentFate = definition.fate;
     }
     return next;
   }

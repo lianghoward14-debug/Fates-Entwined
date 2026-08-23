@@ -7,6 +7,7 @@ import {ENGINE_VERSION, RULESET_VERSION} from '../../shared/engine/constants.mjs
 import {AuthorityV3RoomManager} from './room-manager.mjs';
 import {SQLiteAuthorityStore} from './storage.mjs';
 import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
+import {createFlyDataApi} from './fly-data-api.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
   throw new Error(
@@ -560,6 +561,8 @@ function readBody(req){
   });
 }
 
+const flyDataApi = createFlyDataApi({readBody, writeJson});
+
 function bearer(req){
   const match = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
   return match ? match[1] : '';
@@ -605,10 +608,13 @@ const server = http.createServer(async (req, res)=>{
         testMatches:ALLOW_TEST_MATCHES,
         activeSockets:sockets.size,
         promptTimeoutMs:PROMPT_TIMEOUT_MS,
-        lonePineTurnTimeoutMs:30000
+        lonePineTurnTimeoutMs:30000,
+        flyDataApi:true,
+        flyData:flyDataApi.counts()
       });
       return;
     }
+    if(await flyDataApi.handle(req, res, url)) return;
     if(req.method === 'POST' && url.pathname === MATCHES_PATH){
       if(BETA_MODE && !ALLOW_TEST_MATCHES){
         writeJson(res, 404, {ok:false, error:'public beta matches are created by authenticated matchmaking only'});
@@ -800,6 +806,7 @@ pingTimer.unref?.();
 
 function shutdown(){
   shuttingDown = true;
+  try{ flyDataApi.flush(); }catch(error){ console.error('Fly data flush failed during shutdown:', error); }
   clearInterval(pingTimer);
   for(const timer of promptTimers.values()) clearTimeout(timer);
   promptTimers.clear();

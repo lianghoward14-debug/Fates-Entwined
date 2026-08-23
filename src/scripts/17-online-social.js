@@ -156,7 +156,7 @@
     return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
   }
   function flySocialEnabled(){
-    return rtdbDisabledMode() && !!authorityHttpBaseUrl();
+    return !!authorityHttpBaseUrl();
   }
   function rtdbDisabledMode(){
     return localStorageFlag('fateRtdbDisabled') || window.FATE_RTDB_DISABLED === true;

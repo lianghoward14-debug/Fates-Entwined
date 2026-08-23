@@ -1729,6 +1729,7 @@ function updateChTopbar() {
     const eloText = String(USER_PROFILE.challengerElo || 600);
     eloVal.textContent = eloText;
     eloVal.classList.toggle('four-digit-elo', eloText.length >= 4);
+    eloVal.classList.toggle('three-digit-elo', eloText.length === 3);
   }
   if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
 }
@@ -1745,7 +1746,8 @@ function renderChPlayTab(content) {
   const progressPct = rankInfo ? rankInfo.progressPct : 0;
   const divisionCopy = rankInfo ? `Division Rank ${rankInfo.divisionRank} / ${rankInfo.divisionSize}` : '';
   const nextRankCopy = rankInfo?.nextRank ? `${rankInfo.pointsToNext} ELO to ${rankInfo.nextRank.name}` : 'Top rank reached';
-  const eloFitClass = String(elo).length >= 4 ? ' is-four-digit' : '';
+  const eloDigits = String(elo).length;
+  const eloFitClass = eloDigits >= 4 ? ' is-four-digit' : (eloDigits === 3 ? ' is-three-digit' : '');
   content.innerHTML = `
     <div class="ch-play-panel ch-play-v5" style="--rank-color:${rank.color};">
       <section class="ch-v5-rank">

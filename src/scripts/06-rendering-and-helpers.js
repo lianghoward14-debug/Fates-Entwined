@@ -7195,6 +7195,23 @@ function inspectPickerCardDetail(card, entry) {
   if(card && typeof showCardInfoOverlay === 'function') showCardInfoOverlay(card);
 }
 
+function hydratePickerCardPresentation(card) {
+  if(!card || typeof card !== 'object') return card;
+  let definition = null;
+  try{
+    const definitions = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS : (Array.isArray(window.CARDS) ? window.CARDS : []);
+    definition = definitions.find(function(candidate){ return String(candidate?.id || '') === String(card.id || ''); }) || null;
+  }catch(e){}
+  if(!definition) return card;
+  ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set'].forEach(function(key){
+    if((card[key] == null || card[key] === '') && definition[key] != null) card[key] = definition[key];
+  });
+  if(!String(card.aff || '').trim()) card.aff = String(definition.aff || definition.affiliation || '');
+  if(card.fate == null && definition.fate != null) card.fate = definition.fate;
+  if(card.currentFate == null && definition.fate != null) card.currentFate = definition.fate;
+  return card;
+}
+
 function resolveEffectPromptSourceCard(source) {
   if(source && typeof source === 'object') return source;
   const sourceId = String(source || '');
@@ -7630,6 +7647,10 @@ function pickCardsVisual(cards, opts, onConfirm) {
     return;
   }
   if(!cards.length){toast('No matching cards found');if(onConfirm) onConfirm([]); return;}
+  // Compact authoritative card references are hydrated in place so picker
+  // callbacks retain object identity while thumbnails, details, and modifier
+  // information icons all receive the complete card definition.
+  cards.forEach(hydratePickerCardPresentation);
   if(typeof tutorialFilterCardPickerOptions === 'function') {
     const tutorialCards = tutorialFilterCardPickerOptions(cards, opts || {});
     if(Array.isArray(tutorialCards) && tutorialCards.length) cards = tutorialCards;
@@ -9049,6 +9070,7 @@ function removeHoverPreview() {
 // ── CARD INFO OVERLAY (shows card detail on top of an open modal) ──
 function showCardInfoOverlay(card) {
   if(!card) return;
+  card = hydratePickerCardPresentation(card);
   if(typeof openInteractiveCardDetailFromPicker === 'function' && openInteractiveCardDetailFromPicker(card, null)) return;
   dismissCardInfoOverlay();
   var visual = getCardVisualData(card, typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0);

@@ -1,8 +1,8 @@
 // FATES ENTWINED ONLINE ACCOUNT + LOCAL MULTIPLAYER SESSION
 //
-// Firebase owns account data and every non-matchmaking online surface. Multiplayer
-// matchmaking uses the authoritative Fate server and a separate installation-
-// scoped identity; queue registration never waits for or sends a Firebase token.
+// Firebase supplies Google account identity. Fly owns account-backed game data
+// and authoritative multiplayer; matchmaking still uses a separate installation-
+// scoped identity so queue registration never waits for a Firebase token.
 
 const firebaseConfig = {
   apiKey:'AIzaSyByhcqY0Y27hUkvcAtO3mflRwnQCWhv4Yc',
@@ -202,20 +202,10 @@ function requireUser(){
 function getEphemeralMultiplayerGuestUser(){ return guestUser; }
 async function syncPublicProfile(){
   const active = auth.currentUser;
-  if(!active || !rtdb || !firebaseDbApi) return null;
+  if(!active) return null;
   const localProfile = buildLocalProfile(active);
   const rawLocal = getLocalProfile();
   const localImage = rawLocal && typeof rawLocal.profileImg === 'object' ? rawLocal.profileImg : {};
-  const profileRef = firebaseDbApi.ref(rtdb, `publicProfiles/${active.uid}`);
-  // A failed authenticated read is not the same thing as a new profile. Never
-  // turn a rules/network error into `{}` and overwrite established ELO, rank,
-  // or records with local defaults.
-  const existing = await firebaseDbApi.get(profileRef).then(snapshot=>snapshot.val() || {});
-  const resolvedElo = Number(existing.challengerElo ?? existing.elo ?? localProfile.challengerElo ?? 600) || 600;
-  const resolvedRank = existing.rank
-    || (typeof window.rankName === 'function' ? window.rankName(resolvedElo) : '')
-    || localProfile.rank
-    || 'Footman';
   const payload = {
     uid:active.uid,
     baseCode:localProfile.baseCode,
@@ -227,48 +217,44 @@ async function syncPublicProfile(){
     photoURL:localProfile.photoURL,
     profileImg:localProfile.profileImg,
     level:Number(localProfile.level || 1) || 1,
-    challengerElo:resolvedElo,
-    challengerWins:Number(existing.challengerWins ?? localProfile.challengerWins ?? 0) || 0,
-    challengerLosses:Number(existing.challengerLosses ?? localProfile.challengerLosses ?? 0) || 0,
-    humanWins:Number(existing.humanWins ?? localProfile.humanWins ?? 0) || 0,
-    humanLosses:Number(existing.humanLosses ?? localProfile.humanLosses ?? 0) || 0,
-    matchesPlayed:Number(existing.matchesPlayed ?? localProfile.matchesPlayed ?? 0) || 0,
-    rank:resolvedRank,
     bio:safe(rawLocal.bio || rawLocal.status || '').trim().slice(0, 240),
     profileCropFocusX:rawLocal.profileCropFocusX ?? localImage.cropFocusX ?? null,
     profileCropFocusY:rawLocal.profileCropFocusY ?? localImage.cropFocusY ?? null,
     profileCropY:rawLocal.profileCropY ?? localImage.cropY ?? null,
     profileCropZoom:rawLocal.profileCropZoom ?? localImage.cropZoom ?? null,
     schemaVersion:1,
-    localAuthoritativeSession:false,
-    updatedAt:firebaseDbApi.serverTimestamp()
+    localAuthoritativeSession:false
   };
-  const updates = {};
-  Object.entries(payload).forEach(([key, value])=>{
-    if(value !== undefined) updates[`publicProfiles/${active.uid}/${key}`] = value;
+  // Fly owns records/rank and merges only these cosmetic fields. This avoids a
+  // stale local or Firebase profile resetting established account data.
+  const result = await flyApiRequest(`/api/profiles/${encodeURIComponent(active.uid)}`, {
+    method:'POST',
+    body:{uid:active.uid, profile:payload}
   });
-  updates[`friendInviteCodes/${payload.baseCode}`] = active.uid;
-  if(payload.usernameLower) updates[`usernames/${payload.usernameLower}/${active.uid}`] = true;
-  await firebaseDbApi.update(firebaseDbApi.ref(rtdb), updates);
-  state.profile = Object.assign({}, payload, {updatedAt:Date.now()});
+  state.profile = result?.profile || Object.assign({}, payload, {updatedAt:Date.now()});
   state.user = active;
-  state.baseCode = payload.baseCode;
+  state.baseCode = state.profile.baseCode || payload.baseCode;
   emit();
   return state.profile;
 }
 async function getPublicProfile(uid){
   const key = String(uid || '').trim();
-  if(!key || !rtdb || !firebaseDbApi) return null;
+  if(!key) return null;
   if(key === auth.currentUser?.uid && state.profile) return state.profile;
-  return await firebaseDbApi.get(firebaseDbApi.ref(rtdb, `publicProfiles/${key}`)).then(snapshot=>snapshot.val() || null);
+  const result = await flyApiRequest(`/api/profiles/${encodeURIComponent(key)}`);
+  return result?.profile || null;
 }
 function subscribeProfile(uid, listener){
   const key = String(uid || '').trim();
-  if(!key || !rtdb || !firebaseDbApi || typeof listener !== 'function') return ()=>{};
-  return firebaseDbApi.onValue(firebaseDbApi.ref(rtdb, `publicProfiles/${key}`), snapshot=>{
-    const profile = snapshot.val();
-    listener(profile || (key === auth.currentUser?.uid ? state.profile : null));
-  });
+  if(!key || typeof listener !== 'function') return ()=>{};
+  let stopped = false;
+  let timer = 0;
+  const refresh = async()=>{
+    try{ listener(await getPublicProfile(key)); }catch(_){ }
+    if(!stopped) timer = setTimeout(refresh, 15000);
+  };
+  refresh();
+  return ()=>{ stopped = true; if(timer) clearTimeout(timer); };
 }
 function profileName(profile){ return localName(profile); }
 function profilePhoto(profile){ return localPhoto(profile); }

@@ -100,7 +100,7 @@
   }
 
   function _useFlyCloudSave(){
-    return _rtdbDisabledMode() && !!_authorityHttpBaseUrl();
+    return !!_authorityHttpBaseUrl();
   }
 
   function _rtdbDisabledMode(){
