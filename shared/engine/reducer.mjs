@@ -1639,7 +1639,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
       if(!source
         || controllerOf(source.card) !== actorIndex
-        || effectiveCardType(state, source.card) !== 'Coordinator'
+        || String(source.card.counters?.bh14OriginalType || source.card.type || '') !== 'Coordinator'
         || source.card.faceDown === true
         || isEffectImmutable(source.card)
         || source.card.counters?.whisperLandscapeToken === true

@@ -27,9 +27,11 @@ export function effectiveCardType(_state, card){
     && Number(status.playerIndex) === controllerOf(card)
     && Number(status.remainingTargetTurns || 0) > 0
   );
-  if(globalOverride && String(card?.type || '') === 'Supporter') return 'Character';
+  const structuralType = String(card?.counters?.bh14OriginalType || card?.type || '');
+  const declaredType = String(card?.counters?.bh14DeclaredType || '');
+  if(globalOverride && structuralType === 'Supporter') return 'Character';
   const override = (card?.statuses || []).find(status=>String(status).startsWith('TYPE:'));
-  return override ? String(override).slice(5) : String(card?.type || '');
+  return override ? String(override).slice(5) : (declaredType || structuralType);
 }
 
 export function effectiveCost(_state, card){

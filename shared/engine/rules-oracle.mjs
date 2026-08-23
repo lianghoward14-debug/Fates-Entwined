@@ -304,9 +304,15 @@ function oracleEffectiveType(state, value){
     && Number(status.playerIndex) === controller
     && Number(status.remainingTargetTurns || 0) > 0
   );
-  if(globalOverride && String(value?.type || '') === 'Supporter') return 'Character';
+  const structuralType = String(value?.counters?.bh14OriginalType || value?.type || '');
+  const declaredType = String(value?.counters?.bh14DeclaredType || '');
+  if(globalOverride && structuralType === 'Supporter') return 'Character';
   const ownOverride = (value?.statuses || []).find(status=>String(status).startsWith('TYPE:'));
-  return ownOverride ? String(ownOverride).slice(5) : String(value?.type || '');
+  return ownOverride ? String(ownOverride).slice(5) : (declaredType || structuralType);
+}
+
+function oracleStructuralType(value){
+  return String(value?.counters?.bh14OriginalType || value?.type || '');
 }
 
 function oracleSourceActive(state, entry){
@@ -835,7 +841,7 @@ function targetRelationViolation(view, rule, sourceEntry, targetEntry, event){
   // Character. Do not let the duration clause's SUPPORTER token masquerade as
   // a target-type requirement.
   if(String(event?.reason || '').toUpperCase() === 'KVETKA_BALLAD_CONSOLIDATION'){
-    if(oracleEffectiveType(state, target) === 'Supporter') return 'Supporter target used for consolidation bonus';
+    if(oracleStructuralType(target) === 'Supporter') return 'Supporter target used for consolidation bonus';
     return '';
   }
   // Lumberjack follows the shipping/single-player rule: it suppresses a card
@@ -852,7 +858,7 @@ function targetRelationViolation(view, rule, sourceEntry, targetEntry, event){
     ? String(target?.type || '')
     : oracleEffectiveType(state, target);
   if(scope.includes('SUPPORTER') && supporterTargetType !== 'Supporter') return 'non-Supporter target used';
-  if(scope.includes('CHARACTER') && oracleEffectiveType(state, target) === 'Supporter') return 'non-Character target used';
+  if(scope.includes('CHARACTER') && oracleStructuralType(target) === 'Supporter') return 'non-Character target used';
   return '';
 }
 

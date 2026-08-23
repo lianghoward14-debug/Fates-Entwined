@@ -238,15 +238,11 @@
     }catch(e){}
     const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
     if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
-    let wsUrl = '';
-    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
-    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl) {
-      const host = String(location.hostname || '').toLowerCase();
-      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
-      return 'https://fates-entwined-main.fly.dev';
-    }
-    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+    const host = String(location.hostname || '').toLowerCase();
+    if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+    // Economy/public-deck traffic must not inherit matchmaking socket
+    // overrides. Those may point at a beta or retired authority with no API.
+    return 'https://fates-entwined-main.fly.dev';
   }
   function flyEconomyEnabled(){
     return !!authorityHttpBaseUrl();

@@ -696,15 +696,30 @@ function isBlameGameActive(owner) {
   return !!(fx && fx.active && (Number(fx.turnsLeft) || 0) > 0);
 }
 
+function getCardStructuralType(card) {
+  if(!card) return '';
+  return String(card._bh14OriginalType || card.counters?.bh14OriginalType || card.type || '');
+}
+
+function getCardEffectType(card) {
+  if(!card) return '';
+  return String(card._bh14DeclaredType || card.counters?.bh14DeclaredType || getCardStructuralType(card));
+}
+
+function cardHasEffectType(card, type) {
+  const normalize = value=>String(value || '').replace(/^Improviser$/i, 'Improvisor').toLowerCase();
+  return normalize(getCardEffectType(card)) === normalize(type);
+}
+
 function isCardSupporterForRules(card, owner) {
-  if(!card || isWojciechPierogiCounter(card) || card.type !== 'Supporter') return false;
+  if(!card || isWojciechPierogiCounter(card) || getCardStructuralType(card) !== 'Supporter') return false;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
   return !isBlameGameActive(resolvedOwner);
 }
 
 function isCardCharacterForRules(card, owner) {
   if(!card || isWojciechPierogiCounter(card)) return false;
-  if(card.type !== 'Supporter') return true;
+  if(getCardStructuralType(card) !== 'Supporter') return true;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
   return isBlameGameActive(resolvedOwner);
 }
@@ -1056,6 +1071,9 @@ if (typeof window !== 'undefined') {
   window.resetCaliforniqueHandTenure = resetCaliforniqueHandTenure;
   window.getCaliforniqueHandTurnsRemaining = getCaliforniqueHandTurnsRemaining;
   window.isCardSupporterForRules = isCardSupporterForRules;
+  window.getCardStructuralType = getCardStructuralType;
+  window.getCardEffectType = getCardEffectType;
+  window.cardHasEffectType = cardHasEffectType;
   window.isCardCharacterForRules = isCardCharacterForRules;
   window.getFelicitaLandscapeChangeBlockReason = getFelicitaLandscapeChangeBlockReason;
   window.showFelicitaLandscapeChangeBlockedBanner = showFelicitaLandscapeChangeBlockedBanner;

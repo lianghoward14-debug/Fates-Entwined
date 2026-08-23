@@ -6211,7 +6211,6 @@ function applyCharterOfUnitedNations(chosen, declaredType, cp) {
     const beforeType = String(live.type || '');
     if(!live._bh14OriginalType) live._bh14OriginalType = beforeType;
     live._bh14DeclaredType = declaredType;
-    live.type = declaredType;
     if(typeof recordHandCardEffectModifier === 'function') {
       recordHandCardEffectModifier(live, {
         key:'chloe-kirk-charter',
@@ -6263,9 +6262,10 @@ async function chooseCharterOfUnitedNationsType(card, cp) {
   return new Promise(function(resolve){
     let settled = false;
     const labels = {Supporter:'Supporter', Initiator:'Initiator', Improvisor:'Improviser', Coordinator:'Coordinator', Dauntless:'Dauntless'};
-    const body = '<div class="bh04-type-picker"><p class="bh04-picker-prompt">Declare one card type. <span>You may then select any number of eligible cards in your hand.</span></p><div class="bh04-type-grid">' +
+    const descriptions = {Supporter:'Recognized by Supporter effects', Initiator:'Recognized by Initiator effects', Improvisor:'Recognized by Improviser effects', Coordinator:'Recognized by Coordinator effects', Dauntless:'Recognized by Dauntless effects'};
+    const body = '<div class="bh04-type-picker"><div class="bh04-type-picker-intro"><span class="bh04-type-picker-kicker">Charter declaration</span><strong>Choose an effect-facing card type</strong><p>The printed card type still controls setting, consolidation, and Supporter limits.</p></div><div class="bh04-type-grid">' +
       BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(type){
-        return '<button type="button" class="btn bh04-type-choice" data-bh14-type="' + escapeHtml(type) + '"><span class="bh04-type-name">' + escapeHtml(labels[type] || type) + '</span><span class="bh04-type-meta">Declare this type</span></button>';
+        return '<button type="button" class="btn bh04-type-choice" data-bh14-type="' + escapeHtml(type) + '"><span class="bh04-type-index">TYPE</span><span class="bh04-type-name">' + escapeHtml(labels[type] || type) + '</span><span class="bh04-type-action">' + escapeHtml(descriptions[type] || 'Declare this type') + '</span></button>';
       }).join('') + '</div></div>';
     const actions = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(declaredType){
       return {label:'Declare ' + (labels[declaredType] || declaredType), pri:true, hidden:true, action:function(){
@@ -8650,18 +8650,18 @@ function getEffectiveFate(card, z) {
     if(cardActsAsPassive(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += (4 + jeremiahBoost) * adjacencyMultiplier;
     // Phil (46): no zone aura
     // Anne Stone (11): +3 to supporters in zone
-    if(cardActsAsPassive(cell, '11') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
+    if(cardActsAsPassive(cell, '11') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
-    if(cardActsAsPassive(cell, '19') && card.type==='Coordinator') bonus += 3 + jeremiahBoost;
+    if(cardActsAsPassive(cell, '19') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Coordinator') : card.type==='Coordinator')) bonus += 3 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
     // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
     // Dylan Kirby (29): Initiator — no continuous effect (search only)
     // Cathy (23): +2 to all owned characters in zone
-    if(cardActsAsPassive(cell, '23') && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
+    if(cardActsAsPassive(cell, '23') && (typeof cardHasEffectType === 'function' ? !cardHasEffectType(card, 'Supporter') : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
-    if(cardActsAsPassive(cell, '59') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
+    if(cardActsAsPassive(cell, '59') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
     if(cardActsAsPassive(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));
@@ -8710,14 +8710,14 @@ function getEffectiveFate(card, z) {
         if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost) * adjacencyMultiplier;
       }
       if(source.owner !== card.owner) return;
-      if(copiedId === '11' && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) bonus += 3 + sourceBoost;
-      if(copiedId === '19' && card.type === 'Coordinator') bonus += 3 + sourceBoost;
-      if(copiedId === '23' && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type !== 'Supporter')) bonus += 2 + sourceBoost;
+      if(copiedId === '11' && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type === 'Supporter')) bonus += 3 + sourceBoost;
+      if(copiedId === '19' && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Coordinator') : card.type === 'Coordinator')) bonus += 3 + sourceBoost;
+      if(copiedId === '23' && (typeof cardHasEffectType === 'function' ? !cardHasEffectType(card, 'Supporter') : card.type !== 'Supporter')) bonus += 2 + sourceBoost;
       if(copiedId === '77' && source._declaredAff && card.aff === source._declaredAff) bonus += 4 + sourceBoost;
     });
   }
 
-  if(card.type==='Dauntless' && card.id!=='76'){
+  if((typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Dauntless') : card.type==='Dauntless') && card.id!=='76'){
     G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
       if(cell && cardActsAsPassive(cell, '44') && cell.owner===card.owner && !isInvisible(cell) && !isSupporterEffectSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {
         bonus += 3 * adjacencyMultiplier;

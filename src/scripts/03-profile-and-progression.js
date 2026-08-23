@@ -806,6 +806,7 @@ function savePresetsToStorage() {
 
 function saveProfile() {
   _fateStampProfileForUid(_fateActiveUid);
+  USER_PROFILE._clientUpdatedAt = Date.now();
   const didWrite = _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_profile'), USER_PROFILE);
   updateLeaderboardEntry();
   if(didWrite && window.FateCloudSave) window.FateCloudSave.saveProfile();

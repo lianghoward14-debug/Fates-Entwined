@@ -88,15 +88,12 @@
     }catch(e){}
     var globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
     if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
-    var wsUrl = '';
-    try{ wsUrl = String(localStorage.getItem('fateWsAuthorityUrl') || '').trim(); }catch(e){}
-    if(!wsUrl) wsUrl = String(window.FATE_WS_AUTHORITY_URL || '').trim();
-    if(!wsUrl){
-      var host = String(location.hostname || '').toLowerCase();
-      if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
-      return 'https://fates-entwined-main.fly.dev';
-    }
-    return wsUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:').replace(/\/+$/, '');
+    var host = String(location.hostname || '').toLowerCase();
+    if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
+    // The data API is canonical and independent from the selectable
+    // matchmaking socket. A stale/beta websocket override must never redirect
+    // cloud saves, currency, or public decks to a server without these routes.
+    return 'https://fates-entwined-main.fly.dev';
   }
 
   function _useFlyCloudSave(){
@@ -459,7 +456,15 @@
         challengerPresets:{}, lastFreePackClaim:0, createdAt:Date.now()
       };
       if(typeof USER_PROFILE !== 'undefined'){
-        USER_PROFILE = Object.assign({}, defaults, _stripServerRankStats(data.profile), {_fateAccountUid:uid});
+        var localProfile = USER_PROFILE && typeof USER_PROFILE === 'object' ? USER_PROFILE : {};
+        var cloudProfile = _stripServerRankStats(data.profile);
+        var localUpdatedAt = Number(localProfile._clientUpdatedAt || 0);
+        var cloudUpdatedAt = Number(cloudProfile._clientUpdatedAt || 0);
+        // If this client has a newer completed purchase/reward than Fly, keep
+        // it and let the normal save path repair Fly. This prevents every
+        // startup from restoring the same stale Starlight/booster balance.
+        var chosenProfile = localUpdatedAt > cloudUpdatedAt ? localProfile : cloudProfile;
+        USER_PROFILE = Object.assign({}, defaults, chosenProfile, {_fateAccountUid:uid});
         // Never repair one account with an in-memory value from the account that
         // happened to be active before it.
         USER_PROFILE.username = _cloudRepairLegacyUsername(USER_PROFILE.username || USER_PROFILE.displayName, 'Player');

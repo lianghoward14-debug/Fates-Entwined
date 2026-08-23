@@ -24997,6 +24997,9 @@ html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badg
   width:100%!important;
   text-align:center!important;
 }
+html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  font-size:.82rem!important;
+}
 
 /* Notifications triggered from modal workflows (including Public Decks)
    must remain visible above the modal that initiated them. */

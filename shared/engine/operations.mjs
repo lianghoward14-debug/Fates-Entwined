@@ -738,7 +738,6 @@ function changeCardType(ctx, operation){
     if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
     if(!entry.card.counters.bh14OriginalType) entry.card.counters.bh14OriginalType = beforeType;
     entry.card.counters.bh14DeclaredType = cardType;
-    entry.card.type = cardType;
     if(!Array.isArray(entry.card._handEffectModifiers)) entry.card._handEffectModifiers = [];
     const modifierText = `Charter of the United Nations: this card became a ${cardType === 'Improvisor' ? 'Improviser' : cardType}.`;
     const existingModifier = entry.card._handEffectModifiers.find(item=>item?.key === 'chloe-kirk-charter');

@@ -3715,6 +3715,7 @@
     });
   }
   function phase7RequiresAuthorityManualIntent(card, command){
+    if(command?.manualOnly === true) return true;
     const ids = [
       command?.cardId,
       command?.sourceCardId,
@@ -3726,10 +3727,14 @@
     if(card && typeof window.getCardRuntimeEffectId === 'function'){
       try{ ids.push(String(window.getCardRuntimeEffectId(card) || '')); }catch(error){}
     }
-    // Christopher Erbs is the only rule whose authority schema requires proof
-    // of a deliberate click. Other manual effects are gated locally, but must
-    // retain the older payload shape accepted by shipped authorities.
-    return ids.includes('40');
+    // Every authority-declared manual action must carry proof that it came
+    // from the player's explicit click. Li Hua and future manual cards use
+    // the same boundary contract as Christopher Erbs.
+    return ids.some(function(id){
+      return typeof window.fateEffectRequiresManualActivationId === 'function'
+        ? window.fateEffectRequiresManualActivationId(id)
+        : ['26', '38', '40', '93', 'bh16'].includes(String(id));
+    });
   }
   function phase7AutomaticEffectsEnabled(){
     try { return window.fateAutoActivateEffectsEnabled?.() === true; } catch(error) { return false; }
