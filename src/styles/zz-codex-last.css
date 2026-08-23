@@ -24937,6 +24937,67 @@ html body #modal .profile-view-badges .rank-badge .rank-badge-label-long{
   margin-right:-22px!important;
 }
 
+/* Picker modifier details are portalled to <body>, outside #modal.  Keep that
+   portal above every modal layer so hovering the visible information marker
+   cannot paint its tooltip behind the picker. */
+html body > .hand-effect-tooltip.hand-effect-tooltip-portal{
+  z-index:2147483600!important;
+}
+
+/* Online Players: leave a comfortable, explicit lane for the YOU tag.  The
+   rank pill is positioned as one unit so its two-line label cannot overflow
+   through the card edge or underneath the tag. */
+html body #s-social .social-online-command .social-online-card{
+  position:relative!important;
+  grid-template-columns:68px minmax(0,1fr)!important;
+  padding-right:228px!important;
+}
+html body #s-social .social-online-command .social-online-card-rank{
+  position:absolute!important;
+  grid-column:auto!important;
+  grid-row:auto!important;
+  left:auto!important;
+  right:78px!important;
+  top:50%!important;
+  width:max-content!important;
+  min-width:0!important;
+  max-width:150px!important;
+  height:auto!important;
+  transform:translateY(-50%)!important;
+  overflow:visible!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge,
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md{
+  width:max-content!important;
+  max-width:150px!important;
+  transform:none!important;
+  transform-origin:center center!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge-label-long{
+  margin-right:0!important;
+}
+
+/* Profile: keep the pill box fixed while shifting only its visible icon and
+   two-line label left.  Both label lines share the same centered column. */
+html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-icon,
+html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  position:relative!important;
+  left:-3px!important;
+}
+html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  display:inline-grid!important;
+  grid-auto-flow:row!important;
+  justify-items:center!important;
+  align-items:center!important;
+  width:max-content!important;
+  margin-right:0!important;
+  text-align:center!important;
+}
+html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-line{
+  width:100%!important;
+  text-align:center!important;
+}
+
 /* Public deck cards keep a stable footprint under the pointer. */
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card,
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:hover,
