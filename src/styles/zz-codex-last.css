@@ -24761,12 +24761,12 @@ html body #s-game .cell.henry-suppressed-empty::after{
 /* Four-digit Challenger ELO only: retain the normal size for shorter values. */
 html body #s-challenger #ch-elo-val.four-digit-elo{
   position:relative!important;
-  left:-3px!important;
+  left:0!important;
   font-size:.9405em!important;
   letter-spacing:inherit!important;
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
-  left:-3px!important;
+  left:0!important;
   font-size:clamp(2.5rem,2.9vw,3.56rem)!important;
   transform:scale(.9405)!important;
   transform-origin:center center!important;
@@ -24919,4 +24919,27 @@ html body #modal .hand-limit-picker-effect-marker{
     grid-column:2!important;
     grid-row:3!important;
   }
+}
+
+/* Final optical corrections for the compact rank pills. The long label is
+   horizontally compressed by the base theme, so reclaim its unpainted layout
+   width without changing the icon or text sizing. */
+html body #s-social .social-online-command .social-online-card-rank{
+  position:relative!important;
+  left:-8px!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge-label-long{
+  margin-right:-12px!important;
+}
+html body #modal .profile-rank-row .rank-badge.rank-lg .rank-badge-label-long,
+html body #modal .profile-rank-level-row .rank-badge.rank-lg .rank-badge-label-long{
+  margin-right:-18px!important;
+}
+
+/* Public deck cards keep a stable footprint under the pointer. */
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-card,
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:hover,
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:focus-within{
+  transform:none!important;
+  transition:border-color .12s ease,box-shadow .12s ease,background-color .12s ease!important;
 }

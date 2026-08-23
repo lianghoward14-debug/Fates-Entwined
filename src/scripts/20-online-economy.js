@@ -11,6 +11,7 @@
   let publicDecksUnsub = null;
   let publicDecksRefreshPromise = null;
   let publicDecksPollTimer = 0;
+  let publicDeckViewToken = 0;
   let publicDecksLastRefreshAt = 0;
   let publicDecksPage = 0;
   let marketplaceTxPage = 0;
@@ -21,7 +22,15 @@
   const MARKETPLACE_FEED_LIMIT = 80;
   // Matches the deployed RTDB query rule (`limitToLast <= 60`).
   const PUBLIC_DECK_FEED_LIMIT = 60;
-  const PUBLIC_DECK_ACTIVE_REFRESH_MS = 2000;
+  const PUBLIC_DECK_ACTIVE_REFRESH_MS = 8000;
+  const PUBLIC_DECK_MODAL_CLASSES = [
+    'public-decks-modal',
+    'public-decks-hub-modal',
+    'share-deck-modal',
+    'public-deck-preview-modal',
+    'public-deck-comments-modal',
+    'public-deck-import-choice-modal'
+  ];
 
   function esc(s){ return FO.escapeHtml ? FO.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)); }
   function authUser(){ return FO.auth?.currentUser || window.FATE_ONLINE?.user || null; }
@@ -62,6 +71,7 @@
   function applyPublicDeckModalChrome(...classes){
     const modalBox = document.querySelector('#modal .modal');
     if(!modalBox) return;
+    modalBox.classList.remove(...PUBLIC_DECK_MODAL_CLASSES);
     modalBox.classList.add('public-decks-modal', ...classes.filter(Boolean));
   }
   function installPersistentPublicDeckActions(){
@@ -76,6 +86,8 @@
       const cardNode = action.closest('.pdx-card[data-public-deck-id]');
       const deckId = String(cardNode?.dataset.publicDeckId || '');
       let handled = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
       if(action.classList.contains('pd-v3-publish')) window.openShareDeckFlow();
       else if(action.classList.contains('pd-v3-close')) {
         if(typeof window.closeModal === 'function') window.closeModal();
@@ -87,8 +99,6 @@
       else if(action.classList.contains('pdx-open') || action.classList.contains('pdx-card')) { if(deckId) window.viewPublicDeck(deckId); }
       else handled = false;
       if(!handled) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
     }, true);
   }
   installPersistentPublicDeckActions();
@@ -315,7 +325,7 @@
   }
 
   function publicDecksHubOpen(){
-    return !!document.querySelector('#modal.on .modal.public-decks-modal #modal-body .pd-hub');
+    return !!document.querySelector('#modal.on .modal.public-decks-hub-modal #modal-body .pd-library-v3');
   }
 
   function schedulePublicDecksPoll(){
@@ -380,7 +390,7 @@
         .sort((a,b)=>avgRating(b) - avgRating(a) || Number(b.updatedAt || b.timestamp || 0) - Number(a.updatedAt || a.timestamp || 0));
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
       try{
-        if(document.querySelector('#modal.on .modal.public-decks-modal')) showPublicDecks(publicDecksPage);
+        if(publicDecksHubOpen()) showPublicDecks(publicDecksPage);
       }catch(e){ console.warn('Public decks refresh failed', e); }
     }, err=>{
       publicDecksUnsub = null;
@@ -1105,11 +1115,10 @@
   };
 
   window.showPublicDecks = function showPublicDecks(page=publicDecksPage){
+    publicDeckViewToken += 1;
     ensureWatchers('publicDecks');
     if(typeof resetModalChrome === 'function') resetModalChrome();
-    applyPublicDeckModalChrome();
-    const publicDeckHubModal = document.querySelector('#modal .modal');
-    if(publicDeckHubModal) publicDeckHubModal.classList.add('public-decks-hub-modal');
+    applyPublicDeckModalChrome('public-decks-hub-modal');
     const sorted = [...publicDecks].sort((a,b)=>(publicDeckPublishedAt(b) - publicDeckPublishedAt(a)) || (avgRating(b) - avgRating(a)));
     const pageSize = 4;
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
@@ -1191,56 +1200,25 @@
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('modal-title').textContent = '';
     document.getElementById('modal-acts').innerHTML = '';
-    applyPublicDeckModalChrome();
+    applyPublicDeckModalChrome('public-decks-hub-modal');
     document.getElementById('modal').classList.add('on');
     const hub = document.querySelector('#modal.on .pd-library-v3');
-    const publishButton = hub?.querySelector('.pd-v3-publish');
-    const closeButton = hub?.querySelector('.pd-v3-close');
-    if(publishButton) publishButton.addEventListener('click', function(event){
-      event.preventDefault();
-      event.stopPropagation();
-      window.openShareDeckFlow();
-    });
-    if(closeButton) closeButton.addEventListener('click', function(event){
-      event.preventDefault();
-      event.stopPropagation();
-      if(typeof window.closeModal === 'function') window.closeModal();
-      else if(typeof closeModal === 'function') closeModal();
-    });
-    hub?.querySelectorAll('.pdx-card[data-public-deck-id]').forEach(function(cardNode){
-      const deckId = String(cardNode.dataset.publicDeckId || '');
-      cardNode.addEventListener('click', function(){ if(deckId) window.viewPublicDeck(deckId); });
-      const openButton = cardNode.querySelector('.pdx-open');
-      if(openButton) openButton.addEventListener('click', function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        if(deckId) window.viewPublicDeck(deckId);
-      });
-      const deleteButton = cardNode.querySelector('.pdx-delete');
-      if(deleteButton) deleteButton.addEventListener('click', function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        if(deckId) window.deletePublicDeck(deckId);
-      });
-    });
-    const prevButton = hub?.querySelector('.pd-v3-prev');
-    const nextButton = hub?.querySelector('.pd-v3-next');
-    if(prevButton) prevButton.addEventListener('click', function(){ window.showPublicDecks(publicDecksPage - 1); });
-    if(nextButton) nextButton.addEventListener('click', function(){ window.showPublicDecks(publicDecksPage + 1); });
     schedulePublicDecksPoll();
   };
 
   window.viewPublicDeck = async function viewPublicDeck(id){
+    const viewToken = ++publicDeckViewToken;
+    clearTimeout(publicDecksPollTimer);
+    publicDecksPollTimer = 0;
     let d = publicDeckById(id);
     if(!d) return;
-    if(!Array.isArray(d.ids) || !d.ids.length){
-      if(typeof resetModalChrome === 'function') resetModalChrome();
-      applyPublicDeckModalChrome('public-deck-preview-modal');
-      document.getElementById('modal-body').innerHTML = '<div class="pd-empty-state"><div class="pd-empty-title">Loading deck...</div><p>Opening the deck details.</p></div>';
-      document.getElementById('modal-title').textContent = '';
-      document.getElementById('modal-acts').innerHTML = '';
-    }
+    if(typeof resetModalChrome === 'function') resetModalChrome();
+    applyPublicDeckModalChrome('public-deck-preview-modal');
+    document.getElementById('modal-body').innerHTML = '<div class="pd-empty-state"><div class="pd-empty-title">Loading deck...</div><p>Opening the deck details.</p></div>';
+    document.getElementById('modal-title').textContent = '';
+    document.getElementById('modal-acts').innerHTML = '';
     d = await loadPublicDeckDetail(id).catch(()=>d) || d;
+    if(viewToken !== publicDeckViewToken || !publicDecksModalOpen()) return;
     if(typeof resetModalChrome === 'function') resetModalChrome();
     applyPublicDeckModalChrome('public-deck-preview-modal');
     const counts = {};

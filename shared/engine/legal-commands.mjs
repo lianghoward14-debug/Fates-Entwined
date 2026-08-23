@@ -222,8 +222,6 @@ export function legalCommandTemplates(state, playerIndex){
   for(const card of state.players[player].deck){
     if(!['07', '28'].includes(String(card.id || ''))) continue;
     if(String(card.id) === '28'){
-      if(state.supportersSetThisTurn[player]
-        >= state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0)) continue;
       const counter = state.statuses.find(status=>status.statusId === `rule-use:army-of-exiles:p${player}`);
       if(Number(counter?.uses || 0) >= 2 || Number(counter?.lastTurn) === state.turn) continue;
     }

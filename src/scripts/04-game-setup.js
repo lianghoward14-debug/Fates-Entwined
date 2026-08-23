@@ -1559,7 +1559,15 @@ async function drawCard(player, count=1, options = {}) {
       continue;
     }
     if(!fortCalvinResult.redirected && sequentialHandReveal) card._drawPresentationPending = true;
-    if(!fortCalvinResult.redirected && !addCardToHand(player, card, { openingHand: !!options.openingHand, arrivalKind:'draw' })) {
+    // A multi-card draw must finish before hand-limit enforcement begins.
+    // Enforcing here opened the picker on the first excess card, so a player
+    // who ultimately needed to discard several cards was forced through a
+    // sequence of one-card panels. drawCards() enforces once after the loop.
+    if(!fortCalvinResult.redirected && !addCardToHand(player, card, {
+      openingHand: !!options.openingHand,
+      arrivalKind:'draw',
+      skipHandLimit:true
+    })) {
       delete card._drawPresentationPending;
       continue;
     }

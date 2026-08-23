@@ -4896,8 +4896,8 @@
     phase7RecordPresentationStage('picker:open', {key:String(key || ''), kind:'hand-limit'});
     if(document.body) document.body.dataset.phase7HandLimitStage = 'rendering';
     const body = '<div class="hand-limit-discard phase7-hand-limit-discard" data-needed="' + required + '">' +
-      '<div class="hand-limit-copy">Your hand has ' + cards.length + ' cards. Select all ' + required + ' card' + (required === 1 ? '' : 's') + ', then press <b>Discard Selected</b>. They will be discarded together.</div>' +
-      '<div class="hand-limit-count">0/' + required + ' selected</div>' +
+      '<div class="hand-limit-copy">Your hand has ' + cards.length + ' cards. Select at least ' + required + ' card' + (required === 1 ? '' : 's') + ', then press <b>Discard Selected</b>. You may select additional cards and discard them all together.</div>' +
+      '<div class="hand-limit-count">0 selected (minimum ' + required + ')</div>' +
       '<div class="hand-limit-grid">' + eligibleCards.map(function(card){
         const iid = String(card?.iid || '');
         const name = String(card?.name || 'Card');
@@ -4914,13 +4914,20 @@
         pri:true,
         action:function(){
           const selected = Array.from(phase7CurrentUiSession.handLimitSelectedIids || []).map(String).filter(Boolean);
-          const command = commands.find(function(candidate){
+          const exactCommand = commands.find(function(candidate){
             return phase7SameStringSet(candidate?.payload?.discardedIids, selected);
           });
-          if(!command){
-            if(window.toast) toast('That discard selection is not legal.');
+          if(selected.length < required){
+            if(window.toast) toast('Select at least ' + required + ' card' + (required === 1 ? '' : 's') + '.');
             return false;
           }
+          // Legal templates enumerate the minimum combinations so every
+          // eligible iid remains private to its owner. The reducer also allows
+          // a larger voluntary batch, so build that command from the same
+          // authoritative template when the player selects extra cards.
+          const command = exactCommand || Object.assign({}, commands[0], {
+            payload:Object.assign({}, commands[0]?.payload, {discardedIids:selected})
+          });
           // Mark the authoritative submission before closing the modal. The
           // synchronous close hook can request a UI resync; without this order
           // it rebuilt the picker and made the button appear inert.
@@ -4946,27 +4953,26 @@
     }
     const count = shell?.querySelector('.hand-limit-count');
     const confirm = document.querySelector('#modal-acts .btn.pri');
-    if(count) count.textContent = selectedIids.size + '/' + required + ' selected';
-    if(confirm) confirm.disabled = selectedIids.size !== required;
+    if(count) count.textContent = selectedIids.size + ' selected (minimum ' + required + ')';
+    if(confirm) confirm.disabled = selectedIids.size < required;
     shell?.querySelectorAll('.hand-limit-card').forEach(function(button){
       button.addEventListener('pointerdown', function(event){ event.stopPropagation(); });
       button.addEventListener('pointerup', function(event){ event.stopPropagation(); });
       button.onclick = function(event){
         event?.stopPropagation?.();
-        const selectedCount = shell.querySelectorAll('.hand-limit-card.is-selected').length;
         const iid = String(button.dataset.iid || '');
         if(button.classList.contains('is-selected')){
           button.classList.remove('is-selected');
           button.setAttribute('aria-pressed', 'false');
           selectedIids.delete(iid);
-        }else if(selectedCount < required){
+        }else{
           button.classList.add('is-selected');
           button.setAttribute('aria-pressed', 'true');
           selectedIids.add(iid);
         }
         const nextCount = shell.querySelectorAll('.hand-limit-card.is-selected').length;
-        if(count) count.textContent = nextCount + '/' + required + ' selected';
-        if(confirm) confirm.disabled = nextCount !== required;
+        if(count) count.textContent = nextCount + ' selected (minimum ' + required + ')';
+        if(confirm) confirm.disabled = nextCount < required;
       };
     });
     phase7GuardHandLimitPicker(key);

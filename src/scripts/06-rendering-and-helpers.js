@@ -1495,9 +1495,17 @@ function getHandEffectTooltipPortal() {
   return _handEffectTooltipPortal;
 }
 
-function positionHandEffectTooltip(ev) {
+function resolveHandEffectMarker(ev, explicitMarker) {
+  if(explicitMarker && explicitMarker.classList?.contains('hand-effect-marker')) return explicitMarker;
+  const current = ev && ev.currentTarget instanceof Element ? ev.currentTarget : null;
+  if(current?.classList?.contains('hand-effect-marker')) return current;
+  const target = ev && ev.target instanceof Element ? ev.target : null;
+  return target?.closest?.('.hand-effect-marker') || null;
+}
+
+function positionHandEffectTooltip(ev, explicitMarker) {
   if(!_handEffectTooltipPortal || !_handEffectTooltipPortal.isConnected) return;
-  const marker = ev && ev.currentTarget ? ev.currentTarget : null;
+  const marker = resolveHandEffectMarker(ev, explicitMarker);
   const pickerMarker = !!(marker && marker.classList && marker.classList.contains('picker-effect-marker'));
   const card = marker && marker.closest
     ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card' : '.hc')
@@ -1546,19 +1554,50 @@ function positionHandEffectTooltip(ev) {
   _handEffectTooltipPortal.style.setProperty('top', Math.round(y) + 'px', 'important');
 }
 
-function showHandEffectTooltip(ev) {
-  const marker = ev && ev.currentTarget ? ev.currentTarget : null;
+function showHandEffectTooltip(ev, explicitMarker) {
+  const marker = resolveHandEffectMarker(ev, explicitMarker);
   const source = marker && marker.querySelector ? marker.querySelector('.hand-effect-tooltip') : null;
   if(!source) return;
   const portal = getHandEffectTooltipPortal();
   portal.innerHTML = source.innerHTML;
   portal.classList.add('is-visible');
-  positionHandEffectTooltip(ev);
+  positionHandEffectTooltip(ev, marker);
 }
 
 function hideHandEffectTooltip() {
   if(!_handEffectTooltipPortal) return;
   _handEffectTooltipPortal.classList.remove('is-visible');
+}
+
+// Picker cards are frequently rebuilt while a modal stays open. Delegating
+// these events keeps every information marker live after pagination, redraws,
+// or an authoritative snapshot replaces the picker DOM.
+if(!window.__fatePickerEffectTooltipDelegationInstalled){
+  window.__fatePickerEffectTooltipDelegationInstalled = true;
+  document.addEventListener('pointerover', function(ev){
+    const marker = resolveHandEffectMarker(ev);
+    if(!marker?.classList?.contains('picker-effect-marker')) return;
+    if(marker.contains(ev.relatedTarget)) return;
+    showHandEffectTooltip(ev, marker);
+  }, true);
+  document.addEventListener('pointermove', function(ev){
+    const marker = resolveHandEffectMarker(ev);
+    if(marker?.classList?.contains('picker-effect-marker')) positionHandEffectTooltip(ev, marker);
+  }, true);
+  document.addEventListener('pointerout', function(ev){
+    const marker = resolveHandEffectMarker(ev);
+    if(!marker?.classList?.contains('picker-effect-marker')) return;
+    if(marker.contains(ev.relatedTarget)) return;
+    hideHandEffectTooltip();
+  }, true);
+  document.addEventListener('focusin', function(ev){
+    const marker = resolveHandEffectMarker(ev);
+    if(marker?.classList?.contains('picker-effect-marker')) showHandEffectTooltip(ev, marker);
+  }, true);
+  document.addEventListener('focusout', function(ev){
+    const marker = resolveHandEffectMarker(ev);
+    if(marker?.classList?.contains('picker-effect-marker')) hideHandEffectTooltip();
+  }, true);
 }
 
 function rendererV2OwnsBoardScene() {
@@ -4122,8 +4161,8 @@ function openHandLimitDiscardModal(player) {
   });
   const bodyHtml = `
     <div class="hand-limit-discard" data-player="${player}" data-hand-limit="${handLimit}" data-needed="${needed}" data-hand-signature="${escapePlacementAnimHtml(handSignature)}">
-      <div class="hand-limit-copy">Your hand has ${countedHandSize} cards. Select all ${needed} card${needed===1?'':'s'}, then press <b>Discard Selected</b>. They will be discarded together.</div>
-      <div class="hand-limit-count">0/${needed} selected</div>
+      <div class="hand-limit-copy">Your hand has ${countedHandSize} cards. Select at least ${needed} card${needed===1?'':'s'}, then press <b>Discard Selected</b>. You may select additional cards and discard them all together.</div>
+      <div class="hand-limit-count">0 selected (minimum ${needed})</div>
       <div class="hand-limit-grid">
         ${cards.map(function(card, i){
           const visual = getCardVisualData(card, viewer, {forceBoardHidden:!isViewer});
@@ -4144,14 +4183,14 @@ function openHandLimitDiscardModal(player) {
       reconcileHandLimitDiscardModal(player);
       return;
     }
-    if(selectedIids.length !== excess){ toast('Select exactly ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
+    if(selectedIids.length < excess){ toast('Select at least ' + excess + ' card' + (excess===1?'':'s') + ' to discard'); return; }
     const applyDiscard = function(){
       const liveHand = G.players?.[player]?.hand || [];
       const liveExcess = Math.max(0, getHandLimitCount(player) - getActiveHandLimit(player));
       const selectedCards = selectedIids.map(function(iid){
         return liveHand.find(function(card){ return card && String(card.iid || '') === String(iid); }) || null;
       });
-      if(liveExcess !== selectedIids.length || selectedCards.some(function(card){
+      if(liveExcess > selectedIids.length || selectedCards.some(function(card){
         return !card || (String(card.id || '') === 'bh03' && (card._bh03OpponentHand === true || card._bh03TransferPending === true));
       })) return false;
       selectedIids.forEach(function(iid){
@@ -4192,13 +4231,11 @@ function openHandLimitDiscardModal(player) {
     btn.onclick = function(ev){
       ev?.stopPropagation?.();
       const wasSelected = btn.classList.contains('is-selected');
-      const selectedBefore = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
-      if(!wasSelected && selectedBefore >= needed) return;
       btn.classList.toggle('is-selected');
       btn.setAttribute('aria-pressed', btn.classList.contains('is-selected') ? 'true' : 'false');
       const selected = document.querySelectorAll('#modal .hand-limit-card.is-selected').length;
-      if(countEl) countEl.textContent = selected + '/' + needed + ' selected';
-      if(okBtn) okBtn.disabled = selected !== needed;
+      if(countEl) countEl.textContent = selected + ' selected (minimum ' + needed + ')';
+      if(okBtn) okBtn.disabled = selected < needed;
     };
     btn.oncontextmenu = function(ev){
       ev.preventDefault();

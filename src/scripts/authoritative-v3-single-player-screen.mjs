@@ -202,7 +202,9 @@ export class FateAuthoritativeV3SinglePlayerScreen {
         && String(command.payload.discardedIids[0]) === iid)
     );
     const prompt = this.view?.state?.pendingPrompt;
-    const max = Number(prompt?.max || (this.view?.state?.pendingHandLimit?.required || 1));
+    const max = this.view?.state?.pendingHandLimit
+      ? this.promptEligibleIids().length
+      : Number(prompt?.max || 1);
     if(max === 1 && direct){
       this.submit(direct);
       return;
@@ -277,13 +279,24 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     const legal = this.view?.legalCommands || [];
     const iids = [...this.selectedPromptIids];
     const destinations = [...this.selectedPromptDestinations.values()];
-    return legal.find(command=>{
+    const exact = legal.find(command=>{
       const payload = command.payload || {};
       if(payload.selectedIids) return sameStringSet(payload.selectedIids, iids);
       if(payload.discardedIids) return sameStringSet(payload.discardedIids, iids);
       if(payload.destinations) return sameDestinationSet(payload.destinations, destinations);
       return false;
     }) || null;
+    if(exact) return exact;
+    const minimum = Math.max(1, Number(this.view?.state?.pendingHandLimit?.required) || 1);
+    const handLimitTemplate = legal.find(command=>command.type === 'DISCARD_TO_HAND_LIMIT');
+    const eligible = new Set(this.promptEligibleIids());
+    if(handLimitTemplate && iids.length >= minimum && iids.every(iid=>eligible.has(String(iid)))){
+      return {
+        ...handLimitTemplate,
+        payload:{...(handLimitTemplate.payload || {}), discardedIids:iids}
+      };
+    }
+    return null;
   }
 
   submit(command){

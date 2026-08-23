@@ -120,6 +120,16 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
       payload
     );
     if(!template){
+      if(String(type || '') === 'DISCARD_TO_HAND_LIMIT' && Array.isArray(payload?.discardedIids)){
+        // Voluntary over-discard batches are reducer-validated even though the
+        // compact legal projection enumerates only minimum-size combinations.
+        return this.session.dispatchForPlayer(
+          this.humanPlayerId,
+          'DISCARD_TO_HAND_LIMIT',
+          {discardedIids:payload.discardedIids.map(String)},
+          commandId
+        );
+      }
       return rejection('ILLEGAL_UI_COMMAND', 'UI action is not present in the engine legal-command projection');
     }
     return this.session.dispatchForPlayer(

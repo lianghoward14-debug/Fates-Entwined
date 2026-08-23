@@ -1580,8 +1580,8 @@ function performCommand(state, ctx, command, actorIndex, options){
       throw Object.assign(new Error('only the affected player may discard to the hand limit'), {code:'HAND_LIMIT_NOT_OWNED'});
     }
     const selected = payload.discardedIids.map(String);
-    if(new Set(selected).size !== selected.length || selected.length !== state.pendingHandLimit.required){
-      throw Object.assign(new Error(`select exactly ${state.pendingHandLimit.required} cards`), {code:'INVALID_HAND_LIMIT_SELECTION'});
+    if(new Set(selected).size !== selected.length || selected.length < state.pendingHandLimit.required){
+      throw Object.assign(new Error(`select at least ${state.pendingHandLimit.required} cards`), {code:'INVALID_HAND_LIMIT_SELECTION'});
     }
     const player = state.players[actorIndex];
     for(const iid of selected){
@@ -1844,10 +1844,6 @@ function performCommand(state, ctx, command, actorIndex, options){
       throw Object.assign(new Error('the deck-set destination is illegal'), {code:'ILLEGAL_PLACEMENT'});
     }
     if(String(entry.card.id) === '28'){
-      if(state.supportersSetThisTurn[actorIndex]
-        >= state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)){
-        throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
-      }
       const statusId = `rule-use:army-of-exiles:p${actorIndex}`;
       let counter = state.statuses.find(status=>status.statusId === statusId);
       if(Number(counter?.uses || 0) >= 2 || Number(counter?.lastTurn) === state.turn){
@@ -1876,7 +1872,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       destination:payload.destination,
       sourceIid:card.iid,
       sourceController:actorIndex,
-      countTowardSupporterLimit:String(card.id) === '28'
+      countTowardSupporterLimit:false
     });
     const placed = findBoardCard(state, result.cardIid)?.card;
     if(placed && hasTiming(placed.id, 'WHEN_SET')){
