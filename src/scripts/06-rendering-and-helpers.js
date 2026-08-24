@@ -8517,7 +8517,9 @@ function showAffiliationPickerVisual(callback) {
 
 function showZonePickerVisual(options, callback) {
   options = options || {};
-  const zoneCount = Array.isArray(G.board) ? G.board.length : 3;
+  // Zone-targeting windows always retain the complete three-zone battlefield.
+  // A full zone can be ineligible without disappearing from spatial context.
+  const zoneCount = Math.max(3, Array.isArray(G.board) ? G.board.length : 3);
   const title = options.title || 'Choose a Zone';
   const subtitle = options.subtitle || 'Select the zone for this effect.';
   const zoneNames = options.zoneNames || ['Left Zone','Center Zone','Right Zone','Zone 4','Zone 5'];
@@ -9799,16 +9801,8 @@ function showConsolidationCinematic(card, opts) {
   // source image must not expand to the former 320x448 max-size path.
   var cardShowcaseWidth = 'min(24vw,260px)';
   var cardShowcaseHeight = 'min(43vh,364px)';
-  var alpineOwnerClass = '';
-  if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb15')) {
-    var perspectivePlayer = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : (typeof G !== 'undefined' && G ? G.currentPlayer : 0);
-    alpineOwnerClass = Number(card.owner) === Number(perspectivePlayer)
-      ? ' alpine-consolidation-owner-mine'
-      : ' alpine-consolidation-owner-opp';
-  }
-
   var overlay = document.createElement('div');
-  overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '') + alpineOwnerClass;
+  overlay.className = 'cc-overlay-v2' + (perfLite ? ' perf-lite' : '') + (enhancedFx ? ' fx-cinematic-v3 rarity-' + rarity : '');
   var rgbStr = _hexToRgb(color);
   overlay.setAttribute('style',
     'position:fixed;inset:0;z-index:13000;pointer-events:none;display:flex !important;' +

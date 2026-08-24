@@ -1645,6 +1645,11 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-tint:rgba(151,98,28,.18);--effect-flash-inset:rgba(255,214,126,.13);
   --effect-flash-mask:url("../../artifacts/bh17-overlay-09.svg");
 }
+.bc.effect-flash-sebastyen_visegrad{
+  --effect-flash-color:rgba(224,255,189,.99);--effect-flash-glow:rgba(145,223,85,.70);
+  --effect-flash-tint:rgba(65,135,31,.18);--effect-flash-inset:rgba(188,255,126,.13);
+  --effect-flash-mask:url("../../artifacts/sebastyen-visegrad-flag.svg");
+}
 .bc.effect-flash-bh18_genesis_inceldom{
   --effect-flash-color:rgba(255,173,163,.99);--effect-flash-glow:rgba(255,117,107,.72);
   --effect-flash-tint:rgba(156,48,45,.19);--effect-flash-inset:rgba(255,137,128,.13);
@@ -24559,28 +24564,6 @@ html body #s-game .effect-pill.effect-pill-opp:not(.effect-pill-overflow) .effec
   border:1px solid rgba(255,122,132,.66)!important;
   background:radial-gradient(circle,rgba(185,64,74,.25),rgba(29,8,13,.74))!important;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.045),0 0 7px rgba(225,70,82,.18)!important;
-}
-
-/* Snow on the Carpathians deliberately keeps the standard consolidation
-   language: available/partial tributes are gold, and only a complete legal
-   selection turns blue.  Do not replace these state colors with ownership
-   colors on the Alpine board. */
-html body .cc-overlay-v2.alpine-consolidation-owner-mine .cc-card-wrap-v2::after,
-html body .cc-overlay-v2.alpine-consolidation-owner-opp .cc-card-wrap-v2::after{
-  content:''!important;
-  position:absolute!important;
-  inset:-7px!important;
-  border-radius:14px!important;
-  pointer-events:none!important;
-  box-shadow:0 0 0 2px var(--alpine-consolidation-owner-color),0 0 24px var(--alpine-consolidation-owner-glow)!important;
-}
-html body .cc-overlay-v2.alpine-consolidation-owner-mine .cc-card-wrap-v2{
-  --alpine-consolidation-owner-color:rgba(83,176,255,.92);
-  --alpine-consolidation-owner-glow:rgba(47,140,255,.34);
-}
-html body .cc-overlay-v2.alpine-consolidation-owner-opp .cc-card-wrap-v2{
-  --alpine-consolidation-owner-color:rgba(255,96,108,.94);
-  --alpine-consolidation-owner-glow:rgba(255,58,72,.36);
 }
 
 /* 2026-07-29: Challenger value, Social roster, Pierogi detail, and end-game report.

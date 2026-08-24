@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64">
   <defs><filter id="g" x="-70%" y="-70%" width="240%" height="240%"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#efbd58" flood-opacity=".7"/></filter></defs>
-  <g fill="none" stroke="#fff0bd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
-    <path d="M25 24h14v23H25zM22 47h20"/>
-    <path d="M22 52l-9-5 6 10M42 52l9-5-6 10M18 47l-9-2M46 47l9-2" stroke-width="3"/>
-    <path d="M23 17v-8M32 17V5M41 17v-8" stroke-width="3.5"/>
+  <g fill="none" stroke="#fff0bd" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+    <path d="M23 21h18v26H23zM20 47h24"/>
+    <path d="M20 51L5 44M18 57L4 54M44 51l15-7M46 57l14-3" stroke-width="3.7"/>
+    <path d="M19 16l-4-7M28 15l-1-9M36 15l1-9M45 16l4-7" stroke-width="3.7"/>
   </g>
 </svg>

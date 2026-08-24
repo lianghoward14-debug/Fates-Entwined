@@ -107,9 +107,28 @@
     return true;
   }
   window.closePublicDecks = closePublicDecks;
+  function playPublicDeckUiSound(type, key){
+    const sound = String(type || 'uiClick');
+    if(typeof window.playFateSfxOnce === 'function'){
+      return window.playFateSfxOnce(sound, 'public-decks:' + String(key || sound), sound === 'hover' ? 90 : 35);
+    }
+    if(typeof window.playSfx === 'function') return window.playSfx(sound);
+    if(typeof playSfx === 'function') return playSfx(sound);
+    return false;
+  }
   function bindPublicDeckHubActions(hub){
     if(!hub || hub.dataset.publicDeckActionsBound === 'true') return;
     hub.dataset.publicDeckActionsBound = 'true';
+    hub.addEventListener('pointerover', function(event){
+      if(!event || event.pointerType === 'touch') return;
+      const target = event.target instanceof Element ? event.target : null;
+      const action = target?.closest('button,.pdx-card[data-public-deck-id]');
+      if(!action || !hub.contains(action) || action.disabled) return;
+      if(event.relatedTarget && action.contains(event.relatedTarget)) return;
+      const cardNode = action.closest('.pdx-card[data-public-deck-id]');
+      const actionName = action.className || action.tagName || 'control';
+      playPublicDeckUiSound('hover', String(cardNode?.dataset.publicDeckId || '') + ':' + actionName);
+    }, {passive:true});
     hub.addEventListener('click', function(event){
       const target = event.target instanceof Element ? event.target : null;
       const action = target?.closest('button,.pdx-card[data-public-deck-id]');
@@ -128,6 +147,7 @@
       if(!run) return;
       event.preventDefault();
       event.stopPropagation();
+      playPublicDeckUiSound('uiClick', deckId || action.className || 'control');
       run();
     });
   }
@@ -1207,7 +1227,7 @@
         <div class="pd-v3-summary"><span><b>${sorted.length}</b> decks</span><i></i><span><b>${totalRatings}</b> ratings</span></div>
         <div class="pd-v3-header-actions">
           <button type="button" class="btn sm pd-v3-publish"><span>+</span> Publish a Deck</button>
-          <button type="button" class="btn sm pd-v3-close" aria-label="Close Public Decks" onclick="event.preventDefault();event.stopPropagation();closePublicDecks()">&times;</button>
+          <button type="button" class="btn sm pd-v3-close" aria-label="Close Public Decks">&times;</button>
         </div>
       </header>
       <div class="pd-v3-toolbar"><div><strong>Latest Decks</strong><span>Newest community uploads</span></div><div class="pd-v3-live"><i></i><span>Live</span><em>Page ${publicDecksPage+1} of ${totalPages}</em></div></div>`;

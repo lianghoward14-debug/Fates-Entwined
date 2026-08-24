@@ -309,27 +309,25 @@ function applyRiveraBuffToPlacedCard(inst, owner) {
   if(ownerNum === null) return false;
 
   const declarations = getAllRiveraDeclarationsForOwner(ownerNum);
-  const fateBeforeBuffs = Math.max(0, Number(inst.currentFate ?? inst.fate ?? 0) || 0);
   let applied = false;
-  declarations.forEach(function(buff){
+  declarations.forEach(function(buff, index){
     if(!buff || Number(buff.turnsLeft) <= 0 || !sameRiveraOwner(buff.owner, ownerNum) || buff.aff !== inst.aff) return;
     if(!inst._riveraAppliedBuffs) inst._riveraAppliedBuffs = {};
     const key = String(buff.sourceIid || buff.aff || 'rivera');
     if(inst._riveraAppliedBuffs[key]) return;
-    const before = Number(inst.currentFate ?? inst.fate ?? 0) || 0;
-    inst.currentFate = Math.max(0, before + 4);
-    if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(inst, before, inst.currentFate);
+    applyPairedOverlayFateGain(inst, 4, ownerNum, {
+      kind:'rivera_crest',
+      label:'Rivera affiliation bonus',
+      sourceIid:String(buff.sourceIid || '51'),
+      waitForConsolidationCinematic:true,
+      soundKey:'rivera:' + String(ownerNum) + ':' + String(inst.iid || inst.id) + ':' + String(G.turn || 0) + ':' + String(index)
+    });
     inst._riveraAppliedBuffs[key] = true;
     inst._riveraFateBonus = (Number(inst._riveraFateBonus) || 0) + 4;
     applied = true;
   });
 
   if(applied) {
-    if(typeof playFateChangeSound === 'function') playFateChangeSound(inst, fateBeforeBuffs, inst.currentFate, ownerNum);
-    flashCardEffect(inst, 'rivera_crest', {
-      label:'Rivera affiliation bonus',
-      soundKey:'rivera:' + String(ownerNum) + ':' + String(inst.iid || inst.id) + ':' + String(G.turn || 0)
-    });
     toast(inst.name + ' gains 4 Fate from Rivera!');
     if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
     if(typeof updateTopBar === 'function') updateTopBar();
@@ -1122,15 +1120,13 @@ function applyIdyllicPolishVillageDrawPhase(player) {
     if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
     const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, player) : card.type !== 'Supporter';
     if(!isCharacter || (typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card))) return;
-    const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-    modifyFate(card, 1, 'permanent', player);
-    const after = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-    if(after > before && typeof flashCardEffect === 'function') {
-      flashCardEffect(card, 'idyllic_polish_village', {
-        label:'An Idyllic Polish Village',
-        soundKey:'idyllic-polish-village:' + String(card.iid || card.id || 'card') + ':' + String(G && G.turn || 0)
-      });
-    }
+    const presentation = applyPairedOverlayFateGain(card, 1, player, {
+      kind:'idyllic_polish_village',
+      label:'An Idyllic Polish Village',
+      sourceIid:'igb18',
+      soundKey:'idyllic-polish-village:' + String(card.iid || card.id || 'card') + ':' + String(G && G.turn || 0)
+    });
+    const after = presentation.after;
     count++;
   });
   if(count) {
@@ -1280,9 +1276,10 @@ function applyCrushingMomentumAfterConsolidation(card, playerIndex) {
     sources.push(source);
   });
   sources.forEach(function(source, index){
-    modifyFate(card, 3, 'permanent', playerIndex);
-    flashCardEffect(card, 'bh17_crushing_momentum', {
+    applyPairedOverlayFateGain(card, 3, playerIndex, {
+      kind:'bh17_crushing_momentum',
       label:'Crushing Momentum',
+      sourceIid:String(source.iid || source.id || 'bh17'),
       soundKey:['bh17', String(source.iid || source.id), String(card.iid || card.id), Number(G.turn), index].join(':')
     });
   });
@@ -1444,11 +1441,10 @@ async function nextPlayerTurn() {
   // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set
   forEachBoardCard((card)=>{
     if(cardActsAsPassive(card, '46') && card.owner===currentPlayer && typeof card._philSetTurn==='number') {
-      const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-      card.currentFate = before + 2;
-      if(typeof playFateChangeSound === 'function') playFateChangeSound(card, before, card.currentFate, currentPlayer);
-      flashCardEffect(card, 'phil_crown', {
+      applyPairedOverlayFateGain(card, 2, currentPlayer, {
+        kind:'phil_crown',
         label:'Monarchist Manifesto',
+        sourceIid:String(card.iid || card.id || '46'),
         soundKey:'phil:' + String(card.iid || card.id) + ':' + String(G.turn || 0)
       });
       // Visual sparkle on Phil
@@ -2601,14 +2597,14 @@ function applyZsofiaCoordinatorSetTrigger(placedCard, z, r, c) {
         (row || []).forEach(function(target){
           if(!target || target.owner !== owner) return;
           if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target)) return;
-          if(typeof modifyFate === 'function') modifyFate(target, amount, 'permanent');
-          else target.currentFate = (Number(target.currentFate ?? target.fate) || 0) + amount;
-          totalGained += amount;
-          if(typeof flashCardEffect === 'function') flashCardEffect(target, 'coord_zsofia_river', {
+          const presentation = applyPairedOverlayFateGain(target, amount, owner, {
+            kind:'coord_zsofia_river',
             label:'Blue Danube Waltz',
+            sourceIid:String(source.card.iid || source.card.id || '15'),
             soundKey:['zsofia-set', String(source.card.iid || source.card.id || '15'), String(placedCard.iid || placedCard.id || 'card'), String(zoneIndex), String(G.turn || 0)].join(':'),
             waitForConsolidationCinematic:true
           });
+          totalGained += Math.max(0, presentation.after - presentation.before);
         });
       });
     };
@@ -2638,10 +2634,10 @@ function triggerRozsiPassive(card, destZ) {
     if(cardActsAsPassive(c, '34') && cz === destZ && c.owner === card.owner && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c, cz, cr, cc))) {
       const boost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost({card:c, z:cz, r:cr, c:cc}) : 0;
       const amount = 3 + boost;
-      if(typeof modifyFate === 'function') modifyFate(card, amount, 'permanent');
-      else card.currentFate = (card.currentFate || card.fate || 0) + amount;
-      flashCardEffect(card, 'rozsi_dance', {
+      applyPairedOverlayFateGain(card, amount, card.owner, {
+        kind:'rozsi_dance',
         label:'Hungarian Dance',
+        sourceIid:String(c.iid || c.id || '34'),
         soundKey:'rozsi:' + String(c.iid || c.id) + ':' + String(card.iid || card.id) + ':' + String(G.turn || 0)
       });
       if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(card.owner)) toast(card.name + ' gains ' + amount + ' Fate from Hungarian Dance!');
@@ -2688,13 +2684,13 @@ function triggerJoieDrawEffectPassive(player, context) {
         (row || []).forEach(function(target){
           if(!target || target.owner !== owner || isFaceDownCard(target)) return;
           if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target)) return;
-          if(typeof modifyFate === 'function') modifyFate(target, amount, 'permanent');
-          else target.currentFate = (Number(target.currentFate ?? target.fate) || 0) + amount;
-          totalGains += amount;
-          if(typeof flashCardEffect === 'function') flashCardEffect(target, 'joie_thousand_reel', {
+          const presentation = applyPairedOverlayFateGain(target, amount, owner, {
+            kind:'joie_thousand_reel',
             label:'Thousand Reel Stare',
+            sourceIid:String(source.card.iid || source.card.id || 'bh02'),
             soundKey:eventKey
           });
+          totalGains += Math.max(0, presentation.after - presentation.before);
         });
       });
     });
@@ -2802,16 +2798,16 @@ function triggerMajaMischievousActivities(player, context) {
       (row || []).forEach(function(target){
         if(!target || target.owner !== owner) return;
         if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target)) return;
-        const before = Number(target.currentFate ?? target.fate) || 0;
-        if(typeof modifyFate === 'function') modifyFate(target, amount, 'permanent', owner);
-        else target.currentFate = before + amount;
-        const after = Number(target.currentFate ?? target.fate) || 0;
-        if(after <= before) return;
-        totalGains += after - before;
-        if(typeof flashCardEffect === 'function') flashCardEffect(target, 'bh08_mischief', {
+        const presentation = applyPairedOverlayFateGain(target, amount, owner, {
+          kind:'bh08_mischief',
           label:'Mischievous Activities',
+          sourceIid:String(source.card.iid || source.card.id || 'bh08'),
           soundKey:eventKey
         });
+        const before = presentation.before;
+        const after = presentation.after;
+        if(after <= before) return;
+        totalGains += after - before;
       });
     }); });
   });
@@ -3935,13 +3931,12 @@ function tickWintertideForCurrentPlayer() {
   forEachBoardCard((card)=>{
     if(!card || card.id !== '100' || card.owner !== G.currentPlayer || isFaceDownCard(card)) return;
     if(card._wintertideLastTurn === G.turn) return;
-    const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-    card.currentFate = before + 2;
-    if(typeof playFateChangeSound === 'function') playFateChangeSound(card, before, card.currentFate, G.currentPlayer);
     card._wintertideLastTurn = G.turn;
     card._wintertideTriggerCount = (Number(card._wintertideTriggerCount) || 0) + 1;
-    flashCardEffect(card, 'wintertide', {
+    applyPairedOverlayFateGain(card, 2, G.currentPlayer, {
+      kind:'wintertide',
       label:'Wintertide',
+      sourceIid:String(card.iid || card.id || '100'),
       soundKey:'wintertide:' + String(card.iid || card.id) + ':' + String(G.turn || 0)
     });
     applied++;
@@ -4813,19 +4808,18 @@ function noteBalladConsolidation(player, card) {
   if(!activeEffects.length) return 0;
   let gained = 0;
   activeEffects.forEach(function(fx, index){
-    const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-    card.currentFate = before + 3;
-    if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(card, before, card.currentFate);
+    const presentation = applyPairedOverlayFateGain(card, 3, player, {
+      kind:'kvetka_ballad',
+      label:'A Noble Effort at a Ballad',
+      sourceIid:String(fx.sourceIid || index),
+      soundKey:'kvetka-ballad-consolidation:' + String(player) + ':' + String(G.turn || 0) + ':' + String(fx.sourceIid || index) + ':' + String(card.iid || card.id),
+      waitForConsolidationCinematic:true,
+      effectOptions:{pitchStep:Math.max(0, Number(fx.pitchStep) || 0)}
+    });
     if(card._placementFateReveal) {
       card._placementFateReveal.kvetkaGainAmount = (Number(card._placementFateReveal.kvetkaGainAmount) || 0) + 3;
     }
-    gained += 3;
-    flashCardEffect(card, 'kvetka_ballad', {
-        label:'A Noble Effort at a Ballad',
-        soundKey:'kvetka-ballad-consolidation:' + String(player) + ':' + String(G.turn || 0) + ':' + String(fx.sourceIid || index) + ':' + String(card.iid || card.id),
-        pitchStep:Math.max(0, Number(fx.pitchStep) || 0),
-        waitForConsolidationCinematic:true
-    });
+    gained += Math.max(0, presentation.after - presentation.before);
   });
   toast('A Noble Effort at a Ballad: ' + card.name + ' gains ' + gained + ' Fate.');
   return gained;
@@ -5170,9 +5164,10 @@ function tickCarpathianSpecters() {
     if(card._specterTurnsOnField >= 2 && card._specterFateGains < 6) {
       card._specterTurnsOnField = 0;
       card._specterFateGains++;
-      modifyFate(card, 1, 'permanent');
-      flashCardEffect(card, 'specter_ghost', {
+      applyPairedOverlayFateGain(card, 1, card.owner, {
+        kind:'specter_ghost',
         label:'Thousand Year Sorrow',
+        sourceIid:String(card.iid || card.id || '95'),
         soundKey:'specter:' + String(card.iid || card.id) + ':' + String(card._specterFateGains)
       });
       toast(card.name + ' gains 1 Fate from Thousand Year Sorrow.');
@@ -6566,13 +6561,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           resolve(value);
         };
         const opened = pickCardInZone(z,'Select a card to gain 3 Fate:',(tgt,tz,tr,tc)=>{
-          modifyFate(tgt,3,'permanent');
-          if(typeof flashCardEffect === 'function') {
-            flashCardEffect(tgt, 'british_union_jack', {
-              label:'Liberators of Rwanda',
-              soundKey:'british-regiment:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
-            });
-          }
+          applyPairedOverlayFateGain(tgt, 3, cp, {
+            kind:'british_union_jack',
+            label:'Liberators of Rwanda',
+            sourceIid:String(inst && (inst.iid || inst.id) || '05'),
+            soundKey:'british-regiment:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
+          });
           log(cp===0?'p1':'p2',`Liberators of Rwanda: ${tgt.name} gains 3 Fate`);
           renderEffectResolutionForPlayer(cp, {hand:false});
           finish(true);
@@ -7586,13 +7580,12 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           const target = t && (t.card || t);
           if(target && target.owner === cp) {
             isaacTargets.push({target:target, index:idx});
-            modifyFate(target,3,'permanent');
-            if(typeof flashCardEffect === 'function') {
-              flashCardEffect(target, 'isaac_beaker', {
-                label:'scientific inquiry',
-                soundKey:'isaac:' + String(card && (card.iid || card.id) || 'card') + ':' + String(target.iid || target.id || idx) + ':' + String(G.turn || 0)
-              });
-            }
+            applyPairedOverlayFateGain(target, 3, cp, {
+              kind:'isaac_beaker',
+              label:'scientific inquiry',
+              sourceIid:String(card && (card.iid || card.id) || '22'),
+              soundKey:'isaac:' + String(card && (card.iid || card.id) || 'card') + ':' + String(target.iid || target.id || idx) + ':' + String(G.turn || 0)
+            });
           }
         });
         toast('Isaac increased '+isaacTargets.length+' card'+(isaacTargets.length===1?'':'s')+' by +3 Fate permanently');
@@ -7651,7 +7644,12 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       let count = 0;
       G.board[z].forEach(row=>row && row.forEach(cell=>{
         if(cell && cell.owner===cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && !isFaceDownCard(cell) && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(cell))){
-          modifyFate(cell, 2, 'permanent');
+          applyPairedOverlayFateGain(cell, 2, cp, {
+            kind:'sebastyen_visegrad',
+            label:'Visegrad',
+            sourceIid:String(card.iid || card.id || '83'),
+            soundKey:['sebastyen-visegrad', String(card.iid || card.id), String(cell.iid || cell.id), Number(G.turn), count].join(':')
+          });
           count++;
         }
       }));
@@ -8261,6 +8259,7 @@ const BH15_OVERLAY_KIND = 'bh15_chinese_macarthur';
 const bh15OverlayQueues = new Map();
 const BH19_OVERLAY_KIND = 'bh19_high_t';
 const bh19OverlayQueues = new Map();
+const pairedOverlayFateQueues = new Map();
 const sequentialFateDisplayStates = new Map();
 
 function sequentialFateDisplayKey(target) {
@@ -8332,6 +8331,139 @@ function resolveSequentialFateDisplayTarget(targetKey, fallback) {
   return (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || fallback;
 }
 
+function queuePairedOverlayFateGain(target, options) {
+  if(!target || typeof window === 'undefined') return false;
+  const opts = options || {};
+  const before = Math.max(0, Number(opts.before) || 0);
+  const after = Math.max(0, Number(opts.after) || 0);
+  if(after <= before || !opts.kind) return false;
+  const targetKey = String(target.iid || target.id || 'card');
+  let state = pairedOverlayFateQueues.get(targetKey);
+  if(!state){
+    state = {target:target, queue:[], running:false};
+    pairedOverlayFateQueues.set(targetKey, state);
+  }
+  state.target = resolveSequentialFateDisplayTarget(targetKey, target);
+  beginSequentialFateDisplay(state.target, before, opts.finalValue != null ? opts.finalValue : after);
+  state.target._suppressNextFatePulse = true;
+  state.queue.push({
+    kind:String(opts.kind),
+    label:String(opts.label || opts.kind),
+    sourceIid:String(opts.sourceIid || ''),
+    before:before,
+    after:after,
+    onlineRemote:opts.onlineRemote === true,
+    waitForConsolidationCinematic:opts.waitForConsolidationCinematic === true,
+    effectOptions:opts.effectOptions && typeof opts.effectOptions === 'object' ? Object.assign({}, opts.effectOptions) : null,
+    soundKey:String(opts.soundKey || ''),
+    readyAt:Date.now() + Math.max(0, Number(opts.delayMs) || 0)
+  });
+  if(state.running) return true;
+  state.running = true;
+  const presentNext = function(){
+    const current = pairedOverlayFateQueues.get(targetKey);
+    if(!current || !current.queue.length){
+      pairedOverlayFateQueues.delete(targetKey);
+      const finishingTarget = current && resolveSequentialFateDisplayTarget(targetKey, current.target);
+      if(finishingTarget
+        && !bh15OverlayQueues.get(targetKey)?.queue?.length
+        && !bh19OverlayQueues.get(targetKey)?.queue?.length){
+        finishSequentialFateDisplay(finishingTarget);
+      }
+      return;
+    }
+    const next = current.queue[0];
+    if(Number(next.readyAt || 0) > Date.now()){
+      setTimeout(presentNext, Math.max(20, Number(next.readyAt) - Date.now()));
+      return;
+    }
+    const liveTarget = resolveSequentialFateDisplayTarget(targetKey, current.target);
+    if(next.waitForConsolidationCinematic
+      && typeof consolidationCinematicIsActive === 'function'
+      && consolidationCinematicIsActive()){
+      setTimeout(presentNext, 90);
+      return;
+    }
+    const activeFlash = liveTarget && liveTarget._effectFlash;
+    const now = Date.now();
+    if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
+      setTimeout(presentNext, Math.max(40, Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500) - now + 35));
+      return;
+    }
+    const presentation = current.queue.shift();
+    advanceSequentialFateDisplay(liveTarget, presentation.after);
+    const shown = typeof flashCardEffect === 'function' && flashCardEffect(liveTarget, presentation.kind, Object.assign({}, presentation.effectOptions || {}, {
+      label:presentation.label,
+      onlineRemote:presentation.onlineRemote,
+      waitForConsolidationCinematic:presentation.waitForConsolidationCinematic,
+      soundKey:presentation.soundKey || ['paired-overlay', presentation.kind, presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':')
+    }));
+    if(shown && window.FateMatchRendererAdapter?.renderFromGameState){
+      window.FateMatchRendererAdapter.renderFromGameState({source:'paired-overlay-fate-start'});
+    }
+    const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(liveTarget) : null;
+    const motion = window.FateV2CardMotionFx;
+    let motionShown = false;
+    if(pos && motion && typeof motion.fateChange === 'function'){
+      motionShown = !!motion.fateChange(liveTarget, pos.z, pos.r, pos.c, presentation.before, presentation.after, {
+        sourceIid:presentation.sourceIid,
+        synchronizeResultFeedback:true,
+        _fatePresentationReady:true,
+        pairedEffectOverlayKind:presentation.kind
+      });
+    }
+    if(!motionShown && window.FateMatchRendererAdapter?.presentFateDelta){
+      window.FateMatchRendererAdapter.presentFateDelta({
+        iid:targetKey,
+        targetIid:targetKey,
+        card:liveTarget,
+        z:pos && pos.z,
+        r:pos && pos.r,
+        c:pos && pos.c,
+        fromValue:presentation.before,
+        toValue:presentation.after,
+        delta:presentation.after - presentation.before,
+        synchronizeResultFeedback:true,
+        _fatePresentationReady:true
+      });
+    }
+    if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, presentation.kind);
+    if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['paired-gain', presentation.kind, presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+    else if(typeof playSfx === 'function') playSfx('fateGain');
+    setTimeout(presentNext, 3535);
+  };
+  setTimeout(presentNext, 0);
+  return true;
+}
+if(typeof window !== 'undefined') window.queuePairedOverlayFateGain = queuePairedOverlayFateGain;
+
+function applyPairedOverlayFateGain(target, amount, sourceOwner, options) {
+  if(!target) return {before:0, after:0, finalValue:0, queued:false};
+  const opts = options || {};
+  const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
+  target._suppressNextFatePulse = true;
+  modifyFate(target, amount, opts.type || 'permanent', sourceOwner, {deferBasePresentation:true});
+  const finalValue = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
+  const requestedAfter = Math.max(before, before + Math.max(0, Number(amount) || 0));
+  const after = Math.min(finalValue, requestedAfter);
+  const queued = after > before && queuePairedOverlayFateGain(target, {
+    kind:opts.kind,
+    label:opts.label,
+    sourceIid:String(opts.sourceIid || ''),
+    before:before,
+    after:after,
+    finalValue:finalValue,
+    delayMs:opts.delayMs,
+    onlineRemote:opts.onlineRemote === true,
+    waitForConsolidationCinematic:opts.waitForConsolidationCinematic === true,
+    effectOptions:opts.effectOptions,
+    soundKey:opts.soundKey
+  });
+  if(!queued) delete target._suppressNextFatePulse;
+  return {before:before, after:after, finalValue:finalValue, queued:!!queued};
+}
+if(typeof window !== 'undefined') window.applyPairedOverlayFateGain = applyPairedOverlayFateGain;
+
 function queueHighTPotencyOverlay(target, sourceIids, options) {
   if(!target || !Array.isArray(sourceIids) || !sourceIids.length || typeof window === 'undefined') return;
   const opts = options || {};
@@ -8363,7 +8495,9 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
     if(!current || !current.queue.length){
       bh19OverlayQueues.delete(targetKey);
       const finishingTarget = current && resolveSequentialFateDisplayTarget(targetKey, current.target);
-      if(finishingTarget && !bh15OverlayQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
+      if(finishingTarget
+        && !bh15OverlayQueues.get(targetKey)?.queue?.length
+        && !pairedOverlayFateQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
       return;
     }
     const next = current.queue[0];
@@ -8459,7 +8593,9 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
     if(!current || !current.queue.length){
       bh15OverlayQueues.delete(targetKey);
       const finishingTarget = current && resolveSequentialFateDisplayTarget(targetKey, current.target);
-      if(finishingTarget) finishSequentialFateDisplay(finishingTarget);
+      if(finishingTarget
+        && !bh19OverlayQueues.get(targetKey)?.queue?.length
+        && !pairedOverlayFateQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
       return;
     }
     const nextPresentation = current.queue[0];
@@ -8608,7 +8744,8 @@ function modifyFate(card, amount, type) {
       delayMs:820
     });
   }
-  playFateChangeSound(card, before, highTCount > 0 ? baseAfter : card.currentFate, sourceOwner);
+  const presentationOptions = arguments.length >= 5 && arguments[4] ? arguments[4] : null;
+  playFateChangeSound(card, before, highTCount > 0 ? baseAfter : card.currentFate, sourceOwner, presentationOptions);
 }
 
 function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
@@ -8622,6 +8759,8 @@ function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
     // +1 pulses are queued separately with his overlay after it finishes.
     after = Math.max(before, Number(rider && rider.baseAfter) || after);
   }
+  const presentationOptions = arguments.length >= 5 && arguments[4] ? arguments[4] : null;
+  if(presentationOptions && presentationOptions.deferBasePresentation === true) return;
   if(card._placementFateReveal) {
     card._placementFateReveal.genericSoundRequested = true;
     return;

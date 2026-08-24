@@ -2904,6 +2904,7 @@
     bh17_crushing_momentum:{color:'rgba(255,240,189,.99)',glow:'rgba(239,189,88,.70)',tint:'rgba(151,98,28,.18)'},
     bh18_genesis_inceldom:{color:'rgba(255,173,163,.99)',glow:'rgba(255,117,107,.72)',tint:'rgba(156,48,45,.19)'},
     bh19_high_t:{color:'rgba(255,231,166,.99)',glow:'rgba(220,174,85,.70)',tint:'rgba(137,96,28,.18)'},
+    sebastyen_visegrad:{color:'rgba(224,255,189,.99)',glow:'rgba(145,223,85,.70)',tint:'rgba(65,135,31,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
@@ -3253,6 +3254,16 @@
       line([[17,48],[46,48],[41,55],[23,55],[17,48]],true);
       ctx.lineWidth = 2.9;
       line([[27,48],[27,55]],false); line([[37,48],[37,55]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'sebastyen_visegrad') {
+      ctx.lineWidth = 2.7;
+      circle(32,32,27);
+      ctx.lineWidth = 2.8;
+      line([[7,23],[32,45],[57,23]],false); line([[32,45],[32,58]],false);
+      ctx.lineWidth = 2.35;
+      line([[32,13],[38,19],[32,25],[26,19],[32,13]],true);
+      line([[19,19],[25,14],[32,19],[25,24],[19,19]],true);
+      line([[45,19],[39,14],[32,19],[39,24],[45,19]],true);
       ctx.lineWidth = 4.4;
     } else if(kind === 'bh17_crushing_momentum') {
       ctx.lineWidth = 4;

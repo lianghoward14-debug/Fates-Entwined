@@ -2789,7 +2789,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       let boosted = 0;
       G.board[z].forEach(function(row){ row.forEach(function(cell){
         if(cell && cell.owner === cp && !isFaceDownCard(cell) && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')) {
-          modifyFate(cell, 2, 'permanent');
+          if(typeof applyPairedOverlayFateGain === 'function'){
+            applyPairedOverlayFateGain(cell, 2, cp, {
+              kind:'sebastyen_visegrad',
+              label:'Visegrad',
+              sourceIid:String(inst.iid || inst.id || '83'),
+              soundKey:['sebastyen-visegrad-ai', String(inst.iid || inst.id), String(cell.iid || cell.id), Number(G.turn), boosted].join(':')
+            });
+          }else modifyFate(cell, 2, 'permanent');
           boosted++;
         }
       }); });

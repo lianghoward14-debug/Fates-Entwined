@@ -5317,7 +5317,9 @@
         prompt:opts.prompt || 'Choose the required targets.',
         entries,
         zones:[...new Set(entries.map(function(entry){ return Number(entry.z); }))],
-        visibleZones:opts.showAllZones === true ? [0, 1, 2] : null,
+        // Keep the full three-zone battlefield visible even when one zone is
+        // full and therefore contributes no eligible target entries.
+        visibleZones:[0, 1, 2],
         minCount:Math.max(0, Number(opts.minCount) || 0),
         maxCount:Math.max(1, Number(opts.maxCount) || 1),
         confirmLabel:'Confirm',
@@ -5936,6 +5938,7 @@
       '57':{kind:'coord_jeremiah_snowseal', label:'ALPINE, The Future'},
       '61':{kind:'maria_target', label:'Precise Shot target'},
       '77':{kind:'coord_heyward_compass', label:'Declared affiliation'},
+      '83':{kind:'sebastyen_visegrad', label:'Visegrad'},
       '86':{kind:'boleslaw_exclaim', label:'!!!'},
       '87':{kind:'kvetka_ballad', label:'A Noble Effort at a Ballad'},
       '93':{kind:'snowball', label:'Snowball Fight'},
@@ -5953,7 +5956,7 @@
       // The 17th Regiment and Isaac Perez follow the same rule: their icon
       // describes the selected card's Fate result, never the source card's
       // activation. Their subsequent FATE_CHANGED event owns the target icon.
-      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22') return null;
+      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22' || sourceId === '83') return null;
       return bySourceId[sourceId] || null;
     }
     if(type !== 'FATE_CHANGED') return null;
@@ -6531,10 +6534,36 @@
         const highTSourceIids = Array.isArray(event.highTSourceIids) ? event.highTSourceIids : [];
         const highTBonus = Math.max(0, Number(event.highTBonus) || 0);
         const isBh15AuraFollowUp = String(event.reason || '').toUpperCase() === 'CHINESE_MACARTHUR_AURA_BONUS';
-        const baseFateAfter = (bh15Bonus > 0 || highTBonus > 0) && !isBh15AuraFollowUp
-          ? Math.max(fateBefore, fateAfter - bh15Bonus - highTBonus)
-          : fateBefore;
-        if(!isBh15AuraFollowUp) phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        const hasSequentialFateRiders = bh15Bonus > 0 || highTBonus > 0;
+        const baseFateAfter = isBh15AuraFollowUp
+          ? fateBefore
+          : (hasSequentialFateRiders
+            ? Math.max(fateBefore, fateAfter - bh15Bonus - highTBonus)
+            : fateAfter);
+        const exactOverlayDescriptor = !isBh15AuraFollowUp
+          ? phase7ExactEffectOverlayDescriptor(view, event, target)
+          : null;
+        let pairedOverlayQueued = false;
+        if(exactOverlayDescriptor && exactOverlayDescriptor.kind !== 'snowball' && baseFateAfter > fateBefore && typeof window.queuePairedOverlayFateGain === 'function'){
+          pairedOverlayQueued = window.queuePairedOverlayFateGain(target, {
+            kind:exactOverlayDescriptor.kind,
+            label:exactOverlayDescriptor.label,
+            sourceIid:String(event.sourceIid || ''),
+            before:fateBefore,
+            after:baseFateAfter,
+            finalValue:fateAfter,
+            onlineRemote:true,
+            soundKey:['phase7', batchId, 'paired', String(event?.eventId || event?.id || eventIndex), exactOverlayDescriptor.kind].join(':')
+          });
+          if(pairedOverlayQueued){
+            target._suppressNextFatePulse = true;
+            const pairedLiveTarget = phase7FindAnyCard(target?.iid);
+            if(pairedLiveTarget) pairedLiveTarget._suppressNextFatePulse = true;
+            const pairedProjectedTarget = phase7FindRawProjectedCard(view, target?.iid);
+            if(pairedProjectedTarget) pairedProjectedTarget._suppressNextFatePulse = true;
+          }
+        }
+        if(!isBh15AuraFollowUp && !pairedOverlayQueued) phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
         if(highTSourceIids.length && highTBonus > 0 && typeof window.queueHighTPotencyOverlay === 'function'){
           window.queueHighTPotencyOverlay(target, highTSourceIids, {
             startValue:baseFateAfter,
@@ -6563,6 +6592,10 @@
           const bh15ProjectedTarget = phase7FindRawProjectedCard(view, target?.iid);
           if(bh15ProjectedTarget) bh15ProjectedTarget._suppressNextFatePulse = true;
         }
+        // The shared queue owns both halves of this exact result. Every event
+        // remains a distinct overlay/+Fate pair, including multiple Jakob
+        // Eltzholtz copies affecting the same consolidation.
+        if(pairedOverlayQueued) return;
         let fateMotionShown = false;
         const fateFx = window.FateV2CardMotionFx;
         if(pos && fateFx && baseFateAfter !== fateBefore){
@@ -8331,6 +8364,7 @@
         prompt:serverZonePickPrompt(pending),
         entries,
         zones:[...new Set(entries.map(entry=>entry.z))],
+        visibleZones:[0, 1, 2],
         maxCount,
         confirmLabel:'Confirm',
         showOpponentOverlay:true,
