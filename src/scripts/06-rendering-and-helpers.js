@@ -609,6 +609,7 @@ function getCachedEffectiveFate(card, z) {
   const value = getEffectiveFate(card, z);
   _renderCalcCache.effectiveFate.set(key, value);
   presentJimmyDynamicFateGain(card, value);
+  if(typeof observeChineseMacArthurDerivedFate === 'function') observeChineseMacArthurDerivedFate(card, value);
   return value;
 }
 function getCachedBaseZoneScore(z, player) {
@@ -3706,13 +3707,19 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
     const handBonusFate = card._wciBonus && !immutable ? 2 : 0;
     const liveFate = (immutable && !boardPos ? (Number(card.fate) || 0) : getLiveCardFate(card)) + (!boardPos ? handBonusFate : 0);
     const taylorHasCopiedEffect = String(card.id || '') === 'bh05' && !!card._bh05CopiedCardId;
+    let displayedType = typeof getCardEffectType === 'function' ? getCardEffectType(card) : card.type;
+    if(typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner)) displayedType = 'Character';
+    if(displayedType === 'Improvisor') displayedType = 'Improviser';
     return {
       card,
       isHidden: false,
       name: String(card.id || '') === 'whisper17' ? 'Shizuku' : card.name,
       ability: taylorHasCopiedEffect ? String(card._bh05CopiedAbility || card.ability || '') : card.ability,
       effect: taylorHasCopiedEffect ? String(card._bh05CopiedPrintedEffect || card.effect || '') : String(card.effect || ''),
-      type:typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner) ? 'Character' : card.type,
+      // Chloe's declaration is a real effect-facing classification and must be
+      // visible in every information window. Structural placement remains tied
+      // to the printed type elsewhere (supporter limit vs consolidation).
+      type:displayedType,
       aff: card.aff,
       rarity: card.rarity || 'circle',
       fate: typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate),
@@ -7436,8 +7443,7 @@ function showBoardTargetPicker(opts, onConfirm) {
   }
 
   const body = document.createElement('div');
-  body.className = 'board-target-picker' + (zones.length > 1 ? ' is-multi-zone' : '');
-  if(opts.showOpponentOverlay) body.classList.add('show-opponent-overlay');
+  body.className = 'board-target-picker show-opponent-overlay' + (zones.length > 1 ? ' is-multi-zone' : '');
   if(opts.showZoneTitles) body.classList.add('show-zone-titles');
   if(opts.pickerClass) String(opts.pickerClass).split(/\s+/).filter(Boolean).forEach(function(className){ body.classList.add(className); });
 
@@ -7811,7 +7817,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   }
 
   const body=document.createElement('div');
-  body.className = 'visual-picker-body visual-picker-v2 visual-picker-search-flow';
+  body.className = 'visual-picker-body visual-picker-v2 visual-picker-search-flow' + (positionEntries && positionEntries.length ? ' is-zone-position-picker' : '');
   const sub = opts.subtitle || (maxCount>1?`Select up to ${maxCount}`:'Select one');
   body.innerHTML=`
     <p style="font-size:.78rem;margin-bottom:.3rem;color:var(--dim);font-style:italic;text-align:center;">${sub}</p>
@@ -7973,7 +7979,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
         pickerCtx.textBaseline = 'middle';
         pickerCtx.fillText(getAffIcon(visual.aff), x + cardW/2, y + cardH/2);
       }
-      if(opts.showOpponentOverlay === true && pickerCardIsOpponent(i)) {
+      if((opts.showOpponentOverlay === true || (positionEntries && positionEntries.length)) && pickerCardIsOpponent(i)) {
         pickerCtx.fillStyle = 'rgba(190,12,30,.34)';
         pickerCtx.fillRect(x, y, cardW, cardH);
         const grad = pickerCtx.createLinearGradient(x, y, x, y + cardH);
@@ -8051,7 +8057,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       const c = cards[i];
       const visual = getCardVisualData(c, viewerP);
       const el = document.createElement('div');
-      el.className = 'mc visual-mc' + (selected.includes(i)?' sel':'');
+      el.className = 'mc visual-mc' + (selected.includes(i)?' sel':'') + ((positionEntries && positionEntries.length && pickerCardIsOpponent(i)) ? ' is-opponent-card' : '');
       el.innerHTML=`
         ${getPickerPositionLabel(i) ? `<div class="visual-card-zone-tag">${getPickerPositionLabel(i)}</div>` : ''}
         <div class="mc-art">${visual.img?`<img src="${visual.img}" alt="${visual.name}" loading="eager" decoding="async" fetchpriority="high">`:`<span class="mc-ico">${getAffIcon(visual.aff)}</span>`}</div>

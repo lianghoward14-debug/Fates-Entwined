@@ -7,6 +7,7 @@ import {
   isEffectSourceSuppressed,
   isImmuneToOpponentEffects,
   runtimeRuleId,
+  structuralCardType,
   zoneActionBlock
 } from './modifiers.mjs';
 import {landscapeSupporterEffectLimitReached} from './landscapes/runtime.mjs';
@@ -340,7 +341,7 @@ export function legalCommandTemplates(state, playerIndex){
         const remainingCharacters = boardEntries(state).filter(entry=>
           entry.z === destination.z
           && controllerOf(entry.card) === player
-          && effectiveCardType(state, entry.card) !== 'Supporter'
+          && structuralCardType(state, entry.card) !== 'Supporter'
           && !tributes.some(tribute=>String(tribute.card.iid) === String(entry.card.iid))
         );
         if(String(card.id || '') === '45'){

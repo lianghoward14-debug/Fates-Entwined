@@ -439,6 +439,22 @@
 
   function _applyCloudData(data, uid, sessionId){
     if(!_isCurrentCloudSession(uid, sessionId)) return false;
+    // Preserve the account-scoped local profile before resetting the globals.
+    // Resetting USER_PROFILE first made the timestamp comparison below compare
+    // Fly against a brand-new default profile, so an older cloud balance won on
+    // every launch (for example restoring the same Starlight/booster totals).
+    var localProfileCandidate = null;
+    try {
+      var localProfileRaw = localStorage.getItem(uid ? 'fate_user_profile_' + uid : 'fate_user_profile');
+      if(localProfileRaw) localProfileCandidate = JSON.parse(localProfileRaw);
+    } catch(e){}
+    if(localProfileCandidate && localProfileCandidate._fateAccountUid && localProfileCandidate._fateAccountUid !== uid) localProfileCandidate = null;
+    if((!localProfileCandidate || typeof localProfileCandidate !== 'object')
+      && typeof USER_PROFILE !== 'undefined'
+      && USER_PROFILE && typeof USER_PROFILE === 'object'
+      && (!USER_PROFILE._fateAccountUid || USER_PROFILE._fateAccountUid === uid)){
+      localProfileCandidate = Object.assign({}, USER_PROFILE);
+    }
     if(typeof USER_PROFILE !== 'undefined') USER_PROFILE = createDefaultUserProfile();
     if(typeof PRESET_DECKS !== 'undefined') PRESET_DECKS = {};
     if(typeof LEADERBOARD !== 'undefined') LEADERBOARD = [];
@@ -456,7 +472,7 @@
         challengerPresets:{}, lastFreePackClaim:0, createdAt:Date.now()
       };
       if(typeof USER_PROFILE !== 'undefined'){
-        var localProfile = USER_PROFILE && typeof USER_PROFILE === 'object' ? USER_PROFILE : {};
+        var localProfile = localProfileCandidate && typeof localProfileCandidate === 'object' ? localProfileCandidate : {};
         var cloudProfile = _stripServerRankStats(data.profile);
         var localUpdatedAt = Number(localProfile._clientUpdatedAt || 0);
         var cloudUpdatedAt = Number(cloudProfile._clientUpdatedAt || 0);

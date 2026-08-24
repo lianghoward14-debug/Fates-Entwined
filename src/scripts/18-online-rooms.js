@@ -4537,8 +4537,11 @@
       if(placements.some(function(command){ return command?.type === 'SET_ADAPTIVE_TOKEN'; })){
         return phase7BeginAdaptiveTokenDeclaration(card, destination, placements);
       }
-      phase7ChooseCommand(placements, 'Set Card');
-      return true;
+      // Return the authoritative completion promise to the drag bridge. The
+      // bridge may keep a presentation-only card over this destination while
+      // the command is in flight, then commit or roll that visual back without
+      // ever predicting game state.
+      return phase7ChooseCommand(placements, 'Set Card');
     }
     const consolidations = phase7CurrentCommands().filter(function(command){
       return command?.type === 'CONSOLIDATE_CARD' && String(command?.payload?.cardIid || '') === iid;
@@ -6307,7 +6310,8 @@
       countedIids.forEach(function(cardIid, countedIndex){
         const overlayKey = String(sourceIid || '') + ':' + String(cardIid);
         if(liHuaOverlayKeys.has(overlayKey)) return;
-        const eligible = phase7PresentationCard(phase7FindAnyCard(cardIid))
+        const liveEligible = phase7FindAnyCard(cardIid);
+        const eligible = phase7PresentationCard(liveEligible)
           || phase7FindProjectedEntry(view, cardIid)?.card;
         if(!eligible || typeof window.flashCardEffect !== 'function') return;
         liHuaOverlayKeys.add(overlayKey);
@@ -6317,12 +6321,18 @@
           onlineRemote:true
         });
         const projected = phase7FindRawProjectedCard(view, cardIid);
+        if(shown && liveEligible && liveEligible !== eligible && eligible._effectFlash){
+          liveEligible._effectFlash = cloneOnlinePlain(eligible._effectFlash);
+        }
         if(shown && projected && projected !== eligible && eligible._effectFlash){
           projected._effectFlash = cloneOnlinePlain(eligible._effectFlash);
         }
         shownAny = !!shown || shownAny;
       });
       if(shownAny && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+        // Mark both the live and projected card objects before this render. The
+        // old path marked only presentation clones, so a three-card activation
+        // could visibly retain just one overlay when the live board rendered.
         window.FateMatchRendererAdapter.renderFromGameState({source:'phase7-li-hua-counted-card-overlays'});
       }
       return shownAny;
@@ -6483,17 +6493,34 @@
         // Result overlays and their Fate delta are one piece of feedback. Put
         // the overlay into the rendered board first, then start the number
         // recipe in this same task so neither can visibly lead the other.
-        phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
-        if(Array.isArray(event.bh15SourceIids) && event.bh15SourceIids.length && typeof window.queueChineseMacArthurOverlay === 'function'){
-          window.queueChineseMacArthurOverlay(target, event.bh15SourceIids);
+        const bh15SourceIids = Array.isArray(event.bh15SourceIids) ? event.bh15SourceIids : [];
+        const bh15Bonus = Math.max(0, Number(event.bh15Bonus) || bh15SourceIids.length || 0);
+        const isBh15AuraFollowUp = String(event.reason || '').toUpperCase() === 'CHINESE_MACARTHUR_AURA_BONUS';
+        const baseFateAfter = bh15Bonus > 0 && !isBh15AuraFollowUp
+          ? Math.max(fateBefore, fateAfter - bh15Bonus)
+          : fateBefore;
+        if(!isBh15AuraFollowUp) phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        if(bh15SourceIids.length && typeof window.queueChineseMacArthurOverlay === 'function'){
+          window.queueChineseMacArthurOverlay(target, bh15SourceIids, {
+            startValue:isBh15AuraFollowUp ? fateBefore : baseFateAfter,
+            delayMs:820
+          });
+          // The canonical view already contains Hseih-Ling's permanent bonus.
+          // Suppress its generic reconciliation pulse; the queued +1 pulse is
+          // the only presentation of that bonus and is synchronized to overlay.
+          target._suppressNextFatePulse = true;
+          const bh15LiveTarget = phase7FindAnyCard(target?.iid);
+          if(bh15LiveTarget) bh15LiveTarget._suppressNextFatePulse = true;
+          const bh15ProjectedTarget = phase7FindRawProjectedCard(view, target?.iid);
+          if(bh15ProjectedTarget) bh15ProjectedTarget._suppressNextFatePulse = true;
         }
         let fateMotionShown = false;
         const fateFx = window.FateV2CardMotionFx;
-        if(pos && fateFx){
+        if(pos && fateFx && baseFateAfter !== fateBefore){
           if(String(pos.zone || 'board') === 'board' && typeof fateFx.fateChange === 'function'){
-            fateMotionShown = !!fateFx.fateChange(target, pos.z, pos.r, pos.c, fateBefore, fateAfter, fateOptions);
+            fateMotionShown = !!fateFx.fateChange(target, pos.z, pos.r, pos.c, fateBefore, baseFateAfter, fateOptions);
           }else if(typeof fateFx.fateChangeAtLocation === 'function'){
-            fateMotionShown = !!fateFx.fateChangeAtLocation(target, pos, fateBefore, fateAfter, fateOptions);
+            fateMotionShown = !!fateFx.fateChangeAtLocation(target, pos, fateBefore, baseFateAfter, fateOptions);
           }
           // The VFX director can reject a new recipe while the preceding
           // result overlay is still retiring.  The Fate number is independent
@@ -6509,12 +6536,12 @@
               r:pos.r,
               c:pos.c,
               fromValue:fateBefore,
-              toValue:fateAfter,
+               toValue:baseFateAfter,
               before:fateBefore,
-              after:fateAfter,
-              amount:Math.abs(fateAfter - fateBefore),
-              fateDelta:fateAfter - fateBefore,
-              delta:fateAfter - fateBefore,
+               after:baseFateAfter,
+               amount:Math.abs(baseFateAfter - fateBefore),
+               fateDelta:baseFateAfter - fateBefore,
+               delta:baseFateAfter - fateBefore,
               sourceIid:event.sourceIid || null,
               batchId,
               eventId:String(event?.eventId || event?.id || eventIndex),

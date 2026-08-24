@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchHandDragBridge) return;
 
-  const BRIDGE_VERSION = 4;
+  const BRIDGE_VERSION = 5;
   const DRAG_THRESHOLD = 4;
   const DRAG_CLICK_SUPPRESS_THRESHOLD = 3;
   const BUTTON_RELEASE_GRACE_MS = 140;
@@ -17,6 +17,82 @@
   const DROP_PREVIEW_MIN_DELTA = 12;
   let handOrganizer = null;
   const localHandOrders = new Map();
+  let phase7OptimisticDragSetPreviewSequence = 0;
+  let activePhase7OptimisticDragSetPreviewToken = 0;
+
+  // Presentation-only experiment. This never mutates the projected hand or
+  // board: it merely keeps the already-rendered drag card parked over its
+  // destination while the authoritative SET_CARD command is in flight.
+  // Disable instantly with:
+  //   setFatePhase7OptimisticDragSetPreviewEnabled(false)
+  const PHASE7_OPTIMISTIC_DRAG_SET_STORAGE_KEY = 'fatePhase7OptimisticDragSetPreview';
+
+  function phase7OptimisticDragSetPreviewEnabled(){
+    if(typeof window.FATE_PHASE7_OPTIMISTIC_DRAG_SET_PREVIEW === 'boolean'){
+      return window.FATE_PHASE7_OPTIMISTIC_DRAG_SET_PREVIEW;
+    }
+    try {
+      const saved = localStorage.getItem(PHASE7_OPTIMISTIC_DRAG_SET_STORAGE_KEY);
+      if(saved === '0') return false;
+      if(saved === '1') return true;
+    } catch(e) {}
+    return true;
+  }
+
+  function setPhase7OptimisticDragSetPreviewEnabled(enabled){
+    const next = enabled !== false;
+    window.FATE_PHASE7_OPTIMISTIC_DRAG_SET_PREVIEW = next;
+    try { localStorage.setItem(PHASE7_OPTIMISTIC_DRAG_SET_STORAGE_KEY, next ? '1' : '0'); } catch(e) {}
+    return next;
+  }
+
+  function beginPhase7OptimisticDragSetPreview(card, hit){
+    if(!phase7OptimisticDragSetPreviewEnabled() || !card || !hit) return 0;
+    const director = window.FateVfxDirector;
+    if(!director || typeof director.updateDragPreview !== 'function') return 0;
+    const sourceRect = hit.cardRect || hit.visualRect || hit.rect;
+    if(!sourceRect || !Number.isFinite(Number(sourceRect.x)) || !Number.isFinite(Number(sourceRect.y))) return 0;
+    const rect = {
+      x:Number(sourceRect.x),
+      y:Number(sourceRect.y),
+      w:Number(sourceRect.w) || Number(state && state.ghostW) || 120,
+      h:Number(sourceRect.h) || Number(state && state.ghostH) || 170
+    };
+    try { card._presentationDeparting = true; } catch(e) {}
+    director.updateDragPreview({
+      card,
+      rect,
+      invalid:false,
+      scale:1,
+      phase7OptimisticDragSet:true
+    });
+    const token = ++phase7OptimisticDragSetPreviewSequence;
+    activePhase7OptimisticDragSetPreviewToken = token;
+    return token;
+  }
+
+  function finishPhase7OptimisticDragSetPreview(card, accepted, token){
+    const finish = function(){
+      const ownsPreview = Number(token) === Number(activePhase7OptimisticDragSetPreviewToken);
+      if(ownsPreview && window.FateVfxDirector && typeof window.FateVfxDirector.clearDragPreview === 'function'){
+        window.FateVfxDirector.clearDragPreview();
+      }
+      if(ownsPreview) activePhase7OptimisticDragSetPreviewToken = 0;
+      try { delete card._presentationDeparting; } catch(e) {}
+      try {
+        if(typeof renderBoardActionForPlayer === 'function' && typeof G !== 'undefined' && G){
+          renderBoardActionForPlayer(G.currentPlayer, {hand:true, board:false, scores:false});
+        } else if(typeof renderHand === 'function') {
+          renderHand();
+        }
+      } catch(e) {}
+    };
+    // On success, let the committed authoritative board paint once before the
+    // presentation card is removed. On rejection, reveal the unchanged hand
+    // immediately, which is the visual rollback.
+    if(accepted && typeof requestAnimationFrame === 'function') requestAnimationFrame(finish);
+    else finish();
+  }
 
   function setDraggingFlag(active){
     window.__fateV2DraggingCard = !!active;
@@ -992,8 +1068,25 @@
     const card = state.card;
     if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true
       && typeof window.fatePhase7HandleHandDrop === 'function'){
-      cleanup({clearPlacement:true});
-      window.fatePhase7HandleHandDrop(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
+      const optimisticPreviewToken = beginPhase7OptimisticDragSetPreview(card, hit);
+      cleanup({clearPlacement:true, keepGhost:!!optimisticPreviewToken, keepDeparting:!!optimisticPreviewToken});
+      let result = false;
+      try {
+        result = window.fatePhase7HandleHandDrop(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
+      } catch(error) {
+        if(window.toast) toast(String(error?.message || 'That action could not be sent.'));
+      }
+      if(optimisticPreviewToken){
+        if(result && typeof result.then === 'function'){
+          Promise.resolve(result).then(function(accepted){
+            finishPhase7OptimisticDragSetPreview(card, accepted === true, optimisticPreviewToken);
+          }, function(){
+            finishPhase7OptimisticDragSetPreview(card, false, optimisticPreviewToken);
+          });
+        } else {
+          finishPhase7OptimisticDragSetPreview(card, false, optimisticPreviewToken);
+        }
+      }
       return;
     }
     if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card) && card._achillesConfigured !== true) {
@@ -1164,6 +1257,7 @@
         version:BRIDGE_VERSION,
         active:!!state,
         dragging:!!(state && state.dragging),
+        phase7OptimisticDragSetPreview:phase7OptimisticDragSetPreviewEnabled(),
         organizerOpen:!!handOrganizer,
         ownsBoard:ownsBoard(),
         usesDomHand:false,
@@ -1173,4 +1267,5 @@
   };
   window.fateApplyLocalHandOrder = applyLocalHandOrder;
   window.fateMatchHandDragReport = window.FateMatchHandDragBridge.report;
+  window.setFatePhase7OptimisticDragSetPreviewEnabled = setPhase7OptimisticDragSetPreviewEnabled;
 })();

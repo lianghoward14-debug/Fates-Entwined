@@ -1951,7 +1951,66 @@ function redrawHand(ctx, operation){
   return {discardedIids, drawnIids:drawResult.drawnIids};
 }
 
-export function applyOperation(ctx, operation){
+function captureBoardFateState(state){
+  const snapshot = new Map();
+  for(const entry of boardEntries(state)){
+    const iid = String(entry.card?.iid || '');
+    if(!iid) continue;
+    snapshot.set(iid, {
+      stored:Math.max(0, Number(entry.card.currentFate) || 0),
+      effective:Math.max(0, Number(effectiveFate(state, entry)) || 0)
+    });
+  }
+  return snapshot;
+}
+
+function applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot){
+  if(ctx._resolvingBh15DerivedAura || !(beforeSnapshot instanceof Map)) return;
+  const pending = [];
+  for(const entry of boardEntries(ctx.state)){
+    const card = entry.card;
+    const iid = String(card?.iid || '');
+    if(!iid) continue;
+    const afterStored = Math.max(0, Number(card.currentFate) || 0);
+    const afterEffective = Math.max(0, Number(effectiveFate(ctx.state, entry)) || 0);
+    const previous = beforeSnapshot.get(iid) || {stored:afterStored, effective:afterStored};
+    const derivedGain = (afterEffective - previous.effective) - (afterStored - previous.stored);
+    if(derivedGain <= 0) continue;
+    const controller = controllerOf(card);
+    const sources = boardEntries(ctx.state).filter(sourceEntry=>
+      controllerOf(sourceEntry.card) === controller
+      && sourceEntry.card.faceDown !== true
+      && runtimeRuleId(sourceEntry.card) === 'bh15'
+      && !isEffectSourceSuppressed(ctx.state, sourceEntry)
+    );
+    if(sources.length) pending.push({entry, afterEffective, sources});
+  }
+  if(!pending.length) return;
+  ctx._resolvingBh15DerivedAura = true;
+  try{
+    for(const item of pending){
+      const before = item.afterEffective;
+      commitPermanentFate(item.entry.card, Math.max(0, Number(item.entry.card.currentFate) || 0) + item.sources.length);
+      const after = Math.max(0, Number(effectiveFate(ctx.state, findCard(ctx.state, item.entry.card.iid))) || 0);
+      emit(ctx, {
+        type:RULE_EVENT_TYPES.FATE_CHANGED,
+        cardIid:item.entry.card.iid,
+        before,
+        after,
+        amount:after - before,
+        sourceIid:item.sources[0]?.card?.iid || null,
+        semanticSourceCardId:'bh15',
+        reason:'CHINESE_MACARTHUR_AURA_BONUS',
+        bh15Bonus:item.sources.length,
+        bh15SourceIids:item.sources.map(sourceEntry=>String(sourceEntry.card.iid || ''))
+      });
+    }
+  }finally{
+    ctx._resolvingBh15DerivedAura = false;
+  }
+}
+
+function dispatchOperation(ctx, operation){
   if(!ctx?.state || !Array.isArray(ctx.events) || !Array.isArray(ctx.ruleEvents)){
     throw new TypeError('operation context is invalid');
   }
@@ -1996,4 +2055,23 @@ export function applyOperation(ctx, operation){
     case OPERATION_TYPES.CHANGE_LANDSCAPE: return changeLandscape(ctx, operation);
     default: throw operationError('UNSUPPORTED_OPERATION', `unsupported operation ${operation?.type || '(missing)'}`);
   }
+}
+
+export function applyOperation(ctx, operation){
+  if(!ctx?.state || !Array.isArray(ctx.events) || !Array.isArray(ctx.ruleEvents)){
+    throw new TypeError('operation context is invalid');
+  }
+  const depth = Math.max(0, Number(ctx._operationDepth) || 0);
+  const beforeSnapshot = depth === 0 && !ctx._resolvingBh15DerivedAura
+    ? captureBoardFateState(ctx.state)
+    : null;
+  ctx._operationDepth = depth + 1;
+  let result;
+  try{
+    result = dispatchOperation(ctx, operation);
+  }finally{
+    ctx._operationDepth = depth;
+  }
+  if(depth === 0 && beforeSnapshot) applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot);
+  return result;
 }

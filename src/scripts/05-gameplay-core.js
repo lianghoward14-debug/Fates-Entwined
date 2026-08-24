@@ -8168,8 +8168,9 @@ function activeChineseMacArthurSources(owner) {
   return sources;
 }
 
-function queueChineseMacArthurOverlay(target, sourceIids) {
+function queueChineseMacArthurOverlay(target, sourceIids, options) {
   if(!target || !Array.isArray(sourceIids) || !sourceIids.length || typeof window === 'undefined') return;
+  const opts = options || {};
   const targetKey = String(target.iid || target.id || 'card');
   let state = bh15OverlayQueues.get(targetKey);
   if(!state){
@@ -8177,13 +8178,27 @@ function queueChineseMacArthurOverlay(target, sourceIids) {
     bh15OverlayQueues.set(targetKey, state);
   }
   state.target = target;
-  sourceIids.forEach(function(sourceIid){ state.queue.push(String(sourceIid || 'bh15')); });
+  const startValue = Number.isFinite(Number(opts.startValue)) ? Math.max(0, Number(opts.startValue)) : null;
+  const readyAt = Date.now() + Math.max(0, Number(opts.delayMs) || 780);
+  sourceIids.forEach(function(sourceIid, index){
+    state.queue.push({
+      sourceIid:String(sourceIid || 'bh15'),
+      before:startValue == null ? null : startValue + index,
+      after:startValue == null ? null : startValue + index + 1,
+      readyAt:index === 0 ? readyAt : 0
+    });
+  });
   if(state.running) return;
   state.running = true;
   const presentNext = function(){
     const current = bh15OverlayQueues.get(targetKey);
     if(!current || !current.queue.length){
       bh15OverlayQueues.delete(targetKey);
+      return;
+    }
+    const nextPresentation = current.queue[0];
+    if(nextPresentation && Number(nextPresentation.readyAt || 0) > Date.now()){
+      setTimeout(presentNext, Math.max(20, Number(nextPresentation.readyAt) - Date.now()));
       return;
     }
     const liveTarget = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || current.target;
@@ -8194,12 +8209,41 @@ function queueChineseMacArthurOverlay(target, sourceIids) {
       setTimeout(presentNext, waitMs);
       return;
     }
-    const sourceIid = current.queue.shift();
+    const presentation = current.queue.shift();
+    const sourceIid = presentation.sourceIid;
     if(typeof flashCardEffect === 'function'){
       flashCardEffect(liveTarget, BH15_OVERLAY_KIND, {
         label:'The Chinese MacArthur',
         soundKey:['bh15', sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
       });
+    }
+    if(presentation.before != null && presentation.after != null){
+      const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(liveTarget) : null;
+      const motion = window.FateV2CardMotionFx;
+      let shown = false;
+      if(pos && motion && typeof motion.fateChange === 'function'){
+        shown = !!motion.fateChange(liveTarget, pos.z, pos.r, pos.c, presentation.before, presentation.after, {
+          sourceIid:sourceIid,
+          synchronizeResultFeedback:true,
+          _fatePresentationReady:true
+        });
+      }
+      if(!shown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.presentFateDelta === 'function'){
+        window.FateMatchRendererAdapter.presentFateDelta({
+          iid:targetKey,
+          targetIid:targetKey,
+          card:liveTarget,
+          z:pos && pos.z,
+          r:pos && pos.r,
+          c:pos && pos.c,
+          fromValue:presentation.before,
+          toValue:presentation.after,
+          delta:1
+        });
+      }
+      if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, 'bh15');
+      if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh15-gain', sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+      else if(typeof playSfx === 'function') playSfx('fateGain');
     }
     setTimeout(presentNext, 3535);
   };
@@ -8233,7 +8277,7 @@ function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
     && Number(lastGain.final) === currentFate
     && after === currentFate
     && now - Number(lastGain.at || 0) < 250){
-    return {bonus:0, after:currentFate, sourceIids:[]};
+    return {bonus:0, after:currentFate, baseAfter:Number(lastGain.requestedAfter), sourceIids:[], duplicate:true};
   }
   const bonus = sources.length;
   card.currentFate = currentFate + bonus;
@@ -8244,8 +8288,8 @@ function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
   const sourceIids = sources.map(function(source){ return String(source.iid || source.id || 'bh15'); });
   const finalFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   card._bh15LastFateGain = {turn:turn, before:before, requestedAfter:after, final:finalFate, at:now};
-  queueChineseMacArthurOverlay(card, sourceIids);
-  return {bonus:Math.max(0, finalFate - currentFate), after:finalFate, sourceIids:sourceIids};
+  queueChineseMacArthurOverlay(card, sourceIids, {startValue:after});
+  return {bonus:Math.max(0, finalFate - currentFate), after:finalFate, baseAfter:after, sourceIids:sourceIids};
 }
 if(typeof window !== 'undefined') window.applyChineseMacArthurFateRider = applyChineseMacArthurFateRider;
 
@@ -8272,7 +8316,9 @@ function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
   if(after === before) return;
   if(after > before){
     const rider = applyChineseMacArthurFateRider(card, before, after);
-    after = Math.max(after, Number(rider && rider.after) || after);
+    // The original effect owns the first Fate pulse. Hseih-Ling's permanent
+    // +1 pulses are queued separately with his overlay after it finishes.
+    after = Math.max(before, Number(rider && rider.baseAfter) || after);
   }
   if(card._placementFateReveal) {
     card._placementFateReveal.genericSoundRequested = true;
@@ -8304,6 +8350,43 @@ function recordFateReductionEvent(owner, beforeValue, afterValue, options) {
   }
   G.damageDoneP[owner] = (G.damageDoneP[owner] || 0) + 1;
 }
+
+const bh15DerivedFateSnapshots = new Map();
+function observeChineseMacArthurDerivedFate(card, effectiveValue) {
+  if(!card || (typeof G !== 'undefined' && G && G._onlineRoomCode)) return;
+  const key = String(card.iid || '');
+  if(!key) return;
+  const current = {
+    effective:Math.max(0, Number(effectiveValue) || 0),
+    stored:Math.max(0, Number(card.currentFate ?? card.fate) || 0),
+    turn:Number(G && G.turn || 0)
+  };
+  const previous = bh15DerivedFateSnapshots.get(key);
+  bh15DerivedFateSnapshots.set(key, current);
+  if(!previous || current.effective <= previous.effective || current.stored !== previous.stored) return;
+  // Updating the snapshot before scheduling is sufficient deduplication. Do
+  // not retain a once-per-value/turn signature: if an aura is removed and
+  // legitimately reapplied in the same turn, that is a new Fate gain.
+  setTimeout(function(){
+    const live = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(key)) || card;
+    if(!live) return;
+    const sources = activeChineseMacArthurSources(Number(live.owner));
+    if(!sources.length) return;
+    const storedBefore = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
+    live.currentFate = storedBefore + sources.length;
+    if(Number.isFinite(Number(live._permanentFateCeiling))) live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + sources.length;
+    clampCardToLandscapeFateCap(live);
+    const sourceIids = sources.map(function(source){ return String(source.iid || source.id || 'bh15'); });
+    queueChineseMacArthurOverlay(live, sourceIids, {startValue:current.effective});
+    bh15DerivedFateSnapshots.set(key, {
+      effective:current.effective + sources.length,
+      stored:Math.max(0, Number(live.currentFate ?? live.fate) || 0),
+      turn:current.turn
+    });
+    renderEffectResolutionForPlayer(Number(live.owner), {hand:false, scores:true});
+  }, 0);
+}
+if(typeof window !== 'undefined') window.observeChineseMacArthurDerivedFate = observeChineseMacArthurDerivedFate;
 
 function setCardFateValue(card, newValue, sourceOwner) {
   const options = arguments.length > 3 && arguments[3] ? arguments[3] : null;

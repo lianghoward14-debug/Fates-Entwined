@@ -148,7 +148,11 @@ export function createFlyDataApi({readBody, writeJson}){
   }
   function deckPublic(deck){
     const ratings = Array.isArray(deck.ratings) ? deck.ratings : [];
-    return Object.assign({}, clone(deck), {id:deck.deckId, ratingCount:ratings.length, ratingAvg:ratings.length ? ratings.reduce((n,r)=>n+Number(r.stars||0),0)/ratings.length : 0, commentCount:(deck.comments||[]).length});
+    const publicDeck = clone(deck);
+    for(const key of ['ownerPhotoURL','photoURL','profileImg']){
+      if(/^data:/i.test(String(publicDeck[key] || '')) || String(publicDeck[key] || '').length > 2048) publicDeck[key] = '';
+    }
+    return Object.assign({}, publicDeck, {id:deck.deckId, ratingCount:ratings.length, ratingAvg:ratings.length ? ratings.reduce((n,r)=>n+Number(r.stars||0),0)/ratings.length : 0, commentCount:(deck.comments||[]).length});
   }
   function routeParts(url){ return url.pathname.split('/').filter(Boolean).map(decodeURIComponent); }
   async function handle(req, res, url){
@@ -232,7 +236,7 @@ export function createFlyDataApi({readBody, writeJson}){
         // Requiring a token here made the library and every deck preview fail
         // while Electron was still restoring the persisted Google session.
         if(req.method==='GET'&&!p[2]){const limit=Math.min(80,Number(url.searchParams.get('limit')||40));writeJson(res,200,{ok:true,decks:[...decks.values()].sort((a,b)=>Number(b.updatedAt||b.createdAt)-Number(a.updatedAt||a.createdAt)).slice(0,limit).map(deckPublic)});return true;}
-        if(req.method==='POST'&&!p[2]){const body=await readBody(req),uid=await requireSelf(req,body.uid);if(body.profile)mergeProfile(uid,body.profile);const input=clone(body.deck||body),deckId=cleanId(input.deckId||input.id)||('deck_'+Date.now()+'_'+uid.slice(0,8));const deck=Object.assign({},decks.get(deckId)||{},input,{deckId,id:deckId,ownerUid:uid,uid,updatedAt:Date.now(),createdAt:decks.get(deckId)?.createdAt||Date.now()});decks.set(deckId,deck);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
+        if(req.method==='POST'&&!p[2]){const body=await readBody(req),uid=await requireSelf(req,body.uid);if(body.profile)mergeProfile(uid,body.profile);const input=clone(body.deck||body);for(const key of ['ownerPhotoURL','photoURL','profileImg']){if(/^data:/i.test(String(input[key]||''))||String(input[key]||'').length>2048)input[key]='';}const deckId=cleanId(input.deckId||input.id)||('deck_'+Date.now()+'_'+uid.slice(0,8));const deck=Object.assign({},decks.get(deckId)||{},input,{deckId,id:deckId,ownerUid:uid,uid,updatedAt:Date.now(),createdAt:decks.get(deckId)?.createdAt||Date.now()});decks.set(deckId,deck);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
         const id=cleanId(p[2]),deck=decks.get(id);if(!deck)throw Object.assign(new Error('deck not found'),{status:404});
         if(req.method==='GET'){writeJson(res,200,{ok:true,deck:deckPublic(deck)});return true;}
         const body=await readBody(req),uid=await requireSelf(req,body.uid);

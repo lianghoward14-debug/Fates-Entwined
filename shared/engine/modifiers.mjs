@@ -34,6 +34,16 @@ export function effectiveCardType(_state, card){
   return override ? String(override).slice(5) : (declaredType || structuralType);
 }
 
+export function structuralCardType(state, card){
+  const structuralType = String(card?.counters?.bh14OriginalType || card?.type || '');
+  const globalOverride = (state?.statuses || []).find(status=>
+    status?.type === 'SUPPORTERS_AS_CHARACTERS'
+    && Number(status.playerIndex) === controllerOf(card)
+    && Number(status.remainingTargetTurns || 0) > 0
+  );
+  return globalOverride && structuralType === 'Supporter' ? 'Character' : structuralType;
+}
+
 export function effectiveCost(_state, card){
   if(isEffectImmutable(card)) return Math.max(0, Number(card?.cost) || 0);
   const modifiers = (card?.statuses || [])
@@ -345,7 +355,10 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
   const card = entry?.card;
   if(!card || entry.zone !== 'board') return rejection('INVALID_TRIBUTE', 'tribute must be on the board');
   if(controllerOf(card) !== Number(playerIndex)) return rejection('INVALID_TRIBUTE', 'tribute is not controlled by the consolidating player');
-  const cardType = effectiveCardType(state, card);
+  // Chloe changes the card's effect-facing label, not how its physical card is
+  // played. A printed Supporter remains a reinforcement tribute, while a
+  // printed Character declared Supporter does not become one.
+  const cardType = structuralCardType(state, card);
   if(cardType !== 'Supporter'){
     if(['99', '100'].includes(String(consolidationCard?.id || ''))){
       if(isEffectImmutable(card)){

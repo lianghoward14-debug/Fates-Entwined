@@ -12,6 +12,7 @@
   let publicDecksRefreshPromise = null;
   let publicDecksPollTimer = 0;
   let publicDeckViewToken = 0;
+  let publicDeckOpeningId = '';
   let publicDecksLastRefreshAt = 0;
   let publicDecksPage = 0;
   let marketplaceTxPage = 0;
@@ -121,7 +122,14 @@
     return p.photoURL || p.profileImg || 'blank.png';
   }
   function publicDeckProfilePayload(p){
-    const src = profilePhoto();
+    const resolved = profilePhoto();
+    // Never put an uploaded base64 portrait into every public-deck row. Besides
+    // bloating a two-deck feed to almost 100 KB, Electron could fail while
+    // cloning/fetching these payloads. Public surfaces can fall back to the
+    // packaged blank portrait until a compact asset/https reference exists.
+    const src = /^data:/i.test(String(resolved || '')) || String(resolved || '').length > 2048
+      ? ''
+      : String(resolved || '');
     return {
       uid:user()?.uid || p?.uid || '',
       name:p?.chosenUsername || p?.displayName || p?.username || profileName(),
@@ -256,31 +264,43 @@
     const token = await account?.getIdToken?.().catch(()=> '');
     if(method !== 'GET' && !token) throw new Error('Your Google account is still restoring. Please try again in a moment.');
     if(token) headers.authorization = 'Bearer ' + token;
+    const directRequest = async function(){
+      const init = {method, headers};
+      if(method === 'GET') init.cache = 'no-store';
+      if(opts.body !== undefined){
+        headers['content-type'] = 'application/json';
+        init.body = JSON.stringify(opts.body || {});
+      }
+      const res = await fetch(base + path, init);
+      if(!res.ok){
+        const bodyText = await res.text().catch(()=> '');
+        throw new Error('Fly economy API failed: ' + res.status + (bodyText ? ' ' + bodyText.slice(0, 160) : ''));
+      }
+      return await res.json();
+    };
     const electronApi = window.FateElectronFlyApi;
     if(electronApi && typeof electronApi.request === 'function'){
-      const bridged = await electronApi.request({
-        route:path,
-        method,
-        authorization:token ? 'Bearer ' + token : '',
-        body:opts.body
-      });
-      if(!bridged?.ok){
-        throw new Error('Fly economy API failed: ' + Number(bridged?.status || 0) + ' ' + String(bridged?.error || bridged?.data?.error || bridged?.text || 'request failed').slice(0,160));
+      try{
+        const bridged = await electronApi.request({
+          route:path,
+          method,
+          authorization:token ? 'Bearer ' + token : '',
+          body:opts.body
+        });
+        if(bridged?.ok) return bridged.data || {};
+        const bridgeStatus = Number(bridged?.status || 0);
+        // A real HTTP response (auth, validation, ownership, and so on) is
+        // authoritative. A status-zero bridge/network failure gets one direct
+        // CORS-safe attempt so a stale Electron bridge cannot disable the page.
+        if(bridgeStatus > 0){
+          throw new Error('Fly economy API failed: ' + bridgeStatus + ' ' + String(bridged?.error || bridged?.data?.error || bridged?.text || 'request failed').slice(0,160));
+        }
+      }catch(error){
+        if(/^Fly economy API failed: [1-9]/.test(String(error?.message || ''))) throw error;
       }
-      return bridged.data || {};
+      return await directRequest();
     }
-    const init = {method, headers};
-    if(method === 'GET') init.cache = 'no-store';
-    if(opts.body !== undefined){
-      headers['content-type'] = 'application/json';
-      init.body = JSON.stringify(opts.body || {});
-    }
-    const res = await fetch(base + path, init);
-    if(!res.ok){
-      const text = await res.text().catch(()=> '');
-      throw new Error('Fly economy API failed: ' + res.status + (text ? ' ' + text.slice(0, 160) : ''));
-    }
-    return await res.json();
+    return await directRequest();
   }
   function applyFlyMarketplacePayload(data){
     marketplaceListings = Array.isArray(data?.listings) ? data.listings : [];
@@ -313,7 +333,7 @@
       try{
         // Do not replace live buttons every polling interval. Rebuild only
         // when the feed actually changed (or when loading first completes).
-        if(publicDecksChanged && publicDecksHubOpen()) showPublicDecks(publicDecksPage);
+        if(publicDecksChanged && publicDecksHubOpen() && !publicDeckOpeningId) showPublicDecks(publicDecksPage);
       }catch(e){ console.warn('Public decks refresh failed', e); }
       return data;
     })();
@@ -437,13 +457,14 @@
     const ids = Array.isArray(deck.ids) ? deck.ids.slice(0, 80) : [];
     const uniqueIds = Array.from(new Set(ids));
     const displayCardIds = (Array.isArray(deck.displayCardIds) && deck.displayCardIds.length ? deck.displayCardIds : uniqueIds).slice(0,4);
+    const compactProfile = publicDeckProfilePayload(p);
     const base = {
       id,
       deckId:id,
       ownerUid:uid,
       username:p.chosenUsername || p.displayName || profileName(),
       ownerName:p.chosenUsername || p.displayName || profileName(),
-      ownerPhotoURL:profilePhoto(),
+      ownerPhotoURL:compactProfile.photoURL,
       name:String(deck.name || 'Shared Deck').slice(0,80),
       description:String(deck.description || '').slice(0,240),
       faceCardId:deck.faceCardId || displayCardIds[0] || '',
@@ -470,7 +491,7 @@
     if(publicDeckApiEnabled()){
       const data = await flyApiRequest('/api/public-decks', {
         method:'POST',
-        body:{uid, profile:publicDeckProfilePayload(p), deck:detail}
+        body:{uid, profile:compactProfile, deck:detail}
       });
       const saved = normalizePublicDeck(data.deck || detail);
       publicDeckDetailCache.set(saved.deckId || saved.id, saved);
@@ -1213,10 +1234,11 @@
 
   window.viewPublicDeck = async function viewPublicDeck(id){
     const viewToken = ++publicDeckViewToken;
+    publicDeckOpeningId = String(id || '');
     clearTimeout(publicDecksPollTimer);
     publicDecksPollTimer = 0;
     let d = publicDeckById(id);
-    if(!d) return;
+    if(!d){ publicDeckOpeningId = ''; return; }
     const openingCard = Array.from(document.querySelectorAll('#modal-body .pdx-card[data-public-deck-id]')).find(function(card){
       return String(card.dataset.publicDeckId || '') === String(id);
     });
@@ -1239,6 +1261,7 @@
         });
       }
     }catch(error){
+      publicDeckOpeningId = '';
       if(openingCard) openingCard.classList.remove('is-opening');
       if(openingButton){
         openingButton.disabled = false;
@@ -1249,7 +1272,11 @@
       if(window.toast) toast(reason ? 'Could not open deck: ' + reason : 'Could not open deck.', 5200);
       return;
     }
-    if(viewToken !== publicDeckViewToken || !publicDecksModalOpen()) return;
+    if(viewToken !== publicDeckViewToken || !publicDecksModalOpen()){
+      publicDeckOpeningId = '';
+      return;
+    }
+    publicDeckOpeningId = '';
     if(typeof resetModalChrome === 'function') resetModalChrome();
     applyPublicDeckModalChrome('public-deck-preview-modal');
     const counts = {};
