@@ -1,4 +1,5 @@
 import {boardEntries, controllerOf, findCard} from './selectors.mjs';
+import {zoneScore} from './scoring.mjs';
 import {
   canTarget,
   coordinatorAuraPotencyBoost,
@@ -310,6 +311,30 @@ export function collectTriggeredOperations(state, event){
       String(entry.card.iid) === String(event.cardIid)
     );
     if(consolidated && !isEffectImmutable(consolidated.card)){
+      const playerIndex = Number(event.playerIndex);
+      const opponentIndex = playerIndex === 0 ? 1 : 0;
+      const controllerTotal = [0, 1, 2].reduce((sum, z)=>sum + zoneScore(state, z, playerIndex), 0);
+      const opponentTotal = [0, 1, 2].reduce((sum, z)=>sum + zoneScore(state, z, opponentIndex), 0);
+      if(controllerTotal > opponentTotal){
+        for(const sourceEntry of boardEntries(state).filter(entry=>
+          controllerOf(entry.card) === playerIndex
+          && String(entry.card.iid) !== String(event.cardIid)
+          && entry.card.faceDown !== true
+          && runtimeRuleId(entry.card) === 'bh17'
+          && !isEffectSourceSuppressed(state, entry)
+        )){
+          operations.push({
+            type:'MODIFY_FATE',
+            targetIid:event.cardIid,
+            amount:3,
+            sourceIid:sourceEntry.card.iid,
+            semanticSourceCardId:'bh17',
+            sourceController:playerIndex,
+            reason:'CRUSHING_MOMENTUM',
+            bypassReaction:true
+          });
+        }
+      }
       if(state.landscapeId === 'igb3'
         && Number(state.landscapeState.targetZone) === Number(event.destination?.z)
         && state.turn < 10

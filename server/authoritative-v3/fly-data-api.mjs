@@ -19,6 +19,10 @@ export function createFlyDataApi({readBody, writeJson}){
   }
   const profiles = mapBy(snapshot.playerStats, 'uid');
   const aiRecords = mapBy(snapshot.aiRecords, 'aiId');
+  let aiMatches = Array.isArray(snapshot.aiMatches) ? snapshot.aiMatches.map(clone) : [];
+  let aiSimulationSchedule = snapshot.aiSimulationSchedule && typeof snapshot.aiSimulationSchedule === 'object'
+    ? clone(snapshot.aiSimulationSchedule)
+    : {};
   const saves = mapBy(snapshot.playerSaves, 'uid');
   const decks = mapBy(snapshot.publicDecks, 'deckId');
   const listings = mapBy(snapshot.marketplaceListings, 'listingId');
@@ -46,6 +50,7 @@ export function createFlyDataApi({readBody, writeJson}){
   function serialize(){
     return Object.assign({}, snapshot, {
       playerStats:[...profiles.values()], aiRecords:[...aiRecords.values()], playerSaves:[...saves.values()], publicDecks:[...decks.values()],
+      aiMatches:aiMatches.slice(-500), aiSimulationSchedule:clone(aiSimulationSchedule),
       marketplaceListings:[...listings.values()], marketplaceTransactions:marketplaceTransactions.slice(-500),
       friends:[...friends.entries()].map(([uid,set])=>({uid,friends:[...set]})), friendRequests:requests,
       parties:[...parties.values()], partyInvites, worldChatSeq:worldSeq, worldChat:worldChat.slice(-200),
@@ -154,6 +159,72 @@ export function createFlyDataApi({readBody, writeJson}){
     }
     return Object.assign({}, publicDeck, {id:deck.deckId, ratingCount:ratings.length, ratingAvg:ratings.length ? ratings.reduce((n,r)=>n+Number(r.stars||0),0)/ratings.length : 0, commentCount:(deck.comments||[]).length});
   }
+  function runChallengerAiSimulation(monthKey, requestedCount, claimedBy){
+    const season = cleanId(monthKey,24);
+    const now = Date.now();
+    const cadenceMs = 60 * 60 * 1000;
+    const scheduleKey = season || 'current';
+    const previous = aiSimulationSchedule[scheduleKey] || {};
+    if(Number(previous.lastRunAt || 0) && now - Number(previous.lastRunAt) < cadenceMs){
+      return {ran:0, matches:[], nextAt:Number(previous.lastRunAt) + cadenceMs};
+    }
+    const roster = [...aiRecords.values()].filter(record=>!season || !record.monthKey || cleanId(record.monthKey,24) === season);
+    if(roster.length < 2) return {ran:0, matches:[], nextAt:now};
+    const shuffled = roster.slice();
+    for(let i=shuffled.length-1;i>0;i--){
+      const j = crypto.randomInt(i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const maximumPairs = Math.floor(shuffled.length / 2);
+    const count = Math.max(1, Math.min(maximumPairs, 200, Math.round(Number(requestedCount) || maximumPairs)));
+    const matches = [];
+    for(let i=0;i<count;i++){
+      const a = clone(shuffled[i * 2]);
+      const b = clone(shuffled[i * 2 + 1]);
+      if(!a || !b) continue;
+      const aId = cleanId(a.aiId || a.id || a.name,128);
+      const bId = cleanId(b.aiId || b.id || b.name,128);
+      if(!aId || !bId || aId === bId) continue;
+      const aElo = Math.max(100,Number(a.elo ?? a.challengerElo ?? 600)||600);
+      const bElo = Math.max(100,Number(b.elo ?? b.challengerElo ?? 600)||600);
+      const aStrength = Math.max(100,Number(a.trueElo ?? aElo)||aElo);
+      const bStrength = Math.max(100,Number(b.trueElo ?? bElo)||bElo);
+      const aChance = 1/(1+Math.pow(10,(bStrength-aStrength)/400));
+      const aWins = crypto.randomInt(1000000) < Math.round(aChance * 1000000);
+      const expectedA = 1/(1+Math.pow(10,(bElo-aElo)/400));
+      let aDelta = Math.round(24*((aWins?1:0)-expectedA));
+      if(aWins && aDelta <= 0) aDelta = 1;
+      if(!aWins && aDelta >= 0) aDelta = -1;
+      const bDelta = -aDelta;
+      a.elo = a.challengerElo = Math.max(100,Math.round(aElo+aDelta));
+      b.elo = b.challengerElo = Math.max(100,Math.round(bElo+bDelta));
+      a.wins = a.challengerWins = Number(a.wins ?? a.challengerWins ?? 0)+(aWins?1:0);
+      a.losses = a.challengerLosses = Number(a.losses ?? a.challengerLosses ?? 0)+(aWins?0:1);
+      b.wins = b.challengerWins = Number(b.wins ?? b.challengerWins ?? 0)+(aWins?0:1);
+      b.losses = b.challengerLosses = Number(b.losses ?? b.challengerLosses ?? 0)+(aWins?1:0);
+      a.matchesPlayed = Math.max(Number(a.matchesPlayed||0)+1,a.wins+a.losses);
+      b.matchesPlayed = Math.max(Number(b.matchesPlayed||0)+1,b.wins+b.losses);
+      a.updatedAt = b.updatedAt = now;
+      aiRecords.set(aId,a);
+      aiRecords.set(bId,b);
+      const aName = cleanId(a.name || a.username || aId,120);
+      const bName = cleanId(b.name || b.username || bId,120);
+      matches.push({
+        matchId:['ai',season||'season',now,i,aId,bId].join('_'),
+        p1:aName,p2:bName,winner:aWins?aName:bName,
+        p1AiId:aId,p2AiId:bId,winnerAiId:aWins?aId:bId,
+        p1Change:aDelta,p2Change:bDelta,p1Elo:a.elo,p2Elo:b.elo,
+        p1Img:a.photoURL||a.profileImg||null,p2Img:b.photoURL||b.profileImg||null,
+        isSimulated:true,simulated:true,createdAt:now,timestamp:now
+      });
+    }
+    if(matches.length){
+      aiMatches = aiMatches.concat(matches).slice(-500);
+      aiSimulationSchedule[scheduleKey] = {lastRunAt:now,claimedBy:cleanId(claimedBy,128),count:matches.length};
+      persist();
+    }
+    return {ran:matches.length,matches,nextAt:now+cadenceMs};
+  }
   function routeParts(url){ return url.pathname.split('/').filter(Boolean).map(decodeURIComponent); }
   async function handle(req, res, url){
     if(!url.pathname.startsWith('/api/')) return false;
@@ -184,12 +255,16 @@ export function createFlyDataApi({readBody, writeJson}){
         current.updatedAt=Date.now();profiles.set(uid,current);persist();writeJson(res,200,{ok:true,profile:clone(current),result:{oldElo,newElo,delta,didWin,didLose,isDraw}});return true;
       }
       if(req.method==='POST' && p[1]==='challenger-ai' && ['seed','simulate'].includes(p[2])){
-        const body=await readBody(req);await requireSelf(req,body.uid);
+        const body=await readBody(req);const uid=await requireSelf(req,body.uid);
         if(p[2]==='seed') for(const incoming of (Array.isArray(body.roster)?body.roster:[])){
           const aiId=cleanId(incoming.aiId||incoming.id||incoming.name,128);if(!aiId)continue;
           aiRecords.set(aiId,Object.assign({},clone(incoming),aiRecords.get(aiId)||{},{aiId,monthKey:cleanId(body.monthKey,24),updatedAt:Date.now()}));
         }
-        persist();writeJson(res,200,{ok:true,roster:[...aiRecords.values()].map(clone),matches:[]});return true;
+        if(p[2]==='simulate'){
+          const result=runChallengerAiSimulation(body.monthKey,body.count,uid);
+          writeJson(res,200,{ok:true,ran:result.ran,nextAt:result.nextAt,roster:[...aiRecords.values()].map(clone),matches:result.matches.map(clone)});return true;
+        }
+        persist();writeJson(res,200,{ok:true,ran:0,roster:[...aiRecords.values()].map(clone),matches:[]});return true;
       }
       if(req.method==='GET' && url.pathname==='/api/social/state'){
         const uid=await requireSelf(req,url.searchParams.get('uid'));writeJson(res,200,Object.assign({ok:true},stateFor(uid)));return true;

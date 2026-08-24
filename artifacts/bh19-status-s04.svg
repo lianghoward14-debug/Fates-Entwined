@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="10" width="40" height="44" rx="7"/>
+    <path d="M23 32h18M32 23v18" opacity=".58"/>
+  </g>
+  <g fill="currentColor" font-family="Georgia,serif" font-size="10" font-weight="700" text-anchor="middle">
+    <text x="32" y="22">Zn</text><text x="32" y="50">Mg</text>
+  </g>
+</svg>

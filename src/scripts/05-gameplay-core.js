@@ -1204,8 +1204,101 @@ function resolveCaliforniqueHandExpiryForPlayer(player) {
 }
 window.resolveCaliforniqueHandExpiryForPlayer = resolveCaliforniqueHandExpiryForPlayer;
 
+function getHighTPotencyCount(playerIndex) {
+  if(!G || !Array.isArray(G._bh19HighTStatuses)) return 0;
+  return G._bh19HighTStatuses.filter(function(status){
+    return Number(status.playerIndex) === Number(playerIndex)
+      && Number(status.turn) === Number(G.turn);
+  }).length;
+}
+window.getHighTPotencyCount = getHighTPotencyCount;
+
+function activateHighTForTurn(card, playerIndex) {
+  if(!G || !card) return false;
+  if(!Array.isArray(G._bh19HighTStatuses)) G._bh19HighTStatuses = [];
+  const sourceIid = String(card.iid || card.id || 'bh19');
+  if(G._bh19HighTStatuses.some(function(status){
+    return String(status.sourceIid) === sourceIid && Number(status.turn) === Number(G.turn);
+  })) return false;
+  G._bh19HighTStatuses.push({
+    type:'PERMANENT_FATE_GAIN_POTENCY',
+    sourceIid:sourceIid,
+    playerIndex:Number(playerIndex),
+    turn:Number(G.turn),
+    reason:'HIGH_T'
+  });
+  const songKey = ['high-t', String(G._onlineRoomCode || 'local'), Number(G.turn), Number(playerIndex)].join(':');
+  if(typeof window.playBh19TurnSongOnce === 'function') window.playBh19TurnSongOnce(songKey);
+  toast('High-T active: permanent Fate gain effects are doubled for this turn.');
+  if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  return true;
+}
+window.activateHighTForTurn = activateHighTForTurn;
+
+function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
+  if(!G || !G.players || !G.players[endingPlayer]) return [];
+  const sourceOwner = Number(endingPlayer) === 0 ? 1 : 0;
+  const sources = [];
+  forEachBoardCard(function(card, z, r, c){
+    if(!card || card.owner !== sourceOwner || !cardActsAsPassive(card, 'bh18') || isFaceDownCard(card)) return;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)) return;
+    sources.push(card);
+  });
+  const discarded = [];
+  sources.forEach(function(source, index){
+    const deck = G.players[endingPlayer].deck;
+    if(!Array.isArray(deck) || !deck.length) return;
+    const deckIndex = Math.floor(Math.random() * deck.length);
+    const card = deck.splice(deckIndex, 1)[0];
+    if(!card) return;
+    fatePushDiscard(endingPlayer, card, {sound:false});
+    discarded.push(card);
+    flashCardEffect(source, 'bh18_genesis_inceldom', {
+      label:'The Genesis of all Inceldom',
+      soundKey:['bh18', String(source.iid || source.id), Number(G.turn), index].join(':')
+    });
+    setTimeout(function(){
+      toast('The Genesis of all Inceldom sent ' + (card.name || 'a card') + ' from the deck to the discard pile.');
+    }, index * 260);
+  });
+  if(discarded.length && typeof playDiscardSfx === 'function') playDiscardSfx();
+  return discarded;
+}
+window.resolveGenesisOfAllInceldomAtTurnEnd = resolveGenesisOfAllInceldomAtTurnEnd;
+
+function applyCrushingMomentumAfterConsolidation(card, playerIndex) {
+  if(!G || !card) return 0;
+  const ownTotal = [0, 1, 2].reduce(function(sum, z){ return sum + getZoneScore(z, playerIndex); }, 0);
+  const opponent = Number(playerIndex) === 0 ? 1 : 0;
+  const opponentTotal = [0, 1, 2].reduce(function(sum, z){ return sum + getZoneScore(z, opponent); }, 0);
+  if(ownTotal <= opponentTotal) return 0;
+  const sources = [];
+  forEachBoardCard(function(source, z, r, c){
+    if(!source || source.owner !== Number(playerIndex) || !cardActsAsPassive(source, 'bh17') || isFaceDownCard(source)) return;
+    if(String(source.iid || '') === String(card.iid || '')) return;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source, z, r, c)) return;
+    sources.push(source);
+  });
+  sources.forEach(function(source, index){
+    modifyFate(card, 3, 'permanent', playerIndex);
+    flashCardEffect(card, 'bh17_crushing_momentum', {
+      label:'Crushing Momentum',
+      soundKey:['bh17', String(source.iid || source.id), String(card.iid || card.id), Number(G.turn), index].join(':')
+    });
+  });
+  return sources.length;
+}
+window.applyCrushingMomentumAfterConsolidation = applyCrushingMomentumAfterConsolidation;
+
 async function nextPlayerTurn() {
   const endingPlayer = G.currentPlayer;
+  if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
+  if(!G._onlineRoomCode) resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer);
+  if(!G._onlineRoomCode && Array.isArray(G._bh19HighTStatuses)){
+    G._bh19HighTStatuses = G._bh19HighTStatuses.filter(function(status){
+      return Number(status.playerIndex) !== Number(endingPlayer);
+    });
+  }
   resolveCaliforniqueHandExpiryForPlayer(endingPlayer);
   expireBusserTurnsForPlayer(endingPlayer);
   finishWojciechTurnState(endingPlayer);
@@ -4344,7 +4437,12 @@ function applyMarieDeterranceForConsolidation(consolidatingPlayer, zoneIndex, co
       if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, cell);
     });
   });
-  if(activations && typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  if(activations){
+    if(typeof window.showZoneFateDecrease === 'function') window.showZoneFateDecrease(z, consolidatingPlayer, activations * 4, {
+      soundKey:['marie-zone-loss', z, consolidatingPlayer, Number(G.turn || 0), String(consolidatedCard && (consolidatedCard.iid || consolidatedCard.id) || '')].join(':')
+    });
+    if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+  }
   return activations;
 }
 if(typeof window !== 'undefined') window.applyMarieDeterranceForConsolidation = applyMarieDeterranceForConsolidation;
@@ -4416,6 +4514,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     }
     applyMarieDeterranceForConsolidation(cp, targetZ, inst);
     G.board[targetZ][targetR][targetC] = inst;
+    applyCrushingMomentumAfterConsolidation(inst, cp);
     if(typeof window.fateAIRecordDecision === 'function') {
       window.fateAIRecordDecision({player:cp, action:'c', card:inst, zone:targetZ, row:targetR, faceDown:!!useFaceDown, tributes:tributes});
     }
@@ -5081,7 +5180,7 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh14','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh14','bh19','bh25']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
@@ -6391,6 +6490,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     case 'bh14':
       await chooseCharterOfUnitedNationsType(inst, cp);
+      break;
+    case 'bh19':
+      activateHighTForTurn(inst, cp);
       break;
     case '02': // Anicka Konvicka: create extra safe row in this zone
       {
@@ -8139,7 +8241,9 @@ function activateLiHuaStormOfTenThousandBlades(card, zoneIndex, owner) {
         soundKey:['bh16', String(card.iid || card.id), String(G.turn || 0), String(card.usesLeft), String(index)].join(':')
       });
     });
-    if(typeof playSfx === 'function') playSfx('fateReduce');
+    if(typeof window.showZoneFateDecrease === 'function') window.showZoneFateDecrease(z, opponent, reduction, {
+      soundKey:['lihua-zone-loss', z, opponent, Number(G.turn || 0), String(card.usesLeft)].join(':')
+    });
   }
   toast('Storm of Ten Thousand Blades: ' + reduction + ' Eventide card' + (reduction === 1 ? '' : 's')
     + ' reduced the opponent\'s Zone ' + (z + 1) + ' Fate by ' + reduction
@@ -8155,6 +8259,83 @@ if(typeof window !== 'undefined') {
 
 const BH15_OVERLAY_KIND = 'bh15_chinese_macarthur';
 const bh15OverlayQueues = new Map();
+const BH19_OVERLAY_KIND = 'bh19_high_t';
+const bh19OverlayQueues = new Map();
+
+function queueHighTPotencyOverlay(target, sourceIids, options) {
+  if(!target || !Array.isArray(sourceIids) || !sourceIids.length || typeof window === 'undefined') return;
+  const opts = options || {};
+  const targetKey = String(target.iid || target.id || 'card');
+  let state = bh19OverlayQueues.get(targetKey);
+  if(!state){
+    state = {target:target, queue:[], running:false};
+    bh19OverlayQueues.set(targetKey, state);
+  }
+  state.target = target;
+  const startValue = Math.max(0, Number(opts.startValue) || 0);
+  const totalBonus = Math.max(0, Number(opts.totalBonus) || 0);
+  const step = sourceIids.length ? totalBonus / sourceIids.length : 0;
+  const readyAt = Date.now() + Math.max(0, Number(opts.delayMs) || 820);
+  sourceIids.forEach(function(sourceIid, index){
+    state.queue.push({
+      sourceIid:String(sourceIid || ('bh19-' + index)),
+      before:startValue + step * index,
+      after:startValue + step * (index + 1),
+      readyAt:index === 0 ? readyAt : 0
+    });
+  });
+  if(state.running) return;
+  state.running = true;
+  const presentNext = function(){
+    const current = bh19OverlayQueues.get(targetKey);
+    if(!current || !current.queue.length){ bh19OverlayQueues.delete(targetKey); return; }
+    const next = current.queue[0];
+    if(Number(next.readyAt || 0) > Date.now()){
+      setTimeout(presentNext, Math.max(20, Number(next.readyAt) - Date.now()));
+      return;
+    }
+    const liveTarget = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || current.target;
+    const activeFlash = liveTarget && liveTarget._effectFlash;
+    const now = Date.now();
+    if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
+      setTimeout(presentNext, Math.max(40, Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500) - now + 35));
+      return;
+    }
+    const presentation = current.queue.shift();
+    const shown = typeof flashCardEffect === 'function' && flashCardEffect(liveTarget, BH19_OVERLAY_KIND, {
+      label:'High-T',
+      soundKey:['bh19-overlay', presentation.sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
+    });
+    if(shown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+      window.FateMatchRendererAdapter.renderFromGameState({source:'bh19-overlay-fate-pair-start'});
+    }
+    const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(liveTarget) : null;
+    const motion = window.FateV2CardMotionFx;
+    let motionShown = false;
+    if(pos && motion && typeof motion.fateChange === 'function'){
+      motionShown = !!motion.fateChange(liveTarget, pos.z, pos.r, pos.c, presentation.before, presentation.after, {
+        sourceIid:presentation.sourceIid,
+        synchronizeResultFeedback:true,
+        _fatePresentationReady:true,
+        pairedEffectOverlayKind:BH19_OVERLAY_KIND
+      });
+    }
+    if(!motionShown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.presentFateDelta === 'function'){
+      window.FateMatchRendererAdapter.presentFateDelta({
+        iid:targetKey, targetIid:targetKey, card:liveTarget,
+        z:pos && pos.z, r:pos && pos.r, c:pos && pos.c,
+        fromValue:presentation.before, toValue:presentation.after,
+        delta:presentation.after - presentation.before
+      });
+    }
+    if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, 'bh19');
+    if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh19-gain', presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+    else if(typeof playSfx === 'function') playSfx('fateGain');
+    setTimeout(presentNext, 3535);
+  };
+  setTimeout(presentNext, 0);
+}
+if(typeof window !== 'undefined') window.queueHighTPotencyOverlay = queueHighTPotencyOverlay;
 
 function activeChineseMacArthurSources(owner) {
   const sources = [];
@@ -8180,9 +8361,12 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
   state.target = target;
   const startValue = Number.isFinite(Number(opts.startValue)) ? Math.max(0, Number(opts.startValue)) : null;
   const readyAt = Date.now() + Math.max(0, Number(opts.delayMs) || 780);
+  // Every active Hseih-Ling source contributes its own permanent +1, so keep
+  // one queued overlay/number presentation per source position. The indexed
+  // fallback preserves two physical copies even if legacy state lacks IIDs.
   sourceIids.forEach(function(sourceIid, index){
     state.queue.push({
-      sourceIid:String(sourceIid || 'bh15'),
+      sourceIid:String(sourceIid || ('bh15-' + index)),
       before:startValue == null ? null : startValue + index,
       after:startValue == null ? null : startValue + index + 1,
       readyAt:index === 0 ? readyAt : 0
@@ -8211,11 +8395,18 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
     }
     const presentation = current.queue.shift();
     const sourceIid = presentation.sourceIid;
+    let overlayShown = false;
     if(typeof flashCardEffect === 'function'){
-      flashCardEffect(liveTarget, BH15_OVERLAY_KIND, {
+      overlayShown = !!flashCardEffect(liveTarget, BH15_OVERLAY_KIND, {
         label:'The Chinese MacArthur',
         soundKey:['bh15', sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
       });
+    }
+    // flashCardEffect normally schedules a later canvas paint. Force the
+    // status icon into the current frame before the paired +1 recipe starts,
+    // so neither the number nor its sound can visibly lead the Hseih overlay.
+    if(overlayShown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+      window.FateMatchRendererAdapter.renderFromGameState({source:'bh15-overlay-fate-pair-start'});
     }
     if(presentation.before != null && presentation.after != null){
       const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(liveTarget) : null;
@@ -8225,7 +8416,8 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
         shown = !!motion.fateChange(liveTarget, pos.z, pos.r, pos.c, presentation.before, presentation.after, {
           sourceIid:sourceIid,
           synchronizeResultFeedback:true,
-          _fatePresentationReady:true
+          _fatePresentationReady:true,
+          pairedEffectOverlayKind:BH15_OVERLAY_KIND
         });
       }
       if(!shown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.presentFateDelta === 'function'){
@@ -8279,13 +8471,16 @@ function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
     && now - Number(lastGain.at || 0) < 250){
     return {bonus:0, after:currentFate, baseAfter:Number(lastGain.requestedAfter), sourceIids:[], duplicate:true};
   }
-  const bonus = sources.length;
+  const bonus = sources.length * (1 + getHighTPotencyCount(owner));
   card.currentFate = currentFate + bonus;
   if(Number.isFinite(Number(card._permanentFateCeiling))){
     card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + bonus;
   }
   clampCardToLandscapeFateCap(card);
-  const sourceIids = sources.map(function(source){ return String(source.iid || source.id || 'bh15'); });
+  const highTRepeats = 1 + getHighTPotencyCount(owner);
+  const sourceIids = sources.flatMap(function(source){
+    return Array.from({length:highTRepeats}, function(){ return String(source.iid || source.id || 'bh15'); });
+  });
   const finalFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   card._bh15LastFateGain = {turn:turn, before:before, requestedAfter:after, final:finalFate, at:now};
   queueChineseMacArthurOverlay(card, sourceIids, {startValue:after});
@@ -8301,12 +8496,29 @@ function modifyFate(card, amount, type) {
     return applyPermanentFateDebuff(card, Math.abs(Number(amount) || 0), sourceOwner);
   }
   const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-  card.currentFate = Math.max(0, before + amount);
-  if(String(type || '').toLowerCase() === 'permanent' && Number(amount) > 0 && Number.isFinite(Number(card._permanentFateCeiling))) {
-    card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + Number(amount);
+  const numericAmount = Number(amount) || 0;
+  const permanentGain = numericAmount > 0 && String(type || 'permanent').toLowerCase() !== 'temporary';
+  const highTCount = permanentGain ? getHighTPotencyCount(sourceOwner) : 0;
+  const highTMultiplier = 1 + highTCount;
+  const resolvedAmount = numericAmount * highTMultiplier;
+  const baseAfter = Math.max(0, before + numericAmount);
+  card.currentFate = Math.max(0, before + resolvedAmount);
+  if(permanentGain && Number.isFinite(Number(card._permanentFateCeiling))) {
+    card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + resolvedAmount;
   }
   clampCardToLandscapeFateCap(card);
-  playFateChangeSound(card, before, card.currentFate, sourceOwner);
+  if(highTCount > 0){
+    const sources = (G._bh19HighTStatuses || []).filter(function(status){
+      return Number(status.playerIndex) === Number(sourceOwner) && Number(status.turn) === Number(G.turn);
+    }).map(function(status){ return String(status.sourceIid || 'bh19'); });
+    card._suppressNextFatePulse = true;
+    queueHighTPotencyOverlay(card, sources, {
+      startValue:baseAfter,
+      totalBonus:Math.max(0, Number(card.currentFate) - baseAfter),
+      delayMs:820
+    });
+  }
+  playFateChangeSound(card, before, highTCount > 0 ? baseAfter : card.currentFate, sourceOwner);
 }
 
 function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
@@ -10039,4 +10251,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh14','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh14','bh19','bh25']);

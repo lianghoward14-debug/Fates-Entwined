@@ -3386,6 +3386,34 @@ function renderZoneScoreMarkup(z, s0, s1, ctrl) {
         <span class="zone-score-bar"><span class="zone-score-bar-p1" style="width:${p1pct}%"></span><span class="zone-score-bar-p2" style="width:${p2pct}%"></span></span>`;
 }
 
+function showZoneFateDecrease(zoneIndex, playerIndex, amount, options) {
+  const z = Number(zoneIndex);
+  const player = Number(playerIndex);
+  const loss = Math.max(0, Math.round(Math.abs(Number(amount) || 0)));
+  if(!Number.isInteger(z) || z < 0 || z > 2 || (player !== 0 && player !== 1) || !loss) return false;
+  const score = document.querySelector('#board .zone[data-zone="' + z + '"] .zone-score.' + (player === 0 ? 'p1' : 'p2'));
+  const fallback = document.querySelector('#board .zone[data-zone="' + z + '"] .zone-score-card');
+  const anchor = score || fallback;
+  if(!anchor) return false;
+  const rect = anchor.getBoundingClientRect();
+  const burst = document.createElement('div');
+  burst.className = 'zone-fate-loss-burst ' + (player === 0 ? 'p1' : 'p2');
+  burst.textContent = '-' + loss;
+  burst.style.left = (rect.left + rect.width / 2) + 'px';
+  burst.style.top = (rect.top + rect.height / 2) + 'px';
+  burst.setAttribute('aria-label', 'Zone ' + (z + 1) + ' Fate decreased by ' + loss);
+  document.body.appendChild(burst);
+  requestAnimationFrame(function(){ burst.classList.add('show'); });
+  setTimeout(function(){ if(burst.parentNode) burst.parentNode.removeChild(burst); }, 1450);
+  const opts = options || {};
+  if(opts.sound !== false){
+    if(typeof playFateSfxOnce === 'function') playFateSfxOnce('zoneFateReduce', opts.soundKey || ['zone-fate-loss', z, player, loss, Date.now()].join(':'), 500);
+    else if(typeof playSfx === 'function') playSfx('zoneFateReduce');
+  }
+  return true;
+}
+if(typeof window !== 'undefined') window.showZoneFateDecrease = showZoneFateDecrease;
+
 function getZoneScoreTooltip(z, s0, s1) {
   const base0 = typeof getBaseZoneScore === 'function' ? getCachedBaseZoneScore(z, 0) : s0;
   const base1 = typeof getBaseZoneScore === 'function' ? getCachedBaseZoneScore(z, 1) : s1;
@@ -3802,6 +3830,7 @@ function getStatusEffectIcon(kind) {
     boleslaw: `<svg class="boleslaw-bombastic-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z" stroke-width="4.2"/><path d="M24 31h22M24 40h18M24 49h10" stroke-width="3.4"/></g></svg>`,
     ali_indomitable: `<svg class="ali-indomitable-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29V18c0-4 6-4 6 0v8-12c0-4 7-4 7 0v12-14c0-4 7-4 7 0v14-10c0-4 7-4 7 0v18l-5 16H23l-8-13c-3-5 3-9 7-5l5 5" stroke-width="4"/><path d="M23 50h17v7H23z" stroke-width="3.5"/></g></svg>`,
     busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
+    high_t: `<svg class="high-t-status-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="10" width="40" height="44" rx="7"/><path d="M23 32h18M32 23v18" opacity=".58"/></g><g fill="currentColor" font-family="Georgia,serif" font-size="10" font-weight="700" text-anchor="middle"><text x="32" y="22">Zn</text><text x="32" y="50">Mg</text></g></svg>`,
     marie_deterrence: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36v12c0 11-7 20-18 26-11-6-18-15-18-26V18z" stroke-width="4"/><path d="M22 35h20" stroke-width="5"/><path d="M20 13h24" stroke-width="3" opacity=".5"/></g></svg>`
   };
   return icons[kind] || icons.buff;
@@ -5186,7 +5215,8 @@ function renderTopbarEffects() {
        'MAJA_EXTRA_SUPPORTERS',
        'WINE_COUNTRY_GUERILLA_INFILTRATION',
        'FACE_DOWN_CONSOLIDATION_PERMISSION',
-      'MOVEMENT_GRANT'
+       'PERMANENT_FATE_GAIN_POTENCY',
+       'MOVEMENT_GRANT'
     ].includes(String(type || '').toUpperCase()) && (affected === 0 || affected === 1)) return affected;
     return affected === 0 || affected === 1 ? 1 - affected : fallback;
   };
@@ -5270,8 +5300,31 @@ function renderTopbarEffects() {
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'MOVEMENT_GRANT' && remaining > 0){
       add('69', 'busser_boot', 'Breakfast Republic Busser', 'Corner! Behind!', 'A friendly card can move to an adjacent-zone own-side square once per turn for ' + remaining + ' more owner turn' + (remaining === 1 ? '' : 's') + '.', 'effect-pill-busser');
+    }else if(type === 'PERMANENT_FATE_GAIN_POTENCY' && remaining > 0){
+      add('bh19', 'high_t', 'Abed', 'High-T', 'Permanent Fate gain effects have doubled potency for this turn.', 'effect-pill-high-t');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }
   });
+
+  if(G._phase7CurrentMultiplayer !== true && Array.isArray(G._bh19HighTStatuses)){
+    G._bh19HighTStatuses.forEach(function(status, index){
+      if(!status || Number(status.turn) !== Number(G.turn)) return;
+      const owner = Number(status.playerIndex);
+      const card = phase7StatusCard('bh19');
+      allEffects.push({
+        icon:getStatusEffectIcon('high_t'),
+        label:card ? card.ability : 'High-T',
+        cardName:card ? card.name : 'Abed',
+        cardAbility:card ? card.ability : 'High-T',
+        cardEffect:'Permanent Fate gain effects have doubled potency for this turn.',
+        owner:owner === 0 || owner === 1 ? owner : myP,
+        extraClass:'effect-pill-high-t',
+        turnsLeft:1,
+        sourceIid:status.sourceIid,
+        statusInstanceKey:'high-t:' + String(status.sourceIid || index)
+      });
+    });
+  }
 
   // Suppression — applied BY suppressor TO suppressTarget
   if(G.oppSuppressedNextTurn && G.suppressTarget !== undefined) {
@@ -9515,13 +9568,16 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh07": "By enforcing a Lyapunov function candidate with a negative semi-definite derivative, we guarantee asymptotic stability across the entire domain of attraction.",
   "bh08": "Do you think I can blackmail the principal by leaving my bra inside his office?",
   "bh09": "Its a cruel world,",
-  "bh10": "Where you thinking of going today?",
+  "bh10": "No, I'm not driving you to the gay strip club again",
   "bh11": "Let's reframe the issue in terms of state level mechanisms",
   "bh12": "Why worry of worldly affairs? Stop and smell the roses.",
   "bh13": "If you ever have to stop and pause, and think to yourself, am i being too greedy? then that means you aren't greedy enough!!!",
   "bh14": "We must take a stand, as representatives of the international community!",
   "bh15": "Soldiers, The only red i want to see in Beijing, is the blood of a dead commie!",
-  "bh16": "Singing steel, dancing moonlight, Striking blade of the falling star"
+  "bh16": "Singing steel, dancing moonlight, Striking blade of the falling star",
+  "bh17": "I fight...not for glory, coin, or women, but for the Siggy's I lost...",
+  "bh18": "I...I never loved cynthia",
+  "bh19": "Eating your own shit is High T, it has zinc and magnesium ."
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 

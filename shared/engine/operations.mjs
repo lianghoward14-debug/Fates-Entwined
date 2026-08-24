@@ -579,7 +579,9 @@ function discardCard(ctx, operation){
     cardIid:card.iid,
     owner,
     previousZone:entry.zone,
+    ...(operation.revealDiscard === true ? {cardId:String(card.id || ''), cardName:String(card.name || 'Card')} : {}),
     sourceIid:operation.sourceIid || null,
+    semanticSourceCardId:operation.semanticSourceCardId || undefined,
     // Preserve why the discard happened.  In particular, consolidation
     // tributes are a command cost, not the consolidating card's printed
     // discard effect.  Presentation/rules auditing must be able to tell those
@@ -670,7 +672,19 @@ function changeFate(ctx, operation, absolute){
     const entry = findCard(ctx.state, targetIid);
     const beforeStored = Number(entry.card.currentFate) || 0;
     const before = entry.zone === 'board' ? effectiveFate(ctx.state, entry) : beforeStored;
-    const transformed = absolute ? value : (beforeStored * multiplier) + amount;
+    const baseTransformed = absolute ? value : (beforeStored * multiplier) + amount;
+    const highTPlayer = Number.isInteger(Number(operation.sourceController))
+      ? Number(operation.sourceController)
+      : controllerOf(entry.card);
+    const highTSources = !absolute && baseTransformed > beforeStored
+      ? ctx.state.statuses.filter(status=>
+          status?.type === 'PERMANENT_FATE_GAIN_POTENCY'
+          && Number(status.playerIndex) === highTPlayer
+          && Number(status.remainingOwnerTurns || 0) > 0
+        )
+      : [];
+    const highTBonus = !absolute ? Math.max(0, baseTransformed - beforeStored) * highTSources.length : 0;
+    const transformed = baseTransformed + highTBonus;
     if(!Number.isInteger(transformed)){
       throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
     }
@@ -684,7 +698,11 @@ function changeFate(ctx, operation, absolute){
           && !isEffectSourceSuppressed(ctx.state, sourceEntry)
         )
       : [];
-    const chineseMacArthurBonus = chineseMacArthurSources.length;
+    const chineseMacArthurBaseBonus = chineseMacArthurSources.length;
+    const chineseMacArthurBonus = chineseMacArthurBaseBonus * (1 + highTSources.length);
+    const chineseMacArthurPresentationSourceIids = chineseMacArthurSources.flatMap(sourceEntry=>
+      Array.from({length:1 + highTSources.length}, ()=>String(sourceEntry.card.iid || ''))
+    );
     commitPermanentFate(entry.card, transformed + chineseMacArthurBonus);
     const after = entry.zone === 'board'
       ? effectiveFate(ctx.state, findCard(ctx.state, targetIid))
@@ -698,10 +716,12 @@ function changeFate(ctx, operation, absolute){
       sourceIid:operation.sourceIid || null,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
       reason:operation.reason || '',
+      highTBonus,
+      highTSourceIids:highTSources.map(status=>String(status.sourceIid || '')),
       bh15Bonus:chineseMacArthurBonus,
-      bh15SourceIids:chineseMacArthurSources.map(sourceEntry=>String(sourceEntry.card.iid || ''))
+      bh15SourceIids:chineseMacArthurPresentationSourceIids
     });
-    changes.push({cardIid:entry.card.iid, before, after, bh15Bonus:chineseMacArthurBonus});
+    changes.push({cardIid:entry.card.iid, before, after, highTBonus, bh15Bonus:chineseMacArthurBonus});
   }
   if(!absolute && amount < 0 && Number.isInteger(Number(operation.sourceController))){
     const sourceController = Number(operation.sourceController);
@@ -1458,6 +1478,34 @@ function randomDiscardHand(ctx, operation){
   return {discardedIid:card.iid};
 }
 
+function randomDiscardDeck(ctx, operation){
+  const playerIndex = Number(operation.playerIndex);
+  const player = ctx.state.players[playerIndex];
+  if(!player) throw operationError('PLAYER_NOT_FOUND', 'random deck discard player is invalid');
+  const source = cardSource(ctx, operation);
+  const eligible = player.deck.filter(card=>
+    inspectOperation(ctx.state, {
+      type:OPERATION_TYPES.DISCARD_CARD,
+      targetIid:card.iid,
+      sourceIid:operation.sourceIid,
+      sourceCard:source,
+      sourceController:operation.sourceController
+    }).ok
+  );
+  if(!eligible.length) return {discardedIid:null};
+  const card = eligible[nextInt(ctx.state.rngState, eligible.length)];
+  discardCard(ctx, {
+    type:OPERATION_TYPES.DISCARD_CARD,
+    targetIid:card.iid,
+    sourceIid:operation.sourceIid,
+    sourceController:operation.sourceController,
+    semanticSourceCardId:operation.semanticSourceCardId || 'bh18',
+    revealDiscard:true,
+    reason:operation.reason || 'GENESIS_OF_ALL_INCELDOM'
+  });
+  return {discardedIid:card.iid, cardId:String(card.id || ''), cardName:String(card.name || 'Card')};
+}
+
 function randomStealHand(ctx, operation){
   const fromPlayer = Number(operation.fromPlayerIndex);
   const toPlayer = Number(operation.toPlayerIndex);
@@ -2041,6 +2089,7 @@ function dispatchOperation(ctx, operation){
     case OPERATION_TYPES.CREATE_CARD_MARK: return createCardMark(ctx, operation);
     case OPERATION_TYPES.MASS_MODIFY_MATCHING_CARD: return massModifyMatchingCard(ctx, operation);
     case OPERATION_TYPES.RANDOM_DISCARD_HAND: return randomDiscardHand(ctx, operation);
+    case OPERATION_TYPES.RANDOM_DISCARD_DECK: return randomDiscardDeck(ctx, operation);
     case OPERATION_TYPES.RANDOM_STEAL_HAND: return randomStealHand(ctx, operation);
     case OPERATION_TYPES.DISCARD_TYPES_AND_GAIN_FATE: return discardTypesAndGainFate(ctx, operation);
     case OPERATION_TYPES.SCHEDULE_CARD: return scheduleCard(ctx, operation);

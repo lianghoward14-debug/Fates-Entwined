@@ -5944,12 +5944,16 @@
       'bh04':{kind:'bh04_selva_paradise', label:'The Destruction of Paradise'},
       'bh07':{kind:'bh07_overclock', label:'Overclock'},
       'bh08':{kind:'bh08_mischief', label:'Mischievous Activities'},
+      'bh17':{kind:'bh17_crushing_momentum', label:'Crushing Momentum'},
       'bh25':{kind:'jimmy_wrath', label:'Left Hook of the Incel'}
     };
     if(type === 'EFFECT_ACTIVATED'){
       // Snowball Fight's visible status belongs on the hit target, not the
       // Wodny Potok Youth source. The target is known only on FATE_CHANGED.
-      if(sourceId === '93' || sourceId === '31') return null;
+      // The 17th Regiment and Isaac Perez follow the same rule: their icon
+      // describes the selected card's Fate result, never the source card's
+      // activation. Their subsequent FATE_CHANGED event owns the target icon.
+      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22') return null;
       return bySourceId[sourceId] || null;
     }
     if(type !== 'FATE_CHANGED') return null;
@@ -6391,6 +6395,18 @@
         }
         return;
       }
+      if(type === 'CARD_DISCARDED'
+        && String(event.reason || '').toUpperCase() === 'GENESIS_OF_ALL_INCELDOM'){
+        const bh18Source = phase7FindAnyCard(event.sourceIid)
+          || phase7FindProjectedEntry(view, event.sourceIid)?.card;
+        if(bh18Source && typeof window.flashCardEffect === 'function'){
+          window.flashCardEffect(bh18Source, 'bh18_genesis_inceldom', {
+            label:'The Genesis of all Inceldom',
+            soundKey:['phase7', batchId, 'bh18', String(event.sourceIid || ''), eventIndex].join(':')
+          });
+        }
+        if(window.toast) toast('The Genesis of all Inceldom sent ' + String(event.cardName || target?.name || 'a card') + ' from the deck to the discard pile.');
+      }
       if(type === 'CARD_DISCARDED' && target){
         const fx = window.FateV2CardMotionFx;
         if(targetLocation?.zone === 'board' && fx && typeof fx.flyBoardCard === 'function'){
@@ -6431,6 +6447,18 @@
       }
       if(type === 'STATUS_CREATED'){
         const status = event?.status || {};
+        if(String(status.type || '').toUpperCase() === 'ZONE_FATE_MODIFIER' && Number(status.value || 0) < 0
+          && typeof window.showZoneFateDecrease === 'function'){
+          window.showZoneFateDecrease(status.zone, status.playerIndex, Math.abs(Number(status.value) || 0), {
+            soundKey:['phase7', batchId, 'zone-fate-loss', String(status.reason || ''), String(status.sourceIid || ''), eventIndex].join(':')
+          });
+        }
+        if(String(status.reason || '').toUpperCase() === 'HIGH_T'
+          || String(status.type || '').toUpperCase() === 'PERMANENT_FATE_GAIN_POTENCY'){
+          const songKey = ['high-t', String(window.fateAuthorityRoomCode || gameState()?._onlineRoomCode || 'online'), Number(view?.state?.turn || 0), Number(status.playerIndex)].join(':');
+          if(typeof window.playBh19TurnSongOnce === 'function') window.playBh19TurnSongOnce(songKey);
+          if(window.toast) toast('High-T active: permanent Fate gain effects are doubled for this turn.');
+        }
         if(String(status.reason || '').toUpperCase() === 'LI_HUA_STORM_OF_TEN_THOUSAND_BLADES'){
           const countedIids = Array.isArray(status.countedCardIids) ? status.countedCardIids : [];
           presentLiHuaOverlays(status.sourceIid, countedIids);
@@ -6448,6 +6476,11 @@
             semanticSourceCardId:'36'
           }, marie, eventIndex);
         }
+        return;
+      }
+      if(type === 'STATUS_EXPIRED'
+        && String(event.statusType || '').toUpperCase() === 'PERMANENT_FATE_GAIN_POTENCY'){
+        if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
         return;
       }
       if(type === 'EFFECT_REACTED'){
@@ -6495,15 +6528,29 @@
         // recipe in this same task so neither can visibly lead the other.
         const bh15SourceIids = Array.isArray(event.bh15SourceIids) ? event.bh15SourceIids : [];
         const bh15Bonus = Math.max(0, Number(event.bh15Bonus) || bh15SourceIids.length || 0);
+        const highTSourceIids = Array.isArray(event.highTSourceIids) ? event.highTSourceIids : [];
+        const highTBonus = Math.max(0, Number(event.highTBonus) || 0);
         const isBh15AuraFollowUp = String(event.reason || '').toUpperCase() === 'CHINESE_MACARTHUR_AURA_BONUS';
-        const baseFateAfter = bh15Bonus > 0 && !isBh15AuraFollowUp
-          ? Math.max(fateBefore, fateAfter - bh15Bonus)
+        const baseFateAfter = (bh15Bonus > 0 || highTBonus > 0) && !isBh15AuraFollowUp
+          ? Math.max(fateBefore, fateAfter - bh15Bonus - highTBonus)
           : fateBefore;
         if(!isBh15AuraFollowUp) phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        if(highTSourceIids.length && highTBonus > 0 && typeof window.queueHighTPotencyOverlay === 'function'){
+          window.queueHighTPotencyOverlay(target, highTSourceIids, {
+            startValue:baseFateAfter,
+            totalBonus:highTBonus,
+            delayMs:820
+          });
+          target._suppressNextFatePulse = true;
+          const highTLiveTarget = phase7FindAnyCard(target?.iid);
+          if(highTLiveTarget) highTLiveTarget._suppressNextFatePulse = true;
+          const highTProjectedTarget = phase7FindRawProjectedCard(view, target?.iid);
+          if(highTProjectedTarget) highTProjectedTarget._suppressNextFatePulse = true;
+        }
         if(bh15SourceIids.length && typeof window.queueChineseMacArthurOverlay === 'function'){
           window.queueChineseMacArthurOverlay(target, bh15SourceIids, {
-            startValue:isBh15AuraFollowUp ? fateBefore : baseFateAfter,
-            delayMs:820
+            startValue:isBh15AuraFollowUp ? fateBefore : baseFateAfter + highTBonus,
+            delayMs:highTBonus > 0 ? 4380 : 820
           });
           // The canonical view already contains Hseih-Ling's permanent bonus.
           // Suppress its generic reconciliation pulse; the queued +1 pulse is
@@ -6619,6 +6666,7 @@
         return;
       }
       if(type === 'TURN_STARTED' && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.turnHandoff === 'function'){
+        if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
         resultMotionStarted = !!window.FateV2CardMotionFx.turnHandoff(gameState()?.currentPlayer, Number(event.playerIndex), {turn:event.turn}) || resultMotionStarted;
         return;
       }

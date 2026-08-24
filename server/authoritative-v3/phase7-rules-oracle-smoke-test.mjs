@@ -16,9 +16,9 @@ const eligible = multiplayerEligibleCardIds();
 const landscapes = Array.from({length:20}, (_value, index)=>`igb${index + 1}`);
 const catalog = validateRuleOracleCatalog(eligible, landscapes);
 assert.equal(catalog.ok, true, catalog.errors.join('\n'));
-assert.equal(catalog.cardCount, 117);
+assert.equal(catalog.cardCount, 120);
 assert.equal(catalog.landscapeCount, 20);
-assert.equal(Object.keys(CARD_RULE_ORACLE).length, 117);
+assert.equal(Object.keys(CARD_RULE_ORACLE).length, 120);
 assert.equal(Object.keys(LANDSCAPE_RULE_ORACLE).length, 20);
 
 for(const id of eligible){

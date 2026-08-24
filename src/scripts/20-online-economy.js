@@ -23,7 +23,10 @@
   const MARKETPLACE_FEED_LIMIT = 80;
   // Matches the deployed RTDB query rule (`limitToLast <= 60`).
   const PUBLIC_DECK_FEED_LIMIT = 60;
-  const PUBLIC_DECK_ACTIVE_REFRESH_MS = 8000;
+  // Public decks are paginated and do not need a forced uncached 60-deck fetch
+  // every few seconds while the user is reading a page. A slower background
+  // refresh avoids recurring JSON/layout spikes without making actions stale.
+  const PUBLIC_DECK_ACTIVE_REFRESH_MS = 30000;
   const PUBLIC_DECK_MODAL_CLASSES = [
     'public-decks-modal',
     'public-decks-hub-modal',
@@ -74,6 +77,17 @@
     if(!modalBox) return;
     modalBox.classList.remove(...PUBLIC_DECK_MODAL_CLASSES);
     modalBox.classList.add('public-decks-modal', ...classes.filter(Boolean));
+    const modalRoot = document.getElementById('modal');
+    if(modalRoot){
+      modalRoot.classList.add('public-decks-performance-layer');
+      if(!modalRoot.__fatePublicDeckPerformanceObserver && typeof MutationObserver === 'function'){
+        modalRoot.__fatePublicDeckPerformanceObserver = new MutationObserver(function(){
+          const publicDeckWindow = modalRoot.querySelector('.modal.public-decks-modal');
+          if(!modalRoot.classList.contains('on') || !publicDeckWindow) modalRoot.classList.remove('public-decks-performance-layer');
+        });
+        modalRoot.__fatePublicDeckPerformanceObserver.observe(modalRoot, {attributes:true, attributeFilter:['class'], subtree:true});
+      }
+    }
   }
   function bindPublicDeckHubActions(hub){
     if(!hub || hub.dataset.publicDeckActionsBound === 'true') return;
@@ -88,6 +102,7 @@
       if(action.classList.contains('pd-v3-publish')) run = function(){ window.openShareDeckFlow(); };
       else if(action.classList.contains('pd-v3-close')) {
         run = function(){
+          document.getElementById('modal')?.classList.remove('public-decks-performance-layer');
           if(typeof window.closeModal === 'function') window.closeModal();
           else if(typeof closeModal === 'function') closeModal();
         };

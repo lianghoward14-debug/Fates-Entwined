@@ -1474,6 +1474,20 @@ function playSfx(type) {
       noiseBurst(0.04,2.5,0.3,'bandpass',1000,3).start(now);
     }
 
+    else if(type==='zoneFateReduce'){
+      // A larger zone-total collapse, distinct from an individual card Fate
+      // loss: descending tones, a sub impact, and a brief crystalline crack.
+      [246.94,164.81,98].forEach(function(freq,index){
+        const o=ctx.createOscillator();o.type=index === 2 ? 'sine' : 'triangle';
+        o.frequency.setValueAtTime(freq,now + index * .035);
+        o.frequency.exponentialRampToValueAtTime(Math.max(38,freq * .46),now + .42 + index * .035);
+        const g=ctx.createGain();g.gain.setValueAtTime(index === 2 ? .22 : .105,now + index * .035);
+        g.gain.exponentialRampToValueAtTime(.001,now + .52 + index * .035);
+        o.connect(g);g.connect(vol);o.start(now + index * .035);o.stop(now + .56 + index * .035);
+      });
+      const crack=noiseBurst(.12,3.1,.22,'highpass',1700,1.7);crack.start(now+.045);
+    }
+
     else if(type==='immuneShield'){
       // Bright deflection ping + energy disperse
       const ping=ctx.createOscillator();ping.type='sine';ping.frequency.value=2400;
@@ -1988,7 +2002,7 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
-  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh25': 'bh25set'
+  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh17': 'bh17', 'bh18': 'bh18', 'bh19': 'bh19', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
@@ -2003,7 +2017,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);
@@ -2017,6 +2031,10 @@ const DEFAULT_AUDIO_SETTINGS = {
 let _musicEnabled = true;
 let _bgMusic = null;
 let _gameMusic = null;
+let _bh19TurnSong = null;
+let _bh19TurnSongKey = null;
+let _bh19TurnSongFadeInterval = null;
+let _bh19UnderlyingGameMusic = null;
 let _currentScreen = 's-title';
 let _musicVol = DEFAULT_AUDIO_SETTINGS.music;
 let _voiceVol = DEFAULT_AUDIO_SETTINGS.voice;
@@ -2437,6 +2455,7 @@ window.playCardSetAudio = playCardSetAudio;
 function applyAudioVolumes() {
   if(_bgMusic) _bgMusic.volume = _musicVol * _masterVol;
   if(_gameMusic) _gameMusic.volume = _musicVol * _masterVol;
+  if(_bh19TurnSong) _bh19TurnSong.volume = _musicVol * _masterVol;
 }
 
 function clampAudioPercent(val) {
@@ -2629,6 +2648,87 @@ function fadeInGameMusic(audio, targetVolume, durationMs=1800) {
   }, Math.max(80, Math.floor(durationMs / steps)));
 }
 
+function clearBh19TurnSongFade() {
+  if(_bh19TurnSongFadeInterval){
+    clearInterval(_bh19TurnSongFadeInterval);
+    _bh19TurnSongFadeInterval = null;
+  }
+}
+
+function playBh19TurnSongOnce(turnKey) {
+  const key = String(turnKey ?? 'turn');
+  // The first successful High-T activation owns the song for this turn.
+  // Further copies still stack their Fate modifier but never restart it.
+  if(_bh19TurnSong) return false;
+  if(!_musicEnabled || _currentScreen !== 's-game') return false;
+  try{
+    const audio = new Audio(SET_VOICELINE_PATH('bh19song'));
+    audio.loop = true;
+    audio.volume = 0;
+    _bh19TurnSong = audio;
+    _bh19TurnSongKey = key;
+    _bh19UnderlyingGameMusic = _gameMusic && !_gameMusic.paused ? _gameMusic : null;
+    const targetVolume = _musicVol * _masterVol;
+    const steps = 12;
+    let step = 0;
+    const playback = audio.play();
+    if(playback) playback.then(function(){
+      clearBh19TurnSongFade();
+      _bh19TurnSongFadeInterval = setInterval(function(){
+        if(_bh19TurnSong !== audio){ clearBh19TurnSongFade(); return; }
+        step++;
+        const ratio = Math.min(1, step / steps);
+        audio.volume = targetVolume * ratio;
+        if(_bh19UnderlyingGameMusic){
+          _bh19UnderlyingGameMusic.volume = targetVolume * (1 - ratio);
+          if(ratio >= 1){ try{ _bh19UnderlyingGameMusic.pause(); }catch(e){} }
+        }
+        if(ratio >= 1) clearBh19TurnSongFade();
+      }, 75);
+    }).catch(function(){
+      if(_bh19TurnSong === audio){
+        _bh19TurnSong = null;
+        _bh19TurnSongKey = null;
+        _bh19UnderlyingGameMusic = null;
+      }
+    });
+    return true;
+  }catch(e){ return false; }
+}
+
+function stopBh19TurnSong(turnKey) {
+  const audio = _bh19TurnSong;
+  if(!audio) return false;
+  if(turnKey !== undefined && turnKey !== null && String(turnKey) !== String(_bh19TurnSongKey)) return false;
+  const underlying = _bh19UnderlyingGameMusic;
+  const startVolume = Math.max(0, Number(audio.volume) || 0);
+  const targetVolume = _musicVol * _masterVol;
+  const steps = 12;
+  let step = 0;
+  clearBh19TurnSongFade();
+  if(underlying && _musicEnabled && _currentScreen === 's-game'){
+    try{ underlying.volume = 0; underlying.play().catch(function(){}); }catch(e){}
+  }
+  _bh19TurnSongFadeInterval = setInterval(function(){
+    step++;
+    const ratio = Math.min(1, step / steps);
+    if(_bh19TurnSong === audio) audio.volume = startVolume * (1 - ratio);
+    if(underlying) underlying.volume = targetVolume * ratio;
+    if(ratio < 1) return;
+    clearBh19TurnSongFade();
+    try{ audio.pause(); audio.currentTime = 0; }catch(e){}
+    if(_bh19TurnSong === audio){
+      _bh19TurnSong = null;
+      _bh19TurnSongKey = null;
+      _bh19UnderlyingGameMusic = null;
+    }
+  }, 75);
+  return true;
+}
+
+window.playBh19TurnSongOnce = playBh19TurnSongOnce;
+window.stopBh19TurnSong = stopBh19TurnSong;
+
 function playGameMusic() {
   clearGameMusicLoopState();
   if(_bgMusic){ try{ _bgMusic.pause(); _bgMusic.currentTime=0; }catch(e){} _bgMusic=null; }
@@ -2683,6 +2783,10 @@ function stopAllMusic() {
   // Invalidate any pending play() promises.
   _musicRunId++;
   clearGameMusicLoopState();
+  clearBh19TurnSongFade();
+  if(_bh19TurnSong){ try{ _bh19TurnSong.pause(); _bh19TurnSong.currentTime=0; }catch(e){} _bh19TurnSong=null; }
+  _bh19TurnSongKey = null;
+  _bh19UnderlyingGameMusic = null;
   if(_bgMusic){ _bgMusic.pause(); _bgMusic.currentTime=0; _bgMusic=null; }
   if(_gameMusic){ _gameMusic.pause(); _gameMusic.currentTime=0; _gameMusic=null; }
 }
@@ -2691,10 +2795,12 @@ let _tabHiddenMusicState = null;
 function pauseMusicForTabHidden() {
   _tabHiddenMusicState = {
     bg:_bgMusic && !_bgMusic.paused,
-    game:_gameMusic && !_gameMusic.paused
+    game:_gameMusic && !_gameMusic.paused,
+    bh19:_bh19TurnSong && !_bh19TurnSong.paused
   };
   try{ if(_bgMusic && !_bgMusic.paused) _bgMusic.pause(); }catch(e){}
   try{ if(_gameMusic && !_gameMusic.paused) _gameMusic.pause(); }catch(e){}
+  try{ if(_bh19TurnSong && !_bh19TurnSong.paused) _bh19TurnSong.pause(); }catch(e){}
 }
 
 function resumeMusicAfterTabHidden() {
@@ -2704,6 +2810,7 @@ function resumeMusicAfterTabHidden() {
   try{
     if(state.bg && _bgMusic && _currentScreen !== 's-game') _bgMusic.play().catch(()=>{});
     if(state.game && _gameMusic && _currentScreen === 's-game') _gameMusic.play().catch(()=>{});
+    if(state.bh19 && _bh19TurnSong && _currentScreen === 's-game') _bh19TurnSong.play().catch(()=>{});
   }catch(e){}
 }
 
@@ -2717,6 +2824,7 @@ function onScreenChange(screenId) {
   const wasMenu = menuScreens.includes(prev);
   const isGame = screenId==='s-game';
   const isMenu = menuScreens.includes(screenId);
+  if(!isGame && _bh19TurnSong) stopBh19TurnSong();
   if(isGame) applyGameBackground((typeof G !== 'undefined' && G && G._onlineGameSong) ? G._onlineGameSong : (_lastGameSong || null));
   // Always stop bg music when entering game screen, even if a race condition restarted it
   if(isGame && _bgMusic){

@@ -4,13 +4,13 @@
   "phase": "Phase 0: Architecture and Rule Inventory",
   "gateStatus": "classified-not-implemented",
   "summary": {
-    "playableCards": 114,
+    "playableCards": 120,
     "landscapes": 20,
-    "isolatedPrototypeCards": 114,
+    "isolatedPrototypeCards": 120,
     "unportedCards": 0,
     "isolatedPrototypeLandscapes": 20,
     "unportedLandscapes": 0,
-    "openCardAmbiguityFlags": 41,
+    "openCardAmbiguityFlags": 45,
     "openLandscapeAmbiguityFlags": 11
   },
   "taxonomy": {
@@ -3171,7 +3171,7 @@
       "name": "Joie",
       "type": "Coordinator",
       "affiliation": "reality",
-      "abilityText": "Each time you activate a draw effect, all cards you control in this card's zone gain 1 Fate.",
+      "abilityText": "Each time you would activate a draw effect, all cards you control in this zone gain 1 Fate.",
       "abilityTiming": [
         "TRIGGERED"
       ],
@@ -3191,7 +3191,8 @@
         "EFFECT_ACTIVATED"
       ],
       "modifiers": [
-        "CONTINUOUS_AURA"
+        "CONTINUOUS_AURA",
+        "ZONE_QUERY"
       ],
       "customHandler": "legacy-card:bh02",
       "coverageDeclaration": "phase-0-classified",
@@ -3482,7 +3483,7 @@
       "name": "Louis LeJeune",
       "type": "Coordinator",
       "affiliation": "third_great_war",
-      "abilityText": "Choose a card adjacent to this card; while this card is on the field, that card gains 6 Fate.",
+      "abilityText": "Choose a square adjacent to this card; while this card is on the field, any card you set on that square gains 6 Fate.",
       "abilityTiming": [
         "CONTINUOUS"
       ],
@@ -3491,7 +3492,8 @@
         "FATE_MODIFICATION"
       ],
       "operations": [
-        "MODIFY_FATE"
+        "MODIFY_FATE",
+        "SET_CARD"
       ],
       "promptTypes": [],
       "triggerSubscriptions": [],
@@ -3513,16 +3515,14 @@
       "name": "Hugh Roberts",
       "type": "Initiator",
       "affiliation": "expanded_worlds",
-      "abilityText": "Send up to three cards in your hand to the discard pile—each of those cards permanently gains 6 Fate.",
+      "abilityText": "Send up to three cards in your hand back into the Deck—each of those cards permanently gain 6 Fate.",
       "abilityTiming": [
         "WHEN_SET_OR_RULE_QUERY"
       ],
       "effectFamilies": [
-        "DISCARD_REMOVAL_AND_TRANSFER",
         "FATE_MODIFICATION"
       ],
       "operations": [
-        "DISCARD_CARD",
         "MODIFY_FATE"
       ],
       "promptTypes": [
@@ -3538,6 +3538,180 @@
       "ambiguityFlags": [
         "ZERO_SELECTION_AND_CANCELLATION"
       ]
+    },
+    {
+      "cardId": "bh14",
+      "name": "Chloe Kirk",
+      "type": "Initiator",
+      "affiliation": "third_great_war",
+      "abilityText": "Declare a card type, and select as many cards in your hand as you want to become that card type.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "CUSTOM_RULE"
+      ],
+      "operations": [],
+      "promptTypes": [
+        "CARD_SELECTION",
+        "DECLARATION"
+      ],
+      "triggerSubscriptions": [],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh14",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": []
+    },
+    {
+      "cardId": "bh15",
+      "name": "Hsei-Ling",
+      "type": "Improvisor",
+      "affiliation": "third_great_war",
+      "abilityText": "Whenever you would increase the Fate of any card you control, increase that card's Fate by 1. This card cannot proc off other copies of this card.",
+      "abilityTiming": [
+        "TRIGGERED"
+      ],
+      "effectFamilies": [
+        "FATE_MODIFICATION",
+        "STATUS_AND_IMMUNITY"
+      ],
+      "operations": [
+        "CREATE_STATUS",
+        "MODIFY_FATE"
+      ],
+      "promptTypes": [],
+      "triggerSubscriptions": [],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh15",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "REACTION_WINDOW_ORDER"
+      ]
+    },
+    {
+      "cardId": "bh16",
+      "name": "Li-Hua (Battle-Ready)",
+      "type": "Improvisor",
+      "affiliation": "eventide",
+      "abilityText": "At any time, you can activate this effect—for every Eventide card you control, reduce your opponent's Zone Fate in this card's Zone by 1. (2 uses)",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "FATE_MODIFICATION",
+        "REACTIONS"
+      ],
+      "operations": [
+        "MODIFY_FATE"
+      ],
+      "promptTypes": [
+        "OPTIONAL_CHOICE"
+      ],
+      "triggerSubscriptions": [
+        "EFFECT_ACTIVATED"
+      ],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh16",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "REACTION_WINDOW_ORDER"
+      ]
+    },
+    {
+      "cardId": "bh17",
+      "name": "Jakob Eltzholtz",
+      "type": "Improvisor",
+      "affiliation": "expanded_worlds",
+      "abilityText": "When you would consolidate a card while you have more total Fate than your opponent, that card gains 3 Fate.",
+      "abilityTiming": [
+        "DURING_CONSOLIDATION"
+      ],
+      "effectFamilies": [
+        "FATE_MODIFICATION"
+      ],
+      "operations": [
+        "MODIFY_FATE"
+      ],
+      "promptTypes": [],
+      "triggerSubscriptions": [
+        "CARD_CONSOLIDATED"
+      ],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh17",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "BASE_VS_EFFECTIVE_FATE"
+      ]
+    },
+    {
+      "cardId": "bh18",
+      "name": "Jimmy (Post-Cynthia Hug)",
+      "type": "Improvisor",
+      "affiliation": "reality",
+      "abilityText": "When your opponent would end their turn, discard a random card from their deck.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "DISCARD_REMOVAL_AND_TRANSFER"
+      ],
+      "operations": [
+        "DISCARD_CARD"
+      ],
+      "promptTypes": [
+        "DETERMINISTIC_RANDOM"
+      ],
+      "triggerSubscriptions": [
+        "TURN_ADVANCED"
+      ],
+      "modifiers": [],
+      "customHandler": "legacy-card:bh18",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": [
+        "RNG_SELECTION_AND_TIMING"
+      ]
+    },
+    {
+      "cardId": "bh19",
+      "name": "Abed",
+      "type": "Initiator",
+      "affiliation": "reality",
+      "abilityText": "For one turn, all permanent Fate gain effects are doubled in their potency.",
+      "abilityTiming": [
+        "WHEN_SET_OR_RULE_QUERY"
+      ],
+      "effectFamilies": [
+        "CONTINUOUS_MODIFIERS"
+      ],
+      "operations": [],
+      "promptTypes": [],
+      "triggerSubscriptions": [
+        "TURN_ADVANCED"
+      ],
+      "modifiers": [
+        "CONTINUOUS_AURA"
+      ],
+      "customHandler": "legacy-card:bh19",
+      "coverageDeclaration": "phase-0-classified",
+      "implementationStatus": "isolated-v3-prototype",
+      "parityFixtures": [],
+      "multiplayerEligibility": "isolated-v3-test-only",
+      "ambiguityFlags": []
     },
     {
       "cardId": "bh25",

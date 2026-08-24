@@ -1724,6 +1724,42 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  'bh17':{
+    effectLabels:['CONSOLIDATION_FATE_BONUS'],
+    timings:['PASSIVE'],
+    operations:['MODIFY_FATE'],
+    prompts:[],
+    triggerSubscriptions:['CARD_CONSOLIDATED']
+  },
+  'bh18':{
+    effectLabels:['OPPONENT_TURN_END_DECK_DISCARD'],
+    timings:['PASSIVE'],
+    operations:['RANDOM_DISCARD_DECK'],
+    prompts:[],
+    triggerSubscriptions:['TURN_ENDING']
+  },
+  'bh19':{
+    effectLabels:['PERMANENT_FATE_GAIN_POTENCY'],
+    timings:['WHEN_SET'],
+    operations:['CREATE_MATCH_STATUS'],
+    prompts:[],
+    program:[
+      {
+        kind:'OPERATION',
+        operation:{
+          type:'CREATE_MATCH_STATUS',
+          status:{
+            type:'PERMANENT_FATE_GAIN_POTENCY',
+            playerIndex:'$controller',
+            sourceIid:'$sourceIid',
+            value:1,
+            remainingOwnerTurns:1,
+            reason:'HIGH_T'
+          }
+        }
+      }
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],

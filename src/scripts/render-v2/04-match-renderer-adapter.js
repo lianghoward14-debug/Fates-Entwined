@@ -2892,6 +2892,9 @@
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
     bh15_chinese_macarthur:{color:'rgba(225,239,255,.99)',glow:'rgba(105,159,235,.66)',tint:'rgba(48,82,142,.18)'},
     bh16_storm_blades:{color:'rgba(187,255,249,.99)',glow:'rgba(69,214,205,.68)',tint:'rgba(26,131,126,.18)'},
+    bh17_crushing_momentum:{color:'rgba(255,240,189,.99)',glow:'rgba(239,189,88,.70)',tint:'rgba(151,98,28,.18)'},
+    bh18_genesis_inceldom:{color:'rgba(255,173,163,.99)',glow:'rgba(255,117,107,.72)',tint:'rgba(156,48,45,.19)'},
+    bh19_high_t:{color:'rgba(255,231,166,.99)',glow:'rgba(220,174,85,.70)',tint:'rgba(137,96,28,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
@@ -3241,6 +3244,36 @@
       line([[17,48],[46,48],[41,55],[23,55],[17,48]],true);
       ctx.lineWidth = 2.9;
       line([[27,48],[27,55]],false); line([[37,48],[37,55]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'bh17_crushing_momentum') {
+      ctx.lineWidth = 4;
+      line([[25,24],[39,24],[39,47],[25,47],[25,24]],true);
+      line([[22,47],[42,47]],false);
+      ctx.lineWidth = 3;
+      line([[22,52],[13,47],[19,57]],false); line([[42,52],[51,47],[45,57]],false);
+      line([[18,47],[9,45]],false); line([[46,47],[55,45]],false);
+      ctx.lineWidth = 3.5;
+      line([[23,17],[23,9]],false); line([[32,17],[32,5]],false); line([[41,17],[41,9]],false);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'bh18_genesis_inceldom') {
+      ctx.lineWidth = 4;
+      line([[32,7],[51,27],[39,27],[51,39],[32,57],[13,39],[25,39],[13,27],[32,7]],true);
+      ctx.lineWidth = 3.4;
+      line([[32,23],[41,32],[32,41],[23,32],[32,23]],true);
+      ctx.lineWidth = 4.4;
+    } else if(kind === 'bh19_high_t') {
+      ctx.lineWidth = 3.5;
+      line([[20,6],[44,6],[51,18],[44,30],[20,30],[13,18],[20,6]],true);
+      line([[20,34],[44,34],[51,46],[44,58],[20,58],[13,46],[20,34]],true);
+      circle(32,32,4.5);
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.font = '700 10px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Zn',32,18.5);
+      ctx.fillText('Mg',32,46.5);
+      ctx.restore();
       ctx.lineWidth = 4.4;
     } else if(kind === 'bh15_chinese_macarthur') {
       // HL-A01: classic teardrop aviators. Kept as canvas geometry so the

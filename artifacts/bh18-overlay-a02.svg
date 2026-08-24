@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64">
+  <defs><filter id="g" x="-70%" y="-70%" width="240%" height="240%"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ff756b" flood-opacity=".72"/></filter></defs>
+  <g fill="none" stroke="#ffada3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+    <path d="M32 7L51 27 39 27 51 39 32 57 13 39 25 39 13 27z"/>
+    <path d="M32 23l9 9-9 9-9-9z" stroke-width="3.4"/>
+  </g>
+</svg>

@@ -82,6 +82,7 @@
     "smoke:authority-v3-phase7-continuous": "node server/authoritative-v3/phase7-continuous-condition-matrix-smoke-test.mjs",
     "smoke:authority-v3-phase7-organic-fixtures": "node server/authoritative-v3/phase7-organic-fixture-isolation-smoke-test.mjs",
     "smoke:authority-v3-phase7-oracle": "node server/authoritative-v3/phase7-rules-oracle-smoke-test.mjs",
+    "smoke:authority-v3-phase7-brave-horizons": "node server/authoritative-v3/phase7-brave-horizons-17-19-smoke-test.mjs",
     "smoke:authority-v3-local-self-play": "node server/authoritative-v3/phase7-local-self-play-soak.mjs --games 20 --workers 2",
     "replay:authority-v3": "node tools/authority-v3-differential-replay.mjs",
     "smoke:desktop-updater": "node server/fate-desktop-updater-smoke-test.js && node server/fate-desktop-updater-install-test.js",
@@ -124,6 +125,7 @@
       "rankicons/**/*",
       "pfp/**/*",
       "UIpictures/**/*",
+      "artifacts/*.svg",
       "*.png",
       "electron/**/*"
     ],

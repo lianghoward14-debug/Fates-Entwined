@@ -1068,6 +1068,22 @@ function completeEndTurn(state, ctx, actorIndex){
       reason:'LANDSCAPE_IGB19_HAND_EXPIRY'
     });
   }
+  const bh18Controller = actorIndex === 0 ? 1 : 0;
+  for(const source of boardEntries(state).filter(entry=>
+    controllerOf(entry.card) === bh18Controller
+    && entry.card.faceDown !== true
+    && runtimeRuleId(entry.card) === 'bh18'
+    && !isEffectSourceSuppressed(state, entry)
+  )){
+    applyOperation(ctx, {
+      type:'RANDOM_DISCARD_DECK',
+      playerIndex:actorIndex,
+      sourceIid:source.card.iid,
+      semanticSourceCardId:'bh18',
+      sourceController:bh18Controller,
+      reason:'GENESIS_OF_ALL_INCELDOM'
+    });
+  }
   if(state.turn >= state.maxTurns){
     state.outcome = calculateOutcome(state);
     state.phase = 'ended';

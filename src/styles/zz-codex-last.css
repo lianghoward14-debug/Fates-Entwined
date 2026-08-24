@@ -1640,6 +1640,21 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-tint:rgba(148,29,29,.20);--effect-flash-inset:rgba(255,103,94,.14);
   --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath stroke-width='4.2' d='M10 14L19 6H45L54 14L58 33L50 53L40 64H24L13 53L6 33Z'/%3E%3Cpath stroke-width='4.2' d='M13 24L27 29M55 24L40 29M16 34H26M38 34H48M17 48H46L41 55H23Z'/%3E%3Cpath stroke-width='2.9' d='M27 48V55M37 48V55'/%3E%3C/g%3E%3C/svg%3E");
 }
+.bc.effect-flash-bh17_crushing_momentum{
+  --effect-flash-color:rgba(255,240,189,.99);--effect-flash-glow:rgba(239,189,88,.70);
+  --effect-flash-tint:rgba(151,98,28,.18);--effect-flash-inset:rgba(255,214,126,.13);
+  --effect-flash-mask:url("../../artifacts/bh17-overlay-09.svg");
+}
+.bc.effect-flash-bh18_genesis_inceldom{
+  --effect-flash-color:rgba(255,173,163,.99);--effect-flash-glow:rgba(255,117,107,.72);
+  --effect-flash-tint:rgba(156,48,45,.19);--effect-flash-inset:rgba(255,137,128,.13);
+  --effect-flash-mask:url("../../artifacts/bh18-overlay-a02.svg");
+}
+.bc.effect-flash-bh19_high_t{
+  --effect-flash-color:rgba(255,231,166,.99);--effect-flash-glow:rgba(220,174,85,.70);
+  --effect-flash-tint:rgba(137,96,28,.18);--effect-flash-inset:rgba(255,207,112,.13);
+  --effect-flash-mask:url("../../artifacts/bh19-overlay-vo3.svg");
+}
 .bc.effect-flash-bh07_overclock{
   --effect-flash-color:rgba(146,232,255,.99);--effect-flash-glow:rgba(58,190,255,.66);
   --effect-flash-tint:rgba(24,122,176,.17);--effect-flash-inset:rgba(105,219,255,.13);
@@ -25092,6 +25107,44 @@ html body #modal .pd-library-v3 .pd-v3-grid .pdx-art canvas{
   transform:none!important;
 }
 
+/* Public Decks is paginated in four-card pages; the hub fits without an inner
+   scroll region. Keep the modal stationary and let Prev/Next own navigation. */
+html body #modal .modal.public-decks-modal.public-decks-hub-modal #modal-body{
+  max-height:none!important;
+  overflow-x:hidden!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none!important;
+}
+html body #modal .modal.public-decks-modal.public-decks-hub-modal #modal-body::-webkit-scrollbar{
+  display:none!important;
+  width:0!important;
+  height:0!important;
+}
+
+/* The title screen already provides a dark background beneath this nearly
+   opaque window. Re-blurring that full screen on every background frame was
+   the main Public Decks FPS cost. Contain the four-card page as one paint
+   surface and avoid decorative compositor layers inside it. */
+html body #modal.public-decks-performance-layer{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body #modal.public-decks-performance-layer .modal.public-decks-hub-modal,
+html body #modal.public-decks-performance-layer .pd-library-v3{
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body #modal.public-decks-performance-layer .pd-library-v3{
+  contain:layout paint style!important;
+  isolation:isolate!important;
+}
+html body #modal.public-decks-performance-layer .pd-library-v3 :is(.pdx-card,.pdx-art,.pdx-info,.pdx-actions,.pdx-rank){
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  will-change:auto!important;
+}
+
 /* Zone pickers consistently distinguish opposing cards with the same muted
    crimson treatment, while preserving the gold selected-card state. */
 html body #modal .board-target-picker .board-target-cell.is-opponent-card .board-target-card::after{
@@ -25114,3 +25167,27 @@ html body #modal .visual-picker-body.is-zone-position-picker .visual-mc.is-oppon
   background:linear-gradient(180deg,rgba(214,42,57,.22),rgba(105,5,20,.34))!important;
   box-shadow:inset 0 0 0 1px rgba(242,78,88,.42)!important;
 }
+/* Large zone-total reduction feedback, synchronized with zone-debuff overlays. */
+html body .zone-fate-loss-burst{
+  position:fixed;
+  z-index:100120;
+  pointer-events:none;
+  transform:translate(-50%,-35%) scale(.72);
+  opacity:0;
+  color:#ff9a91;
+  font-family:var(--serif,Georgia,serif);
+  font-size:clamp(34px,3.25vw,58px);
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.045em;
+  text-shadow:0 0 5px rgba(255,96,82,.95),0 0 18px rgba(228,49,45,.78),0 3px 0 rgba(40,5,8,.9);
+  will-change:transform,opacity,filter;
+}
+html body .zone-fate-loss-burst.show{animation:fate-zone-loss-burst 1.4s cubic-bezier(.16,.82,.2,1) both;}
+@keyframes fate-zone-loss-burst{
+  0%{opacity:0;transform:translate(-50%,-15%) scale(.62);filter:blur(3px);}
+  14%{opacity:1;transform:translate(-50%,-62%) scale(1.18);filter:blur(0);}
+  62%{opacity:1;transform:translate(-50%,-112%) scale(1);filter:blur(0);}
+  100%{opacity:0;transform:translate(-50%,-175%) scale(.9);filter:blur(1px);}
+}
+html.fate-animations-off body .zone-fate-loss-burst.show{animation-duration:.36s;}
