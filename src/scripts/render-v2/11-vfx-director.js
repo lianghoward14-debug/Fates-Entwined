@@ -1312,8 +1312,9 @@
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
-    ctx.rotate((dragPreview.invalid ? -2 : 1.2) * Math.PI / 180);
-    drawCardMotionShadow(ctx, cardRect, .32, .18);
+    const settledBoardCard = dragPreview.phase7OptimisticDragSet === true || dragPreview.settledBoardCard === true;
+    ctx.rotate((settledBoardCard ? 0 : (dragPreview.invalid ? -2 : 1.2)) * Math.PI / 180);
+    if(!settledBoardCard) drawCardMotionShadow(ctx, cardRect, .32, .18);
     drawCard(ctx, dragPreview.card, cardRect, {
       textureDpr:1.5,
       textureSize:{x:0, y:0, w:132, h:184},

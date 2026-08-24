@@ -7486,10 +7486,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       break;
     case 'bh20': {
       const previousMaxTurns = Math.max(1, Number(G.maxTurns) || 20);
-      G.maxTurns = Math.max(previousMaxTurns, 24);
-      toast(G.maxTurns > previousMaxTurns
-        ? 'Thousand Year Bird Cult extended the game to turn 24!'
-        : 'The game is already extended to turn 24.');
+      G.maxTurns = previousMaxTurns + 2;
+      toast('Thousand Year Bird Cult extended the game to turn ' + G.maxTurns + '!');
       updateTopBar();
       renderEffectResolutionForPlayer(cp, {hand:false});
       break;

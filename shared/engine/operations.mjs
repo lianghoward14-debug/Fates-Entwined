@@ -1936,12 +1936,17 @@ function changeLandscape(ctx, operation){
 }
 
 function setMaxTurns(ctx, operation){
-  const requested = Number(operation.maxTurns);
-  if(!Number.isInteger(requested) || requested < 1){
-    throw operationError('INVALID_MAX_TURNS', 'match turn limit must be a positive integer');
-  }
   const previousMaxTurns = Math.max(1, Number(ctx.state.maxTurns) || 20);
-  ctx.state.maxTurns = Math.max(previousMaxTurns, requested);
+  const amount = Number(operation.amount);
+  if(Number.isInteger(amount) && amount > 0){
+    ctx.state.maxTurns = previousMaxTurns + amount;
+  }else{
+    const requested = Number(operation.maxTurns);
+    if(!Number.isInteger(requested) || requested < 1){
+      throw operationError('INVALID_MAX_TURNS', 'match turn limit must be a positive integer');
+    }
+    ctx.state.maxTurns = Math.max(previousMaxTurns, requested);
+  }
   const result = {previousMaxTurns, maxTurns:ctx.state.maxTurns};
   ctx.events.push({
     type:'MATCH_TURN_LIMIT_CHANGED',

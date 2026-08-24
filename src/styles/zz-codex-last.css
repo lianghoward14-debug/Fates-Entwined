@@ -8491,6 +8491,35 @@ html body #modal .modal.public-deck-comments-modal .rd-star-filled{
   color:#ffe275!important;
 }
 
+/* Rating stars are glyph controls, not boxed browser-default buttons. */
+html body #modal .modal.public-deck-comments-modal button.rd-star{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:0!important;
+  height:auto!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  outline:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:rgba(210,218,226,.38)!important;
+  font:inherit!important;
+  line-height:1!important;
+}
+html body #modal .modal.public-deck-comments-modal button.rd-star:hover,
+html body #modal .modal.public-deck-comments-modal button.rd-star:focus-visible,
+html body #modal .modal.public-deck-comments-modal button.rd-star.rd-star-filled{
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#ffe275!important;
+}
+
 html body #modal .modal.public-deck-comments-modal .rd-star:hover{
   transform:translateY(-1px)!important;
 }

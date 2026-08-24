@@ -1771,7 +1771,7 @@ const REGISTRY = Object.freeze({
         kind:'OPERATION',
         operation:{
           type:'SET_MAX_TURNS',
-          maxTurns:24,
+          amount:2,
           reason:'THOUSAND_YEAR_BIRD_CULT'
         }
       }

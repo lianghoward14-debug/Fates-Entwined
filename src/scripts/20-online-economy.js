@@ -116,6 +116,8 @@
     if(typeof playSfx === 'function') return playSfx(sound);
     return false;
   }
+  let lastPublicDeckHoverKey = '';
+  let lastPublicDeckHoverAt = 0;
   function bindPublicDeckHubActions(hub){
     if(!hub || hub.dataset.publicDeckActionsBound === 'true') return;
     hub.dataset.publicDeckActionsBound = 'true';
@@ -124,10 +126,20 @@
       const target = event.target instanceof Element ? event.target : null;
       const action = target?.closest('button,.pdx-card[data-public-deck-id]');
       if(!action || !hub.contains(action) || action.disabled) return;
-      if(event.relatedTarget && action.contains(event.relatedTarget)) return;
       const cardNode = action.closest('.pdx-card[data-public-deck-id]');
-      const actionName = action.className || action.tagName || 'control';
-      playPublicDeckUiSound('hover', String(cardNode?.dataset.publicDeckId || '') + ':' + actionName);
+      // Treat an entire deck tile (including its nested Open/Remove buttons) as
+      // one hover surface. Moving around inside a tile must not fire a new ping
+      // for each nested control.
+      const hoverSurface = cardNode || action;
+      if(event.relatedTarget && hoverSurface.contains(event.relatedTarget)) return;
+      const hoverKey = cardNode
+        ? 'deck:' + String(cardNode.dataset.publicDeckId || '')
+        : 'control:' + String(action.className || action.tagName || 'control');
+      const now = Date.now();
+      if(hoverKey === lastPublicDeckHoverKey || now - lastPublicDeckHoverAt < 280) return;
+      lastPublicDeckHoverKey = hoverKey;
+      lastPublicDeckHoverAt = now;
+      playPublicDeckUiSound('hover', hoverKey);
     }, {passive:true});
     hub.addEventListener('click', function(event){
       const target = event.target instanceof Element ? event.target : null;

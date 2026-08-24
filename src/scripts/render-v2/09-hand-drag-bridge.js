@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateMatchHandDragBridge) return;
 
-  const BRIDGE_VERSION = 5;
+  const BRIDGE_VERSION = 6;
   const DRAG_THRESHOLD = 4;
   const DRAG_CLICK_SUPPRESS_THRESHOLD = 3;
   const BUTTON_RELEASE_GRACE_MS = 140;
@@ -21,7 +21,7 @@
   let activePhase7OptimisticDragSetPreviewToken = 0;
 
   // Presentation-only experiment. This never mutates the projected hand or
-  // board: it merely keeps the already-rendered drag card parked over its
+  // board: it paints the released card as a settled board card over its
   // destination while the authoritative SET_CARD command is in flight.
   // Disable instantly with:
   //   setFatePhase7OptimisticDragSetPreviewEnabled(false)
@@ -64,7 +64,8 @@
       rect,
       invalid:false,
       scale:1,
-      phase7OptimisticDragSet:true
+      phase7OptimisticDragSet:true,
+      settledBoardCard:true
     });
     const token = ++phase7OptimisticDragSetPreviewSequence;
     activePhase7OptimisticDragSetPreviewToken = token;
