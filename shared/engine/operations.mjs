@@ -1935,6 +1935,25 @@ function changeLandscape(ctx, operation){
   return result;
 }
 
+function setMaxTurns(ctx, operation){
+  const requested = Number(operation.maxTurns);
+  if(!Number.isInteger(requested) || requested < 1){
+    throw operationError('INVALID_MAX_TURNS', 'match turn limit must be a positive integer');
+  }
+  const previousMaxTurns = Math.max(1, Number(ctx.state.maxTurns) || 20);
+  ctx.state.maxTurns = Math.max(previousMaxTurns, requested);
+  const result = {previousMaxTurns, maxTurns:ctx.state.maxTurns};
+  ctx.events.push({
+    type:'MATCH_TURN_LIMIT_CHANGED',
+    previousMaxTurns,
+    maxTurns:ctx.state.maxTurns,
+    playerIndex:Number(operation.sourceController),
+    sourceIid:operation.sourceIid || null,
+    reason:operation.reason || null
+  });
+  return result;
+}
+
 function gainZoneFateDifference(ctx, operation){
   const source = findBoardCard(ctx.state, operation.sourceIid);
   if(!source) throw operationError('CARD_NOT_ON_BOARD', 'The Child of War source is no longer on the board');
@@ -2102,6 +2121,7 @@ function dispatchOperation(ctx, operation){
     case OPERATION_TYPES.GAIN_ZONE_FATE_DIFFERENCE: return gainZoneFateDifference(ctx, operation);
     case OPERATION_TYPES.REDRAW_HAND: return redrawHand(ctx, operation);
     case OPERATION_TYPES.CHANGE_LANDSCAPE: return changeLandscape(ctx, operation);
+    case OPERATION_TYPES.SET_MAX_TURNS: return setMaxTurns(ctx, operation);
     default: throw operationError('UNSUPPORTED_OPERATION', `unsupported operation ${operation?.type || '(missing)'}`);
   }
 }

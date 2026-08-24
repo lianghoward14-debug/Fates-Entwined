@@ -1760,6 +1760,23 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  'bh20':{
+    effectLabels:['EXTEND_MATCH_TURN_LIMIT'],
+    timings:['WHEN_SET'],
+    operations:['SET_MAX_TURNS'],
+    prompts:[],
+    maxUses:1,
+    program:[
+      {
+        kind:'OPERATION',
+        operation:{
+          type:'SET_MAX_TURNS',
+          maxTurns:24,
+          reason:'THOUSAND_YEAR_BIRD_CULT'
+        }
+      }
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],

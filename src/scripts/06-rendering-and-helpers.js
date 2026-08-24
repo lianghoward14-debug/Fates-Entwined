@@ -9581,7 +9581,8 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh16": "Singing steel, dancing moonlight, Striking blade of the falling star",
   "bh17": "I fight...not for glory, coin, or women, but for the Siggy's I lost...",
   "bh18": "I...I never loved cynthia",
-  "bh19": "Eating your own shit is High T, it has zinc and magnesium ."
+  "bh19": "Eating your own shit is High T, it has zinc and magnesium .",
+  "bh20": "All of Costa Rica shall submit to the glory of Avian-kind!"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
 
