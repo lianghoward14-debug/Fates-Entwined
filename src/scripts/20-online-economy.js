@@ -232,16 +232,10 @@
     try{ return localStorage.getItem(name) === '1'; }catch(e){ return false; }
   }
   function authorityHttpBaseUrl(){
-    try{
-      const explicit = String(localStorage.getItem('fateFlyApiUrl') || '').trim();
-      if(explicit) return explicit.replace(/\/+$/, '');
-    }catch(e){}
-    const globalExplicit = String(window.FATE_FLY_API_URL || '').trim();
-    if(globalExplicit) return globalExplicit.replace(/\/+$/, '');
-    const host = String(location.hostname || '').toLowerCase();
-    if(host === 'fates-entwined-main.fly.dev') return location.origin.replace(/\/+$/, '');
-    // Economy/public-deck traffic must not inherit matchmaking socket
-    // overrides. Those may point at a beta or retired authority with no API.
+    // Economy, profiles and public decks are permanently served by the live
+    // Fly data service. Ignore old localStorage/global overrides left behind by
+    // beta matchmaking builds; those stale URLs made the released client fetch
+    // a retired service even though matchmaking itself was healthy.
     return 'https://fates-entwined-main.fly.dev';
   }
   function flyEconomyEnabled(){
@@ -1233,7 +1227,17 @@
       openingButton.textContent = 'Opening...';
     }
     try{
-      d = await loadPublicDeckDetail(id) || d;
+      // The public feed already contains the full card list. Open from that
+      // cached payload immediately and refresh silently in the background.
+      // Older builds waited on a duplicate request, leaving a slow loading
+      // screen or never opening at all when that second request failed.
+      if(!Array.isArray(d.ids) || !d.ids.length){
+        d = await loadPublicDeckDetail(id) || d;
+      }else{
+        loadPublicDeckDetail(id).catch(function(error){
+          console.warn('Public deck background refresh failed', error);
+        });
+      }
     }catch(error){
       if(openingCard) openingCard.classList.remove('is-opening');
       if(openingButton){

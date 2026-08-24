@@ -6277,6 +6277,56 @@
     }
     phase7RecordPresentationStage('results:start', {batchId, eventCount:events.length});
     await phase7NextFrame();
+    const liHuaOverlayKeys = new Set();
+    let liHuaSoundPlayed = false;
+    const presentLiHuaOverlays = function(sourceIid, preferredIids){
+      const sourceCard = phase7PresentationCard(phase7FindAnyCard(sourceIid))
+        || phase7FindProjectedEntry(view, sourceIid)?.card;
+      const controller = Number(sourceCard?.owner);
+      let countedIids = Array.isArray(preferredIids) ? preferredIids.map(String).filter(Boolean) : [];
+      // A Zone already at 0 Fate produces no visible FATE_CHANGED event. Derive
+      // the counted Eventide cards from the authoritative board so Li Hua's
+      // activation still owns its overlays even when the score is clamped.
+      if(!countedIids.length && (controller === 0 || controller === 1)){
+        (view?.state?.board || []).forEach(function(rows){
+          (rows || []).forEach(function(row){
+            (row || []).forEach(function(card){
+              if(!card || Number(card.owner) !== controller) return;
+              if(String(card.aff || card.affiliation || '').toLowerCase() !== 'eventide') return;
+              if(card.iid) countedIids.push(String(card.iid));
+            });
+          });
+        });
+      }
+      countedIids = Array.from(new Set(countedIids));
+      if(countedIids.length && !liHuaSoundPlayed && typeof window.playSfx === 'function'){
+        liHuaSoundPlayed = true;
+        window.playSfx('liHuaBlades');
+      }
+      let shownAny = false;
+      countedIids.forEach(function(cardIid, countedIndex){
+        const overlayKey = String(sourceIid || '') + ':' + String(cardIid);
+        if(liHuaOverlayKeys.has(overlayKey)) return;
+        const eligible = phase7PresentationCard(phase7FindAnyCard(cardIid))
+          || phase7FindProjectedEntry(view, cardIid)?.card;
+        if(!eligible || typeof window.flashCardEffect !== 'function') return;
+        liHuaOverlayKeys.add(overlayKey);
+        const shown = window.flashCardEffect(eligible, 'bh16_storm_blades', {
+          label:'Storm of Ten Thousand Blades',
+          soundKey:['phase7', batchId, 'bh16', String(sourceIid || ''), String(cardIid), String(countedIndex)].join(':'),
+          onlineRemote:true
+        });
+        const projected = phase7FindRawProjectedCard(view, cardIid);
+        if(shown && projected && projected !== eligible && eligible._effectFlash){
+          projected._effectFlash = cloneOnlinePlain(eligible._effectFlash);
+        }
+        shownAny = !!shown || shownAny;
+      });
+      if(shownAny && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
+        window.FateMatchRendererAdapter.renderFromGameState({source:'phase7-li-hua-counted-card-overlays'});
+      }
+      return shownAny;
+    };
     events.forEach(function(event, eventIndex){
       const type = String(event?.type || '').toUpperCase();
       const source = phase7PresentationCard(phase7FindAnyCard(event?.sourceIid)) || phase7FindProjectedEntry(view, event?.sourceIid)?.card;
@@ -6298,6 +6348,17 @@
         return;
       }
       if(type === 'EFFECT_ACTIVATED'){
+        const sourceCardId = String(event?.semanticSourceCardId || source?.id || '').toLowerCase();
+        if(sourceCardId === 'bh16'){
+          const matchingStatusEvent = events.find(function(candidate){
+            const status = candidate?.status || {};
+            return String(candidate?.type || '').toUpperCase() === 'STATUS_CREATED'
+              && String(status.reason || '').toUpperCase() === 'LI_HUA_STORM_OF_TEN_THOUSAND_BLADES'
+              && (!status.sourceIid || String(status.sourceIid) === String(event?.sourceIid || ''));
+          });
+          presentLiHuaOverlays(event?.sourceIid, matchingStatusEvent?.status?.countedCardIids);
+          return;
+        }
         const sourceHasResultOverlay = events.some(function(candidate){
           const candidateType = String(candidate?.type || '').toUpperCase();
           return ['FATE_CHANGED','CARD_MOVED'].includes(candidateType)
@@ -6362,24 +6423,7 @@
         const status = event?.status || {};
         if(String(status.reason || '').toUpperCase() === 'LI_HUA_STORM_OF_TEN_THOUSAND_BLADES'){
           const countedIids = Array.isArray(status.countedCardIids) ? status.countedCardIids : [];
-          if(countedIids.length && typeof window.playSfx === 'function') window.playSfx('liHuaBlades');
-          countedIids.forEach(function(cardIid, countedIndex){
-            const eligible = phase7PresentationCard(phase7FindAnyCard(cardIid))
-              || phase7FindProjectedEntry(view, cardIid)?.card;
-            if(!eligible || typeof window.flashCardEffect !== 'function') return;
-            const shown = window.flashCardEffect(eligible, 'bh16_storm_blades', {
-              label:'Storm of Ten Thousand Blades',
-              soundKey:['phase7', String(view?.presentationBatch?.id || ''), 'bh16', String(status.sourceIid || ''), String(cardIid), String(countedIndex)].join(':'),
-              onlineRemote:true
-            });
-            const projected = phase7FindRawProjectedCard(view, cardIid);
-            if(shown && projected && projected !== eligible && eligible._effectFlash){
-              projected._effectFlash = cloneOnlinePlain(eligible._effectFlash);
-            }
-          });
-          if(countedIids.length && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
-            window.FateMatchRendererAdapter.renderFromGameState({source:'phase7-li-hua-counted-card-overlays'});
-          }
+          presentLiHuaOverlays(status.sourceIid, countedIids);
           if(window.toast){
             const reduction = Math.abs(Number(status.value || 0) || 0);
             toast('Storm of Ten Thousand Blades reduced Zone ' + (Number(status.zone) + 1) + ' Fate by ' + reduction + '.');

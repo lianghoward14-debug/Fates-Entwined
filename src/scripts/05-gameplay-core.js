@@ -5086,7 +5086,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','2
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh25'
 ]);
 
 function whenSetEffectsAreDeferred() {
@@ -6286,7 +6286,7 @@ function showCharterTypeDeclarationPicker(onChoose) {
     showModal('Charter of the United Nations', body, actions, {onOpen:function(){
       const modalBox = document.querySelector('#modal .modal');
       if(modalBox) modalBox.classList.add('bh14-type-picker-modal');
-      document.querySelectorAll('#modal .bh04-type-choice[data-bh14-type]').forEach(function(button){
+      document.querySelectorAll('#modal .bh14-charter-choice[data-bh14-type]').forEach(function(button){
         button.onclick = function(){
           const type = String(button.getAttribute('data-bh14-type') || '');
           const index = BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.indexOf(type);

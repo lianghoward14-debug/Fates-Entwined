@@ -1509,6 +1509,7 @@ function positionHandEffectTooltip(ev, explicitMarker) {
   if(!_handEffectTooltipPortal || !_handEffectTooltipPortal.isConnected) return;
   const marker = resolveHandEffectMarker(ev, explicitMarker);
   const pickerMarker = !!(marker && marker.classList && marker.classList.contains('picker-effect-marker'));
+  const deckPickerMarker = pickerMarker && !marker.classList.contains('hand-limit-picker-effect-marker');
   const card = marker && marker.closest
     ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card' : '.hc')
     : null;
@@ -1543,7 +1544,9 @@ function positionHandEffectTooltip(ev, explicitMarker) {
     x = rect.left + rect.width / 2 - width / 2;
     y = rect.top - estimatedHeight - 10;
     if(y < 12) y = rect.bottom + 10;
-    y += 12;
+    // Deck/search pickers sit higher than hand discard panels. Keep their
+    // information panel close to the card without changing hand placement.
+    y += deckPickerMarker ? 24 : 12;
   }else{
     x = rect.left - width - gap;
     if(x < 12) x = Math.max(12, rect.left - Math.min(220, width - 40));
@@ -8635,7 +8638,14 @@ async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSup
     ledger.id = sourceSupporter.id;
     ledger.whenSetActivated = false;
     ledger._ledgerCopiedSupporterEffect = true;
-    await runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
+    // The AI must resolve the copied card through its auto-targeting path.
+    // Calling the human resolver here opened the copied card's modal (for
+    // example Oathbound's zone picker) on the local player's screen.
+    if(G.aiEnabled && Number(player) === Number(G.aiPlayer) && typeof aiTriggerWhenSet === 'function') {
+      await aiTriggerWhenSet(ledger, ledgerZone, ledgerRow, ledgerCol);
+    } else {
+      await runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
+    }
   } finally {
     ledger.id = originalId;
     ledger.whenSetActivated = originalWhenSetActivated;

@@ -24982,7 +24982,7 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-icon,
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   position:relative!important;
-  left:4px!important;
+  left:6px!important;
 }
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
   display:inline-grid!important;
