@@ -8261,6 +8261,76 @@ const BH15_OVERLAY_KIND = 'bh15_chinese_macarthur';
 const bh15OverlayQueues = new Map();
 const BH19_OVERLAY_KIND = 'bh19_high_t';
 const bh19OverlayQueues = new Map();
+const sequentialFateDisplayStates = new Map();
+
+function sequentialFateDisplayKey(target) {
+  return target && String(target.iid || target.id || '');
+}
+
+function getSequentialFateDisplayValue(target) {
+  const key = sequentialFateDisplayKey(target);
+  const state = key ? sequentialFateDisplayStates.get(key) : null;
+  if(state && Number.isFinite(Number(state.value))) return Number(state.value);
+  if(target && target._sequentialFateDisplayActive && Number.isFinite(Number(target._sequentialFateDisplayValue))){
+    return Number(target._sequentialFateDisplayValue);
+  }
+  return null;
+}
+if(typeof window !== 'undefined') window.getSequentialFateDisplayValue = getSequentialFateDisplayValue;
+
+function beginSequentialFateDisplay(target, startValue, finalValue) {
+  if(!target) return;
+  const start = Math.max(0, Number(startValue) || 0);
+  const final = Math.max(start, Number(finalValue) || start);
+  const key = sequentialFateDisplayKey(target);
+  const existing = key ? sequentialFateDisplayStates.get(key) : null;
+  if(key) sequentialFateDisplayStates.set(key, {
+    value:existing && Number.isFinite(Number(existing.value)) ? Math.min(Number(existing.value), start) : start,
+    final:Math.max(Number(existing?.final) || start, final)
+  });
+  if(!Number.isFinite(Number(target._sequentialFateDisplayValue))) target._sequentialFateDisplayValue = start;
+  else target._sequentialFateDisplayValue = Math.min(Number(target._sequentialFateDisplayValue), start);
+  target._sequentialFateDisplayFinal = Math.max(Number(target._sequentialFateDisplayFinal) || start, final);
+  target._sequentialFateDisplayActive = true;
+  if(window.FateMatchRendererAdapter?.renderFromGameState) {
+    window.FateMatchRendererAdapter.renderFromGameState({source:'sequential-fate-stage-begin'});
+  } else if(typeof renderGame === 'function') {
+    renderGame({board:true, scores:true});
+  }
+}
+
+function advanceSequentialFateDisplay(target, value) {
+  if(!target) return;
+  const nextValue = Math.max(0, Number(value) || 0);
+  const key = sequentialFateDisplayKey(target);
+  const existing = key ? sequentialFateDisplayStates.get(key) : null;
+  if(key) sequentialFateDisplayStates.set(key, {value:nextValue, final:Math.max(nextValue, Number(existing?.final) || nextValue)});
+  target._sequentialFateDisplayValue = nextValue;
+  target._sequentialFateDisplayActive = true;
+  if(window.FateMatchRendererAdapter?.renderFromGameState) {
+    window.FateMatchRendererAdapter.renderFromGameState({source:'sequential-fate-stage-advance'});
+  } else if(typeof renderGame === 'function') {
+    renderGame({board:true, scores:true});
+  }
+}
+
+function finishSequentialFateDisplay(target) {
+  if(!target) return;
+  const key = sequentialFateDisplayKey(target);
+  if(key) sequentialFateDisplayStates.delete(key);
+  delete target._sequentialFateDisplayValue;
+  delete target._sequentialFateDisplayFinal;
+  delete target._sequentialFateDisplayActive;
+  if(window.FateMatchRendererAdapter?.renderFromGameState) {
+    window.FateMatchRendererAdapter.renderFromGameState({source:'sequential-fate-stage-finish'});
+  } else if(typeof renderGame === 'function') {
+    renderGame({board:true, scores:true});
+  }
+}
+
+function resolveSequentialFateDisplayTarget(targetKey, fallback) {
+  return (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || fallback;
+}
 
 function queueHighTPotencyOverlay(target, sourceIids, options) {
   if(!target || !Array.isArray(sourceIids) || !sourceIids.length || typeof window === 'undefined') return;
@@ -8271,9 +8341,11 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
     state = {target:target, queue:[], running:false};
     bh19OverlayQueues.set(targetKey, state);
   }
-  state.target = target;
+  const displayTarget = resolveSequentialFateDisplayTarget(targetKey, target);
+  state.target = displayTarget;
   const startValue = Math.max(0, Number(opts.startValue) || 0);
   const totalBonus = Math.max(0, Number(opts.totalBonus) || 0);
+  beginSequentialFateDisplay(displayTarget, startValue, opts.finalValue != null ? opts.finalValue : startValue + totalBonus);
   const step = sourceIids.length ? totalBonus / sourceIids.length : 0;
   const readyAt = Date.now() + Math.max(0, Number(opts.delayMs) || 820);
   sourceIids.forEach(function(sourceIid, index){
@@ -8288,13 +8360,18 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
   state.running = true;
   const presentNext = function(){
     const current = bh19OverlayQueues.get(targetKey);
-    if(!current || !current.queue.length){ bh19OverlayQueues.delete(targetKey); return; }
+    if(!current || !current.queue.length){
+      bh19OverlayQueues.delete(targetKey);
+      const finishingTarget = current && resolveSequentialFateDisplayTarget(targetKey, current.target);
+      if(finishingTarget && !bh15OverlayQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
+      return;
+    }
     const next = current.queue[0];
     if(Number(next.readyAt || 0) > Date.now()){
       setTimeout(presentNext, Math.max(20, Number(next.readyAt) - Date.now()));
       return;
     }
-    const liveTarget = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || current.target;
+    const liveTarget = resolveSequentialFateDisplayTarget(targetKey, current.target);
     const activeFlash = liveTarget && liveTarget._effectFlash;
     const now = Date.now();
     if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
@@ -8302,6 +8379,7 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
       return;
     }
     const presentation = current.queue.shift();
+    advanceSequentialFateDisplay(liveTarget, presentation.after);
     const shown = typeof flashCardEffect === 'function' && flashCardEffect(liveTarget, BH19_OVERLAY_KIND, {
       label:'High-T',
       soundKey:['bh19-overlay', presentation.sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
@@ -8358,8 +8436,10 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
     state = {target:target, queue:[], running:false};
     bh15OverlayQueues.set(targetKey, state);
   }
-  state.target = target;
+  const displayTarget = resolveSequentialFateDisplayTarget(targetKey, target);
+  state.target = displayTarget;
   const startValue = Number.isFinite(Number(opts.startValue)) ? Math.max(0, Number(opts.startValue)) : null;
+  if(startValue != null) beginSequentialFateDisplay(displayTarget, startValue, opts.finalValue != null ? opts.finalValue : startValue + sourceIids.length);
   const readyAt = Date.now() + Math.max(0, Number(opts.delayMs) || 780);
   // Every active Hseih-Ling source contributes its own permanent +1, so keep
   // one queued overlay/number presentation per source position. The indexed
@@ -8378,6 +8458,8 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
     const current = bh15OverlayQueues.get(targetKey);
     if(!current || !current.queue.length){
       bh15OverlayQueues.delete(targetKey);
+      const finishingTarget = current && resolveSequentialFateDisplayTarget(targetKey, current.target);
+      if(finishingTarget) finishSequentialFateDisplay(finishingTarget);
       return;
     }
     const nextPresentation = current.queue[0];
@@ -8385,7 +8467,7 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
       setTimeout(presentNext, Math.max(20, Number(nextPresentation.readyAt) - Date.now()));
       return;
     }
-    const liveTarget = (typeof findBoardCardByIid === 'function' && findBoardCardByIid(targetKey)) || current.target;
+    const liveTarget = resolveSequentialFateDisplayTarget(targetKey, current.target);
     const activeFlash = liveTarget && liveTarget._effectFlash;
     const now = Date.now();
     if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
@@ -8394,6 +8476,7 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
       return;
     }
     const presentation = current.queue.shift();
+    if(presentation.after != null) advanceSequentialFateDisplay(liveTarget, presentation.after);
     const sourceIid = presentation.sourceIid;
     let overlayShown = false;
     if(typeof flashCardEffect === 'function'){
@@ -8471,19 +8554,25 @@ function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
     && now - Number(lastGain.at || 0) < 250){
     return {bonus:0, after:currentFate, baseAfter:Number(lastGain.requestedAfter), sourceIids:[], duplicate:true};
   }
-  const bonus = sources.length * (1 + getHighTPotencyCount(owner));
+  const highTCount = getHighTPotencyCount(owner);
+  const riderStartFate = currentFate;
+  const bonus = sources.length * (1 + highTCount);
   card.currentFate = currentFate + bonus;
   if(Number.isFinite(Number(card._permanentFateCeiling))){
     card._permanentFateCeiling = Math.max(0, Number(card._permanentFateCeiling) || 0) + bonus;
   }
   clampCardToLandscapeFateCap(card);
-  const highTRepeats = 1 + getHighTPotencyCount(owner);
+  const highTRepeats = 1 + highTCount;
   const sourceIids = sources.flatMap(function(source){
     return Array.from({length:highTRepeats}, function(){ return String(source.iid || source.id || 'bh15'); });
   });
   const finalFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
   card._bh15LastFateGain = {turn:turn, before:before, requestedAfter:after, final:finalFate, at:now};
-  queueChineseMacArthurOverlay(card, sourceIids, {startValue:after});
+  queueChineseMacArthurOverlay(card, sourceIids, {
+    startValue:riderStartFate,
+    finalValue:finalFate,
+    delayMs:highTCount > 0 ? 4380 : 820
+  });
   return {bonus:Math.max(0, finalFate - currentFate), after:finalFate, baseAfter:after, sourceIids:sourceIids};
 }
 if(typeof window !== 'undefined') window.applyChineseMacArthurFateRider = applyChineseMacArthurFateRider;
@@ -8515,6 +8604,7 @@ function modifyFate(card, amount, type) {
     queueHighTPotencyOverlay(card, sources, {
       startValue:baseAfter,
       totalBonus:Math.max(0, Number(card.currentFate) - baseAfter),
+      finalValue:Math.max(0, Number(card.currentFate) || baseAfter),
       delayMs:820
     });
   }

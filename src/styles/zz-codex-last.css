@@ -25145,6 +25145,28 @@ html body #modal.public-decks-performance-layer .pd-library-v3 :is(.pdx-card,.pd
   will-change:auto!important;
 }
 
+/* Freeze the obscured title scene while the Public Decks hub is open. Its
+   ambient filters/animations cannot be seen through the opaque library, but
+   previously continued consuming a full compositor pass behind every card. */
+html body.public-decks-performance-active #s-title :is(.screen-bg,.title-overlay,.title-content,.title-profile,.daily-challenges-panel){
+  animation-play-state:paused!important;
+}
+html body.public-decks-performance-active #s-title :is(.title-content,.title-profile,.daily-challenges-panel){
+  pointer-events:none!important;
+}
+html body #modal.public-decks-performance-layer .pd-library-v3 :is(.pd-v3-header,.pd-v3-toolbar,.pdx-card,.pdx-art,.pdx-info,.pdx-actions,.pdx-stats > span){
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+html body #modal.public-decks-performance-layer .pd-library-v3 .pd-v3-close{
+  position:relative!important;
+  z-index:50!important;
+  pointer-events:auto!important;
+  touch-action:manipulation!important;
+}
+
 /* Zone pickers consistently distinguish opposing cards with the same muted
    crimson treatment, while preserving the gold selected-card state. */
 html body #modal .board-target-picker .board-target-cell.is-opponent-card .board-target-card::after{

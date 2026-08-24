@@ -3752,7 +3752,9 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       rarity: card.rarity || 'circle',
       fate: typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate),
       currentFate: liveFate,
-      displayFate: boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate),
+      displayFate: typeof getSequentialFateDisplayValue === 'function' && getSequentialFateDisplayValue(card) != null
+        ? getSequentialFateDisplayValue(card)
+        : (boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate)),
       img: getRuntimeCardImageSrc(card.img, 'detail'),
       runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
       cost: handCost,
@@ -3830,7 +3832,7 @@ function getStatusEffectIcon(kind) {
     boleslaw: `<svg class="boleslaw-bombastic-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z" stroke-width="4.2"/><path d="M24 31h22M24 40h18M24 49h10" stroke-width="3.4"/></g></svg>`,
     ali_indomitable: `<svg class="ali-indomitable-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29V18c0-4 6-4 6 0v8-12c0-4 7-4 7 0v12-14c0-4 7-4 7 0v14-10c0-4 7-4 7 0v18l-5 16H23l-8-13c-3-5 3-9 7-5l5 5" stroke-width="4"/><path d="M23 50h17v7H23z" stroke-width="3.5"/></g></svg>`,
     busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
-    high_t: `<svg class="high-t-status-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="10" width="40" height="44" rx="7"/><path d="M23 32h18M32 23v18" opacity=".58"/></g><g fill="currentColor" font-family="Georgia,serif" font-size="10" font-weight="700" text-anchor="middle"><text x="32" y="22">Zn</text><text x="32" y="50">Mg</text></g></svg>`,
+    high_t: `<svg class="high-t-status-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 32) scale(.52)" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M-48-5C-47-36-25-51 2-50 31-50 49-31 49-2 50 28 29 49 0 50-29 50-50 28-49 0"/><path d="M-31-17v34M-21-25v50M21-25v50M31-17v34M-21 0h42"/></g></svg>`,
     marie_deterrence: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36v12c0 11-7 20-18 26-11-6-18-15-18-26V18z" stroke-width="4"/><path d="M22 35h20" stroke-width="5"/><path d="M20 13h24" stroke-width="3" opacity=".5"/></g></svg>`
   };
   return icons[kind] || icons.buff;

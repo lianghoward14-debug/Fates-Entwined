@@ -80,15 +80,33 @@
     const modalRoot = document.getElementById('modal');
     if(modalRoot){
       modalRoot.classList.add('public-decks-performance-layer');
-      if(!modalRoot.__fatePublicDeckPerformanceObserver && typeof MutationObserver === 'function'){
-        modalRoot.__fatePublicDeckPerformanceObserver = new MutationObserver(function(){
-          const publicDeckWindow = modalRoot.querySelector('.modal.public-decks-modal');
-          if(!modalRoot.classList.contains('on') || !publicDeckWindow) modalRoot.classList.remove('public-decks-performance-layer');
-        });
-        modalRoot.__fatePublicDeckPerformanceObserver.observe(modalRoot, {attributes:true, attributeFilter:['class'], subtree:true});
-      }
     }
+    document.body?.classList.add('public-decks-performance-active');
   }
+  function closePublicDecks(){
+    publicDeckViewToken += 1;
+    publicDeckOpeningId = '';
+    clearTimeout(publicDecksPollTimer);
+    publicDecksPollTimer = 0;
+    const modalRoot = document.getElementById('modal');
+    if(modalRoot) modalRoot.classList.remove('public-decks-performance-layer');
+    document.body?.classList.remove('public-decks-performance-active');
+    let closed = false;
+    try{
+      if(typeof window.closeModal === 'function') closed = window.closeModal() !== false;
+      else if(typeof closeModal === 'function') closed = closeModal() !== false;
+    }catch(error){
+      console.warn('Public decks close failed', error);
+    }
+    // Public Decks is never a mandatory game prompt. If stale modal state made
+    // the shared closer refuse, do not leave this title-screen window trapped.
+    if(!closed && modalRoot){
+      modalRoot.classList.remove('on');
+      if(typeof resetModalChrome === 'function') resetModalChrome();
+    }
+    return true;
+  }
+  window.closePublicDecks = closePublicDecks;
   function bindPublicDeckHubActions(hub){
     if(!hub || hub.dataset.publicDeckActionsBound === 'true') return;
     hub.dataset.publicDeckActionsBound = 'true';
@@ -101,11 +119,7 @@
       let run = null;
       if(action.classList.contains('pd-v3-publish')) run = function(){ window.openShareDeckFlow(); };
       else if(action.classList.contains('pd-v3-close')) {
-        run = function(){
-          document.getElementById('modal')?.classList.remove('public-decks-performance-layer');
-          if(typeof window.closeModal === 'function') window.closeModal();
-          else if(typeof closeModal === 'function') closeModal();
-        };
+        run = closePublicDecks;
       }
       else if(action.classList.contains('pd-v3-prev')) run = function(){ window.showPublicDecks(publicDecksPage - 1); };
       else if(action.classList.contains('pd-v3-next')) run = function(){ window.showPublicDecks(publicDecksPage + 1); };
@@ -338,11 +352,11 @@
     publicDecksRefreshPromise = (async function(){
       const data = await flyApiRequest(`/api/public-decks?limit=${PUBLIC_DECK_FEED_LIMIT}&fresh=${Date.now()}`);
       const wasLoaded = publicDecksLoaded;
-      const previousDecksSignature = JSON.stringify(publicDecks);
+      const previousDecksSignature = publicDeckFeedSignature(publicDecks);
       publicDecksLoaded = true;
       publicDecksLastRefreshAt = Date.now();
       const nextPublicDecks = (Array.isArray(data?.decks) ? data.decks : []).map(normalizePublicDeck);
-      const publicDecksChanged = !wasLoaded || JSON.stringify(nextPublicDecks) !== previousDecksSignature;
+      const publicDecksChanged = !wasLoaded || publicDeckFeedSignature(nextPublicDecks) !== previousDecksSignature;
       publicDecks = nextPublicDecks;
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
       try{
@@ -357,6 +371,21 @@
     }finally{
       publicDecksRefreshPromise = null;
     }
+  }
+
+  function publicDeckFeedSignature(decks){
+    return (Array.isArray(decks) ? decks : []).map(function(deck){
+      return [
+        deck?.id || deck?.deckId || '',
+        deck?.updatedAt || deck?.publishedAt || deck?.createdAt || 0,
+        deck?.name || '',
+        deck?.faceCardId || '',
+        deck?.ratingAvg || 0,
+        deck?.ratingCount || 0,
+        deck?.commentCount || 0,
+        deck?.totalCards || (Array.isArray(deck?.ids) ? deck.ids.length : 0)
+      ].join(':');
+    }).join('|');
   }
 
   function publicDecksModalOpen(){
@@ -415,7 +444,7 @@
   }
   function watchPublicDecks(){
     if(publicDeckApiEnabled()){
-      const stale = !publicDecksLoaded || Date.now() - publicDecksLastRefreshAt >= 1000;
+      const stale = !publicDecksLoaded || Date.now() - publicDecksLastRefreshAt >= PUBLIC_DECK_ACTIVE_REFRESH_MS;
       if(stale) refreshFlyPublicDecks().catch(e=>console.warn('Fly public decks refresh failed', e));
       schedulePublicDecksPoll();
       return;
@@ -1178,7 +1207,7 @@
         <div class="pd-v3-summary"><span><b>${sorted.length}</b> decks</span><i></i><span><b>${totalRatings}</b> ratings</span></div>
         <div class="pd-v3-header-actions">
           <button type="button" class="btn sm pd-v3-publish"><span>+</span> Publish a Deck</button>
-          <button type="button" class="btn sm pd-v3-close" aria-label="Close Public Decks">&times;</button>
+          <button type="button" class="btn sm pd-v3-close" aria-label="Close Public Decks" onclick="event.preventDefault();event.stopPropagation();closePublicDecks()">&times;</button>
         </div>
       </header>
       <div class="pd-v3-toolbar"><div><strong>Latest Decks</strong><span>Newest community uploads</span></div><div class="pd-v3-live"><i></i><span>Live</span><em>Page ${publicDecksPage+1} of ${totalPages}</em></div></div>`;
@@ -1196,7 +1225,9 @@
       html += `<div class="pd-v3-grid pd-v3-count-${pageDecks.length}">`;
       pageDecks.forEach((d,idx)=>{
         const faceCard = d.faceCardId ? cardById(d.faceCardId) : null;
-        const faceImg = faceCard && faceCard.img ? esc(faceCard.img) : '';
+        const faceImg = faceCard && faceCard.img
+          ? esc(typeof getRuntimeCardImageSrc === 'function' ? getRuntimeCardImageSrc(faceCard.img, 'thumb') : faceCard.img)
+          : '';
         const rating = avgRating(d);
         const ratingCount = Number(d.ratingCount || 0) || (Array.isArray(d.ratings) ? d.ratings.length : 0);
         const commentCount = Number(d.commentCount || 0) || (Array.isArray(d.comments) ? d.comments.length : 0);
@@ -1206,7 +1237,7 @@
         const dateLabel = publishedAt ? new Date(publishedAt).toLocaleDateString([], {month:'short', day:'numeric'}) : 'Recent';
         const own = ownsPublicDeck(d);
         html += `<div class="pdx-card" data-public-deck-id="${esc(d.id)}">
-          <span class="pdx-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" draggable="false" onerror="this.style.display='none'">` : '<span>Deck</span>'}</span>
+          <span class="pdx-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" fetchpriority="low" draggable="false">` : '<span>Deck</span>'}</span>
           <span class="pdx-info">
             <span class="pdx-author"><span>By ${esc(d.username)}</span><em class="pdx-date">${esc(dateLabel)}</em></span>
             <strong>${esc(d.name || 'Shared Deck')}</strong>

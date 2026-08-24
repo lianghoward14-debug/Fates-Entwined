@@ -1184,6 +1184,15 @@
   }
 
   function coordinatorFatePresentationVisual(card, visual){
+    const stagedFate = card && typeof window.getSequentialFateDisplayValue === 'function'
+      ? window.getSequentialFateDisplayValue(card)
+      : (card && card._sequentialFateDisplayActive && Number.isFinite(Number(card._sequentialFateDisplayValue)) ? Number(card._sequentialFateDisplayValue) : null);
+    if(stagedFate != null && Number.isFinite(Number(stagedFate))){
+      return Object.assign({}, visual || {}, {
+        displayFate:String(stagedFate),
+        currentFate:Number(stagedFate)
+      });
+    }
     const iid = getCardIid(card);
     const placementPending = iid ? deferredPlacementFatePulseByIid.get(iid) : null;
     const coordinatorPending = iid ? deferredCoordinatorFatePulseByIid.get(iid) : null;

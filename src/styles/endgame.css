@@ -184,6 +184,7 @@
 #s-win.endgame-redesign-v2 .win-zone-report {
   grid-area: report;
   align-self: end;
+  min-height: 250px;
 }
 
 #s-win.endgame-redesign-v2 .win-zone-report:has(.win-zones:empty) {
@@ -194,11 +195,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 52px;
+  padding: 0 22px;
   border-bottom: 1px solid rgba(var(--result-accent-rgb), .12);
   color: var(--result-cool);
-  font: 600 .57rem/1 'Cinzel', serif;
+  font: 600 .66rem/1 'Cinzel', serif;
   letter-spacing: .17em;
   text-transform: uppercase;
 }
@@ -220,7 +221,7 @@
 #s-win.endgame-redesign-v2 .win-z {
   position: relative;
   min-width: 0;
-  padding: 16px 17px 15px;
+  padding: 21px 21px 19px;
   border: 0;
   border-right: 1px solid rgba(220, 231, 240, .075);
   border-radius: 0;
@@ -250,14 +251,14 @@
   gap: 7px;
   margin: 0 0 13px;
   color: rgba(229, 237, 243, .5);
-  font: 600 .54rem/1 'Cinzel', serif;
+  font: 600 .63rem/1 'Cinzel', serif;
   letter-spacing: .16em;
   text-transform: uppercase;
 }
 
 #s-win.endgame-redesign-v2 .win-zone-heading strong {
   color: #f1f4f6;
-  font-size: 1rem;
+  font-size: 1.14rem;
   letter-spacing: 0;
 }
 
@@ -266,9 +267,9 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 26px;
+  min-height: 31px;
   color: rgba(235, 239, 243, .68);
-  font-size: .68rem;
+  font-size: .78rem;
 }
 
 #s-win.endgame-redesign-v2 .win-zone-score span {
@@ -279,7 +280,7 @@
 
 #s-win.endgame-redesign-v2 .win-zone-score strong {
   color: #f4f6f8;
-  font: 600 .95rem/1 'Cinzel', serif;
+  font: 600 1.08rem/1 'Cinzel', serif;
 }
 
 #s-win.endgame-redesign-v2 .win-zone-score.p1::before,
@@ -307,7 +308,7 @@
   padding-top: 10px;
   border-top: 1px solid rgba(220, 231, 240, .09);
   color: var(--result-accent);
-  font: 600 .54rem/1.3 'Cinzel', serif;
+  font: 600 .63rem/1.3 'Cinzel', serif;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -318,7 +319,7 @@
   grid-template-columns: 1fr auto;
   gap: 9px 18px;
   align-items: center;
-  padding: 13px 17px;
+  padding: 17px 21px;
   border-top: 1px solid rgba(var(--result-accent-rgb), .11);
   background: rgba(var(--result-accent-rgb), .035);
   text-align: left;
@@ -326,7 +327,7 @@
 
 #s-win.endgame-redesign-v2 .win-total-fate-title {
   color: var(--result-accent);
-  font: 600 .58rem/1.2 'Cinzel', serif;
+  font: 600 .67rem/1.2 'Cinzel', serif;
   letter-spacing: .13em;
   text-transform: uppercase;
 }

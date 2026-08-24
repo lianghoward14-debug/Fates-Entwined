@@ -6539,6 +6539,7 @@
           window.queueHighTPotencyOverlay(target, highTSourceIids, {
             startValue:baseFateAfter,
             totalBonus:highTBonus,
+            finalValue:fateAfter,
             delayMs:820
           });
           target._suppressNextFatePulse = true;
@@ -6550,6 +6551,7 @@
         if(bh15SourceIids.length && typeof window.queueChineseMacArthurOverlay === 'function'){
           window.queueChineseMacArthurOverlay(target, bh15SourceIids, {
             startValue:isBh15AuraFollowUp ? fateBefore : baseFateAfter + highTBonus,
+            finalValue:fateAfter,
             delayMs:highTBonus > 0 ? 4380 : 820
           });
           // The canonical view already contains Hseih-Ling's permanent bonus.

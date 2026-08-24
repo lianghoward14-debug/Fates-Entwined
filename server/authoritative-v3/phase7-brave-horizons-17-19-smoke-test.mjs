@@ -7,9 +7,9 @@ import {
 import {collectTriggeredOperations} from '../../shared/engine/triggers.mjs';
 
 const DEFINITIONS = [
-  {id:'bh17', name:'Jakob Eltzholtz', type:'Improvisor', aff:'expanded_worlds', fate:17, cost:6, rarity:'triangle'},
-  {id:'bh18', name:'Jimmy (Post-Cynthia Hug)', type:'Improvisor', aff:'reality', fate:19, cost:7, rarity:'square'},
-  {id:'bh19', name:'Abed', type:'Initiator', aff:'reality', fate:19, cost:2, rarity:'square'},
+  {id:'bh17', name:'Jakob Eltzholtz', type:'Improvisor', aff:'expanded_worlds', fate:6, cost:3, rarity:'triangle'},
+  {id:'bh18', name:'Jimmy (Post-Cynthia Hug)', type:'Improvisor', aff:'reality', fate:7, cost:3, rarity:'square'},
+  {id:'bh19', name:'Abed', type:'Initiator', aff:'reality', fate:2, cost:2, rarity:'square'},
   {id:'s1', name:'First Card', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle', testOnly:true},
   {id:'s2', name:'Second Card', type:'Supporter', aff:'reality', fate:4, cost:0, rarity:'circle', testOnly:true},
   {id:'s3', name:'Third Card', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle', testOnly:true}
