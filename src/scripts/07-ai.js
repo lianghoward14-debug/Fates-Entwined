@@ -151,7 +151,10 @@ function aiObserveOpponentAndPlan(){
     memory:G._aiOpponentMemory,
     style:G._selectedAI?.style || '',
     turn:G.turn,
-    handModelMode:G._aiOpponentHandModel.mode
+    handModelMode:G._aiOpponentHandModel.mode,
+    moraleSystem:aiMoraleSystem(),
+    playerIndex:cp,
+    landscapeId:G.landscapeId
   });
 }
 
@@ -191,6 +194,9 @@ async function runAITurn() {
   G._aiTurnToken = aiTurnToken;
   const aiTurnNumber = G.turn;
   G._aiRunning = true;
+  // Abort state belongs to the previous controller lifecycle. A newly
+  // scheduled AI turn must always begin clean or it exits before endTurn().
+  G._aiAbort = false;
   G._aiAborted = false;
   log('p2','AI thinking...');
 
@@ -212,8 +218,7 @@ async function runAITurn() {
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       const hand = G.players[G.aiPlayer].hand;
-      const polishUses = Array.isArray(G.polishArmyUses) ? (G.polishArmyUses[G.aiPlayer] || 0) : 0;
-      const canSetPolishFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='28') && !G._polishUsedThisTurn && polishUses < 2;
+      const canSetPolishFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='28') && !G._polishUsedThisTurn;
       const canSetMajaFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='07');
       if(hand.length===0 && !canSetPolishFromDeck && !canSetMajaFromDeck) break;
 
@@ -226,8 +231,22 @@ async function runAITurn() {
         turnToken: aiTurnToken,
         turnNumber: aiTurnNumber
       });
-      const bestMove = choice ? choice.move : null;
-      const bestScore = choice ? choice.score : -Infinity;
+      // Search is time-sliced and may occasionally yield without a result on
+      // a busy frame. A legal turn must not become an accidental pass: fall
+      // back to the best immediate evaluation from the already-legal list.
+      let bestMove = choice ? choice.move : null;
+      let bestScore = choice ? choice.score : -Infinity;
+      if(!bestMove && !aiShouldAbortSearch({turnToken:aiTurnToken, turnNumber:aiTurnNumber})){
+        const fallback = moves.reduce(function(best, move){
+          let score = -Infinity;
+          try { score = Number(aiEvaluateMove(move)); } catch(e) {}
+          return !best || score > best.score ? {move, score} : best;
+        }, null);
+        if(fallback){
+          bestMove = fallback.move;
+          bestScore = fallback.score;
+        }
+      }
       if(!bestMove) break;
       // Only skip if score is catastrophically bad AND we've already placed at least one card
       if(bestScore < -200 && actionsThisTurn > 1) break;
@@ -263,26 +282,26 @@ async function runAITurn() {
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       log('p2','AI ends turn.');
       G._aiRunning = false;
-      if(!G._aiAbort) {
-        const endTurnRecorderBridge = window.FateAuthorityV3LegacyRecorderBridge;
-        const endTurnRecorderToken = endTurnRecorderBridge
-          ? endTurnRecorderBridge.beginNamedAction('LEGACY_END_TURN')
-          : null;
-        try {
-          endTurn();
-        } finally {
-          if(endTurnRecorderBridge) endTurnRecorderBridge.finishAction(endTurnRecorderToken);
-        }
+      const endTurnRecorderBridge = window.FateAuthorityV3LegacyRecorderBridge;
+      const endTurnRecorderToken = endTurnRecorderBridge
+        ? endTurnRecorderBridge.beginNamedAction('LEGACY_END_TURN')
+        : null;
+      try {
+        endTurn({aiCompletion:true, skipEffectWarning:true, skipModalDeferral:true});
+      } finally {
+        if(endTurnRecorderBridge) endTurnRecorderBridge.finishAction(endTurnRecorderToken);
       }
   } catch(e) {
-    if(G._aiAbort) {
+    // An expired/replaced AI task must never wake during the following human
+    // turn and call the shared endTurn() a second time.
+    if(G._aiAbort || G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) {
       G._aiRunning = false;
       return;
     }
     console.error('AI error:',e);
     G._aiRunning = false;
     try{ await aiWaitForInteractionAnimations(120); }catch(_e){}
-    endTurn();
+    endTurn({aiCompletion:true, skipEffectWarning:true, skipModalDeferral:true});
   }
 }
 
@@ -643,9 +662,8 @@ function aiGenerateAllMoves() {
       const ignoresSetLimit = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(c);
       return isSupporter && c.id!=='70' && (canPlaceSup || ignoresSetLimit);
     }).map(card=>({card, fromDeck:false}));
-    const polishUses = Array.isArray(G.polishArmyUses) ? (G.polishArmyUses[cp] || 0) : 0;
     const polishFromDeck = G.players[cp].deck.find(c=>c.id==='28');
-    if(canPlaceSup && polishFromDeck && !G._polishUsedThisTurn && polishUses < 2) supporters.push({card:polishFromDeck, fromDeck:true});
+    if(canPlaceSup && polishFromDeck && !G._polishUsedThisTurn) supporters.push({card:polishFromDeck, fromDeck:true});
     for(const candidate of supporters){
       const sup = candidate.card;
       // Try contested row FIRST (row 1) — most impactful
@@ -691,6 +709,11 @@ function aiGenerateAllMoves() {
   const chars = hand.filter(c=>typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(c, cp) : c.type!=='Supporter');
   if(chars.length){
     const mySups = [];
+    const irvineZones = new Set();
+    forEachBoardCard((card,z)=>{
+      if(card && card.owner === cp && typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '49')
+        && !(typeof isSupporterAuraSuppressed === 'function' && isSupporterAuraSuppressed(card))) irvineZones.add(z);
+    });
     forEachBoardCard((card,z,r,c)=>{
       const canTribute = typeof canUseAsConsolidationTribute === 'function'
         ? canUseAsConsolidationTribute(card, cp, z, r, c)
@@ -702,6 +725,12 @@ function aiGenerateAllMoves() {
       const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, cp) : card.type !== 'Supporter';
       if(card.type === 'Supporter') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
       if(isCharacter) mySups.push({card,z,r,c,reinforcement, kind:'character'});
+      // Irvine Businessman lets ordinary Characters pay normal consolidation
+      // costs in his zone. Keep this second role separate from cards such as
+      // Wintertide that explicitly require Character tributes.
+      if(isCharacter && card.type !== 'Supporter' && irvineZones.has(z)) {
+        mySups.push({card,z,r,c,reinforcement:1, kind:'supporter', viaIrvine:true});
+      }
     });
 
     for(const ch of chars){
@@ -745,13 +774,41 @@ function aiGenerateAllMoves() {
 // Pick tributes for consolidation — sacrifice from lowest-value zones
 function aiPickTributes(mySups, cost, preferredTarget=null) {
   const strat = G._selectedAI?._deckStrategy || '';
-  const protectRalph = ['ai_royal_flush','ai_coordinators_dream'].includes(strat);
+  const protectRalph = ['ai_royal_flush','ai_coordinators_dream','ai_crown_of_five'].includes(strat);
+  const preservationPenalty = function(entry){
+    const id = String(entry?.card?.id || '');
+    const onlyCopy = aiOwnBoardCardsById(id).length <= 1;
+    if(strat === 'ai_crown_of_five') {
+      if(onlyCopy && ['15','19','57','01','77'].includes(id)) return 5000;
+      if(id === '24') return onlyCopy ? 1700 : 650;
+      if(id === '49') return onlyCopy ? 1300 : 480;
+      if(id === '09') return onlyCopy ? 900 : 260;
+      if(id === '92') return onlyCopy ? 500 : 120;
+    }
+    if(strat === 'ai_snowball_fight_club') {
+      const copiesSnowball = typeof cardActsAsPassive === 'function' && cardActsAsPassive(entry.card, '93');
+      if(copiesSnowball) return onlyCopy ? 2600 : 1050;
+      if(id === '31') return onlyCopy ? 650 : 180;
+      if(id === '58') return onlyCopy && G.players[G.aiPlayer].discard.some(c=>c.id === '31') ? 520 : 80;
+    }
+    if(strat === 'ai_wintertide_family_reunion') {
+      const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(G.aiPlayer);
+      if(id === '99' && conversionActive) return onlyCopy ? 6000 : 2200;
+      if(onlyCopy && ['84','88','89','100'].includes(id)) return 2800;
+      if(id === '82') return onlyCopy ? 1800 : 450;
+      if(id === '90') return onlyCopy ? 900 : 220;
+      if(id === '92') return onlyCopy ? 700 : 180;
+    }
+    return 0;
+  };
   // Sort by least valuable first (sacrifice cheap supporters from zones we're winning)
   const sorted = [...mySups].sort((a,b)=>{
     if(protectRalph && a.card.id !== b.card.id){
       if(a.card.id === '24') return 1;
       if(b.card.id === '24') return -1;
     }
+    const preserveDiff = preservationPenalty(a) - preservationPenalty(b);
+    if(preserveDiff) return preserveDiff;
     const za = aiCachedZoneScore(a.z, G.aiPlayer) - aiCachedZoneScore(a.z, 1-G.aiPlayer);
     const zb = aiCachedZoneScore(b.z, G.aiPlayer) - aiCachedZoneScore(b.z, 1-G.aiPlayer);
     // Sacrifice from zones we're winning big, keep supporters in contested zones
@@ -791,6 +848,7 @@ function aiPickTributes(mySups, cost, preferredTarget=null) {
     // Score this combination
     let penalty = 0;
     for(const t of trimmed){
+      penalty += preservationPenalty(t);
       if(preferredTarget && t.card.iid === preferredTarget.card.iid) continue;
       const diff = aiCachedZoneScore(t.z, G.aiPlayer) - aiCachedZoneScore(t.z, 1-G.aiPlayer);
       if(diff <= 2) penalty += 3;
@@ -823,7 +881,96 @@ function aiProjectedMoveFate(move) {
   const base = move.type === 'consolidate'
     ? (Number(move.card.fate) || 0)
     : (Number(move.card.currentFate ?? move.card.fate) || 1);
-  return base + aiProjectedLandscapeFateBonus(move.card, move);
+  const projected = base + aiProjectedLandscapeFateBonus(move.card, move);
+  return projected;
+}
+
+function aiMoraleSystem(){
+  if(typeof window === 'undefined' || window.FATE_MORALE_PRESSURE_RULES_ENABLED !== true) return null;
+  if(G?._freePlayGameSettings?.healthPressureSeals === false) return null;
+  return G?._moralePressure || null;
+}
+
+function aiMoraleMoveBonus(move){
+  const intelligence = aiIntelligence();
+  const system = aiMoraleSystem();
+  if(!intelligence || !system || !move || typeof move.z !== 'number') return 0;
+  const cp = G.aiPlayer;
+  const opp = 1-cp;
+  const ownScores = [0,1,2].map(z=>aiCachedZoneScore(z,cp));
+  const enemyScores = [0,1,2].map(z=>aiCachedZoneScore(z,opp));
+  const afterOwnScores = ownScores.slice();
+  const afterEnemyScores = enemyScores.slice();
+  afterOwnScores[move.z] += aiProjectedMoveFate(move);
+  if(move.type === 'consolidate'){
+    for(const tribute of move.tributes || []){
+      const tributeFate = Math.max(0, Number(tribute.card?.currentFate ?? tribute.card?.fate) || 0);
+      afterOwnScores[tribute.z] = Math.max(0, afterOwnScores[tribute.z]-tributeFate);
+    }
+  }
+  const context = {
+    system,
+    playerIndex:cp,
+    ownScores,
+    enemyScores,
+    afterOwnScores,
+    afterEnemyScores,
+    turn:G.turn,
+    landscapeId:G.landscapeId,
+    style:G._selectedAI?.style || ''
+  };
+  let bonus = intelligence.scoreMoralePositionDelta(context);
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+    bonus += intelligence.scoreMoraleCard(move.card, context);
+    const id = String(move.card?.id || '');
+    const cycle = intelligence.moraleCycleDamage(ownScores, enemyScores);
+    const style = intelligence.moraleStyleProfile(G._selectedAI?.style || '');
+    if(id === '34'){
+      let matching = 0;
+      const aff = String(move.card?.aff || move.card?.affiliation || '');
+      G.board?.[move.z]?.forEach(row=>row?.forEach(card=>{
+        if(card && card.owner === cp && !isFaceDownCard(card) && String(card.aff || card.affiliation || '') === aff) matching++;
+      }));
+      bonus += matching * 2.2 * style.aggression;
+    }else if(id === '35'){
+      bonus += Math.floor(aiProjectedMoveFate(move)/2) * 2.4 * style.aggression;
+    }else if(id === '44'){
+      let dauntless = String(move.card.type || '') === 'Dauntless' ? 1 : 0;
+      G.board?.[move.z]?.forEach(row=>row?.forEach(card=>{
+        if(card && card.owner === cp && !isFaceDownCard(card) && card.type === 'Dauntless') dauntless++;
+      }));
+      bonus += dauntless * 2.1 * style.aggression;
+    }else if(id === '64'){
+      bonus += cycle.outgoing * 1.1 * style.aggression;
+    }
+  }
+  const max = Math.max(1, Number(system.maxMorale) || 200);
+  const ownMorale = Math.max(0, Number(system.morale?.[cp]) || 0);
+  if(ownMorale / max <= .40 && move.type === 'place' && move.card?.type === 'Supporter'){
+    const profile = intelligence.profileCard(move.card);
+    const durableMoraleValue = profile.moraleHeal || profile.moraleDamage || profile.moraleShield || profile.moraleDouble;
+    if(!durableMoraleValue) bonus -= 5.5 * intelligence.moraleStyleProfile(G._selectedAI?.style || '').supporterPatience;
+  }
+  return bonus;
+}
+
+function aiMoraleProjectedBoardBonus(afterOwnScores, afterEnemyScores){
+  const intelligence = aiIntelligence();
+  const system = aiMoraleSystem();
+  if(!intelligence || !system) return 0;
+  const cp = G.aiPlayer;
+  const opp = 1-cp;
+  return intelligence.scoreMoralePositionDelta({
+    system,
+    playerIndex:cp,
+    ownScores:[0,1,2].map(z=>aiCachedZoneScore(z,cp)),
+    enemyScores:[0,1,2].map(z=>aiCachedZoneScore(z,opp)),
+    afterOwnScores,
+    afterEnemyScores,
+    turn:G.turn,
+    landscapeId:G.landscapeId,
+    style:G._selectedAI?.style || ''
+  });
 }
 
 function aiLandscapeMoveBonus(move) {
@@ -1004,6 +1151,7 @@ function aiEvaluateMove(move) {
   score += aiDeckStrategyBonus(move, deckStrat);
   score += aiLandscapeMoveBonus(move);
   score += aiPersonalityMoveBonus(move, getAIStyleModifiers(G._selectedAI?.style || ''));
+  score += aiMoraleMoveBonus(move);
   score += aiLearnedMoveBonus(move);
   score += aiTurnPlanMoveBonus(move);
 
@@ -1012,6 +1160,124 @@ function aiEvaluateMove(move) {
 
 function aiDeckSearchPriority(deckId, kind) {
   const priorities = {
+    starter_freeworld: {
+      supporter: ['59','25','63','28','68','42','05'],
+      character: ['34','77','01','35','29','06','13'],
+      jorge: ['34','77','01','35','29','59','25','63','28','68','42','05','13'],
+      lina: [],
+      dylan: ['34','77','01','35','59','25','63','28','42','05'],
+      coordinator: ['34','77','01']
+    },
+    starter_assault: {
+      supporter: ['68','59','63','74','16','42','32','05'],
+      character: ['11','43','40','22','27','06'],
+      jorge: ['11','43','40','22','27','68','59','63','74','16','42','32','05'],
+      lina: [],
+      dylan: ['11','43','40','22','59','63','05'],
+      coordinator: ['11']
+    },
+    starter_maelstrom: {
+      supporter: ['05','47','58','75','60','32','95','63','76','94'],
+      character: ['14','22','27','06'],
+      jorge: ['14','22','27','05','47','58','75','60','32','95','63','76','94'],
+      lina: [], dylan: ['14','22','27','05','47','58','75','60','32','95'], coordinator: []
+    },
+    ai_wintertide_family_reunion: {
+      supporter: ['94','92','28','60','98'],
+      character: ['84','82','99','100','88','89','90','27','06'],
+      jorge: ['84','82','99','100','88','89','90','27','94','92','28','60','98'],
+      lina: [],
+      dylan: [],
+      coordinator: []
+    },
+    ai_snowball_fight_club: {
+      supporter: ['93','37','31','58','60','05','71','32','42'],
+      character: ['bh05','41','08','48','13'],
+      jorge: ['41','93','37','31','48','13'],
+      lina: ['41'],
+      dylan: ['41','93','37','31','05','71'],
+      coordinator: []
+    },
+    ai_crown_of_five: {
+      supporter: ['09','24','49','92','28','68','74','60'],
+      character: ['15','19','57','01','77','07'],
+      jorge: ['15','19','57','01','77','09','24','49'],
+      lina: [],
+      dylan: ['15','19','57','01','77','09','24','49','92'],
+      coordinator: ['15','19','57','01','77']
+    },
+    ai_last_mohicans_ledger: {
+      supporter: ['33','20','60','75','47','64','58','05','65','32','42'],
+      character: ['45','03','27'],
+      jorge: ['45','33','20','75','47','64'],
+      lina: ['45'],
+      dylan: ['45','33','20','47','64','65'],
+      coordinator: []
+    },
+    ai_hellenic_heartbreaker: {
+      supporter: ['05','60','75','47','64','58','33','20','32','42'],
+      character: ['35','03','22','27'],
+      jorge: ['35','05','22','47','64','75'],
+      lina: [],
+      dylan: ['35','05','22','47','64'],
+      coordinator: []
+    },
+    ai_hungarian_war_dance: {
+      supporter: ['68','25','44','47','64','60','58'],
+      character: ['34','66','77','19','29','07'],
+      jorge: ['34','66','77','19','25','44'],
+      lina: [],
+      dylan: ['34','66','77','19','25','44'],
+      coordinator: ['34','77','19']
+    },
+    ai_great_oak_salvo: {
+      supporter: ['47','75','58','60','64','69','33','32','42','05','68'],
+      character: ['07','27','13'],
+      jorge: ['47','75','58','64','69','33'],
+      lina: [],
+      dylan: ['47','64','69','33','05'],
+      coordinator: []
+    },
+    ai_adjacency_doctrine: {
+      supporter: ['68','25','44','47','64'],
+      character: ['35','bh07','bh11','01','19','15','bh12','66','07'],
+      jorge: ['35','bh07','bh11','01','19','15'],
+      lina: [],
+      dylan: ['35','bh07','bh11','01','19','15','25','44'],
+      coordinator: ['bh11','bh07','01','19','15']
+    },
+    ai_hand_quarantine: {
+      supporter: ['70','72','71','50','42','58','60','52','33','32'],
+      character: ['bh03','61','56','31'],
+      jorge: ['bh03','61','72','71','50','70'],
+      lina: ['61'],
+      dylan: ['bh03','61','72','71','50','31'],
+      coordinator: []
+    },
+    ai_high_t_draw_mill: {
+      supporter: ['32','42','47','64','58','05'],
+      character: ['bh02','bh19','bh15','40','27','bh13','bh10','03'],
+      jorge: ['bh02','bh19','bh15','40','27','bh13'],
+      lina: ['bh02','bh19'],
+      dylan: ['bh02','bh19','bh15','40','27','bh13'],
+      coordinator: ['bh02']
+    },
+    ai_university_counterbattery: {
+      supporter: ['68','18','79','50','71','60','58','47','32'],
+      character: ['bh08','56','67','21','17','04'],
+      jorge: ['bh08','56','67','21','17','04'],
+      lina: ['67','04'],
+      dylan: ['bh08','56','67','21','18','79','50'],
+      coordinator: ['bh08']
+    },
+    ai_selva_tidal_strike: {
+      supporter: ['33','74','75','47','64','65','58'],
+      character: ['bh04','06','51','77','bh16','30','02'],
+      jorge: ['bh04','51','77','bh16','30','33'],
+      lina: [],
+      dylan: ['bh04','51','77','bh16','30','47','64'],
+      coordinator: ['77']
+    },
     ai_blitz: {
       supporter: ['25','28','63','76','65','05','59','09','42','79'],
       character: ['07','45','29','06','13'],
@@ -1253,102 +1519,187 @@ function aiDeckStrategyBonus(move, deckId) {
   const cp = G.aiPlayer;
 
   if(deckId === 'starter_maelstrom') {
-    // RELENTLESS MAELSTROM: consolidate for Alondra, buff her, protect her
-    if(move.type === 'consolidate' && move.card.id === '14') bonus += 20; // Alondra is the #1 consolidation target
+    // RELENTLESS MAELSTROM: anchor Alondra, recycle disposable supporters, and compound draw/buff engines.
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    let anchorZone=null, anchorValue=-1;
+    for(let zi=0;zi<3;zi++) { const a=aiCountOwnCardsInZone(zi,c=>String(c.id||'')==='14'); const e=aiCountOwnCardsInZone(zi,c=>['58','60','75'].includes(String(c.id||''))); const s=aiCountOwnCardsInZone(zi,c=>c.type==='Supporter'); const v=a*180+e*90+s*18; if(v>anchorValue&&v>0){anchorValue=v;anchorZone=zi;} }
+    const alondraHere=aiCountOwnCardsInZone(move.z,c=>String(c.id||'')==='14');
+    const supportersHere=aiCountOwnCardsInZone(move.z,c=>c.type==='Supporter');
     if(move.type === 'place') {
-      // Great Oak Infantry is primarily consolidation fodder for Alondra
-      if(move.card.id === '47') bonus += 3;
-      // 17th British (05): bonus if Alondra is already on the board in this zone
-      if(move.card.id === '05') {
-        const hasAlondra = G.board[move.z]?.some(row => row?.some(c => c && c.id === '14' && c.owner === cp));
-        if(hasAlondra) bonus += 12;
-      }
-      // Crossroads/Ledger-keepers: bonus for recycling 17th British
-      if(move.card.id === '58' || move.card.id === '75') {
-        const discardHas05 = G.players[cp].discard.some(c => c.id === '05');
-        if(discardHas05) bonus += 8;
-      }
-      // South Wind Spearman: bonus if Alondra is on the board (protect her)
-      if(move.card.id === '20') {
-        const alondraOnBoard = G.board.some(z => z?.some(row => row?.some(c => c && c.id === '14' && c.owner === cp)));
-        if(alondraOnBoard) bonus += 6;
-      }
-      // High-fate supporters (ALPINE, Soviet, West Carib): place for zone control, not just fodder
-      if(['76','44','65'].includes(move.card.id)) bonus += 4;
+      const id=String(move.card.id||'');
+      if(anchorZone!==null&&['05','47','58','60','75','32','95','63','76','94'].includes(id)) bonus+=move.z===anchorZone?155:-120;
+      if(id==='05') bonus+=alondraHere?280:-40;
+      if(id==='47') bonus+=170+alondraHere*70;
+      if(id==='58'||id==='75') bonus+=(G.players[cp].discard.some(c=>c.id==='05')?300:170);
+      if(id==='60'||id==='32') bonus+=G.players[cp].hand.length<=5?230:90;
+      if(id==='95') bonus+=180+G.turn*18;
+      if(id==='63') bonus+=210+aiCountOwnCardsInZone(move.z,c=>String(c.id||'')==='63')*85;
+      if(id==='76') bonus+=130;
+      if(id==='94') bonus+=G.players[cp].deck.some(c=>['14','22','27','06'].includes(String(c.id||'')))?270:80;
+    }
+    if(move.type==='consolidate') {
+      const id=String(move.card.id||''); if(anchorZone!==null) bonus+=move.z===anchorZone?185:-230; if(move.r===safeRow) bonus+=65;
+      if(id==='14') bonus+=780+supportersHere*95; if(id==='22') bonus+=supportersHere>=2?390:120; if(id==='27') bonus+=G.players[cp].hand.length<=5?420:150; if(id==='06') bonus+=aiOwnBoardCardsById('14').length||G.players[cp].hand.some(c=>c.id==='14')?140:510;
+       for(const t of move.tributes||[]) { const tid=String(t?.card?.id||''); if(['05','47','58','60','75','95','63'].includes(tid)){const copies=aiCountOwnCardsInZone(move.z,c=>String(c.id||'')===tid); bonus-=copies<=1?2600:650;} if(['32','76','94'].includes(tid)) bonus+=75; }
     }
   }
 
   else if(deckId === 'starter_freeworld') {
-    // THE FREE WORLD: flood Third Great War cards, then Duncan declares TGW
-    if(move.type === 'consolidate' && move.card.id === '77') bonus += 18; // Duncan is key
-    if(move.type === 'consolidate' && move.card.id === '01') bonus += 14; // Felicyta is secondary
-    if(move.type === 'place') {
-      // Third Great War supporters get a bonus — more on board = more Duncan value
-      const tgwIds = ['18','37','42','59','28','09','63'];
-      if(tgwIds.includes(move.card.id)) bonus += 3;
-      // Dylan Kirby searches for Felicyta — high priority consolidation target
-      if(move.card.id === '29') bonus += 4;
-      // Jorge searches for Duncan
-      if(move.card.id === '06') bonus += 4;
+    // THE FREE WORLD: build one protected TGW formation, tutor missing engines, then cash in its Fate.
+    const coreIds = ['34','77','01','35'];
+    const formationSupporters = ['59','25','63'];
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    let formationZone = null;
+    let formationValue = -1;
+    for(let zi=0; zi<3; zi++) {
+      const coreCount = aiCountOwnCardsInZone(zi,c=>coreIds.includes(String(c.id || '')));
+      const tgwCount = aiCountOwnCardsInZone(zi,c=>String(c.aff || c.affiliation || '') === 'third_great_war');
+      const engineCount = aiCountOwnCardsInZone(zi,c=>formationSupporters.includes(String(c.id || '')));
+      const value = coreCount * 100 + engineCount * 30 + tgwCount * 12;
+      if(value > formationValue && (coreCount || engineCount || tgwCount)) { formationValue = value; formationZone = zi; }
     }
-    // Felicyta placement: prefer zones with most TGW allies already
-    if(move.type === 'consolidate' && move.card.id === '01') {
-      let tgwCount = 0;
-      G.board[move.z]?.forEach(row => row?.forEach(c => {
-        if(c && c.owner === cp && c.aff === 'third_great_war') tgwCount++;
-      }));
-      bonus += tgwCount * 4;
+    const tgwHere = aiCountOwnCardsInZone(move.z,c=>String(c.aff || c.affiliation || '') === 'third_great_war');
+    const coreHere = aiCountOwnCardsInZone(move.z,c=>coreIds.includes(String(c.id || '')));
+    const supporterFateHere = (G.board[move.z] || []).reduce((sum,row)=>sum + (row || []).reduce((rowSum,c)=>{
+      if(!c || c.owner !== cp || c.type !== 'Supporter' || isFaceDownCard(c)) return rowSum;
+      return rowSum + Math.max(0, Number(c.currentFate ?? c.fate) || 0);
+    },0),0);
+    const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+    const friendlyAdjacent = adjacent.filter(entry=>entry.card && entry.card.owner === cp);
+
+    if(move.type === 'place') {
+      const id = String(move.card.id || '');
+      if(formationZone !== null && ['59','25','63','05'].includes(id)) bonus += move.z === formationZone ? 180 : -150;
+      if(id === '28') bonus += move.fromDeck ? 520 + (move.contested ? 140 : 0) : 145;
+      if(id === '59') bonus += 255 + aiCountOwnCardsInZone(move.z,c=>c.type === 'Supporter') * 38;
+      if(id === '63') bonus += 210 + aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === '63') * 85;
+      if(id === '25') {
+        bonus += 235 + friendlyAdjacent.filter(entry=>String(entry.card.aff || entry.card.affiliation || '') === 'third_great_war').length * 55;
+        if(move.c === 1) bonus += 35;
+      }
+      if(id === '42') bonus += G.players[cp].hand.length <= 5 ? 245 : 90;
+      if(id === '05') bonus += coreHere ? 190 + coreHere * 45 : -75;
+      if(id === '68') {
+        const heldOrControlled = new Set(G.players[cp].hand.map(c=>String(c.id || '')));
+        forEachBoardCard(c=>{ if(c && c.owner === cp) heldOrControlled.add(String(c.id || '')); });
+        bonus += ['34','77','01'].some(coreId=>!heldOrControlled.has(coreId)) ? 430 : 80;
+      }
+    }
+
+    if(move.type === 'consolidate') {
+      const id = String(move.card.id || '');
+      if(coreIds.includes(id)) {
+        if(formationZone !== null) bonus += move.z === formationZone ? 230 : -310;
+        if(move.r === safeRow) bonus += 95;
+      }
+      if(id === '34') bonus += aiOwnBoardCardsById('34').length ? 210 : 620;
+      if(id === '77') bonus += 330 + tgwHere * 58;
+      if(id === '01') bonus += 300 + friendlyAdjacent.length * 72 + tgwHere * 25;
+      if(id === '35') bonus += supporterFateHere >= 6 ? 680 + supporterFateHere * 28 : -220;
+      if(id === '29') {
+        const searchPool = [...G.players[cp].deck,...G.players[cp].discard];
+        bonus += searchPool.some(c=>coreIds.includes(String(c.id || ''))) ? 470 : 165;
+      }
+      if(id === '13') bonus += G.players[cp].hand.filter(c=>c.type === 'Supporter').length < 2 ? 410 : 145;
+      if(id === '06') {
+        const heldOrControlled = new Set(G.players[cp].hand.map(c=>String(c.id || '')));
+        forEachBoardCard(c=>{ if(c && c.owner === cp) heldOrControlled.add(String(c.id || '')); });
+        bonus += coreIds.some(coreId=>!heldOrControlled.has(coreId)) ? 455 : 120;
+      }
+      for(const tribute of move.tributes || []) {
+        const tributeId = String(tribute?.card?.id || '');
+        if(formationSupporters.includes(tributeId)) {
+          const copiesHere = aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === tributeId);
+          bonus -= copiesHere <= 1 ? 3600 : 850;
+        }
+        if(['28','42','05','68'].includes(tributeId)) bonus += 80;
+      }
     }
   }
 
   else if(deckId === 'starter_incel') {
     // REIGN OF THE FURIOUS INCEL: recycle Oathbound procs to feed Jimmy's passive
-    if(move.type === 'consolidate' && move.card.id === '41') bonus += 15; // Jimmy
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    const jimmyZone = aiFirstOwnCardZone(c=>c.id === '41');
+    if(move.type === 'consolidate' && move.card.id === '41') { bonus += 620; if(move.r === safeRow) bonus += 140; }
     if(move.type === 'place') {
       // Oathbound Noble Fighter: always valuable (feeds Jimmy)
-      if(move.card.id === '31') bonus += 8;
+      if(move.card.id === '31') bonus += 210 + (jimmyZone === move.z ? 150 : 0);
       // Crossroads/Ledger-keepers: recycle Oathbound from discard
       if(move.card.id === '58' || move.card.id === '75') {
         const discardHas31 = G.players[cp].discard.some(c => c.id === '31');
-        if(discardHas31) bonus += 10;
+        if(discardHas31) bonus += 260;
       }
       // Post-Modernist Dylan: debuff opponent zone — good board control
       if(move.card.id === '10') bonus += 3;
       // Santiago: remove opponent threats
       if(move.card.id === '30') bonus += 3;
+      if(move.card.id === '70') bonus += 165;
+      if(move.card.id === '36') bonus += jimmyZone === move.z ? 120 : 35;
     }
     // Lina: if she searches for Jimmy, always search for Jimmy
-    if(move.type === 'consolidate' && move.card.id === '08') bonus += 12;
+    if(move.type === 'consolidate' && move.card.id === '08') bonus += aiOwnBoardCardsById('41').length ? 120 : 520;
   }
 
   else if(deckId === 'starter_assault') {
-    // MASS ASSAULT DOCTRINE: stack Anne Stone + Jeremiah + Maroon Knights in same zone
-    if(move.type === 'consolidate') {
-      // Anne Stone, Jeremiah Jones, Mark — all want to be in the same zone
-      if(['11','57','43'].includes(move.card.id)) {
-        // Bonus if one of the other key pieces is already in this zone
-        const keyIds = ['11','57','59'];
-        let synergy = 0;
-        G.board[move.z]?.forEach(row => row?.forEach(c => {
-          if(c && c.owner === cp && keyIds.includes(c.id)) synergy++;
-        }));
-        bonus += synergy * 6;
-        bonus += 8; // base bonus for placing key pieces
-      }
+    // MASS ASSAULT DOCTRINE: expand one safe row, establish Anne, then pack it with scaling supporters.
+    const engineIds = ['11','43','59','63'];
+    const disposableSupporters = ['32','42','16','74','68','05'];
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    let formationZone = null;
+    let formationValue = -1;
+    for(let zi=0; zi<3; zi++) {
+      const anneCount = aiCountOwnCardsInZone(zi,c=>String(c.id || '') === '11');
+      const markCount = aiCountOwnCardsInZone(zi,c=>String(c.id || '') === '43');
+      const auraCount = aiCountOwnCardsInZone(zi,c=>['59','63'].includes(String(c.id || '')));
+      const supporterCount = aiCountOwnCardsInZone(zi,c=>c.type === 'Supporter');
+      const value = anneCount * 140 + markCount * 75 + auraCount * 55 + supporterCount * 15;
+      if(value > formationValue && value > 0) { formationValue = value; formationZone = zi; }
     }
+    const anneHere = aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === '11');
+    const supportersHere = aiCountOwnCardsInZone(move.z,c=>c.type === 'Supporter');
+    const auraHere = aiCountOwnCardsInZone(move.z,c=>['59','63'].includes(String(c.id || '')));
+
     if(move.type === 'place') {
-      // Czechoslovak Maroon Knights: place in same zone as Anne Stone/Jeremiah
-      if(move.card.id === '59') {
-        let synergy = 0;
-        G.board[move.z]?.forEach(row => row?.forEach(c => {
-          if(c && c.owner === cp && (c.id === '11' || c.id === '57')) synergy++;
-        }));
-        bonus += synergy * 5;
+      const id = String(move.card.id || '');
+      if(formationZone !== null && ['59','63','05','32','42','74'].includes(id)) bonus += move.z === formationZone ? 195 : -155;
+      if(id === '59') bonus += 270 + supportersHere * 48 + anneHere * 110;
+      if(id === '63') bonus += 225 + aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === '63') * 95 + anneHere * 85;
+      if(id === '68') bonus += aiOwnBoardCardsById('11').length || G.players[cp].hand.some(c=>c.id === '11') ? 85 : 480;
+      if(id === '74') bonus += 245 + (G.players[cp].hand.filter(c=>c.type === 'Supporter').length * 18);
+      if(id === '32') bonus += G.players[cp].hand.length <= 5 ? 255 : 120;
+      if(id === '42') bonus += G.players[cp].hand.length <= 5 ? 270 : 105;
+      if(id === '16') {
+        const opposingSupporters = aiCountOpponentCardsInZone(move.z,c=>c.type === 'Supporter');
+        bonus += opposingSupporters ? 190 + opposingSupporters * 75 : -45;
       }
-      // Zimbabwean Honor Guard: self-replicating — always good
-      if(move.card.id === '25') bonus += 5;
-      // MINAE: remove opponent supporters
-      if(move.card.id === '16') bonus += 3;
+      if(id === '05') bonus += anneHere ? 230 : (aiCountOwnCardsInZone(move.z,c=>c.type !== 'Supporter') ? 100 : -65);
+    }
+
+    if(move.type === 'consolidate') {
+      const id = String(move.card.id || '');
+      if(['11','43','40','22'].includes(id) && formationZone !== null) bonus += move.z === formationZone ? 245 : -270;
+      if(id === '11') {
+        bonus += 620 + supportersHere * 92;
+        if(move.r === safeRow) bonus += 115;
+      }
+      if(id === '43') {
+        const marksHere = aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === '43');
+        bonus += 410 + marksHere * 125 + supportersHere * 24;
+      }
+      if(id === '40') bonus += G.players[cp].deck.length >= 3 ? 430 : 135;
+      if(id === '27') bonus += G.players[cp].hand.length <= 5 ? 385 : 145;
+      if(id === '22') bonus += supportersHere + auraHere >= 2 ? 390 + auraHere * 90 : 105;
+      if(id === '06') bonus += aiOwnBoardCardsById('11').length || G.players[cp].hand.some(c=>c.id === '11') ? 145 : 455;
+      for(const tribute of move.tributes || []) {
+        const tributeId = String(tribute?.card?.id || '');
+        if(['59','63'].includes(tributeId)) {
+          const copiesHere = aiCountOwnCardsInZone(move.z,c=>String(c.id || '') === tributeId);
+          bonus -= copiesHere <= 1 ? 3800 : 1000;
+        }
+        if(tributeId === '68' && !aiOwnBoardCardsById('11').length && !G.players[cp].hand.some(c=>c.id === '11')) bonus -= 2600;
+        if(disposableSupporters.includes(tributeId)) bonus += 75;
+      }
     }
   }
 
@@ -1375,6 +1726,577 @@ function aiDeckStrategyBonus(move, deckId) {
         bonus += greekCount > 0 ? -6 : 7;
       }
       if(['16','18','42','58','62','64','71'].includes(move.card.id)) bonus += 5;
+    }
+  }
+
+  else if(deckId === 'ai_wintertide_family_reunion') {
+    const snowActive = typeof isLandscapeActive === 'function'
+      ? isLandscapeActive('igb15')
+      : String(G.landscapeId || '') === 'igb15';
+    const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
+    const supporterEffectsUsed = Math.max(0, Number(G._supporterEffectsActivatedP?.[cp]) || 0);
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    const boardCount = function(id){ return aiOwnBoardCardsById(id).length; };
+    const available = function(id){
+      return boardCount(id) > 0 || G.players[cp].hand.some(c=>c.id === id) || G.players[cp].deck.some(c=>c.id === id);
+    };
+    const familyControlled = ['82','84','88','89','99'].some(id=>boardCount(id) > 0);
+    let effectiveCharacters = 0;
+    forEachBoardCard(card=>{
+      if(card && card.owner === cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, cp) : card.type !== 'Supporter')) effectiveCharacters++;
+    });
+
+    if(move.type === 'place') {
+      if(move.card.id === '98') bonus += G.turn <= 2 ? 290 : (conversionActive ? 165 : 35);
+      if(move.card.id === '94') {
+        const mailNeeded = !boardCount('99') && !G.players[cp].hand.some(c=>c.id === '99');
+        bonus += conversionActive ? 45 : (mailNeeded ? 330 : 145);
+      }
+      if(move.card.id === '92') {
+        const printedSupportersHere = aiCountOwnCardsInZone(move.z,c=>c.type === 'Supporter' && c.id !== '92');
+        bonus += conversionActive ? 235 + printedSupportersHere * 28 : 95 + printedSupportersHere * 22;
+        if(!conversionActive && ['94','28','60'].some(id=>G.players[cp].hand.some(c=>c.id === id))) bonus -= 70;
+      }
+      if(move.card.id === '28') bonus += move.fromDeck ? (conversionActive ? 610 : 390) : (conversionActive ? 220 : 125);
+      if(move.card.id === '60') bonus += conversionActive ? 85 : (supporterEffectsUsed < 9 ? 245 : 35);
+      if(conversionActive && move.card.type === 'Supporter') {
+        bonus += 150 + effectiveCharacters * 7;
+        if(move.r === safeRow) bonus += 45;
+      }
+    }
+
+    if(move.type === 'consolidate') {
+      if(move.card.id === '82') {
+        bonus += snowActive ? 115 : 900;
+        if(move.r === safeRow) bonus += 90;
+      }
+      if(move.card.id === '84') {
+        const missingEngine = (!snowActive && available('82')) || (!conversionActive && available('99')) || !boardCount('100');
+        bonus += missingEngine ? 720 : 310;
+        if(move.r === safeRow) bonus += 80;
+      }
+      if(move.card.id === '99') {
+        const freeFromFamily = boardCount('88') > 0 || boardCount('89') > 0;
+        bonus += conversionActive ? -520 : (freeFromFamily ? 980 : 510);
+        if(move.r === safeRow) bonus += 100;
+      }
+      if(move.card.id === '88') {
+        bonus += 360 + effectiveCharacters * (conversionActive ? 34 : 17);
+        if(move.r === safeRow) bonus += 105;
+      }
+      if(move.card.id === '89') {
+        bonus += supporterEffectsUsed < 10 ? 640 : 175;
+        if(move.r === safeRow) bonus += 95;
+      }
+      if(move.card.id === '100') {
+        const winterReady = snowActive && familyControlled;
+        bonus += winterReady ? 890 + effectiveCharacters * 20 : (snowActive ? 430 : -420);
+        if(move.r === safeRow && !move.contested) bonus += 45;
+      }
+      if(move.card.id === '90') bonus += G.turn <= 8 ? 390 : 180;
+      if(move.card.id === '27') bonus += G.players[cp].hand.length <= 5 ? 330 : 125;
+      if(move.card.id === '06') {
+        const missingEngine = (!snowActive && available('82')) || (!conversionActive && available('99')) || !boardCount('84');
+        bonus += missingEngine ? 440 : 170;
+      }
+      for(const tribute of move.tributes || []) {
+        const tributeId = String(tribute?.card?.id || '');
+        const onlyCopy = boardCount(tributeId) <= 1;
+        if(tributeId === '99' && conversionActive && onlyCopy) bonus -= 7000;
+        if(onlyCopy && ['84','88','89','100'].includes(tributeId)) bonus -= 3600;
+        if(tributeId === '82' && onlyCopy) bonus -= 2200;
+        if(conversionActive && ['98','28','60','94'].includes(tributeId)) bonus += 90;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_snowball_fight_club') {
+    const jimmyZone = aiFirstOwnCardZone(c=>c.id === '41');
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    const snowballSources = aiOwnBoardCardsById('93').length
+      + aiOwnBoardCardsById('37').filter(entry=>String(entry.card._copiedPassiveId || entry.card.copiedPassiveId || '') === '93').length
+      + aiOwnBoardCardsById('bh05').filter(entry=>String(entry.card._bh05CopiedPassiveId || '') === '93').length;
+    if(move.type === 'place') {
+      if(move.card.id === '93') {
+        bonus += 285 + snowballSources * 35;
+        bonus += move.r === safeRow ? 135 : -45;
+      }
+      if(move.card.id === '37') {
+        bonus += aiOwnBoardCardsById('93').length ? 310 : -180;
+        bonus += move.r === safeRow ? 115 : -35;
+      }
+      if(move.card.id === '31') bonus += 205;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>c.id === '31') ? 235 : 75;
+      if(move.card.id === '60') bonus += aiOwnBoardCardsById('93').length ? 170 : 240;
+      if(move.card.id === '05') bonus += jimmyZone === move.z ? 185 : 30;
+      if(move.card.id === '71') bonus += 115;
+      if(['32','42'].includes(move.card.id)) bonus += 85;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === '41') {
+        bonus += 560 + snowballSources * 95;
+        if(move.r === safeRow) bonus += 190;
+      }
+      if(move.card.id === '08') bonus += aiOwnBoardCardsById('41').length ? 70 : 500;
+      if(move.card.id === '48') {
+        const taylorAvailable = G.players[cp].deck.some(c=>c.id === 'bh05') || G.players[cp].hand.some(c=>c.id === 'bh05');
+        bonus += taylorAvailable ? 390 : 135;
+      }
+      if(move.card.id === 'bh05') {
+        bonus += aiOwnBoardCardsById('93').length ? 475 : 70;
+        if(move.r === safeRow) bonus += 130;
+      }
+      if(move.card.id === '13') bonus += 150;
+      for(const tribute of move.tributes || []) {
+        const copiedSnowball = typeof cardActsAsPassive === 'function' && cardActsAsPassive(tribute?.card, '93');
+        if(copiedSnowball) bonus -= aiOwnBoardCardsById(String(tribute.card.id)).length <= 1 ? 4200 : 1500;
+        if(tribute?.card?.id === '31' && aiOwnBoardCardsById('31').length <= 1) bonus -= 700;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_crown_of_five') {
+    const crownIds = ['15','19','57','01','77'];
+    let formationZone = null;
+    let formationValue = 0;
+    for(let zi=0; zi<3; zi++) {
+      const crownCount = aiCountOwnCardsInZone(zi,c=>crownIds.includes(c.id));
+      const engineCount = aiCountOwnCardsInZone(zi,c=>['09','24','49'].includes(c.id));
+      const value = crownCount * 100 + engineCount * 18;
+      if(crownCount > 0 && value > formationValue) { formationValue = value; formationZone = zi; }
+    }
+    const majaZone = aiFirstOwnCardZone(c=>c.id === '07');
+    const anchorZone = formationZone === null ? majaZone : formationZone;
+    const crownHere = aiCountOwnCardsInZone(move.z,c=>crownIds.includes(c.id));
+    const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+    const friendlyAdjacent = adjacent.filter(entry=>entry.card && entry.card.owner === cp);
+    if(move.type === 'place') {
+      if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 270;
+      if(move.card.id === '68') {
+        const distinctCrown = crownIds.filter(id=>aiOwnBoardCardsById(id).length > 0).length;
+        bonus += distinctCrown < crownIds.length ? 235 : 55;
+      }
+      if(move.card.id === '09') {
+        const besideRalph = friendlyAdjacent.some(entry=>entry.card.id === '24');
+        bonus += besideRalph ? 285 : 185;
+        if(anchorZone !== null) bonus += move.z === anchorZone ? 145 : -105;
+      }
+      if(move.card.id === '24') {
+        const adjacentSupporters = friendlyAdjacent.filter(entry=>entry.card.type === 'Supporter').length;
+        bonus += 180 + adjacentSupporters * 65;
+        if(move.c === 1) bonus += 55;
+        if(anchorZone !== null) bonus += move.z === anchorZone ? 155 : -115;
+      }
+      if(move.card.id === '49') bonus += anchorZone === null || anchorZone === move.z ? 265 : 20;
+      if(move.card.id === '92') {
+        const setupPieces = aiCountOwnCardsInZone(move.z,c=>['09','24','49'].includes(c.id));
+        bonus += setupPieces >= 2 ? 245 + setupPieces * 55 : -130;
+      }
+      if(move.card.id === '28') bonus += move.fromDeck ? 420 + (move.contested ? 120 : 0) : 115;
+      if(move.card.id === '74') bonus += G.players[cp].hand.filter(c=>c.type === 'Supporter').length >= 2 ? 180 : 70;
+      if(move.card.id === '60') bonus += 145;
+    }
+    if(move.type === 'consolidate' && crownIds.includes(move.card.id)) {
+      const order = {'15':520,'19':455,'57':405,'01':355,'77':325};
+      bonus += order[move.card.id] || 0;
+      bonus += crownHere * 105;
+      if(formationZone !== null && formationZone !== move.z) bonus -= 260;
+      if(formationZone === null && anchorZone !== null && anchorZone !== move.z) bonus -= 145;
+      if(move.card.id === '57' && crownHere < 1) bonus -= 140;
+      if(move.card.id === '01') bonus += friendlyAdjacent.length * 75;
+      if(move.card.id === '77') bonus += aiCountOwnCardsInZone(move.z,c=>String(c.aff||'') === 'third_great_war') * 38;
+      for(const tribute of move.tributes || []) {
+        const tributeId = String(tribute?.card?.id || '');
+        if(crownIds.includes(tributeId) && aiOwnBoardCardsById(tributeId).length <= 1) bonus -= 3000;
+        if(['24','49'].includes(tributeId) && aiOwnBoardCardsById(tributeId).length <= 1) bonus -= 2400;
+        if(tributeId === '09' && aiOwnBoardCardsById('09').length <= 1) bonus -= 1400;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_last_mohicans_ledger') {
+    const moraleSystem = G._moralePressure;
+    const ownMorale = Number(moraleSystem?.morale?.[cp] ?? moraleSystem?.maxMorale ?? 200);
+    const maxMorale = Math.max(1, Number(moraleSystem?.maxMorale || 200));
+    const chingEntry = aiOwnBoardCardsById('45')[0] || null;
+    const chingZone = chingEntry ? chingEntry.z : null;
+    const handHasChing = G.players[cp].hand.some(c=>c.id === '45');
+    const chingAvailable = handHasChing || G.players[cp].deck.some(c=>c.id === '45');
+    const westCaribArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    if(move.type === 'place') {
+      if(move.card.id === '33') bonus += westCaribArmed ? 20 : (chingAvailable ? 335 : 105);
+      if(move.card.id === '20') {
+        bonus += ownMorale < maxMorale * .55 ? 310 : 105;
+        if(chingZone !== null) bonus += move.z === chingZone ? 155 : -70;
+      }
+      if(move.card.id === '75') bonus += G.players[cp].discard.some(c=>['33','47','05'].includes(c.id)) ? 245 : 100;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['33','20','47','05'].includes(c.id)) ? 255 : 70;
+      if(move.card.id === '60') bonus += !westCaribArmed && chingAvailable ? 235 : 95;
+      if(move.card.id === '47') bonus += handHasChing ? 230 : 100;
+      if(move.card.id === '64') {
+        const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+        bonus += adjacent.some(entry=>entry.card && entry.card.owner === cp && entry.card.id === '45') ? 320 : 95;
+      }
+      if(move.card.id === '65') bonus += move.contested ? 175 : 35;
+      if(move.card.id === '05') bonus += chingZone === move.z ? 285 : 15;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === '45') {
+        const otherCharacters = aiCountOwnCardsInZone(move.z,c=>c.type !== 'Supporter' && c.id !== '45');
+        const greatOakTribute = (move.tributes || []).some(t=>t?.card?.id === '47');
+        bonus += !chingEntry && ownMorale >= maxMorale * .42 && !otherCharacters ? 760 : -10000;
+        if(move.r === safeRow) bonus += 180;
+        if(westCaribArmed) bonus += 210;
+        if(greatOakTribute) bonus += 190;
+      }
+      if(move.card.id === '03') {
+        const bestLegalTarget = Math.max(0, ...[].concat(...(G.board[move.z] || [])).filter(c=>c&&c.owner===cp&&c.id!=='45').map(c=>Number(c.currentFate ?? c.fate)||0));
+        bonus += bestLegalTarget >= 7 ? 420 + bestLegalTarget * 12 : -260;
+      }
+      if(move.card.id === '27') bonus += G.players[cp].hand.length <= 5 ? 260 : 90;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '20' && tribute.z === chingZone) bonus -= 900;
+        if(tribute?.card?.id === '64' && tribute.z === chingZone) bonus -= 850;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_hellenic_heartbreaker') {
+    const alexanders = aiOwnBoardCardsById('35');
+    const alexanderZone = alexanders.length ? alexanders.slice().sort((a,b)=>(Number(b.card.currentFate ?? b.card.fate)||0)-(Number(a.card.currentFate ?? a.card.fate)||0))[0].z : null;
+    const supporterFateHere = aiCountOwnCardsInZone(move.z,c=>c.type === 'Supporter')
+      ? (G.board[move.z] || []).reduce((sum,row)=>sum+(row || []).reduce((inner,c)=>inner+(c&&c.owner===cp&&c.type==='Supporter' ? Math.max(0,Number(c.currentFate ?? c.fate)||0) : 0),0),0)
+      : 0;
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    if(move.type === 'place') {
+      if(move.card.id === '05') bonus += alexanderZone === move.z ? 340 : (supporterFateHere >= 3 ? 175 : 45);
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>c.id === '35') ? 255 : 105;
+      if(move.card.id === '64') {
+        const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+        bonus += adjacent.some(entry=>entry.card && entry.card.owner === cp && entry.card.id === '35') ? 315 : (alexanderZone === move.z ? 165 : 80);
+      }
+      if(move.card.id === '75') bonus += G.players[cp].discard.some(c=>['05','47','60'].includes(c.id)) ? 220 : 95;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['05','47','64'].includes(c.id)) ? 230 : 65;
+      if(move.card.id === '60') bonus += alexanderZone === null ? 215 : 105;
+      if(['32','42'].includes(move.card.id)) bonus += G.players[cp].hand.length <= 5 ? 145 : 65;
+      if(move.card.id === '33') bonus += G.players[cp].deck.some(c=>c.id === '35') ? 185 : 70;
+      if(move.card.id === '20') bonus += alexanderZone === move.z ? 155 : 70;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === '35') {
+        bonus += supporterFateHere >= 4 ? 650 + supporterFateHere * 32 : -320;
+        if(move.r === safeRow) bonus += 120;
+        if((move.tributes || []).some(t=>t?.card?.id === '47')) bonus += 210;
+      }
+      if(move.card.id === '22') bonus += alexanderZone === move.z ? 370 : 65;
+      if(move.card.id === '03') {
+        const alexander = aiOwnBoardCardsById('35').find(entry=>entry.z === move.z);
+        const fate = Number(alexander?.card?.currentFate ?? alexander?.card?.fate ?? 0);
+        bonus += alexander && fate >= 10 ? 690 + fate * 12 : -420;
+      }
+      if(move.card.id === '27') bonus += G.players[cp].hand.length <= 5 ? 260 : 95;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '64' && tribute.z === alexanderZone) bonus -= 900;
+        if(tribute?.card?.id === '20' && tribute.z === alexanderZone) bonus -= 500;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_hungarian_war_dance') {
+    const formationIds = ['34','66','77','19'];
+    let formationZone = null, bestFormation = 0;
+    for(let zi=0; zi<3; zi++) {
+      const scoreHere = aiCountOwnCardsInZone(zi,c=>formationIds.includes(c.id)) * 100
+        + aiCountOwnCardsInZone(zi,c=>String(c.aff||'') === 'third_great_war') * 20;
+      if(scoreHere > bestFormation) { bestFormation = scoreHere; formationZone = zi; }
+    }
+    const piecesHere = aiCountOwnCardsInZone(move.z,c=>formationIds.includes(c.id));
+    const tgwHere = aiCountOwnCardsInZone(move.z,c=>String(c.aff||'') === 'third_great_war');
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    if(move.type === 'place') {
+      if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 250;
+      if(move.card.id === '68') {
+        const missingCore = ['34','19','77'].some(id=>!aiOwnBoardCardsById(id).length&&!G.players[cp].hand.some(c=>c.id===id));
+        bonus += missingCore ? 310 : 95;
+      }
+      if(['25','44','47','64'].includes(move.card.id)) {
+        bonus += formationZone === move.z ? 230 : 75;
+        if(formationZone !== null && formationZone !== move.z) bonus -= 150;
+      }
+      if(move.card.id === '44') {
+        const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+        bonus += adjacent.some(entry=>entry.card&&entry.card.owner===cp&&entry.card.type==='Dauntless') ? 250 : 0;
+      }
+      if(move.card.id === '25') bonus += tgwHere * 35;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['25','44','47','64'].includes(c.id)) ? 190 : 75;
+      if(move.card.id === '60') bonus += 155;
+      if(move.card.id === '13') bonus += G.players[cp].hand.filter(c=>c.type==='Supporter').length <= 2 ? 215 : 90;
+    }
+    if(move.type === 'consolidate') {
+      if(formationIds.includes(move.card.id)) {
+        bonus += 310 + piecesHere * 115;
+        if(formationZone !== null && formationZone !== move.z) bonus -= 300;
+        if(move.r === safeRow) bonus += 55;
+      }
+      if(move.card.id === '34') bonus += aiOwnBoardCardsById('34').length ? 170 : 430;
+      if(move.card.id === '66') bonus += tgwHere * 55;
+      if(move.card.id === '77') bonus += tgwHere * 65;
+      if(move.card.id === '19') bonus += piecesHere * 60;
+      if(move.card.id === '29') bonus += ['34','19','77'].some(id=>G.players[cp].deck.some(c=>c.id===id)) ? 280 : 80;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '44' && tribute.z === formationZone) bonus -= 950;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_great_oak_salvo') {
+    const discardHasOak = G.players[cp].discard.some(c=>c.id === '47');
+    const handHasPayoff = G.players[cp].hand.some(c=>['13','27'].includes(c.id));
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    if(move.type === 'place') {
+      if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 280;
+      if(move.card.id === '47') bonus += handHasPayoff ? 355 : 245;
+      if(move.card.id === '75') {
+        const copyableRecovery = aiOwnBoardCardsById('58').length || aiOwnBoardCardsById('60').length;
+        bonus += discardHasOak && copyableRecovery ? 330 : (copyableRecovery ? 190 : 95);
+      }
+      if(move.card.id === '58') bonus += discardHasOak ? 370 : 80;
+      if(move.card.id === '60') bonus += G.players[cp].deck.some(c=>c.id === '47') ? 280 : 95;
+      if(move.card.id === '64') {
+        const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+        bonus += adjacent.some(entry=>entry.card&&entry.card.owner!==cp) ? 285 : 145;
+      }
+      if(move.card.id === '69') {
+        const initiators = G.players[cp].hand.filter(c=>c.type === 'Initiator').length;
+        bonus += initiators >= 2 ? 250 : 55;
+      }
+      if(move.card.id === '33') bonus += handHasPayoff ? 245 : 90;
+      if(['32','42'].includes(move.card.id)) bonus += G.players[cp].hand.length <= 5 ? 165 : 75;
+      if(move.card.id === '05') bonus += aiCountOwnCardsInZone(move.z,c=>['13','27'].includes(c.id)) ? 235 : 55;
+      if(move.card.id === '68') bonus -= 40; // no Coordinator exists in this list; use as reinforcement only
+    }
+    if(move.type === 'consolidate' && ['13','27'].includes(move.card.id)) {
+      const oakTributes = (move.tributes || []).filter(t=>t?.card?.id === '47').length;
+      bonus += 210 + oakTributes * 310;
+      if(move.r === safeRow) bonus += 65;
+      if(move.card.id === '27' && G.players[cp].hand.length <= 5) bonus += 130;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '64') bonus -= 850;
+        if(['58','60','75'].includes(tribute?.card?.id) && discardHasOak) bonus -= 220;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_adjacency_doctrine') {
+    const formationIds = ['35','bh07','bh11','01','19','15'];
+    let formationZone = null, bestFormation = 0;
+    for(let zi=0; zi<3; zi++) {
+      const scoreHere = aiCountOwnCardsInZone(zi,c=>formationIds.includes(c.id)) * 100
+        + aiCountOwnCardsInZone(zi,c=>['25','44','bh12'].includes(c.id)) * 24;
+      if(scoreHere > bestFormation) { bestFormation = scoreHere; formationZone = zi; }
+    }
+    const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
+    const friendlyAdjacent = adjacent.filter(entry=>entry.card && entry.card.owner === cp);
+    const dauntlessAdjacent = friendlyAdjacent.filter(entry=>entry.card.type === 'Dauntless').length;
+    const adjacencySourcesHere = aiCountOwnCardsInZone(move.z,c=>['44','bh07','bh11','bh12','01'].includes(c.id));
+    if(move.type === 'place') {
+      if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 260;
+      if(move.card.id === '68') {
+        const missing = ['bh11','bh07','01','19','15'].some(id=>!aiOwnBoardCardsById(id).length&&!G.players[cp].hand.some(c=>c.id===id));
+        bonus += missing ? 320 : 85;
+      }
+      if(move.card.id === '25') bonus += friendlyAdjacent.some(entry=>String(entry.card.aff||'') === 'third_great_war') ? 310 : 95;
+      if(move.card.id === '44') bonus += dauntlessAdjacent ? 365 + dauntlessAdjacent * 60 : 30;
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>['35','bh07','bh11','01'].includes(c.id)) ? 210 : 90;
+      if(move.card.id === '64') bonus += formationZone === move.z && adjacent.some(entry=>entry.card&&entry.card.owner!==cp) ? 265 : 90;
+      if(formationZone !== null && move.z !== formationZone && ['25','44','47','64'].includes(move.card.id)) bonus -= 190;
+    }
+    if(move.type === 'consolidate') {
+      if(formationIds.includes(move.card.id)) {
+        bonus += 300 + friendlyAdjacent.length * 115 + adjacencySourcesHere * 45;
+        if(formationZone !== null && formationZone !== move.z) bonus -= 330;
+      }
+      if(move.card.id === 'bh11') {
+        bonus += friendlyAdjacent.length * 190;
+        if(move.c === 1) bonus += 85;
+      }
+      if(move.card.id === 'bh07') bonus += dauntlessAdjacent * 250;
+      if(move.card.id === '35') bonus += friendlyAdjacent.some(entry=>entry.card.id === '44') ? 330 : -110;
+      if(move.card.id === '01') bonus += friendlyAdjacent.length * 125;
+      if(move.card.id === 'bh12') bonus += friendlyAdjacent.length ? 245 : -80;
+      if(move.card.id === '66') bonus += aiCountOwnCardsInZone(move.z,()=>true) * 45;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '44' && tribute.z === formationZone) bonus -= 1500;
+        if(tribute?.card?.id === '25' && tribute.z === formationZone) bonus -= 650;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_hand_quarantine') {
+    const opponentHandSize = Number(G.players[1-cp]?.hand?.length || 0);
+    const guerillaInHand = G.players[cp].hand.some(c=>c.id === '70');
+    const westGermanAvailable = G.players[cp].hand.some(c=>c.id === '42') || G.players[cp].deck.some(c=>c.id === '42');
+    const fortCalvinActive = Array.isArray(G._fortCalvinActive) && G._fortCalvinActive.some(fx=>fx&&fx.owner===cp&&fx.remaining>0);
+    if(move.type === 'place') {
+      if(move.card.id === '42') bonus += guerillaInHand ? 620 : (G.players[cp].hand.length <= 4 ? 220 : 80);
+      if(move.card.id === '70') bonus += westGermanAvailable ? -650 : -180;
+      if(move.card.id === '72') bonus += opponentHandSize >= 5 ? 390 : (opponentHandSize >= 3 ? 245 : 35);
+      if(move.card.id === '71') bonus += fortCalvinActive ? 25 : 260;
+      if(move.card.id === '50') bonus += 290;
+      if(move.card.id === '52') bonus += aiCountOpponentCardsInZone(move.z) ? 215 + aiCountOpponentCardsInZone(move.z) * 25 : -90;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['72','71','50','42'].includes(c.id)) ? 235 : 65;
+      if(move.card.id === '60') bonus += guerillaInHand && !G.players[cp].hand.some(c=>c.id==='42') ? 300 : 115;
+      if(move.card.id === '33') bonus += G.players[cp].deck.some(c=>['61','56'].includes(c.id)) ? 140 : 55;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === 'bh03') bonus -= 10000;
+      if(move.card.id === '61') {
+        const visibleCharacterFamilies = new Set(G.players[1-cp].hand.filter(c=>c&&c.type!=='Supporter').map(c=>c.id)).size;
+        bonus += visibleCharacterFamilies ? 420 + visibleCharacterFamilies * 45 : 70;
+      }
+      if(move.card.id === '56') bonus += aiOwnBoardCardsById('56').length ? 140 : 420;
+      if(move.card.id === '31') bonus += aiCountOpponentCardsInZone(move.z) ? 280 : 90;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '70') bonus += 420; // discarding it is the payoff
+      }
+    }
+  }
+
+  else if(deckId === 'ai_high_t_draw_mill') {
+    const joieZone = aiFirstOwnCardZone(c=>c.id === 'bh02');
+    const drawIds = ['27','32','42','bh10'];
+    const highTActive = typeof getHighTPotencyCount === 'function' ? getHighTPotencyCount(cp) > 0 : false;
+    const hseiActive = aiOwnBoardCardsById('bh15').length > 0;
+    const erbsArmed = !!(Array.isArray(G.erbsActive) ? G.erbsActive[cp] : G.erbsActive);
+    const engineZone = joieZone;
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    if(move.type === 'place') {
+      if(drawIds.includes(move.card.id)) {
+        const engineReady = joieZone !== null && (highTActive || hseiActive);
+        bonus += joieZone === move.z ? (engineReady ? 380 : 210) : 45;
+        if(joieZone !== null && joieZone !== move.z) bonus -= 220;
+        if(move.card.id === '42' && G.players[cp].hand.length < 3) bonus -= 80;
+        if(move.card.id === 'bh10') {
+          const weakHand = G.players[cp].hand.filter(c=>Math.max(0,Number(c.currentFate ?? c.fate)||0)<=2).length;
+          bonus += weakHand >= 3 ? 210 : -170;
+        }
+      }
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>['bh02','bh19','bh15','40'].includes(c.id)) ? 240 : 90;
+      if(move.card.id === '64') bonus += engineZone === move.z ? 220 : 80;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>drawIds.includes(c.id)||c.id==='47') ? 260 : 70;
+      if(move.card.id === '05') bonus += engineZone === move.z ? (highTActive ? 330 : 210) : 45;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === 'bh02') {
+        bonus += aiOwnBoardCardsById('bh02').length ? 250 : 850;
+        if(move.r === safeRow) bonus += 180;
+      }
+      if(move.card.id === 'bh15') bonus += joieZone === move.z ? (hseiActive ? 180 : 560) : 120;
+      if(move.card.id === 'bh19') {
+        const queuedGains = G.players[cp].hand.some(c=>['32','42','05','bh13','27'].includes(c.id));
+        bonus += joieZone === move.z && queuedGains ? 620 : (queuedGains ? 330 : 90);
+        if(highTActive) bonus -= 520;
+      }
+      if(move.card.id === '40') bonus += joieZone === move.z ? (erbsArmed ? 80 : 390) : 105;
+      if(move.card.id === 'bh13') bonus += G.players[cp].hand.length >= 5 && (highTActive || hseiActive) ? 520 : (G.players[cp].hand.length >= 4 ? 230 : -120);
+      if(move.card.id === '03') {
+        const grownTarget = Math.max(0,...[].concat(...(G.board[move.z]||[])).filter(c=>c&&c.owner===cp).map(c=>Number(c.currentFate ?? c.fate)||0));
+        bonus += grownTarget >= 12 ? 590 + grownTarget * 10 : -280;
+      }
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '64' && tribute.z === joieZone) bonus -= 800;
+        if(tribute?.card?.id === '47') bonus += 170;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_university_counterbattery') {
+    const majaZone = aiFirstOwnCardZone(c=>c.id === 'bh08');
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    const counterCount = aiOwnBoardCardsById('56').length + aiOwnBoardCardsById('67').length;
+    const reactiveHavanoInHand = G.players[cp].hand.some(c=>c.id === '79');
+    if(move.type === 'place') {
+      if(['18','50','71'].includes(move.card.id)) {
+        bonus += majaZone === move.z ? 290 : 85;
+        if(majaZone !== null && majaZone !== move.z) bonus -= 185;
+      }
+      if(move.card.id === '79') bonus -= reactiveHavanoInHand ? 900 : 500; // keep it in hand for its free reactive set
+      if(move.card.id === '18') bonus += G.oppSuppressedNextTurn && G.suppressTarget === 1-cp ? -260 : 210;
+      if(move.card.id === '50') bonus += 165 + aiCountOpponentCardsInZone(move.z) * 25;
+      if(move.card.id === '71') {
+        const active = Array.isArray(G._fortCalvinActive) && G._fortCalvinActive.some(fx=>fx&&fx.owner===cp&&fx.remaining>0);
+        bonus += active ? -120 : 150;
+      }
+      if(move.card.id === '60') bonus += majaZone === null ? 190 : 105;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['18','50','71'].includes(c.id)) ? 240 : 65;
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>['bh08','56','67','21'].includes(c.id)) ? 215 : 80;
+      if(move.card.id === '32') bonus += G.players[cp].hand.length <= 4 ? 150 : 60;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === 'bh08') {
+        bonus += aiOwnBoardCardsById('bh08').length ? 240 : 820;
+        if(move.r === safeRow) bonus += 160;
+      }
+      if(move.card.id === '56') bonus += majaZone === move.z ? (counterCount ? 330 : 580) : 205;
+      if(move.card.id === '67') bonus += majaZone === move.z ? (counterCount ? 320 : 520) : 170;
+      if(move.card.id === '21') {
+        const adjacentOppCoordinators = (typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [])
+          .filter(entry=>entry.card&&entry.card.owner===1-cp&&entry.card.type==='Coordinator').length;
+        bonus += majaZone === move.z ? 380 + adjacentOppCoordinators * 230 : 145;
+      }
+      if(move.card.id === '17') bonus += 310;
+      if(move.card.id === '04') bonus += aiCountOpponentCardsInZone(move.z) ? 350 : 105;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '79') bonus -= 1200;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_selva_tidal_strike') {
+    let strikeZone = null, strikeValue = -Infinity;
+    for(let zi=0; zi<3; zi++) {
+      const eventides = aiCountOwnCardsInZone(zi,c=>String(c.aff||'') === 'eventide');
+      const enemies = aiCountOpponentCardsInZone(zi);
+      const value = eventides * 55 + enemies * 42 + (getZoneScore(zi,1-cp)-getZoneScore(zi,cp));
+      if(value > strikeValue) { strikeValue = value; strikeZone = zi; }
+    }
+    const eventideCount = aiCountOwnCardsInZone(move.z,c=>String(c.aff||'') === 'eventide');
+    const opponentCount = aiCountOpponentCardsInZone(move.z);
+    const westCaribArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
+    const bh04Ready = G.players[cp].hand.some(c=>c.id === 'bh04') || G.players[cp].deck.some(c=>c.id === 'bh04');
+    if(move.type === 'place') {
+      if(move.card.id === '33') bonus += bh04Ready && !westCaribArmed ? 390 : 70;
+      if(move.card.id === '74') bonus += 215;
+      if(move.card.id === '75') bonus += aiOwnBoardCardsById('33').length||G.players[cp].discard.some(c=>['33','58'].includes(c.id)) ? 245 : 100;
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>['bh04','51','77','bh16'].includes(c.id)) ? 245 : 95;
+      if(move.card.id === '64') {
+        const adjacentEnemy = (typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : []).some(entry=>entry.card&&entry.card.owner===1-cp);
+        bonus += adjacentEnemy ? 270 : 105;
+      }
+      if(move.card.id === '65') bonus += move.contested ? 260 : -100;
+      if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['33','47','64','65'].includes(c.id)) ? 255 : 70;
+      if(strikeZone !== null && move.z === strikeZone && ['47','64','65','74','75','58'].includes(move.card.id)) bonus += 120;
+    }
+    if(move.type === 'consolidate') {
+      if(move.card.id === 'bh04') {
+        const enemyTypes = {};
+        (G.board[move.z]||[]).forEach(row=>(row||[]).forEach(c=>{ if(c&&c.owner===1-cp) enemyTypes[c.type]=(enemyTypes[c.type]||0)+1; }));
+        const largestTypeCluster = Math.max(0,...Object.values(enemyTypes));
+        bonus += opponentCount >= 2 ? 520 + opponentCount * 105 + largestTypeCluster * 95 : -260;
+        if(westCaribArmed) bonus += 180;
+      }
+      if(move.card.id === '51') bonus += strikeZone === move.z ? 430 : 180;
+      if(move.card.id === '77') bonus += strikeZone === move.z ? 340 + eventideCount * 70 : 120;
+      if(move.card.id === 'bh16') bonus += strikeZone === move.z && eventideCount >= 3 ? 520 + eventideCount * 85 : 80;
+      if(move.card.id === '30') bonus += G.board[move.z]?.[1]?.some(c=>c&&c.owner!==cp) ? 390 : 20;
+      if(move.card.id === '06') bonus += westCaribArmed && bh04Ready ? 390 : (bh04Ready ? 245 : 120);
+      if(move.card.id === '02') bonus += strikeZone === move.z ? 360 : 180;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '64' && tribute.z === strikeZone) bonus -= 900;
+        if(tribute?.card?.id === '65' && tribute.z === strikeZone) bonus -= 550;
+        if(tribute?.card?.id === '47') bonus += 170;
+      }
     }
   }
 
@@ -1926,6 +2848,7 @@ function aiSimulateOutcome(move) {
   const curMy = aiCachedZoneScore(move.z, cp);
   const curOp = aiCachedZoneScore(move.z, opp);
   if(curMy <= curOp && hypoMy[move.z] > hypoOp[move.z]) score += 6;
+  score += aiMoraleProjectedBoardBonus(hypoMy, hypoOp) * .55;
 
   return score;
 }
@@ -1956,8 +2879,10 @@ function aiDeepEval(move) {
   for(let z = 0; z < 3; z++){
     if(hypoMy[z] > hypoOp[z]) zonesWon++;
   }
-  // Reward moves that maintain a winning position even after opponent's best response
-  return zonesWon >= 2 ? 3 : (zonesWon === 1 ? 0 : -2);
+  // Reward moves that maintain both zone control and a survivable Morale line
+  // after the opponent's best public-information response.
+  return (zonesWon >= 2 ? 3 : (zonesWon === 1 ? 0 : -2))
+    + aiMoraleProjectedBoardBonus(hypoMy, hypoOp) * .28;
 }
 
 let _aiPickerPage = 0;
@@ -2140,7 +3065,7 @@ function selectAIOpponent(opp, options={}) {
   if(Array.isArray(namedDeck) && namedDeck.length >= 40) {
     const knownDecks = [
       ...(typeof STARTER_DECKS !== 'undefined' && Array.isArray(STARTER_DECKS) ? STARTER_DECKS : []),
-      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [])
+      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(deck => typeof isAIDeckEnabled !== 'function' || isAIDeckEnabled(deck)) : [])
     ];
     const namedDefinition = knownDecks.find(deck => deck && String(deck.id || '') === String(currentOpp.deckRef));
     resolvedOpp = {
@@ -2162,7 +3087,7 @@ function selectAIOpponent(opp, options={}) {
     const targetSignature = signature(resolvedOpp.deck);
     const knownDecks = [
       ...(typeof STARTER_DECKS !== 'undefined' && Array.isArray(STARTER_DECKS) ? STARTER_DECKS : []),
-      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [])
+      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(deck => typeof isAIDeckEnabled !== 'function' || isAIDeckEnabled(deck)) : [])
     ];
     const match = knownDecks.find(deck => deck && Array.isArray(deck.ids) && signature(deck.ids) === targetSignature);
     if(match) resolvedOpp = {...resolvedOpp, _deckStrategy:match.baseStrategy || match.id};
@@ -2393,7 +3318,11 @@ async function aiDoPlace(choice) {
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, choice.z, choice.r, choice.c);
   consumePendingPlacementFlags(card, inst);
   const commitAiPlace = function(){
+    if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[choice.z][choice.r][choice.c] = inst;
+    if(typeof window.recordLegacyMoralePressureCardSet === 'function') {
+      window.recordLegacyMoralePressureCardSet(inst);
+    }
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
@@ -2648,8 +3577,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
 
   if(instIsSupporterForRules && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(cp)) return;
 
-  const hasAutomaticSetActivation = typeof AUTHORITATIVE_WHEN_SET_EFFECT_IDS !== 'undefined'
-    && AUTHORITATIVE_WHEN_SET_EFFECT_IDS.has(String(id || ''));
+  const hasAutomaticSetActivation = typeof hasAuthoritativeWhenSetEffect === 'function'
+    ? hasAuthoritativeWhenSetEffect(inst)
+    : (typeof AUTHORITATIVE_WHEN_SET_EFFECT_IDS !== 'undefined' && AUTHORITATIVE_WHEN_SET_EFFECT_IDS.has(String(id || '')));
   const hasPersistentSetRegistration = instIsSupporterForRules
     && typeof isPersistentSupporterEffectOnSet === 'function'
     && isPersistentSupporterEffectOnSet(inst);
@@ -2695,6 +3625,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._effectTurnLocked = true;
       return;
     }
+    if(typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,inst);
   }
   if(!instIsSupporterForRules && inst.type!=='Initiator' && !G._suppressEffectPrompt && typeof getCharacterEffectAffectedOwners === 'function'){
     const affectedOwners = getCharacterEffectAffectedOwners(inst, z, r, c, cp, opp);
@@ -2705,6 +3636,30 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case 'bh10': {
+      if(typeof resolveChauffeurRedraw === 'function') await resolveChauffeurRedraw(inst, cp);
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case 'bh12': {
+      if(typeof chooseFlowerKingTarget === 'function') await chooseFlowerKingTarget(inst, z, r, c, cp);
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case 'bh13': {
+      if(typeof resolveSmartInvestments === 'function') await resolveSmartInvestments(inst, cp);
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
+    case 'bh19': {
+      if(typeof activateHighTForTurn === 'function') activateHighTForTurn(inst, cp);
+      inst.effectUsedInitial = true;
+      inst._effectTurnLocked = true;
+      break;
+    }
     case 'bh04': {
       const declaredTypes = typeof BRAVE_HORIZONS_DECLARABLE_CARD_TYPES !== 'undefined'
         ? Array.from(BRAVE_HORIZONS_DECLARABLE_CARD_TYPES)
@@ -2729,7 +3684,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
     case 'bh05': {
       const strat = G._selectedAI?._deckStrategy || '';
-      const mimicPriority = strat === 'ai_taylors_perfect_mimic'
+      const mimicPriority = strat === 'ai_snowball_fight_club'
+        ? ['93']
+        : strat === 'ai_taylors_perfect_mimic'
         ? ['14','bh04','100','84']
         : strat === 'ai_snowbound_wintertide'
           ? ['100','84','87','99']
@@ -2768,6 +3725,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(!leavingBlock) {
         const strat = G._selectedAI?._deckStrategy || '';
         const preferredByStrategy = {
+          ai_wintertide_family_reunion:['igb15','igb18','igb2','igb8','igb1'],
           ai_snowbound_wintertide:['igb15','igb18','igb2','igb8','igb1'],
           ai_pierogi_siege:['igb15','igb14','igb8','igb2','igb1']
         };
@@ -2822,7 +3780,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof triggerJoieDrawEffectPassive === 'function') triggerJoieDrawEffectPassive(cp, {sourceCard:inst});
       const pools = {};
       G.players[cp].deck.forEach(function(deckCard){ if(deckCard && deckCard.aff) (pools[deckCard.aff] || (pools[deckCard.aff] = [])).push(deckCard); });
-      const affiliation = Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
+      const strat = G._selectedAI?._deckStrategy || '';
+      const affiliation = strat === 'ai_wintertide_family_reunion' && pools.expanded_worlds
+        ? 'expanded_worlds'
+        : Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
       const candidates = affiliation ? pools[affiliation].slice() : [];
       const chosen = [];
       while(candidates.length && chosen.length < 2) {
@@ -2860,7 +3821,20 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '94': {
-      const triangles = G.players[cp].deck.filter(function(deckCard){ return deckCard.rarity === 'triangle'; }).sort(function(a,b){ return (Number(b.fate)||0) - (Number(a.fate)||0); });
+      const strat = G._selectedAI?._deckStrategy || '';
+      const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
+      const winterPriority = [];
+      if(strat === 'ai_wintertide_family_reunion') {
+        if(!conversionActive && !G.players[cp].hand.some(c=>c.id === '99') && !aiOwnBoardCardsById('99').length) winterPriority.push('99');
+        if(!G.players[cp].hand.some(c=>c.id === '89') && !aiOwnBoardCardsById('89').length) winterPriority.push('89');
+        winterPriority.push('90','99','89');
+      }
+      const triangles = G.players[cp].deck.filter(function(deckCard){ return deckCard.rarity === 'triangle'; }).sort(function(a,b){
+        const ap = aiPriorityIndex(a, winterPriority);
+        const bp = aiPriorityIndex(b, winterPriority);
+        if(ap !== bp) return ap - bp;
+        return (Number(b.fate)||0) - (Number(a.fate)||0);
+      });
       const found = triangles[0];
       if(found) {
         G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
@@ -2938,6 +3912,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(strat === 'starter_maelstrom') target = own.find(c => c.id === '14');
         if(strat === 'ai_hand_leech') target = own.find(c => c.id === '14');
         if(strat === 'ai_movement') target = own.find(c => c.id === '73');
+        if(strat === 'ai_snowball_fight_club') {
+          target = own.find(c => c.id === '41')
+            || own.find(c => typeof cardActsAsPassive === 'function' && cardActsAsPassive(c, '93'));
+        }
         if(!target) target = aiPickByPriority(own, aiDeckSearchPriority(strat, 'character'));
         if(!target) { own.sort((a,b)=>b.currentFate - a.currentFate); target = own[0]; }
         modifyFate(target, 3, 'permanent');
@@ -2950,7 +3928,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         log('p2', `AI: Liberators of Rwanda +3 Fate to ${target.name}`);
       } break;
     }
-    case '25': { // Zimbabwean Honor Guard: set another copy from hand/deck for free
+    case '25': { // Zimbabwean Honor Guard: continuous +1 Fate affiliation-adjacency aura
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        break;
+      }
       if(G._zimbabweUsedThisTurn) break;
       const handCopy = G.players[cp].hand.find(c=>c.id==='25');
       const deckCopy = G.players[cp].deck.find(c=>c.id==='25');
@@ -3002,10 +3983,34 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       // Discard worst 2 cards (lowest fate supporters)
       const strat = G._selectedAI?._deckStrategy || '';
       const sorted = [...h].sort((a,b)=>{
-        if(strat === 'ai_alis_handcuffs') {
+        if(strat === 'ai_alis_handcuffs' || strat === 'ai_hand_quarantine') {
           const aGuerilla = a && a.id === '70' ? 1 : 0;
           const bGuerilla = b && b.id === '70' ? 1 : 0;
           if(aGuerilla !== bGuerilla) return bGuerilla - aGuerilla;
+        }
+        if(strat === 'ai_high_t_draw_mill') {
+          const engineIds = ['bh02','bh19','bh15','40','bh13','03'];
+          const aEngine = engineIds.includes(String(a?.id || '')) ? 1 : 0;
+          const bEngine = engineIds.includes(String(b?.id || '')) ? 1 : 0;
+          if(aEngine !== bEngine) return aEngine - bEngine;
+        }
+        if(strat === 'ai_hungarian_war_dance') {
+          const engineIds = ['34','66','77','19','29'];
+          const aEngine = engineIds.includes(String(a?.id || '')) ? 1 : 0;
+          const bEngine = engineIds.includes(String(b?.id || '')) ? 1 : 0;
+          if(aEngine !== bEngine) return aEngine - bEngine;
+        }
+        if(strat === 'starter_freeworld') {
+          const engineIds = ['34','77','01','35','29','06','13'];
+          const aEngine = engineIds.includes(String(a?.id || '')) ? 1 : 0;
+          const bEngine = engineIds.includes(String(b?.id || '')) ? 1 : 0;
+          if(aEngine !== bEngine) return aEngine - bEngine;
+        }
+        if(strat === 'starter_assault') {
+          const assaultEngines = ['11','43','40','22','27','06'];
+          const aEngine = assaultEngines.includes(String(a?.id || '')) ? 1 : 0;
+          const bEngine = assaultEngines.includes(String(b?.id || '')) ? 1 : 0;
+          if(aEngine !== bEngine) return aEngine - bEngine;
         }
         return (a.fate||0)-(b.fate||0);
       });
@@ -3061,12 +4066,21 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       else { G.oppSuppressedNextTurn=true; G.suppressTarget=opp; }
       break;
     case '33': // West Caribbea Infantry: next character added to hand gets boosted
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
       G._westCaribNext = { owner: cp };
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
     case '34': // Rozsi Szocs: passive movement trigger is handled by triggerRozsiPassive.
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        const counts={};(G.board[z]||[]).forEach(row=>row.forEach(card=>{if(card&&card.owner===cp&&!isFaceDownCard(card)){const aff=String(card.aff||card.affiliation||'');counts[aff]=(counts[aff]||0)+1;}}));
+        const strat = G._selectedAI?._deckStrategy || '';
+        inst._moraleAffiliation=(strat === 'starter_freeworld' || strat === 'ai_hungarian_war_dance')
+          ? 'third_great_war'
+          : Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]||'reality';
+      }
       break;
     case '35': { // Alexander: initialize from the same live effective-Fate total used by all modes
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
       const total = typeof getAlexanderSupporterFateTotal === 'function'
         ? getAlexanderSupporterFateTotal(inst, z)
         : 0;
@@ -3075,6 +4089,33 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '45': { // Chingachlook: placement restriction is enforced before setting.
+      const pressureReworks=typeof pressureCardReworkTimingActive==='function'
+        ? pressureCardReworkTimingActive()
+        : window.FATE_PRESSURE_CARD_REWORKS_ENABLED===true;
+      if(pressureReworks){
+        const system=G._moralePressure;
+        if(system){
+          const before=Math.max(0,Number(system.morale[cp]||0));
+          system.morale[cp]=Math.max(0,before-50);
+          if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta({playerIndex:cp,before:before,after:system.morale[cp],sourceIid:String(inst.iid||''),semanticSourceCardId:'45',reason:'THE_LAST_MOHICAN_COST'});
+          else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true});
+        }
+        const targets=[];
+        forEachBoardCard(function(target,tz,tr,tc){
+          if(!target) return;
+          if(typeof isWojciechPierogiCounter==='function'&&isWojciechPierogiCounter(target)) return;
+          if(typeof isTargetImmuneToEffectOwner==='function'&&isTargetImmuneToEffectOwner(target,cp)) return;
+          targets.push({card:target,z:tz,r:tr,c:tc});
+        });
+        targets.sort(function(a,b){
+          const aOpponent=a.card.owner===opp?1:0,bOpponent=b.card.owner===opp?1:0;
+          if(aOpponent!==bOpponent) return bOpponent-aOpponent;
+          const aValue=aiOpponentCardDecisionFate(a.card,a.z),bValue=aiOpponentCardDecisionFate(b.card,b.z);
+          return aOpponent?bValue-aValue:aValue-bValue;
+        });
+        const target=targets[0];
+        if(target&&typeof discardBoardCard==='function')discardBoardCard(target.card,target.z,target.r,target.c);
+      }
       break;
     }
     case '46': // Phil: begins gaining Fate on future draw phases
@@ -3121,7 +4162,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       });
       const counts = {reality:0, third_great_war:0, expanded_worlds:0, eventide:0};
       pool.forEach(c => { if(counts[c.aff] !== undefined) counts[c.aff] += 1; });
-      const aff = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || inst.aff || 'eventide';
+      const strat = G._selectedAI?._deckStrategy || '';
+      const aff = strat === 'ai_selva_tidal_strike'
+        ? 'eventide'
+        : (Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || inst.aff || 'eventide');
       if(typeof startRiveraBuff === 'function') startRiveraBuff(inst, aff, inst.owner != null ? inst.owner : cp);
       inst.effectUsedInitial = true;
       log('p2', 'AI: Rivera declared ' + ((typeof AFF_LABEL !== 'undefined' && AFF_LABEL[aff]) || aff) + ' for matching characters for 3 turns');
@@ -3181,7 +4225,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           : strat === 'starter_assault' ? ['59','05'] // Maroon Knights, 17th British
           : strat === 'starter_soft_suppression' ? ['63','18','16','71','42','62','64']
           : [];
-        let best = sups.find(c => priorities.includes(c.id));
+        let best = aiPickByPriority(sups, priorities);
         if(!best) { sups.sort((a,b)=>(b.fate||0)-(a.fate||0)); best = sups[0]; }
         if(typeof addCardToHand==='function') addCardToHand(cp, best, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(best);
@@ -3200,7 +4244,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           : strat === 'starter_soft_suppression'
           ? ['63','18','16','71','42','62','64']
           : [];
-        let pick = sups.find(c=>priorities.includes(c.id));
+        let pick = aiPickByPriority(sups, priorities);
         if(!pick) pick = sups[0];
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
@@ -3263,7 +4307,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G.board[z].forEach(row=>row.forEach(cell=>{
         if(cell && cell.owner===cp && cell.iid!==inst.iid) affCounts[cell.aff] = (affCounts[cell.aff]||0)+1;
       }));
-      const bestAff = Object.entries(affCounts).sort((a,b)=>b[1]-a[1])[0];
+      const strat = G._selectedAI?._deckStrategy || '';
+      const bestAff = strat === 'ai_hungarian_war_dance'
+        ? ['third_great_war', Number(affCounts.third_great_war || 0)]
+        : Object.entries(affCounts).sort((a,b)=>b[1]-a[1])[0];
       if(bestAff){
         let changed = 0;
         G.board[z].forEach(row=>row.forEach(cell=>{
@@ -3281,7 +4328,22 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const coords = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
       if(coords.length){
         const strat = G._selectedAI?._deckStrategy || '';
-        const pick = aiPickByPriority(coords, aiDeckSearchPriority(strat, 'coordinator')) || coords[0];
+        let priority = aiDeckSearchPriority(strat, 'coordinator');
+        const stagingPlans = {
+          starter_freeworld:['34','77','01'],
+          starter_assault:['11'],
+          ai_crown_of_five:['15','19','57','01','77'],
+          ai_hungarian_war_dance:['34','19','77'],
+          ai_adjacency_doctrine:['bh11','bh07','01','19','15']
+        };
+        const stagingOrder = stagingPlans[strat] || [];
+        if(stagingOrder.length) {
+          const heldOrControlled = new Set();
+          G.players[cp].hand.forEach(c=>heldOrControlled.add(String(c.id)));
+          forEachBoardCard(c=>{ if(c && c.owner === cp) heldOrControlled.add(String(c.id)); });
+          priority = stagingOrder.filter(id=>!heldOrControlled.has(id)).concat(stagingOrder.filter(id=>heldOrControlled.has(id)));
+        }
+        const pick = aiPickByPriority(coords, priority) || coords[0];
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
@@ -3294,6 +4356,12 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       } break;
     }
     case '69': { // Breakfast Republic Busser: grant any controlled card in this zone three turns of movement
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        G._busserInitiatorMorale={owner:cp,expiresAfterTurn:Number(G.turn),sourceIid:String(inst.iid||'')};
+        if(typeof showBusserStatusBanner==='function')showBusserStatusBanner(inst,1,cp);
+        if(typeof refreshStatusEffectsNow==='function')refreshStatusEffectsNow();
+        break;
+      }
       const friendlyCards = [];
       (G.board[z] || []).forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && String(cell.id || '') !== '76'){
@@ -3327,6 +4395,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '73': { // ALPINE Expeditionary: discard non-Dauntless/Coordinator chars
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
       let tf=0;const td=[];
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell&&cell.owner===cp&&cell.type!=='Supporter'&&cell.type!=='Dauntless'&&cell.type!=='Coordinator'&&cell.iid!==inst.iid){td.push({r:ri,c:ci,card:cell});tf+=(cell.currentFate||cell.fate);}
@@ -3346,9 +4415,22 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(candidates.length){
         const strat = G._selectedAI?._deckStrategy || '';
         const deckPriority = aiDeckSearchPriority(strat, 'supporter');
-        const priority = deckPriority.length
+        let priority = deckPriority.length
           ? deckPriority.concat(['68','60','58','05','25','50','42','32','72','16','31','64','73','80','76','71','33','69'])
           : ['68','60','58','05','25','50','42','32','72','16','31','64','73','80','76','71','33','69'];
+        if(strat === 'ai_last_mohicans_ledger') {
+          const westArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
+          const chingAvailable = G.players[cp].hand.some(c=>c.id==='45') || G.players[cp].deck.some(c=>c.id==='45');
+          priority = !westArmed && chingAvailable ? ['33','58','05','60','32','42'] : ['58','05','60','32','42','33'];
+        }
+        if(strat === 'ai_great_oak_salvo') {
+          priority = G.players[cp].discard.some(c=>c.id==='47') ? ['58','60','05','32','42','33'] : ['60','58','05','32','42','33'];
+        }
+        if(strat === 'ai_selva_tidal_strike') {
+          const westArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
+          const selvaAvailable = G.players[cp].hand.some(c=>c.id==='bh04') || G.players[cp].deck.some(c=>c.id==='bh04');
+          priority = !westArmed && selvaAvailable ? ['33','58','05','32'] : ['58','33','05','32'];
+        }
         candidates.sort((a,b)=>{
           const ap = priority.indexOf(a.card.id);
           const bp = priority.indexOf(b.card.id);
@@ -3392,7 +4474,19 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           ai_overclocked_dauntless:['100','89','88','bh07','83'],
           ai_taylors_perfect_mimic:['bh05','100','bh04','90']
         };
-        const priority = priorityByStrategy[strat] || [];
+        let priority = priorityByStrategy[strat] || [];
+        if(strat === 'ai_wintertide_family_reunion') {
+          const snowActive = typeof isLandscapeActive === 'function' ? isLandscapeActive('igb15') : String(G.landscapeId || '') === 'igb15';
+          const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
+          const hasWintertide = aiOwnBoardCardsById('100').length || G.players[cp].hand.some(c=>c.id === '100');
+          priority = !snowActive
+            ? ['82','99','100','88','89','90']
+            : !conversionActive
+              ? ['99','100','88','89','82','90']
+              : !hasWintertide
+                ? ['100','88','89','82','90','99']
+                : ['88','89','100','82','90','99'];
+        }
         matches.sort((a,b)=>{
           const ap = aiPriorityIndex(a, priority);
           const bp = aiPriorityIndex(b, priority);
@@ -3427,6 +4521,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     case '76': inst.currentFate=5; inst.immuneFlag=true; inst.noBonus=true; inst.noConsolidate=true; break;
     case '20':
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
       if(!G.shieldWallZones.includes(z)) G.shieldWallZones.push(z);
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
@@ -3532,7 +4627,26 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
       if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)) return;
       targets.push({card:target,z:targetZone});
     }); }); });
-    targets.sort(function(a,b){ return aiOpponentCardDecisionFate(b.card,b.z) - aiOpponentCardDecisionFate(a.card,a.z); });
+    const strat = G._selectedAI?._deckStrategy || '';
+    let remainingSnowballs = 1;
+    if(strat === 'ai_snowball_fight_club') {
+      remainingSnowballs = 0;
+      forEachBoardCard(function(source){
+        if(source && source.owner === cp && !source.effectUsedThisTurn && !isFaceDownCard(source)
+          && typeof cardActsAsPassive === 'function' && cardActsAsPassive(source, '93')) remainingSnowballs++;
+      });
+      remainingSnowballs = Math.max(1, remainingSnowballs);
+    }
+    targets.sort(function(a,b){
+      if(strat === 'ai_snowball_fight_club') {
+        const af = Math.max(0, Number(a.card.currentFate ?? a.card.fate) || 0);
+        const bf = Math.max(0, Number(b.card.currentFate ?? b.card.fate) || 0);
+        const as = (af <= remainingSnowballs ? 10000 - af * 60 : 0) + aiOpponentCardDecisionFate(a.card,a.z);
+        const bs = (bf <= remainingSnowballs ? 10000 - bf * 60 : 0) + aiOpponentCardDecisionFate(b.card,b.z);
+        return bs - as;
+      }
+      return aiOpponentCardDecisionFate(b.card,b.z) - aiOpponentCardDecisionFate(a.card,a.z);
+    });
     const target = targets[0] && targets[0].card;
     if(!target) return;
     const before = Math.max(0, Number(target.currentFate == null ? target.fate : target.currentFate) || 0);
@@ -3623,6 +4737,7 @@ async function aiRunEffect(card, z, r, c) {
         card._effectTurnLocked = true;
         return;
       }
+      if(typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,card);
     }
     switch(effectId){
     case '03': { // Howard: double highest-fate own card, then +5
@@ -3632,6 +4747,11 @@ async function aiRunEffect(card, z, r, c) {
       if(own.length){
         const strat = G._selectedAI?._deckStrategy || '';
         let target = strat === 'ai_fat_jake' ? own.find(c => c.id === '38') : null;
+        if(strat === 'ai_last_mohicans_ledger') target = own.find(c => c.id === '45') || target;
+        if(strat === 'ai_hellenic_heartbreaker') target = own.find(c => c.id === '35') || target;
+        if(strat === 'ai_high_t_draw_mill') {
+          target = own.slice().sort((a,b)=>(Number(b.currentFate ?? b.fate)||0)-(Number(a.currentFate ?? a.fate)||0))[0] || target;
+        }
         if(!target) {
           own.sort((a,b)=>(b.currentFate||b.fate||0)-(a.currentFate||a.fate||0));
           target = own[0];
@@ -3683,8 +4803,23 @@ async function aiRunEffect(card, z, r, c) {
       if(deckCards.length){
         const strat = G._selectedAI?._deckStrategy || '';
         let pick = null;
-        pick = aiPickByPriority(deckCards, aiDeckSearchPriority(strat, 'jorge'));
-        if(strat === 'starter_freeworld') pick = deckCards.find(c => c.id === '77');
+        let priorities = aiDeckSearchPriority(strat, 'jorge');
+        if(strat === 'ai_wintertide_family_reunion') {
+          const snowActive = typeof isLandscapeActive === 'function' ? isLandscapeActive('igb15') : String(G.landscapeId || '') === 'igb15';
+          const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
+          priorities = !snowActive
+            ? ['84','82','99','100','88','89','90','27','94','92','28','60']
+            : !conversionActive
+              ? ['84','99','100','88','89','90','82','27','94','92','28','60']
+              : ['100','88','89','84','90','27','82','92','28','60','94'];
+        }
+        pick = aiPickByPriority(deckCards, priorities);
+        if(strat === 'starter_freeworld') {
+          const heldOrControlled = new Set(G.players[cp].hand.map(c=>String(c.id || '')));
+          forEachBoardCard(c=>{ if(c && c.owner === cp) heldOrControlled.add(String(c.id || '')); });
+          const staged = ['34','77','01','35'].filter(id=>!heldOrControlled.has(id));
+          pick = aiPickByPriority(deckCards, staged.concat(priorities));
+        }
         if(strat === 'starter_soft_suppression') pick = deckCards.find(c => c.id === '17') || deckCards.find(c => c.id === '04') || deckCards.find(c => c.id === '61');
         if(!pick) pick = deckCards.sort((a,b)=>(b.fate||0)-(a.fate||0))[0];
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
@@ -3808,6 +4943,22 @@ async function aiRunEffect(card, z, r, c) {
         if(ap !== bp) return ap - bp;
         return (b.fate||0) - (a.fate||0);
       });
+      const diversifiedPlans = {
+        ai_crown_of_five:['09','24','49'],
+        ai_hungarian_war_dance:['25','44','68'],
+        ai_great_oak_salvo:['47','64','75'],
+        ai_adjacency_doctrine:['25','44','68']
+      };
+      const diversifiedPlan = diversifiedPlans[strat] || [];
+      if(diversifiedPlan.length) {
+        const diversified = [];
+        diversifiedPlan.forEach(function(id){
+          const found = sources.find(c=>c.id === id && !diversified.some(chosen=>chosen.iid === c.iid));
+          if(found) diversified.push(found);
+        });
+        sources.forEach(function(source){ if(!diversified.some(chosen=>chosen.iid === source.iid)) diversified.push(source); });
+        sources.splice(0, sources.length, ...diversified);
+      }
       let added = 0;
       const searchedCardsAdded = [];
       for(const c of sources) {
@@ -3831,6 +4982,7 @@ async function aiRunEffect(card, z, r, c) {
         added++;
       }
       G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
+      G._majaSupportBoost = {owner:cp, turn:Number(G.turn), extraSupports:2, sourceIid:String(inst.iid || '')};
       if(added) shuffle(G.players[cp].deck);
       if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
         await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'07'});
@@ -3969,16 +5121,24 @@ async function aiRunEffect(card, z, r, c) {
         : strat === 'starter_maelstrom' ? ['47','05']
         : strat === 'starter_incel' ? ['31','58']
         : strat === 'starter_assault' ? ['59','05']
-        : strat === 'starter_freeworld' ? ['59','42','37']
         : strat === 'starter_soft_suppression' ? ['63','18','16','71','42','62','64']
         : [];
       // Sort: priority cards first, then by fate descending
       deckSups.sort((a,b) => {
-        const aP = priorityIds.indexOf(a.id) >= 0 ? 1 : 0;
-        const bP = priorityIds.indexOf(b.id) >= 0 ? 1 : 0;
-        if(bP !== aP) return bP - aP;
+        const aP = aiPriorityIndex(a, priorityIds);
+        const bP = aiPriorityIndex(b, priorityIds);
+        if(aP !== bP) return aP - bP;
         return (b.fate||0) - (a.fate||0);
       });
+      if(priorityIds.length) {
+        const diversified = [];
+        priorityIds.forEach(function(id){
+          const found = deckSups.find(c=>c.id === id && !diversified.some(chosen=>chosen.iid === c.iid));
+          if(found) diversified.push(found);
+        });
+        deckSups.forEach(function(source){ if(!diversified.some(chosen=>chosen.iid === source.iid)) diversified.push(source); });
+        deckSups.splice(0, deckSups.length, ...diversified);
+      }
       let added = 0;
       const searchedCardsAdded = [];
       for(const c of deckSups) {
@@ -4045,6 +5205,11 @@ async function aiRunEffect(card, z, r, c) {
       break;
     }
     case 'bh16': {
+      const strat = G._selectedAI?._deckStrategy || '';
+      if(strat === 'ai_selva_tidal_strike') {
+        const eventideCount = aiCountOwnCardsInZone(z, function(source){ return String(source.aff || '') === 'eventide'; });
+        if(eventideCount < 3 && Number(G.turn || 0) < Number(G.maxTurns || 20) - 1) break;
+      }
       if(typeof activateLiHuaStormOfTenThousandBlades === 'function'){
         activateLiHuaStormOfTenThousandBlades(card, z, cp);
       }
@@ -4055,7 +5220,15 @@ async function aiRunEffect(card, z, r, c) {
       G.board[z]?.forEach(row=>row?.forEach(cell=>{
         if(cell && cell.owner===cp) targets.push(cell);
       }));
-      targets.sort((a,b)=>(b.currentFate||b.fate||0)-(a.currentFate||a.fate||0));
+      const strat = G._selectedAI?._deckStrategy || '';
+      targets.sort((a,b)=>{
+        if(strat === 'ai_hellenic_heartbreaker') {
+          const aAlexander = a.id === '35' ? 1 : 0;
+          const bAlexander = b.id === '35' ? 1 : 0;
+          if(aAlexander !== bAlexander) return bAlexander - aAlexander;
+        }
+        return (b.currentFate||b.fate||0)-(a.currentFate||a.fate||0);
+      });
       const chosen = targets.slice(0,2);
       chosen.forEach(function(target, idx){
         modifyFate(target,3,'permanent');
@@ -4076,7 +5249,11 @@ async function aiRunEffect(card, z, r, c) {
       // Free World deck: unconditionally declare third_great_war
       const strat = G._selectedAI?._deckStrategy || '';
       let declaredAff = 'third_great_war';
-      if(strat !== 'starter_freeworld') {
+      if(strat === 'ai_hungarian_war_dance' || strat === 'ai_crown_of_five') {
+        declaredAff = 'third_great_war';
+      } else if(strat === 'ai_selva_tidal_strike') {
+        declaredAff = 'eventide';
+      } else if(strat !== 'starter_freeworld') {
         // For other decks, pick the most common affiliation on board
         let best = 'third_great_war', bestCount = 0;
         for(const [aff, count] of Object.entries(affCounts)) {

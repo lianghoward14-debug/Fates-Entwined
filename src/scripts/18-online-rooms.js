@@ -653,11 +653,23 @@
   }
   function scheduleOnlineClientCardFlash(card, kind, label, key){
     if(!card || !kind || typeof window.flashCardEffect !== 'function' || !rememberOnlineEffectFlashKey(key)) return false;
-    return window.flashCardEffect(card, kind, {
-      label:String(label || kind.replace(/[_-]+/g, ' ')),
-      soundKey:'online-client:' + key,
-      onlineRemote:true
-    });
+    const show = function(){
+      return window.flashCardEffect(card, kind, {
+        label:String(label || kind.replace(/[_-]+/g, ' ')),
+        soundKey:'online-client:' + key,
+        onlineRemote:true
+      });
+    };
+    const waitsForMoraleCalculation = ['idyllic_polish_village','phil_crown','specter_ghost','wintertide'].includes(String(kind));
+    if(!waitsForMoraleCalculation) return show();
+    // Snapshot-diff flashes can be discovered just before the authoritative
+    // result batch opens its Morale Calculation modal. Give that batch one
+    // turn of the event loop to reserve the shared presentation barrier.
+    setTimeout(function(){
+      if(typeof window.runAfterMoraleCalculationPresentation === 'function') window.runAfterMoraleCalculationPresentation(show);
+      else show();
+    }, 120);
+    return true;
   }
   function onlineEffectFlashEventKey(action, event, index){
     return String(event?.eventId || [
@@ -841,6 +853,7 @@
   }
   function onlineZoneHasActiveFriendlyRozsi(card, z){
     const g = gameState();
+    if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true || g?.gameSettings?.pressureCardReworks === true || g?._freePlayGameSettings?.pressureCardReworks === true) return false;
     const zone = g?.board?.[z];
     if(!card || !Array.isArray(zone)) return false;
     return zone.some(function(row, r){
@@ -2900,7 +2913,7 @@
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting',
-      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex'
+      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure'
     ].forEach(function(k){
       if(Object.prototype.hasOwnProperty.call(state, k)) g[k] = cloneOnlinePlain(state[k]);
     });
@@ -3527,13 +3540,15 @@
       _phase7CoinFlip:cloneOnlinePlain(projected.coinFlip || null),
       turn:Math.max(1, Number(projected.turn) || 1),
       turnNumber:Math.max(1, Number(projected.turn) || 1),
-      maxTurns:Math.max(1, Number(projected.maxTurns) || 20),
+      maxTurns:Math.max(1, Number(projected.maxTurns)
+        || (projected.gameSettings?.zoneControlRework === false ? 20 : 24)),
       phase:String(projected.phase || 'main'),
       landscapeId:String(projected.landscapeId || 'igb1'),
       landscapeBgNum,
       _turnTimerSeconds:Math.max(30, Math.min(600, Math.round(Number(projected.turnTimerSeconds) || 180))),
       _freePlayGameSettings:cloneOnlinePlain(projected.gameSettings || null),
       _landscapeState:cloneOnlinePlain(projected.landscapeState || {}),
+      _moralePressure:cloneOnlinePlain(projected.moralePressure || null),
       maxSupportsPerTurn:Math.max(0, Number(projected.baseSupportersPerTurn) || 0),
       supportsPlacedThisTurn:Number(projected.supportersSetThisTurn?.[projected.activePlayer] || 0) || 0,
       extraSupportsThisTurn:Number(projected.extraSupportersThisTurn?.[projected.activePlayer] || 0) || 0,
@@ -5135,6 +5150,28 @@
       });
       return;
     }
+    if(prompt?.type === 'MODAL_CHOICE' && sourceId === '44'
+      && typeof window.showSovietTypeDeclarationPicker === 'function'){
+      let submitted=false;
+      withOnlinePromptBypass(gameState(),function(){
+        window.showSovietTypeDeclarationPicker(function(cardType){
+          if(submitted)return;
+          submitted=true;
+          submitChoice(cardType,'choice');
+        });
+      });
+      const bindSovietButtons=function(attempt){
+        const buttons=Array.from(document.querySelectorAll('#modal.on .soviet-type-choice[data-soviet-type]'));
+        if(!buttons.length){if(attempt<240)setTimeout(function(){bindSovietButtons(attempt+1);},25);return;}
+        buttons.forEach(function(button){
+          const cardType=String(button.dataset.sovietType||'');
+          button.dataset.phase7PromptId=promptId;
+          button.dataset.phase7PromptChoice=cardType;
+        });
+      };
+      bindSovietButtons(0);
+      return;
+    }
     if(prompt?.type === 'ZONE_SELECTION' && typeof window.showZonePickerVisual === 'function'){
       const cancel = choices.find(function(command){ return command?.payload?.cancel === true; });
       withOnlinePromptBypass(gameState(), function(){
@@ -5916,6 +5953,9 @@
     const source = phase7FindAnyCard(event?.sourceIid) || phase7FindProjectedEntry(view, event?.sourceIid)?.card;
     const sourceId = String(event?.semanticSourceCardId || source?.id || '');
     const targetId = String(target?.id || '');
+    if(typeof window.getAuthoritativeEffectOverlayDescriptor === 'function'){
+      return window.getAuthoritativeEffectOverlayDescriptor(event, source, target);
+    }
     if(type === 'CARD_MOVED'){
       return sourceId === 'bh01' || targetId === 'bh01'
         ? {kind:'anicka_voyager_boat', label:'Brave Horizons'}
@@ -6128,6 +6168,12 @@
     const batchId = String(batch?.id || '');
     const events = Array.isArray(eventsOverride) ? eventsOverride : (batch?.events || []);
     if(!batchId || !events.length) return;
+    const moraleCalculationFirst = events.some(function(event){
+      return String(event?.type || '').toUpperCase() === 'MORALE_CYCLE_RESOLVED';
+    });
+    const moraleBarrierReserved = moraleCalculationFirst
+      && typeof window.beginMoraleCalculationPresentation === 'function';
+    if(moraleBarrierReserved) window.beginMoraleCalculationPresentation();
     const snowShovelerReturnedCards = events.filter(function(event){
       return String(event?.type || '').toUpperCase() === 'CARD_TRANSFERRED'
         && String(event?.semanticSourceCardId || '').toLowerCase() === '96'
@@ -6286,6 +6332,19 @@
       phase7CurrentUiSession.aliTransferPendingIids.delete(iid);
     }
     phase7RecordPresentationStage('results:start', {batchId, eventCount:events.length});
+    if(moraleCalculationFirst && typeof window.presentMoralePressureEvents === 'function'){
+      // Start-of-turn effects belong to the new turn, but their landscape and
+      // card overlays must not cover the preceding cycle's Morale Calculation.
+      try{
+        await window.presentMoralePressureEvents(events, view, moraleBarrierReserved);
+      }finally{
+        if(moraleBarrierReserved && typeof window.endMoraleCalculationPresentation === 'function'){
+          window.endMoraleCalculationPresentation();
+        }
+      }
+    }else if(moraleBarrierReserved && typeof window.endMoraleCalculationPresentation === 'function'){
+      window.endMoraleCalculationPresentation();
+    }
     await phase7NextFrame();
     const liHuaOverlayKeys = new Set();
     let liHuaSoundPlayed = false;
@@ -6545,13 +6604,21 @@
           : null;
         let pairedOverlayQueued = false;
         if(exactOverlayDescriptor && exactOverlayDescriptor.kind !== 'snowball' && baseFateAfter > fateBefore && typeof window.queuePairedOverlayFateGain === 'function'){
+          const displayedFateBefore = pos?.zone === 'board' && typeof getEffectiveFate === 'function'
+            ? Math.max(0,Number(getEffectiveFate(target,pos.z))||0)
+            : fateBefore;
+          const displayedBaseFateAfter = Math.max(0,displayedFateBefore+(baseFateAfter-fateBefore));
+          const displayedFinalFate = Math.max(0,displayedFateBefore+(fateAfter-fateBefore));
           pairedOverlayQueued = window.queuePairedOverlayFateGain(target, {
             kind:exactOverlayDescriptor.kind,
             label:exactOverlayDescriptor.label,
             sourceIid:String(event.sourceIid || ''),
-            before:fateBefore,
-            after:baseFateAfter,
-            finalValue:fateAfter,
+            // Continuous auras (notably Post-Modernist Dylan) are already in
+            // the printed board number. Present only this event's true delta;
+            // replaying raw stored Fate here made the old -3 appear again.
+            before:displayedFateBefore,
+            after:displayedBaseFateAfter,
+            finalValue:displayedFinalFate,
             onlineRemote:true,
             soundKey:['phase7', batchId, 'paired', String(event?.eventId || event?.id || eventIndex), exactOverlayDescriptor.kind].join(':')
           });
@@ -6643,6 +6710,9 @@
             if(projectedTarget) projectedTarget._suppressNextFatePulse = true;
           }
           if(fateMotionShown){
+            if(exactOverlayDescriptor && typeof window.playResolvedFateChangeSfx === 'function') {
+              window.playResolvedFateChangeSfx(target, fateBefore, baseFateAfter, phase7FindAnyCard(event.sourceIid)?.owner ?? event.playerIndex);
+            }
             window.fatePhase7PresentationAudit?.fateMotions?.push({
               at:Date.now(), batchId, eventId:String(event?.eventId || event?.id || eventIndex),
               targetIid:String(target?.iid || ''), before:fateBefore, after:fateAfter
@@ -6702,6 +6772,16 @@
       }
       if(type === 'TURN_STARTED' && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.turnHandoff === 'function'){
         if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
+        if(gameState()?.gameSettings?.pressureCardReworks===true&&typeof window.flashCardEffect==='function'){
+          const owner=Number(event.playerIndex);
+          (gameState()?.board||[]).forEach(function(zone){(zone||[]).forEach(function(row){(row||[]).forEach(function(card){
+            if(card&&Number(card.owner)===owner&&String(card.id||'')==='65'&&card.faceDown!==true){
+              const showMarinesOverlay=function(){window.flashCardEffect(card,'west_caribbea_marines',{label:'Sea-Men',soundKey:['phase7-marines',String(card.iid||'65'),String(event.turn||0)].join(':'),onlineRemote:true});};
+              if(typeof window.runAfterMoraleCalculationPresentation==='function')window.runAfterMoraleCalculationPresentation(showMarinesOverlay);
+              else showMarinesOverlay();
+            }
+          });});});
+        }
         resultMotionStarted = !!window.FateV2CardMotionFx.turnHandoff(gameState()?.currentPlayer, Number(event.playerIndex), {turn:event.turn}) || resultMotionStarted;
         return;
       }
@@ -6735,6 +6815,9 @@
       }, 180);
     }
     if(resultMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:110, timeoutMs:7600});
+    if(!moraleCalculationFirst && typeof window.presentMoralePressureEvents === 'function'){
+      await window.presentMoralePressureEvents(events, view);
+    }
     await phase7NextFrame();
     phase7RecordPresentationStage('results:end', {batchId, resultMotionStarted});
   }
@@ -6777,9 +6860,15 @@
     if(title){
       title.textContent = isDraw ? 'Draw!' : (winnerName + ' Wins!');
       title.classList.remove('online-forfeit-title');
+      if(typeof window.scheduleEndgameWinnerTitleFit === 'function') window.scheduleEndgameWinnerTitleFit();
     }
     if(sub){
       if(String(outcome.type || '').toUpperCase() === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
+      else if(['SEALS','SEAL_TIE'].includes(String(outcome.reason || '').toUpperCase())){
+        sub.textContent = isDraw
+          ? 'Both players finished tied on Seals'
+          : 'Wins by Seals, ' + Number(outcome.seals?.[winner] || 0) + ' to ' + Number(outcome.seals?.[winner === 0 ? 1 : 0] || 0);
+      }
       else if(String(outcome.reason || '').toUpperCase() === 'TOTAL_FATE') sub.textContent = 'Won by total Fate tiebreaker!';
       else if(isDraw) sub.textContent = 'Both players are tied on zones and total Fate';
       else sub.textContent = 'Controls ' + Number(outcome.zoneWins?.[winner] || 0) + ' of 3 Zones';
@@ -6810,6 +6899,16 @@
           '</div>' +
           '<div class="win-total-fate-note' + (isDraw ? '' : ' won') + '">' + (isDraw ? 'Official Draw' : esc(winnerName) + ' wins by higher total Fate!') + '</div>';
         zones.appendChild(totals);
+      }
+      if(Array.isArray(outcome.seals)){
+        const seals = document.createElement('div');
+        seals.className = 'win-total-fate win-seal-total';
+        seals.innerHTML = '<div class="win-total-fate-title">Final Seals</div>' +
+          '<div class="win-total-fate-scores">' +
+            '<div class="p1"><span>' + esc(players[0]?.name || 'Player 1') + '</span><strong>' + (Number(outcome.seals[0]) || 0) + '</strong></div>' +
+            '<div class="p2"><span>' + esc(players[1]?.name || 'Player 2') + '</span><strong>' + (Number(outcome.seals[1]) || 0) + '</strong></div>' +
+          '</div>';
+        zones.appendChild(seals);
       }
     }
     if(rewards){
@@ -7173,6 +7272,41 @@
   }
   function phase7PresentCardSetAuraOverlays(events){
     for(const event of events || []){
+      if(String(event?.type || '').toUpperCase() === 'SOVIET_GRENADIERS_TARGET_LINKED'){
+        const sourceEntry=phase7FindBoardCard(event.sourceIid);
+        const targetEntry=phase7FindBoardCard(event.targetIid);
+        const previousEntry=event.previousTargetIid?phase7FindBoardCard(event.previousTargetIid):null;
+        const overlay=function(entry,role){
+          if(!entry?.card||typeof window.flashCardEffect!=='function')return false;
+          return window.flashCardEffect(entry.card,'soviet_grenadiers',{
+            label:'The Bears of Russia',
+            soundKey:['phase7','soviet-link',String(event.sourceIid||''),String(event.targetIid||''),String(event.sequence||0),role].join(':')
+          });
+        };
+        const shown=overlay(sourceEntry,'source')|overlay(targetEntry,'target');
+        const presentDelta=function(entry,before,after){
+          if(!entry?.card||before===after||!window.FateMatchRendererAdapter?.presentFateDelta)return;
+          window.FateMatchRendererAdapter.presentFateDelta({
+            iid:String(entry.card.iid),targetIid:String(entry.card.iid),card:entry.card,z:entry.z,r:entry.r,c:entry.c,
+            fromValue:before,toValue:after,before:before,after:after,delta:after-before,
+            synchronizeResultFeedback:true,_fatePresentationReady:true,pairedEffectOverlayKind:'soviet_grenadiers'
+          });
+        };
+        if(targetEntry?.card){
+          const after=typeof getEffectiveFate==='function'?Math.max(0,Number(getEffectiveFate(targetEntry.card,targetEntry.z))||0):Math.max(0,Number(targetEntry.card.currentFate??targetEntry.card.fate)||0)+3;
+          presentDelta(targetEntry,Math.max(0,after-3),after);
+        }
+        if(!event.previousTargetIid&&sourceEntry?.card){
+          const after=typeof getEffectiveFate==='function'?Math.max(0,Number(getEffectiveFate(sourceEntry.card,sourceEntry.z))||0):Math.max(0,Number(sourceEntry.card.currentFate??sourceEntry.card.fate)||0)+3;
+          presentDelta(sourceEntry,Math.max(0,after-3),after);
+        }
+        if(previousEntry?.card&&String(previousEntry.card.iid)!==String(event.targetIid||'')){
+          const after=typeof getEffectiveFate==='function'?Math.max(0,Number(getEffectiveFate(previousEntry.card,previousEntry.z))||0):Math.max(0,Number(previousEntry.card.currentFate??previousEntry.card.fate)||0);
+          presentDelta(previousEntry,after+3,after);
+        }
+        if(shown&&window.FateMatchRendererAdapter?.renderFromGameState)window.FateMatchRendererAdapter.renderFromGameState({source:'phase7-soviet-grenadiers-linked-overlay'});
+        continue;
+      }
       if(String(event?.type || '').toUpperCase() !== 'CARD_SET') continue;
       const entry = phase7FindBoardCard(event.cardIid);
       const card = entry?.card;
@@ -12750,7 +12884,20 @@
     const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
     const landscapeId = match ? 'igb' + Number(match[1]) : 'igb1';
     const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || 3)));
-    return {landscapeMode, landscapeId, turnTimerMinutes};
+    return {
+      landscapeMode,
+      landscapeId,
+      turnTimerMinutes,
+      healthPressureSeals:window.FATE_MORALE_PRESSURE_RULES_ENABLED === true,
+      pressureCardReworks:window.FATE_MORALE_PRESSURE_RULES_ENABLED === true
+        && window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true,
+      zoneControlRework:window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false,
+      expandedContestedRow:window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+        && window.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false,
+      zoneLayout444:window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+        && window.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false
+        && window.FATE_ZONE_444_LAYOUT_ENABLED !== false
+    };
   }
   function pendingFreePlayRoomGameSettings(mode){
     if(normalizeRoomMode(mode) !== 'freeplay') return normalizeOnlineFreePlayGameSettings(null);
@@ -16193,6 +16340,13 @@
       window.toast = function(msg){
         const g = gameState();
         const text = String(msg || '').trim();
+        const remoteOpponentAction = isOnlineMatchState(g)
+          && (g._onlineApplyingRemoteAction || isRemoteOpponentReplay(g))
+          && Number.isInteger(g._onlineRemoteActionPlayer)
+          && g._onlineRemoteActionPlayer !== g._onlinePlayerIndex;
+        const isPrivateOpponentOutcome = remoteOpponentAction
+          && /(?:created a second taylor|art of mimicry|copied to (?:their|the opponent(?:'s)?) hand|added to (?:their|the opponent(?:'s)?) hand|drew |searched (?:their|the) deck)/i.test(text);
+        if(isPrivateOpponentOutcome) return;
         const isRemoteOpponentPrompt = isOnlineMatchState(g)
           && g._onlineApplyingRemoteAction
           && Number.isInteger(g._onlineRemoteActionPlayer)
@@ -17206,6 +17360,9 @@
       };
     },
     active:phase7CurrentUiActive,
+    view(){
+      return phase7CurrentUiSession.view ? cloneOnlinePlain(phase7CurrentUiSession.view) : null;
+    },
     ensureInteractionUi(){
       if(!phase7CurrentUiActive()) return false;
       phase7SyncInteractionUi();

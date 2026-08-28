@@ -134,7 +134,7 @@ function getLocalProfile(){
 }
 function localName(profile){
   const value = profile || {};
-  return safe(value.chosenUsername || value.displayName || value.username || value.name || 'Player').trim() || 'Player';
+  return safe(value.username || value.chosenUsername || value.displayName || value.name || 'Player').trim() || 'Player';
 }
 function localPhoto(profile){
   const value = profile || {};

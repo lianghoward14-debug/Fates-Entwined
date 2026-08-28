@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Fates Entwined</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#06080e">
+<link rel="icon" href="blank.png">
+  <link rel="stylesheet" href="src/styles/game.css?v=1785072305">
+<link rel="stylesheet" href="src/styles/99-ui-final.css?v=1784660001">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=1788120601">
+<link rel="stylesheet" href="src/styles/profile-view-v2.css?v=1788000601">
+<link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1788000201">
+<link rel="stylesheet" href="src/styles/campaign-intro.css?v=1785023024">
+<link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
+<link rel="stylesheet" href="src/styles/desktop-updater.css?v=1784163601">
+<link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784359003">
+<link rel="stylesheet" href="src/styles/endgame.css?v=1788079001">
+<!-- The match shell is intentionally loaded last. It is a reversible, single
+     authority layer; fateMatchUI=0 restores the retained legacy match UI. -->
+<link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzz-match-ui-codex.css?v=1788100201">
+<link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=1788170401">
+<!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
+</head>
+<body>
+<div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
+  <div class="fate-loading-panel">
+    <div class="fate-loading-kicker">Fates Entwined</div>
+    <div class="fate-loading-title">Loading Menus</div>
+    <div class="fate-loading-copy">Preparing first launch menu screens.</div>
+    <div class="fate-loading-bar"><div id="fate-loading-fill"></div></div>
+    <div class="fate-loading-count" id="fate-loading-count">Starting</div>
+  </div>
+</div>
+<script>
+  (function(){
+    var params = new URLSearchParams(location.search || '');
+    // Morale/Pressure remains available for isolated experiments, but the
+    // shipping game uses the classic Fate rules unless it is explicitly
+    // enabled.  The independent zone-control/expanded-row rules are not tied
+    // to this rollback.
+    window.FATE_MORALE_PRESSURE_RULES_ENABLED = params.get('fateMoralePressureRules') === '1';
+    window.FATE_PRESSURE_CARD_REWORKS_ENABLED = window.FATE_MORALE_PRESSURE_RULES_ENABLED
+      && params.get('fatePressureCardReworks') === '1';
+    // The zone-control experiment defaults to the uniform 4/4/4 board. Set
+    // fateZone444=0 to compare against the retained 3/6/3 implementation.
+    window.FATE_ZONE_444_LAYOUT_ENABLED = params.get('fateZone444') !== '0';
+    // Reversible full-width presentation for the 4/4/4 board. The original
+    // left rail is preserved and can be restored with fateWide444=0.
+    window.FATE_WIDE_444_BOARD_LAYOUT_ENABLED = window.FATE_ZONE_444_LAYOUT_ENABLED
+      && params.get('fateWide444') !== '0';
+    window.FATE_MATCH_UI_REBUILD_ENABLED = params.get('fateMatchUI') !== '0';
+    // The former Fly/RTDB room system accepted client-resolved snapshots.
+    // It is retired, not a fallback: multiplayer may only enter through the
+    // separately loaded Phase 7 authoritative client.
+    window.FATE_LEGACY_MULTIPLAYER_RETIRED = true;
+    // Authoritative multiplayer is the standard online route.  An explicit
+    // zero is reserved only for isolated troubleshooting sessions.
+    var phase7Beta = params.get('fateV3UnrankedBeta') !== '0';
+    var phase7Conflict = phase7Beta && (
+      !!String(params.get('fateAuthority') || '').trim()
+      || params.has('flyWs')
+      || params.has('fateWsAuthorityUrl')
+      || params.has('wsAuthority')
+      || params.get('fateV3SinglePlayer') === '1'
+    );
+    if(phase7Conflict){
+      window.FATE_AUTHORITY_ROUTE_BLOCKED = true;
+      window.FATE_PHASE7_UNRANKED_BETA_BLOCKED = true;
+      window.FATE_WS_AUTHORITY_ENABLED = false;
+      window.FATE_WS_AUTHORITY_URL = '';
+      window.FATE_FLY_API_URL = '';
+      console.error('[Fate Authority] conflicting exact routes; multiplayer is blocked');
+    }else if(phase7Beta){
+      window.FATE_PHASE7_UNRANKED_BETA = true;
+      window.FATE_LEGACY_MULTIPLAYER_BLOCKED = true;
+      window.FATE_WS_AUTHORITY_ENABLED = false;
+      window.FATE_WS_AUTHORITY_URL = '';
+      window.FATE_FLY_API_URL = '';
+    }
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      navigator.serviceWorker.getRegistrations().then(function(registrations){
+        registrations.forEach(function(registration){ registration.unregister(); });
+      }).catch(function(){});
+    }
+  })();
+  window.__fateStartupLoadingStartedAt = Date.now();
+  window.__fateStartupLoadingFallback = setTimeout(function(){
+    var el = document.getElementById('fate-loading-screen');
+    if(el && !window.__fateStartupLoadingManaged){
+      el.classList.add('is-hiding');
+      setTimeout(function(){ if(el.parentNode) el.remove(); }, 320);
+    }
+  }, 14000);
+</script>
+
+<!-- TITLE -->
+<div class="screen active" id="s-title">
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="title-overlay"></div>
+  <div id="title-profile" class="title-profile title-profile-fallback" onclick="showProfile()" title="View your profile">
+    <div class="tp-pic" style="border:2px solid #cd7f32!important;box-shadow:0 0 10px rgba(205,127,50,.18),0 6px 18px rgba(0,0,0,.38),inset 0 0 0 2px rgba(205,127,50,.28)!important;">
+      <img src="blank.png" style="object-fit:cover;object-position:center center;" alt="" onerror="this.onerror=null;this.src='blank.png';">
+    </div>
+    <div class="tp-info">
+      <div class="tp-head">
+        <div class="tp-name">Player</div>
+      </div>
+      <div class="tp-rank-block">
+        <div class="tp-rank-row">
+          <span class="rank-badge rank-lg rank-badge-short fate-badge-frame" style="background:rgba(205,127,50,.15);border-color:#cd7f3240;color:#cd7f32;">
+            <span class="rank-badge-icon"><img class="rank-icon-img rank-icon-6" src="rankicons/6.png" alt=""></span>
+            <span class="rank-badge-label">Footman</span>
+          </span>
+        </div>
+      </div>
+      <div class="tp-bottom">
+        <div class="tp-stat-row">
+          <span class="level-badge title-level-badge" style="--badge-color:#7fffa0;--badge-glow:rgba(127,255,160,.5);--badge-bg:linear-gradient(180deg,#7fffa0,#1a1d27);">
+            <span class="lb-crest"><span class="lb-icon">1</span></span>
+            <span class="lb-copy"><span class="lb-core"><span class="lb-label">NOVICE</span><span class="lb-lv">1</span></span></span>
+          </span>
+        </div>
+        <div class="tp-xp-wrap">
+          <div class="tp-xp"><div class="tp-xp-fill" style="width:0%;"></div></div>
+          <div class="tp-xp-copy">0 XP</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="title-content">
+    <div class="logo">FATES ENTWINED</div>
+    <div class="logo-sub" style="margin:.22rem 0 .17rem;">A strategic card game created by Howard Liang.</div>
+    <div class="logo-sub" style="margin:0 0 .82rem;opacity:.82;">Use Ctrl-Scroll to optimize your game zoom.</div>
+    <div class="title-menu-stack">
+      <button class="btn pri title-btn" id="title-free-play-btn" onclick="playMenuSfx();openFreePlayMenu()">Free Play</button>
+      <button class="btn pri title-btn" id="title-challenger-btn" style="background:linear-gradient(135deg,rgba(201,168,76,.3),rgba(255,215,0,.2));border-color:#ffd700;color:#ffd700;" onclick="playMenuSfx();openChallengerMenu()">Challenger</button>
+      <button class="btn title-btn" id="title-deck-builder-btn" onclick="playMenuSfx();showDeckBuilder()">Deck Builder</button>
+      <button class="btn title-btn title-btn-mission" id="title-mission-control-btn" onclick="playMenuSfx();showMissionControl()">Mission Control</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showPublicDecks()">Public Decks</button>
+      <button class="btn title-btn" onclick="playMenuSfx();startTutorial()">Tutorial</button>
+      <button class="btn title-btn" onclick="playMenuSfx();showSocial()">Social</button>
+      <button class="btn title-btn title-btn-exit" id="title-exit-game-btn" onclick="exitGame()">Exit Game</button>
+      <div id="title-audio-panel" class="vol-panel title-audio-panel" style="margin:.15rem auto 0;max-width:220px;overflow:hidden;transition:max-height .3s ease,opacity .25s ease;max-height:400px;opacity:1;">
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Master</label>
+          <input type="range" min="0" max="100" value="100" id="vol-master" style="width:120px;" oninput="setMasterVolume(this.value)">
+          <span class="vol-val" id="vol-master-val">100</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Music</label>
+          <input type="range" min="0" max="100" value="25" id="vol-music" style="width:120px;" oninput="setMusicVolume(this.value)">
+          <span class="vol-val" id="vol-music-val">25</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Effects</label>
+          <input type="range" min="0" max="100" value="80" id="vol-sfx" style="width:120px;" oninput="setSfxVolume(this.value)">
+          <span class="vol-val" id="vol-sfx-val">80</span>
+        </div>
+        <div class="vol-row" style="flex-direction:column;gap:.05rem;align-items:center;">
+          <label style="text-align:center;font-size:.48rem;">Voices</label>
+          <input type="range" min="0" max="100" value="80" id="vol-voice" style="width:120px;" oninput="setVoiceVolume(this.value)">
+          <span class="vol-val" id="vol-voice-val">80</span>
+        </div>
+        <button class="btn sm" id="music-toggle-btn" onclick="toggleMusic()" style="margin-top:.2rem;">Music On</button>
+        <div id="game-version" class="btn sm title-version-badge" aria-label="Version" style="margin-top:.2rem;">Version 1.39.95</div>
+      </div>
+    </div>
+  </div>
+  <div id="daily-challenges-panel" class="daily-challenges-panel"></div>
+  <div id="fate-side-panel"></div>
+</div>
+
+<!-- AI DIFFICULTY OVERLAY (over title) -->
+<div id="s-difficulty-overlay">
+  <div class="overlay-panel" id="difficulty-panel">
+    <!-- populated by showAIDifficultyPicker -->
+  </div>
+</div>
+
+<!-- STARTER DECK PICK SCREEN (shown when starting Challenger for first time) -->
+<div class="screen" id="s-starter-pick">
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg3.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="starter-intro">
+    <h1>Welcome to Challenger</h1>
+    <p>Choose a starter deck to begin your journey. You'll also receive <strong style="color:#ffd700;">3 free profile boosters</strong> with no duplicate profile pictures. Build decks from cards you own and climb the Challenger ladder.</p>
+  </div>
+  <div class="starter-deck-grid" id="starter-deck-grid">
+    <!-- populated by showStarterPick -->
+  </div>
+  <div style="margin-top:2rem;text-align:center;position:relative;z-index:2;">
+    <button class="btn" onclick="showScreen('s-title')">Back to Title</button>
+  </div>
+</div>
+
+<!-- CAMPAIGN CHARACTER INTRO (isolated first-pass campaign shell) -->
+<div class="screen" id="s-campaign-intro">
+  <div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg4.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="campaign-intro-shell">
+    <div class="campaign-intro-topbar">
+      <button class="btn sm" onclick="returnToChallengerFromCampaign()">Back</button>
+      <div class="campaign-intro-title">
+        <span>Campaign</span>
+        <b>Choose Your Lead</b>
+      </div>
+      <button class="btn sm pri" id="campaign-confirm-btn" onclick="confirmCampaignCharacter()">Confirm</button>
+    </div>
+    <div class="campaign-intro-layout">
+      <section class="campaign-character-grid" id="campaign-character-grid" data-campaign-character-grid aria-label="Campaign starter characters"></section>
+      <aside class="campaign-character-detail" id="campaign-character-detail" data-campaign-character-detail></aside>
+    </div>
+  </div>
+</div>
+
+<!-- CAMPAIGN CHAPTER TRIAL (isolated visual-novel chapter shell) -->
+<div class="screen" id="s-campaign-level">
+  <div class="screen-bg"><img src="optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260801a" alt="" onerror="this.style.display='none'"></div>
+  <div class="campaign-level-shell">
+    <div class="campaign-level-topbar">
+      <button class="btn sm" onclick="returnToCampaignHub()">Back</button>
+      <div class="campaign-level-title">
+        <span>Chapter 1</span>
+        <b>Snow on the Carpathians</b>
+      </div>
+      <button class="btn sm pri" onclick="startSnowCarpathiansBattle()">Begin Battle</button>
+    </div>
+    <div id="campaign-level-scene" class="campaign-level-scene"></div>
+  </div>
+</div>
+
+<!-- CHALLENGER HUB (main screen for challenger mode) -->
+<div class="screen" id="s-challenger">
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg2.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="ch-topbar">
+    <div class="ch-title">
+      <button class="btn sm" onclick="if(window.challengerBack) challengerBack(); else showScreen('s-title')">Back</button>
+      <div class="ch-title-text">CHALLENGER</div>
+    </div>
+    <div class="ch-currency">
+      <div class="ch-packs-pill" onclick="switchChTab('store')" title="Unopened packs - click to open">
+        <span>Packs:</span>
+        <span class="pk-val" id="ch-packs-val">0</span>
+      </div>
+      <div class="starlight-pill" title="Starlight - earned from games, used to buy packs">
+        <span class="starlight-icon" id="ch-starlight-icon">*</span>
+        <span>Starlight:</span>
+        <span class="sl-val" id="ch-starlight-val">0</span>
+      </div>
+      <div class="starlight-pill" style="border-color:rgba(58,143,217,.5);background:linear-gradient(135deg,rgba(58,143,217,.15),rgba(58,143,217,.08));color:#5fb5ff;" title="Your Challenger ELO">
+        <span>ELO:</span>
+        <span class="sl-val" id="ch-elo-val">1000</span>
+      </div>
+    </div>
+  </div>
+  <div class="ch-tabs">
+    <button class="ch-tab active" data-tab="play" onclick="switchChTab('play')">Play</button>
+    <button class="ch-tab" data-tab="campaign" onclick="switchChTab('campaign')" hidden>Campaign</button>
+    <button class="ch-tab" data-tab="store" onclick="switchChTab('store')">Store</button>
+    <button class="ch-tab" data-tab="collection" onclick="switchChTab('collection')">Collection</button>
+    <button class="ch-tab" data-tab="deckbuilder" onclick="switchChTab('deckbuilder')">Deck Builder</button>
+    <button class="ch-tab" data-tab="lore" onclick="switchChTab('lore')">Lore</button>
+  </div>
+  <div class="ch-content" id="ch-content">
+    <!-- populated by switchChTab -->
+  </div>
+</div>
+
+<!-- PACK OPENING OVERLAY -->
+<div id="pack-opening-overlay">
+  <div class="pack-sparkle-layer" id="pack-sparkle-layer"></div>
+  <div id="pack-stage-content" style="position:relative;z-index:2;">
+    <!-- populated during opening -->
+  </div>
+</div>
+
+<!-- PRESET PICKER OVERLAY (over title, after difficulty chosen) -->
+<div id="s-preset-overlay">
+  <div class="overlay-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;padding-bottom:.7rem;border-bottom:1px solid var(--border);">
+      <div>
+        <div class="logo" style="font-size:1.8rem;margin-bottom:.1rem;">Choose Your Deck</div>
+        <div class="logo-sub" style="margin:0;font-size:.75rem;" id="preset-mode-label-ov">Select a preset or use custom</div>
+      </div>
+      <button class="btn sm" onclick="closePresetOverlay()">Back</button>
+    </div>
+    <div id="preset-cards-ov" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;"></div>
+    <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+      <div id="preset-page-controls-ov" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;"></div>
+      <button class="btn" id="preset-custom-btn-ov">Use My Custom Deck</button>
+    </div>
+  </div>
+</div>
+
+<!-- DECK BUILDER -->
+<div class="screen" id="s-deck">
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="db-top" style="position:relative;z-index:1;">
+    <div class="db-title">Deck Builder</div>
+    <div class="db-who">
+      Building for:
+      <button class="btn sm" id="db-who-btn" onclick="toggleDBPlayer()">Player 1</button>
+    </div>
+    <div style="display:flex;gap:.4rem;">
+      <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+    </div>
+  </div>
+  <div class="db-filters" id="db-filters">
+    <button class="db-filter active" data-f="all" onclick="dbFilter(this,'all')">All</button>
+    <button class="db-filter" data-f="Supporter" onclick="dbFilter(this,'Supporter')">Supporters</button>
+    <button class="db-filter" data-f="Initiator" onclick="dbFilter(this,'Initiator')">Initiators</button>
+    <button class="db-filter" data-f="Coordinator" onclick="dbFilter(this,'Coordinator')">Coordinators</button>
+    <button class="db-filter" data-f="Dauntless" onclick="dbFilter(this,'Dauntless')">Dauntless</button>
+    <button class="db-filter" data-f="Improvisor" onclick="dbFilter(this,'Improvisor')">Improvisors</button>
+    <button class="db-filter" data-f="third_great_war" onclick="dbFilter(this,'third_great_war')">Third Great War</button>
+    <button class="db-filter" data-f="eventide" onclick="dbFilter(this,'eventide')">Eventide</button>
+    <button class="db-filter" data-f="expanded_worlds" onclick="dbFilter(this,'expanded_worlds')">Expanded Worlds</button>
+    <button class="db-filter" data-f="reality" onclick="dbFilter(this,'reality')">Reality</button>
+    <span style="width:1px;height:20px;background:var(--border);margin:0 .1rem;"></span>
+    <button class="db-filter" style="border-color:rgba(255,215,0,.4);color:#d4c44a;" data-f="star" onclick="dbFilter(this,'star')">Star</button>
+    <button class="db-filter" style="border-color:rgba(160,100,220,.4);color:#b36ce0;" data-f="square" onclick="dbFilter(this,'square')">Square</button>
+    <button class="db-filter" style="border-color:rgba(212,138,74,.4);color:#d48a4a;" data-f="triangle" onclick="dbFilter(this,'triangle')">Triangle</button>
+    <button class="db-filter" style="border-color:rgba(74,138,212,.4);color:#4a8ad4;" data-f="circle" onclick="dbFilter(this,'circle')">Circle</button>
+    <input type="text" id="db-search" class="db-search" placeholder="Search names or card text..." maxlength="40" oninput="setDbSearch(this.value)">
+  </div>
+  <div class="db-body">
+    <div class="db-left">
+      <div class="db-collection" id="db-collection"></div>
+    </div>
+    <div class="db-right">
+      <div class="db-deck-header">
+        <div class="db-deck-titleline">
+          <span id="db-deck-label">P1 Deck</span>
+          <span class="db-count" id="db-count">0 / 40 cards</span>
+        </div>
+        <button class="btn sm danger" style="float:right" onclick="clearDeck()">Clear</button>
+      </div>
+      <div class="db-actions">
+        <button class="btn sm" onclick="deleteLoadedPresetFromBuilder()">Delete Preset</button>
+        <button class="btn sm" onclick="browsePresets()">My Presets</button>
+        <button class="btn sm btn-overwrite-preset" onclick="overwriteLoadedPreset()" style="display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:.35rem .6rem;"><span style="display:block;">Overwrite</span><span style="display:block;">Preset</span></button>
+        <button class="btn sm" onclick="saveCurrentDeckAsPreset()">Save as Preset</button>
+      </div>
+      <div class="db-deck-list" id="db-deck-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TITLE MISSION CONTROL WINDOW -->
+<div class="mission-title-overlay" id="mission-control-window" hidden onclick="if(event.target===this)closeMissionControl()">
+  <div class="mission-window" role="dialog" aria-modal="true" aria-labelledby="mission-window-title">
+    <div class="mission-window-topbar">
+      <div>
+        <div class="mission-window-kicker">Main Menu</div>
+        <div class="mission-title-text" id="mission-window-title">MISSION CONTROL</div>
+      </div>
+      <div class="mission-window-actions">
+        <button class="btn sm" onclick="closeMissionControl()">Close</button>
+      </div>
+    </div>
+    <div class="mission-window-status" aria-label="Mission status">
+      <div class="mission-status-tile">
+        <span>Completed</span>
+        <b id="mission-complete-count">0/3</b>
+      </div>
+      <div class="mission-status-tile">
+        <span>Rewards</span>
+        <b id="mission-reward-total">0</b>
+      </div>
+      <div class="mission-status-tile">
+        <span>Total Bonuses Collected</span>
+        <b id="mission-bonus-state">Locked</b>
+      </div>
+    </div>
+    <div class="mission-content mission-window-content" id="mission-window-content">
+      <div class="mission-grid mission-window-grid">
+        <section class="mission-panel mission-daily-panel">
+          <div class="mission-panel-header">
+            <span class="mission-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M8 5h8"/><path d="M7 6H5v15h14V6h-2"/><path d="m8 13 2 2 5-5"/></svg></span>
+            <span class="mission-panel-label">Daily Missions</span>
+          </div>
+          <div id="mission-window-daily-container"></div>
+        </section>
+        <section class="mission-panel mission-live-panel">
+          <div class="mission-panel-header">
+            <span class="mission-panel-icon">L</span>
+            <span class="mission-panel-label">Live Matches</span>
+          </div>
+          <div class="mission-live-body" id="mission-window-live-container">
+            <div class="mission-live-empty">Sign in to view live matches.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COIN FLIP -->
+<!-- MATCHMAKING -->
+<div class="screen" id="s-matchmaking">
+<div class="screen-bg"><img src="ingamebackgrouds/igb1.png?v=bg20260705" alt="" onerror="this.style.display='none'" style="transition:opacity 1s ease;"></div>
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:2rem;">
+    <div class="mm-spinner"></div>
+    <div style="font-family:'Cinzel',serif;font-size:1.8rem;color:var(--gold);letter-spacing:.12em;margin-bottom:.5rem;text-shadow:0 0 24px rgba(255,215,0,.4);">SEARCHING FOR OPPONENT</div>
+    <div id="mm-status" class="mm-status" style="font-size:.9rem;color:var(--dim);margin-bottom:1rem;">Ranked Matchmaking</div>
+    <div style="font-family:'Cinzel',serif;font-size:1.2rem;color:var(--text);" id="mm-timer">0:00</div>
+    <button class="btn sm danger" onclick="cancelMatchmaking()" style="margin-top:1.5rem;">Cancel</button>
+  </div>
+</div>
+
+<!-- SOCIAL -->
+<div class="screen" id="s-social">
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="social-topbar">
+    <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+    <div class="social-title-text">SOCIAL</div>
+    <div style="margin-left:auto;position:relative;">
+      <button class="btn sm" onclick="showPendingFriends()" style="position:relative;">Pending
+        <span id="pending-friends-badge" class="pending-badge" style="display:none;">0</span>
+      </button>
+    </div>
+  </div>
+  <div class="social-content" id="social-content">
+    <!-- populated by renderSocialPage -->
+  </div>
+</div>
+
+<!-- MISSION CONTROL -->
+<div class="mission-legacy-screen" id="s-mission-legacy" hidden>
+<div class="screen-bg"><img src="optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d" alt="" onerror="this.style.display='none'"></div>
+  <div class="mission-topbar">
+    <button class="btn sm" onclick="showScreen('s-title')">Back</button>
+    <div class="mission-title-text">MISSION CONTROL</div>
+  </div>
+  <div class="mission-content" id="mission-content">
+    <div class="mission-grid">
+      <section class="mission-panel mission-daily-panel">
+        <div class="mission-panel-header">
+          <span class="mission-panel-icon">⚔</span>
+          <span class="mission-panel-label">Daily Missions</span>
+        </div>
+        <div id="mission-daily-container"></div>
+      </section>
+      <section class="mission-panel mission-live-panel">
+        <div class="mission-panel-header">
+          <span class="mission-panel-icon">👁</span>
+          <span class="mission-panel-label">Live Matches</span>
+        </div>
+        <div class="mission-live-body" id="mission-live-container">
+          <div class="mission-live-empty">Sign in to view live matches.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- COIN FLIP -->
+<div class="screen" id="s-coin">
+  <div class="coin-panel">
+    <div class="ph" id="coin-title">Flipping for first turn...</div>
+    <div class="coin coin-pending" id="coin">?</div>
+    <div class="ps" id="coin-result"></div>
+    <div id="coin-btns" style="display:none;text-align:center;margin-top:.22rem;">
+      <div class="ps" style="margin-bottom:.2rem;" id="coin-winner-text"></div>
+      <button class="btn" onclick="chooseTurn(true)">Go First</button>
+      <button class="btn" onclick="chooseTurn(false)">Go Second</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="s-game">
+  <div class="topbar">
+    <div class="tp-player" id="tp-status-left" style="min-width:120px;">
+      <!-- Status effects YOU applied (green) -->
+    </div>
+    <div class="tp-mid">
+      <div id="topbar-effects" style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:center;"></div>
+    <div id="tp-cur">Turn 1</div>
+      <div class="tp-turn" id="tp-phase">Draw Phase</div>
+      <div id="tp-timer" style="font-family:'Cinzel',serif;font-size:.7rem;color:var(--dim);letter-spacing:.06em;margin-top:.15rem;"></div>
+    </div>
+    <div class="tp-player" id="tp-status-right" style="min-width:120px;">
+      <!-- Status effects OPPONENT applied on you (red) -->
+    </div>
+  </div>
+  <div class="zscore" id="zscore"></div>
+  <div class="game-layout">
+    <!-- LEFT COLUMN: opponent hand, piles -->
+    <div class="game-left">
+      <div class="left-section opp-section">
+        <div class="player-banner opp-banner">
+          <div class="pb-pic" id="opp-pic"><span class="pi-placeholder">ðŸ‘¤</span></div>
+          <div class="pb-info">
+            <div class="pb-name" id="opp-name">Opponent</div>
+            <div class="pb-stat" id="opp-stat"></div>
+          </div>
+        </div>
+        <div class="left-section-lbl" id="opp-hand-lbl">Opponent's Hand</div>
+        <div class="opp-hand" id="opp-hand"></div>
+      </div>
+      <div class="left-section" style="flex:0 0 auto;">
+        <div class="landscape-panel" id="landscape-panel" aria-live="polite"></div>
+        <div class="player-banner my-banner">
+          <div class="pb-pic" id="my-pic"><span class="pi-placeholder">ðŸ‘¤</span></div>
+          <div class="pb-info">
+            <div class="pb-name" id="my-name">You</div>
+            <div class="pb-stat" id="my-stat"></div>
+          </div>
+        </div>
+        <div class="left-piles">
+          <div class="pile-slot" id="my-deck" onclick="showDeckInfo(getPerspectivePlayerIndex())" title="Your Deck">
+            <div class="pile-cards"></div>
+            <div class="pile-label">Deck <span id="my-deck-count">0</span></div>
+          </div>
+          <div class="pile-slot" id="my-discard" onclick="showDiscard(getPerspectivePlayerIndex())" title="Your Discard">
+            <div class="pile-cards"></div>
+            <div class="pile-label">Discard <span id="my-discard-count">0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- CENTER: board + hand below -->
+    <div class="game-center">
+      <div class="game-status-dock" id="game-status-dock" aria-live="polite">
+        <div class="game-status-side" id="game-status-left"></div>
+        <div class="game-status-side" id="game-status-right"></div>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="hand-strip">
+        <div class="left-section-lbl" id="hand-lbl" style="text-align:center;">Your Hand <span id="hand-count" style="color:var(--dim);font-family:'Crimson Pro',serif;font-weight:400;font-size:.65rem;">(0)</span></div>
+        <div class="hand-cards" id="hand-cards"></div>
+      </div>
+      <div class="actbar" id="actbar">
+        <span class="act-hint" id="act-hint">Select a card to play</span>
+        <button class="btn sm" id="btn-end-turn" onclick="endTurn()">End Turn</button>
+        <button class="btn sm danger cancel-consolidate-btn" id="cancel-consolidate-btn" style="display:none;" onclick="cancelConsolidation()">&times; Stop Consolidation</button>
+        <button class="btn sm" onclick="openCardDetail(null)">View Selected</button>
+        <button class="btn sm" onclick="showAudioSettings()">Audio</button>
+        <button class="btn sm danger" onclick="confirmEndGame()">End Game</button>
+      </div>
+    </div>
+  </div>
+  <div class="turn-hud" id="turn-hud" aria-live="polite">
+    <div class="turn-hud-icon" aria-hidden="true">
+      <svg viewBox="0 0 72 72" fill="none">
+        <path d="M29 8H43M36 8V15M54 17L59 22" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="36" cy="40" r="24" fill="rgba(8,10,16,.78)" stroke="currentColor" stroke-width="3"/>
+        <circle cx="36" cy="40" r="18" stroke="rgba(255,246,191,.18)" stroke-width="1.5"/>
+        <path d="M36 25V41L47 48" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 40H13M59 40H54M36 17V22M36 58V63" stroke="rgba(255,246,191,.45)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="turn-hud-copy">
+      <div class="turn-hud-turn" id="turn-hud-turn">Turn 1/20</div>
+      <div class="turn-hud-player" id="turn-hud-player">Player's Turn</div>
+      <div class="turn-hud-timer" id="turn-hud-timer">0:00</div>
+    </div>
+  </div>
+</div>
+
+<!-- WIN -->
+<div class="screen endgame-redesign-v2" id="s-win" data-outcome="neutral">
+  <div class="win-wrap" id="win-wrap">
+    <header class="win-result-head">
+      <div class="win-result-sigil" aria-hidden="true">
+        <svg viewBox="0 0 96 96" focusable="false">
+          <path d="M48 9 72 24v28L48 81 24 52V24L48 9Z"/>
+          <path d="m48 22 13 8v16L48 62 35 46V30l13-8Z"/>
+          <path d="M15 68c9 12 19 18 31 19M81 68C72 80 62 86 50 87"/>
+        </svg>
+      </div>
+      <div class="win-result-kicker">Match Complete</div>
+      <div class="win-title" id="win-title" aria-live="polite">Player 1 Wins!</div>
+      <div class="win-sub" id="win-sub">Controls 2 of 3 Zones</div>
+    </header>
+    <div class="win-zone-report">
+      <div class="win-section-label"><span>Final control report</span><span>Three zones</span></div>
+      <div class="win-zones" id="win-zones"></div>
+    </div>
+    <div id="win-rewards" class="win-rewards" style="display:none;"></div>
+    <div class="win-return-action">
+      <button class="btn pri" onclick="cleanupGame();showScreen('s-title')"><span>Return to Menu</span><span aria-hidden="true">&rarr;</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- PASS TURN OVERLAY -->
+<div id="pt-overlay">
+  <div class="pt-title" id="pt-title">Pass to Player 2</div>
+  <div class="pt-sub">Hand the device to your opponent</div>
+  <button class="btn pri" onclick="hidePT()">I'm Ready</button>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">-</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-acts" id="modal-acts"></div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div id="log-wrap" style="display:none!important;">
+  <button class="btn sm" id="log-btn" onclick="toggleLog()">▼ Log</button>
+  <div id="log-panel"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+  <script src="src/scripts/00-structural-helpers.js?v=1788002901"></script>
+  <script src="src/scripts/01-data-and-state.js?v=1788030001"></script>
+  <script src="src/scripts/01a-pressure-card-reworks.js?v=1788052401"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=1785021018"></script>
+<script src="src/scripts/02-effect-rule-metadata.js?v=1785160801"></script>
+<script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
+  <script src="src/scripts/03-profile-and-progression.js?v=1788000701"></script>
+<script src="src/scripts/04-game-setup.js?v=1788002502"></script>
+<script src="src/scripts/05-gameplay-core.js?v=1788163203"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=1788163202"></script>
+<script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
+  <script src="src/scripts/render-v2/01-render-snapshot.js?v=1787980001"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1788120601"></script>
+<script src="src/scripts/render-v2/03-card-texture-cache.js?v=1785650000"></script>
+<script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
+<script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
+<script src="src/scripts/render-v2/12-vfx-primitives.js?v=1780900001"></script>
+<script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1783222102"></script>
+<script src="src/scripts/render-v2/13-vfx-recipes.js?v=1784932802"></script>
+<script src="src/scripts/render-v2/11-vfx-director.js?v=1786671400"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=1788122501"></script>
+<script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=1785603000"></script>
+<script src="src/scripts/render-v2/10-card-motion-fx.js?v=1788111001"></script>
+<script src="src/scripts/render-v2/17-action-presentation.js?v=1785683501"></script>
+  <script src="src/scripts/23-board-canvas-renderer.js?v=1785600200"></script>
+  <script src="src/scripts/24-card-grid-canvas-renderer.js?v=1783779902"></script>
+  <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
+  <script src="src/scripts/07-ai-intelligence.js?v=1784065001"></script>
+  <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
+<script src="src/scripts/07-ai.js?v=1788163203"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=1788001401"></script>
+  <script src="src/scripts/27-morale-pressure-ui.js?v=1788163202"></script>
+  <script src="src/scripts/28-match-ui-rebuild.js?v=1788065201"></script>
+  <script src="src/scripts/29-match-ui-concept-b.js?v=1788065201"></script>
+  <script src="src/scripts/30-match-ui-concept-c.js?v=1788065201"></script>
+  <script src="src/scripts/31-match-ui-concept-d.js?v=1788068201"></script>
+  <script src="src/scripts/32-match-ui-fresh.js?v=1788069201"></script>
+  <script src="src/scripts/33-match-ui-v8.js?v=1788073002"></script>
+  <script src="src/scripts/34-hand-viewer.js?v=1788073001"></script>
+<script src="src/scripts/45-match-ui-codex.js?v=1788124301"></script>
+  <script src="src/scripts/25-profile-view-v2.js?v=1785350004"></script>
+<script src="src/scripts/09-challenger-mode.js?v=1788031201"></script>
+<script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
+<script src="src/scripts/09-challenger-lore.js?v=1788000201"></script>
+<script src="src/scripts/campaign/01-campaign-intro.js?v=1785023024"></script>
+<script src="src/scripts/11-tutorial.js?v=1784663001"></script>
+<script src="src/scripts/12-ai-dialogue.js?v=1780302900"></script>
+  <script src="src/scripts/10-init.js?v=1784760018"></script>
+<script src="src/scripts/26-desktop-updater.js?v=1784365201"></script>
+
+<!-- Online play uses the Fate authoritative service and a local installation identity. -->
+<script src="src/scripts/14-cloud-save.js?v=1788000401"></script>
+<!-- Online runtime: Google account auth + local authoritative multiplayer identity -->
+<script>
+(function(){
+  window.__fateClientBuildStamp = 'phase7-manual-erbs-ali-turn-boundary-20260816-1786960811';
+  window.FATE_GAMEPLAY_AUTHORITY = window.FATE_GAMEPLAY_AUTHORITY || 'client-resolved';
+  if(window.__fateOnlineModuleLoaderInstalled) return;
+  window.__fateOnlineModuleLoaderInstalled = true;
+  var modules = [
+    './src/scripts/15-online-auth.js?v=1788000501',
+    './src/scripts/16-online-core.js?v=1782617501',
+    './src/scripts/17-online-social.js?v=1788000401',
+    './src/scripts/18-online-rooms.js?v=1788055201&sync=1788055201',
+    './src/scripts/19-online-elo.js?v=1788000401',
+    './src/scripts/20-online-economy.js?v=1788001501'
+  ];
+  var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');
+  var promise = null;
+  window.__fateOnlineModuleState = {loaded:false, loading:false, deferred:false, electron:!!isElectron, startedAt:0, loadedAt:0, error:'', modules:modules.slice()};
+  function loadOnlineModules(reason){
+    if(promise) return promise;
+    window.__fateOnlineModuleState.loading = true;
+    window.__fateOnlineModuleState.reason = reason || 'auto';
+    window.__fateOnlineModuleState.startedAt = performance && performance.now ? Math.round(performance.now()) : Date.now();
+    promise = modules.reduce(function(chain, src){ return chain.then(function(){ return import(src); }); }, Promise.resolve())
+      .then(function(){
+        window.__fateOnlineModuleState.loaded = true;
+        window.__fateOnlineModuleState.loading = false;
+        window.__fateOnlineModuleState.loadedAt = performance && performance.now ? Math.round(performance.now()) : Date.now();
+        window.dispatchEvent(new CustomEvent('fate-online-modules-ready', {detail:window.__fateOnlineModuleState}));
+        return window.FateOnline || {};
+      })
+      .catch(function(err){
+        window.__fateOnlineModuleState.loading = false;
+        window.__fateOnlineModuleState.error = String(err && err.message || err);
+        console.warn('[Fate Online] module load failed', err);
+        throw err;
+      });
+    return promise;
+  }
+  window.fateLoadOnlineModules = loadOnlineModules;
+  window.FateOnlineReady = function(){ return loadOnlineModules('manual'); };
+  if(typeof window.showSocial !== 'function') {
+    var showSocialStub = function(){
+      loadOnlineModules('show-social').then(function(){
+        if(window.showSocial && window.showSocial !== showSocialStub) window.showSocial();
+      }).catch(function(){ if(window.toast) window.toast('Online services are still loading'); });
+    };
+    window.showSocial = showSocialStub;
+  }
+  if(typeof window.fateSignInWithGoogle !== 'function') {
+    var signInStub = function(){
+      loadOnlineModules('sign-in').then(function(){
+        if(window.fateSignInWithGoogle && window.fateSignInWithGoogle !== signInStub) window.fateSignInWithGoogle();
+      }).catch(function(){ if(window.toast) window.toast('Online services are still loading'); });
+    };
+    window.fateSignInWithGoogle = signInStub;
+  }
+  function scheduleLoad(){
+    if(isElectron){
+      loadOnlineModules('electron-immediate').catch(function(){});
+      return;
+    }
+    window.__fateOnlineModuleState.deferred = true;
+    var idle = window.requestIdleCallback || function(fn){ return setTimeout(function(){ fn({timeRemaining:function(){return 0;}}); }, 1); };
+    idle(function(){ loadOnlineModules('browser-idle'); });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleLoad, {once:true});
+  else scheduleLoad();
+  window.fateMultiplayerClientReport = function(){
+    var wrappers = window.__fateOnlineGameplayHookReport || {};
+    return {
+      href:location.href,
+      userAgent:navigator.userAgent,
+      buildStamp:window.__fateClientBuildStamp || '',
+      electron:isElectron,
+      electronBuild:new URLSearchParams(location.search || '').get('electronBuild') || '',
+      onlineModules:Object.assign({}, window.__fateOnlineModuleState || {}),
+      wrappers:Object.assign({}, wrappers),
+      functions:{
+        showOnline:typeof window.showOnline,
+        hostStartRoom:typeof window.hostStartRoom,
+        joinRoom:typeof window.joinRoom,
+        pickCardsVisual:typeof window.pickCardsVisual,
+        showBoardTargetPicker:typeof window.showBoardTargetPicker,
+        triggerCharacterEffect:typeof window.triggerCharacterEffect,
+        activatePendingWhenSetEffect:typeof window.activatePendingWhenSetEffect
+      }
+    };
+  };
+})();
+</script>
+<script>
+(function(){
+  var params = new URLSearchParams(location.search || '');
+  if(params.get('fateV3CurrentUiFixture') !== '1') return;
+  Promise.resolve(window.FateOnlineReady ? window.FateOnlineReady() : null)
+    .then(function(){ return import('./src/scripts/authoritative-v3-current-ui-fixture.mjs?v=1785601100'); })
+    .catch(function(error){ console.error('[Fate Phase 7 Current UI Fixture] failed', error); });
+})();
+</script>
+<script>
+(function(){
+  var params = new URLSearchParams(location.search || '');
+  if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
+  if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=1788031201')
+    .then(function(){
+      if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
+        return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=1786960811');
+      }
+    })
+    .catch(function(error){ console.error('[Fate Phase 7 Beta] failed to load', error); });
+})();
+</script>
+<script>
+(function(){
+  // Phase 5 single-player v3 is an independently flagged local authority
+  // system. Without this exact opt-in, its module is never loaded.
+  var params = new URLSearchParams(location.search || '');
+  if(params.get('fateV3SinglePlayer') !== '1') return;
+  import('./src/scripts/authoritative-v3-single-player-adapter.mjs?v=1788031201')
+    .catch(function(error){ console.warn('[Fate Phase 5 Single Player] failed to load', error); });
+})();
+</script>
+<script>
+(function(){
+  // Phase 0 migration recorder is a separate, observe-only opt-in. This flag
+  // never selects the authoritative-v3 multiplayer transport.
+  var params = new URLSearchParams(location.search || '');
+  if(params.get('fateV3Recorder') !== '1') return;
+  import('./src/scripts/authoritative-v3-recorder-bridge.mjs')
+    .then(function(){
+      if(params.get('fateV3LegacyCorpus') !== '1') return null;
+      if(params.get('fateV3SinglePlayer') === '1'){
+        throw new Error('legacy corpus capture cannot share the Phase 5 single-player authority route');
+      }
+      return import('./src/scripts/authoritative-v3-legacy-self-play.mjs');
+    })
+    .catch(function(error){ console.warn('[Fate Phase 0 Recorder] failed to load', error); });
+})();
+</script>
+ <script src="src/scripts/21-smoothness-core.js?v=1787470001"></script>
+<script src="src/scripts/22-spectator.js?v=1788000201"></script>
+<script>
+  (function(){
+    const params = new URLSearchParams(location.search);
+    const electron = params.has('electron');
+    const hostedFly = String(location.hostname || '').toLowerCase() === 'fates-entwined-main.fly.dev';
+    if(!('serviceWorker' in navigator)) return;
+    if(electron || hostedFly){
+      navigator.serviceWorker.getRegistrations?.().then(regs=>regs.forEach(reg=>reg.unregister())).catch(()=>{});
+      return;
+    }
+    if(!params.has('soloNoSw')) navigator.serviceWorker.register('./sw.js?v=browser-refresh-1783795901').catch(()=>{});
+  })();
+  (function(){
+    const params = new URLSearchParams(location.search);
+    if(!params.has('soloClient')) return;
+    const script = document.querySelector('script[src*="18-online-rooms.js"]');
+    const src = script ? script.getAttribute('src') || '' : '';
+    const version = (src.match(/[?&]v=([^&]+)/) || [,'missing'])[1];
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;z-index:2147483647;left:10px;bottom:10px;background:#111827;color:#f9fafb;border:1px solid #22c55e;border-radius:6px;padding:7px 10px;font:12px/1.2 system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.28);pointer-events:none;';
+    badge.textContent = 'Solo ' + params.get('soloClient') + ' | build 1780302900 | online rooms v=' + version + ' | fresh ' + (params.get('fresh') || 'none');
+    document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(badge); });
+    window.fateSoloBuildReport = function(){
+      return {
+        href:location.href,
+        onlineRoomsSrc:script ? script.src : '',
+        scripts:Array.from(document.scripts).map(s => s.src).filter(Boolean),
+        styles:Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(s => s.href).filter(Boolean),
+        soloClient:params.get('soloClient') || '',
+        soloNoSw:params.has('soloNoSw'),
+        serviceWorkerController:!!navigator.serviceWorker?.controller,
+        classes:{
+          html:document.documentElement.className,
+          body:document.body ? document.body.className : '',
+          title:document.getElementById('s-title')?.className || ''
+        },
+        flags:{
+          fateResetDone:localStorage.getItem('fate_reset_v9_playerdata_done'),
+          wsEnabled:localStorage.getItem('fateWsAuthorityEnabled'),
+          wsUrl:localStorage.getItem('fateWsAuthorityUrl'),
+          menuV2:localStorage.getItem('fate_menu_v2'),
+          sidePanel:localStorage.getItem('fate_side_panel'),
+          canvasBoard:localStorage.getItem('fateEnableCanvasBoard'),
+          disableCanvasBoard:localStorage.getItem('fateDisableCanvasBoard'),
+          enhancedFx:localStorage.getItem('fateEnhancedVisualFx')
+        }
+      };
+    };
+  })();
+</script>
+</body>
+</html>

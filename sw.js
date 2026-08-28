@@ -1,5 +1,5 @@
 // Minimal service worker for Chrome PWA installability
-const CACHE_NAME = 'fates-entwined-v9-deck-preview-refresh';
+const CACHE_NAME = 'fates-entwined-v10-turn-resolution-ai-motion-fix';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

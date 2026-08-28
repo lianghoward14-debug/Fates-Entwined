@@ -1,18 +1,51 @@
 import {boardEntries, controllerOf} from './selectors.mjs';
 import {effectiveFate} from './modifiers.mjs';
 
-export function zoneScore(state, zone, playerIndex){
+export function moraleZoneFatePenalty(state, playerIndex){
+  // Compatibility shape retained for UI callers. The former 20% zone-Fate
+  // reduction was replaced by an end-of-turn random hand discard.
+  void state;
+  void playerIndex;
+  return {percent:0, multiplier:1, reason:null, flat:0, card:0};
+}
+
+export function zoneScoreBreakdown(state, zone, playerIndex){
   const z = Number(zone);
   const player = Number(playerIndex);
-  let score = boardEntries(state)
+  const cardFate = boardEntries(state)
     .filter(entry=>entry.z === z && controllerOf(entry.card) === player)
     .reduce((total, entry)=>total + effectiveFate(state, entry), 0);
+  const modifiers = [];
   for(const status of state?.statuses || []){
     if(status?.type !== 'ZONE_FATE_MODIFIER') continue;
     if(Number(status.zone) !== z || Number(status.playerIndex) !== player) continue;
-    score += Number(status.value || 0) || 0;
+    const value = Number(status.value || 0) || 0;
+    modifiers.push({
+      value,
+      reason:String(status.reason || 'ZONE_FATE_MODIFIER'),
+      sourceIid:status.sourceIid == null ? null : String(status.sourceIid)
+    });
   }
-  return Math.max(0, score);
+  const modifierTotal = modifiers.reduce((total, item)=>total + item.value, 0);
+  const moralePenalty = moraleZoneFatePenalty(state, player);
+  const subtotal = Math.max(0, cardFate + modifierTotal - Number(moralePenalty.flat || 0));
+  const penaltyAmount = moralePenalty.percent > 0
+    ? Math.ceil(subtotal * moralePenalty.percent / 100)
+    : 0;
+  return {
+    zone:z,
+    playerIndex:player,
+    cardFate,
+    modifiers,
+    modifierTotal,
+    subtotal,
+    moralePenalty:{...moralePenalty, amount:penaltyAmount + Number(moralePenalty.flat || 0)},
+    score:Math.max(0, subtotal - penaltyAmount)
+  };
+}
+
+export function zoneScore(state, zone, playerIndex){
+  return zoneScoreBreakdown(state, zone, playerIndex).score;
 }
 
 export function calculateOutcome(state){

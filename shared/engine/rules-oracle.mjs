@@ -77,17 +77,17 @@ const CARD_RULES = [
   card('22','Isaac Perez','ACTIVATE','CONTROLLER','UP_TO_TWO_EFFECT_MUTABLE_CARDS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each selected card gains exactly +3 permanent Fate once.',{cardinality:'ZERO_TO_TWO',useLimit:'ONCE_PER_CARD',forbidden:['OPPONENT_CARD_SELECTABLE','TARGET_OUTSIDE_ZONE','MORE_THAN_TWO','PARTIAL_MUTATION_ON_INVALID_BATCH']}),
   card('23','Cathy','PASSIVE','CONTROLLER','CHARACTERS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each qualifying Character gains exactly +2 effective Fate.',{forbidden:['SUPPORTER_GAINS','OPPONENT_CHARACTER_GAINS','CHARACTER_OUTSIDE_ZONE_GAINS']}),
   card('24','Ralph’s Courtesy Clerk','PASSIVE','CONTROLLER','ADJACENT_SUPPORTERS','Each adjacent Supporter contributes exactly +1 additional Reinforcement while source remains active.',{forbidden:['NON_SUPPORTER_GAINS','NON_ADJACENT_SUPPORTER_GAINS','BONUS_PERSISTS_AFTER_SOURCE_LEAVES']}),
-  card('25','Zimbabwean Honor Guard','WHEN_SET','CONTROLLER','ONE_OTHER_COPY_IN_CONTROLLER_HAND_OR_DECK','Optionally set one other copy at no cost, once per controller turn.',{cardinality:'ZERO_OR_ONE',useLimit:'ONCE_PER_TURN',forbidden:['OPPONENT_COPY_SELECTED','NON_COPY_SELECTED','CHAIN_SETS_MORE_THAN_ONE_EXTRA_COPY','REINFORCEMENT_CHARGED']}),
+  card('25','Zimbabwean Honor Guard','PASSIVE','CONTROLLER','CONTROLLED_CARDS_ADJACENT_TO_SAME_AFFILIATION','While active, each controlled card adjacent to another controlled card of the same affiliation gains exactly +1 effective Fate.',{forbidden:['OPPONENT_CARD_GAINS','NON_ADJACENT_CARD_GAINS','DIFFERENT_AFFILIATION_QUALIFIES','BONUS_EXCEEDS_PLUS_1']}),
   card('26','UCPD','ACTIVATE','CONTROLLER','OPPONENT_HAND','Reveal the opponent’s hand to controller without revealing controller’s private hand to opponent.',{useLimit:'NO_PRINTED_LIMIT',forbidden:['WRONG_HAND_REVEALED','REVEAL_CHANGES_CARD_OWNERSHIP']}),
   card('27','Kazumi','ACTIVATE','CONTROLLER','TOP_THREE_AVAILABLE_CARDS_CONTROLLER_DECK','Draw exactly three cards, or all remaining cards if fewer than three.',{useLimit:'ONCE_PER_CARD',forbidden:['OPPONENT_DRAWS','MORE_THAN_THREE','EMPTY_DECK_CREATES_CARDS']}),
-  card('28','2nd Polish-Lithuanian Army',['DECK_SET','PASSIVE'],'CONTROLLER','SOURCE_CARD_IN_CONTROLLER_DECK','May be set from deck as a free set without consuming or requiring a Supporter set; once per turn and twice per game.',{useLimit:'ONCE_PER_TURN_AND_TWICE_PER_GAME',forbidden:['THIRD_DECK_SET','SECOND_DECK_SET_SAME_TURN','SET_FROM_OPPONENT_DECK','DECK_SET_CONSUMES_SUPPORTER_LIMIT']}),
+  card('28','2nd Polish-Lithuanian Army',['DECK_SET','PASSIVE'],'CONTROLLER','SOURCE_CARD_IN_CONTROLLER_DECK','Once per controller turn, may be set from deck without consuming or requiring a Supporter set.',{useLimit:'ONCE_PER_TURN',forbidden:['SECOND_DECK_SET_SAME_TURN','SET_FROM_OPPONENT_DECK','DECK_SET_CONSUMES_SUPPORTER_LIMIT']}),
   card('29','Dylan Kirby','ACTIVATE','CONTROLLER','UP_TO_TWO_THIRD_GREAT_WAR_CARDS_IN_CONTROLLER_DECK_OR_DISCARD','Move selected cards to controller hand.',{cardinality:'ZERO_TO_TWO',useLimit:'ONCE_PER_CARD',forbidden:['WRONG_AFFILIATION_SELECTED','OPPONENT_PILE_SEARCHED','MORE_THAN_TWO']}),
   card('30','Santiago','ACTIVATE','CONTROLLER','ONE_OPPONENT_CARD_IN_SOURCE_ZONE_CONTESTED_ROW','Discard exactly one eligible opponent card.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',useLimit:'ONCE_PER_CARD',forbidden:['SAFE_ROW_TARGET','CONTROLLERS_CARD_TARGET','TARGET_OUTSIDE_ZONE','IMMUNE_TARGET']}),
   card('31','Oathbound Noble Fighter','WHEN_SET','SOURCE_EFFECT','ONE_EFFECT_MUTABLE_CARD_IN_SOURCE_ZONE','Selected card loses exactly 3 permanent Fate, clamped at zero.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['TARGET_OUTSIDE_ZONE','CANCEL_OR_CLOSE_APPLIES_TO_SOURCE_AUTOMATICALLY','MULTIPLE_TARGETS','FATE_BELOW_ZERO']}),
   card('32','Temecula Resident','WHEN_SET','CONTROLLER','TOP_AVAILABLE_CARD_CONTROLLER_DECK','Draw exactly one card if available.',{forbidden:['OPPONENT_DRAWS','MORE_THAN_ONE','EMPTY_DECK_CREATES_CARD']}),
   card('33','West Caribbea Infantry','WHEN_SET','CONTROLLER','NEXT_CHARACTER_ADDED_TO_CONTROLLER_HAND','The next Character added to controller hand costs exactly 1 less Reinforcement and gains exactly +2 permanent Fate; consume once.',{duration:'UNTIL_NEXT_ELIGIBLE_CHARACTER_ADDED',forbidden:['SUPPORTER_CONSUMES_STATUS','OPPONENT_CARD_BUFFED','MORE_THAN_ONE_CHARACTER_BUFFED']}),
   card('34','Rozsi Szocs','PASSIVE','CONTROLLER','CARD_MOVED_BY_EFFECT_INTO_SOURCE_ZONE','Each qualifying moved card gains exactly +3 permanent Fate once; setting is not movement.',{prerequisites:['MOVEMENT_EVENT','DESTINATION_ZONE_EQUALS_SOURCE_ZONE'],forbidden:['SET_CARD_TRIGGERS','CARD_MOVED_OUT_OF_ZONE_TRIGGERS','SAME_MOVE_TRIGGERS_TWICE']}),
-  card('35','Alexander the Magnificient','PASSIVE','CONTROLLER','SOURCE_CARD','Source dynamic base equals the sum of current Fate of every Supporter controller controls in source zone, including effect-immune Supporters; normal external Fate modifiers still apply.',{forbidden:['SOURCE_PRINTED_BASE_FATE_ADDED_ON_TOP','IGNORES_EXTERNAL_FATE_MODIFIERS','OPPONENT_SUPPORTER_COUNTS','SUPPORTER_OUTSIDE_ZONE_COUNTS','IMMUNE_SUPPORTER_EXCLUDED']}),
+  card('35','Alexander the Magnificient','PASSIVE','CONTROLLER','OPPOSING_PLAYER_AT_EACH_MORALE_CALCULATION','Inflict Morale Damage equal to half of source total effective Fate, rounded down.',{forbidden:['DAMAGE_OUTSIDE_MORALE_CALCULATION','FULL_FATE_INFLICTED','ROUND_UP','SUPPORTER_FATE_REPLACES_SOURCE_FATE']}),
   card('36','Marie L’amboure','PASSIVE','CONTROLLER','OPPONENT_CONSOLIDATION_IN_SOURCE_ZONE','After each qualifying opponent consolidation, apply exactly -4 to opponent zone total through the established zone modifier.',{forbidden:['CONTROLLERS_CONSOLIDATION_TRIGGERS','CONSOLIDATION_OUTSIDE_ZONE_TRIGGERS','SAME_CONSOLIDATION_TRIGGERS_TWICE']}),
   card('37','6th French Fusiliers',['WHEN_SET','PASSIVE'],'CONTROLLER','ONE_OTHER_SUPPORTER_WITH_ACTIVE_FIELD_PASSIVE','Copy the selected Supporter’s field passive only; do not execute a when-set effect.',{cardinality:'EXACTLY_ONE_IF_AVAILABLE',forbidden:['SOURCE_COPIES_ITSELF','CHARACTER_SELECTED','WHEN_SET_EFFECT_EXECUTED','COPIED_EFFECT_RECURSES']}),
   card('38','Jake','ACTIVATE','CONTROLLER','ONE_SUPPORTER_CONTROLLER_CONTROLS_ON_FIELD','Once per turn, discard selected controlled Supporter and give Jake exactly +4 permanent Fate if discard succeeds.',{useLimit:'ONCE_PER_TURN',forbidden:['OPPONENT_SUPPORTER_SELECTED','JAKE_GAINS_IF_DISCARD_BLOCKED','MORE_THAN_ONE_USE_PER_TURN']}),
@@ -96,7 +96,7 @@ const CARD_RULES = [
   card('41','Jimmy','PASSIVE','CONTROLLER','SOURCE_CARD','Jimmy establishes a dynamic base of exactly +3 Fate times the number of distinct opponent-Fate-reduction card-effect uses performed by controller this game; normal external Fate modifiers still apply.',{forbidden:['COUNTS_RAW_FATE_POINTS_REDUCED','COUNTS_SAME_EFFECT_USE_MULTIPLE_TIMES','COUNTS_NON_EFFECT_OR_SELF_REDUCTION','IGNORES_EXTERNAL_FATE_MODIFIERS','DISPLAY_FATE_DIVERGES_FROM_SCORE_FATE']}),
   card('42','West German Soldier','WHEN_SET','CONTROLLER','CONTROLLER_DECK_THEN_CONTROLLER_HAND','Draw exactly two available cards, then require exactly two legal hand discards; resolution remains pending until selection completes.',{cardinality:'DRAW_TWO_THEN_DISCARD_TWO',forbidden:['DISCARD_BEFORE_DRAW_PRESENTATION','OPPONENT_HAND_USED','CLOSING_PICKER_AUTO_SELECTS','TURN_ENDS_WITH_PENDING_SELECTION']}),
   card('43','Mark Kemper','WHEN_SET','CONTROLLER','ONE_CHOSEN_AVAILABLE_SQUARE_IN_CONTROLLERS_EXTRA_ROW_IN_SOURCE_ZONE','Controller chooses one of the available positions in the current partial extra row; if none exists, choose one of three positions in a new row.',{cardinality:'EXACTLY_ONE_DESTINATION',forbidden:['AUTO_SELECTS_WITHOUT_PROMPT','FULL_ROW_ADDED_PER_MARK','SQUARE_OWNED_BY_OPPONENT','NEW_ROW_CREATED_WHILE_PARTIAL_ROW_OPEN']}),
-  card('44','Soviet Grenadiers','PASSIVE','CONTROLLER','SOURCE_AND_ADJACENT_DAUNTLESS','While adjacent, source and each qualifying Dauntless gain exactly +3 effective Fate.',{forbidden:['NON_DAUNTLESS_QUALIFIES','NON_ADJACENT_CARD_GAINS','BONUS_PERSISTS_AFTER_ADJACENCY_ENDS']}),
+  card('44','Soviet Grenadiers',['WHEN_SET','PASSIVE'],'CONTROLLER','SOURCE_AND_ONE_RANDOM_ADJACENT_DECLARED_TYPE','Declare one card type. Source and exactly one stored random adjacent card of that type gain +3 effective Fate; keep that target until it stops qualifying, then choose a new random qualifying target.',{cardinality:'MAX_ONE_TARGET',forbidden:['UNDECLARED_TYPE_QUALIFIES','NON_ADJACENT_CARD_GAINS','MULTIPLE_ADJACENT_TARGETS_GAIN','TARGET_REROLLS_WHILE_STILL_VALID','BONUS_PERSISTS_AFTER_TARGET_LEAVES']}),
   card('45','Chingachlook','PASSIVE','CONTROLLER','SOURCE_ZONE_AND_SOURCE_CARD_ID','Controller may control no other Character in source zone and may play only one Chingachlook copy.',{forbidden:['SECOND_CHARACTER_ALLOWED_IN_ZONE','SECOND_COPY_ALLOWED','OPPONENT_CHARACTERS_BLOCK_CONTROLLER']}),
   card('46','Phil','PASSIVE','CONTROLLER','SOURCE_CARD','At each controller Draw phase after the phase in which Phil was set, gain exactly +2 permanent Fate once.',{forbidden:['GAINS_ON_OPPONENT_DRAW_PHASE','GAINS_IMMEDIATELY_WHEN_SET','SAME_DRAW_PHASE_TICKS_TWICE']}),
   card('47','Great Oak Infantry','PASSIVE','CONTROLLER','CARD_CONSOLIDATED_USING_SOURCE_AS_REINFORCEMENT','The newly consolidated card gains exactly +3 permanent Fate once if this source was actually consumed.',{forbidden:['SOURCE_CARD_GAINS_INSTEAD','UNSELECTED_COPY_TRIGGERS','SAME_CONSOLIDATION_TRIGGERS_TWICE']}),
@@ -180,7 +180,7 @@ function landscape(id, name, timing, beneficiary, resolution, forbidden = []){
 }
 
 const LANDSCAPE_RULES = [
-  landscape('igb1','Pacifica: Peaceful Seas','NONE','NEITHER_PLAYER','No gameplay effect.'),
+  landscape('igb1','Pacifica: Peaceful Seas','CONTINUOUS','BOTH_PLAYERS','No Morale Damage is inflicted this game.', ['MORALE_DAMAGE_INFLICTED']),
   landscape('igb2','ALPINE Headquarters: The Frontier of Innovation','END_OF_TURN_14','PLAYER_WITH_MORE_CONSOLIDATIONS','Winner chooses one zone and gains exactly 12 zone Fate; tie grants neither.', ['WRONG_PLAYER_CHOSES','RESOLVES_BEFORE_TURN_14','TIE_GRANTS_BONUS']),
   landscape('igb3','The Soviet Invasion of Anchorage, 2052',['SETUP','BEFORE_TURN_10_CONSOLIDATION'],'BOTH_PLAYERS','Select one deterministic-random zone at setup; cards consolidated there before turn 10 gain exactly +4 permanent Fate.', ['WRONG_ZONE_GAINS','TURN_10_OR_LATER_GAINS','SET_CARD_GAINS']),
   landscape('igb4','Zion Canyon: Memories of a Fading Twilight','CONTINUOUS','NEITHER_PLAYER','Cards in discard cannot be recovered by either player.', ['ONE_PLAYER_CAN_RECOVER','SEARCH_MODAL_OFFERS_DISCARD_TARGET']),
@@ -396,6 +396,7 @@ export const RULE_ORACLE_CONTINUOUS_BRANCH_CARD_IDS = freeze([
 
 function oracleContinuousConditionPositive(state, source, entries){
   const id = oracleRuntimeId(source.card);
+  if(state?.gameSettings?.pressureCardReworks === true && id === '64') return false;
   const controller = controllerOfProjected(source.card);
   const controlled = entry=>controllerOfProjected(entry.card) === controller && entry.card.faceDown !== true;
   const inZone = entry=>entry.z === source.z;
@@ -405,9 +406,13 @@ function oracleContinuousConditionPositive(state, source, entries){
   if(id === '11' || id === '59') return entries.some(entry=>inZone(entry) && controlled(entry) && oracleEffectiveType(state, entry.card) === 'Supporter');
   if(id === '19') return entries.some(entry=>inZone(entry) && controlled(entry) && oracleEffectiveType(state, entry.card) === 'Coordinator');
   if(id === '23') return entries.some(entry=>inZone(entry) && controlled(entry) && oracleEffectiveType(state, entry.card) !== 'Supporter');
-  if(id === '35') return entries.some(entry=>inZone(entry) && String(entry.card.iid) !== String(source.card.iid) && controlled(entry) && oracleEffectiveType(state, entry.card) === 'Supporter');
+  if(id === '35') return false;
   if(id === '41') return Number(state?.fateReductionEffectUses?.[controller] || 0) > 0;
-  if(id === '44') return entries.some(entry=>String(entry.card.iid) !== String(source.card.iid) && controlled(entry) && oracleEffectiveType(state, entry.card) === 'Dauntless' && oracleAdjacent(source, entry));
+  if(id === '44') return entries.some(entry=>
+    String(entry.card.iid || '') === String(source.card.counters?.sovietTargetIid || '')
+    && oracleEffectiveType(state, entry.card) === String(source.card.counters?.sovietDeclaredType || '')
+    && oracleAdjacent(source, entry)
+  );
   if(id === '55'){
     const peers = entries.filter(entry=>inZone(entry)
       && String(entry.card.iid) !== String(source.card.iid)
@@ -466,15 +471,6 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     let derived = oracleSourceActive(state, target) && selfId === '41'
       ? Math.max(0, Number(state?.fateReductionEffectUses?.[controller] || 0) * 3 + permanentAdjustment)
       : stored;
-    if(oracleSourceActive(state, target) && selfId === '35'){
-      derived = entries.filter(peer=>
-        peer.z === target.z
-        && String(peer.card.iid) !== iid
-        && controllerOfProjected(peer.card) === controller
-        && peer.card.faceDown !== true
-        && oracleEffectiveType(state, peer.card) === 'Supporter'
-      ).reduce((sum, peer)=>sum + calculate(peer), 0) + permanentAdjustment;
-    }
     let modifier = 0;
     for(const source of entries){
       const fieldWide = source.card.counters?.whisperLandscapeToken === true;
@@ -499,17 +495,18 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
         modifier += adjacent * (2 + boost) * adjacencyMultiplier;
       }
     }
-    if(oracleSourceActive(state, target) && selfId === '44' && entries.some(peer=>
-      controllerOfProjected(peer.card) === controller
+    const validSovietTarget = source=>entries.some(peer=>
+      String(peer.card.iid || '') === String(source.card.counters?.sovietTargetIid || '')
       && peer.card.faceDown !== true
-      && oracleEffectiveType(state, peer.card) === 'Dauntless'
-      && oracleAdjacent(target, peer)
-    )) modifier += 3 * adjacencyMultiplier;
-    if(type === 'Dauntless') modifier += entries.filter(source=>
-      controllerOfProjected(source.card) === controller
-      && oracleRuntimeId(source.card) === '44'
+      && oracleEffectiveType(state, peer.card) === String(source.card.counters?.sovietDeclaredType || '')
+      && oracleAdjacent(source, peer)
+    );
+    if(oracleSourceActive(state, target) && selfId === '44' && validSovietTarget(target)) modifier += 3 * adjacencyMultiplier;
+    modifier += entries.filter(source=>
+      oracleRuntimeId(source.card) === '44'
       && oracleSourceActive(state, source)
-      && oracleAdjacent(source, target)
+      && validSovietTarget(source)
+      && String(source.card.counters?.sovietTargetIid || '') === iid
     ).length * 3 * adjacencyMultiplier;
     if(oracleSourceActive(state, target) && selfId === '55'){
       const peers = entries.filter(peer=>peer.z === target.z
@@ -997,7 +994,12 @@ function auditGenericCardMutationSemantics(view, events, batchId){
         && Number.isInteger(amount)
         && amount >= 3
         && amount % 3 === 0;
-      if(!legalStackedGreatOakDelta && !observedFixedFateDeltaIsLegal(printedDelta, before, after, amount)){
+      const legalStackedAlpineDelta = cardId === '73'
+        && String(event?.reason || '').toUpperCase() === 'ALPINE_GLOBAL_MISSIONS_CONSOLIDATION'
+        && Number.isInteger(amount)
+        && amount >= 4
+        && amount % 4 === 0;
+      if(!legalStackedGreatOakDelta && !legalStackedAlpineDelta && !observedFixedFateDeltaIsLegal(printedDelta, before, after, amount)){
         violations.push(issue('WRONG_FIXED_FATE_DELTA',cardId,batchId,`printed=${printedDelta} observed=${amount} target=${targetIid}`));
       }
     }

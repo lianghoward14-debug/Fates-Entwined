@@ -312,7 +312,7 @@
             z,
             r,
             c,
-            extra:c >= 3,
+            extra:c >= 3 && r !== 1,
             blocked:block ? {type:block.type || 'blocked', owner:block.owner} : null,
             markSafe,
             markSafeChoice:r === markChoiceRow && !markSafe && !card,

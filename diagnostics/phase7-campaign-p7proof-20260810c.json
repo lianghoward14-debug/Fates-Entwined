@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "campaignId": "p7proof-20260810c",
+  "supervisorPid": 18264,
+  "startedAt": 1786291085513,
+  "updatedAt": 1786291198239,
+  "status": "stopped",
+  "totalGames": 2,
+  "processedGames": 0,
+  "completedGames": 0,
+  "failedGames": 0,
+  "pairs": [
+    {
+      "pair": 1,
+      "range": [
+        0,
+        0
+      ],
+      "processed": 0,
+      "completed": 0,
+      "failed": 0,
+      "restartCount": 0,
+      "done": false,
+      "segment": {
+        "runId": "p7proof-20260810c-p1r0",
+        "startIndex": 0,
+        "games": 1,
+        "launchedAt": 1786291085517
+      },
+      "clients": {
+        "A": {
+          "heartbeatAt": 1786291188668,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 0,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "pid": 15336
+        },
+        "B": {
+          "heartbeatAt": 1786291188708,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 0,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "pid": 18640
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "range": [
+        1,
+        1
+      ],
+      "processed": 0,
+      "completed": 0,
+      "failed": 0,
+      "restartCount": 0,
+      "done": false,
+      "segment": {
+        "runId": "p7proof-20260810c-p2r0",
+        "startIndex": 1,
+        "games": 1,
+        "launchedAt": 1786291085595
+      },
+      "clients": {
+        "A": {
+          "heartbeatAt": 1786291189408,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 6,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "lastStage": "prompt:BOARD_TARGET",
+          "pid": 12152
+        },
+        "B": {
+          "heartbeatAt": 1786291190872,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 0,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "pid": 18476
+        }
+      }
+    }
+  ],
+  "statePath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7proof-20260810c.json",
+  "stopPath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7proof-20260810c.stop",
+  "supervisorLogPath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7proof-20260810c.jsonl"
+}

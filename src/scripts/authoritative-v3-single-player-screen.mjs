@@ -1,4 +1,4 @@
-import {stableStringify, zoneScore} from '../../shared/engine/index.mjs';
+import {stableStringify, zoneScore, zoneScoreBreakdown} from '../../shared/engine/index.mjs';
 
 const ACTIVE_CLASS = 'fate-authority-v3-single-player-active';
 const STYLE_ID = 'fate-authority-v3-single-player-style';
@@ -20,6 +20,28 @@ function sameStringSet(left = [], right = []){
 
 function sameDestinationSet(left = [], right = []){
   return stableStringify([...left].map(coordinateKey).sort()) === stableStringify([...right].map(coordinateKey).sort());
+}
+
+function zoneBreakdownText(breakdown, label){
+  const lines = [label, `Card Fate: ${breakdown.cardFate}`];
+  const grouped = new Map();
+  for(const modifier of breakdown.modifiers || []){
+    const name = String(modifier.reason || 'ZONE_FATE_EFFECT')
+      .replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char=>char.toUpperCase());
+    grouped.set(name, Number(grouped.get(name) || 0) + Number(modifier.value || 0));
+  }
+  for(const [name, value] of grouped){
+    lines.push(`${name}: ${value > 0 ? '+' : ''}${value}`);
+  }
+  const penalty = breakdown.moralePenalty || {};
+  if(Number(penalty.percent) > 0){
+    const reason = penalty.reason === 'MORALE_DEPLETED'
+      ? 'Morale depleted'
+      : (penalty.reason === 'MORALE_CRITICAL' ? 'Morale at 25% or lower' : 'Lower Morale than opponent');
+    lines.push(`${reason}: -${penalty.percent}% (-${penalty.amount} Fate)`);
+  }
+  lines.push(`Zone Fate: ${breakdown.score}`);
+  return lines.join('\n');
 }
 
 export function fateV3CommandsForCard(commands, cardIid){
@@ -83,7 +105,7 @@ function playerById(view, playerId){
 }
 
 export class FateAuthoritativeV3SinglePlayerScreen {
-  constructor({windowRef, adapter, cardDefinitions = [], onExit}){
+  constructor({windowRef, adapter, cardDefinitions = [], onExit, turnTimeLimit = 180}){
     this.window = windowRef;
     this.document = windowRef?.document;
     this.adapter = adapter;
@@ -95,12 +117,27 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     this.selectedPromptIids = new Set();
     this.selectedPromptDestinations = new Map();
     this.activePromptKey = '';
+    this.visualPromptKey = '';
+    this.visualPromptGuardTimer = null;
     this.visibleActions = [];
     this.bound = false;
     this.aiQueued = false;
     this.endTurnElement = null;
     this.endTurnOnclick = null;
     this.endTurnHandler = null;
+    const querySeconds = Number(new URLSearchParams(this.window?.location?.search || '').get('fateV3TurnSeconds'));
+    const configuredSeconds = Number(turnTimeLimit);
+    this.turnTimeLimit = Math.max(1, Math.min(600, Math.round(
+      Number.isFinite(querySeconds) && querySeconds > 0
+        ? querySeconds
+        : (Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 180)
+    )));
+    this.turnTimerKey = '';
+    this.turnTimerDeadline = 0;
+    this.turnTimerInterval = null;
+    this.turnTimerAutoEnd = false;
+    this.turnTimerPaused = false;
+    this.turnTimerPausedRemaining = 0;
   }
 
   mount(){
@@ -116,16 +153,107 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   }
 
   destroy(){
+    this.stopTurnTimer();
     if(this.endTurnElement && this.endTurnHandler){
       this.endTurnElement.removeEventListener('click', this.endTurnHandler, true);
       if(this.endTurnOnclick === null) this.endTurnElement.removeAttribute('onclick');
       else this.endTurnElement.setAttribute('onclick', this.endTurnOnclick);
     }
     this.document?.getElementById('fate-v3-local-actions')?.remove();
+    if(this.visualPromptGuardTimer) this.window.clearTimeout?.(this.visualPromptGuardTimer);
+    this.visualPromptGuardTimer = null;
+    this.visualPromptKey = '';
     this.document?.documentElement?.classList.remove(ACTIVE_CLASS);
     this.document?.body?.classList.remove(ACTIVE_CLASS);
     this.bound = false;
     this.view = null;
+  }
+
+  stopTurnTimer(){
+    if(this.turnTimerInterval){
+      this.window.clearInterval?.(this.turnTimerInterval);
+      this.turnTimerInterval = null;
+    }
+    this.turnTimerKey = '';
+    this.turnTimerDeadline = 0;
+    this.turnTimerAutoEnd = false;
+    this.turnTimerPaused = false;
+    this.turnTimerPausedRemaining = 0;
+  }
+
+  setTurnTimerText(seconds){
+    const safe = Math.max(0, Math.ceil(Number(seconds) || 0));
+    const minutes = Math.floor(safe / 60);
+    const remainder = safe % 60;
+    const text = `${minutes}:${remainder < 10 ? '0' : ''}${remainder}`;
+    const timer = this.document.getElementById('tp-timer');
+    if(timer) timer.textContent = text;
+    const legacyTimer = this.document.getElementById('turn-hud-timer');
+    if(legacyTimer) legacyTimer.textContent = text;
+  }
+
+  autoEndTimedOutTurn(){
+    if(this.turnTimerAutoEnd || !this.view || this.view.state.outcome) return;
+    if(this.view.state.activePlayer !== this.view.playerIndex) return;
+    const command = this.view.legalCommands?.find(item=>item.type === 'END_TURN');
+    if(!command) return;
+    this.turnTimerAutoEnd = true;
+    this.window.toast?.("Time's up! Turn auto-ended.");
+    const result = this.submit(command);
+    Promise.resolve(result).finally(()=>{this.turnTimerAutoEnd = false;});
+  }
+
+  syncTurnTimer(view){
+    const state = view?.state;
+    const humanTurn = state && !state.outcome && state.activePlayer === view.playerIndex;
+    const paused = !!state?.pendingPrompt || !!state?.pendingHandLimit;
+    if(!humanTurn){
+      this.stopTurnTimer();
+      return;
+    }
+    const key = `${state.turn}:${state.activePlayer}`;
+    if(this.turnTimerKey !== key){
+      if(this.turnTimerInterval){
+        this.window.clearInterval?.(this.turnTimerInterval);
+        this.turnTimerInterval = null;
+      }
+      this.turnTimerKey = key;
+      this.turnTimerDeadline = Date.now() + this.turnTimeLimit * 1000;
+      this.turnTimerAutoEnd = false;
+      this.turnTimerPaused = false;
+      this.turnTimerPausedRemaining = 0;
+    }
+    if(paused){
+      if(!this.turnTimerPaused){
+        this.turnTimerPaused = true;
+        this.turnTimerPausedRemaining = Math.max(0, (this.turnTimerDeadline - Date.now()) / 1000);
+      }
+      if(this.turnTimerInterval){
+        this.window.clearInterval?.(this.turnTimerInterval);
+        this.turnTimerInterval = null;
+      }
+      this.setTurnTimerText(this.turnTimerPausedRemaining);
+      return;
+    }
+    if(this.turnTimerPaused){
+      this.turnTimerDeadline = Date.now() + this.turnTimerPausedRemaining * 1000;
+      this.turnTimerPaused = false;
+    }
+    const tick = ()=>{
+      if(!this.turnTimerDeadline) return;
+      const remaining = Math.max(0, (this.turnTimerDeadline - Date.now()) / 1000);
+      this.setTurnTimerText(remaining);
+      if(remaining <= 0){
+        if(this.turnTimerInterval){
+          this.window.clearInterval?.(this.turnTimerInterval);
+          this.turnTimerInterval = null;
+        }
+        this.autoEndTimedOutTurn();
+      }
+    };
+    tick();
+    if(paused || this.turnTimerInterval) return;
+    this.turnTimerInterval = this.window.setInterval(tick, 250);
   }
 
   installStyle(){
@@ -141,6 +269,8 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       .${ACTIVE_CLASS} .fate-v3-card.is-selected,.${ACTIVE_CLASS} .fate-v3-choice.is-selected{outline:2px solid #f0d778}
       .${ACTIVE_CLASS} .fate-v3-card-name{font:600 12px/1.2 "Crimson Pro",serif}
       .${ACTIVE_CLASS} .fate-v3-card-meta{font:10px/1.2 system-ui,sans-serif;color:#c9bfa2;margin-top:3px}
+      .${ACTIVE_CLASS} .fate-v3-card-tracker{display:block;margin-top:4px;padding:2px 4px;border:1px solid rgba(233,201,104,.5);border-radius:4px;color:#f3d77b;font:700 9px/1.2 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.04em}
+      .${ACTIVE_CLASS} .fate-card-effect-suppressed{filter:saturate(.45);box-shadow:inset 0 0 0 2px rgba(171,86,255,.55)}
       .${ACTIVE_CLASS} .fate-v3-board-card{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center}
       html.${ACTIVE_CLASS} body.${ACTIVE_CLASS} #s-game .hand-strip,
       html.${ACTIVE_CLASS} body.${ACTIVE_CLASS} #s-game #actbar{left:0!important}
@@ -354,6 +484,240 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     this.selectedPromptDestinations.clear();
   }
 
+  presentationCard(card){
+    if(!card) return null;
+    const definition = this.cardDefinitions.get(String(card.id)) || {};
+    const presented = {...definition, ...card, iid:String(card.iid || ''), owner:Number(card.owner)};
+    const copiedId = String(card?.counters?.copiedEffectId || card?.counters?.copiedPassiveId || '');
+    if(String(card.id || '') === 'bh05' && copiedId){
+      const copied = this.cardDefinitions.get(copiedId) || {};
+      presented._bh05CopiedCardId = copiedId;
+      presented._bh05CopiedCardName = String(copied.name || copiedId);
+      presented._bh05CopiedAbility = String(copied.ability || 'Copied Effect');
+      presented._bh05CopiedPrintedEffect = String(copied.effect || '');
+      presented._bh05CopiedTrackerState = {...copied, ...card, id:copiedId};
+    }
+    return presented;
+  }
+
+  clearVisualPromptGuard(){
+    if(this.visualPromptGuardTimer) this.window.clearTimeout?.(this.visualPromptGuardTimer);
+    this.visualPromptGuardTimer = null;
+  }
+
+  guardVisualCardPrompt(key){
+    this.clearVisualPromptGuard();
+    const check = ()=>{
+      this.visualPromptGuardTimer = null;
+      const prompt = this.view?.state?.pendingPrompt;
+      const currentKey = `prompt:${String(prompt?.promptId || '')}`;
+      if(currentKey !== key || Number(prompt?.playerIndex) !== Number(this.view?.playerIndex)) return;
+      const modal = this.document.getElementById('modal');
+      const mounted = modal?.classList.contains('on')
+        && String(modal.dataset?.fateV3SinglePlayerPromptKey || '') === key
+        && !!modal.querySelector('.visual-picker-body');
+      if(!mounted){
+        this.visualPromptKey = '';
+        this.syncVisualCardPrompt(this.view);
+        return;
+      }
+      this.visualPromptGuardTimer = this.window.setTimeout?.(check, 180) || null;
+    };
+    this.visualPromptGuardTimer = this.window.setTimeout?.(check, 180) || null;
+  }
+
+  syncVisualCardPrompt(view){
+    const prompt = view?.state?.pendingPrompt;
+    const ownsPrompt = Number(prompt?.playerIndex) === Number(view?.playerIndex);
+    if(!ownsPrompt || !['CARD_SELECTION', 'HAND_SELECTION'].includes(String(prompt?.type || ''))){
+      this.clearVisualPromptGuard();
+      this.visualPromptKey = '';
+      return false;
+    }
+    const key = `prompt:${String(prompt.promptId || '')}`;
+    const modal = this.document.getElementById('modal');
+    const mounted = modal?.classList.contains('on')
+      && String(modal.dataset?.fateV3SinglePlayerPromptKey || '') === key
+      && !!modal.querySelector('.visual-picker-body');
+    if(this.visualPromptKey === key && mounted) return true;
+    if(typeof this.window.pickCardsVisual !== 'function') return false;
+    const eligible = new Set((prompt.eligibleIids || []).map(String));
+    const cards = (prompt.eligibleCards || [])
+      .map(card=>this.presentationCard(card))
+      .filter(card=>card && eligible.has(String(card.iid || '')));
+    if(!cards.length) return false;
+    const minimum = Math.max(0, Number(prompt.min) || 0);
+    const maximum = Math.max(minimum, Number(prompt.max) || 1);
+    const source = this.findCard(prompt.sourceIid);
+    const sourceDefinition = this.cardDefinitions.get(String(source?.id || '')) || {};
+    this.visualPromptKey = key;
+    this.window.pickCardsVisual(cards, {
+      title:source?.name ? `Resolve ${source.name}` : 'Resolve Effect',
+      subtitle:minimum === maximum ? `Select exactly ${minimum}` : `Select ${minimum} to ${maximum}`,
+      minCount:minimum,
+      maxCount:maximum,
+      confirmLabel:'Confirm',
+      immediate:true,
+      viewerPlayerIndex:Number(view.playerIndex),
+      sourceCardName:String(source?.name || ''),
+      sourceCardAbility:String(sourceDefinition.ability || source?.ability || ''),
+      onCancel:()=>{
+        const cancel = this.view?.legalCommands?.find(command=>command.type === 'ANSWER_PROMPT'
+          && String(command.payload?.promptId || '') === String(prompt.promptId || '')
+          && command.payload?.cancel === true);
+        this.visualPromptKey = '';
+        if(cancel) this.submit(cancel);
+      }
+    }, chosen=>{
+      const selectedIids = (chosen || []).map(card=>String(card?.iid || '')).filter(iid=>eligible.has(iid));
+      const command = this.view?.legalCommands?.find(candidate=>candidate.type === 'ANSWER_PROMPT'
+        && String(candidate.payload?.promptId || '') === String(prompt.promptId || '')
+        && sameStringSet(
+          Array.isArray(candidate.payload?.selectedIids)
+            ? candidate.payload.selectedIids
+            : (candidate.payload?.selectedIid ? [candidate.payload.selectedIid] : []),
+          selectedIids
+        ));
+      this.visualPromptKey = '';
+      this.clearVisualPromptGuard();
+      if(command) this.submit(command);
+      else this.submit({
+        type:'ANSWER_PROMPT',
+        payload:{promptId:String(prompt.promptId || ''), ...(maximum === 1
+          ? {selectedIid:String(selectedIids[0] || '')}
+          : {selectedIids})}
+      });
+    });
+    if(modal) modal.dataset.fateV3SinglePlayerPromptKey = key;
+    this.guardVisualCardPrompt(key);
+    return true;
+  }
+
+  findCard(iid){
+    const wanted = String(iid || '');
+    if(!wanted || !this.view?.state) return null;
+    for(const card of (this.view.state.board || []).flat(3)) if(card && String(card.iid || '') === wanted) return card;
+    for(const player of this.view.state.players || []){
+      for(const pile of ['hand', 'discard']){
+        const card = (player?.[pile] || []).find(candidate=>String(candidate?.iid || '') === wanted);
+        if(card) return card;
+      }
+    }
+    return (this.view.state.pendingPrompt?.eligibleCards || []).find(card=>String(card?.iid || '') === wanted) || null;
+  }
+
+  presentEvents(events = [], metadata = {}){
+    const batch = Array.isArray(events) ? events : [];
+    if(metadata?._afterMoralePresentation !== true && batch.some(event=>String(event?.type || '').toUpperCase() === 'MORALE_CYCLE_RESOLVED')){
+      const resume = ()=>this.presentEvents(batch, {...metadata, _afterMoralePresentation:true});
+      this.window.setTimeout?.(()=>{
+        if(typeof this.window.runAfterMoraleCalculationPresentation === 'function') this.window.runAfterMoraleCalculationPresentation(resume);
+        else resume();
+      }, 120);
+      return;
+    }
+    for(const event of batch){
+      const type = String(event?.type || '').toUpperCase();
+      if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
+        const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
+        if(source && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
+          try{ this.window.showEffectActivationCinematic(this.presentationCard(source), {remote:Number(event.playerIndex) !== Number(this.view?.playerIndex), source:'authoritative-v3-single-player-event', broadcast:false}); }catch(_error){}
+        }
+      }
+      if(type === 'SOVIET_GRENADIERS_TARGET_LINKED'){
+        for(const iid of [event.sourceIid, event.targetIid]){
+          const card = this.findCard(iid);
+          if(card && typeof this.window.flashCardEffect === 'function') this.window.flashCardEffect(card, 'soviet_grenadiers', {label:'The Bears of Russia', onlineRemote:true});
+        }
+        continue;
+      }
+      if(type === 'TURN_STARTED' && this.view?.state?.gameSettings?.pressureCardReworks === true){
+        for(const card of (this.view.state.board || []).flat(3)){
+          if(card && String(card.id || '') === '65' && Number(card.owner) === Number(event.playerIndex) && card.faceDown !== true && typeof this.window.flashCardEffect === 'function'){
+            this.window.flashCardEffect(card, 'west_caribbea_marines', {label:'Sea-Men', onlineRemote:true});
+          }
+        }
+      }
+      if(!['FATE_CHANGED','CARD_MOVED','EFFECT_ACTIVATED'].includes(type)) continue;
+      const target = this.findCard(event.cardIid || event.targetIid || event.sourceIid);
+      const source = this.findCard(event.sourceIid);
+      const descriptor = this.window.getAuthoritativeEffectOverlayDescriptor?.(event, source, target);
+      if(!descriptor || !target) continue;
+      if(descriptor.kind === 'snowball' && typeof this.window.markSnowballFightHit === 'function'){
+        this.window.markSnowballFightHit(target);
+      }else if(typeof this.window.flashCardEffect === 'function'){
+        this.window.flashCardEffect(target, descriptor.kind, {label:descriptor.label, onlineRemote:true});
+      }
+    }
+    if(batch.length) this.render(metadata?.view || this.view);
+  }
+
+  statusPresentation(status){
+    const type = String(status?.statusType || status?.type || '').toUpperCase();
+    const remaining = Math.max(0, Number(status?.remainingTargetTurns ?? status?.remainingOwnerTurns ?? status?.remaining ?? status?.deliveryTurnsRemaining) || 0);
+    const definitions = {
+      MAJA_EXTRA_SUPPORTERS:['07','maja_unlimited','Oblique Order',`+${Number(status?.extraSupports) || 2} Supporter placements this turn.`,'effect-pill-maja'],
+      SELVA_EXTRA_SUPPORTER:['74','selva','A New Pacifica',`+${Number(status?.extraSupports) || 1} Supporter placement this turn.`,'effect-pill-selva'],
+      SUPPORTERS_AS_CHARACTERS:['99','blame_game','The Blame Game','Supporters are classified as Characters for consolidation.','effect-pill-blame-game'],
+      FORT_CALVIN_WATCHER:['71','fort_calvin','All Eyes on the I-15',`Reveals the next ${remaining} eligible opponent draw${remaining === 1 ? '' : 's'}.`,'effect-pill-fort-calvin'],
+      SUPPORTER_EFFECTS_BLOCKED:['18','semper','Semper Fidelis','The affected player cannot activate Supporter effects this turn.','effect-pill-semper'],
+      ZONE_ACTIONS_BLOCKED:['50','berkeley_lock','Artillery Distance','The selected zone is locked for the affected player.','effect-pill-berkeley'],
+      LANDSCAPE_CHANGE_BLOCKED:['91','village_lock','A Snowy Village','The affected player cannot change the current landscape.','effect-pill-house'],
+      NEXT_CHARACTER_HAND_ARRIVAL:['33','wci_bonus','The West Caribbea Infantry','The next Character added to hand costs 1 less Reinforcement and gains 2 Fate.','effect-pill-wci'],
+      RIVERA_AFFILIATION_BONUS:['51','rivera_aff',"Jorge's Right Hand Man",`Characters set with ${String(status?.affiliation || 'the declared affiliation').replaceAll('_', ' ')} gain ${Number(status?.value) || 4} Fate for ${remaining} more owner turn${remaining === 1 ? '' : 's'}.`,`effect-pill-rivera aff-${String(status?.affiliation || '').replace(/[^a-z0-9_-]/gi, '')}`],
+      CONSOLIDATION_FATE_BONUS:['87','ballad','A Noble Effort at a Ballad','Your consolidations gain 3 Fate until you set a Supporter.','effect-pill-music'],
+      CONSOLIDATION_COST_MODIFIER:['97','administrative_bloat','Administrative Bloat',`The opponent's next ${remaining || 1} consolidation${remaining === 1 ? '' : 's'} cost 1 extra Reinforcement.`,'effect-pill-administrative-bloat'],
+      DELAYED_HAND_DELIVERY:['94','mail_delivery','Mail Delivery',`A scheduled card arrives after ${remaining || 1} owner turn${remaining === 1 ? '' : 's'}.`,'effect-pill-mail'],
+      WINE_COUNTRY_GUERILLA_INFILTRATION:['70','guerilla','A Gun Behind Every Grapevine',`Reduces a random eligible opposing hand card by 2 Fate at turn start for ${remaining} more turn${remaining === 1 ? '' : 's'}.`,'effect-pill-guerilla'],
+      FACE_DOWN_CONSOLIDATION_PERMISSION:['78','chaparral','Chaparral Ambush','The next consolidation in this zone may be set face down.','effect-pill-chaparral'],
+      MOVEMENT_GRANT:['69','busser_boot','Corner! Behind!','A friendly card can move to an adjacent-zone own-side square once this turn.','effect-pill-busser'],
+      BUSSER_INITIATOR_MORALE:['69','busser_boot','Corner! Behind!','Every Initiator effect you activate this turn recovers 10 Morale.','effect-pill-busser'],
+      PERMANENT_FATE_GAIN_POTENCY:['bh19','high_t','High-T','Permanent Fate gain effects have doubled potency for this turn.','effect-pill-high-t']
+    };
+    const descriptor = definitions[type];
+    if(!descriptor) return null;
+    const activeWithoutDuration = ['NEXT_CHARACTER_HAND_ARRIVAL','CONSOLIDATION_FATE_BONUS'].includes(type);
+    const activeExtraSupport = ['MAJA_EXTRA_SUPPORTERS','SELVA_EXTRA_SUPPORTER'].includes(type)
+      && ((Number(status?.extraSupports) || 0) > 0 || remaining > 0)
+      && (type !== 'SELVA_EXTRA_SUPPORTER' || status?.activeNow === true);
+    if(!activeWithoutDuration && !activeExtraSupport && remaining <= 0) return null;
+    const [cardId, iconKind, fallbackAbility, effect, extraClass] = descriptor;
+    const definition = this.cardDefinitions.get(cardId) || {};
+    const beneficial = ['NEXT_CHARACTER_HAND_ARRIVAL','RIVERA_AFFILIATION_BONUS','CONSOLIDATION_FATE_BONUS','DELAYED_HAND_DELIVERY','SUPPORTERS_AS_CHARACTERS','SELVA_EXTRA_SUPPORTER','MAJA_EXTRA_SUPPORTERS','WINE_COUNTRY_GUERILLA_INFILTRATION','FACE_DOWN_CONSOLIDATION_PERMISSION','PERMANENT_FATE_GAIN_POTENCY','MOVEMENT_GRANT','BUSSER_INITIATOR_MORALE'].includes(type);
+    const affected = Number(status?.playerIndex);
+    const sourceController = Number(status?.sourceController);
+    const owner = sourceController === 0 || sourceController === 1
+      ? sourceController
+      : (beneficial && (affected === 0 || affected === 1) ? affected : (affected === 0 || affected === 1 ? 1 - affected : this.view.playerIndex));
+    return {owner, iconKind, ability:String(definition.ability || fallbackAbility), name:String(definition.name || fallbackAbility), effect, extraClass};
+  }
+
+  renderStatusRails(view){
+    const left = this.document.getElementById('tp-status-left');
+    const right = this.document.getElementById('tp-status-right');
+    if(!left || !right) return;
+    left.replaceChildren();
+    right.replaceChildren();
+    for(const status of view?.state?.statuses || []){
+      const item = this.statusPresentation(status);
+      if(!item) continue;
+      const pill = makeElement(this.document, 'div', `effect-pill ${item.extraClass}`);
+      pill.dataset.effectAbility = item.ability;
+      pill.setAttribute('aria-label', `${item.name}: ${item.ability}. ${item.effect}`);
+      const icon = makeElement(this.document, 'span', 'effect-pill-icon');
+      icon.innerHTML = typeof this.window.getStatusEffectIcon === 'function'
+        ? this.window.getStatusEffectIcon(item.iconKind)
+        : '&#9670;';
+      pill.appendChild(icon);
+      pill.appendChild(makeElement(this.document, 'span', 'effect-pill-label', item.ability));
+      const tip = makeElement(this.document, 'span', 'effect-pill-tooltip');
+      tip.innerHTML = `<span class="ept-name">${item.name}</span><span class="ept-ability">${item.ability}</span><span class="ept-effect">${item.effect}</span>`;
+      pill.appendChild(tip);
+      (Number(item.owner) === Number(view.playerIndex) ? left : right).appendChild(pill);
+    }
+    this.window.FateCodexUi?.update?.();
+  }
+
   render(view){
     if(!view || !this.document) return;
     this.view = view;
@@ -390,8 +754,16 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     this.renderOpponentHand(ai.handCount);
     this.renderHand(human.hand || []);
     this.renderBoard(view.state.board);
+    this.renderStatusRails(view);
     this.renderActions();
     this.renderScores();
+    try{
+      this.window.renderMoralePressureHud?.(view.state.moralePressure || null);
+    }catch(error){
+      console.warn('[Fate Phase 5 Single Player] retired morale HUD render failed', error);
+    }
+    this.syncTurnTimer(view);
+    this.syncVisualCardPrompt(view);
   }
 
   renderOpponentHand(count){
@@ -404,11 +776,16 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   }
 
   cardElement(card, className = '', interactive = true){
-    const element = makeElement(this.document, interactive ? 'button' : 'div', `fate-v3-card ${className}`.trim());
+    const presented = this.presentationCard(card) || card;
+    const flash = card?._effectFlash;
+    const flashActive = flash && Number(flash.at || 0) + Math.max(1, Number(flash.duration) || 3500) > Date.now();
+    const flashKind = String(flash?.kind || '').replace(/[^a-z0-9_-]/gi, '');
+    const element = makeElement(this.document, interactive ? 'button' : 'div', `fate-v3-card ${className}${className.includes('fate-v3-board-card') ? ' bc' : ''}${flashActive && flashKind ? ` fate-effect-flash effect-flash-${flashKind}` : ''}`.trim());
     if(interactive) element.type = 'button';
     if(String(card.iid) === this.selectedCardIid || this.selectedPromptIids.has(String(card.iid))){
       element.classList.add('is-selected');
     }
+    if(card?.statuses?.includes('EFFECTS_SUPPRESSED')) element.classList.add('fate-card-effect-suppressed');
     const definition = this.cardDefinitions.get(String(card.id)) || {};
     element.appendChild(makeElement(this.document, 'span', 'fate-v3-card-name', card.faceDown ? 'Face-down card' : card.name));
     element.appendChild(makeElement(
@@ -419,6 +796,16 @@ export class FateAuthoritativeV3SinglePlayerScreen {
         ? 'Hidden'
         : `${card.type} · Fate ${card.currentFate} · ${definition.ability || card.ability || ''}`
     ));
+    if(presented._bh05CopiedCardId){
+      const tracker = makeElement(
+        this.document,
+        'span',
+        'fate-v3-card-tracker fate-v3-taylor-copy-tracker',
+        `Copied: ${presented._bh05CopiedAbility || presented._bh05CopiedCardName}`
+      );
+      tracker.title = `${presented._bh05CopiedCardName}: ${presented._bh05CopiedPrintedEffect || presented._bh05CopiedAbility}`;
+      element.appendChild(tracker);
+    }
     return element;
   }
 
@@ -478,6 +865,18 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   renderBoard(board){
     const root = this.document.getElementById('board');
     if(!root) return;
+    const expanded = this.window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+      && this.window.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false
+      && (board || []).some(zone=>Array.isArray(zone?.[1]) && zone[1].length > 3);
+    const uniformFour = expanded
+      && this.window.FATE_ZONE_444_LAYOUT_ENABLED !== false
+      && (board || []).some(zone=>[0,1,2].every(row=>Array.isArray(zone?.[row]) && zone[row].length === 4));
+    root.classList.toggle('expanded-contested-row', expanded);
+    root.classList.toggle('zone-layout-444', uniformFour);
+    this.document.getElementById('s-game')?.classList.toggle(
+      'wide-zone-layout-444',
+      uniformFour && this.window.FATE_WIDE_444_BOARD_LAYOUT_ENABLED !== false
+    );
     root.replaceChildren();
     const legalDestinations = this.legalDestinationKeys();
     for(let z = 0; z < 3; z += 1){
@@ -620,7 +1019,9 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       this.document,
       'div',
       'fate-v3-card-name',
-      `${winnerName}. Final fate: ${human?.score || 0}–${playerById(this.view, this.view.aiPlayerId)?.score || 0}`
+      Array.isArray(outcome.seals)
+        ? `${winnerName}. Final Seals: ${outcome.seals[this.view.playerIndex] || 0}–${outcome.seals[this.view.aiPlayerIndex] || 0}`
+        : `${winnerName}. Final fate: ${human?.score || 0}–${playerById(this.view, this.view.aiPlayerId)?.score || 0}`
     ));
     const exit = makeElement(this.document, 'button', 'btn sm', 'Return to menu');
     exit.type = 'button';
@@ -700,12 +1101,18 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     if(!root) return;
     root.replaceChildren();
     for(let zone = 0; zone < 3; zone += 1){
-      root.appendChild(makeElement(
+      const mine = zoneScoreBreakdown(this.view.state, zone, this.view.playerIndex);
+      const opponent = zoneScoreBreakdown(this.view.state, zone, this.view.aiPlayerIndex);
+      const score = makeElement(
         this.document,
         'div',
         'zs',
         `Zone ${zone + 1}: ${zoneScore(this.view.state, zone, this.view.playerIndex)}–${zoneScore(this.view.state, zone, this.view.aiPlayerIndex)}`
-      ));
+      );
+      const tooltip = zoneBreakdownText(mine, 'You') + '\n\n' + zoneBreakdownText(opponent, 'Opponent');
+      score.setAttribute('aria-label', tooltip);
+      score.dataset.tooltip = tooltip;
+      root.appendChild(score);
     }
   }
 }

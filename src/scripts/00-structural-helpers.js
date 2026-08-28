@@ -4,7 +4,13 @@
 
 function createEmptyBoard(zoneCount = 3, rowCount = 3, colCount = 3) {
   return Array.from({ length: zoneCount }, () =>
-    Array.from({ length: rowCount }, () => Array(colCount).fill(null))
+    Array.from({ length: rowCount }, (_, rowIndex) => {
+      const expanded = typeof window === 'undefined' || (window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+        && window.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false);
+      const uniformFour = expanded && (typeof window === 'undefined'
+        || window.FATE_ZONE_444_LAYOUT_ENABLED !== false);
+      return Array(uniformFour ? 4 : (expanded && rowIndex === 1 ? 6 : colCount)).fill(null);
+    })
   );
 }
 
@@ -221,7 +227,10 @@ function addSafeSquareForPlayer(z, player) {
   if (!G.board[z][row]) G.board[z][row] = Array(3).fill(null);
   const key = player === 0 ? 'p1' : 'p2';
   G.extraCells[z][row][key] = (Number(G.extraCells[z][row][key]) || 0) + 1;
-  const targetLen = 3 + G.extraCells[z][row][key];
+  const uniformFour = typeof window === 'undefined' || (window.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+    && window.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false
+    && window.FATE_ZONE_444_LAYOUT_ENABLED !== false);
+  const targetLen = (uniformFour ? 4 : 3) + G.extraCells[z][row][key];
   while (G.board[z][row].length < targetLen) G.board[z][row].push(null);
   return { z, r: row, c: targetLen - 1 };
 }
@@ -485,6 +494,7 @@ function isAlpineInfantryCard(card) {
 }
 
 function isSouthWindSpearmanCard(card) {
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) return false;
   return !!(card && (String(card.id || '') === '20' || (typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '20'))));
 }
 
@@ -1097,6 +1107,22 @@ function purgeRetiredCardSetMotion() {
   });
 }
 
+// Old async callbacks can append a placement ghost after the setting code has
+// already returned. Remove those nodes at insertion time as a final compatibility
+// guard for long-lived matches and cached callers.
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+  const retiredSetMotionObserver = new MutationObserver(function(records){
+    for (const record of records) {
+      for (const node of record.addedNodes || []) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches('#placement-anim-layer, .placement-anim-ghost, .placement-anim-card')) node.remove();
+        else node.querySelectorAll?.('#placement-anim-layer, .placement-anim-ghost, .placement-anim-card').forEach(function(el){ el.remove(); });
+      }
+    }
+  });
+  retiredSetMotionObserver.observe(document.documentElement, {childList:true, subtree:true});
+}
+
 function triggerPlacementAnimation() {
   purgeRetiredCardSetMotion();
   return 0;
@@ -1356,6 +1382,7 @@ function resetMatchTransientState() {
   G.oppSuppressedNextTurn = false;
   G.suppressTarget = null;
   G.majaEffectThisTurn = false;
+  G._majaSupportBoost = null;
   G.erbsActive = [false, false];
   G.instanceCounter = 0;
   G._aiAbort = false;

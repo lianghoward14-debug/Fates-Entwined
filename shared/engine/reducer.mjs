@@ -39,6 +39,21 @@ import {
 } from './selectors.mjs';
 import {canonicalHash, cloneSerializable, stableStringify} from './serialization.mjs';
 import {calculateOutcome, zoneScore} from './scoring.mjs';
+import {nextInt} from './rng.mjs';
+import {
+  calculateMoraleOutcome,
+  MORALE_PENALTY_THRESHOLDS,
+  moraleConsolidationLimit,
+  moraleConsolidationsUsed,
+  moralePenaltyActive,
+  moralePressureEnabled,
+  recordMoraleConsolidation,
+  recordMoralePressureRuleEvent,
+  refreshMoralePressure,
+  resetMoraleTurnCounters,
+  resolveMoralePressureCycle,
+  shouldSkipMoraleDraw
+} from './morale-pressure.mjs';
 import {cloneState} from './state.mjs';
 import {cardRule, hasTiming} from './cards/registry.mjs';
 import {
@@ -273,6 +288,47 @@ function applyResolvedEffectOperation(ctx, operation, frame){
 
 function effectUses(card){
   return Number(card?.counters?.effectUses || 0) || 0;
+}
+
+function reconcileSovietGrenadierTargets(state, ctx){
+  const entries = boardEntries(state);
+  for(const source of entries){
+    if(String(source.card?.id || '') !== '44' || source.card.faceDown === true) continue;
+    const declaredType = String(source.card.counters?.sovietDeclaredType || '');
+    if(!declaredType) continue;
+    if(!source.card.counters || typeof source.card.counters !== 'object') source.card.counters = {};
+    const candidates = entries.filter(target=>
+      String(target.card?.iid || '') !== String(source.card.iid || '')
+      && target.z === source.z
+      && target.card.faceDown !== true
+      && effectiveCardType(state, target.card) === declaredType
+      && Math.abs(target.r - source.r) + Math.abs(target.c - source.c) === 1
+    );
+    const previousIid = String(source.card.counters.sovietTargetIid || '');
+    if(previousIid && candidates.some(target=>String(target.card.iid) === previousIid)) continue;
+    if(!candidates.length){
+      source.card.counters.sovietTargetIid = '';
+      continue;
+    }
+    const chosen = candidates[nextInt(state.rngState, candidates.length)];
+    source.card.counters.sovietTargetIid = String(chosen.card.iid);
+    source.card.counters.sovietTargetSequence = Math.max(0, Number(source.card.counters.sovietTargetSequence) || 0) + 1;
+    ctx.events.push({
+      type:'SOVIET_GRENADIERS_TARGET_LINKED',
+      sourceIid:String(source.card.iid),
+      targetIid:String(chosen.card.iid),
+      previousTargetIid:previousIid || null,
+      declaredType,
+      sequence:source.card.counters.sovietTargetSequence,
+      semanticSourceCardId:'44'
+    });
+  }
+}
+
+function startFieldEntryDeclaration(state, ctx, card, controller, commandId){
+  if(String(card?.id || '') !== '44' || card.faceDown === true || card.counters?.sovietDeclaredType) return false;
+  startEffect(state, ctx, card, controller, 'PASSIVE', commandId);
+  return true;
 }
 
 function consumeEffectUse(card){
@@ -575,7 +631,7 @@ function activationReactionOptions(state, frame){
   const opponent = frame.controller === 0 ? 1 : 0;
   for(const entry of boardEntries(state)){
     if(controllerOf(entry.card) !== opponent) continue;
-    const rule = cardRule(entry.card.id);
+    const rule = cardRule(entry.card.id, state);
     if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < Number(rule.maxUses || 0)){
       options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE']});
     }
@@ -597,7 +653,7 @@ function targetReactionOptions(state, frame, operation){
   const targetController = controllerOf(target.card);
   if(targetController === frame.controller) return [];
   return state.players[targetController].hand
-    .filter(card=>cardRule(card.id)?.reactionKind === 'HAVANO')
+    .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO')
     .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']}))
     .sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
 }
@@ -619,7 +675,7 @@ function openReactionPrompt(state, frame, options, phase){
 }
 
 function openEffectFrame(state, source, controller, timing, commandId){
-  const rule = cardRule(source.id);
+  const rule = cardRule(source.id, state);
   if(!rule?.program) return null;
   const frame = {
     frameId:nextId(state, 'frame'),
@@ -749,6 +805,8 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
+    if(instruction.title) state.pendingPrompt.title = String(instruction.title);
+    if(instruction.prompt) state.pendingPrompt.prompt = String(instruction.prompt);
     return true;
   }
   if(instruction.kind === 'SELECT_BOARD'){
@@ -968,7 +1026,10 @@ function runEffectStack(state, ctx){
       });
       frame.instructionIndex += 1;
       const placed = findBoardCard(state, result.cardIid)?.card;
-      if(placed && placed.faceDown !== true && hasTiming(placed.id, 'WHEN_SET')){
+      if(placed && placed.faceDown !== true && startFieldEntryDeclaration(state, ctx, placed, frame.controller, frame.originalCommandId)){
+        continue;
+      }
+      if(placed && placed.faceDown !== true && hasTiming(placed.id, 'WHEN_SET', state)){
         startEffect(state, ctx, placed, frame.controller, 'WHEN_SET', frame.originalCommandId);
       }
       continue;
@@ -977,7 +1038,7 @@ function runEffectStack(state, ctx){
       const selectedIid = resolveValue(instruction.cardIid, frame);
       const selected = findCard(state, selectedIid)?.card;
       const source = findBoardCard(state, frame.sourceIid)?.card;
-      const copiedRule = cardRule(selected?.id);
+      const copiedRule = cardRule(selected?.id, state);
       if(!selected || !source || !copiedRule){
         throw Object.assign(new Error('copied effect is no longer available'), {code:'EFFECT_NOT_IMPLEMENTED'});
       }
@@ -1084,10 +1145,18 @@ function completeEndTurn(state, ctx, actorIndex){
       reason:'GENESIS_OF_ALL_INCELDOM'
     });
   }
-  if(state.turn >= state.maxTurns){
-    state.outcome = calculateOutcome(state);
+  resolveMoraleSupporterExpiry(state, ctx, actorIndex);
+  resolveMoralePressureCycle(ctx);
+  resolveMoraleLowHandDiscard(state, ctx, actorIndex);
+  const moraleEnabled = moralePressureEnabled(state);
+  const moraleDepleted = moraleEnabled
+    && state.moralePressure?.morale?.some(value=>Number(value || 0) <= 0);
+  if(moraleDepleted || state.turn >= state.maxTurns){
+    state.outcome = moraleEnabled ? calculateMoraleOutcome(state) : calculateOutcome(state);
     state.phase = 'ended';
-    state.players.forEach((player, index)=>{ player.score = state.outcome.totalFate[index]; });
+    state.players.forEach((player, index)=>{
+      player.score = Number(state.outcome.totalFate?.[index] || 0);
+    });
     ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED, outcome:cloneSerializable(state.outcome)});
     return;
   }
@@ -1099,16 +1168,19 @@ function completeEndTurn(state, ctx, actorIndex){
   state.turn += 1;
   state.supportersSetThisTurn[state.activePlayer] = 0;
   state.extraSupportersThisTurn[state.activePlayer] = 0;
+  resetMoraleTurnCounters(state, state.activePlayer);
   resetLandscapeTurnCounters(state, state.activePlayer);
   processTurnStartMechanics(state, state.activePlayer, ctx);
   emitRuleEvent(ctx, {type:RULE_EVENT_TYPES.TURN_STARTED, playerIndex:state.activePlayer, turn:state.turn});
-  const drawSkipped = shouldSkipLandscapeDraw(state, state.activePlayer);
+  const landscapeDrawSkipped = shouldSkipLandscapeDraw(state, state.activePlayer);
+  const moraleDrawSkipped = shouldSkipMoraleDraw(state, state.activePlayer);
+  const drawSkipped = landscapeDrawSkipped || moraleDrawSkipped;
   if(drawSkipped){
     ctx.events.push({
       type:'DRAW_PHASE_SKIPPED',
       playerIndex:state.activePlayer,
       turn:state.turn,
-      reason:'LANDSCAPE_IGB13_ALTERNATING_SKIP'
+      reason:landscapeDrawSkipped ? 'LANDSCAPE_IGB13_ALTERNATING_SKIP' : 'MORALE_60_ALTERNATING_DRAW'
     });
   }else{
     applyOperation(ctx, {type:'DRAW_CARD', playerIndex:state.activePlayer, count:1, activatedEffect:false});
@@ -1118,6 +1190,144 @@ function completeEndTurn(state, ctx, actorIndex){
     playerIndex:state.activePlayer,
     turn:state.turn
   });
+  openMoraleThresholdDiscardFrame(state, ctx);
+}
+
+function resolveMoraleLowHandDiscard(state, ctx, playerIndex){
+  if(!moralePressureEnabled(state) || !state?.moralePressure) return null;
+  const player = Number(playerIndex);
+  const morale = Math.max(0, Number(state.moralePressure.morale?.[player] || 0));
+  if(morale <= 0 || !moralePenaltyActive(state, player, MORALE_PENALTY_THRESHOLDS.randomHandDiscard)) return null;
+  if(!state.players?.[player]?.hand?.length) return null;
+  const discarded = applyOperation(ctx, {
+    type:'RANDOM_DISCARD_HAND',
+    playerIndex:player,
+    sourceIid:'morale:20',
+    semanticSourceCardId:'MORALE_THRESHOLD_20',
+    sourceController:player,
+    reason:'MORALE_20_RANDOM_HAND_DISCARD',
+    revealDiscard:true
+  });
+  if(!discarded?.discardedIid) return null;
+  const event = {
+    type:'MORALE_20_HAND_DISCARDED',
+    playerIndex:player,
+    cardIid:String(discarded.discardedIid),
+    cardId:String(discarded.cardId || ''),
+    cardName:String(discarded.cardName || 'Card'),
+    threshold:20,
+    reason:'MORALE_20_RANDOM_HAND_DISCARD'
+  };
+  ctx.events.push(event);
+  return event;
+}
+
+function resolveMoraleSupporterExpiry(state, ctx, playerIndex){
+  if(!state?.moralePressure) return [];
+  const active = moralePenaltyActive(state, playerIndex, MORALE_PENALTY_THRESHOLDS.supporterExpiry);
+  const owned = boardEntries(state).filter(entry=>
+    controllerOf(entry.card) === Number(playerIndex)
+    && effectiveCardType(state, entry.card) === 'Supporter'
+  );
+  const expired = [];
+  for(const entry of owned){
+    if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
+    if(!active){
+      delete entry.card.counters.moraleSupporterExpiryTurns;
+      delete entry.card.counters.moraleSupporterExpiryStartedTurn;
+      continue;
+    }
+    if(!Number.isFinite(Number(entry.card.counters.moraleSupporterExpiryStartedTurn))){
+      entry.card.counters.moraleSupporterExpiryStartedTurn = Number(state.turn);
+      entry.card.counters.moraleSupporterExpiryTurns = 1;
+      continue;
+    }
+    entry.card.counters.moraleSupporterExpiryTurns = Math.max(0, Number(entry.card.counters.moraleSupporterExpiryTurns || 0)) + 1;
+    if(entry.card.counters.moraleSupporterExpiryTurns < 2) continue;
+    expired.push(String(entry.card.iid));
+  }
+  for(const targetIid of expired){
+    const card = findBoardCard(state, targetIid)?.card;
+    if(!card) continue;
+    const cardName = String(card.name || 'Supporter');
+    delete card.counters.moraleSupporterExpiryTurns;
+    delete card.counters.moraleSupporterExpiryStartedTurn;
+    applyOperation(ctx, {
+      type:'DISCARD_CARD',
+      targetIid,
+      sourceIid:'morale:40',
+      sourceController:playerIndex,
+      bypassTargeting:true,
+      bypassReaction:true,
+      reason:'MORALE_40_SUPPORTER_EXPIRY'
+    });
+    ctx.events.push({
+      type:'MORALE_SUPPORTER_EXPIRED',
+      playerIndex:Number(playerIndex),
+      cardIid:targetIid,
+      cardName,
+      threshold:40
+    });
+  }
+  return expired;
+}
+
+function openMoraleThresholdDiscardFrame(state, ctx){
+  const queue = state?.moralePressure?.pendingThresholdDiscards;
+  if(!Array.isArray(queue) || !queue.length) return false;
+  while(queue.length){
+    const pending = queue.shift();
+    const targetPlayerIndex = Number(pending?.targetPlayerIndex);
+    const chooserPlayerIndex = Number(pending?.chooserPlayerIndex);
+    if((targetPlayerIndex !== 0 && targetPlayerIndex !== 1)
+      || (chooserPlayerIndex !== 0 && chooserPlayerIndex !== 1)) continue;
+    if(!boardEntries(state).some(entry=>controllerOf(entry.card) === targetPlayerIndex)) continue;
+    const sourceIid = `morale-threshold-50:p${targetPlayerIndex}:t${Number(pending.turn || state.turn)}`;
+    state.effectStack.push({
+      frameId:nextId(state, 'frame'),
+      kind:'SYSTEM_EFFECT',
+      sourceIid,
+      sourceCardId:'MORALE_THRESHOLD_50',
+      sourceType:'SYSTEM',
+      controller:chooserPlayerIndex,
+      timing:'MORALE_THRESHOLD',
+      instructionIndex:0,
+      waitingFor:null,
+      locals:{},
+      program:[
+        {
+          kind:'SELECT_BOARD',
+          local:'moraleThresholdTarget',
+          min:1,
+          max:1,
+          filter:{opponent:true},
+          title:'Morale Broken — Choose a Card',
+          prompt:'Your opponent fell to 50 Morale. Choose any card on their field to discard.'
+        },
+        {
+          kind:'OPERATION',
+          operation:{
+            type:'DISCARD_CARD',
+            targetIid:'$moraleThresholdTarget',
+            sourceIid,
+            sourceController:chooserPlayerIndex,
+            reason:'MORALE_50_THRESHOLD',
+            bypassTargeting:true,
+            bypassReaction:true
+          }
+        }
+      ],
+      originalCommandId:null
+    });
+    ctx.events.push({
+      type:'MORALE_THRESHOLD_CHOICE_OPENED',
+      playerIndex:chooserPlayerIndex,
+      targetPlayerIndex,
+      threshold:50
+    });
+    return true;
+  }
+  return false;
 }
 
 function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
@@ -1213,7 +1423,7 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
 }
 
 function startEffect(state, ctx, source, controller, timing, commandId){
-  const rule = cardRule(source.id);
+  const rule = cardRule(source.id, state);
   const sourceEntry = findBoardCard(state, source.iid);
   if(sourceEntry && isEffectSourceSuppressed(state, sourceEntry)){
     ctx.events.push({
@@ -1280,6 +1490,7 @@ function startEffect(state, ctx, source, controller, timing, commandId){
       playerIndex:controller,
       timing
     });
+    recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
   }
   if(frame && !state.pendingPrompt){
     recordSupporterEffectActivation(state, frame);
@@ -1288,7 +1499,7 @@ function startEffect(state, ctx, source, controller, timing, commandId){
 }
 
 function startAutomaticActivation(state, ctx, source, controller, commandId){
-  const rule = cardRule(source?.id);
+  const rule = cardRule(source?.id, state);
   if(!source || !rule?.program) return false;
   // Player-timed effects must never be consumed merely because a card was
   // consolidated or flipped face up. Christopher Erbs is armed only by an
@@ -1324,6 +1535,7 @@ function startAutomaticActivation(state, ctx, source, controller, commandId){
     playerIndex:controller,
     timing:'ACTIVATE'
   });
+  recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
   startEffect(state, ctx, source, controller, 'ACTIVATE', commandId);
   return true;
 }
@@ -1575,6 +1787,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     const startingPlayer = goFirst ? actorIndex : (actorIndex === 0 ? 1 : 0);
     state.coinFlip.choice = goFirst;
     state.coinFlip.startingPlayer = startingPlayer;
+    if(state.moralePressure) state.moralePressure.startingPlayer = startingPlayer;
     state.activePlayer = startingPlayer;
     state.phase = 'main';
     processTurnStartMechanics(state, startingPlayer, ctx);
@@ -1688,7 +1901,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         });
       }
       state.instanceCounter += 1;
-      const copiedRule = cardRule(copiedId);
+      const copiedRule = cardRule(copiedId, state);
       const token = {
         iid:`${state.matchId}:p${actorIndex}:c${state.instanceCounter}`,
         id:'whisper17',
@@ -1811,6 +2024,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       cardIid:payload.cardIid,
       destination:payload.destination,
       sourceController:actorIndex,
+      playedFromHand:true,
       countTowardSupporterLimit:!isPierogi && !isWhisperToken,
       allowOpponentSide:isPierogi
     });
@@ -1825,7 +2039,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     if(card){
       const effectId = card.id;
-      const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET');
+      const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET', state);
       const block = supporterEffectBlock(state, card, actorIndex);
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
         applyLumberjackSuppression(state, ctx, card, block, actorIndex);
@@ -1845,6 +2059,8 @@ function performCommand(state, ctx, command, actorIndex, options){
           reason:block.statusType,
           statusId:block.statusId
         });
+      }else if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){
+        // Passive field-entry declaration, intentionally not a When Set effect.
       }else if(hasWhenSetEffect){
         startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
       }
@@ -1857,22 +2073,12 @@ function performCommand(state, ctx, command, actorIndex, options){
       || !['07', '28'].includes(String(entry.card.id || ''))){
       throw Object.assign(new Error('the selected card cannot be set from the deck'), {code:'DECK_SET_NOT_AVAILABLE'});
     }
+    if(String(entry.card.id || '') === '28' && Number(state.players[actorIndex].polishDeckSetTurn) === Number(state.turn)){
+      throw Object.assign(new Error('The Army of Exiles can only be used once per turn'), {code:'ONCE_PER_TURN_LIMIT'});
+    }
     const owner = rowOwner(state, payload.destination?.z, payload.destination?.r);
     if(String(entry.card.id) === '07' ? owner !== actorIndex : ![-1, actorIndex].includes(owner)){
       throw Object.assign(new Error('the deck-set destination is illegal'), {code:'ILLEGAL_PLACEMENT'});
-    }
-    if(String(entry.card.id) === '28'){
-      const statusId = `rule-use:army-of-exiles:p${actorIndex}`;
-      let counter = state.statuses.find(status=>status.statusId === statusId);
-      if(Number(counter?.uses || 0) >= 2 || Number(counter?.lastTurn) === state.turn){
-        throw Object.assign(new Error('Army of Exiles reached its once-per-turn or twice-per-game limit'), {code:'USE_LIMIT_REACHED'});
-      }
-      if(!counter){
-        counter = {statusId, type:'RULE_USE_COUNTER', ruleKey:'ARMY_OF_EXILES', playerIndex:actorIndex, uses:0, maxUses:2};
-        state.statuses.push(counter);
-      }
-      counter.uses += 1;
-      counter.lastTurn = state.turn;
     }
     const card = state.players[actorIndex].deck.splice(entry.index, 1)[0];
     state.players[actorIndex].hand.push(card);
@@ -1893,7 +2099,10 @@ function performCommand(state, ctx, command, actorIndex, options){
       countTowardSupporterLimit:false
     });
     const placed = findBoardCard(state, result.cardIid)?.card;
-    if(placed && hasTiming(placed.id, 'WHEN_SET')){
+    if(String(card.id || '') === '28') state.players[actorIndex].polishDeckSetTurn = Number(state.turn);
+    if(placed && startFieldEntryDeclaration(state, ctx, placed, actorIndex, command.commandId)){
+      // Passive field-entry declaration.
+    }else if(placed && hasTiming(placed.id, 'WHEN_SET', state)){
       startEffect(state, ctx, placed, actorIndex, 'WHEN_SET', command.commandId);
     }
     return;
@@ -1924,6 +2133,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       destination:payload.destination,
       sourceIid:entry.card.iid,
       sourceController:actorIndex,
+      playedFromHand:true,
       countTowardSupporterLimit:false
     });
     if(payload.placementType === 'CONSOLIDATED'){
@@ -1941,6 +2151,10 @@ function performCommand(state, ctx, command, actorIndex, options){
     return;
   }
   if(command.type === 'CONSOLIDATE_CARD'){
+    const consolidationLimit = moraleConsolidationLimit(state, actorIndex);
+    if(moraleConsolidationsUsed(state, actorIndex) >= consolidationLimit){
+      throw Object.assign(new Error('Morale limits this player to two consolidations this turn'), {code:'MORALE_CONSOLIDATION_LIMIT'});
+    }
     const entry = findCard(state, payload.cardIid);
     if(!entry || entry.zone !== 'hand' || entry.playerIndex !== actorIndex){
       throw Object.assign(new Error('the selected card is not in the actor hand'), {code:'CARD_NOT_IN_HAND'});
@@ -1973,6 +2187,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       faceDown:payload.faceDown === true,
       sourceController:actorIndex
     });
+    recordMoraleConsolidation(state, actorIndex);
     const card = findBoardCard(state, result.cardIid)?.card;
     if(payload.faceDown === true && faceDownPermission){
       state.statuses = state.statuses.filter(status=>status.statusId !== faceDownPermission.statusId);
@@ -1980,8 +2195,9 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     if(card && !card.faceDown){
       const effectId = card.id;
-      if(hasTiming(effectId, 'WHEN_SET')) startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
-      else if(hasTiming(effectId, 'ACTIVATE')) startAutomaticActivation(state, ctx, card, actorIndex, command.commandId);
+      if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){}
+      else if(hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
+      else if(hasTiming(effectId, 'ACTIVATE', state)) startAutomaticActivation(state, ctx, card, actorIndex, command.commandId);
     }
     return;
   }
@@ -1996,8 +2212,9 @@ function performCommand(state, ctx, command, actorIndex, options){
     entry.card.faceDown = false;
     ctx.events.push({type:'CARD_FLIPPED', cardIid:entry.card.iid, playerIndex:actorIndex, faceDown:false});
     const effectId = entry.card.id;
-    if(hasTiming(effectId, 'WHEN_SET')) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
-    else if(hasTiming(effectId, 'ACTIVATE')) startAutomaticActivation(state, ctx, entry.card, actorIndex, command.commandId);
+    if(startFieldEntryDeclaration(state, ctx, entry.card, actorIndex, command.commandId)){}
+    else if(hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
+    else if(hasTiming(effectId, 'ACTIVATE', state)) startAutomaticActivation(state, ctx, entry.card, actorIndex, command.commandId);
     return;
   }
   if(command.type === 'MOVE_CARD'){
@@ -2006,7 +2223,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       throw Object.assign(new Error('the actor does not control the moving card'), {code:'CARD_NOT_CONTROLLED'});
     }
     const movementGrant = movementGrantFor(state, entry.card.iid);
-    const customMove = cardRule(entry.card.id)?.customCommand;
+    const customMove = cardRule(entry.card.id, state)?.customCommand;
     const landscapeMove = !movementGrant
       && state.landscapeId === 'igb7'
       && String(entry.card.affiliation || '') === 'eventide'
@@ -2038,7 +2255,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     if(String(entry.card.id) === 'bh01' && Number(entry.card.counters?.lastMoveTurn) === state.turn){
       throw Object.assign(new Error('Anička can only move once per turn'), {code:'USE_LIMIT_REACHED'});
     }
-    if(String(entry.card.id) === '73'){
+    if(state.gameSettings?.pressureCardReworks !== true && String(entry.card.id) === '73'){
       if(Number(entry.card.counters?.lastMoveTurn) === state.turn){
         throw Object.assign(new Error('ALPINE Expeditionary can only move once per turn'), {code:'USE_LIMIT_REACHED'});
       }
@@ -2071,7 +2288,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         activatedEffect:true
       });
     }
-    if(String(entry.card.id) === '73') entry.card.counters.lastMoveTurn = state.turn;
+    if(state.gameSettings?.pressureCardReworks !== true && String(entry.card.id) === '73') entry.card.counters.lastMoveTurn = state.turn;
     if(movementGrant) movementGrant.lastMoveTurn = state.turn;
     if(landscapeMove) entry.card.counters.landscapeMoveTurn = state.turn;
     return;
@@ -2107,7 +2324,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         {code:'ZONE_ACTION_BLOCKED', statusId:activationBlock.statusId}
       );
     }
-    const rule = cardRule(entry.card.id);
+    const rule = cardRule(entry.card.id, state);
     if(!rule?.timings?.includes('ACTIVATE') || !rule.program){
       throw Object.assign(new Error('this card has no v3 activated effect'), {code:'EFFECT_NOT_IMPLEMENTED'});
     }
@@ -2160,6 +2377,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       sourceIid:entry.card.iid,
       playerIndex:actorIndex
     });
+    recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
     startEffect(state, ctx, entry.card, actorIndex, 'ACTIVATE', command.commandId);
     return;
   }
@@ -2202,6 +2420,8 @@ export function reduceCommand(currentState, rawCommand, options = {}){
   try{
     performCommand(state, ctx, command, actorIndex, options);
     if(state.effectStack.length && !state.pendingPrompt) runEffectStack(state, ctx);
+    reconcileSovietGrenadierTargets(state, ctx);
+    refreshMoralePressure(ctx);
     refreshHandLimitRequirement(state);
     state.revision += 1;
     assertInvariants(state);

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#070b12"/>
+  <text x="600" y="58" fill="#d6bd61" font-family="Georgia,serif" font-size="25" text-anchor="middle" letter-spacing="4">HIGH T — STATUS ICONS • BATCH II</text>
+  <text x="600" y="88" fill="#7992a8" font-family="Georgia,serif" font-size="13" text-anchor="middle" letter-spacing="2">FLAT CURRENTCOLOR GLYPHS • PREVIEWED AT BANNER SCALE</text>
+  <defs>
+    <g id="tile"><rect width="196" height="232" rx="10" fill="#0b111b" stroke="#294055"/><rect x="20" y="18" width="156" height="156" rx="8" fill="#101a27" stroke="#38546d"/></g>
+    <style>.i{fill:none;stroke:#84c9ef;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}.s{stroke-width:4.8;opacity:.48}.n{fill:#d6bd61;font:18px Georgia,serif;text-anchor:middle;letter-spacing:2px}.z{fill:#7890a6;font:11px Georgia,serif;text-anchor:middle;letter-spacing:1.3px}</style>
+  </defs>
+
+  <g transform="translate(54 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-45 42L-27-38 0-5 27-38 45 42"/><path d="M-33 18L0-5l33 23M-39 42h78"/><path class="s" d="M0-5v47"/></g><text class="n" x="98" y="202">HT-11</text><text class="z" x="98" y="220">CROWNED CURRENT</text></g>
+  <g transform="translate(278 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-48-5L-19-43 0-12l19-31L48-5 22 40H-22z"/><path d="M-22 40L0-12 22 40"/><path class="s" d="M-48-5h96"/></g><text class="n" x="98" y="202">HT-12</text><text class="z" x="98" y="220">TRIAD CHARGE</text></g>
+  <g transform="translate(502 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M0-52C15-30 35-25 48-16 37-3 29 11 27 42H-27C-29 11-37-3-48-16-35-25-15-30 0-52z"/><path d="M-25-23L0 2l25-25M0 2v40"/></g><text class="n" x="98" y="202">HT-13</text><text class="z" x="98" y="220">DESCENT CORE</text></g>
+  <g transform="translate(726 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-50 0L-28-31 0-15 28-31 50 0 28 31 0 15-28 31z"/><path d="M-50 0H50M0-15v30"/><circle cx="0" cy="0" r="7"/></g><text class="n" x="98" y="202">HT-14</text><text class="z" x="98" y="220">OPPOSED FIELD</text></g>
+  <g transform="translate(950 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-43 37L-28-42 0-18 28-42 43 37"/><path d="M-43 37L0 4l43 33M0-18v22"/><path class="s" d="M-30 17h60"/></g><text class="n" x="98" y="202">HT-15</text><text class="z" x="98" y="220">ASCENDING WEDGE</text></g>
+
+  <g transform="translate(54 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-46-35L-16-8 0-42 16-8 46-35 29 39H-29z"/><path d="M-29 20h58M-35 39h70"/><circle cx="0" cy="2" r="6"/></g><text class="n" x="98" y="202">HT-16</text><text class="z" x="98" y="220">THREE POINT RISE</text></g>
+  <g transform="translate(278 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-48 39L-23-43 0-3 23-43 48 39"/><path d="M-36 12L0 39 36 12M-48 39h96"/><path class="s" d="M0-3v42"/></g><text class="n" x="98" y="202">HT-17</text><text class="z" x="98" y="220">TWIN ASCENT</text></g>
+  <g transform="translate(502 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-48-28h28L0-48l20 20h28L22 0l26 28H20L0 48-20 28h-28L-22 0z"/><path d="M-22 0h44M0-20v40"/></g><text class="n" x="98" y="202">HT-18</text><text class="z" x="98" y="220">EIGHTFOLD NODE</text></g>
+  <g transform="translate(726 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-46 43V9L-24-42 0 2l24-44L46 9v34"/><path d="M-46 25h92M-46 43h92"/><path class="s" d="M0 2v41"/></g><text class="n" x="98" y="202">HT-19</text><text class="z" x="98" y="220">AMPLITUDE</text></g>
+  <g transform="translate(950 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M0-50L17-18 50 0 17 18 0 50-17 18-50 0-17-18z"/><path d="M-28-28L0 0l28-28M-28 28L0 0l28 28"/><circle cx="0" cy="0" r="7"/></g><text class="n" x="98" y="202">HT-20</text><text class="z" x="98" y="220">FOUR-WAY SURGE</text></g>
+</svg>

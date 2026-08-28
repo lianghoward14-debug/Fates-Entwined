@@ -3685,6 +3685,14 @@
           el.removeAttribute('data-final-zone-label');
           el.removeAttribute('data-final-zone-score');
         }
+        else if(sel === '.cinematic-subtitle-live'
+          && el.classList.contains('inside-consolidation-cinematic')
+          && el.closest('.cc-overlay-v2')) {
+          // Visibility recovery may run while a consolidation showcase is
+          // active. The subtitle is owned by that overlay and must survive the
+          // cleanup just like the card itself.
+          return;
+        }
         else if(el && el.parentNode) el.remove();
       });
     });

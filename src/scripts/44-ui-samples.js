@@ -1,0 +1,1 @@
+(function(){const n=Math.max(1,Math.min(5,Number(new URLSearchParams(location.search).get('uiSample')||1)));document.documentElement.dataset.uiSample=String(n);new MutationObserver(()=>{const r=document.getElementById('fate-citadel-ui');if(r)r.dataset.sample=String(n)}).observe(document.documentElement,{childList:true,subtree:true});})();

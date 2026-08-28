@@ -134,6 +134,8 @@ assert.equal(effectiveFate(state, friendly), 5, 'Felicyta adjacency must be orth
 const grenadier = board(state, 0, '44', {z:1, r:2, c:0});
 const dauntless = board(state, 1, '41', {z:1, r:2, c:1});
 dauntless.controller = 0;
+grenadier.counters.sovietDeclaredType = 'Dauntless';
+grenadier.counters.sovietTargetIid = dauntless.iid;
 assert.equal(effectiveFate(state, grenadier), 4);
 assert.equal(effectiveFate(state, dauntless), 3);
 assertInvariants(state);

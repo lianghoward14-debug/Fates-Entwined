@@ -53,23 +53,63 @@
     const rem = Number.isFinite(opts.rem) ? opts.rem : (Number.isFinite(vp.rem) ? vp.rem : getRemPx());
     const windowW = Number.isFinite(opts.windowW) ? opts.windowW : (Number.isFinite(vp.windowW) ? vp.windowW : (window.innerWidth || vp.w || 1280));
     const zoneScale = Number.isFinite(opts.zoneScale) ? opts.zoneScale : MATCH_ZONE_SIZE_SCALE;
-    const boardPadX = Number.isFinite(opts.boardPadX) ? opts.boardPadX : rem * 0.28;
-    const boardGap = Number.isFinite(opts.boardGap) ? opts.boardGap : rem * 0.34;
-    const zonePadX = Number.isFinite(opts.zonePadX) ? opts.zonePadX : rem * 0.52 * zoneScale;
-    const cellGap = Number.isFinite(opts.cellGap) ? opts.cellGap : rem * 0.18 * zoneScale;
+    const expandedContestedRow = opts.expandedContestedRow === true;
+    const zoneLayout444 = opts.zoneLayout444 === true;
+    const wideZoneLayout444 = zoneLayout444
+      && typeof document !== 'undefined'
+      && document.getElementById('s-game')?.classList.contains('wide-zone-layout-444');
+    const commandUi = typeof document !== 'undefined'
+      && (document.getElementById('s-game')?.classList.contains('match-ui-v3-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v4-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v5-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v6-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v7-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v8-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v9-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v10-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v11-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v12-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v13-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v14-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v15-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v16-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v17-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v18-live')
+        || document.getElementById('s-game')?.classList.contains('match-ui-v19-live'));
+    const refinedV20 = typeof document !== 'undefined' && document.getElementById('s-game')?.classList.contains('svg-board-v20-live');
+    const boardPadX = Number.isFinite(opts.boardPadX) ? opts.boardPadX : (commandUi ? (refinedV20 ? 2 : 4) : (wideZoneLayout444 ? 0 : rem * (zoneLayout444 ? 0.10 : 0.28)));
+    const boardGap = Number.isFinite(opts.boardGap) ? opts.boardGap : (commandUi ? 18 : (wideZoneLayout444 ? 12 : rem * (zoneLayout444 ? 0.12 : 0.34)));
+    // Preserve the established distance between zones, but spend the unused
+    // space inside each zone frame on the four card columns. Ten pixels keeps
+    // a clean frame gutter while restoring the cards to almost the original
+    // 3/3/3 footprint at the reference viewport.
+    const zonePadX = Number.isFinite(opts.zonePadX) ? opts.zonePadX : (commandUi ? (refinedV20 ? 10 : 8) : (wideZoneLayout444 ? 0 : rem * (zoneLayout444 ? 0.18 : 0.52) * zoneScale));
+    const cellGap = Number.isFinite(opts.cellGap) ? opts.cellGap : (commandUi ? 3 : (wideZoneLayout444 ? .5 : rem * (zoneLayout444 ? 0.09 : 0.18) * zoneScale));
     const rowGap = Number.isFinite(opts.rowGap) ? opts.rowGap : 0;
     const rowLabelW = Number.isFinite(opts.rowLabelW) ? opts.rowLabelW : 0;
     const rowLabelGap = Number.isFinite(opts.rowLabelGap) ? opts.rowLabelGap : 0;
     const zoneCount = Math.max(1, Number(opts.zoneCount) || 3);
-    const targetCw = clamp(windowW * 0.079 * zoneScale, 110, 151);
+    const baseColumns = zoneLayout444 ? 4 : 3;
+    // 4/4/4 has four columns in every row, not the six-column contested row
+    // that required the original aggressive shrink. Keep the cards close to
+    // classic 3/3/3 scale and spend the zone's previously empty margins.
+    const expandedScale = wideZoneLayout444 ? 1 : (zoneLayout444 ? .97 : (expandedContestedRow ? .74 : 1));
+    // The four-column board intentionally retains the classic 3x3 card footprint.
+    // At the reference 1920px viewport this resolves to ~146x204px, only yielding
+    // when the actual board viewport cannot physically contain twelve columns.
+    const targetCw = zoneLayout444
+      ? clamp(windowW * 0.079 * zoneScale, 110, 151)
+      : clamp(windowW * 0.079 * zoneScale, 110, 151);
     const availableZoneW = Math.max(260, ((Number(vp.w) || windowW) - boardPadX * 2 - boardGap * Math.max(0, zoneCount - 1)) / zoneCount);
-    const maxCwByZone = Math.max(92, (availableZoneW - zonePadX * 2 - rowLabelW - rowLabelGap - cellGap * 2 - 12) / 3);
-    const cw = Number.isFinite(opts.cardW) ? opts.cardW : clamp(Math.min(targetCw, maxCwByZone), 96, 151);
+    const zoneSafetyGutter = commandUi ? 4 : (wideZoneLayout444 ? 0 : 12);
+    const maxCwByZone = Math.max(70, (availableZoneW - zonePadX * 2 - rowLabelW - rowLabelGap - cellGap * (baseColumns - 1) - zoneSafetyGutter) / baseColumns);
+    const baseCw = clamp(Math.min(targetCw, maxCwByZone), 96, 151);
+    const cw = Number.isFinite(opts.cardW) ? opts.cardW : Math.max(70, Math.round(baseCw * expandedScale));
     const ch = Number.isFinite(opts.cardH) ? opts.cardH : Math.round(cw * 1.4);
     const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.34 * zoneScale);
     const zoneFitW = Number.isFinite(opts.zoneFitW)
       ? opts.zoneFitW
-      : Math.min(availableZoneW, cw * 3 + cellGap * 2 + rowLabelW + rowLabelGap + zonePadX * 2 + 12);
+      : Math.min(availableZoneW, baseCw * baseColumns + cellGap * (baseColumns - 1) + rowLabelW + rowLabelGap + zonePadX * 2 + zoneSafetyGutter);
     return {
       productionCss:true,
       rem,
@@ -82,15 +122,15 @@
       rowLabelW,
       rowLabelGap,
       boardPadX,
-      boardPadTop:Number.isFinite(opts.boardPadTop) ? opts.boardPadTop : rem * 0.34,
-      boardPadBottom:Number.isFinite(opts.boardPadBottom) ? opts.boardPadBottom : rem * 0.18,
+      boardPadTop:Number.isFinite(opts.boardPadTop) ? opts.boardPadTop : (commandUi ? (refinedV20 ? 0 : 4) : rem * (zoneLayout444 ? 0.16 : 0.34)),
+      boardPadBottom:Number.isFinite(opts.boardPadBottom) ? opts.boardPadBottom : (commandUi ? 4 : rem * (zoneLayout444 ? 0.08 : 0.18)),
       boardGap,
       zonePadX,
-      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : rem * 1.66 * zoneScale,
-      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : rem * 1.02 * zoneScale,
+      zonePadTop:Number.isFinite(opts.zonePadTop) ? opts.zonePadTop : (commandUi ? (refinedV20 ? 31 : 46) : rem * (zoneLayout444 ? 1.02 : 1.66) * zoneScale),
+      zonePadBottom:Number.isFinite(opts.zonePadBottom) ? opts.zonePadBottom : (commandUi ? (refinedV20 ? 14 : 6) : rem * (zoneLayout444 ? 0.48 : 1.02) * zoneScale),
       cardOffsetY:Number.isFinite(opts.cardOffsetY) ? opts.cardOffsetY : 0,
-      headerTrackH:Number.isFinite(opts.headerTrackH) ? opts.headerTrackH : 36 * zoneScale,
-      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : MATCH_ZONE_VERTICAL_ALIGN,
+      headerTrackH:Number.isFinite(opts.headerTrackH) ? opts.headerTrackH : (commandUi ? (refinedV20 ? 31 : 40) : 36 * zoneScale),
+      zoneVerticalAlign:Number.isFinite(opts.zoneVerticalAlign) ? opts.zoneVerticalAlign : (commandUi ? 0 : MATCH_ZONE_VERTICAL_ALIGN),
       zoneFitW
     };
   }
@@ -107,7 +147,7 @@
   function getBoardViewport(){
     const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
     const fallback = {x:0, y:0, w:window.innerWidth || 1280, h:window.innerHeight || 720, dpr, renderScale:1};
-    const board = document.getElementById('board');
+    const board = document.getElementById('codex-board-v19') || document.getElementById('citadel-board-v18') || document.getElementById('folio-board-v17') || document.getElementById('illuminated-board-v16') || document.getElementById('engraved-board-v15') || document.getElementById('cinematic-board-v14') || document.getElementById('observatory-board-v13') || document.getElementById('rose-board-v12') || document.getElementById('aureate-board-v11') || document.getElementById('loom-board-v10') || document.getElementById('atlas-board-v9') || document.getElementById('fresh-board-v8') || document.getElementById('board');
     if(!board || !board.getBoundingClientRect) return fallback;
     const r = board.getBoundingClientRect();
     return {
@@ -145,7 +185,14 @@
     const own = players[viewer] || {hand:[], handCount:0};
     const opp = players[opponent] || {hand:[], handCount:0};
     const handCards = Array.isArray(own.hand) ? own.hand : [];
-    const oppCards = Array.isArray(opp.hand) ? opp.hand.slice(0, OPPONENT_HAND_PANEL_CARD_LIMIT) : [];
+    const wideZoneLayout444 = typeof document !== 'undefined'
+      && document.getElementById('s-game')?.classList.contains('wide-zone-layout-444');
+    // The wide board intentionally removes the opponent-hand rail. Keep the
+    // authoritative hand count in the snapshot, but do not create canvas cards
+    // or hit targets for a surface that no longer exists in this presentation.
+    const oppCards = wideZoneLayout444
+      ? []
+      : (Array.isArray(opp.hand) ? opp.hand.slice(0, OPPONENT_HAND_PANEL_CARD_LIMIT) : []);
     const handCount = handCards.length;
     const denseHand = handCount >= 10;
     const handFanMaxAngle = clamp(
@@ -314,7 +361,7 @@
     };
   }
 
-  function rowDisplayOrder(rows, viewer){
+  function rowDisplayOrder(rows, viewer, zoneLayout444){
     const base = rows.filter(function(row){ return row && row.r < 3; });
     const extras = rows.filter(function(row){ return row && row.r >= 3; });
     const ordered = viewer === 1
@@ -324,7 +371,14 @@
       if(row.owner === viewer) ordered.push(row);
       else ordered.unshift(row);
     });
-    return ordered;
+    const expanded = [];
+    ordered.forEach(function(row){
+      if(!zoneLayout444 && row && row.r === 1 && Array.isArray(row.cells) && row.cells.length > 3){
+        expanded.push({...row, cells:row.cells.slice(0, 3), visualSubrow:0});
+        expanded.push({...row, cells:row.cells.slice(3, 6), visualSubrow:1});
+      } else expanded.push(row);
+    });
+    return expanded;
   }
 
   function buildLayout(snapshot, viewport, options){
@@ -345,7 +399,18 @@
     const opts = options || {};
     const zoneCount = Math.max(1, snap.board.length);
     const useProductionCss = opts.productionCss !== false;
-    const cssMetrics = useProductionCss ? buildProductionBoardMetrics(vp, Object.assign({}, opts, {zoneCount})) : null;
+    const expandedContestedRow = snap.board.some(function(zone){
+      return Array.isArray(zone?.rows) && zone.rows.some(function(row){
+        return row?.r === 1 && Array.isArray(row.cells) && row.cells.length > 3;
+      });
+    });
+    const zoneLayout444 = expandedContestedRow && snap.board.some(function(zone){
+      return Array.isArray(zone?.rows) && [0,1,2].every(function(rowIndex){
+        const row = zone.rows.find(function(item){ return item?.r === rowIndex; });
+        return Array.isArray(row?.cells) && row.cells.length === 4;
+      });
+    });
+    const cssMetrics = useProductionCss ? buildProductionBoardMetrics(vp, Object.assign({}, opts, {zoneCount, expandedContestedRow, zoneLayout444})) : null;
     const pad = cssMetrics ? cssMetrics.boardPadX : (Number.isFinite(opts.padding) ? opts.padding : clamp(vp.w * 0.008, 8, 18));
     const zoneGap = cssMetrics ? cssMetrics.boardGap : (Number.isFinite(opts.zoneGap) ? opts.zoneGap : clamp(vp.w * 0.007, 8, 16));
     const rowGap = cssMetrics ? cssMetrics.rowGap : (Number.isFinite(opts.rowGap) ? opts.rowGap : clamp(vp.h * 0.006, 4, 8));
@@ -366,9 +431,9 @@
     const zones = snap.board.map(function(zone, zoneIndex){
       const z = typeof zone.z === 'number' ? zone.z : zoneIndex;
       const rowsSource = Array.isArray(zone.rows) ? zone.rows : [];
-      const rowsOrdered = rowDisplayOrder(rowsSource, snap.viewer);
+      const rowsOrdered = rowDisplayOrder(rowsSource, snap.viewer, zoneLayout444);
       const rowCount = Math.max(1, rowsOrdered.length || 3);
-      const visibleRowCount = Math.min(3, Math.max(1, rowCount));
+      const visibleRowCount = Math.min(expandedContestedRow && !zoneLayout444 ? 4 : 3, Math.max(1, rowCount));
       const rowH = cssMetrics
         ? cssMetrics.rowH
         : (rowsOrdered.length ? Math.max(1, (innerH - headerH - rowGap * rowsOrdered.length) / rowsOrdered.length) : innerH);

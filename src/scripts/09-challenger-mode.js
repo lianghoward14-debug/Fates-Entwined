@@ -18,9 +18,10 @@ function getChallengerCardPool() {
 
 function seedBuiltInPresets() {
   let changed = false;
-  const aiOnlyBuiltins = (Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : []).map(deck=>`builtin_${deck.id}`);
-  aiOnlyBuiltins.forEach(id=>{
-    if(PRESET_DECKS[id]){
+  const starterBuiltins = new Set((Array.isArray(STARTER_DECKS) ? STARTER_DECKS : []).map(deck=>`builtin_${deck.id}`));
+  Object.keys(PRESET_DECKS).forEach(id=>{
+    const preset = PRESET_DECKS[id];
+    if(id.startsWith('builtin_') && !starterBuiltins.has(id) && (preset?.builtin === true || id.startsWith('builtin_ai_') || id.startsWith('builtin_starter_'))){
       delete PRESET_DECKS[id];
       changed = true;
     }
@@ -432,29 +433,29 @@ const STARTER_DECKS = [
   {
     id: 'starter_maelstrom',
     name: 'Relentless Maelstrom',
-    description: 'Consolidate for Alondra Hopkins, then stack Fate on her with recycled buff supporters.',
-    theme: 'Concentrated Fate',
+    description: 'Consolidate Alondra in a stocked formation, recycle supporters through Crossroads and Ledger-keepers, and compound Fate with Isaac and long-game specters.',
+    theme: 'Recycling Fate Engine',
     faceCardId: '14',
-    displayCardIds: ['14','06','27','76','44','65','64'],
+    displayCardIds: ['14','05','47','58','75','95','92'],
     ids: [
-      '14','14','14','06','06','27','27','13','13','13',
-      '47','47','47','05','05','05','58','58','58','60','60','60',
-      '75','75','75','32','32','32','44','44','44','76','76','76',
-      '65','65','65','64','64','64'
+      '14','14','14','05','05','05','47','47','47','32','32','32',
+      '58','58','58','60','60','60','75','75','75','95','95','95',
+      '63','63','63','76','76','76','27','27','27','94','94','06',
+      '06','22','22','22'
     ]
   },
   {
     id: 'starter_freeworld',
     name: 'The Free World',
-    description: 'Flood the board with Third Great War cards, then declare the affiliation with Duncan Heyward for massive bonuses.',
-    theme: 'Affiliation',
+    description: 'Assemble a concentrated Third Great War formation, chain searches into its coordinators, and convert supporter Fate into a decisive Alexander and Duncan finish.',
+    theme: 'Third Great War Formation',
     faceCardId: '29',
-    displayCardIds: ['29','77','01','13','42','59','28'],
+    displayCardIds: ['29','77','34','35','01','59','25'],
     ids: [
-      '77','77','77','29','29','29','13','13','13','01','01',
-      '22','22','06','06','18','18','18','37','37','37',
-      '42','42','42','59','59','59','28','28','09','09','09',
-      '63','63','32','32','32','60','60','60'
+      '77','77','77','25','25','25','29','29','29','59','59','59',
+      '13','13','13','63','63','63','28','28','28','42','42','42',
+      '05','05','05','34','34','34','06','06','06','68','68','68',
+      '01','01','35','35'
     ]
   },
   {
@@ -474,463 +475,213 @@ const STARTER_DECKS = [
   {
     id: 'starter_assault',
     name: 'Mass Assault Doctrine',
-    description: 'Stack Czechoslovak Maroon Knights, Greek Hoplites and Anne Stone in the same zone for huge supporter bonuses.',
-    theme: 'Supporters',
+    description: 'Build an expanded safe-row formation around Anne Stone, stack supporter auras, and turn repeated draw effects into a sustained mass deployment.',
+    theme: 'Safe-Row Supporter Formation',
     faceCardId: '11',
-    displayCardIds: ['11','63','43','59','25','16','05'],
+    displayCardIds: ['11','43','68','59','63','40','22'],
     ids: [
-      '11','11','11','13','13','13','22','22','43','43','28',
-      '63','63','63','28','25','25','59','59','59','09','09','09',
-      '05','05','05','68','68','68','16','16','16','60','60','60',
-      '32','32','32','42','42'
+      '05','05','05','11','11','11','68','68','68','27','27','27',
+      '32','32','32','42','42','42','16','16','16','43','43','43',
+      '74','74','74','40','40','40','22','22','22','63','63','63',
+      '59','59','59','06'
     ]
   }
 ];
 
 const AI_ONLY_RANDOM_DECKS = [
   {
-    id: 'starter_maelstrom_2',
-    baseStrategy: 'starter_maelstrom',
-    name: 'Relentless Maelstrom 2',
-    description: 'A sharper Maelstrom shell with stronger supporter recursion, movement pressure and consolidation ambushes.',
-    theme: 'Concentrated Fate',
-    faceCardId: '14',
-    displayCardIds: ['14','06','27','69','54','44','64'],
+    id: 'ai_last_mohicans_ledger',
+    baseStrategy: 'ai_last_mohicans_ledger',
+    name: "The Last Mohican's Ledger",
+    description: 'Pays Morale to deploy Chingachlook, restores it with West Caribbea Infantry, then turns the surviving threat into a finisher with Howard.',
+    theme: 'AI Only - Morale Investment',
+    faceCardId: '45',
+    displayCardIds: ['45','03','33','20','75','47','64'],
     ids: [
-      '14','14','14','06','06','06','27','27','27','13','13','13',
-      '47','47','47','05','05','05','58','58','58','75','75','75',
-      '69','69','69','64','64','64','44','44','44','54','54','54',
-      '65','65','76','76'
+      '03','45','45','45','33','33','33','20','20','20',
+      '47','47','47','64','64','64','65','65','65','27',
+      '27','27','32','32','32','42','42','42','58','58',
+      '58','60','60','60','75','75','75','05','05','05'
     ]
   },
   {
-    id: 'starter_freeworld_2',
-    baseStrategy: 'starter_freeworld',
-    name: 'Free World 2',
-    description: 'A stronger Third Great War list that floods the board, digs harder for Duncan, and protects its zone plan.',
-    theme: 'Affiliation',
-    faceCardId: '29',
-    displayCardIds: ['29','77','01','71','59','37','28'],
-    ids: [
-      '77','77','77','29','29','29','13','13','13','01','01','01',
-      '22','22','22','60','60','60','42','42','42','59','59','59',
-      '28','28','28','09','09','09','37','37','37','18','18','18',
-      '63','63','71','71'
-    ]
-  },
-  {
-    id: 'starter_incel_2',
-    baseStrategy: 'starter_incel',
-    name: 'Furious Incel 2',
-    description: "A nastier Reality shell that loops more pressure, hand disruption and Fate-loss triggers into Jimmy's scaling.",
-    theme: 'Fate Leech',
-    faceCardId: '41',
-    displayCardIds: ['41','10','08','30','31','69','72'],
-    ids: [
-      '41','41','41','10','10','10','08','08','08','30','30','30',
-      '31','31','31','58','58','58','75','75','75','60','60','60',
-      '42','42','42','69','69','69','72','72','72','32','32','18',
-      '18','68','68','61'
-    ]
-  },
-  {
-    id: 'starter_assault_2',
-    baseStrategy: 'starter_assault',
-    name: 'Mass Assault 2',
-    description: 'A heavier supporter swarm that snowballs Anne, Jeremiah and the Maroon Knights while keeping pressure on the board.',
-    theme: 'Supporters',
-    faceCardId: '11',
-    displayCardIds: ['11','57','59','63','25','16','69'],
-    ids: [
-      '11','11','11','57','57','57','59','59','59','63','63','63',
-      '25','25','25','16','16','16','05','05','05','60','60','60',
-      '69','69','69','75','75','75','43','43','28','28','42','42',
-      '68','68','71','32'
-    ]
-  },
-  {
-    id: 'starter_soft_suppression',
-    baseStrategy: 'starter_soft_suppression',
-    name: 'Soft Suppression',
-    description: 'Searches hard for Carolyn and Zoe to lock cells, builds a Hoplite control zone, and uses Maria as secondary pressure.',
-    theme: 'Reality',
-    faceCardId: '17',
-    displayCardIds: ['17','04','63','61','06','60','71'],
-    ids: [
-      '17','17','17','04','04','04','61','61','61','63','63','63',
-      '06','06','06','13','13','13','60','60','60','16','16','16',
-      '18','18','18','71','71','71','42','42','42','62','62','64',
-      '64','58','58','32'
-    ]
-  },
-  {
-    id: 'ai_blitz',
-    baseStrategy: 'ai_blitz',
-    name: 'Blitz',
-    description: 'AI-only contested-row pressure deck built around Polish-Lithuanian Infantry, Zimbabwean Honor Guard, Maja and Hoplites.',
-    theme: 'AI Only - Third Great War',
-    faceCardId: '07',
-    displayCardIds: ['07','25','28','63','45','76','65'],
-    ids: [
-      '07','79','25','25','25','28','28','28','63','63',
-      '63','45','45','65','65','65','76','76','76','06',
-      '06','06','13','13','13','29','29','60','60','60',
-      '05','05','05','59','59','42','42','09','09','68'
-    ]
-  },
-  {
-    id: 'ai_coordinators_dream',
-    baseStrategy: 'ai_coordinators_dream',
-    name: "Coordinator's Dream",
-    description: 'AI-only stacked-coordinator deck that keeps Zsofia, Kvetka, Cathy and Alexander together in one zone.',
-    theme: 'AI Only - Coordinators',
-    faceCardId: '23',
-    displayCardIds: ['23','15','19','35','08','68','24'],
-    ids: [
-      '15','15','15','19','19','19','23','23','23','35',
-      '35','08','08','08','68','68','68','24','24','24',
-      '60','60','60','32','32','32','58','58','58','75',
-      '75','75','69','69','05','05','05','59','59','09'
-    ]
-  },
-  {
-    id: 'ai_henrys_conviction',
-    baseStrategy: 'ai_henrys_conviction',
-    name: "Henry's Conviction",
-    description: 'AI-only draw-and-recycle deck that digs for Henry, keeps cards in hand, then feeds his effect.',
-    theme: 'AI Only - Third Great War',
-    faceCardId: '21',
-    displayCardIds: ['21','29','06','27','32','63','58'],
-    ids: [
-      '21','21','21','29','29','29','06','06','06','27',
-      '27','27','32','32','32','58','58','58','75','75',
-      '75','69','69','69','13','13','13','63','63','63',
-      '60','60','60','42','42','42','05','05','09','09'
-    ]
-  },
-  {
-    id: 'ai_howards_choice',
-    baseStrategy: 'ai_howards_choice',
-    name: "Howard's Choice",
-    description: 'AI-only reactive deck that prioritizes Chingachlook and Phil, with Lydia/Carolyn disruption and Hoplite pressure.',
-    theme: 'AI Only - Reactive',
-    faceCardId: '03',
-    displayCardIds: ['03','45','46','56','17','67','76'],
-    ids: [
-      '03','79','63','63','63','76','76','76','45','45',
-      '45','56','56','17','17','08','08','08','46','46',
-      '46','67','67','06','06','06','60','60','68','68',
-      '24','24','32','32','58','58','75','75','05','05'
-    ]
-  },
-  {
-    id: 'ai_investing_future',
-    baseStrategy: 'ai_investing_future',
-    name: 'Investing in the Future',
-    description: 'AI-only Phil acceleration deck that searches all three copies early, then recycles supporter boosts.',
-    theme: 'AI Only - Reality',
-    faceCardId: '46',
-    displayCardIds: ['46','08','06','47','05','76','65'],
-    ids: [
-      '46','46','46','08','08','08','06','06','06','47',
-      '47','47','05','05','05','58','58','58','75','75',
-      '75','69','69','69','03','13','76','76','76','65',
-      '65','65','60','60','60','32','32','32','13','13'
-    ]
-  },
-  {
-    id: 'ai_royal_flush',
-    baseStrategy: 'ai_royal_flush',
-    name: 'Royal Flush',
-    description: 'AI-only royal coordinator deck that assembles Kvetka, Zsofia, Felicyta, Jeremiah and Duncan in one zone.',
-    theme: 'AI Only - Royal',
-    faceCardId: '77',
-    displayCardIds: ['77','19','15','01','57','24','68'],
-    ids: [
-      '19','19','19','15','15','15','01','01','01','57',
-      '57','57','77','77','77','24','24','24','68','68',
-      '68','60','60','60','32','32','32','05','05','05',
-      '58','58','58','75','75','75','69','69','59','59'
-    ]
-  },
-  {
-    id: 'ai_fat_jake',
-    baseStrategy: 'ai_fat_jake',
-    name: 'Fat Jake',
-    description: 'AI-only Jake deck copied from the posted preview. It feeds Jake with supporter density, draw, recursion and broad set pressure.',
-    theme: 'Custom',
-    faceCardId: '38',
-    displayCardIds: ['38','25','28','32','58','75','76'],
-    ids: [
-      '25','25','28','28','32','32','32','44','44','44',
-      '47','47','47','58','58','58','60','60','60','75',
-      '75','75','76','76','76','05','05','05','13','13',
-      '13','27','27','27','06','06','03','38','38','38'
-    ]
-  },
-  {
-    id: 'ai_hand_leech',
-    baseStrategy: 'ai_hand_leech',
-    name: 'Hand Leech',
-    description: 'AI-only hand disruption deck copied from the posted preview. It stacks reveal, discard and steal effects behind sturdy supporter setup.',
-    theme: 'Custom',
-    faceCardId: '14',
-    displayCardIds: ['14','16','20','72','75','61','06'],
-    ids: [
-      '16','16','16','20','28','28','32','32','32','58',
-      '58','58','60','60','60','71','71','71','72','72',
-      '72','75','75','75','05','05','05','09','09','09',
-      '06','06','06','56','61','61','61','14','14','14'
-    ]
-  },
-  {
-    id: 'ai_movement',
-    baseStrategy: 'ai_movement',
-    name: 'Movement',
-    description: 'AI-only movement deck copied from the posted preview. It leans on Busser, Expeditionary and Juan Carlos to keep cards shifting into better squares.',
-    theme: 'Custom',
-    faceCardId: '39',
-    displayCardIds: ['39','25','28','69','73','27','15'],
-    ids: [
-      '25','25','28','28','31','31','32','32','32','60',
-      '60','60','69','69','69','70','70','70','73','73',
-      '73','05','05','05','27','27','27','13','13','13',
-      '06','06','06','15','15','15','39','39','39','03'
-    ]
-  },
-  {
-    id: 'ai_kvetka_chain',
-    baseStrategy: 'ai_kvetka_chain',
-    name: "Kvetka's Chain Reaction",
-    description: 'AI-only character-cheat deck. Kvetka sets a major Expanded Worlds payoff for free, then Howard amplifies the strongest lane.',
-    theme: 'AI Only - Character Chain',
-    faceCardId: '84',
-    displayCardIds: ['84','100','88','86','81','03','68'],
-    ids: [
-      '03','84','84','84','100','100','100','88','88','88',
-      '86','86','86','81','81','81','09','09','09','47',
-      '47','47','60','60','60','32','32','32','58','58',
-      '58','68','68','68','24','24','24','05','05','05'
-    ]
-  },
-  {
-    id: 'ai_total_blackout',
-    baseStrategy: 'ai_total_blackout',
-    name: 'Total Blackout',
-    description: 'AI-only control deck that blocks cells, locks zones, suppresses Coordinators and uses Lydia to deny pivotal effects.',
-    theme: 'AI Only - Lockdown',
-    faceCardId: '21',
-    displayCardIds: ['21','17','04','50','61','16','56'],
-    ids: [
-      '56','17','17','17','04','04','04','21','21','21',
-      '30','30','30','61','61','61','50','50','50','16',
-      '16','16','71','71','71','60','60','60','32','32',
-      '32','58','58','58','75','75','75','09','09','09'
-    ]
-  },
-  {
-    id: 'ai_jake_compound_interest',
-    baseStrategy: 'ai_fat_jake',
-    name: "Jake's Compound Interest",
-    description: 'AI-only focused Jake deck that turns recyclable Supporters into permanent Fate before Howard multiplies the payoff.',
-    theme: 'AI Only - Fate Engine',
-    faceCardId: '38',
-    displayCardIds: ['38','03','27','40','32','58','75'],
-    ids: [
-      '03','38','38','38','27','27','27','40','40','40',
-      '06','06','06','13','13','13','32','32','32','58',
-      '58','58','75','75','75','60','60','60','47','47',
-      '47','76','76','76','05','05','05','09','09','09'
-    ]
-  },
-  {
-    id: 'ai_living_formation',
-    baseStrategy: 'ai_living_formation',
-    name: 'Living Formation',
-    description: 'AI-only aura stack where Anne, Jeremiah and Cathy turn a dense Supporter lane into an enormous Alexander.',
-    theme: 'AI Only - Formation',
+    id: 'ai_hellenic_heartbreaker',
+    baseStrategy: 'ai_hellenic_heartbreaker',
+    name: 'Hellenic Heartbreaker',
+    description: 'Builds permanent Fate on Alexander, doubles the finished threat with Howard, and converts its total into repeated Morale pressure.',
+    theme: 'AI Only - Alexander Fate Engine',
     faceCardId: '35',
-    displayCardIds: ['35','11','57','23','63','59','02'],
+    displayCardIds: ['35','03','05','22','47','64','75'],
     ids: [
-      '02','35','35','35','11','11','11','57','57','57',
-      '23','23','23','22','22','22','63','63','63','59',
-      '59','59','24','24','24','68','68','68','60','60',
-      '60','32','32','32','05','05','05','09','09','09'
+      '03','35','35','35','05','05','05','22','22','22',
+      '47','47','47','64','64','64','33','33','33','20',
+      '20','20','27','27','27','32','32','32','42','42',
+      '42','58','58','58','60','60','60','75','75','75'
     ]
   },
   {
-    id: 'ai_rozsi_relay',
-    baseStrategy: 'ai_movement',
-    name: 'Rozsi Relay',
-    description: "AI-only movement deck that routes cards through Rozsi's lane and assembles Expanded Worlds groups for Bobby Jones.",
-    theme: 'AI Only - Movement',
+    id: 'ai_hungarian_war_dance',
+    enabled: false,
+    baseStrategy: 'ai_hungarian_war_dance',
+    name: 'Hungarian War Dance',
+    description: 'Uses Rozsi, Mark Menz and Duncan to create a unified Third Great War zone that inflicts Morale damage every calculation.',
+    theme: 'AI Only - Affiliation Pressure',
     faceCardId: '34',
-    displayCardIds: ['34','39','55','54','69','73','02'],
+    displayCardIds: ['34','66','77','19','25','44','07'],
     ids: [
-      '02','34','34','34','39','39','39','55','55','55',
-      '22','22','22','06','06','06','54','54','54','69',
-      '69','69','73','73','73','76','76','76','60','60',
-      '60','75','75','75','47','47','47','05','05','05'
+      '07','34','34','34','29','29','29','66','66','66',
+      '77','77','77','25','25','25','44','44','44','47',
+      '47','47','64','64','64','13','13','13','60','60',
+      '60','58','58','58','68','68','68','19','19','19'
     ]
   },
   {
-    id: 'ai_snowbound_wintertide',
-    baseStrategy: 'ai_snowbound_wintertide',
-    name: 'Snowbound Wintertide',
-    description: 'Changes the landscape to Snow on the Carpathians, locks it in place, then cheats out and consolidates scaling Wintertide threats.',
-    theme: 'AI Only - Wintertide',
-    faceCardId: '100',
-    displayCardIds: ['100','82','84','91','99','87','bh05'],
+    id: 'ai_great_oak_salvo',
+    baseStrategy: 'ai_great_oak_salvo',
+    name: 'Great Oak Salvo',
+    description: 'Repeatedly searches, copies and recovers Great Oak Infantry while timing Cook Islands Duelist for favorable Morale calculations.',
+    theme: 'AI Only - Recursive Morale Damage',
+    faceCardId: '47',
+    displayCardIds: ['47','07','75','58','64','69','33'],
     ids: [
-      '82','82','82','84','84','84','87','87','87','90',
-      '90','90','91','91','91','94','94','94','96','96',
-      '96','97','97','97','98','98','98','99','99','99',
-      '100','100','100','47','47','47','80','80','80','bh05'
+      '07','47','47','47','64','64','64','75','75','75',
+      '58','58','58','60','60','60','13','13','13','32',
+      '32','32','42','42','42','27','27','27','69','69',
+      '69','33','33','33','05','05','05','68','68','68'
     ]
   },
   {
-    id: 'ai_overclocked_dauntless',
-    baseStrategy: 'ai_overclocked_dauntless',
-    name: 'Overclocked Dauntless',
-    description: 'Builds an Agent-K lane, cheats Dauntless cards into it, and repositions the formation to multiply adjacency bonuses.',
-    theme: 'AI Only - Dauntless Formation',
-    faceCardId: 'bh07',
-    displayCardIds: ['bh07','84','88','89','100','54','bh01'],
+    id: 'ai_adjacency_doctrine',
+    enabled: false,
+    baseStrategy: 'ai_adjacency_doctrine',
+    name: 'Adjacency Doctrine',
+    description: 'Builds precise same-affiliation and Dauntless formations, then doubles their adjacency bonuses with University Felicyta.',
+    theme: 'AI Only - Formation Geometry',
+    faceCardId: '35',
+    displayCardIds: ['35','25','44','01','bh07','bh11','bh12'],
     ids: [
-      'bh07','bh07','bh07','84','84','84','88','88','88','89',
-      '89','89','100','100','100','44','44','44','54','54',
-      '54','68','68','68','47','47','47','60','60','60',
-      '95','95','95','98','98','98','83','83','83','bh01'
+      '07','25','25','25','44','44','44','01','01','01',
+      '19','19','19','15','15','15','68','68','68','bh07',
+      'bh07','bh07','bh11','bh11','bh11','bh12','bh12','bh12','35','35',
+      '35','66','66','66','47','47','47','64','64','64'
     ]
   },
   {
-    id: 'ai_thousand_reel_drawstorm',
-    baseStrategy: 'ai_thousand_reel_drawstorm',
-    name: 'Thousand-Reel Drawstorm',
-    description: 'Free-sets Joie with Lina, concentrates allies in her lane, then chains activated draws into repeated permanent Fate gains.',
-    theme: 'AI Only - Draw Engine',
-    faceCardId: 'bh02',
-    displayCardIds: ['bh02','08','27','80','40','75','bh01'],
-    ids: [
-      'bh01','bh02','bh02','bh02','08','08','08','27','27','27',
-      '32','32','32','42','42','42','80','80','80','40',
-      '40','40','58','58','58','60','60','60','68','68',
-      '68','75','75','75','74','74','74','47','47','47'
-    ]
-  },
-  {
-    id: 'ai_university_mischief',
-    baseStrategy: 'ai_university_mischief',
-    name: 'University Mischief',
-    description: 'Finds University Maja, then turns Lydia, Havano, Secules and deliberate Lumberjack suppression into a growing formation.',
-    theme: 'AI Only - Suppression Engine',
-    faceCardId: 'bh08',
-    displayCardIds: ['bh08','92','18','67','79','21','56'],
-    ids: [
-      '56','bh08','bh08','bh08','92','92','92','18','18','18',
-      '67','67','67','79','79','79','21','21','21','37',
-      '37','37','60','60','60','68','68','68','58','58',
-      '58','75','75','75','05','05','05','09','09','09'
-    ]
-  },
-  {
-    id: 'ai_alis_handcuffs',
-    baseStrategy: 'ai_alis_handcuffs',
-    name: "Ali's Handcuffs",
-    description: 'Clogs the opponent hand with Ali and Wine Country Guerillas, then steals, filters and discards what little room remains.',
-    theme: 'AI Only - Hand Prison',
+    id: 'ai_hand_quarantine',
+    baseStrategy: 'ai_hand_quarantine',
+    name: 'Hand Quarantine',
+    description: 'Restricts the opposing hand with Ali, transfers Guerillas into it, steals cards and filters away important future draws.',
+    theme: 'AI Only - Hand Denial',
     faceCardId: 'bh03',
-    displayCardIds: ['bh03','70','42','72','71','61','56'],
+    displayCardIds: ['bh03','70','72','71','61','50','56'],
     ids: [
-      'bh03','bh03','bh03','70','70','70','42','42','42','72',
-      '72','72','71','71','71','52','52','52','61','61',
-      '61','31','31','31','58','58','58','60','60','60',
-      '75','75','75','50','50','50','74','74','74','56'
+      '56','bh03','bh03','bh03','70','70','70','72','72','72',
+      '71','71','71','61','61','61','52','52','52','31',
+      '31','31','50','50','50','58','58','58','60','60',
+      '60','32','32','32','42','42','42','33','33','33'
     ]
   },
   {
-    id: 'ai_destruction_paradise',
-    baseStrategy: 'ai_destruction_paradise',
-    name: 'Destruction of Paradise',
-    description: 'Uses West Caribbea Infantry and Jorge to prepare Selva Anicka, then follows her Fate blast with Eventide pressure.',
+    id: 'ai_high_t_draw_mill',
+    baseStrategy: 'ai_high_t_draw_mill',
+    name: 'High-T Draw Mill',
+    description: 'Establishes Joie, doubles permanent gains with Abed, and chains draw effects into a rapidly growing Fate formation.',
+    theme: 'AI Only - Draw and Permanent Fate',
+    faceCardId: 'bh02',
+    displayCardIds: ['bh02','bh19','bh15','27','40','bh13','03'],
+    ids: [
+      '03','bh02','bh02','bh02','bh19','bh19','bh19','27','27','27',
+      '32','32','32','42','42','42','40','40','40','bh10',
+      'bh10','bh10','bh13','bh13','bh13','bh15','bh15','bh15','05','05',
+      '05','47','47','47','64','64','64','58','58','58'
+    ]
+  },
+  {
+    id: 'ai_university_counterbattery',
+    baseStrategy: 'ai_university_counterbattery',
+    name: 'University Counterbattery',
+    description: 'Places University Maja behind layered negation and suppression so every denied effect strengthens the formation.',
+    theme: 'AI Only - Suppression Formation',
+    faceCardId: 'bh08',
+    displayCardIds: ['bh08','56','67','18','79','21','50'],
+    ids: [
+      '56','bh08','bh08','bh08','67','67','67','18','18','18',
+      '79','79','79','21','21','21','17','17','17','04',
+      '04','04','50','50','50','71','71','71','60','60',
+      '60','58','58','58','32','32','32','47','47','47'
+    ]
+  },
+  {
+    id: 'ai_selva_tidal_strike',
+    baseStrategy: 'ai_selva_tidal_strike',
+    name: 'Selva Tidal Strike',
+    description: 'Assembles an Eventide zone, uses Selva Anicka for mass Fate loss, then follows with Li-Hua and timed Morale pressure.',
     theme: 'AI Only - Eventide Tempo',
     faceCardId: 'bh04',
-    displayCardIds: ['bh04','33','06','51','77','30','bh01'],
+    displayCardIds: ['bh04','06','51','77','bh16','47','64'],
     ids: [
-      'bh04','bh04','bh04','33','33','33','06','06','06','27',
-      '27','27','30','30','30','31','31','31','51','51',
-      '51','64','64','64','65','65','65','74','74','74',
-      '75','75','75','77','77','77','79','79','79','bh01'
+      '02','bh04','bh04','bh04','33','33','33','06','06','06',
+      '51','51','51','77','77','77','30','30','30','bh16',
+      'bh16','bh16','47','47','47','64','64','64','65','65',
+      '65','74','74','74','75','75','75','58','58','58'
     ]
   },
   {
-    id: 'ai_taylors_perfect_mimic',
-    baseStrategy: 'ai_taylors_perfect_mimic',
-    name: "Taylor's Perfect Mimic",
-    description: 'Searches Taylor to create the bonus copy, then reliably mimics Alondra while retaining a broad Expanded Worlds toolbox.',
-    theme: 'AI Only - Mimic Toolbox',
-    faceCardId: 'bh05',
-    displayCardIds: ['bh05','48','84','14','bh04','100','90'],
+    id: 'ai_crown_of_five',
+    baseStrategy: 'ai_crown_of_five',
+    name: 'Crown of Five',
+    description: 'Builds a five-Coordinator royal formation behind a dedicated reinforcement engine of United Nations, Ralph, Irvine, Lumberjack and Polish-Lithuanian support.',
+    theme: 'AI Only - Royal Reinforcement',
+    faceCardId: '77',
+    displayCardIds: ['77','15','19','01','57','09','24'],
     ids: [
-      'bh05','48','48','48','84','84','84','14','14','14',
-      'bh04','bh04','bh04','100','100','100','90','90','90','06',
-      '06','06','47','47','47','58','58','58','60','60',
-      '60','32','32','32','75','75','75','05','05','05'
+      '07','19','19','19','15','15','15','01','01','01',
+      '57','57','57','77','77','77','09','09','09','24',
+      '24','24','49','49','49','92','92','92','28','28',
+      '28','68','68','68','74','74','74','60','60','60'
     ]
   },
   {
-    id: 'ai_adaptive_formation',
-    baseStrategy: 'ai_adaptive_formation',
-    name: 'Adaptive Formation',
-    description: 'Survives into turn six, then configures Achille tokens to complete Coordinator, Dauntless and affiliation formations.',
-    theme: 'AI Only - Adaptive Tokens',
-    faceCardId: 'bh06',
-    displayCardIds: ['bh06','bh07','15','19','77','44','07'],
+    id: 'ai_snowball_fight_club',
+    baseStrategy: 'ai_snowball_fight_club',
+    name: 'Snowball Fight Club',
+    description: 'Copies Wodny Potok Youth with French Fusiliers and Taylor, fires every available Snowball Fight each turn, and converts every Fate reduction into permanent Jimmy growth.',
+    theme: 'AI Only - Repeated Fate Reduction',
+    faceCardId: '93',
+    displayCardIds: ['93','41','37','bh05','08','48','31'],
     ids: [
-      'bh06','bh06','bh06','bh07','bh07','bh07','15','15','15','19',
-      '19','19','01','01','01','77','77','77','44','44',
-      '44','59','59','59','63','63','63','68','68','68',
-      '60','60','60','47','47','47','05','05','05','07'
+      'bh05','93','93','93','37','37','37','41','41','41',
+      '08','08','08','48','48','48','31','31','31','58',
+      '58','58','60','60','60','13','13','13','32','32',
+      '32','42','42','42','05','05','05','71','71','71'
     ]
   },
   {
-    id: 'ai_pierogi_siege',
-    baseStrategy: 'ai_pierogi_siege',
-    name: 'Pierogi Siege',
-    description: 'Shrinks the usable board with locks and taxes, fills the remaining spaces with Pierogi Counters, then punishes clustered card types.',
-    theme: 'AI Only - Board Lock',
-    faceCardId: '81',
-    displayCardIds: ['81','82','97','04','17','50','bh04'],
+    id: 'ai_wintertide_family_reunion',
+    baseStrategy: 'ai_wintertide_family_reunion',
+    name: 'Wintertide Family Reunion',
+    description: 'Calls Snow on the Carpathians, turns Supporters into Characters with the Blame Game, floods past Snow\'s activation restriction, and converts the whole winter village into Wintertide reinforcement.',
+    theme: 'AI Only - Snow Character Conversion',
+    faceCardId: '100',
+    displayCardIds: ['100','99','88','89','82','84','90'],
     ids: [
-      '56','81','81','81','82','82','82','97','97','97',
-      '04','04','04','17','17','17','50','50','50','91',
-      '91','91','93','93','93','94','94','94','75','75',
-      '75','60','60','60','06','06','06','bh04','bh04','bh04'
-    ]
-  },
-  {
-    id: 'ai_bombastic_search_punisher',
-    baseStrategy: 'ai_bombastic_search_punisher',
-    name: 'Bombastic Search Punisher',
-    description: 'Pairs Boleslaw with Joie so every opposing search draws, grows Boleslaw and permanently strengthens the Thousand-Reel lane.',
-    theme: 'AI Only - Search Punisher',
-    faceCardId: '86',
-    displayCardIds: ['86','bh02','08','bh03','71','40','bh01'],
-    ids: [
-      '86','86','86','bh02','bh02','bh02','08','08','08','bh03',
-      'bh03','bh03','71','71','71','40','40','40','27','27',
-      '27','32','32','32','42','42','42','60','60','60',
-      '68','68','68','94','94','94','97','97','97','bh01'
+      '100','100','100','98','98','98','88','88','88','99',
+      '99','99','89','89','89','82','82','82','84','84',
+      '84','94','94','94','92','92','92','06','06','06',
+      '27','27','28','28','28','60','60','60','90','90'
     ]
   }
 ];
-
+function isAIDeckEnabled(deck) {
+  return !!deck && deck.enabled !== false;
+}
 function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
-  const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS : [];
+  const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(isAIDeckEnabled) : [];
   if(!advancedPool.length) return starterPool;
+  // Footmen are explicitly starter-only; every higher rank draws from the advanced pool.
   const protectedRanks = new Set(['Footman']);
-  if(opp && protectedRanks.has(opp.rank)) return starterPool;
+  if(opp && protectedRanks.has(String(opp.rank || ''))) return starterPool;
   return advancedPool;
 }
 
@@ -1011,7 +762,14 @@ function normalizeFreePlayGameSettings(value) {
   const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
   const landscapeId = match ? 'igb' + Number(match[1]) : FREE_PLAY_DEFAULT_GAME_SETTINGS.landscapeId;
   const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || FREE_PLAY_DEFAULT_GAME_SETTINGS.turnTimerMinutes)));
-  return {landscapeMode, landscapeId, turnTimerMinutes};
+  return {
+    landscapeMode,
+    landscapeId,
+    turnTimerMinutes,
+    healthPressureSeals:window.FATE_MORALE_PRESSURE_RULES_ENABLED === true,
+    pressureCardReworks:window.FATE_MORALE_PRESSURE_RULES_ENABLED === true
+      && window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true
+  };
 }
 
 function readFreePlayGameSettings() {
@@ -2786,21 +2544,6 @@ function renderChStoreTab(content) {
           <div class="ch-store-bank-sub">Spend on packs or marketplace trades</div>
         </div>
       </div>
-      ${(packs+booster2Packs+profilePacks)>0 ? `<div class="ch-store-unopened">
-        <div>
-          <div class="ch-store-unopened-kicker">Ready to Open</div>
-          <div class="ch-store-unopened-title">
-            ${packs>0?`<span><strong>${packs}</strong> Standard</span>`:''}
-            ${booster2Packs>0?`<span><strong>${booster2Packs}</strong> Snow on the Carpathians Booster</span>`:''}
-            ${profilePacks>0?`<span><strong>${profilePacks}</strong> Profile Booster</span>`:''}
-          </div>
-        </div>
-        <div class="ch-store-unopened-actions">
-          ${packs>0?'<button class="btn pri" onclick="openNextPack()">Open Standard</button>':''}
-          ${booster2Packs>0?'<button class="btn pri" onclick="openNextBooster2Pack()">Open Snow on the Carpathians Booster</button>':''}
-          ${profilePacks>0?'<button class="btn pri" onclick="openNextProfilePack()">Open Profile Booster</button>':''}
-        </div>
-      </div>`:''}
       <div class="ch-store-layout">
         <div class="ch-store-products">
           <div class="store-grid">
@@ -2849,22 +2592,39 @@ function renderChStoreTab(content) {
             </div>
           </div>
         </div>
-        <aside class="marketplace-panel marketplace-pill ch-store-market">
-          <div class="ch-store-market-head">
-            <div>
-              <h3>Marketplace</h3>
+        <div class="ch-store-market-column">
+          <aside class="marketplace-panel marketplace-pill ch-store-market">
+            <div class="ch-store-market-head">
+              <div>
+                <h3>Marketplace</h3>
+              </div>
+              <button class="btn sm" onclick="renderMarketplaceListings()">Refresh</button>
             </div>
-            <button class="btn sm" onclick="renderMarketplaceListings()">Refresh</button>
-          </div>
-          <p>Buy and sell cards and profile pictures with other players.</p>
-          <div id="market-redeem-panel" class="market-redeem-panel"></div>
-          <div id="marketplace-listings"></div>
-          <div class="ch-store-market-actions">
-            <button class="btn sm pri" onclick="openSellCardModal()">Sell a Card</button>
-            <button class="btn sm pri" onclick="openSellPfpModal()">Sell Profile Picture</button>
-            <button class="btn sm" onclick="showMarketplaceTransactions()">Transactions</button>
-          </div>
-        </aside>
+            <p>Buy and sell cards and profile pictures with other players.</p>
+            <div id="market-redeem-panel" class="market-redeem-panel"></div>
+            <div id="marketplace-listings"></div>
+            <div class="ch-store-market-actions">
+              <button class="btn sm pri" onclick="openSellCardModal()">Sell a Card</button>
+              <button class="btn sm pri" onclick="openSellPfpModal()">Sell Profile Picture</button>
+              <button class="btn sm" onclick="showMarketplaceTransactions()">Transactions</button>
+            </div>
+          </aside>
+          ${(packs+booster2Packs+profilePacks)>0 ? `<div class="ch-store-unopened ch-store-unopened-market">
+            <div>
+              <div class="ch-store-unopened-kicker">Ready to Open</div>
+              <div class="ch-store-unopened-title">
+                ${packs>0?`<span><strong>${packs}</strong> Standard</span>`:''}
+                ${booster2Packs>0?`<span><strong>${booster2Packs}</strong> Snow on the Carpathians Booster</span>`:''}
+                ${profilePacks>0?`<span><strong>${profilePacks}</strong> Profile Booster</span>`:''}
+              </div>
+            </div>
+            <div class="ch-store-unopened-actions">
+              ${packs>0?'<button class="btn pri" onclick="openNextPack()">Open Standard</button>':''}
+              ${booster2Packs>0?'<button class="btn pri" onclick="openNextBooster2Pack()">Open Snow on the Carpathians Booster</button>':''}
+              ${profilePacks>0?'<button class="btn pri" onclick="openNextProfilePack()">Open Profile Booster</button>':''}
+            </div>
+          </div>`:''}
+        </div>
       </div>
     </section>`;
   renderMarketplaceListings();
@@ -4218,9 +3978,26 @@ function applyAIBalanceOverrideToLeaderboardEntry(entry){
   if(!balanced.username && (entry.username || balanced.name)) balanced.username = entry.username || balanced.name;
   return balanced;
 }
+function isInternalLeaderboardEntry(entry){
+  const candidate = entry || {};
+  const identity = [
+    candidate.uid,
+    candidate.id,
+    candidate.aiId,
+    candidate.username,
+    candidate.name,
+    candidate.displayName,
+    candidate.chosenUsername,
+    candidate.baseCode
+  ].filter(Boolean).join(' ').toLowerCase();
+  return /(codex|smoke|diagnostic|client[-_\s]*resolved|authority|fly[-_\s]*(?:random[-_\s]*)?queue|queue[-_\s]*bot|(^|[^a-z0-9])test([^a-z0-9]|$))/i.test(identity);
+}
 function getMergedChallengerLeaderboardEntries() {
   updateLeaderboardEntry();
   syncAIOpponentLeaderboardEntries();
+  const leaderboardSizeBeforeCleanup = LEADERBOARD.length;
+  LEADERBOARD = LEADERBOARD.filter(entry=>!isInternalLeaderboardEntry(entry));
+  if(LEADERBOARD.length !== leaderboardSizeBeforeCleanup && typeof saveLeaderboard === 'function') saveLeaderboard();
   const merged = new Map();
   const currentUid = window.FATE_ONLINE?.user?.uid || '';
   const currentBaseCode = window.FATE_ONLINE?.baseCode || window.FATE_ONLINE?.profile?.baseCode || '';
@@ -4259,6 +4036,7 @@ function getMergedChallengerLeaderboardEntries() {
   const hasAuthoritativeAI = onlineEntries.some(entry=>entryIsAI(entry) && !isRetiredMonthlyEntry(entry));
   LEADERBOARD.forEach(entry=>{
     entry = applyAIBalanceOverrideToLeaderboardEntry(entry);
+    if(isInternalLeaderboardEntry(entry)) return;
     if(isRetiredMonthlyEntry(entry)) return;
     if(hasAuthoritativeAI && entryIsAI(entry)) return;
     if(isStaleHumanName(entry)) return;
@@ -4269,6 +4047,7 @@ function getMergedChallengerLeaderboardEntries() {
     merged.set(key, {...prev, ...entry, uid:isCurrent ? currentUid : (entry.uid || prev.uid), username:rawName || prev.username || 'Player'});
   });
   onlineEntries.forEach(entry=>{
+    if(isInternalLeaderboardEntry(entry)) return;
     if(isRetiredMonthlyEntry(entry)) return;
     if(isStaleHumanName(entry)) return;
     const key = entryIsAI(entry) ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
@@ -4299,7 +4078,7 @@ function getMergedChallengerLeaderboardEntries() {
       isOnline:true
     });
   });
-  return [...merged.values()].filter((entry, index, all)=>{
+  return [...merged.values()].filter(entry=>!isInternalLeaderboardEntry(entry)).filter((entry, index, all)=>{
     if(!currentUid) return true;
     const rawName = String(entry.username || entry.name || '').trim().toLowerCase();
     const isCurrent = entry.uid === currentUid || (currentBaseCode && entry.baseCode === currentBaseCode) || currentNames.has(rawName);
@@ -5795,7 +5574,7 @@ function initInGameChat() {
         <div class="world-chat-input-row ingame-chat-input-row">
           <button class="social-emoji-toggle ingame-emoji-toggle" onclick="toggleInGameEmoji()" title="Emoji"><svg class="emoji-face-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="emoji-face-ring" cx="12" cy="12" r="9"></circle><circle class="emoji-face-eye" cx="8.8" cy="10" r="1.35"></circle><circle class="emoji-face-eye" cx="15.2" cy="10" r="1.35"></circle><path class="emoji-face-mouth" d="M8.5 14.1c1.9 1.9 5.1 1.9 7 0"></path></svg></button>
           <input type="text" class="social-chat-input" id="igc-input" placeholder="${G._isSpectator ? 'Chat as spectator...' : 'Chat...'}" maxlength="150" autocomplete="off" onkeydown="if(event.key==='Enter')sendInGameChat()">
-          <button class="btn sm pri ingame-chat-send" onclick="sendInGameChat()">SEND</button>
+          <button class="btn sm pri ingame-chat-send" onclick="sendInGameChat()" aria-label="Send message" title="Send message">SEND</button>
         </div>
         <div id="igc-emoji-container" style="display:none;"></div>
       </div>
@@ -5803,7 +5582,7 @@ function initInGameChat() {
         <div class="ingame-world-chat-messages world-chat-messages" id="ingame-world-chat-messages"></div>
         <div class="world-chat-input-row ingame-world-chat-input-row">
           <input type="text" class="social-chat-input" id="igwc-input" placeholder="World chat..." maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter')sendInGameWorldChat()">
-          <button class="btn sm pri ingame-chat-send" onclick="sendInGameWorldChat()">SEND</button>
+          <button class="btn sm pri ingame-chat-send" onclick="sendInGameWorldChat()" aria-label="Send message" title="Send message">SEND</button>
         </div>
       </div>
     </div>`;

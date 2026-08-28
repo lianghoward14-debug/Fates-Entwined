@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#070b12"/>
+  <text x="600" y="58" fill="#d6bd61" font-family="Georgia,serif" font-size="25" text-anchor="middle" letter-spacing="4">HIGH T — STATUS BANNER ICONS</text>
+  <text x="600" y="88" fill="#7992a8" font-family="Georgia,serif" font-size="13" text-anchor="middle" letter-spacing="2">ACTUAL IN-GAME VECTOR LANGUAGE • FLAT • MONOLINE • CURRENTCOLOR</text>
+  <defs>
+    <g id="tile"><rect x="0" y="0" width="196" height="232" rx="10" fill="#0b111b" stroke="#294055"/><rect x="20" y="18" width="156" height="156" rx="8" fill="#101a27" stroke="#38546d"/></g>
+    <style>.i{fill:none;stroke:#84c9ef;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}.s{stroke-width:5;opacity:.48}.n{fill:#d6bd61;font:18px Georgia,serif;text-anchor:middle;letter-spacing:2px}.z{fill:#7890a6;font:11px Georgia,serif;text-anchor:middle;letter-spacing:1.5px}</style>
+  </defs>
+
+  <g transform="translate(54 120)"><use href="#tile"/><g class="i" transform="translate(98 91)"><path d="M-48 20C-38-28-11-44 0-44s38 16 48 64"/><path d="M-34 33l-14 17 14 17M34 33l14 17-14 17"/><path d="M-18 3L0-17 18 3 0 23z"/><path d="M0 30v38"/></g><text class="n" x="98" y="202">HT-01</text><text class="z" x="98" y="220">ANOMALY SPIRE</text></g>
+  <g transform="translate(278 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M0-55L42-17 25 42-25 42-42-17z"/><path d="M0-34L20-10 9 22-9 22-20-10z"/><path class="s" d="M-52 9h19M33 9h19M0 42v19"/></g><text class="n" x="98" y="202">HT-02</text><text class="z" x="98" y="220">FIVEFOLD CORE</text></g>
+  <g transform="translate(502 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-50 35L0-51 50 35z"/><path d="M-27 35L0-12 27 35z"/><path class="s" d="M-39 15h78M0-51v39"/></g><text class="n" x="98" y="202">HT-03</text><text class="z" x="98" y="220">ASCENT</text></g>
+  <g transform="translate(726 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-47-29C-25-51 25-51 47-29M-47 29C-25 51 25 51 47 29"/><path d="M-33-18L0 0l33-18M-33 18L0 0l33 18"/><path class="s" d="M0-48v30M0 18v30"/></g><text class="n" x="98" y="202">HT-04</text><text class="z" x="98" y="220">TWIN CURRENT</text></g>
+  <g transform="translate(950 120)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-47 39L-18-43 0-10 18-43 47 39"/><path d="M-34 14h68M-41 31h82"/><path class="s" d="M0-10v49"/></g><text class="n" x="98" y="202">HT-05</text><text class="z" x="98" y="220">DOUBLE PEAK</text></g>
+
+  <g transform="translate(54 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-48-33h26L0-8l22-25h26L19 3l29 36H20L0 15-20 39h-28L-19 3z"/><circle cx="0" cy="3" r="8"/></g><text class="n" x="98" y="202">HT-06</text><text class="z" x="98" y="220">CROSSED SIGNAL</text></g>
+  <g transform="translate(278 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-43 44V6l21-38L0 6l22-38L43 6v38"/><path d="M-43 25h86"/><path class="s" d="M-22-32v57M22-32v57"/></g><text class="n" x="98" y="202">HT-07</text><text class="z" x="98" y="220">THREE PILLARS</text></g>
+  <g transform="translate(502 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M0-50l17 33 36 5-26 25 6 36L0 32-33 49l6-36-26-25 36-5z"/><path class="s" d="M0-29v61M-27-12l54 25"/></g><text class="n" x="98" y="202">HT-08</text><text class="z" x="98" y="220">BURST MARK</text></g>
+  <g transform="translate(726 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-46 36C-28 8-24-30 0-49 24-30 28 8 46 36"/><path d="M-28 36C-16 15-13-8 0-20 13-8 16 15 28 36"/><path d="M-49 36h98"/></g><text class="n" x="98" y="202">HT-09</text><text class="z" x="98" y="220">RISING FIELD</text></g>
+  <g transform="translate(950 396)"><use href="#tile"/><g class="i" transform="translate(98 92)"><path d="M-50-33h26L0 0l24-33h26L18 8l32 35H23L0 17-23 43h-27l32-35z"/><path class="s" d="M-9-44L0-30l9-14M0 17v35"/></g><text class="n" x="98" y="202">HT-10</text><text class="z" x="98" y="220">OVERCHARGE</text></g>
+</svg>

@@ -426,7 +426,16 @@ async function startUnrankedMatchmaking({deckIds, name = '', queueMode = 'freepl
       gameSettings:gameSettings && typeof gameSettings === 'object' ? {
         landscapeMode:gameSettings.landscapeMode === 'selected' ? 'selected' : 'random',
         landscapeId:String(gameSettings.landscapeId || 'igb1'),
-        turnTimerMinutes:Math.max(1, Math.min(10, Math.round(Number(gameSettings.turnTimerMinutes) || 3)))
+        turnTimerMinutes:Math.max(1, Math.min(10, Math.round(Number(gameSettings.turnTimerMinutes) || 3))),
+        healthPressureSeals:gameSettings.healthPressureSeals === true,
+        pressureCardReworks:gameSettings.healthPressureSeals === true
+          && gameSettings.pressureCardReworks === true,
+        zoneControlRework:gameSettings.zoneControlRework !== false,
+        expandedContestedRow:gameSettings.zoneControlRework !== false
+          && gameSettings.expandedContestedRow !== false,
+        zoneLayout444:gameSettings.zoneControlRework !== false
+          && gameSettings.expandedContestedRow !== false
+          && gameSettings.zoneLayout444 !== false
       } : null,
       testOpeningCardIds:Array.isArray(testOpeningCardIds) ? testOpeningCardIds.map(String).filter(id=>normalizedDeck.includes(id)).slice(0, 4) : [],
       testDeckCardIds:Array.isArray(testDeckCardIds) ? testDeckCardIds.map(String).filter(id=>normalizedDeck.includes(id)).slice(0, 2) : [],

@@ -1,0 +1,278 @@
+#s-game.match-ui-v19-live #fate-codex-ui-v19{--gold:#9a762d;--gold2:#6c501f;--ivory:#f7f0df;--ink:#091622;--cyan:#77d7df;--rose:#df6681;grid-template-rows:122px minmax(0,1fr) 154px;gap:5px;padding:8px 22px 10px;background:transparent;color:#17212a}
+#s-game #fate-citadel-ui{display:none!important}
+#fate-codex-ui-v19 .codex-v19-backdrop{display:none}
+#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(300px,1fr) 150px 214px 150px minmax(300px,1fr);gap:8px;padding:0 22px;align-items:start}
+#fate-codex-ui-v19 .codex-v19-player{height:92px;margin-top:11px;border:0;box-shadow:0 7px 18px #0008;clip-path:none;background-image:linear-gradient(rgba(4,15,24,.12),rgba(4,15,24,.12)),url('../../assets/ui/nautical-chart-shell-v1.png');background-size:100vw 100vh;background-attachment:fixed;background-repeat:no-repeat;padding:10px 12px;grid-template-columns:70px minmax(0,1fr) 145px;color:#f4ead2}
+#fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:145px minmax(0,1fr) 70px;text-align:right}
+#fate-codex-ui-v19 .codex-v19-player:after{display:none}
+#fate-codex-ui-v19 .codex-v19-portrait{width:66px;height:66px;border-radius:50%;clip-path:none;box-shadow:0 0 0 2px #d1b66d,0 0 0 6px #08131d;background-color:#07111a}
+#fate-codex-ui-v19 .codex-v19-portrait:after{inset:4px;border-radius:50%;clip-path:none}
+#fate-codex-ui-v19 .codex-v19-identity>small{color:#a9d9df}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-identity>small{color:#f1a1ae}
+#fate-codex-ui-v19 .codex-v19-identity>strong{font-size:19px;color:#fff4da}
+#fate-codex-ui-v19 .codex-v19-rank{margin-top:4px;min-height:28px}
+#fate-codex-ui-v19 .codex-v19-morale{color:#fff4da}
+#fate-codex-ui-v19 .codex-v19-morale i{background:#061019;border-color:#bea15a}
+#fate-codex-ui-v19 .codex-v19-clock{height:104px;margin-top:0;color:#17212a;background-image:url('../../assets/ui/nautical-chart-shell-v1.png');background-size:100vw 100vh;background-attachment:fixed;background-repeat:no-repeat;filter:drop-shadow(0 6px 8px #0007);clip-path:ellipse(48% 48% at 50% 48%)}
+#fate-codex-ui-v19 .codex-v19-clock:before,#fate-codex-ui-v19 .codex-v19-clock:after{display:none}
+#fate-codex-ui-v19 .codex-v19-clock small{color:#76561f;font-weight:700}
+#fate-codex-ui-v19 .codex-v19-clock strong{color:#101a21;text-shadow:0 1px #fff;font-size:29px}
+#fate-codex-ui-v19 .codex-v19-clock span{color:#51616b;font-weight:700}
+#fate-codex-ui-v19 .codex-v19-status{height:38px;margin-top:86px;z-index:3;border-color:#b99b53;background:#091927;color:#d9edf0;clip-path:polygon(8% 0,100% 0,92% 100%,0 100%)}
+#fate-codex-ui-v19 .codex-v19-status-opp{background:#431827;color:#f7dce2;clip-path:polygon(0 0,92% 0,100% 100%,8% 100%)}
+#fate-codex-ui-v19 .codex-v19-field{min-height:0;margin:0;background:transparent}
+#fate-codex-ui-v19 .codex-v19-field:before{display:none}
+#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:330px minmax(0,1fr) 330px;gap:12px;padding:0 4px;align-items:end}
+#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:140px;border:1px solid #bea15b;box-shadow:0 8px 20px #0009;border-radius:4px;background-image:linear-gradient(rgba(6,17,25,.28),rgba(6,17,25,.28)),url('../../assets/ui/nautical-chart-shell-v1.png');background-size:100vw 100vh;background-attachment:fixed;background-repeat:no-repeat;color:#f4ead2;padding:13px}
+#fate-codex-ui-v19 .codex-v19-archive{margin-left:4px}
+#fate-codex-ui-v19 .codex-v19-command{margin-right:4px}
+#fate-codex-ui-v19 .codex-v19-archive header,#fate-codex-ui-v19 .codex-v19-command header{color:#d7bc72;border-color:#8d7136}
+#fate-codex-ui-v19 .codex-v19-land{width:188px;color:#efe4c8}
+#fate-codex-ui-v19 .codex-v19-archive button,#fate-codex-ui-v19 .codex-v19-command nav button{background:#09131d;border-color:#82672f}
+#fate-codex-ui-v19 .codex-v19-end{background:linear-gradient(100deg,#806037,#edd18a 52%,#916b39);clip-path:polygon(5% 0,100% 0,95% 100%,0 100%);border:0}
+#fate-codex-ui-v19 .codex-v19-popover{top:112px;background:#f0e7d2;color:#15212a;border-color:#9d7933;box-shadow:0 16px 35px #0009}
+@media(max-width:1400px){#s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:105px minmax(0,1fr) 134px;padding-left:16px;padding-right:16px}#fate-codex-ui-v19 .codex-v19-status{margin-top:70px}#fate-codex-ui-v19 .codex-v19-clock{height:90px}#fate-codex-ui-v19 .codex-v19-player{height:78px}#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:285px minmax(0,1fr) 285px}}
+
+/* Clean segmented implementation shell: the source image is visible only in
+   the HUD/footer bands. The live IGB remains untouched across the battlefield. */
+#s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:112px minmax(0,1fr) 164px;padding:4px 18px 8px;gap:3px}
+#fate-codex-ui-v19 .codex-v19-hud,#fate-codex-ui-v19 .codex-v19-footer{position:relative;isolation:isolate}
+#fate-codex-ui-v19 .codex-v19-hud:before,#fate-codex-ui-v19 .codex-v19-footer:before{content:"";position:absolute;z-index:-1;pointer-events:none;background-image:url('../../assets/ui/dark-gilded-shell-clean-v2.png');background-repeat:no-repeat}
+#fate-codex-ui-v19 .codex-v19-hud:before{inset:-4px -18px -16px;background-size:100vw auto;background-position:center top}
+#fate-codex-ui-v19 .codex-v19-footer:before{inset:-16px -18px -8px;background-size:100vw auto;background-position:center bottom}
+#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(310px,1fr) 126px 250px 126px minmax(310px,1fr);padding:0 10px;gap:8px;align-items:start}
+#fate-codex-ui-v19 .codex-v19-player{height:104px;margin:0;background:none;border:0;box-shadow:none;padding:10px 16px;grid-template-columns:74px minmax(0,1fr) 150px}
+#fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:150px minmax(0,1fr) 74px}
+#fate-codex-ui-v19 .codex-v19-clock{height:92px;margin:1px 0 0;background:none;clip-path:none;filter:none}
+#fate-codex-ui-v19 .codex-v19-status{height:31px;margin-top:76px;border-color:#8e7135;background:rgba(5,14,22,.94);clip-path:polygon(7% 0,100% 0,93% 100%,0 100%);font-size:8px}
+#fate-codex-ui-v19 .codex-v19-status-opp{background:rgba(42,10,25,.94);clip-path:polygon(0 0,93% 0,100% 100%,7% 100%)}
+#fate-codex-ui-v19 .codex-v19-status b{width:19px;height:19px;font-size:9px}
+#fate-codex-ui-v19 .codex-v19-field{margin-top:-2px}
+#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:430px minmax(0,1fr) 410px;padding:0 8px;gap:10px}
+#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:154px;margin:0;background:rgba(5,13,20,.68);border:0;box-shadow:none;border-radius:0;padding:14px}
+#fate-codex-ui-v19 .codex-v19-land{width:260px}
+#fate-codex-ui-v19 .codex-v19-archive nav{width:120px}
+#fate-codex-ui-v19 .codex-v19-hand{height:160px}
+#fate-codex-ui-v19 .codex-v19-popover{top:108px}
+@media(max-width:1400px){#s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:98px minmax(0,1fr) 142px}#fate-codex-ui-v19 .codex-v19-player{height:90px}#fate-codex-ui-v19 .codex-v19-clock{height:82px}#fate-codex-ui-v19 .codex-v19-status{margin-top:64px}#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:340px minmax(0,1fr) 330px}#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:134px}#fate-codex-ui-v19 .codex-v19-land{width:195px}}
+
+/* Status belongs to each command plate, keeping the center lane clear. */
+#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(390px,1fr) 250px minmax(390px,1fr);column-gap:18px}
+#fate-codex-ui-v19 .codex-v19-player{position:relative}
+#fate-codex-ui-v19 .codex-v19-status{position:absolute;z-index:5;top:68px;right:16px;width:38px;height:28px;margin:0;padding:0 5px;display:flex;align-items:center;justify-content:center;gap:3px;border:1px solid #8e7135;border-radius:14px;clip-path:none;background:rgba(5,14,22,.94);color:#8ee9ef}
+#fate-codex-ui-v19 .codex-v19-status-opp{right:auto;left:16px;background:rgba(42,10,25,.94);color:#ff88a3}
+#fate-codex-ui-v19 .codex-v19-status span{display:none}
+#fate-codex-ui-v19 .codex-v19-status em{font-size:10px}
+#fate-codex-ui-v19 .codex-v19-status b{width:auto;height:auto;min-width:12px;border:0;background:none;font-size:9px}
+@media(max-width:1400px){#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(330px,1fr) 220px minmax(330px,1fr)}#fate-codex-ui-v19 .codex-v19-status{top:58px}}
+
+/* Live-only HUD/footer. The generated shell contained baked placeholders that
+   collided with the real game data, so no raster UI is allowed in these bands. */
+#s-game.match-ui-v19-live #fate-codex-ui-v19{
+  grid-template-rows:108px minmax(0,1fr) 164px;
+  gap:8px;
+  padding:10px 18px 8px;
+}
+
+/* Variation B — illuminated war-room */
+#s-game.match-ui-v19-live #fate-codex-ui-v19{--v19-champagne:#b9964f;--v19-champagne-hi:#e0c47e;--v19-jade:#63d2d2;--v19-carmine:#dc5275;grid-template-rows:104px minmax(0,1fr) 158px;padding:9px 18px 7px;background:linear-gradient(180deg,rgba(2,8,13,.76) 0 104px,transparent 104px calc(100% - 158px),rgba(2,7,12,.82) calc(100% - 158px))}
+#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(440px,1fr) 260px minmax(440px,1fr);gap:14px}
+#fate-codex-ui-v19 .codex-v19-player{height:94px;grid-template-columns:78px minmax(0,1fr) 180px;padding:8px 22px 8px 10px;border:1px solid rgba(185,150,79,.7);border-radius:0 0 16px 0;background:linear-gradient(135deg,transparent 0 14px,rgba(4,20,25,.97) 15px),linear-gradient(110deg,#06161d,#071116);box-shadow:inset 0 0 0 3px rgba(99,210,210,.05),inset -18px 0 32px #0007,0 8px 20px #0008}
+#fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:180px minmax(0,1fr) 78px;padding:8px 10px 8px 22px;border-radius:0 0 0 16px;background:linear-gradient(225deg,transparent 0 14px,rgba(34,7,19,.97) 15px),linear-gradient(250deg,#2a0918,#110811);box-shadow:inset 0 0 0 3px rgba(220,82,117,.05),inset 18px 0 32px #0007,0 8px 20px #0008}
+#fate-codex-ui-v19 .codex-v19-player:before{content:"";position:absolute;left:92px;right:16px;top:5px;height:1px;background:linear-gradient(90deg,var(--v19-jade),var(--v19-champagne),transparent)}
+#fate-codex-ui-v19 .codex-v19-player-opp:before{left:16px;right:92px;background:linear-gradient(270deg,var(--v19-carmine),var(--v19-champagne),transparent)}
+#fate-codex-ui-v19 .codex-v19-player:after{left:92px;right:22px;bottom:6px;background:linear-gradient(90deg,var(--v19-champagne),transparent)}
+#fate-codex-ui-v19 .codex-v19-player-opp:after{left:22px;right:92px;background:linear-gradient(270deg,var(--v19-champagne),transparent)}
+#fate-codex-ui-v19 .codex-v19-portrait{width:68px;height:68px;border:1px solid var(--v19-champagne-hi);box-shadow:0 0 0 4px #06121a,0 0 0 6px var(--v19-champagne),0 0 20px #000}
+#fate-codex-ui-v19 .codex-v19-identity>small{color:var(--v19-jade)}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-identity>small{color:#ed7995}
+#fate-codex-ui-v19 .codex-v19-identity>strong{font-size:20px;color:#f6e9c8}
+#fate-codex-ui-v19 .codex-v19-morale i{height:9px;border-color:var(--v19-champagne);background:#02070b;clip-path:none;border-radius:2px}
+#fate-codex-ui-v19 .codex-v19-morale u{background:linear-gradient(90deg,#1b8892,var(--v19-jade))}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-morale u{background:linear-gradient(90deg,#9d264c,var(--v19-carmine))}
+#fate-codex-ui-v19 .codex-v19-clock{width:260px;height:94px;border:1px solid var(--v19-champagne);border-radius:0;background:linear-gradient(135deg,transparent 11px,#090d13 12px calc(100% - 12px),transparent calc(100% - 11px));box-shadow:inset 0 0 0 4px #111017,inset 0 0 28px #000,0 8px 20px #0009}
+#fate-codex-ui-v19 .codex-v19-clock:before{display:block;content:"";position:absolute;inset:6px;border:1px solid rgba(224,196,126,.26);transform:none}
+#fate-codex-ui-v19 .codex-v19-clock strong{font-size:31px}
+#fate-codex-ui-v19 .codex-v19-status{top:60px;right:18px;border-color:var(--v19-jade);background:#07161b;color:var(--v19-jade);box-shadow:0 0 10px #000}
+#fate-codex-ui-v19 .codex-v19-status-opp{right:auto;left:18px;border-color:var(--v19-carmine);background:#250a17;color:#ef7895}
+#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:430px minmax(0,1fr) 405px;gap:12px}
+#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:150px;border:1px solid var(--v19-champagne);border-radius:0;background:linear-gradient(145deg,rgba(4,17,22,.97),rgba(5,10,15,.98));box-shadow:inset 0 0 0 4px rgba(185,150,79,.08),inset 0 0 28px #0008,0 -6px 18px #0008}
+#fate-codex-ui-v19 .codex-v19-command{background:linear-gradient(215deg,rgba(24,8,16,.98),rgba(5,10,15,.98))}
+#fate-codex-ui-v19 .codex-v19-archive:before,#fate-codex-ui-v19 .codex-v19-command:before{content:"";position:absolute;inset:6px;pointer-events:none;border-left:1px solid rgba(99,210,210,.32);border-bottom:1px solid rgba(185,150,79,.22)}
+#fate-codex-ui-v19 .codex-v19-command:before{border-left:0;border-right:1px solid rgba(220,82,117,.32)}
+#fate-codex-ui-v19 .codex-v19-archive header,#fate-codex-ui-v19 .codex-v19-command header{color:var(--v19-champagne-hi);border-color:rgba(185,150,79,.46)}
+#fate-codex-ui-v19 .codex-v19-land{width:275px;text-align:left;place-items:center start;padding-left:10px}
+#fate-codex-ui-v19 .codex-v19-archive nav{width:112px}
+#fate-codex-ui-v19 .codex-v19-archive button,#fate-codex-ui-v19 .codex-v19-command nav button{border-color:rgba(185,150,79,.52);background:#071016}
+#fate-codex-ui-v19 .codex-v19-end{height:60px;border:1px solid var(--v19-champagne-hi);clip-path:none;background:linear-gradient(100deg,#20170d,#4d3a1c 48%,#17110b);color:#f1d895;box-shadow:inset 0 0 0 3px #090b0d}
+#fate-codex-ui-v19 .codex-v19-hand{height:156px}
+@media(max-width:1400px){#s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:92px minmax(0,1fr) 136px}#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(355px,1fr) 215px minmax(355px,1fr)}#fate-codex-ui-v19 .codex-v19-player{height:82px;grid-template-columns:60px minmax(0,1fr) 140px}#fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:140px minmax(0,1fr) 60px}#fate-codex-ui-v19 .codex-v19-clock{width:215px;height:82px}#fate-codex-ui-v19 .codex-v19-status{top:50px}#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:340px minmax(0,1fr) 320px}#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:130px}#fate-codex-ui-v19 .codex-v19-land{width:205px}}
+
+/* Variation 1 — graphic command poster. Geometry remains renderer-owned. */
+#s-game.match-ui-v19-live #fate-codex-ui-v19{
+  --poster-paper:#eadbb9;--poster-paper-hi:#f8edcf;--poster-black:#071013;
+  --poster-teal:#087785;--poster-cyan:#59d4dc;--poster-red:#a8212e;--poster-gold:#d28e19;
+  grid-template-rows:102px minmax(0,1fr) 156px;
+  padding:7px 16px 7px;
+  gap:7px;
+  background:linear-gradient(180deg,rgba(3,9,12,.78) 0 102px,transparent 102px calc(100% - 156px),rgba(3,8,10,.86) calc(100% - 156px));
+}
+#fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(430px,1fr) 258px minmax(430px,1fr);gap:0;padding:0}
+#fate-codex-ui-v19 .codex-v19-player{
+  height:94px;grid-template-columns:82px minmax(0,1fr) 182px;gap:12px;
+  padding:8px 25px 8px 10px;overflow:hidden;border:0;border-radius:0;
+  color:#071013;background:var(--poster-paper);
+  clip-path:polygon(0 0,100% 0,96% 100%,0 100%);
+  box-shadow:inset 0 -7px 0 var(--poster-black),inset 0 -10px 0 var(--poster-teal),0 7px 18px #0008;
+}
+#fate-codex-ui-v19 .codex-v19-player-opp{
+  grid-template-columns:182px minmax(0,1fr) 82px;padding:8px 10px 8px 25px;
+  clip-path:polygon(4% 0,100% 0,100% 100%,0 100%);
+  box-shadow:inset 0 -7px 0 var(--poster-black),inset 0 -10px 0 var(--poster-red),0 7px 18px #0008;
+}
+#fate-codex-ui-v19 .codex-v19-player:before{inset:0 auto 0 0;width:8px;height:auto;background:var(--poster-teal)}
+#fate-codex-ui-v19 .codex-v19-player-opp:before{inset:0 0 0 auto;width:8px;height:auto;background:var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-player:after{left:95px;right:28px;bottom:17px;height:3px;background:var(--poster-black)}
+#fate-codex-ui-v19 .codex-v19-player-opp:after{left:28px;right:95px;background:var(--poster-black)}
+#fate-codex-ui-v19 .codex-v19-portrait{width:70px;height:76px;border:3px solid var(--poster-black);border-radius:0;clip-path:polygon(50% 0,100% 22%,91% 100%,9% 100%,0 22%);box-shadow:0 0 0 3px var(--poster-teal);background-color:#071013}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-portrait{box-shadow:0 0 0 3px var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-portrait:after{display:none}
+#fate-codex-ui-v19 .codex-v19-identity>small,#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-identity>small{color:var(--poster-teal);font-family:Arial,sans-serif;font-size:9px}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-identity>small{color:var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-identity>strong{color:var(--poster-black);font-family:Impact,'Arial Narrow',sans-serif;font-size:22px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-shadow:none}
+#fate-codex-ui-v19 .codex-v19-rank{min-height:25px;margin-top:4px;padding:2px 8px;background:var(--poster-black);border-left:5px solid var(--poster-teal)}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-rank{border-left:0;border-right:5px solid var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-morale{color:var(--poster-black)}
+#fate-codex-ui-v19 .codex-v19-morale small{color:#5c4424;font-size:7px}
+#fate-codex-ui-v19 .codex-v19-morale b{font-family:Impact,'Arial Narrow',sans-serif;font-size:30px}
+#fate-codex-ui-v19 .codex-v19-heart{color:#be2634;filter:none}
+#fate-codex-ui-v19 .codex-v19-morale i{height:13px;padding:3px;border:3px solid var(--poster-black);border-radius:0;background:var(--poster-paper-hi)}
+#fate-codex-ui-v19 .codex-v19-morale u{background:var(--poster-teal)}
+#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-morale u{background:var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-clock{
+  width:258px;height:102px;margin:0;z-index:2;border:5px solid var(--poster-paper);border-radius:0;
+  color:var(--poster-paper-hi);background:var(--poster-black);
+  clip-path:polygon(13% 0,87% 0,100% 50%,87% 100%,13% 100%,0 50%);
+  box-shadow:inset 0 0 0 3px #bd9041,0 8px 20px #0009;
+}
+#fate-codex-ui-v19 .codex-v19-clock:before{display:none}
+#fate-codex-ui-v19 .codex-v19-clock small{color:#dfb857;font-family:Arial,sans-serif;font-weight:800}
+#fate-codex-ui-v19 .codex-v19-clock strong{color:var(--poster-paper-hi);font-family:Impact,'Arial Narrow',sans-serif;font-size:36px}
+#fate-codex-ui-v19 .codex-v19-clock span{color:var(--poster-cyan);font-family:Arial,sans-serif;font-weight:800;text-transform:uppercase}
+#fate-codex-ui-v19 .codex-v19-status{top:61px;right:24px;width:35px;height:25px;border:2px solid var(--poster-black);border-radius:0;background:var(--poster-teal);color:var(--poster-paper-hi);clip-path:polygon(13% 0,100% 0,87% 100%,0 100%)}
+#fate-codex-ui-v19 .codex-v19-status-opp{right:auto;left:24px;background:var(--poster-red)}
+#fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:405px minmax(0,1fr) 390px;gap:12px;padding:0}
+#fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{
+  height:150px;padding:11px;border:4px solid var(--poster-paper);border-radius:0;
+  color:var(--poster-paper-hi);background:var(--poster-black);
+  box-shadow:inset 0 0 0 2px #a67d36,0 -5px 18px #0009;
+}
+#fate-codex-ui-v19 .codex-v19-archive{border-left:8px solid var(--poster-teal);clip-path:polygon(0 0,95% 0,100% 15%,100% 100%,0 100%)}
+#fate-codex-ui-v19 .codex-v19-command{border-right:8px solid var(--poster-red);clip-path:polygon(5% 0,100% 0,100% 100%,0 100%,0 15%)}
+#fate-codex-ui-v19 .codex-v19-archive:before,#fate-codex-ui-v19 .codex-v19-command:before{display:none}
+#fate-codex-ui-v19 .codex-v19-archive header,#fate-codex-ui-v19 .codex-v19-command header{font-family:Arial,sans-serif;font-weight:900;color:#e5b949;border-color:#705d37}
+#fate-codex-ui-v19 .codex-v19-land{width:250px;padding-left:8px;text-align:left;place-items:center start}
+#fate-codex-ui-v19 .codex-v19-archive nav{width:116px}
+#fate-codex-ui-v19 .codex-v19-archive button,#fate-codex-ui-v19 .codex-v19-command nav button{border:2px solid var(--poster-paper);background:#081115;color:var(--poster-paper-hi);font-family:Arial,sans-serif}
+#fate-codex-ui-v19 .codex-v19-end{height:64px;margin-top:6px;border:4px solid var(--poster-paper);clip-path:polygon(7% 0,100% 0,93% 100%,0 100%);background:var(--poster-red);color:var(--poster-paper-hi);font-family:Impact,'Arial Narrow',sans-serif;font-size:25px;letter-spacing:.04em;box-shadow:inset 0 0 0 2px #6f111d}
+#fate-codex-ui-v19 .codex-v19-hand{height:154px}
+@media(max-width:1400px){
+  #s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:90px minmax(0,1fr) 134px;padding:6px 10px}
+  #fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(350px,1fr) 210px minmax(350px,1fr)}
+  #fate-codex-ui-v19 .codex-v19-player{height:82px;grid-template-columns:60px minmax(0,1fr) 140px}
+  #fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:140px minmax(0,1fr) 60px}
+  #fate-codex-ui-v19 .codex-v19-clock{width:210px;height:90px}
+  #fate-codex-ui-v19 .codex-v19-status{top:51px}
+  #fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:330px minmax(0,1fr) 320px;gap:8px}
+  #fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:128px}
+  #fate-codex-ui-v19 .codex-v19-land{width:190px}
+}
+#fate-codex-ui-v19 .codex-v19-hud:before,
+#fate-codex-ui-v19 .codex-v19-footer:before{display:none!important;background-image:none!important}
+#fate-codex-ui-v19 .codex-v19-hud{
+  display:grid;
+  grid-template-columns:minmax(430px,1fr) 238px minmax(430px,1fr);
+  gap:22px;
+  padding:0;
+  align-items:start;
+}
+#fate-codex-ui-v19 .codex-v19-player{
+  height:94px;
+  margin:0;
+  padding:9px 18px 9px 11px;
+  grid-template-columns:72px minmax(0,1fr) 174px;
+  gap:12px;
+  overflow:hidden;
+  border:1px solid #96732f;
+  border-top:2px solid #d2ae55;
+  border-radius:3px 3px 14px 3px;
+  background:linear-gradient(110deg,rgba(3,16,22,.97),rgba(4,24,28,.92) 70%,rgba(5,13,18,.97));
+  box-shadow:inset 0 0 24px #0009,0 7px 18px #0008;
+}
+#fate-codex-ui-v19 .codex-v19-player-opp{
+  padding:9px 11px 9px 18px;
+  grid-template-columns:174px minmax(0,1fr) 72px;
+  border-radius:3px 3px 3px 14px;
+  background:linear-gradient(250deg,rgba(29,5,18,.97),rgba(46,8,27,.92) 70%,rgba(12,5,12,.97));
+}
+#fate-codex-ui-v19 .codex-v19-player:after{display:block;left:94px;right:18px;bottom:8px;background:linear-gradient(90deg,#62cbd2,transparent)}
+#fate-codex-ui-v19 .codex-v19-player-opp:after{left:18px;right:94px;background:linear-gradient(270deg,#e25279,transparent)}
+#fate-codex-ui-v19 .codex-v19-portrait{width:66px;height:66px;border-radius:50%;clip-path:none;box-shadow:0 0 0 2px #d1b66d,0 0 0 5px #071018}
+#fate-codex-ui-v19 .codex-v19-portrait:after{inset:4px;border-radius:50%;clip-path:none}
+#fate-codex-ui-v19 .codex-v19-identity>strong{font-size:19px}
+#fate-codex-ui-v19 .codex-v19-rank{margin-top:4px;min-height:25px}
+#fate-codex-ui-v19 .codex-v19-clock{
+  width:238px;
+  height:94px;
+  margin:0;
+  justify-self:center;
+  border:1px solid #96732f;
+  border-top:2px solid #d2ae55;
+  border-radius:0 0 18px 18px;
+  clip-path:none;
+  background:linear-gradient(180deg,rgba(8,13,20,.98),rgba(16,12,19,.96));
+  filter:drop-shadow(0 7px 12px #0009);
+}
+#fate-codex-ui-v19 .codex-v19-clock:before,#fate-codex-ui-v19 .codex-v19-clock:after{display:none}
+#fate-codex-ui-v19 .codex-v19-clock small{color:#d8b75d}
+#fate-codex-ui-v19 .codex-v19-clock strong{color:#fff1ce;text-shadow:none}
+#fate-codex-ui-v19 .codex-v19-clock span{color:#b5a98e}
+#fate-codex-ui-v19 .codex-v19-status{top:58px;right:13px;width:34px;height:24px;border-radius:12px}
+#fate-codex-ui-v19 .codex-v19-status-opp{right:auto;left:13px}
+#fate-codex-ui-v19 .codex-v19-field{margin:0;min-height:0}
+#fate-codex-ui-v19 .codex-v19-footer{
+  grid-template-columns:390px minmax(0,1fr) 370px;
+  gap:16px;
+  padding:0;
+  align-items:end;
+}
+#fate-codex-ui-v19 .codex-v19-archive,
+#fate-codex-ui-v19 .codex-v19-command{
+  height:154px;
+  margin:0;
+  padding:12px;
+  overflow:hidden;
+  border:1px solid #8d6e31;
+  border-top:2px solid #c49e4e;
+  border-radius:8px 8px 0 0;
+  background:linear-gradient(145deg,rgba(4,15,21,.97),rgba(7,11,17,.95));
+  box-shadow:inset 0 0 24px #0008,0 -5px 18px #0007;
+}
+#fate-codex-ui-v19 .codex-v19-command{background:linear-gradient(215deg,rgba(25,8,17,.97),rgba(7,11,17,.96))}
+#fate-codex-ui-v19 .codex-v19-land{width:235px}
+#fate-codex-ui-v19 .codex-v19-archive nav{width:116px}
+#fate-codex-ui-v19 .codex-v19-hand{height:158px}
+#fate-codex-ui-v19 .codex-v19-popover{top:94px}
+@media(max-width:1400px){
+  #s-game.match-ui-v19-live #fate-codex-ui-v19{grid-template-rows:94px minmax(0,1fr) 140px;padding:7px 10px}
+  #fate-codex-ui-v19 .codex-v19-hud{grid-template-columns:minmax(350px,1fr) 205px minmax(350px,1fr);gap:12px}
+  #fate-codex-ui-v19 .codex-v19-player{height:82px;grid-template-columns:60px minmax(0,1fr) 135px}
+  #fate-codex-ui-v19 .codex-v19-player-opp{grid-template-columns:135px minmax(0,1fr) 60px}
+  #fate-codex-ui-v19 .codex-v19-portrait{width:56px;height:56px}
+  #fate-codex-ui-v19 .codex-v19-clock{width:205px;height:82px}
+  #fate-codex-ui-v19 .codex-v19-status{top:51px}
+  #fate-codex-ui-v19 .codex-v19-footer{grid-template-columns:325px minmax(0,1fr) 310px;gap:10px}
+  #fate-codex-ui-v19 .codex-v19-archive,#fate-codex-ui-v19 .codex-v19-command{height:132px}
+  #fate-codex-ui-v19 .codex-v19-land{width:190px}
+  #fate-codex-ui-v19 .codex-v19-archive nav{width:98px}
+}

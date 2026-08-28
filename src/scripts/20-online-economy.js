@@ -779,7 +779,7 @@
     </div>`;
     showModal('Sell a Card', html, []);
     const modalBox = document.querySelector('#modal .modal');
-    if(modalBox) modalBox.classList.add('sell-card-modal','sell-card-picker-modal');
+    if(modalBox) modalBox.classList.add('sell-card-modal','sell-card-picker-modal','legacy-sell-card-picker-modal');
   };
 
   window.listCardForSale = function listCardForSale(cardId){
@@ -1408,15 +1408,17 @@
     }
     const contentsGrid = document.querySelector('#modal-body .pd-detail-card-grid');
     const previewRows = Math.max(1, Math.ceil(uniqueCards.length / 8));
+    const fittedHeight = Math.max(72, Math.min(135, Math.floor(410 / previewRows)));
+    const fittedWidth = Math.round(fittedHeight * .711);
     const previewSize = previewRows <= 1
       ? {w:128, h:180, cls:'pd-detail-card-grid-rows-1'}
-      : (previewRows === 2 ? {w:116, h:163, cls:'pd-detail-card-grid-rows-2'} : {w:96, h:135, cls:'pd-detail-card-grid-rows-3'});
+      : (previewRows === 2 ? {w:116, h:163, cls:'pd-detail-card-grid-rows-2'} : {w:fittedWidth, h:fittedHeight, cls:'pd-detail-card-grid-rows-3'});
     if(contentsGrid) {
       contentsGrid.classList.toggle('deck-preview-scroll-extra-row', uniqueCards.length >= 15);
       contentsGrid.classList.remove('pd-detail-card-grid-rows-1','pd-detail-card-grid-rows-2','pd-detail-card-grid-rows-3');
       contentsGrid.classList.add(previewSize.cls);
-      contentsGrid.style.setProperty('--dbcw', previewSize.w + 'px');
-      contentsGrid.style.setProperty('--dbch', previewSize.h + 'px');
+      contentsGrid.style.setProperty('--dbcw', previewSize.w + 'px', 'important');
+      contentsGrid.style.setProperty('--dbch', previewSize.h + 'px', 'important');
     }
     if(contentsGrid && typeof window.renderCanvasDeckCollection === 'function') {
       window.renderCanvasDeckCollection(contentsGrid, uniqueCards.map(({card,count})=>({

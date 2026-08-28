@@ -168,6 +168,31 @@ const AI_DIALOGUE_BANK = {
     "My preparations are bearing fruit.",
     "The path to victory is clear.",
   ],
+  moraleCritical: [
+    "My Morale is breaking. Every Fate point has to stop the bleed now.",
+    "One more bad calculation could end this. I have to stabilize the zones.",
+    "I cannot spend Morale like a spare resource anymore.",
+  ],
+  moraleStrained: [
+    "Low Morale changes the value of every move. I need a cleaner line.",
+    "The penalties are starting to bite. I need to protect the next calculation.",
+    "I can feel the attrition now. Time to preserve the pieces that still matter.",
+  ],
+  opponentMoraleCritical: [
+    "Your Morale is nearly gone. I only need one decisive zone swing.",
+    "I see the lethal line now. You cannot afford another deficit.",
+    "Every zone you lose is a direct path to zero Morale.",
+  ],
+  opponentMoraleStrained: [
+    "Your Morale penalties are compounding. I intend to keep them active.",
+    "You are losing options with every threshold. That is pressure I can use.",
+    "Your Supporters will not hold forever at that Morale level.",
+  ],
+  moraleCalculation: [
+    "The Morale calculation is close. Zone margins matter more than appearances now.",
+    "I am counting every Fate deficit before this turn ends.",
+    "This is a calculation turn. A single flipped zone can swing damage both ways.",
+  ],
 };
 
 const AI_RANDOM_DIALOGUE_EXPANSION_STATES = [
@@ -1203,6 +1228,8 @@ function getPresetAIDialogueKey() {
 }
 
 function getAIDialogueLine(state) {
+  const moraleLine = getPersonalityMoraleDialogueLine(state);
+  if(moraleLine) return moraleLine;
   const presetKey = getPresetAIDialogueKey();
   const presetLines = presetKey ? AI_PRESET_DIALOGUE_BANK[presetKey] : null;
   if(presetLines && presetLines.length) return presetLines[Math.floor(Math.random() * presetLines.length)];
@@ -1210,6 +1237,73 @@ function getAIDialogueLine(state) {
   const lines = AI_DIALOGUE_BANK[state];
   if(!lines || !lines.length) return null;
   return lines[Math.floor(Math.random() * lines.length)];
+}
+
+function getAIMoraleDialogueSnapshot(){
+  if(typeof G === 'undefined' || !G || !G._moralePressure) return null;
+  if(typeof window !== 'undefined' && window.FATE_MORALE_PRESSURE_RULES_ENABLED !== true) return null;
+  const system = G._moralePressure;
+  const ai = Number(G.aiPlayer) === 0 ? 0 : 1;
+  const opponent = 1-ai;
+  const max = Math.max(1, Number(system.maxMorale || 200));
+  return {
+    ai,
+    opponent,
+    max,
+    own:Math.max(0, Number(system.morale?.[ai] || 0)),
+    rival:Math.max(0, Number(system.morale?.[opponent] || 0)),
+    ownPressure:Math.max(0, Number(system.pressure?.[ai] || 0)),
+    rivalPressure:Math.max(0, Number(system.pressure?.[opponent] || 0))
+  };
+}
+
+function getPersonalityMoraleDialogueLine(state){
+  const moraleStates = ['moraleCritical','moraleStrained','opponentMoraleCritical','opponentMoraleStrained','moraleCalculation'];
+  if(!moraleStates.includes(state)) return null;
+  const snapshot = getAIMoraleDialogueSnapshot();
+  if(!snapshot) return null;
+  const style = String(G?._selectedAI?.style || '').toLowerCase();
+  const own = Math.round(snapshot.own);
+  const rival = Math.round(snapshot.rival);
+  const pick = function(lines){ return lines[Math.floor(Math.random()*lines.length)]; };
+  if(['calculating','methodical','omniscient','disciplined','efficient'].includes(style)){
+    return pick({
+      moraleCritical:[`My Morale is ${own}. Survival now outweighs ordinary tempo.`,`At ${own} Morale, I must prevent the next threshold from becoming the last.`],
+      moraleStrained:[`I am at ${own} Morale. I am repricing every zone by its next-cycle damage.`,`The board says ${own} Morale. The efficient line is the one that cuts my total deficit.`],
+      opponentMoraleCritical:[`You have ${rival} Morale. I am calculating the shortest lethal line.`,`At ${rival} Morale, one clean zone swing should be sufficient.`],
+      opponentMoraleStrained:[`Your ${rival} Morale makes every threshold part of the calculation.`,`At ${rival} Morale, your future draws and field durability are already compromised.`],
+      moraleCalculation:[`Calculation turn: ${own} Morale against ${rival}. Every marginal Fate point is measurable.`,`The next cycle is live. I am optimizing total zone deficit, not just zone count.`]
+    }[state]);
+  }
+  if(['cautious','defensive','turtle','hoarder'].includes(style)){
+    return pick({
+      moraleCritical:['I am closing every opening. My Morale cannot absorb another reckless exchange.','No gambles now. I protect the weakest zone and survive the calculation.'],
+      moraleStrained:['I would rather preserve Morale than win a flashy exchange.','The safe line is the one that keeps these penalties from deepening.'],
+      opponentMoraleCritical:['You are vulnerable, but I will not expose my own Morale chasing you.','I can finish this patiently. Your Morale has nowhere comfortable to go.'],
+      opponentMoraleStrained:['I can keep the pressure steady without overcommitting.','Your Morale is strained. I only need to deny you a clean recovery.'],
+      moraleCalculation:['Calculation turn. First I cover the dangerous deficit; then I look for damage.','I am fortifying before the Morale totals move again.']
+    }[state]);
+  }
+  if(['reckless','relentless','overwhelming','aggro','blitz','bully','sacrificial'].includes(style)){
+    return pick({
+      moraleCritical:['Morale is a resource, and I intend to spend the last of it attacking.','If my Morale is going down, yours is going first.'],
+      moraleStrained:['The penalties only mean I have to hit harder before they matter.','Low Morale, high pressure. I am not slowing down.'],
+      opponentMoraleCritical:['There it is—the break. I am pushing every zone toward lethal.','Your Morale is blood in the water. I am not giving you another turn to breathe.'],
+      opponentMoraleStrained:['Those penalties make you slower. I am going to make the pace unbearable.','Your Morale is cracking, and I am leaning on every fracture.'],
+      moraleCalculation:['Calculation turn. Good. Let us make the damage enormous.','Every winning margin becomes Morale damage now. I want all of it.']
+    }[state]);
+  }
+  if(['gambler','chaotic','distracted'].includes(style)){
+    return pick({
+      moraleCritical:['That Morale total looks terrible. Which makes the dangerous line strangely appealing.','We are one calculation from disaster. Perfect time for something unpredictable.'],
+      moraleStrained:['My Morale is wobbling, but so is the shape of this whole board.','Threshold penalties, strange odds—now the match gets interesting.'],
+      opponentMoraleCritical:['Your Morale is almost zero. Surely nothing bizarre can happen now.','I see lethal. I also see three unnecessarily exciting ways to reach it.'],
+      opponentMoraleStrained:['Your Morale is slipping. Let us add a little chaos to the fall.','Those penalties narrow your choices. Mine remain questionable.'],
+      moraleCalculation:['Calculation turn! Time to find out whether my arithmetic has a sense of humor.','The margins are about to become damage. I love a dramatic conversion.']
+    }[state]);
+  }
+  const lines = AI_DIALOGUE_BANK[state];
+  return lines?.length ? lines[Math.floor(Math.random()*lines.length)] : null;
 }
 
 function showAIDialogue(text) {
@@ -1231,24 +1325,32 @@ function showAIDialogue(text) {
   const existing = document.getElementById('ai-dialogue-bubble');
   if(existing) existing.remove();
 
-  // Find the opponent's profile picture position
-  const oppBanner = document.querySelector('.player-banner.p2-banner, .player-banner:last-of-type');
-
   const bubble = document.createElement('div');
   bubble.id = 'ai-dialogue-bubble';
 
-  // Position to right of opponent rank badge, shifted down below the name
-  var oppStatEl = document.getElementById('opp-stat');
-  var oppPicEl = document.getElementById('opp-pic');
-  var bLeft = '50%', bTop = '70px', bTransform = 'translateX(-50%)';
-  var anchorEl = oppStatEl || oppPicEl;
+  // Anchor to the visible opponent portrait in the active match shell. The
+  // retained legacy profile elements are hidden by rebuilt board layouts and
+  // therefore report unusable coordinates.
+  var portraitCandidates = Array.from(document.querySelectorAll(
+    '#fate-codex-ui-v19 .codex-v19-player-opp .codex-v19-portrait,' +
+    '#fate-match-ui-v8 .v8-player-rival .v8-avatar,' +
+    '.player-banner.opp-banner #opp-pic,.player-banner.p2-banner #opp-pic,#opp-pic'
+  ));
+  var anchorEl = portraitCandidates.find(function(el){
+    if(!el || !el.getBoundingClientRect) return false;
+    var rect = el.getBoundingClientRect();
+    var style = getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  }) || null;
+   var bLeft = 'auto', bRight = '8px', bTop = '126px';
   if(anchorEl) {
     var r = anchorEl.getBoundingClientRect();
-    bLeft = (r.right + 12) + 'px';
-    bTop = (r.bottom + 6) + 'px';
-    bTransform = 'none';
+    // The bubble's right edge sits just left of the portrait, with its top
+    // immediately below the portrait's lower-left corner.
+     bRight = Math.max(2, window.innerWidth - r.left) + 'px';
+     bTop = Math.max(6, r.bottom - 4) + 'px';
   }
-  bubble.style.cssText = 'position:fixed;top:'+bTop+';left:'+bLeft+';transform:'+bTransform+';max-width:240px;z-index:800;padding:.55rem .8rem;background:rgba(10,12,20,.94);border:1px solid rgba(201,168,76,.35);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.6);animation:aiDialogueIn .3s ease;pointer-events:none;';
+  bubble.style.cssText = 'position:fixed;top:'+bTop+';left:'+bLeft+';right:'+bRight+';width:max-content;max-width:min(240px,calc(100vw - 36px));z-index:800;padding:.55rem .8rem;background:rgba(10,12,20,.94);border:1px solid rgba(201,168,76,.35);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.6);animation:aiDialogueIn .3s ease;pointer-events:none;';
 
   bubble.innerHTML = '<div style="font-size:.82rem;color:#d4d8e4;line-height:1.5;font-style:italic;">\u201C'+text+'\u201D</div>';
 
@@ -1275,7 +1377,13 @@ function triggerAIDialogue(event) {
   // Auto-detect game state for context-aware dialogue
   if(event === 'turnStart') {
     const turn = G.turnNumber || G.turn || 1;
-    if(turn <= 2) state = 'gameStart';
+    const morale = getAIMoraleDialogueSnapshot();
+    if(morale && morale.own / morale.max <= .20) state = 'moraleCritical';
+    else if(morale && morale.rival / morale.max <= .20) state = 'opponentMoraleCritical';
+    else if(morale && morale.own / morale.max <= .40) state = 'moraleStrained';
+    else if(morale && morale.rival / morale.max <= .40) state = 'opponentMoraleStrained';
+    else if(morale && turn >= 4 && turn % 2 === 0) state = 'moraleCalculation';
+    else if(turn <= 2) state = 'gameStart';
     else if(turn >= 8) state = 'lateGame';
     else if(turn >= 4 && turn <= 6) state = 'midGame';
     else {

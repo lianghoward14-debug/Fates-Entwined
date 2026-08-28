@@ -1264,9 +1264,13 @@ textarea.profile-input{resize:vertical;min-height:70px;line-height:1.5;}
 .landscape-pella-race .pella-fate-threshold{font-weight:800;letter-spacing:.04em;}
 .landscape-pella-race .pella-fate-threshold.is-you{color:#72caff;text-shadow:0 0 8px rgba(55,169,255,.42);}
 .landscape-pella-race .pella-fate-threshold.is-opponent{color:#ff727b;text-shadow:0 0 8px rgba(255,72,91,.4);}
-.landscape-pella-race .pella-fate-threshold.is-ignored{opacity:.38;text-decoration:line-through;text-decoration-thickness:1px;}
+.landscape-pella-race .pella-fate-threshold.is-ignored{opacity:.38;text-decoration:none;}
 .landscape-pella-race .pella-fate-threshold.is-unclaimed{color:inherit;opacity:.72;}
 .landscape-pella-race .pella-fate-separator{opacity:.7;padding:0 .04em;}
+.landscape-alpine-consolidations .alpine-consolidations-value{font-weight:900;letter-spacing:.06em;}
+.landscape-alpine-consolidations .alpine-consolidations-value.is-you{color:#72caff;text-shadow:0 0 8px rgba(55,169,255,.42);}
+.landscape-alpine-consolidations .alpine-consolidations-value.is-opponent{color:#ff6574;text-shadow:0 0 8px rgba(255,65,91,.42);}
+.landscape-alpine-consolidations .alpine-consolidations-separator{padding:0 .08em;color:#d5d8d3;opacity:.75;}
 
 /* Keep the 100-picture selector cheap to scroll: offscreen tiles skip layout/paint,
    and picker tiles do not instantiate the shared ornamental avatar layers. */

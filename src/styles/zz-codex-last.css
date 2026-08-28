@@ -1675,6 +1675,11 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-tint:rgba(142,51,119,.15);--effect-flash-inset:rgba(255,171,229,.12);
   --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M25 15h18c-3 10-3 18 0 26l14 4c4 1 6 4 6 8v5H12v-8h12V38c0-7 0-14 1-23z'/%3E%3Cpath d='M28 25h11M14 58h48'/%3E%3Cpath stroke-width='2.75' d='M17 50h9v8M8 24H1M11 32H1M13 40H4'/%3E%3C/g%3E%3C/svg%3E");
 }
+.bc.effect-flash-rozsi_hungarian_crest{
+  --effect-flash-color:rgba(255,218,129,.99);--effect-flash-glow:rgba(224,62,72,.72);
+  --effect-flash-tint:rgba(116,24,37,.20);--effect-flash-inset:rgba(255,198,92,.13);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 13v34M22 22h20M25 31h14'/%3E%3Cpath d='M18 47h28l-4 9H22zM19 47l-5-13 10 7 8-9 8 9 10-7-5 13'/%3E%3Ccircle cx='14' cy='32' r='2.2'/%3E%3Ccircle cx='32' cy='29' r='2.2'/%3E%3Ccircle cx='50' cy='32' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
+}
 .bc.effect-flash-british_union_jack{
   --effect-flash-color:rgba(232,246,255,.98);--effect-flash-glow:rgba(126,183,255,.62);
   --effect-flash-tint:rgba(48,91,168,.16);--effect-flash-inset:rgba(139,190,255,.12);
@@ -2316,6 +2321,221 @@ body:has(#modal.on) #fate-side-panel{
   #s-title.fate-side-panel .title-content{
     left:300px!important;
   }
+}
+
+/* Morale-only experiment. Pressure, Seals, shields, and experimental status
+   wrappers stay unmounted; the original status-effect lanes remain in use. */
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only{
+  position:absolute!important;
+  inset:0!important;
+  display:block!important;
+  padding:0!important;
+  pointer-events:none!important;
+  z-index:300!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-resources{
+  display:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-player{
+  position:absolute!important;
+  top:50%!important;
+  display:grid!important;
+  grid-template-columns:78px minmax(112px,1fr)!important;
+  align-items:center!important;
+  gap:.45rem!important;
+  width:226px!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:42px!important;
+  padding:.28rem .5rem!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  transform:translateY(-50%)!important;
+  pointer-events:auto!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-left{
+  left:324px!important;
+  right:auto!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-right{
+  left:auto!important;
+  right:324px!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-heading{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+  gap:2px!important;
+  min-width:0!important;
+  text-align:right!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-right .mp-heading{
+  align-items:flex-start!important;
+  text-align:left!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-heading span{
+  color:#8193a5!important;
+  font:600 .43rem/1 'Cinzel',serif!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-heading strong{
+  color:#f3e7df!important;
+  font:700 .68rem/1 'Cinzel',serif!important;
+  white-space:nowrap!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-morale-line{
+  display:grid!important;
+  grid-template-columns:20px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:.38rem!important;
+  width:100%!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-heart{
+  width:19px!important;
+  height:19px!important;
+  color:#e66075!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-bar{
+  width:100%!important;
+  height:10px!important;
+  border:1px solid rgba(228,120,136,.4)!important;
+  border-radius:999px!important;
+  overflow:hidden!important;
+  background:rgba(43,11,18,.88)!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-morale-fill{
+  display:block!important;
+  height:100%!important;
+  border-radius:inherit!important;
+  background:linear-gradient(90deg,#a82e48,#ef7082)!important;
+  box-shadow:0 0 10px rgba(236,87,109,.42)!important;
+  transition:width .32s ease!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-morale-only .mp-morale-tip{
+  top:calc(100% + 13px)!important;
+  width:330px!important;
+}
+.morale-cycle-resolution-card{width:min(660px,calc(100vw - 36px))!important;}
+.morale-cycle-zones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;margin:.8rem 0;}
+.morale-cycle-zone{display:grid;gap:.28rem;padding:.7rem;border:1px solid rgba(218,185,82,.32);border-radius:7px;background:rgba(4,8,15,.72);text-align:center;}
+.morale-cycle-zone>span{color:#ccb867;font:600 .52rem/1 'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;}
+.morale-cycle-zone>b{color:#f2ead1;font:700 1.05rem/1 'Cinzel',serif;}
+.morale-cycle-zone>em{color:#9eacb8;font:500 .61rem/1.25 'Crimson Pro',serif;}
+
+/* Reversible full-width 4/4/4 presentation (`fateWide444=0` restores the
+   previous rail). The profile pills retain their existing markup and art; only
+   their location changes. */
+html body #s-game.wide-zone-layout-444 .game-layout{
+  padding-left:174px!important;
+  padding-right:.28rem!important;
+  gap:0!important;
+  z-index:300!important;
+}
+html body #s-game.wide-zone-layout-444 .game-center{
+  min-width:0!important;
+  overflow:visible!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left{
+  position:absolute!important;
+  left:8px!important;
+  top:5.15rem!important;
+  bottom:.75rem!important;
+  width:156px!important;
+  height:auto!important;
+  margin:0!important;
+  padding:.55rem!important;
+  overflow:visible!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left::before{inset:3px!important;}
+html body #s-game.wide-zone-layout-444 .game-left .opp-section{
+  position:static!important;
+  flex:0 0 0!important;
+  min-height:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .opp-section>.left-section-lbl,
+html body #s-game.wide-zone-layout-444 .game-left .opp-hand{
+  display:none!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left>.left-section:not(.opp-section){
+  display:flex!important;
+  flex:1 1 auto!important;
+  min-height:0!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
+  gap:.48rem!important;
+  padding:.2rem!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner{
+  position:fixed!important;
+  top:7px!important;
+  width:300px!important;
+  min-height:58px!important;
+  margin:0!important;
+  z-index:720!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .opp-banner{
+  left:12px!important;
+  right:auto!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .my-banner{
+  left:auto!important;
+  right:12px!important;
+  order:0!important;
+}
+html body #s-game.wide-zone-layout-444 .landscape-panel{
+  order:0!important;
+  width:100%!important;
+  min-height:190px!important;
+  max-height:42vh!important;
+  margin:0!important;
+  padding:.72rem .58rem!important;
+  overflow:auto!important;
+}
+html body #s-game.wide-zone-layout-444 .landscape-panel::before{inset:6px!important;}
+html body #s-game.wide-zone-layout-444 .landscape-panel::after{inset:12px!important;}
+html body #s-game.wide-zone-layout-444 .landscape-panel .landscape-name{font-size:.62rem!important;}
+html body #s-game.wide-zone-layout-444 .landscape-panel .landscape-desc{font-size:.61rem!important;}
+html body #s-game.wide-zone-layout-444 .left-piles{
+  order:2!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:.38rem!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .pile-slot{
+  width:102px!important;
+  height:142px!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444{
+  --cw:clamp(112px,7.55vw,145px)!important;
+  --ch:clamp(157px,10.57vw,203px)!important;
+  --zone-row-h:calc(var(--ch) + .08rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + var(--cw) + .18rem + 8px)!important;
+  width:100%!important;
+  max-width:none!important;
+  padding-left:0!important;
+  padding-right:0!important;
+  gap:.08rem!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .brow .rcells{gap:.04rem!important;}
+html body #s-game.wide-zone-layout-444 .hand-strip{
+  width:clamp(640px,calc(100vw - 560px),1160px)!important;
+}
+@media(max-width:1400px){
+  html body #s-game.wide-zone-layout-444 .game-left .player-banner{width:250px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:258px!important;right:auto!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{left:auto!important;right:258px!important;}
 }
 /* --- Narrow: hide panel, center content --- */
 @media(max-width:780px){
@@ -3188,6 +3408,293 @@ body.in-game #fate-corner-dock .ingame-chat-widget{
   #fate-corner-dock .ingame-chat-panel{
     width:min(340px,calc(100vw - 1.1rem))!important;
   }
+}
+
+/* Card information V4: split-gallery composition. This intentionally replaces
+   the old modal skeleton instead of reskinning it. Affiliation supplies the
+   single swappable accent through --cd4-accent. */
+html body #modal.card-detail-v4 .card-detail-v4-panel,
+html body .card-info-overlay.card-detail-v4 .card-detail-v4-panel{
+  --cd4-paper:#e8e3d8;
+  --cd4-ink:#111820;
+  --cd4-muted:#5f6870;
+  --cd4-dark:#080d13;
+  width:min(980px,calc(100vw - 36px))!important;
+  max-width:980px!important;
+  padding:0!important;
+  overflow:hidden!important;
+  border:0!important;
+  border-radius:2px!important;
+  background:var(--cd4-paper)!important;
+  box-shadow:0 42px 110px rgba(0,0,0,.86),0 0 0 1px color-mix(in srgb,var(--cd4-accent) 62%,#fff 12%)!important;
+}
+
+html body #modal.card-detail-v4 .card-detail-v4-panel::before,
+html body .card-info-overlay.card-detail-v4 .card-detail-v4-panel::before{
+  content:none!important;
+  display:none!important;
+}
+
+html body #modal.card-detail-v4 .modal-title,
+html body .card-info-overlay.card-detail-v4 .cio-title{
+  display:none!important;
+}
+
+html body #modal.card-detail-v4 .modal-body{
+  padding:0!important;
+  overflow:visible!important;
+}
+
+html body #modal.card-detail-v4 .cd4-stage,
+html body .card-info-overlay.card-detail-v4 .cd4-stage{
+  display:grid!important;
+  grid-template-columns:350px minmax(0,1fr)!important;
+  gap:0!important;
+  min-height:510px!important;
+  margin:0!important;
+  padding:0!important;
+  background:var(--cd4-paper)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-art-rail,
+html body .card-info-overlay.card-detail-v4 .cd4-art-rail{
+  position:relative!important;
+  display:grid!important;
+  place-items:center!important;
+  min-width:0!important;
+  padding:43px 30px 42px 24px!important;
+  overflow:hidden!important;
+  background:
+    radial-gradient(circle at 38% 40%,color-mix(in srgb,var(--cd4-accent) 24%,transparent),transparent 34%),
+    linear-gradient(155deg,#121b24 0,var(--cd4-dark) 68%)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-art-rail::before,
+html body .card-info-overlay.card-detail-v4 .cd4-art-rail::before{
+  content:""!important;
+  position:absolute!important;
+  width:330px!important;
+  height:330px!important;
+  left:-108px!important;
+  bottom:-130px!important;
+  display:block!important;
+  border:1px solid color-mix(in srgb,var(--cd4-accent) 52%,transparent)!important;
+  border-radius:50%!important;
+  box-shadow:0 0 0 28px rgba(255,255,255,.018),0 0 0 29px color-mix(in srgb,var(--cd4-accent) 18%,transparent)!important;
+  pointer-events:none!important;
+}
+
+html body #modal.card-detail-v4 .cd4-art-rail::after,
+html body .card-info-overlay.card-detail-v4 .cd4-art-rail::after{
+  content:""!important;
+  position:absolute!important;
+  z-index:0!important;
+  top:0!important;
+  right:-34px!important;
+  width:68px!important;
+  height:100%!important;
+  display:block!important;
+  background:var(--cd4-paper)!important;
+  clip-path:polygon(70% 0,100% 0,100% 100%,0 100%)!important;
+  pointer-events:none!important;
+}
+
+html body #modal.card-detail-v4 .cd4-art-rail .cd-img,
+html body .card-info-overlay.card-detail-v4 .cd4-art-rail .cd-img{
+  position:relative!important;
+  z-index:2!important;
+  left:0!important;
+  width:278px!important;
+  height:389px!important;
+  margin:0 16px 0 0!important;
+  overflow:hidden!important;
+  border:0!important;
+  border-radius:5px!important;
+  background:#05080c!important;
+  box-shadow:0 25px 55px rgba(0,0,0,.7),0 0 0 1px color-mix(in srgb,var(--cd4-accent) 72%,#fff 8%)!important;
+  transform:rotate(-1.3deg)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-art-rail .cd-img::after,
+html body .card-info-overlay.card-detail-v4 .cd4-art-rail .cd-img::after{
+  inset:7px!important;
+  z-index:3!important;
+  border:1px solid rgba(255,255,255,.17)!important;
+  border-radius:2px!important;
+  background:none!important;
+}
+
+html body #modal.card-detail-v4 .cd4-sheet,
+html body .card-info-overlay.card-detail-v4 .cd4-sheet{
+  position:relative!important;
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  padding:44px 44px 30px 34px!important;
+  background:
+    linear-gradient(90deg,color-mix(in srgb,var(--cd4-accent) 13%,transparent),transparent 16%) top left/100% 4px no-repeat,
+    repeating-linear-gradient(0deg,rgba(17,24,32,.022) 0,rgba(17,24,32,.022) 1px,transparent 1px,transparent 32px),
+    var(--cd4-paper)!important;
+  color:var(--cd4-ink)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-sheet::before,
+html body .card-info-overlay.card-detail-v4 .cd4-sheet::before{
+  content:""!important;
+  position:absolute!important;
+  top:28px!important;
+  right:34px!important;
+  width:46px!important;
+  height:46px!important;
+  display:block!important;
+  border-top:1px solid var(--cd4-accent)!important;
+  border-right:1px solid var(--cd4-accent)!important;
+  opacity:.72!important;
+}
+
+html body #modal.card-detail-v4 .cd4-identity,
+html body .card-info-overlay.card-detail-v4 .cd4-identity{
+  position:relative!important;
+  padding:0 68px 23px 0!important;
+  border-bottom:1px solid color-mix(in srgb,var(--cd4-ink) 18%,transparent)!important;
+}
+
+html body #modal.card-detail-v4 .cd-name,
+html body .card-info-overlay.card-detail-v4 .cd-name{
+  margin:0 0 8px!important;
+  color:var(--cd4-ink)!important;
+  font:700 clamp(25px,2.5vw,38px)/1.02 Georgia,serif!important;
+  letter-spacing:-.025em!important;
+}
+
+html body #modal.card-detail-v4 .cd-ability,
+html body .card-info-overlay.card-detail-v4 .cd-ability{
+  margin:0!important;
+  color:var(--cd4-muted)!important;
+  font:italic 13px/1.4 Georgia,serif!important;
+}
+
+html body #modal.card-detail-v4 .cd4-index,
+html body .card-info-overlay.card-detail-v4 .cd4-index{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:0!important;
+  margin:18px 0!important;
+  padding:0!important;
+  border:1px solid rgba(17,24,32,.18)!important;
+  background:rgba(255,255,255,.24)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-index .pill,
+html body .card-info-overlay.card-detail-v4 .cd4-index .pill{
+  min-height:30px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  margin:0!important;
+  padding:7px 10px!important;
+  border:0!important;
+  border-right:1px solid rgba(17,24,32,.12)!important;
+  border-bottom:1px solid rgba(17,24,32,.12)!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:var(--cd4-ink)!important;
+  font:700 9px/1 'Cinzel',serif!important;
+  letter-spacing:.09em!important;
+}
+
+html body #modal.card-detail-v4 .cd4-index .pill.fate,
+html body .card-info-overlay.card-detail-v4 .cd4-index .pill.fate,
+html body #modal.card-detail-v4 .cd4-index .pill.rarity,
+html body .card-info-overlay.card-detail-v4 .cd4-index .pill.rarity{
+  color:color-mix(in srgb,var(--cd4-accent) 72%,#17202a)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-live:empty,
+html body .card-info-overlay.card-detail-v4 .cd4-live:empty{
+  display:none!important;
+}
+
+html body #modal.card-detail-v4 .cd4-live,
+html body .card-info-overlay.card-detail-v4 .cd4-live{
+  margin:0 0 14px!important;
+}
+
+html body #modal.card-detail-v4 .cd4-rules,
+html body .card-info-overlay.card-detail-v4 .cd4-rules{
+  position:relative!important;
+  margin:0!important;
+  padding:0 0 0 18px!important;
+  border-left:4px solid var(--cd4-accent)!important;
+}
+
+html body #modal.card-detail-v4 .cd4-rules .cd-eff,
+html body .card-info-overlay.card-detail-v4 .cd4-rules .cd-eff{
+  margin:0!important;
+  padding:1px 0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:var(--cd4-ink)!important;
+  font:500 14px/1.66 Georgia,serif!important;
+}
+
+html body #modal.card-detail-v4 .cd-flavor,
+html body .card-info-overlay.card-detail-v4 .cd-flavor{
+  margin-top:auto!important;
+  padding:22px 0 0!important;
+  border:0!important;
+  color:var(--cd4-muted)!important;
+  font:italic 13px/1.5 Georgia,serif!important;
+}
+
+html body #modal.card-detail-v4 .card-voice-btn,
+html body .card-info-overlay.card-detail-v4 .card-voice-btn{
+  width:34px!important;
+  height:34px!important;
+  flex:0 0 34px!important;
+  border:1px solid rgba(17,24,32,.25)!important;
+  background:transparent!important;
+  color:var(--cd4-ink)!important;
+  box-shadow:none!important;
+}
+
+html body #modal.card-detail-v4 .modal-acts,
+html body .card-info-overlay.card-detail-v4 .cio-acts{
+  min-height:58px!important;
+  margin:0!important;
+  padding:11px 28px!important;
+  border:0!important;
+  border-top:1px solid rgba(255,255,255,.1)!important;
+  background:var(--cd4-dark)!important;
+}
+
+html body #modal.card-detail-v4 .modal-acts .btn,
+html body .card-info-overlay.card-detail-v4 .cio-acts .btn{
+  min-width:112px!important;
+  border:1px solid color-mix(in srgb,var(--cd4-accent) 55%,#fff 8%)!important;
+  border-radius:2px!important;
+  background:transparent!important;
+  color:#f0eadb!important;
+}
+
+html body #modal.card-detail-v4 .modal-acts .btn:hover,
+html body .card-info-overlay.card-detail-v4 .cio-acts .btn:hover{
+  background:color-mix(in srgb,var(--cd4-accent) 24%,transparent)!important;
+  border-color:var(--cd4-accent)!important;
+}
+
+@media(max-width:760px){
+  html body #modal.card-detail-v4 .cd4-stage,
+  html body .card-info-overlay.card-detail-v4 .cd4-stage{grid-template-columns:1fr!important;}
+  html body #modal.card-detail-v4 .cd4-art-rail,
+  html body .card-info-overlay.card-detail-v4 .cd4-art-rail{padding:32px 24px!important;}
+  html body #modal.card-detail-v4 .cd4-art-rail::after,
+  html body .card-info-overlay.card-detail-v4 .cd4-art-rail::after{display:none!important;}
+  html body #modal.card-detail-v4 .cd4-art-rail .cd-img,
+  html body .card-info-overlay.card-detail-v4 .cd4-art-rail .cd-img{width:min(240px,68vw)!important;height:auto!important;aspect-ratio:5/7!important;margin:0!important;}
+  html body #modal.card-detail-v4 .cd4-sheet,
+  html body .card-info-overlay.card-detail-v4 .cd4-sheet{padding:30px 24px 26px!important;}
 }
 
 /* In-game card effect prompts: richer shared chrome for choice windows. */
@@ -7563,6 +8070,16 @@ html body #s-game .landscape-panel .landscape-note{
   padding-top:.16rem!important;
 }
 
+/* The landscape heading is intentionally absent; spend that vertical budget
+   on readable rules copy while leaving the landscape name at its current size. */
+html body #s-game .landscape-panel .landscape-kicker{display:none!important;}
+html body #s-game .landscape-panel .landscape-desc{font-size:.82rem!important;line-height:1.34!important;}
+
+html body #s-game .landscape-panel.landscape-id-igb2 .landscape-note,
+html body #s-game .codex-v19-land .landscape-panel.landscape-id-igb2 .landscape-note{
+  border-top:0!important;
+}
+
 html body #s-game .landscape-panel .landscape-supporter-limit{
   width:auto!important;
   margin:.12rem auto 0!important;
@@ -11322,7 +11839,7 @@ html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid{
   min-height:262px!important;
   height:100%!important;
   max-height:none!important;
-  overflow-y:auto!important;
+  overflow-y:hidden!important;
   overflow-x:hidden!important;
   padding:0 .18rem .74rem 0!important;
   align-content:start!important;
@@ -11330,7 +11847,7 @@ html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid{
 }
 
 html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.canvas-card-grid-mode{
-  overflow-y:auto!important;
+  overflow-y:hidden!important;
   overflow-x:hidden!important;
   height:100%!important;
   min-height:262px!important;
@@ -11375,10 +11892,8 @@ html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.pd-detail
 
 html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.pd-detail-card-grid-rows-3,
 html body #modal .modal.public-deck-preview-modal .pd-detail-card-grid.pd-detail-card-grid-rows-3.canvas-card-grid-mode{
-  --dbcw:96px!important;
-  --dbch:135px!important;
-  grid-template-columns:repeat(8,96px)!important;
-  grid-auto-rows:135px!important;
+  grid-template-columns:repeat(8,var(--dbcw))!important;
+  grid-auto-rows:var(--dbch)!important;
 }
 
 html body #modal .modal.public-deck-preview-modal .pd-detail-poster{
@@ -11728,7 +12243,7 @@ html body #modal .modal.public-deck-comments-modal .rd-rating-score em{
 
 html body #modal .modal.public-deck-comments-modal .rd-rating-score em{
   position:relative!important;
-  left:2px!important;
+  left:3px!important;
   top:-2px!important;
 }
 
@@ -13551,12 +14066,21 @@ html body #s-challenger .ch-content > .ch-tab-pane.ch-cdb-content[hidden]{
   flex-direction:column!important;
 }
 
-html body #s-challenger .ch-content > .ch-tab-pane.active{
+html body #s-challenger .ch-content > .ch-tab-pane.active:not([data-tab="play"]){
   position:relative!important;
   opacity:1!important;
   z-index:1!important;
   pointer-events:auto!important;
   overflow-y:auto!important;
+  transform:none!important;
+}
+
+html body #s-challenger .ch-content > .ch-tab-pane.active[data-tab="play"]{
+  position:relative!important;
+  opacity:1!important;
+  z-index:1!important;
+  pointer-events:auto!important;
+  overflow:hidden!important;
   transform:none!important;
 }
 
@@ -14870,9 +15394,13 @@ html body #modal .cdb-save-form .deck-theme-menu{
   top:calc(100% + 6px)!important;
   display:none!important;
   box-sizing:border-box!important;
-  max-height:470px!important;
-  overflow:auto!important;
-  padding:.7rem 0!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-auto-flow:row!important;
+  max-height:320px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  padding:.55rem .55rem .8rem!important;
+  gap:2px 8px!important;
   border:1px solid rgba(201,168,76,.52)!important;
   border-radius:0 0 8px 8px!important;
   background:#080d17!important;
@@ -14881,14 +15409,16 @@ html body #modal .cdb-save-form .deck-theme-menu{
 }
 html body #modal .modal.cdb-save-modal .cdb-save-form .deck-theme-select-wrap.is-open .deck-theme-menu,
 html body #modal .cdb-save-form .deck-theme-select-wrap.is-open .deck-theme-menu{
-  display:block!important;
+  display:grid!important;
 }
 html body #modal .modal.cdb-save-modal .cdb-save-form .deck-theme-option,
 html body #modal .cdb-save-form .deck-theme-option{
   display:block!important;
   width:100%!important;
-  min-height:32px!important;
-  padding:.38rem 1rem!important;
+  min-height:30px!important;
+  padding:.32rem .75rem!important;
+  box-sizing:border-box!important;
+  border-left:2px solid transparent!important;
   border:0!important;
   background:transparent!important;
   color:#f7f2dd!important;
@@ -14905,6 +15435,7 @@ html body #modal .modal.cdb-save-modal .cdb-save-form .deck-theme-option.is-sele
 html body #modal .cdb-save-form .deck-theme-option.is-selected{
   background:#8fc3f5!important;
   color:#07101c!important;
+  border-left-color:#ffd700!important;
 }
 html body #modal .modal.cdb-save-modal,
 html body #modal .modal.cdb-save-modal #modal-body,
@@ -15822,6 +16353,23 @@ html body #modal.match-overview-modal .match-overview{
   text-align:center!important;
 }
 
+/* Match Overview's generic badge-fit rule makes labels inline blocks. Restore
+   the centered column layout for the two-line Lieutenant at Arms badge. */
+html body #modal.match-overview-modal .match-overview .rank-badge.rank-badge-two-line .rank-badge-label-two-line{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  text-align:center!important;
+  white-space:normal!important;
+}
+html body #modal.match-overview-modal .match-overview .rank-badge.rank-badge-two-line .rank-badge-line{
+  align-self:center!important;
+  margin-inline:auto!important;
+  text-align:center!important;
+}
+
 /* V2 drag stability: the source hand card must not lift/scale and nudge the tray. */
 html body #s-game .hc.fate-v2-drag-source,
 html body #s-game .hc.fate-v2-drag-source:hover,
@@ -16676,7 +17224,7 @@ html body #modal .modal:is(
   .title-my-decks-modal,
   .challenger-my-decks-modal
 ) :is(.freeplay-title-preset-footer,.challenger-runtime-title-preset-footer,.preset-browse-footer,.deck-pick-footer){
-  margin-bottom:.9rem!important;
+  margin-bottom:calc(.9rem - 5px)!important;
 }
 
 html body #modal .modal.deck-slate-modal .deck-slate-shell{
@@ -19083,6 +19631,14 @@ html body .match-entry-loading-veil.on{
   transition:none!important;
 }
 
+/* Chat is initialized before the post-coin-flip board finishes mounting.
+   Keep its temporary label/icon out of the loading presentation. */
+html body:has(#match-entry-loading-veil.on) #ingame-chat-widget,
+html body:has(#match-entry-loading-veil.on) #fate-corner-dock.game-chat-dock{
+  display:none!important;
+  visibility:hidden!important;
+}
+
 html body #modal :is(.online-profile-inspect-v19,.inspected-profile-stable) .profile-img-wrap{
   transform:translateX(6px)!important;
 }
@@ -20409,6 +20965,303 @@ html body .card-info-overlay .cd-img{
   left:3px!important;
 }
 
+/* Card information V3 -------------------------------------------------------
+   Shared tokens keep the normal detail modal and picker overlay easy to
+   reskin without changing their markup or the information they expose. */
+html body .card-detail-modern{
+  --cd3-accent:#e0b95d;
+  --cd3-accent-soft:rgba(224,185,93,.22);
+  --cd3-line:rgba(231,210,151,.22);
+  --cd3-line-strong:rgba(231,210,151,.46);
+  --cd3-surface:#090e16;
+  --cd3-surface-raised:#101824;
+  --cd3-copy:#e8edf0;
+  --cd3-muted:#96a2ad;
+  --cd3-radius:14px;
+}
+
+html body #modal.card-detail-modern{
+  padding:20px!important;
+  background:rgba(2,5,9,.76)!important;
+  backdrop-filter:blur(10px)!important;
+  -webkit-backdrop-filter:blur(10px)!important;
+}
+
+html body #modal.card-detail-modern .card-detail-modern-panel,
+html body .card-info-overlay.card-detail-modern .card-detail-modern-panel{
+  position:relative!important;
+  width:min(900px,calc(100vw - 40px))!important;
+  max-width:900px!important;
+  max-height:calc(100vh - 40px)!important;
+  box-sizing:border-box!important;
+  overflow:auto!important;
+  padding:0!important;
+  border:1px solid var(--cd3-line-strong)!important;
+  border-radius:var(--cd3-radius)!important;
+  background:
+    linear-gradient(90deg,var(--cd3-accent),transparent 22%,transparent 78%,var(--cd3-accent)) top/100% 1px no-repeat,
+    radial-gradient(circle at 12% 0,rgba(48,83,108,.22),transparent 38%),
+    linear-gradient(145deg,var(--cd3-surface-raised),var(--cd3-surface) 62%)!important;
+  box-shadow:0 34px 90px rgba(0,0,0,.78),0 0 0 1px rgba(255,255,255,.035) inset!important;
+  color:var(--cd3-copy)!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:var(--cd3-line-strong) transparent!important;
+}
+
+html body #modal.card-detail-modern .card-detail-modern-panel::before,
+html body .card-info-overlay.card-detail-modern .card-detail-modern-panel::before{
+  content:""!important;
+  position:absolute!important;
+  inset:9px!important;
+  z-index:0!important;
+  display:block!important;
+  border:1px solid rgba(255,255,255,.045)!important;
+  border-radius:calc(var(--cd3-radius) - 5px)!important;
+  pointer-events:none!important;
+}
+
+html body #modal.card-detail-modern .card-detail-modern-panel > *,
+html body .card-info-overlay.card-detail-modern .card-detail-modern-panel > *{
+  position:relative!important;
+  z-index:1!important;
+}
+
+html body #modal.card-detail-modern .modal-title,
+html body .card-info-overlay.card-detail-modern .cio-title{
+  min-height:54px!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  margin:0!important;
+  padding:0 30px!important;
+  border:0!important;
+  border-bottom:1px solid var(--cd3-line)!important;
+  color:var(--cd3-accent)!important;
+  background:linear-gradient(90deg,rgba(224,185,93,.075),transparent 58%)!important;
+  font:700 11px/1 'Cinzel',serif!important;
+  letter-spacing:.19em!important;
+  text-transform:uppercase!important;
+}
+
+html body #modal.card-detail-modern .modal-title::before,
+html body .card-info-overlay.card-detail-modern .cio-title::before{
+  content:"CARD DOSSIER"!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  align-self:stretch!important;
+  margin-right:18px!important;
+  padding-right:18px!important;
+  border-right:1px solid var(--cd3-line)!important;
+  color:var(--cd3-muted)!important;
+  font:700 8px/1 'Cinzel',serif!important;
+  letter-spacing:.2em!important;
+  white-space:nowrap!important;
+}
+
+html body #modal.card-detail-modern .modal-body{
+  padding:24px 28px 0!important;
+}
+
+html body #modal.card-detail-modern .cd-wrap,
+html body .card-info-overlay.card-detail-modern .cd-wrap{
+  display:grid!important;
+  grid-template-columns:272px minmax(0,1fr)!important;
+  align-items:stretch!important;
+  gap:30px!important;
+  margin:0!important;
+  padding:24px 28px!important;
+}
+
+html body #modal.card-detail-modern .modal-body .cd-wrap{
+  padding:0!important;
+}
+
+html body #modal.card-detail-modern .cd-img,
+html body .card-info-overlay.card-detail-modern .cd-img{
+  left:0!important;
+  width:272px!important;
+  height:381px!important;
+  min-height:0!important;
+  align-self:start!important;
+  overflow:visible!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  box-shadow:0 22px 42px rgba(0,0,0,.48)!important;
+}
+
+html body #modal.card-detail-modern .cd-img::after,
+html body .card-info-overlay.card-detail-modern .cd-img::after{
+  content:""!important;
+  position:absolute!important;
+  inset:-7px!important;
+  z-index:-1!important;
+  display:block!important;
+  border:1px solid var(--cd3-line)!important;
+  border-radius:11px!important;
+  background:linear-gradient(145deg,rgba(224,185,93,.08),transparent 32%)!important;
+  pointer-events:none!important;
+}
+
+html body #modal.card-detail-modern .cd-img img,
+html body .card-info-overlay.card-detail-modern .cd-img img,
+html body #modal.card-detail-modern .cd-img canvas,
+html body .card-info-overlay.card-detail-modern .cd-img canvas{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  border-radius:7px!important;
+}
+
+html body #modal.card-detail-modern .cd-info,
+html body .card-info-overlay.card-detail-modern .cd-info{
+  min-width:0!important;
+  padding:5px 0 2px!important;
+}
+
+html body #modal.card-detail-modern .cd-name,
+html body .card-info-overlay.card-detail-modern .cd-name{
+  margin:0 0 7px!important;
+  color:#f6e9c6!important;
+  font:700 clamp(22px,2.1vw,32px)/1.12 Georgia,serif!important;
+  letter-spacing:.01em!important;
+}
+
+html body #modal.card-detail-modern .cd-ability,
+html body .card-info-overlay.card-detail-modern .cd-ability{
+  margin:0 0 17px!important;
+  color:var(--cd3-muted)!important;
+  font:italic 13px/1.45 Georgia,serif!important;
+}
+
+html body #modal.card-detail-modern .cd-pills,
+html body .card-info-overlay.card-detail-modern .cd-pills{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:7px!important;
+  margin:0 0 19px!important;
+  padding:0 0 17px!important;
+  border-bottom:1px solid var(--cd3-line)!important;
+}
+
+html body #modal.card-detail-modern .cd-pills .pill,
+html body .card-info-overlay.card-detail-modern .cd-pills .pill{
+  min-height:25px!important;
+  box-sizing:border-box!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  padding:4px 9px!important;
+  border:1px solid var(--cd3-line)!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.025)!important;
+  color:#bdc7ce!important;
+  font:700 9px/1 'Cinzel',serif!important;
+  letter-spacing:.08em!important;
+}
+
+html body #modal.card-detail-modern .cd-pills .pill.fate,
+html body .card-info-overlay.card-detail-modern .cd-pills .pill.fate{
+  border-color:rgba(86,216,224,.38)!important;
+  color:#7ee8ed!important;
+}
+
+html body #modal.card-detail-modern .cd-pills .pill.rarity,
+html body .card-info-overlay.card-detail-modern .cd-pills .pill.rarity{
+  border-color:rgba(224,185,93,.42)!important;
+  color:#ebc96f!important;
+}
+
+html body #modal.card-detail-modern .cd-eff,
+html body .card-info-overlay.card-detail-modern .cd-eff{
+  position:relative!important;
+  margin:0 0 16px!important;
+  padding:17px 18px 17px 21px!important;
+  border:1px solid rgba(255,255,255,.075)!important;
+  border-left:2px solid var(--cd3-accent)!important;
+  border-radius:6px!important;
+  background:linear-gradient(110deg,rgba(224,185,93,.085),rgba(255,255,255,.018))!important;
+  color:var(--cd3-copy)!important;
+  font-size:14px!important;
+  line-height:1.62!important;
+}
+
+html body #modal.card-detail-modern .cd-flavor,
+html body .card-info-overlay.card-detail-modern .cd-flavor{
+  margin-top:auto!important;
+  padding:13px 3px 0!important;
+  border-top:1px solid var(--cd3-line)!important;
+  color:var(--cd3-muted)!important;
+  font:italic 13px/1.55 Georgia,serif!important;
+}
+
+html body #modal.card-detail-modern .modal-acts,
+html body .card-info-overlay.card-detail-modern .cio-acts{
+  min-height:64px!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:9px!important;
+  margin:22px 0 0!important;
+  padding:13px 28px!important;
+  border:0!important;
+  border-top:1px solid var(--cd3-line)!important;
+  background:rgba(0,0,0,.16)!important;
+}
+
+html body .card-info-overlay.card-detail-modern .cio-acts{
+  margin-top:0!important;
+}
+
+html body #modal.card-detail-modern .modal-acts .btn,
+html body .card-info-overlay.card-detail-modern .cio-acts .btn{
+  min-width:108px!important;
+  height:34px!important;
+  border:1px solid var(--cd3-line-strong)!important;
+  border-radius:5px!important;
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018))!important;
+  color:#e7ded0!important;
+  box-shadow:none!important;
+}
+
+html body #modal.card-detail-modern .modal-acts .btn:hover,
+html body .card-info-overlay.card-detail-modern .cio-acts .btn:hover{
+  border-color:var(--cd3-accent)!important;
+  background:var(--cd3-accent-soft)!important;
+  color:#fff2ca!important;
+  transform:translateY(-1px)!important;
+}
+
+html body .card-info-overlay.card-detail-modern{
+  padding:20px!important;
+  background:rgba(2,5,9,.76)!important;
+  backdrop-filter:blur(10px)!important;
+  -webkit-backdrop-filter:blur(10px)!important;
+}
+
+html body .card-info-overlay.card-detail-modern .card-info-overlay-backdrop{
+  background:transparent!important;
+}
+
+@media(max-width:760px){
+  html body #modal.card-detail-modern,
+  html body .card-info-overlay.card-detail-modern{padding:8px!important;}
+  html body #modal.card-detail-modern .card-detail-modern-panel,
+  html body .card-info-overlay.card-detail-modern .card-detail-modern-panel{width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px)!important;}
+  html body #modal.card-detail-modern .cd-wrap,
+  html body .card-info-overlay.card-detail-modern .cd-wrap{grid-template-columns:1fr!important;gap:24px!important;padding:20px!important;}
+  html body #modal.card-detail-modern .modal-body{padding:20px 20px 0!important;}
+  html body #modal.card-detail-modern .modal-body .cd-wrap{padding:0!important;}
+  html body #modal.card-detail-modern .cd-img,
+  html body .card-info-overlay.card-detail-modern .cd-img{width:min(230px,72vw)!important;height:auto!important;aspect-ratio:5/7!important;justify-self:center!important;}
+  html body #modal.card-detail-modern .modal-title,
+  html body .card-info-overlay.card-detail-modern .cio-title{padding:0 18px!important;}
+  html body #modal.card-detail-modern .modal-title::before,
+  html body .card-info-overlay.card-detail-modern .cio-title::before{display:none!important;}
+  html body #modal.card-detail-modern .modal-acts,
+  html body .card-info-overlay.card-detail-modern .cio-acts{padding:12px 20px!important;}
+}
+
 /* Kvetka's note is a turn-long musical status, not a short activation flash. */
 @keyframes fate-kvetka-ballad-turn-pulse{
   0%,100%{opacity:.76;transform:translate(-50%,-50%) scale(.98);}
@@ -20525,20 +21378,20 @@ html body #s-game .effect-pill .effect-pill-icon svg,
 html body #s-game .effect-pill .effect-pill-icon svg.blame-game-icon,
 html body #s-game .effect-pill .effect-pill-icon svg.busser-boot-icon{
   display:block!important;
-  width:22px!important;
-  height:22px!important;
-  max-width:22px!important;
-  max-height:22px!important;
+  width:26px!important;
+  height:26px!important;
+  max-width:26px!important;
+  max-height:26px!important;
   transform:none!important;
   overflow:hidden!important;
 }
 html body #s-game .effect-pill .effect-pill-icon img,
 html body .status-overflow-dropdown .effect-pill .effect-pill-icon img{
   display:block!important;
-  width:22px!important;
-  height:22px!important;
-  max-width:22px!important;
-  max-height:22px!important;
+  width:26px!important;
+  height:26px!important;
+  max-width:26px!important;
+  max-height:26px!important;
   object-fit:contain!important;
   border-radius:50%!important;
 }
@@ -23611,19 +24464,19 @@ html body #modal .pd-library-v3 .pd-v3-toolbar > div:first-child span{font-size:
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card{
   grid-template-columns:286px minmax(0,1fr)!important;
   grid-template-rows:minmax(0,1fr) 62px!important;
-  height:368px!important;
-  min-height:368px!important;
-  max-height:368px!important;
+  height:300px!important;
+  min-height:300px!important;
+  max-height:300px!important;
   border-radius:6px!important;
   background:linear-gradient(180deg,rgba(12,14,20,.99),rgba(6,8,13,.998))!important;
 }
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-art{
-  width:254px!important;
-  min-width:254px!important;
-  max-width:254px!important;
-  height:254px!important;
-  min-height:254px!important;
-  max-height:254px!important;
+  width:190px!important;
+  min-width:190px!important;
+  max-width:190px!important;
+  height:190px!important;
+  min-height:190px!important;
+  max-height:190px!important;
   padding:.58rem!important;
   border-radius:5px!important;
   border-color:rgba(201,168,76,.64)!important;
@@ -24810,6 +25663,26 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-three-digit{
   left:1px!important;
 }
 
+/* Main Challenger tab: move the large ELO value two pixels right without
+   affecting the compact ELO readout in the screen header. */
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo{
+  position:relative!important;
+  left:3px!important;
+}
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
+  left:0!important;
+}
+html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-three-digit{
+  left:4px!important;
+}
+
+/* Close the metadata rail around type, Fate, affiliation, and rarity. */
+html body #modal .modal .cd-pills,
+html body .card-info-overlay .cd-pills{
+  border-left:1px solid rgba(215,170,79,.22)!important;
+  border-right:1px solid rgba(215,170,79,.22)!important;
+}
+
 /* Board effect pickers must always paint. Chromium could preserve the hit
    regions while skipping these contained rows, making Oathbound and Louis
    look invisible even though random clicks still selected their targets. */
@@ -25092,6 +25965,48 @@ html body #modal .bh14-charter-select{width:100%!important;margin-top:auto!impor
 html body #modal .bh14-charter-select b{float:right!important;color:#efd477!important;font-size:.8rem!important;}
 @media(max-width:820px){html body #modal .bh14-charter-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}html body #modal .bh14-charter-choice{min-height:150px!important;}}
 
+/* Soviet Grenadiers: a dedicated declaration console, not a generic modal. */
+html body #modal .modal.soviet-type-picker-modal{width:min(980px,calc(100vw - 36px))!important;max-width:980px!important;padding:1.35rem 1.5rem 1.5rem!important;overflow:hidden!important;border:1px solid rgba(224,73,63,.62)!important;background:radial-gradient(circle at 8% 0,rgba(170,30,27,.32),transparent 34%),linear-gradient(145deg,#16100f,#090a0d 62%,#110b0b)!important;box-shadow:0 34px 100px rgba(0,0,0,.84),inset 0 0 0 1px rgba(255,210,126,.06)!important;}
+html body #modal .modal.soviet-type-picker-modal #modal-title{margin-bottom:.9rem!important;padding-bottom:.68rem!important;color:#f3cf89!important;border-bottom:1px solid rgba(221,74,62,.35)!important;font:600 1.05rem/1.2 Cinzel,serif!important;letter-spacing:.1em!important;text-transform:uppercase!important;}
+html body #modal .modal.soviet-type-picker-modal #modal-acts{display:none!important;}
+html body #modal .soviet-type-picker{display:grid!important;gap:1rem!important;}
+html body #modal .soviet-type-hero{display:grid!important;grid-template-columns:70px minmax(0,1fr)!important;gap:1rem!important;align-items:center!important;padding:1rem 1.1rem!important;border:1px solid rgba(221,75,63,.28)!important;border-left:3px solid #df4c40!important;background:linear-gradient(90deg,rgba(125,27,24,.3),rgba(14,13,15,.62))!important;}
+html body #modal .soviet-star{width:58px!important;height:58px!important;display:grid!important;place-items:center!important;transform:rotate(-5deg)!important;border:1px solid rgba(237,190,93,.7)!important;border-radius:50%!important;color:#f2c765!important;background:radial-gradient(circle,rgba(158,33,29,.56),rgba(28,11,11,.98) 72%)!important;font-size:1.65rem!important;box-shadow:inset 0 0 0 6px rgba(12,8,8,.54),0 0 24px rgba(213,51,43,.18)!important;}
+html body #modal .soviet-type-kicker{display:block!important;color:#e95d51!important;font:700 .59rem/1 Cinzel,serif!important;letter-spacing:.21em!important;text-transform:uppercase!important;}
+html body #modal .soviet-type-hero strong{display:block!important;margin:.34rem 0 .2rem!important;color:#f4d28b!important;font:600 1.1rem/1.2 Cinzel,serif!important;letter-spacing:.04em!important;text-transform:uppercase!important;}
+html body #modal .soviet-type-hero p{margin:0!important;color:rgba(232,220,207,.7)!important;font:italic .76rem/1.45 Georgia,serif!important;}
+html body #modal .soviet-type-grid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:.72rem!important;}
+html body #modal .soviet-type-choice{position:relative!important;min-width:0!important;min-height:180px!important;display:flex!important;flex-direction:column!important;align-items:center!important;padding:.76rem .68rem .7rem!important;overflow:hidden!important;cursor:pointer!important;border:1px solid rgba(202,71,59,.42)!important;border-radius:8px!important;color:#ead9c3!important;background:linear-gradient(160deg,rgba(63,22,20,.92),rgba(10,10,13,.99) 72%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)!important;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease!important;}
+html body #modal .soviet-type-choice::before{content:""!important;position:absolute!important;inset:0 0 auto!important;height:3px!important;background:linear-gradient(90deg,transparent,#e54d42,#f1c66a,#e54d42,transparent)!important;opacity:.68!important;}
+html body #modal .soviet-type-choice:hover,html body #modal .soviet-type-choice:focus-visible{transform:translateY(-5px)!important;border-color:rgba(239,193,94,.84)!important;background:linear-gradient(160deg,rgba(101,29,25,.98),rgba(13,11,13,.99) 76%)!important;box-shadow:0 16px 30px rgba(0,0,0,.42),0 0 22px rgba(218,61,50,.14)!important;outline:none!important;}
+html body #modal .soviet-type-index{align-self:flex-start!important;color:rgba(231,89,77,.72)!important;font:700 .53rem/1 Cinzel,serif!important;letter-spacing:.17em!important;}
+html body #modal .soviet-type-glyph{width:50px!important;height:50px!important;display:grid!important;place-items:center!important;margin:.64rem 0 .7rem!important;border:1px solid rgba(239,193,94,.58)!important;border-radius:50%!important;color:#f3cb70!important;background:radial-gradient(circle,rgba(150,39,32,.25),rgba(14,10,11,.96) 72%)!important;font:700 .62rem/1 Cinzel,serif!important;letter-spacing:.07em!important;}
+html body #modal .soviet-type-choice>strong{color:#f2d08a!important;font:600 .74rem/1.2 Cinzel,serif!important;letter-spacing:.045em!important;text-transform:uppercase!important;text-align:center!important;}
+html body #modal .soviet-type-choice>em{margin:.42rem 0 .72rem!important;color:rgba(221,208,195,.6)!important;font:italic .66rem/1.35 Georgia,serif!important;text-align:center!important;}
+html body #modal .soviet-type-choice>span:last-child{width:100%!important;margin-top:auto!important;padding-top:.56rem!important;border-top:1px solid rgba(213,75,62,.23)!important;color:#e96458!important;font:700 .52rem/1 Cinzel,serif!important;letter-spacing:.14em!important;text-transform:uppercase!important;text-align:left!important;}
+html body #modal .soviet-type-choice>span:last-child b{float:right!important;color:#f0c76e!important;font-size:.82rem!important;}
+@media(max-width:820px){html body #modal .soviet-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}html body #modal .soviet-type-choice{min-height:148px!important;}}
+
+/* Keep the Grenadiers declaration layout while using the neutral match palette. */
+html body #modal .modal.soviet-type-picker-modal{border-color:rgba(157,174,190,.42)!important;background:radial-gradient(circle at 8% 0,rgba(73,91,109,.22),transparent 36%),linear-gradient(145deg,#111820,#080c12 62%,#0d1218)!important;box-shadow:0 34px 100px rgba(0,0,0,.84),inset 0 0 0 1px rgba(219,232,242,.05)!important;}
+html body #modal .modal.soviet-type-picker-modal #modal-title{color:#d7e2e9!important;border-bottom-color:rgba(139,160,177,.3)!important;}
+html body #modal .soviet-type-hero{border-color:rgba(132,154,172,.3)!important;border-left-color:#8297a8!important;background:linear-gradient(90deg,rgba(55,72,87,.34),rgba(12,17,23,.72))!important;}
+html body #modal .soviet-star{border-color:rgba(171,190,204,.62)!important;color:#c9d7e0!important;background:radial-gradient(circle,rgba(72,92,108,.58),rgba(12,18,24,.98) 72%)!important;box-shadow:inset 0 0 0 6px rgba(6,10,14,.54),0 0 24px rgba(102,132,154,.15)!important;}
+html body #modal .soviet-type-kicker{color:#9fb4c3!important;}
+html body #modal .soviet-type-hero strong,html body #modal .soviet-type-choice>strong{color:#dce6ec!important;}
+html body #modal .soviet-type-choice{border-color:rgba(126,149,166,.38)!important;color:#d7e1e7!important;background:linear-gradient(160deg,rgba(36,49,60,.94),rgba(8,12,17,.99) 72%)!important;}
+html body #modal .soviet-type-choice::before{background:linear-gradient(90deg,transparent,#708a9e,#c2d0d9,#708a9e,transparent)!important;}
+html body #modal .soviet-type-choice:hover,html body #modal .soviet-type-choice:focus-visible{border-color:rgba(181,202,216,.78)!important;background:linear-gradient(160deg,rgba(52,70,84,.98),rgba(10,15,20,.99) 76%)!important;box-shadow:0 16px 30px rgba(0,0,0,.42),0 0 22px rgba(101,136,160,.13)!important;}
+html body #modal .soviet-type-index,html body #modal .soviet-type-choice>span:last-child{color:#91a9ba!important;}
+html body #modal .soviet-type-glyph{border-color:rgba(174,194,207,.54)!important;color:#cbd9e2!important;background:radial-gradient(circle,rgba(74,95,111,.28),rgba(10,15,20,.96) 72%)!important;}
+html body #modal .soviet-type-choice>span:last-child{border-top-color:rgba(130,153,170,.23)!important;}
+html body #modal .soviet-type-choice>span:last-child b{color:#c5d4dd!important;}
+
+/* Landscape questions inherit the current modal shell. Picker geometry and
+   zone-choice controls intentionally remain owned by the existing picker. */
+html body #modal .modal.landscape-prompt-modal{border-color:rgba(206,171,69,.5)!important;background:radial-gradient(circle at 50% 0,rgba(74,112,139,.15),transparent 40%),linear-gradient(155deg,#101923,#070c12 68%)!important;box-shadow:0 30px 90px rgba(0,0,0,.82),inset 0 0 0 1px rgba(255,239,170,.04)!important;}
+html body #modal .modal.landscape-prompt-modal #modal-title{color:#ead58d!important;border-bottom-color:rgba(206,171,69,.28)!important;letter-spacing:.08em!important;text-transform:uppercase!important;}
+
 /* Public deck cards keep a stable footprint under the pointer. */
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card,
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-card:hover,
@@ -25138,6 +26053,9 @@ html body #modal .modal.public-decks-modal.public-decks-hub-modal #modal-body::-
    the main Public Decks FPS cost. Contain the four-card page as one paint
    surface and avoid decorative compositor layers inside it. */
 html body #modal.public-decks-performance-layer{
+  background:
+    linear-gradient(180deg,rgba(5,7,12,.70),rgba(5,7,12,.84)),
+    url('../../optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d') center/cover no-repeat!important;
   backdrop-filter:none!important;
   -webkit-backdrop-filter:none!important;
 }
@@ -25146,6 +26064,9 @@ html body #modal.public-decks-performance-layer .pd-library-v3{
   filter:none!important;
   backdrop-filter:none!important;
   -webkit-backdrop-filter:none!important;
+}
+html body #modal.public-decks-performance-layer .modal.public-decks-hub-modal{
+  background:linear-gradient(145deg,rgba(9,17,27,.94),rgba(3,8,15,.97) 72%)!important;
 }
 html body #modal.public-decks-performance-layer .pd-library-v3{
   contain:layout paint style!important;
@@ -25162,6 +26083,20 @@ html body #modal.public-decks-performance-layer .pd-library-v3 :is(.pdx-card,.pd
    previously continued consuming a full compositor pass behind every card. */
 html body.public-decks-performance-active #s-title :is(.screen-bg,.title-overlay,.title-content,.title-profile,.daily-challenges-panel){
   animation-play-state:paused!important;
+}
+/* The hub is its own full-screen opaque surface. Do not keep the title scene
+   in the paint/compositor tree behind it; hiding it is restored automatically
+   when closePublicDecks removes the body class. */
+html body.public-decks-performance-active #s-title{
+  visibility:hidden!important;
+  content-visibility:hidden!important;
+  pointer-events:none!important;
+}
+html body.public-decks-performance-active #s-title *,
+html body.public-decks-performance-active #s-title::before,
+html body.public-decks-performance-active #s-title::after{
+  animation:none!important;
+  transition:none!important;
 }
 html body.public-decks-performance-active #s-title :is(.title-content,.title-profile,.daily-challenges-panel){
   pointer-events:none!important;
@@ -25225,3 +26160,2060 @@ html body .zone-fate-loss-burst.show{animation:fate-zone-loss-burst 1.4s cubic-b
   100%{opacity:0;transform:translate(-50%,-175%) scale(.9);filter:blur(1px);}
 }
 html.fate-animations-off body .zone-fate-loss-burst.show{animation-duration:.36s;}
+
+/* Reversible Morale / Pressure / Seals top-bar integration.
+   The shared HUD lives inside the existing bar and uses its vacated status lanes. */
+html body #s-game .topbar > .morale-pressure-hud{
+  position:absolute!important;
+  inset:0!important;
+  z-index:10!important;
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 118px 410px 118px minmax(0,1fr)!important;
+  grid-template-rows:1fr!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding:4px 18px!important;
+  pointer-events:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud[hidden]{display:none!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-player{
+  width:min(330px,100%)!important;
+  max-height:58px!important;
+  padding:.28rem .48rem .3rem!important;
+  align-self:center!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-left{
+  grid-column:1!important;
+  grid-row:1!important;
+  justify-self:end!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-right{
+  grid-column:5!important;
+  grid-row:1!important;
+  justify-self:start!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-heading{
+  margin-bottom:.12rem!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-resources{
+  margin-top:.15rem!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-summary{
+  position:relative!important;
+  inset:auto!important;
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  align-self:center!important;
+  transform:none!important;
+  width:max-content!important;
+  margin:0!important;
+  z-index:12!important;
+}
+
+@media(max-width:1360px){
+  html body #s-game .topbar > .morale-pressure-hud{
+    grid-template-columns:minmax(0,1fr) 104px minmax(340px,30vw) 104px minmax(0,1fr)!important;
+    gap:8px!important;
+    padding-inline:10px!important;
+  }
+  html body #s-game .topbar > .morale-pressure-hud .mp-player{
+    width:min(285px,100%)!important;
+  }
+  html body #s-game .topbar > .morale-pressure-hud .mp-status-summary{
+    padding:.18rem .36rem!important;
+    font-size:.43rem!important;
+  }
+}
+
+@media(max-width:980px){
+  html body #s-game .topbar > .morale-pressure-hud{
+    grid-template-columns:minmax(0,1fr) minmax(280px,38vw) minmax(0,1fr)!important;
+    gap:8px!important;
+  }
+  html body #s-game .topbar > .morale-pressure-hud .mp-left{grid-column:1!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-right{grid-column:3!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-status-summary{display:none!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-player{width:min(230px,100%)!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-heading span{display:none!important;}
+}
+/* Morale/Pressure status summary preserves each side's original status icon. */
+html body #s-game .mp-status-popover .mp-status-entry{
+  display:flex!important;align-items:center!important;gap:.5rem!important;
+  min-height:38px!important;padding:.38rem .44rem!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry .effect-pill-icon{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  flex:0 0 28px!important;width:28px!important;height:28px!important;
+  border:1px solid rgba(126,183,255,.62)!important;border-radius:50%!important;
+  background:radial-gradient(circle,rgba(71,122,190,.24),rgba(7,14,27,.72))!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry.opponent .effect-pill-icon{
+  border-color:rgba(255,122,132,.66)!important;
+  background:radial-gradient(circle,rgba(185,64,74,.25),rgba(29,8,13,.74))!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry .effect-pill-icon :is(img,svg){
+  display:block!important;width:26px!important;height:26px!important;max-width:26px!important;max-height:26px!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry>span:last-child{
+  display:flex!important;min-width:0!important;flex-direction:column!important;
+  font:600 .55rem/1.2 'Crimson Pro',serif!important;color:#e7ddc4!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry small{
+  color:#86c9ef!important;font:600 .43rem/1 'Cinzel',serif!important;
+  letter-spacing:.08em!important;text-transform:uppercase!important;
+}
+html body #s-game .mp-status-popover .mp-status-entry.opponent small{color:#ef8d98!important;}
+html body .cd-pills .pill.pressure{
+  border-color:rgba(91,187,242,.62)!important;color:#9fdbff!important;
+  background:linear-gradient(180deg,rgba(24,77,111,.42),rgba(7,22,37,.62))!important;
+}
+.pressure-resolution-reveal{position:fixed;inset:0;z-index:14950;display:grid;place-items:center;pointer-events:none;background:rgba(0,0,0,0);opacity:0;transition:opacity .22s ease,background .22s ease;}
+.pressure-resolution-reveal.show{opacity:1;background:rgba(1,5,10,.56);}
+.pressure-resolution-card{width:min(540px,78vw);padding:1.2rem 1.35rem;border:2px solid rgba(94,190,243,.74);border-radius:13px;background:radial-gradient(circle at 50% 0,rgba(28,74,105,.97),rgba(3,7,13,.99) 68%);box-shadow:0 24px 90px rgba(0,0,0,.86),0 0 42px rgba(77,180,239,.2);text-align:center;transform:scale(.86);transition:transform .28s cubic-bezier(.2,.85,.25,1.2);}
+.pressure-resolution-reveal.show .pressure-resolution-card{transform:scale(1);}
+.pressure-resolution-card h2{margin:.45rem 0 .9rem;font:700 1.45rem/1 'Cinzel',serif;color:#b9e7ff;}
+.pressure-resolution-values{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.7rem;}
+.pressure-resolution-values>div{padding:.72rem;border:1px solid rgba(100,194,246,.24);border-radius:8px;background:rgba(0,0,0,.24);display:flex;flex-direction:column;gap:.25rem;}
+.pressure-resolution-values span,.pressure-resolution-card footer{font:600 .54rem/1 'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;color:#95afbf;}
+.pressure-resolution-values strong{font:800 1.35rem/1 'Cinzel',serif;color:#7dd2ff;}
+.pressure-resolution-values>b{font:700 .65rem/1 'Cinzel',serif;color:#637b8b;text-transform:uppercase;}
+.pressure-resolution-card footer{display:flex;justify-content:center;gap:1.2rem;margin-top:.85rem;padding-top:.72rem;border-top:1px solid rgba(100,194,246,.2);}
+.pressure-resolution-card footer b{color:#f1e4c4;font-size:.75rem;}
+html body #s-game .mp-player.mp-morale-hit{animation:mp-morale-hit .82s cubic-bezier(.2,.8,.2,1);}
+html body #s-game .mp-player.mp-morale-hit .mp-heart{animation:mp-heart-hit .82s ease;}
+.morale-damage-floater{position:fixed;z-index:15020;max-width:calc(100vw - 24px);pointer-events:none;transform:translate(-50%,0);white-space:nowrap;font:800 .86rem/1 'Cinzel',serif;color:#ff7a88;text-shadow:0 0 5px #20050a,0 0 13px rgba(255,74,92,.8);animation:morale-damage-rise .92s ease-out forwards;}
+@keyframes mp-morale-hit{0%,100%{filter:none}18%{filter:brightness(1.7) saturate(1.45);transform:translateX(-3px)}34%{transform:translateX(3px)}50%{transform:translateX(-2px)}68%{transform:translateX(1px)}}
+@keyframes mp-heart-hit{0%,100%{transform:scale(1)}25%{transform:scale(1.42)}55%{transform:scale(.86)}}
+@keyframes morale-damage-rise{0%{opacity:0;transform:translate(-50%,8px) scale(.86)}18%{opacity:1;transform:translate(-50%,0) scale(1.06)}100%{opacity:0;transform:translate(-50%,34px) scale(1)}}
+
+/* Morale rules HUD: these are top-bar instruments, not cards floating inside it. */
+html body #s-game .topbar > .morale-pressure-hud{
+  grid-template-columns:minmax(310px,1fr) 132px 410px 132px minmax(310px,1fr)!important;
+  gap:9px!important;
+  padding:0 18px!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-player{
+  display:grid!important;
+  grid-template-columns:max-content minmax(112px,1fr) max-content!important;
+  grid-template-rows:1fr!important;
+  align-items:center!important;
+  gap:.55rem!important;
+  width:min(390px,100%)!important;
+  max-height:none!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-heading{
+  grid-column:1!important;
+  grid-row:1!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  gap:.12rem!important;
+  min-width:66px!important;
+  margin:0!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-heading span{font-size:.43rem!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-heading strong{font-size:.58rem!important;white-space:nowrap!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-morale-line{
+  grid-column:2!important;
+  grid-row:1!important;
+  min-width:112px!important;
+  padding:.18rem 0!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-resources{
+  grid-column:3!important;
+  grid-row:1!important;
+  justify-content:flex-start!important;
+  gap:.48rem!important;
+  margin:0!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-right .mp-heading{
+  grid-column:3!important;
+  text-align:right!important;
+  align-items:flex-end!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-right .mp-morale-line{grid-column:2!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-right .mp-resources{
+  grid-column:1!important;
+  justify-content:flex-end!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-heart{width:19px!important;height:19px!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-bar{height:11px!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-pressure,
+html body #s-game .topbar > .morale-pressure-hud .mp-seals{
+  padding:.14rem 0!important;
+  gap:.2rem!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-pressure>span,
+html body #s-game .topbar > .morale-pressure-hud .mp-seals>span{width:16px!important;height:16px!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-pressure>b,
+html body #s-game .topbar > .morale-pressure-hud .mp-seals>b{font-size:.72rem!important;}
+
+/* One legacy-style collapsed status banner on each side of the timer. */
+html body #s-game .topbar > .morale-pressure-hud .mp-status-summary{
+  position:relative!important;
+  inset:auto!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.28rem!important;
+  width:max-content!important;
+  max-width:128px!important;
+  min-height:25px!important;
+  margin:0!important;
+  padding:.18rem .48rem .18rem .32rem!important;
+  border:1px solid rgba(80,151,206,.52)!important;
+  border-radius:999px!important;
+  background:linear-gradient(180deg,rgba(21,52,82,.94),rgba(6,20,36,.97))!important;
+  color:#9fdcff!important;
+  box-shadow:inset 0 0 10px rgba(73,158,215,.08),0 3px 10px rgba(0,0,0,.28)!important;
+  font:600 .46rem/1 'Cinzel',serif!important;
+  letter-spacing:.07em!important;
+  text-transform:uppercase!important;
+  pointer-events:auto!important;
+  cursor:help!important;
+  transform:none!important;
+  z-index:12!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-player{
+  grid-column:2!important;grid-row:1!important;justify-self:end!important;align-self:center!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-opponent{
+  grid-column:4!important;grid-row:1!important;justify-self:start!important;align-self:center!important;
+  border-color:rgba(186,75,91,.58)!important;
+  background:linear-gradient(180deg,rgba(77,25,37,.94),rgba(31,8,15,.97))!important;
+  color:#f0a3ac!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-icon{
+  display:grid!important;place-items:center!important;flex:0 0 17px!important;width:17px!important;height:17px!important;
+  border:1px solid currentColor!important;border-radius:50%!important;background:rgba(100,183,234,.12)!important;
+  font-size:.46rem!important;line-height:1!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-summary>span:nth-child(2){white-space:nowrap!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-summary> b{
+  display:grid!important;place-items:center!important;min-width:16px!important;height:16px!important;padding:0 2px!important;
+  border-radius:50%!important;background:rgba(91,174,226,.2)!important;color:#d5f1ff!important;font-size:.5rem!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-opponent> b{background:rgba(207,91,106,.2)!important;color:#ffd8dc!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-summary:not(.has-effects){opacity:.72!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-player .mp-status-popover{left:auto!important;right:0!important;transform:none!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-status-opponent .mp-status-popover{left:0!important;right:auto!important;transform:none!important;}
+html body #s-game .mp-status-summary:hover .mp-status-popover,
+html body #s-game .mp-status-summary:focus-visible .mp-status-popover,
+html body #s-game .mp-status-summary[aria-expanded="true"] .mp-status-popover{display:block!important;}
+
+/* Larger Pressure ledger, opening farther down from the top bar. */
+html body #s-game .topbar > .morale-pressure-hud .mp-pressure-tip{
+  top:calc(100% + 20px)!important;
+  width:min(440px,calc(100vw - 30px))!important;
+  max-height:min(440px,calc(100vh - 125px))!important;
+  padding:.72rem .76rem!important;
+  border-radius:9px!important;
+}
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-row{padding:.5rem .25rem!important;gap:1.1rem!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-row strong{font-size:.68rem!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-row em,
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-row small{font-size:.56rem!important;line-height:1.35!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-row>b{font-size:.86rem!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-pressure-tip footer{padding:.55rem .25rem 0!important;font-size:.62rem!important;}
+html body #s-game .topbar > .morale-pressure-hud .mp-ledger-empty{padding:.7rem!important;font-size:.65rem!important;}
+
+/* Morale thresholds open below the integrated bar and remain on-screen. */
+html body #s-game .mp-morale-line{position:relative!important;pointer-events:auto!important;cursor:help!important;}
+html body #s-game .mp-morale-tip{
+  display:none;position:absolute;top:calc(100% + 17px);left:0;z-index:510;width:min(390px,calc(100vw - 30px));
+  padding:.65rem;border:1px solid rgba(222,111,127,.55);border-radius:8px;
+  background:rgba(8,7,13,.988);box-shadow:0 16px 42px rgba(0,0,0,.76);color:#eee0dd;text-align:left;
+}
+html body #s-game .mp-right .mp-morale-tip{left:auto;right:0;}
+html body #s-game .mp-morale-line:hover .mp-morale-tip,
+html body #s-game .mp-morale-line:focus-visible .mp-morale-tip{display:block;}
+html body #s-game .mp-morale-tip header{display:flex;justify-content:space-between;gap:1rem;padding:.1rem .12rem .48rem;border-bottom:1px solid rgba(222,111,127,.22);font:700 .62rem/1 'Cinzel',serif;color:#ffd5da;}
+html body #s-game .mp-morale-rule{display:grid;grid-template-columns:90px 1fr;gap:.65rem;padding:.42rem .15rem;border-bottom:1px solid rgba(255,255,255,.055);font:500 .62rem/1.25 'Crimson Pro',serif;color:#8f8a91;}
+html body #s-game .mp-morale-rule b{font:600 .54rem/1.25 'Cinzel',serif;color:#8e858a;}
+html body #s-game .mp-morale-rule.active{color:#ffe7e9;background:rgba(152,38,54,.11);}
+html body #s-game .mp-morale-rule.active b{color:#ff8996;}
+
+/* Morale recovery and shield feedback. */
+html body #s-game .mp-player.mp-morale-heal .mp-heart{animation:mp-heart-heal 1s ease;}
+html body #s-game .mp-player.mp-shield-gain .mp-bar{animation:mp-shield-pulse 1s ease;}
+.morale-heal-floater,.morale-shield-floater{position:fixed;z-index:15020;pointer-events:none;transform:translate(-50%,0);font:800 1rem/1 'Cinzel',serif;white-space:nowrap;animation:morale-positive-rise 1.02s ease-out forwards;}
+.morale-heal-floater{color:#7dffa9;text-shadow:0 0 6px #06200d,0 0 15px rgba(75,239,126,.78);}
+.morale-shield-floater{color:#71cbff;text-shadow:0 0 6px #061625,0 0 15px rgba(76,177,244,.86);}
+@keyframes mp-heart-heal{0%,100%{transform:scale(1);filter:none}28%{transform:scale(1.4);filter:brightness(1.65) drop-shadow(0 0 10px #6bff9e)}58%{transform:scale(.94)}}
+@keyframes mp-shield-pulse{0%,100%{filter:none}32%{filter:brightness(1.8) drop-shadow(0 0 10px #58bfff);transform:scaleY(1.42)}65%{transform:scaleY(.96)}}
+@keyframes morale-positive-rise{0%{opacity:0;transform:translate(-50%,9px) scale(.82)}18%{opacity:1;transform:translate(-50%,0) scale(1.08)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,38px) scale(.94)}}
+
+@media(max-width:1360px){
+  html body #s-game .topbar > .morale-pressure-hud{grid-template-columns:minmax(250px,1fr) 112px minmax(330px,28vw) 112px minmax(250px,1fr)!important;gap:5px!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-player{width:min(315px,100%)!important;gap:.35rem!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-pressure>em,
+  html body #s-game .topbar > .morale-pressure-hud .mp-seals>em{display:none!important;}
+}
+@media(max-width:980px){
+  html body #s-game .topbar > .morale-pressure-hud{grid-template-columns:minmax(205px,1fr) 72px minmax(270px,32vw) 72px minmax(205px,1fr)!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-status-summary{display:inline-flex!important;max-width:70px!important;padding:.16rem .25rem!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-status-summary>span:nth-child(2){display:none!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-player{width:min(240px,100%)!important;grid-template-columns:minmax(92px,1fr) max-content!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-heading{display:none!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-morale-line{grid-column:1!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-resources{grid-column:2!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-right .mp-morale-line{grid-column:2!important;}
+  html body #s-game .topbar > .morale-pressure-hud .mp-right .mp-resources{grid-column:1!important;}
+}
+
+/* Active end-of-cascade copy for the reversible six-slot contested row. */
+html body #s-game #board.expanded-contested-row,
+html.fate-canvas-board-mode body #s-game #board.expanded-contested-row{
+  --expanded-base-cw:clamp(108px,7.45vw,145px)!important;
+  --expanded-base-ch:clamp(151px,10.43vw,203px)!important;
+  --cw:clamp(80px,5.51vw,107px)!important;
+  --ch:clamp(112px,7.72vw,150px)!important;
+  --zone-row-h:calc(var(--ch) + .22rem)!important;
+  --zone-fit-w:calc(var(--expanded-base-cw) + var(--expanded-base-cw) + var(--expanded-base-cw) + .52rem + 44px)!important;
+}
+html body #s-game #board.expanded-contested-row .zone-rows,
+html.fate-canvas-board-mode body #s-game #board.expanded-contested-row .zone-rows{
+  grid-template-rows:var(--zone-row-h) calc(var(--zone-row-h) + var(--zone-row-h)) var(--zone-row-h)!important;
+  grid-auto-rows:var(--zone-row-h)!important;
+  max-height:calc(var(--zone-row-h) + var(--zone-row-h) + var(--zone-row-h) + var(--zone-row-h) + .18rem)!important;
+  overflow-y:auto!important;
+}
+html body #s-game #board.expanded-contested-row .brow,
+html.fate-canvas-board-mode body #s-game #board.expanded-contested-row .brow{
+  height:var(--zone-row-h)!important;
+  min-height:var(--zone-row-h)!important;
+  max-height:var(--zone-row-h)!important;
+}
+html body #s-game #board.expanded-contested-row .brow.contested,
+html.fate-canvas-board-mode body #s-game #board.expanded-contested-row .brow.contested{
+  height:calc(var(--zone-row-h) + var(--zone-row-h))!important;
+  min-height:calc(var(--zone-row-h) + var(--zone-row-h))!important;
+  max-height:calc(var(--zone-row-h) + var(--zone-row-h))!important;
+}
+html body #s-game #board.expanded-contested-row .brow.contested .rcells,
+html.fate-canvas-board-mode body #s-game #board.expanded-contested-row .brow.contested .rcells{
+  display:grid!important;
+  grid-template-columns:repeat(3,var(--cw))!important;
+  grid-template-rows:repeat(2,var(--ch))!important;
+  align-items:center!important;
+  justify-items:center!important;
+  gap:.12rem!important;
+  width:max-content!important;
+}
+.win-seal-origin{
+  margin-top:.72rem;padding-top:.58rem;border-top:1px solid rgba(228,195,83,.22);
+  font:600 .56rem/1.35 'Cinzel',serif;letter-spacing:.045em;color:#c9b983;
+}
+.morale-pressure-hud.mp-zone-only .mp-morale,
+.morale-pressure-hud.mp-zone-only .mp-pressure {
+  display: none !important;
+}
+
+/* Reversible uniform zone experiment: one four-square line per side. The
+   retained expanded-contested-row rules above still render 3/6/3 whenever
+   fateZone444=0 is supplied. */
+html body #s-game #board.zone-layout-444,
+html.fate-canvas-board-mode body #s-game #board.zone-layout-444{
+  --cw:clamp(92px,6.10vw,117px)!important;
+  --ch:clamp(129px,8.54vw,164px)!important;
+  --zone-row-h:calc(var(--ch) + .12rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + var(--cw) + .27rem + 18px)!important;
+  gap:.12rem!important;
+  padding-left:.10rem!important;
+  padding-right:.10rem!important;
+}
+html body #s-game #board.zone-layout-444 .zone-rows,
+html.fate-canvas-board-mode body #s-game #board.zone-layout-444 .zone-rows{
+  grid-template-rows:repeat(3,var(--zone-row-h))!important;
+  grid-auto-rows:var(--zone-row-h)!important;
+  max-height:calc(var(--zone-row-h) + var(--zone-row-h) + var(--zone-row-h) + .08rem)!important;
+  overflow:visible!important;
+}
+html body #s-game #board.zone-layout-444 .brow,
+html body #s-game #board.zone-layout-444 .brow.contested,
+html.fate-canvas-board-mode body #s-game #board.zone-layout-444 .brow,
+html.fate-canvas-board-mode body #s-game #board.zone-layout-444 .brow.contested{
+  height:var(--zone-row-h)!important;
+  min-height:var(--zone-row-h)!important;
+  max-height:var(--zone-row-h)!important;
+}
+html body #s-game #board.zone-layout-444 .brow .rcells,
+html.fate-canvas-board-mode body #s-game #board.zone-layout-444 .brow .rcells{
+  display:grid!important;
+  grid-template-columns:repeat(4,var(--cw))!important;
+  grid-template-rows:var(--ch)!important;
+  align-items:center!important;
+  justify-items:center!important;
+  gap:.06rem!important;
+  width:max-content!important;
+}
+
+/* Classic top bar with Seals retained as the only persistent checkpoint UI. */
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only{
+  position:absolute!important;
+  inset:0!important;
+  display:block!important;
+  padding:0!important;
+  pointer-events:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-status-summary{display:none!important;}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-player{
+  position:absolute!important;
+  top:50%!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:.34rem!important;
+  width:max-content!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:28px!important;
+  max-height:28px!important;
+  padding:.18rem .48rem!important;
+  border:1px solid rgba(218,183,75,.46)!important;
+  border-radius:999px!important;
+  background:rgba(4,7,13,.94)!important;
+  box-shadow:0 4px 14px rgba(0,0,0,.34)!important;
+  transform:translateY(-50%)!important;
+  pointer-events:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-left{right:calc(50% + 218px)!important;left:auto!important;}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-right{left:calc(50% + 218px)!important;right:auto!important;}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seal-only-label{
+  color:#8ea4b6!important;font:600 .43rem/1 'Cinzel',serif!important;letter-spacing:.09em!important;text-transform:uppercase!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seals{
+  display:flex!important;align-items:center!important;gap:.22rem!important;padding:0!important;border:0!important;background:none!important;
+}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seals>span{width:17px!important;height:17px!important;color:#e4c85f!important;}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seals>b{color:#f1da7c!important;font-size:.72rem!important;}
+html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seals>em{color:#bca75c!important;font-size:.42rem!important;}
+@media(max-width:1100px){
+  html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-left{right:calc(50% + 180px)!important;}
+  html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-right{left:calc(50% + 180px)!important;}
+  html body #s-game .topbar > .morale-pressure-hud.mp-seals-only .mp-seal-only-label{display:none!important;}
+}
+
+/* 2026-08-25 final Morale/4-4-4 presentation correction.
+   This remains reversible with fateWide444=0 and fateMoralePressureRules=0. */
+html body #s-game.wide-zone-layout-444 .game-layout{
+  padding-left:166px!important;
+  padding-right:4px!important;
+  gap:0!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left{
+  display:contents!important;
+  width:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left::before,
+html body #s-game.wide-zone-layout-444 .game-left::after,
+html body #s-game.wide-zone-layout-444 .game-left>.left-section::before,
+html body #s-game.wide-zone-layout-444 .game-left>.left-section::after{
+  content:none!important;
+  display:none!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left>.left-section{
+  display:contents!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .opp-section>.left-section-lbl,
+html body #s-game.wide-zone-layout-444 .game-left .opp-hand{
+  display:none!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner{
+  position:fixed!important;
+  top:5px!important;
+  width:300px!important;
+  min-height:58px!important;
+  max-height:58px!important;
+  margin:0!important;
+  z-index:720!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .opp-banner{left:8px!important;right:auto!important;}
+html body #s-game.wide-zone-layout-444 .game-left .my-banner{left:auto!important;right:8px!important;}
+html body #s-game.wide-zone-layout-444 .landscape-panel{
+  position:fixed!important;
+  left:7px!important;
+  top:88px!important;
+  bottom:auto!important;
+  width:150px!important;
+  min-width:150px!important;
+  max-width:150px!important;
+  height:auto!important;
+  min-height:190px!important;
+  max-height:280px!important;
+  margin:0!important;
+  padding:.7rem .55rem!important;
+  overflow:auto!important;
+  z-index:310!important;
+}
+html body #s-game.wide-zone-layout-444 .left-piles{
+  position:fixed!important;
+  left:7px!important;
+  bottom:12px!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+  gap:5px!important;
+  width:150px!important;
+  margin:0!important;
+  padding:0!important;
+  z-index:310!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .pile-slot{
+  width:72px!important;
+  min-width:72px!important;
+  height:101px!important;
+  min-height:101px!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444{
+  --cw:clamp(112px,7.55vw,145px)!important;
+  --ch:clamp(157px,10.57vw,203px)!important;
+  --zone-row-h:calc(var(--ch) + .08rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + var(--cw) + .18rem + 8px)!important;
+  width:100%!important;
+  max-width:none!important;
+  padding-left:0!important;
+  padding-right:0!important;
+  gap:.08rem!important;
+}
+
+/* Morale and one consolidated status banner per player share each side of the
+   timer. The original status lanes remain the data source but are not drawn. */
+html body #s-game.morale-only-enabled #tp-status-left,
+html body #s-game.morale-only-enabled #tp-status-right,
+html body #s-game.morale-only-enabled #game-status-dock{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{
+  width:320px!important;
+  grid-template-columns:86px minmax(0,1fr)!important;
+  gap:.45rem!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{
+  grid-template-columns:minmax(0,1fr) 86px!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right .mp-heading{
+  grid-column:2!important;
+  grid-row:1!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right .mp-morale-line{
+  grid-column:1!important;
+  grid-row:1!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:308px!important;right:auto!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{left:auto!important;right:308px!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary{
+  display:inline-flex!important;
+  position:absolute!important;
+  top:50%!important;
+  width:124px!important;
+  max-width:124px!important;
+  min-height:27px!important;
+  margin:0!important;
+  transform:translateY(-50%)!important;
+  pointer-events:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{
+  left:auto!important;
+  right:calc(50% + 196px)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{
+  left:calc(50% + 196px)!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-bar{
+  min-width:0!important;
+  width:100%!important;
+}
+
+/* The collapsed status controls deliberately reuse the original effect-pill
+   visual language instead of introducing another HUD badge design. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:.25rem!important;
+  width:max-content!important;
+  max-width:150px!important;
+  min-height:0!important;
+  padding:.2rem .55rem .2rem .4rem!important;
+  border-radius:999px!important;
+  overflow:visible!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.6rem!important;
+  font-weight:600!important;
+  letter-spacing:.04em!important;
+  white-space:nowrap!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill-mine{
+  border:1px solid rgba(58,143,217,.45)!important;
+  background:linear-gradient(135deg,rgba(30,60,120,.85),rgba(20,40,80,.75))!important;
+  color:#9ec5f0!important;
+  box-shadow:0 1px 6px rgba(58,143,217,.2),inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill-opp{
+  border:1px solid rgba(217,74,74,.45)!important;
+  background:linear-gradient(135deg,rgba(120,30,30,.85),rgba(80,20,20,.75))!important;
+  color:#f0a0a0!important;
+  box-shadow:0 1px 6px rgba(217,74,74,.2),inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  display:inline!important;
+  flex:none!important;
+  width:auto!important;
+  height:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:none!important;
+  font-size:.7rem!important;
+  line-height:1!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary>b{
+  display:inline!important;
+  min-width:0!important;
+  width:auto!important;
+  height:auto!important;
+  padding:0!important;
+  border-radius:0!important;
+  background:none!important;
+  color:inherit!important;
+  font-size:.58rem!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{
+  left:calc(50% + 208px)!important;
+}
+@media(max-width:1500px){
+  html body #s-game.wide-zone-layout-444 .game-left .player-banner{width:248px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{width:270px!important;grid-template-columns:76px minmax(0,1fr)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{grid-template-columns:minmax(0,1fr) 76px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:252px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{right:252px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{right:calc(50% + 184px)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{left:calc(50% + 184px)!important;}
+}
+
+/* 2026-08-26 rollback-integrity pass: the canonical status rails remain live
+   data sources, but the Morale layout has exactly one visible legacy-style
+   status banner per side. No child pill may leak out as a second banner. */
+html body #s-game.morale-only-enabled :is(
+  #tp-status-left,
+  #tp-status-right,
+  #topbar-effects,
+  #game-status-dock,
+  #game-status-left,
+  #game-status-right
+),
+html body #s-game.morale-only-enabled :is(
+  #tp-status-left,
+  #tp-status-right,
+  #topbar-effects,
+  #game-status-dock,
+  #game-status-left,
+  #game-status-right
+) > *{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  /* Match the established in-game effect-pill silhouette exactly. */
+  height:38px!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  padding:.3rem .72rem .3rem .48rem!important;
+  gap:.46rem!important;
+  border-radius:999px!important;
+  overflow:visible!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  width:30px!important;min-width:30px!important;height:30px!important;display:inline-flex!important;
+  align-items:center!important;justify-content:center!important;border-radius:50%!important;overflow:hidden!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover{
+  top:calc(100% + 10px)!important;
+  width:min(340px,calc(100vw - 24px))!important;
+  max-width:calc(100vw - 24px)!important;
+  max-height:min(310px,calc(100vh - 112px))!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+  z-index:2147483000!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover::-webkit-scrollbar{
+  display:none!important;
+  width:0!important;
+  height:0!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player .mp-status-popover{
+  left:0!important;
+  right:auto!important;
+  transform:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent .mp-status-popover{
+  left:auto!important;
+  right:0!important;
+  transform:none!important;
+}
+
+/* The authoritative renderer can replace the board contents after the game
+   screen class was synchronized. Key the wide presentation from the live
+   board geometry as well, so a 4/4/4 match can never fall back to the old
+   opponent-hand rail. */
+html body #s-game:has(#board.zone-layout-444) .game-layout{
+  padding-left:166px!important;
+  padding-right:4px!important;
+  gap:0!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left,
+html body #s-game:has(#board.zone-layout-444) .game-left>.left-section{
+  display:contents!important;
+  width:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left::before,
+html body #s-game:has(#board.zone-layout-444) .game-left::after,
+html body #s-game:has(#board.zone-layout-444) .game-left>.left-section::before,
+html body #s-game:has(#board.zone-layout-444) .game-left>.left-section::after{
+  content:none!important;
+  display:none!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left .opp-section>.left-section-lbl,
+html body #s-game:has(#board.zone-layout-444) .game-left .opp-hand{
+  display:none!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner{
+  position:fixed!important;
+  top:5px!important;
+  width:300px!important;
+  min-height:58px!important;
+  max-height:58px!important;
+  margin:0!important;
+  z-index:720!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left .opp-banner{left:8px!important;right:auto!important;}
+html body #s-game:has(#board.zone-layout-444) .game-left .my-banner{left:auto!important;right:8px!important;}
+html body #s-game:has(#board.zone-layout-444) .landscape-panel{
+  position:fixed!important;
+  left:7px!important;
+  top:88px!important;
+  bottom:auto!important;
+  width:150px!important;
+  min-width:150px!important;
+  max-width:150px!important;
+  min-height:190px!important;
+  max-height:280px!important;
+  margin:0!important;
+  padding:.7rem .55rem!important;
+  overflow:auto!important;
+  z-index:310!important;
+}
+html body #s-game:has(#board.zone-layout-444) .left-piles{
+  position:fixed!important;
+  left:7px!important;
+  bottom:12px!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+  gap:5px!important;
+  width:150px!important;
+  margin:0!important;
+  padding:0!important;
+  z-index:310!important;
+}
+html body #s-game:has(#board.zone-layout-444) .game-left .pile-slot{
+  width:72px!important;
+  min-width:72px!important;
+  height:101px!important;
+  min-height:101px!important;
+}
+
+/* Final Morale report: the heart is a primary result marker, not punctuation. */
+html body #s-win .win-seal-summary .win-seal-mark{
+  display:grid!important;
+  place-items:center!important;
+  min-width:54px!important;
+  min-height:54px!important;
+  color:#e15a70!important;
+  font-size:3.15rem!important;
+  line-height:1!important;
+  text-shadow:0 0 18px rgba(225,90,112,.48)!important;
+}
+
+/* 2026-08-26: coherent wide-board chrome.  This block intentionally comes
+   last so it replaces the exploratory 4/4/4 positioning above while keeping
+   the whole presentation reversible through fateWide444=0. */
+html body #s-game.wide-zone-layout-444 .topbar,
+html body #s-game:has(#board.zone-layout-444) .topbar{
+  overflow:visible!important;
+  z-index:1200!important;
+}
+
+/* Keep the original profile-banner design and proportions at the two corners.
+   Only its location changes; its contents are no longer compressed by HUD
+   columns. */
+html body #s-game.wide-zone-layout-444 .game-left .player-banner,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner{
+  width:310px!important;
+  min-width:310px!important;
+  max-width:310px!important;
+  height:58px!important;
+  min-height:58px!important;
+  max-height:58px!important;
+  padding:.36rem .62rem!important;
+  overflow:hidden!important;
+  box-sizing:border-box!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner .pb-pic,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner .pb-pic{
+  flex:0 0 50px!important;
+  width:50px!important;
+  height:50px!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner .pb-info,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner .pb-info{
+  min-width:0!important;
+  flex:1 1 auto!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner .pb-name,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner .pb-name{
+  max-width:none!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+/* A single bottom-left command panel now owns Landscape, Deck, and Discard.
+   The JS moves the existing live elements here, so all existing click handlers
+   and landscape updates remain intact. */
+html body #s-game .match-utility-panel{
+  display:none;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-panel,
+html body #s-game:has(#board.zone-layout-444) .match-utility-panel{
+  position:fixed!important;
+  left:8px!important;
+  bottom:12px!important;
+  z-index:430!important;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr) auto!important;
+  gap:8px!important;
+  width:150px!important;
+  height:min(372px,calc(100vh - 100px))!important;
+  padding:9px!important;
+  overflow:hidden!important;
+  box-sizing:border-box!important;
+  border:2px solid rgba(197,157,38,.84)!important;
+  border-radius:17px 3px 17px 3px!important;
+  background:linear-gradient(155deg,rgba(10,15,23,.98),rgba(3,6,11,.985))!important;
+  box-shadow:0 14px 36px rgba(0,0,0,.66),inset 0 0 0 1px rgba(231,196,86,.12)!important;
+}
+html body #s-game .match-utility-panel::before{
+  content:"FIELD RESOURCES"!important;
+  position:absolute!important;
+  top:7px!important;
+  left:14px!important;
+  z-index:2!important;
+  color:#d8bd62!important;
+  font:600 .45rem/1 'Cinzel',serif!important;
+  letter-spacing:.14em!important;
+  pointer-events:none!important;
+}
+html body #s-game .match-utility-panel #landscape-panel.landscape-panel{
+  position:relative!important;
+  inset:auto!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:25px 8px 8px!important;
+  overflow:auto!important;
+  box-sizing:border-box!important;
+  border:1px solid rgba(204,166,49,.5)!important;
+  border-radius:9px 2px 9px 2px!important;
+  background:linear-gradient(180deg,rgba(13,20,31,.9),rgba(5,9,15,.96))!important;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.42)!important;
+}
+html body #s-game .match-utility-panel .left-piles{
+  position:relative!important;
+  inset:auto!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  align-items:stretch!important;
+  gap:7px!important;
+  width:100%!important;
+  margin:0!important;
+  padding:8px 0 0!important;
+  border-top:1px solid rgba(204,166,49,.32)!important;
+}
+html body #s-game .match-utility-panel .pile-slot{
+  width:auto!important;
+  min-width:0!important;
+  height:88px!important;
+  min-height:88px!important;
+  max-height:88px!important;
+  border-radius:7px 2px 7px 2px!important;
+}
+html body #s-game .match-utility-panel .pile-slot .pile-label{
+  font-size:.54rem!important;
+  white-space:nowrap!important;
+}
+
+/* Morale lives between the preserved profile pills and the timer. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only{
+  z-index:1250!important;
+  overflow:visible!important;
+  pointer-events:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{
+  width:295px!important;
+  grid-template-columns:82px minmax(0,1fr)!important;
+  gap:.42rem!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{
+  left:318px!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{
+  left:auto!important;
+  right:318px!important;
+  grid-template-columns:minmax(0,1fr) 82px!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-bar{
+  width:100%!important;
+  min-width:150px!important;
+}
+
+/* The collapsed control is deliberately a compact version of the original
+   rectangular status banner, not a new rounded capsule. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  top:50%!important;
+  width:136px!important;
+  max-width:136px!important;
+  min-width:136px!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  padding:3px 7px 3px 4px!important;
+  gap:5px!important;
+  border-radius:4px!important;
+  overflow:visible!important;
+  box-sizing:border-box!important;
+  font-size:.5rem!important;
+  letter-spacing:.055em!important;
+  transform:translateY(-50%)!important;
+  z-index:1270!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{
+  left:auto!important;
+  right:calc(50% + 202px)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{
+  left:calc(50% + 202px)!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  display:inline-grid!important;
+  place-items:center!important;
+  flex:0 0 22px!important;
+  width:22px!important;
+  height:22px!important;
+  border:1px solid currentColor!important;
+  border-radius:50%!important;
+  background:rgba(3,8,15,.42)!important;
+  font-size:.54rem!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .effect-pill-label{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary>b{
+  flex:0 0 auto!important;
+  font-size:.52rem!important;
+}
+
+/* Popovers must escape the top bar visually and sit above the board, profile
+   pills, card art, and status chrome. */
+html body #s-game .topbar>.morale-pressure-hud .mp-morale-tip,
+html body #s-game .topbar>.morale-pressure-hud .mp-status-popover{
+  z-index:2147483000!important;
+  isolation:isolate!important;
+}
+html body #s-game .topbar>.morale-pressure-hud .mp-left .mp-morale-tip{
+  left:0!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud .mp-right .mp-morale-tip{
+  left:auto!important;
+  right:0!important;
+}
+
+@media(max-width:1500px){
+  html body #s-game.wide-zone-layout-444 .game-left .player-banner,
+  html body #s-game:has(#board.zone-layout-444) .game-left .player-banner{
+    width:280px!important;min-width:280px!important;max-width:280px!important;
+  }
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{width:250px!important;grid-template-columns:72px minmax(0,1fr)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:288px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{right:288px!important;grid-template-columns:minmax(0,1fr) 72px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{width:118px!important;min-width:118px!important;max-width:118px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{right:calc(50% + 190px)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{left:calc(50% + 190px)!important;}
+}
+
+/* Final status-surface authority. Keep this after every exploratory HUD rule. */
+html body #s-game.morale-only-enabled :is(#tp-status-left,#tp-status-right,#topbar-effects,#game-status-dock,#game-status-left,#game-status-right),
+html body #s-game.morale-only-enabled :is(#tp-status-left,#tp-status-right,#topbar-effects,#game-status-dock,#game-status-left,#game-status-right)>*{
+  display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  height:38px!important;min-height:38px!important;max-height:38px!important;
+  padding:.3rem .72rem .3rem .48rem!important;gap:.46rem!important;
+  border-radius:999px!important;overflow:visible!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  width:30px!important;min-width:30px!important;height:30px!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  border-radius:50%!important;overflow:hidden!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover{
+  top:calc(100% + 10px)!important;width:min(340px,calc(100vw - 24px))!important;
+  max-width:calc(100vw - 24px)!important;max-height:min(310px,calc(100vh - 112px))!important;
+  overflow-x:hidden!important;overflow-y:auto!important;scrollbar-width:none!important;-ms-overflow-style:none!important;
+  z-index:2147483000!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player .mp-status-popover{left:0!important;right:auto!important;transform:none!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent .mp-status-popover{left:auto!important;right:0!important;transform:none!important;}
+
+/* 2026-08-26 final 4/4/4 match-layout authority.  The fourth column comes
+   from reclaiming the retired left rail, not from shrinking the card slots. */
+html body #s-game.wide-zone-layout-444 .topbar{
+  position:relative!important;
+  z-index:2200!important;
+  height:76px!important;
+  min-height:76px!important;
+  overflow:visible!important;
+  isolation:isolate!important;
+}
+html body #s-game.wide-zone-layout-444 .topbar::before,
+html body #s-game.wide-zone-layout-444 .topbar::after{z-index:0!important;pointer-events:none!important;}
+html body #s-game.wide-zone-layout-444 .topbar>.tp-mid{
+  position:absolute!important;
+  top:50%!important;
+  left:50%!important;
+  z-index:8!important;
+  transform:translate(-50%,-50%)!important;
+  margin:0!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+html body #s-game.wide-zone-layout-444 .topbar>.player-banner.wide-topbar-profile{
+  position:absolute!important;
+  top:5px!important;
+  bottom:auto!important;
+  z-index:7!important;
+  display:grid!important;
+  width:310px!important;
+  min-width:310px!important;
+  max-width:310px!important;
+  height:66px!important;
+  min-height:66px!important;
+  max-height:66px!important;
+  margin:0!important;
+  visibility:visible!important;
+  opacity:1!important;
+  filter:none!important;
+  pointer-events:auto!important;
+}
+html body #s-game.wide-zone-layout-444 .topbar>.opp-banner.wide-topbar-profile{left:8px!important;right:auto!important;}
+html body #s-game.wide-zone-layout-444 .topbar>.my-banner.wide-topbar-profile{left:auto!important;right:8px!important;}
+html body #s-game.wide-zone-layout-444 .topbar>.player-banner.wide-topbar-profile .pb-pic{
+  width:50px!important;height:50px!important;min-width:50px!important;min-height:50px!important;
+}
+html body #s-game.wide-zone-layout-444 .game-layout{
+  grid-template-columns:minmax(0,1fr)!important;
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0 14px!important;
+  box-sizing:border-box!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left{display:contents!important;}
+html body #s-game.wide-zone-layout-444 .game-left>.left-section{display:contents!important;}
+html body #s-game.wide-zone-layout-444 .game-center{
+  grid-column:1!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  margin:0!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444{
+  --cw:clamp(116px,7.16vw,138px)!important;
+  --ch:clamp(163px,10.03vw,193px)!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  column-gap:14px!important;
+  align-items:start!important;
+  justify-content:center!important;
+  width:100%!important;
+  max-width:none!important;
+  margin:0 auto!important;
+  padding:64px 0 0!important;
+  box-sizing:border-box!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444>.zone{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  box-sizing:border-box!important;
+  grid-template-rows:52px minmax(0,auto)!important;
+  padding:9px 14px 12px!important;
+  overflow:visible!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-hdr{
+  position:relative!important;
+  min-height:52px!important;
+  height:52px!important;
+  margin:0!important;
+  padding:0 7px 8px!important;
+  box-sizing:border-box!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-score-card,
+html.fate-canvas-board-mode body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-score-card{
+  top:29px!important;
+  left:50%!important;
+  width:min(302px,72%)!important;
+  transform:translateX(-50%)!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-rows{
+  width:max-content!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0 auto!important;
+  padding:0 4px 4px!important;
+  overflow:visible!important;
+  box-sizing:border-box!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .brow{
+  width:max-content!important;
+  max-width:100%!important;
+  margin-inline:auto!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .brow .rcells{gap:2px!important;}
+
+/* Compact horizontal field-resource console. */
+html body #s-game.wide-zone-layout-444 .match-utility-panel{
+  position:fixed!important;
+  left:12px!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:12px!important;
+  z-index:920!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 142px!important;
+  grid-template-rows:25px 145px!important;
+  gap:7px 9px!important;
+  width:450px!important;
+  height:184px!important;
+  margin:0!important;
+  padding:7px 8px!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  border:1px solid rgba(218,181,62,.62)!important;
+  border-radius:4px 13px 4px 13px!important;
+  background:linear-gradient(145deg,rgba(4,8,15,.96),rgba(8,13,22,.92))!important;
+  box-shadow:0 12px 36px rgba(0,0,0,.52),inset 0 0 0 1px rgba(94,181,223,.08)!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-heading{
+  grid-column:1/-1!important;grid-row:1!important;min-height:25px!important;margin:0!important;padding:0 7px!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-landscape{
+  grid-column:1!important;grid-row:2!important;min-width:0!important;min-height:0!important;overflow:hidden!important;
+  border:1px solid rgba(218,181,62,.28)!important;border-radius:3px!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-piles{
+  grid-column:2!important;grid-row:2!important;min-width:0!important;min-height:0!important;padding:0!important;border:0!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-panel #landscape-panel.landscape-panel{
+  height:100%!important;min-height:0!important;padding:12px 13px 10px!important;overflow:hidden!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-panel #landscape-panel .landscape-name{font-size:.67rem!important;line-height:1.22!important;}
+html body #s-game.wide-zone-layout-444 .match-utility-panel #landscape-panel .landscape-desc{font-size:.61rem!important;line-height:1.32!important;margin-top:7px!important;}
+html body #s-game.wide-zone-layout-444 .match-utility-panel .left-piles{
+  display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;width:100%!important;height:145px!important;
+}
+html body #s-game.wide-zone-layout-444 .match-utility-panel .pile-slot{
+  width:auto!important;height:145px!important;min-height:145px!important;max-height:145px!important;
+}
+
+/* Morale instruments and established rectangular status-banner treatment. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only{z-index:9!important;overflow:visible!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{
+  width:286px!important;grid-template-columns:78px minmax(0,1fr)!important;gap:8px!important;z-index:10!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:322px!important;right:auto!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{left:auto!important;right:322px!important;grid-template-columns:minmax(0,1fr) 78px!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-bar{width:100%!important;min-width:174px!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary{
+  position:absolute!important;top:50%!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;
+  width:144px!important;min-width:144px!important;max-width:144px!important;height:30px!important;min-height:30px!important;max-height:30px!important;
+  gap:7px!important;margin:0!important;padding:4px 9px!important;border-radius:4px!important;overflow:visible!important;
+  font:700 .56rem/1 'Cinzel',serif!important;letter-spacing:.055em!important;text-transform:uppercase!important;
+  transform:translateY(-50%)!important;z-index:12!important;cursor:pointer!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{left:auto!important;right:calc(50% + 205px)!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{left:calc(50% + 205px)!important;right:auto!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{
+  color:#9ec5f0!important;border:1px solid rgba(91,155,226,.48)!important;background:linear-gradient(145deg,rgba(12,29,48,.96),rgba(8,17,29,.96))!important;
+  box-shadow:inset 3px 0 0 rgba(91,155,226,.45),0 4px 14px rgba(0,0,0,.32)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{
+  color:#f0a0a0!important;border:1px solid rgba(226,112,104,.48)!important;background:linear-gradient(145deg,rgba(49,18,22,.96),rgba(25,9,12,.96))!important;
+  box-shadow:inset -3px 0 0 rgba(226,112,104,.42),0 4px 14px rgba(0,0,0,.32)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary::before,
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary::after{content:none!important;display:none!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-icon{font-size:.66rem!important;line-height:1!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary>.effect-pill-label{flex:1 1 auto!important;min-width:0!important;white-space:nowrap!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary>b{flex:0 0 auto!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-popover{
+  display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;
+  top:calc(100% + 8px)!important;max-height:310px!important;overflow:auto!important;scrollbar-width:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary[aria-expanded="true"] .mp-status-popover{
+  display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
+
+/* Larger, longer Morale gain/loss feedback. */
+html body .morale-damage-floater{
+  font-size:1.48rem!important;animation:morale-damage-rise-final 1.46s cubic-bezier(.2,.75,.2,1) forwards!important;
+  text-shadow:0 0 7px #20050a,0 0 20px rgba(255,74,92,.92)!important;
+}
+html body .morale-heal-floater{
+  font-size:1.48rem!important;animation:morale-positive-rise-final 1.56s cubic-bezier(.2,.75,.2,1) forwards!important;
+  text-shadow:0 0 8px #06200d,0 0 22px rgba(75,239,126,.9)!important;
+}
+html body #s-game .mp-player.mp-morale-hit{animation:mp-morale-hit 1.42s cubic-bezier(.2,.8,.2,1)!important;}
+html body #s-game .mp-player.mp-morale-hit .mp-heart{animation:mp-heart-hit 1.42s ease!important;}
+html body #s-game .mp-player.mp-morale-heal .mp-heart{animation:mp-heart-heal 1.52s ease!important;}
+@keyframes morale-damage-rise-final{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}14%{opacity:1;transform:translate(-50%,-3px) scale(1.28)}72%{opacity:1;transform:translate(-50%,28px) scale(1.08)}100%{opacity:0;transform:translate(-50%,58px) scale(.94)}}
+@keyframes morale-positive-rise-final{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}14%{opacity:1;transform:translate(-50%,-3px) scale(1.28)}74%{opacity:1;transform:translate(-50%,28px) scale(1.08)}100%{opacity:0;transform:translate(-50%,58px) scale(.94)}}
+
+/* Full-size 4-wide board target picker. Ordinary zone pickers never scroll;
+   Mark/Anicka may opt into overflow for their generated rows/squares. */
+html body #modal .modal.board-target-picker-modal{
+  width:min(1580px,97vw)!important;max-width:1580px!important;max-height:96vh!important;
+}
+html body #modal .modal.board-target-picker-modal #modal-body{
+  max-height:calc(96vh - 150px)!important;overflow:hidden!important;padding:12px 14px!important;
+}
+html body #modal .board-target-picker.is-multi-zone{
+  --board-target-cell-w:clamp(88px,5.9vw,113px)!important;
+  width:100%!important;max-width:none!important;overflow:hidden!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-zones{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;width:100%!important;overflow:hidden!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  width:100%!important;min-width:0!important;max-width:none!important;overflow:hidden!important;padding:4px!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-row{
+  display:grid!important;grid-template-columns:28px minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:hidden!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-row-label{
+  width:28px!important;min-width:28px!important;font-size:.42rem!important;letter-spacing:.025em!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-cells{
+  width:100%!important;min-width:0!important;max-width:100%!important;gap:3px!important;overflow:hidden!important;scrollbar-width:none!important;
+}
+html body #modal .board-target-picker:not(.allows-board-scroll),
+html body #modal .board-target-picker:not(.allows-board-scroll) :is(.board-target-zones,.board-target-zone,.board-target-row,.board-target-cells){
+  overflow:hidden!important;scrollbar-width:none!important;-ms-overflow-style:none!important;
+}
+html body #modal .board-target-picker:not(.allows-board-scroll) :is(.board-target-zones,.board-target-zone,.board-target-row,.board-target-cells)::-webkit-scrollbar{
+  display:none!important;width:0!important;height:0!important;
+}
+html body #modal .board-target-picker.allows-board-scroll .board-target-zone.allows-board-scroll{
+  max-height:62vh!important;overflow:auto!important;scrollbar-width:thin!important;
+}
+
+/* Ordinary three-zone pickers should be a compact 3 x 4 board preview. Older
+   picker rules made the zone panel fill the modal and distributed the spare
+   height through its rows, producing the large blank bands between them.
+   Generated Mark/Anicka boards retain their separate scrolling path. */
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  align-content:flex-start!important;
+  align-self:start!important;
+  gap:0!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-zone-title{
+  flex:0 0 auto!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-row{
+  flex:0 0 auto!important;
+  align-self:stretch!important;
+  align-items:stretch!important;
+  align-content:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:0!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-cells{
+  align-self:start!important;
+  align-items:start!important;
+  align-content:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-cell{
+  align-self:start!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:5 / 7!important;
+}
+
+/* Challenger desktop sizing: let Play use the available viewport while keeping
+   the Deck Builder's inline search comfortably separated from Circle. */
+@media (min-width:1400px) and (min-height:800px){
+  html body #s-challenger .ch-play-v5{
+    width:min(1660px,calc(100vw - 2rem))!important;
+    height:min(810px,calc(100vh - 170px))!important;
+    margin-top:1.15rem!important;
+  }
+
+  html body #s-challenger .ch-cdb-content > .ch-filter-bar .cdb-search-inline{
+    flex:0 1 300px!important;
+    width:300px!important;
+    min-width:240px!important;
+    max-width:300px!important;
+    margin-left:auto!important;
+  }
+}
+
+/* Final V4 collision guard. */
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-stage,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-stage{width:100%!important;max-width:none!important;grid-template-columns:330px minmax(0,1fr)!important;align-items:stretch!important;padding:0!important;overflow:hidden!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail{padding:42px 28px!important;overflow:hidden!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail::after,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail::after{content:none!important;display:none!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail .cd-img,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail .cd-img{left:0!important;width:258px!important;height:361px!important;margin:0!important;flex:none!important;transform:rotate(-1deg)!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet{width:auto!important;min-width:0!important;padding:42px 42px 28px!important;overflow:hidden!important;color:#111820!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-name,
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-name>span,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-name,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-name>span{color:#111820!important;text-shadow:none!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-ability,
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet .cd-flavor,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-ability,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet .cd-flavor{color:#5f6870!important;text-shadow:none!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-rules .cd-eff,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-rules .cd-eff{color:#111820!important;background:transparent!important;text-shadow:none!important}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-index .pill,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-index .pill{color:#26313a!important;background:transparent!important;text-shadow:none!important}
+@media(max-width:760px){
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-stage,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-stage{grid-template-columns:1fr!important}
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail .cd-img,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail .cd-img{width:min(238px,70vw)!important;height:auto!important;aspect-ratio:5/7!important}
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet{padding:28px 22px 24px!important}
+}
+
+/* V4 card detail isolation: deliberately last so the long-lived generic card
+   and modal rules above cannot leak back into the new composition. */
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-stage,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-stage{
+  width:100%!important;
+  max-width:none!important;
+  grid-template-columns:330px minmax(0,1fr)!important;
+  align-items:stretch!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail{
+  padding:42px 28px!important;
+  overflow:hidden!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail::after,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail::after{
+  content:none!important;
+  display:none!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail .cd-img,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail .cd-img{
+  left:0!important;
+  width:258px!important;
+  height:361px!important;
+  margin:0!important;
+  flex:none!important;
+  transform:rotate(-1deg)!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet{
+  width:auto!important;
+  min-width:0!important;
+  padding:42px 42px 28px!important;
+  overflow:hidden!important;
+  color:var(--cd4-ink)!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-name,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-name,
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-name > span,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-name > span{
+  color:#111820!important;
+  text-shadow:none!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-identity .cd-ability,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-identity .cd-ability,
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet .cd-flavor,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet .cd-flavor{
+  color:#5f6870!important;
+  text-shadow:none!important;
+}
+
+/* Lift the ability label without reserving extra space below it. */
+html body #modal .cd-ability,
+html body .card-info-overlay .cd-ability{
+  transform:translateY(-8px);
+}
+
+/* Compact live trackers in real layout space so their appearance does not
+   create the empty-looking expansion below the card content. */
+html body #modal .cd-live-tracker,
+html body .card-info-overlay .cd-live-tracker{
+  gap:2px 7px;
+  margin:0;
+  padding:5px 9px;
+  transform:translateY(-11px);
+}
+html body #modal.card-detail-v4 .cd4-live,
+html body .card-info-overlay.card-detail-v4 .cd4-live{
+  margin:0 0 6px!important;
+}
+html body #modal .cd-live-tracker-kicker,
+html body .card-info-overlay .cd-live-tracker-kicker,
+html body #modal .cd-live-tracker-label,
+html body .card-info-overlay .cd-live-tracker-label,
+html body #modal .cd-live-tracker-value,
+html body .card-info-overlay .cd-live-tracker-value,
+html body #modal .cd-live-tracker-sub,
+html body .card-info-overlay .cd-live-tracker-sub{
+  line-height:1.15;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-rules .cd-eff,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-rules .cd-eff{
+  color:#111820!important;
+  background:transparent!important;
+  text-shadow:none!important;
+}
+html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-index .pill,
+html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-index .pill{
+  color:#26313a!important;
+  background:transparent!important;
+  text-shadow:none!important;
+}
+@media(max-width:760px){
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-stage,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-stage{grid-template-columns:1fr!important;}
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-art-rail .cd-img,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-art-rail .cd-img{width:min(238px,70vw)!important;height:auto!important;aspect-ratio:5/7!important;}
+  html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-sheet,
+  html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-sheet{padding:28px 22px 24px!important;}
+}
+
+@media(max-width:1540px){
+  html body #s-game.wide-zone-layout-444 #board.zone-layout-444{--cw:clamp(106px,7.05vw,124px)!important;--ch:clamp(149px,9.88vw,174px)!important;column-gap:10px!important;}
+  html body #s-game.wide-zone-layout-444 .topbar>.player-banner.wide-topbar-profile{width:276px!important;min-width:276px!important;max-width:276px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:286px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{right:286px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{width:238px!important;grid-template-columns:68px minmax(0,1fr)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{grid-template-columns:minmax(0,1fr) 68px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{right:calc(50% + 188px)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{left:calc(50% + 188px)!important;}
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  width:30px!important;min-width:30px!important;height:30px!important;display:inline-flex!important;
+  align-items:center!important;justify-content:center!important;border-radius:50%!important;overflow:hidden!important;
+}
+
+/* 2026-08-26 final wide-match composition.
+   Treat the top bar, board and field-resource panel as one layout so the
+   reversible 4/4/4 presentation cannot drift into independent overlays. */
+html body #s-game.wide-zone-layout-444 .topbar,
+html body #s-game:has(#board.zone-layout-444) .topbar{
+  position:relative!important;
+  z-index:1500!important;
+  isolation:isolate!important;
+  height:76px!important;
+  min-height:76px!important;
+  overflow:visible!important;
+}
+html body #s-game.wide-zone-layout-444 .topbar::before,
+html body #s-game.wide-zone-layout-444 .topbar::after,
+html body #s-game:has(#board.zone-layout-444) .topbar::before,
+html body #s-game:has(#board.zone-layout-444) .topbar::after{
+  z-index:0!important;
+  pointer-events:none!important;
+}
+html body #s-game.wide-zone-layout-444 .topbar>.tp-mid,
+html body #s-game:has(#board.zone-layout-444) .topbar>.tp-mid{
+  left:50%!important;
+  right:auto!important;
+  top:50%!important;
+  z-index:1700!important;
+  transform:translate(-50%,-50%)!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+/* The profile pills keep their established banner treatment and sit above the
+   top-bar glass instead of being composited underneath it. */
+html body #s-game.wide-zone-layout-444 .game-left .player-banner,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner{
+  top:5px!important;
+  z-index:1660!important;
+  width:312px!important;
+  min-width:312px!important;
+  max-width:312px!important;
+  height:66px!important;
+  min-height:66px!important;
+  max-height:66px!important;
+  padding:.45rem .78rem .45rem .58rem!important;
+  align-items:center!important;
+  overflow:hidden!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+html body #s-game.wide-zone-layout-444 .game-left .player-banner .pb-pic,
+html body #s-game:has(#board.zone-layout-444) .game-left .player-banner .pb-pic{
+  flex:0 0 54px!important;
+  width:54px!important;
+  height:54px!important;
+}
+
+/* In the wide presentation the opponent-hand rail no longer exists.  Keep
+   this broader than the historical .game-left descendant selector because
+   render-v2 can reparent the live hand node. */
+html body #s-game.wide-zone-layout-444 :is(#opp-hand,#opp-hand-lbl,.opp-hand),
+html body #s-game:has(#board.zone-layout-444) :is(#opp-hand,#opp-hand-lbl,.opp-hand),
+html body #s-game .opp-section.wide-opponent-hand-hidden>:not(.player-banner){
+  display:none!important;
+  visibility:hidden!important;
+  width:0!important;
+  height:0!important;
+  min-width:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+/* Equal gutters center all three zones in the viewport.  A real inter-zone
+   gap replaces the nearly touching borders from the exploratory layout. */
+html body #s-game.wide-zone-layout-444 .game-layout,
+html body #s-game:has(#board.zone-layout-444) .game-layout{
+  padding-left:168px!important;
+  padding-right:168px!important;
+  gap:0!important;
+}
+html body #s-game.wide-zone-layout-444 .game-center,
+html body #s-game:has(#board.zone-layout-444) .game-center{
+  width:100%!important;
+  min-width:0!important;
+  margin:0 auto!important;
+  overflow:visible!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444,
+html body #s-game:has(#board.zone-layout-444) #board.zone-layout-444{
+  --cw:clamp(104px,6.58vw,126px)!important;
+  --ch:clamp(146px,9.21vw,177px)!important;
+  --zone-row-h:calc(var(--ch) + .12rem)!important;
+  --zone-fit-w:calc(var(--cw) + var(--cw) + var(--cw) + var(--cw) + .28rem + 8px)!important;
+  width:100%!important;
+  max-width:none!important;
+  justify-content:center!important;
+  column-gap:12px!important;
+  row-gap:0!important;
+  padding-inline:0!important;
+}
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444>.zone,
+html body #s-game:has(#board.zone-layout-444) #board.zone-layout-444>.zone{
+  min-width:0!important;
+}
+
+/* Lift Fate bars away from the opponent safe row. */
+html body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-score-card,
+html.fate-canvas-board-mode body #s-game.wide-zone-layout-444 #board.zone-layout-444 .zone-score-card,
+html body #s-game:has(#board.zone-layout-444) #board.zone-layout-444 .zone-score-card{
+  top:-2px!important;
+}
+
+/* One cohesive bottom-left resource console: header, landscape dossier, then
+   two equally-sized pile controls. */
+html body #s-game.wide-zone-layout-444 .match-utility-panel,
+html body #s-game:has(#board.zone-layout-444) .match-utility-panel{
+  left:8px!important;
+  bottom:12px!important;
+  z-index:980!important;
+  display:grid!important;
+  grid-template-rows:26px minmax(0,1fr) 92px!important;
+  gap:7px!important;
+  width:152px!important;
+  height:min(354px,calc(100vh - 104px))!important;
+  padding:8px!important;
+  overflow:hidden!important;
+  border:1.5px solid rgba(218,181,62,.88)!important;
+  border-radius:4px 16px 4px 16px!important;
+  background:linear-gradient(155deg,rgba(10,15,24,.985),rgba(2,5,10,.99))!important;
+  box-shadow:0 16px 42px rgba(0,0,0,.7),inset 0 0 0 1px rgba(255,238,157,.075)!important;
+}
+html body #s-game .match-utility-panel::before,
+html body #s-game .match-utility-panel::after{
+  content:none!important;
+  display:none!important;
+}
+html body #s-game .match-utility-heading{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  min-width:0!important;
+  padding:0 3px!important;
+  border-bottom:1px solid rgba(218,181,62,.3)!important;
+  color:#e0c568!important;
+  font:700 .48rem/1 'Cinzel',serif!important;
+  letter-spacing:.12em!important;
+  text-transform:uppercase!important;
+}
+html body #s-game .match-utility-heading i{
+  flex:1 1 auto!important;
+  height:1px!important;
+  background:linear-gradient(90deg,rgba(218,181,62,.52),transparent)!important;
+}
+html body #s-game .match-utility-landscape,
+html body #s-game .match-utility-piles{
+  min-width:0!important;
+  min-height:0!important;
+}
+html body #s-game .match-utility-landscape{
+  overflow:hidden!important;
+  border:1px solid rgba(218,181,62,.34)!important;
+  border-radius:3px 10px 3px 10px!important;
+  background:linear-gradient(180deg,rgba(13,20,31,.88),rgba(5,9,15,.96))!important;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.4)!important;
+}
+html body #s-game .match-utility-panel #landscape-panel.landscape-panel{
+  position:relative!important;
+  inset:auto!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:12px 9px 10px!important;
+  overflow:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+html body #s-game .match-utility-panel #landscape-panel.landscape-panel::before,
+html body #s-game .match-utility-panel #landscape-panel.landscape-panel::after{
+  content:none!important;
+  display:none!important;
+}
+html body #s-game .match-utility-panel #landscape-panel .landscape-kicker{
+  font-size:.42rem!important;
+  letter-spacing:.15em!important;
+}
+html body #s-game .match-utility-panel #landscape-panel .landscape-name{
+  margin-top:7px!important;
+  font-size:.58rem!important;
+  line-height:1.24!important;
+}
+html body #s-game .match-utility-panel #landscape-panel .landscape-desc{
+  margin-top:9px!important;
+  font-size:.55rem!important;
+  line-height:1.35!important;
+}
+html body #s-game .match-utility-piles{
+  padding-top:7px!important;
+  border-top:1px solid rgba(218,181,62,.3)!important;
+}
+html body #s-game .match-utility-panel .left-piles{
+  position:relative!important;
+  inset:auto!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  align-items:stretch!important;
+  gap:7px!important;
+  width:100%!important;
+  height:84px!important;
+  margin:0!important;
+  padding:0!important;
+}
+
+/* Older 4/4/4 rules fixed the pile strip to the viewport. Once the strip is
+   reparented into the resource console it must participate in that grid. */
+html body #s-game.wide-zone-layout-444 .match-utility-panel .left-piles,
+html body #s-game:has(#board.zone-layout-444) .match-utility-panel .left-piles,
+html body #s-game:has(#board.zone-layout-444) .match-utility-panel>.match-utility-piles>.left-piles{
+  position:relative!important;
+  inset:auto!important;
+  left:auto!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:auto!important;
+  z-index:auto!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  width:100%!important;
+  height:84px!important;
+  margin:0!important;
+  padding:0!important;
+}
+html body #s-game .match-utility-panel .pile-slot{
+  width:auto!important;
+  min-width:0!important;
+  height:84px!important;
+  min-height:84px!important;
+  max-height:84px!important;
+  border-radius:3px 8px 3px 8px!important;
+}
+html body #s-game .match-utility-panel .pile-slot .pile-label{
+  padding:.22rem .08rem!important;
+  font-size:.47rem!important;
+  letter-spacing:.025em!important;
+  white-space:nowrap!important;
+}
+
+/* Keep Morale between the profile and status banners, and place every top-bar
+   instrument above the bar's decorative glass layer. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only{
+  z-index:1600!important;
+  overflow:visible!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{
+  width:270px!important;
+  grid-template-columns:78px minmax(0,1fr)!important;
+  gap:.4rem!important;
+  z-index:1610!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{
+  left:320px!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{
+  left:auto!important;
+  right:320px!important;
+  grid-template-columns:minmax(0,1fr) 78px!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-bar{
+  width:100%!important;
+  min-width:145px!important;
+}
+
+/* The collapsed summaries now use the exact dimensions and icon treatment of
+   the established in-match status banners. */
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  top:50%!important;
+  width:158px!important;
+  min-width:158px!important;
+  max-width:158px!important;
+  height:38px!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  padding:.3rem .72rem .3rem .48rem!important;
+  gap:.46rem!important;
+  border-radius:999px!important;
+  box-sizing:border-box!important;
+  overflow:visible!important;
+  font-family:'Cinzel',serif!important;
+  font-size:.62rem!important;
+  line-height:1!important;
+  letter-spacing:.065em!important;
+  transform:translateY(-50%)!important;
+  z-index:1640!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{
+  left:auto!important;
+  right:calc(50% + 202px)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{
+  left:calc(50% + 202px)!important;
+  right:auto!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill-mine{
+  background:linear-gradient(135deg,rgba(30,60,120,.85),rgba(20,40,80,.75))!important;
+  border:1px solid rgba(58,143,217,.45)!important;
+  color:#9ec5f0!important;
+  box-shadow:0 1px 6px rgba(58,143,217,.2),inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill-opp{
+  background:linear-gradient(135deg,rgba(120,30,30,.85),rgba(80,20,20,.75))!important;
+  border:1px solid rgba(217,74,74,.45)!important;
+  color:#f0a0a0!important;
+  box-shadow:0 1px 6px rgba(217,74,74,.2),inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .mp-status-icon{
+  display:inline!important;
+  flex:none!important;
+  width:auto!important;
+  min-width:0!important;
+  height:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  background:none!important;
+  box-shadow:none!important;
+  font-size:.7rem!important;
+  line-height:1!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent .mp-status-icon{
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary .effect-pill-label{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary>b{
+  flex:0 0 auto!important;
+  font-size:.58rem!important;
+}
+
+@media(max-width:1500px){
+  html body #s-game.wide-zone-layout-444 .game-layout,
+  html body #s-game:has(#board.zone-layout-444) .game-layout{
+    padding-left:150px!important;
+    padding-right:150px!important;
+  }
+  html body #s-game.wide-zone-layout-444 .match-utility-panel,
+  html body #s-game:has(#board.zone-layout-444) .match-utility-panel{
+    width:138px!important;
+  }
+  html body #s-game.wide-zone-layout-444 .game-left .player-banner,
+  html body #s-game:has(#board.zone-layout-444) .game-left .player-banner{
+    width:276px!important;
+    min-width:276px!important;
+    max-width:276px!important;
+  }
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-player{width:232px!important;grid-template-columns:68px minmax(0,1fr)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-left{left:284px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-right{right:284px!important;grid-template-columns:minmax(0,1fr) 68px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{width:138px!important;min-width:138px!important;max-width:138px!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player{right:calc(50% + 190px)!important;}
+  html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent{left:calc(50% + 190px)!important;}
+}
+
+/* Absolute final status-surface authority. */
+html body #s-game.morale-only-enabled :is(#tp-status-left,#tp-status-right,#topbar-effects,#game-status-dock,#game-status-left,#game-status-right),
+html body #s-game.morale-only-enabled :is(#tp-status-left,#tp-status-right,#topbar-effects,#game-status-dock,#game-status-left,#game-status-right)>*{
+  display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-summary.effect-pill{
+  height:38px!important;min-height:38px!important;max-height:38px!important;
+  padding:.3rem .72rem .3rem .48rem!important;gap:.46rem!important;border-radius:999px!important;overflow:visible!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover{
+  top:calc(100% + 10px)!important;width:min(340px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;
+  max-height:min(310px,calc(100vh - 112px))!important;overflow-x:hidden!important;overflow-y:auto!important;
+  scrollbar-width:none!important;-ms-overflow-style:none!important;z-index:2147483000!important;
+}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-popover::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-player .mp-status-popover{left:0!important;right:auto!important;transform:none!important;}
+html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponent .mp-status-popover{left:auto!important;right:0!important;transform:none!important;}
+/* Persistent low-Morale supporter expiry state. The final icon treatment can
+   replace this coded placeholder without changing the shared timer logic. */
+.bc.fate-low-morale-expiry {
+  isolation: isolate;
+}
+
+.bc .bc-low-morale-expiry {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  color: #ff9b9f;
+  background: radial-gradient(circle at 50% 48%, rgba(111, 8, 24, .22), transparent 64%);
+  box-shadow: inset 0 0 15px rgba(235, 47, 75, .16);
+  text-shadow: 0 0 9px rgba(255, 49, 77, .94), 0 2px 3px #160207;
+  pointer-events: none;
+  animation: fate-low-morale-supporter-pulse 2.8s ease-in-out infinite;
+}
+
+.bc .bc-low-morale-heart {
+  position:relative;
+  display:block;
+  font:900 clamp(28px,3.2vw,52px)/1 Georgia,serif;
+  transform:scaleX(1.08);
+}
+.bc .bc-low-morale-heart::after{
+  content:"";
+  position:absolute;
+  left:50%;top:4%;width:3px;height:92%;
+  background:#ffe8e4;
+  clip-path:polygon(35% 0,100% 0,58% 35%,100% 53%,46% 100%,0 100%,38% 56%,0 36%);
+  transform:translateX(-50%) rotate(8deg);
+  filter:drop-shadow(0 0 2px #ff334f);
+}
+
+.cd-low-morale-expiry {
+  display: inline-flex;
+  align-items:center;
+  gap: 4px;
+  margin: 0 0 0 8px;
+  padding: 4px 7px;
+  border: 1px solid rgba(220, 74, 78, .58);
+  border-radius: 999px;
+  color: rgba(255, 235, 231, .86);
+  background: rgba(82, 10, 20, .22);
+  vertical-align:middle;
+  white-space:nowrap;
+  flex:0 0 auto;
+}
+.cd-low-morale-heart{color:#ff6f79;font:900 1.15rem/1 Georgia,serif;text-shadow:0 0 7px rgba(255,61,82,.82);transform:scaleX(1.08)}
+
+.cd-low-morale-expiry-label {
+  color: #ff8d8d;
+  font: 800 .54rem/1 Cinzel, serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.cd-low-morale-expiry strong {
+  color: #ffe1d9;
+  font: 700 .52rem/1 Cinzel, serif;
+}
+
+@keyframes fate-low-morale-supporter-pulse {
+  0%, 100% { opacity: .5; filter: saturate(.82); }
+  50% { opacity: 1; filter: saturate(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc .bc-low-morale-expiry { animation: none; opacity: .82; }
+}
+
+/* End-match confirmation uses the same cyan/gold/pink material language as the live board. */
+html body #modal .modal.end-game-confirm-modal{
+  width:min(520px,calc(100vw - 32px));
+  border:1px solid rgba(243,193,75,.72);
+  border-left:3px solid #27d9df;
+  border-right:3px solid #f43c72;
+  border-radius:10px;
+  background:linear-gradient(115deg,rgba(4,27,35,.98),rgba(8,12,20,.99) 48%,rgba(31,8,22,.98));
+  box-shadow:0 24px 70px rgba(0,0,0,.72),inset 0 0 28px rgba(33,205,215,.05);
+}
+html body #modal .modal.end-game-confirm-modal #modal-title{
+  padding:20px 24px 14px;color:#f2d47e;font-size:1.12rem;letter-spacing:.12em;
+  border-bottom:1px solid rgba(215,170,79,.35);
+}
+html body #modal .modal.end-game-confirm-modal #modal-body{padding:22px 24px 14px}
+.end-game-confirm{display:flex;align-items:center;gap:16px;color:#dbe9eb}
+.end-game-confirm-mark{display:grid;place-items:center;flex:0 0 48px;height:48px;border:1px solid #f15379;border-radius:50%;color:#ff7495;font:900 1.45rem/1 Cinzel,serif;box-shadow:0 0 18px rgba(244,60,114,.18)}
+.end-game-confirm strong{display:block;color:#f7e6bb;font:700 1rem/1.2 Cinzel,serif;letter-spacing:.04em}
+.end-game-confirm p{margin:7px 0 0;color:#aebfc4;font-size:.82rem;line-height:1.5}
+html body #modal .modal.end-game-confirm-modal #modal-acts{padding:14px 24px 20px;border-top:0;gap:10px}
+
+/* Final picker geometry authority: normal three-zone pickers use compact,
+   contiguous rows. Only explicitly generated Mark/Anicka boards may scroll. */
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  align-content:flex-start!important;
+  align-self:start!important;
+  gap:0!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-zone-title{
+  flex:0 0 auto!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-row{
+  flex:0 0 auto!important;
+  align-self:stretch!important;
+  align-items:stretch!important;
+  align-content:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:0!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-cells{
+  align-self:start!important;
+  align-items:start!important;
+  align-content:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-cell{
+  align-self:start!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:5 / 7!important;
+}

@@ -93,7 +93,32 @@
       if(!item || item.pile !== pileName) return false;
       return playerIndex == null || Number(item.playerIndex) === Number(playerIndex);
     }) || piles.find(function(item){ return item && item.pile === pileName; });
-    return pile && pile.rect ? boardPointFromViewportRect(pile.rect) : null;
+    if(pile && pile.rect) return boardPointFromViewportRect(pile.rect);
+
+    // Rebuilt match shells render deck/discard controls as DOM buttons instead
+    // of canvas pile hitboxes. Resolve those controls so draw and search
+    // recipes keep their real endpoints in both local and online matches.
+    const viewer = currentViewer();
+    const localOwner = playerIndex == null || Number(playerIndex) === Number(viewer);
+    const selector = pileName === 'discard' ? '[data-discard]' : '[data-deck]';
+    const domPile = localOwner ? document.querySelector(
+      '#fate-codex-ui-v19 ' + selector + ',#fate-match-ui-v8 ' + selector + ',' + selector
+    ) : null;
+    if(domPile && domPile.getBoundingClientRect) {
+      const resolved = boardPointFromViewportRect(domPile.getBoundingClientRect());
+      if(resolved && resolved.w > 0 && resolved.h > 0) return resolved;
+    }
+
+    // The rival deck is intentionally not exposed as an inspectable control.
+    // Give remote draws a stable top-corner origin rather than dropping their
+    // animation entirely when no opponent pile hitbox is present.
+    const cnv = canvas();
+    if(!localOwner && cnv) {
+      const w = 54, h = Math.round(w * 1.4);
+      const cssW = Number(cnv.clientWidth || cnv.__fateCssW) || window.innerWidth || 1280;
+      return {x:Math.max(18, cssW - w - 34), y:24, w, h};
+    }
+    return null;
   }
 
   function handSlotRect(index){
@@ -101,7 +126,8 @@
     const cards = map && Array.isArray(map.handCards) ? map.handCards : [];
     if(!cards.length) return null;
     const idx = Math.max(0, Math.min(cards.length - 1, Number(index) || 0));
-    return boardPointFromViewportRect(cards[idx] && cards[idx].rect);
+    const slot = cards[idx];
+    return boardPointFromViewportRect(slot && (slot.motionRect || slot.rect));
   }
 
   function fallbackHandRect(owner, basisRect){
@@ -133,7 +159,7 @@
     const hit = cards.find(function(item){
       return String(item && item.iid) === key;
     });
-    return boardPointFromViewportRect(hit && hit.rect);
+    return boardPointFromViewportRect(hit && (hit.motionRect || hit.rect));
   }
 
   function anyHandRectByIid(iid){

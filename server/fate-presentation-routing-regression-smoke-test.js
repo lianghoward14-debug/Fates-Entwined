@@ -11,8 +11,15 @@ const ai = read('src', 'scripts', '07-ai.js');
 const rendering = read('src', 'scripts', '06-rendering-and-helpers.js');
 const structural = read('src', 'scripts', '00-structural-helpers.js');
 const director = read('src', 'scripts', 'render-v2', '11-vfx-director.js');
+const recipes = read('src', 'scripts', 'render-v2', '13-vfx-recipes.js');
+const renderer = read('src', 'scripts', 'render-v2', '04-match-renderer-adapter.js');
 const titleCss = read('src', 'styles', 'zz-codex-last.css');
+const matchUiCss = read('src', 'styles', 'zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css');
 const smoothness = read('src', 'scripts', '21-smoothness-core.js');
+const gameplay = read('src', 'scripts', '05-gameplay-core.js');
+const onlineRooms = read('src', 'scripts', '18-online-rooms.js');
+const moraleUi = read('src', 'scripts', '27-morale-pressure-ui.js');
+const endgameCss = read('src', 'styles', 'endgame.css');
 const index = read('index.html');
 
 assert.match(
@@ -61,6 +68,16 @@ assert.match(
   'a stale cinematic safety timer must not tear down the next overlay in the queue'
 );
 assert.match(
+  rendering,
+  /document\.body\.classList\.add\('cinematic-lock'\);[\s\S]{0,1200}showCinematicSubtitle\(subtitle,[\s\S]{0,900}overlay\.appendChild\(subEl\)/,
+  'consolidation subtitles must mount synchronously inside their owning overlay'
+);
+assert.match(
+  smoothness,
+  /sel === '\.cinematic-subtitle-live'[\s\S]{0,260}inside-consolidation-cinematic[\s\S]{0,180}closest\('\.cc-overlay-v2'\)/,
+  'visibility recovery must preserve subtitles owned by a live consolidation overlay'
+);
+assert.match(
   director,
   /if\(BOARD_PLACEMENT_RECIPES\.has\(recipeType\)\) return true;/,
   'caller flags must not reactivate retired horizontal board-placement motion'
@@ -69,6 +86,16 @@ assert.doesNotMatch(
   director.match(/function suppressAcceptedBridgeMotion[\s\S]*?function playQueued/)?.[0] || '',
   /BOARD_PLACEMENT_RECIPES[\s\S]*allowMatchActionMotion/,
   'board-placement suppression must not retain an escape hatch'
+);
+assert.match(
+  director,
+  /onLocalIntent:function\(intent\)[\s\S]{0,180}suppressAcceptedBridgeMotion\(intent\.type, intent\.options \|\| \{\}\)/,
+  'local VFX intents must use the same absolute board-placement suppression as accepted events'
+);
+assert.match(
+  recipes,
+  /RETIRED_BOARD_PLACEMENT_RECIPES[\s\S]*if\(RETIRED_BOARD_PLACEMENT_RECIPES\.has\(recipeName\)\) return \[\];/,
+  'direct recipe expansion must not recreate retired board-placement motion'
 );
 assert.match(
   rendering,
@@ -97,6 +124,97 @@ assert.match(
 );
 assert.match(index, /window\.__fateClientBuildStamp\s*=\s*'[^']+'/,
   'the client must publish a concrete build stamp without pinning this regression to an obsolete revision');
+assert.match(
+  moraleUi,
+  /function runAfterMoraleCalculationPresentation[\s\S]*window\.runAfterMoraleCalculationPresentation=runAfterMoraleCalculationPresentation/,
+  'start-of-turn overlays must have a shared Morale Calculation presentation barrier'
+);
+assert.match(
+  moraleUi,
+  /function enqueueMoralePressurePresentation[\s\S]*if\(reserved\)beginMoraleCalculationPresentation\(\);[\s\S]*singlePlayerPresentationQueue=singlePlayerPresentationQueue/,
+  'single-player Morale Calculation must reserve its barrier before the next turn begins synchronously'
+);
+assert.match(
+  moraleUi,
+  /function positionMoraleFloater[\s\S]*#fate-match-ui-v8 \[data-morale=[\s\S]*#fate-match-ui-v5 \[data-morale=[\s\S]*Math\.min\(viewportWidth-edgePadding,Math\.max\(edgePadding,centerX\)\)/,
+  'Morale floaters must use the visible match-layout Morale panel and remain clamped inside the viewport'
+);
+assert.match(
+  moraleUi,
+  /function commitMoralePresentationValue[\s\S]*renderMoralePressureHud\(working\);[\s\S]*refreshVisibleMatchMoraleSurface\(\);/,
+  'Morale gain/loss numbers and themed-shell health values must commit in the same presentation frame'
+);
+assert.match(
+  renderer,
+  /const commandUi = !!document\.querySelector\([\s\S]*#fate-match-ui-v8[\s\S]*#fate-atlas-ui[\s\S]*if\(!commandUi\) drawCommandDock/,
+  'fresh match shells must suppress the legacy canvas command dock by mounted root, not timing-sensitive class alone'
+);
+assert.match(
+  gameplay,
+  /const readDisplayedFate=function\(\)\{return position&&typeof getEffectiveFate==='function'[\s\S]*const before = readDisplayedFate\(\)[\s\S]*const finalValue = readDisplayedFate\(\)/,
+  'paired Fate overlays must animate effective displayed values without replaying continuous aura modifiers'
+);
+assert.match(
+  onlineRooms,
+  /const moraleCalculationFirst = events\.some[\s\S]*await window\.presentMoralePressureEvents\(events, view\);[\s\S]*events\.forEach/,
+  'authoritative start-turn result overlays must wait for Morale Calculation presentation'
+);
+assert.match(
+  onlineRooms,
+  /before:displayedFateBefore,[\s\S]*after:displayedBaseFateAfter,[\s\S]*finalValue:displayedFinalFate/,
+  'authoritative paired overlays must preserve only the event delta under continuous auras'
+);
+assert.match(
+  endgameCss,
+  /\.win-zone-controller \{[\s\S]*overflow-wrap: anywhere;/,
+  'long end-screen controller names must wrap before the final Fate panel'
+);
+assert.match(
+  gameplay,
+  /function fitEndgameWinnerTitle\(\)[\s\S]*title\.scrollWidth > availableWidth[\s\S]*title\.style\.fontSize = size \+ 'px'/,
+  'the end-screen winner heading must measure and shrink long commander names to its actual column'
+);
+assert.match(
+  rendering,
+  /function getLowMoraleSupporterExpiryState[\s\S]*moraleSupporterExpiryTurns[\s\S]*turnsLeft:Math\.max\(0, 2 - turnsCompleted\)/,
+  'low-Morale supporter overlays and card details must share the authoritative expiry countdown'
+);
+assert.match(
+  rendering,
+  /bc-low-morale-expiry[\s\S]*lowMoraleExpiryBanner[\s\S]*buildLowMoraleSupporterWarningHTML/,
+  'low-Morale supporters must keep a board warning and expose remaining turns in card information'
+);
+assert.match(
+  renderer,
+  /function scheduleLowMoraleSupporterPulse[\s\S]*function drawLowMoraleSupporterOverlay/,
+  'the canvas board must render and slowly refresh the persistent low-Morale supporter warning'
+);
+assert(matchUiCss.includes('overflow-wrap:anywhere!important'), 'long card names must wrap beside the low-Morale warning');
+assert(matchUiCss.includes('left:auto!important;right:-1px!important'), 'the low-Morale tooltip must open leftward inside the card panel');
+assert(matchUiCss.includes('transform:translateY(0)!important'), 'the anchored low-Morale tooltip must not recenter beyond the panel edge');
+
+const lowMoraleStateStart = rendering.indexOf('function getLowMoraleSupporterExpiryState');
+const lowMoraleStateEnd = rendering.indexOf('\nfunction buildLowMoraleSupporterWarningHTML', lowMoraleStateStart);
+assert(lowMoraleStateStart >= 0 && lowMoraleStateEnd > lowMoraleStateStart, 'low-Morale supporter countdown helper must be extractable');
+const lowMoraleSandbox = {};
+vm.createContext(lowMoraleSandbox);
+vm.runInContext(rendering.slice(lowMoraleStateStart, lowMoraleStateEnd) + '\nthis.readExpiry = getLowMoraleSupporterExpiryState;', lowMoraleSandbox);
+assert.deepStrictEqual(
+  JSON.parse(JSON.stringify(lowMoraleSandbox.readExpiry({_moraleSupporterExpiryStartedTurn:6, _moraleSupporterExpiryTurns:1}))),
+  {active:true, turnsCompleted:1, turnsLeft:1, startedTurn:6},
+  'legacy low-Morale supporters must report one turn remaining after their first completed turn'
+);
+assert.deepStrictEqual(
+  JSON.parse(JSON.stringify(lowMoraleSandbox.readExpiry({counters:{moraleSupporterExpiryStartedTurn:8, moraleSupporterExpiryTurns:1}}))),
+  {active:true, turnsCompleted:1, turnsLeft:1, startedTurn:8},
+  'authoritative low-Morale supporters must use the same remaining-turn calculation'
+);
+assert.strictEqual(lowMoraleSandbox.readExpiry({}).active, false, 'supporters without an expiry counter must not show the warning');
+assert.match(
+  rendering,
+  /duelist: `<svg class="cook-islands-duelist-icon" viewBox="0 0 64 64"[\s\S]{0,900}stroke="currentColor"[\s\S]{0,900}<\/svg>`/,
+  'Cook Islands Duelist must use the selected native crossed-blades status glyph'
+);
 
 async function verifyHowardSingleAdmission() {
   const functionStart = ai.indexOf('async function aiRunEffect');

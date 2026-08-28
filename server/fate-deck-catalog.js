@@ -51,7 +51,7 @@ function loadDeckCatalog(filePath){
   const starter = vm.runInNewContext(`(${extractArrayLiteral(source, 'STARTER_DECKS')})`, sandbox, {timeout:1000});
   const aiOnly = vm.runInNewContext(`(${extractArrayLiteral(source, 'AI_ONLY_RANDOM_DECKS')})`, sandbox, {timeout:1000});
   const validIds = new Set(getCardCatalog().cards.map(card=>card.id));
-  const decks = [...starter, ...aiOnly].map(deck=>sanitizeDeck(deck, validIds)).filter(Boolean);
+  const decks = [...starter, ...aiOnly.filter(deck=>deck && deck.enabled !== false)].map(deck=>sanitizeDeck(deck, validIds)).filter(Boolean);
   const byId = new Map(decks.map(deck=>[deck.id, deck]));
   return {decks, byId, sourcePath:target};
 }

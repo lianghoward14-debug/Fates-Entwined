@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="200" viewBox="0 0 240 200">
+  <defs>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g fill="none" stroke="#ffe59a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <!-- swept outer horsehair crest and rear neck guard -->
+    <path d="M18 91H48C50 42 84 17 128 17c41 0 72 21 84 55h17v37h-42"/>
+    <!-- inner crest band -->
+    <path d="M42 91H67c3-30 26-50 57-50 28 0 50 14 62 36h26"/>
+    <!-- helmet bowl and face opening -->
+    <path d="M68 105c0-36 24-58 55-58 29 0 51 18 56 46v32h-31"/>
+    <path d="M99 128V99c0-17 10-29 24-29 15 0 25 12 25 29v29"/>
+    <!-- long horizontal brow line characteristic of the card emblem -->
+    <path d="M18 105h81M148 105h75"/>
+    <!-- lower cheek and neck guards -->
+    <path d="M70 121l-22 30h32zM103 134l-18 39h34zM145 135l24 35h-35z"/>
+    <!-- right-side projecting cheek plate -->
+    <path d="M179 111l29 29h-37z"/>
+  </g>
+</svg>

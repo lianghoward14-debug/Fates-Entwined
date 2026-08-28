@@ -31,6 +31,14 @@ const PHASE7_TEST_AUTH_ENABLED = process.argv.includes('--phase7-test-auth');
 const PHASE7_FAST_UI_TEST_ENABLED = process.argv.includes('--phase7-fast-ui-test');
 const PHASE7_PRESENTATION_TEST_ENABLED = process.argv.includes('--phase7-presentation-test');
 const PHASE7_E2E_BACKGROUND_RUN = process.argv.includes('--e2e-background-run');
+const MORALE_PRESSURE_RULES_ENABLED = !process.argv.includes('--disable-morale-pressure')
+  && process.env.FATE_MORALE_PRESSURE_SEALS !== '0';
+// Card reworks are a separate reversible layer, but an ordinary Morale build
+// should actually use them.  Pass --disable-morale-card-reworks (or set the
+// environment value to 0) to compare against the original card set.
+const MORALE_CARD_REWORKS_ENABLED = MORALE_PRESSURE_RULES_ENABLED
+  && !process.argv.includes('--disable-morale-card-reworks')
+  && process.env.FATE_MORALE_CARD_REWORKS !== '0';
 if(PHASE7_FAST_UI_TEST_ENABLED && PHASE7_PRESENTATION_TEST_ENABLED){
   throw new Error('Choose exactly one Phase 7 UI test client: fast or presentation timing');
 }
@@ -162,6 +170,8 @@ function withElectronLaunchParams(rawUrl, sessionName) {
   url.searchParams.set('electron', '1');
   url.searchParams.set('electronBuild', ELECTRON_CLIENT_BUILD_STAMP);
   if (sessionName) url.searchParams.set('electronSession', sessionName);
+  url.searchParams.set('fateMoralePressureRules', MORALE_PRESSURE_RULES_ENABLED ? '1' : '0');
+  url.searchParams.set('fatePressureCardReworks', MORALE_CARD_REWORKS_ENABLED ? '1' : '0');
   if (PHASE7_UNRANKED_BETA_ENABLED) {
     url.searchParams.set('fateV3UnrankedBeta', '1');
     if (PHASE7_TEST_AUTH_ENABLED) {

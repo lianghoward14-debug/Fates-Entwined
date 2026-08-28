@@ -81,6 +81,53 @@ const picked = AI.selectCandidate([
 ], {perfect:true,rng:()=>0.99});
 assert.strictEqual(picked.move.id, 'best', 'perfect opponents should choose the strongest searched line');
 
+const moraleSystem = {maxMorale:100,morale:[45,100],shields:[0,0],pressure:[0,0]};
+assert.deepStrictEqual(
+  AI.moraleCycleDamage([2,10,10],[8,8,8]),
+  {
+    incoming:6,
+    outgoing:4,
+    zones:[
+      {zone:0,own:2,enemy:8,margin:-6},
+      {zone:1,own:10,enemy:8,margin:2},
+      {zone:2,own:10,enemy:8,margin:2}
+    ]
+  },
+  'morale planning must total losing-zone deficits and winning-zone damage separately'
+);
+const cautiousDefense = AI.scoreMoralePositionDelta({
+  system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],
+  afterOwnScores:[7,10,10],afterEnemyScores:[8,8,8],turn:6,style:'cautious'
+});
+const recklessDefense = AI.scoreMoralePositionDelta({
+  system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],
+  afterOwnScores:[7,10,10],afterEnemyScores:[8,8,8],turn:6,style:'reckless'
+});
+const cautiousAttack = AI.scoreMoralePositionDelta({
+  system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],
+  afterOwnScores:[2,15,10],afterEnemyScores:[8,8,8],turn:6,style:'cautious'
+});
+const recklessAttack = AI.scoreMoralePositionDelta({
+  system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],
+  afterOwnScores:[2,15,10],afterEnemyScores:[8,8,8],turn:6,style:'reckless'
+});
+assert(cautiousDefense > recklessDefense, 'cautious personalities should value preventing morale damage more highly');
+assert(recklessAttack > cautiousAttack, 'aggressive personalities should value dealing morale damage more highly');
+assert(cautiousDefense > cautiousAttack, 'a cautious AI near a threshold should stabilize before padding a won zone');
+assert(AI.moraleThresholdBurden(20,100).burden > AI.moraleThresholdBurden(21,100).burden, 'crossing 20% must carry a nonlinear random-hand-discard penalty');
+const moraleCard = AI.profileCard({id:'33',type:'Supporter',fate:1,effect:'When set, recover 16 Morale'});
+assert.strictEqual(moraleCard.moraleHeal, 16, 'AI card profiles must recognize direct morale recovery');
+assert(
+  AI.scoreMoraleCard(moraleCard,{system:{...moraleSystem,morale:[30,100]},playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],turn:6,style:'cautious'}) > 0,
+  'low-morale AI must value a real morale heal'
+);
+const moralePlan = AI.makeTurnPlan({
+  myScores:[2,10,10],oppScores:[8,8,8],memory,style:'cautious',turn:6,handModelMode:'belief',
+  moraleSystem,playerIndex:0,landscapeId:'igb2'
+});
+assert.strictEqual(moralePlan.moraleAware, true, 'turn plans must record when the morale mechanic is active');
+assert.strictEqual(moralePlan.focusZones[0], 0, 'a threshold-threatened AI should focus the zone causing incoming morale damage');
+
 const root = path.resolve(__dirname, '..');
 const setupSource = fs.readFileSync(path.join(root, 'src/scripts/04-game-setup.js'), 'utf8');
 for(const name of perfectNames){
@@ -94,6 +141,7 @@ const activeAiScripts = Array.from(indexSource.matchAll(/<script[^>]+src="([^"]*
 assert.deepStrictEqual(activeAiScripts, ['07-ai-intelligence.js','07-ai.js'], 'exactly one intelligence module and one AI turn controller should be active');
 
 const aiControllerSource = fs.readFileSync(path.join(root, 'src/scripts/07-ai.js'), 'utf8');
+const aiDialogueSource = fs.readFileSync(path.join(root, 'src/scripts/12-ai-dialogue.js'), 'utf8');
 const gameplaySource = fs.readFileSync(path.join(root, 'src/scripts/05-gameplay-core.js'), 'utf8');
 assert.strictEqual((aiControllerSource.match(/function\s+runAITurn\s*\(/g) || []).length, 1, 'only one active AI turn controller should exist');
 assert(!aiControllerSource.includes('function aiEvalBoard('), 'obsolete board evaluator should not remain as a dormant legacy path');
@@ -102,7 +150,15 @@ assert(!/G\.players\[opp\]\.deck/.test(aiControllerSource), 'AI decision code mu
 assert(/hiddenCards:perfect\s*\?\s*G\.players\[opp\]\.hand\s*:\s*undefined/.test(aiControllerSource), 'hidden hand identities must remain behind the perfect-knowledge gate');
 assert(aiControllerSource.includes('function aiOpponentCardDecisionFate('), 'face-down targets need an information-safe decision value');
 assert((aiControllerSource.match(/aiOpponentCardDecisionFate\(/g) || []).length >= 7, 'opponent target selectors should use information-safe Fate values');
+assert(aiControllerSource.includes('function aiMoraleMoveBonus('), 'legacy search must include a dedicated morale-aware move score');
+assert(aiControllerSource.includes('scoreMoralePositionDelta'), 'legacy search must project morale damage from zone margins');
+assert(aiDialogueSource.includes("'moraleCritical'"), 'AI dialogue must detect critical morale states');
+assert(aiDialogueSource.includes('getPersonalityMoraleDialogueLine'), 'morale dialogue must adapt to AI personality');
 assert(gameplaySource.includes("typeof aiChooseReaction === 'function'"), 'AI reactions must route through the unified AI policy');
-assert(setupSource.includes("typeof aiShouldActivateOptionalDrawEffect === 'function'"), 'AI optional draw effects must route through the unified AI policy');
+assert(
+  setupSource.includes("typeof aiShouldActivateOptionalDrawEffect === 'function'")
+    || aiControllerSource.includes('aiShouldActivateOptionalDrawEffect(cp, card'),
+  'AI optional draw effects must route through the unified AI policy'
+);
 
 console.log('AI intelligence smoke test passed.');

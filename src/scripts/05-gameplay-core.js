@@ -544,15 +544,41 @@ function shouldWarnBeforeEndingTurn(opts) {
 }
 
 function endTurn(opts) {
-  if(!(opts && opts.skipModalDeferral) && !G._deferredEndTurnExecuting && deferTurnEndUntilModalComplete('end-turn')) return false;
+  // Authoritative v3 single-player has its own reducer-backed turn owner.
+  // Legacy endTurn must not mutate the retired G state underneath that screen.
+  const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
+  if(v3LocalScreen){
+    const command = v3LocalScreen.view?.legalCommands?.find(command=>command.type === 'END_TURN');
+    if(command) return v3LocalScreen.submit(command);
+    return false;
+  }
+  const isActualAITurn = !!(G.aiEnabled && G.currentPlayer === G.aiPlayer);
+  const isAICompletion = !!(opts && opts.aiCompletion && isActualAITurn);
+  // _aiRunning is lifecycle bookkeeping, not turn ownership. If an AI task
+  // finishes or aborts late, the flag can survive into the human turn. Using
+  // it as a blanket gate strands both the button and the 0:00 auto-end path.
+  if(G._aiRunning && !isActualAITurn) {
+    G._aiRunning = false;
+    G._aiAbort = false;
+    G._aiAborted = false;
+  }
+  // A player click must not interrupt a genuinely active AI turn. Check this
+  // before consuming the shared input debounce.
+  if(G._aiRunning && isActualAITurn && !isAICompletion) return false;
+  const cardInfoWasOpen = isCardInformationWindowOpen();
+  if(cardInfoWasOpen) {
+    if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
+    if(document.getElementById('modal')?.classList.contains('on') && typeof closeModal === 'function') closeModal();
+  }
+  if(!cardInfoWasOpen && !(opts && opts.skipModalDeferral) && !G._deferredEndTurnExecuting && deferTurnEndUntilModalComplete('end-turn')) return false;
   if(typeof tutorialCanEndTurn === 'function' && !tutorialCanEndTurn()) return false;
   if(shouldWarnBeforeEndingTurn(opts)) return false;
-  if(G._turnInputLockUntil && Date.now() < G._turnInputLockUntil) return;
-  G._turnInputLockUntil = Date.now() + 350;
+  // This debounce belongs to clicks. The AI controller's natural completion
+  // must not be rejected by UI input state left over from the turn transition.
+  if(!isAICompletion && G._turnInputLockUntil && Date.now() < G._turnInputLockUntil) return false;
+  G._turnInputLockUntil = isAICompletion ? 0 : Date.now() + 350;
   if(typeof tutorialEvent==='function' && _tutorialActive) tutorialEvent('endTurn');
   if(typeof triggerAIDialogue==='function') triggerAIDialogue('turnStart');
-  // Block human from ending turn while AI is actively running
-  if(G._aiRunning) return;
   const hadPendingInteraction = !!(
     G._consolidating ||
     G._serverPendingMove ||
@@ -598,7 +624,18 @@ function endTurn(opts) {
   if(typeof window.playEndTurnSfxOnce === 'function') window.playEndTurnSfxOnce(endTurnSfxKey);
   else if(typeof playSfx === 'function') playSfx('endTurn');
 
-  // Check win condition at end of turn 10
+  if(typeof window.resolveLegacyMoralePressureTurnEnd === 'function') {
+    window.resolveLegacyMoralePressureTurnEnd(cp);
+  }
+  const moraleEnded = window.FATE_MORALE_PRESSURE_RULES_ENABLED === true
+    && G._freePlayGameSettings?.healthPressureSeals !== false
+    && G._moralePressure?.morale?.some(function(value){ return Number(value || 0) <= 0; });
+  if(moraleEnded){
+    checkWin();
+    return;
+  }
+
+  // Check the win condition at the current (possibly card-extended) final turn.
   if(G.turn >= G.maxTurns) {
     checkWin();
     return;
@@ -710,6 +747,17 @@ function recordWojciechPlacementForTurn(card, player) {
   card._wojciechPlacementCountedTurn = G.turn;
   G._wojciechTurnPlacementCounts[owner] = (Number(G._wojciechTurnPlacementCounts[owner]) || 0) + 1;
   return true;
+}
+
+function isCardInformationWindowOpen() {
+  if(typeof document === 'undefined') return false;
+  if(document.querySelector('.card-info-overlay')) return true;
+  const modalEl = document.getElementById('modal');
+  const modalBox = document.querySelector('#modal .modal');
+  if(!modalEl?.classList.contains('on') || !modalBox) return false;
+  return modalEl.classList.contains('card-detail-overlay')
+    || modalBox.classList.contains('card-detail-modal')
+    || !!modalBox.querySelector('#modal-body .cd-wrap');
 }
 
 function createWojciechPierogiCounter(player, sourceCard) {
@@ -842,7 +890,7 @@ const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
   'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate.',
   'bh07':'For each Dauntless card adjacent to this card, all cards you control on the field gain 2 Fate.',
   'bh08':'Each time you would negate or suppress an effect, all cards you control on the field gain 2 Fate.',
-  'bh11':'Double all adjacency bonuses you control on the field.'
+  'bh11':'Double all adjacency bonuses you control in this card\'s zone.'
 });
 const WHISPER_UNCOPYABLE_COORDINATOR_IDS = new Set(['01', '02', '12', '34', 'bh12']);
 
@@ -1032,6 +1080,7 @@ window.whisperLandscapeUseAvailable = whisperLandscapeUseAvailable;
 
 function isActiveWhisperToken(card, copiedId, owner) {
   if(!(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card))) return false;
+  if(card._whisperEffectActivated !== true) return false;
   if(WHISPER_UNCOPYABLE_COORDINATOR_IDS.has(String(card._whisperCopiedEffectId || ''))) return false;
   if(owner === 0 || owner === 1) {
     if(card.owner !== owner) return false;
@@ -1084,7 +1133,8 @@ function countFieldWideCoordinators(owner) {
 }
 
 async function resolveWhisperTokenPlacement(card, z, r, c, opts = {}) {
-  if(!card || !isActiveWhisperToken(card, null, card.owner) || card._whisperEffectActivated) return false;
+  if(!card || !(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) || card._whisperEffectActivated) return false;
+  if(isFaceDownCard(card) || (typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c))) return false;
   const copiedId = String(card._whisperCopiedEffectId || '');
   const owner = card.owner;
   const auto = opts.auto === true;
@@ -1101,12 +1151,41 @@ async function resolveWhisperTokenPlacement(card, z, r, c, opts = {}) {
     }
     if(declared) card._declaredAff = declared;
   }
+  const fateBeforeActivation = new Map();
+  if(typeof forEachBoardCard === 'function' && typeof getEffectiveFate === 'function') {
+    forEachBoardCard(function(target, targetZ){
+      if(target && target.iid) fateBeforeActivation.set(String(target.iid), Number(getEffectiveFate(target, targetZ)) || 0);
+    });
+  }
   card._whisperEffectActivated = true;
   if(typeof playSfx === 'function') playSfx('whisperConsolidation');
   if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Shizuku Token activated', 'major');
   toast('Shizuku activated ' + String(card._whisperCopiedAbility || 'its copied effect') + ' field-wide.');
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
   renderGame({board:true, hand:true, scores:true, landscape:true, topbar:true});
+  const inheritedKind = typeof COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID !== 'undefined'
+    ? (COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID[copiedId] || (copiedId === 'bh07' ? 'bh07_overclock' : ''))
+    : '';
+  if(inheritedKind && typeof forEachBoardCard === 'function' && typeof getEffectiveFate === 'function') {
+    const affected = [];
+    forEachBoardCard(function(target, targetZ){
+      if(!target || !target.iid || isFaceDownCard(target)) return;
+      const before = fateBeforeActivation.get(String(target.iid));
+      const after = Number(getEffectiveFate(target, targetZ)) || 0;
+      if(Number.isFinite(before) && before !== after) affected.push(target);
+    });
+    const showInheritedOverlay = function(){
+      affected.forEach(function(target, index){
+        flashCardEffect(target, inheritedKind, {
+          label:String(card._whisperCopiedAbility || card._whisperCopiedSourceName || 'Copied Coordinator effect'),
+          soundKey:['shizuku-token', String(card.iid || card.id || 'token'), copiedId, String(target.iid || index)].join(':'),
+          waitForConsolidationCinematic:true
+        });
+      });
+    };
+    if(typeof window.fateAfterPlacementPaint === 'function') window.fateAfterPlacementPaint(showInheritedOverlay);
+    else setTimeout(showInheritedOverlay, 0);
+  }
   return true;
 }
 window.resolveWhisperTokenPlacement = resolveWhisperTokenPlacement;
@@ -1124,15 +1203,19 @@ function applyIdyllicPolishVillageDrawPhase(player) {
       kind:'idyllic_polish_village',
       label:'An Idyllic Polish Village',
       sourceIid:'igb18',
+      waitForMoraleCalculation:true,
       soundKey:'idyllic-polish-village:' + String(card.iid || card.id || 'card') + ':' + String(G && G.turn || 0)
     });
     const after = presentation.after;
     count++;
   });
   if(count) {
-    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Wodny Potok: An Idyllic Polish Village', 'minor');
-    toast(count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' gained 1 Fate.');
-    log(player === 0 ? 'p1' : 'p2', 'An Idyllic Polish Village gave ' + count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' +1 Fate');
+    const showFeedback=function(){
+      if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Wodny Potok: An Idyllic Polish Village', 'minor');
+      toast(count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' gained 1 Fate.');
+      log(player === 0 ? 'p1' : 'p2', 'An Idyllic Polish Village gave ' + count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' +1 Fate');
+    };
+    if(typeof window.runAfterMoraleCalculationPresentation==='function')window.runAfterMoraleCalculationPresentation(showFeedback);else showFeedback();
   }
   return count;
 }
@@ -1209,6 +1292,53 @@ function getHighTPotencyCount(playerIndex) {
 }
 window.getHighTPotencyCount = getHighTPotencyCount;
 
+let _legacyBh19FallbackSong = null;
+let _legacyBh19FallbackFade = null;
+
+function stopLegacyBh19FallbackSong() {
+  const audio = _legacyBh19FallbackSong;
+  if(!audio) return false;
+  if(_legacyBh19FallbackFade) clearInterval(_legacyBh19FallbackFade);
+  const startVolume = Math.max(0, Number(audio.volume) || 0);
+  let step = 0;
+  _legacyBh19FallbackFade = setInterval(function(){
+    step += 1;
+    audio.volume = startVolume * Math.max(0, 1 - step / 10);
+    if(step < 10) return;
+    clearInterval(_legacyBh19FallbackFade);
+    _legacyBh19FallbackFade = null;
+    try{ audio.pause(); audio.currentTime = 0; }catch(e){}
+    if(_legacyBh19FallbackSong === audio) _legacyBh19FallbackSong = null;
+  }, 70);
+  return true;
+}
+
+function startBh19TurnSongForLegacyMatch(songKey, playerIndex) {
+  const started = typeof window.playBh19TurnSongOnce === 'function'
+    ? window.playBh19TurnSongOnce(songKey)
+    : false;
+  if(started) return true;
+  // The normal music controller declines card songs when background music is
+  // disabled. High-T is gameplay feedback, so single-player gets a quiet SFX
+  // fallback instead. Only the first Abed this turn may start it.
+  const activeThisTurn = Array.isArray(G?._bh19HighTStatuses)
+    ? G._bh19HighTStatuses.filter(function(status){
+        return Number(status.playerIndex) === Number(playerIndex)
+          && Number(status.turn) === Number(G.turn);
+      }).length
+    : 0;
+  if(activeThisTurn !== 1 || _legacyBh19FallbackSong) return false;
+  try{
+    const audio = new Audio('setvoicelines/bh19song.mp3?v=20260826a');
+    audio.loop = true;
+    audio.volume = .22;
+    _legacyBh19FallbackSong = audio;
+    const playback = audio.play();
+    if(playback) playback.catch(function(){ if(_legacyBh19FallbackSong === audio) _legacyBh19FallbackSong = null; });
+    return true;
+  }catch(e){ return false; }
+}
+
 function activateHighTForTurn(card, playerIndex) {
   if(!G || !card) return false;
   if(!Array.isArray(G._bh19HighTStatuses)) G._bh19HighTStatuses = [];
@@ -1224,7 +1354,7 @@ function activateHighTForTurn(card, playerIndex) {
     reason:'HIGH_T'
   });
   const songKey = ['high-t', String(G._onlineRoomCode || 'local'), Number(G.turn), Number(playerIndex)].join(':');
-  if(typeof window.playBh19TurnSongOnce === 'function') window.playBh19TurnSongOnce(songKey);
+  startBh19TurnSongForLegacyMatch(songKey, playerIndex);
   toast('High-T active: permanent Fate gain effects are doubled for this turn.');
   if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   return true;
@@ -1290,6 +1420,7 @@ window.applyCrushingMomentumAfterConsolidation = applyCrushingMomentumAfterConso
 async function nextPlayerTurn() {
   const endingPlayer = G.currentPlayer;
   if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
+  stopLegacyBh19FallbackSong();
   if(!G._onlineRoomCode) resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer);
   if(!G._onlineRoomCode && Array.isArray(G._bh19HighTStatuses)){
     G._bh19HighTStatuses = G._bh19HighTStatuses.filter(function(status){
@@ -1308,6 +1439,15 @@ async function nextPlayerTurn() {
 
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  G._deferredEndTurn = null;
+  G._deferredEndTurnExecuting = false;
+  if(typeof setDeferredEndTurnUi === 'function') setDeferredEndTurnUi(false);
+  if(!(G.aiEnabled && G.currentPlayer === G.aiPlayer)) {
+    G._aiRunning = false;
+    G._aiAbort = false;
+    G._aiAborted = false;
+  }
+  if(typeof window.resetLegacyMoraleTurnCounters === 'function') window.resetLegacyMoraleTurnCounters(G.currentPlayer);
   const aliHandLimitActivated = activateAliIndomitableHandLimitForPlayer(G.currentPlayer);
   if(aliHandLimitActivated) G._deferHandLimitEnforcementForPlayer = G.currentPlayer;
   if(G._onlineRoomCode){
@@ -1346,14 +1486,17 @@ async function nextPlayerTurn() {
     if(cell && cell.effectUsedInitial && !cell._effectTurnLocked) cell._effectTurnLocked = true;
   }); }); });
   G.extraSupportsThisTurn = 0;
+  G._majaSupportBoost = null;
   G.maxSupportsPerTurn = 2; // reset (Selva Islands Pirate may have changed it)
   if(Array.isArray(G._selvaSupportBoosts)) G._selvaSupportBoosts[G.currentPlayer] = null;
   if(typeof resetLandscapeSupporterEffectTurnCount === 'function') resetLandscapeSupporterEffectTurnCount(G.currentPlayer);
   if(typeof applyPendingSelvaSupportBoost === 'function') applyPendingSelvaSupportBoost(G.currentPlayer);
 
-  // Last turn announcement
+  // Last turn / upcoming Seal-checkpoint announcement.
   const turnsLeft = G.maxTurns - G.turn;
-  if(turnsLeft <= 1 && typeof showLastTurnBanner === 'function') {
+  const showedCheckpointWarning = typeof maybeShowSealCheckpointTurnBanner === 'function'
+    && maybeShowSealCheckpointTurnBanner();
+  if(!showedCheckpointWarning && turnsLeft <= 1 && typeof showLastTurnBanner === 'function') {
     showLastTurnBanner(G.players[G.currentPlayer].name, turnsLeft === 0);
   }
 
@@ -1382,6 +1525,20 @@ async function nextPlayerTurn() {
 
   // Wine Country Guerilla (70): tick down counter and debuff random card in holder's hand
   const currentPlayer = G.currentPlayer;
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+    const marines=[];
+    forEachBoardCard(function(card){if(card&&card.owner===currentPlayer&&cardActsAsPassive(card,'65')&&!isFaceDownCard(card)&&!isSupporterEffectSuppressed(card)){marines.push(card);const show=function(){flashCardEffect(card,'west_caribbea_marines',{label:'Sea-Men',soundKey:['west-caribbea-marines',String(card.iid||'65'),String(G.turn||0)].join(':')});};if(typeof window.runAfterMoraleCalculationPresentation==='function')window.runAfterMoraleCalculationPresentation(show);else show();}});
+    if(marines.length&&G._moralePressure&&String(G.landscapeId||'')!=='igb1'){
+      const opponent=1-currentPlayer;
+      const before=Math.max(0,Number(G._moralePressure.morale[opponent]||0));
+      G._moralePressure.morale[opponent]=Math.max(0,before-marines.length*2);
+      const after=G._moralePressure.morale[opponent];
+      let remaining=before-G._moralePressure.morale[opponent];
+      marines.forEach(function(card){const dealt=Math.min(2,remaining);card._moraleDamageInflicted=Math.max(0,Math.floor(Number(card._moraleDamageInflicted)||0))+dealt;remaining-=dealt;});
+      if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta({playerIndex:opponent,before:before,after:after,sourcePlayerIndex:currentPlayer,sourceIid:String(marines[0]?.iid||''),semanticSourceCardId:'65',reason:'WEST_CARIBBEA_MARINES'});
+      else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true});
+    }
+  }
   const holderHand = G.players[currentPlayer].hand;
   const guerillaCards = holderHand.filter(c=>cardActsAsPassive(c, '70') && c.guerilla_transferred && c.guerilla_turnsLeft>0);
   guerillaCards.forEach(gc=>{
@@ -1423,11 +1580,19 @@ async function nextPlayerTurn() {
   renderHand();
 
   // Draw 1 card unless the current landscape skips this draw phase.
-  if(typeof shouldSkipLandscapeDrawPhase === 'function' && shouldSkipLandscapeDrawPhase(currentPlayer)) {
+  const landscapeDrawSkipped = typeof shouldSkipLandscapeDrawPhase === 'function' && shouldSkipLandscapeDrawPhase(currentPlayer);
+  const moraleDrawSkipped = typeof window.shouldSkipLegacyMoraleDraw === 'function' && window.shouldSkipLegacyMoraleDraw(currentPlayer);
+  if(landscapeDrawSkipped || moraleDrawSkipped) {
+    if(moraleDrawSkipped && !landscapeDrawSkipped){
+      toast('Low Morale: this draw phase is skipped. You will draw next turn.');
+      log('sys', 'Low Morale skipped P' + (currentPlayer + 1) + ' draw phase.');
+    }
+  }
+  if(landscapeDrawSkipped) {
     toast('Big Sur: draw phase skipped.');
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Big Sur skipped draw phase', 'major');
     log('sys', 'Big Sur skipped P' + (currentPlayer + 1) + ' draw phase.');
-  } else {
+  } else if(!moraleDrawSkipped) {
     const drawParams = new URLSearchParams(window.location.search || '');
     const legacyCorpusCapture = drawParams.get('fateV3LegacyCorpus') === '1'
       && drawParams.get('fateV3Recorder') === '1'
@@ -1445,17 +1610,18 @@ async function nextPlayerTurn() {
         kind:'phil_crown',
         label:'Monarchist Manifesto',
         sourceIid:String(card.iid || card.id || '46'),
+        waitForMoraleCalculation:true,
         soundKey:'phil:' + String(card.iid || card.id) + ':' + String(G.turn || 0)
       });
-      // Visual sparkle on Phil
-      const cellEl = document.querySelector(`#board .cell[data-z][data-r][data-c]`);
-      // Find Phil's cell for sparkle
-      forEachBoardCard((c2,z2,r2,c2c)=>{
-        if(c2.iid===card.iid){
-          const el = document.querySelector(`#board .cell[data-z="${z2}"][data-r="${r2}"][data-c="${c2c}"]`);
-          if(el) { el.classList.add('effect-flash'); setTimeout(()=>el.classList.remove('effect-flash'),600); }
-        }
-      });
+      const showPhilSparkle=function(){
+        forEachBoardCard((c2,z2,r2,c2c)=>{
+          if(c2.iid===card.iid){
+            const el = document.querySelector(`#board .cell[data-z="${z2}"][data-r="${r2}"][data-c="${c2c}"]`);
+            if(el) { el.classList.add('effect-flash'); setTimeout(()=>el.classList.remove('effect-flash'),600); }
+          }
+        });
+      };
+      if(typeof window.runAfterMoraleCalculationPresentation==='function')window.runAfterMoraleCalculationPresentation(showPhilSparkle);else showPhilSparkle();
     }
   });
 
@@ -1532,7 +1698,123 @@ function applyContinuousEffects() {
 
   // Berkeley CS Major (50): now a when-set zone lock effect — no continuous effect needed
 
-  // Soviet Grenadiers (44): adjacency to Dauntless — additive bonus flag
+  // Soviet Grenadiers keeps one random matching neighbor until that exact
+  // neighbor stops qualifying. Reconciliation mutates only on a real target
+  // transition, so ordinary renders never replay the paired overlay.
+  reconcileSovietGrenadierTargets();
+}
+
+function getSovietDeclaredType(card){
+  return String(card?._sovietDeclaredType || card?.counters?.sovietDeclaredType || '').replace(/^Improviser$/i,'Improvisor');
+}
+
+function getSovietTargetIid(card){
+  return String(card?._sovietTargetIid || card?.counters?.sovietTargetIid || '');
+}
+
+function getSovietGrenadierTarget(source){
+  if(!source || isFaceDownCard(source) || !getSovietDeclaredType(source)) return null;
+  const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(source) : null;
+  if(!pos || typeof getAdjacentCards !== 'function') return null;
+  const declaredType = getSovietDeclaredType(source);
+  const wantedIid = getSovietTargetIid(source);
+  return getAdjacentCards(pos.z,pos.r,pos.c).find(function(entry){
+    const target = entry && entry.card;
+    const targetType = typeof cardHasEffectType === 'function'
+      ? (cardHasEffectType(target,declaredType) ? declaredType : '')
+      : String(target?.type || '').replace(/^Improviser$/i,'Improvisor');
+    return target && !isFaceDownCard(target) && targetType === declaredType && String(target.iid || '') === wantedIid;
+  }) || null;
+}
+
+function queueSovietLinkPresentation(card, before, after, sourceIid, role){
+  if(!card) return false;
+  if(typeof queueSynchronizedSupporterAuraChange === 'function'){
+    return queueSynchronizedSupporterAuraChange(card,{
+      iid:String(card.iid || ''),
+      fromValue:Math.max(0,Number(before)||0),
+      toValue:Math.max(0,Number(after)||0),
+      changes:[{kind:'soviet_grenadiers',label:'The Bears of Russia'}],
+      sourceIid:String(sourceIid || ''),
+      role:String(role || 'linked')
+    });
+  }
+  return typeof flashCardEffect === 'function' && flashCardEffect(card,'soviet_grenadiers',{label:'The Bears of Russia'});
+}
+
+function reconcileSovietGrenadierTarget(source){
+  if(!source || String(source.id || '') !== '44' || isFaceDownCard(source)) return null;
+  if(!getSovietDeclaredType(source)){
+    if(source._sovietDeclarationPending) return null;
+    const owner=typeof source.owner==='number'?source.owner:G.currentPlayer;
+    const options=['Supporter','Initiator','Improvisor','Coordinator','Dauntless'];
+    if(G.aiEnabled&&owner===G.aiPlayer){
+      source._sovietDeclaredType=options[Math.floor(Math.random()*options.length)];
+      if(!source.counters)source.counters={};
+      source.counters.sovietDeclaredType=source._sovietDeclaredType;
+    }else if(owner===((typeof getPerspectivePlayerIndex==='function')?getPerspectivePlayerIndex():G.currentPlayer)
+      && typeof showSovietTypeDeclarationPicker==='function'){
+      source._sovietDeclarationPending=true;
+      showSovietTypeDeclarationPicker(function(type){
+        source._sovietDeclarationPending=false;
+        source._sovietDeclaredType=type;
+        if(!source.counters)source.counters={};
+        source.counters.sovietDeclaredType=type;
+        reconcileSovietGrenadierTarget(source);
+        renderEffectResolutionForPlayer(owner,{hand:false,topbar:true});
+      });
+      return null;
+    }else return null;
+  }
+  const current = getSovietGrenadierTarget(source);
+  if(current) return current;
+  // Multiplayer target selection is owned by the authoritative RNG and arrives
+  // in counters. Never let a rendering client make a competing random choice.
+  if(G?._phase7CurrentMultiplayer === true) return null;
+  const pos = typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(source) : null;
+  if(!pos || typeof getAdjacentCards !== 'function') return null;
+  const declaredType = getSovietDeclaredType(source);
+  const candidates = getAdjacentCards(pos.z,pos.r,pos.c).filter(function(entry){
+    const target = entry && entry.card;
+    if(!target || isFaceDownCard(target)) return false;
+    return typeof cardHasEffectType === 'function'
+      ? cardHasEffectType(target,declaredType)
+      : String(target.type || '').replace(/^Improviser$/i,'Improvisor') === declaredType;
+  });
+  const previousIid = getSovietTargetIid(source);
+  const previous = previousIid && typeof findBoardCardByIid === 'function' ? findBoardCardByIid(previousIid) : null;
+  const sourceBefore = Math.max(0,Number(getEffectiveFate(source,pos.z))||0);
+  const previousPos = previous && typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(previous) : null;
+  const previousAfter = previousPos ? Math.max(0,Number(getEffectiveFate(previous,previousPos.z))||0) : 0;
+  if(!candidates.length){
+    source._sovietTargetIid='';
+    if(source.counters) source.counters.sovietTargetIid='';
+    if(previous && previousPos) queueSovietLinkPresentation(previous,previousAfter+3,previousAfter,source.iid,'released');
+    return null;
+  }
+  const chosen = candidates[Math.floor(Math.random()*candidates.length)];
+  source._sovietTargetIid=String(chosen.card.iid || '');
+  if(source.counters) source.counters.sovietTargetIid=source._sovietTargetIid;
+  source._sovietTargetSequence=(Number(source._sovietTargetSequence)||0)+1;
+  const sourceAfter=Math.max(0,Number(getEffectiveFate(source,pos.z))||0);
+  const targetBefore=Math.max(0,Number(getEffectiveFate(chosen.card,chosen.z))||0)-3;
+  const targetAfter=Math.max(0,Number(getEffectiveFate(chosen.card,chosen.z))||0);
+  if(previous && previousPos && String(previous.iid)!==String(chosen.card.iid)) queueSovietLinkPresentation(previous,previousAfter+3,previousAfter,source.iid,'released');
+  queueSovietLinkPresentation(source,sourceBefore,sourceAfter,source.iid,'source');
+  queueSovietLinkPresentation(chosen.card,targetBefore,targetAfter,source.iid,'target');
+  return chosen;
+}
+
+function reconcileSovietGrenadierTargets(){
+  if(typeof forEachBoardCard !== 'function') return 0;
+  const sources=[];
+  forEachBoardCard(function(card){if(card&&String(card.id||'')==='44')sources.push(card);});
+  sources.forEach(reconcileSovietGrenadierTarget);
+  return sources.length;
+}
+if(typeof window!=='undefined'){
+  window.getSovietGrenadierTarget=getSovietGrenadierTarget;
+  window.reconcileSovietGrenadierTargets=reconcileSovietGrenadierTargets;
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1612,7 +1894,10 @@ function isTurnTimerInteractionPaused() {
   if(G._phase7PendingPrompt || G._phase7PendingHandLimit || G.pendingEffect) return true;
   try {
     const modal = document.getElementById('modal');
-    if(modal && modal.classList.contains('on')) return true;
+    if(modal && modal.classList.contains('on')) {
+      const aiOwnsTurn = !!(G.aiEnabled && Number(G.currentPlayer) === Number(G.aiPlayer));
+      if(!aiOwnsTurn) return true;
+    }
     return !!document.querySelector(
       '.cinematic-overlay.on, .cinematic-overlay.active, ' +
       '[data-effect-resolution-window="open"], [data-interaction-window="open"]'
@@ -1727,10 +2012,10 @@ function stopAITurnVisualTimer(opts={}) {
 
 function startAITurnVisualTimer() {
   stopAITurnVisualTimer({clear:false});
-  _aiTurnVisualSeconds = 0;
+  _aiTurnVisualSeconds = getTurnTimeLimit();
   updateAITurnVisualTimerDisplay();
   _aiTurnVisualTimerInterval = setInterval(()=>{
-    _aiTurnVisualSeconds++;
+    _aiTurnVisualSeconds = Math.max(0, _aiTurnVisualSeconds - 1);
     updateAITurnVisualTimerDisplay();
   }, 1000);
 }
@@ -1788,6 +2073,10 @@ function startTurnTimer() {
       }
       toast("Time's up! Turn auto-ended.");
       const closedEndTurnWarning = closeEndTurnWarningModalForTimeout();
+      // Timer expiry is authoritative, not a second player click. A placement
+      // or UI animation may have refreshed the short click debounce during the
+      // final fraction of a second; do not let that strand the turn at 0:00.
+      if(G) G._turnInputLockUntil = 0;
       const result = endTurn({skipEffectWarning:true, skipModalDeferral:closedEndTurnWarning});
       if(result === false && G && G._deferredEndTurn){
         if(_turnTimerInterval){
@@ -1831,7 +2120,7 @@ function updateTimerDisplay() {
   const hudTimer = document.getElementById('turn-hud-timer');
   const hud = document.getElementById('turn-hud');
   if(!el && !hudTimer) return;
-  const timerText = formatTurnClock(_turnTimerRemaining);
+  const timerText = `${G && G.aiEnabled && G.currentPlayer === G.aiPlayer ? 'AI ' : ''}${formatTurnClock(_turnTimerRemaining)}`;
   if(el) el.textContent = timerText;
   if(hudTimer) hudTimer.textContent = timerText;
   const setTimerState = function(state){
@@ -2269,10 +2558,41 @@ function vigilantePickTarget(targetZ, cp, opp, inst) {
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
 function flashCardEffect(card, kind, options) {
   if(!card || typeof window === 'undefined' || typeof window.markCardEffectFlash !== 'function') return false;
+  const pendingFate = card._pendingFateOverlaySync;
+  const fateMarker = card._effectFateVisualDelta;
+  const canPairFate = !!(
+    pendingFate && fateMarker
+    && Number(fateMarker.seq) === Number(pendingFate.seq)
+    && Number(fateMarker.before) === Number(pendingFate.before)
+    && Number(fateMarker.after) === Number(pendingFate.after)
+    && Date.now() - Number(pendingFate.at || 0) <= 240
+  );
   const marked = window.markCardEffectFlash(card, kind, options || {});
   if(marked) {
     try {
-      if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
+      if(canPairFate){
+        if(pendingFate.timer) clearTimeout(pendingFate.timer);
+        delete card._pendingFateOverlaySync;
+        card._suppressNextFatePulse = true;
+        if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function') {
+          window.FateMatchRendererAdapter.renderFromGameState({source:'paired-effect-overlay-fate-start'});
+        } else if(typeof renderGame === 'function') {
+          renderGame({board:true, scores:true});
+        }
+        const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
+        if(pos && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.presentFateDelta === 'function') {
+          window.FateMatchRendererAdapter.presentFateDelta({
+            iid:String(card.iid || card.id || ''), targetIid:String(card.iid || card.id || ''), card:card,
+            z:pos.z, r:pos.r, c:pos.c,
+            fromValue:Number(pendingFate.before), toValue:Number(pendingFate.after),
+            before:Number(pendingFate.before), after:Number(pendingFate.after),
+            delta:Number(pendingFate.after) - Number(pendingFate.before),
+            synchronizeResultFeedback:true, _fatePresentationReady:true,
+            pairedEffectOverlayKind:String(kind || '')
+          });
+        }
+        playResolvedFateChangeSfx(card, pendingFate.before, pendingFate.after, pendingFate.sourceOwner);
+      } else if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
         window.FateMatchRendererAdapter.scheduleRender('card-effect-flash-started');
       } else if(typeof renderGame === 'function') {
         renderGame({board:true});
@@ -2282,6 +2602,160 @@ function flashCardEffect(card, kind, options) {
   return marked;
 }
 window.flashCardEffect = flashCardEffect;
+
+const SUPPORTER_AURA_FLASH_KIND_BY_ID = Object.freeze({
+  '25':'zimbabwean_honor_guard',
+  '59':'czechoslovak_maroon_knights'
+});
+const pendingSupporterAuraPresentations = new Map();
+
+function activeSupporterAuraSource(card, sourceId){
+  if(!card || isFaceDownCard(card) || !cardActsAsPassive(card, sourceId)) return false;
+  return !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card));
+}
+
+function honorGuardAuraAppliesToCard(target, z, r, c, excludedIid){
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED !== true || !target || isFaceDownCard(target)) return false;
+  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(target)) return false;
+  const excluded=String(excludedIid||'');
+  let guardActive=false;
+  forEachBoardCard(function(source){
+    if(guardActive||!source||String(source.iid||'')===excluded||source.owner!==target.owner)return;
+    if(activeSupporterAuraSource(source,'25'))guardActive=true;
+  });
+  if(!guardActive)return false;
+  const aff=String(target.aff||target.affiliation||'');
+  return getAdjacentCards(z,r,c).some(function(entry){
+    const peer=entry&&entry.card;
+    return peer&&String(peer.iid||'')!==excluded&&peer.owner===target.owner&&!isFaceDownCard(peer)&&String(peer.aff||peer.affiliation||'')===aff;
+  });
+}
+
+function czechoslovakAuraCountForCard(target,z,excludedIid){
+  if(!target||isFaceDownCard(target))return 0;
+  if(typeof isCardEffectImmutable==='function'&&isCardEffectImmutable(target))return 0;
+  const supporter=typeof isCardSupporterForRules==='function'?isCardSupporterForRules(target,target.owner):target.type==='Supporter';
+  if(!supporter)return 0;
+  const excluded=String(excludedIid||'');
+  let count=0;
+  (G.board[z]||[]).forEach(function(row){(row||[]).forEach(function(source){
+    if(source&&String(source.iid||'')!==excluded&&source.owner===target.owner&&activeSupporterAuraSource(source,'59'))count++;
+  });});
+  return count;
+}
+
+function getSupporterAuraPresentationState(card,z,r,c){
+  if(!card||isFaceDownCard(card))return {czechoslovak:0,zimbabwean:0};
+  return {
+    czechoslovak:czechoslovakAuraCountForCard(card,z,''),
+    zimbabwean:honorGuardAuraAppliesToCard(card,z,r,c,'')?1:0
+  };
+}
+window.getSupporterAuraPresentationState=getSupporterAuraPresentationState;
+
+function queueSynchronizedSupporterAuraChange(card,options){
+  const opts=options||{};
+  const iid=String(card&&card.iid||opts.iid||'');
+  if(!iid)return false;
+  let record=pendingSupporterAuraPresentations.get(iid);
+  if(!record){
+    record={iid:iid,fromValue:Number(opts.fromValue),toValue:Number(opts.toValue),changes:[],startedAt:Date.now(),timer:null};
+    pendingSupporterAuraPresentations.set(iid,record);
+  }else if(Number.isFinite(Number(opts.toValue)))record.toValue=Number(opts.toValue);
+  (Array.isArray(opts.changes)?opts.changes:[]).forEach(function(change){
+    if(change&&change.kind&&!record.changes.some(function(existing){return existing.kind===change.kind;}))record.changes.push(change);
+  });
+  const present=function(){
+    const pending=pendingSupporterAuraPresentations.get(iid);
+    if(!pending||pending!==record)return;
+    const now=Date.now();
+    const busy=!!(G._effectActivationCinematicActive||Number(G._cinematicUiLockUntil||0)>now||Number(G._actionPresentationLockUntil||0)>now||(typeof consolidationCinematicIsActive==='function'&&consolidationCinematicIsActive()));
+    if(busy&&now-record.startedAt<15000){record.timer=setTimeout(present,80);return;}
+    pendingSupporterAuraPresentations.delete(iid);
+    let target=null,z=-1;
+    forEachBoardCard(function(entry,entryZ){if(!target&&entry&&String(entry.iid||'')===iid){target=entry;z=entryZ;}});
+    if(!target)return;
+    record.changes.forEach(function(change,index){
+      const show=function(){
+        flashCardEffect(target,change.kind,{label:change.label,soundKey:['supporter-aura-change',iid,change.kind,String(G.turn||0),String(record.fromValue),String(record.toValue)].join(':')});
+        if(window.FateMatchRendererAdapter?.renderFromGameState)window.FateMatchRendererAdapter.renderFromGameState({source:'supporter-aura-overlay-fate-start'});
+      };
+      if(index===0)show();else setTimeout(show,index*850);
+    });
+    const before=Number(record.fromValue),after=Number(record.toValue);
+    if(Number.isFinite(before)&&Number.isFinite(after)&&before!==after&&window.FateMatchRendererAdapter?.presentFateDelta){
+      window.FateMatchRendererAdapter.presentFateDelta({iid:iid,targetIid:iid,card:target,z:z,fromValue:before,toValue:after,before:before,after:after,delta:after-before,synchronizeResultFeedback:true,_fatePresentationReady:true,pairedEffectOverlayKind:String(record.changes[0]?.kind||'')});
+      if(typeof playResolvedFateChangeSfx==='function')playResolvedFateChangeSfx(target,before,after,target.owner);
+    }
+  };
+  if(!record.timer)record.timer=setTimeout(present,0);
+  return true;
+}
+window.queueSynchronizedSupporterAuraChange=queueSynchronizedSupporterAuraChange;
+
+const queuedZimbabweAuraPlacementPresentations = new Set();
+
+function queueZimbabweAuraGainsAfterPlacement(placedCard){
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED !== true || !placedCard || isFaceDownCard(placedCard)) return 0;
+  const placedIid=String(placedCard.iid||'');
+  if(!placedIid)return 0;
+  let queued=0;
+  forEachBoardCard(function(target,z,r,c){
+    if(!target||isFaceDownCard(target))return;
+    const targetIid=String(target.iid||'');
+    if(!targetIid)return;
+    const appliesNow=honorGuardAuraAppliesToCard(target,z,r,c,'');
+    const appliedBeforePlacement=honorGuardAuraAppliesToCard(target,z,r,c,placedIid);
+    if(!appliesNow||appliedBeforePlacement)return;
+    const key=['zimbabwe-placement',placedIid,targetIid].join(':');
+    if(queuedZimbabweAuraPlacementPresentations.has(key))return;
+    queuedZimbabweAuraPlacementPresentations.add(key);
+    const after=Number(getEffectiveFate(target,z));
+    if(!Number.isFinite(after))return;
+    const before=Math.max(0,after-1);
+    if(before===after)return;
+    if(queueSynchronizedSupporterAuraChange(target,{
+      iid:targetIid,
+      fromValue:before,
+      toValue:after,
+      changes:[{kind:'zimbabwean_honor_guard',label:'Africa, United'}]
+    }))queued++;
+  });
+  return queued;
+}
+window.queueZimbabweAuraGainsAfterPlacement=queueZimbabweAuraGainsAfterPlacement;
+
+function scheduleBusserInitiatorOverlayAfterResolution(player,initiator){
+  const owner=Number(player);
+  if(owner!==0&&owner!==1)return false;
+  const started=Date.now();
+  const poll=function(){
+    const busy=!!(G._effectActivationCinematicActive||G.pendingInteraction||G._boardTargeting||G._serverPendingReaction||G._serverPendingMove||G._serverPendingZonePick||G._serverPendingCardPick||G._serverPendingModalAction||document.querySelector('.visual-picker-v2,.board-target-picker,.modal.on'));
+    if(busy&&Date.now()-started<15000){setTimeout(poll,80);return;}
+    if(initiator&&!isFaceDownCard(initiator))flashCardEffect(initiator,'breakfast_republic_busser',{label:'Corner! Behind!',soundKey:['busser-initiator',String(initiator.iid||''),String(G.turn||0)].join(':')});
+  };
+  setTimeout(poll,0);
+  return true;
+}
+window.scheduleBusserInitiatorOverlayAfterResolution=scheduleBusserInitiatorOverlayAfterResolution;
+
+function resolveBusserInitiatorMorale(player,initiator){
+  const owner=Number(player);
+  const busser=G&&G._busserInitiatorMorale;
+  if((owner!==0&&owner!==1)||!initiator||!busser||Number(busser.owner)!==owner||Number(busser.expiresAfterTurn)!==Number(G.turn))return false;
+  const system=G._moralePressure;
+  if(!system)return false;
+  const before=Math.max(0,Number(system.morale[owner]||0));
+  const after=Math.min(Number(system.maxMorale||200),before+10);
+  system.morale[owner]=after;
+  if(after<=before)return false;
+  const eventOptions={playerIndex:owner,before:before,after:after,sourceIid:String(busser.sourceIid||''),overlayTargetIid:String(initiator.iid||''),semanticSourceCardId:'69',reason:'BUSSER_INITIATOR_MORALE'};
+  if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta(eventOptions);
+  else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true,events:[Object.assign({type:'MORALE_HEALED',amount:after-before},eventOptions)]});
+  else scheduleBusserInitiatorOverlayAfterResolution(owner,initiator);
+  return true;
+}
+window.resolveBusserInitiatorMorale=resolveBusserInitiatorMorale;
 
 function markMovementEffectFlash(card, soundKey) {
   return flashCardEffect(card, 'movement_boot', {
@@ -2497,6 +2971,15 @@ function getIncomingCoordinatorEffectSources(target, z, r, c) {
       });
     });
   }
+  G.board.forEach(function(zone,sourceZ){(zone||[]).forEach(function(row,sourceR){(row||[]).forEach(function(source,sourceC){
+    if(!source||source.owner!==target.owner)return;
+    if(activeSupporterAuraSource(source,'59')&&sourceZ===z&&czechoslovakAuraCountForCard(target,z,'')>0){
+      sources.push({card:source,effectId:'59',kind:SUPPORTER_AURA_FLASH_KIND_BY_ID['59']});
+    }
+    if(activeSupporterAuraSource(source,'25')&&honorGuardAuraAppliesToCard(target,z,r,c,'')){
+      sources.push({card:source,effectId:'25',kind:SUPPORTER_AURA_FLASH_KIND_BY_ID['25']});
+    }
+  });});});
   return sources;
 }
 if(typeof window !== 'undefined') window.getIncomingCoordinatorEffectSources = getIncomingCoordinatorEffectSources;
@@ -2629,6 +3112,7 @@ function nextKvetkaBalladPitchStep(player) {
 }
 
 function triggerRozsiPassive(card, destZ) {
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) return;
   if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
   forEachBoardCard((c, cz, cr, cc) => {
     if(cardActsAsPassive(c, '34') && cz === destZ && c.owner === card.owner && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(c, cz, cr, cc))) {
@@ -3394,6 +3878,9 @@ async function clickCell(z,r,c) {
     const markCommit = createSetCommitProfiler(tx);
     if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[z][r][c] = inst;
+    if(typeof window.recordLegacyMoralePressureCardSet === 'function') {
+      window.recordLegacyMoralePressureCardSet(inst);
+    }
     applyRiveraBuffToPlacedCard(inst, inst.owner);
     if(achillesCountsAsConsolidated) {
       if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(G.currentPlayer, inst);
@@ -3797,6 +4284,18 @@ async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
   try {
     if(isFaceDownCard(inst)) return;
     scheduleCoordinatorPlacementFlash(inst, {z:z, r:r, c:c, source:'resolve-set-card'});
+    // Africa, United is an aura received by cards, so its crest belongs on
+    // every card whose +2 Fate switches on—not only on the Honor Guard that
+    // happened to enter the board. The shared queue starts the crest and Fate
+    // number in the same presentation frame.
+    queueZimbabweAuraGainsAfterPlacement(inst);
+    if(!G._phase7CurrentMultiplayer && !G._onlineRoomCode
+      && typeof cardActsAsPassive === 'function' && cardActsAsPassive(inst, '41')) {
+      const accumulatedReductions = Math.max(0, Number(G.damageDoneP?.[inst.owner] || 0));
+      if(accumulatedReductions > 0 && typeof queueLegacyJimmyWrathPresentation === 'function') {
+        queueLegacyJimmyWrathPresentation(inst, accumulatedReductions, {source:'placement'});
+      }
+    }
     // Flowing Currents must also evaluate with the newly set card included in
     // total Fate. The helper deduplicates bonuses already awarded before commit.
     const postPlacementLandscapeBonus = typeof applyLandscapePlacementBonuses === 'function'
@@ -3860,6 +4359,9 @@ window.resolveSetCardAfterPlacement = resolveSetCardAfterPlacement;
 function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
+  if(typeof window.refreshLegacyMoralePressure === 'function') {
+    window.refreshLegacyMoralePressure({announce:true});
+  }
   let animated = false;
   if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
     animated = !!window.FateV2CardMotionFx.flipBoardCard(card, z, r, c);
@@ -3937,6 +4439,7 @@ function tickWintertideForCurrentPlayer() {
       kind:'wintertide',
       label:'Wintertide',
       sourceIid:String(card.iid || card.id || '100'),
+      waitForMoraleCalculation:true,
       soundKey:'wintertide:' + String(card.iid || card.id) + ':' + String(G.turn || 0)
     });
     applied++;
@@ -3950,6 +4453,10 @@ function initiateConsolidate() {
     return;
   }
   if(G.selectedHandCard===null){toast('Select a character card from your hand first');return;}
+  if(typeof window.legacyMoraleConsolidationAllowed === 'function' && !window.legacyMoraleConsolidationAllowed(G.currentPlayer)){
+    toast('Low Morale: you can only consolidate twice this turn.');
+    return;
+  }
   const card = G.players[G.currentPlayer].hand[G.selectedHandCard];
   const cardIsCharacterForRules = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, G.currentPlayer) : !!(card && card.type !== 'Supporter');
   if(!card || !cardIsCharacterForRules){toast('Select a Character card first');return;}
@@ -4509,6 +5016,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     }
     applyMarieDeterranceForConsolidation(cp, targetZ, inst);
     G.board[targetZ][targetR][targetC] = inst;
+    if(typeof window.recordLegacyMoraleConsolidation === 'function') window.recordLegacyMoraleConsolidation(cp);
     applyCrushingMomentumAfterConsolidation(inst, cp);
     if(typeof window.fateAIRecordDecision === 'function') {
       window.fateAIRecordDecision({player:cp, action:'c', card:inst, zone:targetZ, row:targetR, faceDown:!!useFaceDown, tributes:tributes});
@@ -4644,9 +5152,11 @@ function getConsolidationCostForZone(card, z, owner, baseCost) {
 function getGreatOakConsolidationBonus(tributes) {
   return (Array.isArray(tributes) ? tributes : []).reduce(function(total, tribute){
     const source = tribute && tribute.card;
-    if(!source || String(source.id || '') !== '47') return total;
+    const bonusCardId = window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true ? '73' : '47';
+    const bonusAmount = window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true ? 4 : 3;
+    if(!source || String(source.id || '') !== bonusCardId) return total;
     if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(source)) return total;
-    return total + 3;
+    return total + bonusAmount;
   }, 0);
 }
 
@@ -4797,9 +5307,14 @@ function noteBalladSupporterSet(player) {
     ended++;
   });
   if(ended) {
+    // Remove expired rows instead of leaving inactive records for status
+    // projections to rediscover from a stale single-player snapshot.
+    G._balladEffects[player] = effects.filter(function(fx){ return fx && fx.active && !fx.ended; });
     toast('A Noble Effort at a Ballad ended because a Supporter was set.');
     if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+    if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
   }
+  return ended;
 }
 
 function noteBalladConsolidation(player, card) {
@@ -5168,6 +5683,7 @@ function tickCarpathianSpecters() {
         kind:'specter_ghost',
         label:'Thousand Year Sorrow',
         sourceIid:String(card.iid || card.id || '95'),
+        waitForMoraleCalculation:true,
         soundKey:'specter:' + String(card.iid || card.id) + ':' + String(card._specterFateGains)
       });
       toast(card.name + ' gains 1 Fate from Thousand Year Sorrow.');
@@ -5180,8 +5696,25 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','2
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh20','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh19','bh20','bh25'
 ]);
+const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
+const PRESSURE_REWORK_WHEN_SET_EFFECT_IDS = new Set(['20','33','34','45','47','64','69']);
+
+function pressureCardReworkTimingActive(){
+  return window.FATE_PRESSURE_CARD_REWORKS_ENABLED===true
+    || G?.gameSettings?.pressureCardReworks===true
+    || G?._freePlayGameSettings?.pressureCardReworks===true;
+}
+if(typeof window!=='undefined') window.pressureCardReworkTimingActive=pressureCardReworkTimingActive;
+
+function hasAuthoritativeWhenSetEffect(cardOrId){
+  const id=String(cardOrId&&typeof cardOrId==='object'?cardOrId.id:cardOrId||'');
+  if(pressureCardReworkTimingActive()&&PRESSURE_REWORK_TIMING_CARD_IDS.has(id)){
+    return PRESSURE_REWORK_WHEN_SET_EFFECT_IDS.has(id);
+  }
+  return AUTHORITATIVE_WHEN_SET_EFFECT_IDS.has(id);
+}
 
 function whenSetEffectsAreDeferred() {
   return false;
@@ -5347,7 +5880,7 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
     return;
   }
 
-  const _hasWhenSet = AUTHORITATIVE_WHEN_SET_EFFECT_IDS.has(String(id || ''));
+  const _hasWhenSet = hasAuthoritativeWhenSetEffect(inst);
   const isInitiatorWithEffect = _hasWhenSet
     && (inst.type === 'Initiator' || String(id || '') === '21' || String(id || '') === 'bh25')
     && !inst.effectUsedInitial;
@@ -6396,6 +6929,23 @@ function showCharterTypeDeclarationPicker(onChoose) {
 if(typeof window !== 'undefined') window.chooseCharterOfUnitedNationsType = chooseCharterOfUnitedNationsType;
 if(typeof window !== 'undefined') window.showCharterTypeDeclarationPicker = showCharterTypeDeclarationPicker;
 
+function showSovietTypeDeclarationPicker(onChoose){
+  return new Promise(function(resolve){
+    let settled=false;
+    const types=['Supporter','Initiator','Improvisor','Coordinator','Dauntless'];
+    const labels={Supporter:'Supporter',Initiator:'Initiator',Improvisor:'Improviser',Coordinator:'Coordinator',Dauntless:'Dauntless'};
+    const glyphs={Supporter:'SUP',Initiator:'INI',Improvisor:'IMP',Coordinator:'COR',Dauntless:'DAU'};
+    const notes={Supporter:'Reinforcement network',Initiator:'Opening strike',Improvisor:'Reactive tactics',Coordinator:'Field command',Dauntless:'Front-line power'};
+    const body='<div class="soviet-type-picker"><div class="soviet-type-hero"><span class="soviet-star">★</span><div><span class="soviet-type-kicker">The Bears of Russia</span><strong>Declare the regiment target</strong><p>Choose a card type. Grenadiers will link to one random adjacent matching card and keep that target until it leaves or no longer matches.</p></div></div><div class="soviet-type-grid">'+types.map(function(type,index){return '<button type="button" class="soviet-type-choice" data-soviet-type="'+escapeHtml(type)+'"><span class="soviet-type-index">0'+(index+1)+'</span><span class="soviet-type-glyph">'+glyphs[type]+'</span><strong>'+labels[type]+'</strong><em>'+notes[type]+'</em><span>Declare <b>→</b></span></button>';}).join('')+'</div></div>';
+    const choose=function(type){if(settled||!types.includes(type))return;settled=true;closeModal();if(typeof onChoose==='function')onChoose(type);resolve(type);};
+    showModal('Soviet Grenadiers',body,types.map(function(type){return {label:'Declare '+labels[type],pri:true,hidden:true,action:function(){choose(type);}};}),{onOpen:function(){
+      const modalBox=document.querySelector('#modal .modal');if(modalBox)modalBox.classList.add('soviet-type-picker-modal');
+      document.querySelectorAll('#modal .soviet-type-choice[data-soviet-type]').forEach(function(button){button.onclick=function(){if(typeof playEffectActivationButtonSound==='function')playEffectActivationButtonSound();choose(String(button.dataset.sovietType||''));};});
+    }});
+  });
+}
+if(typeof window!=='undefined')window.showSovietTypeDeclarationPicker=showSovietTypeDeclarationPicker;
+
 async function chooseFlowerKingTarget(inst, z, r, c, cp) {
   const entries = getAdjacentBoardSquareEntries(z, r, c);
   if(!entries.length){
@@ -6670,14 +7220,31 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '18': // 1st US Marines: suppress opponent's supporter effects next turn
       activateUsMarinesSuppressionEffect(cp, opp);
       break;
-    case '33': // West Caribbea Infantry: next character added to hand costs 1 less, gains 2 fate
+    case '33': // West Caribbea Infantry
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});
+        break;
+      }
       G._westCaribNext = { owner: cp, sourceIid: inst.iid || null };
       toast('The next character added to your hand gains 2 Fate and costs 1 less Reinforcement');
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
-    case '34': // Rozsi Szocs: passive coordinator - no when-set trigger needed
+    case '34': // Rozsi Szocs
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        showAffiliationPickerVisual(function(aff){inst._moraleAffiliation=aff;renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});});
+      }
       break;
-    case '44': // Soviet Grenadiers: continuous — handled in applyContinuousEffects
+    case '44': // Soviet Grenadiers: declare once, then keep one random adjacent match
+      if(G.aiEnabled&&cp===G.aiPlayer){
+        const pos=typeof findBoardPositionForCard==='function'?findBoardPositionForCard(inst):null;
+        const adjacent=pos&&typeof getAdjacentCards==='function'?getAdjacentCards(pos.z,pos.r,pos.c):[];
+        const options=['Supporter','Initiator','Improvisor','Coordinator','Dauntless'];
+        const matching=options.filter(function(type){return adjacent.some(function(entry){return entry&&entry.card&&(typeof cardHasEffectType==='function'?cardHasEffectType(entry.card,type):String(entry.card.type||'')===type);});});
+        inst._sovietDeclaredType=matching.length?matching[Math.floor(Math.random()*matching.length)]:options[Math.floor(Math.random()*options.length)];
+        reconcileSovietGrenadierTarget(inst);
+      }else if(typeof showSovietTypeDeclarationPicker==='function'){
+        showSovietTypeDeclarationPicker(function(type){inst._sovietDeclaredType=type;if(!inst.counters)inst.counters={};inst.counters.sovietDeclaredType=type;reconcileSovietGrenadierTarget(inst);renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});});
+      }
       break;
     case '50': // Berkeley CS Major: lock any zone for opponent's next turn
       if(typeof showZonePickerVisual === 'function'){
@@ -6786,7 +7353,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '64': { // Cook Islands Duelist: passive handled in getEffectiveFate
+    case '64': {
+      if(pressureCardReworkTimingActive()){toast('Blade Dance will double your Morale Damage at the next calculation.');break;}
       toast('Blade Dance is passive - it applies while Cook Islands Duelist is on the field.');
       break;
     }
@@ -6863,7 +7431,13 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       if(matches.length) openSchoolerSearch();
       break;
     }
-    case '69': { // Breakfast Republic Busser: grant adjacent-zone movement for three moves
+    case '69': {
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        G._busserInitiatorMorale={owner:cp,expiresAfterTurn:Number(G.turn),sourceIid:String(inst.iid||'')};
+        if(typeof showBusserStatusBanner==='function')showBusserStatusBanner(inst,1,cp);
+        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});
+        break;
+      }
       if(inst._busserGrantPending){
         toast('Breakfast Republic Busser is already resolving.');
         break;
@@ -6934,7 +7508,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       renderHand();
       break;
     }
-    case '73': { // ALPINE Expeditionary: discard Initiators and Improvisors, gain their Fate
+    case '73': {
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        renderEffectResolutionForPlayer(cp,{hand:false,scores:true});break;
+      }
       let totalFate = 0;
       const toDiscard = [];
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
@@ -6957,7 +7534,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       renderEffectResolutionForPlayer(cp, {hand:false, piles:true});
       break;
     }
-    case '80': { // Apparition of Berkeley: discard a character you control in this zone, draw 2
+    case '80': {
       const myChars = [];
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell && cell.owner===cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && cell.iid!==inst.iid){
@@ -6978,7 +7555,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, cell=>cell && cell.owner===cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && cell.iid!==inst.iid, null, inst);
       break;
     }
-    case '84': { // Kvetka Svoboda: set an Expanded Worlds character from deck for free
+    case '84': {
       const matches = G.players[cp].deck.filter(c=>{
         const base = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.find(x=>String(x.id) === String(c.id)) : null;
         const aff = String((c.aff || (base && base.aff) || '')).toLowerCase().replace(/\s+/g, '_');
@@ -7067,7 +7644,10 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '20': // Shield Wall: South Wind is immune to opponent effects.
       renderEffectResolutionForPlayer(cp, {hand:false, blocks:false});
       break;
-    case '25': // Zimbabwean Honor Guard: set another copy from hand/deck for free
+    case '25':
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});break;
+      }
       {
         const dupes = G.players[cp].hand.filter(c=>c.id==='25');
         const deckDupes = G.players[cp].deck.filter(c=>c.id==='25');
@@ -7088,25 +7668,39 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           toast('Another Zimbabwean Honor Guard is ready to set immediately for free!');
         }
       } break;
-    case '28': // 2nd Polish-Lithuanian Army: can be set from deck (once/turn, twice/game)
-      // Already handled — this is a "when set" card, the special part is SETTING from deck
-      // which would be a UI entry elsewhere. For now, mark uses.
-      if(!inst._plUsesLeft) inst._plUsesLeft = 2;
+    case '28': // 2nd Polish-Lithuanian Army: once-per-turn free set from deck
+      // The deck action marks _polishUsedThisTurn and does not consume a
+      // Supporter set. The flag resets when the next turn begins.
       break;
     case '37': // 6th French Fusiliers: copy a while-on-field Supporter passive.
       chooseFrenchFusiliersPassive(inst, z);
       break;
-    case '35': { // Alexander the Magnificient: live Fate = sum of own Supporters' effective Fate in zone
+    case '35': {
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});break;}
         const alexSum = getAlexanderSupporterFateTotal(inst, z);
         inst.currentFate = alexSum;
         toast('Hellenic Glory: Alexander has '+alexSum+' Fate from Supporters!');
         log(cp===0?'p1':'p2', 'Alexander entered with '+alexSum+' Fate from Supporters');
         renderEffectResolutionForPlayer(cp, {hand:false});
       } break;
-    case '45': // Chingachlook: placement restriction is enforced before setting.
+    case '45': // Chingachlook
+      if(pressureCardReworkTimingActive()){
+        const system=G._moralePressure;
+        if(system){const before=Math.max(0,Number(system.morale[cp]||0));system.morale[cp]=Math.max(0,before-50);if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta({playerIndex:cp,before:before,after:system.morale[cp],sourceIid:String(inst.iid||''),semanticSourceCardId:'45',reason:'THE_LAST_MOHICAN_COST'});else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true});}
+        pickCardFromAnyZone('The Last Mohican: select any card on the field to discard.',function(target,tz,tr,tc){
+          if(!target)return;
+          if(typeof discardBoardCard==='function') discardBoardCard(target,tz,tr,tc);
+          else {G.board[tz][tr][tc]=null;fatePushDiscard(target.owner,target);}
+          renderEffectResolutionForPlayer(cp,{hand:false,piles:true,topbar:true});
+        },function(target){
+          if(!target) return false;
+          if(typeof isWojciechPierogiCounter==='function'&&isWojciechPierogiCounter(target)) return false;
+          return !(typeof isTargetImmuneToEffectOwner==='function'&&isTargetImmuneToEffectOwner(target,cp));
+        });break;
+      }
       break;
-    case '47': // Great Oak Infantry: when used for consolidation, new card gains 3 Fate
-      inst._greatOakBonus = true;
+    case '47':
+      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED !== true)inst._greatOakBonus = true;
       break;
     case '52': {
       if(typeof activateVigilantes === 'function') activateVigilantes(inst, z, r, c, {activationAlreadyCounted:true});
@@ -7462,6 +8056,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       clearEffectActivationInFlight();
       return;
     }
+    const busser=G._busserInitiatorMorale;
+    if(busser&&typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,card);
   }
   if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id)) {
     markInitialEffectResolved(card);
@@ -7469,6 +8065,12 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
 
   switch(id) {
     // Initiators
+    case 'bh19':
+      // High-T is an automatic Initiator. Keep its legacy activation on the
+      // Initiator route used by single-player (and Taylor copies) instead of
+      // relying on the generic Supporter/when-set switch below.
+      activateHighTForTurn(card, cp);
+      break;
     case 'bh04':
       chooseDestructionOfParadiseType(card, z, cp);
       break;
@@ -7485,14 +8087,14 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       await chooseCharterOfUnitedNationsType(card, cp);
       break;
     case 'bh20': {
-      const previousMaxTurns = Math.max(1, Number(G.maxTurns) || 20);
+      const previousMaxTurns = Math.max(1, Number(G.maxTurns) || 24);
       G.maxTurns = previousMaxTurns + 2;
       toast('Thousand Year Bird Cult extended the game to turn ' + G.maxTurns + '!');
       updateTopBar();
       renderEffectResolutionForPlayer(cp, {hand:false});
       break;
     }
-    case '03': // Howard: double Fate of card in zone, then +5
+    case '03':
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
         if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
         const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
@@ -7517,10 +8119,12 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       // as her effect activates so choosing zero cards or closing the picker
       // cannot discard this independent part of Oblique Order.
       G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
+      G._majaSupportBoost = {owner:cp, turn:Number(G.turn), extraSupports:2, sourceIid:String(inst.iid || '')};
       toast('Maja unlocked 2 extra Supporter placements this turn!');
       updateTopBar();
-      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       if(!matches.length){
+        if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+        if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
         renderHand();
         break;
       }
@@ -7565,6 +8169,13 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         });
       };
       openMajaSearch();
+      // Mount the picker first, then publish Maja's temporary status. The broad
+      // refreshStatusEffectsNow() path also runs continuous-effect reconciliation
+      // and can open a competing declaration modal while Oblique Order resolves.
+      setTimeout(function(){
+        if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+        if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
+      }, 0);
     } break;
     case '08': // Lina: search Reality card from deck/discard, set for free
       searchAnySource(cp,c=>c.aff==='reality','Search for a Reality card:',(found)=>{
@@ -7934,7 +8545,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         });}},{label:'Cancel',action:closeModal}]); break;
 
     // Improvisors
-    case '40': // Christopher Erbs: next draw gains 6 Fate
+    case '40':
       if(card.usesLeft>0){
         if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
         if(G.erbsActive[cp]) { toast('Christopher Erbs is already waiting for your next draw.'); break; }
@@ -7970,6 +8581,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   // Mark this character's effect as activated (fires once)
   card.effectUsedInitial = true;
   if(card.type === 'Initiator' && !reusableCopiedEffect) card._effectTurnLocked = true;
+  if(typeof window.recordLegacyMoralePressureActivation === 'function') {
+    window.recordLegacyMoralePressureActivation(card);
+  }
   clearEffectActivationInFlight();
 }
 
@@ -8362,6 +8976,7 @@ function queuePairedOverlayFateGain(target, options) {
     after:after,
     onlineRemote:opts.onlineRemote === true,
     waitForConsolidationCinematic:opts.waitForConsolidationCinematic === true,
+    waitForMoraleCalculation:opts.waitForMoraleCalculation === true,
     effectOptions:opts.effectOptions && typeof opts.effectOptions === 'object' ? Object.assign({}, opts.effectOptions) : null,
     soundKey:String(opts.soundKey || ''),
     readyAt:Date.now() + Math.max(0, Number(opts.delayMs) || 0)
@@ -8392,6 +9007,12 @@ function queuePairedOverlayFateGain(target, options) {
       setTimeout(presentNext, 90);
       return;
     }
+    if(next.waitForMoraleCalculation
+      && typeof window.isMoraleCalculationPresentationActive === 'function'
+      && window.isMoraleCalculationPresentationActive()){
+      setTimeout(presentNext,80);
+      return;
+    }
     const activeFlash = liveTarget && liveTarget._effectFlash;
     const now = Date.now();
     if(activeFlash && activeFlash.kind && now < Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)){
@@ -8399,13 +9020,13 @@ function queuePairedOverlayFateGain(target, options) {
       return;
     }
     const presentation = current.queue.shift();
-    advanceSequentialFateDisplay(liveTarget, presentation.after);
     const shown = typeof flashCardEffect === 'function' && flashCardEffect(liveTarget, presentation.kind, Object.assign({}, presentation.effectOptions || {}, {
       label:presentation.label,
       onlineRemote:presentation.onlineRemote,
       waitForConsolidationCinematic:presentation.waitForConsolidationCinematic,
       soundKey:presentation.soundKey || ['paired-overlay', presentation.kind, presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':')
     }));
+    advanceSequentialFateDisplay(liveTarget, presentation.after);
     if(shown && window.FateMatchRendererAdapter?.renderFromGameState){
       window.FateMatchRendererAdapter.renderFromGameState({source:'paired-overlay-fate-start'});
     }
@@ -8448,12 +9069,13 @@ if(typeof window !== 'undefined') window.queuePairedOverlayFateGain = queuePaire
 function applyPairedOverlayFateGain(target, amount, sourceOwner, options) {
   if(!target) return {before:0, after:0, finalValue:0, queued:false};
   const opts = options || {};
-  const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
+  const position=typeof getBoardCardPosition==='function'?getBoardCardPosition(target):null;
+  const readDisplayedFate=function(){return position&&typeof getEffectiveFate==='function'?Math.max(0,Number(getEffectiveFate(target,position.z))||0):Math.max(0,Number(target.currentFate??target.fate)||0);};
+  const before = readDisplayedFate();
   target._suppressNextFatePulse = true;
   modifyFate(target, amount, opts.type || 'permanent', sourceOwner, {deferBasePresentation:true});
-  const finalValue = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
-  const requestedAfter = Math.max(before, before + Math.max(0, Number(amount) || 0));
-  const after = Math.min(finalValue, requestedAfter);
+  const finalValue = readDisplayedFate();
+  const after = finalValue;
   const queued = after > before && queuePairedOverlayFateGain(target, {
     kind:opts.kind,
     label:opts.label,
@@ -8464,6 +9086,7 @@ function applyPairedOverlayFateGain(target, amount, sourceOwner, options) {
     delayMs:opts.delayMs,
     onlineRemote:opts.onlineRemote === true,
     waitForConsolidationCinematic:opts.waitForConsolidationCinematic === true,
+    waitForMoraleCalculation:opts.waitForMoraleCalculation === true,
     effectOptions:opts.effectOptions,
     soundKey:opts.soundKey
   });
@@ -8521,11 +9144,11 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
       return;
     }
     const presentation = current.queue.shift();
-    advanceSequentialFateDisplay(liveTarget, presentation.after);
     const shown = typeof flashCardEffect === 'function' && flashCardEffect(liveTarget, BH19_OVERLAY_KIND, {
       label:'High-T',
       soundKey:['bh19-overlay', presentation.sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
     });
+    advanceSequentialFateDisplay(liveTarget, presentation.after);
     if(shown && window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.renderFromGameState === 'function'){
       window.FateMatchRendererAdapter.renderFromGameState({source:'bh19-overlay-fate-pair-start'});
     }
@@ -8620,7 +9243,6 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
       return;
     }
     const presentation = current.queue.shift();
-    if(presentation.after != null) advanceSequentialFateDisplay(liveTarget, presentation.after);
     const sourceIid = presentation.sourceIid;
     let overlayShown = false;
     if(typeof flashCardEffect === 'function'){
@@ -8629,6 +9251,7 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
         soundKey:['bh15', sourceIid, targetKey, String(G && G.turn || 0), String(Date.now())].join(':')
       });
     }
+    if(presentation.after != null) advanceSequentialFateDisplay(liveTarget, presentation.after);
     // flashCardEffect normally schedules a later canvas paint. Force the
     // status icon into the current frame before the paired +1 recipe starts,
     // so neither the number nor its sound can visibly lead the Hseih overlay.
@@ -8756,24 +9379,11 @@ function modifyFate(card, amount, type) {
   playFateChangeSound(card, before, highTCount > 0 ? baseAfter : card.currentFate, sourceOwner, presentationOptions);
 }
 
-function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
+function playResolvedFateChangeSfx(card, beforeValue, afterValue, sourceOwner) {
   if(!card) return;
   const before = Math.max(0, Number(beforeValue) || 0);
-  let after = Math.max(0, Number(afterValue) || 0);
+  const after = Math.max(0, Number(afterValue) || 0);
   if(after === before) return;
-  if(after > before){
-    const rider = applyChineseMacArthurFateRider(card, before, after);
-    // The original effect owns the first Fate pulse. Hseih-Ling's permanent
-    // +1 pulses are queued separately with his overlay after it finishes.
-    after = Math.max(before, Number(rider && rider.baseAfter) || after);
-  }
-  const presentationOptions = arguments.length >= 5 && arguments[4] ? arguments[4] : null;
-  if(presentationOptions && presentationOptions.deferBasePresentation === true) return;
-  if(card._placementFateReveal) {
-    card._placementFateReveal.genericSoundRequested = true;
-    return;
-  }
-  if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(card, before, after, 'effect');
   if(typeof playSfx !== 'function') return;
   const now = Date.now();
   if(!G._lastFateChangeSfxAt) G._lastFateChangeSfxAt = {};
@@ -8786,6 +9396,93 @@ function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
     && Number(sourceOwner) !== Number(card.owner);
   playSfx(after > before ? 'fateGain' : (crossPlayerReduction ? 'fateReduce' : 'fateLose'));
 }
+if(typeof window !== 'undefined') window.playResolvedFateChangeSfx = playResolvedFateChangeSfx;
+
+function playFateChangeSound(card, beforeValue, afterValue, sourceOwner) {
+  if(!card) return;
+  const before = Math.max(0, Number(beforeValue) || 0);
+  let after = Math.max(0, Number(afterValue) || 0);
+  if(after === before) return;
+  if(after > before){
+    const rider = applyChineseMacArthurFateRider(card, before, after);
+    after = Math.max(before, Number(rider && rider.baseAfter) || after);
+  }
+  const presentationOptions = arguments.length >= 5 && arguments[4] ? arguments[4] : null;
+  if(presentationOptions && presentationOptions.deferBasePresentation === true) return;
+  if(card._placementFateReveal) {
+    card._placementFateReveal.genericSoundRequested = true;
+    return;
+  }
+  if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(card, before, after, 'effect');
+  const marker = card._effectFateVisualDelta;
+  if(card._pendingFateOverlaySync?.timer) clearTimeout(card._pendingFateOverlaySync.timer);
+  const pending = {before, after, sourceOwner, seq:Number(marker?.seq || 0), at:Date.now(), timer:null};
+  pending.timer = setTimeout(function(){
+    if(card._pendingFateOverlaySync !== pending) return;
+    delete card._pendingFateOverlaySync;
+    playResolvedFateChangeSfx(card, before, after, sourceOwner);
+  }, 0);
+  card._pendingFateOverlaySync = pending;
+}
+
+const legacyJimmyWrathQueues = new Map();
+
+function queueLegacyJimmyWrathPresentation(card, count, options) {
+  if(!card || typeof cardActsAsPassive !== 'function' || !cardActsAsPassive(card, '41')) return false;
+  const iid = String(card.iid || card.id || '41');
+  const presentationCount = Math.max(0, Number(count) || 0);
+  if(!presentationCount) return false;
+  let state = legacyJimmyWrathQueues.get(iid);
+  if(!state) {
+    state = {card:card, queue:[], keys:new Set(), running:false};
+    legacyJimmyWrathQueues.set(iid, state);
+  }
+  const key = String(presentationCount);
+  if(state.keys.has(key) || Number(card._jimmyWrathPresentedCount || 0) >= presentationCount) return false;
+  state.card = card;
+  state.keys.add(key);
+  state.queue.push({count:presentationCount, source:String(options?.source || 'fate-reduction')});
+  if(state.running) return true;
+  state.running = true;
+  const presentNext = function(){
+    const current = legacyJimmyWrathQueues.get(iid);
+    if(!current || !current.queue.length) {
+      legacyJimmyWrathQueues.delete(iid);
+      return;
+    }
+    const live = typeof findBoardCardByIid === 'function' ? findBoardCardByIid(iid) : current.card;
+    if(!live || !cardActsAsPassive(live, '41')) {
+      legacyJimmyWrathQueues.delete(iid);
+      return;
+    }
+    const activeFlash = live._effectFlash;
+    const now = Date.now();
+    const activeUntil = activeFlash && activeFlash.kind
+      ? Number(activeFlash.at || 0) + Math.max(250, Number(activeFlash.duration) || 3500)
+      : 0;
+    if((typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive()) || activeUntil > now) {
+      setTimeout(presentNext, activeUntil > now ? Math.max(50, activeUntil - now + 35) : 90);
+      return;
+    }
+    const next = current.queue.shift();
+    live._jimmyWrathPresentedCount = Math.max(Number(live._jimmyWrathPresentedCount || 0), next.count);
+    if(typeof flashCardEffect === 'function') flashCardEffect(live, 'jimmy_wrath', {
+      label:"A True Incel's Wrath",
+      soundKey:['legacy-jimmy', iid, next.count].join(':')
+    });
+    if(window.FateMatchRendererAdapter?.renderFromGameState) {
+      window.FateMatchRendererAdapter.renderFromGameState({source:'legacy-jimmy-wrath'});
+    } else if(typeof renderGame === 'function') {
+      renderGame({board:true, scores:true});
+    }
+    setTimeout(presentNext, 3535);
+  };
+  const start = function(){ setTimeout(presentNext, 0); };
+  if(typeof window.fateAfterPlacementPaint === 'function' && options?.source === 'placement') window.fateAfterPlacementPaint(start);
+  else start();
+  return true;
+}
+window.queueLegacyJimmyWrathPresentation = queueLegacyJimmyWrathPresentation;
 
 function recordFateReductionEvent(owner, beforeValue, afterValue, options) {
   if(owner !== 0 && owner !== 1) return;
@@ -8798,6 +9495,19 @@ function recordFateReductionEvent(owner, beforeValue, afterValue, options) {
     sourceCard._jimmyReductionEffectCounted = true;
   }
   G.damageDoneP[owner] = (G.damageDoneP[owner] || 0) + 1;
+  // Authoritative multiplayer presents Jimmy from projected state. Legacy
+  // single-player needs an explicit presentation at the moment the counter
+  // advances; relying on a later score render can miss the transition.
+  if(!G._phase7CurrentMultiplayer && !G._onlineRoomCode) {
+    const count = Number(G.damageDoneP[owner] || 0);
+    const jimmyCards = [];
+    if(typeof forEachBoardCard === 'function') forEachBoardCard(function(cell){
+      if(cell && Number(cell.owner) === Number(owner) && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '41')) jimmyCards.push(cell);
+    });
+    jimmyCards.forEach(function(jimmy){
+      queueLegacyJimmyWrathPresentation(jimmy, count, {source:'fate-reduction'});
+    });
+  }
 }
 
 const bh15DerivedFateSnapshots = new Map();
@@ -9048,14 +9758,17 @@ if(typeof window !== 'undefined') window.getAlexanderSupporterFateTotal = getAle
 function getEffectiveFate(card, z) {
   if(!card) return 0;
   if(isFaceDownCard(card)) return 0;
+  const moraleCardPenalty = G?._moralePressure && window.FATE_MORALE_PRESSURE_RULES_ENABLED !== false
+    ? Math.max(0, Number(getMoraleZoneFatePenalty(card.owner).card || 0))
+    : 0;
   if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(card);
   if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) {
-    return Math.max(0, Number(card.currentFate ?? card.fate) || 0);
+    return Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - moraleCardPenalty);
   }
   // ALPINE Infantry: no bonus applies, invisible to other effects
   const staticPenalty = Math.max(0, Number(card._staticFatePenalty || 0) || 0);
-  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card)) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty), z);
-  if(card.noBonus) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty), z);
+  if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card)) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty - moraleCardPenalty), z);
+  if(card.noBonus) return capEffectiveFateForLandscape(Math.max(0, (Number(card.currentFate ?? card.fate) || 0) - staticPenalty - moraleCardPenalty), z);
   // Helper: ALPINE (76) is invisible — should not be counted by any other card's effect
   const isInvisible = (c) => c && ((typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) || isFaceDownCard(c));
   // Jimmy 41: fate = 3x total damage done this game by owner
@@ -9080,10 +9793,7 @@ function getEffectiveFate(card, z) {
     const permanentAdjustment = (Number(card.currentFate ?? card.fate) || 0) - (Number(card.fate) || 0);
     dynamicJimmyFate = Math.max(0, reductionUses * 3 + permanentAdjustment);
   }
-  const dynamicAlexanderFate = cardActsAsPassive(card, '35')
-    ? getAlexanderSupporterFateTotal(card, z)
-      + ((Number(card.currentFate ?? card.fate) || 0) - (Number(card.fate) || 0))
-    : null;
+  const dynamicAlexanderFate = null;
   const baseFate = dynamicJimmyFate !== null
     ? dynamicJimmyFate
     : (dynamicAlexanderFate === null
@@ -9092,6 +9802,13 @@ function getEffectiveFate(card, z) {
   // Alexander (and Taylor copying Alexander) recalculates from the zone's current
   // Supporter Fate total every time effective Fate is requested.
   let bonus = 0;
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true && !isSupporterEffectSuppressed(card)){
+    const hasHonorGuard=G.board.some(zone=>zone.some(row=>row.some(source=>source&&source.owner===card.owner&&cardActsAsPassive(source,'25')&&!isFaceDownCard(source)&&!isSupporterEffectSuppressed(source))));
+    if(hasHonorGuard){
+      let pos=null;G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{if(cell&&cell.iid===card.iid)pos={r:r,c:c};}));
+      if(pos&&getAdjacentCards(z,pos.r,pos.c).some(peer=>peer.card&&peer.card.owner===card.owner&&String(peer.card.aff||peer.card.affiliation||'')===String(card.aff||card.affiliation||'')))bonus+=1;
+    }
+  }
   const adjacencyMultiplier = getSuperiorMarksMultiplier(z, card.owner);
 
   if(cardActsAsPassive(card, '85')) {
@@ -9124,7 +9841,7 @@ function getEffectiveFate(card, z) {
   // value at 1 and represents the documented when-set increase as +3 here.
   // Authoritative v3 stores the resolved value (4) in its snapshot, so adding
   // the legacy projection bonus again would render/score it as 7.
-  if(cardActsAsPassive(card, '65')
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED !== true && cardActsAsPassive(card, '65')
     && !isSupporterEffectSuppressed(card)
     && G?._phase7CurrentMultiplayer !== true) bonus += 3;
   // Greek Hoplite (63): +2 Fate per copy of self in same zone, including itself
@@ -9135,31 +9852,34 @@ function getEffectiveFate(card, z) {
     }));
     bonus += copies * 2;
   }
-  if(cardActsAsPassive(card, '44') && !isSupporterEffectSuppressed(card)){
-    let sourcePos = null;
-    G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-      if(cell && cell.iid===card.iid) sourcePos = {r, c};
-    }));
-    if(sourcePos){
-      const adj = getAdjacentCards(z, sourcePos.r, sourcePos.c);
-      if(adj.some(a=>a.card.owner===card.owner && a.card.type==='Dauntless' && a.card.id!=='76')) bonus += 3 * adjacencyMultiplier;
+  if(cardActsAsPassive(card,'44')&&!isSupporterEffectSuppressed(card)&&getSovietGrenadierTarget(card)) bonus+=3*adjacencyMultiplier;
+  // The selected Grenadier neighbor receives the paired +3 as well. Previously
+  // only the source-side branch existed, so the link was visible but one half
+  // of The Bears of Russia never reached effective Fate.
+  G.board[z].forEach((row)=>row.forEach((source)=>{
+    if(!source || isInvisible(source) || !cardActsAsPassive(source,'44') || isSupporterEffectSuppressed(source)) return;
+    const targetInfo=getSovietGrenadierTarget(source);
+    if(targetInfo?.card && String(targetInfo.card.iid||'')===String(card.iid||'')) {
+      bonus+=3*getSuperiorMarksMultiplier(z,source.owner);
     }
-  }
-  if(cardActsAsPassive(card, '64') && !isSupporterEffectSuppressed(card)) {
+  }));
+  if(!pressureCardReworkTimingActive() && cardActsAsPassive(card, '64') && !isSupporterEffectSuppressed(card)) {
     const targetInfo = getCookIslandsDuelistTarget(card, z);
     if(targetInfo) {
       bonus += 3 * adjacencyMultiplier;
       noteCookIslandsDuelistContinuousSource(card);
     }
   }
-  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(!cell || isInvisible(cell) || !cardActsAsPassive(cell, '64') || isSupporterEffectSuppressed(cell)) return;
-    const targetInfo = getCookIslandsDuelistTarget(cell, z);
-    if(targetInfo && targetInfo.card && targetInfo.card.iid === card.iid) {
-      bonus -= 3;
-      noteCookIslandsDuelistContinuousSource(cell);
-    }
-  }));
+  if(!pressureCardReworkTimingActive()) {
+    G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
+      if(!cell || isInvisible(cell) || !cardActsAsPassive(cell, '64') || isSupporterEffectSuppressed(cell)) return;
+      const targetInfo = getCookIslandsDuelistTarget(cell, z);
+      if(targetInfo && targetInfo.card && targetInfo.card.iid === card.iid) {
+        bonus -= 3;
+        noteCookIslandsDuelistContinuousSource(cell);
+      }
+    }));
+  }
 
   // --- Coordinator passive buffs ---
   // Jeremiah Jones (57) boosts each friendly coordinator aura by 1 potency.
@@ -9169,6 +9889,10 @@ function getEffectiveFate(card, z) {
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(cell && cardActsAsPassive(cell, '57') && cell.owner===card.owner && !isInvisible(cell) && !isCoordinatorSuppressedAt(z, r, c)) jeremiahBoost++;
   }));
+  // These are legacy Coordinator auras, not Morale card reworks. They must
+  // remain active in both flag states; gating this whole loop disabled Dylan,
+  // Kvetka, Anne, Felicyta, Cathy, Duncan and Agent-K whenever the flag was
+  // absent or enabled.
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(!cell || isInvisible(cell)) return;
     if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
@@ -9260,14 +9984,6 @@ function getEffectiveFate(card, z) {
     });
   }
 
-  if((typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Dauntless') : card.type==='Dauntless') && card.id!=='76'){
-    G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-      if(cell && cardActsAsPassive(cell, '44') && cell.owner===card.owner && !isInvisible(cell) && !isSupporterEffectSuppressed(cell) && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) {
-        bonus += 3 * adjacencyMultiplier;
-      }
-    }));
-  }
-
   // Bobby Jones (55): +5 Fate if all own cards in zone share same affiliation
   if(cardActsAsPassive(card, '55')){
     let allSameAff = true;
@@ -9284,7 +10000,7 @@ function getEffectiveFate(card, z) {
   }
 
   const permanentOverflowDebuff = Math.max(0, Number(card._permanentFateOverflowDebuff) || 0);
-  const effectiveWithAuras = capEffectiveFateForLandscape(Math.max(0, baseFate + bonus - staticPenalty - permanentOverflowDebuff), z);
+  const effectiveWithAuras = capEffectiveFateForLandscape(Math.max(0, baseFate + bonus - staticPenalty - permanentOverflowDebuff - moraleCardPenalty), z);
   return capEffectiveFateForPermanentDebuff(card, effectiveWithAuras);
 }
 
@@ -9329,23 +10045,89 @@ function getBaseZoneScore(z, player) {
   }
   const liHuaReduction = Number(G.fateModifiers['lihua_z' + z + '_p' + player] || 0) || 0;
   if(liHuaReduction < 0) score = Math.max(0, score + liHuaReduction);
+  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+    Object.keys(G.fateModifiers||{}).filter(function(key){return key.indexOf('_p'+player+'_z'+z)===key.length-('_p'+player+'_z'+z).length&&key.indexOf('morale_rework_65_')===0;}).forEach(function(key){score=Math.max(0,score+(Number(G.fateModifiers[key])||0));});
+  }
   if(typeof getLandscapeZoneFateBonus === 'function') {
     score = Math.max(0, score + getLandscapeZoneFateBonus(player, z));
   }
   return score;
 }
 
+function getMoraleZoneFatePenalty(player) {
+  // Compatibility shape for zone-score detail callers. The 20% Morale rule
+  // now discards a random hand card at turn end and no longer changes Fate.
+  void player;
+  return {percent:0, multiplier:1, reason:null, flat:0, card:0};
+}
+
+function applyMoraleZoneFatePenalty(score, player) {
+  const base = Math.max(0, Number(score) || 0);
+  const penalty = getMoraleZoneFatePenalty(player);
+  const afterFlat = Math.max(0, base - Math.max(0, Number(penalty.flat || 0)));
+  if(!penalty.percent) return afterFlat;
+  return Math.max(0, afterFlat - Math.ceil(afterFlat * penalty.percent / 100));
+}
+
 function getZoneScore(z, player) {
   let score = getBaseZoneScore(z, player);
-  if(G?._phase7CurrentMultiplayer === true) return score;
+  if(G?._phase7CurrentMultiplayer === true) return applyMoraleZoneFatePenalty(score, player);
   const multiplier = typeof getPlayerZoneFateMultiplier === 'function' ? getPlayerZoneFateMultiplier(player) : 1;
   if(multiplier > 1) score = Math.ceil(score * multiplier);
+  if(G?._moralePressure && window.FATE_MORALE_PRESSURE_RULES_ENABLED !== false) {
+    score = applyMoraleZoneFatePenalty(score, player);
+  }
   return score;
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  WIN CHECK
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function fitEndgameWinnerTitle() {
+  const title = document.getElementById('win-title');
+  const screen = document.getElementById('s-win');
+  if(!title || !screen || !screen.classList.contains('active')) return false;
+  title.style.removeProperty('font-size');
+  title.removeAttribute('data-fitted-font-size');
+  const computed = typeof getComputedStyle === 'function' ? getComputedStyle(title) : null;
+  let size = computed ? parseFloat(computed.fontSize) : 72;
+  if(!Number.isFinite(size) || size <= 0) size = 72;
+  const minSize = Math.max(28, size * .48);
+  const report = screen.querySelector('.win-zone-report');
+  const availableWidth = Math.max(1, title.clientWidth || title.parentElement?.clientWidth || 1);
+  const crossesReport = function(){
+    if(!report || !title.getBoundingClientRect || !report.getBoundingClientRect) return false;
+    const titleRect = title.getBoundingClientRect();
+    const reportRect = report.getBoundingClientRect();
+    return titleRect.right > reportRect.left - 18;
+  };
+  while(size > minSize && (title.scrollWidth > availableWidth + 1 || crossesReport())){
+    size -= 1;
+    title.style.fontSize = size + 'px';
+  }
+  title.dataset.fittedFontSize = String(Math.round(size * 10) / 10);
+  return true;
+}
+
+function scheduleEndgameWinnerTitleFit() {
+  const run = function(){
+    fitEndgameWinnerTitle();
+    if(document.fonts?.ready) document.fonts.ready.then(fitEndgameWinnerTitle).catch(function(){});
+  };
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ requestAnimationFrame(run); });
+  else setTimeout(run, 0);
+}
+if(typeof window !== 'undefined') {
+  window.fitEndgameWinnerTitle = fitEndgameWinnerTitle;
+  window.scheduleEndgameWinnerTitleFit = scheduleEndgameWinnerTitleFit;
+  if(!window.__fateEndgameWinnerTitleResizeInstalled){
+    window.__fateEndgameWinnerTitleResizeInstalled = true;
+    window.addEventListener('resize', function(){
+      if(document.getElementById('s-win')?.classList.contains('active')) scheduleEndgameWinnerTitleFit();
+    }, {passive:true});
+  }
+}
+
 function checkWin() {
   if(G._finalZoneRevealActive && !G._skipFinalZoneReveal) return;
   // Tutorial: force end after the scripted lesson turn limit.
@@ -9363,11 +10145,22 @@ function checkWin() {
     zResults.push({z,s0,s1,ctrl});
   }
   stopTurnTimer();
-  // Determine winner: 2+ zones wins outright; tied zones -> total Fate tiebreaker; still tied -> official draw
-  let winner = p0wins>=2?0:p1wins>=2?1:-1;
+  const moraleMechanicsEnabled = window.FATE_MORALE_PRESSURE_RULES_ENABLED === true
+    && G._freePlayGameSettings?.healthPressureSeals !== false;
+  const moraleOutcome = !!(G._moralePressure && moraleMechanicsEnabled);
+  const morale = moraleOutcome ? G._moralePressure.morale || [200,200] : [200,200];
+  const depleted = moraleOutcome
+    ? [0,1].filter(function(player){ return Number(morale[player] || 0) <= 0; })
+    : [];
+  let winner = depleted.length
+    ? (depleted.length === 2 ? -1 : 1 - depleted[0])
+    : (p0wins>=2?0:p1wins>=2?1:-1);
   let drawByFate = false;
   let isDraw = false;
-  if(winner < 0){
+  // Morale can end a match early, but it does not replace the normal
+  // turn-limit tiebreaker. At the final turn: two zones, then total Fate,
+  // then (and only then) an exact draw.
+  if(winner < 0 && depleted.length === 0){
     let p0TotalFate = 0, p1TotalFate = 0;
     for(let tz=0;tz<3;tz++){
       p0TotalFate += getZoneScore(tz, 0);
@@ -9377,6 +10170,7 @@ function checkWin() {
     else if(p1TotalFate > p0TotalFate){ winner = 1; drawByFate = true; }
     else { isDraw = true; }
   }
+  if(winner < 0 && depleted.length > 0) isDraw = true;
   if(!G._skipFinalZoneReveal && !G._finalZoneRevealActive && typeof showFinalZoneReveal === 'function'){
     G._finalZoneRevealActive = true;
     stopTurnTimer();
@@ -9527,8 +10321,11 @@ function checkWin() {
   const winTitleEl = document.getElementById('win-title');
   winTitleEl.textContent = titleText;
   winTitleEl.classList.remove('online-forfeit-title');
+  scheduleEndgameWinnerTitleFit();
   let subText;
-  if(isDraw) subText = 'Both players are tied on zones and total Fate';
+  if(moraleOutcome && depleted.length === 2) subText = 'Both players reached 0 Morale';
+  else if(moraleOutcome && depleted.length === 1) subText = G.players[depleted[0]].name + ' reached 0 Morale';
+  else if(isDraw) subText = 'Both players are tied on zones and total Fate';
   else if(drawByFate) subText = 'Won by total Fate tiebreaker!';
   else if(winner>=0) subText = 'Controls '+[p0wins,p1wins][winner]+' of 3 Zones';
   else subText = 'Both players tied'
@@ -9540,6 +10337,17 @@ function checkWin() {
   // Zone breakdown
   const wz = document.getElementById('win-zones');
   wz.innerHTML='';
+  if(moraleOutcome){
+    const sealEl = document.createElement('div');
+    sealEl.className = 'win-seal-summary';
+    sealEl.innerHTML = '<div class="win-seal-title">Final Morale</div>'+
+      '<div class="win-seal-scores">'+
+        '<div class="p1"><span>'+escapeHtml(G.players[0].name)+'</span><strong>'+Number(morale[0] || 0)+'</strong></div>'+
+        '<div class="win-seal-mark" aria-hidden="true">♥</div>'+
+        '<div class="p2"><span>'+escapeHtml(G.players[1].name)+'</span><strong>'+Number(morale[1] || 0)+'</strong></div>'+
+      '</div><div class="win-seal-origin">Morale damage is the sum of the Fate deficits in zones each player does not control.</div>';
+    wz.appendChild(sealEl);
+  }
   zResults.forEach(({z,s0,s1,ctrl})=>{
     const el=document.createElement('div');
     el.className='win-z'+(ctrl===winner?' won':'')+(isDraw?' draw':'');
@@ -9551,7 +10359,7 @@ function checkWin() {
     wz.appendChild(el);
   });
   // Show total Fate comparison when draw or fate tiebreaker
-  if(isDraw || drawByFate){
+  if((isDraw || drawByFate) && !moraleOutcome){
     let p0TotalFate2=0, p1TotalFate2=0;
     for(let tz=0;tz<3;tz++){
       p0TotalFate2 += getZoneScore(tz, 0);
@@ -9650,6 +10458,7 @@ function checkWin() {
   } else {
     rewardsEl.style.display = 'none';
   }
+  scheduleEndgameWinnerTitleFit();
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

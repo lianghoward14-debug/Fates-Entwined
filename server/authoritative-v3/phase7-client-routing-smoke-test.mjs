@@ -273,8 +273,8 @@ assert.match(
 );
 assert.match(
   gameplay,
-  /function getZoneScore\(z, player\)[\s\S]*_phase7CurrentMultiplayer === true\) return score/,
-  'Phase 7 zone Fate must not re-run legacy client multipliers after authoritative scoring'
+  /function getZoneScore\(z, player\)[\s\S]*_phase7CurrentMultiplayer === true\) return applyMoraleZoneFatePenalty\(score, player\)/,
+  'Phase 7 zone Fate may apply only the projected authoritative Morale penalty before bypassing legacy client multipliers'
 );
 assert.match(rooms, /renderer:'current-multiplayer-ui'/);
 assert.match(

@@ -69,6 +69,7 @@ export function projectStateForPlayer(state, playerIndex){
     gameSettings:cloneSerializable(state.gameSettings ?? null),
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
+    moralePressure:cloneSerializable(state.moralePressure ?? null),
     players:state.players.map((player, index)=>
       index === viewer || state.landscapeId === 'igb12'
         ? privatePlayer(player)
@@ -111,6 +112,7 @@ export function projectStateForSpectator(state){
     gameSettings:cloneSerializable(state.gameSettings ?? null),
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
+    moralePressure:cloneSerializable(state.moralePressure ?? null),
     players:state.players.map(publicPlayer),
     board:cloneSerializable(state.board),
     geometry:cloneSerializable(state.geometry),

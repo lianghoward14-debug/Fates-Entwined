@@ -398,9 +398,9 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, you can (at no extra cost) set another copy of this card from the hand or deck (once a turn).",
+      "effect": "While this card is on the field, any card adjacent to another card of the same affiliation you control gains 1 Fate (max 1 Fate).",
       "flavor": "\"It is time for Africa to take to the world stage - No more will it be the plaything of foreign powers\"",
-      "img": "../25.png"
+      "img": "../assets/morale-card-reworks/25.png?v=20260829a"
     },
     {
       "id": "26",
@@ -446,7 +446,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "This card is able to be set from the deck. This effect only works once a turn, twice a game.",
+      "effect": "Once per turn, this card can be set from the deck without counting towards the Supporter set limit for that turn.",
       "flavor": "\"The entire Polish Army fights from outside their own homeland - and yet they fight no less patriotically\"",
       "img": "../28.png"
     },
@@ -552,15 +552,15 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "Hellenic Glory",
       "type": "Dauntless",
       "aff": "third_great_war",
-      "fate": 0,
-      "cost": 4,
+      "fate": 12,
+      "cost": 3,
       "rarity": "triangle",
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "This card's Fate is equal to the combined current Fate value of all Supporters you control in this zone.",
+      "effect": "Every Morale Calculation, half of this card's total Fate is inflicted as Morale Damage.",
       "flavor": "\"He is the heir to Alexander the Great, not by blood but by blade\"",
-      "img": "../35.png"
+      "img": "../35.png?v=20260828a"
     },
     {
       "id": "36",
@@ -702,9 +702,9 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "While this card is adjacent to a Dauntless card, both that card and this card gain 3 Fate.",
+      "effect": "While this card is on the field, declare a card type. If this card is adjacent to a card of that type, this card and one random matching adjacent card gain 3 Fate (max 1 target).",
       "flavor": "\"Only the strongest and tallest men are worthy of the title, Grenadier\"",
-      "img": "../44.png"
+      "img": "../44.png?v=20260828a"
     },
     {
       "id": "45",

@@ -57,7 +57,7 @@ for(const required of ['_placementUiLockUntil', '_cinematicUiLockUntil', '_sched
 assert.match(rendering, /function showEffectActivationCinematic[\s\S]{0,900}effectActivationPredecessorRemaining\(\) > 0[\s\S]{0,200}queueEffectActivationCinematic/, 'all direct activation-cinematic callers must pass through the predecessor barrier');
 assert.match(rendering, /function scheduleEffectActivationCinematicDrain[\s\S]{0,900}effectActivationPredecessorRemaining\(\) > 0[\s\S]{0,200}scheduleEffectActivationCinematicDrain/, 'queued activation cinematics must re-check the barrier before starting');
 
-assert.match(ai, /hasAutomaticSetActivation = typeof AUTHORITATIVE_WHEN_SET_EFFECT_IDS[\s\S]{0,700}await playEffectActivationCinematic/, 'single-player AI must use the same automatic WHEN_SET presentation rule');
+assert.match(ai, /hasAutomaticSetActivation = typeof hasAuthoritativeWhenSetEffect[\s\S]{0,800}await playEffectActivationCinematic/, 'single-player AI must use the same rules-mode-aware automatic WHEN_SET presentation rule');
 assert.match(ai, /Collect only genuine ACTIVATE characters[\s\S]{0,600}shouldShowManualCharacterEffectButton\(card\)/, 'single-player AI must not activate WHEN_SET cards a second time');
 assert.match(online, /await phase7PlayCardSetPresentations\(view, events\)[\s\S]{0,240}await phase7PlayActivationCinematics\(view, events\)[\s\S]{0,240}await phase7PresentBatch\(view, events\)/, 'authoritative multiplayer must preserve set cinematic, activation cinematic, then results ordering');
 

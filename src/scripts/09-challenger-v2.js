@@ -1517,7 +1517,7 @@ function openSellCardModal(){
   html+='</div>';
   showModal('Sell a Card',html,[{label:'Cancel',action:closeModal}]);
   const modalBox=document.querySelector('#modal .modal');
-  if(modalBox) modalBox.classList.add('sell-card-modal');
+  if(modalBox) modalBox.classList.add('sell-card-modal','sell-card-picker-modal');
 }
 function listCardForSale(cardId){
   closeModal();

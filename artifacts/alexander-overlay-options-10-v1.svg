@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="720" viewBox="0 0 1500 720">
+<defs>
+ <filter id="g" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <linearGradient id="bg" y2="1"><stop stop-color="#070a10"/><stop offset="1" stop-color="#100d10"/></linearGradient>
+ <style>.title{font:700 28px Georgia,serif;fill:#f2cf76}.sub{font:15px Georgia,serif;fill:#8f99ae}.num{font:700 17px Georgia,serif;fill:#f2cf76}.cap{font:12px Georgia,serif;fill:#8f99ae}.cell{fill:#090d14;stroke:#74571a;stroke-width:1.4}.tint{opacity:.28}.i{fill:none;stroke:#ffe59a;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;filter:url(#g)}.c{fill:none;stroke:#68512b;stroke-width:1.2}</style>
+ <g id="f"><rect class="cell" width="206" height="248" rx="8"/><path class="c" d="M12 28V12h16M178 12h16v16M12 220v16h16M178 236h16v-16"/></g>
+ <path id="dmg" d="M16 49l14 9 14-9"/>
+</defs>
+<rect width="1500" height="720" fill="url(#bg)"/>
+<text class="title" x="42" y="46">ALEXANDER THE MAGNIFICIENT — TEN FRESH HELLENIC MILITARY SAMPLES</text>
+<text class="sub" x="42" y="73">One cohesive production family: identical footprint, rounded monoline construction, gold hold-frame glow, and downward-damage chevron.</text>
+
+<!-- 01 ROYAL SARISSA -->
+<g transform="translate(180 105)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">01</text><text class="cap" x="103" y="234" text-anchor="middle">OWL WATCH</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M12 26q8-13 18 0 10-13 18 0M12 26q8 18 18 0 10 18 18 0M30 20v28M23 41l7 8 7-8"/><use href="#dmg"/></g></g>
+<!-- 02 DOUBLE PENNON -->
+<g transform="translate(410 105)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">02</text><text class="cap" x="103" y="234" text-anchor="middle">ATHENA COMMAND</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M11 45q3-25 22-33l12 9-9 8v16M11 45h25M19 45v9M29 45v9M33 12V5M20 29h17"/><use href="#dmg"/></g></g>
+<!-- 03 SUN CROSS -->
+<g transform="translate(640 105)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">03</text><text class="cap" x="103" y="234" text-anchor="middle">HOPLON LINE</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M10 43q0-24 20-32 20 8 20 32M10 43h40M30 11v35M20 26h20M22 52h16"/><use href="#dmg"/></g></g>
+<!-- 04 SPEAR LADDER -->
+<g transform="translate(870 105)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">04</text><text class="cap" x="103" y="234" text-anchor="middle">POSEIDON SPEAR</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M30 5v42M17 16l13 12 13-12M17 16v17M43 16v17M12 45h36M23 52h14"/><use href="#dmg"/></g></g>
+<!-- 05 VERGINA POINT -->
+<g transform="translate(1100 105)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">05</text><text class="cap" x="103" y="234" text-anchor="middle">WAR GALLEY</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M8 42h44L43 24H17zM14 42q16 16 32 0M20 24l10-14 10 14M22 33h16M19 51h22"/><use href="#dmg"/></g></g>
+
+<!-- 06 CROWNED SPEAR -->
+<g transform="translate(180 390)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">06</text><text class="cap" x="103" y="234" text-anchor="middle">VICTORY TORCH</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M18 47q-3-20 12-31 15 11 12 31M18 47h24M30 16V5M23 11l7-6 7 6M12 37l6 4M48 37l-6 4"/><use href="#dmg"/></g></g>
+<!-- 07 LINE TRIUMPH SPEAR -->
+<g transform="translate(410 390)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">07</text><text class="cap" x="103" y="234" text-anchor="middle">SIEGE RAM</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M9 39h25V18h17M42 10l9 8-9 8M15 39v10M28 39v10M9 49h30M16 18l8-9M16 18l8 9"/><use href="#dmg"/></g></g>
+<!-- 08 SPEAR WEDGE -->
+<g transform="translate(640 390)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">08</text><text class="cap" x="103" y="234" text-anchor="middle">HORNED COMMAND</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M12 46q2-24 18-33 16 9 18 33M12 46h36M20 46v9M32 46v9M18 28h24M17 17l-8-9M43 17l8-9"/><use href="#dmg"/></g></g>
+<!-- 09 FIVE-POINT RANK -->
+<g transform="translate(870 390)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">09</text><text class="cap" x="103" y="234" text-anchor="middle">EAGLE STANDARD</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M15 49V14h30v35M15 14l15-9 15 9M21 27h18M21 38h18M10 49h40M24 14l6 7 6-7"/><use href="#dmg"/></g></g>
+<!-- 10 TRIUMPH SPEAR -->
+<g transform="translate(1100 390)"><use href="#f"/><text class="num" x="103" y="24" text-anchor="middle">10</text><text class="cap" x="103" y="234" text-anchor="middle">WINGED BLADE</text><rect x="45" y="38" width="116" height="178" fill="#211b11"/><rect class="tint" x="45" y="38" width="116" height="178" fill="#5b4319"/><g class="i" transform="translate(74 80)"><path d="M10 45l12-22 8 8 8-8 12 22M14 45h32M20 23l-7-9M40 23l7-9M30 31V8M22 52h16"/><use href="#dmg"/></g></g>
+</svg>

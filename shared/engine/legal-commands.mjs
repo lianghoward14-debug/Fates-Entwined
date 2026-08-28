@@ -20,6 +20,7 @@ import {
   openingProgramChoiceAvailable
 } from './prompts.mjs';
 import {boardEntries, controllerOf, findBoardCard, openBoardDestinations, rowOwner, squareStatuses} from './selectors.mjs';
+import {moraleConsolidationLimit, moraleConsolidationsUsed} from './morale-pressure.mjs';
 
 function ownSetDestination(state, playerIndex, destination){
   const owner = rowOwner(state, destination.z, destination.r);
@@ -38,12 +39,12 @@ function opponentAlondraBlocksSupporterSet(state, playerIndex, destination){
   );
 }
 
-function ruleForCard(card){
+function ruleForCard(card, state){
   // copiedEffectId is retained as public presentation/oracle evidence for a
   // one-shot Taylor/Ledger copy. It must not replace the physical card's
   // player-facing timing: single-player executes the copied program once and
   // restores the copier, so it never gains a permanent ACTIVATE button.
-  return cardRule(card?.id);
+  return cardRule(card?.id, state);
 }
 
 function supporterActivationAvailable(state, card, playerIndex){
@@ -80,7 +81,7 @@ function availableMovementGrant(state, entry, playerIndex){
 }
 
 function openingChoiceAvailable(state, card, playerIndex, timing){
-  const rule = ruleForCard(card);
+  const rule = ruleForCard(card, state);
   if(!rule?.timings?.includes(String(timing)) || !Array.isArray(rule.program)) return true;
   // A card is still legal to set when its WHEN_SET effect currently has no
   // eligible target.  The shipping single-player rules let that effect fizzle;
@@ -222,10 +223,7 @@ export function legalCommandTemplates(state, playerIndex){
   if(state.outcome || state.activePlayer !== player) return commands;
   for(const card of state.players[player].deck){
     if(!['07', '28'].includes(String(card.id || ''))) continue;
-    if(String(card.id) === '28'){
-      const counter = state.statuses.find(status=>status.statusId === `rule-use:army-of-exiles:p${player}`);
-      if(Number(counter?.uses || 0) >= 2 || Number(counter?.lastTurn) === state.turn) continue;
-    }
+    if(String(card.id || '') === '28' && Number(state.players[player].polishDeckSetTurn) === Number(state.turn)) continue;
     for(const destination of openBoardDestinations(state, candidate=>{
       const owner = rowOwner(state, candidate.z, candidate.r);
       if(String(card.id) === '07') return owner === player;
@@ -287,7 +285,7 @@ export function legalCommandTemplates(state, playerIndex){
     if(String(card.id || '') === '70' && card.statuses?.includes('GUERILLA_INFILTRATING')) continue;
     for(const destination of setDestinations){
       if(zoneActionBlock(state, player, destination.z)) continue;
-      if(String(card.id) === '65' && destination.r !== 1) continue;
+      if(state.gameSettings?.pressureCardReworks !== true && String(card.id) === '65' && destination.r !== 1) continue;
       const blockedByAlondra = opponentAlondraBlocksSupporterSet(state, player, destination);
       if(blockedByAlondra && String(card.type || '') === 'Supporter') continue;
       const preview = placementPreview(state, player, card, destination);
@@ -295,7 +293,9 @@ export function legalCommandTemplates(state, playerIndex){
       commands.push({type:'SET_CARD', payload:{cardIid:card.iid, destination}});
     }
   }
+  const moraleAllowsConsolidation = moraleConsolidationsUsed(state, player) < moraleConsolidationLimit(state, player);
   for(const card of state.players[player].hand){
+    if(!moraleAllowsConsolidation) continue;
     if(String(card.type || '') === 'Supporter') continue;
     const tributeCandidates = boardEntries(state)
       .map(entry=>({entry, eligibility:canUseAsConsolidationTribute(state, entry, player, card)}))
@@ -346,7 +346,7 @@ export function legalCommandTemplates(state, playerIndex){
         );
         if(String(card.id || '') === '45'){
           if(remainingCharacters.length) continue;
-          if(boardEntries(state).some(entry=>
+          if(state.gameSettings?.pressureCardReworks !== true && boardEntries(state).some(entry=>
             String(entry.card.id || '') === '45'
             && Number(entry.card.owner) === player
             && !tributes.some(tribute=>String(tribute.card.iid) === String(entry.card.iid))
@@ -411,7 +411,7 @@ export function legalCommandTemplates(state, playerIndex){
       commands.push({type:'FLIP_CARD', payload:{cardIid:entry.card.iid}});
       continue;
     }
-    const rule = ruleForCard(entry.card);
+    const rule = ruleForCard(entry.card, state);
     if(rule?.timings?.includes('ACTIVATE')
       && rule.program
       && !isEffectSourceSuppressed(state, entry)

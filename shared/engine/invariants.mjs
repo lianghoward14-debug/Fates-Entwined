@@ -97,9 +97,15 @@ export function collectInvariantViolations(state){
         violations.push(issue(`board.${zoneIndex}`, 'must contain at least three rows'));
         return;
       }
+      const expanded = state.gameSettings?.zoneControlRework === true
+        && state.gameSettings?.expandedContestedRow === true;
+      const uniformFour = expanded && state.gameSettings?.zoneLayout444 === true;
       zone.forEach((row, rowIndex)=>{
-        if(!Array.isArray(row) || row.length !== 3){
-          violations.push(issue(`board.${zoneIndex}.${rowIndex}`, 'must contain exactly three columns'));
+        const expectedColumns = rowIndex < 3
+          ? (uniformFour ? 4 : (expanded && rowIndex === 1 ? 6 : 3))
+          : 3;
+        if(!Array.isArray(row) || row.length !== expectedColumns){
+          violations.push(issue(`board.${zoneIndex}.${rowIndex}`, `must contain exactly ${expectedColumns} columns`));
         }
       });
     });
@@ -126,6 +132,41 @@ export function collectInvariantViolations(state){
     }
   }
   if(!Array.isArray(state.statuses)) violations.push(issue('statuses', 'must be an array'));
+  if(state?.gameSettings?.healthPressureSeals === true){
+    const system = state.moralePressure;
+    if(!system || typeof system !== 'object'){
+      violations.push(issue('moralePressure', 'enabled rules require canonical Morale/Pressure state'));
+    }else{
+      if(!Number.isInteger(system.maxMorale) || system.maxMorale < 1){
+        violations.push(issue('moralePressure.maxMorale', 'must be a positive integer'));
+      }
+      for(const field of ['morale','shields','seals','pressure','realityReduction']){
+        if(!Array.isArray(system[field]) || system[field].length !== 2
+          || system[field].some(value=>!Number.isInteger(value) || value < 0)){
+          violations.push(issue(`moralePressure.${field}`, 'must contain two non-negative integer values'));
+        }
+      }
+      if(Array.isArray(system.morale) && system.morale.some(value=>value > Number(system.maxMorale || 0))){
+        violations.push(issue('moralePressure.morale', 'cannot exceed maxMorale'));
+      }
+      for(const field of ['ledger','generated']){
+        if(!Array.isArray(system[field]) || system[field].length !== 2 || system[field].some(value=>!Array.isArray(value))){
+          violations.push(issue(`moralePressure.${field}`, 'must contain two contribution arrays'));
+        }
+      }
+      if(!Array.isArray(system.realityReductionSources) || system.realityReductionSources.length !== 2
+        || system.realityReductionSources.some(value=>!Array.isArray(value))){
+        violations.push(issue('moralePressure.realityReductionSources', 'must contain two contribution arrays'));
+      }
+      if(!Array.isArray(system.moraleBrokenAwarded) || system.moraleBrokenAwarded.length !== 2
+        || system.moraleBrokenAwarded.some(value=>typeof value !== 'boolean')){
+        violations.push(issue('moralePressure.moraleBrokenAwarded', 'must contain two boolean values'));
+      }
+      if(!Array.isArray(system.checkpoints)) violations.push(issue('moralePressure.checkpoints', 'must be an array'));
+      if(![0, 1].includes(Number(system.startingPlayer))) violations.push(issue('moralePressure.startingPlayer', 'must identify a player'));
+      if(!Number.isInteger(system.cycle) || system.cycle < 1) violations.push(issue('moralePressure.cycle', 'must be a positive integer'));
+    }
+  }
   if(!Array.isArray(state.effectStack)) violations.push(issue('effectStack', 'must be an array'));
   if(Array.isArray(state.effectStack)){
     state.effectStack.forEach((frame, index)=>{

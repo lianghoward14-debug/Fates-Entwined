@@ -1386,7 +1386,11 @@ function getDeckThemeOptions(){
     'Tempo',
     'Combo',
     'Speed',
-    'Control'
+    'Control',
+    'Morale Sustain',
+    'Morale Damage',
+    'Morale Resource',
+    'Early Pressure'
   ];
 }
 

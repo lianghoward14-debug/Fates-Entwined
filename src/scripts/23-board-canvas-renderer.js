@@ -833,9 +833,8 @@
   function shouldAnimateCanvasFateBadges(){
     try {
       if(document.documentElement.classList.contains('fate-animations-off')) return false;
-      if(typeof isEnhancedVisualFxEnabled === 'function') return isEnhancedVisualFxEnabled();
     } catch(e) {}
-    return false;
+    return true;
   }
 
   function getFateAnim(card, fateValue){

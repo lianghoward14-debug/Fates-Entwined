@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="650" viewBox="0 0 1100 650">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="2" stdDeviation="3.5" flood-color="#102005" flood-opacity=".70"/><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#91df55" flood-opacity=".70"/></filter>
+    <linearGradient id="panel" x2="0" y2="1"><stop stop-color="#101723"/><stop offset="1" stop-color="#070b12"/></linearGradient>
+    <g id="a01" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13h40v20c0 12-8 20-20 27C20 53 12 45 12 33z"/><path d="M19 22l13 22 13-22M23 22h18M25 49h14"/></g>
+    <g id="a02" fill="none" stroke="currentColor" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 11h36v22c0 11-7 19-18 26-11-7-18-15-18-26z"/><path d="M20 21l12 24 12-24M24 21h16M26 50h12"/></g>
+    <g id="a03" fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11h44v22c0 13-9 22-22 29C19 55 10 46 10 33z"/><path d="M16 17h32v15c0 9-6 15-16 21-10-6-16-12-16-21z"/><path d="M22 24l10 18 10-18"/></g>
+    <g id="a04" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l20-6 20 6v20c0 12-8 20-20 27-12-7-20-15-20-27z"/><path d="M19 22l13 22 13-22M23 22h18M25 50h14"/></g>
+    <g id="a05" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12h40v25L32 60 12 37z"/><path d="M19 21l13 23 13-23M23 21h18M24 49h16"/></g>
+    <g id="a06" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17l7-7 6 5 7-7 7 7 6-5 7 7v17c0 11-8 19-20 26-12-7-20-15-20-26z"/><path d="M19 24l13 21 13-21M23 24h18M25 50h14"/></g>
+    <g id="a07" fill="none" stroke="currentColor" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13h40v20c0 12-8 20-20 27C20 53 12 45 12 33z"/><path d="M20 21l12 21 12-21M22 21h20M23 47h18M26 53h12"/></g>
+    <g id="a08" fill="none" stroke="currentColor" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13h40v20c0 12-8 20-20 27C20 53 12 45 12 33z"/><path d="M18 21l14 23 14-23M22 21l10 16 10-16M25 50h14"/></g>
+    <g id="a09" fill="none" stroke="currentColor" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13h40v20c0 12-8 20-20 27C20 53 12 45 12 33z"/><path d="M18 21l14 13 14-13M20 31l12 13 12-13M25 50h14"/></g>
+    <g id="a10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13h40v20c0 12-8 20-20 27C20 53 12 45 12 33z"/><path d="M19 22l13 22 13-22M23 22h18M20 17v8M28 17v8M36 17v8M44 17v8M25 50h14"/></g>
+    <symbol id="s01" viewBox="0 0 64 64"><use href="#a01"/></symbol>
+    <symbol id="s02" viewBox="0 0 64 64"><use href="#a02"/></symbol>
+    <symbol id="s03" viewBox="0 0 64 64"><use href="#a03"/></symbol>
+    <symbol id="s04" viewBox="0 0 64 64"><use href="#a04"/></symbol>
+    <symbol id="s05" viewBox="0 0 64 64"><use href="#a05"/></symbol>
+    <symbol id="s06" viewBox="0 0 64 64"><use href="#a06"/></symbol>
+    <symbol id="s07" viewBox="0 0 64 64"><use href="#a07"/></symbol>
+    <symbol id="s08" viewBox="0 0 64 64"><use href="#a08"/></symbol>
+    <symbol id="s09" viewBox="0 0 64 64"><use href="#a09"/></symbol>
+    <symbol id="s10" viewBox="0 0 64 64"><use href="#a10"/></symbol>
+  </defs>
+  <style>image{opacity:.38}</style>
+  <rect width="1100" height="650" fill="#03070d"/><text x="28" y="34" fill="#d7ef8b" font-family="Cinzel,Georgia,serif" font-size="23" font-weight="700">S-02 — SHIELD-AND-V VARIATIONS</text><text x="28" y="56" fill="#8491a8" font-family="Georgia,serif" font-size="13">Centered in-game position and scale; card art dimmed only so every mask is readable.</text>
+  <g font-family="Cinzel,Georgia,serif" font-size="14" font-weight="700" text-anchor="middle" fill="#d7ef8b">
+    <g transform="translate(18 72)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a01" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A1 · BASE</text></g>
+    <g transform="translate(234 72)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a02" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A2</text></g>
+    <g transform="translate(450 72)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a03" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A3</text></g>
+    <g transform="translate(666 72)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a04" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A4</text></g>
+    <g transform="translate(882 72)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a05" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A5</text></g>
+    <g transform="translate(18 362)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a06" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A6</text></g>
+    <g transform="translate(234 362)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a07" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A7</text></g>
+    <g transform="translate(450 362)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a08" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A8</text></g>
+    <g transform="translate(666 362)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a09" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A9</text></g>
+    <g transform="translate(882 362)"><rect width="196" height="270" rx="8" fill="url(#panel)" stroke="#66852e"/><image href="../83.png" x="20" y="12" width="156" height="218"/><rect x="20" y="12" width="156" height="218" fill="#41871f" opacity=".18"/><use href="#a10" transform="translate(46 69) scale(1.625)" color="#e0ffbd" filter="url(#glow)"/><text x="98" y="254">S02-A10</text></g>
+  </g>
+</svg>

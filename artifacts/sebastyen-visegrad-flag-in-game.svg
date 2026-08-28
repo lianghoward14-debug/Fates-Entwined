@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="470" viewBox="0 0 700 470">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#102005" flood-opacity=".85"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="11" flood-color="#91df55" flood-opacity=".78"/>
+    </filter>
+  </defs>
+  <rect width="700" height="470" fill="#03070d"/>
+  <text x="350" y="38" text-anchor="middle" fill="#d7ef8b" font-family="Cinzel,Georgia,serif" font-size="24" font-weight="700">SEBASTYEN — VISEGRAD FLAG</text>
+  <text x="350" y="64" text-anchor="middle" fill="#8e9bac" font-family="Georgia,serif" font-size="14">Exact centered placement and relative in-game scale</text>
+  <rect x="219" y="82" width="262" height="367" rx="10" fill="#0b111a" stroke="#66852e"/>
+  <image href="../83.png" x="220" y="83" width="260" height="364" opacity=".42"/>
+  <rect x="220" y="83" width="260" height="364" fill="#41871f" opacity=".18"/>
+  <g transform="translate(263.5 178.5) scale(2.7083)" fill="none" stroke="#e0ffbd" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M10 8v48" stroke-width="4.5"/>
+    <path d="M13 12c10-6 21 6 38 0v31c-17 6-28-6-38 0z" stroke-width="4.2"/>
+    <path d="M21 23l10 13 11-17" stroke-width="5"/>
+    <path d="M20 17h1M28 16h1M36 17h1M44 16h1" stroke-width="4.5"/>
+  </g>
+</svg>

@@ -103,7 +103,7 @@ function stablePassiveRank(source, target){
 }
 
 function duelistTarget(state, sourceEntry){
-  if(!activeAuraSource(state, sourceEntry) || runtimeRuleId(sourceEntry.card) !== '64') return null;
+  if(state?.gameSettings?.pressureCardReworks === true || !activeAuraSource(state, sourceEntry) || runtimeRuleId(sourceEntry.card) !== '64') return null;
   return boardEntries(state)
     .filter(entry=>
       entry.z === sourceEntry.z
@@ -116,6 +116,20 @@ function duelistTarget(state, sourceEntry){
       (stablePassiveRank(sourceEntry.card, a.card) - stablePassiveRank(sourceEntry.card, b.card))
       || String(a.card.iid).localeCompare(String(b.card.iid))
     )[0] || null;
+}
+
+function sovietGrenadierTarget(state, sourceEntry){
+  if(!activeAuraSource(state, sourceEntry) || runtimeRuleId(sourceEntry.card) !== '44') return null;
+  const declaredType = String(sourceEntry.card.counters?.sovietDeclaredType || '');
+  const targetIid = String(sourceEntry.card.counters?.sovietTargetIid || '');
+  if(!declaredType || !targetIid) return null;
+  return boardEntries(state).find(target=>
+    String(target.card.iid || '') === targetIid
+    && target.z === sourceEntry.z
+    && target.card.faceDown !== true
+    && effectiveCardType(state, target.card) === declaredType
+    && Math.abs(target.r - sourceEntry.r) + Math.abs(target.c - sourceEntry.c) === 1
+  ) || null;
 }
 
 export function coordinatorAuraPotencyBoost(state, sourceEntry){
@@ -148,8 +162,9 @@ export function effectiveFate(state, entryOrCard){
   const card = entry?.card || entryOrCard;
   if(!card || entry?.zone !== 'board' || card.faceDown === true) return 0;
   const stored = Math.max(0, Number(card.currentFate) || 0);
-  if(isEffectImmutable(card)) return stored;
   const targetController = controllerOf(card);
+  const moraleCardPenalty = 0;
+  if(isEffectImmutable(card)) return Math.max(0, stored - moraleCardPenalty);
   const targetType = effectiveCardType(state, card);
   const selfId = runtimeRuleId(card);
   const adjacencyMultiplier = adjacencyBonusMultiplier(state, entry.z, targetController);
@@ -159,18 +174,13 @@ export function effectiveFate(state, entryOrCard){
   // adjacent Soviet Grenadier) are applied to that base below.
   const derived = activeAuraSource(state, entry) && selfId === '41'
     ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
-    : (activeAuraSource(state, entry) && selfId === '35'
-      ? boardEntries(state)
-        .filter(source=>
-          source.z === entry.z
-          && String(source.card.iid) !== String(card.iid)
-          && controllerOf(source.card) === targetController
-          && source.card.faceDown !== true
-          && effectiveCardType(state, source.card) === 'Supporter'
-        )
-        .reduce((sum, source)=>sum + effectiveFate(state, source), 0) + permanentAdjustment
-      : stored);
+    : stored;
   let modifier = 0;
+  if(state?.gameSettings?.pressureCardReworks === true){
+    const honorGuardActive=boardEntries(state).some(source=>controllerOf(source.card)===targetController&&runtimeRuleId(source.card)==='25'&&activeAuraSource(state,source));
+    const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&peer.card.faceDown!==true&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
+    if(honorGuardActive&&sameAffAdjacent)modifier+=1;
+  }
   for(const source of boardEntries(state)){
     const fieldWide = source.card.counters?.whisperLandscapeToken === true;
     if((source.z !== entry.z && !fieldWide) || !activeAuraSource(state, source)) continue;
@@ -206,26 +216,15 @@ export function effectiveFate(state, entryOrCard){
       modifier += adjacentDauntless * (2 + coordinatorAuraPotencyBoost(state, source)) * adjacencyMultiplier;
     }
   }
-  if(activeAuraSource(state, entry) && selfId === '44'){
-    const hasAdjacentDauntless = boardEntries(state).some(peer=>
-      peer.z === entry.z
-      && controllerOf(peer.card) === targetController
-      && peer.card.faceDown !== true
-      && effectiveCardType(state, peer.card) === 'Dauntless'
-      && Math.abs(peer.r - entry.r) + Math.abs(peer.c - entry.c) === 1
-    );
-    if(hasAdjacentDauntless) modifier += 3 * adjacencyMultiplier;
+  if(activeAuraSource(state, entry) && selfId === '44' && sovietGrenadierTarget(state, entry)){
+    modifier += 3 * adjacencyMultiplier;
   }
-  if(targetType === 'Dauntless'){
-    const grenadiers = boardEntries(state).filter(source=>
-      source.z === entry.z
-      && controllerOf(source.card) === targetController
-      && runtimeRuleId(source.card) === '44'
-      && activeAuraSource(state, source)
-      && Math.abs(source.r - entry.r) + Math.abs(source.c - entry.c) === 1
-    ).length;
-    modifier += grenadiers * 3 * adjacencyMultiplier;
-  }
+  const linkedGrenadiers = boardEntries(state).filter(source=>{
+    if(runtimeRuleId(source.card) !== '44') return false;
+    const selected = sovietGrenadierTarget(state, source);
+    return selected && String(selected.card.iid) === String(card.iid);
+  }).length;
+  modifier += linkedGrenadiers * 3 * adjacencyMultiplier;
   if(activeAuraSource(state, entry) && selfId === '55'){
     const peers = boardEntries(state).filter(source=>
       source.z === entry.z
@@ -274,13 +273,15 @@ export function effectiveFate(state, entryOrCard){
     && (Number(state.supporterEffectsActivated[targetController]) || 0) < 10){
     modifier += 7;
   }
-  if(activeAuraSource(state, entry) && selfId === '64' && duelistTarget(state, entry)){
+  if(state?.gameSettings?.pressureCardReworks !== true && activeAuraSource(state, entry) && selfId === '64' && duelistTarget(state, entry)){
     modifier += 3 * adjacencyMultiplier;
   }
-  for(const duelist of boardEntries(state)){
-    if(runtimeRuleId(duelist.card) !== '64') continue;
-    const target = duelistTarget(state, duelist);
-    if(target && String(target.card.iid) === String(card.iid)) modifier -= 3;
+  if(state?.gameSettings?.pressureCardReworks !== true){
+    for(const duelist of boardEntries(state)){
+      if(runtimeRuleId(duelist.card) !== '64') continue;
+      const target = duelistTarget(state, duelist);
+      if(target && String(target.card.iid) === String(card.iid)) modifier -= 3;
+    }
   }
   for(const flowerKing of boardEntries(state)){
     if(runtimeRuleId(flowerKing.card) !== 'bh12' || !activeAuraSource(state, flowerKing)) continue;
@@ -310,7 +311,7 @@ export function effectiveFate(state, entryOrCard){
   // A permanent loss consumes stored Fate first. Any remainder continues into
   // continuous bonuses, so an 8-Fate card always becomes 5 after a -3 effect,
   // without deleting the underlying Louis aura.
-  return Math.max(0, derived + modifier - overflowDebuff);
+  return Math.max(0, derived + modifier - overflowDebuff - moraleCardPenalty);
 }
 
 export function zoneActionBlock(state, playerIndex, zone){
@@ -401,6 +402,7 @@ export function effectiveConsolidationCost(state, card, playerIndex){
 export function isImmuneToOpponentEffects(card, state = null){
   if(!card) return false;
   if(runtimeRuleId(card) === '20'){
+    if(state?.gameSettings?.pressureCardReworks === true) return false;
     return state ? findCard(state, card.iid)?.zone === 'board' : true;
   }
   if(['bh01', '76'].includes(String(card.id || ''))) return true;

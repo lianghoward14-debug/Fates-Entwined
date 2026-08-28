@@ -5,7 +5,7 @@ function resolveAIDeckRef(refId) {
   // Search STARTER_DECKS and AI_ONLY_RANDOM_DECKS for the deck with matching id
   const pools = [];
   if(typeof STARTER_DECKS !== 'undefined' && Array.isArray(STARTER_DECKS)) pools.push(...STARTER_DECKS);
-  if(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS)) pools.push(...AI_ONLY_RANDOM_DECKS);
+  if(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS)) pools.push(...AI_ONLY_RANDOM_DECKS.filter(d => typeof isAIDeckEnabled !== 'function' || isAIDeckEnabled(d)));
   const found = pools.find(d => d && d.id === refId);
   if(found && Array.isArray(found.ids) && found.ids.length >= 40) return found.ids.slice(0, 40);
   return null;
@@ -193,7 +193,8 @@ function startGame(vsAI=false) {
   const tutorialRunning = typeof _tutorialActive !== 'undefined' && _tutorialActive && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial';
   if(!tutorialRunning) {
     G._tutorialTurnLimit = null;
-    G.maxTurns = 20;
+    G.maxTurns = window.FATE_ZONE_CONTROL_REWORK_ENABLED === false ? 20 : 24;
+    G._checkpointTurnBannerKey = null;
     if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') CURRENT_MODE = 'free';
   }
   if(!tutorialRunning && !keepHowardDevMode && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'free' && !G._onlineRoomCode
@@ -253,7 +254,8 @@ function startOnlineServerBootstrappedGame(options) {
   if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
   if(typeof playSfx==='function') playSfx('startGame');
   G._tutorialTurnLimit = null;
-  G.maxTurns = 20;
+  G.maxTurns = window.FATE_ZONE_CONTROL_REWORK_ENABLED === false ? 20 : 24;
+  G._checkpointTurnBannerKey = null;
   if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') CURRENT_MODE = 'free';
   const passOverlay = document.getElementById('pt-overlay');
   if(passOverlay) passOverlay.classList.remove('on');
@@ -711,7 +713,7 @@ function showPreGameMatchup(vsAI, onContinue) {
 //  Each has a unique deck, playstyle notes, and personality
 // ═══════════════════════════════════════════════════════
 const AI_OPPONENTS = [
-  // === FOOTMAN (0-799) — plays the 4 starter decks ===
+  // === FOOTMAN (0-799) — the only rank restricted to starter decks ===
   {name:'Anxiety Wreck Carolyn',elo:600,rank:'Footman',style:'cautious',img:'aiicons/ai18.png',
    desc:'Just learning the basics. Hesitant plays and missed opportunities.',
    deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
@@ -722,60 +724,60 @@ const AI_OPPONENTS = [
    desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
    deckPool:'starter', deckRef:'starter_assault', deck:[]},
 
-  // === CAPTAIN-OFFICER (800-999) — plays the 4 starter decks ===
+  // === CAPTAIN-OFFICER (800-999) — advanced AI decks ===
   {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain-Officer',style:'methodical',img:'aiicons/ai15.png',
    desc:'Calculates every move carefully. Slow but rarely makes mistakes.',
-   deckPool:'starter', deckRef:'starter_incel', deck:[]},
+   deckPool:'advanced', deckRef:'ai_snowball_fight_club', deck:[]},
   {name:'High Envoy Chloe Kirk',elo:900,rank:'Captain-Officer',style:'adaptive',img:'aiicons/ai14.png',
    desc:'Always experimenting with new lines. Unpredictable but sometimes brilliant.',
-   deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
+   deckPool:'advanced', deckRef:'ai_selva_tidal_strike', deck:[]},
   {name:'El Matador Santiago Alvarez',elo:950,rank:'Captain-Officer',style:'disciplined',img:'aiicons/ai13.png',
    desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
-   deckPool:'starter', deckRef:'starter_freeworld', deck:[]},
+   deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
 
-  // === LIEUTENANT AT ARMS (1000-1199) — upgraded v2 decks ===
+  // === LIEUTENANT AT ARMS (1000-1199) — purpose-built AI decks ===
   {name:'Postmodernist Dylan',elo:1050,rank:'Lieutenant at Arms',style:'disruptive',img:'aiicons/ai12.png',
-   desc:'Finds angles you did not consider. Turns your own board state against you.',
-   deckPool:'starter', deckRef:'starter_incel_2', deck:[]},
+    desc:'Finds angles you did not consider. Turns your own board state against you.',
+    deckPool:'advanced', deckRef:'ai_snowball_fight_club', deck:[]},
   {name:'Prime Minister Marie L\'amboure',elo:1100,rank:'Lieutenant at Arms',style:'diplomatic',img:'aiicons/ai11.png',
    desc:'Controls the tempo of the match. You play on her schedule or not at all.',
-   deckPool:'starter', deckRef:'starter_freeworld_2', deck:[]},
+   deckPool:'advanced', deckRef:'ai_selva_tidal_strike', deck:[]},
   {name:'Cheez Its Overlord Cathy',elo:1150,rank:'Lieutenant at Arms',style:'resourceful',img:'aiicons/ai10.png',
-   desc:'Squeezes maximum value out of every card. Never wastes a placement.',
-   deckPool:'starter', deckRef:'starter_assault_2', deck:[]},
+    desc:'Squeezes maximum value out of every card. Never wastes a placement.',
+     deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
 
-  // === SERGEANT OF THE GUARD (1200-1399) — upgraded v2 decks ===
+  // === SERGEANT OF THE GUARD (1200-1399) — purpose-built AI decks ===
   {name:'Queen Felicyta Janowicz',elo:1250,rank:'Sergeant of the Guard',style:'commanding',img:'aiicons/ai9.png',
    desc:'Coordinates multi-zone pressure that forces impossible decisions.',
-   deckPool:'starter', deckRef:'starter_soft_suppression', deck:[]},
+   deckPool:'advanced', deckRef:'ai_wintertide_family_reunion', deck:[]},
   {name:'Diplomat Anne Stone',elo:1300,rank:'Sergeant of the Guard',style:'calculating',img:'aiicons/ai8.png',
    desc:'Reads your hand through your plays. Always two steps ahead.',
-   deckPool:'starter', deckRef:'starter_assault_2', deck:[]},
+    deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
   {name:'Fighter Alondra Hopkins',elo:1350,rank:'Sergeant of the Guard',style:'relentless',img:'aiicons/ai7.png',
    desc:'Overwhelming force concentrated at the perfect moment.',
-   deckPool:'starter', deckRef:'starter_maelstrom_2', deck:[]},
+    deckPool:'advanced', deckRef:'ai_hellenic_heartbreaker', deck:[]},
 
-  // === COMMANDER-GENERAL (1400-1599) — AI-exclusive advanced decks ===
+  // === COMMANDER-GENERAL (1400-1599) — advanced AI decks ===
   {name:'Financial Consultant Phil',elo:1450,rank:'Commander-General',style:'efficient',img:'aiicons/ai6.png',
    desc:'Invests exactly where the return is highest. Ruthless efficiency.',
-   deckPool:'starter', deckRef:'ai_investing_future', deck:[]},
+    deckPool:'advanced', deckRef:'ai_last_mohicans_ledger', deck:[]},
   {name:'Codebreaker Agent K',elo:1450,rank:'Commander-General',style:'elusive',img:'aiicons/ai5.png',
    desc:'You never know where the next threat is coming from.',
-   deckPool:'starter', deckRef:'ai_howards_choice', deck:[]},
+    deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
   {name:'Divine Entity Cosmic GF',elo:1550,rank:'Commander-General',style:'visionary',img:'aiicons/ai4.png',
    desc:'Sees the entire board as one interconnected puzzle. Plays three turns ahead.',
-   deckPool:'starter', deckRef:'ai_henrys_conviction', deck:[]},
+    deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]},
 
-  // === HIGH MARSHALL (1600+) — AI-exclusive advanced decks ===
+  // === HIGH MARSHALL (1600+) — advanced AI decks ===
   {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',handKnowledge:'perfect',img:'aiicons/ai3.png',
-   desc:'Tracks every card in your hand and builds patiently toward an unbeatable endgame.',
-   deckPool:'starter', deckRef:'ai_royal_flush', deck:[]},
+    desc:'Tracks every card in your hand and builds patiently toward an unbeatable endgame.',
+     deckPool:'advanced', deckRef:'ai_crown_of_five', deck:[]},
   {name:'Field Marshall Achille Laurent',elo:1750,rank:'High Marshall',style:'omniscient',handKnowledge:'perfect',img:'aiicons/ai2.png',
    desc:'Reads your hand and strategy, then dismantles both before you can adjust.',
-   deckPool:'starter', deckRef:'ai_coordinators_dream', deck:[]},
+    deckPool:'advanced', deckRef:'ai_adjacency_doctrine', deck:[]},
   {name:'Commander Maja Kaminska',elo:1850,rank:'High Marshall',style:'overwhelming',handKnowledge:'perfect',img:'aiicons/ai1.png',
    desc:'Perfect knowledge of your hand backs overwhelming force and flawless execution.',
-   deckPool:'starter', deckRef:'ai_blitz', deck:[]}
+    deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]}
 ];
 
 // Add trueElo to all AI opponents (base + 200 competence boost)
@@ -1263,7 +1265,9 @@ function generateMonthlyAI() {
 
     // Pick a deck from starter decks or existing AI opponent decks
     const starterDecks = typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : [];
-    const advancedDecks = typeof AI_ONLY_RANDOM_DECKS !== 'undefined' ? AI_ONLY_RANDOM_DECKS : [];
+    const advancedDecks = typeof AI_ONLY_RANDOM_DECKS !== 'undefined'
+      ? AI_ONLY_RANDOM_DECKS.filter(d => typeof isAIDeckEnabled !== 'function' || isAIDeckEnabled(d))
+      : [];
     const builtInDecks = [...starterDecks, ...advancedDecks]
       .map(d => d && (d.ids || d.deck || []))
       .filter(d => Array.isArray(d) && d.length >= 40);
@@ -1570,6 +1574,9 @@ async function drawCard(player, count=1, options = {}) {
     })) {
       delete card._drawPresentationPending;
       continue;
+    }
+    if(typeof window.recordLegacyMoralePressureDraw === 'function') {
+      window.recordLegacyMoralePressureDraw(card, player, options);
     }
     // Christopher Erbs (40): per-player next drawn card gains 6 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
@@ -2193,6 +2200,9 @@ function chooseTurn(goFirst) {
   const entryVeilStarted = showMatchEntryLoadingVeil();
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
+  if(typeof window.initializeLegacyMoralePressure === 'function') {
+    window.initializeLegacyMoralePressure(G.currentPlayer);
+  }
   if(typeof window.fateAIStartLearningMatch === 'function') window.fateAIStartLearningMatch();
   showGameScreenForInitialRender();
   recordMatchEntryStep('screen-game-active');
@@ -2211,8 +2221,8 @@ function chooseTurn(goFirst) {
     onReady:function(){
       // If AI goes first, trigger its turn after the first safe frame.
       if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
-        stopTurnTimer();
-        if(typeof startAITurnVisualTimer === 'function') startAITurnVisualTimer();
+        G._aiTurnTimeoutRequested = false;
+        startTurnTimer();
         G._aiTurnToken = (G._aiTurnToken || 0) + 1;
         setTimeout(runAITurn, 1000);
       } else {

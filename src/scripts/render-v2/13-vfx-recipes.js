@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxRecipes) return;
 
-  const VERSION = 51;
+  const VERSION = 52;
   const STYLE_VERSION = 'professional-tcg-motion-v47-large-draw';
   const MOTION = {
     micro:96,
@@ -323,6 +323,20 @@
     return list;
   }
 
+  function fitCardAspect(rect){
+    if(!rect) return null;
+    const x = Number(rect.x) || 0;
+    const y = Number(rect.y) || 0;
+    const sourceW = Math.max(1, Number(rect.w) || 1);
+    const sourceH = Math.max(1, Number(rect.h) || 1);
+    const aspect = 1.4;
+    let w = sourceW;
+    let h = sourceH;
+    if(h / w > aspect) h = w * aspect;
+    else w = h / aspect;
+    return {x:x + (sourceW - w) / 2, y:y + (sourceH - h) / 2, w, h};
+  }
+
   function clampRectToViewportMargins(rect, margins){
     if(!rect) return null;
     const opts = margins || {};
@@ -359,8 +373,10 @@
 
   function drawCard(payload){
     const p = payload || {};
-    const from = payloadRect(p, ['fromRect', 'deckRect', 'sourceRect']);
-    const to = payloadRect(p, ['toRect', 'handRect', 'slotRect']);
+    // Deck controls and hand hit targets are not guaranteed to share the card
+    // aspect ratio. Normalize both ends so interpolation never warps the art.
+    const from = fitCardAspect(payloadRect(p, ['fromRect', 'deckRect', 'sourceRect']));
+    const to = fitCardAspect(payloadRect(p, ['toRect', 'handRect', 'slotRect']));
     const drawIndex = Math.max(0, Number(p.drawIndex == null ? p.index : p.drawIndex) || 0);
     const drawCount = Math.max(1, Number(p.drawCount == null ? p.count : p.drawCount) || 1);
     const lane = 0;
@@ -401,8 +417,8 @@
 
   function searchToHand(payload){
     const p = payload || {};
-    const from = payloadRect(p, ['fromRect', 'deckRect', 'discardRect', 'sourceRect']);
-    const to = payloadRect(p, ['toRect', 'handRect', 'slotRect']);
+    const from = fitCardAspect(payloadRect(p, ['fromRect', 'deckRect', 'discardRect', 'sourceRect']));
+    const to = fitCardAspect(payloadRect(p, ['toRect', 'handRect', 'slotRect']));
     const sourceIsDiscard = p.source === 'discard';
     const baseId = String(p.iid || 'search');
     const layer = p.layer || 'top';
@@ -679,13 +695,19 @@
     TURN_START:turnStart,
     TURN_END:turnEnd
   };
+  const RETIRED_BOARD_PLACEMENT_RECIPES = new Set(['PLAY_CARD', 'DECK_TO_BOARD', 'SET_CONFIRM', 'SET_DRAG_LAND']);
 
   window.FateVfxRecipes = {
     version:VERSION,
     names:function(){ return Object.keys(recipes); },
     has:function(name){ return !!recipes[String(name || '').toUpperCase()]; },
     expand:function(name, payload){
-      const fn = recipes[String(name || '').toUpperCase()];
+      const recipeName = String(name || '').toUpperCase();
+      // This is the lowest public expansion boundary. Keep the retired set
+      // motion inert even if a stale caller bypasses both the event bridge and
+      // director and asks the recipe registry for primitives directly.
+      if(RETIRED_BOARD_PLACEMENT_RECIPES.has(recipeName)) return [];
+      const fn = recipes[recipeName];
       return fn ? fn(payload || {}) : [];
     },
     describe:function(){

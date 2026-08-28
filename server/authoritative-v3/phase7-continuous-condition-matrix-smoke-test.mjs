@@ -28,6 +28,7 @@ const DEFINITIONS = [
   {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:3},
   {id:'bh01', name:'Anicka Voyager', type:'Dauntless', aff:'eventide', fate:12, cost:3},
   {id:'bh07', name:'Agent-K', type:'Coordinator', aff:'expanded_worlds', fate:3, cost:3},
+  {id:'bh11', name:'Felicyta Janowicz (University)', type:'Coordinator', aff:'reality', fate:5, cost:3},
   {id:'coord', name:'Fixture Coordinator', type:'Coordinator', aff:'reality', fate:2, cost:0},
   {id:'char', name:'Fixture Character', type:'Initiator', aff:'reality', fate:4, cost:0},
   {id:'support-eventide', name:'Eventide Supporter', type:'Supporter', aff:'eventide', fate:2, cost:0}
@@ -69,7 +70,9 @@ function put(state, playerIndex, cardId, z, r, c){
   assert.equal(effectiveFate(state, jimmy), 0, 'Jimmy must not gain Fate before a qualifying reduction');
   state.fateReductionEffectUses[0] = 2;
   assert.equal(effectiveFate(state, jimmy), 6, 'Jimmy must gain exactly 3 Fate per qualifying effect use');
-  put(state, 0, '44', 0, 2, 1);
+  const grenadier = put(state, 0, '44', 0, 2, 1);
+  grenadier.counters.sovietDeclaredType = 'Dauntless';
+  grenadier.counters.sovietTargetIid = jimmy.iid;
   assert.equal(effectiveFate(state, jimmy), 9, 'Jimmy must receive an adjacent Soviet Grenadier aura');
   jimmy.currentFate += 3;
   assert.equal(effectiveFate(state, jimmy), 12, 'Jimmy must receive permanent Fate on top of his derived value and aura');
@@ -103,6 +106,16 @@ function put(state, playerIndex, cardId, z, r, c){
   const nonAdjacent = put(state, 0, '32', 0, 0, 2);
   assert.equal(effectiveFate(state, adjacent), 5, 'Felicyta must buff an adjacent card');
   assert.equal(effectiveFate(state, nonAdjacent), 1, 'Felicyta must not buff a non-adjacent card');
+}
+
+{
+  const state = scenario(['bh11', '01', '32', '32']);
+  put(state, 0, 'bh11', 0, 2, 0);
+  put(state, 0, '01', 0, 2, 1);
+  const adjacent = put(state, 0, '32', 0, 2, 2);
+  const otherZone = put(state, 0, '32', 1, 2, 0);
+  assert.equal(effectiveFate(state, adjacent), 9, 'University Felicyta must double a controlled adjacency bonus in her zone');
+  assert.equal(effectiveFate(state, otherZone), 1, 'University Felicyta must not double adjacency bonuses in another zone');
 }
 
 {
@@ -169,13 +182,16 @@ function put(state, playerIndex, cardId, z, r, c){
 {
   const state = scenario(['44', 'char', 'bh01']);
   const grenadier = put(state, 0, '44', 0, 2, 0);
+  grenadier.counters.sovietDeclaredType = 'Dauntless';
   assert.equal(effectiveFate(state, grenadier), 1, 'Grenadiers must be inactive without an adjacent Dauntless');
   const immuneDauntless = put(state, 0, 'bh01', 0, 2, 1);
+  grenadier.counters.sovietTargetIid = immuneDauntless.iid;
   assert.equal(effectiveFate(state, grenadier), 4, 'an immune Dauntless must still satisfy the adjacency condition');
   assert.equal(effectiveFate(state, immuneDauntless), 12, 'an immune Dauntless must not receive the reciprocal Fate bonus');
   state.board[0][2][1] = null;
   const dauntless = put(state, 0, 'char', 0, 2, 1);
   dauntless.type = 'Dauntless';
+  grenadier.counters.sovietTargetIid = dauntless.iid;
   assert.equal(effectiveFate(state, grenadier), 4, 'Grenadiers must gain Fate beside a legal Dauntless');
   assert.equal(effectiveFate(state, dauntless), 7, 'the adjacent Dauntless must receive the reciprocal bonus');
 }

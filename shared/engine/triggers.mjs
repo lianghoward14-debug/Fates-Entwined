@@ -255,7 +255,7 @@ export function collectTriggeredOperations(state, event){
       }
     }
   }
-  if(event.type === 'CARD_MOVED'){
+  if(event.type === 'CARD_MOVED' && state.gameSettings?.pressureCardReworks !== true){
     const destinationZone = Number(event.to?.z);
     const moved = findCard(state, event.cardIid)?.card;
     for(const entry of boardEntries(state)){
@@ -390,6 +390,11 @@ export function collectTriggeredOperations(state, event){
     }
   }
   if(event.type === 'TURN_STARTED'){
+    if(state.gameSettings?.pressureCardReworks === true){
+      for(const entry of boardEntries(state).filter(item=>String(item.card.id||'')==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&item.card.faceDown!==true&&!isEffectSourceSuppressed(state,item))){
+        operations.push({type:'MODIFY_MORALE',playerIndex:1-Number(event.playerIndex),amount:-2,sourceIid:entry.card.iid});
+      }
+    }
     if(state.landscapeId === 'igb18'){
       for(const entry of boardEntries(state).filter(item=>
         controllerOf(item.card) === Number(event.playerIndex)
@@ -446,6 +451,13 @@ export function collectTriggeredOperations(state, event){
         sourceController:controllerOf(entry.card),
         reason:'THOUSAND_YEAR_SORROW'
       });
+    }
+  }
+  if(event.type === 'EFFECT_ACTIVATED' && state.gameSettings?.pressureCardReworks === true){
+    const source=findCard(state,event.sourceIid);
+    if(source?.card&&effectiveCardType(state,source.card)==='Initiator'){
+      const playerIndex=controllerOf(source.card);
+      for(const status of (state.statuses||[]).filter(item=>item?.type==='BUSSER_INITIATOR_MORALE'&&Number(item.playerIndex)===playerIndex&&Number(item.remainingOwnerTurns||0)>0))operations.push({type:'MODIFY_MORALE',playerIndex:playerIndex,amount:10,sourceIid:status.sourceIid,overlayTargetIid:event.sourceIid,semanticSourceCardId:'69',reason:'BUSSER_INITIATOR_MORALE'});
     }
   }
   if(event.type === 'DRAW_PHASE_COMPLETED'){

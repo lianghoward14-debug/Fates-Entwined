@@ -5,9 +5,12 @@ import {
   createLandscapeState,
   initializeLandscapeHandCards
 } from './landscapes/runtime.mjs';
+import {createMoralePressureState, sealObjectivesEnabled} from './morale-pressure.mjs';
 
-export function createEmptyBoard(){
-  return Array.from({length:3}, ()=>Array.from({length:3}, ()=>Array.from({length:3}, ()=>null)));
+export function createEmptyBoard(expandedContestedRow = false, zoneLayout444 = false){
+  return Array.from({length:3}, ()=>Array.from({length:3}, (_, rowIndex)=>
+    Array.from({length:zoneLayout444 ? 4 : (rowIndex === 1 && expandedContestedRow ? 6 : 3)}, ()=>null)
+  ));
 }
 
 function compactDefinition(definition, owner, iid){
@@ -62,7 +65,9 @@ export function createInitialState(input = {}){
   const requestedHandSize = Number(input.handSize ?? 6);
   if(!Number.isInteger(requestedHandSize) || requestedHandSize < 0) throw new Error('handSize must be a non-negative integer');
   const handSize = Math.min(12, requestedHandSize);
-  const requestedMaxTurns = Number(input.maxTurns ?? 20);
+  const zoneControlRework = input.gameSettings?.zoneControlRework !== false;
+  const moraleOnlyRules = input.gameSettings?.healthPressureSeals === true;
+  const requestedMaxTurns = Number(moraleOnlyRules ? 24 : (input.maxTurns ?? (zoneControlRework ? 24 : 20)));
   if(!Number.isInteger(requestedMaxTurns) || requestedMaxTurns < 1) throw new Error('maxTurns must be a positive integer');
   const playerStates = players.map((player, playerIndex)=>{
     const ids = Array.isArray(player.deckIds) ? player.deckIds.map(String) : [];
@@ -163,7 +168,11 @@ export function createInitialState(input = {}){
       : null,
     rngState,
     players:playerStates,
-    board:createEmptyBoard(),
+    board:createEmptyBoard(
+      zoneControlRework && input.gameSettings?.expandedContestedRow === true,
+      zoneControlRework && input.gameSettings?.expandedContestedRow === true
+        && input.gameSettings?.zoneLayout444 === true
+    ),
     geometry:{
       rowOwners:Array.from({length:3}, ()=>[1, -1, 0]),
       playableExtraSquares:[],
@@ -177,6 +186,9 @@ export function createInitialState(input = {}){
     eventSeq:0,
     instanceCounter:instanceCounter.value
   };
+  if(sealObjectivesEnabled(state)){
+    state.moralePressure = createMoralePressureState(state.activePlayer);
+  }
   // Opening-hand arrival effects are part of match construction. Selva was
   // previously represented only by a queued numeric counter, so the starting
   // player received neither the first-turn bonus nor its authoritative status

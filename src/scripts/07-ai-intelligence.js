@@ -11,6 +11,14 @@
     'commander maja kaminska'
   ]);
 
+  const MORALE_THRESHOLDS = Object.freeze([
+    {percent:0.80, key:'consolidation', weight:7},
+    {percent:0.60, key:'alternatingDraw', weight:18},
+    {percent:0.40, key:'supporterExpiry', weight:25},
+    {percent:0.20, key:'randomHandDiscard', weight:30},
+    {percent:0, key:'defeat', weight:600}
+  ]);
+
   function clamp(value, min, max){
     const n = Number(value);
     return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
@@ -47,6 +55,14 @@
     const scaling = textIncludes(text, ['all cards', 'all supporters', 'all coordinators', 'while this card', 'for each', 'permanently']) ? 1 : 0;
     const protection = textIncludes(text, ['immune', 'cannot be', 'protect', 'shield']) ? 1 : 0;
     const reaction = source.type === 'Improvisor' || textIncludes(text, ['whenever your opponent', 'at any time', 'would consolidate']) ? 1 : 0;
+    const moraleHealMatch = text.match(/(?:recover|restore|heal|gain)\s+(\d+)\s+morale/i);
+    const moraleDamageMatch = text.match(/(?:inflict|deal)\s+(\d+)\s+morale\s+damage/i);
+    const moraleCostMatch = text.match(/(?:pay|lose)\s+(\d+)\s+morale/i);
+    const moraleHeal = moraleHealMatch ? Math.max(0, Number(moraleHealMatch[1]) || 0) : Math.max(0, Number(source.moraleHeal) || 0);
+    const moraleDamage = moraleDamageMatch ? Math.max(0, Number(moraleDamageMatch[1]) || 0) : Math.max(0, Number(source.moraleDamage) || 0);
+    const moraleCost = moraleCostMatch ? Math.max(0, Number(moraleCostMatch[1]) || 0) : Math.max(0, Number(source.moraleCost) || 0);
+    const moraleShield = textIncludes(text, ['take no morale damage', 'prevent the next morale damage']) || source.moraleShield ? 1 : 0;
+    const moraleDouble = textIncludes(text, ['double the amount of morale damage', 'double your next morale damage']) || source.moraleDouble ? 1 : 0;
     const reinforcement = isSupporter ? Math.max(1, Number(source.reinforcement) || (source.id === '09' ? 2 : 1)) : 0;
     const responsePower = fate + draw * 2.2 + disruption * 3.4 + scaling * 2.4 + protection * 1.2 + reaction * 2.8 - cost * 0.45;
     return {
@@ -63,9 +79,161 @@
       scaling,
       protection,
       reaction,
+      moraleHeal,
+      moraleDamage,
+      moraleCost,
+      moraleShield,
+      moraleDouble,
       responsePower,
       source:source.source || 'known'
     };
+  }
+
+  function moraleStyleProfile(style){
+    const key = String(style || '').trim().toLowerCase();
+    const cautious = new Set(['cautious','defensive','turtle','hoarder','methodical','disciplined','calculating']);
+    const aggressive = new Set(['reckless','relentless','overwhelming','aggro','blitz','bully','sacrificial']);
+    const disruptive = new Set(['control','lockdown','disruptive','sniper','opportunist']);
+    const chaotic = new Set(['gambler','chaotic','distracted']);
+    if(cautious.has(key)) return {preservation:1.34, aggression:0.88, thresholdAwareness:1.22, supporterPatience:1.18};
+    if(aggressive.has(key)) return {preservation:0.82, aggression:1.36, thresholdAwareness:0.94, supporterPatience:0.78};
+    if(disruptive.has(key)) return {preservation:1.02, aggression:1.22, thresholdAwareness:1.15, supporterPatience:0.94};
+    if(chaotic.has(key)) return {preservation:0.88, aggression:1.08, thresholdAwareness:0.78, supporterPatience:0.82};
+    return {preservation:1, aggression:1, thresholdAwareness:1, supporterPatience:1};
+  }
+
+  function normalizeMoraleSystem(system){
+    if(!system || !Array.isArray(system.morale)) return null;
+    const maxMorale = Math.max(1, Number(system.maxMorale) || 200);
+    return {
+      maxMorale,
+      morale:[0,1].map(player=>clamp(system.morale[player], 0, maxMorale)),
+      shields:[0,1].map(player=>Math.max(0, Number(system.shields && system.shields[player]) || 0)),
+      pressure:[0,1].map(player=>Math.max(0, Number(system.pressure && system.pressure[player]) || 0))
+    };
+  }
+
+  function moraleCycleDamage(ownScores, enemyScores){
+    const mine = (ownScores || [0,0,0]).slice(0,3);
+    const theirs = (enemyScores || [0,0,0]).slice(0,3);
+    let incoming = 0;
+    let outgoing = 0;
+    const zones = [];
+    for(let z=0; z<3; z++){
+      const own = Math.max(0, Number(mine[z]) || 0);
+      const enemy = Math.max(0, Number(theirs[z]) || 0);
+      const margin = own-enemy;
+      if(margin < 0) incoming += Math.abs(margin);
+      else if(margin > 0) outgoing += margin;
+      zones.push({zone:z, own, enemy, margin});
+    }
+    return {incoming, outgoing, zones};
+  }
+
+  function moraleThresholdBurden(morale, maxMorale){
+    const value = Math.max(0, Number(morale) || 0);
+    const max = Math.max(1, Number(maxMorale) || 200);
+    let burden = 0;
+    const active = [];
+    for(const threshold of MORALE_THRESHOLDS){
+      const reached = threshold.percent === 0 ? value <= 0 : value / max <= threshold.percent;
+      if(reached){
+        burden += threshold.weight;
+        active.push(threshold.key);
+      }
+    }
+    return {burden, active, percent:value/max};
+  }
+
+  function moraleCycleWeight(turn, landscapeId){
+    if(String(landscapeId || '') === 'igb1') return 0;
+    const currentTurn = Math.max(1, Number(turn) || 1);
+    if(currentTurn < 6) return 0.34;
+    return currentTurn % 2 === 0 ? 1.42 : 0.72;
+  }
+
+  // Scores the next morale calculation from one player's perspective. This is
+  // deliberately nonlinear: avoiding a new penalty band or dealing lethal is
+  // worth substantially more than padding a comfortable morale lead.
+  function evaluateMoralePosition(options){
+    const opts = options || {};
+    const system = normalizeMoraleSystem(opts.system);
+    if(!system) return {score:0, incoming:0, outgoing:0, ownAfter:null, opponentAfter:null, active:false};
+    const player = Number(opts.playerIndex) === 1 ? 1 : 0;
+    const opponent = 1-player;
+    const style = moraleStyleProfile(opts.style);
+    const cycle = moraleCycleDamage(opts.ownScores, opts.enemyScores);
+    const cycleWeight = moraleCycleWeight(opts.turn, opts.landscapeId);
+    const incoming = Math.max(0, cycle.incoming - system.shields[player]);
+    const outgoing = Math.max(0, cycle.outgoing - system.shields[opponent]);
+    const ownAfter = Math.max(0, system.morale[player] - incoming);
+    const opponentAfter = Math.max(0, system.morale[opponent] - outgoing);
+    const ownBurden = moraleThresholdBurden(ownAfter, system.maxMorale);
+    const opponentBurden = moraleThresholdBurden(opponentAfter, system.maxMorale);
+    const score = cycleWeight * (
+      outgoing * 1.8 * style.aggression
+      - incoming * 1.9 * style.preservation
+      + (opponentBurden.burden * style.aggression - ownBurden.burden * style.preservation) * style.thresholdAwareness
+    );
+    return {
+      active:true,
+      score,
+      incoming,
+      outgoing,
+      ownAfter,
+      opponentAfter,
+      ownBurden,
+      opponentBurden,
+      cycleWeight,
+      zones:cycle.zones,
+      style
+    };
+  }
+
+  function scoreMoralePositionDelta(options){
+    const opts = options || {};
+    const before = evaluateMoralePosition(opts);
+    if(!before.active) return 0;
+    const after = evaluateMoralePosition({
+      ...opts,
+      ownScores:opts.afterOwnScores || opts.ownScores,
+      enemyScores:opts.afterEnemyScores || opts.enemyScores
+    });
+    return after.score-before.score;
+  }
+
+  function scoreMoraleCard(card, options){
+    const opts = options || {};
+    const system = normalizeMoraleSystem(opts.system);
+    if(!system || !card) return 0;
+    const profile = profileCard(card);
+    const player = Number(opts.playerIndex) === 1 ? 1 : 0;
+    const opponent = 1-player;
+    const style = moraleStyleProfile(opts.style);
+    const missing = Math.max(0, system.maxMorale-system.morale[player]);
+    const directHeal = Math.min(missing, profile.moraleHeal);
+    const directDamage = Math.min(system.morale[opponent], profile.moraleDamage);
+    const cycle = moraleCycleDamage(opts.ownScores, opts.enemyScores);
+    const cycleWeight = moraleCycleWeight(opts.turn, opts.landscapeId);
+    const ownBurdenBefore = moraleThresholdBurden(system.morale[player], system.maxMorale).burden;
+    const ownBurdenAfterHeal = moraleThresholdBurden(system.morale[player]+directHeal, system.maxMorale).burden;
+    const opponentBurdenBefore = moraleThresholdBurden(system.morale[opponent], system.maxMorale).burden;
+    const opponentBurdenAfterDamage = moraleThresholdBurden(system.morale[opponent]-directDamage, system.maxMorale).burden;
+    let value = directHeal * 1.45 * style.preservation + directDamage * 1.55 * style.aggression;
+    value += Math.max(0, ownBurdenBefore-ownBurdenAfterHeal) * style.preservation * style.thresholdAwareness;
+    value += Math.max(0, opponentBurdenAfterDamage-opponentBurdenBefore) * style.aggression * style.thresholdAwareness;
+    if(profile.moraleShield) value += Math.min(system.morale[player], cycle.incoming) * 1.9 * style.preservation * Math.max(.5, cycleWeight);
+    if(profile.moraleDouble) value += cycle.outgoing * 1.45 * style.aggression * Math.max(.5, cycleWeight);
+    if(profile.moraleCost){
+      value -= profile.moraleCost * 1.35 * style.preservation;
+      if(system.morale[player] <= profile.moraleCost) value -= 700;
+      else {
+        const before = moraleThresholdBurden(system.morale[player], system.maxMorale).burden;
+        const after = moraleThresholdBurden(system.morale[player]-profile.moraleCost, system.maxMorale).burden;
+        value -= Math.max(0, after-before) * style.preservation * style.thresholdAwareness;
+      }
+    }
+    return value;
   }
 
   function stableHash(value){
@@ -226,12 +394,36 @@
     const theirs = (opts.oppScores || [0,0,0]).slice(0,3);
     const memory = opts.memory || createOpponentMemory();
     const style = String(opts.style || '');
+    const moraleBaseline = evaluateMoralePosition({
+      system:opts.moraleSystem,
+      playerIndex:opts.playerIndex,
+      ownScores:mine,
+      enemyScores:theirs,
+      turn:opts.turn,
+      landscapeId:opts.landscapeId,
+      style
+    });
     const ranked = [0,1,2].map(z=>{
       const diff = mine[z]-theirs[z];
       let priority = diff <= 0 ? 13-Math.min(9,Math.abs(diff)) : Math.max(1,8-diff);
       priority += (memory.zonePreference && memory.zonePreference[z] || 1/3) * 4;
       if(style === 'relentless' || style === 'overwhelming') priority += mine[z] > 0 ? 1.5 : 0;
       if(style === 'cautious' || style === 'defensive') priority += Math.abs(diff) <= 3 ? 2 : 0;
+      if(moraleBaseline.active){
+        const afterMine = mine.slice();
+        afterMine[z] += 1;
+        priority += clamp(scoreMoralePositionDelta({
+          system:opts.moraleSystem,
+          playerIndex:opts.playerIndex,
+          ownScores:mine,
+          enemyScores:theirs,
+          afterOwnScores:afterMine,
+          afterEnemyScores:theirs,
+          turn:opts.turn,
+          landscapeId:opts.landscapeId,
+          style
+        }), -8, 12);
+      }
       return {z,priority,diff};
     }).sort((a,b)=>b.priority-a.priority);
     return {
@@ -239,7 +431,14 @@
       abandonZone:ranked[2].z,
       priorities:ranked.reduce((all,entry)=>(all[entry.z]=entry.priority,all),[0,0,0]),
       createdTurn:Number(opts.turn) || 0,
-      handModelMode:opts.handModelMode || 'belief'
+      handModelMode:opts.handModelMode || 'belief',
+      moraleAware:moraleBaseline.active,
+      projectedMorale:moraleBaseline.active ? {
+        ownAfter:moraleBaseline.ownAfter,
+        opponentAfter:moraleBaseline.opponentAfter,
+        incoming:moraleBaseline.incoming,
+        outgoing:moraleBaseline.outgoing
+      } : null
     };
   }
 
@@ -281,6 +480,13 @@
     buildHandModel,
     createOpponentMemory,
     updateOpponentMemory,
+    MORALE_THRESHOLDS,
+    moraleStyleProfile,
+    moraleCycleDamage,
+    moraleThresholdBurden,
+    evaluateMoralePosition,
+    scoreMoralePositionDelta,
+    scoreMoraleCard,
     chooseProjectedAction,
     makeTurnPlan,
     scoreMoveForPlan,

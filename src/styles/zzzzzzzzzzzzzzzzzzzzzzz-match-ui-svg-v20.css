@@ -1,0 +1,1179 @@
+/* Canonical V20 match HUD: one design, no appended override stack. */
+#s-game.svg-board-v20-live #fate-codex-ui-v19{position:absolute!important;inset:0!important;display:block!important;overflow:hidden!important;padding:0!important;background:transparent!important;color:#edf6f3!important;font-family:'Cinzel',serif!important;isolation:isolate}
+#s-game.svg-board-v20-live .codex-v19-backdrop{display:none}
+#s-game.svg-board-v20-live #fate-codex-ui-v19:before{content:""!important;position:absolute!important;z-index:0!important;inset:0 0 auto!important;height:128px!important;pointer-events:none!important;background:linear-gradient(180deg,rgba(2,7,13,.98),rgba(3,9,16,.9))}
+#s-game.svg-board-v20-live #fate-codex-ui-v19:after{content:""!important;position:absolute!important;z-index:0!important;left:0!important;right:0!important;top:127px!important;height:1px!important;background:linear-gradient(90deg,#27d9df,#d5aa50 50%,#ff416e)}
+
+/* Top command cards */
+#s-game.svg-board-v20-live .codex-v19-hud{position:absolute!important;z-index:10!important;inset:0 0 auto!important;height:128px!important;overflow:visible!important;pointer-events:none}
+#s-game.svg-board-v20-live .codex-v19-player{--accent:#28d9df!important;--panel-fill:linear-gradient(100deg,#061722,#050b13 72%,#03070d)!important;position:absolute!important;top:14px!important;width:684px!important;height:104px!important;box-sizing:border-box!important;overflow:hidden!important;border:0!important;color:#f6e8c7!important;background:var(--accent)!important;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)!important;filter:drop-shadow(0 8px 16px #0009)!important;pointer-events:none}
+#s-game.svg-board-v20-live .codex-v19-player:before{content:""!important;position:absolute!important;inset:2px!important;z-index:0!important;background:var(--panel-fill)!important;clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)!important}
+#s-game.svg-board-v20-live .codex-v19-player:after{content:""!important;position:absolute!important;z-index:2!important;left:0!important;top:0!important;bottom:0!important;width:17px!important;height:100%!important;background:var(--accent)!important;clip-path:polygon(0 12px,12px 0,17px 0,6px 12px,6px calc(100% - 12px),17px 100%,12px 100%,0 calc(100% - 12px))!important;display:block!important}
+#s-game.svg-board-v20-live .codex-v19-player>*{z-index:1!important}
+#s-game.svg-board-v20-live .codex-v19-player-you{left:18px}
+#s-game.svg-board-v20-live .codex-v19-player-opp{right:18px!important;--accent:#ff416e!important;--panel-fill:linear-gradient(260deg,#230713,#080a12 72%,#03070d)!important;text-align:right!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp:after{left:auto!important;right:0!important;transform:scaleX(-1)!important}
+#s-game.svg-board-v20-live .codex-v19-clock{
+ position:absolute!important;
+ left:50%!important;
+ top:16px!important;
+ z-index:4!important;
+ width:242px!important;
+ height:84px!important;
+ margin:0!important;
+ transform:translateX(-50%)!important;
+ color:#f7edcf!important;
+ text-align:center!important;
+ pointer-events:none!important;
+ filter:drop-shadow(0 10px 16px rgba(0,0,0,.66))!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-frame{
+ position:absolute!important;
+ inset:0!important;
+ z-index:0!important;
+ display:block!important;
+ width:100%!important;
+ height:100%!important;
+ overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-panel{
+ fill:url(#codex-v19-clock-fill)!important;
+ stroke:rgba(215,170,79,.82)!important;
+ stroke-width:2.15!important;
+ vector-effect:non-scaling-stroke!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-inner{fill:none!important;stroke:rgba(42,220,226,.48)!important;stroke-width:1.35!important;vector-effect:non-scaling-stroke!important}
+#s-game.svg-board-v20-live .codex-v19-clock-fin{stroke-width:1!important;vector-effect:non-scaling-stroke!important}
+#s-game.svg-board-v20-live .codex-v19-clock-fin-left,#s-game.svg-board-v20-live .codex-v19-clock-fin-right{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-clock-rule{
+ fill:none!important;
+ stroke-width:1!important;
+ vector-effect:non-scaling-stroke!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-rule-cyan{
+ stroke:#2adce2!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-rule-gold-top,
+#s-game.svg-board-v20-live .codex-v19-clock-rule-gold-bottom{
+ stroke:#d7aa4f!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock-face{
+ position:absolute!important;
+ inset:0!important;
+ z-index:1!important;
+ box-sizing:border-box!important;
+ display:block!important;
+ padding:0!important;
+ background:transparent!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock small{
+ position:absolute!important;
+ left:0!important;
+ right:0!important;
+ top:12px!important;
+ z-index:1!important;
+ display:block!important;
+ color:#d9ad55!important;
+ font:700 10px/1 'Cinzel',serif!important;
+ letter-spacing:.13em!important;
+ text-transform:uppercase!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock strong{
+ position:absolute!important;
+ left:0!important;
+ right:0!important;
+ top:24px!important;
+ z-index:1!important;
+ display:block!important;
+ margin:0!important;
+ color:#fff1cd!important;
+ font:700 32px/.82 Georgia,serif!important;
+ letter-spacing:.025em!important;
+ text-shadow:0 2px 8px #000,0 0 10px rgba(215,170,79,.13)!important;
+ transform:none!important;
+}
+#s-game.svg-board-v20-live .codex-v19-clock span{
+ position:absolute!important;
+ left:0!important;
+ right:0!important;
+ bottom:12px!important;
+ z-index:1!important;
+ display:block!important;
+ color:#5ee8ee!important;
+ font:700 10px/1 'Cinzel',serif!important;
+ letter-spacing:.08em!important;
+ text-transform:uppercase!important;
+ text-shadow:0 0 8px rgba(42,220,226,.24)!important;
+}
+#s-game.svg-board-v20-live .codex-v19-portrait{position:absolute!important;top:15px!important;width:74px!important;height:74px!important;border:2px solid #d7aa4f!important;border-radius:50%!important;background-color:#07111a!important;background-position:center!important;background-size:cover!important;box-shadow:0 0 0 3px #06101a,0 0 0 5px var(--accent)!important}
+#s-game.svg-board-v20-live .codex-v19-player-you .codex-v19-portrait{left:27px!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-portrait{right:27px!important}
+#s-game.svg-board-v20-live .codex-v19-portrait:before,#s-game.svg-board-v20-live .codex-v19-portrait:after{display:none}
+#s-game.svg-board-v20-live .codex-v19-identity{position:absolute!important;top:18px!important;width:260px!important;height:72px!important;overflow:hidden}
+#s-game.svg-board-v20-live .codex-v19-player-you .codex-v19-identity{left:123px!important;text-align:left}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-identity{right:123px!important;text-align:right}
+#s-game.svg-board-v20-live .codex-v19-identity>small{display:block!important;color:var(--accent)!important;font:700 9px/1 'Cinzel',serif!important;letter-spacing:.17em}
+#s-game.svg-board-v20-live .codex-v19-identity>strong{display:block!important;margin-top:6px!important;overflow:hidden!important;color:#fff2ce!important;font:700 22px/22px Georgia,serif!important;text-overflow:ellipsis!important;white-space:nowrap!important;text-shadow:0 2px 7px #000}
+#s-game.svg-board-v20-live .codex-v19-identity>strong.is-long-name{font-size:17px!important;letter-spacing:-.025em!important}
+#s-game.svg-board-v20-live .codex-v19-identity>strong.is-very-long-name{font-size:14px!important;letter-spacing:-.035em!important}
+#s-game.svg-board-v20-live .codex-v19-rank{position:absolute!important;left:0!important;right:0!important;top:40px!important;height:24px!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important;overflow:visible}
+#s-game.svg-board-v20-live .codex-v19-rank:before,#s-game.svg-board-v20-live .codex-v19-rank:after,#s-game.svg-board-v20-live .codex-v19-identity:before,#s-game.svg-board-v20-live .codex-v19-identity:after{display:none!important;content:none}
+#s-game.svg-board-v20-live .codex-v19-rank .rank-badge{transform:translateY(5px) scale(1.19)!important;transform-origin:left center}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-rank .rank-badge{transform-origin:right center}
+
+/* Mirrored morale and hand-count geometry */
+#s-game.svg-board-v20-live .codex-v19-morale{position:absolute!important;top:18px!important;width:220px!important;height:69px!important;display:block!important;color:#fff0cf!important;pointer-events:auto}
+#s-game.svg-board-v20-live .codex-v19-player-you .codex-v19-morale{right:22px!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-morale{left:22px!important}
+#s-game.svg-board-v20-live .codex-v19-morale small{display:none}
+#s-game.svg-board-v20-live .codex-v19-heart{position:absolute!important;top:6px!important;width:34px!important;height:34px!important;color:#ff5279!important;font:700 31px/34px Georgia,serif!important;text-align:center!important;filter:drop-shadow(0 0 7px #ff527788)}
+#s-game.svg-board-v20-live .codex-v19-morale b{position:absolute!important;top:2px!important;width:72px!important;color:#fff0cf!important;font:700 29px/32px Georgia,serif!important;text-align:center}
+#s-game.svg-board-v20-live .codex-v19-morale i{position:absolute!important;left:0!important;right:0!important;bottom:4px!important;height:14px!important;padding:2px!important;box-sizing:border-box!important;border:1px solid var(--accent)!important;border-radius:7px!important;background:#02070d!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)!important}
+#s-game.svg-board-v20-live .codex-v19-morale u{display:block!important;height:100%!important;background:linear-gradient(90deg,var(--accent),#c8ffff)!important;box-shadow:0 0 8px var(--accent)!important;text-decoration:none}
+#s-game.svg-board-v20-live .codex-v19-player-you .codex-v19-heart{left:0}
+#s-game.svg-board-v20-live .codex-v19-player-you .codex-v19-morale b{left:32px!important;top:5px!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-heart{right:0}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-morale b{right:32px!important;top:5px!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-morale u{margin-left:auto!important;background:linear-gradient(90deg,#ff91aa,var(--accent))}
+ #s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-morale i{border-color:var(--accent)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)!important}
+#s-game.svg-board-v20-live .codex-v19-player-opp .codex-v19-morale u{background:linear-gradient(90deg,#ff9ab2,#ff416e)!important;box-shadow:0 0 8px rgba(255,65,110,.72)!important}
+#s-game.svg-board-v20-live .codex-v19-morale.morale-fx-damage{animation:codex-morale-damage-hit .78s cubic-bezier(.2,.8,.2,1)!important}
+#s-game.svg-board-v20-live .codex-v19-morale.morale-fx-damage .codex-v19-heart{animation:mp-heart-hit .82s ease!important}
+#s-game.svg-board-v20-live .codex-v19-morale.morale-fx-heal .codex-v19-heart{animation:mp-heart-heal 1s ease!important}
+#s-game.svg-board-v20-live .codex-v19-morale.morale-fx-heal>i{animation:codex-morale-heal-bar 1s ease!important}
+@keyframes codex-morale-damage-hit{0%,100%{filter:none}20%{filter:brightness(1.55) saturate(1.35);transform:translateX(-2px)}38%{transform:translateX(2px)}58%{transform:translateX(-1px)}}
+@keyframes codex-morale-heal-bar{0%,100%{filter:none;transform:scaleY(1)}32%{filter:brightness(1.65) drop-shadow(0 0 9px #68ffa0);transform:scaleY(1.3)}68%{transform:scaleY(.97)}}
+#s-game.svg-board-v20-live .codex-v19-hand-button{position:absolute!important;top:24px!important;width:52px!important;height:34px!important;display:block!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;clip-path:none!important;color:#fff0cf!important;filter:drop-shadow(0 3px 5px #000)!important;pointer-events:auto!important;cursor:pointer!important}
+#s-game.svg-board-v20-live .codex-v19-hand-you{left:auto!important;right:17px!important}
+#s-game.svg-board-v20-live .codex-v19-hand-opp{left:27px!important;right:auto!important}
+#s-game.svg-board-v20-live .codex-v19-hand-button svg{position:absolute!important;left:0!important;top:4px!important;display:block!important;width:20px!important;height:26px!important;overflow:visible!important;fill:#07131e!important;stroke:var(--accent)!important;stroke-width:1.35!important;stroke-linejoin:round!important;vector-effect:non-scaling-stroke!important}
+#s-game.svg-board-v20-live .codex-v19-hand-button svg path:last-child{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-hand-button b{position:absolute!important;left:23px!important;top:5px!important;display:block!important;width:23px!important;height:24px!important;min-width:0!important;margin:0!important;color:#fff0cf!important;font:700 21px/24px Georgia,serif!important;text-align:center!important;text-shadow:0 1px 4px #000!important;transform:translateY(-1px)!important}
+#s-game.svg-board-v20-live .codex-v19-hand-button:hover svg{fill:#102737!important;filter:drop-shadow(0 0 5px var(--accent))!important}
+
+/* A single status sigil occupies each airlock and opens the proven status list. */
+#s-game.svg-board-v20-live .codex-v19-status{--accent:#2cdce2!important;position:absolute!important;z-index:8!important;top:17px!important;width:82px!important;height:88px!important;display:grid!important;place-items:center!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;color:#eaf5f2!important;pointer-events:auto!important;cursor:help!important}
+#s-game.svg-board-v20-live .codex-v19-status-you{right:calc(50% + 130px)!important}
+#s-game.svg-board-v20-live .codex-v19-status-opp{left:calc(50% + 130px)!important;--accent:#ff416d!important}
+#s-game.svg-board-v20-live .codex-v19-status-sigil{position:relative!important;display:grid!important;place-items:center!important;width:54px!important;height:62px!important;filter:drop-shadow(0 6px 10px #000b)!important}
+#s-game.svg-board-v20-live .codex-v19-status-sigil svg{position:absolute!important;inset:0!important;width:54px!important;height:54px!important;overflow:visible!important;fill:#06111beF!important;stroke:var(--accent)!important;stroke-width:1.6!important;stroke-linejoin:round!important}
+#s-game.svg-board-v20-live .codex-v19-status-sigil svg path:nth-child(2){fill:none!important;stroke:#d7aa4f!important;stroke-width:1.1!important}
+#s-game.svg-board-v20-live .codex-v19-status-sigil svg path:last-child{fill:none!important;stroke:var(--accent)!important;stroke-width:2!important}
+#s-game.svg-board-v20-live .codex-v19-status-sigil em{position:absolute!important;bottom:-7px!important;color:#f4f7f2!important;font:700 7px/1 'Cinzel',serif!important;font-style:normal!important;letter-spacing:.13em!important;text-shadow:0 1px 4px #000!important}
+#s-game.svg-board-v20-live .codex-v19-status>b{position:absolute!important;right:0!important;top:2px!important;display:flex!important;align-items:center!important;justify-content:center!important;width:20px!important;min-width:20px!important;height:20px!important;padding:0!important;box-sizing:border-box!important;border:1px solid #d7aa4f!important;border-radius:50%!important;background:#050a11!important;color:#fff0cf!important;font:700 11px/20px Arial,sans-serif!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-status.has-effects .codex-v19-status-sigil svg{filter:drop-shadow(0 0 7px var(--accent))!important}
+#s-game.svg-board-v20-live .codex-v19-popover{position:absolute!important;z-index:100!important;top:106px!important;width:420px!important;max-height:320px!important;padding:14px!important;overflow:auto!important;border:1px solid #d7aa4f!important;background:#06111bf2!important;color:#eef7f4!important;box-shadow:0 18px 45px #000d!important;scrollbar-width:none}
+#s-game.svg-board-v20-live .codex-v19-popover[hidden]{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-side="you"]{left:calc(50% - 450px)}
+#s-game.svg-board-v20-live .codex-v19-popover[data-side="opp"]{right:calc(50% - 450px)}
+#s-game.svg-board-v20-live .codex-v19-popover::-webkit-scrollbar{display:none}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"]{width:340px!important;padding:9px!important;border:1px solid #d7aa4f!important;background:linear-gradient(150deg,#081421fa,#070910fa)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry{display:flex!important;align-items:center!important;gap:11px!important;min-height:42px!important;padding:7px 8px!important;border-bottom:1px solid rgba(215,170,79,.13)!important;background:linear-gradient(90deg,rgba(42,220,226,.055),transparent)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry.opponent{background:linear-gradient(270deg,rgba(255,65,109,.06),transparent)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .effect-pill-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 30px!important;width:30px!important;height:30px!important;border:1px solid rgba(126,183,255,.7)!important;border-radius:50%!important;background:radial-gradient(circle,rgba(71,122,190,.28),rgba(7,14,27,.78))!important;transform:translateX(-2px)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .opponent .effect-pill-icon{border-color:rgba(255,122,132,.72)!important;background:radial-gradient(circle,rgba(185,64,74,.28),rgba(29,8,13,.78))!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .effect-pill-icon :is(img,svg){display:block!important;max-width:25px!important;max-height:25px!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .effect-pill-icon :is(img,svg){width:25px!important;height:25px!important;min-width:25px!important;min-height:25px!important;transform:none!important;transform-origin:center!important;overflow:visible!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .effect-pill-icon{font-size:24px!important;line-height:1!important}
+#s-game.svg-board-v20-live .mp-status-popover .effect-pill-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 30px!important;width:30px!important;height:30px!important;border-radius:50%!important;transform:translateX(-2px)!important}
+#s-game.svg-board-v20-live .mp-status-popover .effect-pill-icon :is(img,svg){display:block!important;max-width:25px!important;max-height:25px!important}
+#s-game.svg-board-v20-live .mp-status-popover .effect-pill-icon :is(img,svg){width:25px!important;height:25px!important;min-width:25px!important;min-height:25px!important;transform:none!important;transform-origin:center!important;overflow:visible!important}
+#s-game.svg-board-v20-live .mp-status-popover .effect-pill-icon{font-size:24px!important;line-height:1!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry>span:last-child{display:flex!important;min-width:0!important;flex-direction:column!important;gap:2px!important;color:#e7ddc4!important;font:600 12px/1.28 'Crimson Pro',Georgia,serif!important;text-transform:none!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry>span:last-child>strong{display:block!important;color:#f0d486!important;font:700 12px/1.15 'Crimson Pro',Georgia,serif!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry>span:last-child>span{display:block!important;color:#e7ddc4!important;font:600 12px/1.28 'Crimson Pro',Georgia,serif!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry small{margin-bottom:3px!important;color:#86c9ef!important;font:600 7px/1 'Cinzel',serif!important;letter-spacing:.1em!important;text-transform:uppercase!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry.opponent small{color:#ef8d98!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"]{width:390px!important;max-height:324px!important;padding:15px 17px!important;border-color:#d7aa4f!important;background:linear-gradient(145deg,#071722f7,#090a12f7)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip{display:block!important;position:static!important;width:auto!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] header{display:flex!important;justify-content:space-between!important;padding:0 0 9px!important;border-bottom:1px solid rgba(215,170,79,.5)!important;color:#fff0cf!important;font:700 11px/1 'Cinzel',serif!important;letter-spacing:.12em!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule{position:relative!important;display:grid!important;grid-template-columns:104px 1fr!important;gap:12px!important;padding:8px 8px!important;border-bottom:1px solid rgba(255,255,255,.07)!important;color:#93a5aa!important;font:500 10px/1.35 Georgia,serif!important;overflow:hidden!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule b{color:#a99361!important;font:700 9px/1.3 'Cinzel',serif!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active{color:#edf7f4!important;background:linear-gradient(90deg,transparent 0,rgba(42,220,226,.035) 7%,rgba(42,220,226,.13) 24%,rgba(42,220,226,.075) 56%,transparent 100%)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active:before{display:none!important;content:none!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active b{color:#5ee8ee!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule:last-of-type{padding-bottom:12px!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip:after{content:''!important;display:block!important;height:4px!important;min-height:4px!important}
+
+/* Board surface */
+#s-game.svg-board-v20-live .codex-v19-field{position:absolute!important;z-index:2!important;inset:136px 18px 174px!important;margin:0!important;padding:0!important;overflow:visible!important;background:none}
+#s-game.svg-board-v20-live #codex-board-v19{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:visible!important;background:none}
+#s-game.svg-board-v20-live #codex-board-v19>canvas{position:absolute!important;inset:0!important;width:100%!important;height:100%}
+
+/* Footer control deck: edge-anchored card reserve and two-tier command console. */
+#s-game.svg-board-v20-live .codex-v19-footer{position:absolute!important;z-index:5!important;inset:auto 0 0!important;height:180px!important;margin:0!important;padding:0!important;background:transparent!important;pointer-events:none}
+#s-game.svg-board-v20-live .codex-v19-hand{position:absolute!important;left:50%!important;bottom:0!important;width:min(900px,calc(100vw - 1020px))!important;height:180px!important;transform:translateX(-50%)!important;overflow:visible!important;pointer-events:none}
+#s-game.svg-board-v20-live .hand-strip{margin:0!important;padding:0!important;border:0!important;outline:0!important;background:none!important;box-shadow:none!important;clip-path:none!important;overflow:visible!important;pointer-events:none}
+#s-game.svg-board-v20-live .hand-strip:before,#s-game.svg-board-v20-live .hand-strip:after{display:none!important;content:none!important;background:none!important;border:0!important;box-shadow:none!important}
+#s-game.svg-board-v20-live .hand-strip .left-section-lbl{display:none!important}
+#s-game.svg-board-v20-live :is(.game-left,.left-piles,#landscape-panel){display:none!important;visibility:hidden!important;pointer-events:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive{position:absolute!important;left:0!important;bottom:0!important;width:400px!important;height:190px!important;display:block!important;box-sizing:border-box!important;padding:3px 10px 0 0!important;background:linear-gradient(112deg,#2cdce2 0 24%,#d7aa4f 61% 79%,#ff416e 100%)!important;clip-path:polygon(0 0,calc(100% - 66px) 0,100% 66px,100% 100%,0 100%)!important;filter:drop-shadow(8px -8px 18px #000a)!important;color:#f2e5c4!important;pointer-events:auto!important;isolation:isolate!important;overflow:hidden!important}
+#s-game.svg-board-v20-live .codex-v19-archive:before{content:""!important;position:absolute!important;z-index:0!important;inset:3px 10px 0 0!important;background:linear-gradient(112deg,#071b25 0%,#07121b 48%,#120d17 78%,#1b0a16 100%)!important;clip-path:polygon(0 0,calc(100% - 67px) 0,100% 67px,100% 100%,0 100%)!important}
+#s-game.svg-board-v20-live .codex-v19-archive:after{display:none!important;content:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive-label{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-land{display:flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;overflow:hidden!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-kicker{margin:0 0 5px!important;color:#77aab4!important;font:700 7px/1 'Cinzel',serif!important;letter-spacing:.2em!important;text-transform:uppercase!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-name{margin:0 0 7px!important;color:#e2bd61!important;font:700 12px/1.15 'Cinzel',serif!important;letter-spacing:.035em!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-desc,#s-game.svg-board-v20-live .codex-v19-land .landscape-note{display:-webkit-box!important;margin:0!important;overflow:hidden!important;color:#d5d8d3!important;font:italic 9px/1.28 Georgia,serif!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-supporter-limit{display:block!important;width:auto!important;margin:4px auto 0!important;padding:2px 0 0!important;border:0!important;background:none!important;color:#9bdcff!important;font:700 8px/1.1 'Cinzel',serif!important;letter-spacing:.045em!important;text-align:center!important;text-transform:uppercase!important;text-shadow:0 0 8px rgba(42,220,226,.2)!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-supporter-limit.is-spent{color:#e16a7d!important;text-shadow:0 0 8px rgba(255,65,109,.2)!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-whisper-action{display:grid!important;width:100%!important;margin:4px auto 0!important;transform:none!important;place-items:center!important;pointer-events:auto!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-whisper-button{display:block!important;min-height:20px!important;padding:3px 7px!important;border:1px solid rgba(215,170,79,.58)!important;border-radius:2px!important;background:linear-gradient(180deg,rgba(28,24,14,.9),rgba(8,9,13,.96))!important;color:#f0d77f!important;font:700 7px/1 'Cinzel',serif!important;letter-spacing:.035em!important;text-transform:uppercase!important;cursor:pointer!important;pointer-events:auto!important}
+#s-game.svg-board-v20-live .codex-v19-land .landscape-whisper-button:disabled{opacity:.48!important;cursor:default!important}
+#s-game.svg-board-v20-live .codex-v19-land:has(.landscape-supporter-limit) .landscape-desc{-webkit-line-clamp:3!important}
+#s-game.svg-board-v20-live .codex-v19-land:has(.landscape-whisper-action) .landscape-desc{-webkit-line-clamp:2!important}
+#s-game.svg-board-v20-live .codex-v19-archive nav{position:relative!important;z-index:1!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;width:100%!important;height:100%!important;box-sizing:border-box!important;padding:12px 66px 10px 12px!important;background:radial-gradient(ellipse at 22% 42%,rgba(42,220,226,.17),transparent 42%),radial-gradient(ellipse at 70% 42%,rgba(255,65,110,.13),transparent 42%),linear-gradient(180deg,rgba(255,255,255,.035),transparent 35%,rgba(0,0,0,.2))!important;box-shadow:inset 0 0 30px rgba(0,0,0,.32)!important}
+#s-game.svg-board-v20-live .codex-v19-archive nav:before{content:""!important;position:absolute!important;left:16px!important;right:68px!important;top:11px!important;bottom:11px!important;border-top:1px solid rgba(42,220,226,.48)!important;border-bottom:1px solid rgba(255,65,110,.3)!important;background:linear-gradient(90deg,#2cdce2 0 7px,transparent 7px calc(100% - 7px),#ff416e calc(100% - 7px)) top/100% 3px no-repeat,linear-gradient(90deg,#2cdce2 0 7px,transparent 7px calc(100% - 7px),#ff416e calc(100% - 7px)) bottom/100% 3px no-repeat!important;pointer-events:none!important}
+ #s-game.svg-board-v20-live .codex-v19-archive nav:after{content:""!important;position:absolute!important;left:calc(47% - 3px)!important;top:17px!important;bottom:17px!important;width:5px!important;border-top:1px solid #d7aa4f!important;border-bottom:1px solid #d7aa4f!important;background:linear-gradient(90deg,transparent 2px,rgba(215,170,79,.5) 2px 3px,transparent 3px)!important;pointer-events:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive nav:before,#s-game.svg-board-v20-live .codex-v19-archive nav:after{display:none!important;content:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive button,#s-game.svg-board-v20-live .codex-v19-archive button:hover,#s-game.svg-board-v20-live .codex-v19-archive button:active,#s-game.svg-board-v20-live .codex-v19-archive button:focus{position:relative!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(0,1fr) 25px!important;align-items:center!important;justify-items:center!important;gap:3px!important;min-width:0!important;margin:0!important;padding:4px 7px!important;border:0!important;border-radius:0!important;outline:0!important;background:radial-gradient(ellipse at 50% 44%,rgba(42,220,226,.07),transparent 68%)!important;color:#f1e6c9!important;text-align:center!important;clip-path:none!important;box-shadow:none!important;transform:none!important;filter:none!important;overflow:visible!important}
+#s-game.svg-board-v20-live .codex-v19-archive [data-discard],#s-game.svg-board-v20-live .codex-v19-archive [data-discard]:hover,#s-game.svg-board-v20-live .codex-v19-archive [data-discard]:active,#s-game.svg-board-v20-live .codex-v19-archive [data-discard]:focus{background:radial-gradient(ellipse at 50% 44%,rgba(255,65,109,.065),transparent 68%)!important;box-shadow:none!important;transform:translateX(10px)!important;transition:none!important;animation:none!important;filter:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive button:before{display:none!important;content:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive button:focus-visible{outline:0!important;box-shadow:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive-art{position:relative!important;display:block!important;width:126px!important;height:126px!important;margin:0 auto!important;box-sizing:border-box!important;border:2px solid rgba(215,170,79,.82)!important;border-radius:50%!important;background-color:#050b12!important;background-image:var(--archive-card-image,url('../../back.png')),radial-gradient(circle,rgba(42,220,226,.13),rgba(4,9,15,.96) 68%)!important;background-position:center,center!important;background-size:64px 90px,100% 100%!important;background-repeat:no-repeat!important;box-shadow:0 0 0 4px #071018,0 0 0 5px rgba(42,220,226,.38),inset 0 0 22px rgba(42,220,226,.13),0 9px 18px #000b!important;transform:translateY(-1px)!important;filter:none!important;overflow:hidden!important}
+#s-game.svg-board-v20-live .codex-v19-archive-art:before{display:none!important;content:none!important}
+#s-game.svg-board-v20-live [data-discard] .codex-v19-archive-art{opacity:1!important;transform:translateY(-1px)!important;box-shadow:0 0 0 4px #071018,0 0 0 5px rgba(255,65,109,.34),inset 0 0 18px rgba(255,65,109,.11),0 9px 18px #000b!important;filter:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive-copy{position:relative!important;display:flex!important;min-width:0!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:5px!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-archive-copy:after{display:none!important;content:none!important}
+#s-game.svg-board-v20-live .codex-v19-archive [data-discard] .codex-v19-archive-copy{border:0!important;padding:0!important;background:transparent!important}
+#s-game.svg-board-v20-live .codex-v19-archive-copy small{color:#bce8e5!important;font:700 11px/1 'Cinzel',serif!important;letter-spacing:.12em!important;transform:translateY(2px)!important}
+#s-game.svg-board-v20-live [data-discard] .codex-v19-archive-copy small{color:#edb0c0!important}
+#s-game.svg-board-v20-live .codex-v19-archive-copy b{color:#f0c968!important;font:700 16px/1 Georgia,serif!important;text-shadow:0 2px 7px #000!important}
+#s-game.svg-board-v20-live .codex-v19-command{position:absolute!important;right:20px!important;bottom:21px!important;width:420px!important;height:148px!important;display:grid!important;grid-template-columns:minmax(0,172px) 214px!important;grid-template-rows:130px!important;gap:8px!important;padding:9px 10px 9px 14px!important;box-sizing:border-box!important;background:linear-gradient(118deg,#2cdce2 0%,#d7aa4f 52%,#ff416d 100%)!important;border-radius:0!important;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)!important;color:#eef6f3!important;filter:drop-shadow(0 12px 20px #000b)!important;pointer-events:auto}
+#s-game.svg-board-v20-live .codex-v19-command:before{content:""!important;position:absolute!important;inset:3px!important;z-index:0!important;background:linear-gradient(112deg,#071a23 0%,#07121b 40%,#100d18 72%,#1b0a16 100%)!important;border-radius:0!important;clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)!important;box-shadow:inset 6px 0 #2cdce2!important}
+#s-game.svg-board-v20-live .codex-v19-command>*{position:relative!important;z-index:1!important}
+#s-game.svg-board-v20-live .codex-v19-landscape-banner{position:relative!important;display:grid!important;grid-template-rows:minmax(0,1fr)!important;padding:0!important;border:0!important;background:transparent!important;clip-path:none!important}
+#s-game.svg-board-v20-live .codex-v19-landscape-banner>span{display:flex!important;align-items:center!important;justify-content:center!important;padding:0 8px!important;border:0!important;background:transparent!important;color:#77e3e7!important;font:700 10px/1 'Cinzel',serif!important;letter-spacing:.14em!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land{box-sizing:border-box!important;height:100%!important;min-height:0!important;padding:10px 9px!important;border:0!important;background:radial-gradient(ellipse at 50% 34%,rgba(22,57,66,.6) 0%,rgba(10,28,38,.38) 48%,rgba(7,13,21,.08) 100%)!important;flex-direction:column!important;justify-content:center!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-kicker{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{display:block!important;width:100%!important;max-width:100%!important;margin:0 0 3px!important;overflow:visible!important;overflow-wrap:anywhere!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;text-align:center!important;-webkit-line-clamp:unset!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;overflow:visible!important;overflow-wrap:anywhere!important;border:0!important;box-shadow:none!important;background:none!important;font:italic 10px/1.22 Georgia,serif!important;letter-spacing:0!important;-webkit-line-clamp:unset!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:3px 0 0!important;padding:0!important;overflow:visible!important;overflow-wrap:anywhere!important;border:0!important;box-shadow:none!important;background:none!important;font:700 9.5px/1.15 'Cinzel',serif!important;letter-spacing:.015em!important;-webkit-line-clamp:unset!important;text-align:center!important}
+
+/* Stable landscape typography: never resize after asynchronous font loading. */
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land,
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel{
+  font-family:Georgia,"Times New Roman",serif!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{
+  margin:2px 0 5px!important;
+  font-family:Georgia,"Times New Roman",serif!important;
+  font-size:12px!important;
+  font-weight:750!important;
+  line-height:1.16!important;
+  letter-spacing:.025em!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{
+  font-family:Georgia,"Times New Roman",serif!important;
+  font-size:10.5px!important;
+  font-style:normal!important;
+  font-weight:450!important;
+  line-height:1.3!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note,
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-supporter-limit{
+  margin-top:4px!important;
+  font-family:Georgia,"Times New Roman",serif!important;
+  font-size:9.5px!important;
+  font-style:normal!important;
+  font-weight:650!important;
+  line-height:1.2!important;
+  letter-spacing:.01em!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-landscape-banner,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:before,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:after{border:0!important;box-shadow:none!important}
+#s-game.svg-board-v20-live .codex-v19-command-console{display:grid!important;grid-template-columns:76px minmax(0,1fr)!important;align-items:center!important;gap:9px!important;padding:0 0 0 8px!important;border:0!important;box-shadow:none!important;background:radial-gradient(circle at 35px 63px,rgba(42,220,226,.08),transparent 56%)!important}
+#s-game.svg-board-v20-live .codex-v19-end{position:relative!important;align-self:center!important;width:64px!important;height:64px!important;display:grid!important;place-items:center!important;padding:3px!important;border:0!important;border-radius:50%!important;background:conic-gradient(from 25deg,#d7aa4f,#2cdce2 44%,#ff416d 78%,#d7aa4f)!important;color:#fff4d5!important;box-shadow:0 0 0 3px #071018,0 8px 16px #0009!important;clip-path:none!important;transform:translate(5px,6px)!important}
+#s-game.svg-board-v20-live .codex-v19-end:before{content:""!important;position:absolute!important;inset:3px!important;border-radius:50%!important;background:radial-gradient(circle at 38% 32%,#1d4851,#10131c 52%,#310d20)!important;box-shadow:inset 0 0 18px #000b!important}
+#s-game.svg-board-v20-live .codex-v19-end em{position:absolute!important;z-index:2!important;left:50%!important;bottom:calc(100% + 5px)!important;transform:translateX(-50%)!important;color:#e7c56d!important;font:700 12px/1 'Cinzel',serif!important;font-style:normal!important;letter-spacing:.16em!important;white-space:nowrap!important}
+#s-game.svg-board-v20-live .codex-v19-end small{display:none!important}
+#s-game.svg-board-v20-live .codex-v19-end span{position:relative!important;z-index:1!important;font:700 38px/.9 Georgia,serif!important;transform:translateY(-2px)!important;text-shadow:0 0 10px rgba(42,220,226,.45)!important}
+#s-game.svg-board-v20-live .codex-v19-end em{white-space:normal!important;width:74px!important;text-align:center!important;line-height:1.05!important}
+#s-game.svg-board-v20-live .codex-v19-command nav{display:grid!important;grid-template-columns:1fr 1fr!important;grid-template-rows:48px 64px!important;gap:4px!important}
+ #s-game.svg-board-v20-live .codex-v19-command nav button{border:1px solid rgba(255,65,109,.66)!important;background:linear-gradient(145deg,#190b15,#080d15)!important;color:#dce9e7!important;font:700 8px 'Cinzel',serif!important;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)!important;transform:translateX(-4px)!important}
+#s-game.svg-board-v20-live .codex-v19-command nav button svg{display:block!important;width:24px!important;height:24px!important;margin:auto!important;fill:none!important;stroke:#ff7899!important;stroke-width:1.7!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+#s-game.svg-board-v20-live .codex-v19-command nav [data-quit]{grid-column:1/-1!important;grid-row:2!important;font-size:12px!important}
+#s-game.svg-board-v20-live .codex-v19-command nav [data-stop-consolidate]{grid-column:1/-1!important;grid-row:3!important;font-size:7px!important;color:#9ff0cf!important;border-color:#51cfa0!important}
+#s-game.svg-board-v20-live .codex-v19-command nav [data-stop-consolidate]{border:1px solid #51cfa0!important;clip-path:none!important;outline:0!important;box-shadow:inset 0 0 0 1px rgba(159,240,207,.1)!important}
+#s-game.svg-board-v20-live .codex-v19-command nav:has([data-stop-consolidate]:not([hidden])){grid-template-rows:34px 24px 24px!important}
+#s-game.svg-board-v20-live .codex-v19-command nav button[hidden]{display:none!important}
+
+/* Hand viewer: explicit picker grid prevents generic modal button rules from stacking cards. */
+html body #modal .hand-viewer-window{display:grid!important;grid-template-columns:repeat(auto-fit,126px)!important;justify-content:center!important;align-content:start!important;gap:14px!important;width:100%!important;min-width:0!important;margin:0 auto!important;padding:8px!important;box-sizing:border-box!important}
+html body #modal .hand-viewer-card{position:relative!important;inset:auto!important;flex:0 0 126px!important;width:126px!important;height:auto!important;aspect-ratio:5/7!important;margin:0!important;padding:0!important;overflow:hidden!important;border:1px solid rgba(215,170,79,.65)!important;border-radius:7px!important;background:#080b12!important;box-shadow:0 8px 15px #0008!important;transform:none!important}
+html body #modal .hand-viewer-card img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important}
+html body #modal .hand-viewer-card.is-hidden{opacity:.82!important;cursor:default!important}
+html body #modal .hand-viewer-empty{flex:1 0 100%!important;margin:4px 0!important;color:#b8aaa0!important;font:700 10px/1.4 'Cinzel',serif!important;text-align:center!important}
+
+@media(max-width:1500px){
+ #s-game.svg-board-v20-live .codex-v19-player{width:684px}
+ #s-game.svg-board-v20-live .codex-v19-hand-you{left:auto!important;right:17px!important}
+ #s-game.svg-board-v20-live .codex-v19-hand-opp{left:27px!important;right:auto!important}
+ #s-game.svg-board-v20-live .codex-v19-archive{left:0!important;width:370px!important}
+ #s-game.svg-board-v20-live .codex-v19-command{width:390px!important;grid-template-columns:minmax(0,158px) 198px!important;gap:8px!important}
+ #s-game.svg-board-v20-live .codex-v19-command-console{grid-template-columns:66px minmax(0,1fr)!important;gap:7px!important;padding-left:0!important}
+ #s-game.svg-board-v20-live .codex-v19-end{width:58px!important;height:58px!important}
+ #s-game.svg-board-v20-live .codex-v19-end span{font-size:32px!important}
+ #s-game.svg-board-v20-live .codex-v19-hand{width:min(720px,calc(100vw - 790px))}
+}
+
+/* Match chat dock: use the same framed board language as the V20 HUD. */
+#s-game.svg-board-v20-live ~ #ingame-chat-widget,
+#s-game.svg-board-v20-live #ingame-chat-widget,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget{
+  right:24px!important;
+  bottom:194px!important;
+  z-index:40!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-toggle,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-toggle,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle{
+  width:48px!important;
+  height:42px!important;
+  border:1px solid #ff416e!important;
+  border-radius:6px!important;
+  background:linear-gradient(145deg,#180c16,#070d15)!important;
+  color:#ffd98b!important;
+  box-shadow:0 8px 22px #000b,0 0 0 1px rgba(215,170,79,.2) inset!important;
+  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-toggle:hover,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-toggle:hover,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-toggle:hover{
+  border-color:#ffd36e!important;
+  transform:translateY(-2px)!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-panel,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-panel,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-panel{
+  right:0!important;
+  bottom:calc(100% + 10px)!important;
+  width:430px!important;
+   height:438px!important;
+  padding:4px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:linear-gradient(135deg,#2cdce2 0 22%,#d7aa4f 22% 73%,#ff416d 73%)!important;
+  box-shadow:0 28px 60px #000e,0 0 24px rgba(42,220,226,.12)!important;
+  clip-path:polygon(28px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 34px),calc(100% - 34px) 100%,10px 100%,0 calc(100% - 10px),0 28px)!important;
+  overflow:hidden!important;
+  flex-direction:column!important;
+  box-sizing:border-box!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-panel:before,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-panel:before,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-panel:before{content:""!important;position:absolute!important;inset:4px!important;z-index:-1!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:linear-gradient(145deg,#071824fa,#050912fc 64%,#1d0915fc)!important;clip-path:polygon(24px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 30px),calc(100% - 30px) 100%,8px 100%,0 calc(100% - 8px),0 24px)!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-header,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-header,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-header{
+  position:relative!important;
+  box-sizing:border-box!important;
+  flex:0 0 50px!important;
+  min-height:50px!important;
+  padding:.62rem 1rem .55rem 1.55rem!important;
+  border-bottom:2px solid rgba(215,170,79,.6)!important;
+  border-left:7px solid #2cdce2!important;
+  background:linear-gradient(105deg,rgba(42,220,226,.2),rgba(9,20,29,.8) 38%,rgba(255,65,109,.13))!important;
+  color:#e8bd63!important;
+  font:700 12px/1 'Cinzel',serif!important;
+  letter-spacing:.16em!important;
+  text-transform:uppercase!important;
+}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-header:before,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-header:after,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-input-row:before,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-input-row:after{display:none!important;content:none!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .world-chat-close{position:static!important;width:28px!important;height:28px!important;margin:0!important;padding:0!important;border:1px solid rgba(255,65,109,.55)!important;border-radius:50%!important;background:#090d15!important;color:#f29ab0!important;font:400 17px/26px Arial,sans-serif!important;clip-path:none!important;box-shadow:none!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-switch,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-switch,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-switch{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding:9px 15px!important;border-bottom:1px solid rgba(215,170,79,.3)!important;background:#081018!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-switch button,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-switch button,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-switch button{height:34px!important;border:1px solid rgba(215,170,79,.68)!important;border-radius:0!important;background:#070b12!important;color:#bcb292!important;clip-path:none!important;box-shadow:none!important;font:700 9px/1 'Cinzel',serif!important;letter-spacing:.14em!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-switch button:before,
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-switch button:after,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-switch button:before,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-switch button:after,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-switch button:before,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-switch button:after{display:none!important;content:none!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-switch button.active,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-switch button.active,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-switch button.active{border-color:#e2b654!important;background:#17140d!important;color:#fff0c8!important;box-shadow:none!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-matchup,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-matchup,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-view{display:none!important;min-height:0!important;flex:1 1 auto!important;background:transparent!important;border:0!important;box-shadow:none!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-view.active{display:flex!important;flex-direction:column!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-matchup{display:grid!important;grid-template-columns:1fr 34px 1fr!important;align-items:center!important;gap:8px!important;min-height:92px!important;padding:12px 24px!important;box-sizing:border-box!important;border:0!important;border-bottom:1px solid rgba(215,170,79,.34)!important;background:linear-gradient(90deg,rgba(42,220,226,.10),rgba(4,10,17,.72) 46% 54%,rgba(255,65,109,.10))!important;clip-path:none!important;box-shadow:none!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-player-card{display:grid!important;grid-template-rows:58px 20px!important;justify-items:center!important;align-items:center!important;min-width:0!important;margin:0!important;padding:0!important;border:0!important;background:none!important;clip-path:none!important;box-shadow:none!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-versus{position:static!important;align-self:center!important;margin:0!important;padding:0!important;color:#d7aa4f!important;font:700 10px/1 'Cinzel',serif!important;text-align:center!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-name{width:100%!important;overflow:hidden!important;color:#72dfe4!important;font:700 8px/1.1 'Cinzel',serif!important;text-align:center!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-name.p2{color:#ff7193!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-pic,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-pic,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-pic{position:static!important;width:54px!important;height:54px!important;margin:0!important;padding:0!important;overflow:hidden!important;border:2px solid currentColor!important;border-radius:50%!important;background:#07111a!important;clip-path:none!important;box-shadow:0 0 0 3px #071018,0 0 10px currentColor!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-pic img{display:block!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;object-fit:cover!important;clip-path:none!important;box-shadow:none!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-messages,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-messages,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-messages{
+  padding:.65rem .85rem!important;
+  gap:.42rem!important;
+  background:linear-gradient(180deg,rgba(3,8,14,.16),rgba(42,220,226,.035))!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-input-row,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-input-row,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-input-row{
+  display:grid!important;
+  grid-template-columns:26px minmax(0,1fr) 26px!important;
+  align-items:center!important;
+  gap:10px!important;
+  padding:.6rem 24px .6rem .7rem!important;
+  border-top:1px solid rgba(215,170,79,.3)!important;
+  background:rgba(0,0,0,.3)!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-input-row .social-chat-input,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-input-row .social-chat-input,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-input-row .social-chat-input{
+  justify-self:start!important;
+  width:calc(100% - 7px)!important;
+  min-width:0!important;
+  max-width:none!important;
+  border:1px solid rgba(42,220,226,.4)!important;
+  border-radius:0!important;
+  background:#050b12!important;
+  color:#eef6f3!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-send,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-send,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-send{
+  position:relative!important;
+   margin-left:0!important;
+  flex:0 0 26px!important;
+  width:26px!important;
+  min-width:26px!important;
+  height:26px!important;
+  min-height:26px!important;
+  padding:0!important;
+  border:1px solid rgba(215,170,79,.72)!important;
+  border-radius:0!important;
+  background:#081018!important;
+  color:transparent!important;
+  clip-path:none!important;
+  box-shadow:none!important;
+  font-size:0!important;
+  letter-spacing:0!important;
+  transform:translateX(-7px)!important;
+  animation:none!important;
+   transition:none!important;
+   transition-property:none!important;
+  will-change:auto!important;
+  filter:none!important;
+}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-send:before,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-send:before,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-send:before{content:""!important;position:absolute!important;display:block!important;left:9px!important;top:7px!important;width:0!important;height:0!important;border-top:6px solid transparent!important;border-bottom:6px solid transparent!important;border-left:8px solid #e0ba5d!important;transform:none!important;animation:none!important;transition:none!important}
+#s-game.svg-board-v20-live ~ #ingame-chat-widget .ingame-chat-send:after,
+#s-game.svg-board-v20-live #ingame-chat-widget .ingame-chat-send:after,
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-send:after{display:none!important;content:none!important}
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-send:hover{border-color:#f0ca6f!important;background:#101821!important;color:transparent!important;transform:translateX(-7px)!important;transition:none!important;transition-property:none!important;animation:none!important;will-change:auto!important}
+/* Keep the single-zone board picker at its original compact width. The wide
+   frame is reserved for the explicit multi-zone picker only. */
+html body #modal .modal.board-target-picker-modal:not(.is-multi-zone-picker){
+  width:min(760px,86vw)!important;
+  max-width:760px!important;
+}
+
+/* Shared card-pickers inherit the live HUD material and edge language. */
+html body #modal .modal.visual-card-picker-modal,
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+html body #modal .modal:has(.canvas-card-gallery-surface){
+  border:2px solid #28d9df!important;border-top-color:#d7aa4f!important;border-right-color:#ff416e!important;border-radius:0!important;
+  background:linear-gradient(145deg,#061722,#050b13 66%,#130812)!important;
+  clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px)!important;
+  box-shadow:0 22px 60px #000d,inset 0 0 0 1px rgba(255,255,255,.035)!important;
+}
+html body #modal .modal:has(.canvas-card-gallery-surface) .canvas-card-gallery-surface{height:300px!important;max-height:300px!important}
+html body #modal .modal.discard-empty-modal{width:min(620px,88vw)!important;min-height:260px!important;padding:18px 20px 14px!important;border:0!important;border-radius:8px!important;outline:0!important;clip-path:none!important;background:linear-gradient(120deg,#071a23,#090d16 58%,#180b16)!important;box-shadow:0 28px 70px #000d,inset 3px 0 #2cdce2,inset -3px 0 #ff416d!important}
+html body #modal .modal.discard-empty-modal #modal-body{display:grid!important;place-items:center!important;min-height:130px!important;border:1px solid rgba(42,220,226,.22)!important;background:radial-gradient(circle,rgba(42,220,226,.08),transparent 68%),rgba(2,7,13,.7)!important;color:#d5d8d3!important}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal){box-sizing:border-box!important;overflow:hidden!important;border:1px solid rgba(215,170,79,.72)!important;border-radius:8px!important;clip-path:none!important;background:linear-gradient(110deg,#071a23 0%,#07101a 48%,#160b17 100%)!important;box-shadow:0 28px 70px rgba(0,0,0,.88),inset 3px 0 #2cdce2,inset -3px 0 #ff416d!important}
+html body #modal .modal.discard-empty-modal{border:1px solid rgba(215,170,79,.72)!important;outline:0!important}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal) :is(#modal-title,.modal-title){margin:-2px 0 12px!important;padding:2px 14px 10px!important;border-bottom:1px solid rgba(215,170,79,.5)!important;background:linear-gradient(90deg,rgba(42,220,226,.11),transparent 48%,rgba(255,65,109,.08))!important;color:#f3d57f!important;font:700 17px/1.15 'Cinzel',serif!important;letter-spacing:.09em!important}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal) :is(#modal-title,.modal-title){transform:translateY(3px)!important}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal) :is(#modal-title,.modal-title)::after{display:none!important;content:none!important;background:none!important;width:0!important;height:0!important}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal) #modal-body{min-height:0!important;padding:12px!important;border:1px solid rgba(42,220,226,.2)!important;border-radius:4px!important;background:radial-gradient(circle at 12% 0,rgba(42,220,226,.08),transparent 35%),radial-gradient(circle at 90% 100%,rgba(255,65,109,.07),transparent 38%),rgba(2,7,13,.72)!important;box-shadow:inset 0 0 28px rgba(0,0,0,.32)!important}
+html body #modal .modal.discard-gallery-modal{width:min(760px,90vw)!important;max-height:min(780px,90vh)!important;padding:18px 20px 14px!important}
+html body #modal .modal.discard-gallery-modal #modal-body{display:block!important;box-sizing:border-box!important;height:auto!important;min-height:0!important;max-height:none!important;flex:0 0 auto!important;padding:0!important;overflow:hidden!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important}
+html body #modal .modal.discard-gallery-modal .canvas-card-gallery-surface{height:auto!important;max-height:none!important;aspect-ratio:auto!important;border:1px solid rgba(42,220,226,.24)!important;border-radius:4px!important;background:rgba(1,6,11,.54)!important}
+html body #modal .modal.discard-gallery-modal .canvas-card-gallery{display:block!important;box-sizing:border-box!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;line-height:0!important;overflow:hidden!important}
+html body #modal .modal.discard-gallery-modal .canvas-card-gallery-footer{min-height:0!important;height:0!important;margin:0!important;padding:0!important}
+html body #modal .modal.discard-gallery-modal .canvas-card-gallery-footer:empty{display:none!important}
+html body #modal .modal.discard-gallery-modal .canvas-card-gallery>p{display:none!important;height:0!important;margin:0!important;padding:0!important}
+html body #modal .modal:is(.discard-gallery-modal,.discard-empty-modal) #modal-acts{margin-top:10px!important;padding-top:10px!important;border-top:1px solid rgba(215,170,79,.22)!important}
+html body #modal .modal.deck-info-modal{width:min(900px,92vw)!important;padding:18px 20px 14px!important}
+html body #modal .modal.deck-info-modal .di-window{display:grid!important;gap:12px!important}
+html body #modal .modal.deck-info-modal .di-count-row{display:grid!important;grid-template-columns:130px 1fr!important;gap:12px!important;align-items:stretch!important}
+html body #modal .modal.deck-info-modal .di-count-main{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;border:1px solid rgba(42,220,226,.36)!important;background:linear-gradient(145deg,rgba(42,220,226,.12),rgba(5,12,19,.72))!important}
+html body #modal .modal.deck-info-modal .di-count-num{color:#f0ca69!important;font:700 42px/.9 Georgia,serif!important}
+html body #modal .modal.deck-info-modal .di-count-stats{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:8px!important}
+html body #modal .modal.deck-info-modal .di-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;min-height:62px!important;border:1px solid rgba(215,170,79,.35)!important;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(8,12,19,.8))!important;color:#b7b2c8!important}
+html body #modal .modal.deck-info-modal .di-stat span{color:#f3e2bd!important;font-size:18px!important;font-weight:700!important}
+html body #modal .modal.deck-info-modal .di-progress-wrap{overflow:hidden!important;border:1px solid rgba(215,170,79,.35)!important;border-radius:3px!important;background:#050a11!important}
+html body #modal .modal.deck-info-modal .di-action-panel{padding:12px!important;border:1px solid rgba(215,170,79,.42)!important;border-left:3px solid #2cdce2!important;border-radius:3px!important;background:linear-gradient(90deg,rgba(42,220,226,.08),rgba(255,255,255,.025) 58%,rgba(255,65,109,.055))!important}
+html body #modal .modal.end-game-confirm-modal{box-sizing:border-box!important;width:min(520px,calc(100vw - 32px))!important;padding:18px 20px 16px!important;overflow:hidden!important;border:1px solid rgba(215,170,79,.72)!important;border-left:3px solid #2cdce2!important;border-right:3px solid #ff416d!important;border-radius:8px!important;clip-path:none!important;background:linear-gradient(112deg,#071a23 0%,#070d16 52%,#180b17 100%)!important;box-shadow:0 28px 70px #000d,inset 0 0 28px rgba(42,220,226,.045)!important}
+  html body #modal .modal.end-game-confirm-modal #modal-title{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;min-height:35px!important;margin:0 0 12px!important;padding:4px 12px 6px!important;color:#f3d57f!important;font:700 14px/1.15 'Cinzel',serif!important;letter-spacing:.1em!important;text-align:center!important;border:1px solid rgba(215,170,79,.58)!important;transform:none!important;background:linear-gradient(90deg,rgba(42,220,226,.09),transparent 56%,rgba(255,65,109,.07))!important}
+  html body #modal .modal.end-game-confirm-modal #modal-title::after{display:none!important;content:none!important;width:0!important;height:0!important}
+html body #modal .modal.end-game-confirm-modal #modal-body{padding:8px 12px 14px!important;border:0!important;background:none!important}
+  html body #modal .modal.end-game-confirm-modal .end-game-confirm{position:relative!important;display:block!important;min-height:48px!important;color:#dbe9eb!important;text-align:center!important}
+  html body #modal .modal.end-game-confirm-modal .end-game-confirm-mark{position:absolute!important;left:6px!important;top:50%!important;display:grid!important;place-items:center!important;width:38px!important;height:38px!important;border:1px solid #f15379!important;border-radius:50%!important;color:#ff7495!important;font:900 18px/1 'Cinzel',serif!important;box-shadow:0 0 14px rgba(244,60,114,.18)!important;transform:translateY(-50%)!important}
+  html body #modal .modal.end-game-confirm-modal .end-game-confirm>div{box-sizing:border-box!important;width:100%!important;padding:0 54px!important;text-align:center!important}
+ html body #modal .modal.end-game-confirm-modal .end-game-confirm strong{display:block!important;color:#f7e6bb!important;font:700 16px/1.2 'Cinzel',serif!important}
+  html body #modal .modal.end-game-confirm-modal .end-game-confirm strong{text-align:center!important}
+  html body #modal .modal.end-game-confirm-modal .end-game-confirm p{margin:7px 0 0!important;color:#aebfc4!important;font-size:13px!important;line-height:1.5!important;text-align:center!important}
+  html body #modal .modal.end-game-confirm-modal #modal-acts{display:flex!important;align-items:center!important;justify-content:center!important;margin:0!important;padding:10px 12px 2px!important;border:0!important;border-top:1px solid rgba(215,170,79,.18)!important;gap:10px!important}
+ html body #modal .modal.end-game-confirm-modal #modal-acts .btn{border-color:#d7aa4f!important;box-shadow:0 0 10px rgba(215,170,79,.16)!important}
+html body #modal .modal.visual-card-picker-modal :is(#modal-title,.modal-title),
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal) :is(#modal-title,.modal-title){color:#f2d47e!important;border-bottom:1px solid rgba(215,170,79,.48)!important;letter-spacing:.1em!important}
+html body #modal .modal.visual-card-picker-modal :is(.visual-picker-v2,.visual-page-canvas,.canvas-card-gallery-surface),
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal) :is(.sell-card-shell,.sell-card-grid){background:rgba(3,10,16,.72)!important;border-color:rgba(40,217,223,.28)!important;border-radius:0!important}
+
+/* 2026-08-28: clean board-console windows for hands, card pickers and details.
+   These use straight edges; the clipped/dented HUD silhouette is deliberately
+   reserved for the permanent board panels. */
+html body #modal .modal:is(
+  .hand-viewer-modal,
+  .visual-card-picker-modal,
+  .sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+  .hand-limit-discard-modal,
+  .card-detail-modal
+),
+html body #modal .modal:has(.canvas-card-gallery-surface),
+html body #modal .modal:has(.visual-picker-v2){
+  position:relative!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  padding:18px 20px 16px!important;
+  border:1px solid rgba(215,170,79,.72)!important;
+  border-radius:8px!important;
+  clip-path:none!important;
+  background:
+    linear-gradient(90deg,rgba(42,220,226,.12),transparent 18%,transparent 82%,rgba(255,65,109,.11)),
+    linear-gradient(155deg,#071722 0%,#050a12 54%,#120812 100%)!important;
+  box-shadow:
+    0 28px 70px rgba(0,0,0,.86),
+    inset 3px 0 0 rgba(42,220,226,.78),
+    inset -3px 0 0 rgba(255,65,109,.72),
+    inset 0 1px 0 rgba(255,255,255,.045),
+    inset 0 -1px 0 rgba(255,255,255,.035)!important;
+}
+html body #modal .modal:is(
+  .hand-viewer-modal,
+  .visual-card-picker-modal,
+  .sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+  .hand-limit-discard-modal,
+  .card-detail-modal
+)::before,
+html body #modal .modal:is(
+  .hand-viewer-modal,
+  .visual-card-picker-modal,
+  .sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+  .hand-limit-discard-modal,
+  .card-detail-modal
+)::after,
+html body #modal .modal:has(.canvas-card-gallery-surface)::before,
+html body #modal .modal:has(.canvas-card-gallery-surface)::after,
+html body #modal .modal:has(.visual-picker-v2)::before,
+html body #modal .modal:has(.visual-picker-v2)::after{
+  content:none!important;
+  display:none!important;
+  clip-path:none!important;
+}
+html body #modal .modal:is(
+  .hand-viewer-modal,
+  .visual-card-picker-modal,
+  .sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+  .hand-limit-discard-modal,
+  .card-detail-modal
+) :is(#modal-title,.modal-title){
+  display:flex!important;
+  align-items:center!important;
+  min-height:42px!important;
+  margin:-2px 0 14px!important;
+  padding:6px 14px 4px!important;
+  border:1px solid rgba(215,170,79,.58)!important;
+  background:linear-gradient(90deg,rgba(42,220,226,.1),transparent 42%,rgba(255,65,109,.07))!important;
+  color:#f3d57f!important;
+  font:700 17px/1.1 'Cinzel',serif!important;
+  letter-spacing:.11em!important;
+  text-shadow:0 2px 12px rgba(0,0,0,.8)!important;
+}
+html body #modal .modal:is(.hand-viewer-modal,.visual-card-picker-modal,.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),.hand-limit-discard-modal) #modal-body{
+  min-height:0!important;
+  padding:12px!important;
+  border:1px solid rgba(42,220,226,.18)!important;
+  border-radius:5px!important;
+  background:
+    radial-gradient(circle at 18% 0,rgba(42,220,226,.075),transparent 34%),
+    radial-gradient(circle at 90% 100%,rgba(255,65,109,.065),transparent 38%),
+    rgba(2,7,13,.68)!important;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.3)!important;
+}
+html body #modal .modal:is(.hand-viewer-modal,.visual-card-picker-modal,.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),.hand-limit-discard-modal) #modal-acts{
+  margin-top:14px!important;
+  padding:12px 4px 0!important;
+  border-top:1px solid rgba(215,170,79,.2)!important;
+}
+html body #modal .modal:is(.hand-viewer-modal,.visual-card-picker-modal,.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),.hand-limit-discard-modal,.card-detail-modal) #modal-acts .btn,
+html body .card-info-overlay .cio-acts .btn{
+  min-width:112px!important;
+  min-height:36px!important;
+  border:1px solid rgba(215,170,79,.58)!important;
+  border-radius:4px!important;
+  clip-path:none!important;
+  background:linear-gradient(180deg,rgba(25,42,51,.96),rgba(5,10,16,.98))!important;
+  color:#efd47f!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),0 7px 18px rgba(0,0,0,.28)!important;
+  font:700 10px/1 'Cinzel',serif!important;
+  letter-spacing:.11em!important;
+}
+
+/* Hand viewer: turn the sparse gallery into a deliberate framed card shelf. */
+html body #modal .hand-viewer-window{
+  grid-template-columns:repeat(auto-fit,126px)!important;
+  justify-content:center!important;
+  gap:18px!important;
+  min-height:338px!important;
+  padding:20px 18px!important;
+  border:0!important;
+  border-radius:0!important;
+  background-image:linear-gradient(rgba(215,170,79,.075) 1px,transparent 1px)!important;
+  background-size:100% 86px!important;
+}
+html body #modal .hand-viewer-card{
+  border:1px solid rgba(224,190,99,.72)!important;
+  border-radius:6px!important;
+  outline:1px solid rgba(42,220,226,.14)!important;
+  outline-offset:3px!important;
+  background:linear-gradient(145deg,#101924,#05080d)!important;
+  box-shadow:0 13px 24px rgba(0,0,0,.68),0 0 18px rgba(42,220,226,.06)!important;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+}
+html body #modal .hand-viewer-card.is-revealed:hover{
+  z-index:2!important;
+  transform:translateY(-6px) scale(1.025)!important;
+  border-color:#f0d27b!important;
+  box-shadow:0 20px 34px rgba(0,0,0,.76),0 0 20px rgba(42,220,226,.18)!important;
+}
+html body #modal .hand-viewer-card.is-hidden{
+  opacity:1!important;
+  border-color:rgba(255,65,109,.5)!important;
+  outline-color:rgba(255,65,109,.12)!important;
+}
+
+/* Shared picker cards retain their existing sizes and information, but gain a
+   consistent presentation frame and readable selection states. */
+html body #modal .modal:is(.visual-card-picker-modal,.hand-limit-discard-modal) :is(.visual-mc,.mc,.picker-card,.card-pick),
+html body #modal .modal:has(.canvas-card-gallery-surface) :is(.visual-mc,.mc,.picker-card,.card-pick){
+  border-radius:6px!important;
+  clip-path:none!important;
+  box-shadow:0 10px 22px rgba(0,0,0,.58)!important;
+}
+html body #modal .modal:is(.visual-card-picker-modal,.hand-limit-discard-modal) :is(.visual-mc,.mc,.picker-card,.card-pick):hover{
+  border-color:#efd078!important;
+  box-shadow:0 16px 28px rgba(0,0,0,.7),0 0 16px rgba(42,220,226,.16)!important;
+}
+html body #modal .modal:is(.visual-card-picker-modal,.hand-limit-discard-modal) :is(.selected,.sel,[aria-pressed="true"]){
+  box-shadow:0 0 0 2px #28dce2,0 15px 30px rgba(0,0,0,.72),0 0 22px rgba(42,220,226,.24)!important;
+}
+html body #modal .modal.hand-limit-discard-modal .hand-limit-card[aria-pressed="true"]{
+  box-shadow:none!important;
+}
+
+/* Card information: same console shell, with a dedicated art bay and dossier. */
+html body #modal .modal.card-detail-modal{
+  width:min(900px,92vw)!important;
+  max-width:min(900px,92vw)!important;
+}
+html body #modal .modal.card-detail-modal #modal-body{
+  padding:0!important;
+  overflow:visible!important;
+  background:transparent!important;
+}
+html body #modal .modal.card-detail-modal .cd-wrap,
+html body .card-info-overlay .cd-wrap{
+  display:grid!important;
+  grid-template-columns:minmax(230px,300px) minmax(0,1fr)!important;
+  align-items:stretch!important;
+  gap:0!important;
+  overflow:hidden!important;
+  border:1px solid rgba(42,220,226,.2)!important;
+  border-radius:6px!important;
+  background:rgba(2,7,13,.62)!important;
+}
+html body #modal .modal.card-detail-modal .cd-img,
+html body .card-info-overlay .cd-img{
+  display:grid!important;
+  place-items:center!important;
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-height:390px!important;
+  padding:18px!important;
+  border:0!important;
+  border-right:1px solid rgba(215,170,79,.34)!important;
+  border-radius:0!important;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(42,220,226,.12),transparent 48%),
+    linear-gradient(145deg,#0a1b27,#03070c 68%,#160913)!important;
+}
+html body #modal .modal.card-detail-modal .cd-img :is(img,canvas),
+html body .card-info-overlay .cd-img :is(img,canvas){
+  width:100%!important;
+  height:100%!important;
+  max-height:430px!important;
+  object-fit:contain!important;
+  border:1px solid rgba(215,170,79,.45)!important;
+  border-radius:5px!important;
+  box-shadow:0 18px 35px rgba(0,0,0,.68)!important;
+}
+html body #modal .modal.card-detail-modal .cd-info,
+html body .card-info-overlay .cd-info{
+  display:flex!important;
+  flex-direction:column!important;
+  min-width:0!important;
+  padding:24px 26px 20px!important;
+  background:
+    linear-gradient(90deg,rgba(215,170,79,.045),transparent 20%),
+    rgba(7,11,18,.9)!important;
+}
+html body #modal .modal.card-detail-modal .cd-name,
+html body .card-info-overlay .cd-name{
+  margin:0 0 6px!important;
+  color:#f4e6c5!important;
+  font:700 24px/1.12 'Cinzel',serif!important;
+  letter-spacing:.025em!important;
+}
+html body #modal .modal.card-detail-modal .cd-name.cd-name-with-audio,html body .card-info-overlay .cd-name.cd-name-with-audio{display:flex!important;align-items:flex-start!important;flex-wrap:wrap!important;gap:7px!important;overflow:visible!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-name.cd-name-with-audio>span:first-child{min-width:0!important;flex:1 1 240px!important;overflow-wrap:anywhere!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-expiry{position:relative!important;display:inline-grid!important;place-items:center!important;flex:0 0 34px!important;width:34px!important;height:34px!important;margin:0 0 0 auto!important;padding:0!important;overflow:visible!important;border:1px solid rgba(255,87,105,.72)!important;border-radius:50%!important;background:rgba(78,8,19,.72)!important;cursor:help!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-heart{position:relative!important;color:#ff7180!important;font:900 25px/1 Georgia,serif!important;text-shadow:0 0 9px rgba(255,52,78,.82)!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-heart::after{content:""!important;position:absolute!important;left:50%!important;top:0!important;width:2px!important;height:100%!important;background:#ffe3df!important;clip-path:polygon(25% 0,100% 0,55% 35%,100% 52%,45% 100%,0 100%,38% 56%,0 36%)!important;transform:translateX(-50%) rotate(8deg)!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-tooltip{position:absolute!important;left:auto!important;right:-1px!important;top:calc(100% + 9px)!important;z-index:20!important;display:block!important;width:max-content!important;max-width:min(390px,calc(100vw - 48px))!important;padding:12px 15px!important;box-sizing:border-box!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(-4px)!important;border:1px solid rgba(255,74,96,.62)!important;border-left:3px solid #ff526b!important;border-radius:4px!important;background:rgba(29,5,12,.98)!important;box-shadow:0 12px 30px #000c!important;color:#f5dcda!important;font:700 13px/1.35 'Cinzel',serif!important;white-space:normal!important;text-align:left!important;transition:opacity .14s ease,transform .14s ease!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-expiry:is(:hover,:focus-visible) .cd-low-morale-tooltip{opacity:1!important;visibility:visible!important;transform:translateY(0)!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-tooltip .cd-low-morale-expiry-label{color:#ff8894!important;font:800 10px/1 'Cinzel',serif!important;letter-spacing:.1em!important;text-transform:uppercase!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-tooltip strong{color:#ffe3dd!important;font:700 13px/1.2 'Cinzel',serif!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-tooltip>span:last-child{font-size:11px!important;line-height:1.35!important;color:#cbb9b8!important}
+html body #modal .modal.card-detail-modal .cd-ability,
+html body .card-info-overlay .cd-ability{
+  margin:0 0 16px!important;
+  color:#72dfe4!important;
+  font:italic 14px/1.3 'Crimson Pro',serif!important;
+}
+html body #modal .modal.card-detail-modal .cd-pills,
+html body .card-info-overlay .cd-pills{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:7px!important;
+  margin:0 0 18px!important;
+  padding:10px!important;
+  border-top:1px solid rgba(215,170,79,.22)!important;
+  border-bottom:1px solid rgba(215,170,79,.22)!important;
+  background:rgba(255,255,255,.018)!important;
+}
+html body #modal .modal.card-detail-modal .pill,
+html body .card-info-overlay .pill{
+  box-sizing:border-box!important;
+  padding:5px 9px!important;
+  border:1px solid rgba(42,220,226,.3)!important;
+  border-left-color:rgba(42,220,226,.68)!important;
+  border-right-color:rgba(42,220,226,.68)!important;
+  border-radius:3px!important;
+  clip-path:none!important;
+  background:rgba(7,24,34,.88)!important;
+  color:#c8e8e8!important;
+  font:700 9px/1 'Cinzel',serif!important;
+  letter-spacing:.07em!important;
+}
+html body #modal .modal.card-detail-modal .pill.fate,
+html body .card-info-overlay .pill.fate{
+  border-color:rgba(215,170,79,.55)!important;
+  border-left-color:rgba(215,170,79,.82)!important;
+  border-right-color:rgba(215,170,79,.82)!important;
+  color:#f2d277!important;
+}
+html body #modal .modal.card-detail-modal .cd-eff,
+html body .card-info-overlay .cd-eff{
+  flex:1 1 auto!important;
+  margin:0!important;
+  padding:16px 18px!important;
+  border:0!important;
+  border-left:3px solid #28dce2!important;
+  border-radius:0 4px 4px 0!important;
+  background:linear-gradient(90deg,rgba(42,220,226,.09),rgba(255,255,255,.018))!important;
+  color:#e8e3d7!important;
+  font:400 15px/1.5 'Crimson Pro',serif!important;
+}
+html body #modal .modal.card-detail-modal .cd-flavor,
+html body .card-info-overlay .cd-flavor{
+  margin-top:16px!important;
+  padding:13px 4px 0!important;
+  border-top:1px solid rgba(255,65,109,.22)!important;
+  color:#a9a3ae!important;
+  font:italic 13px/1.35 'Crimson Pro',serif!important;
+}
+html body .card-info-overlay .cio-modal{
+  width:min(900px,92vw)!important;
+  max-width:min(900px,92vw)!important;
+  padding:18px 20px 16px!important;
+  overflow:hidden auto!important;
+  border:1px solid rgba(215,170,79,.72)!important;
+  border-radius:8px!important;
+  clip-path:none!important;
+  background:linear-gradient(155deg,#071722,#050a12 54%,#120812)!important;
+  box-shadow:0 28px 70px rgba(0,0,0,.86),inset 3px 0 #28dce2,inset -3px 0 #ff416d,inset 0 1px rgba(255,255,255,.045),inset 0 -1px rgba(255,255,255,.035)!important;
+}
+html body .card-info-overlay .cio-title{
+  min-height:38px!important;
+  margin:0 0 14px!important;
+  padding:5px 12px 7px!important;
+  border:1px solid rgba(215,170,79,.58)!important;
+  color:#f3d57f!important;
+  font:700 17px/1.2 'Cinzel',serif!important;
+  letter-spacing:.08em!important;
+}
+html body .card-info-overlay .cio-acts{
+  margin-top:14px!important;
+  padding-top:12px!important;
+  border-top:1px solid rgba(215,170,79,.2)!important;
+}
+/* Remove only the inherited floating gold hairline; keep the intentional
+   header divider directly under the title. */
+html body #modal .modal:is(.hand-viewer-modal,.visual-card-picker-modal,.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),.hand-limit-discard-modal,.card-detail-modal) :is(#modal-title,.modal-title)::after,
+html body #modal .modal:has(.canvas-card-gallery-surface) :is(#modal-title,.modal-title)::after,
+html body #modal .modal:has(.visual-picker-v2) :is(#modal-title,.modal-title)::after,
+html body .card-info-overlay .cio-title::after{
+  content:none!important;
+  display:none!important;
+  width:0!important;
+  height:0!important;
+  margin:0!important;
+  background:none!important;
+}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal) :is(#modal-title,.modal-title){
+  box-sizing:border-box!important;
+  padding:5px 14px 7px!important;
+  border:1px solid rgba(215,170,79,.58)!important;
+}
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal)::before,
+html body #modal .modal:is(.deck-info-modal,.discard-gallery-modal,.discard-empty-modal)::after{
+  content:none!important;
+  display:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+html body #modal .modal.deck-info-modal,
+html body #modal .modal.deck-info-modal .di-window{
+  outline:0!important;
+  outline-offset:0!important;
+}
+html body #modal .modal.deck-info-modal .di-window{
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+/* Remove the legacy near-perimeter inner outline on these windows.  This is
+   separate from the title divider and from the modal's outer frame. */
+html body #modal .modal.hand-viewer-modal::before,
+html body #modal .modal.hand-viewer-modal::after,
+html body #modal .modal.visual-card-picker-modal::before,
+html body #modal .modal.visual-card-picker-modal::after,
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal)::before,
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal)::after,
+html body #modal .modal.hand-limit-discard-modal::before,
+html body #modal .modal.hand-limit-discard-modal::after,
+html body #modal .modal.card-detail-modal::before,
+html body #modal .modal.card-detail-modal::after,
+html body #modal .modal:has(.canvas-card-gallery-surface)::before,
+html body #modal .modal:has(.canvas-card-gallery-surface)::after,
+html body #modal .modal:has(.visual-picker-v2)::before,
+html body #modal .modal:has(.visual-picker-v2)::after,
+html body .card-info-overlay .cio-modal::before,
+html body .card-info-overlay .cio-modal::after{
+  content:none!important;
+  display:none!important;
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+/* The remaining ring is supplied by legacy inset shadows/outlines on the
+   modal element itself (not by a pseudo-element). Keep the outer shadow and
+   cyan/maroon edge accents, but remove every inner perimeter ring. */
+html body #modal .modal.hand-viewer-modal,
+html body #modal .modal.visual-card-picker-modal,
+html body #modal .modal.sell-card-picker-modal:not(.legacy-sell-card-picker-modal),
+html body #modal .modal.hand-limit-discard-modal,
+html body #modal .modal.card-detail-modal,
+html body #modal .modal:has(.canvas-card-gallery-surface),
+html body #modal .modal:has(.visual-picker-v2),
+html body .card-info-overlay .cio-modal{
+  outline:0!important;
+  outline-offset:0!important;
+  box-shadow:0 28px 70px rgba(0,0,0,.86),inset 3px 0 #28dce2,inset -3px 0 #ff416d!important;
+}
+/* Keep picker navigation above the gallery; the oversized gallery used to
+   cover the Back/Next controls at the bottom of the modal. */
+html body #modal .modal.visual-card-picker-modal{
+  overflow:visible!important;
+}
+html body #modal .modal.visual-card-picker-modal #modal-body,
+html body #modal .modal.visual-card-picker-modal .modal-body{
+  overflow:visible!important;
+}
+html body #modal .modal.visual-card-picker-modal :is(#visual-pagination,.canvas-card-gallery-footer){
+  position:relative!important;
+  z-index:20!important;
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+html body #modal .modal.visual-card-picker-modal :is(.visual-page-canvas,.canvas-card-gallery-surface){
+  position:relative!important;
+  z-index:1!important;
+}
+/* Give the picker a real footer zone so its Back/Next row is not clipped by
+   the shell's previous 760px cap. */
+html body #modal .modal.visual-card-picker-modal{
+  max-height:calc(100vh - 24px)!important;
+  padding-bottom:30px!important;
+}
+html body #modal .modal.visual-card-picker-modal :is(.visual-page-canvas,.canvas-card-gallery-surface){
+  max-height:min(560px,calc(100vh - 250px))!important;
+}
+html body #modal .modal.visual-card-picker-modal :is(#visual-pagination,.canvas-card-gallery-footer){
+  min-height:34px!important;
+  margin-bottom:6px!important;
+}
+/* A one-page discard gallery has an empty footer. The shared picker footer
+   was still reserving the red-circled band beneath the card canvas. */
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal{
+  padding-bottom:14px!important;
+}
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal #modal-body{
+  display:block!important;
+  box-sizing:border-box!important;
+  height:auto!important;
+  min-height:0!important;
+  padding:12px!important;
+  overflow:hidden!important;
+  border:1px solid rgba(42,220,226,.2)!important;
+  border-radius:4px!important;
+  background:rgba(2,7,13,.72)!important;
+  box-shadow:inset 0 0 28px rgba(0,0,0,.32)!important;
+}
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal .canvas-card-gallery-footer:empty,
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal .canvas-card-gallery>p{
+  display:none!important;
+  min-height:0!important;
+  height:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal #modal-acts{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+}
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal #modal-acts>.btn:last-child{
+  order:2!important;
+  margin-left:auto!important;
+}
+html body #modal .modal.visual-card-picker-modal.discard-gallery-modal #modal-acts .canvas-card-gallery-footer{
+  order:1!important;
+  position:static!important;
+  z-index:auto!important;
+  display:flex!important;
+  flex:0 0 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  margin:0 auto 0 0!important;
+  padding:0!important;
+}
+@media(max-width:720px){
+  html body #modal .modal.card-detail-modal .cd-wrap,
+  html body .card-info-overlay .cd-wrap{grid-template-columns:1fr!important}
+  html body #modal .modal.card-detail-modal .cd-img,
+  html body .card-info-overlay .cd-img{width:min(250px,72vw)!important;min-height:0!important;justify-self:center!important;border-right:0!important;border-bottom:1px solid rgba(215,170,79,.34)!important}
+}
+
+/* Opponent morale details use the opponent's red visual language. */
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"][data-side="opp"]{
+  border-color:#d7aa4f!important;
+  background:linear-gradient(145deg,#210a14f7,#0c0910f7)!important;
+  box-shadow:0 18px 45px #000d!important;
+}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"][data-side="opp"] header{
+  border-bottom-color:rgba(215,170,79,.5)!important;
+}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"][data-side="opp"] .mp-morale-rule.active{
+  background:linear-gradient(270deg,transparent 0,rgba(255,65,109,.04) 7%,rgba(255,65,109,.15) 24%,rgba(255,65,109,.08) 56%,transparent 100%)!important;
+}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"][data-side="opp"] .mp-morale-rule.active b{
+  color:#ff8ba5!important;
+}
+
+/* Remove only the thin inner perimeter from match chat. Intentional horizontal
+   section dividers remain on the header, switcher, matchup, and input row. */
+html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-chat-panel::before{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
+/* Final active-landscape typography authority. */
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{margin:0 0 3px!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{font:italic 10px/1.22 Georgia,serif!important;letter-spacing:0!important;}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note{margin:3px 0 0!important;font:700 9.5px/1.15 'Cinzel',serif!important;letter-spacing:.015em!important;}
+
+/* Landscape-specific compact-panel fitting. */
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb2{
+  padding-bottom:2px!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb2 .landscape-alpine-consolidations{
+  position:relative!important;
+  top:2px!important;
+  margin-top:3px!important;
+  padding-bottom:1px!important;
+  overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17{
+  box-sizing:border-box!important;
+  display:flex!important;
+  height:100%!important;
+  min-height:0!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:2px 0!important;
+  overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-name{
+  flex:0 0 auto!important;
+  margin:0 0 2px!important;
+  font-size:10.5px!important;
+  line-height:1.05!important;
+  overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-desc{
+  flex:0 1 auto!important;
+  max-width:100%!important;
+  font-size:8px!important;
+  line-height:1.08!important;
+  overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-whisper-action{
+  flex:0 0 20px!important;
+  width:100%!important;
+  min-height:20px!important;
+  margin:3px 0 0!important;
+  overflow:visible!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-whisper-button{
+  box-sizing:border-box!important;
+  min-height:20px!important;
+  max-height:20px!important;
+  padding:2px 6px!important;
+  font-size:6.5px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+
+/* Three-zone board picker only. Every selector is anchored to the generated
+   count class so single-zone picker geometry remains unchanged. */
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3{
+  width:min(1820px,96vw)!important;
+  max-width:min(1820px,96vw)!important;
+  padding-left:14px!important;
+  padding-right:14px!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 #modal-body{
+  padding-left:6px!important;
+  padding-right:6px!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-picker.is-multi-zone .board-target-zones{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:0!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone{
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-rows:24px repeat(3,minmax(0,1fr))!important;
+  width:100%!important;
+  height:clamp(280px,calc(94vh - 390px),500px)!important;
+  min-width:0!important;
+  min-height:0!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  border-radius:0!important;
+  border-top:0!important;
+  border-bottom:0!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone-title{
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  height:24px!important;
+  margin:0!important;
+  padding:0 4px!important;
+  overflow:hidden!important;
+  border:0!important;
+  border-bottom:1px solid rgba(201,168,76,.38)!important;
+  color:#d9b85d!important;
+  font:700 0/1 'Cinzel',serif!important;
+  letter-spacing:.12em!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone-title::after{
+  font-size:11px!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(1) .board-target-zone-title::after{content:'ZONE I'!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(2) .board-target-zone-title::after{content:'ZONE II'!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(3) .board-target-zone-title::after{content:'ZONE III'!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:not(:last-child){
+  border-right:0!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-row{
+  grid-template-columns:24px minmax(0,1fr)!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-cells{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:0!important;
+  gap:0!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-cell,
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-card,
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-card img{
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  min-height:0!important;
+  max-height:100%!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-cell{
+  height:100%!important;
+  aspect-ratio:auto!important;
+  overflow:hidden!important;
+}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-card,
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-card img{
+  height:100%!important;
+  object-fit:contain!important;
+}

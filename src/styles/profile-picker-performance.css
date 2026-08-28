@@ -1,0 +1,68 @@
+/* Keep the title artwork visible while the portrait tools are open, but turn it
+   into a stable paint layer instead of continuously compositing filtered UI. */
+body.profile-portrait-tool-open #s-title .screen-bg{
+  contain:strict!important;
+  transform:translateZ(0)!important;
+  backface-visibility:hidden!important;
+}
+
+body.profile-portrait-tool-open #s-title .screen-bg img{
+  display:block!important;
+  visibility:visible!important;
+  opacity:.78!important;
+  filter:none!important;
+  transform:none!important;
+  transition:none!important;
+  animation:none!important;
+  will-change:auto!important;
+}
+
+body.profile-portrait-tool-open #s-title .title-overlay{
+  display:block!important;
+  visibility:visible!important;
+  background:rgba(5,6,10,.3)!important;
+  filter:none!important;
+  transition:none!important;
+  animation:none!important;
+  will-change:auto!important;
+}
+
+/* Preserve the artwork and its dark readability wash, but do not composite the
+   title menus, profile card, challenges, or chat underneath an opaque modal. */
+body.profile-portrait-tool-open #s-title > :not(.screen-bg):not(.title-overlay){
+  visibility:hidden!important;
+  animation:none!important;
+  transition:none!important;
+}
+
+body.profile-portrait-tool-open #s-title::before,
+body.profile-portrait-tool-open #s-title::after{
+  display:none!important;
+  content:none!important;
+}
+
+body.profile-portrait-tool-open #s-title :is(.title-content,.title-profile,.daily-challenges-panel,.social-mini-panel,.title-social-panel){
+  animation-play-state:paused!important;
+  transition:none!important;
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+body.profile-portrait-tool-open #modal{
+  background:rgba(0,0,0,.48)!important;
+  animation:none!important;
+  transition:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+body.profile-portrait-tool-open #modal .modal{
+  contain:layout paint style!important;
+  animation:none!important;
+  transition:none!important;
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.48)!important;
+}

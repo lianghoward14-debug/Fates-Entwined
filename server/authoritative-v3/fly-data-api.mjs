@@ -240,7 +240,11 @@ export function createFlyDataApi({readBody, writeJson}){
       }
       if(req.method==='GET' && url.pathname==='/api/leaderboards/challenger'){
         await verifiedUid(req); const limit=Math.min(200,Math.max(1,Number(url.searchParams.get('limit')||100)));
-        const leaderboard=[...profiles.values()].sort((a,b)=>Number(b.challengerElo||600)-Number(a.challengerElo||600)).slice(0,limit).map(clone);
+        const leaderboard=[...profiles.values()].filter(entry=>{
+          const identity=[entry?.uid,entry?.id,entry?.aiId,entry?.username,entry?.name,entry?.displayName,entry?.chosenUsername,entry?.baseCode]
+            .filter(Boolean).join(' ').toLowerCase();
+          return !/(codex|smoke|diagnostic|client[-_\s]*resolved|authority|fly[-_\s]*(?:random[-_\s]*)?queue|queue[-_\s]*bot|(^|[^a-z0-9])test([^a-z0-9]|$))/i.test(identity);
+        }).sort((a,b)=>Number(b.challengerElo||600)-Number(a.challengerElo||600)).slice(0,limit).map(clone);
         writeJson(res,200,{ok:true,leaderboard}); return true;
       }
       if(req.method==='POST' && url.pathname==='/api/challenger-results'){

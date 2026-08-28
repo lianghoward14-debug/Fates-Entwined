@@ -75,7 +75,7 @@ const CARDS = [
   {id:'04',name:'Zoe',ability:'INTJ Stare',type:'Initiator',aff:'reality',
     fate:6,cost:2,rarity:'triangle',
     effect:'Select one square in this card\'s zone; your opponent can no longer Consolidate on or from that square.',
-    flavor:'"She\'s definitely Caitlyn\'s mom"',img:'4.png'},
+    flavor:'"She\'s definitely Caitlyn\'s mom"',img:'4.png?v=20260826a'},
   {id:'05',name:'17th British Regiment of Africa',ability:'Liberators of Rwanda',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, select one card in this card\'s zone; it gains 3 Fate permanently.',
@@ -127,7 +127,7 @@ const CARDS = [
   {id:'17',name:'Carolyn',ability:'Entropic Chaos',type:'Initiator',aff:'expanded_worlds',
     fate:2,cost:3,rarity:'triangle',
     effect:'Select any one open square on the field; that square cannot be used for the rest of the game.',
-    flavor:'"All logic breaks down, and all possibilities become equalized"',img:'17.png'},
+    flavor:'"All logic breaks down, and all possibilities become equalized"',img:'17.png?v=20260826a'},
   {id:'18',name:'1st US Marines',ability:'Semper Fidelis',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, your opponent\'s supporters next turn cannot activate their effects. You can only activate this effect three times a game',
@@ -170,8 +170,8 @@ const CARDS = [
     flavor:'"An eager bookworm, always willing to raid the local library for any piece of Old Age history she can snag"',img:'27.png'},
   {id:'28',name:'2nd Polish-Lithuanian Army',ability:'The Army of Exiles',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
-    effect:'This card is able to be set from the deck. This effect only works once a turn, twice a game.',
-    flavor:'"The entire Polish Army fights from outside their own homeland - and yet they fight no less patriotically"',img:'28.png'},
+    effect:'Once per turn, this card can be set from the deck without counting towards the Supporter set limit for that turn.',
+    flavor:'"The entire Polish Army fights from outside their own homeland - and yet they fight no less patriotically"',img:'28.png?v=20260829a'},
   {id:'29',name:'Dylan Kirby',ability:'Leader of the Free World',type:'Initiator',aff:'third_great_war',
     fate:3,cost:1,rarity:'square',
     effect:'Add up to two "Third Great War" cards from the deck or discard pile to your hand.',
@@ -197,9 +197,9 @@ const CARDS = [
     effect:'Whenever a card would move into this card\'s zone by any effect, it permanently gains 3 Fate. Setting a card does not count.',
     flavor:'"Rozsi\'s charisma counterparts his sister\'s administrative abilities. Together, the Twin Monarchs are a capable duo"',img:'34.png'},
   {id:'35',name:'Alexander the Magnificient',ability:'Hellenic Glory',type:'Dauntless',aff:'third_great_war',
-      fate:0,cost:4,xFate:true,rarity:'triangle',
-      effect:'This card\'s Fate is equal to the combined current Fate value of all Supporters you control in this zone.',
-      flavor:'"He is the heir to Alexander the Great, not by blood but by blade"',img:'35.png'},
+      fate:12,cost:3,rarity:'triangle',
+      effect:'Every Morale Calculation, half of this card\'s total Fate is inflicted as Morale Damage.',
+      flavor:'"He is the heir to Alexander the Great, not by blood but by blade"',img:'35.png?v=20260828a'},
   {id:'36',name:'Marie L\'amboure',ability:'Deterrance',type:'Improvisor',aff:'third_great_war',
     fate:6,cost:3,rarity:'triangle',
     effect:'Whenever your opponent would Consolidate a card in this zone, reduce the zone\'s total Fate by 4.',
@@ -231,11 +231,11 @@ const CARDS = [
   {id:'43',name:'Mark Kemper',ability:'Elephant Movie 2',type:'Initiator',aff:'reality',
     fate:4,cost:2,rarity:'triangle',
     effect:'Add a new safe square underneath the safe zone in this card\'s zone. Later Marks in that zone add to the same row until it is full.',
-    flavor:'"The lucid mastermind behind Elephant Movie One"',img:'43.png'},
+    flavor:'"The lucid mastermind behind Elephant Movie One"',img:'43.png?v=20260826a'},
   {id:'44',name:'Soviet Grenadiers',ability:'The Bears of Russia',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',effectClass:'ADJACENCY_BONUS',
-    effect:'While this card is adjacent to a Dauntless card, both that card and this card gain 3 Fate.',
-    flavor:'"Only the strongest and tallest men are worthy of the title, Grenadier"',img:'44.png'},
+    effect:'While this card is on the field, declare a card type. If this card is adjacent to a card of that type, this card and one random matching adjacent card gain 3 Fate (max 1 target).',
+    flavor:'"Only the strongest and tallest men are worthy of the title, Grenadier"',img:'44.png?v=20260828a'},
   {id:'45',name:'Chingachlook',ability:'The Last Mohican',type:'Dauntless',aff:'eventide',
     fate:13,cost:2,rarity:'triangle',
     effect:'This is the only character card you can control in this zone. Only one copy of this card can be played.',
@@ -482,9 +482,9 @@ const CARDS = [
     effect:'When this card is added to your hand by being searched or drawn, a second copy of it appears. When set, this card copies the effect of any card in your hand or deck',
     flavor:'"Empathetic and brave, a master of disguises-Taylor is one of ALPINE\'s most valuable operatives"',img:'bh5.png'},
   {id:'bh06',name:'Achille Laurent',ability:'Adaptive Tactics',type:'Initiator',aff:'third_great_war',
-    fate:2,cost:1,rarity:'triangle',set:'brave_horizons',
+    fate:2,cost:2,rarity:'triangle',set:'brave_horizons',
     effect:'This effect cannot be activated until turn 6. When set, add 3 "Adaptive Tactics" tokens to your hand. These tokens have no set limit and 2 Fate each. When they are set, they can become any card type, placement type, affiliation, and rarity',
-    flavor:'"The Swallow of France is known for his ability to adapt to any battlefield"',img:'bh6.png'},
+    flavor:'"The Swallow of France is known for his ability to adapt to any battlefield"',img:'bh6.png?v=20260825b'},
   {id:'bh07',name:'Agent-K',ability:'Overclock',type:'Coordinator',aff:'expanded_worlds',
     fate:3,cost:3,rarity:'square',set:'brave_horizons',effectClass:'ADJACENCY_BONUS',
     effect:'For each Dauntless card this card is adjacent to, all cards you control in this zone gain 2 Fate.',
@@ -605,7 +605,7 @@ const LANDSCAPES = {
     id:'igb1',
     name:'Pacifica: Peaceful Seas',
     shortName:'Peaceful Seas',
-    description:'No effect.'
+    description:'No Morale Damage is inflicted this game.'
   },
   igb2: {
     id:'igb2',
@@ -745,7 +745,8 @@ let G = {
     {name:'Player 1', deck:[], hand:[], discard:[], color:'var(--p1)'},
     {name:'Player 2', deck:[], hand:[], discard:[], color:'var(--p2)'}
   ],
-  // Board: 3 zones, each with 3 rows (0=p2safe,1=contested,2=p1safe), each row 3 cells
+  // Board: 3 zones with opponent, contested, and player rows. The reversible
+  // zone experiment may use uniform four-cell rows.
   // board[zone][row][col] = cardInstance or null
   board: createEmptyBoard(),
   // Extra cells per zone per player (from effects like Starlit Path)
@@ -756,7 +757,7 @@ let G = {
   fateModifiers: {}, // instanceId -> extra fate
   currentPlayer: 0,
   turn: 1,
-  maxTurns: 20,
+  maxTurns: (typeof window !== 'undefined' && window.FATE_ZONE_CONTROL_REWORK_ENABLED === false) ? 20 : 24,
   phase: 'draw', // draw | main | end
   selectedHandCard: null,
   selectedBoardCard: null,

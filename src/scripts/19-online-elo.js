@@ -80,6 +80,9 @@
         (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
           const uid = entry?.uid || entry?.username || entry?.name;
           if(!uid) return;
+          const internalIdentity = [entry?.uid, entry?.id, entry?.aiId, entry?.username, entry?.name, entry?.displayName, entry?.chosenUsername, entry?.baseCode]
+            .filter(Boolean).join(' ').toLowerCase();
+          if(/(codex|smoke|diagnostic|client[-_\s]*resolved|authority|fly[-_\s]*(?:random[-_\s]*)?queue|queue[-_\s]*bot|(^|[^a-z0-9])test([^a-z0-9]|$))/i.test(internalIdentity)) return;
           const isAI = isAIRecord(entry) || !!(entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(String(uid || '')));
           const stats = isAI ? normalizedAIRecordStats(entry) : {wins:recordWins(entry), losses:recordLosses(entry), matchesPlayed:Number(entry.matchesPlayed || 0) || 0};
           const wins = stats.wins;

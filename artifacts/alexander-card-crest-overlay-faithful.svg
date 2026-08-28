@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+<defs><filter id="g" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<g fill="none" stroke="#ffe59a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+  <!-- circular crest body copied from the emblem behind Alexander -->
+  <circle cx="90" cy="88" r="49"/>
+  <!-- twelve short triangular sun rays -->
+  <path d="M90 22l-9-19h18zM90 154l-9 19h18zM24 88L5 79v18zM156 88l19-9v18z"/>
+  <path d="M43 41L23 34l7 20zM137 41l20-7-7 20zM43 135l-20 7 7-20zM137 135l20 7-7-20z"/>
+  <path d="M65 29L50 14l1 22zM115 29l15-15-1 22zM65 147l-15 15 1-22zM115 147l15 15-1-22z"/>
+  <!-- stylized side-profile Greek helmet at the center -->
+  <path d="M53 111V80q0-25 24-32 23-7 43 7v19h17v20h-31v28H84V92q0-13-10-13-11 0-11 14v18z"/>
+  <path d="M76 48q13-18 35-12M106 94H91M84 122h22"/>
+</g>
+</svg>

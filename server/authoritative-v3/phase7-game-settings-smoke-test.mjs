@@ -37,8 +37,16 @@ assert([...randomResults].some(id=>id !== 'igb1'));
 // Legacy deterministic fixture callers remain selected, while an absent
 // production setting is random and therefore cannot silently mean Pacifica.
 assert.deepEqual(normalizePhase7GameSettings(null, 'igb17'), {
-  landscapeMode:'selected', landscapeId:'igb17', turnTimerMinutes:3
+  landscapeMode:'selected', landscapeId:'igb17', turnTimerMinutes:3,
+  healthPressureSeals:false, pressureCardReworks:false,
+  zoneControlRework:true, expandedContestedRow:true, zoneLayout444:true
 });
 assert.equal(normalizePhase7GameSettings(null, '').landscapeMode, 'random');
+assert.equal(
+  normalizePhase7GameSettings({healthPressureSeals:true}).healthPressureSeals,
+  true,
+  'an explicit client Morale flag survives authoritative normalization'
+);
+assert.equal(normalizePhase7GameSettings({healthPressureSeals:false}).healthPressureSeals, false);
 
 console.log('authoritative-v3 Phase 7 game settings smoke test passed');

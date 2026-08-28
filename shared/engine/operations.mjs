@@ -29,6 +29,7 @@ import {
 } from './landscapes/runtime.mjs';
 import {cloneSerializable} from './serialization.mjs';
 import {zoneScore} from './scoring.mjs';
+import {modifyCardPressure, modifyMorale, recordMoralePressureRuleEvent, refreshMoralePressure} from './morale-pressure.mjs';
 
 function operationError(code, reason, details = {}){
   const error = new Error(reason);
@@ -40,6 +41,7 @@ function operationError(code, reason, details = {}){
 export function emitRuleEvent(ctx, event){
   ctx.ruleEvents.push(event);
   ctx.events.push(event);
+  recordMoralePressureRuleEvent(ctx, event);
   recordLandscapeRuleEvent(ctx.state, event);
   const followUps = collectTriggeredOperations(ctx.state, event);
   for(const operation of followUps) applyOperation(ctx, operation);
@@ -272,7 +274,7 @@ function setCard(ctx, operation){
   if(squareStatuses(ctx.state, operation.destination, 'PERMANENTLY_BLOCKED').length){
     throw operationError('SQUARE_BLOCKED', 'the destination square is permanently blocked');
   }
-  if(String(player.hand[handIndex].id || '') === '65' && Number(r) !== 1){
+  if(ctx.state.gameSettings?.pressureCardReworks !== true && String(player.hand[handIndex].id || '') === '65' && Number(r) !== 1){
     throw operationError('ILLEGAL_PLACEMENT', '1st West Caribbea Marines must be set in a contested row');
   }
   const destinationOwner = rowOwner(ctx.state, z, r);
@@ -317,7 +319,9 @@ function setCard(ctx, operation){
     type:RULE_EVENT_TYPES.CARD_SET,
     playerIndex,
     cardIid:card.iid,
-    destination:{z, r, c}
+    destination:{z, r, c},
+    playedFromHand:operation.playedFromHand === true,
+    consolidated:operation.consolidated === true
   });
   return {cardIid:card.iid, destination:{z, r, c}};
 }
@@ -378,7 +382,7 @@ function consolidateCard(ctx, operation){
     if(characterEntries.length){
       throw operationError('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook requires a zone with no other friendly Character');
     }
-    if(boardEntries(ctx.state).some(entry=>
+    if(ctx.state.gameSettings?.pressureCardReworks !== true && boardEntries(ctx.state).some(entry=>
       String(entry.card.id || '') === '45'
       && Number(entry.card.owner) === playerIndex
       && !tributeIids.includes(String(entry.card.iid))
@@ -401,9 +405,10 @@ function consolidateCard(ctx, operation){
   if(colomboRestricted && tributes.some(entry=>entry.z !== destinationEntry.z)){
     throw operationError('CROSS_ZONE_TRIBUTE_PREVENTED', 'Colombo Thug requires all tributes to come from the destination zone');
   }
-  const greatOakBonus = tributes.reduce((sum, entry)=>
-    sum + (String(entry.card.id || '') === '47' && !isEffectSourceSuppressed(ctx.state, entry) ? 3 : 0)
-  , 0);
+  const pressureReworks = ctx.state.gameSettings?.pressureCardReworks === true;
+  const consolidationBonusCardId = pressureReworks ? '73' : '47';
+  const greatOakCount = tributes.reduce((sum, entry)=>sum + (String(entry.card.id || '') === consolidationBonusCardId && !isEffectSourceSuppressed(ctx.state, entry) ? 1 : 0), 0);
+  const greatOakBonus = greatOakCount * (pressureReworks ? 4 : 3);
   const reservedIndex = player.hand.findIndex(card=>String(card.iid) === String(handEntry.card.iid));
   const reservedCard = player.hand.splice(reservedIndex, 1)[0];
   for(const entry of tributes){
@@ -427,7 +432,8 @@ function consolidateCard(ctx, operation){
       c:destinationEntry.c
     },
     faceDown:operation.faceDown === true,
-    consolidated:true
+    consolidated:true,
+    playedFromHand:true
   });
   const placedCard = findBoardCard(ctx.state, placement.cardIid)?.card;
   if(greatOakBonus > 0 && !isEffectImmutable(placedCard)){
@@ -435,9 +441,9 @@ function consolidateCard(ctx, operation){
       type:OPERATION_TYPES.MODIFY_FATE,
       targetIid:placement.cardIid,
       amount:greatOakBonus,
-      sourceIid:tributes.find(entry=>String(entry.card.id || '') === '47')?.card.iid,
+      sourceIid:tributes.find(entry=>String(entry.card.id || '') === consolidationBonusCardId)?.card.iid,
       sourceController:playerIndex,
-      reason:'GREAT_OAK_CONSOLIDATION'
+      reason:pressureReworks ? 'ALPINE_GLOBAL_MISSIONS_CONSOLIDATION' : 'GREAT_OAK_CONSOLIDATION'
     }, false);
   }
   emit(ctx, {
@@ -931,12 +937,14 @@ function changeStatus(ctx, operation, remove){
       entry.card.statuses.push(status);
       entry.card.statuses.sort();
     }
-    ctx.events.push({
+    const statusEvent = {
       type:remove ? 'STATUS_REMOVED' : 'STATUS_CREATED',
       cardIid:entry.card.iid,
       status,
       sourceIid:operation.sourceIid || null
-    });
+    };
+    ctx.events.push(statusEvent);
+    recordMoralePressureRuleEvent(ctx, statusEvent);
     changed.push(entry.card.iid);
   }
   return changed.length === 1
@@ -1472,10 +1480,12 @@ function randomDiscardHand(ctx, operation){
     type:OPERATION_TYPES.DISCARD_CARD,
     targetIid:card.iid,
     sourceIid:operation.sourceIid,
+    semanticSourceCardId:operation.semanticSourceCardId,
     sourceController:operation.sourceController,
+    revealDiscard:operation.revealDiscard === true,
     reason:operation.reason || ''
   });
-  return {discardedIid:card.iid};
+  return {discardedIid:card.iid, cardId:String(card.id || ''), cardName:String(card.name || 'Card')};
 }
 
 function randomDiscardDeck(ctx, operation){
@@ -1936,7 +1946,7 @@ function changeLandscape(ctx, operation){
 }
 
 function setMaxTurns(ctx, operation){
-  const previousMaxTurns = Math.max(1, Number(ctx.state.maxTurns) || 20);
+  const previousMaxTurns = Math.max(1, Number(ctx.state.maxTurns) || 24);
   const amount = Number(operation.amount);
   if(Number.isInteger(amount) && amount > 0){
     ctx.state.maxTurns = previousMaxTurns + amount;
@@ -2127,6 +2137,8 @@ function dispatchOperation(ctx, operation){
     case OPERATION_TYPES.REDRAW_HAND: return redrawHand(ctx, operation);
     case OPERATION_TYPES.CHANGE_LANDSCAPE: return changeLandscape(ctx, operation);
     case OPERATION_TYPES.SET_MAX_TURNS: return setMaxTurns(ctx, operation);
+    case OPERATION_TYPES.MODIFY_PRESSURE: return modifyCardPressure(ctx, operation);
+    case OPERATION_TYPES.MODIFY_MORALE: return modifyMorale(ctx, operation);
     default: throw operationError('UNSUPPORTED_OPERATION', `unsupported operation ${operation?.type || '(missing)'}`);
   }
 }
@@ -2147,5 +2159,6 @@ export function applyOperation(ctx, operation){
     ctx._operationDepth = depth;
   }
   if(depth === 0 && beforeSnapshot) applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot);
+  if(depth === 0) refreshMoralePressure(ctx);
   return result;
 }

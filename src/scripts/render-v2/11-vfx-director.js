@@ -4,7 +4,7 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxDirector) return;
 
-  const VERSION = 9;
+  const VERSION = 10;
   const VFX_BUDGET = {
     maxActiveParticles:0,
     maxActiveParticlesLow:0,
@@ -508,6 +508,10 @@
 
   function play(type, payload, options){
     const recipeType = String(type || '').toUpperCase();
+    // Normal card setting is intentionally instantaneous. Enforce retirement
+    // at the director boundary too, so stale queues and older call sites cannot
+    // resurrect the horizontal hand/deck-to-square animation.
+    if(BOARD_PLACEMENT_RECIPES.has(recipeType)) return null;
     if(animationsOff() && !actionRecipeAllowedWhileAnimationsOff(recipeType, options || {})) return null;
     const recipes = window.FateVfxRecipes;
     if(!recipes || typeof recipes.expand !== 'function' || !recipes.has(recipeType)) return null;
@@ -1627,6 +1631,10 @@
     },
     onLocalIntent:function(intent){
       if(!intent) return null;
+      if(suppressAcceptedBridgeMotion(intent.type, intent.options || {})) {
+        recordBridge('suppressedLocalIntents', intent.type, intent.payload || intent);
+        return null;
+      }
       recordBridge('localIntents', intent.type, intent.payload || intent);
       return playThroughAction(intent.type, intent.payload || intent, intent.options || {});
     },

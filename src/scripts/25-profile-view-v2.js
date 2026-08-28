@@ -49,6 +49,12 @@
   function normalizeProfile(profile, options){
     const source = profile || {};
     const opts = options || {};
+    // The editable local username is authoritative for the signed-in player's
+    // own profile. Legacy chosenUsername/displayName fields can survive old
+    // saves and must not mask a newer name entered in the profile editor.
+    const profileName = opts.isSelf
+      ? (source.username || source.chosenUsername || source.displayName || source.baseCode || 'Player')
+      : (source.chosenUsername || source.displayName || source.username || source.baseCode || 'Player');
     const recordSource = opts.serverProfile && typeof opts.serverProfile === 'object' ? opts.serverProfile : source;
     // The reset-version field is a migration marker, not a permanent instruction
     // to hide every result recorded after that migration.
@@ -66,7 +72,7 @@
     try{ if(typeof window.getRank === 'function') rankName = window.getRank(elo).name || rankName; }catch(e){}
     return {
       uid:String(opts.uid || source.uid || ''),
-      name:String(source.chosenUsername || source.displayName || source.username || source.baseCode || 'Player'),
+      name:String(profileName),
       code:String(opts.code || source.baseCode || ''),
       bio:String(source.bio || source.status || ''),
       elo:Math.round(elo),
@@ -200,6 +206,10 @@
       }
     }catch(e){}
     profile.username = name;
+    // Keep the legacy aliases synchronized because multiplayer/public-profile
+    // code still reads them while older saves are being migrated.
+    profile.chosenUsername = name;
+    profile.displayName = name;
     profile.bio = bio;
     try{ if(typeof window.saveProfile === 'function') window.saveProfile(); }catch(e){}
     try{ if(typeof window.refreshProfileDisplays === 'function') window.refreshProfileDisplays(); }catch(e){}

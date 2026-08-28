@@ -68,6 +68,7 @@
 
 #s-win.endgame-redesign-v2 .win-result-head {
   grid-area: hero;
+  min-width: 0;
   align-self: end;
   position: relative;
   padding: 16px 0 34px;
@@ -123,7 +124,9 @@
 }
 
 #s-win.endgame-redesign-v2 .win-title {
-  max-width: 520px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   color: #f8f3e7;
   font: 600 clamp(2.7rem, 5.4vw, 5.4rem)/.95 'Cinzel', serif;
@@ -304,6 +307,7 @@
 }
 
 #s-win.endgame-redesign-v2 .win-zone-controller {
+  min-width: 0;
   margin-top: 11px;
   padding-top: 10px;
   border-top: 1px solid rgba(220, 231, 240, .09);
@@ -311,6 +315,7 @@
   font: 600 .63rem/1.3 'Cinzel', serif;
   letter-spacing: .08em;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 #s-win.endgame-redesign-v2 .win-total-fate {
@@ -334,15 +339,26 @@
 
 #s-win.endgame-redesign-v2 .win-total-fate-scores {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   gap: 16px;
 }
 
 #s-win.endgame-redesign-v2 .win-total-fate-scores > div {
   display: flex;
+  min-width: 0;
+  max-width: min(190px, 22vw);
   align-items: baseline;
   gap: 6px;
   color: rgba(235, 239, 243, .6);
   font-size: .62rem;
+}
+
+#s-win.endgame-redesign-v2 .win-total-fate-scores span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #s-win.endgame-redesign-v2 .win-total-fate-scores strong {
@@ -767,6 +783,10 @@ html.fate-performance-mode #s-win.endgame-redesign-v2:not(.active) {
     justify-content: space-between;
   }
 
+  #s-win.endgame-redesign-v2 .win-total-fate-scores > div {
+    max-width: 46%;
+  }
+
   #s-win.endgame-redesign-v2 .win-rewards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -784,4 +804,49 @@ html.fate-performance-mode #s-win.endgame-redesign-v2:not(.active) {
   #s-win.endgame-redesign-v2 :is(.win-result-head, .win-zone-report, .win-rewards, .win-return-action) {
     animation: none;
   }
+}
+
+/* Gold framing pass: give every report module a clear boundary while retaining
+   the existing cool/red score accents inside each module. */
+#s-win.endgame-redesign-v2{
+  --endgame-gold-border:rgba(218,185,82,.66);
+  --endgame-gold-border-soft:rgba(218,185,82,.42);
+}
+
+#s-win.endgame-redesign-v2 .win-zone-report,
+#s-win.endgame-redesign-v2 .win-rewards{
+  border-color:var(--endgame-gold-border)!important;
+  box-shadow:0 18px 48px rgba(0,0,0,.22),inset 0 0 0 1px rgba(218,185,82,.07)!important;
+}
+
+#s-win.endgame-redesign-v2 .win-section-label{
+  margin:5px 5px 0;
+  border:1px solid var(--endgame-gold-border-soft);
+}
+
+#s-win.endgame-redesign-v2 .win-zones{
+  gap:7px;
+  padding:7px;
+  box-sizing:border-box;
+}
+
+#s-win.endgame-redesign-v2 .win-z,
+#s-win.endgame-redesign-v2 .win-z:last-of-type{
+  border:1px solid var(--endgame-gold-border-soft);
+  border-radius:4px;
+  background:rgba(3,7,13,.18);
+}
+
+#s-win.endgame-redesign-v2 .win-seal-summary,
+#s-win.endgame-redesign-v2 .win-total-fate{
+  border:1px solid var(--endgame-gold-border)!important;
+  border-radius:5px;
+}
+
+#s-win.endgame-redesign-v2 .win-reward-box,
+#s-win.endgame-redesign-v2 .win-reward-box.starlight,
+#s-win.endgame-redesign-v2 .win-rank-shift,
+#s-win.endgame-redesign-v2 .win-levelup{
+  border-color:var(--endgame-gold-border-soft)!important;
+  box-shadow:inset 0 0 0 1px rgba(218,185,82,.045)!important;
 }

@@ -12,6 +12,7 @@ export * from './replay.mjs';
 export * from './selectors.mjs';
 export * from './serialization.mjs';
 export * from './state.mjs';
+export * from './morale-pressure.mjs';
 export * from './cards/registry.mjs';
 export * from './landscapes/registry.mjs';
 export * from './landscapes/runtime.mjs';

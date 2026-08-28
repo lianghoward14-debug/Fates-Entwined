@@ -6,7 +6,7 @@ import {
 } from '../../shared/engine/index.mjs';
 import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=1788297401';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';
@@ -51,8 +51,10 @@ export function chooseDeterministicV3AiCommand(commands = []){
 }
 
 function matchingTemplate(commands, type, payload){
-  const expected = stableStringify({type:String(type || ''), payload:payload || {}});
-  return commands.find(command=>stableStringify(command) === expected) || null;
+  const expectedType = String(type || '');
+  const expectedPayload = stableStringify(payload || {});
+  return commands.find(command=>String(command?.type || '') === expectedType
+    && stableStringify(command?.payload || {}) === expectedPayload) || null;
 }
 
 export class FateAuthoritativeV3SinglePlayerAdapter {
@@ -63,6 +65,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     aiPlayerId,
     render,
     onEvents,
+    aiStyle = '',
     aiPolicy = chooseStrategicV3AiCommand
   }){
     this.humanPlayerId = String(humanPlayerId || '');
@@ -79,16 +82,26 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     }
     this.render = typeof render === 'function' ? render : ()=>{};
     this.onEvents = typeof onEvents === 'function' ? onEvents : ()=>{};
+    this.aiStyle = String(aiStyle || '');
     this.aiPolicy = aiPolicy;
     this.aiRunning = false;
     this.lastView = null;
     this.session.subscribe(change=>{
-      this.onEvents(change.events, {
-        command:change.command,
-        playerId:change.playerId,
-        revision:change.revision
-      });
-      this.publish(change.type);
+      // Canonical turn state must reach the screen before optional presentation
+      // listeners run. Morale resolution is the first event family that fires
+      // only on every second turn; letting its retired/hidden HUD listener run
+      // first could leave the reducer on Turn 3 while the screen stayed on Turn 2.
+      const view = this.publish(change.type);
+      try{
+        this.onEvents(change.events, {
+          command:change.command,
+          playerId:change.playerId,
+          revision:change.revision,
+          view
+        });
+      }catch(error){
+        console.warn('[Fate Phase 5 Single Player] presentation event failed after state advance', error);
+      }
     });
     this.publish('SESSION_CREATED');
   }
@@ -209,15 +222,24 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
             playerId:this.aiPlayerId,
             playerIndex:aiIndex,
             humanPlayerId:this.humanPlayerId,
-            humanPlayerIndex:this.session.playerIndex(this.humanPlayerId)
+            humanPlayerIndex:this.session.playerIndex(this.humanPlayerId),
+            style:this.aiStyle
           }
         );
         if(!selected){
           return rejection('AI_NO_LEGAL_COMMAND', 'authoritative v3 AI could not choose a legal command');
         }
-        const template = matchingTemplate(legal, selected.type, selected.payload);
+        let template = legal.includes(selected)
+          ? selected
+          : matchingTemplate(legal, selected.type, selected.payload);
         if(!template){
-          return rejection('AI_POLICY_ILLEGAL_COMMAND', 'authoritative v3 AI policy returned a non-legal command');
+          // A policy must normally return one of the supplied legal templates,
+          // but a malformed policy result must never strand the AI turn. Fall
+          // back to the same deterministic ordering used by the safe policy.
+          template = chooseDeterministicV3AiCommand(legal);
+        }
+        if(!template){
+          return rejection('AI_NO_LEGAL_COMMAND', 'authoritative v3 AI could not choose a legal command');
         }
         const result = this.session.dispatchForPlayer(
           this.aiPlayerId,
@@ -244,6 +266,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     aiPlayerId,
     render,
     onEvents,
+    aiStyle,
     aiPolicy
   }){
     const session = FateAuthoritativeV3LocalSession.recover({
@@ -257,6 +280,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
       aiPlayerId,
       render,
       onEvents,
+      aiStyle,
       aiPolicy
     });
   }
@@ -297,7 +321,17 @@ export function createFateV3SinglePlayerState(input = {}){
     handSize:input.handSize,
     maxTurns:input.maxTurns,
     activePlayer:input.activePlayer,
-    landscapeId
+    landscapeId,
+    gameSettings:{
+      healthPressureSeals:input.healthPressureSeals === true,
+      pressureCardReworks:input.healthPressureSeals === true && input.pressureCardReworks === true,
+      zoneControlRework:input.zoneControlRework !== false,
+      expandedContestedRow:input.zoneControlRework !== false
+        && input.expandedContestedRow !== false,
+      zoneLayout444:input.zoneControlRework !== false
+        && input.expandedContestedRow !== false
+        && input.zoneLayout444 !== false
+    }
   });
 }
 
@@ -330,12 +364,13 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
     if(showTitle) windowRef.showScreen?.('s-title');
     return true;
   }
-  function mountActiveScreen(adapter, definitions){
+  function mountActiveScreen(adapter, definitions, options = {}){
     activeScreen?.destroy();
     activeScreen = new FateAuthoritativeV3SinglePlayerScreen({
       windowRef,
       adapter,
       cardDefinitions:definitions,
+      turnTimeLimit:options.turnTimeLimit,
       onExit(){
         stopActiveMatch({showTitle:true});
       }
@@ -355,6 +390,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         aiPlayerId:String(input.players[1].id),
         render:callbacks.render || eventCallback('fate-authority-v3-single-player-state'),
         onEvents:callbacks.onEvents || eventCallback('fate-authority-v3-single-player-events'),
+        aiStyle:String(input.aiStyle || ''),
         aiPolicy:callbacks.aiPolicy
       });
       return activeAdapter;
@@ -367,6 +403,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         aiPlayerId:String(input.aiPlayerId || ''),
         render:callbacks.render || eventCallback('fate-authority-v3-single-player-state'),
         onEvents:callbacks.onEvents || eventCallback('fate-authority-v3-single-player-events'),
+        aiStyle:String(input.aiStyle || ''),
         aiPolicy:callbacks.aiPolicy
       });
       return activeAdapter;
@@ -386,6 +423,16 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         handSize:options.handSize,
         maxTurns:options.maxTurns || game.maxTurns,
         activePlayer:options.activePlayer,
+        healthPressureSeals:windowRef.FATE_MORALE_PRESSURE_RULES_ENABLED === true,
+        pressureCardReworks:windowRef.FATE_MORALE_PRESSURE_RULES_ENABLED === true
+          && windowRef.FATE_PRESSURE_CARD_REWORKS_ENABLED === true,
+        zoneControlRework:windowRef.FATE_ZONE_CONTROL_REWORK_ENABLED !== false,
+        expandedContestedRow:windowRef.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+          && windowRef.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false,
+        zoneLayout444:windowRef.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
+          && windowRef.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false
+          && windowRef.FATE_ZONE_444_LAYOUT_ENABLED !== false,
+        aiStyle:String(options.aiStyle || game._selectedAI?.style || ''),
         cardDefinitions:definitions,
         players:[
           {
@@ -405,6 +452,9 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
       if(options.vsAI !== true) throw new Error('authoritative v3 single-player requires an AI match');
       const definitions = windowRef.getFateCardDefinitions?.();
       if(!Array.isArray(definitions)) throw new Error('card definition bridge is unavailable');
+      const game = windowRef.getFateGameState?.();
+      const querySeconds = Number(new URLSearchParams(windowRef.location?.search || '').get('fateV3TurnSeconds'));
+      const configuredSeconds = Number(game?._turnTimerSeconds);
       activeScreen?.destroy();
       activeScreen = null;
       const adapter = api.createFromLegacySelection({
@@ -417,12 +467,17 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
           activeScreen?.render(view);
         },
         onEvents(events, metadata){
+          activeScreen?.presentEvents?.(events, metadata);
           windowRef.dispatchEvent?.(new windowRef.CustomEvent('fate-authority-v3-single-player-events', {
             detail:{events, metadata}
           }));
         }
       });
-      mountActiveScreen(adapter, definitions);
+      mountActiveScreen(adapter, definitions, {
+        turnTimeLimit:Number.isFinite(querySeconds) && querySeconds > 0
+          ? querySeconds
+          : (Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 180)
+      });
       return adapter;
     },
     resumeOnGameScreen(input, callbacks = {}){
@@ -436,7 +491,13 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
           activeScreen?.render(view);
           callbacks.render?.(view);
         },
-        onEvents:callbacks.onEvents
+        onEvents(events, metadata){
+          activeScreen?.presentEvents?.(events, metadata);
+          callbacks.onEvents?.(events, metadata);
+          windowRef.dispatchEvent?.(new windowRef.CustomEvent('fate-authority-v3-single-player-events', {
+            detail:{events, metadata}
+          }));
+        }
       });
       mountActiveScreen(adapter, definitions);
       return adapter;

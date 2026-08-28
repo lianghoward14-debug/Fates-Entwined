@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "campaignId": "p7full-20260810a",
+  "supervisorPid": 17896,
+  "startedAt": 1786291537313,
+  "updatedAt": 1786291670731,
+  "status": "running",
+  "totalGames": 1000,
+  "processedGames": 0,
+  "completedGames": 0,
+  "failedGames": 0,
+  "pairs": [
+    {
+      "pair": 1,
+      "range": [
+        0,
+        499
+      ],
+      "processed": 0,
+      "completed": 0,
+      "failed": 0,
+      "restartCount": 0,
+      "done": false,
+      "segment": {
+        "runId": "p7full-20260810a-p1r0",
+        "startIndex": 0,
+        "games": 500,
+        "launchedAt": 1786291537317
+      },
+      "clients": {
+        "A": {
+          "heartbeatAt": 1786291669724,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 4,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "lastStage": "consolidation:choose-destination",
+          "pid": 15396
+        },
+        "B": {
+          "heartbeatAt": 1786291667808,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 1,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "pid": 18712
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "range": [
+        500,
+        999
+      ],
+      "processed": 0,
+      "completed": 0,
+      "failed": 0,
+      "restartCount": 0,
+      "done": false,
+      "segment": {
+        "runId": "p7full-20260810a-p2r0",
+        "startIndex": 500,
+        "games": 500,
+        "launchedAt": 1786291537414
+      },
+      "clients": {
+        "A": {
+          "heartbeatAt": 1786291669234,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 17,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "lastStage": "prompt:BOARD_DESTINATION",
+          "pid": 3092
+        },
+        "B": {
+          "heartbeatAt": 1786291665732,
+          "running": true,
+          "completed": 0,
+          "failed": 0,
+          "actions": 16,
+          "errors": 0,
+          "domViolations": 0,
+          "oracleViolations": 0,
+          "lastStage": "set:click-destination",
+          "pid": 17844
+        }
+      }
+    }
+  ],
+  "statePath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7full-20260810a.json",
+  "stopPath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7full-20260810a.stop",
+  "supervisorLogPath": "C:\\Users\\liang\\OneDrive\\Desktop\\Fates Entwined main\\diagnostics\\phase7-campaign-p7full-20260810a.jsonl"
+}

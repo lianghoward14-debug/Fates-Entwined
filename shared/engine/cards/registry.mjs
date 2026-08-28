@@ -335,8 +335,18 @@ const REGISTRY = Object.freeze({
   '44':{
     effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
-    operations:[],
-    prompts:[]
+    operations:['SET_CARD_COUNTER'],
+    prompts:['MODAL_CHOICE'],
+    program:[
+      {kind:'CHOOSE_OPTION',local:'declaredType',options:[
+        {value:'Supporter',label:'Supporter'},
+        {value:'Initiator',label:'Initiator'},
+        {value:'Improvisor',label:'Improviser'},
+        {value:'Coordinator',label:'Coordinator'},
+        {value:'Dauntless',label:'Dauntless'}
+      ],defaultChoice:'Supporter'},
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'sovietDeclaredType',value:'$declaredType',sourceIid:'$sourceIid'}}
+    ]
   },
   '45':{
     timings:['PASSIVE'],
@@ -1865,12 +1875,47 @@ const REGISTRY = Object.freeze({
   }
 });
 
-export function cardRule(cardId){
-  return REGISTRY[String(cardId || '')] || null;
+const PRESSURE_REWORK_REGISTRY = Object.freeze({
+  '20':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:[],program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'preventNextMoraleDamage',value:true}}]},
+  '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
+  '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
+  '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+    {kind:'CHOOSE_OPTION',local:'affiliation',options:[{value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},{value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}],defaultChoice:'reality'},
+    {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'moraleAffiliation',value:'$affiliation'}}
+  ]},
+  '35':{timings:['PASSIVE'],operations:[],prompts:[]},
+  '44':{timings:['PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+    {kind:'CHOOSE_OPTION',local:'declaredType',options:[
+      {value:'Supporter',label:'Supporter'},
+      {value:'Initiator',label:'Initiator'},
+      {value:'Improvisor',label:'Improviser'},
+      {value:'Coordinator',label:'Coordinator'},
+      {value:'Dauntless',label:'Dauntless'}
+    ],defaultChoice:'Supporter'},
+    {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'sovietDeclaredType',value:'$declaredType',sourceIid:'$sourceIid'}}
+  ]},
+  '45':{timings:['WHEN_SET','PASSIVE'],operations:['MODIFY_MORALE','DISCARD_CARD'],prompts:['BOARD_TARGET'],program:[
+    {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-50}},
+    {kind:'SELECT_BOARD',local:'targetIid',filter:{targetable:'DISCARD_CARD'}},
+    {kind:'OPERATION',targeted:true,operation:{type:'DISCARD_CARD',targetIid:'$targetIid',reason:'THE_LAST_MOHICAN'}}
+  ]},
+  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
+  '64':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:[],program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]},
+  '65':{timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:[],triggerSubscriptions:['TURN_STARTED'],program:[]},
+  '69':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
+    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'BUSSER_INITIATOR_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',remainingOwnerTurns:1}}}
+  ]},
+  '73':{timings:['PASSIVE'],operations:[],prompts:[]}
+});
+
+export function cardRule(cardId, state = null){
+  const id = String(cardId || '');
+  if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) return PRESSURE_REWORK_REGISTRY[id];
+  return REGISTRY[id] || null;
 }
 
-export function hasTiming(cardId, timing){
-  return !!cardRule(cardId)?.timings?.includes(String(timing || ''));
+export function hasTiming(cardId, timing, state = null){
+  return !!cardRule(cardId, state)?.timings?.includes(String(timing || ''));
 }
 
 export function multiplayerEligibleCardIds(){
