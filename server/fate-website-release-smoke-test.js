@@ -28,7 +28,10 @@ for(const card of catalog){
   assert(imagePath && fs.existsSync(path.join(root, imagePath)), `website card ${card.id} art must resolve to a current game asset`);
 }
 
-assert.match(html, /releases\/latest\/download\/Fates-Entwined-Installer\.exe/, 'website must use the stable newest-installer release alias');
+assert.match(html, /href="\/installer\/Fates-Entwined-Installer\.exe"/, 'website must use its official direct installer path');
+const authorityServer = fs.readFileSync(path.join(root, 'server', 'authoritative-v3', 'server.mjs'), 'utf8');
+assert.match(authorityServer, /OFFICIAL_INSTALLER_PATH\s*=\s*'\/installer\/Fates-Entwined-Installer\.exe'/, 'authority must own the official installer route');
+assert.match(authorityServer, /releases\/latest\/download\/Fates-Entwined-Installer\.exe/, 'official installer route must resolve to the stable newest release asset');
 assert.doesNotMatch(html, /Latest Windows build:\s*v|installer,\s*v1\.39\.0/i, 'website must not hard-code a stale release version');
 assert.match(html, /114-card catalog[\s\S]*Twenty Landscapes[\s\S]*All 114 current catalog entries/, 'website copy must describe the current catalog and landscape count');
 assert.match(html, /id="archive-card-set"[\s\S]*Brave Horizons[\s\S]*Tokens[\s\S]*Retired/, 'website archive must expose current set/status filters');

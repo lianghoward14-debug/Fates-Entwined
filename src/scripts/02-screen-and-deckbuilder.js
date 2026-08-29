@@ -559,7 +559,7 @@ function openDeckBuilderCardDetail(card) {
           <span class="pill">${AFF_LABEL[card.aff]||card.aff}</span>
           <span class="pill" style="border-color:var(--gold);color:var(--gold)">In deck: ${inDeckCount}</span>
         </div>
-        <div class="cd-eff">${card.effect}</div>
+        <div class="cd-eff">${typeof escapeHtml === 'function' ? escapeHtml(String(card.effect || '')) : String(card.effect || '')}</div>
         ${card.flavor?`<div class="cd-flavor">${card.flavor}</div>`:''}
       </div>
     </div>`;

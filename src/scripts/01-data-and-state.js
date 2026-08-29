@@ -73,7 +73,7 @@ const CARDS = [
     effect:'Select one card in this zone; double its current Fate permanently, then increase its Fate by another 5 permanently.',
     flavor:'"The glorious Moffitt King"',img:'3.png'},
   {id:'04',name:'Zoe',ability:'INTJ Stare',type:'Initiator',aff:'reality',
-    fate:6,cost:2,rarity:'triangle',
+    fate:6,cost:1,rarity:'triangle',
     effect:'Select one square in this card\'s zone; your opponent can no longer Consolidate on or from that square.',
     flavor:'"She\'s definitely Caitlyn\'s mom"',img:'4.png?v=20260826a'},
   {id:'05',name:'17th British Regiment of Africa',ability:'Liberators of Rwanda',type:'Supporter',aff:'third_great_war',

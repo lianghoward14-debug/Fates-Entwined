@@ -36,6 +36,8 @@ const PHASE7_COMPATIBLE_CLIENT_VERSIONS = new Set(
 );
 if(PHASE7_CLIENT_VERSION) PHASE7_COMPATIBLE_CLIENT_VERSIONS.add(PHASE7_CLIENT_VERSION);
 const PHASE7_BUILD_ID = String(process.env.FATE_AUTHORITY_V3_PHASE7_BUILD_ID || '').trim();
+const OFFICIAL_INSTALLER_PATH = '/installer/Fates-Entwined-Installer.exe';
+const LATEST_INSTALLER_URL = 'https://github.com/lianghoward14-debug/Fates-Entwined/releases/latest/download/Fates-Entwined-Installer.exe';
 const PHASE7_ALLOW_TEST_IDENTITIES = process.env.FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES === '1';
 const PHASE7_ALLOW_ORGANIC_TEST_FIXTURES = process.env.FATE_AUTHORITY_V3_PHASE7_ALLOW_ORGANIC_TEST_FIXTURES === '1';
 const MATCHES_PATH = BETA_MODE ? '/v3/beta/matches' : '/v3/matches';
@@ -576,6 +578,15 @@ const server = http.createServer(async (req, res)=>{
     if(req.method === 'OPTIONS'){
       setCors(res);
       res.writeHead(204);
+      res.end();
+      return;
+    }
+    if(['GET', 'HEAD'].includes(String(req.method || '')) && url.pathname === OFFICIAL_INSTALLER_PATH){
+      res.writeHead(302, {
+        location:LATEST_INSTALLER_URL,
+        'cache-control':'no-store',
+        'content-disposition':'attachment; filename="Fates-Entwined-Installer.exe"'
+      });
       res.end();
       return;
     }

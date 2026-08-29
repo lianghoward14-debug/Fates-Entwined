@@ -94,8 +94,8 @@ assert.match(css, /cc-overlay-v2\.alpine-consolidation-owner-mine[\s\S]*cc-card-
   'Snow on the Carpathians consolidation cinematics must draw blue local and red opponent rings');
 assert.match(adapter, /function alpineConsolidationTone\(opponent\)[\s\S]*isLandscapeActive\('igb15'\)[\s\S]*rgba\(255,96,108,\.98\)[\s\S]*rgba\(83,176,255,\.98\)[\s\S]*drawTributeCue\(ctx, r, opts\.tributeState \|\| '', opts\.opponent\)[\s\S]*drawConsolidationCardOverlay\(ctx, r, tributeState, entry\.card && entry\.card\.owner !== snapshot\.viewer\)/,
   'renderer-v2 must tint Alpine consolidation cues blue for local cards and red for opponent cards');
-assert.match(rendering, /String\(card\.id \|\| ''\) === '04'[\s\S]*Number\(card\.cost\)/,
-  'Zoe card information must show her printed Initiator cost of 2');
+assert.match(data, /id:'04',name:'Zoe'[\s\S]{0,160}cost:1/,
+  'Zoe must have a reinforcement cost of 1');
 assert.match(rendering, /TOPBAR_STATUS_TARGET_VISIBLE = 4[\s\S]*TOPBAR_STATUS_FLEX_MIN_WIDTH = 92[\s\S]*function getTopbarStatusAvailableWidth[\s\S]*function fitTopbarStatusTail[\s\S]*effect-pill-flex-tail[\s\S]*visibleCount--[\s\S]*isOverflow: true[\s\S]*function showStatusEffectOverflowDropdown/,
   'topbar statuses must target four effects, use viewport-aware space, flex the last visible banner, and collapse into overflow when space runs out');
 assert.match(rendering, /myVisibleEffects = compactTopbarStatusEffects\(myEffects, 'left', leftBar\)[\s\S]*oppVisibleEffects = compactTopbarStatusEffects\(oppEffects, 'right', rightBar\)/,

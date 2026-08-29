@@ -3913,7 +3913,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
     // Always recover art from the live canonical definition before allowing the
     // canvas renderer to fall back to a one-letter affiliation placeholder.
     let canonicalDefinition = null;
-    if(!card.img && typeof CARDS !== 'undefined' && Array.isArray(CARDS)) {
+    if(typeof CARDS !== 'undefined' && Array.isArray(CARDS)) {
       canonicalDefinition = CARDS.find(function(candidate){
         return candidate && String(candidate.id || '') === String(card.id || '');
       }) || null;
@@ -3926,13 +3926,18 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       ? window.FATE_PRESSURE_CARD_REWORKS[String(card.id || '')]
       : null;
     const displayedCost = runtimeRework ? runtimeRework.cost : (typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : card.cost);
-    // Zoe's information copy follows her printed Initiator (2) art. Match-wide
-    // consolidation modifiers still apply when the player actually sets her.
-    const handCost = String(card.id || '') === '04' ? Math.max(0, Number(card.cost) || 0) : displayedCost;
+    const handCost = displayedCost;
     const immutable = typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card);
     const handBonusFate = card._wciBonus && !immutable ? 2 : 0;
     const liveFate = (immutable && !boardPos ? (Number(card.fate) || 0) : getLiveCardFate(card)) + (!boardPos ? handBonusFate : 0);
     const taylorHasCopiedEffect = String(card.id || '') === 'bh05' && !!card._bh05CopiedCardId;
+    const copiedCanonicalDefinition = taylorHasCopiedEffect && typeof CARDS !== 'undefined' && Array.isArray(CARDS)
+      ? CARDS.find(function(candidate){
+          return candidate && String(candidate.id || '') === String(card._bh05CopiedCardId || '');
+        }) || null
+      : null;
+    const exactPrintedEffect = String(runtimeRework?.effect || canonicalDefinition?.effect || card.effect || '');
+    const exactCopiedEffect = String(copiedCanonicalDefinition?.effect || card._bh05CopiedPrintedEffect || card.effect || '');
     let displayedType = runtimeRework?.type || (typeof getCardEffectType === 'function' ? getCardEffectType(card) : card.type);
     if(typeof isCardCharacterForRules === 'function' && card.type === 'Supporter' && isCardCharacterForRules(card, card.owner)) displayedType = 'Character';
     if(displayedType === 'Improvisor') displayedType = 'Improviser';
@@ -3941,7 +3946,7 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       isHidden: false,
       name: String(card.id || '') === 'whisper17' ? 'Shizuku' : card.name,
       ability: taylorHasCopiedEffect ? String(card._bh05CopiedAbility || card.ability || '') : card.ability,
-      effect: taylorHasCopiedEffect ? String(card._bh05CopiedPrintedEffect || card.effect || '') : String(runtimeRework?.effect || card.effect || ''),
+      effect: taylorHasCopiedEffect ? exactCopiedEffect : exactPrintedEffect,
       // Chloe's declaration is a real effect-facing classification and must be
       // visible in every information window. Structural placement remains tied
       // to the printed type elsewhere (supporter limit vs consolidation).
@@ -7152,7 +7157,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         ${trackerHtml}
         ${copiedPassiveBanner}
         ${pierogiHandBanner}
-        <div class="cd-eff">${visual.effect}</div>
+        <div class="cd-eff">${escapeHtml(visual.effect)}</div>
         ${!hideCard && card.flavor?`<div class="cd-flavor">${card.flavor}</div>`:''}
       </div>
     </div>`;
@@ -9729,7 +9734,7 @@ function showCardInfoOverlay(card) {
           '</div>'+
           trackerHtml+
           copiedPassiveBanner+
-          '<div class="cd-eff">'+visual.effect+'</div>'+
+          '<div class="cd-eff">'+escapeHtml(visual.effect)+'</div>'+ 
           (card.flavor ? '<div class="cd-flavor">'+card.flavor+'</div>' : '')+
         '</div>'+
       '</div>'+
