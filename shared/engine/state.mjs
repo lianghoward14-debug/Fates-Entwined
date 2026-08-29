@@ -82,6 +82,7 @@ export function createInitialState(input = {}){
     return {
       id:playerIds[playerIndex],
       name:String(player.name || `Player ${playerIndex + 1}`),
+      rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
       deck,
       hand,
       discard:[],
@@ -140,6 +141,7 @@ export function createInitialState(input = {}){
     baseHandLimit:12,
     baseSupportersPerTurn:2,
     supportersSetThisTurn:[0, 0],
+    supportersSetForCapThisTurn:[0, 0],
     supportersSetTotal:[0, 0],
     supporterEffectsActivated:[0, 0],
     cardsPlacedThisTurn:[0, 0],

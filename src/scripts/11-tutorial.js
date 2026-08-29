@@ -1051,6 +1051,7 @@ function startScriptedTutorial() {
   G.phase = 'main';
   G.maxSupportsPerTurn = 2;
   G.supportsPlacedThisTurn = 0;
+  G.supportersSetForCapThisTurn = [0, 0];
   G.extraSupportsThisTurn = 0;
   G.turnNumber = 1;
   G.turn = 1;

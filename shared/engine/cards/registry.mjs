@@ -5,9 +5,20 @@ const REGISTRY = Object.freeze({
     prompts:['CARD_SELECTION'],
     program:[
       {
+        kind:'OPERATION',
+        operation:{
+          type:'CHANGE_PLAYER_COUNTER',
+          field:'extraSupportersThisTurn',
+          playerIndex:'$controller',
+          amount:2
+        }
+      },
+      {
         kind:'SELECT_CARDS',
         local:'targetIids',
-        exactUpToAvailable:3,
+        min:0,
+        max:3,
+        optional:true,
         cancelBehavior:'CONTINUE',
         filter:{locations:['deck'], playerIndex:'controller', type:'Supporter'}
       },
@@ -20,15 +31,6 @@ const REGISTRY = Object.freeze({
           destinationPile:'hand',
           fateBonus:4,
           reason:'OBLIQUE_ORDER'
-        }
-      },
-      {
-        kind:'OPERATION',
-        operation:{
-          type:'CHANGE_PLAYER_COUNTER',
-          field:'extraSupportersThisTurn',
-          playerIndex:'$controller',
-          amount:2
         }
       }
     ]
@@ -135,6 +137,7 @@ const REGISTRY = Object.freeze({
     timings:['WHEN_SET'],
     operations:['CREATE_TOKENS'],
     prompts:[],
+    havanoTargeting:'OPPONENT',
     program:[
       {
         kind:'OPERATION',
@@ -599,7 +602,9 @@ const REGISTRY = Object.freeze({
   '10':{
     timings:['PASSIVE'],
     operations:[],
-    prompts:[]
+    prompts:[],
+    havanoTargeting:'OPPONENT',
+    havanoPassiveEntry:true
   },
   '11':{
     timings:['PASSIVE'],
@@ -1435,6 +1440,7 @@ const REGISTRY = Object.freeze({
     timings:['ACTIVATE'],
     operations:['MODIFY_FATE'],
     prompts:['BOARD_TARGET', 'REACTION'],
+    havanoTargeting:'OPPONENT',
     oncePerTurn:true,
     program:[
       {
@@ -1477,6 +1483,7 @@ const REGISTRY = Object.freeze({
     timings:['WHEN_SET'],
     operations:['CREATE_MATCH_STATUS'],
     prompts:[],
+    havanoTargeting:'OPPONENT',
     program:[
       {
         kind:'OPERATION',
@@ -1515,6 +1522,7 @@ const REGISTRY = Object.freeze({
     timings:['WHEN_SET'],
     operations:['SPLIT_FATE_LOSS_BY_TYPE', 'MODIFY_FATE'],
     prompts:['MODAL_CHOICE', 'REACTION'],
+    havanoTargeting:'OPPONENT',
     program:[
       {
         kind:'CHOOSE_OPTION',
@@ -1713,6 +1721,7 @@ const REGISTRY = Object.freeze({
     timings:['ACTIVATE'],
     operations:['CREATE_MATCH_STATUS'],
     prompts:[],
+    havanoTargeting:'OPPONENT',
     manualOnly:true,
     maxUses:2,
     program:[
@@ -1746,6 +1755,7 @@ const REGISTRY = Object.freeze({
     timings:['PASSIVE'],
     operations:['RANDOM_DISCARD_DECK'],
     prompts:[],
+    havanoTargeting:'OPPONENT',
     triggerSubscriptions:['TURN_ENDING']
   },
   'bh19':{
@@ -1876,14 +1886,14 @@ const REGISTRY = Object.freeze({
 });
 
 const PRESSURE_REWORK_REGISTRY = Object.freeze({
-  '20':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:[],program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'preventNextMoraleDamage',value:true}}]},
+  '20':{timings:['WHEN_SET'],operations:['CREATE_TIMED_PLAYER_STATUS'],prompts:['REACTION'],program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'MORALE_DAMAGE_INFLICTED_ZERO',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]},
   '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
   '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
-  '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+  '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE','REACTION'],havanoTargeting:'OPPONENT',program:[
     {kind:'CHOOSE_OPTION',local:'affiliation',options:[{value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},{value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}],defaultChoice:'reality'},
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'moraleAffiliation',value:'$affiliation'}}
   ]},
-  '35':{timings:['PASSIVE'],operations:[],prompts:[]},
+  '35':{timings:['PASSIVE'],operations:[],prompts:['REACTION'],havanoPassiveEntry:true},
   '44':{timings:['PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
     {kind:'CHOOSE_OPTION',local:'declaredType',options:[
       {value:'Supporter',label:'Supporter'},
@@ -1894,14 +1904,14 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
     ],defaultChoice:'Supporter'},
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'sovietDeclaredType',value:'$declaredType',sourceIid:'$sourceIid'}}
   ]},
-  '45':{timings:['WHEN_SET','PASSIVE'],operations:['MODIFY_MORALE','DISCARD_CARD'],prompts:['BOARD_TARGET'],program:[
+  '45':{timings:['WHEN_SET','PASSIVE'],operations:['MODIFY_MORALE','DISCARD_CARD'],prompts:['BOARD_TARGET','REACTION'],program:[
     {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-50}},
     {kind:'SELECT_BOARD',local:'targetIid',filter:{targetable:'DISCARD_CARD'}},
     {kind:'OPERATION',targeted:true,operation:{type:'DISCARD_CARD',targetIid:'$targetIid',reason:'THE_LAST_MOHICAN'}}
   ]},
-  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
-  '64':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:[],program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]},
-  '65':{timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:[],triggerSubscriptions:['TURN_STARTED'],program:[]},
+  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
+  '64':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]},
+  '65':{timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoPassiveEntry:true,triggerSubscriptions:['TURN_STARTED'],program:[]},
   '69':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
     {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'BUSSER_INITIATOR_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',remainingOwnerTurns:1}}}
   ]},

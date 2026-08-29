@@ -452,6 +452,7 @@
       _blockingEffectSourceIid:g._blockingEffectSourceIid || null,
       _blockingEffectZone:Number.isInteger(Number(g._blockingEffectZone)) ? Number(g._blockingEffectZone) : null,
       supportsPlacedThisTurn:g.supportsPlacedThisTurn,
+      supportersSetForCapThisTurn:cloneOnlinePlain(g.supportersSetForCapThisTurn || [0, 0]),
       maxSupportsPerTurn:g.maxSupportsPerTurn,
       extraSupportsThisTurn:g.extraSupportsThisTurn,
       pendingEffect:cloneOnlinePlain(g.pendingEffect),
@@ -2858,6 +2859,7 @@
     const repairedMoreBoardCards = state !== incomingState;
     const previousLandscapeBgNum = Number(g.landscapeBgNum) || null;
     const previousTurnState = {turn:g.turn, currentPlayer:g.currentPlayer, phase:g.phase, _turnStartedAt:g._turnStartedAt};
+    const previousHardCapCounts = cloneOnlinePlain(g.supportersSetForCapThisTurn || [0, 0]);
     const previousBoard = collectOnlineBoardSnapshot(g.board);
     const transientEffectFlashes = captureOnlineTransientEffectFlashes(g.board);
     const previousHandFateByIid = new Map();
@@ -2905,9 +2907,9 @@
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_turnTimerSeconds','_freePlayGameSettings','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
-      'placing','blockingCell','_blockingEffectSourceIid','_blockingEffectZone','supportsPlacedThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
+      'placing','blockingCell','_blockingEffectSourceIid','_blockingEffectZone','supportsPlacedThisTurn','supportersSetForCapThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
       'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
-      'p1Deck','p2Deck','majaEffectThisTurn','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
+      'p1Deck','p2Deck','majaEffectThisTurn','_majaSupportBoost','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
@@ -2916,6 +2918,13 @@
       '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure'
     ].forEach(function(k){
       if(Object.prototype.hasOwnProperty.call(state, k)) g[k] = cloneOnlinePlain(state[k]);
+    });
+    [0, 1].forEach(function(playerIndex){
+      if(Number(previousHardCapCounts[playerIndex] || 0) < 5
+        && Number(g.supportersSetForCapThisTurn?.[playerIndex] || 0) >= 5
+        && typeof window.showSupporterHardCapBanner === 'function'){
+        window.showSupporterHardCapBanner(playerIndex);
+      }
     });
     // A canonical state can originate from the authority bootstrap and omit
     // inactive optional fields. Absence means "no interaction", never "keep
@@ -3501,11 +3510,17 @@
         sourceIids:active.map(function(status){ return String(status.sourceIid || ''); }).filter(Boolean)
       };
     });
-    const majaExtraSupporters = (Array.isArray(projected.statuses) ? projected.statuses : []).some(function(status){
+    const majaExtraSupporterStatus = (Array.isArray(projected.statuses) ? projected.statuses : []).find(function(status){
       return status?.type === 'MAJA_EXTRA_SUPPORTERS'
         && Number(status.playerIndex) === Number(projected.activePlayer)
         && Number(status.remainingOwnerTurns || 0) > 0;
     });
+    const majaSupportBoost = majaExtraSupporterStatus ? {
+      owner:Number(majaExtraSupporterStatus.playerIndex),
+      turn:Number(projected.turn) || 1,
+      extraSupports:Math.max(1, Number(majaExtraSupporterStatus.extraSupports) || 2),
+      sourceIid:String(majaExtraSupporterStatus.sourceIid || '')
+    } : null;
     const blockedCells = (Array.isArray(projected.geometry?.squareStatuses) ? projected.geometry.squareStatuses : [])
       .filter(function(status){
         return ['PERMANENTLY_BLOCKED','CONSOLIDATION_BLOCKED'].includes(String(status?.type || ''));
@@ -3551,6 +3566,7 @@
       _moralePressure:cloneOnlinePlain(projected.moralePressure || null),
       maxSupportsPerTurn:Math.max(0, Number(projected.baseSupportersPerTurn) || 0),
       supportsPlacedThisTurn:Number(projected.supportersSetThisTurn?.[projected.activePlayer] || 0) || 0,
+      supportersSetForCapThisTurn:cloneOnlinePlain(projected.supportersSetForCapThisTurn || [0, 0]),
       extraSupportsThisTurn:Number(projected.extraSupportersThisTurn?.[projected.activePlayer] || 0) || 0,
       supportersSetTotal:cloneOnlinePlain(projected.supportersSetTotal || [0, 0]),
       // Shipping continuous-Fate helpers (including Felicyta Specters) read
@@ -3576,7 +3592,8 @@
       _blameGameEffects:blameGameEffects,
       _administrativeBloatEffects:administrativeBloatEffects,
       _selvaSupportBoosts:selvaSupportBoosts,
-      majaEffectThisTurn:majaExtraSupporters,
+      majaEffectThisTurn:!!majaExtraSupporterStatus,
+      _majaSupportBoost:majaSupportBoost,
       _phase7Revision:Number(projected.revision || 0) || 0,
       _phase7ViewerIndex:viewer
     };
@@ -5288,7 +5305,7 @@
     });
   }
   function phase7OpenBoardPromptPicker(key, commands, options){
-    const pickerNode = document.querySelector('#modal .board-target-picker');
+    const pickerNode = document.querySelector('#modal .board-target-picker, #modal .zone-picker-wrap');
     const pickerStyle = pickerNode ? getComputedStyle(pickerNode) : null;
     const visiblePicker = !!pickerNode
       && document.getElementById('modal')?.classList.contains('on')
@@ -5347,69 +5364,69 @@
     }
     phase7CurrentUiSession.pickerKey = key;
     phase7RecordPresentationStage('picker:open', {key:String(key || ''), kind:'board'});
+    const pickerZones = [...new Set(entries.map(function(entry){ return Number(entry.z); }))];
+    const cancelPicker = function(){
+      const cancel = phase7PromptCancel();
+      if(cancel) phase7SubmitCommand(cancel);
+      else phase7CurrentUiSession.pickerKey = '';
+    };
+    const acceptChosen = function(chosen){
+      const selected = opts.squareTargets
+        ? (chosen || []).map(function(entry){ return {z:Number(entry.z), r:Number(entry.r), c:Number(entry.c)}; })
+        : (chosen || []).map(function(entry){ return String(entry?.card?.iid || entry?.iid || ''); }).filter(Boolean);
+      const command = choices.find(function(candidate){
+        const value = candidate?.payload?.[opts.commandField];
+        const values = Array.isArray(value) ? value : (value ? [value] : []);
+        return opts.squareTargets ? phase7SameDestinationSet(values, selected) : phase7SameStringSet(values, selected);
+      });
+      if(command){
+        phase7CurrentUiSession.pickerKey = '';
+        phase7SubmitCommand(command);
+        return;
+      }
+      const livePrompt = phase7CurrentUiSession.view?.state?.pendingPrompt || null;
+      const promptId = String(livePrompt?.promptId || '');
+      const eligible = new Set((livePrompt?.eligible || []).map(function(destination){
+        return [Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':');
+      }));
+      const minCount = Math.max(0, Number(opts.minCount) || 0);
+      const maxCount = Math.max(1, Number(opts.maxCount) || 1);
+      const promptLegal = !!promptId && opts.squareTargets && selected.length >= minCount
+        && selected.length <= maxCount && selected.every(function(destination){
+          return eligible.has([Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':'));
+        });
+      phase7CurrentUiSession.pickerKey = '';
+      if(promptLegal){
+        phase7SubmitCommand({
+          type:'ANSWER_PROMPT',
+          payload:Object.assign({promptId}, livePrompt?.multi ? {destinations:selected.slice()} : {destination:selected[0]})
+        });
+      }else if(window.toast) toast('That target combination is not legal.');
+    };
     withOnlinePromptBypass(gameState(), function(){
+      if(pickerZones.length === 1 && !opts.squareTargets && typeof window.showZonePicker === 'function'){
+        const source = phase7FindAnyCard(prompt?.sourceIid);
+        window.showZonePicker(pickerZones[0], opts.prompt || 'Choose the required targets.', entries,
+          Math.max(1, Number(opts.maxCount) || 1), Number(phase7CurrentUiSession.view?.playerIndex),
+          acceptChosen, null, cancelPicker, source);
+        return;
+      }
       window.showBoardTargetPicker({
         pickerClass:'phase7-authoritative-board-picker',
         title:opts.title || 'Resolve Effect',
         prompt:opts.prompt || 'Choose the required targets.',
         entries,
-        zones:[...new Set(entries.map(function(entry){ return Number(entry.z); }))],
-        // Keep the full three-zone battlefield visible even when one zone is
-        // full and therefore contributes no eligible target entries.
-        visibleZones:[0, 1, 2],
+        zones:pickerZones,
         minCount:Math.max(0, Number(opts.minCount) || 0),
         maxCount:Math.max(1, Number(opts.maxCount) || 1),
         confirmLabel:'Confirm',
         viewerPlayerIndex:Number(phase7CurrentUiSession.view?.playerIndex),
         showZoneTitles:true,
         allowSquareTargets:!!opts.squareTargets,
-        onCancel:function(){
-          const cancel = phase7PromptCancel();
-          if(cancel) phase7SubmitCommand(cancel);
-          else phase7CurrentUiSession.pickerKey = '';
-        }
-      }, function(chosen){
-        const selected = opts.squareTargets
-          ? (chosen || []).map(function(entry){ return {z:Number(entry.z), r:Number(entry.r), c:Number(entry.c)}; })
-          : (chosen || []).map(function(entry){ return String(entry?.card?.iid || entry?.iid || ''); }).filter(Boolean);
-        const command = choices.find(function(candidate){
-          const value = candidate?.payload?.[opts.commandField];
-          const values = Array.isArray(value) ? value : (value ? [value] : []);
-          return opts.squareTargets ? phase7SameDestinationSet(values, selected) : phase7SameStringSet(values, selected);
-        });
-        if(command){
-          // The selected combination has left the board picker. Clear its
-          // guard before sending so a genuine no-op/rejection can remount the
-          // same authoritative choice instead of becoming permanently stuck.
-          phase7CurrentUiSession.pickerKey = '';
-          phase7SubmitCommand(command);
-        }
-        else {
-          const prompt = phase7CurrentUiSession.view?.state?.pendingPrompt || null;
-          const promptId = String(prompt?.promptId || '');
-          const eligible = new Set((prompt?.eligible || []).map(function(destination){
-            return [Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':');
-          }));
-          const minCount = Math.max(0, Number(opts.minCount) || 0);
-          const maxCount = Math.max(1, Number(opts.maxCount) || 1);
-          const promptLegal = !!promptId
-            && opts.squareTargets
-            && selected.length >= minCount
-            && selected.length <= maxCount
-            && selected.every(function(destination){
-              return eligible.has([Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':'));
-            });
-          phase7CurrentUiSession.pickerKey = '';
-          if(promptLegal){
-            phase7SubmitCommand({
-              type:'ANSWER_PROMPT',
-              payload:Object.assign({promptId}, prompt?.multi ? {destinations:selected.slice()} : {destination:selected[0]})
-            });
-          }else if(window.toast) toast('That target combination is not legal.');
-        }
-      });
+        onCancel:cancelPicker
+      }, acceptChosen);
     });
-    const mountedPicker = document.querySelector('#modal.on .board-target-picker');
+    const mountedPicker = document.querySelector('#modal.on .board-target-picker, #modal.on .zone-picker-wrap');
     if(mountedPicker) mountedPicker.dataset.phase7PickerKey = String(key || '');
     const promptId = String(phase7CurrentUiSession.view?.state?.pendingPrompt?.promptId || '');
     Array.from(document.querySelectorAll('#modal.on #modal-acts button')).forEach(function(button){
@@ -6282,14 +6299,16 @@
       };
       const owner = Number(event.playerIndex);
       const faceDown = owner !== Number(view.playerIndex);
+      const localDraw = !faceDown;
       const target = phase7PresentationCard(phase7FindCardLocation(event.cardIid)?.card)
         || phase7FindProjectedEntry(view, event.cardIid)?.card;
       const card = target || (faceDown ? {
         iid:'phase7-hidden-draw:' + String(event.cardIid || drawIndex), id:'phase7-hidden-draw',
         name:'Hidden Card', hidden:true, faceDown:true, img:'back.png', runtimeImg:'back.png'
       } : null);
-      if(window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
-        resultMotionStarted = !!window.FateV2CardMotionFx.drawFromPile(0, owner, {
+      let drawMotionStarted = false;
+      if(localDraw && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.drawFromPile === 'function'){
+        drawMotionStarted = !!window.FateV2CardMotionFx.drawFromPile(0, owner, {
           // This loop already waits for each production draw motion before it
           // starts the next one.  Passing the aggregate batch index into the
           // recipe added a second stagger (0/720/1440 ms) on top of that wait,
@@ -6297,12 +6316,13 @@
           // multi-draws also use one shared hand anchor while cards arrive
           // one-at-a-time, so keep the recipe index at zero too.
           card, faceDown, drawIndex:0, drawCount:1
-        }) || resultMotionStarted;
+        });
+        resultMotionStarted = drawMotionStarted || resultMotionStarted;
       }
-      if(typeof window.playSfx === 'function') window.playSfx('draw');
+      if(localDraw && typeof window.playSfx === 'function') window.playSfx('draw');
       phase7RecordPresentationStage('draw:start', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'start'}, drawStageDetails));
-      await phase7WaitForPresentationIdle({minQuietMs:70, timeoutMs:3600});
+      if(drawMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:70, timeoutMs:3600});
       if(String(event?.semanticSourceCardId || '').toLowerCase() === 'bh10'){
         const ownerReveals = chauffeurRevealedByPlayer.get(owner) || new Set();
         ownerReveals.add(String(event.cardIid || ''));
@@ -6840,10 +6860,15 @@
     const won = !isDraw && winner === localIndex;
     const players = Array.isArray(view.state.players) ? view.state.players : [];
     const zoneResults = phase7OutcomeZoneResults(outcome);
+    const finalMorale = Array.isArray(outcome.morale)
+      ? outcome.morale
+      : (Array.isArray(view.state.moralePressure?.morale) ? view.state.moralePressure.morale : null);
     try{ if(typeof window.stopTurnTimer === 'function') window.stopTurnTimer(); }catch(e){}
     try{ if(typeof window.hidePassTurnOverlay === 'function') window.hidePassTurnOverlay(); }catch(e){}
     try{ if(typeof window.removeInGameChat === 'function') window.removeInGameChat(); }catch(e){}
     try{ if(typeof window.closeGameModal === 'function') window.closeGameModal(); }catch(e){}
+    try{ if(typeof window.cleanupTutorialAndDialogueArtifacts === 'function') window.cleanupTutorialAndDialogueArtifacts({dismissTutorial:true}); }catch(e){}
+    try{ if(typeof window.cleanupFloatingGameArtifacts === 'function') window.cleanupFloatingGameArtifacts(); }catch(e){}
     if(typeof window.showScreen === 'function') window.showScreen('s-win');
     if(typeof window.applyWinScreenGameBackground === 'function') window.applyWinScreenGameBackground();
 
@@ -6863,7 +6888,14 @@
       if(typeof window.scheduleEndgameWinnerTitleFit === 'function') window.scheduleEndgameWinnerTitleFit();
     }
     if(sub){
-      if(String(outcome.type || '').toUpperCase() === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
+      const outcomeType = String(outcome.type || '').toUpperCase();
+      const outcomeReason = String(outcome.reason || '').toUpperCase();
+      if(outcomeType === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
+      else if(outcomeReason === 'MORALE_DOUBLE_KO') sub.textContent = 'Both players reached 0 Morale';
+      else if(outcomeReason === 'MORALE_DEPLETED'){
+        const depleted = finalMorale ? finalMorale.map(function(value,index){ return Number(value) <= 0 ? index : -1; }).filter(function(index){ return index >= 0; }) : [];
+        sub.textContent = depleted.length ? String(players[depleted[0]]?.name || ('Player ' + (depleted[0] + 1))) + ' reached 0 Morale' : 'A player reached 0 Morale';
+      }
       else if(['SEALS','SEAL_TIE'].includes(String(outcome.reason || '').toUpperCase())){
         sub.textContent = isDraw
           ? 'Both players finished tied on Seals'
@@ -6877,6 +6909,17 @@
     }
     if(zones){
       zones.innerHTML = '';
+      if(finalMorale){
+        const morale = document.createElement('div');
+        morale.className = 'win-seal-summary';
+        morale.innerHTML = '<div class="win-seal-title">Final Morale</div>' +
+          '<div class="win-seal-scores">' +
+            '<div class="p1"><span>' + esc(players[0]?.name || 'Player 1') + '</span><strong>' + (Number(finalMorale[0]) || 0) + '</strong></div>' +
+            '<div class="win-seal-mark" aria-hidden="true">♥</div>' +
+            '<div class="p2"><span>' + esc(players[1]?.name || 'Player 2') + '</span><strong>' + (Number(finalMorale[1]) || 0) + '</strong></div>' +
+          '</div><div class="win-seal-origin">Morale damage is the sum of the Fate deficits in zones each player does not control.</div>';
+        zones.appendChild(morale);
+      }
       zoneResults.forEach(function(result){
         const controller = result.ctrl;
         const node = document.createElement('div');
@@ -6889,7 +6932,7 @@
         zones.appendChild(node);
       });
       const showTotals = isDraw || String(outcome.reason || '').toUpperCase() === 'TOTAL_FATE';
-      if(showTotals && Array.isArray(outcome.totalFate)){
+      if(showTotals && !finalMorale && Array.isArray(outcome.totalFate)){
         const totals = document.createElement('div');
         totals.className = 'win-total-fate';
         totals.innerHTML = '<div class="win-total-fate-title">' + (isDraw ? 'Total Fate (Tied)' : 'Total Fate Tiebreaker') + '</div>' +
@@ -6900,7 +6943,7 @@
           '<div class="win-total-fate-note' + (isDraw ? '' : ' won') + '">' + (isDraw ? 'Official Draw' : esc(winnerName) + ' wins by higher total Fate!') + '</div>';
         zones.appendChild(totals);
       }
-      if(Array.isArray(outcome.seals)){
+      if(!finalMorale && Array.isArray(outcome.seals)){
         const seals = document.createElement('div');
         seals.className = 'win-total-fate win-seal-total';
         seals.innerHTML = '<div class="win-total-fate-title">Final Seals</div>' +
@@ -7020,10 +7063,24 @@
     g._onlineActionLogMode = true;
     g._onlineGameSong = 'board' + legacy.landscapeBgNum;
     g._onlineMatchPlayable = true;
+    const projectedPlayers = Array.isArray(view.state.players) ? view.state.players : [];
+    const previousProfiles = g.playerProfiles || {};
+    g.playerProfiles = {};
+    [0,1].forEach(function(playerIndex){
+      const player = projectedPlayers[playerIndex] || {};
+      g.playerProfiles[playerIndex] = Object.assign({}, previousProfiles[playerIndex] || {}, {
+        name:String(player.name || ('Player ' + (playerIndex + 1))),
+        elo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
+        challengerElo:Math.max(0, Math.round(Number(player.rankElo) || 600))
+      });
+    });
     // Mark authority before rendering the projection. Shared rendering calls
     // enforceHandLimit(), which must not open the legacy client-owned modal.
     g._phase7CurrentMultiplayer = true;
     const applied = applyOnlineCanonicalState(legacy, reason || 'Phase 7 current UI snapshot', null);
+    if(typeof window.releaseMoralePresentationHold === 'function'){
+      window.releaseMoralePresentationHold(view.state.moralePressure || null);
+    }
     g._coinWinner = [0, 1].includes(Number(view.state.coinFlip?.winner))
       ? Number(view.state.coinFlip.winner)
       : null;
@@ -8491,28 +8548,35 @@
     if(!entries.length) return;
     const forcedSingle = /^(breakfastBusserGrantMove|breakfastBusserSelectSupporter)$/i.test(String(pending.kind || ''));
     const maxCount = forcedSingle ? 1 : Math.max(1, Number(pending.maxCount || 1) || 1);
+    const pickerZones = [...new Set(entries.map(entry=>Number(entry.z)))];
+    const acceptChosen = function(chosen){
+      sendServerPendingAction('PICK_ZONE', pending, {
+        selectedEntries:(chosen || []).slice(0, maxCount).map(boardSelectionPayload)
+      }, 'Target choice');
+    };
+    const cancelPicker = function(){
+      if(pending.optional === true){
+        sendServerPendingAction('PICK_ZONE', pending, {selectedEntries:[]}, 'Target choice');
+      }
+    };
     g._onlineShownServerZonePickPromptId = promptKey;
     withOnlinePromptBypass(g, function(){
+      if(pickerZones.length === 1 && typeof window.showZonePicker === 'function'){
+        window.showZonePicker(pickerZones[0], serverZonePickPrompt(pending), entries, maxCount,
+          localIndex, acceptChosen, null, cancelPicker, null);
+        return;
+      }
       window.showBoardTargetPicker({
         title:serverZonePickTitle(pending),
         prompt:serverZonePickPrompt(pending),
         entries,
-        zones:[...new Set(entries.map(entry=>entry.z))],
-        visibleZones:[0, 1, 2],
+        zones:pickerZones,
         maxCount,
         confirmLabel:'Confirm',
         showOpponentOverlay:true,
         allowOptionalCancelServerAction:pending.optional === true,
-        onCancel:function(){
-          if(pending.optional === true){
-            sendServerPendingAction('PICK_ZONE', pending, {selectedEntries:[]}, 'Target choice');
-          }
-        }
-      }, function(chosen){
-        sendServerPendingAction('PICK_ZONE', pending, {
-          selectedEntries:(chosen || []).slice(0, maxCount).map(boardSelectionPayload)
-        }, 'Target choice');
-      });
+        onCancel:cancelPicker
+      }, acceptChosen);
     });
   }
   function maybeShowServerModalActionPrompt(){
@@ -17124,6 +17188,7 @@
         const result = await beta.startUnrankedMatchmaking({
           deckIds:deck.deckIds,
           name:pName(prof),
+          rankElo:Number(prof.challengerElo ?? prof.elo ?? 600) || 600,
           queueMode:mode,
           gameSettings:settings,
           onStatus(detail){

@@ -48,9 +48,9 @@ function moveToBoard(state, playerIndex, cardId, destination){
   return card;
 }
 
-// Maja: the real deck-set action must transfer three distinct Supporters, emit
-// three presentable deck-to-hand events, preserve the source card identity, and
-// create only the Maja banner status for the current turn.
+// Maja: the real deck-set action may transfer zero to three distinct
+// Supporters. Its independent +2 placement status must already be visible
+// while the optional search prompt is open.
 let state = stateFor('P7-PRESENT-MAJA', ['07', '32', '32', '32', '74']);
 const maja = state.players[0].deck.find(card=>card.id === '07');
 let result = reduceCommand(state, command(state, 'p0', 1, 'SET_CARD_FROM_DECK', {
@@ -60,6 +60,11 @@ let result = reduceCommand(state, command(state, 'p0', 1, 'SET_CARD_FROM_DECK', 
 assert.equal(result.ok, true);
 assert.equal(result.status, 'NEEDS_CHOICE');
 assert.equal(result.prompt.type, 'CARD_SELECTION');
+assert.equal(result.prompt.min, 0);
+assert.equal(result.prompt.max, 3);
+assert.equal(result.prompt.cancellable, true);
+assert.equal(result.state.extraSupportersThisTurn[0], 2);
+assert.equal(result.state.statuses.filter(status=>status.type === 'MAJA_EXTRA_SUPPORTERS').length, 1, 'Oblique Order status must exist before the optional search is answered');
 const selectedIids = result.prompt.eligibleIids.slice(0, 3);
 assert.equal(selectedIids.length, 3);
 state = result.state;
@@ -80,6 +85,43 @@ assert(selectedIids.every(iid=>Number(result.state.players[0].hand.find(card=>ca
 assert.equal(result.state.extraSupportersThisTurn[0], 2);
 assert.equal(result.state.statuses.filter(status=>status.type === 'MAJA_EXTRA_SUPPORTERS').length, 1);
 assert.equal(result.state.statuses.some(status=>status.type === 'SELVA_EXTRA_SUPPORTER'), false, 'Maja counter changes must never masquerade as Selva');
+assertInvariants(result.state);
+
+// One supporter is a legal answer; the search must not force all three.
+state = stateFor('P7-PRESENT-MAJA-ONE', ['07', '32', '32', '32', '74']);
+const oneMaja = state.players[0].deck.find(card=>card.id === '07');
+result = reduceCommand(state, command(state, 'p0', 1, 'SET_CARD_FROM_DECK', {
+  cardIid:oneMaja.iid,
+  destination:{z:0, r:2, c:0}
+}), {playerId:'p0'});
+const selectedOne = result.prompt.eligibleIids[0];
+state = result.state;
+result = reduceCommand(state, command(state, 'p0', 2, 'ANSWER_PROMPT', {
+  promptId:state.pendingPrompt.promptId,
+  selectedIids:[selectedOne]
+}), {playerId:'p0'});
+assert.equal(result.ok, true);
+assert.equal(result.events.filter(event=>event.type === 'CARD_TRANSFERRED' && event.reason === 'OBLIQUE_ORDER').length, 1);
+assert.equal(Number(result.state.players[0].hand.find(card=>card.iid === selectedOne)?.currentFate), 5);
+assert.equal(result.state.extraSupportersThisTurn[0], 2);
+
+// Cancelling is the zero-card answer and must preserve the independent status.
+state = stateFor('P7-PRESENT-MAJA-ZERO', ['07', '32', '32', '74']);
+const zeroMaja = state.players[0].deck.find(card=>card.id === '07');
+result = reduceCommand(state, command(state, 'p0', 1, 'SET_CARD_FROM_DECK', {
+  cardIid:zeroMaja.iid,
+  destination:{z:0, r:2, c:0}
+}), {playerId:'p0'});
+state = result.state;
+result = reduceCommand(state, command(state, 'p0', 2, 'ANSWER_PROMPT', {
+  promptId:state.pendingPrompt.promptId,
+  cancel:true
+}), {playerId:'p0'});
+assert.equal(result.ok, true);
+assert.equal(result.events.some(event=>event.type === 'CARD_TRANSFERRED' && event.reason === 'OBLIQUE_ORDER'), false);
+assert.equal(result.events.some(event=>event.type === 'PROMPT_CANCELLED'), true);
+assert.equal(result.state.extraSupportersThisTurn[0], 2);
+assert.equal(result.state.statuses.filter(status=>status.type === 'MAJA_EXTRA_SUPPORTERS').length, 1);
 assertInvariants(result.state);
 
 // Kazumi: one activation is one effect activation followed by exactly three

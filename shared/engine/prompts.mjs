@@ -11,9 +11,12 @@ import {
 import {
   canTarget,
   effectiveCardType,
-  isEffectImmutable
+  isEffectSourceSuppressed,
+  isEffectImmutable,
+  structuralCardType
 } from './modifiers.mjs';
 import {cardRule} from './cards/registry.mjs';
+import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 
 function inferredTargetOperation(frame, filter){
   if(filter.targetable) return String(filter.targetable);
@@ -126,6 +129,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         if(!targetCheck.ok) return false;
         if(targetOperation === 'DISCARD_CARD'
           && String(entry.card.id || '') === '62'
+          && !isEffectSourceSuppressed(state, entry)
           && controllerOf(entry.card) !== frame.controller){
           const costs = eligibleCardTargets(state, frame, {
             locations:['hand'],
@@ -241,6 +245,11 @@ export function eligibleDestinations(state, frame, filter = {}){
         : nextInstruction.cardIid)
     : null;
   const freeSetCard = freeSetIid ? findCard(state, freeSetIid)?.card || null : null;
+  if(freeSetCard
+    && structuralCardType(state, freeSetCard) === 'Supporter'
+    && Number(state.supportersSetForCapThisTurn?.[frame.controller] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+    return [];
+  }
   const accept = destination=>{
     const enriched = {...destination, owner:rowOwner(state, destination.z, destination.r)};
     if(filter.sameZone && (!source || destination.z !== source.z)) return false;

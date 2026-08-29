@@ -34,14 +34,11 @@ export function effectiveCardType(_state, card){
   return override ? String(override).slice(5) : (declaredType || structuralType);
 }
 
-export function structuralCardType(state, card){
-  const structuralType = String(card?.counters?.bh14OriginalType || card?.type || '');
-  const globalOverride = (state?.statuses || []).find(status=>
-    status?.type === 'SUPPORTERS_AS_CHARACTERS'
-    && Number(status.playerIndex) === controllerOf(card)
-    && Number(status.remainingTargetTurns || 0) > 0
-  );
-  return globalOverride && structuralType === 'Supporter' ? 'Character' : structuralType;
+export function structuralCardType(_state, card){
+  // Structural rules use the physical printed card type. Rozsi and Chloe only
+  // change effect-facing classification, so a printed Supporter remains a
+  // valid consolidation tribute under either effect.
+  return String(card?.counters?.bh14OriginalType || card?.type || '');
 }
 
 export function effectiveCost(_state, card){
@@ -379,7 +376,8 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
     }
     return {ok:true, reinforcement:1};
   }
-  if(['62', '76'].includes(String(card.id || ''))
+  if(((String(card.id || '') === '62' && !isEffectSourceSuppressed(state, entry))
+      || String(card.id || '') === '76')
     || card.noConsolidate === true
     || (card.statuses || []).includes('CANNOT_CONSOLIDATE')){
     return rejection('TRIBUTE_PREVENTED', 'the selected card cannot be used for consolidation');

@@ -764,6 +764,7 @@ let G = {
   placing: false,
   placingCellFilter: null,
   supportsPlacedThisTurn: 0,
+  supportersSetForCapThisTurn: [0, 0],
   maxSupportsPerTurn: 2,
   extraSupportsThisTurn: 0,
   _selvaSupportBoosts: [null, null],

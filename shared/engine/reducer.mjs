@@ -1,6 +1,7 @@
 import {
   COMMAND_TYPES,
   ENGINE_VERSION,
+  MAX_SUPPORTERS_SET_PER_TURN,
   PROMPT_TYPES,
   RULESET_VERSION,
   RULE_EVENT_TYPES,
@@ -644,18 +645,67 @@ function activationReactionOptions(state, frame){
       options.push({reactionIid:entry.card.iid, kind:'SECULES', modes:['NEGATE']});
     }
   }
+  const sourceRule = cardRule(frame.sourceCardId, state);
+  if(sourceRule?.havanoTargeting === 'OPPONENT'
+    && Number(state.supportersSetForCapThisTurn?.[opponent] || 0) < MAX_SUPPORTERS_SET_PER_TURN){
+    for(const card of state.players[opponent].hand){
+      if(cardRule(card.id, state)?.reactionKind === 'HAVANO'){
+        options.push({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']});
+      }
+    }
+  }
   return options.sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
 }
 
 function targetReactionOptions(state, frame, operation){
   const target = findCard(state, operation.targetIid || operation.cardIid);
-  if(!target) return [];
-  const targetController = controllerOf(target.card);
+  const explicitTargetController = Number(operation.targetPlayerIndex);
+  const targetController = target
+    ? controllerOf(target.card)
+    : ([0, 1].includes(explicitTargetController) ? explicitTargetController : null);
+  if(targetController === null) return [];
   if(targetController === frame.controller) return [];
+  if(Number(state.supportersSetForCapThisTurn?.[targetController] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) return [];
   return state.players[targetController].hand
     .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO')
     .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']}))
     .sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
+}
+
+function startPassiveTargetReaction(state, ctx, source, controller, commandId){
+  const rule = cardRule(source?.id, state);
+  if(!source || source.faceDown === true || rule?.havanoPassiveEntry !== true) return false;
+  if(isEffectSourceSuppressed(state, source)) return false;
+  const reactingPlayer = controller === 0 ? 1 : 0;
+  if(Number(state.supportersSetForCapThisTurn?.[reactingPlayer] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) return false;
+  const options = state.players[reactingPlayer].hand
+    .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO')
+    .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['SUPPRESS']}))
+    .sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
+  if(!options.length) return false;
+  const frame = {
+    frameId:nextId(state, 'frame'),
+    kind:'PASSIVE_ENTRY_REACTION',
+    sourceIid:source.iid,
+    sourceCardId:String(source.id || ''),
+    sourceType:String(source.type || ''),
+    controller,
+    timing:'PASSIVE_ENTRY',
+    instructionIndex:0,
+    waitingFor:null,
+    locals:{},
+    program:[],
+    originalCommandId:commandId
+  };
+  state.effectStack.push(frame);
+  openReactionPrompt(state, frame, options, 'PASSIVE_TARGET');
+  ctx.events.push({
+    type:RULE_EVENT_TYPES.CARD_TARGETED,
+    sourceIid:source.iid,
+    targetPlayerIndex:reactingPlayer,
+    passiveEntry:true
+  });
+  return true;
 }
 
 function openReactionPrompt(state, frame, options, phase){
@@ -666,7 +716,7 @@ function openReactionPrompt(state, frame, options, phase){
     promptId:nextId(state, 'prompt'),
     type:PROMPT_TYPES.REACTION,
     playerIndex,
-    sourceIid:frame.sourceIid,
+    sourceIid:frame.activeReactionSourceIid || frame.sourceIid,
     phase,
     options,
     choices:['DECLINE', 'NEGATE', 'SUPPRESS'],
@@ -926,6 +976,7 @@ function insertBerkeleyDiscardCost(state, frame, instruction, operation){
     const target = findCard(state, iid);
     return target?.zone === 'board'
       && String(target.card.id || '') === '62'
+      && !isEffectSourceSuppressed(state, target)
       && controllerOf(target.card) !== Number(frame.controller);
   });
   if(!targetIid) return false;
@@ -1026,6 +1077,9 @@ function runEffectStack(state, ctx){
       });
       frame.instructionIndex += 1;
       const placed = findBoardCard(state, result.cardIid)?.card;
+      if(placed && placed.faceDown !== true && startPassiveTargetReaction(state, ctx, placed, frame.controller, frame.originalCommandId)){
+        continue;
+      }
       if(placed && placed.faceDown !== true && startFieldEntryDeclaration(state, ctx, placed, frame.controller, frame.originalCommandId)){
         continue;
       }
@@ -1075,6 +1129,14 @@ function runEffectStack(state, ctx){
     if(instruction.kind === 'COMPLETE_END_TURN'){
       const endingPlayer = Number(resolveValue(instruction.playerIndex, frame));
       frame.instructionIndex += 1;
+      if(!openBh18EndTurnFrame(state, ctx, endingPlayer, frame.originalCommandId)){
+        completeEndTurn(state, ctx, endingPlayer);
+      }
+      continue;
+    }
+    if(instruction.kind === 'FINALIZE_END_TURN'){
+      const endingPlayer = Number(resolveValue(instruction.playerIndex, frame));
+      frame.instructionIndex += 1;
       completeEndTurn(state, ctx, endingPlayer);
       continue;
     }
@@ -1105,6 +1167,7 @@ function runEffectStack(state, ctx){
       const reactions = targetReactionOptions(state, frame, operation);
       if(reactions.length){
         frame.pendingOperation = operation;
+        frame.activeReactionSourceIid = operation.sourceIid || frame.sourceIid;
         openReactionPrompt(state, frame, reactions, 'TARGET');
         ctx.events.push({
           type:RULE_EVENT_TYPES.CARD_TARGETED,
@@ -1129,22 +1192,6 @@ function completeEndTurn(state, ctx, actorIndex){
       reason:'LANDSCAPE_IGB19_HAND_EXPIRY'
     });
   }
-  const bh18Controller = actorIndex === 0 ? 1 : 0;
-  for(const source of boardEntries(state).filter(entry=>
-    controllerOf(entry.card) === bh18Controller
-    && entry.card.faceDown !== true
-    && runtimeRuleId(entry.card) === 'bh18'
-    && !isEffectSourceSuppressed(state, entry)
-  )){
-    applyOperation(ctx, {
-      type:'RANDOM_DISCARD_DECK',
-      playerIndex:actorIndex,
-      sourceIid:source.card.iid,
-      semanticSourceCardId:'bh18',
-      sourceController:bh18Controller,
-      reason:'GENESIS_OF_ALL_INCELDOM'
-    });
-  }
   resolveMoraleSupporterExpiry(state, ctx, actorIndex);
   resolveMoralePressureCycle(ctx);
   resolveMoraleLowHandDiscard(state, ctx, actorIndex);
@@ -1167,6 +1214,7 @@ function completeEndTurn(state, ctx, actorIndex){
   state.activePlayer = actorIndex === 0 ? 1 : 0;
   state.turn += 1;
   state.supportersSetThisTurn[state.activePlayer] = 0;
+  state.supportersSetForCapThisTurn = [0, 0];
   state.extraSupportersThisTurn[state.activePlayer] = 0;
   resetMoraleTurnCounters(state, state.activePlayer);
   resetLandscapeTurnCounters(state, state.activePlayer);
@@ -1191,6 +1239,48 @@ function completeEndTurn(state, ctx, actorIndex){
     turn:state.turn
   });
   openMoraleThresholdDiscardFrame(state, ctx);
+}
+
+function openBh18EndTurnFrame(state, ctx, actorIndex, commandId){
+  if(!state.players[actorIndex]?.deck?.length) return false;
+  const controller = actorIndex === 0 ? 1 : 0;
+  const sources = boardEntries(state).filter(entry=>
+    controllerOf(entry.card) === controller
+    && entry.card.faceDown !== true
+    && runtimeRuleId(entry.card) === 'bh18'
+    && !isEffectSourceSuppressed(state, entry)
+  );
+  if(!sources.length) return false;
+  const program = sources.map(source=>({
+    kind:'OPERATION',
+    targeted:true,
+    operation:{
+      type:'RANDOM_DISCARD_DECK',
+      playerIndex:actorIndex,
+      targetPlayerIndex:actorIndex,
+      sourceIid:source.card.iid,
+      semanticSourceCardId:'bh18',
+      sourceController:controller,
+      reason:'GENESIS_OF_ALL_INCELDOM'
+    }
+  }));
+  program.push({kind:'FINALIZE_END_TURN', playerIndex:actorIndex});
+  state.effectStack.push({
+    frameId:nextId(state, 'frame'),
+    kind:'PASSIVE_END_TURN_EFFECT',
+    sourceIid:sources[0].card.iid,
+    sourceCardId:'bh18',
+    sourceType:String(sources[0].card.type || 'Improvisor'),
+    controller,
+    timing:'TURN_ENDING',
+    instructionIndex:0,
+    waitingFor:null,
+    locals:{},
+    program,
+    originalCommandId:commandId
+  });
+  runEffectStack(state, ctx);
+  return true;
 }
 
 function resolveMoraleLowHandDiscard(state, ctx, playerIndex){
@@ -1566,6 +1656,7 @@ function resolveReaction(state, ctx, frame, prompt, payload){
     if(frame.reactionPhase === 'TARGET'){
       const operation = cloneSerializable(frame.pendingOperation);
       delete frame.pendingOperation;
+      delete frame.activeReactionSourceIid;
       delete frame.reactionPhase;
       applyOperation(ctx, operation);
       frame.instructionIndex += 1;
@@ -1590,10 +1681,11 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
   // Lydia has one clear response: negate this resolution and permanently
   // suppress its source. Havano retains its distinct negate/suppress choice.
-  if(choice === 'SUPPRESS' || option.kind === 'LYDIA') addSuppression(state, frame.sourceIid);
+  const reactedSourceIid = frame.activeReactionSourceIid || frame.sourceIid;
+  if(choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
   emitRuleEvent(ctx, {
     type:RULE_EVENT_TYPES.EFFECT_REACTED,
-    sourceIid:frame.sourceIid,
+    sourceIid:reactedSourceIid,
     reactionIid:reactionEntry.card.iid,
     playerIndex:controllerOf(reactionEntry.card),
     reactionKind:option.kind,
@@ -1601,6 +1693,7 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   });
   state.pendingPrompt = null;
   if(option.kind === 'HAVANO'){
+    frame.havanoReactionPhase = frame.reactionPhase;
     frame.pendingOperation = null;
     frame.havanoIid = reactionEntry.card.iid;
     frame.waitingFor = 'HAVANO_DESTINATION';
@@ -1725,8 +1818,14 @@ function resolvePrompt(state, ctx, actorIndex, payload){
         sourceController:actorIndex,
         reactionSet:true
       });
-      frame.instructionIndex += 1;
+      if(frame.havanoReactionPhase === 'ACTIVATION' || frame.havanoReactionPhase === 'PASSIVE_TARGET'){
+        frame.instructionIndex = frame.program.length;
+      }else{
+        frame.instructionIndex += 1;
+      }
       delete frame.havanoIid;
+      delete frame.havanoReactionPhase;
+      delete frame.activeReactionSourceIid;
       frame.waitingFor = null;
       state.pendingPrompt = null;
       runEffectStack(state, ctx);
@@ -1987,8 +2086,14 @@ function performCommand(state, ctx, command, actorIndex, options){
       && (String(entry.card.type || '') !== 'Supporter' || Number(entry.card.cost || 0) !== 0)){
       throw Object.assign(new Error('this card requires the consolidation command family, which is not yet v3 eligible'), {code:'CONSOLIDATION_REQUIRED'});
     }
-    if(!isPierogi && !isWhisperToken && state.supportersSetThisTurn[actorIndex]
-      >= state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)){
+    if(!isPierogi && !isWhisperToken && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+      throw Object.assign(new Error(`the ${MAX_SUPPORTERS_SET_PER_TURN}-Supporter hard cap has been reached`), {code:'SUPPORTER_HARD_CAP_REACHED'});
+    }
+    const normalSupporterAllowance = Math.min(
+      MAX_SUPPORTERS_SET_PER_TURN,
+      state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)
+    );
+    if(!isPierogi && !isWhisperToken && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
       throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
     }
     const placementBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
@@ -2059,6 +2164,8 @@ function performCommand(state, ctx, command, actorIndex, options){
           reason:block.statusType,
           statusId:block.statusId
         });
+      }else if(startPassiveTargetReaction(state, ctx, card, actorIndex, command.commandId)){
+        // Opponent may deploy Havano before the new passive begins applying.
       }else if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){
         // Passive field-entry declaration, intentionally not a When Set effect.
       }else if(hasWhenSetEffect){
@@ -2075,6 +2182,10 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     if(String(entry.card.id || '') === '28' && Number(state.players[actorIndex].polishDeckSetTurn) === Number(state.turn)){
       throw Object.assign(new Error('The Army of Exiles can only be used once per turn'), {code:'ONCE_PER_TURN_LIMIT'});
+    }
+    if(String(entry.card.type || '') === 'Supporter'
+      && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+      throw Object.assign(new Error(`the ${MAX_SUPPORTERS_SET_PER_TURN}-Supporter hard cap has been reached`), {code:'SUPPORTER_HARD_CAP_REACHED'});
     }
     const owner = rowOwner(state, payload.destination?.z, payload.destination?.r);
     if(String(entry.card.id) === '07' ? owner !== actorIndex : ![-1, actorIndex].includes(owner)){
@@ -2100,7 +2211,9 @@ function performCommand(state, ctx, command, actorIndex, options){
     });
     const placed = findBoardCard(state, result.cardIid)?.card;
     if(String(card.id || '') === '28') state.players[actorIndex].polishDeckSetTurn = Number(state.turn);
-    if(placed && startFieldEntryDeclaration(state, ctx, placed, actorIndex, command.commandId)){
+    if(placed && startPassiveTargetReaction(state, ctx, placed, actorIndex, command.commandId)){
+      // Opponent may deploy Havano before the new passive begins applying.
+    }else if(placed && startFieldEntryDeclaration(state, ctx, placed, actorIndex, command.commandId)){
       // Passive field-entry declaration.
     }else if(placed && hasTiming(placed.id, 'WHEN_SET', state)){
       startEffect(state, ctx, placed, actorIndex, 'WHEN_SET', command.commandId);
@@ -2122,6 +2235,11 @@ function performCommand(state, ctx, command, actorIndex, options){
       || !['SET', 'CONSOLIDATED'].includes(String(payload.placementType))){
       throw Object.assign(new Error('Adaptive Tactics declarations are invalid'), {code:'INVALID_DECLARATION'});
     }
+    if(String(payload.declaredType) === 'Supporter'
+      && String(payload.placementType) === 'SET'
+      && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+      throw Object.assign(new Error(`the ${MAX_SUPPORTERS_SET_PER_TURN}-Supporter hard cap has been reached`), {code:'SUPPORTER_HARD_CAP_REACHED'});
+    }
     entry.card.type = String(payload.declaredType);
     entry.card.affiliation = String(payload.declaredAffiliation);
     entry.card.rarity = String(payload.declaredRarity);
@@ -2134,6 +2252,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       sourceIid:entry.card.iid,
       sourceController:actorIndex,
       playedFromHand:true,
+      consolidated:payload.placementType === 'CONSOLIDATED',
       countTowardSupporterLimit:false
     });
     if(payload.placementType === 'CONSOLIDATED'){
@@ -2195,7 +2314,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     if(card && !card.faceDown){
       const effectId = card.id;
-      if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){}
+      if(startPassiveTargetReaction(state, ctx, card, actorIndex, command.commandId)){}
+      else if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){}
       else if(hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
       else if(hasTiming(effectId, 'ACTIVATE', state)) startAutomaticActivation(state, ctx, card, actorIndex, command.commandId);
     }
@@ -2212,7 +2332,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     entry.card.faceDown = false;
     ctx.events.push({type:'CARD_FLIPPED', cardIid:entry.card.iid, playerIndex:actorIndex, faceDown:false});
     const effectId = entry.card.id;
-    if(startFieldEntryDeclaration(state, ctx, entry.card, actorIndex, command.commandId)){}
+    if(startPassiveTargetReaction(state, ctx, entry.card, actorIndex, command.commandId)){}
+    else if(startFieldEntryDeclaration(state, ctx, entry.card, actorIndex, command.commandId)){}
     else if(hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
     else if(hasTiming(effectId, 'ACTIVATE', state)) startAutomaticActivation(state, ctx, entry.card, actorIndex, command.commandId);
     return;
@@ -2384,7 +2505,7 @@ function performCommand(state, ctx, command, actorIndex, options){
   if(command.type === 'END_TURN'){
     ctx.events.push({type:RULE_EVENT_TYPES.TURN_ENDING, playerIndex:actorIndex, turn:state.turn});
     if(openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, command.commandId)) return;
-    completeEndTurn(state, ctx, actorIndex);
+    if(!openBh18EndTurnFrame(state, ctx, actorIndex, command.commandId)) completeEndTurn(state, ctx, actorIndex);
     return;
   }
   if(options.allowDebugCommands === true && ['DRAW_CARD', 'DISCARD_CARD', 'MODIFY_FATE'].includes(command.type)){

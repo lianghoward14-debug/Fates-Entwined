@@ -1,4 +1,5 @@
 import {cardRule} from './cards/registry.mjs';
+import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
   effectiveCardType,
@@ -223,6 +224,8 @@ export function legalCommandTemplates(state, playerIndex){
   if(state.outcome || state.activePlayer !== player) return commands;
   for(const card of state.players[player].deck){
     if(!['07', '28'].includes(String(card.id || ''))) continue;
+    if(String(card.type || '') === 'Supporter'
+      && Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) continue;
     if(String(card.id || '') === '28' && Number(state.players[player].polishDeckSetTurn) === Number(state.turn)) continue;
     for(const destination of openBoardDestinations(state, candidate=>{
       const owner = rowOwner(state, candidate.z, candidate.r);
@@ -258,6 +261,9 @@ export function legalCommandTemplates(state, playerIndex){
           for(const declaredAffiliation of ['reality', 'third_great_war', 'expanded_worlds', 'eventide']){
             for(const declaredRarity of ['circle', 'triangle', 'square', 'star']){
               for(const placementType of ['SET', 'CONSOLIDATED']){
+                if(declaredType === 'Supporter'
+                  && placementType === 'SET'
+                  && Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) continue;
                 commands.push({
                   type:'SET_ADAPTIVE_TOKEN',
                   payload:{
@@ -279,8 +285,9 @@ export function legalCommandTemplates(state, playerIndex){
   const setDestinations = openBoardDestinations(state, destination=>ownSetDestination(state, player, destination));
   for(const card of state.players[player].hand){
     if(card.counters?.adaptiveToken === true) continue;
+    if(Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) break;
     if(state.supportersSetThisTurn[player]
-      >= state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0)) break;
+      >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) break;
     if(String(card.type || '') !== 'Supporter' || Number(card.cost || 0) !== 0) continue;
     if(String(card.id || '') === '70' && card.statuses?.includes('GUERILLA_INFILTRATING')) continue;
     for(const destination of setDestinations){

@@ -6,6 +6,7 @@
   const ZONE_FATE_TOOLTIP_ID = 'morale-zone-fate-tooltip';
   let overridePressure = null;
   let presentedMoraleSystem = null;
+  let heldMoraleSystem = null;
   let singlePlayerPresentationQueue = Promise.resolve();
   let moraleCalculationPresentationDepth = 0;
   const moraleCalculationPresentationWaiters = [];
@@ -280,7 +281,21 @@
   }
 
   function getPresentedMoraleSystem(){
-    return presentedMoraleSystem;
+    return presentedMoraleSystem || heldMoraleSystem;
+  }
+
+  function sameMoraleValues(left,right){
+    return !!left && !!right
+      && Number(left.morale?.[0]) === Number(right.morale?.[0])
+      && Number(left.morale?.[1]) === Number(right.morale?.[1]);
+  }
+
+  function releaseMoralePresentationHold(authoritativeSystem){
+    if(!heldMoraleSystem) return false;
+    if(authoritativeSystem && !sameMoraleValues(heldMoraleSystem,authoritativeSystem)) return false;
+    heldMoraleSystem=null;
+    refreshVisibleMatchMoraleSurface();
+    return true;
   }
 
   function legacyGameState(){
@@ -593,7 +608,7 @@
     return true;
   }
 
-  function recordLegacyMoralePressureCardSet(card){
+  function recordLegacyMoralePressureCardSet(card, options){
     const state = legacyGameState();
     if(!legacyRulesEnabled() || !state?._moralePressure || !card || legacyFaceDown(card)) return false;
     const player = Number(card.owner);
@@ -602,8 +617,22 @@
     const pressureReworks = window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true
       || state?.gameSettings?.pressureCardReworks === true
       || state?._freePlayGameSettings?.pressureCardReworks === true;
-    if(pressureReworks){
-      if(String(card.id||'')==='20') card._preventNextMoraleDamage=true;
+    // Placement is committed before the WHEN_SET reaction window opens. Keep
+    // pressure accounting current at commit time, but do not apply a reworked
+    // WHEN_SET result until Lydia/Secules/Havano have had the opportunity to
+    // negate it.
+    const resolveWhenSetEffects = options?.resolveWhenSetEffects === true
+      || !(card._onlineSetResolutionPending || card._onlineSetResolutionInFlight);
+    if(pressureReworks && resolveWhenSetEffects){
+      if(String(card.id||'')==='20'){
+        state._southWindMoraleBlock = {
+          sourcePlayer:player,
+          targetPlayer:1-player,
+          activeFromTurn:Number(state.turn || 0) + 1,
+          remainingTargetTurns:1,
+          sourceIid:String(card.iid || '')
+        };
+      }
       if(String(card.id||'')==='64') card._doubleNextMoraleDamage=true;
       if(String(card.id||'')==='33'){
         const before=Number(system.morale[player]||0);system.morale[player]=Math.min(Number(system.maxMorale||200),before+16);
@@ -612,7 +641,11 @@
       if(String(card.id||'')==='47'){
         const opponent=1-player;
         const before=Number(system.morale[opponent]||0);
-        const blocked=String(state.landscapeId||'')==='igb1';
+        const block=state._southWindMoraleBlock;
+        const blocked=String(state.landscapeId||'')==='igb1' || !!(block
+          && Number(block.targetPlayer)===player
+          && Number(block.activeFromTurn)<=Number(state.turn)
+          && Number(block.remainingTargetTurns)>0);
         system.morale[opponent]=blocked?before:Math.max(0,before-10);
         if(system.morale[opponent]<before) events.push({type:'MORALE_DAMAGED',playerIndex:opponent,sourcePlayerIndex:player,amount:before-system.morale[opponent],before:before,after:system.morale[opponent],sourceIid:String(card.iid||'')});
       }
@@ -783,8 +816,12 @@
       if(pressureReworks)for(let owner=0;owner<2;owner+=1){
         const doublers=entries.filter(function(entry){return Number(entry.card.owner)===owner&&String(entry.card.id||'')==='64'&&entry.card._doubleNextMoraleDamage===true;});
         if(doublers.length){const multiplier=Math.pow(2,doublers.length);outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
-        const shields=entries.filter(function(entry){return Number(entry.card.owner)===owner&&String(entry.card.id||'')==='20'&&entry.card._preventNextMoraleDamage===true;});
-        if(shields.length){damage[owner]=0;shields.forEach(function(entry){entry.card._preventNextMoraleDamage=false;});}
+        const block=state._southWindMoraleBlock;
+        if(block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0){
+          damage[1-owner]=0;
+          outgoing[owner]=0;
+          outgoingSources[owner]=[];
+        }
       }
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];
     }
@@ -1203,7 +1240,8 @@
       [window.FateMatchUiConceptD,'refresh'],
       [window.FateMatchUiFresh,'refresh'],
       [window.FateMatchUiV8,'refresh'],
-      [window.FateAtlasUi,'update']
+      [window.FateAtlasUi,'update'],
+      [window.FateCodexUi,'update']
     ];
     refreshers.forEach(function(entry){
       const api=entry[0],method=entry[1];
@@ -1467,7 +1505,11 @@
     }
     overridePressure = null;
     presentedMoraleSystem=null;
+    heldMoraleSystem=finalSystem && !sameMoraleValues(currentSystem(),finalSystem)
+      ? JSON.parse(JSON.stringify(finalSystem))
+      : null;
     renderMoralePressureHud(finalSystem);
+    refreshVisibleMatchMoraleSurface();
     return true;
     }finally{
       presentedMoraleSystem=null;
@@ -1628,6 +1670,7 @@
   window.getCardCurrentPressure = getCardCurrentPressure;
   window.getCardPressurePillHTML = cardPressurePillHtml;
   window.getPresentedMoraleSystem = getPresentedMoraleSystem;
+  window.releaseMoralePresentationHold = releaseMoralePresentationHold;
   window.initializeLegacyMoralePressure = initializeLegacyMoralePressure;
   window.refreshLegacyMoralePressure = refreshLegacyMoralePressure;
   window.presentLegacyMoraleDelta = presentLegacyMoraleDelta;

@@ -25,7 +25,17 @@
         else redraw(false);
       }
     };
-    img.onerror = function(){ if(typeof redraw === 'function') redraw(false); };
+    img.onerror = function(){
+      const fallback = typeof window.getFullCardImageFallbackSrc === 'function'
+        ? window.getFullCardImageFallbackSrc(img.src)
+        : '';
+      if(!img.__fateFullFallbackTried && fallback && fallback !== img.src){
+        img.__fateFullFallbackTried = true;
+        img.src = fallback;
+        return;
+      }
+      if(typeof redraw === 'function') redraw(false);
+    };
     img.src = src;
     imageCache.set(src, img);
     return img;

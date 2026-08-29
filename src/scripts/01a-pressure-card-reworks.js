@@ -2,7 +2,7 @@
   'use strict';
 
   const REWORKS = Object.freeze({
-    '20':{fate:1,cost:0,type:'Supporter',effect:'When set, for the next Morale Calculation, you take no Morale Damage.'},
+    '20':{fate:1,cost:0,type:'Supporter',effect:"When set, during your opponent's next turn, they inflict 0 Morale Damage."},
     '25':{fate:1,cost:0,type:'Supporter',effect:'While this card is on the field, any card adjacent to another card of the same affiliation you control gains 1 Fate (max 1 Fate)'},
     '33':{fate:1,cost:0,type:'Supporter',effect:'When set, recover 16 Morale'},
     '34':{fate:2,cost:2,type:'Coordinator',effect:"Declare an affiliation. All cards you control in this zone with that affiliation inflict 2 Morale Damage every Morale Calculation."},
@@ -97,7 +97,7 @@
       if(!replacement) return;
       if(enabled === true){
         Object.assign(card, replacement, {
-          img:'assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b'))),
+          img:cardId === '20' ? '20.png?v=20260829b' : ('assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b')))),
           moraleRework:true
         });
       }else if(originals[cardId]){

@@ -384,6 +384,7 @@ export function collectTriggeredOperations(state, event){
           playerIndex:Number(event.playerIndex),
           value:-4,
           sourceIid:entry.card.iid,
+          requiresActiveSource:true,
           reason:'MARIE_DETERRANCE'
         }
       });

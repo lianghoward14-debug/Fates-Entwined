@@ -167,6 +167,18 @@ function addShield(ctx, playerIndex, amount, sourceIid){
   });
 }
 
+function moraleDamageInflictionBlocked(state, sourcePlayerIndex){
+  const source = Number(sourcePlayerIndex);
+  if(source !== 0 && source !== 1) return false;
+  return (state.statuses || []).some(status=>
+    status?.type === 'TIMED_PLAYER_STATUS'
+    && status.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO'
+    && Number(status.playerIndex) === source
+    && Number(status.activeFromTurn) <= Number(state.turn)
+    && Number(status.remainingTargetTurns) > 0
+  );
+}
+
 export function recordMoralePressureRuleEvent(ctx, event){
   const state = ctx?.state;
   if(!moralePressureEnabled(state) || state?.gameSettings?.pressureCardReworks !== true || !state.moralePressure || !event) return;
@@ -253,8 +265,13 @@ export function modifyMorale(ctx, operation = {}){
       requestedAmount += matching * perMatchingCard;
     }
   }
-  const pacificaPreventsDamage = String(state.landscapeId || '') === 'igb1' && requestedAmount < 0;
-  const after = pacificaPreventsDamage
+  const sourceEntry = operation.sourceIid ? findCard(state, operation.sourceIid) : null;
+  const sourcePlayer = Number(operation.sourceController ?? sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
+  const damagePrevented = requestedAmount < 0 && (
+    String(state.landscapeId || '') === 'igb1'
+    || moraleDamageInflictionBlocked(state, sourcePlayer)
+  );
+  const after = damagePrevented
     ? before
     : Math.max(0, Math.min(Number(system.maxMorale || STARTING_MORALE), before + requestedAmount));
   system.morale[player] = after;
@@ -599,14 +616,10 @@ function resolveZoneFateMoraleDamage(ctx){
         for(const source of outgoingSources[owner]) source.amount *= multiplier;
         for(const entry of doublers) entry.card.counters.doubleNextMoraleDamage = false;
       }
-      const shields = entries.filter(entry=>
-        controllerOf(entry.card) === owner
-        && String(entry.card.id || '') === '20'
-        && entry.card.counters?.preventNextMoraleDamage === true
-      );
-      if(shields.length){
-        resolution.damage[owner] = 0;
-        for(const entry of shields) entry.card.counters.preventNextMoraleDamage = false;
+      if(moraleDamageInflictionBlocked(state, owner)){
+        resolution.damage[1 - owner] = 0;
+        outgoing[owner] = 0;
+        outgoingSources[owner] = [];
       }
     }
   }

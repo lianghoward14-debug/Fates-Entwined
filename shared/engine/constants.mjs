@@ -1,6 +1,7 @@
 export const SCHEMA_VERSION = 3;
 export const ENGINE_VERSION = '3.0.0-beta.1';
 export const RULESET_VERSION = '2026-07-31-phase4-landscapes.1';
+export const MAX_SUPPORTERS_SET_PER_TURN = 5;
 
 export const COMMAND_TYPES = Object.freeze([
   'CHOOSE_TURN_ORDER',

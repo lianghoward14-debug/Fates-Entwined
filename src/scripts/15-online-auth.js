@@ -425,7 +425,11 @@ async function postElectronExternalAuthResult(result){
       displayName:account.displayName || ''
     })
   });
-  if(!response.ok) throw new Error(`Electron auth bridge failed: ${response.status}`);
+  if(!response.ok){
+    let details = '';
+    try{ details = await response.text(); }catch(_){ }
+    throw new Error('Electron auth bridge failed: ' + response.status + (details ? ' ' + details.slice(0, 120) : ''));
+  }
   renderElectronExternalAuthPrompt('complete');
 }
 async function signInWithElectronExternalBrowser(){
@@ -448,15 +452,49 @@ function renderElectronExternalAuthPrompt(mode='ready', message=''){
   }
   const complete = mode === 'complete';
   const error = mode === 'error';
+  const title = complete ? 'Sign-in complete' : (error ? 'Sign-in interrupted' : 'Secure Google sign-in');
+  const copy = message || (complete
+    ? 'You can return to Fates Entwined now. The desktop app will finish linking your command profile.'
+    : 'Continue with Google in this browser tab. When authorization finishes, your session will be handed back to the desktop app automatically.');
+  const buttonText = error ? 'Try Again' : 'Continue with Google';
   panel.innerHTML = `<style>
-    #fate-electron-external-auth{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:#070910;color:#f4ead2;font-family:Georgia,serif}
-    #fate-electron-external-auth .fea-panel{width:min(520px,100%);padding:32px;border:1px solid #c9a84c;background:#0b0e17;box-shadow:0 24px 80px #000}
-    #fate-electron-external-auth h1{margin:0 0 14px;color:#f5d77d;font-family:Cinzel,Georgia,serif}
-    #fate-electron-external-auth p{line-height:1.5;color:#d8cfb8}
-    #fate-electron-external-auth button{border:1px solid #d6b76d;background:#c9a84c;color:#090b11;padding:12px 18px;font-weight:800;cursor:pointer}
-  </style><section class="fea-panel"><h1>${complete ? 'Sign-in complete' : (error ? 'Sign-in interrupted' : 'Google account sign-in')}</h1><p>${escapeHtml(message || (complete ? 'Return to Fates Entwined. You may close this tab.' : 'Continue with Google. Your account will be handed back to the desktop game.'))}</p>${complete ? '' : '<button id="fate-electron-external-auth-button">Sign In With Google</button>'}</section>`;
-  const button = document.getElementById('fate-electron-external-auth-button');
-  if(button) button.onclick = ()=>signInNow().catch(failure=>renderElectronExternalAuthPrompt('error', safe(failure?.message || failure)));
+    #fate-electron-external-auth{position:fixed;inset:0;z-index:2147483647;display:grid;grid-template-rows:auto 1fr auto;min-height:100vh;color:#f4ead2;background:#070910;background-image:linear-gradient(180deg,rgba(3,4,8,.38),rgba(3,4,8,.88)),url('optimized/backgrounds/titlscreenbackgrounds_bg1.jpg?v=bg20260510d');background-size:cover;background-position:center;font-family:'Crimson Pro',Georgia,serif;overflow:hidden}
+    #fate-electron-external-auth *{box-sizing:border-box}
+    #fate-electron-external-auth::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(0,0,0,.68),transparent 28%,transparent 72%,rgba(0,0,0,.68))}
+    #fate-electron-external-auth .fea-topbar{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;min-height:64px;padding:0 24px;border-bottom:1px solid rgba(201,168,76,.46);background:rgba(4,6,11,.88);box-shadow:0 12px 28px rgba(0,0,0,.28)}
+    #fate-electron-external-auth .fea-brand{font-family:'Cinzel',Georgia,serif;color:#d6b76d;font-size:1.08rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;text-shadow:0 0 18px rgba(214,183,109,.25)}
+    #fate-electron-external-auth .fea-state{border:1px solid rgba(201,168,76,.38);color:#d6b76d;background:rgba(0,0,0,.28);padding:.45rem .75rem;font-family:'Cinzel',Georgia,serif;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase}
+    #fate-electron-external-auth .fea-center{position:relative;z-index:1;display:grid;place-items:center;padding:36px 18px}
+    #fate-electron-external-auth .fea-panel{position:relative;width:min(520px,calc(100vw - 32px));padding:30px 32px 28px;border:1px solid rgba(214,183,109,.62);background:linear-gradient(180deg,rgba(8,10,17,.96),rgba(3,5,10,.94));box-shadow:0 28px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,246,191,.08)}
+    #fate-electron-external-auth .fea-panel::before,#fate-electron-external-auth .fea-panel::after{content:'';position:absolute;width:24px;height:24px;pointer-events:none;border-color:rgba(232,196,82,.86)}
+    #fate-electron-external-auth .fea-panel::before{left:10px;top:10px;border-left:2px solid;border-top:2px solid}
+    #fate-electron-external-auth .fea-panel::after{right:10px;bottom:10px;border-right:2px solid;border-bottom:2px solid}
+    #fate-electron-external-auth .fea-kicker{margin:0 0 .45rem;color:#5fb5ff;font-family:'Cinzel',Georgia,serif;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase}
+    #fate-electron-external-auth .fea-title{margin:0;color:#f5d77d;font-family:'Cinzel',Georgia,serif;font-size:clamp(1.55rem,4vw,2.25rem);line-height:1.05;letter-spacing:.035em;text-transform:uppercase}
+    #fate-electron-external-auth .fea-rule{height:1px;margin:18px 0;background:linear-gradient(90deg,rgba(201,168,76,.7),rgba(201,168,76,.1))}
+    #fate-electron-external-auth .fea-copy{margin:0;color:#d8cfb8;font-size:1.02rem;line-height:1.55}
+    #fate-electron-external-auth .fea-note{margin:18px 0 0;padding:.72rem .82rem;border:1px dashed rgba(95,181,255,.28);color:#aebee0;background:rgba(4,13,25,.54);font-size:.88rem;line-height:1.45}
+    #fate-electron-external-auth .fea-actions{display:flex;align-items:center;gap:.75rem;margin-top:22px}
+    #fate-electron-external-auth .fea-google{appearance:none;border:1px solid rgba(214,183,109,.82);background:linear-gradient(180deg,#e2c777,#9c7427);color:#090b11;font-family:'Cinzel',Georgia,serif;font-size:.82rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:.78rem 1rem;min-height:44px;cursor:pointer;box-shadow:0 0 24px rgba(214,183,109,.16)}
+    #fate-electron-external-auth .fea-google:hover{filter:brightness(1.08)}
+    #fate-electron-external-auth .fea-google:disabled{cursor:wait;filter:saturate(.55) brightness(.82)}
+    #fate-electron-external-auth .fea-mark{width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#fff;font:700 1.25rem system-ui,sans-serif}
+    #fate-electron-external-auth .fea-footer{position:relative;z-index:1;padding:0 18px 16px;color:rgba(244,234,210,.42);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;text-align:center}
+    @media (max-width:640px){#fate-electron-external-auth .fea-topbar{padding:0 14px}#fate-electron-external-auth .fea-brand{font-size:.9rem;letter-spacing:.14em}#fate-electron-external-auth .fea-state{display:none}#fate-electron-external-auth .fea-panel{padding:26px 22px 24px}#fate-electron-external-auth .fea-actions{align-items:stretch;flex-direction:column}#fate-electron-external-auth .fea-google{width:100%}}
+  </style>
+  <div class="fea-topbar"><div class="fea-brand">Fates Entwined</div><div class="fea-state">${complete ? 'Linked' : (error ? 'Retry Required' : 'Account Link')}</div></div>
+  <main class="fea-center"><section class="fea-panel" aria-live="polite"><div class="fea-kicker">Online Command</div><h1 class="fea-title">${escapeHtml(title)}</h1><div class="fea-rule"></div><p class="fea-copy">${escapeHtml(copy)}</p><div class="fea-note">${complete ? 'This tab may be closed after the desktop app updates.' : 'Google opens here because the desktop shell cannot reliably host Google OAuth directly.'}</div>${complete ? '' : `<div class="fea-actions"><div class="fea-mark" aria-hidden="true">G</div><button id="fate-electron-external-auth-button" class="fea-google">${escapeHtml(buttonText)}</button></div>`}</section></main>
+  <div class="fea-footer">Secure browser handoff for the desktop client</div>`;
+  if(!complete){
+    const button = document.getElementById('fate-electron-external-auth-button');
+    if(button) button.onclick = async function(){
+      button.disabled = true;
+      button.textContent = 'Signing in';
+      try{ await signInNow(); }
+      catch(failure){ renderElectronExternalAuthPrompt('error', safe(failure?.message || failure || 'Google sign-in failed')); }
+    };
+  }
+  if(error) console.warn('[FateOnline] Electron external auth prompt error', message);
 }
 async function signInNow(){
   if(state.signingIn) return null;

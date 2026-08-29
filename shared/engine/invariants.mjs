@@ -25,6 +25,12 @@ export function collectInvariantViolations(state){
     || state.supportersSetThisTurn.some(value=>!Number.isInteger(value) || value < 0)){
     violations.push(issue('supportersSetThisTurn', 'must contain two non-negative integer counters'));
   }
+  if(state.supportersSetForCapThisTurn !== undefined
+    && (!Array.isArray(state.supportersSetForCapThisTurn)
+      || state.supportersSetForCapThisTurn.length !== 2
+      || state.supportersSetForCapThisTurn.some(value=>!Number.isInteger(value) || value < 0))){
+    violations.push(issue('supportersSetForCapThisTurn', 'must contain two non-negative integer counters'));
+  }
   for(const field of [
     'supportersSetTotal',
     'supporterEffectsActivated',

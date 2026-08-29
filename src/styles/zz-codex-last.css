@@ -27635,10 +27635,21 @@ html body .card-info-overlay .cd-ability{
    create the empty-looking expansion below the card content. */
 html body #modal .cd-live-tracker,
 html body .card-info-overlay .cd-live-tracker{
-  gap:2px 7px;
+  box-sizing:border-box;
+  min-height:66px;
+  gap:2px 8px;
   margin:0;
-  padding:5px 9px;
+  padding:8px 12px;
   transform:translateY(-11px);
+}
+html body #modal .cd-info:has(.cd-live-tracker) .cd-ability,
+html body .card-info-overlay .cd-info:has(.cd-live-tracker) .cd-ability{
+  margin-bottom:9px!important;
+}
+html body #modal .cd-info:has(.cd-live-tracker) .cd-pills,
+html body .card-info-overlay .cd-info:has(.cd-live-tracker) .cd-pills{
+  margin-bottom:11px!important;
+  padding-bottom:10px!important;
 }
 html body #modal.card-detail-v4 .cd4-live,
 html body .card-info-overlay.card-detail-v4 .cd4-live{
@@ -27652,7 +27663,63 @@ html body #modal .cd-live-tracker-value,
 html body .card-info-overlay .cd-live-tracker-value,
 html body #modal .cd-live-tracker-sub,
 html body .card-info-overlay .cd-live-tracker-sub{
-  line-height:1.15;
+  line-height:1.28;
+}
+
+/* Three-zone target pickers use the same framed row design as one-zone
+   pickers, repeated three times without distorting each row's cell count. */
+html body #modal .board-target-picker.has-zone-tabs .board-target-zone-tabs{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:7px!important;
+  width:min(650px,100%)!important;
+  margin:0 auto 4px!important;
+}
+html body #modal .board-target-picker.has-zone-tabs .board-target-zone-tab{
+  min-height:34px!important;
+  border:1px solid rgba(201,168,76,.32)!important;
+  border-radius:4px!important;
+  color:rgba(255,239,180,.68)!important;
+  background:rgba(5,8,14,.78)!important;
+  font:700 .64rem/1 'Cinzel',serif!important;
+  letter-spacing:.1em!important;
+  text-transform:uppercase!important;
+  cursor:pointer!important;
+}
+html body #modal .board-target-picker.has-zone-tabs .board-target-zone-tab.is-active{
+  border-color:rgba(201,168,76,.78)!important;
+  color:var(--gold)!important;
+  background:linear-gradient(180deg,rgba(74,56,18,.38),rgba(8,10,16,.9))!important;
+  box-shadow:inset 0 0 14px rgba(201,168,76,.1),0 0 10px rgba(201,168,76,.06)!important;
+}
+html body #modal .board-target-picker.has-zone-tabs .board-target-zone{
+  display:none!important;
+  width:min(650px,100%)!important;
+  margin:0 auto!important;
+}
+html body #modal .board-target-picker.has-zone-tabs .board-target-zone.is-active-zone{
+  display:block!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-zone{
+  border:1px solid rgba(201,168,76,.5)!important;
+  border-radius:6px!important;
+  padding:6px!important;
+  background:linear-gradient(180deg,rgba(16,22,35,.78),rgba(5,7,12,.82))!important;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.42)!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-row{
+  grid-template-columns:42px minmax(0,1fr)!important;
+  gap:0!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-row-label{
+  width:42px!important;
+  min-width:42px!important;
+  font-size:.5rem!important;
+  letter-spacing:.07em!important;
+}
+html body #modal .board-target-picker.is-multi-zone .board-target-cells{
+  grid-template-columns:repeat(var(--picker-row-cap,3),minmax(0,1fr))!important;
+  gap:0!important;
 }
 html body #modal.card-detail-v4 .modal.card-detail-v4-panel .cd4-rules .cd-eff,
 html body .card-info-overlay.card-detail-v4 .cio-modal.card-detail-v4-panel .cd4-rules .cd-eff{
@@ -28216,4 +28283,40 @@ html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .b
   height:auto!important;
   min-height:0!important;
   aspect-ratio:5 / 7!important;
+}
+html body #supporter-hard-cap-banner{
+  position:fixed;
+  left:50%;
+  bottom:max(18px,env(safe-area-inset-bottom));
+  z-index:2147483400;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  min-width:min(420px,calc(100vw - 28px));
+  max-width:min(620px,calc(100vw - 28px));
+  padding:12px 22px 11px;
+  border:1px solid rgba(239,191,66,.92);
+  border-radius:7px;
+  background:linear-gradient(180deg,rgba(62,38,7,.97),rgba(20,13,4,.98));
+  color:#fff4c9;
+  box-shadow:0 10px 34px rgba(0,0,0,.65),inset 0 0 22px rgba(239,191,66,.13);
+  opacity:0;
+  pointer-events:none;
+  transform:translate(-50%,24px);
+  transition:opacity .2s ease,transform .24s ease;
+  text-align:center;
+}
+html body #supporter-hard-cap-banner.on{
+  opacity:1;
+  transform:translate(-50%,0);
+}
+html body #supporter-hard-cap-banner strong{
+  font:800 .78rem/1.15 'Cinzel',serif;
+  letter-spacing:.16em;
+  color:#ffd866;
+}
+html body #supporter-hard-cap-banner span{
+  font:600 .72rem/1.25 'Inter',sans-serif;
+  color:rgba(255,248,222,.9);
 }

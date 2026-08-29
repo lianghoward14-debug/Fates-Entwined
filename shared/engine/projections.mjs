@@ -15,6 +15,7 @@ function publicPlayer(player){
   return {
     id:player.id,
     name:player.name,
+    rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
     deckCount:player.deck.length,
     handCount:player.hand.length,
     discard:cloneSerializable(player.discard),
@@ -57,6 +58,7 @@ export function projectStateForPlayer(state, playerIndex){
     baseHandLimit:state.baseHandLimit,
     baseSupportersPerTurn:state.baseSupportersPerTurn,
     supportersSetThisTurn:cloneSerializable(state.supportersSetThisTurn),
+    supportersSetForCapThisTurn:cloneSerializable(state.supportersSetForCapThisTurn || state.supportersSetThisTurn || [0, 0]),
     supportersSetTotal:cloneSerializable(state.supportersSetTotal),
     supporterEffectsActivated:cloneSerializable(state.supporterEffectsActivated),
     cardsPlacedThisTurn:cloneSerializable(state.cardsPlacedThisTurn),
@@ -100,6 +102,7 @@ export function projectStateForSpectator(state){
     baseHandLimit:state.baseHandLimit,
     baseSupportersPerTurn:state.baseSupportersPerTurn,
     supportersSetThisTurn:cloneSerializable(state.supportersSetThisTurn),
+    supportersSetForCapThisTurn:cloneSerializable(state.supportersSetForCapThisTurn || state.supportersSetThisTurn || [0, 0]),
     supportersSetTotal:cloneSerializable(state.supportersSetTotal),
     supporterEffectsActivated:cloneSerializable(state.supporterEffectsActivated),
     cardsPlacedThisTurn:cloneSerializable(state.cardsPlacedThisTurn),

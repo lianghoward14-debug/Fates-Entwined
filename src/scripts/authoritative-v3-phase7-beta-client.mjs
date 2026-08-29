@@ -410,7 +410,7 @@ function report(){
   };
 }
 
-async function startUnrankedMatchmaking({deckIds, name = '', queueMode = 'freeplay', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
+async function startUnrankedMatchmaking({deckIds, name = '', rankElo = 600, queueMode = 'freeplay', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
   const normalizedDeck = Array.isArray(deckIds) ? deckIds.map(String) : [];
   if(normalizedDeck.length !== 40) throw new Error('Authoritative matchmaking requires exactly 40 cards');
   const normalizedQueueMode = queueMode === 'ranked' ? 'ranked' : 'freeplay';
@@ -418,6 +418,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', queueMode = 'freepl
   const matchmakingPayload = {
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
+      rankElo:Math.max(0, Math.round(Number(rankElo) || 600)),
       queueMode:normalizedQueueMode,
       // `landscapeId` remains for deterministic fixture callers. Production
       // Free Play sends the complete settings object so "Random" is not

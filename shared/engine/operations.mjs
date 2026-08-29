@@ -1,4 +1,4 @@
-import {OPERATION_TYPES, RULE_EVENT_TYPES} from './constants.mjs';
+import {MAX_SUPPORTERS_SET_PER_TURN, OPERATION_TYPES, RULE_EVENT_TYPES} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
   effectiveFate,
@@ -6,7 +6,8 @@ import {
   inspectOperation,
   isEffectImmutable,
   isEffectSourceSuppressed,
-  runtimeRuleId
+  runtimeRuleId,
+  structuralCardType
 } from './modifiers.mjs';
 import {
   boardEntries,
@@ -270,6 +271,19 @@ function setCard(ctx, operation){
   if(boardCardAt(ctx.state, operation.destination)){
     throw operationError('DESTINATION_OCCUPIED', 'the destination is occupied');
   }
+  if(!Array.isArray(ctx.state.supportersSetForCapThisTurn)){
+    ctx.state.supportersSetForCapThisTurn = [0, 0];
+  }
+  const settingPrintedSupporter = structuralCardType(ctx.state, player.hand[handIndex]) === 'Supporter'
+    && operation.consolidated !== true;
+  if(settingPrintedSupporter
+    && Number(ctx.state.supportersSetForCapThisTurn[playerIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+    throw operationError(
+      'SUPPORTER_HARD_CAP_REACHED',
+      `no player may set more than ${MAX_SUPPORTERS_SET_PER_TURN} Supporters in one turn`,
+      {cap:MAX_SUPPORTERS_SET_PER_TURN}
+    );
+  }
   const {z, r, c} = operation.destination;
   if(squareStatuses(ctx.state, operation.destination, 'PERMANENTLY_BLOCKED').length){
     throw operationError('SQUARE_BLOCKED', 'the destination square is permanently blocked');
@@ -312,6 +326,16 @@ function setCard(ctx, operation){
     throw operationError('CARD_CANNOT_BE_SET', 'Wine Country Guerilla cannot be set while infiltrating a hand');
   }
   ctx.state.cardsPlacedThisTurn[playerIndex] += 1;
+  if(settingPrintedSupporter){
+    ctx.state.supportersSetForCapThisTurn[playerIndex] += 1;
+    if(ctx.state.supportersSetForCapThisTurn[playerIndex] === MAX_SUPPORTERS_SET_PER_TURN){
+      emit(ctx, {
+        type:'SUPPORTER_HARD_CAP_REACHED',
+        playerIndex,
+        cap:MAX_SUPPORTERS_SET_PER_TURN
+      });
+    }
+  }
   if(operation.countTowardSupporterLimit === true){
     ctx.state.supportersSetThisTurn[playerIndex] += 1;
   }
@@ -519,6 +543,7 @@ function discardCard(ctx, operation){
   if(entry.zone === 'discard') throw operationError('ALREADY_DISCARDED', 'the card is already discarded');
   if(entry.zone === 'board'
     && String(entry.card.id || '') === '62'
+    && !isEffectSourceSuppressed(ctx.state, entry)
     && Number(operation.sourceController) !== controllerOf(entry.card)
     && operation.berkeleyCostPaid !== true){
     throw operationError('ADDITIONAL_DISCARD_REQUIRED', 'discarding Berkeley Homeless with an opponent effect requires two hand discards');

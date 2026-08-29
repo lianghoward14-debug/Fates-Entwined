@@ -38,6 +38,12 @@ function frenchFusiliersCopies(card, sourceId) {
 function cardActsAsPassive(card, sourceId) {
   if(!card) return false;
   if(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return false;
+  // Multiplayer projects reaction suppression as the canonical public card
+  // status.  Every passive consumer (including Dylan's Fate aura) comes
+  // through this helper, so treat that status exactly like the local flags.
+  if(Array.isArray(card.statuses) && card.statuses.some(function(status){
+    return String(status && typeof status === 'object' ? status.type : status) === 'EFFECTS_SUPPRESSED';
+  })) return false;
   const wanted = String(sourceId);
   const id = String(card.id || '');
   return id === wanted
@@ -1361,7 +1367,7 @@ function activateHighTForTurn(card, playerIndex) {
 }
 window.activateHighTForTurn = activateHighTForTurn;
 
-function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
+async function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
   if(!G || !G.players || !G.players[endingPlayer]) return [];
   const sourceOwner = Number(endingPlayer) === 0 ? 1 : 0;
   const sources = [];
@@ -1371,12 +1377,22 @@ function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
     sources.push(card);
   });
   const discarded = [];
-  sources.forEach(function(source, index){
+  for(let index = 0; index < sources.length; index++){
+    const source = sources[index];
     const deck = G.players[endingPlayer].deck;
-    if(!Array.isArray(deck) || !deck.length) return;
+    if(!Array.isArray(deck) || !deck.length) continue;
+    const proceed = typeof checkReactions === 'function'
+      ? await checkReactions('targeting_effect', {
+          card:source,
+          sourceOwner,
+          affectedOwners:[Number(endingPlayer)],
+          lydiaEligible:false
+        })
+      : true;
+    if(!proceed) continue;
     const deckIndex = Math.floor(Math.random() * deck.length);
     const card = deck.splice(deckIndex, 1)[0];
-    if(!card) return;
+    if(!card) continue;
     fatePushDiscard(endingPlayer, card, {sound:false});
     discarded.push(card);
     flashCardEffect(source, 'bh18_genesis_inceldom', {
@@ -1386,7 +1402,7 @@ function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
     setTimeout(function(){
       toast('The Genesis of all Inceldom sent ' + (card.name || 'a card') + ' from the deck to the discard pile.');
     }, index * 260);
-  });
+  }
   if(discarded.length && typeof playDiscardSfx === 'function') playDiscardSfx();
   return discarded;
 }
@@ -1421,7 +1437,7 @@ async function nextPlayerTurn() {
   const endingPlayer = G.currentPlayer;
   if(typeof window.stopBh19TurnSong === 'function') window.stopBh19TurnSong();
   stopLegacyBh19FallbackSong();
-  if(!G._onlineRoomCode) resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer);
+  if(!G._onlineRoomCode) await resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer);
   if(!G._onlineRoomCode && Array.isArray(G._bh19HighTStatuses)){
     G._bh19HighTStatuses = G._bh19HighTStatuses.filter(function(status){
       return Number(status.playerIndex) !== Number(endingPlayer);
@@ -1447,6 +1463,11 @@ async function nextPlayerTurn() {
     G._aiAbort = false;
     G._aiAborted = false;
   }
+  if(G._southWindMoraleBlock
+    && Number(G._southWindMoraleBlock.targetPlayer)===Number(endingPlayer)
+    && Number(G._southWindMoraleBlock.activeFromTurn)<=Number(G.turn)){
+    G._southWindMoraleBlock = null;
+  }
   if(typeof window.resetLegacyMoraleTurnCounters === 'function') window.resetLegacyMoraleTurnCounters(G.currentPlayer);
   const aliHandLimitActivated = activateAliIndomitableHandLimitForPlayer(G.currentPlayer);
   if(aliHandLimitActivated) G._deferHandLimitEnforcementForPlayer = G.currentPlayer;
@@ -1470,6 +1491,7 @@ async function nextPlayerTurn() {
   G._turnInputLockUntil = Date.now() + 200;
   G.phase = 'main';
   G.supportsPlacedThisTurn = 0;
+  G.supportersSetForCapThisTurn = [0, 0];
   G._consolidating = null;
   G._busserMoving = null;
   G._busserMovingCard = null;
@@ -2254,6 +2276,14 @@ function placeSelected() {
   // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)));
 
+  if(typeof isStructurallySupporterCard === 'function'
+    && isStructurallySupporterCard(card)
+    && isSupporterHardCapReached(G.currentPlayer)) {
+    if(typeof showSupporterHardCapBanner === 'function') showSupporterHardCapBanner(G.currentPlayer);
+    toast('Hard Supporter cap reached: 5/5 this turn.');
+    return;
+  }
+
   if(cardActsAsPassive(card, '70') && card.guerilla_transferred){
     toast(card.name + ' cannot be set - it is debuffing this hand.');
     G.placing = false;
@@ -2263,7 +2293,7 @@ function placeSelected() {
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, G.currentPlayer) : card.type === 'Supporter';
   if(!isLinaFree && cardIsSupporterForRules) {
     const totalSupports = G.supportsPlacedThisTurn;
-    const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
+    const maxSup = Math.min(SUPPORTER_HARD_TURN_CAP, G.maxSupportsPerTurn + G.extraSupportsThisTurn);
     // Maja Kaminska effect: unlimited supporters
     if(G.majaEffectThisTurn) {} // allow
     else if(totalSupports >= maxSup) {
@@ -3813,13 +3843,22 @@ async function clickCell(z,r,c) {
   const achillesCountsAsConsolidated = isAchillesToken && card._achillesPlayMode === 'consolidated';
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
+  if(typeof isStructurallySupporterCard === 'function'
+    && isStructurallySupporterCard(card)
+    && isSupporterHardCapReached(cp)) {
+    if(typeof showSupporterHardCapBanner === 'function') showSupporterHardCapBanner(cp);
+    toast('Hard Supporter cap reached: 5/5 this turn.');
+    G.placing=false;
+    clearPlaceHighlights();
+    return;
+  }
   if(cardIsSupporterForRules && card.id !== '76' && !ignoresOpponentPlacementLocks && isBlockedByAlondra(z, r, c, cp)) {
     playSfx('blocked');
     toast('Alondra blocks Supporters adjacent to her.');
     return;
   }
   if(!isLinaFree && cardIsSupporterForRules){
-    const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
+    const maxSup = Math.min(SUPPORTER_HARD_TURN_CAP, G.maxSupportsPerTurn + G.extraSupportsThisTurn);
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn >= maxSup){
       toast('Supporter limit reached: '+maxSup+'/turn');
       G.placing=false;G.selectedHandCard=null;
@@ -3953,6 +3992,9 @@ async function clickCell(z,r,c) {
     deferSetCommitHook(function(){ triggerAIDialogue(dialogueEvent); });
   }
   markCommit('hooks');
+  if(!achillesCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') {
+    recordSupporterHardCapSet(inst, G.currentPlayer);
+  }
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
   if(cardIsSupporterForRules && !achillesCountsAsConsolidated) {
     const rawSetReinforcementValue = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1;
@@ -4320,6 +4362,18 @@ async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
       toast(inst.name+' gains +1 Reinforcement, but its effect is suppressed by Wood for the Hearth.');
       renderGame({board:true, scores:true, topbar:true});
       return;
+    }
+    const effectMetadata = typeof window !== 'undefined' ? window.FateEffectRuleMetadata : null;
+    if(!inst._havanoPassiveEntryChecked
+      && effectMetadata?.canTriggerHavanoOnPassiveEntry?.(inst)) {
+      inst._havanoPassiveEntryChecked = true;
+      const passiveAllowed = await checkReactions('targeting_effect', {
+        card:inst,
+        sourceOwner:inst.owner,
+        affectedOwners:[1 - Number(inst.owner)],
+        lydiaEligible:false
+      });
+      if(!passiveAllowed) return;
     }
     const whisperToken = typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(inst);
     if(G.aiEnabled && G.currentPlayer===G.aiPlayer) {
@@ -5437,6 +5491,7 @@ window.getSupporterReinforcementSetTotalForPlayer = getSupporterReinforcementSet
 
 function isPersistentSupporterEffectOnSet(card) {
   if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
+  if(pressureCardReworkTimingActive() && PRESSURE_REWORK_TIMING_CARD_IDS.has(String(card.id))) return false;
   if(WHEN_SET_IDS.has(String(card.id))) return false;
   return new Set(['20','24','44','49','53','59','63','65','78','92','95']).has(String(card.id));
 }
@@ -6000,7 +6055,7 @@ async function runWhenSetEffect(inst, z, r, c, opts = {}) {
     recordSupporterEffectActivation(cp, inst, supporterActivationOptions);
   }
 
-  if(instIsSupporterForRules && WHEN_SET_IDS.has(inst.id) && inst.id!=='56' && !G._suppressEffectPrompt){
+  if(instIsSupporterForRules && hasAuthoritativeWhenSetEffect(inst) && inst.id!=='56' && !G._suppressEffectPrompt){
     const proceed = await checkReactions('supporter_effect', {
       card:inst,
       z,
@@ -7023,6 +7078,11 @@ function isFlowerKingBlessedCard(card, z, r, c) {
 window.isFlowerKingBlessedCard = isFlowerKingBlessedCard;
 
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
+  if(pressureCardReworkTimingActive()
+    && new Set(['20','33','47','64']).has(String(id || ''))
+    && typeof window.recordLegacyMoralePressureCardSet === 'function') {
+    window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
+  }
   switch(id) {
     case 'bh09':
       await resolveChildOfWar(inst, cp, opp);
@@ -8119,16 +8179,35 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       // as her effect activates so choosing zero cards or closing the picker
       // cannot discard this independent part of Oblique Order.
       G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
-      G._majaSupportBoost = {owner:cp, turn:Number(G.turn), extraSupports:2, sourceIid:String(inst.iid || '')};
-      toast('Maja unlocked 2 extra Supporter placements this turn!');
-      updateTopBar();
+       G._majaSupportBoost = {owner:cp, turn:Number(G.turn), extraSupports:2, sourceIid:String(card.iid || '')};
+       toast('Maja unlocked 2 extra Supporter placements this turn!');
+      // Publish the temporary status without running the broad effect refresh.
+      // The latter may schedule another effect window while Oblique Order owns
+      // the shared modal.  The Codex HUD mirrors the hidden status rail, so
+      // update it in the same frame instead of waiting for its polling pass.
+       updateTopBar();
+       if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+       if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
+       if(typeof window.FateCodexUi?.update === 'function') window.FateCodexUi.update();
       if(!matches.length){
         if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
         if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
         renderHand();
         break;
       }
-      const openMajaSearch = function(){
+      // Keep the placement resolver pending until the player answers this
+      // picker.  Previously triggerCharacterEffect returned immediately after
+      // mounting it, so resolveSetCardAfterPlacement queued the next automatic
+      // effect window and replaced Maja's shared modal before it could be used.
+      await new Promise(function(resolveMajaSearch){
+        let settled = false;
+        const finish = function(){
+          if(settled) return;
+          settled = true;
+          if(G._majaObliqueOrderPicker === card.iid) delete G._majaObliqueOrderPicker;
+          resolveMajaSearch();
+        };
+        G._majaObliqueOrderPicker = card.iid;
         pickCardsVisual(matches, {
           title:'Oblique Order',
           subtitle:'Choose up to 3 Supporters from your deck. They gain +4 Fate permanently.',
@@ -8137,45 +8216,46 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           immediate:true,
           opponentSearch:true,
           searchingPlayer:cp,
-          searchSourceCardId:'07'
-        }, (chosen)=>{
-          const baseHandIndex = G.players[cp].hand.length;
-          const addedCards = [];
-          chosen.forEach((c, idx)=>{
-            if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
-            const beforeFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0);
-            c.currentFate = beforeFate + 4;
-            if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(c, beforeFate, c.currentFate);
-            if(typeof recordHandCardEffectModifier === 'function') {
-              recordHandCardEffectModifier(c, {
-                key:'maja-kaminska-oblique-order',
-                name:'Maja Kaminska',
-                text:'Oblique Order: this Supporter gained +4 Fate permanently.',
-                fateDelta:4
-              });
+          searchSourceCardId:'07',
+          effectPickerKey:'maja-oblique-order:' + String(card.iid || ''),
+          onCancel:finish
+        }, async (chosen)=>{
+          try {
+            const baseHandIndex = G.players[cp].hand.length;
+            const addedCards = [];
+            chosen.forEach((c, idx)=>{
+              if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(c)) return;
+              const beforeFate = Math.max(0, Number(c.currentFate ?? c.fate) || 0);
+              c.currentFate = beforeFate + 4;
+              if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(c, beforeFate, c.currentFate);
+              if(typeof recordHandCardEffectModifier === 'function') {
+                recordHandCardEffectModifier(c, {
+                  key:'maja-kaminska-oblique-order',
+                  name:'Maja Kaminska',
+                  text:'Oblique Order: this Supporter gained +4 Fate permanently.',
+                  fateDelta:4
+                });
+              }
+              if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'deck', baseHandIndex + idx, idx, chosen.length);
+              if(typeof addCardToHand==='function') addCardToHand(cp, c, {arrivalKind:'search'});
+              else G.players[cp].hand.push(c);
+              G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
+              addedCards.push(c);
+            });
+            if(chosen.length) shuffle(G.players[cp].deck);
+            if(chosen.length) toast('Maja added '+chosen.length+' Supporter'+(chosen.length===1?'':'s')+' with +4 Fate!');
+            renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+            if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
+              await resolveBoleslawAfterSearchSelection(cp, addedCards, {sourceCardId:'07'});
             }
-            if(typeof queueSearchToHandMotion === 'function') queueSearchToHandMotion(cp, c, 'deck', baseHandIndex + idx, idx, chosen.length);
-            if(typeof addCardToHand==='function') addCardToHand(cp, c, {arrivalKind:'search'});
-            else G.players[cp].hand.push(c);
-            G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
-            addedCards.push(c);
-          });
-          if(chosen.length) shuffle(G.players[cp].deck);
-          if(chosen.length) toast('Maja added '+chosen.length+' Supporter'+(chosen.length===1?'':'s')+' with +4 Fate!');
-          renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
-          if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
-            return resolveBoleslawAfterSearchSelection(cp, addedCards, {sourceCardId:'07'});
+          } finally {
+            finish();
           }
         });
-      };
-      openMajaSearch();
-      // Mount the picker first, then publish Maja's temporary status. The broad
-      // refreshStatusEffectsNow() path also runs continuous-effect reconciliation
-      // and can open a competing declaration modal while Oblique Order resolves.
-      setTimeout(function(){
         if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
         if(typeof window.refreshMoralePressureStatusSummary === 'function') window.refreshMoralePressureStatusSummary();
-      }, 0);
+        if(typeof window.FateCodexUi?.update === 'function') window.FateCodexUi.update();
+      });
     } break;
     case '08': // Lina: search Reality card from deck/discard, set for free
       searchAnySource(cp,c=>c.aff==='reality','Search for a Reality card:',(found)=>{
@@ -8558,7 +8638,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         toast('Lydia is ready to negate an opponent effect activation ('+card.usesLeft+' uses remaining).');
       } else toast('No uses remaining.'); break;
     case 'bh16':
-      activateLiHuaStormOfTenThousandBlades(card, z, cp);
+      await activateLiHuaStormOfTenThousandBlades(card, z, cp);
       break;
     case '17': // Carolyn: block any open cell permanently
       {
@@ -8837,7 +8917,7 @@ function controlledEventideCardsForLiHua(owner) {
   return cards;
 }
 
-function activateLiHuaStormOfTenThousandBlades(card, zoneIndex, owner) {
+async function activateLiHuaStormOfTenThousandBlades(card, zoneIndex, owner) {
   if(!card) return false;
   const controller = owner === 0 || owner === 1 ? owner : Number(card.owner);
   const z = Number(zoneIndex);
@@ -8849,6 +8929,15 @@ function activateLiHuaStormOfTenThousandBlades(card, zoneIndex, owner) {
   }
   const counted = controlledEventideCardsForLiHua(controller);
   const opponent = 1 - controller;
+  if(!G._suppressEffectPrompt && typeof checkReactions === 'function'){
+    const proceed = await checkReactions('targeting_effect', {
+      card,
+      z,
+      sourceOwner:controller,
+      affectedOwners:[opponent]
+    });
+    if(!proceed) return false;
+  }
   const reduction = counted.length;
   card.usesLeft = usesLeft - 1;
   if(reduction > 0){
@@ -9636,7 +9725,10 @@ function getCookIslandsDuelistTarget(source, zHint) {
 
 function isDirectCardEffectSuppressed(card) {
   if(!card || isEffectImmuneSource(card)) return false;
-  return !!(card._effectSuppressedByReaction || card._lydiaSuppressed || card._reactionSuppressed);
+  const canonicalSuppression = Array.isArray(card.statuses) && card.statuses.some(function(status){
+    return String(status && typeof status === 'object' ? status.type : status) === 'EFFECTS_SUPPRESSED';
+  });
+  return !!(canonicalSuppression || card._effectSuppressedByReaction || card._lydiaSuppressed || card._reactionSuppressed);
 }
 
 function isCardSuppressedByHenryDong(card, z, r, c) {
@@ -9666,7 +9758,7 @@ function isCardEffectSuppressed(card) {
   return !!(isDirectCardEffectSuppressed(card) || isCardSuppressedByHenryDong(card, z, r, c));
 }
 
-const ONGOING_REACTION_EFFECT_IDS = new Set(['10','14','21','36','53','62','64']);
+const ONGOING_REACTION_EFFECT_IDS = new Set(['10','14','21','35','36','53','62','64','65','bh18']);
 const DELAYED_REACTION_SUPPRESSION_IDS = new Set([
   '33', // West Caribbea Infantry: next Character added to hand
   '40', // Christopher Erbs: later draw empowerment
@@ -10029,6 +10121,10 @@ function getBaseZoneScore(z, player) {
     (Array.isArray(G._phase7Statuses) ? G._phase7Statuses : []).forEach(function(status){
       if(status?.type !== 'ZONE_FATE_MODIFIER') return;
       if(Number(status.zone) !== Number(z) || Number(status.playerIndex) !== Number(player)) return;
+      if((status.requiresActiveSource === true || String(status.reason || '') === 'MARIE_DETERRANCE') && status.sourceIid != null){
+        const source = typeof findBoardCardByIid === 'function' ? findBoardCardByIid(status.sourceIid) : null;
+        if(!source || (typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source))) return;
+      }
       score += Number(status.value || 0) || 0;
     });
     return Math.max(0, score);
@@ -10589,21 +10685,11 @@ function pickWolfCreekMoveCandidate(wolfCreekCard, prompt, callback, fallbackZon
     clearWolfCreekCandidateHighlights();
     if(callback) callback(card, z, r, c);
   };
-  if(typeof showBoardTargetPicker === 'function') {
-    showBoardTargetPicker({
-      title:typeof getMultiplayerBoardPromptTitle === 'function' ? getMultiplayerBoardPromptTitle(wolfCreekCard) : 'Wolf Creek',
-      prompt:prompt || 'Select a friendly card in this zone to move.',
-      entries,
-      zones:[...new Set(entries.map(function(entry){ return entry.z; }))],
-      visibleZones:[0,1,2],
-      maxCount:1,
-      confirmLabel:'Move',
-      viewerPlayerIndex:owner,
-      showZoneTitles:true
-    }, function(chosen){
+  if(typeof showZonePicker === 'function') {
+    showZonePicker(Number(fallbackZone), prompt || 'Select a friendly card in this zone to move.', entries, 1, owner, function(chosen){
       const picked = chosen && chosen[0];
       if(picked) done(picked.card, picked.z, picked.r, picked.c);
-    });
+    }, function(cell){ return isWolfCreekMoveCandidateCard(cell, owner, wolfCreekCard.iid); }, null, wolfCreekCard);
     return;
   }
   pickCardInZone(fallbackZone, prompt, done, function(cell){ return isWolfCreekMoveCandidateCard(cell, owner, wolfCreekCard.iid); }, null, wolfCreekCard);
@@ -10913,7 +10999,11 @@ function checkReactions(actionType, actionData) {
     // Havano Citizen (79): reacts only to its explicit source list.
     if(isHavanoReactionSource(actionData)){
       G.players[opp].hand.forEach(function(h) {
-        if(h.id==='79' && !isSupporterEffectSuppressed(h)) reactions.push({type:'havano', card: h});
+        if(h.id==='79'
+          && !isSupporterEffectSuppressed(h)
+          && !(typeof isSupporterHardCapReached === 'function' && isSupporterHardCapReached(opp))){
+          reactions.push({type:'havano', card: h});
+        }
       });
     }
 
@@ -11108,6 +11198,7 @@ function applyHavanoPlacementRules(inst, sourceCard, z, r, c, owner) {
       modifyFate(inst, 4, 'permanent', owner);
     });
   });
+  if(typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, owner);
   if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0, 0];
   G.supportersSetP[owner] = (Number(G.supportersSetP[owner]) || 0) + 1;
   if(!Array.isArray(G.supporterReinforcementSetP)) G.supporterReinforcementSetP = [0, 0];

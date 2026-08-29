@@ -11,6 +11,7 @@ import {command} from './test-helpers.mjs';
 const DEFINITIONS = [
   {id:'18', name:'1st US Marines', type:'Supporter', aff:'third_great_war', fate:1, cost:0},
   {id:'20', name:'South Wind Spearman', type:'Supporter', aff:'eventide', fate:1, cost:0},
+  {id:'47', name:'Great Oak High Scholar', type:'Supporter', aff:'eventide', fate:1, cost:0},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0},
   {id:'53', name:'Colombo Thug', type:'Supporter', aff:'eventide', fate:1, cost:0},
   {id:'76', name:'ALPINE Infantry', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0},
@@ -207,6 +208,69 @@ applyOperation(immunityCtx, {
 });
 assert.equal(spearman.currentFate, 3);
 assertInvariants(immunityState);
+
+let southWindState = createInitialState({
+  matchId:'P4STATUS20REWORK',
+  seed:'p4-status-south-wind-rework',
+  handSize:99,
+  gameSettings:{healthPressureSeals:true, pressureCardReworks:true, zoneControlRework:true},
+  cardDefinitions:DEFINITIONS,
+  players:[
+    {id:'p0', deckIds:['20']},
+    {id:'p1', deckIds:['47']}
+  ]
+});
+const southWind = southWindState.players[0].hand.find(card=>card.id === '20');
+result = reduceCommand(
+  southWindState,
+  command(southWindState, 'p0', 1, 'SET_CARD', {
+    cardIid:southWind.iid,
+    destination:{z:0, r:2, c:0}
+  }),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+let moraleBlock = result.state.statuses.find(status=>status.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO');
+assert(moraleBlock, 'South Wind Spearman must create its timed Morale Damage block');
+assert.equal(moraleBlock.playerIndex, 1);
+assert.equal(moraleBlock.sourceController, 0);
+assert.equal(moraleBlock.activeFromTurn, 2);
+assert.equal(moraleBlock.remainingTargetTurns, 1);
+
+southWindState = result.state;
+result = reduceCommand(southWindState, command(southWindState, 'p0', 2, 'END_TURN'), {playerId:'p0'});
+assert.equal(result.ok, true);
+assert.equal(result.state.activePlayer, 1);
+const moraleBeforeBlockedHit = result.state.moralePressure.morale[0];
+const oakScholar = result.state.players[1].hand.find(card=>card.id === '47');
+result = reduceCommand(
+  result.state,
+  command(result.state, 'p1', 3, 'SET_CARD', {
+    cardIid:oakScholar.iid,
+    destination:{z:0, r:0, c:0}
+  }),
+  {playerId:'p1'}
+);
+assert.equal(result.ok, true);
+assert.equal(
+  result.state.moralePressure.morale[0],
+  moraleBeforeBlockedHit,
+  'the affected opponent must inflict 0 direct Morale Damage during the protected turn'
+);
+
+southWindState = result.state;
+result = reduceCommand(southWindState, command(southWindState, 'p1', 4, 'END_TURN'), {playerId:'p1'});
+assert.equal(result.ok, true);
+assert.equal(
+  result.state.statuses.some(status=>status.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO'),
+  false,
+  'the South Wind status must expire when the affected opponent finishes that turn'
+);
+assert(result.events.some(event=>
+  event.type === 'STATUS_EXPIRED'
+  && event.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO'
+));
+assertInvariants(result.state);
 
 const colomboState = createInitialState({
   matchId:'P4STATUS53',

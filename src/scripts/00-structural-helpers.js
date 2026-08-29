@@ -711,6 +711,38 @@ function getCardStructuralType(card) {
   return String(card._bh14OriginalType || card.counters?.bh14OriginalType || card.type || '');
 }
 
+const SUPPORTER_HARD_TURN_CAP = 5;
+
+function isStructurallySupporterCard(card) {
+  return !!card && getCardStructuralType(card) === 'Supporter'
+    && !(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card));
+}
+
+function getSupporterHardCapCount(player) {
+  const resolvedPlayer = Number.isInteger(Number(player)) ? Number(player) : Number(G?.currentPlayer || 0);
+  if(!Array.isArray(G.supportersSetForCapThisTurn)) G.supportersSetForCapThisTurn = [0, 0];
+  return Math.max(0, Number(G.supportersSetForCapThisTurn[resolvedPlayer]) || 0);
+}
+
+function isSupporterHardCapReached(player) {
+  return getSupporterHardCapCount(player) >= SUPPORTER_HARD_TURN_CAP;
+}
+
+function recordSupporterHardCapSet(card, player) {
+  if(!isStructurallySupporterCard(card)) return false;
+  const resolvedPlayer = Number.isInteger(Number(player)) ? Number(player) : Number(card.owner);
+  if(!Array.isArray(G.supportersSetForCapThisTurn)) G.supportersSetForCapThisTurn = [0, 0];
+  G.supportersSetForCapThisTurn[resolvedPlayer] = Math.min(
+    SUPPORTER_HARD_TURN_CAP,
+    getSupporterHardCapCount(resolvedPlayer) + 1
+  );
+  if(G.supportersSetForCapThisTurn[resolvedPlayer] === SUPPORTER_HARD_TURN_CAP
+    && typeof showSupporterHardCapBanner === 'function'){
+    showSupporterHardCapBanner(resolvedPlayer);
+  }
+  return true;
+}
+
 function getCardEffectType(card) {
   if(!card) return '';
   return String(card._bh14DeclaredType || card.counters?.bh14DeclaredType || getCardStructuralType(card));
@@ -1359,6 +1391,7 @@ function resetMatchTransientState() {
   G.phase = 'draw';
   resetInteractionState();
   G.supportsPlacedThisTurn = 0;
+  G.supportersSetForCapThisTurn = [0, 0];
   G.maxSupportsPerTurn = 2;
   G.extraSupportsThisTurn = 0;
   G.pendingEffect = null;

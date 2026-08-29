@@ -148,8 +148,8 @@ assert.match(rendering, /G\._phase7CurrentMultiplayer === true[\s\S]{0,500}SUPPO
 assert.match(harness, /'SUPPORTERS_AS_CHARACTERS'[\s\S]{0,180}'SELVA_EXTRA_SUPPORTER'[\s\S]{0,180}'MAJA_EXTRA_SUPPORTERS'[\s\S]{0,300}\.includes\(type\)[\s\S]{0,180}\? affected/, 'the rendered-status oracle must expect controller-benefit statuses, including Blame Game, Selva, and Maja, on their affected controller side');
 assert.match(onlineRooms, /const selvaSupportBoosts = \[0, 1\]\.map/, 'authoritative Selva grants must derive the existing single-player banner state');
 assert.match(onlineRooms, /_selvaSupportBoosts:selvaSupportBoosts/, 'authoritative Selva grants must feed the existing single-player banner state');
-assert.match(onlineRooms, /const majaExtraSupporters =/, 'the authoritative Maja status adapter must be declared');
-assert.match(onlineRooms, /majaEffectThisTurn:majaExtraSupporters/, 'authoritative Maja grants must feed the existing single-player banner state');
+assert.match(onlineRooms, /const majaExtraSupporterStatus =/, 'the authoritative Maja status adapter must be declared');
+assert.match(onlineRooms, /_majaSupportBoost:majaSupportBoost/, 'authoritative Maja grants must feed the existing single-player banner state');
 assert.match(onlineRooms, /offeredCards\.map\(phase7PresentationCard\)/, 'deck-set visual pickers must restore production card artwork');
 assert.match(onlineRooms, /commands\.map\(function\(command\)\{ return phase7DeckSetCommandCardId\(command, offeredCards\)/, 'deck-set buttons must derive their card identity from the command or its authoritative private card');
 assert.match(onlineRooms, /construct only the presentation shell from the public card[\s\S]{0,900}cards\.push\(phase7PresentationCard/, 'deck-set picker artwork must have a catalog fallback when the private card list is delayed');

@@ -1,5 +1,13 @@
 import {boardEntries, controllerOf} from './selectors.mjs';
-import {effectiveFate} from './modifiers.mjs';
+import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
+
+function activeSourceBoundStatus(state, status){
+  const sourceBound = status?.requiresActiveSource === true
+    || String(status?.reason || '') === 'MARIE_DETERRANCE';
+  if(!sourceBound || status.sourceIid == null) return true;
+  const source = boardEntries(state).find(entry=>String(entry.card.iid || '') === String(status.sourceIid));
+  return !!source && !isEffectSourceSuppressed(state, source);
+}
 
 export function moraleZoneFatePenalty(state, playerIndex){
   // Compatibility shape retained for UI callers. The former 20% zone-Fate
@@ -19,6 +27,7 @@ export function zoneScoreBreakdown(state, zone, playerIndex){
   for(const status of state?.statuses || []){
     if(status?.type !== 'ZONE_FATE_MODIFIER') continue;
     if(Number(status.zone) !== z || Number(status.playerIndex) !== player) continue;
+    if(!activeSourceBoundStatus(state, status)) continue;
     const value = Number(status.value || 0) || 0;
     modifiers.push({
       value,

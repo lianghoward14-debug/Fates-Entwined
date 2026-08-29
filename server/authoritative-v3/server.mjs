@@ -210,8 +210,8 @@ function completeBetaQueueMatch(queued){
         ? {zeroReinforcementCost:true}
         : null,
     players:[
-      {id:opponent.uid, name:opponent.name, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
-      {id:queued.uid, name:queued.name, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
+      {id:opponent.uid, name:opponent.name, rankElo:opponent.rankElo, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
+      {id:queued.uid, name:queued.name, rankElo:queued.rankElo, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
     ]
   });
   const opponentCredential = betaCredentialFor(result, opponent.uid, queueMode);
@@ -670,6 +670,7 @@ const server = http.createServer(async (req, res)=>{
         uid:queuePlayerId,
         authUid:identity.uid,
         name:String(body.name || identity.uid).slice(0, 80),
+        rankElo:Math.max(0, Math.round(Number(body.rankElo) || 600)),
         deckIds,
         queueMode:String(body.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay',
         organicFixture:organicFixtureIdentity,

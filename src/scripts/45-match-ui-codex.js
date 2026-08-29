@@ -116,6 +116,21 @@
   }
   function statusRailSummary(key){
     const rail=$(key==='you'?'tp-status-left':'tp-status-right');
+    const completeEffects=Array.isArray(rail?._fateAllStatusEffects)?rail._fateAllStatusEffects:null;
+    if(completeEffects){
+      const seen=new Set(),entries=[];
+      completeEffects.forEach(effect=>{
+        if(!effect||effect.isOverflow)return;
+        const ability=String(effect.cardAbility||effect.label||'Active Effect').trim();
+        const description=String(effect.cardEffect||ability).replace(/\s+/g,' ').trim();
+        const signature=(ability+'|'+description).toLowerCase();
+        if(seen.has(signature))return;
+        seen.add(signature);
+        const icon=String(effect.icon||'');
+        entries.push('<div class="mp-status-entry '+(key==='opp'?'opponent':'player')+'">'+(icon?'<span class="effect-pill-icon" aria-hidden="true">'+icon+'</span>':'<span class="effect-pill-icon" aria-hidden="true">&#9670;</span>')+'<span><strong>'+escapeStatusText(ability)+'</strong><span>'+escapeStatusText(description||ability)+'</span></span></div>');
+      });
+      return {count:entries.length,content:entries.join('')};
+    }
     const pills=[...(rail?.querySelectorAll('.effect-pill:not(.effect-pill-overflow)')||[])];
     const seen=new Set(),entries=[];
     pills.forEach(pill=>{
@@ -217,7 +232,8 @@
        if(moralePanel)moralePanel.dataset.content=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
        if(button){
          const rail=statusRailSummary(key),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=Math.max(summaryCount,rail.count),content=rail.count?rail.content:(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>');
-         button.querySelector('[data-status-count]').textContent=String(count);button.dataset.content=content;
+          button.querySelector('[data-status-count]').textContent=String(count);button.dataset.content=content;
+          button.setAttribute('aria-label',(key==='you'?'Your':'Opponent')+' status effects');
          updateStatusItems(button,statusNode,count);
        }
     });

@@ -10,10 +10,15 @@ const DIRECT_FILES = [
   'Dockerfile.authority-v3-phase7-beta',
   'index.html',
   'server/fate-card-catalog.js',
+  'src/scripts/05-gameplay-core.js',
+  'src/scripts/06-rendering-and-helpers.js',
+  'src/scripts/15-online-auth.js',
   'src/scripts/18-online-rooms.js',
   'src/scripts/01-data-and-state.js',
+  'src/scripts/45-match-ui-codex.js',
   'src/scripts/authoritative-v3-phase7-beta-client.mjs',
-  'src/scripts/authoritative-v3-single-player-screen.mjs'
+  'src/scripts/authoritative-v3-single-player-screen.mjs',
+  'src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css'
 ];
 
 function normalize(value){

@@ -627,8 +627,9 @@ function aiGenerateAllMoves() {
   const cp = G.aiPlayer, opp = 1-cp;
   const hand = G.players[cp].hand;
   const moves = [];
-  const maxSup = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
+  const maxSup = Math.min(SUPPORTER_HARD_TURN_CAP, G.maxSupportsPerTurn + G.extraSupportsThisTurn);
   const canPlaceSup = G.majaEffectThisTurn || G.supportsPlacedThisTurn < maxSup;
+  const hardCapAvailable = !(typeof isSupporterHardCapReached === 'function' && isSupporterHardCapReached(cp));
   const isArtilleryLockedForAI = (z) => typeof G._artilleryLockedZone === 'number' && G._artilleryLockedZone === z && G._artilleryLockOwner === cp && G._artilleryLockTurnsLeft > 0;
 
   hand.filter(function(card){ return typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card); }).forEach(function(counter){
@@ -659,11 +660,12 @@ function aiGenerateAllMoves() {
   {
     const supporters = hand.filter(c=>{
       const isSupporter = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter';
-      const ignoresSetLimit = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(c);
-      return isSupporter && c.id!=='70' && (canPlaceSup || ignoresSetLimit);
+      const ignoresSetLimit = (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(c))
+        || !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
+      return hardCapAvailable && isSupporter && c.id!=='70' && (canPlaceSup || ignoresSetLimit);
     }).map(card=>({card, fromDeck:false}));
     const polishFromDeck = G.players[cp].deck.find(c=>c.id==='28');
-    if(canPlaceSup && polishFromDeck && !G._polishUsedThisTurn) supporters.push({card:polishFromDeck, fromDeck:true});
+    if(hardCapAvailable && polishFromDeck && !G._polishUsedThisTurn) supporters.push({card:polishFromDeck, fromDeck:true});
     for(const candidate of supporters){
       const sup = candidate.card;
       // Try contested row FIRST (row 1) — most impactful
@@ -687,6 +689,7 @@ function aiGenerateAllMoves() {
   // 1b. Free character placements from card effects/conditional costs.
   const freeCharacters = hand.filter(c=>{
     const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
+    if(!hardCapAvailable && typeof isStructurallySupporterCard === 'function' && isStructurallySupporterCard(c)) return false;
     return isEffectFree || ((typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(c, cp) : c.type !== 'Supporter') && (typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(c) : c.cost) <= 0);
   });
   for(const ch of freeCharacters){
@@ -3303,6 +3306,12 @@ async function aiDoPlace(choice) {
   const idx = sourceList.indexOf(choice.card);
   if(idx<0) return;
   const card = sourceList[idx];
+  if(typeof isStructurallySupporterCard === 'function'
+    && isStructurallySupporterCard(card)
+    && isSupporterHardCapReached(cp)) {
+    if(typeof showSupporterHardCapBanner === 'function') showSupporterHardCapBanner(cp);
+    return;
+  }
   if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) {
     placeWojciechPierogiCounter(card, choice.z, choice.r, choice.c, cp);
     await aiSleep(AI_VISUAL_PAUSE_PLACE);
@@ -3328,6 +3337,7 @@ async function aiDoPlace(choice) {
     const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
     if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:90, source:'ai-set'});
     sourceList.splice(idx,1);
+    if(typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, cp);
     if(cardIsSupporterForRules) {
       if(!isEffectFree) G.supportsPlacedThisTurn++;
       if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
@@ -3602,12 +3612,12 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     return;
   }
 
-  if(instIsSupporterForRules && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id)){
+  if(instIsSupporterForRules && hasAutomaticSetActivation){
     inst.whenSetActivated = true;
     inst.effectUsedInitial = true;
   }
 
-  if(instIsSupporterForRules && typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS.has(inst.id) && !G._suppressEffectPrompt){
+  if(instIsSupporterForRules && hasAutomaticSetActivation && !G._suppressEffectPrompt){
     const affectedOwners = typeof getSupporterEffectAffectedOwners === 'function'
       ? getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp)
       : [];
@@ -3633,6 +3643,13 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const proceed = await checkReactions('targeting_effect', {card:inst, z, r, c, sourceOwner:cp, affectedOwners});
       if(!proceed) return;
     }
+  }
+
+  if(typeof pressureCardReworkTimingActive === 'function'
+    && pressureCardReworkTimingActive()
+    && new Set(['20','33','47','64']).has(String(id || ''))
+    && typeof window.recordLegacyMoralePressureCardSet === 'function') {
+    window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
   }
 
   switch(id) {
@@ -5211,7 +5228,7 @@ async function aiRunEffect(card, z, r, c) {
         if(eventideCount < 3 && Number(G.turn || 0) < Number(G.maxTurns || 20) - 1) break;
       }
       if(typeof activateLiHuaStormOfTenThousandBlades === 'function'){
-        activateLiHuaStormOfTenThousandBlades(card, z, cp);
+        await activateLiHuaStormOfTenThousandBlades(card, z, cp);
       }
       break;
     }

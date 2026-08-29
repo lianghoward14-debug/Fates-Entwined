@@ -516,7 +516,12 @@ function getFullCardImageFallbackSrc(src) {
   if(!src) return '';
   const raw = String(src);
   const m = raw.match(/(?:^|\/)optimized\/card-thumbs\/([A-Za-z0-9_-]+)\.jpg(?:[?#].*)?$/);
-  return m ? (m[1] + '.png') : raw;
+  if(m) return m[1] + '.png';
+  // Installed builds made before the nested card-art folders were packaged
+  // can still recover the original root card image instead of rendering a
+  // blank deck slot, board letter, or empty information-window portrait.
+  const nested = raw.match(/(?:^|\/)assets\/(?:morale|pressure)-card-reworks\/([A-Za-z0-9_-]+)\.png(?:[?#].*)?$/);
+  return nested ? (nested[1] + '.png') : raw;
 }
 window.getFullCardImageFallbackSrc = getFullCardImageFallbackSrc;
 // Optimized card art is preferred for dense grids, but a newly added card can
@@ -629,7 +634,9 @@ function getCachedBaseZoneScore(z, player) {
   const dm = G.fateModifiers?.['deterrance_z'+z] || 0;
   let deterranceOwner = -1;
   zone.forEach(row=>row && row.forEach(cell=>{
-    if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id === '36')) deterranceOwner = cell.owner;
+    if(cell
+      && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '36') : cell.id === '36')
+      && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(cell))) deterranceOwner = cell.owner;
   }));
   if(deterranceOwner >= 0 && deterranceOwner !== player && dm < 0) score = Math.max(0, score + dm);
   const liHuaReduction = Number(G.fateModifiers?.['lihua_z' + z + '_p' + player] || 0) || 0;
@@ -3388,6 +3395,11 @@ function beginLocalSetFromDeckCard(cardId, config) {
 
 window.setPolishFromDeck = function() {
   if(G._polishUsedThisTurn){toast('The Army of Exiles can only be used once per turn.');return;}
+  if(typeof isSupporterHardCapReached === 'function' && isSupporterHardCapReached(G.currentPlayer)){
+    if(typeof showSupporterHardCapBanner === 'function') showSupporterHardCapBanner(G.currentPlayer);
+    toast('Hard Supporter cap reached: 5/5 this turn.');
+    return;
+  }
   beginLocalSetFromDeckCard('28', {
     emptyMessage:'No Polish-Lithuanian Army in deck',
     placementMessage:'Place 2nd Polish-Lithuanian Army for free from your deck.',
@@ -3548,6 +3560,10 @@ function getZoneScoreTooltip(z, s0, s1) {
       (Array.isArray(G._phase7Statuses) ? G._phase7Statuses : []).forEach(function(status){
         if(status?.type !== 'ZONE_FATE_MODIFIER') return;
         if(Number(status.zone) !== Number(z) || Number(status.playerIndex) !== player) return;
+        if((status.requiresActiveSource === true || String(status.reason || '') === 'MARIE_DETERRANCE') && status.sourceIid != null){
+          const source = typeof findBoardCardByIid === 'function' ? findBoardCardByIid(status.sourceIid) : null;
+          if(!source || (typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source))) return;
+        }
         const name = sourceName(status);
         grouped.set(name, Number(grouped.get(name) || 0) + (Number(status.value) || 0));
       });
@@ -3893,6 +3909,16 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
   const boardPos = options.boardPos || getBoardCardPosition(card);
   const hiddenOnBoard = !!(boardPos && isFaceDownCard(card) && (options.forceBoardHidden || card.owner !== viewerP));
   if(!hiddenOnBoard){
+    // Authoritative/public card instances may omit presentation-only fields.
+    // Always recover art from the live canonical definition before allowing the
+    // canvas renderer to fall back to a one-letter affiliation placeholder.
+    let canonicalDefinition = null;
+    if(!card.img && typeof CARDS !== 'undefined' && Array.isArray(CARDS)) {
+      canonicalDefinition = CARDS.find(function(candidate){
+        return candidate && String(candidate.id || '') === String(card.id || '');
+      }) || null;
+    }
+    const resolvedCardImg = String(card.img || canonicalDefinition?.img || '');
     const reworkActive = typeof pressureCardReworkTimingActive === 'function'
       ? pressureCardReworkTimingActive()
       : (window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true || G?.gameSettings?.pressureCardReworks === true || G?._freePlayGameSettings?.pressureCardReworks === true);
@@ -3927,8 +3953,8 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       displayFate: typeof getSequentialFateDisplayValue === 'function' && getSequentialFateDisplayValue(card) != null
         ? getSequentialFateDisplayValue(card)
         : (boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate)),
-      img: getRuntimeCardImageSrc(card.img, 'detail'),
-      runtimeImg: getRuntimeCardImageSrc(card.img, boardPos ? 'board' : 'hand'),
+      img: getRuntimeCardImageSrc(resolvedCardImg, 'detail'),
+      runtimeImg: getRuntimeCardImageSrc(resolvedCardImg, boardPos ? 'board' : 'hand'),
       cost: handCost,
       xCost: card.xCost
     };
@@ -4562,23 +4588,30 @@ window.getHandLimitCount = getHandLimitCount;
 function canPlayCard(card) {
   if(G.phase!=='main') return false;
   if(card && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && card.guerilla_transferred) return false;
+  if(typeof isStructurallySupporterCard === 'function'
+    && isStructurallySupporterCard(card)
+    && isSupporterHardCapReached(card.owner)) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
   if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
-    const max=G.maxSupportsPerTurn+G.extraSupportsThisTurn;
+    const max=Math.min(SUPPORTER_HARD_TURN_CAP,G.maxSupportsPerTurn+G.extraSupportsThisTurn);
     if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn>=max) return false;
   }
   return true;
 }
 
 function isSupporterLimitReachedForCard(card) {
-  if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
+  if(!card) return false;
+  if(typeof isStructurallySupporterCard === 'function'
+    && isStructurallySupporterCard(card)
+    && isSupporterHardCapReached(card.owner)) return true;
+  if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return false;
   if(G.phase !== 'main') return false;
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return false;
   if(G.majaEffectThisTurn) return false;
-  const max = G.maxSupportsPerTurn + G.extraSupportsThisTurn;
+  const max = Math.min(SUPPORTER_HARD_TURN_CAP, G.maxSupportsPerTurn + G.extraSupportsThisTurn);
   return G.supportsPlacedThisTurn >= max;
 }
 
@@ -5469,6 +5502,11 @@ function renderTopbarEffects() {
       add('71', 'fort_calvin', 'Fort Calvin Watcher', 'All Eyes on the I-15', 'Reveals the next ' + remaining + ' eligible opponent Draw Phase card' + (remaining === 1 ? '' : 's') + '. ' + redirect, 'effect-pill-fort-calvin');
     }else if(type === 'SUPPORTER_EFFECTS_BLOCKED' && remaining > 0){
       add('18', 'semper', '1st US Marines', 'Semper Fidelis', 'The affected player cannot activate Supporter effects this turn.', 'effect-pill-semper');
+    }else if(type === 'MORALE_DAMAGE_INFLICTED_ZERO' && remaining > 0){
+      const activeNow = Number(status.activeFromTurn) <= Number(G.turn);
+      add('20', 'shield_wall', 'South Wind Spearman', 'Shield Wall', activeNow
+        ? 'The affected opponent inflicts 0 Morale Damage during this turn.'
+        : "During the affected opponent's next turn, they inflict 0 Morale Damage.", 'effect-pill-shield-wall');
     }else if(type === 'ZONE_ACTIONS_BLOCKED' && remaining > 0){
       const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'The selected zone';
       add('50', 'berkeley_lock', 'Berkeley CS Major', 'Artillery Distance', zone + ' is locked for the affected player\'s turn.', 'effect-pill-berkeley');
@@ -5505,9 +5543,6 @@ function renderTopbarEffects() {
     }else if(type === 'SELVA_EXTRA_SUPPORTER' && status.activeNow === true && ((Number(status.extraSupports) || 0) > 0 || remaining > 0)){
       add('74', 'selva', 'Selva Islands Pirate', 'A New Pacifica', '+' + (Number(status.extraSupports) || 1) + ' Supporter placement this turn.', 'effect-pill-selva');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
-    }else if(type === 'MAJA_EXTRA_SUPPORTERS' && ((Number(status.extraSupports) || 0) > 0 || remaining > 0)){
-      add('07', 'maja_unlimited', 'Maja Kaminska', 'Oblique Order', '+' + (Number(status.extraSupports) || 2) + ' Supporter placements this turn.', 'effect-pill-maja');
-      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'WINE_COUNTRY_GUERILLA_INFILTRATION' && remaining > 0){
       add(
         '70',
@@ -5532,39 +5567,52 @@ function renderTopbarEffects() {
     }
   });
 
-  // In the legacy rules South Wind's self-protection persists while it is
-  // face-up. Under the Morale card reworks, its banner instead represents the
-  // one-use prevention counter and must disappear after the next calculation.
+  // Legacy rules keep South Wind's self-protection while it is face-up. The
+  // Morale rework is a separate next-opponent-turn timed status below.
   const pressureCardReworks = window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true
     || G?.gameSettings?.pressureCardReworks === true
     || G?._freePlayGameSettings?.pressureCardReworks === true;
-  const southWindDefinition = typeof CARDS !== 'undefined' && Array.isArray(CARDS)
-    ? CARDS.find(function(card){ return card && String(card.id || '') === '20'; })
-    : null;
   const fortifiedOwners = new Set();
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(card, z, r, c){
       if(!card || String(card.id || '') !== '20' || isFaceDownCard(card)) return;
       if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)) return;
-      if(pressureCardReworks && card.counters?.preventNextMoraleDamage !== true) return;
+      if(pressureCardReworks) return;
       if(card.owner === 0 || card.owner === 1) fortifiedOwners.add(card.owner);
     });
   }
   fortifiedOwners.forEach(function(owner){
     allEffects.push({
       icon:getStatusEffectIcon('shield_wall'),
-      label:pressureCardReworks ? 'Morale Guard' : 'Fortified',
+      label:'Fortified',
       cardName:'South Wind Spearman',
       cardAbility:'Shield Wall',
-      cardEffect:pressureCardReworks
-        ? (southWindDefinition?.effect || 'For the next Morale Calculation, you take no Morale Damage.')
-        : 'This card is immune to opponent effects.',
+      cardEffect:'This card is immune to opponent effects.',
       owner:owner,
       extraClass:'effect-pill-shield-wall',
       sourceIid:'south-wind-spearman:' + owner,
-      statusInstanceKey:(pressureCardReworks ? 'south-wind-next-morale:' : 'south-wind-fortified:') + owner
+      statusInstanceKey:'south-wind-fortified:' + owner
     });
   });
+  if(pressureCardReworks && G._phase7CurrentMultiplayer !== true && G._southWindMoraleBlock){
+    const block=G._southWindMoraleBlock;
+    const owner=Number(block.sourcePlayer);
+    const activeNow=Number(block.activeFromTurn)<=Number(G.turn);
+    allEffects.push({
+      icon:getStatusEffectIcon('shield_wall'),
+      label:'Shield Wall',
+      cardName:'South Wind Spearman',
+      cardAbility:'Shield Wall',
+      cardEffect:activeNow
+        ? 'Your opponent inflicts 0 Morale Damage during this turn.'
+        : "During your opponent's next turn, they inflict 0 Morale Damage.",
+      owner:owner===0||owner===1?owner:myP,
+      turnsLeft:1,
+      extraClass:'effect-pill-shield-wall',
+      sourceIid:block.sourceIid,
+      statusInstanceKey:'south-wind-morale-zero:' + String(block.sourceIid || owner)
+    });
+  }
 
   if(G._phase7CurrentMultiplayer !== true && Array.isArray(G._bh19HighTStatuses)){
     G._bh19HighTStatuses.forEach(function(status, index){
@@ -5684,16 +5732,13 @@ function renderTopbarEffects() {
     });
   });
 
-  // Maja's current text grants exactly two extra Supporter placements. Local
-  // matches retain an explicit source marker; authoritative matches render the
-  // canonical MAJA_EXTRA_SUPPORTERS status above.
+  // Maja's current text grants exactly two extra Supporter placements. Both
+  // local and authoritative matches project the same source marker so the
+  // normal status banner is rendered by one shared presentation path.
   const localMajaBoost = G._majaSupportBoost && Number(G._majaSupportBoost.turn) === Number(G.turn)
     ? G._majaSupportBoost
     : null;
-  if((G.majaEffectThisTurn || localMajaBoost) && !(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
-    return String(status?.statusType || status?.type || '').toUpperCase() === 'MAJA_EXTRA_SUPPORTERS'
-      && (Number(status.remainingOwnerTurns || 0) > 0 || Number(status.extraSupports || 0) > 0);
-  }))) {
+  if(G.majaEffectThisTurn || localMajaBoost) {
     let majaOwner = localMajaBoost && (localMajaBoost.owner === 0 || localMajaBoost.owner === 1) ? localMajaBoost.owner : myP;
     if(!localMajaBoost) forEachBoardCard(c => { if(c.id === '07') majaOwner = c.owner; });
     const card = CARDS.find(c => c.id === '07');
@@ -6165,6 +6210,12 @@ function renderTopbarEffects() {
   // Split effects by ownership
   const myEffects = allEffects.filter(e => coerceStatusOwner(e.owner, myP) === myP);
   const oppEffects = allEffects.filter(e => coerceStatusOwner(e.owner, oppP) === oppP);
+  // Preserve the complete normal status collection before the legacy rail is
+  // compacted for width. The current match HUD reads this collection for its
+  // status count/popover; reading only mounted pills drops effects moved into
+  // the overflow pill (for example Selva when Oblique Order becomes active).
+  leftBar._fateAllStatusEffects = myEffects.slice();
+  rightBar._fateAllStatusEffects = oppEffects.slice();
   const mySig = myEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
   const oppSig = oppEffects.map(e => [e.icon, e.label, e.cardName, e.cardAbility, e.cardEffect, e.extraClass || '', e.sourceIid || '', e.statusInstanceKey || ''].join('|')).join('||');
   const nextHtml = mySig + '::' + oppSig;
@@ -6175,12 +6226,12 @@ function renderTopbarEffects() {
   // syncEffectPills is keyed and incremental, so running it again is cheap and
   // also gives the production renderer an exact self-heal on every state pass.
   _topbarEffectsLastHtml = nextHtml;
-  syncEffectPills(leftBar, myEffects, 'left');
-  syncEffectPills(rightBar, oppEffects, 'right');
-  const myVisibleEffects = compactTopbarStatusEffects(myEffects, 'left', leftBar);
-  const oppVisibleEffects = compactTopbarStatusEffects(oppEffects, 'right', rightBar);
-  leftBar.dataset.effectPillsSig = syncEffectPills(leftBar, myVisibleEffects, 'left');
-  rightBar.dataset.effectPillsSig = syncEffectPills(rightBar, oppVisibleEffects, 'right');
+  // Every active effect remains a normal status banner. The current HUD owns
+  // the expandable dropdown, so replacing real effects with a synthetic
+  // "+N Effects" overflow pill only hides information and makes simultaneous
+  // statuses such as Selva and Oblique Order appear to conflict.
+  leftBar.dataset.effectPillsSig = syncEffectPills(leftBar, myEffects, 'left');
+  rightBar.dataset.effectPillsSig = syncEffectPills(rightBar, oppEffects, 'right');
 
   if(statusDock) {
     statusDock.classList.remove('active','has-both-sides');
@@ -6942,7 +6993,8 @@ function canUseBusserMoveButton(card, actionPlayer) {
 }
 
 function isBerkeleyHomelessEffectCard(card) {
-  return !!(card && (card.berkeleyHomeless || String(card.id || '') === '62'));
+  if(!card || !(card.berkeleyHomeless || String(card.id || '') === '62')) return false;
+  return !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card));
 }
 
 function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
@@ -7813,7 +7865,8 @@ function showBoardTargetPicker(opts, onConfirm) {
   }
 
   const body = document.createElement('div');
-  body.className = 'board-target-picker show-opponent-overlay' + (zones.length > 1 ? ' is-multi-zone' : '');
+  const usesZoneTabs = zones.length > 1;
+  body.className = 'board-target-picker show-opponent-overlay' + (usesZoneTabs ? ' has-zone-tabs' : '');
   if(opts.showZoneTitles) body.classList.add('show-zone-titles');
   if(opts.pickerClass) String(opts.pickerClass).split(/\s+/).filter(Boolean).forEach(function(className){ body.classList.add(className); });
   const pickerSourceName = String(opts?.sourceCard?.name || '');
@@ -7836,11 +7889,33 @@ function showBoardTargetPicker(opts, onConfirm) {
 
   const zonesEl = document.createElement('div');
   zonesEl.className = 'board-target-zones';
+  if(usesZoneTabs) {
+    const zoneTabs = document.createElement('div');
+    zoneTabs.className = 'board-target-zone-tabs';
+    zones.forEach(function(z, zoneIndex){
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'board-target-zone-tab' + (zoneIndex === 0 ? ' is-active' : '');
+      tab.dataset.zone = String(z);
+      tab.textContent = 'Zone ' + (z + 1);
+      tab.onclick = function(){
+        body.querySelectorAll('.board-target-zone-tab').forEach(function(node){
+          node.classList.toggle('is-active', node === tab);
+        });
+        zonesEl.querySelectorAll('.board-target-zone').forEach(function(panel){
+          panel.classList.toggle('is-active-zone', panel.dataset.zone === String(z));
+        });
+      };
+      zoneTabs.appendChild(tab);
+    });
+    body.appendChild(zoneTabs);
+  }
   body.appendChild(zonesEl);
 
   zones.forEach(function(z){
     const panel = document.createElement('section');
-    panel.className = 'board-target-zone';
+    panel.className = 'board-target-zone' + (usesZoneTabs && z === zones[0] ? ' is-active-zone' : '');
+    panel.dataset.zone = String(z);
     const zoneTitle = document.createElement('div');
     zoneTitle.className = 'board-target-zone-title';
     zoneTitle.textContent = 'Zone ' + (z + 1);
@@ -7884,6 +7959,7 @@ function showBoardTargetPicker(opts, onConfirm) {
         hasExtraCells = true;
         rowEl.classList.add('has-extra-cells');
       }
+      cells.style.setProperty('--picker-row-cap', String(rowCap));
       cells.style.gridTemplateColumns = 'repeat(' + rowCap + ', var(--board-target-cell-w, 118px))';
 
       for(let c = 0; c < rowCap; c++) {
@@ -7983,9 +8059,9 @@ function showBoardTargetPicker(opts, onConfirm) {
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
     modalBox.classList.add('board-target-picker-modal');
-    modalBox.classList.toggle('is-multi-zone-picker', zones.length > 1);
+    modalBox.classList.remove('is-multi-zone-picker');
     modalBox.classList.remove('picker-zone-count-1','picker-zone-count-2','picker-zone-count-3');
-    modalBox.classList.add('picker-zone-count-' + Math.max(1, Math.min(3, zones.length)));
+    modalBox.classList.add('picker-zone-count-1');
   }
   updateSelection(body);
 }
@@ -7999,16 +8075,19 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
   }
   const pickerEntries = (entries || []).filter(function(entry){ return entry && entry.card; });
   if(!pickerEntries.length){ toast('No valid targets in this zone'); return; }
+  // The production single-zone picker is the compact board-target component.
+  // Keep the old .zone-picker-wrap implementation below as dead fallback
+  // history; it is the oversized 3x3 modal and must not be mounted.
   showBoardTargetPicker({
-    title: getMultiplayerBoardPromptTitle(sourceCard),
-    prompt: prompt,
-    maxCount: Math.max(1, Math.min(maxCount || 1, pickerEntries.length)),
-    confirmLabel: 'Confirm',
-    viewerPlayerIndex: viewerP,
-    zones: [z],
-    entries: pickerEntries,
+    title:getMultiplayerBoardPromptTitle(sourceCard),
+    prompt:prompt,
+    maxCount:Math.max(1, Math.min(maxCount || 1, pickerEntries.length)),
+    confirmLabel:'Confirm',
+    viewerPlayerIndex:viewerP,
+    zones:[z],
+    entries:pickerEntries,
     showZoneTitles:true,
-    emptyMessage: 'No valid targets in this zone',
+    emptyMessage:'No valid targets in this zone',
     onCancel:onCancel
   }, function(chosen){
     onConfirm(chosen);
@@ -8056,13 +8135,13 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
       } else {
         const ownClass = cell.owner===viewerP ? 'zp-mine' : 'zp-enemy';
         cellEl.classList.add(ownClass);
-        const isTargetable = !filter || filter(cell,z,dataRow,c);
+        const entry = entries.find(e=>e.card===cell);
+        const isTargetable = !!entry && (!filter || filter(cell,z,dataRow,c));
         if(!isTargetable){
           cellEl.classList.add('zp-notarget');
         } else {
           cellEl.classList.add('zp-targetable');
         }
-        const entry = entries.find(e=>e.card===cell);
         const visual = getCardVisualData(cell, viewerP, {boardPos:{z, r:dataRow, c}});
         cellEl.innerHTML = `
           <div class="zp-card-art">${visual.img?`<img src="${visual.img}" alt="${visual.name}">`:`<span style="font-size:2rem;opacity:.4;">${getAffIcon(visual.aff)}</span>`}</div>
@@ -8104,7 +8183,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
   ok.className='btn sm pri';ok.textContent='Confirm';
   ok.onclick = ()=>{closeModal();onConfirm(chosen);};
   const cancel = document.createElement('button');
-  cancel.className='btn sm';cancel.textContent='Cancel';cancel.onclick=closeModal;
+  cancel.className='btn sm';cancel.textContent='Cancel';cancel.onclick=()=>{closeModal();if(typeof onCancel==='function')onCancel();};
   document.getElementById('modal-acts').appendChild(cancel);
   document.getElementById('modal-acts').appendChild(ok);
   document.getElementById('modal').classList.add('on');
@@ -8532,6 +8611,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
 
   document.getElementById('modal-title').textContent=opts.title||'Select a Card';
   document.getElementById('modal-acts').innerHTML='';
+  const modalRoot = document.getElementById('modal');
   const ok=document.createElement('button');
   ok.className='btn sm pri';ok.textContent=opts.confirmLabel||'Confirm';
   if(minCount > 0){ ok.disabled = true; ok.style.opacity = '.4'; }
@@ -8544,7 +8624,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   cl.onclick=()=>{closeModal();if(opts.onCancel) opts.onCancel();};
   if(minCount <= 0) document.getElementById('modal-acts').appendChild(cl);
   document.getElementById('modal-acts').appendChild(ok);
-  document.getElementById('modal').classList.add('on');
+  modalRoot.classList.add('on');
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
     modalBox.classList.add('visual-card-picker-modal');
@@ -8842,6 +8922,12 @@ function showAffiliationPickerVisual(callback) {
 
 function showZonePickerVisual(options, callback) {
   options = options || {};
+  // This shared modal is also used by card, affiliation, and online prompt
+  // pickers. Always restore the single-player zone-picker shell first so an
+  // authoritative prompt cannot inherit the previous modal's classes/styles.
+  if(typeof resetModalChrome === 'function') resetModalChrome();
+  const modalBox = document.querySelector('#modal .modal');
+  if(modalBox) modalBox.classList.add('zone-selection-picker-modal');
   // Zone-targeting windows always retain the complete three-zone battlefield.
   // A full zone can be ineligible without disappearing from spatial context.
   const zoneCount = Math.max(3, Array.isArray(G.board) ? G.board.length : 3);
@@ -9387,6 +9473,29 @@ function toast(msg, durationMs) {
   while(queue.length > 12) queue.shift();
   fatePlayNextToast();
 }
+
+function showSupporterHardCapBanner(player) {
+  if(typeof document === 'undefined') return false;
+  let banner = document.getElementById('supporter-hard-cap-banner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'supporter-hard-cap-banner';
+    banner.setAttribute('role', 'status');
+    banner.setAttribute('aria-live', 'polite');
+    document.body.appendChild(banner);
+  }
+  const resolvedPlayer = Number.isInteger(Number(player)) ? Number(player) : Number(G?.currentPlayer || 0);
+  const playerName = String(G?.players?.[resolvedPlayer]?.name || ('Player ' + (resolvedPlayer + 1)));
+  banner.innerHTML = '<strong>SUPPORTER CAP REACHED</strong><span>'
+    + escapeHtml(playerName) + ' has set 5/5 Supporters this turn.</span>';
+  banner.classList.remove('on');
+  void banner.offsetWidth;
+  banner.classList.add('on');
+  clearTimeout(window.__fateSupporterHardCapBannerTimer);
+  window.__fateSupporterHardCapBannerTimer = setTimeout(function(){ banner.classList.remove('on'); }, 4800);
+  return true;
+}
+if(typeof window !== 'undefined') window.showSupporterHardCapBanner = showSupporterHardCapBanner;
 
 function toggleLog() {
   document.getElementById('log-panel').classList.toggle('on');

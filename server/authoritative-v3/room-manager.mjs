@@ -40,7 +40,7 @@ function validatePlayer(player, seat){
   const testDeckTopCardIds = Array.isArray(player?.testDeckTopCardIds)
     ? player.testDeckTopCardIds.map(String).filter(Boolean).slice(0, 2)
     : [];
-  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
+  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), rankElo:Math.max(0, Math.round(Number(player?.rankElo) || 600)), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
 }
 
 function forceTestOpeningCards(state, players){

@@ -12,6 +12,8 @@ const renderer = read('src/scripts/06-rendering-and-helpers.js');
 const ai = read('src/scripts/07-ai.js');
 const moraleUi = read('src/scripts/27-morale-pressure-ui.js');
 const matchUi = read('src/scripts/45-match-ui-codex.js');
+const matchUiCss = read('src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css');
+const registry = read('shared/engine/cards/registry.mjs');
 
 assert.match(
   core,
@@ -53,7 +55,7 @@ assert.match(
   'card details must display the active rework text carried by the match settings'
 );
 
-assert.match(core, /G\._majaSupportBoost = \{owner:cp, turn:Number\(G\.turn\), extraSupports:2/);
+assert.match(core, /G\._majaSupportBoost = \{owner:cp, turn:Number\(G\.turn\), extraSupports:2, sourceIid:String\(card\.iid/);
 assert.match(ai, /G\._majaSupportBoost = \{owner:cp, turn:Number\(G\.turn\), extraSupports:2/);
 assert.match(renderer, /const localMajaBoost = G\._majaSupportBoost/);
 assert.match(renderer, /extraClass:'effect-pill-maja'/);
@@ -64,11 +66,25 @@ assert.match(
   'Maja must publish a current-turn Oblique Order status in local matches'
 );
 const majaCase = core.slice(core.indexOf("case '07':"), core.indexOf("case '08':", core.indexOf("case '07':")));
+assert.doesNotMatch(majaCase, /\binst\b/, 'Maja must use triggerCharacterEffect\'s card argument instead of an undefined placement variable');
+assert.match(majaCase, /await new Promise\(function\(resolveMajaSearch\)/, 'Maja must keep placement resolution pending while Oblique Order owns the shared picker');
+assert.match(majaCase, /onCancel:finish/, 'cancelling Maja must release the pending placement resolver');
+assert.doesNotMatch(majaCase, /minCount\s*:/, 'legacy single-player Maja must not require a minimum supporter count');
+assert.match(majaCase, /lockUntilAnswered:true/, 'Maja must retain ownership of the shared modal until her picker is answered');
+assert.match(majaCase, /await resolveBoleslawAfterSearchSelection/, 'follow-up search resolution must finish before Maja releases the shared modal lifecycle');
+assert.match(majaCase, /FateCodexUi\?\.update/, 'Maja must publish her status into the current HUD immediately');
 const executableMajaCase = majaCase.replace(/\/\/.*$/gm, '');
-assert.match(majaCase, /openMajaSearch\(\);[\s\S]{0,600}renderTopbarEffects/, 'Maja must mount her supporter picker before refreshing status presentation');
+assert.match(majaCase, /pickCardsVisual\(matches,[\s\S]{0,3600}renderTopbarEffects/, 'Maja must mount her supporter picker before the targeted status presentation refresh');
 assert.doesNotMatch(executableMajaCase, /refreshStatusEffectsNow\s*\(/, 'Maja must not run broad continuous-effect reconciliation before opening her picker');
 assert.match(matchUi, /function statusRailSummary\(key\)/, 'the new match HUD must read canonical top-bar status pills directly');
 assert.match(matchUi, /count=Math\.max\(summaryCount,rail\.count\)/, 'the new HUD must not remain at STATUS 0 when its Morale summary is stale');
+assert.match(matchUi, /statusBanner\.textContent=statusLabels\.join\(' · '\)/, 'the current match HUD must publish canonical effect names such as Oblique Order');
+assert.match(renderer, /effectPickerLocked[\s\S]{0,220}visual-picker-body/, 'unrelated modal work must not replace a resolving effect picker');
+assert.match(renderer, /existingPickerLock && existingPickerLock !== incomingPickerKey[\s\S]{0,500}pickCardsVisual\(cards, opts, onConfirm\)/, 'a second card picker must wait behind the unanswered effect picker');
+
+const authoritativeMaja = registry.slice(registry.indexOf("'07':{"), registry.indexOf("'08':{", registry.indexOf("'07':{")));
+assert.match(authoritativeMaja, /min:0,[\s\S]{0,80}max:3,[\s\S]{0,80}optional:true/, 'shared multiplayer/single-player Maja must accept zero to three supporters');
+assert.doesNotMatch(authoritativeMaja, /exactUpToAvailable/, 'shared Maja must not force every available slot to be selected');
 
 assert.match(
   core,
