@@ -48,7 +48,7 @@ const expected = {
   ai_last_mohicans_ledger:{strategy:'ai_last_mohicans_ledger', characters:7},
   ai_hellenic_heartbreaker:{strategy:'ai_hellenic_heartbreaker', characters:10},
   ai_hungarian_war_dance:{strategy:'ai_hungarian_war_dance', characters:19},
-  ai_great_oak_salvo:{strategy:'ai_great_oak_salvo', characters:7},
+  ai_great_oak_salvo:{strategy:'ai_great_oak_salvo', characters:10},
   ai_adjacency_doctrine:{strategy:'ai_adjacency_doctrine', characters:25},
   ai_hand_quarantine:{strategy:'ai_hand_quarantine', characters:7},
   ai_high_t_draw_mill:{strategy:'ai_high_t_draw_mill', characters:22},
@@ -91,7 +91,8 @@ for(const [deckId, design] of Object.entries(expected)){
 const exactDeckCounts = {
   ai_crown_of_five:{'07':1,'19':3,'15':3,'01':3,'57':3,'77':3,'09':3,'24':3,'49':3,'92':3,'28':3,'68':3,'74':3,'60':3},
   ai_snowball_fight_club:{'bh05':1,'93':3,'37':3,'41':3,'08':3,'48':3,'31':3,'58':3,'60':3,'13':3,'32':3,'42':3,'05':3,'71':3},
-  ai_wintertide_family_reunion:{'100':3,'98':3,'88':3,'99':3,'89':3,'82':3,'84':3,'94':3,'92':3,'06':3,'27':2,'28':3,'60':3,'90':2}
+  ai_wintertide_family_reunion:{'100':3,'98':3,'88':3,'99':3,'89':3,'82':3,'84':3,'94':3,'92':3,'06':3,'27':2,'28':3,'60':3,'90':2},
+  ai_great_oak_salvo:{'07':1,'47':3,'64':3,'75':3,'58':3,'60':3,'13':3,'32':3,'69':3,'33':3,'20':3,'65':3,'35':3,'bh22':3}
 };
 for(const [deckId, blueprint] of Object.entries(exactDeckCounts)){
   const deck = decks.find(entry=>entry.id === deckId);

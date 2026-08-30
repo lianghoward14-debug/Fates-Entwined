@@ -539,15 +539,15 @@ const AI_ONLY_RANDOM_DECKS = [
     id: 'ai_great_oak_salvo',
     baseStrategy: 'ai_great_oak_salvo',
     name: 'Great Oak Salvo',
-    description: 'Repeatedly searches, copies and recovers Great Oak Infantry while timing Cook Islands Duelist for favorable Morale calculations.',
+    description: 'Recycles Great Oak Infantry to reinforce Alexander and Jamie while chaining direct Morale damage, recovery and calculation denial.',
     theme: 'AI Only - Recursive Morale Damage',
     faceCardId: '47',
-    displayCardIds: ['47','07','75','58','64','69','33'],
+    displayCardIds: ['47','35','bh22','65','64','20','33'],
     ids: [
       '07','47','47','47','64','64','64','75','75','75',
       '58','58','58','60','60','60','13','13','13','32',
-      '32','32','42','42','42','27','27','27','69','69',
-      '69','33','33','33','05','05','05','68','68','68'
+      '32','32','69','69','69','33','33','33','20','20',
+      '20','65','65','65','35','35','35','bh22','bh22','bh22'
     ]
   },
   {

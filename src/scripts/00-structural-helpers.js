@@ -1460,6 +1460,7 @@ function resetMatchTransientState() {
   G.landscapeBgNum = null;
   G._landscapeState = null;
   G._landscapeDrawQueue = [];
+  G._makennaBirdCultActivated = false;
 }
 
 function hidePassTurnOverlay() {

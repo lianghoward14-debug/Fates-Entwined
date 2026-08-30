@@ -1234,11 +1234,11 @@ function aiDeckSearchPriority(deckId, kind) {
       coordinator: ['34','77','19']
     },
     ai_great_oak_salvo: {
-      supporter: ['47','75','58','60','64','69','33','32','42','05','68'],
-      character: ['07','27','13'],
-      jorge: ['47','75','58','64','69','33'],
+      supporter: ['47','65','64','20','33','75','58','60','69','32'],
+      character: ['35','bh22','07','13'],
+      jorge: ['47','65','64','20','33','75','58','69'],
       lina: [],
-      dylan: ['47','64','69','33','05'],
+      dylan: ['35','47','65','64','20','33','bh22','69'],
       coordinator: []
     },
     ai_adjacency_doctrine: {
@@ -2055,7 +2055,8 @@ function aiDeckStrategyBonus(move, deckId) {
 
   else if(deckId === 'ai_great_oak_salvo') {
     const discardHasOak = G.players[cp].discard.some(c=>c.id === '47');
-    const handHasPayoff = G.players[cp].hand.some(c=>['13','27'].includes(c.id));
+    const handHasPayoff = G.players[cp].hand.some(c=>['13','35','bh22'].includes(c.id));
+    const discardHasMoraleInitiator = G.players[cp].discard.some(c=>['07','13','bh22'].includes(c.id));
     const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
     if(move.type === 'place') {
       if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 280;
@@ -2070,22 +2071,22 @@ function aiDeckStrategyBonus(move, deckId) {
         const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
         bonus += adjacent.some(entry=>entry.card&&entry.card.owner!==cp) ? 285 : 145;
       }
-      if(move.card.id === '69') {
-        const initiators = G.players[cp].hand.filter(c=>c.type === 'Initiator').length;
-        bonus += initiators >= 2 ? 250 : 55;
-      }
+      if(move.card.id === '65') bonus += move.r === 1 ? 330 : 40;
+      if(move.card.id === '20') bonus += 245;
+      if(move.card.id === '69') bonus += discardHasMoraleInitiator ? 285 : 45;
       if(move.card.id === '33') bonus += handHasPayoff ? 245 : 90;
-      if(['32','42'].includes(move.card.id)) bonus += G.players[cp].hand.length <= 5 ? 165 : 75;
-      if(move.card.id === '05') bonus += aiCountOwnCardsInZone(move.z,c=>['13','27'].includes(c.id)) ? 235 : 55;
-      if(move.card.id === '68') bonus -= 40; // no Coordinator exists in this list; use as reinforcement only
+      if(move.card.id === '32') bonus += G.players[cp].hand.length <= 5 ? 165 : 75;
+      if(move.card.id === '35') bonus += move.r === safeRow ? 420 : 350;
+      if(move.card.id === 'bh22') bonus += move.r === safeRow ? 390 : 210;
     }
-    if(move.type === 'consolidate' && ['13','27'].includes(move.card.id)) {
+    if(move.type === 'consolidate' && ['13','35','bh22'].includes(move.card.id)) {
       const oakTributes = (move.tributes || []).filter(t=>t?.card?.id === '47').length;
       bonus += 210 + oakTributes * 310;
       if(move.r === safeRow) bonus += 65;
-      if(move.card.id === '27' && G.players[cp].hand.length <= 5) bonus += 130;
+      if(move.card.id === '35') bonus += 260;
+      if(move.card.id === 'bh22' && move.r === safeRow) bonus += 280;
       for(const tribute of move.tributes || []) {
-        if(tribute?.card?.id === '64') bonus -= 850;
+        if(['20','64','65'].includes(tribute?.card?.id)) bonus -= 850;
         if(['58','60','75'].includes(tribute?.card?.id) && discardHasOak) bonus -= 220;
       }
     }
@@ -4935,7 +4936,7 @@ async function aiRunEffect(card, z, r, c) {
       const diversifiedPlans = {
         ai_crown_of_five:['09','24','49'],
         ai_hungarian_war_dance:['25','44','68'],
-        ai_great_oak_salvo:['47','64','75'],
+        ai_great_oak_salvo:['47','65','20'],
         ai_adjacency_doctrine:['25','44','68']
       };
       const diversifiedPlan = diversifiedPlans[strat] || [];
