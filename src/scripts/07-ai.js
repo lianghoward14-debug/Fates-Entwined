@@ -1249,6 +1249,38 @@ function aiDeckSearchPriority(deckId, kind) {
       dylan: ['35','bh07','bh11','01','19','15','25','44'],
       coordinator: ['bh11','bh07','01','19','15']
     },
+    ai_safe_row_sanctuary: {
+      supporter: ['24','59','65','20','47','33','60','58','32'],
+      character: ['02','43','bh12','bh22','23'],
+      jorge: ['bh22','43','bh12','23','24','59'],
+      lina: ['43','23'],
+      dylan: ['bh12','24','59','47'],
+      coordinator: ['23']
+    },
+    ai_reinforcement_exchange: {
+      supporter: ['09','24','49','25','28','47','33','60','58'],
+      character: ['07','14','bh04','21','29'],
+      jorge: ['14','bh04','21','09','24','49'],
+      lina: [],
+      dylan: ['21','29','09','24','49'],
+      coordinator: []
+    },
+    ai_alpine_furnace: {
+      supporter: ['73','74','47','33','60','58','54','76'],
+      character: ['56','87','40','48','bh13','22'],
+      jorge: ['73','87','40','48','bh13','22'],
+      lina: [],
+      dylan: ['73','87','40','48','bh13','22'],
+      coordinator: []
+    },
+    ai_eventide_blockade: {
+      supporter: ['74','79','53','52','64','65','31','20','75','33'],
+      character: ['02','45','14','11','51'],
+      jorge: ['45','14','11','51','53','52'],
+      lina: [],
+      dylan: ['45','14','11','51','53','52'],
+      coordinator: ['11']
+    },
     ai_hand_quarantine: {
       supporter: ['70','72','71','50','42','58','60','52','33','32'],
       character: ['bh03','61','56','31'],
@@ -2089,6 +2121,90 @@ function aiDeckStrategyBonus(move, deckId) {
         if(['20','64','65'].includes(tribute?.card?.id)) bonus -= 850;
         if(['58','60','75'].includes(tribute?.card?.id) && discardHasOak) bonus -= 220;
       }
+    }
+  }
+
+  else if(deckId === 'ai_safe_row_sanctuary') {
+    const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
+    const sanctuaryPieces = aiOwnBoardCardsById('43').length + aiOwnBoardCardsById('bh12').length + aiOwnBoardCardsById('bh22').length;
+    if(move.type === 'place') {
+      if(move.card.id === '02') bonus += G.turn <= 3 ? 720 : 320;
+      if(move.card.id === '43') bonus += sanctuaryPieces < 2 ? 520 : 230;
+      if(move.card.id === 'bh12') bonus += move.r === safeRow ? 410 : 245;
+      if(move.card.id === 'bh22') bonus += move.r === safeRow ? 560 : 190;
+      if(move.card.id === '23') bonus += aiCountOwnCardsInZone(move.z,c=>c.type !== 'Supporter') * 85;
+      if(move.card.id === '24') bonus += move.r === safeRow ? 290 : 145;
+      if(move.card.id === '59') bonus += aiCountOwnCardsInZone(move.z,c=>c.type === 'Supporter') * 60;
+      if(move.card.id === '65') bonus += move.r === 1 ? 260 : 30;
+    }
+    if(move.type === 'consolidate' && ['43','bh12','bh22','23'].includes(move.card.id)) {
+      if(move.r === safeRow) bonus += 260;
+      for(const tribute of move.tributes || []) if(['24','59','20'].includes(tribute?.card?.id)) bonus -= 420;
+    }
+  }
+
+  else if(deckId === 'ai_reinforcement_exchange') {
+    const economyHere = aiCountOwnCardsInZone(move.z,c=>['09','24','49','25','28'].includes(c.id));
+    if(move.type === 'place') {
+      if(move.card.id === '07') bonus += G.turn <= 2 ? 9999 : 320;
+      if(move.card.id === '09') bonus += 420;
+      if(move.card.id === '24') bonus += economyHere ? 365 : 220;
+      if(move.card.id === '49') bonus += economyHere ? 390 : 210;
+      if(['25','28'].includes(move.card.id)) bonus += 250;
+      if(move.card.id === '29') bonus += 285;
+      if(move.card.id === '14') bonus += 620 + aiCountOpponentCardsInZone(move.z,c=>c.type==='Supporter') * 90;
+      if(move.card.id === 'bh04') bonus += 590;
+      if(move.card.id === '21') bonus += 430;
+    }
+    if(move.type === 'consolidate' && ['14','bh04','21'].includes(move.card.id)) {
+      bonus += 360 + (move.tributes || []).length * 35;
+      for(const tribute of move.tributes || []) {
+        if(tribute?.card?.id === '09') bonus += 90;
+        if(['24','49'].includes(tribute?.card?.id) && economyHere < 2) bonus -= 360;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_alpine_furnace') {
+    const furnaceEligible = c=>c && c.owner===cp && ['Initiator','Improvisor'].includes(c.type) && c.id !== '56';
+    let furnaceZone = 0, furnaceLoad = -1;
+    for(let zi=0;zi<3;zi++) {
+      const load = aiCountOwnCardsInZone(zi,furnaceEligible);
+      if(load > furnaceLoad) { furnaceLoad = load; furnaceZone = zi; }
+    }
+    if(move.type === 'place') {
+      if(['22','40','48','87','bh13'].includes(move.card.id)) bonus += move.z === furnaceZone ? 310 + furnaceLoad * 55 : 120;
+      if(move.card.id === '73') bonus += move.z === furnaceZone ? 180 + furnaceLoad * 240 : 40;
+      if(move.card.id === '47') bonus += G.players[cp].hand.some(c=>['40','87','bh13'].includes(c.id)) ? 230 : 100;
+      if(move.card.id === '74') bonus += 260;
+      if(move.card.id === '76') bonus += move.z === furnaceZone ? 35 : 170;
+      if(move.card.id === '56') bonus += furnaceLoad ? 70 : 360;
+    }
+    if(move.type === 'consolidate' && ['40','87','bh13'].includes(move.card.id)) {
+      bonus += move.z === furnaceZone ? 280 : 120;
+      for(const tribute of move.tributes || []) if(tribute?.card?.id === '73') bonus -= 1100;
+    }
+  }
+
+  else if(deckId === 'ai_eventide_blockade') {
+    const ownCharactersHere = aiCountOwnCardsInZone(move.z,c=>c.type!=='Supporter');
+    const enemySupportersHere = aiCountOpponentCardsInZone(move.z,c=>c.type==='Supporter');
+    const anneHere = aiCountOwnCardsInZone(move.z,c=>c.id==='11');
+    if(move.type === 'place') {
+      if(move.card.id === '02') bonus += G.turn <= 3 ? 580 : 260;
+      if(move.card.id === '45') bonus += ownCharactersHere === 0 ? 620 : -500;
+      if(move.card.id === '14') bonus += 390 + enemySupportersHere * 150;
+      if(move.card.id === '11') bonus += aiCountOwnCardsInZone(move.z,c=>c.type==='Supporter') * 70;
+      if(move.card.id === '51') bonus += 330;
+      if(['31','52','53','64','65'].includes(move.card.id)) bonus += anneHere ? 270 : 150;
+      if(move.card.id === '74') bonus += 245;
+      if(move.card.id === '79') bonus += 210;
+      if(move.card.id === '20') bonus += 175;
+    }
+    if(move.type === 'consolidate' && ['45','14','11','51'].includes(move.card.id)) {
+      if(move.card.id === '45' && ownCharactersHere > 0) bonus -= 720;
+      if(move.card.id === '14') bonus += enemySupportersHere * 120;
+      for(const tribute of move.tributes || []) if(['53','64','79'].includes(tribute?.card?.id)) bonus -= 520;
     }
   }
 
@@ -4937,6 +5053,7 @@ async function aiRunEffect(card, z, r, c) {
         ai_crown_of_five:['09','24','49'],
         ai_hungarian_war_dance:['25','44','68'],
         ai_great_oak_salvo:['47','65','20'],
+        ai_reinforcement_exchange:['09','24','49'],
         ai_adjacency_doctrine:['25','44','68']
       };
       const diversifiedPlan = diversifiedPlans[strat] || [];

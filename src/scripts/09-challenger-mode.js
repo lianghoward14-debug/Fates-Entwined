@@ -567,6 +567,70 @@ const AI_ONLY_RANDOM_DECKS = [
     ]
   },
   {
+    id: 'ai_safe_row_sanctuary',
+    baseStrategy: 'ai_safe_row_sanctuary',
+    name: 'Safe-Row Sanctuary',
+    description: 'Builds extra safe squares, marks one as Jamie\'s sanctuary, and compounds Louis, Cathy and formation bonuses behind the contested row.',
+    theme: 'AI Only - Safe-Row Fortress',
+    faceCardId: 'bh22',
+    displayCardIds: ['bh22','02','43','bh12','23','24','59'],
+    reinforcementCost: 23,
+    ids: [
+      '02','43','43','43','bh12','bh12','bh12','bh22','bh22','bh22',
+      '23','23','23','24','24','24','47','47','47','59',
+      '59','59','60','60','60','58','58','58','32','32',
+      '32','33','33','33','65','65','65','20','20','20'
+    ]
+  },
+  {
+    id: 'ai_reinforcement_exchange',
+    baseStrategy: 'ai_reinforcement_exchange',
+    name: 'Reinforcement Exchange',
+    description: 'Turns clustered supporters and even established characters into reinforcement, then cashes that economy into repeated four-cost finishers.',
+    theme: 'AI Only - Reinforcement Economy',
+    faceCardId: '14',
+    displayCardIds: ['14','bh04','09','24','49','21','07'],
+    reinforcementCost: 37,
+    ids: [
+      '07','14','14','14','bh04','bh04','bh04','21','21','21',
+      '29','29','29','09','09','09','24','24','24','49',
+      '49','49','47','47','47','60','60','60','58','58',
+      '58','33','33','33','25','25','25','28','28','28'
+    ]
+  },
+  {
+    id: 'ai_alpine_furnace',
+    baseStrategy: 'ai_alpine_furnace',
+    name: 'ALPINE Furnace',
+    description: 'Loads one zone with low-cost Initiators and Improvisors, then feeds their Fate into a huge mobile ALPINE Expeditionary.',
+    theme: 'AI Only - Character Sacrifice',
+    faceCardId: '73',
+    displayCardIds: ['73','56','22','40','48','87','bh13'],
+    reinforcementCost: 23,
+    ids: [
+      '56','22','22','22','40','40','40','48','48','48',
+      '87','87','87','bh13','bh13','bh13','73','73','73','47',
+      '47','47','54','54','54','60','60','60','58','58',
+      '58','74','74','74','76','76','76','33','33','33'
+    ]
+  },
+  {
+    id: 'ai_eventide_blockade',
+    baseStrategy: 'ai_eventide_blockade',
+    name: 'Eventide Blockade',
+    description: 'Locks down lanes with Chingachlook and Alondra while a separate Anne-led supporter column applies attrition and hand pressure.',
+    theme: 'AI Only - Lane Denial',
+    faceCardId: '45',
+    displayCardIds: ['45','14','11','51','52','53','64'],
+    reinforcementCost: 28,
+    ids: [
+      '02','45','11','11','11','51','51','51','14','14',
+      '14','31','31','31','33','33','33','52','52','52',
+      '53','53','53','64','64','64','65','65','65','74',
+      '74','74','75','75','75','79','79','79','20','20'
+    ]
+  },
+  {
     id: 'ai_hand_quarantine',
     baseStrategy: 'ai_hand_quarantine',
     name: 'Hand Quarantine',

@@ -138,15 +138,25 @@ function localName(profile){
 }
 function localPhoto(profile){
   const value = profile || {};
+  const explicit = value.profileImg || value.photoURL || value.pfp || value.img || null;
+  if(explicit){
+    if((typeof explicit === 'number' || /^\d+$/.test(String(explicit))) && typeof window.PFP_PATH === 'function'){
+      return window.PFP_PATH(Number(explicit));
+    }
+    if(typeof window.resolveProfileImgSrc === 'function'){
+      const resolved = window.resolveProfileImgSrc(explicit);
+      if(resolved) return resolved;
+    }
+    if(typeof explicit === 'object') return explicit.src || explicit.url || explicit.path || explicit.dataUrl || 'blank.png';
+    return explicit;
+  }
   try{
     if(typeof window.getProfileImgSrc === 'function'){
       const resolved = window.getProfileImgSrc();
       if(resolved) return resolved;
     }
   }catch(_){ }
-  const source = value.profileImg || value.photoURL || value.pfp || value.img || 'blank.png';
-  if(source && typeof source === 'object') return source.src || source.url || source.path || 'blank.png';
-  return source;
+  return 'blank.png';
 }
 function buildLocalProfile(user){
   const local = getLocalProfile();

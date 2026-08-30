@@ -50,6 +50,10 @@ const expected = {
   ai_hungarian_war_dance:{strategy:'ai_hungarian_war_dance', characters:19},
   ai_great_oak_salvo:{strategy:'ai_great_oak_salvo', characters:10},
   ai_adjacency_doctrine:{strategy:'ai_adjacency_doctrine', characters:25},
+  ai_safe_row_sanctuary:{strategy:'ai_safe_row_sanctuary', characters:13, reinforcementCost:23},
+  ai_reinforcement_exchange:{strategy:'ai_reinforcement_exchange', characters:13, reinforcementCost:37},
+  ai_alpine_furnace:{strategy:'ai_alpine_furnace', characters:16, reinforcementCost:23},
+  ai_eventide_blockade:{strategy:'ai_eventide_blockade', characters:11, reinforcementCost:28},
   ai_hand_quarantine:{strategy:'ai_hand_quarantine', characters:7},
   ai_high_t_draw_mill:{strategy:'ai_high_t_draw_mill', characters:22},
   ai_university_counterbattery:{strategy:'ai_university_counterbattery', characters:16},
@@ -72,16 +76,24 @@ for(const [deckId, design] of Object.entries(expected)){
   const counts = new Map();
   let stars = 0;
   let characters = 0;
+  let reinforcementCost = 0;
   deck.ids.forEach(id=>{
     const card = byId.get(String(id));
     assert(card, `${deckId} references missing card ${id}`);
     assert(!card.retired && !card.temporarilyDisabled, `${deckId} should not use unavailable card ${id}`);
     counts.set(String(id), (counts.get(String(id)) || 0) + 1);
     if(card.rarity === 'star') stars++;
-    if(card.type !== 'Supporter') characters++;
+    if(card.type !== 'Supporter') {
+      characters++;
+      reinforcementCost += Number(card.cost) || 0;
+    }
   });
   assert.strictEqual(stars, design.stars == null ? 1 : design.stars, `${deckId} should retain its designed Star count`);
   assert.strictEqual(characters, design.characters, `${deckId} should retain its designed character/supporter split`);
+  if(design.reinforcementCost != null) {
+    assert.strictEqual(deck.reinforcementCost, design.reinforcementCost, `${deckId} should publish its reinforcement curve`);
+    assert.strictEqual(reinforcementCost, design.reinforcementCost, `${deckId} reinforcement curve should match its card list`);
+  }
   for(const [id,count] of counts){
     const card = byId.get(id);
     assert(count <= (card.rarity === 'star' ? 1 : 3), `${deckId} exceeds the copy limit for ${id}`);
@@ -92,7 +104,11 @@ const exactDeckCounts = {
   ai_crown_of_five:{'07':1,'19':3,'15':3,'01':3,'57':3,'77':3,'09':3,'24':3,'49':3,'92':3,'28':3,'68':3,'74':3,'60':3},
   ai_snowball_fight_club:{'bh05':1,'93':3,'37':3,'41':3,'08':3,'48':3,'31':3,'58':3,'60':3,'13':3,'32':3,'42':3,'05':3,'71':3},
   ai_wintertide_family_reunion:{'100':3,'98':3,'88':3,'99':3,'89':3,'82':3,'84':3,'94':3,'92':3,'06':3,'27':2,'28':3,'60':3,'90':2},
-  ai_great_oak_salvo:{'07':1,'47':3,'64':3,'75':3,'58':3,'60':3,'13':3,'32':3,'69':3,'33':3,'20':3,'65':3,'35':3,'bh22':3}
+  ai_great_oak_salvo:{'07':1,'47':3,'64':3,'75':3,'58':3,'60':3,'13':3,'32':3,'69':3,'33':3,'20':3,'65':3,'35':3,'bh22':3},
+  ai_safe_row_sanctuary:{'02':1,'43':3,'bh12':3,'bh22':3,'23':3,'24':3,'47':3,'59':3,'60':3,'58':3,'32':3,'33':3,'65':3,'20':3},
+  ai_reinforcement_exchange:{'07':1,'14':3,'bh04':3,'21':3,'29':3,'09':3,'24':3,'49':3,'47':3,'60':3,'58':3,'33':3,'25':3,'28':3},
+  ai_alpine_furnace:{'56':1,'22':3,'40':3,'48':3,'87':3,'bh13':3,'73':3,'47':3,'54':3,'60':3,'58':3,'74':3,'76':3,'33':3},
+  ai_eventide_blockade:{'02':1,'45':1,'11':3,'51':3,'14':3,'31':3,'33':3,'52':3,'53':3,'64':3,'65':3,'74':3,'75':3,'79':3,'20':2}
 };
 for(const [deckId, blueprint] of Object.entries(exactDeckCounts)){
   const deck = decks.find(entry=>entry.id === deckId);
@@ -110,6 +126,10 @@ for(const strategy of [
   'ai_hungarian_war_dance',
   'ai_great_oak_salvo',
   'ai_adjacency_doctrine',
+  'ai_safe_row_sanctuary',
+  'ai_reinforcement_exchange',
+  'ai_alpine_furnace',
+  'ai_eventide_blockade',
   'ai_hand_quarantine',
   'ai_high_t_draw_mill',
   'ai_university_counterbattery',
@@ -130,6 +150,10 @@ const advancedHeuristicMarkers = {
   ai_hungarian_war_dance:'bestFormation',
   ai_great_oak_salvo:'oakTributes',
   ai_adjacency_doctrine:'adjacencySourcesHere',
+  ai_safe_row_sanctuary:'sanctuaryPieces',
+  ai_reinforcement_exchange:'economyHere',
+  ai_alpine_furnace:'furnaceLoad',
+  ai_eventide_blockade:'enemySupportersHere',
   ai_hand_quarantine:'westGermanAvailable',
   ai_high_t_draw_mill:'highTActive',
   ai_university_counterbattery:'reactiveHavanoInHand',

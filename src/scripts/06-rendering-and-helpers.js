@@ -5614,7 +5614,7 @@ function renderTopbarEffects() {
     }else if(type === 'DELAYED_HAND_DELIVERY' && remaining > 0){
       add('94', 'mail_delivery', 'Wodny Potok Mailman', 'Mail Delivery', 'A scheduled card will be added to hand after ' + remaining + ' owner turn' + (remaining === 1 ? '' : 's') + '.', 'effect-pill-mail');
     }else if(type === 'SUPPORTERS_AS_CHARACTERS' && remaining > 0){
-      add('99', 'blame_game', 'Rozsi and Zsofia (Youth)', 'The Blame Game', 'Supporters are classified as Characters for consolidation.', 'effect-pill-blame-game');
+      add('99', 'blame_game', 'Rozsi and Zsofia (Youth)', 'The Blame Game', 'Your Supporters are classified as Characters.', 'effect-pill-blame-game');
       // Unlike opponent-facing locks, Blame Game benefits status.playerIndex.
       // Its canonical status did not need sourceController, so the generic
       // inverse-owner fallback put a duplicate banner on the wrong side while
@@ -6162,7 +6162,7 @@ function renderTopbarEffects() {
         label: card ? card.ability : 'The Blame Game',
         cardName: card ? card.name : 'Rozsi and Zsofia (Youth)',
         cardAbility: card ? card.ability : 'The Blame Game',
-        cardEffect: card ? card.effect : 'Supporters are classified as Characters for consolidation.',
+        cardEffect: card ? card.effect : 'Your Supporters are classified as Characters.',
         owner: coerceStatusOwner(owner, myP),
         extraClass: 'effect-pill-blame-game',
         turnsLeft: turns
@@ -7199,7 +7199,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const cardArt = visual.img
     ? (useCanvasArt ? '<canvas class="cd-img-canvas" aria-hidden="true"></canvas>' : `<img src="${visual.img}" alt="${escapeHtml(visual.name)}" width="280" height="392" decoding="async" loading="eager" fetchpriority="high">`)
     : `<span class="cd-fallback">${getAffIcon(visual.aff)}</span>`;
-  const voiceButton = (!hideCard && visual.type !== 'Supporter')
+  const isAdaptiveTacticsToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
+  const voiceButton = (!hideCard && visual.type !== 'Supporter' && !isAdaptiveTacticsToken)
     ? `<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound==='function') playCardSound('${escapeHtml(card.id)}');">♪</button>`
     : '';
   const trackerHtml = buildCardDetailTrackerHTML(card, viewerP, hideCard);

@@ -10048,19 +10048,21 @@ function getEffectiveFate(card, z) {
     // Felicyta (01): +4 to adjacent friendly cards
     if(cardActsAsPassive(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += (4 + jeremiahBoost) * adjacencyMultiplier;
     // Phil (46): no zone aura
-    // Anne Stone (11): +3 to supporters in zone
-    if(cardActsAsPassive(cell, '11') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
+    // Anne Stone (11): +3 to cards currently classified as Supporters in zone.
+    if(cardActsAsPassive(cell, '11') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
     // KvÄ›tka (19): all Coordinators in zone +2
     if(cardActsAsPassive(cell, '19') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Coordinator') : card.type==='Coordinator')) bonus += 3 + jeremiahBoost;
     // Zsofia (15): handled in its own stacking block below
     // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
     // Dylan Kirby (29): Initiator — no continuous effect (search only)
-    // Cathy (23): +2 to all owned characters in zone
-    if(cardActsAsPassive(cell, '23') && (typeof cardHasEffectType === 'function' ? !cardHasEffectType(card, 'Supporter') : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
+    // Cathy (23): +2 to cards currently classified as Characters in zone.
+    // Blame Game (99) temporarily reclassifies Supporters, so use the shared
+    // rules predicate instead of their printed/effect type.
+    if(cardActsAsPassive(cell, '23') && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
-    if(cardActsAsPassive(cell, '59') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
+    if(cardActsAsPassive(cell, '59') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
     if(cardActsAsPassive(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
   }));

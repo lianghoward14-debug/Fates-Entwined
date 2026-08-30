@@ -3223,6 +3223,22 @@
       next.copiedPassiveId = copiedPassiveId;
       next._copiedPassiveId = copiedPassiveId;
     }
+    if(String(card.id || '') === 'bh05'){
+      const taylorCopiedId = String(card.counters?.copiedEffectId || card.counters?.copiedPassiveId || '');
+      if(taylorCopiedId){
+        // The copied identity is public once Taylor resolves. Rehydrate the
+        // canonical presentation fields expected by both players' board and
+        // card-information renderers without exposing the source pile or iid.
+        const copiedDefinition = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
+          ? CARDS.find(function(candidate){ return String(candidate?.id || '') === taylorCopiedId; })
+          : null;
+        next._bh05CopiedCardId = taylorCopiedId;
+        next._bh05CopiedPassiveId = String(card.counters?.copiedPassiveId || '');
+        next._bh05CopiedCardName = String(copiedDefinition?.name || 'Copied Card');
+        next._bh05CopiedAbility = String(copiedDefinition?.ability || 'Copied Effect');
+        next._bh05CopiedPrintedEffect = String(copiedDefinition?.effect || '');
+      }
+    }
     const runtimePassiveId = String(
       card.counters?.copiedPassiveId
       || card.counters?.copiedEffectId
@@ -12594,8 +12610,8 @@
     if(!room || !g) return;
     const hostNode = players?.[room.hostUid] || {};
     const guestNode = players?.[room.guestUid] || {};
-    const hostP = mergeRoomPublicProfile(room.hostUid, hostNode.profileSnapshot, hostNode.profile, liveProfiles.get(room.hostUid));
-    const guestP = mergeRoomPublicProfile(room.guestUid, guestNode.profileSnapshot, guestNode.profile, liveProfiles.get(room.guestUid));
+    const hostP = mergeRoomPublicProfile(room.hostUid, hostNode, hostNode.profileSnapshot, hostNode.profile, liveProfiles.get(room.hostUid));
+    const guestP = mergeRoomPublicProfile(room.guestUid, guestNode, guestNode.profileSnapshot, guestNode.profile, liveProfiles.get(room.guestUid));
     const hostGame = gameProfileFromPublic(hostP, 'Host');
     const guestGame = gameProfileFromPublic(guestP, 'Guest');
     g.playerProfiles = { 0: hostGame, 1: guestGame };
