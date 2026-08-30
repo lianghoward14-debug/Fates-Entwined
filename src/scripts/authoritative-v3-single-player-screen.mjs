@@ -294,12 +294,19 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     if(endTurn){
       this.endTurnElement = endTurn;
       this.endTurnOnclick = endTurn.getAttribute('onclick');
-      this.endTurnHandler = event=>{
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const command = this.view?.legalCommands?.find(item=>item.type === 'END_TURN');
-        if(command) this.submit(command);
-      };
+       this.endTurnHandler = event=>{
+         event.preventDefault();
+         event.stopImmediatePropagation();
+         const command = this.view?.legalCommands?.find(item=>item.type === 'END_TURN');
+         if(command){
+           const turn = Number(this.view?.state?.turn || 0);
+           if(typeof this.window?.playFateEndTurnInputCue === 'function') this.window.playFateEndTurnInputCue('end-turn:authority-input:' + turn);
+           else if(typeof this.window?.playSfx === 'function') this.window.playSfx('endTurn');
+           else if(typeof this.window?.playEndTurnSfxOnce === 'function') this.window.playEndTurnSfxOnce('end-turn:authority-input:' + turn);
+           else if(typeof this.window?.playFateSfxOnce === 'function') this.window.playFateSfxOnce('endTurn', 'end-turn:authority-input:' + turn, 0);
+           this.submit(command);
+         }
+       };
       endTurn.removeAttribute('onclick');
       endTurn.addEventListener('click', this.endTurnHandler, true);
     }

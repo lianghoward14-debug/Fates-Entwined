@@ -7783,13 +7783,24 @@ body.tutorial-active #s-game .landscape-panel.tutorial-landscape .landscape-desc
 #s-game .landscape-transition-layer{
   position:absolute;
   inset:0;
-  z-index:0;
+  z-index:0!important;
   pointer-events:none;
   opacity:0;
   background-size:cover;
   background-position:center;
   background-repeat:no-repeat;
   transition:opacity 1.15s ease;
+}
+
+/* Landscape crossfades belong below every match surface.  Keeping the
+   transition layer in its own stacking level prevents its fading bitmap from
+   dimming the board canvas, cards, HUD, prompts, or controls. */
+#s-game{
+  isolation:isolate;
+}
+
+#s-game > :not(.landscape-transition-layer){
+  z-index:1;
 }
 
 /* Compact 9-12 card hands reduce this heading only when its natural text wraps. */

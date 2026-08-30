@@ -75,6 +75,30 @@
     if(out&&source&&source.textContent)out.textContent=source.textContent;
   }
   function copyHtml(root,key){const out=root.querySelector(`[data-html="${key}"]`),source=$(key);if(out&&source&&out.dataset.cache!==source.innerHTML){out.innerHTML=source.innerHTML;out.dataset.cache=source.innerHTML}}
+  function playEndTurnInputCue(key){
+    // Run directly inside the trusted click gesture.  Deferred/authoritative
+    // submission may happen after that gesture and Chromium can reject audio.
+    const dedupeKey=String(key||'end-turn-input');
+    const store=window.__fatePlayedEndTurnInputCues||(window.__fatePlayedEndTurnInputCues=new Set());
+    if(store.has(dedupeKey))return false;
+    store.add(dedupeKey);
+    return playTurnStartCue('turn-end:'+dedupeKey);
+  }
+  window.playFateEndTurnInputCue=playEndTurnInputCue;
+  function playTurnStartCue(key){
+    const dedupeKey=String(key||'turn-start');
+    const store=window.__fatePlayedTurnStartCues||(window.__fatePlayedTurnStartCues=new Set());
+    if(store.has(dedupeKey))return false;
+    store.add(dedupeKey);
+    // The core sound has its own broad time throttle. Reset it here because
+    // this exact turn key is the stronger dedupe and competing UI observers
+    // must not consume the cue first.
+    window.__fateLastTurnChangeSfxAt=0;
+    if(typeof window.playSfx==='function'){window.playSfx('turnChange');return true;}
+    if(typeof window.playFateSfxOnce==='function')return window.playFateSfxOnce('turnChange',dedupeKey,0);
+    return false;
+  }
+  window.playFateTurnStartCue=playTurnStartCue;
   function invokeEndTurn(){
     // The authoritative screen is the only owner of a v3 local turn. Submit
     // directly to it; forwarding through the hidden legacy button makes human
@@ -84,8 +108,7 @@
       const command=screen?.view?.legalCommands?.find(item=>item.type==='END_TURN');
       if(screen&&command){
         const turn=Number(screen.view?.state?.turn||0);
-        if(typeof window.playEndTurnSfxOnce==='function')window.playEndTurnSfxOnce('end-turn:authority-local:'+turn);
-        else if(typeof window.playSfx==='function')window.playSfx('endTurn');
+        playEndTurnInputCue('end-turn:authority-local:'+turn);
         screen.submit(command);
       }
       return;
@@ -119,7 +142,14 @@
   function escapeStatusText(value){
     return String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   }
-  function statusRailSummary(key){
+  function concealedMoraleTooltip(html){
+    const template=document.createElement('template');
+    template.innerHTML=String(html||'');
+    const value=template.content.querySelector('header b');
+    if(value)value.textContent='???/???';
+    return template.innerHTML;
+  }
+  function statusRailSummary(key,onlyTaklamakan){
     const rail=$(key==='you'?'tp-status-left':'tp-status-right');
     const completeEffects=Array.isArray(rail?._fateAllStatusEffects)?rail._fateAllStatusEffects:null;
     if(completeEffects){
@@ -127,6 +157,7 @@
       completeEffects.forEach(effect=>{
         if(!effect||effect.isOverflow)return;
         const ability=String(effect.cardAbility||effect.label||'Active Effect').trim();
+        if(onlyTaklamakan&&ability!=='The Vast Taklamakan'&&!String(effect.extraClass||'').includes('oktai-conceal'))return;
         const description=String(effect.cardEffect||ability).replace(/\s+/g,' ').trim();
         const signature=(ability+'|'+description).toLowerCase();
         if(seen.has(signature))return;
@@ -140,6 +171,7 @@
     const seen=new Set(),entries=[];
     pills.forEach(pill=>{
       const ability=String(pill.dataset.effectAbility||pill.querySelector('.ept-ability')?.textContent||pill.querySelector('.effect-pill-label')?.textContent||'Active Effect').trim();
+      if(onlyTaklamakan&&ability!=='The Vast Taklamakan'&&!pill.classList.contains('effect-pill-oktai-conceal'))return;
       const description=String(pill.querySelector('.ept-effect')?.textContent||pill.getAttribute('aria-label')||pill.getAttribute('title')||'').replace(/\s+/g,' ').trim();
       const signature=(ability+'|'+description).toLowerCase();
       if(seen.has(signature))return;
@@ -190,6 +222,7 @@
     ['my-name','opp-name','turn-hud-turn','turn-hud-timer','turn-hud-player','my-deck-count','my-discard-count','act-hint'].forEach(k=>copyText(root,k));
     ['my-name','opp-name'].forEach(key=>{const name=root.querySelector(`[data-text="${key}"]`),length=(name?.textContent||'').trim().length;if(name){name.classList.toggle('is-long-name',length>=21);name.classList.toggle('is-very-long-name',length>=28)}});
     const clockText=root.querySelector('[data-text="turn-hud-timer"]');
+    const turnCountText=root.querySelector('[data-text="turn-hud-turn"]');
     const clockMatch=(clockText?.textContent||'').match(/\d+\s*:\s*\d+/);
     if(clockText&&clockMatch)clockText.textContent=clockMatch[0].replace(/\s/g,'');
     copyHtml(root,'my-stat');copyHtml(root,'opp-stat');
@@ -197,8 +230,8 @@
     const turnState=authorityView?.state||(invoke('getFateGameState')||window.FATE_GAME_STATE||{}),activePlayer=Number(turnState?.activePlayer??turnState?.currentPlayer),turnNumber=Number(turnState?.turn??turnState?.turnNumber??0),turnSoundKey=[String(turnState?.matchId||turnState?._onlineRoomCode||'local'),turnNumber,activePlayer].join(':');
     if(root._lastTurnOwnershipSoundKey!==turnSoundKey){
       root._lastTurnOwnershipSoundKey=turnSoundKey;
-      if(activePlayer===self&&(!window.shouldPlayTurnChangeSfx||window.shouldPlayTurnChangeSfx())){
-        if(typeof window.playSfx==='function')window.playSfx('turnChange');
+      if(activePlayer===self){
+        playTurnStartCue('turn-start:'+turnNumber+':'+activePlayer);
       }
     }
     const selfProjected=authorityView?.state?.players?.[self],rivalProjected=authorityView?.state?.players?.[rival];
@@ -206,6 +239,7 @@
     const bh21Concealed=typeof window.isBh21ViewerConcealed==='function'&&window.isBh21ViewerConcealed(self);
     root.querySelector('[data-hand-count="self"]').textContent=bh21Concealed?'?':String(selfHand);root.querySelector('[data-hand-count="rival"]').textContent=bh21Concealed?'?':String(rivalHand);
     if(clockText&&bh21Concealed)clockText.textContent='?:??';
+    if(turnCountText&&bh21Concealed)turnCountText.textContent='??/??';
     const pilePlayer=currentPilePlayer(self);
     const discardArt=root.querySelector('[data-discard] .codex-v19-archive-art');
     if(discardArt){
@@ -246,11 +280,11 @@
         if(label)label.textContent=bh21Concealed?'???':String(value);if(fill)fill.style.width=Math.max(0,Math.min(100,displayedValue/max*100))+'%';
        const moralePanel=root.querySelector(`[data-morale-panel="${key}"]`);
         const liveMoraleContent=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
-        if(bh21Concealed&&root._bh21MoraleUiSnapshot&&!root._bh21MoraleUiSnapshot.contents[key])root._bh21MoraleUiSnapshot.contents[key]=liveMoraleContent;
+        if(bh21Concealed&&root._bh21MoraleUiSnapshot&&!root._bh21MoraleUiSnapshot.contents[key])root._bh21MoraleUiSnapshot.contents[key]=concealedMoraleTooltip(liveMoraleContent);
         if(moralePanel)moralePanel.dataset.content=bh21Concealed?(root._bh21MoraleUiSnapshot?.contents?.[key]||liveMoraleContent):liveMoraleContent;
        if(button){
-         const rail=statusRailSummary(key),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=Math.max(summaryCount,rail.count),content=rail.count?rail.content:(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>');
-          button.querySelector('[data-status-count]').textContent=String(count);button.dataset.content=content;
+          const rail=statusRailSummary(key,bh21Concealed),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=bh21Concealed?rail.count:Math.max(summaryCount,rail.count),content=rail.count?rail.content:(bh21Concealed?'<p>The Taklamakan hinders your ability to view active statuses.</p>':(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>'));
+           button.querySelector('[data-status-count]').textContent=bh21Concealed?'?':String(count);button.dataset.content=content;
           button.setAttribute('aria-label',(key==='you'?'Your':'Opponent')+' status effects');
          updateStatusItems(button,statusNode,count);
        }

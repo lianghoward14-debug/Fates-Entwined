@@ -571,6 +571,19 @@ function endTurn(opts) {
   // A player click must not interrupt a genuinely active AI turn. Check this
   // before consuming the shared input debounce.
   if(G._aiRunning && isActualAITurn && !isAICompletion) return false;
+  // Play on the human's input, before a card window/picker can defer turn
+  // resolution.  Reserve one cue per turn so resuming after that window does
+  // not replay it.
+  if(!isActualAITurn){
+    const inputSfxKey = ['end-turn-input', String(G._onlineRoomCode || 'local'), Number(G.turn || 0) || 0, Number(G.currentPlayer || 0) || 0].join(':');
+    if(G._lastEndTurnInputSfxKey !== inputSfxKey){
+      G._lastEndTurnInputSfxKey = inputSfxKey;
+      if(typeof window.playFateEndTurnInputCue === 'function') window.playFateEndTurnInputCue(inputSfxKey);
+      else if(typeof window.playSfx === 'function') window.playSfx('endTurn');
+      else if(typeof window.playEndTurnSfxOnce === 'function') window.playEndTurnSfxOnce(inputSfxKey);
+      else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('endTurn', inputSfxKey, 0);
+    }
+  }
   const cardInfoWasOpen = isCardInformationWindowOpen();
   if(cardInfoWasOpen) {
     if(typeof dismissCardInfoOverlay === 'function') dismissCardInfoOverlay();
@@ -625,10 +638,6 @@ function endTurn(opts) {
   if(typeof maybeResolveLandscapeEndTurn === 'function' && maybeResolveLandscapeEndTurn()) {
     return;
   }
-
-  const endTurnSfxKey = ['end-turn', String(G._onlineRoomCode || 'local'), Number(G.turn || 0) || 0, cp].join(':');
-  if(typeof window.playEndTurnSfxOnce === 'function') window.playEndTurnSfxOnce(endTurnSfxKey);
-  else if(typeof playSfx === 'function') playSfx('endTurn');
 
   if(typeof window.resolveLegacyMoralePressureTurnEnd === 'function') {
     window.resolveLegacyMoralePressureTurnEnd(cp);
@@ -692,6 +701,19 @@ function hidePT() {
   hidePassTurnOverlay();
   nextPlayerTurn();
 }
+
+// Presentation bridge for Makenna's added-turn landscape.  The raised turn
+// limit is the authoritative result of Thousand Year Bird Cult, so it also
+// covers saved/online matches that predate the private activation marker.
+function getMakennaLandscapePresentationState() {
+  const maxTurns = Math.max(1, Number(G && G.maxTurns) || 24);
+  return {
+    activated: !!(G && (G._makennaBirdCultActivated || maxTurns > 24)),
+    turn: Math.max(0, Number(G && G.turn) || 0),
+    maxTurns
+  };
+}
+window.getMakennaLandscapePresentationState = getMakennaLandscapePresentationState;
 
 function getBusserTurnsLeft(card) {
   // Breakfast Republic Busser no longer grants movement. Returning zero also

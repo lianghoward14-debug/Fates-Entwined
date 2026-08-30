@@ -5642,7 +5642,7 @@ function renderTopbarEffects() {
       add('bh19', 'high_t', 'Abed', 'High-T', 'Permanent Fate gain effects have doubled potency for this turn.', 'effect-pill-high-t');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'BH21_FATE_MORALE_CONCEALMENT' && remaining > 0){
-      add('bh21','oktai_conceal','Oktai','The Vast Taklamakan','The affected opponent cannot see field or zone Fate values, Morale values or changes, hand counts, or the turn timer for ' + remaining + ' remaining turn' + (remaining === 1 ? '' : 's') + '.','effect-pill-oktai-conceal');
+      add('bh21','oktai_conceal','Oktai','The Vast Taklamakan','The affected opponent cannot see Fate values, Morale values or changes, hand counts, the timer, turn count, or other active status banners for ' + remaining + ' remaining turn' + (remaining === 1 ? '' : 's') + '.','effect-pill-oktai-conceal');
     }
   });
   const jamieSquares = Array.isArray(G?._phase7Geometry?.squareStatuses)
@@ -5731,7 +5731,7 @@ function renderTopbarEffects() {
     allEffects.push({
       icon:getStatusEffectIcon('oktai_conceal'),label:card?card.ability:'The Vast Taklamakan',
       cardName:card?card.name:'Oktai',cardAbility:card?card.ability:'The Vast Taklamakan',
-      cardEffect:'The affected opponent cannot see field or zone Fate values, Morale values or changes, hand counts, or the turn timer.',
+      cardEffect:'The affected opponent cannot see Fate values, Morale values or changes, hand counts, the timer, turn count, or other active status banners.',
       owner:Number(status.sourceController),turnsLeft:Number(status.remainingTargetTurns),
       sourceIid:status.sourceIid,extraClass:'effect-pill-oktai-conceal',statusInstanceKey:'bh21:'+String(status.sourceIid||'')
     });

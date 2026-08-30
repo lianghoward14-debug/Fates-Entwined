@@ -2609,7 +2609,11 @@
     g._onlineLastYourTurnSfxKey = key;
     setTimeout(function(){
       try {
-        if(typeof window.playSfx === 'function') window.playSfx('turnChange');
+        if(typeof window.playFateTurnStartCue === 'function') {
+          window.playFateTurnStartCue('turn-start:' + (Number(g.turn || 0) || 0) + ':' + currentPlayer);
+        } else if(typeof window.playFateSfxOnce === 'function') {
+          window.playFateSfxOnce('turnChange', 'online-turn-start:' + key, 700);
+        } else if(typeof window.playSfx === 'function') window.playSfx('turnChange');
       } catch(e) {}
     }, 80);
     try {
@@ -2619,7 +2623,7 @@
     return true;
   }
   function playOnlineLocalEndTurnSfxOnce(g){
-    if(!g || g._onlineApplyingRemoteAction || typeof window.playSfx !== 'function') return false;
+    if(!g || g._onlineApplyingRemoteAction) return false;
     const localIndex = Number.isInteger(Number(g._onlinePlayerIndex)) ? Number(g._onlinePlayerIndex) : null;
     if(localIndex === null || Number(g.currentPlayer) !== localIndex) return false;
     const key = [
@@ -2631,9 +2635,14 @@
     g._onlineLastLocalEndTurnSfxKey = key;
     try{
       const dedupeKey = 'end-turn:' + key;
+      if(typeof window.playFateEndTurnInputCue === 'function') return window.playFateEndTurnInputCue(dedupeKey);
+      if(typeof window.playSfx === 'function') {
+        window.playSfx('endTurn');
+        return true;
+      }
       if(typeof window.playEndTurnSfxOnce === 'function') return window.playEndTurnSfxOnce(dedupeKey);
-      window.playSfx('endTurn');
-      return true;
+      if(typeof window.playFateSfxOnce === 'function') return window.playFateSfxOnce('endTurn', dedupeKey, 0);
+      return false;
     }catch(e){
       return false;
     }
@@ -3562,6 +3571,7 @@
       turnNumber:Math.max(1, Number(projected.turn) || 1),
       maxTurns:Math.max(1, Number(projected.maxTurns)
         || (projected.gameSettings?.zoneControlRework === false ? 20 : 24)),
+      _makennaBirdCultActivated:projected.makennaBirdCultActivated === true,
       phase:String(projected.phase || 'main'),
       landscapeId:String(projected.landscapeId || 'igb1'),
       landscapeBgNum,

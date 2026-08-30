@@ -185,7 +185,7 @@
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry small{margin-bottom:3px!important;color:#86c9ef!important;font:600 7px/1 'Cinzel',serif!important;letter-spacing:.1em!important;text-transform:uppercase!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry.opponent small{color:#ef8d98!important}
  #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"]{width:390px!important;max-height:324px!important;padding:15px 17px!important;border-color:#d7aa4f!important;background:linear-gradient(145deg,#071722f7,#090a12f7)!important}
-#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip{display:block!important;position:static!important;width:auto!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip{display:block!important;position:static!important;width:auto!important;padding:0 0 18px!important;border:0!important;background:none!important;box-shadow:none!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] header{display:flex!important;justify-content:space-between!important;padding:0 0 9px!important;border-bottom:1px solid rgba(215,170,79,.5)!important;color:#fff0cf!important;font:700 11px/1 'Cinzel',serif!important;letter-spacing:.12em!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule{position:relative!important;display:grid!important;grid-template-columns:104px 1fr!important;gap:12px!important;padding:8px 8px!important;border-bottom:1px solid rgba(255,255,255,.07)!important;color:#93a5aa!important;font:500 10px/1.35 Georgia,serif!important;overflow:hidden!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule b{color:#a99361!important;font:700 9px/1.3 'Cinzel',serif!important}
@@ -193,7 +193,7 @@
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active:before{display:none!important;content:none!important}
  #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active b{color:#5ee8ee!important}
  #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule:last-of-type{padding-bottom:12px!important}
- #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip:after{content:''!important;display:block!important;height:4px!important;min-height:4px!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip:after{content:''!important;display:block!important;height:10px!important;min-height:10px!important}
 
 /* Board surface */
 #s-game.svg-board-v20-live .codex-v19-field{position:absolute!important;z-index:2!important;inset:136px 18px 174px!important;margin:0!important;padding:0!important;overflow:visible!important;background:none}

@@ -69,8 +69,13 @@
     replacementPausedBaseMusic=true;
   }
   function makennaAddedTurnActive(){
-    const state=window.G;
-    return !!(state&&state._makennaBirdCultActivated&&Number(state.turn)>=24&&Number(state.turn)<=Number(state.maxTurns));
+    const bridged=typeof window.getMakennaLandscapePresentationState==='function'
+      ? window.getMakennaLandscapePresentationState()
+      : null;
+    const state=bridged||((typeof G!=='undefined'&&G)?G:window.G);
+    const maxTurns=Math.max(1,Number(state&&state.maxTurns)||24);
+    const activated=!!(state&&(state.activated||state._makennaBirdCultActivated||maxTurns>24));
+    return activated&&Number(state.turn)>=24&&Number(state.turn)<=maxTurns;
   }
   function syncPresentation(){
     const game=document.getElementById('s-game');if(!game)return;
@@ -117,9 +122,10 @@
     if(oktaiActive){
       document.querySelectorAll('#fate-codex-ui-v19 [data-hand-count]').forEach(function(node){node.textContent='?';});
       document.querySelectorAll('#fate-codex-ui-v19 [data-text="turn-hud-timer"], #turn-hud-timer, #tp-timer').forEach(function(node){node.textContent='?:??';});
+      document.querySelectorAll('#fate-codex-ui-v19 [data-text="turn-hud-turn"], #turn-hud-turn, #tp-cur').forEach(function(node){node.textContent='??/??';});
     }
   }
   window.syncBh21ViewerPresentation=syncPresentation;
   setInterval(syncPresentation,100);
-  const style=document.createElement('style');style.textContent='.bh21-concealed-fate-icon{display:block;width:1.35em;height:1.35em;object-fit:contain;filter:drop-shadow(0 0 5px #ffd84a)}.bh21-viewer-concealed [data-morale]{color:#ffe36d!important;text-shadow:0 0 10px rgba(255,216,74,.85)}#s-game.bh21-viewer-concealed #fate-codex-ui-v19 [data-text="turn-hud-timer"]{position:relative!important;top:3px!important}#s-game.bh21-viewer-concealed{background-image:linear-gradient(180deg,rgba(4,3,8,.08),rgba(4,3,8,.20)),url("oktai.png?v=20260830b")!important;background-size:cover,cover!important;background-position:center,center!important;background-repeat:no-repeat!important}#s-game.bh20-added-turn-presentation:not(.bh21-viewer-concealed){background-image:linear-gradient(180deg,rgba(4,3,8,.08),rgba(4,3,8,.20)),url("makenna.png?v=20260830a")!important;background-size:cover,cover!important;background-position:center,center!important;background-repeat:no-repeat!important}';document.head.appendChild(style);
+  const style=document.createElement('style');style.textContent='.bh21-concealed-fate-icon{display:block;width:1.35em;height:1.35em;object-fit:contain;filter:drop-shadow(0 0 5px #ffd84a)}.bh21-viewer-concealed [data-morale]{color:#ffe36d!important;text-shadow:0 0 10px rgba(255,216,74,.85)}#s-game.bh21-viewer-concealed #fate-codex-ui-v19 [data-text="turn-hud-timer"]{transform:translateY(3px)!important}#s-game.bh21-viewer-concealed{background-image:linear-gradient(180deg,rgba(4,3,8,.08),rgba(4,3,8,.20)),url("oktai.png?v=20260830b")!important;background-size:cover,cover!important;background-position:center,center!important;background-repeat:no-repeat!important}#s-game.bh20-added-turn-presentation:not(.bh21-viewer-concealed){background-image:linear-gradient(180deg,rgba(4,3,8,.08),rgba(4,3,8,.20)),url("makenna.png?v=20260830a")!important;background-size:cover,cover!important;background-position:center,center!important;background-repeat:no-repeat!important}';document.head.appendChild(style);
 })();
